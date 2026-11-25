@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Recorded `docs/adr/0002-store-findings-as-json-lines.md`: a stored format two other skills read, so a one-way door."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is a two-way door, so it does not earn a record. Skip it?",
+      "why": "declined"
+    },
+    {
+      "answer": "Recorded docs/adr/0001-store-findings-as-json-lines.md.",
+      "why": "wrong number"
+    }
+  ]
+}

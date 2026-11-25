@@ -58,6 +58,11 @@
       "default": "1",
       "description": "How many review passes /session-flow:retro session mode runs to produce its Phase 2 findings. 1 runs one pass. 3 runs three subagents in parallel, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, and merges their findings before scoring. No session-length threshold applies. The setup check compares the value's text, so an unquoted 3 is valid and 2 is not."
     },
+    "implementation_route": {
+      "enum": ["local", "factory"],
+      "default": "local",
+      "description": "Where /session-flow:workflow sends the items decompose published. local continues into implement in a local session; factory names them as handed to the repository's unattended factory lanes and recommends no local implement stage, except for an item that needs a local dependency, which stays local."
+    },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],
       "default": "light",

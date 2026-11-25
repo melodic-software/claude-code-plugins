@@ -84,7 +84,7 @@ export const TRANSCRIPT_JOB_IDS = {
   "pr-review-main.yml": legs("review", REVIEW_CHUNKS),
   "pr-run-activity-read.yml": [
     ...legs("reuse-summary"),
-    ...["fix-docs", "resolve-issue", "resolve-conflicts", "review-dependency"].flatMap((activity) => legs(activity)),
+    ...["fix-docs", "resolve-issue", "resolve-conflicts", "review-dependency", "triage-issue"].flatMap((activity) => legs(activity)),
     ...["address-feedback", "fix-ci"].flatMap((activity) => legs(activity, ["", "-rung-up"])),
   ],
   "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => legs(`adjudicate-feedback-${n}`)),
@@ -93,10 +93,6 @@ export const TRANSCRIPT_JOB_IDS = {
   "upstream-apply-changelog.yml": [...legs("apply-changelog"), ...legs("verify-env-scrub")],
   // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
   "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => CHUNKS.map((chunk) => `${lane}-${job}${chunk}`))),
-  // job-id `intake-${{ github.job }}`.
-  // The legs' job ids are triage-subscription and triage-fallback; runs from
-  // before that rename uploaded the two shorter names.
-  "ci-workflows/intake-triage.yml": ["intake-claude", "intake-triage-subscription", "intake-triage-fallback", "intake-subscription", "intake-fallback"],
 };
 // A re-run uploads under its own attempt number; attempts past 3 are not read.
 export const ATTEMPTS = 3;
@@ -107,9 +103,8 @@ export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).fl
  * pull-listing.test.mjs reads the workflows and fails when a caller is missing here.
  */
 export const TRANSCRIPT_CALLERS = {
-  "pr-run-activity-read.yml": ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"],
+  "pr-run-activity-read.yml": ["intake-triage.yml", "pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"],
   "ci-workflows/pr-review-cli.yml": ["pr-review-hosted.yml", "pr-review-security-hosted.yml"],
-  "ci-workflows/intake-triage.yml": ["intake-triage.yml"],
 };
 const runWorkflowsOf = (key) => TRANSCRIPT_CALLERS[key] ?? [key];
 /** The workflows whose runs upload transcripts: the pull lists each one's newest runs. */

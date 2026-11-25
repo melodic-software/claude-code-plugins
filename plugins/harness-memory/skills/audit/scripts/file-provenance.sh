@@ -46,7 +46,6 @@ emit() {
   printf '%s\t%s\t%s\n' "$1" "$2" "$3"
 }
 
-# --synced exits 1 for a local file; the plain mode exits 0.
 emit_local() {
   emit local none unknown
   exit "$quiet"

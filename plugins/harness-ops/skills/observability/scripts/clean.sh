@@ -1,55 +1,4 @@
 #!/usr/bin/env bash
-# /observability clean — prune local observability data by age.
-# Four layers, each with its own retention:
-#   1. JSONL metadata — the hook log root's hook-events.jsonl and the
-#      hook-events.jsonl.1 the sink rotates it to at its size cap (the reference
-#      sink's shared files, default root .observability/claude, --hook-root moves
-#      them) and, while a consumer still carries it, the retired
-#      .claude/observability/hook-events.jsonl — path-only, pruned in place to
-#      the --keep-days window (default 30). The root's per-session files
-#      (sessions/<id>.jsonl) are removed whole once older than the same window,
-#      and any prune-pending/<set> the SessionEnd retention hook moved aside for
-#      an archiver more than 24 h ago is swept regardless of the plugin's
-#      logging switch, so disabling the hooks leaves no orphan.
-#   2. OTEL file store (.claude/observability/otel/{cc-logs,cc-metrics}.json) — holds full
-#      prompt + raw API bodies, so TIGHTER windows: CC_OTEL_RETENTION_DAYS (default 7) for
-#      structure events, CC_OTEL_BODY_RETENTION_DAYS (default 2) for api_*_body records.
-#      Delegated to otel/prune-otel-store.sh in this skill, which stops + restarts the
-#      machine-singleton Collector around the trim (only when records actually exceed a window).
-#   3. skill-usage.jsonl — OPT-IN, and inert unless --skill-usage-scope is passed. Its own
-#      far longer window (--keep-skill-usage-days, default 365): it feeds a starvation report
-#      that wants long history, and its rows carry skill names and branches only, no content.
-#      Scope and dir are FLAGS, never environment: a skill-spawned subprocess inherits no
-#      CLAUDE_PLUGIN_OPTION_*, and CLAUDE_PLUGIN_DATA there was observed pointing at an
-#      unrelated plugin's data directory — so `data-dir` demands an explicit --skill-usage-dir.
-#
-# Usage:
-#   bash clean.sh [--keep-days N] [--dry-run] [--quiet] [--hook-root REL]
-#                 [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL]
-#                 [--keep-skill-usage-days N]
-#
-# Flags:
-#   --keep-days N   JSONL retention window in days (default: 30). The OTEL store uses its own
-#                   CC_OTEL_RETENTION_DAYS / CC_OTEL_BODY_RETENTION_DAYS env windows
-#                   (defaults 7 / 2), NOT this flag.
-#   --hook-root REL The hook log root, project-relative (the plugin's session_event_log_dir
-#                   option; default .observability/claude). A FLAG, never the environment, for
-#                   the same reason as the skill-usage flags below.
-#   --dry-run       Report would-prune counts for BOTH layers; modify nothing
-#   --quiet         Suppress progress output (still prints final summary)
-#
-# Behavior (JSONL layer):
-#   - Atomic temp+rename per file (POSIX rename atomicity)
-#   - flock with 5s timeout — on contention, skips the file and reports
-#   - Exit 0 on success or skip-on-contention; 1 when a file could not be pruned
-#     (jq or IO failure, e.g. a line that is not valid JSON) or the OTEL prune
-#     failed, after every other target was still processed; 2 on a bad argument
-#     or no resolvable repository root
-#   - Reports before/after byte + line counts
-#   - Empty/missing files: skipped silently
-#
-# Cross-platform: Git Bash on Windows, Linux, macOS (bash 5+).
-
 set -uo pipefail
 
 KEEP_DAYS=30
@@ -116,20 +65,40 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   -h | --help)
-    sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    cat <<'EOF'
+/observability clean: prune local observability data by age (hook JSONL logs, the OTEL
+file store, and opt-in skill-usage.jsonl).
+
+Usage:
+  bash clean.sh [--keep-days N] [--dry-run] [--quiet] [--hook-root REL]
+                [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL]
+                [--skill-usage-data-root PATH] [--keep-skill-usage-days N]
+
+  --keep-days N               JSONL retention window in days (default: 30); the OTEL store
+                              uses CC_OTEL_RETENTION_DAYS / CC_OTEL_BODY_RETENTION_DAYS (7 / 2)
+  --dry-run                   report would-prune counts; modify nothing
+  --quiet                     suppress progress output (still prints the final summary)
+  --hook-root REL             hook log root, project-relative (default .observability/claude)
+  --skill-usage-scope SCOPE   prune skill-usage.jsonl: repo, user or data-dir (off when absent)
+  --skill-usage-dir REL       skill-usage directory under the repo or home root, for the repo
+                              and user scopes (default .claude/observability)
+  --skill-usage-data-root PATH  absolute plugin data root; required for data-dir
+  --keep-skill-usage-days N   skill-usage retention window in days (default: 365)
+
+Exit: 0 success or skip-on-contention; 1 a file could not be pruned or the OTEL prune
+failed; 2 a bad argument or no resolvable repository root.
+EOF
     exit 0
     ;;
   *)
     echo "ERROR: unknown flag: $1 (see --help)" >&2
-    echo "Usage: $0 [--keep-days N] [--dry-run] [--quiet] [--hook-root REL] [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL] [--keep-skill-usage-days N]" >&2
+    echo "Usage: $0 [--keep-days N] [--dry-run] [--quiet] [--hook-root REL] [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL] [--skill-usage-data-root PATH] [--keep-skill-usage-days N]" >&2
     exit 2
     ;;
   esac
 done
 
 require_nonneg_int() {
-  # An empty value is rejected too: it would reach `-mmin +0` below and remove
-  # every session file.
   case "$2" in
   "" | *[!0-9]*)
     echo "ERROR: $1 must be a non-negative integer (got: '$2')" >&2
@@ -141,8 +110,6 @@ require_nonneg_int() {
 
 require_nonneg_int --keep-days "$KEEP_DAYS"
 
-# A contained relative path is the only accepted root shape: the hooks refuse
-# anything else, so a prune there would touch a tree nothing writes to.
 case "$HOOK_ROOT_REL" in
 "" | . | ./ | /* | [A-Za-z]:* | ~* | *..* | *\\*)
   echo "ERROR: --hook-root must be a contained relative path below the project root (got: $HOOK_ROOT_REL)" >&2
@@ -160,18 +127,12 @@ fi
 
 OBS_DIR="${REPO_ROOT}/.claude/observability"
 HOOK_LOG="${OBS_DIR}/hook-events.jsonl"
-# The hook log root sits under the main checkout when REPO_ROOT is a linked
-# worktree: the anchor the hooks write under (session-log-lib.sh).
 # shellcheck source=../../../hooks/session-log-lib.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../hooks/session-log-lib.sh"
 HOOK_ANCHOR=""
 slog_anchor_to HOOK_ANCHOR "$REPO_ROOT"
 HOOK_ROOT="${HOOK_ANCHOR}/${HOOK_ROOT_REL}"
 
-# Cutoff timestamp for N days ago — ISO-8601 UTC. GNU date (Linux/Git Bash) and
-# BSD date (macOS) require different flags for relative time and epoch-to-ISO
-# conversion; both the hook-events and skill-usage windows resolve through this
-# one probe.
 cutoff_iso_days_ago() {
   local days="$1" epoch
   # portability-ok: GNU-first dual-dialect probe, BSD branch in the else below (#1510)
@@ -239,17 +200,11 @@ prune_file() {
   local tmp="${file}.tmp.$$"
   local lock="${lock_override:-${file}.lock}"
 
-  # Only a fully clean jq pass may replace the file: on a malformed line jq
-  # STOPS reading the stream, so $tmp holds only the records before the bad
-  # line — promoting it would silently drop every valid event after it. A
-  # file with a malformed line is therefore skipped intact (any nonzero rc).
   run_jq() {
     jq -c --arg cutoff "$CUTOFF_ISO" --arg ts "$ts_field" \
       'select(.[$ts] >= $cutoff)' "$file" >"$tmp" 2>/dev/null
   }
 
-  # 75 (EX_TEMPFAIL) is writer contention, a skip; any other nonzero is a jq or
-  # IO failure and counts against the run's exit code.
   local rc=0
   if command -v flock >/dev/null 2>&1; then
     (
@@ -285,15 +240,6 @@ SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 prune_file "$HOOK_LOG" "ts"
 
-# --- the hook log root: shared file, per-session files, moved-aside prune sets ---
-# The shared file is pruned line by line like the retired one. Session files are
-# one session each and carry no `ts` worth scanning for a whole-file decision:
-# a file untouched for the whole window is removed whole (the SessionEnd
-# retention hook keeps the newest N regardless of age; `clean` is the
-# operator's explicit ask and applies the window alone). prune-pending/<set>
-# directories are what that hook moved aside for a detached archiver; it deletes
-# them itself after 24 h, but only while the plugin's logging switch is on, so
-# `clean` sweeps the stale ones whether or not the hooks still run.
 log "clean: hook log root $HOOK_ROOT"
 prune_file "$HOOK_ROOT/hook-events.jsonl" "ts"
 prune_file "$HOOK_ROOT/hook-events.jsonl.1" "ts" "" "$HOOK_ROOT/hook-events.jsonl.lock"
@@ -326,16 +272,6 @@ if [[ -d "$HOOK_ROOT/prune-pending" ]]; then
   fi
 fi
 
-# --- skill-usage.jsonl (opt-in, its own window, its own resolved location) ---
-# Inert unless --skill-usage-scope is passed, so the default run is unchanged.
-#
-# The scope and dir arrive as FLAGS rather than being read from the environment.
-# This script runs as a skill-spawned subprocess, which does not inherit
-# CLAUDE_PLUGIN_OPTION_* -- so it cannot see the hook's configured scope -- and
-# CLAUDE_PLUGIN_DATA in that context was observed pointing at an UNRELATED
-# plugin's data directory. Deriving a delete path from either would risk pruning
-# somebody else's files, which is why `data-dir` demands an explicit directory
-# and is never guessed.
 if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
   require_nonneg_int --keep-skill-usage-days "$KEEP_SKILL_USAGE_DAYS"
 
@@ -352,12 +288,6 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
   repo) SKILL_USAGE_BASE="$REPO_ROOT" ;;
   user) SKILL_USAGE_BASE="${HOME:-}" ;;
   data-dir)
-    # The writer stores rows at ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>,
-    # NOT at a repo-relative path — so this branch must reproduce that layout or
-    # it prunes a file the writer never touches. The data root is still never
-    # taken from the environment (a skill subprocess saw it pointing at an
-    # unrelated plugin's directory); it is supplied explicitly and the slug is
-    # re-derived here with the writer's own algorithm.
     if [[ -z "$SKILL_USAGE_DATA_ROOT" ]]; then
       echo "ERROR: --skill-usage-scope data-dir requires --skill-usage-data-root <path>" >&2
       echo "       (the plugin data root; CLAUDE_PLUGIN_DATA is not dependable here)" >&2
@@ -385,9 +315,6 @@ if [[ -n "$SKILL_USAGE_SCOPE" ]]; then
   SU_CUTOFF_ISO=$(cutoff_iso_days_ago "$KEEP_SKILL_USAGE_DAYS")
 
   if [[ "$SKILL_USAGE_SCOPE" == "data-dir" ]]; then
-    # Reproduce the writer's layout: <data-root>/skill-usage/<repo-slug>. The
-    # slug algorithm lives with the hooks; source it rather than restating it,
-    # so the two cannot drift into pruning different paths.
     # shellcheck source=../../../hooks/hook-utils.sh
     . "${SKILL_DIR}/../../hooks/hook-utils.sh"
     # shellcheck source=../../../hooks/harness-ops-paths.sh

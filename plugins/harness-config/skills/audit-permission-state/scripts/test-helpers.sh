@@ -1,23 +1,10 @@
 # shellcheck shell=bash
-# test-helpers.sh: the assertion primitives, stub-PATH builder and exit report
-# shared by this skill's *.test.sh suites. Sourced, not executed; the runner's
-# *.test.sh glob never picks it up.
-#
-# Provides the FAILED / CASE_NUM counters, pass / fail, the four assert_*
-# primitives, count_matching, make_stub_path and report_and_exit. PASS lines go
-# to stdout, FAIL lines to stderr, and a suite's last line is report_and_exit so
-# its exit status is 0 only when nothing failed.
-#
-# Duplicated per plugin by design, not drift. See
-# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 FAILED=0
 CASE_NUM=0
 
-# The interpreter's own absolute path. A stub PATH that takes one tool away must
-# not take bash away with it, so suites invoke "$real_bash" explicitly.
 real_bash="$(command -v bash)"
 
 pass() {
@@ -49,15 +36,6 @@ assert_not_contains() {
 }
 count_matching() { printf '%s\n' "$1" | grep -cE "$2"; }
 
-# make_stub_path <dir> <tool>...: a PATH directory holding one wrapper per named
-# tool, so a case can withhold a single tool rather than all of them. A bare
-# PATH= makes the interpreter itself unresolvable (exit 127, "command not
-# found"), which would "pass" for a reason unrelated to the tool under test.
-#
-# Each entry execs the real binary at its absolute path, deliberately NOT a
-# copy: an MSYS binary copied out of /usr/bin loses the msys-2.0.dll sitting
-# beside it and fails to start, which would make a case "pass" by breaking every
-# tool instead of the one under test. A tool that is not on PATH is left out.
 make_stub_path() {
   local dir="$1" tool src
   shift

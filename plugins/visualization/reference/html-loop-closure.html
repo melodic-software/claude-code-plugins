@@ -1,43 +1,4 @@
 <!doctype html>
-<!--
-  html-loop-closure.html: the marketplace's loop-closure and export snippet
-  reference for interactive rendered HTML views (the rendered-views
-  convention's second sanctioned shared piece, beside html-chrome.html).
-
-  What it is for. A rendered view that only shows things is a dead end: the
-  reader has to retype what they picked. Loop closure is the family of patterns
-  that gives the reader a terse payload to hand back, and export is the pattern
-  that gets live page state off the page. Skills that emit an interactive view
-  copy the helpers and one or more patterns from here and shape the page
-  themselves; this file owns no page shape, and adopting it is a per-lane
-  change.
-
-  Doctrine. The rendered-views convention owns when a view owes an export and
-  which genres this family is excluded from: docs/contracts/rendered-views/
-  README.md, "Loop closure and the export obligation".
-
-  Security. The rendered-views convention's "Security baseline" owns the
-  escaping and self-containment rules; this file does not restate them, it
-  demonstrates them. Two positions that rule's character set does not reach are
-  handled by the safeHref and safeFilename helpers below, and are called out in
-  the "Positions escaping does not reach" panel.
-
-  Provenance. The pattern family is the one the rendered-views convention's
-  corpus distillate names (item 3 of the nine cross-cutting families) plus the
-  clipboard boilerplate (item 4). The helpers and demos here are written for
-  this repository; no working loop-closure or export code existed in it to
-  extract.
-
-  Accessibility floor and tokens: taken from html-chrome.html, which stays the
-  canonical copy of both. The token block below is the subset this page needs
-  so it renders standalone; html-chrome.html governs any disagreement.
-
-  Sharing contract: this is the canonical copy. A second plugin adopting it
-  copies the file byte-identical to the same path within its own plugin root
-  (reference/html-loop-closure.html) and registers the cluster in
-  scripts/cross-plugin-source-registry.txt; the drift checker rejects a
-  registration while only one plugin carries it.
--->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -296,7 +257,6 @@ async function copyText(text, flashEl) {
 
 function safeHref(value) {
   var raw = String(value).trim();
-  // Bare fragments skip new URL(); esc so a quote cannot close a quoted href.
   if (raw.charAt(0) === "#") { return esc(raw); }
   var parsed;
   try {
@@ -423,8 +383,6 @@ var SNIPPETS = {
   ].join("\n")
 };
 
-/* ---- render the helper sources and the pattern snippets ---- */
-
 function printSource(id, fn) {
   document.getElementById(id).textContent = fn.toString();
 }
@@ -439,11 +397,6 @@ Object.keys(SNIPPETS).forEach(function (id) {
   document.getElementById(id).textContent = SNIPPETS[id];
 });
 
-/* ---- live demos ---- */
-
-// Pattern 1. The labels carry markup-ish and quote characters on purpose:
-// that is what a real repo-derived label looks like, and esc() is what keeps
-// them visible text.
 var p1Items = [
   { n: 1, label: "Split the reader out of the parser" },
   { n: 2, label: "Cache the resolved config per run" },
@@ -454,7 +407,6 @@ document.getElementById("p1-list").innerHTML = p1Items.map(function (it) {
   return '<li value="' + esc(it.n) + '">' + esc(it.label) + '<\/li>';
 }).join("");
 
-// Pattern 2.
 var p2Chosen = [];
 var p2Payload = document.getElementById("p2-payload");
 function p2Render() {
@@ -480,7 +432,6 @@ document.getElementById("p2-copy").addEventListener("click", function () {
   copyText(p2Payload.textContent, document.getElementById("p2-flash"));
 });
 
-// Pattern 3.
 var p3Flash = document.getElementById("p3-flash");
 [
   "Take option 2 and sketch the interface twice.",
@@ -501,7 +452,6 @@ var p3Flash = document.getElementById("p3-flash");
   document.getElementById("p3-list").appendChild(row);
 });
 
-// Pattern 4.
 var p4Rows = [
   { n: 1, title: "Extract the resolver", state: "accept", text: "" },
   { n: 2, title: "Inline the two-line wrapper", state: "accept", text: "" }
@@ -552,7 +502,6 @@ p4Rows.forEach(function (r) {
   sync();
 });
 
-// Pattern 5.
 var p5Rows = [
   { title: "Resolver extracted", note: "", done: true },
   { title: "Timeout knob named once", note: "", done: false }

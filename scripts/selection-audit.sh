@@ -78,6 +78,7 @@ set -uo pipefail
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 SELECTOR="${SELECTION_AUDIT_SELECTOR:-scripts/affected-tests.sh}"
+CHANGE_SHAPE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/plugins/code-tidying/skills/remove-comments/scripts/change-shape.sh"
 # shellcheck source=scripts/lib/pytest-python.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/pytest-python.sh"
 SUMMARY_ROWS=200
@@ -143,14 +144,40 @@ cmd_changed() {
     esac
   done
   [[ -n "$base" ]] || die "changed needs --base REF"
-  local diff
+  local diff merge suite
+  local -A seen=() keep=()
   diff="$(git diff --name-only --diff-filter=d "$base...HEAD")" || die "cannot diff $base...HEAD"
+  merge="$(git merge-base "$base" HEAD)" || die "no merge base for $base and HEAD"
   while IFS= read -r f; do
     [[ -n "$f" ]] || continue
-    [[ "$f" == *.test.mjs && -f "${f%.test.mjs}.test.sh" ]] && f="${f%.test.mjs}.test.sh"
-    echo "$f"
-  done <<<"$diff" | traceable | sort -u
+    suite="$f"
+    [[ "$f" == *.test.mjs && -f "${f%.test.mjs}.test.sh" ]] && suite="${f%.test.mjs}.test.sh"
+    traceable <<<"$suite" >/dev/null || continue
+    seen[$suite]=1
+    comment_only "$merge" "$f" || keep[$suite]=1
+  done <<<"$diff"
+  ((${#keep[@]})) && printf '%s\n' "${!keep[@]}" | sort
+  local skipped=$((${#seen[@]} - ${#keep[@]}))
+  if ((skipped > 0)); then
+    echo "selection-audit: $skipped suite(s) left out: their change is comment-only." >&2
+    [[ -z "${GITHUB_STEP_SUMMARY:-}" ]] ||
+      echo "Test selection: $skipped changed suite(s) not traced, their change being comment-only." >>"$GITHUB_STEP_SUMMARY"
+  fi
   return 0
+}
+
+comment_only() {
+  local merge="$1" f="$2" dir rc=0
+  [[ "$(git show "$merge:$f" 2>/dev/null | grep -F 'test-scope:')" == "$(git show "HEAD:$f" | grep -F 'test-scope:')" ]] ||
+    return 1
+  dir="$(mktemp -d)" || return 1
+  if git show "$merge:$f" >"$dir/before" 2>/dev/null && git show "HEAD:$f" >"$dir/${f##*/}"; then
+    bash "$CHANGE_SHAPE" "$dir/before" "$dir/${f##*/}" >/dev/null 2>&1 || rc=$?
+  else
+    rc=1
+  fi
+  rm -rf "${dir:?}"
+  return "$rc"
 }
 
 trace_one() {
@@ -233,7 +260,8 @@ cmd_trace() {
   git ls-files >"$out/tracked"
   git update-index -q --refresh >/dev/null 2>&1 || true
   fallback_corpus >"$out/fallback" || die "cannot derive the suites pr-require-checks.yml's UNMAPPED fallback runs"
-  if ((${#suites[@]} == 0)); then
+  local named=${#suites[@]}
+  if ((named == 0)); then
     mapfile -t suites < <(traceable <"$out/tracked" | grep -v '\.test\.mjs$' | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
   fi
   ((${#suites[@]})) || die "no suites to trace"
@@ -241,6 +269,10 @@ cmd_trace() {
     mapfile -t suites < <(printf '%s\n' "${suites[@]}" |
       awk 'NR == FNR { if (!/^#/) s[$1] = $2; next } { print ($0 in s ? s[$0] : 0) "\t" $0 }' scripts/suite-seconds.txt - |
       sort -s -t $'\t' -k1,1nr | cut -f2-)
+  fi
+  if ((named > 0 && n > 1)); then
+    mapfile -t suites < <(printf '%s\n' "${suites[@]}" | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
+    ((${#suites[@]})) || die "shard $shard holds none of the $named suite(s) named"
   fi
 
   AUDIT_UNMAPPED_FLAG="$(unmapped_flag)"

@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "10.2.0",
+  "version": "10.3.0",
   "license": "MIT",
   "engines": {
     "claude-code": ">=2.1.331"
@@ -205,6 +205,16 @@
       "options": [
         "off",
         "offer"
+      ]
+    },
+    "implementation_route": {
+      "type": "string",
+      "title": "Implementation route",
+      "description": "Where /session-flow:workflow sends work after decompose. local (default) continues into implement here; factory hands published items to the repository's unattended factory lanes, keeping local only items that need a local dependency. docs/conventions/session-flow.yaml wins.",
+      "default": "local",
+      "options": [
+        "local",
+        "factory"
       ]
     },
     "recommend_skills_exclude": {
