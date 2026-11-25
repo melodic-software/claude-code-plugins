@@ -1507,7 +1507,12 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash scripts/run-hygiene-gate.sh comment-lint {0}
-        run: scripts/check-comment-lint.sh
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::comment lint declined on a $GITHUB_EVENT_NAME event; there is no pull request diff to judge."
+            exit 0
+          fi
+          bash plugins/code-tidying/git-hooks/comment-lint-ci.sh "$HEAD_SHA" "origin/$BASE_REF"
 
       - name: Check no changed file crosses the size reference
         id: size_check
