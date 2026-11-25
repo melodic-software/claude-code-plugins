@@ -2533,4 +2533,5 @@ if __name__ == "__main__":
         _exit_code = 2
     with contextlib.suppress(BaseException):
         sys.stderr.flush()
+    # os._exit, not SystemExit: a failed shutdown flush would turn a blocking 2 into 120.
     os._exit(_exit_code)  # noqa: SLF001
