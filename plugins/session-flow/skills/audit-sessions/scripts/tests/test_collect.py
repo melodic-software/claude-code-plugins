@@ -393,7 +393,6 @@ def test_plugin_version_change_alone_skips_every_session(data_dir, multi, plugin
     manifest["version"] = "999.0.0"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     assert counts(collect_with(plugin_copy, data_dir, root)) == (0, 3)
-    # Skipped records keep the version that wrote them; it is provenance, not policy.
     assert records(data_dir)["sess-a1"]["collector_version"] != "999.0.0"
     assert counts(collect_with(plugin_copy, data_dir, root, "--force")) == (3, 0)
     assert records(data_dir)["sess-a1"]["collector_version"] == "999.0.0"
@@ -553,7 +552,6 @@ def test_ignored_record_types_change_no_metric(data_dir, multi, tmp_path):
     assert collect(data_dir, root).returncode == 0
     before = records(data_dir)["sess-a1"]
     path = root / "proj-a" / "sess-a1.jsonl"
-    # Fields the collector reads off any known record, so a leak would show in the record.
     leak = {"cwd": "/leak", "version": "9.9.9", "gitBranch": "leak-branch", "entrypoint": "sdk-cli",
             "timestamp": "2026-12-31T23:59:59Z", "message": {"id": "msg_leak", "usage": {"output_tokens": 99}}}
     ignored = [r for r in current_types() if r["type"] != "ai-title"]
@@ -568,7 +566,6 @@ def test_ignored_record_types_change_no_metric(data_dir, multi, tmp_path):
     assert after["unknown"] == before["unknown"]
     assert after["parse"]["records"] == before["parse"]["records"] + len(ignored)
     assert after["parse"]["unknown"] == before["parse"]["unknown"]
-    # Only the transcript's size and the per-version key census see the extra lines.
     unchanged = set(before) - {"fingerprint", "parse", "census", "ingested_at"}
     assert {k: after[k] for k in unchanged} == {k: before[k] for k in unchanged}
 
@@ -589,7 +586,6 @@ def test_ai_title_is_a_redacted_link_key(data_dir, multi):
 
 def test_overlong_typed_turn_is_skipped_unredacted_and_counted(data_dir, tmp_path):
     root = tmp_path / "projects"
-    # One 200 KB word passes the word gate; redacting it took minutes before the length cap.
     write_session(root, "sess-long", ["a-" * 100_000, "short reply"])
     started = time.monotonic()
     result = collect(data_dir, root)
@@ -776,7 +772,6 @@ def test_files_older_than_retention_are_not_parsed(data_dir, multi):
 
 def test_removed_cwd_gives_null_identity_and_one_warning(data_dir, multi):
     root, _ = multi
-    # A second session in a different removed directory: still one warning.
     source = (root / "proj-b" / "sess-b1.jsonl").read_text(encoding="utf-8")
     source = source.replace("sess-b1", "sess-b2").replace("removed", "removed-too")
     (root / "proj-b" / "sess-b2.jsonl").write_text(source, encoding="utf-8", newline="\n")
@@ -923,7 +918,6 @@ def test_orphaned_record_an_earlier_collector_stored_is_purged(data_dir, tmp_pat
     assert collect(data_dir, tmp_path / "projects").returncode == 0
     normal = next((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/gold-0010.json"))
     before = normal.read_bytes()
-    # The record an earlier collector wrote for the set-aside transcript, beside the real one.
     orphan_id = "gold-0010.orphaned-1759500000000-cd34"
     stale = json.loads(before)
     stale["session_id"] = orphan_id

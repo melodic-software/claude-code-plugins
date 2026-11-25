@@ -238,7 +238,6 @@ def test_hook_denial_followed_by_the_same_shell_form_records_a_failed_retry():
         call("t2", "Bash", command="echo hi > a.txt"),
         denial_record(HOOK_TEXT, kind="permission-rule", decision=HOOK_DECISION, use_id="t2"),
     )
-    # The retry is itself a hook denial, so it is a second event with no next call yet.
     assert [(e["next_tool"], e["next_ok"]) for e in scan.events] == [("Bash", False), (None, None)]
 
 
