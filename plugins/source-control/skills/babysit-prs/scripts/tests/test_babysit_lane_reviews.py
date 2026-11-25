@@ -281,8 +281,6 @@ TREES = {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS)}
 def ranges(
     brought: list[dict[str, object]], based: list[dict[str, object]]
 ) -> dict[str, object]:
-    """The compares OLD...HEAD (what the merges brought) and MB_OLD...MB_HEAD
-    (what main changed between the merge bases)."""
     return {
         f"{OLD}...{HEAD}": {
             "status": "ahead",

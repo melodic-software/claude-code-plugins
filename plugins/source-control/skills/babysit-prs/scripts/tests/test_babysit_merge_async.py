@@ -62,7 +62,6 @@ def _queue(
     armed: bool = False,
     timeline: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """A GraphQL `PullRequest` merge-queue read; a position puts the PR in the queue."""
     in_queue = position is not None
     pull_request = {
         "merged": merged,
@@ -89,7 +88,6 @@ NODE_ID = "PR_kwDOnode0001"
 
 
 def _enqueued(state: str = "QUEUED", position: int = 1) -> dict[str, Any]:
-    """An `enqueuePullRequest` answer carrying the new `MergeQueueEntry`."""
     entry = {"state": state, "position": position}
     return {"data": {"enqueuePullRequest": {"mergeQueueEntry": entry}}}
 

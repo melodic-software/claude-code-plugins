@@ -37,8 +37,6 @@ CHECK = {
     "effective_state": "FAILURE",
     "details_url": f"https://github.com/{REPO}/actions/runs/{RUN_ID}/job/{JOB_ID}",
 }
-# report-lane-outcome's rate-limit error, whose lane-outcome record names the
-# class (ci-workflows docs/lane-outcome.md).
 RATE_LIMITED = (
     "AI review skipped: usage limit reached; re-run after it resets "
     "(Claude review exited with: failure). lane-outcome "
@@ -51,7 +49,6 @@ SECURITY_CHECK = {
     "name": "pr-review-security / security-review",
     "workflow_name": "pr-review-security-hosted",
 }
-# pr-review-cli.yml's status jobs, which share the name `review-status`.
 CLI_CHECK = {**CHECK, "name": "PR Review / review-status"}
 CLI_SECURITY_CHECK = {**SECURITY_CHECK, "name": "PR Review Security / review-status"}
 RENAMED_CLI_CHECK = {**CHECK, "name": "pr-review / review-status"}

@@ -130,7 +130,6 @@ def _split_list(lines: list[str]) -> frozenset[str]:
 
 
 def _yaml_writes(text: str, key: str) -> bool:
-    """Whether the YAML writes `key` at the top level, whatever its value."""
     return re.search(rf"^{key}[ \t]*:", text, re.M) is not None
 
 

@@ -454,7 +454,6 @@ NOTES_MAX = 30
 TOO_OLD_DAYS = 80
 # `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
-# The waits before the second and third listing reads (judgment).
 LISTING_WAITS = (2.0, 4.0)
 # The listing's pages share one timeout (babysit_gh._run_pages), so it grows
 # with the artifact count, not gh's per-call default: 7,522 artifacts took 76
@@ -463,12 +462,6 @@ LISTING_PAGE_SECONDS = 1.0
 # The pages a top-up reads at most: LISTING_OVERLAP's 2 h at the 255 uploads
 # an hour seen 2026-10-27, plus one (judgment on that data).
 LISTING_TOP_UP_PAGES = 7
-# The cap on one listing's timeout: the incremental reads' timeout, and the
-# most the whole listings' (`listing_timeout`) may take. Each fits the job and
-# step timeouts its readers run under (ci-status 20 min, pr-merge's merge job
-# 45 min, enable-auto-merge's step 18 min, the pr-unblock and feedback
-# dispatchers 10 min); a caller that kills the reader sooner names its limit
-# in `DEADLINE_ENV` (judgment).
 LISTING_TIMEOUT_SECONDS = 300.0
 # A caller that kills the reader after a limit of its own (enable-auto-merge.mjs
 # 4 min, verify-cap.mjs 2 min) names it here in seconds, and itself in
@@ -487,15 +480,9 @@ DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit"
 # The least a whole listing's timeout takes, gh's per-call default it
 # replaced, unless the cap or a caller's limit leaves less.
 LISTING_TIMEOUT_FLOOR = 60.0
-# The most pages a whole listing and its top-up read inside the cap, at
-# `LISTING_PAGE_SECONDS` a page: past it the whole listings refuse before
-# paging.
 LISTING_PAGES_CAP = (
     int(LISTING_TIMEOUT_SECONDS / LISTING_PAGE_SECONDS) - LISTING_TOP_UP_PAGES
 )
-# The oldest listing a judgment uses, saved or in memory, but for a
-# provisional one's allow or `STANDING` refusal (`Reader.evidence`), unless
-# `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
 LISTING_MAX_AGE = run_cache.MAX_AGE
 # The incremental listing (`Reader._incremental`). The listing comes newest id
 # first, but a lower id can be created after a higher one: across 6,835
@@ -546,15 +533,7 @@ NEAR_EXPIRY_CAP_CAUSE = "near-expiry-cap"
 # The `cause` when the listing's deadline runs out after its near-expiry reads
 # began, which `listing_timeout` does not size for: refused, but not noted.
 NEAR_EXPIRY_DEADLINE_CAUSE = "near-expiry-deadline"
-# The waits between incremental reads on one base. A count that misses the
-# live total can stay off for longer than an immediate re-read takes, while a
-# page boundary settles; bounded waits let it settle before the reader pages
-# every artifact. Together they stay well under the time of one whole listing
-# and inside `LISTING_TIMEOUT_SECONDS`, and each `babysit-listing-miss` line
-# shows whether they outlast the miss (judgment).
 INCREMENTAL_WAITS = (15.0, 30.0)
-# The incremental reads on one base before a whole listing: the first, then
-# one after each wait.
 INCREMENTAL_READS = 1 + len(INCREMENTAL_WAITS)
 
 
@@ -581,8 +560,6 @@ class _CountMissed:
     removes an entry GitHub no longer counts."""
 
 
-# Fewer than the live count: the pages skipped an artifact, which another
-# whole listing can restore.
 COUNT_MISSED = _CountMissed()
 # More than the live count: the base holds artifacts GitHub no longer counts.
 # A whole listing only adds ids to the union, so another cannot cure it: on
@@ -599,12 +576,6 @@ COUNT_OVER = _CountMissed()
 # candidate, each paging three whole listings, 825 to 1,015 calls a run on
 # 2026-11-01).
 FAILED_LISTING_SUFFIX = ".failed"
-# Beside `LISTING_ENV`'s file, created when an incremental over-count's whole
-# listing starts paging and then holding that listing's outcome: a later Reader
-# of the job whose pages over-count again refuses without another whole
-# listing, whatever that outcome (a transient or caller-limit failure
-# included, unlike `FAILED_LISTING_SUFFIX`), so an over-count costs one whole
-# listing a job. A refusal before paging leaves it uncreated.
 OVERCOUNT_FALLBACK_SUFFIX = ".overcount-fallback"
 
 
@@ -647,8 +618,6 @@ EARLIER_FAIL = "verify:earlier-fail"
 REPEATED_FAIL = "verify:repeated-fail"
 MISSING = "verify:missing"
 UNREADABLE = "verify:unreadable"
-# `Reader.queued_hold`: a lanes App entry whose verdict this run could not
-# read. The merge queue's own reader judges it fail-closed, so it is no hold.
 QUEUE_READS = "verify:queue-reads"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
@@ -667,11 +636,6 @@ INTENT_PULL_REQUEST = "pull-request"
 # clear-escalations.mjs LANE_CAUSES.verdict shares nothing with it
 # (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
-# The refusals that never clear for the pull request: the FAIL cap. An old
-# pull request's `verify:too-old` clears on a fresh pass at its head (owner
-# decision 2026-11-01). The pr-merge lane closes a lanes App pull request at
-# one of them for a fresh attempt at its issue (`capped_close`, owner decision
-# 2026-10-29), never adding a person's label.
 VERIFY_FINAL = (REPEATED_FAIL,)
 # `capped_close`'s reasons: a `VERIFY_FINAL` refusal, or review rounds the
 # pr-unblock lane stopped as not converging (escalation-routes.json), whose
@@ -695,10 +659,6 @@ CAPPED_CLOSE_RE = re.compile(
     r"<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=((?:[0-9a-f]{40},)*(?:[0-9a-f]{40})?)"
     r"(?: attempt=([0-9]+) of=([0-9]+)( parked)?)? -->"
 )
-# The refusals no upload after the listing clears (`Reader.evidence`): a
-# counted FAIL at the head or the cap's FAILs stay counted whatever is
-# uploaded later, as no pass clears them. A pass uploaded later can clear any other refusal, and a read may
-# answer otherwise.
 STANDING = (FAIL, REPEATED_FAIL)
 # An issue's comments, a page of up to 100 with the cursor to the next.
 COMMENT_FIELDS = (
@@ -716,7 +676,6 @@ ISSUE_FIELDS = (
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
     "nodes{number state author{...actor} repository{nameWithOwner}}}"
 )
-# The issue parts `_closing_issues` reads whole: a cut list refuses.
 ISSUE_LISTS = ("comments", "closedByPullRequestsReferences")
 ACTOR_FRAGMENT = (
     "fragment actor on Actor{__typename login "
@@ -727,8 +686,6 @@ CLOSING_QUERY = (
     "pullRequest(number:$n){body closingIssuesReferences(first:10){totalCount "
     f"nodes{{{ISSUE_FIELDS}}}}}}}}}}}{ACTOR_FRAGMENT}"
 )
-# The one issue a `Refs:` line names, when the pull request closes none, and
-# the key `_closing_issues` marks it with.
 REFS_MARK = "refsLink"
 REFS_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
@@ -744,7 +701,6 @@ SPLIT_CHILD_QUERY = (
     f"editor{{...actor}} comments(first:100){{{COMMENT_FIELDS}}}}}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# The pages after the first of an issue's comments (`_whole_comments`).
 COMMENT_PAGE_QUERY = (
     "query($o:String!,$r:String!,$n:Int!,$after:String!){repository(owner:$o,name:$r){"
     f"issue(number:$n){{number comments(first:100,after:$after){{{COMMENT_FIELDS}}}}}}}}}"
@@ -762,7 +718,6 @@ RELINK_QUERY = (
     "... on DisconnectedEvent{createdAt actor{...actor}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# Admission's rules, whose `task-list` is the prefix a split copies by.
 ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
 # The recurring schedule `recurring_row` reads (resolve-pr.mjs recurringSpec).
 RECURRING_SCHEDULE_PATH = ".github/recurring-schedule.json"
@@ -1600,10 +1555,7 @@ def scope_target(name: str, texts: set[str]) -> bool:
     )
 
 
-# A run's standing: unreadable, foreign (not of verifier origin), origin (of
-# verifier origin, not a completed success), or counted (both).
 UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
-# The run cache's section of run records, and the fields `_run_state` reads.
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
 # What earlier pr-merge runs read, copied into this run's cache by
@@ -1637,7 +1589,6 @@ REPOSITORY_FIELDS = ("repository", "head_repository")
 
 
 def _run_fields(record: dict[str, Any]) -> dict[str, Any]:
-    """The `RUN_FIELDS` of a run record, each repository kept as its name."""
     fields = {k: record.get(k) for k in RUN_FIELDS}
     for k in REPOSITORY_FIELDS:
         if is_json_object(fields[k]):
@@ -1697,7 +1648,6 @@ def listing_timeout(
 
 
 def _elapsed() -> float:
-    """Seconds since this process started reading (`_STARTED`)."""
     return time.monotonic() - _STARTED
 
 
@@ -1742,8 +1692,6 @@ def _wall_clock() -> datetime:
 def _recent(
     fetched_at: datetime | None, max_age: timedelta | None = LISTING_MAX_AGE
 ) -> bool:
-    """A listing begun at most `max_age` ago (None: any time before now); a
-    time with no zone, or one in the future, is not."""
     if fetched_at is None or fetched_at.tzinfo is None:
         return False
     age = _wall_clock() - fetched_at
@@ -1761,7 +1709,6 @@ def dependency_bot(user: Any) -> bool:
 
 
 def _heads(shas: set[str]) -> str:
-    """The FAILed heads the cap counted, sorted, for the refusal to name."""
     return ", ".join(sorted(shas))
 
 
@@ -1771,14 +1718,10 @@ def _bot_login(identity: str | None) -> str:
 
 
 def _first_line(body: Any) -> str:
-    """The first line of a comment body, without a trailing carriage return."""
     return str(body or "").split("\n", 1)[0].rstrip("\r")
 
 
 def _started_attempt(body: Any) -> int | None:
-    """The pull request a capped-close record names when its first line is one
-    that started a fresh attempt (`CAPPED_CLOSE_RE` naming an attempt, not
-    parked); a parked or attempt-less record, None. `_spent` counts by it."""
     match = CAPPED_CLOSE_RE.fullmatch(_first_line(body))
     if match is None or match[3] is None or match[5]:
         return None
@@ -1786,8 +1729,6 @@ def _started_attempt(body: Any) -> int | None:
 
 
 def _by_lane(actor: Any, identity: str | None) -> bool:
-    """Whether `actor` is the lanes App (`identity`, `merge.agent-identity`);
-    no identity, never."""
     bot = _bot_login(identity)
     actor = json_object(actor)
     return (
@@ -1828,8 +1769,6 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
-    # A counted FAIL at the head that `_superseded` gave way; False when the
-    # cap or a failed read decided first.
     superseded_at_head: bool = False
 
     @property
@@ -1905,9 +1844,6 @@ def head_ref_digest(ref: str) -> str:
 
 
 def _linked_numbers(record: dict[str, Any]) -> frozenset[int]:
-    """The issue numbers a verdict's `linked_issues` records, none included;
-    raises `_Unreadable` for a list that is missing or an entry with no
-    integer number."""
     issues = record.get("linked_issues")
     if not is_json_array(issues):
         raise _Unreadable("verdict records no linked issues")
@@ -1918,9 +1854,6 @@ def _linked_numbers(record: dict[str, Any]) -> frozenset[int]:
 
 
 def _issue_numbers(record: dict[str, Any]) -> frozenset[int]:
-    """The issue numbers a verdict's `linked_issues` records; raises
-    `_Unreadable` for a list that is missing or empty, or for an entry with
-    no integer number."""
     numbers = _linked_numbers(record)
     if not numbers:
         raise _Unreadable("verdict records no linked issues")
@@ -2001,93 +1934,55 @@ class Reader:
     actions_token: str | None = field(
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
     )
-    # The run's saved listing (`LISTING_ENV`), when pr-merge.yml names one.
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
-    # The head-ref map (`HEAD_REFS_ENV`), when pr-merge.yml names one.
     head_refs_path: str | None = field(
         default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
     )
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
-    # `merge.agent-identity`, the lanes App's login: its trusted-list id is
-    # the author a size split's sub-issue needs (`_split_child`); unset, no
-    # sub-issue counts.
     agent_identity: str | None = None
     baseline_file: str | None = None
-    # The oldest listing a judgment uses; None (`evidence --shared-listing`)
-    # takes the run's saved listing at any age.
     listing_max_age: timedelta | None = LISTING_MAX_AGE
-    # `evidence` is judging on the listing at hand at any age.
     _any_age: bool = False
     _artifacts: list[dict[str, Any]] | None = None
-    _fetched_at: datetime | None = None  # when `_artifacts` began to be read
-    _saved: bool = False  # `_artifacts` came from `listing_path`
-    _own: bool = False  # `refresh()` asked for a listing of this Reader's own
-    # The last listing this Reader held and when it began to be read, kept
-    # past `refresh()` as a base for `_incremental`.
+    _fetched_at: datetime | None = None
+    _saved: bool = False
+    _own: bool = False
     _base: tuple[datetime, list[dict[str, Any]]] | None = None
-    # How the last listing was read from the API: "full" or "incremental".
     listing_mode: str | None = None
     _listing_error: str | None = None
-    # When the whole listings of one `_complete_listing` must end.
     _read_deadline: float | None = None
-    # A whole listing was paged, so a failure neither for want of a caller's
-    # time nor transient is noted for the job.
     _whole_paged: bool = False
-    # The last `_incremental_page` that read nothing failed on a 5xx, a
-    # network error or a body cut short, after its waits.
     _page_transient: bool = False
-    # Whether `_incremental`'s last None came from the near-expiry caps or the
-    # deadline running out after near-expiry reads began
-    # (`NEAR_EXPIRY_CAP_CAUSE`, `NEAR_EXPIRY_DEADLINE_CAUSE`).
     _near_expiry_spent: bool = False
-    # This listing's pages held more than the live count, so it takes one
-    # whole listing at most.
     _over_counted: bool = False
-    # The pages `_near_expiry` read for this listing (`NEAR_EXPIRY_PAGE_CAP`).
     _near_expiry_reads: int = 0
-    # The ids `_near_expiry` read for this listing (`NEAR_EXPIRY_ID_READ_CAP`).
     _artifact_reads: int = 0
-    # This Reader took the job's over-count whole listing
-    # (`OVERCOUNT_FALLBACK_SUFFIX`) and records its outcome there.
     _overcount_mine: bool = False
-    # The job's empty-name ETag (`EMPTY_ETAG_SUFFIX`), once looked up.
     _empty_etag: str | None = None
     _empty_etag_looked: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
-    # A pass run's `updated_at`, its completion (`_superseded`).
     _updated: dict[int, Any] = field(default_factory=dict)
     _digests: dict[str, str | None] = field(default_factory=dict)
-    # `_draft_judged` answers by (head, FAIL run), and whether each checks
-    # run ran DRAFT_STEP (`_draft_run`).
     _draft_judgments: dict[tuple[str, int], bool] = field(default_factory=dict)
     _draft_runs: dict[int, bool] = field(default_factory=dict)
-    # The verifier run ids of each counted FAIL by (pull request, head), for
-    # `_elsewhere`'s draft check.
     _fail_runs: dict[tuple[int, str], list[int]] = field(default_factory=dict)
-    # Whether a pull request no issue lists counts (`_elsewhere`).
     _counted: dict[int, bool] = field(default_factory=dict)
-    # Each other pull request's REST record, or the error its read raised,
-    # read at most once per `Reader` (`_pull`).
     _pulls: dict[int, dict[str, Any] | merge_policy.PolicyReadError] = field(
         default_factory=dict
     )
-    # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
-    # Each judged pull request's counted FAILs by head: run id, artifact name
-    # and id, for `fail_findings`.
     fail_artifacts: dict[int, dict[str, list[tuple[int, str, Any]]]] = field(
         default_factory=dict
     )
-    _mapped: dict[int, str] | None = None  # the head-ref map, once loaded
+    _mapped: dict[int, str] | None = None
     _humans: frozenset[int] | None = None
-    _humans_at: datetime | None = None  # when `_humans` was read
-    # Every login on the trusted list, lowercased, to its id, and when read.
+    _humans_at: datetime | None = None
     _logins: dict[str, int] | None = None
     _logins_at: datetime | None = None
     _list_blob: str | None = None
@@ -2096,22 +1991,15 @@ class Reader:
     _list_standards: str | None = None
     _list_changed_at: str | None = None
     _list_changed_read: bool = False
-    # Admission's `task-list` (`_task_list`), once read.
     _task_list_value: Any = None
     _task_list_read: bool = False
     _task_list_at: datetime | None = None
-    # Whether each size-split sub-issue judged counts (`_split_child`), and
-    # when each read behind it was taken, noted again on every answer
-    # (`run_cache.note`).
     _split_children: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
-    # The default branch's recurring schedule (`_schedule`), once read.
     _schedule_value: Any = None
     _schedule_read: bool = False
     _schedule_at: datetime | None = None
-    # Each github-actions[bot] issue judged (`_actions_issue`), with when its
-    # read was taken.
     _actions_issues: dict[int, tuple[Any, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
@@ -2129,23 +2017,16 @@ class Reader:
     _patch_caps: dict[int, tuple[bool, tuple[datetime, ...]]] = field(
         default_factory=dict
     )
-    # Each pull request's RELINK_QUERY answer, or {} for a failed read.
     _relinks: dict[int, dict[str, Any]] = field(default_factory=dict)
-    # The pull requests `link_refusal` read, each taken by the next
-    # `_closing_issues` instead of reading it again.
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
-    # The issue number `link_refusal` took for each pull request.
     linked_issue: dict[int, Any] = field(default_factory=dict)
     legacy_path: str | None = field(
         default_factory=lambda: os.environ.get(LEGACY_FAILS_ENV) or None
     )
     _legacy_entries: list[dict[str, Any]] | None = None
     _legacy_loaded: bool = False
-    # Each legacy FAIL's recorded head branch, by artifact id.
     _legacy_refs: dict[int, str] = field(default_factory=dict)
-    # The live issues `_targeted` read, taken by the next `_elsewhere`.
     _live_issues: dict[int, dict[Any, Any]] = field(default_factory=dict)
-    # The exact-name and run-artifact reads this Reader made.
     index_reads: int = 0
 
     def _listing(self) -> list[dict[str, Any]]:
@@ -2181,9 +2062,6 @@ class Reader:
         self._near_expiry_reads = self._artifact_reads = 0
         base = self._incremental_base()
         listing: list[dict[str, Any]] | _CountMissed | None = COUNT_MISSED
-        # Only pages that read whole but missed the live count are read again,
-        # after a wait, every read and wait inside one `LISTING_TIMEOUT_SECONDS`;
-        # a failed read lists every page at once, as `_read_listing` decides.
         if base is not None:
             deadline = _listing_clock() + listing_cap()[0]
             for wait in (*INCREMENTAL_WAITS, None):
@@ -2300,8 +2178,6 @@ class Reader:
         it when the caller's limit cut the whole listings' timeout and too
         little of it is left for another wait (`LISTING_WAITS`)."""
         self._whole_paged = False
-        # The whole listings' top-ups get near-expiry caps of their own, so
-        # incremental reads that spent theirs leave the top-ups theirs.
         self._near_expiry_reads = self._artifact_reads = 0
         cap, bound = listing_cap()
         callers = cap < LISTING_TIMEOUT_SECONDS
@@ -2319,8 +2195,6 @@ class Reader:
                 f"a page, past {bound}, so none is started"
             )
         full = listing_timeout(total, LISTING_TIMEOUT_SECONDS)
-        # The job's over-count whole listing is taken only as paging starts:
-        # a refusal before it leaves the next Reader free to list.
         if self._over_counted and not self._claim_overcount():
             raise _Unreadable(_overcount_refusal(self._overcount_taken() or ""))
         try:
@@ -2346,7 +2220,6 @@ class Reader:
         deadline: float | None = None
         listing: list[dict[str, Any]] | _CountMissed | None = None
         reads = 0
-        # An over-count takes one whole listing: another only adds ids.
         while reads < (1 if self._over_counted else LISTING_READS):
             reads += 1
             read_at = _wall_clock()
@@ -2373,7 +2246,6 @@ class Reader:
             if isinstance(listing, list):
                 return listing
             if listing is not COUNT_MISSED:
-                # Only a skip (`COUNT_MISSED`) can be restored by reading again.
                 break
         if listing is COUNT_OVER:
             cause = "held more artifacts than"
@@ -2382,11 +2254,6 @@ class Reader:
         else:
             cause = "never held"
         noun = "listing" if reads == 1 else "listings"
-        # A top-up page lost to a 5xx or network error, or a count left
-        # unsettled only by the near-expiry caps or the time they took, or a
-        # top-up page out of time after near-expiry reads began, is transient:
-        # not noted for the job (`_note_failed_listing`), so a later Reader can
-        # list again.
         transient = listing is None and (
             self._page_transient
             or self._near_expiry_spent
@@ -2483,7 +2350,6 @@ class Reader:
                     return None
             for item in items:
                 fresh.setdefault(item["id"], item)
-            # Only a dated entry can show its id was created before the base.
             reached = any(
                 a["id"] <= high
                 and a["created_at"] is not None
@@ -2535,8 +2401,6 @@ class Reader:
             "base_age_seconds": round((server_now - base_at).total_seconds()),
         }
         if unsettled == NEAR_EXPIRY_DEADLINE_CAUSE or (near and unsettled):
-            # Unsettled, an exact count may still lack a FAIL. Refused only
-            # for want of the caps or their time, it is not noted for the job.
             self._near_expiry_spent = unsettled in (
                 NEAR_EXPIRY_CAP_CAUSE,
                 NEAR_EXPIRY_DEADLINE_CAUSE,
@@ -2674,7 +2538,6 @@ class Reader:
             self._artifact_reads += 1
             answer = self._artifact_gone(a["id"], deadline)
             if answer is None:
-                # A transient answer fails the read, as a lost page does.
                 if self._page_transient:
                     return None
                 return self._out_of_time(listing, reads, deadline) or (
@@ -2945,7 +2808,6 @@ class Reader:
                 if deadline - _listing_clock() - wait <= 0:
                     raise
                 _listing_sleep(wait)
-                # Recomputed after the sleep, which may return late.
                 timeout = deadline - _listing_clock()
                 if timeout <= 0:
                     raise
@@ -2971,7 +2833,6 @@ class Reader:
                 args, timeout_seconds=timeout_seconds, env_overrides=self._env()
             )
         except (RuntimeError, ValueError, OSError) as exc:
-            # A timeout, or no gh on PATH: neither is read again.
             raise _Unreadable(f"{label}: {exc}") from exc
         if proc.returncode != 0:
             detail = f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
@@ -3903,7 +3764,6 @@ class Reader:
                 ).get("issueOrPullRequest")
                 if not is_json_object(node):
                     raise _Unreadable(f"#{named}: the Refs issue answer is empty")
-                # Marked so the gate can bind a pass to how it was linked.
                 nodes = (
                     [node | {REFS_MARK: True}]
                     if node.get("__typename") == "Issue"
@@ -4164,7 +4024,6 @@ class Reader:
             names.append(f"{INDEX_PREFIX}ref-{head_ref_digest(head_ref)}")
         names += [f"{INDEX_PREFIX}issue-{n}" for n in sorted(live) if type(n) is int]
         if len(names) > INDEX_NAMES_CAP:
-            # More reads than one whole listing costs: read that instead.
             return self._listing()
         found = self._indexed(number, head, names, deadline)
         print(
@@ -4308,8 +4167,6 @@ class Reader:
             if refusal is None:
                 owner, _, name = self.repo.partition("/")
                 permission = merge_policy.permission_reader(self.repo)
-                # No agent identity: the lanes App is a Bot, which is never
-                # human (`merge_policy.is_human`).
                 refusal = merge_policy.trust_refusal(
                     owner,
                     name,
@@ -4456,7 +4313,6 @@ class Reader:
                 pr = merge_policy.pull_request(self.repo, number)
             except merge_policy.PolicyReadError as exc:
                 raise _Unreadable(str(exc)) from exc
-        # A record of no known shape has no creation time, which refuses.
         pr = json_object(pr)
         created = postmerge._time(pr.get("created_at"))
         now = self.now or datetime.now(UTC)
@@ -4465,10 +4321,7 @@ class Reader:
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str, Any]] = []
-        # This pull request's passes at its other heads, uncounted, read only
-        # to judge whether one superseded a FAIL there (`_superseded`).
         other_passes: dict[str, list[tuple[int, str, Any]]] = {}
-        # Counted FAILs by head: run id, artifact name and id (`_wider_pass`).
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
         unreadable: str | None = None
@@ -4476,16 +4329,10 @@ class Reader:
         # allows, so with no counted one the head is unreadable, not missing
         # (https://github.com/melodic-software/claude-code-plugins/issues/17377).
         unread_pass: str | None = None
-        # FAILs of verifier origin by pull request number, and the numbers
-        # with a FAIL whose run cannot be read, for the cap's other pull
-        # requests (`_elsewhere`).
         failed_by_pr: dict[int, set[str]] = {}
         unread_prs: dict[int, list[Any]] = {}
-        # The same by each issue a FAIL's name carries (`named_issues`).
         failed_by_issue: dict[int, set[tuple[int, str]]] = {}
         unread_issues: dict[int, set[int]] = {}
-        # When each of those FAILs was uploaded (`created_at`), by pull
-        # request and head, for the cap's fresh-attempt floor (`_elsewhere`).
         fail_times: dict[tuple[int, str], list[Any]] = {}
         self._fail_runs = {}
         for item in map(
@@ -4505,8 +4352,6 @@ class Reader:
                     )
                     unreadable = unreadable or hold
                     if unread and len(digits) <= 10:
-                        # Held only if its pull request is one the cap counts,
-                        # which a number over 10 digits never is.
                         unread_prs.setdefault(int(digits or "0"), []).append(
                             item.get("created_at")
                         )
@@ -4556,8 +4401,6 @@ class Reader:
             for issue in named_issues(match):
                 failed_by_issue.setdefault(issue, set()).add((pr_n, sha))
             if not tied and match[4] is not None:
-                # The name, which the run authenticates, carries the head
-                # branch the verdict records: no download.
                 if not head_ref or head_ref_digest(head_ref) != match[4]:
                     continue
             elif not tied:
@@ -4619,8 +4462,6 @@ class Reader:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
         elif head in failed and not head_superseded:
-            # A FAIL here gets a fix round, so the cap counts the other pull
-            # requests for its issues first: a round past it cannot merge.
             heads = failed | elsewhere()[1]
             refusal = FAIL
             if len(heads) >= self.max_fails:
@@ -4645,9 +4486,6 @@ class Reader:
         elif unreadable:
             refusal = UNREADABLE
         elif passes:
-            # Every pass of the run that started last must allow
-            # (`_newest`), so listing order decides nothing; any unreadable
-            # one refuses (`_Unreadable`).
             live = elsewhere()[0]
             refusals = {
                 self._pass_refusal(run_id, name, number, head, live, pr, artifact)
@@ -4719,7 +4557,6 @@ class Reader:
         floors = {n: self._attempt_floor(issue) for n, issue in live.items()}
 
         def after(stamps: Iterable[Any], issue: int) -> bool:
-            # A time that cannot be read counts the FAIL.
             floor = floors[issue]
             for stamp in stamps:
                 try:
@@ -4730,7 +4567,6 @@ class Reader:
             return False
 
         def drafted(pr_n: int, sha: str) -> bool:
-            # Every FAIL there judged a run that started on the draft.
             run_ids = self._fail_runs.get((pr_n, sha), [])
             return bool(run_ids) and all(self._draft_judged(sha, r) for r in run_ids)
 
@@ -5113,8 +4949,6 @@ class Reader:
         if not passes or not fails:
             return False
         try:
-            # The records first, then the run times and the edits, read once
-            # per pull request.
             judged: set[frozenset[int]] = set()
             for run_id, name, artifact in fails:
                 record = self._record(run_id, name, artifact)
@@ -5125,7 +4959,6 @@ class Reader:
                 ):
                     return False
                 judged.add(_linked_numbers(record))
-            # Whether each pass judged the FAILs' linked issues again.
             same: list[bool] = []
             for run_id, name, artifact in passes:
                 record = self._record(run_id, name, artifact)
@@ -5367,22 +5200,13 @@ class Reader:
             for n, node in live.items()
         ):
             return SPEC_CHANGED
-        # A `Refs:` issue is judged as a partial slice (write-verdict.mjs
-        # `spec_kind`), so a pass judged that way never covers a pull request
-        # that now closes it, nor the reverse. A record from before the kind
-        # was written judged closing issues.
         if live and any(n.get(REFS_MARK) for n in live.values()) != (
             record.get("spec_kind", "closes") == "refs"
         ):
             return SPEC_CHANGED
         if self._list_changed(record, started):
             return SPEC_CHANGED
-        # No closing issue, then and now: the verdict judged the pull
-        # request's own title and body, which only a trusted author's adopted
-        # pull request reaches the gate with (`lane_eligibility`).
         if not issues and record.get("intent") == INTENT_PULL_REQUEST:
-            # The title and body it judged, by sha256 (write-verdict.mjs):
-            # an edit since, or no recorded hash, is a spec it never read.
             pr = json_object(pr)
             text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
             live_digest = hashlib.sha256(text.encode()).hexdigest()
@@ -5572,8 +5396,6 @@ def lane_risk_refusal(
                 f"{repo}#{number} reviews",
             )
             trusted = humans()
-            # An approval of an earlier head carries over merges that bring
-            # only the base's changes.
             lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
                 merge_policy.carried_lifters(
                     repo,
@@ -5589,7 +5411,6 @@ def lane_risk_refusal(
         if lifted:
             held = [r for r in held if r not in paths]
     text = "; ".join(f"{r.code}: {r.detail}" for r in held)
-    # Scored without the high paths an approval lifted.
     kept = tuple(r for r in risk.reasons if r in held or r not in paths)
     whole = babysit_whole_review.wanted(None, replace(risk, reasons=kept), lanes)
     return (text, bool(diff_risk.person_reasons(held)), whole) if text else None
@@ -5720,8 +5541,6 @@ def _settle_reason(
     unmoved: bool = False,
     outcome: dict[str, str | None],
 ) -> str | None:
-    """`_settle`'s refusal for a readable report, `outcome` filled by
-    `settle_shared` when it runs. Raises what the reads raise."""
 
     def idle_tick(refusal: str | None) -> str | None:
         return refusal and f"idle tick {refusal}"
@@ -5780,7 +5599,6 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 AGENT_READY = "agent-ready"
 STATUS_READY = "status: ready"
 STATUS_CONFIRMED = "status: confirmed"
-# The Work status state a parked issue's field is set to.
 STATUS_FIELD_CONFIRMED = "confirmed"
 
 
@@ -5922,15 +5740,12 @@ def _gh_write(args: list[str], what: str, *, missing_ok: bool = False) -> None:
 
 
 def _login_is(user: Any, identity: str) -> bool:
-    """Whether the REST `user`'s login is `identity`, ignoring case."""
     return str(json_object(user).get("login") or "").lower() == identity.lower()
 
 
 def _marked(
     comments: list[dict[str, Any]], identity: str, number: int
 ) -> re.Match[str] | None:
-    """The identity's capped-close record for pull request `number` among
-    REST `comments`, or None."""
     found = _capped_record(comments, identity, number)
     return found[0] if found else None
 
@@ -5938,8 +5753,6 @@ def _marked(
 def _capped_record(
     comments: list[dict[str, Any]], identity: str, number: int
 ) -> tuple[re.Match[str], datetime] | None:
-    """`_marked`'s record and when it was posted; a record with no readable
-    time raises `PostMergeReadError`."""
     for c in comments:
         if (
             _login_is(c.get("user"), identity)
@@ -5980,9 +5793,6 @@ def _lane_removals(
 
 
 def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
-    """How many other pull requests for the issue the lane has closed at the
-    cap for a fresh attempt (`_started_attempt`), so a parked or
-    attempt-less record spends nothing."""
     named = {
         pr
         for c in comments
@@ -6072,8 +5882,6 @@ def capped_close(
     refusal: str | None
     detail: str | None
     if reason == NOT_CONVERGING:
-        # Judged below from the pull request's comments, not the verifier;
-        # `detail` becomes the stop comment's URL.
         refusal, detail = NOT_CONVERGING, None
     elif reason == CLOSE_VERIFY:
         evidence = reader.evidence(number, head)
@@ -6115,7 +5923,6 @@ def capped_close(
         issue_status.hold_states if issue_status else merge_policy.HOLD_STATES
     )
 
-    # Each issue's Work status from the hold read, for the park below.
     states: dict[int, str | None] = {}
 
     def status(issue: int) -> str | None:
@@ -6147,10 +5954,7 @@ def capped_close(
                 "closed": False,
                 "reason": f"no lanes App {NOT_CONVERGING} stop at {head}",
             }
-        # The stop comment lists the open review threads it was closed for.
         detail = str(stop.get("html_url") or "") or None
-    # A pull request is closed at the cap once: one reopened after its
-    # record is a person's, and stays open.
     if (pr_record := _capped_record(pr_comments, identity, number)) is not None and any(
         json_object(e).get("event") == "reopened"
         and postmerge._time(json_object(e).get("created_at")) > pr_record[1]
@@ -6159,14 +5963,6 @@ def capped_close(
         )
     ):
         return {"closed": False, "reason": "reopened after its capped-close record"}
-    # `attempt` None: the issue did not carry agent-ready when read (a person
-    # may have taken it off), so it is recorded without an attempt and not
-    # restarted. `labels`: which writes it gets (park, toggle, add or none;
-    # with `issue_status`, toggle and add both restart the field). On a rerun, a record with no attempt writes none; a parked one
-    # writes the park labels only while unfinished; one naming an attempt
-    # toggles only when no lanes App removal followed the record, and puts
-    # agent-ready back only when the newest removal is that one
-    # (`_lane_removals`).
     plan: list[tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]] = []
     for issue in issues:
         comments = postmerge._paginated(
@@ -6189,7 +5985,6 @@ def capped_close(
                 )
             }
             if parked:
-                # Written once: the park labels go on again only while unfinished.
                 done = (
                     states.get(issue) == STATUS_FIELD_CONFIRMED
                     if issue_status is not None
@@ -6198,10 +5993,6 @@ def capped_close(
                 )
                 labels = "none" if done else "park"
             elif issue_status is not None:
-                # The lanes App's own agent-ready set at or after the record is
-                # the restart that run made; with none, the run stopped before
-                # it, and the attempt starts unless a person has since moved
-                # the field to another state.
                 try:
                     restarted = merge_policy.issue_status_set_since(
                         repo,
@@ -6230,14 +6021,10 @@ def capped_close(
                     admission,
                 )
                 if carried:
-                    # No removal since the record: the run stopped before it,
-                    # so no labeled event ever started the attempt.
                     labels = "none" if removed else "toggle"
                 else:
                     labels = "add" if newest else "none"
         elif found is not None:
-            # Recorded with no attempt: nothing is restarted, whatever a
-            # person did since.
             attempt, parked, labels = None, False, "none"
         else:
             spent = _spent(comments, identity, number)
@@ -6249,10 +6036,6 @@ def capped_close(
             )
             labels = "park" if parked else ("toggle" if carried else "none")
         plan.append((issue, comments, attempt, parked, labels))
-    # Read again before any record or park write: a hold set since the hold
-    # read stays, and the issue is recorded with no attempt, not parked, and,
-    # in a repository with no Work status field, loses agent-ready, since its
-    # attempts are spent.
     held: dict[int, str] = {}
     for i, (issue, comments, _, _, labels) in enumerate(plan):
         if labels == "park" and read_status:
@@ -6318,15 +6101,10 @@ def capped_close(
         )
         base = f"repos/{repo}/issues/{issue}/labels"
         if issue in held and issue_status is None:
-            # At the cap: no attempt restarts when the hold clears. Before the
-            # record, since a rerun that finds the record writes no labels.
             remove_label(issue, admission)
         if _marked(comments, identity, number) is None:
             post_comment(issue, issue_body, f"#{issue} record")
         if labels == "park" and issue_status is not None:
-            # A repository that keeps Work status in the field gets the field
-            # alone, before any label comes off (report-outcome.mjs
-            # applyHandBack); a write that does not land raises.
             postmerge.set_issue_status(
                 repo, issue, issue_status, STATUS_FIELD_CONFIRMED
             )
@@ -6397,16 +6175,12 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
         reader.listing_max_age = None
         holds = tuple(h for h in args.hold_label if h)
         owner, _, name = args.repo.partition("/")
-        # The labels that hold the issue, as the merge gate resolves them
-        # (`merge_policy.issue_hold_labels`).
         issue_holds = merge_policy.issue_hold_labels(
             config,
             None
             if config.issue_holds
             else postmerge._role_label(owner, name, strict=True),
         )
-        # The label a fresh attempt restarts with: the tracker's admission
-        # role label (`merge_policy.admission_label`), passed when remapped.
         admission = postmerge._role_label(
             owner,
             name,
@@ -6445,10 +6219,7 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
 LEGACY_CHECKPOINT_VERSION = 2
 # The pages the build's whole listing may read (about 135 on 2026-11-02).
 LISTING_FAILS_PAGES_CAP = 600
-# How long after the merge commit that brought FAIL_INDEX a run may still have
-# been triggered on the older workflow; a later cutover only reads more runs.
 CUTOVER_MARGIN = timedelta(hours=1)
-# A window whose run search reaches RUN_SEARCH_CAP is split down to this span.
 RUN_WINDOW_MINIMUM = timedelta(minutes=1)
 RUN_FIELDS_KEPT = (
     "id",
@@ -6467,7 +6238,6 @@ RUN_FIELDS_KEPT = (
 # `--since` are listed too, and each one updated since is read. A day over
 # the limit covers its boundary.
 RERUN_LOOKBACK = timedelta(days=31)
-# The statuses of a verifier run not completed yet.
 RUNNING_STATUSES = ("queued", "in_progress", "waiting", "requested", "pending")
 RATE_LIMIT_SIGNS = (
     "rate limit",
@@ -6496,15 +6266,11 @@ class _Pacer:
     window_cap: int
     min_remaining: int
     breaker_file: str | None
-    # Where the window's reset and calls are kept, so a resume inside the
-    # same reset window keeps counting toward its cap.
     state_file: str | None = None
     calls: int = 0
     window_calls: int = 0
     window_reset: int | None = None
     limited: str | None = None
-    # Why the build stopped, kept as well as raised: a read that wraps any
-    # error (`Reader._record`) would otherwise turn a stop into a refusal.
     stopped: str | None = None
     _last: float | None = None
 
@@ -6602,7 +6368,6 @@ class _Pacer:
 
 
 def _kept_run(run: dict[str, Any]) -> dict[str, Any]:
-    """The fields of a run record the build keeps: its status and origin."""
     return {
         **{k: run.get(k) for k in RUN_FIELDS_KEPT},
         **{
@@ -6646,7 +6411,6 @@ def cutover_of(reader: Reader, merge_sha: str) -> datetime:
 
 
 def _windows(since: datetime, until: datetime) -> list[tuple[datetime, datetime]]:
-    """Whole UTC days from `since` up to `until`, the last cut at `until`."""
     out, start = [], since
     while start < until:
         end = min(start + timedelta(days=1), until)
@@ -6755,8 +6519,6 @@ class _PerRunBuild:
             raise _Unreadable(
                 f"the verifier runs created {created} list {len(found)} of {sorted(totals)}"
             )
-        # Refused before the caller keeps the window, so a resume lists it
-        # again once the run has completed.
         for record in found.values():
             if record.get("status") != "completed":
                 raise _Unreadable(
@@ -6966,7 +6728,6 @@ class _PerRunBuild:
         # its creation time, and a judgment can upload hours after it) is
         # read here, so the file is the union of the windows and the listing.
         self._running_check()
-        # A checkpoint whose listing kept no upload times lists again.
         listed = self.state.get("listed")
         if not is_json_array(listed) or any("created_at" not in i for i in listed):
             self.state["listed"] = self._listing_fails()
@@ -6977,7 +6738,7 @@ class _PerRunBuild:
         for item in self.state["listed"]:
             run_id = item["run"]
             if not _is_id(run_id, run_id):
-                continue  # No run to authenticate it: every judgment ignores it.
+                continue
             if str(run_id) not in runs:
                 runs[str(run_id)] = self._run(self._run_record(run_id))
                 added.append(run_id)
@@ -7266,8 +7027,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             shared,
             lane_rung_cap=args.rung_cap,
             code_unchanged=merge_policy.check_code_unchanged(args.code_sha),
-            # The gate's recompute, bound as the room binds, and the one run
-            # listing that spares it while the pending merges' runs hold.
             post_merge=postmerge.gate_reader(args.repo, (), lane_merges_only=True),
             runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
                 args.repo, answer, branch
@@ -7276,7 +7035,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         print(json.dumps(answer.report()))
         return 0
     if args.lane_queue and not args.lane_reviews:
-        # The reviews read checks the head the count is for and reads the limit.
         parser.error("--lane-queue needs --lane-reviews")
 
     def judged() -> dict[str, Any]:
@@ -7342,9 +7100,6 @@ def baseline_detail(baseline_file: str) -> str:
 
 
 def _link_shape(refusal: str | None) -> bool:
-    """Whether `refusal` is about the link's shape alone (no single issue
-    here, `merge_policy._linked_issue`), the one kind a baseline pull request
-    sets aside. A failed read or the linked issue's trust hold is not."""
     return refusal is not None and (
         merge_policy.no_issue_here(refusal) or refusal.startswith("linked-issues:")
     )
@@ -7353,10 +7108,6 @@ def _link_shape(refusal: str | None) -> bool:
 def _native_baseline(
     repo: str, pr: dict[str, Any], identity: str | None, baseline_file: str | None
 ) -> bool:
-    """Whether `pr` is the lanes App's and changes only `baseline_file`
-    (`merge_policy.baseline_only`), its files read whole; a read that fails
-    is not. Any other author, an unset file, or a record that does not count
-    one changed file, reads no files."""
     if pr.get("changed_files") != 1 or not merge_policy.baseline_only(
         pr, identity, baseline_file, [str(baseline_file)]
     ):
@@ -7370,7 +7121,6 @@ def _native_baseline(
 
 
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
-    """`evidence`'s answer for one pull request, read in full (`main`)."""
     link: dict[str, Any] = {}
     if args.lane_link:
         link["ineligible"] = reader.link_refusal(args.number)
@@ -7396,8 +7146,6 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
             refusal = Evidence(UNREADABLE, args.head, (), 0, str(exc))
             return refusal.report() | link
     else:
-        # The record the caller read in this run, at this head; else the
-        # reader reads it live.
         pr = merge_policy.cached_pull_request(
             os.environ.get(PULL_ENV), args.repo, args.number, args.head
         )
@@ -7423,14 +7171,11 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:
         head = json_object(json_object(pr).get("head")).get("sha")
-        # Whether only a person clears `reviews`; an unread score the lanes
-        # read again. Whether a whole review of the head would clear it.
         link["reviewsPerson"] = False
         link["wholeReviewWanted"] = False
         if head != args.head:
             link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
         else:
-            # The lowest of the room's effective rung and this base's config.
             rung = merge_policy.effective_rung(
                 config_rung=config.rung,
                 loop_merge=config.loop_merge,
