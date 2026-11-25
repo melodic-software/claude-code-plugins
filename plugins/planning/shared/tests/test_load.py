@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/question_shape.py
 """20 people writing once a second each, while each page polls /api/state every 1.5 s.
 
 The figure in README.md "Load" comes from this test: it prints the p95 write latency. The bound
