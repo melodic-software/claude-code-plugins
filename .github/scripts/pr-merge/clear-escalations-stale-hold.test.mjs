@@ -7,7 +7,7 @@
 // 2026-10-30, #11020). Notice and comment shapes are the ones the review lanes
 // post (#10743's security lane comments).
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -90,7 +90,7 @@ const baseLanes = () => ({
 const push = (actor, sha, at) => ({ activity_type: "push", actor, after: sha, timestamp: at });
 const basePushes = () => [push(PERSON, HEAD, "2026-10-18T11:00:00Z"), push(PERSON, OLD, "2026-10-18T09:50:00Z"), { activity_type: "branch_creation", actor: PERSON, after: "e".repeat(40), timestamp: "2026-10-18T08:00:00Z" }];
 
-function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }], heldCompare = baseHeldCompare(), ownCompare = baseOwnCompare(), fixFiles = [{ filename: "plugins/x/y.py" }] } = {}) {
+function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(), lanes = baseLanes(), pushes = basePushes(), headFiles = [{ filename: "plugins/x/y.py" }], heldCompare = baseHeldCompare(), ownCompare = baseOwnCompare(), fixFiles = [{ filename: "plugins/x/y.py" }], mergeBase, listings = {} } = {}) {
   const calls = [];
   const seen = { pull: 0, timeline: 0 };
   const github = async (method, path, body) => {
@@ -117,7 +117,12 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
       return { number: 7, state: "open", user: OWNER, base: { ref: "main", sha: MAIN }, head: { sha: seen.pull > 1 ? (later.head ?? HEAD) : HEAD, ref: "feat/x", repo: { full_name: REPO } }, labels: [{ name: "needs-human" }] };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${MAIN}...${HEAD}`) {
-      return { files: headFiles };
+      return { files: headFiles, ...(mergeBase && { merge_base_commit: { sha: mergeBase } }) };
+    }
+    const listed = new RegExp(`^/repos/${REPO}/contents/\\.github/workflows\\?ref=([0-9a-f]{40})$`).exec(path)?.[1];
+    if (method === "GET" && listed !== undefined) {
+      if (!(listed in listings)) throw new Error(`GET ${path} failed with status 404`);
+      return structuredClone(listings[listed]);
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${OLD}...${HEAD}`) {
       return heldCompare;
@@ -250,6 +255,22 @@ test("the hold stays when the head changes a review caller, a person spoke, or t
   await assertKept(world({ timeline: [...baseTimeline(), commented(OWNER, "Wait on this.", "2026-10-18T11:40:00Z")] }), "kyle-sexton commented or reviewed after needs-human went on");
   const escalation = commented(APP, "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nHeld.", "2026-10-18T11:40:00Z");
   await assertKept(world({ timeline: [...baseTimeline(), escalation] }), "a lanes App comment since needs-human went on carries a marker");
+});
+
+const LISTING = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8"));
+const relisted = (changes) => LISTING.workflows.flatMap((entry) => (!(entry.name in changes) ? [entry] : changes[entry.name] === null ? [] : [{ ...entry, sha: changes[entry.name] }]));
+
+test("past the compare API's 300-file list, the head's lane runs count when its review-lane workflows match at its merge base", async () => {
+  const BASE = "3".repeat(40);
+  const headFiles = [{ filename: "plugins/x/y.py" }, ...Array.from({ length: 299 }, (_, i) => ({ filename: `docs/${i}.md` }))];
+  const cleared = world({ headFiles, mergeBase: BASE, listings: { [BASE]: LISTING.workflows, [HEAD]: relisted({ "pr-merge.yml": "d".repeat(40) }) } });
+  await run(cleared);
+  assert.deepEqual(cleared.writes().at(-1), { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined }, "an unchanged lane workflow lets the hold come off");
+  await assertKept(
+    world({ headFiles, mergeBase: BASE, listings: { [BASE]: LISTING.workflows, [HEAD]: relisted({ "pr-review-security-hosted.yml": "e".repeat(40) }) } }),
+    "the head's lane runs prove nothing: it changes a review-lane workflow",
+  );
+  await assertKept(world({ headFiles }), "the head's lane runs prove nothing: it changes too many files");
 });
 
 test("pr-verify's credential stop keeps a stale review hold's label", async () => {
