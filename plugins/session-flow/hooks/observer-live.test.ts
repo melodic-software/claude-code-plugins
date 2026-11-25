@@ -614,7 +614,7 @@ test('session start prunes every observer file not written for 30 days', async (
   expect(Number(prune?.[4])).toBe(1_791_050_400_000 - 30 * 86_400_000)
 })
 
-test('the band keeps a blank line above and below it', async ($, on) => {
+test('the band keeps a blank line above it', async ($, on) => {
   const w = world(on)
   w.replies.push(answer(FINDING))
   await start($)
@@ -622,6 +622,6 @@ test('the band keeps a blank line above and below it', async ($, on) => {
   await steps($, 't1', 6)
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   const boxes = await ui.findAll({ type: 'Box' })
-  expect(boxes.some(b => b.props.marginTop === 1 && b.props.marginBottom === 1)).toBe(true)
+  expect(boxes.some(b => b.props.marginTop === 1)).toBe(true)
   await ui.unmount()
 })

@@ -45,7 +45,7 @@ Every ledger and usage write is an append (`node`'s `appendFileSync`, run throug
 `$.process.run` cannot run, the write falls back to a read and rewrite through `$.fs` that checks the
 file's size and modification time again just before writing and retries when they moved; that
 narrows the window but cannot close it, since `$.fs` has no append. The finding also shows as a band row above the
-prompt, with a blank line above and below it as the built-in side agent's has, led by a `◆` (`*` when
+prompt, with a blank line above it as the built-in side agent's has, led by a `◆` (`*` when
 `TERM` is `dumb`), `observer`, its category and the trigger that found it
 (`step 12`, `turn end`), with buttons `5` Send to Claude (appends a quoted note to the prompt box,
 marked as background the person did not write), `6` Noted (marks the ledger entry confirmed), `7`

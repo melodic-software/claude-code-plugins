@@ -325,7 +325,7 @@ export const register: Register = (on, options) => {
         $.ui.invalidate('ui.render')
       }
       return (
-        <Box flexDirection="column" marginTop={1} marginBottom={1}>
+        <Box flexDirection="column" marginTop={1}>
           {askedRow(ui, st.icon, {
             helpful: rate('helpful'),
             notRelevant: rate('not_relevant'),
@@ -343,7 +343,7 @@ export const register: Register = (on, options) => {
     }
     const f = card.finding
     return (
-      <Box flexDirection="column" marginTop={1} marginBottom={1}>
+      <Box flexDirection="column" marginTop={1}>
         {band(ui, st.icon, f, card.source, card.isOpen, `this session: ${summarize(st.rows).split('\n')[1] ?? ''} (/observer for more)`, {
           noted: async () => {
             const ok = await appendTo($, card.ledger, notedLine(await iso($), f)).then(() => true, () => false)
