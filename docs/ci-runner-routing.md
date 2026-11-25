@@ -100,10 +100,14 @@ GitHub merged into, so the local shfmt action, the Ruff pin and the script are
 the base's, and the head is read only as blob ids. The job holds a read-only
 token and keeps no credential. It is not a lane: `ci-status` leaves its result
 out of the aggregate, so its failure only means no proof. It runs on every
-non-draft `pull_request` event, contract-only ones included, so a label change
-on a formatter pull request still finds its proof; a change with any path no
-formatter or regenerator covers stops after the classifying step, before the
-tools install. Its budget is unmeasured as a job: the script took 173 s on one
+non-draft `pull_request` event except contract-only ones, as the lanes do; a
+change with any path no formatter or regenerator covers stops after the
+classifying step, before the tools install. When the proof holds, `ci-status`
+records it as a `formatter-proof` commit status on the head naming the base
+the event carries, and on a contract-only event it reads the newest such
+status `github-actions[bot]` wrote in place of the job's output, so a label or
+body change keeps the proof. No record, another base, or a failed read leaves
+the lanes to decide. Its budget is unmeasured as a job: the script took 173 s on one
 lane (36 s on eight) for the 1,403-file shfmt cleanup of
 [#17778](https://github.com/melodic-software/claude-code-plugins/issues/17778)
 and 5 s for its 439-file Ruff cleanup, so with about 60 s of checkout and setup,
