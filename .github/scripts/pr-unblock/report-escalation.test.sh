@@ -226,7 +226,7 @@ for reason in bogus workflow-files dependency-workflow-held; do
     $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
   has "$reason, unknown: label is needs-human" 'labels[]=needs-human' "$STUB/calls"
   check "$reason, unknown: marker is the first line" "$MARKER" "$(head -n 1 "$STUB/bodies")"
-  has "$reason, unknown: comment names the reason" "- Reason: \`$reason\`" "$STUB/bodies"
+  has "$reason, unknown: comment names the lane code" "- Lane code: \`$reason\`" "$STUB/bodies"
   has "$reason, unknown: comment says the table does not list it" 'its routing table does not list' "$STUB/bodies"
   check "$reason, unknown: no activity to dispatch" 0 "$(grep -c 'activity=' "$STUB/bodies" || true)"
   setup '[]' '[]'
@@ -284,6 +284,8 @@ for reason in "${HOLD_REASONS[@]}"; do
   code=${OWNER_REASONS[$reason]:-}
   check "$reason: the stop-reason marker names $code" "{\"lane\":\"pr-unblock\",\"reason\":\"$code\"}" "$parsed"
   has "$reason: the visible line names $code" "Reason: \`$code\`" "$STUB/bodies"
+  check "$reason: the lane code has its own label" 1 "$(grep -cFx -- "- Lane code: \`$reason\`" "$STUB/bodies")"
+  check "$reason: Reason names only the owner reason" 0 "$(grep -cF -- "Reason: \`$reason\`" "$STUB/bodies" || true)"
   check "$reason: the resume key stays the second line" "<!-- pr-unblock resume-key=$HEAD_A -->" "$(sed -n 2p "$STUB/bodies")"
 done
 setup '[]' '[]'
@@ -528,6 +530,10 @@ run feedback-question-design
 check "re-run on the same head: exit 0" 0 "$RC"
 check "re-run on the same head: no write" 0 "$(writes)"
 
+setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\nbody\n\n- Lane code: `feedback-question-design`' 'melodic-automation-lanes[bot]' Bot)"
+run feedback-question-design
+check "re-run on the same head, lane code label: no write" 0 "$(writes)"
+
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_B")"
 run feedback-question-design
 check "labeled, marker for another head: comment only" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
@@ -591,6 +597,26 @@ check "marker written by another bot does not count" 'POST repos/o/r/issues/42/c
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->"$'\n- Reason: `feedback-question-design`' 'other-app[bot]' Bot)"
 LBL='other-app[bot]' run feedback-question-design
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
+
+setup '[]' '[]'
+cat >"$STUB/threads.json" <<'EOF'
+[{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
+{"isResolved":false,"path":"src/q.js","line":3,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r9"}]}},
+{"isResolved":true,"path":"src/done.js","line":1,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r8"}]}}
+]}}}}}]
+EOF
+run feedback-question-design
+check "question: exit 0" 0 "$RC"
+has "question: points at the open threads" 'The disputed finding is in one of the open review threads:' "$STUB/bodies"
+has "question: names the open thread" '- `src/q.js:3`: https://github.com/o/r/pull/42#discussion_r9' "$STUB/bodies"
+check "question: a resolved thread is not named" 0 "$(grep -c 'src/done.js' "$STUB/bodies" || true)"
+check "question: label then comment" "$LABEL_THEN_COMMENT" "$(grep '^POST' "$STUB/requests")"
+
+setup '[]' '[]'
+touch "$STUB/fail_graphql"
+run feedback-question-intent
+check "question, threads unreadable: still escalates" 0 "$RC"
+has "question, threads unreadable: says so" 'could not be read' "$STUB/bodies"
 
 ROUND='<!-- pr-unblock:address-feedback-round -->'
 rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')
@@ -779,7 +805,7 @@ run feedback-question-design
 check "queued hold: exits 0" 0 "$RC"
 check "queued hold: one read, then the dequeue of its node id" $'queue-read\ndequeue api graphql -f query=mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } } -f id=PR_42' "$(cat "$STUB/queue")"
 has "queued hold: names the dequeue" "${NOTICE}dequeued" "$STUB/out"
-check "queued hold: the label goes on before the queue read" "POST repos/o/r/issues/42/labels" "$(grep -B1 -m1 '^GET graphql$' "$STUB/requests" | head -1)"
+check "queued hold: the label goes on before the queue read" "GET graphql" "$(grep -A1 -m1 '^POST repos/o/r/issues/42/labels$' "$STUB/requests" | tail -1)"
 
 setup '[]' '[]'
 run feedback-question-design

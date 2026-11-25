@@ -150,10 +150,16 @@ test("the newest labeled event is read by its time, not its place in the list", 
   assert.equal(source(reordered), "lane-escalation");
 });
 
-const escalated = (reason, at = "2026-10-18T10:00:05Z") =>
-  commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
+const escalated = (reason, at = "2026-10-18T10:00:05Z", codeLabel = "Lane code") =>
+  commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
 const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
   laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
+
+test("a hold comment that labels its lane code `- Reason:` holds its activity too", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated", undefined, "Reason")];
+  assert.equal(allows(timeline, "fix-ci"), false);
+  assert.equal(allows(timeline, "resolve-conflicts"), true);
+});
 
 test("a lane escalation holds only the activity it belongs to", () => {
   const by = (reason) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated(reason)];
