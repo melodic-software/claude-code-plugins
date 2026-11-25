@@ -668,7 +668,6 @@ if [[ -n "$FROM_REPORT" ]]; then
   exit 0
 fi
 
-# Every path read or tested from here on, written to FLEET_STATE_READ_LIST on exit.
 FS_READ_SET=()
 read_set() { [[ -z "${FLEET_STATE_READ_LIST:-}" ]] || FS_READ_SET+=("$@"); }
 [[ -z "${FLEET_STATE_READ_LIST:-}" ]] ||
@@ -1047,12 +1046,6 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
   fi
 done
 
-# --- Emit one marketplace's state object ------------------------------------
-# Args: marketplace name. Leaves the JSON object (or, under --ids, the
-# projected id lines) in FS_BLOCK; on a resolvable per-marketplace failure
-# leaves {marketplace:{name,error}} there and returns 1 (caller decides whether
-# that is fatal for this invocation). A global rather than stdout so the caller
-# never forks a subshell to capture it.
 FS_BLOCK=""
 
 error_block_to() {
@@ -1290,8 +1283,6 @@ emit_marketplace() {
     error_block_to FS_BLOCK "$name" "not found in known_marketplaces.json"
     return 1
   fi
-  # `auto_update` is jq's own `true`/`false` text; normalized to a JSON literal
-  # once here for every block below.
   [[ "${mp_au[idx]}" == "true" ]] && auto_update_json=true
   last_updated="${mp_lu[idx]}"
   install_location="${mp_loc[idx]}"

@@ -40,8 +40,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Fixture builders --------------------------------------------------------
-
 # CASE_NUM must be incremented in the CALLER's shell before calling this,
 # never inside it: `case_dir=$(new_case_dir)` runs in a subshell, so a
 # `CASE_NUM=...` assignment made in here is discarded when the subshell
@@ -1980,9 +1978,6 @@ count_creations() {
   echo $((forks - 1 + execs))
 }
 
-# Like run_state, but under `bash -x` with a pid-stamped PS4 and stderr (the
-# trace) routed to $2. CLAUDE_PROJECT_DIR is pinned to a fixture directory so
-# the count does not depend on whether the suite itself runs inside a git repo.
 run_traced() {
   local case_dir="$1" trace="$2"
   mkdir -p "$case_dir/proj"
