@@ -36,6 +36,12 @@ end_of_line = crlf
 [{.gitconfig,*.gitconfig,dot_gitconfig*}]
 indent_style = tab
 
+# A diff keeps its content lines byte for byte: an empty context line is one space.
+[*.diff]
+indent_style = unset
+indent_size = unset
+trim_trailing_whitespace = unset
+
 [{package-lock.json,packages.lock.json,*.lock}]
 end_of_line = unset
 indent_size = unset

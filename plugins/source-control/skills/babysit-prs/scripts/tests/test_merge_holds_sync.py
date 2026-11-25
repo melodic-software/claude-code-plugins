@@ -1890,3 +1890,54 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
         self.assertTrue(
             policy.ungated_since(_pushed([path]), [], floor=risk.floor_for())
         )
+
+
+_FIXTURES = ROOT / ".github/scripts/pr-merge/fixtures"
+_LISTED = json.loads((_FIXTURES / "compare-paged-1.json").read_text(encoding="utf-8"))
+_DIFF = (_FIXTURES / "compare.diff").read_text(encoding="utf-8")
+_MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
+_BINARY = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"
+DIFF_CASES = {
+    "the same diffs": [_DIFF, _DIFF],
+    "one changed line": [_DIFF, _DIFF.replace('"name":"Bug"', '"name":"Bugs"')],
+    "a mode change more": [_DIFF, _DIFF + _MODE_ONLY],
+    "a binary file in both": [_DIFF + _BINARY, _DIFF + _BINARY],
+    "a quoted path": [_DIFF, _DIFF + 'diff --git "a/\\303\\251" "b/\\303\\251"\n'],
+    "text before the first section": [_DIFF, "index 1..2\n" + _DIFF],
+}
+NODE_DIFF = """
+import { diffFiles, needsDiff, sameNetChange } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [listed, cases] = JSON.parse(text);
+console.log(JSON.stringify(cases.map((diffs) => [diffFiles(diffs[1]), needsDiff(listed), sameNetChange(listed, listed, diffs)])));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheDiffNetChangeIsTheGates(unittest.TestCase):
+    def test_both_read_the_same_files_and_net_change_from_the_diffs(self) -> None:
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_DIFF % json.dumps(MODULE.as_uri())],
+            input=json.dumps([_LISTED, list(DIFF_CASES.values())]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, diffs), js in zip(DIFF_CASES.items(), answers, strict=True):
+            with self.subTest(name):
+                self.assertEqual(
+                    [
+                        policy.diff_files(diffs[1]),
+                        policy.needs_diff(_LISTED),
+                        policy.same_net_change(_LISTED, _LISTED, diffs),
+                    ],
+                    js,
+                )
+        self.assertEqual(
+            {name for name, (_, _, same) in zip(DIFF_CASES, answers, strict=True) if same},
+            {"the same diffs"},
+        )
+        self.assertFalse(policy.same_net_change(_LISTED, _LISTED), "the listing alone")
+        self.assertEqual(len(policy.diff_files(_DIFF) or []), 301)

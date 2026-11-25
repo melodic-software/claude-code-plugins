@@ -5683,6 +5683,14 @@ jobs:
             read_api "repos/$repo/compare/$tip...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
             read_api "repos/$repo/compare/$tip...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
             jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json" || return 1
+            # A listing at the compare API's 300 files, or with a file it gives
+            # no patch, is judged on both diffs instead (the base's needsDiff).
+            jq -n null >"$RUNNER_TEMP/cost-hold-diffs.json" || return 1
+            if [ "$(holds_js needsDiff "$RUNNER_TEMP/cost-hold-then.json")" = true ] || [ "$(holds_js needsDiff "$RUNNER_TEMP/cost-hold-now.json")" = true ]; then
+              read_api "repos/$repo/compare/$tip...$decided" -H "Accept: application/vnd.github.diff" >"$RUNNER_TEMP/cost-hold-then.diff" || return 1
+              read_api "repos/$repo/compare/$tip...$HEAD_SHA" -H "Accept: application/vnd.github.diff" >"$RUNNER_TEMP/cost-hold-now.diff" || return 1
+              jq -n --rawfile decided "$RUNNER_TEMP/cost-hold-then.diff" --rawfile current "$RUNNER_TEMP/cost-hold-now.diff" '[$decided, $current]' >"$RUNNER_TEMP/cost-hold-diffs.json" || return 1
+            fi
             parents=$(holds_js mergedParents "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json") || return 1
             for sha in $(jq -r '.[]?' <<<"$parents"); do
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || return 1
@@ -5693,7 +5701,7 @@ jobs:
             done
             jq -n --argjson b "$in_base" '$b' >"$RUNNER_TEMP/cost-hold-in-base.json" || return 1
             [ "$(holds_js baseMergeCarry "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json" "$RUNNER_TEMP/cost-hold-decided.json" \
-              "$RUNNER_TEMP/cost-hold-in-base.json")" = true ]
+              "$RUNNER_TEMP/cost-hold-in-base.json" "$RUNNER_TEMP/cost-hold-diffs.json")" = true ]
           }
           # Every decision that counts, as {own, at, link, id, comment}.
           decisions='[]' refs_read=

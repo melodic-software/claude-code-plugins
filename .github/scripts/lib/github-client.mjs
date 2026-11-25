@@ -285,7 +285,9 @@ export const ETAG = Symbol.for("github.etag");
  * with resendLimited. A call while the rate guard's latch holds its pool past
  * the wait budget throws RateLimitStop without a request. Pass
  * `resendOnce: true` only for a write that is safe to send twice
- * (RESEND_ONCE). A success with no body returns null; a list keeps its Link
+ * (RESEND_ONCE). An `Accept` header naming a media type that is not JSON (such
+ * as application/vnd.github.diff) returns the answer's text. Otherwise a
+ * success with no body returns null; a list keeps its Link
  * header under Symbol.for("github.link"), and an object its ETag under ETAG.
  * A repeated GET is a conditional read (conditionalReads) on `store`, by
  * default kept for this client, and in the GITHUB_READ_STORE directory too
@@ -325,6 +327,9 @@ export function createGitHub({
       throw new GitHubError(response.status, `${method} ${apiPath}`, await responseDetail(response));
     }
     const text = await response.text();
+    if (headers.Accept !== undefined && !headers.Accept.includes("json")) {
+      return text;
+    }
     if (text === "") {
       return null;
     }

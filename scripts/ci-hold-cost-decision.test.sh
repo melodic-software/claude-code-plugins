@@ -122,8 +122,14 @@ case "$*" in
 */git/ref/heads/*) failing ref; printf '{"ref":"refs/heads/%s","object":{"sha":"%s"}}\n' "${STUB_BASE_REF:-main}" "$TIP_SHA" ;;
 */compare/"$MAIN_SHA...$TIP_SHA") failing compare; printf '{"status":"ahead"}\n' ;;
 */compare/*"...$TIP_SHA") failing compare; printf '{"status":"diverged"}\n' ;;
+*/compare/"$TIP_SHA..."*' -H Accept: application/vnd.github.diff')
+  failing diff
+  args="$*"
+  args="${args%% -H *}"
+  cat "${STUB_DIFF_DIR:-/nonexistent}/${args##*...}.diff" 2>/dev/null || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+  ;;
 */compare/"$TIP_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
-*/compare/"$BASE_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
+*/compare/"$BASE_SHA..."*) failing compare; args="$*"; from "${STUB_LANE_COMPARE:-$STUB_COMPARE}" "${args##*...}" ;;
 */compare/"${STUB_BASE_REF:-main}..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
 */check-runs/*/annotations*) failing notes; from "$STUB_NOTES" "$(key check-runs "$@")" ;;
@@ -516,7 +522,24 @@ expect "a rename since the decided head clears nothing" no no no "covering this 
 nets "$(jq -cn '[range(299) | {filename: "f\(.)", status: "added", patch: "+x"}]')" "$(jq -cn '[range(299) | {filename: "f\(.)", status: "added", patch: "+x"}]')"
 expect "a net change of 299 files carries the decision" yes yes yes
 nets "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')" "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')"
-expect "a compare of 300 files carries nothing" no no no
+expect "a compare of 300 files whose diffs do not read carries nothing" no no no
+FIXTURES="$ROOT/.github/scripts/pr-merge/fixtures"
+STUB_LANE_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --argjson f "[$TF]" '{($h): {files: $f}, ($o): {files: $f}}')"
+export STUB_LANE_COMPARE
+nets "$(jq -c .files "$FIXTURES/compare-paged-1.json")" "$(jq -c .files "$FIXTURES/compare-paged-1.json")"
+export STUB_DIFF_DIR="$TMP_ROOT/diffs"
+mkdir -p "$STUB_DIFF_DIR"
+cp "$FIXTURES/compare.diff" "$STUB_DIFF_DIR/$OLD.diff"
+cp "$FIXTURES/compare.diff" "$STUB_DIFF_DIR/$HEAD.diff"
+expect "a compare at the 300-file cap carries the decision when both diffs show the same change" yes yes yes
+if grep -qxF "api repos/o/r/compare/$TIP_SHA...$HEAD -H Accept: application/vnd.github.diff" "$TMP_ROOT/log"; then
+  ok "the capped compare's diff is read against the base branch's tip commit"
+else
+  fail "no diff read: '$(grep compare "$TMP_ROOT/log")'"
+fi
+sed 's/"name":"Bug"/"name":"Bugs"/' "$FIXTURES/compare.diff" >"$STUB_DIFF_DIR/$HEAD.diff"
+expect "a compare at the 300-file cap whose diffs differ by one line clears nothing" no no no "covering this head"
+unset STUB_DIFF_DIR STUB_LANE_COMPARE
 nets '[{"filename":"a.png","status":"modified"}]' '[{"filename":"a.png","status":"modified"}]'
 expect "a file with no patch carries nothing" no no no "covering this head"
 nets "[$TF]" "[$TF]"

@@ -202,7 +202,7 @@ import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { LANES_APP_LOGIN, REFINE_MARKER } from "../lib/lane-vocabulary.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
-import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { DIFF, OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines, wholeCompare } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence, REFINE_MARKER };
@@ -286,9 +286,6 @@ export function trustedLabeler(events, label, { bot, humans }) {
 const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
-// GET /compare lists at most this many files, so a listing this long may
-// hide a denied path.
-const COMPARE_FILES_CAP = 300;
 
 // A limit stop with no reset time is taken to reset `limits.fallback-reset`
 // hours after the run: the shortest plan limit is a five-hour session window
@@ -1178,7 +1175,6 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // here, so a reused branch holds on exactly the main path's conditions plus
 // its own leak scan: a trusted `merge: human`, an issue carrying one of
 // UNTRUSTED_LABELS, an unreadable denied-path list or changed-file list,
-// a listing cut at the cap while some path is denied (it may hide one), a
 // changed path the merge lane refuses, and on a reused branch a leak scan that
 // is missing or not clean. Runner checks hold nothing, failed or unreported:
 // the PR's Verification section names a failure, and ci-status reruns them on
@@ -1192,7 +1188,6 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     issueLabels.some((label) => UNTRUSTED_LABELS.includes(label)) ||
     holdPaths === null ||
     changedFiles === null ||
-    (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
     (reused && checks?.scan !== "clean")
   );
@@ -1233,7 +1228,6 @@ function fileList(files, holdPaths) {
       .slice(0, MAX_FILES)
       .map((path) => `- ${neutral(path.replaceAll(/\s+/g, " "), MAX_ITEM, { path: true }).trim()}${denied(path) ? " (denied path)" : ""}`),
     ...(sorted.length > MAX_FILES ? [`- and ${sorted.length - MAX_FILES} more`] : []),
-    ...(files.length >= COMPARE_FILES_CAP ? ["", `The compare listing stops at ${COMPARE_FILES_CAP} files, so this list may be incomplete.`] : []),
   ].join("\n");
 }
 
@@ -2379,8 +2373,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     let commits = null;
     const compare = async (head = branch) => {
       base = (await github("GET", repo)).default_branch;
-      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
-      // The listing holds at most 250 commits; one cut short lists none.
+      const comparison = await wholeCompare(
+        (path) => github("GET", path),
+        (path) => github("GET", path, undefined, { accept: DIFF }),
+        `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
+      );
       commits = listedCommits(comparison);
       return (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],

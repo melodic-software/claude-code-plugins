@@ -54,7 +54,7 @@ import { bindingOf, FOOTER as LANE_FOOTER, laneChecker, laneFooter, withoutBindi
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "../lib/retry-fetch.mjs";
 import { loadTrustedList, readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
-import { BODY_HOLD, LANE_HOLD, refsIssue, trackerBindingText } from "../pr-merge/merge-holds.mjs";
+import { BODY_HOLD, DIFF, LANE_HOLD, refsIssue, trackerBindingText, wholeCompare } from "../pr-merge/merge-holds.mjs";
 import { copyPathsOf, isProtectedPath, namedInScope, prPathsOf, sharedCopyPairs } from "./thread-scope.mjs";
 import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
@@ -1999,6 +1999,16 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       return (await requestData(`${repo}/git/ref/heads/${encodePath(ref)}`)).object.sha;
     },
     compare: async (base, head) => requestData(`${repo}/compare/${base}...${head}`),
+    async compareWhole(base, head) {
+      const readDiff = async (url) => {
+        const response = await fetch(url, { method: "GET", headers: { ...headers, Accept: DIFF } });
+        if (!response.ok) {
+          throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { status: response.status });
+        }
+        return response.text();
+      };
+      return wholeCompare(requestData, readDiff, `${repo}/compare/${base}...${head}`);
+    },
     getRun: async (id) => requestData(`${repo}/actions/runs/${id}`),
     getPull: async (pr) => requestData(`${repo}/pulls/${pr}`),
     // Every artifact of a run, page by page until total_count.

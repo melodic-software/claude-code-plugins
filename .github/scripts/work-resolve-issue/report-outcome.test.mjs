@@ -772,14 +772,10 @@ test("an issue title carrying an issue reference or URL loses it", () => {
   );
 });
 
-test("a diff the compare listing may have cut short carries the hold line while a path is denied", () => {
-  const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
-  assert.ok(decideDone({ changedFiles: files }).body.split("\n").includes("Hold: a human merges this"));
-});
-
-test("with no denied path a diff at the compare cap carries no hold line, since the cut can hide nothing", () => {
-  const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
-  assert.ok(!decideDone({ changedFiles: files, holdPaths: [] }).body.includes("Hold: a human merges this"));
+test("a whole list of 300 or more changed files holds only on a denied path in it", () => {
+  const files = Array.from({ length: 301 }, (_, i) => `docs/f${i}.md`);
+  assert.ok(!decideDone({ changedFiles: files }).body.split("\n").includes("Hold: a human merges this"));
+  assert.ok(decideDone({ changedFiles: [...files, ".github/workflows/x.yml"] }).body.split("\n").includes("Hold: a human merges this"));
 });
 
 test("done with no branch is retried, since nothing was committed", () => {
@@ -1090,7 +1086,7 @@ test("a held stop removes agent-ready and names the branch that holds partial wo
 function fakeFetch(routes) {
   const calls = [];
   const fetch = async (url, init = {}) => {
-    const method = init.method ?? "GET";
+    const method = init.headers?.Accept === "application/vnd.github.diff" ? "DIFF" : (init.method ?? "GET");
     const path = new URL(url).pathname;
     calls.push({ method, path, body: init.body ? JSON.parse(init.body) : undefined });
     const none =
@@ -1101,7 +1097,7 @@ function fakeFetch(routes) {
           : null;
     const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
-    return jsonResponse(status, body);
+    return method === "DIFF" && typeof body === "string" ? new Response(body, { status }) : jsonResponse(status, body);
   };
   return { fetch, calls };
 }
@@ -1737,6 +1733,7 @@ test("main on done opens a ready PR from the branch, labels it do-not-merge when
     },
   );
 });
+
 
 const evalIssue = [/./, 200, { number: 77, created_at: "2026-10-01T00:00:00Z", labels: [{ name: "agent-ready" }, { name: EVAL_GATED_LABEL }] }];
 const evalRoutes = (comments) => [
@@ -5284,11 +5281,9 @@ const CLEAN_REUSE = {
   checks: CLEAN_CHECKS,
 };
 const reuseHeld = (overrides = {}) => reusePlan({ ...CLEAN_REUSE, ...overrides }).body.split("\n").includes(HOLD_LINE);
-const CAPPED = Array.from({ length: 300 }, (_, i) => `docs/page-${i}.md`);
 const HOLD_CASES = {
   "the denied paths cannot be read": { holdPaths: null },
   "the compare request failed": { changedFiles: null },
-  "the listing is cut at the cap while a path is denied": { changedFiles: CAPPED },
   "a changed path is denied": { changedFiles: ["README.md", ".github/workflows/x.yml"] },
   "the issue is labeled provenance: untrusted": { issueLabels: ["agent-ready", "provenance: untrusted"] },
   "a trusted labeler set merge: human": { humanMerge: true },
@@ -5325,9 +5320,10 @@ test("a clean reuse PR names the clean leak scan and leaves the person's review 
   assert.ok(found.includes("leak scan found a credential shape") && found.includes("a person reviews the diff"), found);
 });
 
-test("a capped listing holds a reuse PR only while some path is denied", () => {
-  assert.equal(reuseHeld({ changedFiles: CAPPED, holdPaths: [] }), false);
-  assert.equal(reuseHeld({ changedFiles: CAPPED }), true);
+test("a reuse PR's whole list of 300 or more files holds only on a denied path in it", () => {
+  const many = Array.from({ length: 301 }, (_, i) => `docs/page-${i}.md`);
+  assert.equal(reuseHeld({ changedFiles: many }), false);
+  assert.equal(reuseHeld({ changedFiles: [...many, ".github/workflows/x.yml"] }), true);
 });
 
 test("a reuse PR whose runner check failed opens unheld and names the failure in Verification", () => {
@@ -5380,14 +5376,15 @@ test("readChecks carries a reused branch's scan word, reads an unknown one as fa
   assert.deepEqual(readChecks(record(undefined), { branch: BRANCH }), { tip: CHECKED_TIP, results: [] });
 });
 
-async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200 } = {}) {
+async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "work-class: scoped"], events = [], eventsStatus = 200, files = [{ filename: "README.md" }], compareStatus = 200, resolved = RESOLVED, diff = null } = {}) {
   const checks = JSON.stringify({ version: 1, branch: lane(400), tip: TIP, results: [{ check: FRAGMENTS, exit }], ...(scan === null ? {} : { scan }) });
-  return withAsyncDir({ "runner-checks": checks, "resolved.json": RESOLVED, "trusted.json": TRUSTED_LIST }, async (dir) => {
+  return withAsyncDir({ "runner-checks": checks, "resolved.json": resolved, "trusted.json": TRUSTED_LIST }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, 200, { number: 77, labels: labels.map((name) => ({ name })) }],
       ["GET", /\/issues\/77\/events$/, eventsStatus, events],
       tipRoute(),
       ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+      ["DIFF", /\/compare\//, diff === null ? 404 : 200, diff ?? { message: "Not Found" }],
       ["GET", /\/compare\//, compareStatus, compareStatus === 200 ? { files } : { message: "boom" }],
       ["GET", /\/pulls$/, 200, []],
       ["POST", /\/pulls$/, 201, { number: 90 }],
@@ -5416,6 +5413,18 @@ test("main holds a reuse PR on a denied path or a failed compare, and opens a cl
   assert.ok(!holds((await runReuse()).body));
   assert.ok(holds((await runReuse({ files: [{ filename: ".github/workflows/x.yml" }] })).body), "a denied path");
   assert.ok(holds((await runReuse({ compareStatus: 500 })).body), "a failed compare");
+});
+
+test("main judges a reuse PR on every file past the compare listing's 300, read from the diff, and holds only on a denied one", async () => {
+  const fixture = (name) => readFileSync(new URL(`../pr-merge/fixtures/${name}`, import.meta.url), "utf8");
+  const denying = (glob) => JSON.stringify({ merge: { "diff-check": { "denied-paths": [glob], "path-holds": true } } });
+  const listed = JSON.parse(fixture("compare-paged-1.json")).files;
+  const clean = await runReuse({ files: listed, diff: fixture("compare.diff"), resolved: denying("docs/never/**") });
+  assert.ok(!holds(clean.body), clean.body);
+  assert.equal(clean.calls.filter((c) => c.method === "DIFF").length, 1, JSON.stringify(clean.calls.map((c) => `${c.method} ${c.path}`)));
+  const denied = await runReuse({ files: listed, diff: fixture("compare.diff"), resolved: denying(".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json") });
+  assert.ok(holds(denied.body), "a denied path the diff names");
+  assert.ok(holds((await runReuse({ files: listed, resolved: denying("docs/never/**") })).body), "a capped listing whose diff does not read");
 });
 
 test("main reads merge: human on a reuse too, and opens no PR when its labeler cannot be read", async () => {

@@ -147,12 +147,12 @@ export function retryFetch(
 // carrying the answer's status when the answer is not 2xx.
 export function retryApi({ fetch, apiUrl, token, sleep }) {
   const send = retryFetch(fetch, { sleep });
-  return async (method, path, body, { safeToResend = false } = {}) => {
+  return async (method, path, body, { safeToResend = false, accept } = {}) => {
     const response = await send(`${apiUrl}${path}`, {
       method,
       safeToResend,
       headers: {
-        Accept: "application/vnd.github+json",
+        Accept: accept ?? "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
         "X-GitHub-Api-Version": "2022-11-28",
       },
@@ -161,6 +161,7 @@ export function retryApi({ fetch, apiUrl, token, sleep }) {
     if (!response.ok) {
       throw Object.assign(new Error(`${method} ${path} answered ${response.status}`), { status: response.status });
     }
+    if (accept !== undefined) return response.text();
     return response.status === 204 ? null : response.json();
   };
 }

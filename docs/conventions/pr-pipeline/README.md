@@ -2366,17 +2366,21 @@ back to them:
   `identical`), and the approved head is among its commits, so a non-merge commit, a merge of
   another branch or of a crafted merge commit, or a force push that rewrites the approved head
   carries nothing. Then either the net change against the tip is the same at both heads over
-  every file (`sameNetChange`), or the merges brought exactly the base's changes
+  every file (`sameNetChange`; when either listing stops at 300 files or gives a file no patch,
+  the two compares' `application/vnd.github.diff` texts decide, file modes included, at any file
+  count, and a binary file or a diff naming fewer files than the pull request changes carries
+  nothing), or the merges brought exactly the base's changes
   (`exactBaseCarry`): the compare from the approved head H to the current head H' lists, file for
   file and with the same status, `previous_filename` and patch, what the compare between the merge
   bases of H and of H' (M and M') with the tip lists, and the recursive trees of H' and M' give
   each of those files one mode (a removed file, or a renamed file's old path, in neither). A merge
   that writes any change of its own, to a hold path or any other file, flips the mode of a file the
-  base changed, or drops a base change, carries nothing. Either compare listing 300 files or more,
-  a commit list not read whole, a file with no patch, a truncated tree, or a head in a fork carries
-  nothing. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
-  files; nothing checks that against a second listing. The compare API reports no file mode, so a
-  mode-only change still reads the same on the same-net-change path: a known residual there.
+  base changed, or drops a base change, carries nothing. A commit list not read whole or a head in
+  a fork carries nothing, and on the exact path neither does either compare listing 300 files or
+  more, a file with no patch, or a truncated tree. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
+  files; nothing checks that against a second listing. The compare listing reports no file mode,
+  so a mode-only change still reads the same on the same-net-change path when both listings are
+  under the cap: a known residual there.
 - An approval of the current head lifts the verifier and issue-link holds too; an approval of an
   earlier head does not, since the merge result is new to pr-verify.
 
