@@ -2934,6 +2934,19 @@ def test_shape3_github_state_claim_warns(tmp_path):
     assert pointer.returncode == 0 and "GitHub state" not in out(pointer), out(pointer)
 
 
+def test_shape3_bare_present_tense_observation_warns(tmp_path):
+    repo = make_repo(tmp_path)
+    claim = "- The parser currently drops trailing commas."
+    hop1 = s3_hop(repo, tmp_path, values={"observations": claim})
+    result = strict(hop1)
+    assert result.returncode == 0, out(result)
+    assert "bare 'currently' or 'now'" in out(result), out(result)
+    dated_claim = "- 2026-11-24, as of o/r@a1b2c3d: the parser drops trailing commas."
+    edit(hop1, claim, dated_claim)
+    dated = strict(hop1)
+    assert dated.returncode == 0 and "bare 'currently'" not in out(dated), out(dated)
+
+
 def test_shape3_retry_rewrites_only_its_own_hop_file(tmp_path):
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"
