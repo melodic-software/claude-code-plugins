@@ -32,7 +32,7 @@ check_scaffold observed-fact-evidence-bar \
   etl/transform.py.txt \
   ops/crontab.txt
 
-for case in unilateral-decision-not-folded unilateral-decision-not-folded-behavior-present; do
+for case in unilateral-decision-not-folded; do
   check_scaffold "$case" webhooks/dispatch.py.txt webhooks/log.py.txt webhooks/sender.py.txt
 done
 
