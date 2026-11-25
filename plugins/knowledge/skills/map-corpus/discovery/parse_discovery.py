@@ -44,8 +44,6 @@ TRACKING_PARAMS_RE = re.compile(r"^(utm_.*|gclid|fbclid)$")
 
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 MD_AUTOLINK_RE = re.compile(r"<(https?://[^>\s]+)>", re.IGNORECASE)
-# leading backtick allowed (inline-code URLs still count as discovered);
-# backtick excluded from the URL chars so the closing fence never rides along
 BARE_URL_RE = re.compile(r"(?<![(<\"'])(https?://[^\s)\]>\"'`]+)", re.IGNORECASE)
 
 

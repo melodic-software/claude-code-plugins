@@ -108,10 +108,6 @@ class SettleHarness(unittest.TestCase):
             if args[:2] == ["pr", "view"]:
                 base = pr if pr is not None else _pr()
                 if check_starts is not None:
-                    # Every entry shares one check identity by default, which is
-                    # what a re-run actually looks like: `classify_checks` would
-                    # dedupe these to the newest, so a hold reading its output
-                    # instead of the raw rollup loses the original timestamp.
                     base = dict(
                         base,
                         statusCheckRollup=[
