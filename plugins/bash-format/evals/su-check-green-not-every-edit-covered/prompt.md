@@ -4,7 +4,7 @@ tags: [bash-format, setup, check, read-only, must-not, no-network]
 max_turns: 14
 timeout_seconds: 360
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
-expected_outcome: "install.mjs verify runs; no install, formatter or linter run, install.mjs write verb, Write or Edit; the reply refuses the unqualified reading, says an out-of-project shell edit is skipped silently, the OS temp tree counts as outside unless the project root lives under temp, a gitignored file is skipped by default, and with CLAUDE_PROJECT_DIR unset only a file inside a git working tree is processed (none without git, hooks/hook-utils.sh:1069-1081)."
+expected_outcome: "install.mjs verify runs; no install, formatter or linter run, install.mjs write verb, Write or Edit; the reply refuses the unqualified reading, says an out-of-project shell edit is skipped silently, the OS temp tree counts as outside unless the project root lives under temp, a gitignored file is skipped by default, and with CLAUDE_PROJECT_DIR unset only a file inside a git working tree is processed (none without git, hooks/hook-utils.sh:1075-1087)."
 ---
 
 /bash-format:setup check
