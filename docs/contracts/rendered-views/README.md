@@ -866,7 +866,8 @@ The chrome is one for every page family: the system/light/dark toggle (system by
 `button[data-rv-theme]`), the comment box (`textarea[data-rv-note]` under a labeled
 heading), and the accessibility floor. A page offers no other theme control: no accent or
 palette picker. A consumer may override three things through configuration, never on the page:
-the palette, the type stacks and a logo. Layout, the accessibility floor, the toggle and the
+the palette, the type stacks (fonts installed or embedded as `data:` URLs) and a logo (inline SVG
+or an embedded `data:` PNG or JPEG), never loaded from a URL. Layout, the accessibility floor, the toggle and the
 comment box stay fixed, and an override that would put a page below the floor is dropped for
 the shipped value. Where the setting lives, the token layer each plugin copies, the migration
 order and the drift checks are in

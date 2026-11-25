@@ -45,15 +45,21 @@ the parts the evidence decides.
      `lib/html-chrome.html:56-84`; `accent` names the role `--clay` plays today
      (`lib/html-chrome.html:178`).
    - **Type**: the three stacks the chrome defines, `serif`, `sans` and `mono`
-     (`lib/html-chrome.html:48-50`), as locally installed font families only. A page loads no
-     font file: the chrome is self-contained with no external fonts (`lib/html-chrome.html:131`),
-     and the report profile bans `url(` and `@import` inside `<style>`
-     (`docs/contracts/rendered-views/README.md:152-155`).
-   - **Logo**: one inline SVG and its text label, shown in a fixed slot of the chrome's bar. The
-     SVG must pass the builder's SVG allowlist (`docs/contracts/rendered-views/README.md:232-243`),
-     which refuses `<image>`, `<use>`, `<script>` and SVG `<style>`. A raster image is not offered,
-     because the validator profiles allow no URL-bearing attribute and so no `src`
-     (`docs/contracts/rendered-views/README.md:152-155`).
+     (`lib/html-chrome.html:48-50`), as installed font families or brand font files embedded in the
+     page as `data:` URLs in `@font-face`. A page never loads a font from a URL, so it stays one
+     self-contained file that works offline (`lib/html-chrome.html:131`).
+   - **Logo**: either one inline SVG, which must pass the builder's SVG allowlist
+     (`docs/contracts/rendered-views/README.md:232-243`, which refuses `<image>`, `<use>`, `<script>`
+     and SVG `<style>`), or one PNG or JPEG embedded as a `data:` URL, plus a text label, shown in a
+     fixed slot of the chrome's bar. A logo is never loaded from a URL.
+   - **Policy change (owner decision on #16412, 2026-11-25).** Today the page policy is
+     `default-src 'none'` and the report profile bans `url(` inside `<style>` and every URL-bearing
+     attribute (`docs/contracts/rendered-views/README.md:152-155`, `:179-181`), which blocks both
+     embedded forms. The first work item widens exactly this much: the policy gains `img-src data:`
+     and `font-src data:`, and the validator admits a `data:` URL with an `image/png`,
+     `image/jpeg` or font media type only in the logo slot and in `@font-face`. Every other
+     scheme and position stays refused. The owner accepted this recommendation in session:
+     "go w/ recommendations".
 3. **The accessibility floor decides, not the override.** The resolver checks each resolved pair the
    floor names (body text, link text, focus outline, in both schemes;
    `lib/html-chrome.html:176-180`) and drops an override that fails it, keeping the shipped value
@@ -62,8 +68,9 @@ the parts the evidence decides.
 4. **Values are validated, never escaped into place.** Override values land inside `<style>` and
    inline SVG, where the security baseline forbids unescaped interpolation
    (`docs/contracts/rendered-views/README.md:717-719`). The resolver accepts a color only as a
-   six-digit hex value, a font family only from a closed character set, and the logo only after the
-   SVG allowlist check. A value that fails is reported and ignored without dropping another layer's
+   six-digit hex value, a font family only from a closed character set, an SVG logo only after the
+   SVG allowlist check, and an embedded logo or font file only as a file the resolver reads, checks
+   by its magic bytes against the allowed media types, and base64-encodes itself. A value that fails is reported and ignored without dropping another layer's
    value, as `medium` is (`docs/contracts/rendered-views/README.md:908`).
 5. **The setting lives in the convention home, with `userConfig` as the per-user value** (Q2). The
    key is `branding` in the rendered-views team file `docs/conventions/rendered-views.yaml` and its
@@ -153,8 +160,11 @@ so they are out of scope.
   and marketplace symlinks for shared code. Not chosen (Q3).
 - **(e) Keep `interview_page.themeTokens` beside `branding`.** Two keys for one choice, one of them
   read and never applied. Not chosen.
-- **(f) A raster logo as a `data:` image.** The validator profiles refuse every URL-bearing
-  attribute. Not chosen.
+- **(f) Keep the logo to inline SVG and type to installed fonts.** No policy change, but most brand
+  kits ship a raster logo and a font file, so their branding would only half apply. Not chosen
+  (owner, #16412, 2026-11-25).
+- **(g) Load the logo and fonts from a URL.** Pages would make network requests, stop working
+  offline and could be tracked when opened. Not chosen.
 
 ## Consequences
 
