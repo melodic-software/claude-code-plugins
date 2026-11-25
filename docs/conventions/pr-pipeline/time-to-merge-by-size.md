@@ -74,7 +74,7 @@ smallest band's median down. The stage and what-if tables below leave them out.
 
 ## Where the time goes
 
-The stages are sequential, so on each pull request they add up to its active time exactly:
+The stages run one after another. On 201 of the 263 sampled pull requests with every stage read they add up to the active time. On 61 of the other 62 the pull request was still a draft while its merged head's CI ran; CI is timed in full, owner wait included, so those stages run over the active time by that wait:
 
 - **Rework**: from opening to the push of the head that merged, less owner waits. It holds every
   earlier head's CI and review, the fixes they asked for, and merges of `main` into the branch.
@@ -96,7 +96,7 @@ Medians per stage, sampled pull requests, release pull requests left out, minute
 | 1000-2999 | 76 | 111 | 51 | 12 | 11 | 8 | 7 | 4 | 12 |
 | 3000 and over | 30 | 92 | 48 | 17 | 11 | 9 | 10 | 8 | 12 |
 
-Means of the same stages, which add up to the active mean:
+Means of the same stages. They run 1 to 8 minutes over the active mean, from that draft overlap:
 
 | Band | Active | Rework | CI | Gate wait | Queue |
 |---|---|---|---|---|---|
@@ -197,7 +197,7 @@ overall) with that change applied to each pull request's own timestamps:
 | 1 | Hosted review lanes re-review only the lines changed since the last reviewed head, so a fix round raises no new findings on unchanged code | D | 40 | 63 | 65 | 58 | 59 |
 | 2 | Remove the cause of failed-check ejections: find which merge-group jobs fail on heads whose own `CI Status` passed, and make the pull-request run select the same tests the merge group does | B | 35 | 74 | 104 | 76 | 69 |
 | 3 | `/source-control:pull-request ready` merges `main` into the branch only on a conflict or a check `main` has since fixed, as the merging policy already says of rebases | A | 49 | 73 | 101 | 86 | 69 |
-| 4 | Find the event the lanes App pull requests' 28-minute gate wait waits on and arm them on it, not on a later sweep | E | 30 | 76 | 107 | 98 | 68 |
+| 4 | Find the event the lanes App pull requests' 28-minute gate wait waits on and arm them on it, not on a later sweep | E | 30 | 76 | 107 | 92 | 68 |
 | 5 | Shard the selected test suites by selected-test count, so test wall time stays at the under-200 level | C | 49 | 76 | 106 | 84 | 74 |
 | | 2, 3 and 5 together | A+B+C | 34 | 65 | 66 | 61 | 58 |
 | | 1, 2, 3 and 5 together | A+B+C+D | 32 | 53 | 47 | 41 | 44 |
