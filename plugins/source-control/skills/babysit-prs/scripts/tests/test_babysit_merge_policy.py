@@ -11906,13 +11906,74 @@ class ListedBaseTip(unittest.TestCase):
 
     OTHER = "b" * 40
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Real `git ls-remote` listings of a throwaway repository: main
+        alone, then beside a branch whose name ends in refs/heads/main and an
+        annotated tag named main."""
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        src = pathlib.Path(tmp.name) / "src"
+        cls.git(pathlib.Path(tmp.name), "init", "-q", "-b", "main", str(src))
+        cls.git(src, "commit", "-q", "--allow-empty", "-m", "one")
+        cls.sha = cls.git(src, "rev-parse", "HEAD")
+        cls.only_main = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.none_listed = cls.listing(src, "refs/heads/trunk", "refs/tags/trunk")
+        cls.git(src, "branch", "main-next")
+        cls.near_name = cls.listing(src, "refs/heads/main-next")
+        cls.git(src, "branch", "x/refs/heads/main")
+        cls.tail_match = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.git(src, "branch", "-D", "x/refs/heads/main")
+        cls.git(src, "tag", "-a", "main", "-m", "tag")
+        cls.tagged = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.peeled = cls.only_main + "".join(
+            f"{line}\n"
+            for line in subprocess.run(
+                ["git", "ls-remote", "--tags", str(src)],
+                check=True, capture_output=True, text=True,
+            ).stdout.splitlines()
+            if line.endswith("^{}")
+        )  # fmt: skip
+
+    @staticmethod
+    def git(root: pathlib.Path, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+
+    @staticmethod
+    def listing(src: pathlib.Path, *patterns: str) -> str:
+        return subprocess.run(
+            ["git", "ls-remote", str(src), *patterns],
+            check=True, capture_output=True, text=True,
+        ).stdout  # fmt: skip
+
     def setUp(self) -> None:
         self.gh = GhFake().install(self)
         self.endpoint = f"repos/{REPO}/git/ref/heads/main"
         self.gh.rest[self.endpoint] = {"object": {"sha": self.OTHER}}
         self.enterContext(mock.patch.dict(os.environ, {"GH_HOST": "github.com"}))
         self.runs: list[tuple[list[str], dict[str, Any]]] = []
-        self.answer: Any = subprocess.CompletedProcess([], 0, f"{SHA}\trefs/heads/main\n", "")
+        self.answer: Any = subprocess.CompletedProcess([], 0, self.only_main, "")
+
+    def test_the_fixtures_are_the_listings_they_name(self) -> None:
+        self.assertEqual(self.only_main, f"{self.sha}\trefs/heads/main\n")
+        self.assertEqual(self.none_listed, "")
+        self.assertEqual(len(self.tail_match.splitlines()), 2)
+        self.assertEqual(
+            sorted(line.split("\t")[1] for line in self.tagged.splitlines()),
+            ["refs/heads/main", "refs/tags/main"],
+        )
+        self.assertEqual(
+            [line.split("\t")[1] for line in self.peeled.splitlines()],
+            ["refs/heads/main", "refs/tags/main^{}"],
+        )
+
+    def test_a_branch_whose_name_ends_in_the_base_does_not_hide_it(self) -> None:
+        self.answer = subprocess.CompletedProcess([], 0, self.tail_match, "")
+        self.assertEqual(self.tip(), self.sha)
+        self.assertEqual(self.reads(), 0)
 
     def run_git(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         self.runs.append((argv, kwargs))
@@ -11928,7 +11989,7 @@ class ListedBaseTip(unittest.TestCase):
         return self.gh.calls.count(["api", self.endpoint])
 
     def test_a_listed_tip_answers_with_no_rest_read(self) -> None:
-        self.assertEqual(self.tip(), SHA)
+        self.assertEqual(self.tip(), self.sha)
         self.assertEqual(self.reads(), 0)
         [(argv, kwargs)] = self.runs
         self.assertEqual(
@@ -11954,25 +12015,23 @@ class ListedBaseTip(unittest.TestCase):
         self.assertEqual(self.reads(), 4)
 
     def test_a_listing_with_no_single_hex_head_reads_over_rest(self) -> None:
+        sha = self.sha
         for stdout in (
-            "",
-            f"{SHA}\trefs/heads/main-next\n",
-            f"{SHA}\trefs/heads/x/refs/heads/main\n",
-            f"{SHA}\trefs/heads/main\n{self.OTHER}\trefs/heads/main\n",
-            f"{SHA.upper()}\trefs/heads/main\n",
-            f"{SHA[:39]}\trefs/heads/main\n",
+            self.none_listed,
+            self.near_name,
+            self.only_main + self.only_main.replace(sha, self.OTHER),
+            self.only_main.replace(sha, sha.upper()),
+            self.only_main.replace(sha, sha[:39]),
         ):
             with self.subTest(stdout=stdout):
                 self.answer = subprocess.CompletedProcess([], 0, stdout, "")
                 self.assertEqual(self.tip(), self.OTHER)
-        self.assertEqual(self.reads(), 6)
+        self.assertEqual(self.reads(), 5)
 
     def test_a_tag_named_like_the_branch_reads_over_rest(self) -> None:
-        for tag in ("refs/tags/main", "refs/tags/main^{}"):
-            with self.subTest(tag=tag):
-                self.answer = subprocess.CompletedProcess(
-                    [], 0, f"{SHA}\trefs/heads/main\n{self.OTHER}\t{tag}\n", ""
-                )
+        for stdout in (self.tagged, self.peeled):
+            with self.subTest(stdout=stdout):
+                self.answer = subprocess.CompletedProcess([], 0, stdout, "")
                 self.assertEqual(self.tip(), self.OTHER)
         self.assertEqual(self.reads(), 2)
 
@@ -11985,7 +12044,7 @@ class ListedBaseTip(unittest.TestCase):
 
     def test_an_unset_gh_host_lists_github_com(self) -> None:
         del os.environ["GH_HOST"]
-        self.assertEqual(self.tip(), SHA)
+        self.assertEqual(self.tip(), self.sha)
         self.assertEqual(self.reads(), 0)
 
     def test_a_failed_listing_and_rest_read_fail_closed(self) -> None:
@@ -11996,8 +12055,8 @@ class ListedBaseTip(unittest.TestCase):
 
     def test_a_listed_tip_is_remembered(self) -> None:
         with policy.base_tips_remembered():
-            self.assertEqual(self.tip(), SHA)
-            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), SHA)
+            self.assertEqual(self.tip(), self.sha)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), self.sha)
         self.assertEqual(len(self.runs), 1)
         self.assertEqual(self.reads(), 0)
 
