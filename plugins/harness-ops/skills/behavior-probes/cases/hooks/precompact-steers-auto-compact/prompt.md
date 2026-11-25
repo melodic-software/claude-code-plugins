@@ -1,0 +1,1 @@
+Read the file filler.txt with the Read tool in seven chunks, one call at a time and never in parallel: offset 1, 601, 1201, 1801, 2401, 3001 and 3601, each with limit 600. Do not summarize what you read. After the last chunk, reply with only the word DONE.
