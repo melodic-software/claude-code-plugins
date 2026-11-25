@@ -159,7 +159,7 @@ cheapest post-merge place:
 
 - It already reads each area's churn from git history.
 - It already caps its open pull requests (`upkeep_max_open` in
-  `docs/conventions/code-tidying.yaml`) and honours the lanes kill switch.
+  `docs/conventions/code-tidying.yaml`) and honors the lanes kill switch.
 - A schedule starts it, not a merge. So it starts no agent work on a merge before this map
   settles the brakes for the deferred item "A merge starts the next run"
   ([#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133)).
