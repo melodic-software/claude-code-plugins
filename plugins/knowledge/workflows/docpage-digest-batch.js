@@ -17,8 +17,6 @@ if (typeof input === 'string') {
 }
 if (!input || typeof input !== 'object' || Array.isArray(input)) input = {}
 
-// Design choice: every page fans out one agent per digest unit plus both arms, so 20 pages keeps
-// one launch finishable; the rest come back deferred for a relaunch.
 const PAGE_CAP = 20
 const SEVERITY = ['PASS', 'PASS-WITH-FINDINGS', 'FAIL', 'BLOCKED']
 const FINDING_SEVERITY = ['high', 'medium', 'low']
@@ -166,8 +164,6 @@ const PLAN = PAGES.map(url => {
   return { canonical, slug, slugTaken }
 })
 if (deferred.length) log('pages: ' + deferred.length + ' past the cap of ' + PAGE_CAP + ' per run were not started; relaunch with the deferred list')
-// Design choice: a default of 4 leaves session subagent slots for sibling work (SKILL.md
-// Phase 3), and 16 bounds a caller's override.
 const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent) ? Math.min(16, Math.max(1, input.maxConcurrent)) : 4
 const B_REASON = 'the batch path has no cross-vendor arm: codex:codex-rescue returns raw stdout, which cannot carry a structured verdict'
 
@@ -219,8 +215,6 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,30}-[0-9a-f]{8}$/
 const UNIT = /^\d{2}-[a-z0-9][a-z0-9-]{0,39}$/
 const LINES = /^\d{1,6}-\d{1,6}$/
 const MAX_UNITS = 100
-// A profile mapping is passed only as one of these aliases, the floor for source-reading agents; any
-// other name, a pinned model ID or haiku, is recorded mapped and unenforced.
 const PASSABLE = ['opus', 'sonnet']
 const MODEL_NAME = /^(opus|sonnet|haiku|claude-(opus|sonnet|haiku|fable)-[0-9]+(-[0-9]+)*(-[0-9]{8})?)$/
 

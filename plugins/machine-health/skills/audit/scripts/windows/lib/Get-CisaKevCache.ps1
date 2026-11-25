@@ -93,7 +93,6 @@ function Get-CisaKevCache {
         if ($null -eq $fetch.Error) {
             $cached = $fetch.Data
         } else {
-            # Keep the prior cache, but say so: a fallback is never reported as fresh.
             $fetchError = $fetch.Error
             $state = 'stale'
         }
@@ -106,8 +105,6 @@ function Get-CisaKevCache {
 
     $ageDays = $null
     if (@($cached.vulnerabilities).Count -eq 0) {
-        # Nothing to correlate against: after a failed refresh that is unavailable,
-        # after a good one the feed itself was empty.
         $state = $null -ne $fetchError ? 'unavailable' : 'empty'
     } elseif (Test-Path -LiteralPath $CachePath) {
         $mtime = (Get-Item -LiteralPath $CachePath).LastWriteTime

@@ -257,15 +257,6 @@ function Test-WorseningTrend {
         'winget-upgrades', 'windows-update', 'services', 'drivers',
         'claude-temp-root'
     )
-    # environment-health is mapped to user_path_length for history, but is
-    # not in $upwardWorsens: the check has several independent WARN causes
-    # (credential names, DISABLE_AUTOUPDATER, REG_SZ Path). A generic
-    # upgrade would turn those into CRIT whenever Path grew by >=5 chars.
-    # drive-root-litter is likewise mapped (residue_count) but excluded:
-    # root litter is tidiness, and its rubric caps at WARN -- a generic
-    # upgrade would mint a CRIT from five new stray files.
-    # winget-upgrades stays here, but Invoke-TrendAnalysis skips it when the WARN
-    # carries a KEV match: the match is name-only, so a count trend cannot make it CRIT.
     $delta = $cur - $prev
 
     if ($upwardWorsens -contains $CheckId) {
