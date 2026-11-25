@@ -90,7 +90,7 @@ const LOCKFILES = {
 };
 
 const GIT_ENV = (() => {
-  const env = { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" };
+  const env = { ...process.env, GIT_NO_REPLACE_OBJECTS: "1", GIT_TERMINAL_PROMPT: "0" };
   for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR"]) delete env[name];
   return env;
 })();
@@ -320,11 +320,12 @@ function recordedLine(entry, ctx, stem) {
   return yamlScalar(m[2]) === entry.value ? null : `the cited record line holds a different ${entry.key}`;
 }
 
-function runGit(cwd, args) {
+function runGit(cwd, args, options = {}) {
   const result = spawnSync("git", ["--literal-pathspecs", "-c", "core.fsmonitor=false", "-C", cwd, ...args], {
     encoding: "utf8",
     env: GIT_ENV,
     maxBuffer: 64 * 1024 * 1024,
+    ...options,
   });
   return result.error ? { status: -1, stdout: "" } : result;
 }
@@ -345,12 +346,22 @@ function requireCommit(root, ref) {
   }
 }
 
+function remoteDefaultRef(root, remote) {
+  const local = runGit(root, ["symbolic-ref", "--quiet", `refs/remotes/${remote}/HEAD`]).stdout.trim();
+  if (local) return local;
+  const listed = runGit(root, ["ls-remote", "--symref", "--end-of-options", remote, "HEAD"], { timeout: 30_000 });
+  const m = listed.status === 0 ? listed.stdout.match(/^ref: refs\/heads\/(\S+)\tHEAD$/m) : null;
+  if (!m) return "";
+  const ref = `refs/remotes/${remote}/${m[1]}`;
+  return runGit(root, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]).status === 0 ? ref : "";
+}
+
 function defaultBranchBase(root) {
   const branch = runGit(root, ["branch", "--show-current"]).stdout.trim();
   const tracked = branch ? runGit(root, ["config", `branch.${branch}.remote`]).stdout.trim() : "";
   const remotes = runGit(root, ["remote"]).stdout.split("\n").filter(Boolean);
   for (const remote of [...new Set([tracked, "origin", ...remotes])].filter((r) => remotes.includes(r))) {
-    const head = runGit(root, ["symbolic-ref", "--quiet", `refs/remotes/${remote}/HEAD`]).stdout.trim();
+    const head = remoteDefaultRef(root, remote);
     if (!head) continue;
     const mergeBase = runGit(root, ["merge-base", head, "HEAD"]);
     if (mergeBase.status === 0) return { ref: mergeBase.stdout.trim(), name: `the merge-base with ${head.replace(/^refs\/remotes\//, "")}` };

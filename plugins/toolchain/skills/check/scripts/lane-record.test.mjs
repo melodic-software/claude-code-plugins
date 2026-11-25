@@ -363,6 +363,33 @@ describe("write mode", () => {
     assert.match(stderr, /pass --base/);
   });
 
+  it("in a checkout with no remote HEAD ref, as actions/checkout leaves, asks the remote for its default branch", (t) => {
+    if (!hasGit()) {
+      t.skip("git is not installed");
+      return;
+    }
+    const root = fixture(BASE_FILES);
+    commitAll(root);
+    const git = gitIn(root);
+    const branch = git("branch", "--show-current");
+    const bare = `${root}-remote.git`;
+    roots.push(bare);
+    git("clone", "-q", "--bare", root, bare);
+    git("remote", "add", "origin", bare);
+    git("config", "remote.origin.followRemoteHEAD", "never");
+    git("fetch", "-q", "origin");
+    assert.notEqual(spawnSync("git", ["-C", root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]).status, 0);
+    writeFileSync(join(root, "CLAUDE.md"), `${BASE_FILES["CLAUDE.md"]}Test with \`node tools/x.mjs\`.\n`);
+    commitAll(root, "lane change");
+    const drafted = write(root, THREE);
+    assert.equal(drafted.status, 0, drafted.stderr);
+    assert.equal(Object.keys(parseRecord(readFileSync(drafted.out, "utf8")).values).length, 3);
+    rmSync(dirname(drafted.out), { recursive: true, force: true });
+    const refused = write(root, ["assumed: typescript.test-cmd=node tools/x.mjs (CLAUDE.md:4)"]);
+    assert.equal(refused.status, 1, refused.stderr);
+    assert.match(refused.stderr, new RegExp(`the cited file differs from the merge-base with origin/${branch}`));
+  });
+
   it("refuses an output path inside the ecosystem records folder", () => {
     const root = fixture({ ...BASE_FILES, "docs/conventions/ecosystems/.keep": "" });
     const out = join(root, "docs", "conventions", "ecosystems", "typescript.yaml");
