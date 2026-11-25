@@ -410,6 +410,7 @@ TOO_OLD_DAYS = 80
 # https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
 COMMITS_CAP = 250
 LISTING_WAITS = (2.0, 4.0)
+PASS_RECORD_WAITS = (5.0, 15.0, 30.0)
 LISTING_PAGE_SECONDS = 1.0
 LISTING_TOP_UP_PAGES = 7
 LISTING_TIMEOUT_SECONDS = 300.0
@@ -1828,6 +1829,9 @@ class Reader:
     _legacy_loaded: bool = False
     _legacy_refs: dict[int, str] = field(default_factory=dict)
     _live_issues: dict[int, dict[Any, Any]] = field(default_factory=dict)
+    _pass_runs: dict[int, dict[str, Any]] = field(default_factory=dict)
+    _closing_refs: dict[int, dict[str, Any]] = field(default_factory=dict)
+    _head_passes: dict[int, list[tuple[int, str, Any]]] = field(default_factory=dict)
     index_reads: int = 0
 
     def _listing(self) -> list[dict[str, Any]]:
@@ -2712,7 +2716,8 @@ class Reader:
             self._started[run_id] = record.get("run_started_at")
             self._updated[run_id] = record.get("updated_at")
             self._created[run_id] = record.get("created_at")
-            run_cache.put(RUN_SECTION, key, _run_fields(record))
+            self._pass_runs[run_id] = _run_fields(record)
+            run_cache.put(RUN_SECTION, key, self._pass_runs[run_id])
         done = (
             record.get("status") == "completed"
             and record.get("conclusion") == "success"
@@ -2804,7 +2809,7 @@ class Reader:
                         binary=True,
                     )
                     if proc.returncode != 0:
-                        raise _Unreadable(unread)
+                        raise _Unreadable(f"{unread}: {(proc.stderr or '').strip()}")
                     with zipfile.ZipFile(io.BytesIO(proc.stdout)) as archive:
                         raw = archive.read("verdict.json")
                 else:
@@ -2816,7 +2821,7 @@ class Reader:
                         )
                         path = Path(tmp) / "verdict.json"
                         if proc.returncode != 0 or not path.is_file():
-                            raise _Unreadable(unread)
+                            raise _Unreadable(f"{unread}: {(proc.stderr or '').strip()}")
                         raw = path.read_bytes()
                 record = json.loads(raw.decode("utf-8"))
             except _Unreadable:
@@ -3531,6 +3536,20 @@ class Reader:
         nodes = refs.get("nodes")
         if not is_json_array(nodes) or refs.get("totalCount") != len(nodes):
             raise _Unreadable(f"#{number}: the closing issues could not be read")
+        self._closing_refs[number] = {
+            "totalCount": len(nodes),
+            "nodes": [
+                {
+                    "number": json_object(node).get("number"),
+                    "repository": {
+                        "nameWithOwner": json_object(
+                            json_object(node).get("repository")
+                        ).get("nameWithOwner")
+                    },
+                }
+                for node in nodes
+            ],
+        }
         if refs.get("totalCount") == 0:
             named, _ = merge_policy.refs_issue(pull.get("body"))
             if named is not None:
@@ -4094,6 +4113,7 @@ class Reader:
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str, Any]] = []
+        self._head_passes[number] = passes
         other_passes: dict[str, list[tuple[int, str, Any]]] = {}
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
@@ -4567,6 +4587,49 @@ class Reader:
             return passes
         last = max(started)
         return [p for p, s in zip(passes, started, strict=True) if s == last]
+
+    def pass_link(self, number: int, head: str) -> dict[str, Any]:
+        """What the last judgment of `number` at `head` read for
+        merge-holds.mjs, with no read of its own but one: each counted pass
+        at the head with its run (`verdictHold`), and for `linkHold` the
+        closing issues as read and the verdict.json of the first pass in
+        name order (`PASSES`, then without the head-ref digest first, then
+        as listed), which ci-status's merge-queue step judged when it read
+        the passes itself. That record is downloaded only when the
+        judgment did not (`_newest` left it out); one that does not read is
+        None, which `linkHold` holds."""
+        passes = sorted(
+            self._head_passes.get(number, []),
+            key=lambda p: (
+                PASSES.index(match[3]) if (match := verdict_name(p[1])) else 0,
+                match is not None and match[4] is not None,
+            ),
+        )
+        record: Any = None
+        for wait in (*PASS_RECORD_WAITS, None) if passes else ():
+            try:
+                record = self._record(*passes[0])
+                break
+            except _Unreadable as exc:
+                print(f"pass-out: {exc}", file=sys.stderr)
+                if wait is None or not _transient(str(exc)) or wait > listing_cap()[0]:
+                    break
+                _listing_sleep(wait)
+        return {
+            "head": head,
+            "verdicts": [
+                {
+                    "name": name,
+                    "verdict": match[3] if (match := verdict_name(name)) else None,
+                    "runId": run_id,
+                    "artifact": artifact,
+                    "run": self._pass_runs.get(run_id),
+                }
+                for run_id, name, artifact in passes
+            ],
+            "record": record,
+            "closing": self._closing_refs.get(number),
+        }
 
     def _passes_follow(
         self, fails: list[Verdict], passes: list[tuple[int, str, Any]]
@@ -6639,6 +6702,10 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     again on a listing of its own, as the gate does before it allows. With
     `--shared-listing` the run's saved listing serves at any age, an allow
     included: ci-status's merge-queue step runs this reader again at the head.
+    With `--pass-out <file>`, the file gets `Reader.pass_link` for an allow
+    at the head, else no pass, no record and no closing issues: the step
+    hands merge-holds.mjs those reads instead of making them again. The
+    printed line does not change.
 
     With `--lane-link`, the line also carries `ineligible`: null when the
     pull request's issue link is one the pr-merge lane takes and its issue
@@ -6697,6 +6764,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--lane-queue", action="store_true")
     cmd.add_argument("--rung", default=None)
     cmd.add_argument("--shared-listing", action="store_true")
+    cmd.add_argument("--pass-out", default=None)
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     room = sub.add_parser("lane-room", allow_abbrev=False)
@@ -6782,7 +6850,13 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         reader = Reader(args.repo, args.branch, now=now)
         if args.shared_listing:
             reader.listing_max_age = None
-        return _evidence_report(args, reader)
+        report = _evidence_report(args, reader)
+        if args.pass_out:
+            link = {"head": args.head, "verdicts": [], "record": None, "closing": None}
+            if report.get("refusal") is None and report.get("head") == args.head:
+                link = reader.pass_link(args.number, args.head)
+            Path(args.pass_out).write_text(json.dumps(link) + "\n", encoding="utf-8")
+        return report
 
     with merge_policy.base_tips_remembered():
         print(json.dumps(_after_the_read_floor(judged)))

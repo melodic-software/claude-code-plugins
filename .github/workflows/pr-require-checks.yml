@@ -5747,11 +5747,12 @@ jobs:
           # `ran` lists, per lane, the heads of its runs from this repository
           # started before the decision.
           notices='[]' vetted='' ran='[]'
-          # Each lane's status job names, `|`-separated: its caller job's
-          # display name over pr-review-cli.yml's status job `Status`, then the
-          # caller job id, the name a head tested before the rename shows, then
-          # both over the job's earlier name `review-status`, then both over its
-          # planned name `Publish Review`.
+          # The base's REVIEW_LANES, one `<file> <status job names, |-separated>` line each.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          lanes=$(node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            const { REVIEW_LANES } = await import(pathToFileURL(process.argv.at(-1)).href);
+            for (const [file, names] of REVIEW_LANES) console.log(`${file} ${names.join("|")}`);' \
+            REVIEW_LANES "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || keep "the review lanes could not be read"
           while read -r file checks; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
             ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
@@ -5761,11 +5762,8 @@ jobs:
               [ -n "$id" ] || continue
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
               if [[ " $vetted " != *" $sha "* ]]; then
-                diff=$(read_api "repos/$repo/compare/$BASE_SHA...$sha") || keep "the changes of $sha are unreadable"
-                changed=$(jq -er '[.files[].filename] as $f
-                  | if ($f | length) >= 300 then "too many files"
-                    elif any($f[]; . == ".github/workflows/pr-review-hosted.yml" or . == ".github/workflows/pr-review-security-hosted.yml") then "a review-lane workflow"
-                    else "" end' <<<"$diff") || keep "the changes of $sha do not parse"
+                read_api "repos/$repo/compare/$BASE_SHA...$sha" >"$RUNNER_TEMP/cost-hold-lane-diff.json" || keep "the changes of $sha are unreadable"
+                changed=$(holds_js laneChange "$RUNNER_TEMP/cost-hold-lane-diff.json") || keep "the changes of $sha do not parse"
                 [ -z "$changed" ] || keep "lane run $id ran on $sha, which changes $changed"
                 vetted+=" $sha"
               fi
@@ -5782,8 +5780,7 @@ jobs:
             done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
               | select(.head_repository.full_name == $repo)
               | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
-          done <<<'pr-review-hosted.yml PR Review / Status|pr-review / Status|PR Review / review-status|pr-review / review-status|PR Review / Publish Review|pr-review / Publish Review
-          pr-review-security-hosted.yml PR Review Security / Status|pr-review-security / Status|PR Review Security / review-status|pr-review-security / review-status|PR Review Security / Publish Review|pr-review-security / Publish Review'
+          done <<<"$lanes"
           # The decided head: the sha of the newest cost notice before the
           # decision that names its own run's head; none when two heads share
           # that time.
