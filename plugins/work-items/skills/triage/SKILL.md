@@ -1,6 +1,6 @@
 ---
 description: "Evaluate raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, with exits to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention', 'sweep needs-human'. No number: the attention view. Escalations: /work-items:attend-queue."
-argument-hint: "[sweep] [--config-ref <ref>] [<number>]"
+argument-hint: "[sweep] [--config-ref <ref>] [<number> | --issue <n> --ci]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -15,7 +15,8 @@ Arguments: `$ARGUMENTS`. `[<number>]` is the issue or pull request number to tri
 `--config-ref <ref>` (optional, anywhere in the string) pins where the triage settings are read:
 a lane passes its base commit (a 40-hex commit id or `origin/<name>`) so the settings come from
 that commit, not from whatever branch is checked out. Any other token: stop and name the accepted
-set (`sweep`, `--config-ref <ref>`, a number).
+set (`sweep`, `--config-ref <ref>`, a number, `--issue <n> --ci`).
+**CI mode.** `--issue <n> --ci` is an intake lane's mode: read [`context/ci-mode.md`](context/ci-mode.md) first, follow it to the end (it names what the run reads and the `triage-verdict.json` it writes), and skip every other section of this file except those it names. In that file `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`. No other invocation reads it.
 
 ## Shared tracker context
 
