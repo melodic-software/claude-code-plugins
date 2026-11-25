@@ -5,6 +5,13 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.10.4] - 2026-11-25
+
+### Changed
+
+- `/harness-config:audit-automation-gaps` inventories the `REVIEW.md` in effect, the organization's criteria with the repository's appended, through a bundled `scripts/org-standards.sh review`.
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
 ## [5.10.3] - 2026-11-24
 
 ### Changed
