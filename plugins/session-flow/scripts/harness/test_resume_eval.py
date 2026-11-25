@@ -4,10 +4,6 @@ import time
 
 import pytest
 
-# The suite builds throwaway git repositories. Under an inherited absolute
-# GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) git would write into the caller's
-# repository instead, so clear the ambient git environment once, before any
-# fixture is built (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
@@ -187,8 +183,6 @@ def test_codex_command_pins_the_model_and_stays_ephemeral():
         "resume now", model="gpt-x", workdir="/r", reply="/o/reply.txt"
     )
     assert cmd[:3] == ["codex", "exec", "--json"]
-    # Not --ephemeral: the follow-up turn resumes the thread, which needs its rollout on
-    # disk; the harness moves the rollout out of the Codex store after the run.
     assert "--ephemeral" not in cmd and "--ignore-user-config" in cmd
     assert cmd[cmd.index("-m") + 1] == "gpt-x"
     assert cmd[cmd.index("-C") + 1] == "/r"
@@ -905,7 +899,6 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
             )
             return done.returncode, done.stdout, done.stderr
         if "--no-session-persistence" in cmd:
-            # A text-probe judge vote: the CLI's `--output-format json` reply.
             return 0, json.dumps({"result": "FAIL: fake judge", "is_error": False}), ""
         prompt = cmd[-1]
         calls.append(prompt)

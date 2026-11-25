@@ -51,7 +51,10 @@ SESSION_ID="$(input_field session_id)"
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-LEDGER_DIR="${CLAUDE_PROJECT_DIR:-$PWD}/.work/running-retros"
+PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
+COMMON="$(git -C "$PROJECT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+[[ "$COMMON" == */.git ]] && PROJECT="${COMMON%/.git}"
+LEDGER_DIR="$PROJECT/.work/running-retros"
 
 WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 
