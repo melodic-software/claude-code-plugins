@@ -164,9 +164,13 @@ absent, and no move dissolves a *why* ("Apply capacity" in dissolving-moves.md).
      and line with the comment's text. Deleting the
      comment leaves the workaround in the code. When `/corrections:codify` is among the available
      skills and nothing ran in `report`, record each workaround with `/corrections:codify note`.
+   - **Glossary candidates**: each domain term an ADR candidate's comment uses that
+     `/domain-driven-design:ubiquitous-language lookup` (if enabled) reports absent from the
+     glossary, with the candidate it came from, per SKILL.md "ADR candidates".
    - **Encodings**: constraints encoded, offered, or left unenforced (the encode step below).
    - **Agent reruns**: each comment-reviewer report rejected, with its failure.
-   Then write each reshape flag, each open root-cause item and each lint-rule proposal to the
+   Then write each reshape flag, each open root-cause item, each lint-rule proposal and each
+   glossary candidate to the
    [findings file](#findings-file), in every mode, and name the file in the report. The user
    reviews the diff; this skill does not commit.
 
@@ -258,5 +262,5 @@ these rules keep that run safe to start unattended:
 - **A constraint comment gets an encoding proposal** per [Encode a constraint](#encode-a-constraint),
   never applied.
 - **The [findings file](#findings-file) is still written.** It sits in the memory root, outside
-  the repository's tracked files, and carries the run's reshape flags, open root-cause work and
-  lint-rule proposals.
+  the repository's tracked files, and carries the run's reshape flags, open root-cause work,
+  lint-rule proposals and glossary candidates.
