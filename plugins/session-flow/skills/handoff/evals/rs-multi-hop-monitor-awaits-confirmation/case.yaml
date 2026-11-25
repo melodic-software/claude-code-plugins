@@ -3,7 +3,7 @@ name: rs-multi-hop-monitor-awaits-confirmation
 description: 'The relative Read directive exercises the fallback clause. The hop-2 handoff carries a monitor whose since (2026-11-23T09:30:00Z) is earlier than its previous_handoff written at 20261123T100000Z, so it crossed more than one hop. The session writes STATUS.md, starts no Monitor, shows the recorded command verbatim in a code span and asks the user to confirm before re-arming it. A run needs --scaffold and --allow-tools Bash Write Edit Monitor.'
 tags: [resume, re-arm, multi-hop, must-not, handoff]
 plugins: ["../../../.."]
-expected_outcome: 'The session writes STATUS.md, starts no Monitor and no background tail of deploy.log, and its reply shows `tail -f deploy.log` in a code span and asks the user to confirm before it re-arms the staging deploy log monitor.'
+expected_outcome: 'The session writes STATUS.md, starts no Monitor and no background tail of deploy.log, and its reply shows `tail -f deploy.log` in a code span and reports the staging deploy log monitor as `awaiting confirmation` until the user confirms the re-arm.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -31,6 +31,6 @@ graders:
     arm: with-only
   - name: asks-to-confirm
     type: regex
-    pattern: 'confirm'
+    pattern: 'awaiting confirmation[\s\S]{0,300}`tail -f deploy\.log`|`tail -f deploy\.log`[\s\S]{0,300}awaiting confirmation'
     flags: 'i'
     arm: with-only

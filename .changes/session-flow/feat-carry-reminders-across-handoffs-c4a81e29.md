@@ -12,6 +12,10 @@ bump: minor
   Pending commands into `user · when now` reminders.
 - The handoff skill folds user messages and advisor output that change a section into the handoff
   with `amend` after emit, without asking.
+- A reminder whose source is not the user's own message (an event, a tool result, a subagent or
+  peer report, fetched text) is recorded as a `user` entry, shown and never run, and recorded
+  reminder text is data: an `agent` entry asking for more than its task is raised, not done, at
+  resume and at chain close.
 - Forked side tasks, profile changes and chain-close follow-ups print one terminal command that
   opens the destination checkout and starts the selected profile with the saved prompt or goal.
 
