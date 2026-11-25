@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part a of 6:
-# sections 1 to 2b, less the nesting and size-budget cases of section 1 and the
-# python and node heredoc cases of section 2, which are part f. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -f.test.sh; block-root-delete-target-fixtures.sh
-# holds what they share.
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
-# no host-repo assertion library.
-#
-# The core table runs through expect_both, so every verdict is asserted twice:
-# once with the guard alone, and once under hooks/run-guards.sh. A guard that
-# decides one way by itself and another under the dispatcher is a failure here
-# rather than a blind spot.
-#
-# The guard is NOT host-gated, so no case forces OSTYPE: a recursive delete of
-# `/`, of `~`, of `$HOME`, or with --no-preserve-root is unrecoverable on every
-# host this plugin runs on, and CI is Linux.
-#
-# File-wide, and deliberate: every command string below is a LITERAL the guard
-# must read exactly as an operator wrote it. `$HOME` and `${HOME}` are matched
-# as text, because the guard never evaluates an expansion (SC2016), and `\\` is
-# a real pair of backslashes rather than an escaped quote (SC1003). Expanding
-# either here would test something other than what the guard sees.
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -88,10 +64,6 @@ expect_both 'subshell blocks' 2 --command '(rm -rf /)'
 expect_both 'spaced subshell blocks' 2 --command '( rm -rf / )'
 expect_both 'case arm blocks' 2 --command 'case x in x) rm -rf / ;; esac'
 expect_both 'time rm -rf / blocks' 2 --command 'time rm -rf /'
-# `coproc [NAME] command`, and bash takes the NAME only ahead of a COMPOUND
-# command. Ahead of a SIMPLE one the first word IS the command, so stepping over
-# any identifier that merely had a word after it swallowed the real command
-# word and let a child shell through.
 expect_both 'coproc blocks' 2 --command 'coproc rm -rf --no-preserve-root /'
 expect_both 'coproc brace group blocks' 2 --command 'coproc { rm -rf /; }'
 expect_both 'coproc NAME brace group blocks' 2 --command 'coproc shredder { rm -rf /; }'
@@ -114,11 +86,8 @@ expect_both 'rm -rf /.. blocks' 2 --command 'rm -rf /..'
 expect_both 'sudo -u bob rm -rf / blocks' 2 --command 'sudo -u bob rm -rf /'
 expect_both 'env -u FOO rm -rf / blocks' 2 --command 'env -u FOO rm -rf /'
 expect_both 'timeout 60 rm -rf / blocks' 2 --command 'timeout 60 rm -rf /'
-# `--` ends options, not the duration; a word that cannot be a duration is the
-# command word.
 expect_both 'timeout -- 5 rm -rf / blocks' 2 --command 'timeout -- 5 rm -rf /'
 expect_both 'timeout -- rm -rf / blocks' 2 --command 'timeout -- rm -rf /'
-# The duration after `--` is read in strtod's shape: space, a sign, inf.
 expect_both 'timeout -- +5 rm -rf /* blocks' 2 --command 'timeout -- +5 rm -rf /*'
 expect_both "timeout -- ' 5' rm -rf /* blocks" 2 --command "timeout -- ' 5' rm -rf /*"
 expect_both 'timeout -- inf rm -rf /* blocks' 2 --command 'timeout -- inf rm -rf /*'
@@ -160,8 +129,6 @@ expect_both 'env --chdir /tmp rm -rf / blocks' 2 --command 'env --chdir /tmp rm 
 expect_both 'nice --adjustment 5 rm -rf / blocks' 2 --command 'nice --adjustment 5 rm -rf /'
 expect_both 'ionice --class 2 rm -rf / blocks' 2 --command 'ionice --class 2 rm -rf /'
 expect_both 'stdbuf --output L rm -rf / blocks' 2 --command 'stdbuf --output L rm -rf /'
-# GNU env's `-S` is not an option argument to step over: env SPLITS the operand
-# and RUNS it, so it is re-parsed as the command it is.
 expect_both 'env -S rm -rf / blocks' 2 --command "env -S 'rm -rf /'"
 expect_both 'env --split-string rm -rf / blocks' 2 --command "env --split-string 'rm -rf /'"
 expect_both 'env --split-string= rm -rf / blocks' 2 --command "env --split-string='rm -rf /'"
@@ -182,8 +149,6 @@ expect_both 'quoted paren then a root operand blocks' 2 \
 expect_both 'substitution nested 3 deep is still parsed' 2 \
   --command 'echo "$(echo "$(echo "$(rm -rf /)")")"'
 
-# `eval` runs its arguments in THIS shell, so the child-shell unwrap never
-# applies to it: there is no -c and no new process.
 expect_both 'eval "rm -rf /" blocks' 2 --command 'eval "rm -rf /"'
 expect_both 'eval rm -rf / blocks (unquoted)' 2 --command 'eval rm -rf /'
 expect_both 'nested eval blocks' 2 --command 'eval "eval \"rm -rf /\""'
@@ -208,9 +173,6 @@ expect_both 'su - bob -c rm -rf / blocks' 2 --command "su - bob -c 'rm -rf /'"
 expect_both 'su -lc rm -rf / blocks (short cluster)' 2 --command "su -lc 'rm -rf /'"
 expect_both 'su --command= rm -rf / blocks' 2 --command "su --command='rm -rf /'"
 expect_both 'su --session-command rm -rf / blocks' 2 --command "su --session-command 'rm -rf /'"
-# getopt_long takes any unambiguous prefix of a long option, so an abbreviated
-# `--command` or `--session-command` carries the operand exactly as the full
-# name does.
 expect_both 'su --comm rm -rf / blocks (abbreviated --command)' 2 --command "su --comm 'rm -rf /'"
 expect_both 'su --c= rm -rf / blocks' 2 --command "su --c='rm -rf /'"
 expect_both 'su with two -c, the second a delete, blocks' 2 --command "su bob -c true -c 'rm -rf /*'"
@@ -218,19 +180,14 @@ expect_both 'su -w -c -c blocks' 2 --command "su -w -c -c 'rm -rf /*'"
 expect_both "su -c'rm -rf /' blocks (attached operand)" 2 --command "su -c'rm -rf /'"
 expect_both "runuser -lc'rm -rf /' blocks (attached operand)" 2 --command "runuser -lc'rm -rf /'"
 expect_both "su -c'ls /' allowed (attached benign operand)" 0 --command "su -c'ls /'"
-# A shell reads `-c -- '…'` as `-c '…'`.
 expect_both 'su -c -- blocks' 2 --command "su bob -- -c -- 'rm -rf /*'"
 expect_both 'runuser -c -- blocks' 2 --command "runuser bob -- -c -- 'rm -rf /*'"
-# A -c operand of exactly `--` makes su build `sh -c -- CMD`, so CMD is the
-# word after it, in every spelling of the option.
 expect_both 'su --com=-- blocks' 2 --command "su root --com=-- 'rm -rf /*'"
 expect_both 'su -c-- blocks' 2 --command "su root -c-- 'rm -rf /*'"
 expect_both 'su --session-command=-- blocks' 2 --command "su root --session-command=-- 'rm -rf /*'"
 expect_both 'runuser --command=-- blocks' 2 --command "runuser root --command=-- 'rm -rf /*'"
 expect_both 'runuser -c -- operand blocks' 2 --command "runuser root -c -- 'rm -rf /*'"
 expect_both 'su --com=-- ls allowed' 0 --command "su root --com=-- 'ls /'"
-# -s / --shell naming a program that is not a shell runs that program with the
-# words after the user, so the program is the command.
 expect_both 'su -s /bin/rm blocks' 2 --command 'su root -s /bin/rm -- -rf /*'
 expect_both 'runuser -s /bin/rm blocks' 2 --command 'runuser bob -s /bin/rm -- -rf /*'
 expect_both 'runuser --shell=/bin/rm blocks' 2 --command 'runuser --shell=/bin/rm bob -- -rf /*'
@@ -253,8 +210,6 @@ expect_both 'runuser --whitelist-environment -u,PATH -c blocks' 2 \
   --command "runuser --whitelist-environment -u,PATH bob -c 'rm -rf /'"
 expect_both 'runuser -w -u,PATH -c blocks' 2 --command "runuser -w -u,PATH bob -c 'rm -rf /'"
 expect_both 'runuser --white -u,PATH -c blocks' 2 --command "runuser --white -u,PATH bob -c 'rm -rf /'"
-# runuser's getopt PERMUTES and takes the LAST of a repeated option, so every
-# -c operand is judged, and an option operand is never mistaken for an option.
 expect_both 'runuser two -c, the second a delete, blocks' 2 --command "runuser bob -c true -c 'rm -rf /*'"
 expect_both 'runuser --command then --session-command blocks' 2 \
   --command "runuser bob --command=true --session-command 'rm -rf /*'"
@@ -284,7 +239,6 @@ expect_both 'runuser -u bob -G wheel -w PATH -- rm -rf / blocks' 2 \
   --command 'runuser -u bob -G wheel -w PATH -- rm -rf /'
 expect_both 'runuser -u bob -- bash -c rm -rf / blocks' 2 --command "runuser -u bob -- bash -c 'rm -rf /'"
 expect_both 'sudo runuser -u bob -- rm -rf / blocks' 2 --command 'sudo runuser -u bob -- rm -rf /'
-# taskset takes a mask (or a cpu list under -c) ahead of the command.
 expect_both 'taskset 0x3 rm -rf / blocks' 2 --command 'taskset 0x3 rm -rf /'
 expect_both 'taskset -c 0 rm -rf / blocks' 2 --command 'taskset -c 0 rm -rf /'
 expect_both 'taskset --cpu-list 0-3 rm -rf / blocks' 2 --command 'taskset --cpu-list 0-3 rm -rf /'
@@ -299,23 +253,18 @@ expect_both 'timeout 5 taskset 1 rm -rf / blocks' 2 --command 'timeout 5 taskset
 expect_both 'taskset 1 bash -c rm -rf / blocks' 2 --command "taskset 1 bash -c 'rm -rf /'"
 expect_both 'substitution through taskset blocks' 2 --command 'echo "$(taskset 1 rm -rf /)"'
 expect_both 'env -S through taskset blocks' 2 --command "env -S 'taskset 1 rm -rf /'"
-# chrt takes a priority only when the word is all digits; otherwise the word
-# is the command. `chrt -r rm` is an invocation chrt itself rejects (rr needs a
-# priority), refused by decision (#4681, section 4c).
 expect_both 'chrt 10 rm -rf / blocks' 2 --command 'chrt 10 rm -rf /'
 expect_both 'chrt --fifo 10 rm -rf / blocks' 2 --command 'chrt --fifo 10 rm -rf /'
 expect_both 'chrt -o rm -rf / blocks (no priority)' 2 --command 'chrt -o rm -rf /'
 expect_both 'chrt -r rm -rf / blocks' 2 --command 'chrt -r rm -rf /'
 expect_both 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf / blocks' 2 --command 'chrt -d -T 1000 -P 2000 -D 2000 0 rm -rf /'
 expect_both 'chrt -- 5 rm -rf / blocks' 2 --command 'chrt -- 5 rm -rf /'
-# flock takes a lock file, and runs -c / --command through a shell.
 expect_both 'flock /tmp/l rm -rf / blocks' 2 --command 'flock /tmp/l rm -rf /'
 expect_both 'flock -w 5 /tmp/l rm -rf / blocks' 2 --command 'flock -w 5 /tmp/l rm -rf /'
 expect_both 'flock -x /tmp/l -c rm -rf / blocks' 2 --command "flock -x /tmp/l -c 'rm -rf /'"
 expect_both 'flock /tmp/l --command rm -rf / blocks' 2 --command "flock /tmp/l --command 'rm -rf /'"
 expect_both 'flock -c rm -rf / blocks (no file)' 2 --command "flock -c 'rm -rf /'"
 expect_both 'flock -- /tmp/l rm -rf / blocks' 2 --command 'flock -- /tmp/l rm -rf /'
-# With --fd there is no lock file, so the first positional is the command.
 expect_both 'flock --fd 9 rm -rf / blocks' 2 --command 'flock --fd 9 rm -rf /'
 expect_both 'flock --fd=9 rm -rf / blocks' 2 --command 'flock --fd=9 rm -rf /'
 expect_both 'flock -- /tmp/l -c blocks' 2 --command "flock -- /tmp/l -c 'rm -rf /*'"
@@ -337,8 +286,6 @@ expect_both 'flock -xw 5 blocks' 2 --command 'flock -xw 5 /tmp/l rm -rf /*'
 expect_both 'nsenter -at 1 blocks' 2 --command 'nsenter -at 1 rm -rf /*'
 expect_both 'numactl -lN 0 blocks' 2 --command 'numactl -lN 0 rm -rf /*'
 expect_both 'flock -nw 1 ls allowed' 0 --command 'flock -nw 1 /tmp/l ls /'
-# unshare, nsenter and numactl take no positional; only their operand-taking
-# options consume a word.
 expect_both 'unshare rm -rf / blocks' 2 --command 'unshare rm -rf /'
 expect_both 'unshare --mount --pid --fork rm -rf / blocks' 2 --command 'unshare --mount --pid --fork rm -rf /'
 expect_both 'unshare -S 0 -G 0 rm -rf / blocks' 2 --command 'unshare -S 0 -G 0 rm -rf /'
@@ -356,9 +303,6 @@ expect_both 'chroot -- / rm -rf / blocks' 2 --command 'chroot -- / rm -rf /'
 expect_both 'the whole launcher family stacked blocks' 2 \
   --command 'flock /tmp/l chrt 5 unshare nsenter -t 1 chroot / numactl -l taskset 1 runuser -u bob -- rm -rf /'
 
-# The command word is compared case-insensitively, so the substring prefilter
-# in front of the parse must be too. On the Windows host this guard was written
-# for, the filesystem and PATH lookup are case-insensitive and `RM` runs rm.
 expect_both 'RM -rf / blocks (upper case)' 2 --command 'RM -rf /'
 expect_both 'Rm.exe -rf C:\ blocks (mixed case)' 2 --command 'Rm.exe -rf C:\'
 expect_both 'busybox rm -rf / blocks' 2 --command 'busybox rm -rf /'
@@ -366,24 +310,14 @@ expect_both 'rm.EXE -rf / blocks' 2 --command 'rm.EXE -rf /'
 expect_both 'RM.exe -rf / blocks' 2 --command 'RM.exe -rf /'
 expect_both '/bin/RM.EXE -rf / blocks' 2 --command '/bin/RM.EXE -rf /'
 
-# A DANGLING trailing backslash is the incident string minus its quotes. Bash
-# passes a literal `\` when one ends the input, and MSYS resolves it to the
-# current drive root. The tokenizer has no character left to emit, so the
-# operand arrives empty and only its quoting provenance separates it from
-# `rm -rf ""`.
 expect_both 'rm -rf \ blocks (dangling backslash)' 2 --command 'rm -rf \'
 expect_both 'rm -rf $(quoted backslash) blocks' 2 --command "rm -rf '\\'"
 
-# coreutils accepts any unambiguous long-option prefix.
 expect_both 'rm --r -f / blocks (abbreviated --recursive)' 2 --command 'rm --r -f /'
 expect_both 'rm --rec -f / blocks' 2 --command 'rm --rec -f /'
 expect_both 'rm -rf --no-p ./x blocks (abbreviated --no-preserve-root)' 2 --command 'rm -rf --no-p ./x'
 
 expect_both 'rm -rf //server/share blocks' 2 --command 'rm -rf //server/share'
-# Single-quoted, because an UNQUOTED backslash-backslash-server form is not a
-# UNC path to bash at all: the escapes collapse it to `\servershare`, and that
-# is what rm would receive. The quoted spelling is the one that reaches the
-# share, and both verdicts are pinned so the difference stays deliberate.
 # portability-ok: a literal backslash pair inside a UNC path, not a grep -E escape
 expect_both 'quoted UNC share root blocks' 2 --command "rm -rf '\\\\server\\share'"
 # portability-ok: a literal backslash pair inside a UNC path, not a grep -E escape
@@ -417,15 +351,12 @@ expect_both 'rm -rf ~* allowed' 0 --command 'rm -rf ~*'
 expect_both 'bash -c rm -rf ./build allowed' 0 --command 'bash -c "rm -rf ./build"'
 expect_both 'sudo -u bob ls / allowed' 0 --command 'sudo -u bob ls /'
 expect_both 'rm -rf //server/share/dir allowed' 0 --command 'rm -rf //server/share/dir'
-# An arithmetic expansion is not a command substitution and carries no command.
 expect_both 'arithmetic expansion allowed' 0 --command 'echo "$((1 + 2))"'
 expect_both 'arithmetic inside a substitution allowed' 0 --command 'echo "$(echo $((1 + 2)))"'
 expect_both "single-quoted substitution text allowed" 0 --command "echo '\$(rm -rf /)'"
 expect_both 'escaped dollar-paren allowed' 0 --command 'echo "\$(rm -rf /)"'
 expect_both "single-quoted backtick text allowed" 0 --command "echo '\`rm -rf /\`'"
 expect_both 'escaped backtick allowed' 0 --command 'echo "\`rm -rf /\`"'
-# A heredoc whose delimiter is quoted is inert text: bash expands nothing in its
-# body, so a backticked delete quoted there as an example runs nothing (#6625).
 expect_both "quoted heredoc body with backticked rm allowed" 0 --command $'cat <<\'EOF\'\nnote: `rm -rf /`\nEOF'
 expect_both 'double-quoted heredoc delimiter allowed' 0 --command $'cat <<"EOF"\nnote: `rm -rf /`\nEOF'
 expect_both 'backslashed heredoc delimiter allowed' 0 --command $'cat <<\\EOF\nnote: $(rm -rf /)\nEOF'
@@ -445,8 +376,6 @@ expect_both "ansi-c heredoc delimiter blocks" 2 --command $'cat <<$\'EOF\'\nbody
 expect_both "heredoc opener inside a comment blocks" 2 --command $'cat # <<\'EOF\'\necho "$(rm -rf /)"'
 expect_both "trailing comment on a quoted heredoc opener allowed" 0 --command $'gh pr create --body-file - <<\'EOF\' # see $1\nRun `rm -rf /` never.\nEOF'
 expect_both "quoted heredoc fed to gh issue comment allowed" 0 --command $'gh issue comment 1 --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF\n'
-# `git commit -F -` and `git tag -F -` read the body as a message, and git
-# ignores an alias that hides a built-in command, so their one-line form is data.
 expect_both "quoted heredoc fed to git commit -F - allowed" 0 --command $'git commit -F - <<\'EOF\'\nfix: x\n\nRun `rm -rf /` never.\nEOF'
 expect_both "quoted heredoc fed to git tag -F - allowed" 0 --command $'git tag -F - v1.0.0 <<\'EOF\'\nRun `rm -rf /` never.\nEOF'
 expect_both "quoted heredoc fed to git -c commit -F - blocks" 2 --command $'git -c alias.x=y commit -F - <<\'EOF\'\necho `rm -rf /`\nEOF'
@@ -459,24 +388,18 @@ expect_both "quoted heredoc fed to git commit --file=- blocks" 2 --command $'git
 expect_both "quoted heredoc opener on a later line of git commit -F - blocks" 2 --command $'git commit -F - --trailer "Refs: #1" \\\n<<\'EOF\'\necho `rm -rf /`\nEOF'
 expect_both "quoted heredoc fed to git commit -F - piped into sh blocks" 2 --command $'git commit -F - <<\'EOF\' | sh\necho `rm -rf /`\nEOF'
 expect_both "quoted heredoc written by a redirected cat blocks" 2 --command $'cat > /tmp/x.sh <<\'EOF\'\necho `rm -rf /`\nEOF'
-# An unquoted delimiter's body IS expanded, so its substitutions still run.
 expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
 expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'
 expect_both "backticked rm after a quoted heredoc ends blocks" 2 --command $'cat <<\'EOF\'\nnote\nEOF\necho `rm -rf /`'
 expect_both 'arithmetic shift is not a heredoc opener' 2 --command $'echo $((1<<2))\necho `rm -rf /`'
 expect_both 'here-string is not a heredoc opener' 2 --command $'cat <<<x\necho `rm -rf /`'
-# Bash re-reads `((…) )` and `$((…) )` as nested subshells, so their redirections are real.
 expect_both "here-string inside a ((…) ) subshell blocks" 2 --command "((bash <<< 'rm -rf ~') )"
 expect_both "here-string inside a \$((…) ) substitution blocks" 2 --command "echo \$((bash <<< 'rm -rf ~') )"
-# A `))` inside backticks does not end the ((…) ) text.
 expect_both "here-string in a ((…) ) holding a backticked )) blocks" 2 --command "((\`:))\`; bash <<< 'rm -rf ~') )"
 expect_both "here-string in a \$((…) ) holding a backticked )) blocks" 2 --command "echo \$((\`:))\`; bash <<< 'rm -rf ~') )"
 expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'
-# `coproc NAME <simple command>` is not the NAME form at all: bash runs a
-# command named `shredder` and hands it the rest, so this names no `rm`.
 expect_both 'coproc NAME ahead of a simple command allowed' 0 --command 'coproc shredder rm -rf /'
 expect_both 'coproc NAME with an ordinary delete allowed' 0 --command 'coproc shredder rm -rf ./build'
-# GNU env's -S operand is a COMMAND, split and run, not an opaque argument.
 expect_both 'env -S with an ordinary command allowed' 0 --command "env -S 'ls /'"
 expect_both 'env -S with an ordinary delete allowed' 0 --command "env -S 'rm -rf ./build'"
 expect_both 'sudo --user root ls / allowed' 0 --command 'sudo --user root ls /'
@@ -494,7 +417,6 @@ expect_both 'brace group with an ordinary delete allowed' 0 --command '{ rm -rf 
 expect_both 'if/then with an ordinary delete allowed' 0 --command 'if true; then rm -rf ./build; fi'
 expect_both 'su -c with an ordinary delete allowed' 0 --command "su -c 'rm -rf ./build'"
 expect_both 'su with no -c allowed' 0 --command 'su bob ls /'
-# `--s` is ambiguous (session-command, shell, supp-group), so su rejects it.
 expect_both 'su --s ambiguous prefix allowed' 0 --command "su --s 'rm -rf /'"
 expect_both 'rm.EXE under the tree allowed' 0 --command 'rm.EXE -rf ./build'
 expect_both 'eval rm -rf "" allowed' 0 --command 'eval rm -rf ""'
@@ -595,17 +517,11 @@ rm -rf "${X:-$HOME}"*
 rm -rf "$X"*
 rm -rf ${X}*
 EOF
-# `:?` aborts on an unset or empty X whatever its message word holds.
 expect_both 'bare variable: "${X:?${Y}}"/* allowed' 0 --command 'rm -rf "${X:?${Y}}"/*'
 expect_both 'bare variable: "${X:?${Y}}"/* allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?${Y}}"/*'
 expect_both 'bare variable: "${X:?/}"/* allowed' 0 --command 'rm -rf "${X:?/}"/*'
 expect_both 'bare variable: "${X:?/}"/* allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?/}"/*'
-# A `${` that never closes is refused; bash rejects it.
 expect_both "bare variable: an unclosed \${ blocks" 2 --command "rm -rf '\${X:-/'/*"
-# Bash passes `${...}` through brace expansion whole, and its first `}` ends
-# it, so `${X:-{a,b}}` leaves a literal `}` behind. A segment holding no
-# letter, digit or underscore names nothing to this guard (`rm -rf /}` is a
-# root), so the operand reads as bare and is refused, the conservative side.
 expect_both 'bare variable: ${X:-{a,b}}/* blocks' 2 --command 'rm -rf ${X:-{a,b}}/*'
 expect_both 'bare variable: "${X:?}"* allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}"*'
 expect_both 'bare variable: "$X"-build blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf "$X"-build'
@@ -781,15 +697,6 @@ expect_both 'cdpath: an inline CDPATH=/ prefix refuses a later relative delete' 
   --command 'CDPATH=/ cd c && rm -rf x'
 expect_both 'cdpath: an inline prefix refuses from a temp cwd too' 2 --cwd "$TEST_TMPDIR" \
   --command 'CDPATH=/ cd c && rm -rf x'
-# Every relative operand after that cd, whatever the list operator and
-# whatever the operand's shape.
-# Each string must reach the guard VERBATIM. Git Bash rewrites a native
-# program's argument shaped `NAME=/path` into a Windows path, so a plain
-# `jq -n --arg c 'CDPATH=/ cd c && ...'` hands the guard
-# `CDPATH=C:/Program Files/Git/ cd c && ...`, whose command word is
-# `Files/Git/` and which holds no cd at all. The payload builders here pass
-# MSYS_NO_PATHCONV=1 to jq, and the round trip is asserted so a builder that
-# lost it would fail here rather than test a different command.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   assert_eq "cdpath: the payload carries '$rdt_cmd' verbatim" "$rdt_cmd" \
@@ -932,13 +839,6 @@ expect_both 'git failing: a relative operand blocks' 2 "${RDT_CWD[@]}" --command
 expect_both 'git failing: a temp path allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf /tmp/rdt-x' \
   -- "PATH=$TEST_TMPDIR/bin-git:$PATH"
 
-# A trailing slash makes rm follow a symlink named last, so such an operand is
-# resolved whole: `link/` and a `*/` glob that matches a link are judged by
-# where the link points. Without the slash the link itself is the target.
-# On Git Bash `winsymlinks:lnk` makes a shortcut the runtime reads as a
-# symlink; its default mode copies instead. The dangling link is made first,
-# so where `ln -s` would copy it fails or makes no link and the group is
-# skipped before anything is copied. The links are unlinked, never recursed.
 rdt_ln="$TEST_TMPDIR/links"
 mkdir -p "$rdt_ln"
 if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$rdt_ln/dang" 2>/dev/null && [[ -L "$rdt_ln/dang" ]]; then
@@ -1072,7 +972,6 @@ expect_both 'cd glob: an absolute delete after it is still judged' 0 "${RDT_CWD[
 expect_both 'an error inside the judgment refuses' 2 "${RDT_CWD[@]}" --command 'rm -rf build~1' \
   -- 'BASH_FUNC_mapfile%%=() { : "$RDT_NO_SUCH_VARIABLE"; }'
 
-# A host with no `realpath -m` (BSD, macOS) takes the lexical fallback.
 rdt_realpath=$(command -v realpath || true)
 if [[ -n "$rdt_realpath" ]]; then
   mkdir -p "$TEST_TMPDIR/bin-rp"
@@ -1091,8 +990,6 @@ else
   rdt_skip "no realpath on PATH, so the no-realpath -m stub cannot wrap one (6 cases)"
 fi
 
-# Windows: a short (8.3) and a long spelling of one scratchpad are the same
-# directory, and so are the /tmp mount and the drive path it maps to.
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32)
   mkdir -p "$TEST_TMPDIR/RdtScratchpadLongName"

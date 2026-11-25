@@ -1,84 +1,13 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block a commit SUBJECT or `gh pr create --title` that
-# violates the team-tracked convention pattern. Triggered on Bash and
-# PowerShell tool calls.
-#
-# WHAT IT ENFORCES — the declarative convention, where one is explicitly
-# tracked: the commit subject (first line of the canonical stdin-form message)
-# and the `gh pr create --title` value are validated against the POSIX-ERE
-# pattern resolved from the consumer's tracked
-# `docs/conventions/source-control.yaml`, else the folder-form
-# `docs/conventions/source-control/commit-convention.yml`, by the vendored
-# enforcement resolver (resolve-convention-pattern.sh — the commit-convention
-# seam, docs/contracts/commit-convention/). The sibling
-# block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
-# gate reads the CONTENT that mechanic carries.
-#
-# Where the team tracks no `subject_pattern`, the resolver falls back to the
-# operator's own, from a git-ignored `docs/conventions/source-control.local.yaml`;
-# it is never merged with a team pattern, and PR titles never read it.
-#
-# UNRESOLVED = NO ENFORCEMENT. No team-tracked or personal pattern -> the gate no-ops; a
-# non-ERE pattern or an unreadable config no-ops too, with a notice (below). It never blocks against the bundled
-# Conventional Commits default: enforcement strength equals the strength of
-# explicit config, the team's or else the operator's own, so a repo where
-# neither opted in is never gated.
-#
-# A BROKEN CONVENTION IS NOT AN UNRESOLVED ONE, AND THE GUARD FAILS OPEN ON IT.
-# The resolver's exit code and stderr tell them apart, with no change to its
-# contract: exit 0 enforces; exit 1 with empty stderr is "no convention tracked"
-# and stays quiet; exit 1 with a diagnostic (an unreadable file, a non-ERE
-# pattern) or exit 2 means that key's check did not run. That is the chosen fail
-# mode, per key: a key that resolved still enforces, the failed key's check is
-# skipped, and a once-per-session notice on both channels names the check and
-# carries the resolver's diagnostic, so a broken config is never mistaken for no
-# policy.
-#
-# NEVER BLOCKS `gh pr create` ITSELF. Only a present-and-violating `--title`
-# value blocks; a missing `--title` (interactive/web flow) passes untouched —
-# the documented inline fallback when skill discovery is unavailable stays
-# usable. PROCESS conventions (rebase, triage, body template) have no command
-# signature and remain advisory (flag-commit-pr-skill-bypass).
-#
-# EXEMPTION TAXONOMY — inherited from block-noncanonical-commit, or this gate
-# breaks conflict resolution and history rewriting: --amend, -C/--reuse-message,
-# -c/--reedit-message, --fixup/--squash, -F <path>/--file <path> (message not
-# on the command line; the file may not even exist yet), and any commit during
-# an in-progress merge/rebase/cherry-pick/revert sequencer.
-#
-# DECLARED BYPASS COVERAGE (out of scope, documented): `gh pr edit --title`,
-# `gh pr create --fill`, direct API calls (`gh api .../pulls`), and babysit
-# retitles are not gated. A subject supplied by a non-heredoc stdin producer
-# (`printf … | git commit -F -`) is not extracted — the canonical /source-control:commit form
-# is the heredoc, and the mechanic gate already channels traffic into it.
-#
-# Kill switch: block_convention_gate_enabled userConfig option.
-#
-# BLOCKING: exits 2 when an extractable subject/title violates the resolved
-# pattern. Extraction failure on an exempt-free stdin-form commit is a SKIP,
-# not a block — the mechanic gate owns form; this gate only judges content it
-# can actually read.
 
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 (allow) and 2 (block) pass through. A convention check that
-# could not run must not deny a subject the team's convention would accept.
 guard::abort_boundary block-convention-violation PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
@@ -93,17 +22,8 @@ hook::buffer_stdin_to INPUT || {
 
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
-# All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
-# spawn is fork() emulation on Windows Git Bash and this guard runs on every
-# Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
-# skip below did — hook::require jq above has already made the degraded state
-# visible once per session and agent. The `// "Bash"` default moves to the bash-side
-# expansion, matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || exit 0
 
-# A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
-# bytes before matching, so a clean verdict would not reflect the bytes carried.
 if ((HOOK_JQ_FIELDS_NUL)); then
   guard::refuse_nul
   exit 2
@@ -115,46 +35,6 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 HOOK_CWD="${HOOK_JQ_FIELDS[2]}"
 
 RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
-
-# Which subcommands git refuses to alias, and why the persisted-alias probe
-# below skips them, is hook::git_subcommand_ignores_alias in hook-utils.sh.
-# Skipping one costs this gate a `git config` fork per Bash tool call and can
-# false-block on a leftover ignored alias that happens to name commit.
-
-# --- resolved pattern cache ---------------------------------------------------
-# Resolving costs two resolver forks plus `git rev-parse --show-toplevel`.
-# That used to run on EVERY Bash and PowerShell tool call, including
-# `echo hello` and `git status`, even though this gate can only block a commit
-# subject or a `gh pr create --title`. The pair is loaded on first need and
-# cached per repo root; the answer still changes only when the convention
-# files do. Measured at 423 ms, 10.1 spawn-equivalents against a 42 ms spawn
-# floor on Windows Git Bash for the resolver itself.
-#
-# The resolver is not edited and not re-implemented here. It stays the single
-# authority for what a pattern IS. What is cached is only its answer.
-#
-# Freshness is `[[ cache -nt dep ]]` per dependency, a bash builtin rather than a
-# `stat` process. Equal mtimes read as NOT newer, so a same-timestamp write
-# re-resolves rather than serving a stale pattern. That test alone is blind to a
-# dependency that DISAPPEARS: `-nt` against a missing file is true, so a cache
-# warmed while `docs/conventions/source-control.yaml` (or the folder-form file) existed
-# would keep enforcing a policy the team has since deleted, where the resolver now
-# answers no enforcement. So the entry also records every dependency with its
-# existence at warm time, and any recorded-as-existing dependency now missing,
-# or recorded-as-missing dependency now present (a higher-precedence file
-# appearing with an OLD mtime, restored from an archive or a `cp -p`), is a
-# miss. The repo root is stored in the file and compared on read, so two roots
-# that sanitize to the same name cannot serve each other's patterns, and a
-# terminator line makes a truncated write read as a miss.
-#
-# RESIDUAL, deliberately not solved here: the resolver honors
-# `docs/conventions/source-control.yaml` and the well-known
-# `docs/conventions/source-control/commit-convention.yml` only when git reports
-# them TRACKED, and the personal `docs/conventions/source-control.local.yaml`
-# only when git reports it IGNORED. Either status can change with no mtime change
-# on any file below. Such a change is picked up when any dependency is next
-# written, not at the moment of `git add` or an ignore-rule edit. Probing it would
-# cost the git spawns this cache exists to avoid.
 
 SUBJECT_ERE=""
 TITLE_ERE=""
@@ -177,10 +57,6 @@ ensure_convention_patterns() {
     CONV_CACHE="$CLAUDE_PLUGIN_DATA/convention-pattern/${REPO_ROOT//[^A-Za-z0-9]/_}"
 
   CONV_HIT=0
-  # Entry layout: root, subject pattern, title pattern, one `DEP <0|1> <path>`
-  # line per dependency in CONV_DEPS order (1 = existed at warm time), `END`.
-  # One pass over the file, bash builtins only: a dependency line is checked as
-  # it is read, and the first stale one ends the read as a miss.
   # shellcheck disable=SC2094  # the entry is only READ here; the write below is a separate branch
   if [[ -n "$CONV_CACHE" && -f "$CONV_CACHE" ]]; then
     conv_root=""
@@ -227,19 +103,8 @@ ensure_convention_patterns() {
       [[ -e "$conv_dep" ]] && conv_exists=1
       conv_dep_lines+="DEP $conv_exists $conv_dep"$'\n'
     done
-    # The resolver's stderr is read, not discarded: its exit code and stderr
-    # tell an unresolved key from a broken convention (see the header). Without
-    # a scratch file stderr cannot be read; /dev/null then leaves exit 1 quiet
-    # and exit 2 a notice carrying the status alone. The redirect sits on a
-    # group for the fork reason given below.
     { conv_errf=$(mktemp); } 2>/dev/null || conv_errf=/dev/null
     for conv_key in subject_pattern pr_title_pattern; do
-      # The redirect sits on a group, NOT inside the substitution. Bash execs
-      # the body in the substitution's own subshell only when that body carries
-      # no redirection of its own, so `$(cmd 2>file)` pays a second fork that
-      # `{ v=$(cmd); } 2>file` does not (measured with
-      # `strace -f -e trace=clone,clone3,execve`). The group's second command
-      # reads the status the first left, which is the resolver's.
       { conv_val=$(bash "$RESOLVER" "$REPO_ROOT" "$conv_key"); conv_rc=$?; } 2>"$conv_errf"
       conv_diag=""
       if ((conv_rc != 0)); then
@@ -249,9 +114,6 @@ ensure_convention_patterns() {
         conv_err="${conv_err//[$'\r\n\t']/ }"
         conv_err="${conv_err#"${conv_err%%[![:space:]]*}"}"
         conv_err="${conv_err%"${conv_err##*[![:space:]]}"}"
-        # Exit 1 with empty stderr is the resolver's "no convention tracked".
-        # Anything else (exit 1 with a diagnostic, exit 2, a crash) is a
-        # failure of this key alone.
         if [[ -n "$conv_err" || $conv_rc -ne 1 ]]; then
           conv_diag="${conv_err:0:300}"
           [[ -n "$conv_diag" ]] || conv_diag="exit status $conv_rc, no message"
@@ -281,8 +143,6 @@ ensure_convention_patterns() {
   fi
 }
 
-# conv_failure_notice <check> <checked thing> <diagnostic>: tell both readers,
-# once per session (agent for the model), that a check did not run.
 conv_failure_notice() {
   if hook::notice_once "guardrails-convention-resolver-$1" "$INPUT"; then
     hook::emit_skip_notice PreToolUse "guardrails block-convention-violation: the $1 convention check did not run, so this $2 was not checked. The convention resolver reported \"$3\". This notice does not repeat this session."
@@ -298,25 +158,15 @@ emit_tel() {
   hook::emit_telemetry "block-convention-violation" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# First non-empty line of the FIRST heredoc body in the raw Bash command.
-# Empty output when no heredoc exists. The canonical /source-control:commit form carries
-# exactly one heredoc; a command with several is judged by its first, which is
-# the one `git commit -F -` reads in the canonical composition.
 # shellcheck disable=SC2329  # invoked from check_segment (callback chain)
 first_heredoc_subject() {
   local cmd="$1" line delim="" in_hd=0 trimmed
-  # POSIX ERE (no backreferences in [[ =~ ]]): capture the raw delimiter word,
-  # then trim its quoting — the same shape flag-commit-pr-skill-bypass's
-  # stripper uses.
   local start_re='(^|[^<])<<-?[[:space:]]*([^[:space:]<>]+)'
   while IFS= read -r line || [[ -n "$line" ]]; do
     if ((in_hd)); then
       trimmed="${line#"${line%%[![:space:]]*}"}"
       trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
       [[ "$trimmed" == "$delim" ]] && return 0
-      # Blank-detection uses the trimmed copy, but the subject git receives is
-      # the RAW line (CR aside) — leading/trailing spaces are part of what a
-      # `--cleanup=verbatim` commit records, so validate exactly that.
       [[ -n "$trimmed" ]] && {
         printf '%s' "${line%$'\r'}"
         return 0
@@ -346,8 +196,6 @@ first_herestring_subject() {
       [[ "${line:0:2}" == "$closer" ]] && return 0
       trimmed="${line#"${line%%[![:space:]]*}"}"
       trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
-      # Blank-detection uses the trimmed copy; the subject is the RAW line
-      # (CR aside) — a here-string body preserves leading/trailing spaces.
       [[ -n "$trimmed" ]] && {
         printf '%s' "${line%$'\r'}"
         return 0
@@ -382,19 +230,9 @@ block_title() {
   exit 2
 }
 
-# The directory a segment's git runs in comes from hook::git_effective_dir_to,
-# which owns the composition rule and the caller contract (git's own globals
-# only, wrapper chdirs replayed ahead of them as leading `-C` words). An
-# in-progress sequencer commit carries a prepared message and is never
-# content-gated, so this probe is measured from that directory.
-#
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sequencer_in_progress() {
   local dir repo="$1" f
-  # Redirect on a single-command group, not inside the substitution — see the
-  # note in ensure_convention_patterns. One command in the group, so the
-  # `|| return 1` still reads git's own status and a sequencer probe that fails
-  # is still "no sequencer", exactly as before.
   { dir=$(hook::git_untrusted -C "$repo" rev-parse --absolute-git-dir); } 2>/dev/null || return 1
   [[ -n "$dir" ]] || return 1
   for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
@@ -403,19 +241,6 @@ sequencer_in_progress() {
   return 1
 }
 
-# Re-check ONE alias expansion <$1>, whichever rung produced it. A shell alias
-# (leading `!`) re-parses as a full shell command; a git alias splices its words
-# in place of the alias name, under HOOK_NO_ALIAS so the splice does not
-# re-expand. The inline (`-c alias.x=…`) and gitconfig rungs differ only in where
-# the expansion came from, so they share this body rather than keeping two copies
-# that can drift on the seam that matters: the save/restore of
-# HOOK_EFFECTIVE_BASE around a `!` reparse.
-#
-# Reads the calling check_segment frame's `w`, `gi`, `sub_idx`, `wrapper_cd` and
-# `seg_dir`, and composes `seg_dir` there on first need: a `!` body is a fresh
-# top-level parse carrying no wrapper and no git globals, so it must be handed
-# the directory this invocation resolved to or it silently restarts from the
-# payload cwd.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 recheck_alias_expansion() {
   local exp="$1" reparse saved_base
@@ -447,10 +272,6 @@ check_segment() {
     return 0
   fi
 
-  # gh pr create --title validation (independent of git parsing). `gh` is
-  # commonly wrapped in command-scoped environment settings
-  # (`GH_PROMPT_DISABLED=1 gh …`, `env GH_TOKEN=… gh …`) — skip leading
-  # assignments and `env`/`command` wrappers before deciding this is not gh.
   local -a gw=("$@")
   local gn=$# gs=0 gt
   while ((gs < gn)); do
@@ -492,9 +313,6 @@ check_segment() {
     return 0
   fi
 
-  # One parsed invocation: git's index, the argv `env -S` splicing may have
-  # rewritten, the subcommand and its index, and how the alias chain terminates
-  # at this hop.
   hook::git_invocation "$@" || return 0
   gi=$HOOK_GITINV_GI
   w=("${HOOK_GITINV_WORDS[@]}")
@@ -502,44 +320,14 @@ check_segment() {
   sub=$HOOK_GITINV_SUB
   sub_idx=$HOOK_GITINV_SUB_IDX
 
-  # A wrapper's chdir happens before git starts, so it composes ahead of git's
-  # own globals — spelled as leading `-C` words so the one path-composition rule
-  # in hook::git_effective_dir_to covers both. The [git, subcommand) slice below
-  # deliberately cannot see a wrapper's `-C`, so this replays what the resolver
-  # found.
   local -a wrapper_cd=()
   local wdir
   for wdir in ${HOOK_GITINV_WRAPPER_DIRS[@]+"${HOOK_GITINV_WRAPPER_DIRS[@]}"}; do
     wrapper_cd+=(-C "$wdir")
   done
 
-  # The directory this segment's git actually runs in. Composed ONCE, and only
-  # when an alias probe or a commit needs it.
-  #
-  # The base is HOOK_EFFECTIVE_BASE (hook::git_effective_dir_to's default), not
-  # the payload cwd directly, because a `!` shell alias's body re-parses as a
-  # NEW top-level command whose argv no longer carries the wrapper that moved
-  # git. Without that fallback, `env -C <dir> git <alias>` resolved the alias in
-  # <dir> and then measured the body's sequencer probe against the payload cwd,
-  # so a prepared merge subject in <dir> was BLOCKED where the docblock below
-  # promises an exemption. Each reparse below save/sets/restores it.
-  #
-  # What this composes is the caller's directory, where the sibling
-  # `block-noncanonical-commit.sh` asks git for the alias's real LAUNCH directory
-  # (its `alias_launch_dir`, since git starts a `!` body at the work tree's top
-  # level). For this guard's two consumers the two agree: both `config --get` and
-  # `rev-parse --absolute-git-dir` answer identically from any directory inside
-  # one repository. They diverge only when a SEPARATE repository is nested below
-  # the composed path, the narrower case the sibling's extra probe exists for and
-  # which is deliberately not modeled here.
   local seg_dir=""
 
-  # Alias-expanded commits must be content-gated too (`git -c alias.c=commit c
-  # -F - <<EOF` and persisted `git qc` aliases create commits) — mirror the
-  # sibling mechanic guard's expansion: re-check every inline spelling, then
-  # the gitconfig-resolved alias, one level (HOOK_NO_ALIAS bounds recursion).
-  # A --config-env-shaped alias is the MECHANIC guard's fail-closed concern —
-  # it blocks the call outright, so this content gate just skips.
   local exp inline_alias_handled=0
   [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]] && return 0
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
@@ -555,11 +343,6 @@ check_segment() {
       local pexp
       [[ -n "$seg_dir" ]] ||
         hook::git_effective_dir_to seg_dir ${wrapper_cd[@]+"${wrapper_cd[@]}"} "${w[@]:gi:sub_idx-gi}"
-      # Redirect on a single-command group, not inside the substitution — see
-      # the note in ensure_convention_patterns. This is the one of the three
-      # that sits on the per-tool-call path: every non-builtin git subcommand
-      # is probed for an alias. `pexp` empty (git found nothing, or git is
-      # absent) still means "no alias", unchanged.
       { pexp=$(hook::git_untrusted -C "$seg_dir" config --get "alias.$sub"); } 2>/dev/null
       [[ -n "$pexp" ]] && recheck_alias_expansion "$pexp"
     fi
@@ -611,30 +394,11 @@ check_segment() {
 }
 
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  # Reduce the PowerShell command to a Bash-tokenizer-faithful form, or defer:
-  # rc 1 (provably git-free unparsable) has nothing to gate — and if it could
-  # still carry a `gh pr create`, the quote-intact reduced text was already
-  # scanned by the classifier's own sink; rc 2 (git-shaped unparsable) is
-  # `block-dangerous-git`/`block-no-verify`'s fail-closed concern, not a content
-  # decision.
-  #
-  # The classifier is named once, in hooks/guard-requires.sh, rather than
-  # spelled with the plugin root here. Under run-guards.sh the declaration is
-  # already in this process and the library was loaded once for the whole
-  # event, so neither line below opens a file.
   # shellcheck source=guard-requires.sh
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
   ps::classify_git_command "$TOOL_NAME" "$COMMAND"
   ps_rc=$?
-  # This guard DEFERS on every other sink trigger, so a plain `exit 0` below
-  # would hand the herestring-comment-char shape straight through: a `#` on a
-  # confirmed here-string opener line means the lines the reduction dropped as
-  # body may be live commands, and a commit form among them would never be seen.
-  # Refused here rather than deferred, with no allow-list consulted. Keyed on the
-  # FLAG, not on the trigger name: the classifier reports herestring-comment-char
-  # only when no other trigger fired, so a flagged command whose first trigger was
-  # another construct (a `{`, say) reported that trigger and was deferred.
   if ((PS_REDUCTION_UNTRUSTED)); then
     PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
     ps::print_unparsable_block_message "$COMMAND"

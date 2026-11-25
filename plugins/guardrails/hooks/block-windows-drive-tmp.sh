@@ -1,57 +1,9 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block writes whose target is a Windows drive-root temp path.
-# Triggered on Bash and PowerShell tool calls (a command string), and on
-# Write / Edit / NotebookEdit tool calls (a file path).
-#
-# TWO DOORS, ONE MATCHER. A write reaches the drive root through a command
-# string or a file path, and both feed the SAME has_drive_root_tmp() matcher.
-# The file-path lane needs none of the command lane's inference — no redirect
-# parsing, no write-utility whitelist, no segment splitting — because on
-# Write/Edit the path IS the write target.
-#
-# On Windows (Git Bash / MSYS / Cygwin), a hardcoded POSIX `/tmp` path resolves to
-# `<current-drive>:\tmp` (e.g. `C:\tmp`) rather than the platform temp directory
-# (`%TEMP%` — typically `C:\Users\<user>\AppData\Local\Temp`) — EXCEPT on a stock
-# Git for Windows install, where `/tmp` is a `usertemp` mount of `%TEMP%` itself
-# (`cygpath -w /tmp` answers the same directory). Blocking a Bash-tool write to
-# that `/tmp` is a false positive (#4251). Drive-letter and drive-relative
-# spellings (`C:\tmp`, `/c/tmp`, `\tmp`) stay the volume-root sink on every lane.
-# PowerShell has no MSYS mount table, so its `/tmp` spelling stays blocked.
-#
-# This guard FAILS CLOSED on a write-shaped reference to those roots and points
-# the operator at the platform temp. It does NOT engage on non-Windows hosts
-# (where `/tmp` is the real POSIX temp). It does NOT block legitimate platform
-# temp usage: `%TEMP%` / `$TEMP` / `$TMP` / `$env:TEMP` / `$TMPDIR` expansions,
-# or `/var/tmp`.
-#
-# SIBLING GUARD, DISJOINT SCOPE. block-exported-msys-pathconv.sh guards the same
-# family (drive-root residue on Windows) through a different door: it matches an
-# EXPORTED MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL, with no path component at all,
-# because #2870's incident command carried a path argument textually identical to
-# one that had already worked — the discriminator was the environment, not the
-# string. This guard would not fire on that; that guard would not fire on any
-# case here. Two hooks rather than one overloaded matcher is deliberate.
-#
-# Detection is a static matcher over the literal command string — it does not
-# evaluate shell / PowerShell expansions. Scope residual: an expansion-built
-# path (`$x` where x=/tmp) is invisible here; that is friction against accidental
-# hardcoded roots, not a sandbox.
-#
-# BLOCKING: exits 2 on a detected drive-root temp write.
 
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
@@ -65,10 +17,6 @@ msys* | cygwin* | win32) ;;
 *) exit 0 ;;
 esac
 
-# Path-qualified / quoted writers, assigned as literals (no cat/subshell).
-# Bash ERE has no backrefs, so quoted and unquoted command-position
-# patterns are separate. A trailing ["']? on the bare-word branch also
-# matched `echo 'run mkdir' /tmp/x`.
 # shellcheck disable=SC2089,SC2090  # quotes in the character class are literal
 _DRIVE_TMP_CREATOR_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)[\"']([[:space:]]|\$)"
 _DRIVE_TMP_CREATOR_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(tee|mktemp|mkdir|touch|dd|tee\.exe)([[:space:]]|\$)"
@@ -77,10 +25,6 @@ _DRIVE_TMP_COPY_QUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)[\"']([^[
 _DRIVE_TMP_COPY_UNQUOTED="((^|[[:space:]])sudo[[:space:]]+|^[[:space:]]*)([^[:space:]\"']*/)?(cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
 _DRIVE_TMP_COPY_BARE="[[:space:]](cp|mv|install|install\.exe|copy-item|move-item|copy|move|cpi|mi)([[:space:]]|\$)"
 
-# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty and skip telemetry (the block
-# still fires). Referencing it bare under `set -u` would abort before exit.
-# Below the host gate so it stays adjacent to the work it actually times.
 start=${EPOCHREALTIME:-}
 
 hook::buffer_stdin_to INPUT || {
@@ -118,8 +62,6 @@ emit_tel() {
 
 block() {
   local form="$1"
-  # Single-quoted on purpose: the Fix line must show literal $TEMP / $env:TEMP
-  # spellings to the agent, not expand them in the hook process.
   # shellcheck disable=SC2016
   printf '%s\n' \
     'BLOCKED: write target is a drive-root temp path (<drive>:\tmp), not the platform temp directory.' \
@@ -180,12 +122,6 @@ posix_tmp_maps_to_usertemp() {
       fi
     fi
   fi
-  # Git for Windows mount table: "... on /tmp type ntfs (...,usertemp)". The
-  # usertemp flag is what distinguishes that mount from a volume-root /tmp, so it
-  # counts only on the /tmp mount's own line: a usertemp flag on another mount
-  # says nothing about /tmp. Read line by line in this shell, no extra process.
-  # Linux CI's /tmp tmpfs line has no such flag, so forcing OSTYPE=msys there
-  # does not trip this arm.
   mount_out=$(mount 2>/dev/null) || mount_out=""
   while IFS= read -r mount_line; do
     if [[ "$mount_line" == *" on /tmp "* && "$mount_line" == *"usertemp"* ]]; then
@@ -239,11 +175,7 @@ mask_quoted_redirect_ops_to() {
 has_redirect_to_drive_root_tmp() {
   local s
   mask_quoted_redirect_ops_to s "$1"
-  # Optional fd digits and optional & (&>), then > or >>, optional space/quotes,
-  # then a drive-root tmp path. Angle brackets in the right-boundary class are
-  # literal characters (not GNU \< \> word-boundaries) — keep them unescaped so
   # the portability gate does not flag this ERE. portability-ok: bash [[ =~ ]]
-  # character class literals, not grep -E word boundaries
   if [[ "$s" =~ (^|[^>&])\&?[0-9]*\>\>?[[:space:]]*[\"\']?(\/[a-z]\/tmp|[a-z]:\/tmp)(\/|[\"\'[:space:]\;|&<>()]|$) ]]; then
     return 0
   fi

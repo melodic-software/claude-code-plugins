@@ -1,71 +1,4 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block a Bash or PowerShell command that posts a secret or a
-# machine-specific path to GitHub.
-#
-# WHY. secret-pattern-detection and hardcoded-path-check scan Write, Edit and
-# the GitHub MCP file writes. A `gh pr comment --body ...`, a writing `gh api`
-# or a curl POST to the GitHub API run through Bash posts its body publicly
-# with neither scan. This guard runs the same two pattern sets over what such
-# a command posts.
-#
-# WHAT IS READ. The bodies lib/github-post/github-post-body.sh finds, which
-# block-fix-request-post reads too: the posting command's words, its body
-# files (`--body-file`, `-F`, `--input`, `@file`), and in the cases that
-# library names, the whole command, here-strings and files fed through `cat`
-# or `<`. A script wrapper's command after `--` (`bash gate.sh run KEY --
-# gh ...`, split on `+++`) and `bash -c`/`eval` operands are read as commands.
-#
-# SECRETS. lib/secret-detection/secret-patterns.sh over every body text, but
-# not a request header's value (`-H 'Authorization: ...'`), which is not
-# posted. A hit blocks, naming the pattern class only, never the value.
-#
-# MACHINE PATHS. lib/path-detection/hardcoded-path-patterns.sh, blocking as
-# hardcoded-path-check's GitHub MCP lane does, with the same scan root. Read
-# over body files, here-doc and here-string bodies, and the posting command's
-# words less any word that only names one of its body files (`<path>`,
-# `--flag=<path>`, `@<path>`, `k=@<path>`, a word that is only
-# `$(cat <path>)`, and the curl forms), so a `--body-file` operand is not
-# judged; the wrapper script's own words are never posting words. Under the
-# Bash tool, a literal `--attach` operand is judged by what gh posts from it:
-# the text after its first `#` and its base name, so its source directory is
-# exempt, unless that text holds `/` or `\`: then it is judged with the whole
-# operand. The whole command is not read
-# for paths: it names the wrapper, the working directory and the body file.
-#
-# STAYS QUIET on a command that posts nothing to GitHub (a `gh api` GET, a
-# GraphQL query, curl to another host), whatever it names.
-#
-# A GitHub-hosted runner's home (the `runner` user on the Linux and macOS
-# images, `runneradmin` on Windows) in a quoted CI log is not a machine path,
-# and neither is a generic drive checkout root (`<drive>:\repos\<repo>`): in a
-# post, only user homes and this session's own checkout root block.
-#
-# KNOWN GAPS: block-fix-request-post's (`printf` with a computed argument, a
-# script or cmdlet that posts, `xargs` and other launchers it does not step
-# over, a wrapper other than a shell script with `--`, a GraphQL mutation held
-# in a variable). Other publishing forms (`gh pr merge --body`, `gh release
-# --notes`, `gh gist`, `--description` edits) are not read. The path check
-# skips text that reaches the post only through the whole command: a body in
-# a variable or piped from another command, a here-doc inside a `bash -c`
-# operand, and any command past the 16384-character ceiling. A body file past
-# 1 MiB is read to that point only.
-#
-# Blocks by design, failing closed: every `--attach` operand under the
-# PowerShell tool, whose argument passing to native commands (see Microsoft's
-# about_Parsing, "Passing arguments to native commands") can change the words
-# gh receives; under Bash, an operand the shell could expand (`$`, a backtick,
-# `{`, a glob character), one that follows a dash flag without `=` (`--draft
-# --attach X`), and a joined `--attach=X` after a word that is not itself
-# literal (`--body $E --attach=X`) are judged whole; on a Windows bash the base
-# name splits on `/` only; and a body's reference to the attached file's
-# absolute path still blocks, since gh posts that reference unchanged when the
-# upload fails.
-#
-# Escape: the `block_github_post_content_enabled` userConfig option; the
-# secret_pattern_detection_enabled and hardcoded_path_check_enabled options
-# turn off their half here too.
-#
-# BLOCKING: exits 2 on a detected post.
 
 set -uo pipefail
 
@@ -75,8 +8,6 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture: fail-open with a dual-channel "guard did not run"
-# notice, as the two Write scanners it extends.
 guard::abort_boundary block-github-post-content PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
@@ -166,21 +97,12 @@ if ((_bgpc_paths)); then
     case "${GHPOST_BODY_KIND[_bgpc_i]}" in
     command) continue ;;
     word)
-      # Drop a word that only names one of the posting command's body files
-      # (`<path>`, `--flag=<path>`, `@<path>`, `k=@<path>`); never cut text
-      # out of a body word.
       for _bgpc_f in ${GHPOST_FILES[@]+"${GHPOST_FILES[@]}"}; do
         case "$_bgpc_t" in
-        # `<path>`, `--flag=<path>`, `@<path>`, joined `-F<path>`/`-d@<path>`,
-        # `k=@<path>` and curl's `k=@<path>;type=...`, `k=<<path>` and
-        # `name@<path>`.
         "$_bgpc_f" | "-"*"=$_bgpc_f" | "@$_bgpc_f" | "-"?"$_bgpc_f" | "-"?"@$_bgpc_f" | \
           [!=[:space:]]*"=@$_bgpc_f" | [!=[:space:]]*"=@$_bgpc_f;"* | \
           [!=[:space:]]*"=<$_bgpc_f" | [!=[:space:]]*"=<$_bgpc_f;"* | [!@[:space:]]*"@$_bgpc_f" | \
           "\$(cat $_bgpc_f)" | "\$(<$_bgpc_f)" | "\$(< $_bgpc_f)" | "\`cat $_bgpc_f\`")
-          # The last four: a word that is only `$(cat <path>)` (`--body
-          # "$(cat f)"`), whose file text is judged as a `file` body. A longer
-          # word is read whole, since quoting may post the text as written.
           _bgpc_t=""
           break
           ;;
@@ -189,12 +111,6 @@ if ((_bgpc_paths)); then
       done
       ;;
     attach)
-      # gh posts the alt text, which starts after some `#` (the text after the
-      # first covers every split gh may pick), or by default the file's base
-      # name, split on `/` only (a Windows bash keeps the stricter split).
-      # An alt text holding `/` or `\` may hold a path after a character the
-      # path patterns do not accept as a left boundary, so it is judged with
-      # the whole operand.
       _bgpc_b="${_bgpc_t##*/}"
       if [[ "$_bgpc_t" == *'#'* ]]; then
         if [[ "${_bgpc_t#*#}" == *[/\\]* ]]; then
@@ -211,8 +127,6 @@ if ((_bgpc_paths)); then
     _bgpc_texts+=("$_bgpc_t")
   done
   for _bgpc_t in ${_bgpc_texts[@]+"${_bgpc_texts[@]}"} ${GHPOST_HEREDOCS[@]+"${GHPOST_HEREDOCS[@]}"}; do
-    # A GitHub-hosted runner's home in a quoted CI log names no machine of
-    # ours (the runner user on Linux, macOS and Windows images).
     _bgpc_t="${_bgpc_t//\/home\/runner\//<runner>/}"
     _bgpc_t="${_bgpc_t//\/Users\/runner\//<runner>/}"
     _bgpc_t="${_bgpc_t//Users\\runneradmin\\/<runner>\\}"
@@ -224,9 +138,6 @@ if ((_bgpc_paths)); then
       printf x
     )
     _bgpc_out="${_bgpc_out%x}"
-    # A generic drive checkout root (`D:\repos\<repo>`) names no user, and bug
-    # reports cite one routinely, so in a post only the user-home blocks and
-    # this session's own checkout root count. Each block ends in a blank line.
     while [[ -n "$_bgpc_out" ]]; do
       _bgpc_b="${_bgpc_out%%$'\n\n'*}"
       if [[ "$_bgpc_b" == "$_bgpc_out" ]]; then _bgpc_out=""; else _bgpc_out="${_bgpc_out#*$'\n\n'}"; fi

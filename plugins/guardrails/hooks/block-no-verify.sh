@@ -1,91 +1,27 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block git hook-bypass attempts on git commit and git push.
-# Triggered on Bash tool calls.
-#
-# Catches three bypass surfaces on a real `git commit` / `git push`:
-#   1. --no-verify / -n on git commit (skips pre-commit + commit-msg hooks)
-#      and --no-verify on git push (skips pre-push hook)
-#   2. core.hooksPath assignment on git commit/push (disables all git hooks),
-#      and a persistent `git config core.hooksPath <dir>` other than
-#      `.githooks`. The check-placement skip key (`-c checks.skipmissing=`)
-#      is not a bypass: a check honors it only for a tool it finds absent.
-#   3. hook-manager env-var prefix (e.g. LEFTHOOK=0 / LEFTHOOK_*=0|false,
-#      HUSKY=0) on git commit/push (disables the hook manager for one
-#      invocation). The manager set is configurable via the
-#      block_no_verify_hook_manager_prefixes userConfig; the default covers the
-#      common managers so a consumer using a different one is not silently
-#      unguarded.
-#
-# Detection is ARGV-GRAMMAR-FAITHFUL: the command is parsed the way the shell
-# builds argv — top-level segments split on unquoted control operators, each
-# tokenized into argv words honoring '…', "…", $'…' (ANSI-C), and backslash
-# escapes — then a real git executable (basename `git`, case/.exe-folded on
-# Windows) is found at the segment's command position — after leading env-var
-# assignments and known wrappers (`env -i git …`, `nice git …`, `sudo -u x git …`
-# are transparent) — its subcommand resolved
-# past git global options (including arg-consuming ones like `-C <dir>`), and
-# the bypass tokens matched on the parsed argv.
-#
-# SCOPE (documented residual): this is a static matcher over the literal
-# command string. It does NOT evaluate shell variable / command substitution
-# ($VAR, $(…), $IFS) — a determined author can construct an expansion-based
-# bypass. It is a friction guard against accidental/casual bypass, not a
-# sandbox. The `git config core.hooksPath .githooks` allow reads the dispatcher
-# marker in the hook's own working directory, not a `cd other &&` target, so
-# that compound sets the key in a clone whose `.githooks/` it never checked;
-# that clone's commits then run whatever its `.githooks/` holds, or no hooks
-# if it has none. The allow trusts any real (non-symlink)
-# `.githooks/pre-commit|pre-push|commit-msg` holding `# checks-dispatcher v1`:
-# enabling `.githooks` only runs repository content a merged change already
-# controls, and the marker only keeps the guard from approving the key where
-# guardrails is not installed. The whole-guard deliberate bypass is the kill switch
-# (block_no_verify_enabled userConfig option set to false). PowerShell
-# fail-closed sink shapes listed in the sibling `block_dangerous_git_allow`
-# option (ps-unparsable-<trigger>) set aside only the unreadable region; a
-# visible --no-verify beside it still blocks (#4252). Destructive-form tokens
-# on that list (reset-hard, …) do not open this sink.
-#
-# BLOCKING: exits 2 on any detected bypass form.
 
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
-# `dirname` without the fork a command substitution costs on every fire (a
-# process on Windows Git Bash); a bare filename falls back to `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture: fail-open with a dual-channel "guard did not run"
-# notice; 0 (allow) and 2 (block) pass through, like the other per-call guards.
 guard::abort_boundary block-no-verify PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# EPOCHREALTIME is Bash 5.0+; when it is unset, telemetry is skipped and the
-# block still fires.
 start=${EPOCHREALTIME:-}
 
-# rc 1 (empty stdin) skips; rc 2 (not JSON) FAILS CLOSED; rc 3 (a payload cut
-# short by the pipe) is a loud skip the dispatcher takes once. Buffering needs
-# no jq, so it runs before the jq gate.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# A missing jq FAILS CLOSED, as the MAX_COMMAND_LEN ceiling below does;
-# hook::require_jq_blocking in hook-utils.sh argues the posture.
 hook::require_jq_blocking "guardrails-block-no-verify" "block_no_verify_enabled"
 
-# Both fields in one jq process: a jq spawn costs ~140 ms on Windows Git Bash.
-# rc 2 (an unparsable payload) is refused; any other failure skips.
-# A NUL byte in either field FAILS CLOSED, before the empty-COMMAND skip: the
-# helper strips NULs, so an all-NUL command arrives empty. Bash discards a NUL
-# and Node's child_process refuses one, so what would run is unknown, and a
-# block is the one verdict right under both.
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
 guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
@@ -99,13 +35,6 @@ MAX_COMMAND_LEN=16384
 SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
 hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
 
-# Hook-manager env-var disable prefixes, built once into a regex alternation.
-# The default set covers the common managers; a consumer extends it via the
-# block_no_verify_hook_manager_prefixes userConfig (comma-separated, read from
-# the hook-process mirror). Each prefix matches `PREFIX…=0|false`
-# (LEFTHOOK=0, HUSKY=0, LEFTHOOK_VERIFY=false, …). Entries are reduced to
-# identifier chars so a value can never smuggle regex metacharacters into the
-# alternation spliced below.
 HM_ALT=""
 IFS=',' read -ra _hm_list <<<"${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES:-lefthook,husky,pre_commit,simple_git_hooks}"
 for _hm in "${_hm_list[@]}"; do
@@ -135,18 +64,10 @@ block() {
 
 BYPASS_FIX="Fix what the hook reports instead."
 
-# Same-command git aliases: `git config alias.NAME VALUE` records the definition
-# (a later definition wins), and `git -c alias.NAME=VALUE NAME` carries its own; a
-# segment invoking NAME is re-checked as the spliced argv, so `git c` with
-# alias.c = `commit -n` is `git commit -n`. A `!` value is a shell command,
-# re-parsed with the caller's arguments appended. Aliases defined by an earlier
-# command or in a config file are not visible here.
 ALIAS_NAMES=()
 ALIAS_VALUES=()
 ALIAS_DEPTH=0
 
-# Record one alias definition from the words after `config`. Read, list, unset,
-# rename and edit actions define nothing; `git config set` is a write.
 alias_record() {
   local key
   local -a pos=()
@@ -172,14 +93,6 @@ alias_record() {
   ALIAS_VALUES+=("${pos[1]}")
 }
 
-# A persistent `git config core.hooksPath <dir>` (any scope, `set`, `--add`,
-# `--replace-all`, `--file`) points every later commit and push at other hooks.
-# Only `.githooks`, the directory plain shared git hooks live in, which setup
-# sets per clone, is allowed, and only at local scope while `.githooks/` holds
-# the guardrails dispatcher (what setup writes before it hands over the
-# hooks-path decision): at global or system scope the value would turn off the
-# hooks of every clone that installs them elsewhere. Reading or unsetting the
-# key writes no path.
 hookspath_write_check() {
   local -a pos=()
   local scoped=0 top f
@@ -192,8 +105,6 @@ hookspath_write_check() {
       shift
       ;;
     -t | --type | --default | --comment) shift ;;
-    # Only these options keep the write in the clone's own config; any other
-    # (--global, --file=x, --glob, an abbreviation) may reach another file.
     --local | --add | --replace-all | --fixed-value | --no-includes | --includes | --show-origin) ;;
     -*) scoped=1 ;;
     *) pos+=("$1") ;;
@@ -207,7 +118,6 @@ hookspath_write_check() {
   esac
   ((${#pos[@]} >= 2)) || return 0
   [[ "${pos[0],,}" == core.hookspath ]] || return 0
-  # A global option before `config` (-C <dir>, --git-dir) may point at another repository.
   ((HOOK_GITINV_SUB_IDX == HOOK_GITINV_GI + 1)) || scoped=1
   if [[ "${pos[1]}" == .githooks ]] && ((scoped == 0)); then
     top="$(hook::git_untrusted rev-parse --show-toplevel 2>/dev/null)" || top=""
@@ -221,16 +131,9 @@ hookspath_write_check() {
     "BLOCKED: git config core.hooksPath ${pos[1]} points every later commit and push at other hooks. Only .githooks, set at local scope while it holds the guardrails dispatcher, is allowed. $BYPASS_FIX"
 }
 
-# $1 subcommand, $2 its index, then the segment argv. Re-checks every definition
-# of the subcommand: the inline `-c alias.NAME=VALUE` spellings
-# hook::git_invocation resolved for this segment (copied before a recheck
-# overwrites them) and the last `git config` record. The locals reach the
-# callbacks below through bash's dynamic scope and are restored when a nested
-# alias returns.
 alias_expand() {
   local name="${1,,}" idx=$2 i v
   local -a ALIAS_HEAD ALIAS_TAIL defs=()
-  # --config-env=alias.NAME=VAR expands to a variable's value this parser never reads.
   if [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]]; then
     guard::refuse_config_env_alias "$1"
     block "config-env-alias"
@@ -266,28 +169,17 @@ alias_recheck_shell() {
   check_segment "$@" ${ALIAS_TAIL[@]+"${ALIAS_TAIL[@]}"}
 }
 
-# Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
-# when the segment is a real `git commit`/`git push` carrying a bypass token.
-# Parsing spine (tokenizer, git resolver, subcommand walk) lives in
-# hook-utils.sh; only the bypass-form matching is this guard's own.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=("$@")
   local nseg gi k x lc ch rest sub sub_idx cv
 
-  # A shell -c wrapper (`bash -lc 'git commit --no-verify'`) executes its
-  # operand as a full shell command — re-parse it with the same tokenizer so
-  # the wrapped invocation is checked faithfully.
   if hook::shell_c_operand "$@"; then
     hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" check_segment
     return 0
   fi
 
-  # One parsed invocation: git's index, the argv `env -S` splicing may have
-  # rewritten (match on THESE words), the subcommand and its index, and the
-  # config assignments. A segment that is no git invocation, or names no
-  # subcommand, is nothing this guard blocks.
   hook::git_invocation "${w[@]}" || return 0
   gi=$HOOK_GITINV_GI
   w=("${HOOK_GITINV_WORDS[@]}")
@@ -319,16 +211,9 @@ check_segment() {
       "BLOCKED: ${w[k]} disables the hook manager for this git $sub. $BYPASS_FIX"
   done
 
-  # Form 2, PowerShell spelling: `$env:X=0` or `Set-Item env:X 0` anywhere in
-  # the same command (found on the original text by ps_env_disables_hook_manager).
   ((PS_HM_ENV_DISABLED)) && block "hook-manager-env" \
     "BLOCKED: a hook-manager env var set to 0 or false (HUSKY, LEFTHOOK, ...) disables the hooks for this git $sub. $BYPASS_FIX"
 
-  # Form 1: --no-verify / -n (commit or push) — words after the subcommand,
-  # skipping values consumed by commit/push options (e.g. -m message text).
-  # In a short-option bundle, `n` counts only when it precedes the first
-  # argument-taking short (m/F/c/C/t/u/S/G) — so `-nm msg` blocks but `-mn`
-  # (m takes value "n") does not.
   local nv_msg="BLOCKED: --no-verify / -n skips the hooks on this git $sub. $BYPASS_FIX"
   k=$((sub_idx + 1))
   while ((k < nseg)); do
@@ -375,10 +260,6 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
     "BLOCKED: command over $MAX_COMMAND_LEN chars is too long to check. Split it into shorter commands."
 fi
 
-# Sink-shape tokens from the sibling block_dangerous_git_allow list (#4252).
-# The printed remedy names that option; following it must clear this guard too,
-# or an operator disables the whole security control. Destructive-form tokens
-# on the same list never open this branch.
 sink_allowed() {
   local tok="$1" list=",${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW:-},"
   case "$tok" in
@@ -390,13 +271,6 @@ sink_allowed() {
   [[ "$list" == *,"$tok",* ]]
 }
 
-# True (0) when the PowerShell command text assigns a hook-manager variable to
-# 0/false: `$env:X=0`, `${env:X} = '0'`, `Set-Item env:X 0`,
-# `Set-Item -Path env:X -Value 0`, `si env:X 0`. The classifier reduction turns
-# `$var=` into a bare word, so this reads the original text. The assignment head
-# (`$env:X=` or `Set-Item`/`si`) must also appear once quoted spans are blanked,
-# so a commit message that only quotes `$env:LEFTHOOK=0` is not an assignment;
-# the operands (which may be quoted) are then read from the original text.
 ps_env_disables_hook_manager() {
   local lc="${1,,}" scan head tail q=$'[\'"]?'
   [[ "$lc" == *env:* ]] || return 1
@@ -409,10 +283,6 @@ ps_env_disables_hook_manager() {
   [[ "$scan" =~ (^|[^[:alnum:]_-])(set-item|si)[[:space:]] ]] && ps_set_item_disables "$lc"
 }
 
-# True (0) when a `Set-Item`/`si` statement in the lowercased text binds a
-# hook-manager `env:` path and a 0/false value. Operands bind the way PowerShell
-# binds them: `-Path`/`-LiteralPath`/`-Value` (unambiguous prefixes, `-Value:0`
-# spelling) in any order, remaining words positionally as path then value.
 ps_set_item_disables() {
   local rest="$1" tok name want path val
   local -a toks
@@ -449,16 +319,7 @@ ps_set_item_disables() {
   return 1
 }
 
-# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed;
-# the Bash tool's COMMAND is unchanged. The classifier is loaded on this lane
-# only, through hooks/guard-requires.sh. When a sink-shape token IS
-# allowlisted, blank that opaque region and keep checking the visible text, so
-# a compound command carrying --no-verify beside the granted shape still blocks
-# (block-dangerous-git's loop, with this guard's readonly-ok classifier).
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
-  # The declaration first, then the library it names. Under run-guards.sh the
-  # declaration is already in this process and the library was loaded once for
-  # the whole event, so neither line opens a file.
   # shellcheck source=guard-requires.sh
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs

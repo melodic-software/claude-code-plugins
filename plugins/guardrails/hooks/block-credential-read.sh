@@ -1,84 +1,4 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block a command whose output is a credential.
-#
-# A shell tool call puts its stdout in the transcript. A command that prints a
-# secret therefore writes the secret into the model's context, the session log
-# and any tool that reads either. The discovery plugin's parent contract states
-# the rule ("Credentials stay unread": verify presence, never read a value) and
-# holds it by instruction only. This guard enforces the command half of it on
-# the Bash and PowerShell tools.
-#
-# MATCHED SHAPES, one family per allow-list token:
-#   credential-fill       `git credential fill`, `git credential-<helper> get`
-#                         (`git credential-manager get`), `git-credential-<helper> get`
-#   gh-auth-token         `gh auth token`
-#   env-echo              `printenv` or `echo`/`printf` of a token-shaped variable;
-#                         PowerShell `$env:X_TOKEN` as a statement, `Write-Output`/
-#                         `Write-Host` of it, `Get-ChildItem`/`Get-Item env:X_TOKEN`.
-#                         Token-shaped: the name contains TOKEN, SECRET, PASSWORD,
-#                         PASSWD, API_KEY, APIKEY, ACCESS_KEY, PRIVATE_KEY or
-#                         CREDENTIAL, in any case.
-#                         Also `jq env` and `jq '$ENV'`, which print every
-#                         variable; `jq -n '$ENV.HOME'` prints one and passes.
-#   credential-file-read  a read of `.git-credentials`, `.netrc`, `_netrc`, `.env`,
-#                         `.env.*`, `.credentials.json`, `.docker/config.json`,
-#                         `~/.ssh/id_*` (not `.pub`) or `~/.aws/credentials` by:
-#                           - an interpreter's inline code or heredoc
-#                             (`python3 -c "open('.env')"`, `node -e`, `ruby -e`,
-#                             `perl -e`, `php -r`), see interpreter_reads;
-#                           - `jq` of the two JSON files (a `.env` jq filter is
-#                             not a path);
-#                           - PowerShell `Get-Content`, `gc`, `type`.
-#                         `.env.example`, `.env.sample` and `.env.template` carry no
-#                         secret and are not matched.
-#                         `cat`, `head`, `tail`, `sed` and redirects of these files
-#                         are left to native `Read()` deny rules, which reach those
-#                         Bash commands and the Read tool but not an interpreter
-#                         that opens the file itself; /guardrails:setup prints the
-#                         rules. Pointer: "Read and Edit" in
-#                         https://code.claude.com/docs/en/permissions.
-#
-# ALLOWED, because they answer presence without printing a value: `gh auth status`,
-# `test -n "$GH_TOKEN"`, `[ -f ~/.netrc ]`, `printenv PATH`, `echo $HOME`,
-# `echo "${GH_TOKEN:+set}"`, `echo ${#GH_TOKEN}`.
-#
-# COMMAND POSITION. A shape matches only where a command can start: the start of
-# the string, or after ; & | ( ` { or a newline, past any leading NAME=value
-# assignments. So `git commit -m "block gh auth
-# token"` and `grep 'git credential fill' docs.md` pass. The exception is a command
-# that runs a shell word (bash, sh, dash, zsh, ksh, pwsh, powershell, eval) at
-# command position, after any launcher such as sudo or env: quoted text can be
-# handed to that shell and run, so any occurrence matches
-# (`bash -c 'gh auth token'`). A shell word inside an argument runs nothing
-# (`grep -E "bash rule|\.env" doc.md` passes).
-#
-# KNOWN GAPS (a deny rule is only partial; the parent contract says so too):
-#   - readers other than the ones above, where no native Read() deny rule is set:
-#     `cat`, `less`, `head`, `tail`, `sed`, `grep` and `bat`; PowerShell's `cat`
-#     alias; an interpreter running a script file; `.npmrc` and `.pypirc` auth
-#     lines, cloud CLI credential stores other than ~/.aws, GPG keys
-#   - a bare `printenv`, `env` or `set`, which dumps every variable
-#   - a variable whose name does not look like a token
-#   - a shape assembled through expansion or `eval "$var"`, a wrapper such as `sudo`
-#     or `xargs` in front, a keyword such as `then` or `do` in front, and an
-#     encoded PowerShell command
-#   - a command longer than the ceiling below, which is not parsed
-# KNOWN FALSE POSITIVES, blocked fail-closed with the message below:
-#   - a secret-shaped command whose output never reaches the transcript
-#     (`curl -H "Authorization: Bearer $(gh auth token)" ...`, `gh auth token | wc -c`)
-#   - `echo '$GITHUB_TOKEN'` (single quotes print the name), and a variable whose
-#     name merely contains one of the words (`GH_TOKEN_FILE`)
-#   - prose that quotes a shape in a command that also runs a shell (`bash -c`)
-#   - a shape spelled in a heredoc body
-#
-# Escape: the `block_credential_read_enabled` userConfig option (true/false; any
-# other value keeps the guard on and says so) turns the guard off, and the
-# comma-separated `block_credential_read_allow` option lists family tokens
-# (credential-fill, gh-auth-token, env-echo, credential-file-read) to let through.
-# userConfig is resolved at plugin-enable time, so an inline env prefix on the
-# command cannot change either.
-#
-# BLOCKING: exits 2 on a detected shape that is not allow-listed.
 
 set -uo pipefail
 
@@ -88,16 +8,12 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture: fail-open with a dual-channel "guard did not run" notice;
-# 0 (allow) and 2 (block) pass through, like the other per-call Bash guards.
 guard::abort_boundary block-credential-read PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 _bcr_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED:-false}"
 
-# rc 1 (empty stdin) skips; rc 2 (not JSON) FAILS CLOSED; rc 3 (a payload cut
-# short by the pipe, a transport fault) is a loud skip the dispatcher takes once.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
@@ -118,10 +34,6 @@ COMMAND="${HOOK_JQ_FIELDS[0]}"
 MAX_COMMAND_LEN=16384
 ((${#COMMAND} > MAX_COMMAND_LEN)) && exit 0
 
-# Everything below matches the lower-cased command: PowerShell names are case
-# insensitive ($env:gh_token is the same variable), and only an exit code leaves
-# this guard. No `shopt`: the dispatcher sources every guard into one shell, and
-# a leaked nocasematch would change the guards sourced after this one.
 SUBJECT="${COMMAND,,}"
 
 [[ "$SUBJECT" =~ credential|token|secret|password|passwd|api_?key|access_key|private_key|printenv|_netrc|\.netrc|docker|env|\.ssh ]] || exit 0
@@ -139,16 +51,11 @@ block() {
   exit 2
 }
 
-# Each shape is one regex held in a variable: `;`, `&` and `|` are shell syntax
-# when they sit unquoted inside a [[ =~ ]] pattern. Locals, because the guard is
-# sourced into the dispatcher's shell.
 match_shapes() {
   local s="$SUBJECT" sp='[[:space:]]' sq="'" dq='"' nl=$'\n'
   local lead stmt
-  # Leading inline assignments (`TERM=xterm gh auth token`) run the command that follows.
   local assign="(([a-z_][a-z0-9_]*=([^[:space:]${sq}${dq}]*|${sq}[^${sq}]*${sq}|${dq}[^${dq}]*${dq})${sp}+)*)"
   local end="([[:space:];&|)\`${sq}${dq}]|\$)"
-  # A command word may carry a directory prefix (/usr/bin/gh, C:\tools\gh).
   local pre="([^[:space:];&|\`(){}${sq}${dq}]*[/\\\\])?"
   local arg="[^;&|]"
   local tokvar='[a-z0-9_*?]*(token|secret|password|passwd|api_key|apikey|access_key|private_key|credential)[a-z0-9_*?]*'
@@ -156,14 +63,8 @@ match_shapes() {
   local jsonfile="(\\.credentials\\.json|\\.docker[/\\\\]config\\.json)"
   local keyfile="(\\.ssh[/\\\\]id_[a-z0-9_]+|\\.aws[/\\\\]credentials)"
   local credfile="${dir}(\\.git-credentials|\\.netrc|_netrc|\\.env(\\.[a-z0-9_.-]+)?|${jsonfile}|${keyfile})"
-  # A launcher that runs the next word as the command.
   local launch="((sudo|doas|env|exec|command|nohup|nice|time|xargs|timeout)(${sp}+-[^[:space:]]*|${sp}+[0-9][^[:space:]]*)*${sp}+)*"
 
-  # A command string that RUNS a shell may hand quoted text to it, so a shape
-  # matches anywhere. The shell word must sit where a command starts: one that
-  # only appears inside an argument (`grep -E "bash rule|cat \.env" doc.md`)
-  # runs nothing. `stmt` is `lead` without `(`: a bare PowerShell `$env:X`
-  # after `(` is a condition, not output.
   local re_shell="(^|[;&|(\`{${nl}])${sp}*${assign}${launch}${pre}(bash|sh|dash|zsh|ksh|pwsh|powershell|eval)(\\.exe)?[${sq}${dq}]?${sp}"
   if [[ "$s" =~ $re_shell ]]; then
     lead='(^|[^[:alnum:]_.-])'
@@ -173,7 +74,6 @@ match_shapes() {
     stmt="(^|[;&|{${nl}])${sp}*"
   fi
 
-  # Presence-shaped expansions print no value: drop `${NAME:+word}` before matching.
   while [[ "$s" =~ \$\{[a-z0-9_]+:\+[^}]*\} ]]; do
     s="${s/"${BASH_REMATCH[0]}"/}"
   done
@@ -181,10 +81,6 @@ match_shapes() {
   s="${s//.env.sample/.x}"
   s="${s//.env.template/.x}"
 
-  # jq shapes match their own copy. jq is case sensitive: `$ENV` is the builtin,
-  # `$env` a variable, so mark the builtin before lower-casing. `--arg NAME VALUE`
-  # and `--argjson NAME VALUE` operands are values, not filters or files; drop
-  # them (`--slurpfile` and `--rawfile` read their file and stay).
   local word="([^[:space:]${sq}${dq}]+|${sq}[^${sq}]*${sq}|${dq}[^${dq}]*${dq})"
   local sj="${COMMAND//\$ENV/\$jq_env_builtin}"
   sj="${sj,,}"
@@ -230,13 +126,6 @@ match_shapes() {
   fi
 }
 
-# interpreter_reads <subject> <lead> <pre>: true when an interpreter's code
-# (python, node, ruby, perl, php and kin) reads a credential file. The code is
-# the rest of the interpreter's line plus the body of a heredoc that line opens
-# (`python3 - <<'EOF'`). A line of it reads the file when it holds a read verb
-# (open, read, dotenv, file_get_contents, slurp, cat, source) and the file name,
-# in either order: naming the file alone (a test that writes a fake .netrc) is
-# not a read. A script file the interpreter runs is not opened here.
 interpreter_reads() {
   local s="$1" lead="$2" pre="$3" sp='[[:space:]]' nl=$'\n' sq="'" dq='"'
   local re_int="${lead}${pre}(python[0-9.]*|py|node|nodejs|deno|bun|ruby|perl|php)(\\.exe)?(${sp}|\$)"

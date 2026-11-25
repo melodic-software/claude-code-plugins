@@ -1,68 +1,9 @@
 #!/usr/bin/env bash
-# PreToolUse hook: advisory guard for direct `gh pr create` calls that bypass
-# this marketplace's own `/source-control:pull-request` skill
-# (source-control plugin).
-# Triggered on Bash and PowerShell tool calls.
-#
-# SCOPE — only fires when the source-control plugin is actually enabled for this
-# session. Enablement is resolved across the user-global
-# (`~/.claude/settings.json`), project (`<repo>/.claude/settings.json`), and
-# local (`.claude/settings.local.json`) files in Claude Code's settings
-# precedence, not read from the project file alone: a plugin enabled ONLY at
-# user-global (a common install) or ONLY at local scope is active here, so a
-# project-only probe false-negatives and this advisory never fires. Pointer:
-# the scope order is in
-# https://code.claude.com/docs/en/settings#settings-precedence. Uncertain
-# state (no jq, no
-# value at any scope) never flags a `gh pr create` call — an advisory firing on
-# unknown state is noise, not signal. A missing jq specifically still surfaces a
-# one-time systemMessage that the guard is disabled
-# (docs/contracts/hook-observability/) — that notice is about the guard's own
-# health, not the advisory content it would otherwise flag.
-#
-# WHAT IT FLAGS:
-#   gh pr create — invoked at all. /source-control:pull-request's value is PROCESS
-#                 (rebase onto default, unrelated-changes triage, closing-
-#                 keyword gate, attribution footer) — there is no command-shape
-#                 signature to gate on, so every direct invocation is flagged.
-#                 Low-noise in practice: `gh pr create` runs once per PR.
-#
-# `git commit` is NOT handled here: block-noncanonical-commit.sh owns it and
-# BLOCKS on the stdin-form mechanic. A duplicate advisory here would
-# double-fire on one command.
-#
-# NON-BLOCKING (advisory): exits 0 always. Emits additionalContext naming the
-# skill to prefer; never blocks the call — create.md itself documents a
-# legitimate inline fallback when skill discovery is broken, so blocking here
-# would be wrong.
-#
-# SCOPE (documented residual):
-# detection is a literal-stripped top-level regex match, not a full argv-
-# grammar parser (contrast block-no-verify.sh) — proportionate to an advisory
-# that never blocks. It does not evaluate shell variable / command
-# substitution, and a determined author can construct a form that evades the
-# match. This is a nudge toward the canonical skills, not an enforcement gate.
-#
-# Opt-in switch: flag_commit_pr_skill_bypass_enabled userConfig option.
-# DEFAULT OFF since 0.20.0: the #2021 hook-surface classification found this
-# is a behavioral-class context injector — a fixed prose nudge that consults no
-# external ground truth — and plugin-philosophy.md's instruction-economy
-# evidence gate ablates that class config-off first (the script stays; a
-# consumer opts back in by setting the option to true).
 
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED:-false}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
@@ -71,30 +12,12 @@ guard::abort_boundary flag-commit-pr-skill-bypass PreToolUse open 0
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
-# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
-# on older bash it is unset, so default to empty and skip telemetry.
 start=${EPOCHREALTIME:-}
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
-# or timed-out stdin skips this advisory hook. Buffering does not require jq
-# (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
-# runs before the jq gate below — hook::require jq needs the buffered input
-# for its once per session and agent notice scoping.
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq is required both to parse the tool payload and to read enabledPlugins.
-# hook::require jq fails OPEN (this hook never blocks either way) but makes
-# the degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
-# Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
-# fork() emulation on Windows Git Bash and this hook runs on every Bash/PowerShell
-# call. Failure semantics are unchanged: a missing jq or an unparsable payload
-# yields rc 1 here, which exits 0 exactly as the empty-COMMAND skip below did —
-# hook::require jq above has already made the degraded state visible once per
-# session and agent. The `// "Bash"` default moves to the bash-side expansion,
-# matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
@@ -124,9 +47,6 @@ emit_tel() {
   hook::emit_telemetry "flag-commit-pr-skill-bypass" "PreToolUse" "ok" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# The source-control@ plugin keys declared in one settings file (empty when the
-# file is absent). A settings file can carry more than one — e.g. after moving
-# the plugin between marketplaces — so enablement is resolved PER exact key.
 # shellcheck disable=SC2329  # invoked below via command substitution
 sc_keys() {
   local file="$1"
@@ -139,16 +59,14 @@ sc_keys() {
 sc_key_value() {
   local file="$1" key="$2"
   [[ -f "$file" ]] || return 0
-  # `has($k)` so a boolean `false` is read as "false", not collapsed to empty by
-  # jq's `//` (which treats false as absent).
   jq -r --arg k "$key" '(.enabledPlugins // {}) | if has($k) then (.[$k] | tostring) else empty end' "$file" 2>/dev/null | head -1
 }
 
 source_control_enabled() {
   local root="" user_settings settings local_settings keys key uval bval lval effective
   hook::repo_root_to root "${CLAUDE_PROJECT_DIR:-.}" || :
-  # User-global settings live at $CLAUDE_CONFIG_DIR/settings.json when that is
-  # set (Claude Code's relocatable config dir), else ~/.claude/settings.json.
+  # Claude Code keeps user settings under CLAUDE_CONFIG_DIR when set, else ~/.claude:
+  # https://code.claude.com/docs/en/env-vars
   user_settings="${CLAUDE_CONFIG_DIR:+$CLAUDE_CONFIG_DIR/settings.json}"
   [[ -n "$user_settings" ]] || user_settings="${HOME:+$HOME/.claude/settings.json}"
   settings="$root/.claude/settings.json"
@@ -171,10 +89,6 @@ source_control_enabled() {
     lval=$(sc_key_value "$local_settings" "$key")
     effective="$uval"
     [[ -n "$bval" ]] && effective="$bval"
-    # Local participates unconditionally: settings precedence is Local >
-    # Project > User, and `claude plugin install --scope local` writes
-    # enabledPlugins to settings.local.json as a first-class standalone state
-    # — a local-only key is real enablement, not noise to ignore.
     [[ -n "$lval" ]] && effective="$lval"
     [[ "$effective" == "true" ]] && return 0
   done <<<"$keys"

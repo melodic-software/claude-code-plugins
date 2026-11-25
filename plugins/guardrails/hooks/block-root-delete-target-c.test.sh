@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part c of 5:
-# sections 2k to 2n. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -e.test.sh; block-root-delete-target-fixtures.sh
-# holds what they share.
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
-# no host-repo assertion library.
-#
-# The core table runs through expect_both, so every verdict is asserted twice:
-# once with the guard alone, and once under hooks/run-guards.sh. A guard that
-# decides one way by itself and another under the dispatcher is a failure here
-# rather than a blind spot.
-#
-# The guard is NOT host-gated, so no case forces OSTYPE: a recursive delete of
-# `/`, of `~`, of `$HOME`, or with --no-preserve-root is unrecoverable on every
-# host this plugin runs on, and CI is Linux.
-#
-# File-wide, and deliberate: every command string below is a LITERAL the guard
-# must read exactly as an operator wrote it. `$HOME` and `${HOME}` are matched
-# as text, because the guard never evaluates an expansion (SC2016), and `\\` is
-# a real pair of backslashes rather than an escaped quote (SC1003). Expanding
-# either here would test something other than what the guard sees.
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

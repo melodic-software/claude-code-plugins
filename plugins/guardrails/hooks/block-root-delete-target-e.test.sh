@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part e of 5:
-# sections 5 to 7. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -e.test.sh; block-root-delete-target-fixtures.sh
-# holds what they share.
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
-# no host-repo assertion library.
-#
-# The core table runs through expect_both, so every verdict is asserted twice:
-# once with the guard alone, and once under hooks/run-guards.sh. A guard that
-# decides one way by itself and another under the dispatcher is a failure here
-# rather than a blind spot.
-#
-# The guard is NOT host-gated, so no case forces OSTYPE: a recursive delete of
-# `/`, of `~`, of `$HOME`, or with --no-preserve-root is unrecoverable on every
-# host this plugin runs on, and CI is Linux.
-#
-# File-wide, and deliberate: every command string below is a LITERAL the guard
-# must read exactly as an operator wrote it. `$HOME` and `${HOME}` are matched
-# as text, because the guard never evaluates an expansion (SC2016), and `\\` is
-# a real pair of backslashes rather than an escaped quote (SC1003). Expanding
-# either here would test something other than what the guard sees.
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,9 +16,6 @@ assert_exit "empty stdin is a skip, not a block" 0 "$rc"
 
 expect "a stdin body that is not JSON fails closed" 2 --payload 'not json'
 
-# JSON whose fields jq cannot read gets past the stdin read above and is
-# refused by the field read. A NUL in a command with no delete is refused there
-# too, before the `rm` prefilter could wave it through.
 expect "a payload whose fields jq cannot read fails closed" 2 \
   --payload '{"tool_name":"Bash","tool_input":"rm -rf build"}'
 assert_eq "unreadable fields: the refusal says why" \
@@ -56,15 +30,11 @@ rc=0
 bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"
 
-# `X=build && rm -rf "$X"` deletes `build`, so it is judged as `build`, but
-# only when the assignment is a statement that runs before every use and
-# nothing after it can change NAME.
 expect_both 'X=build && rm -rf "$X" allowed' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X"'
 expect_both 'X=build; rm -rf "$X/" allowed' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf "$X/"'
 expect_both "X='build' && rm -rf \"\$X/out\" allowed" 0 "${RDT_CWD[@]}" --command "X='build' && rm -rf \"\$X/out\""
 expect_both 'a literal on its own line, then the delete, allowed' 0 "${RDT_CWD[@]}" \
   --command $'X=build\nrm -rf "$X"'
-# Unquoted and braced uses take the literal too (#7413).
 expect_both 'X=build && rm -rf $X allowed (unquoted)' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X'
 expect_both 'X=build; rm -rf $X/ allowed (unquoted)' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf $X/'
 expect_both 'X="build" && rm -rf "${X}" allowed (braced)' 0 "${RDT_CWD[@]}" \
@@ -116,7 +86,6 @@ for rdt_cmd in 'X=build && rm -rf "$X" "$Y"' '{ X=build; } && rm -rf "$X"' 'X=bu
   assert_eq "attended: outside the shape, the decision is ask: $rdt_cmd" ask \
     "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 done
-# #9779: the literal binds across later statements that cannot change it.
 expect_both 'a literal several statements before the delete allowed' 0 "${RDT_CWD[@]}" \
   --command 'S=build; mkdir -p "$S/x"; git status; rm -rf "$S"'
 expect_both 'a temp scratch literal used, then deleted, allowed' 0 "${RDT_CWD[@]}" \
@@ -148,7 +117,6 @@ expect_both 'a {NAME}> redirection blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; exec {S}>/dev/null; rm -rf "$S"'
 expect_both 'getopts on the name blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; getopts a S; rm -rf "$S"'
-# zsh setters that write no `NAME=`.
 expect_both 'a zsh foreach on the name blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; foreach S (/); end; rm -rf "$S"'
 expect_both 'a zsh vared on the name blocks' 2 "${RDT_CWD[@]}" \
@@ -159,8 +127,6 @@ expect_both 'a zsh zparseopts on the name blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; zparseopts -A S x:; rm -rf "$S"'
 expect_both 'a ${NAME:=} default blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; unused="${S:=/}"; rm -rf "$S"'
-# #7413: an assignment after plain statements joined by `;` or newline binds,
-# since nothing before it can skip it.
 expect_both 'an assignment after another statement allowed' 0 "${RDT_CWD[@]}" \
   --command 'mkdir -p /tmp/rdt-scratch; S=/tmp/rdt-scratch; rm -rf "$S"'
 expect_both 'the second of two literals, used unquoted, allowed' 0 "${RDT_CWD[@]}" \
@@ -185,9 +151,6 @@ expect_both 'the bound name in a child shell blocks' 2 "${RDT_CWD[@]}" \
   --command "S=/tmp/rdt-scratch; ls \"\$S\"; sh -c 'rm -rf \"\$S\"'"
 expect_both 'a different variable beside the bound one blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; mkdir -p "$S"; rm -rf "$T"'
-# A builtin spelled through quotes, an escape, an expansion or a glob still
-# reads as itself to bash, so any of those characters outside the bound words
-# drops the binding.
 expect_both 'a quoted-apart printf -v blocks' 2 "${RDT_CWD[@]}" \
   --command $'S=/tmp/rdt-scratch; pri\'\'ntf -v S %s /; rm -rf "$S"'
 expect_both 'an escaped read blocks' 2 "${RDT_CWD[@]}" \
@@ -251,9 +214,6 @@ expect_both 'IFS beside the literal blocks (an unquoted operand splits)' 2 "${RD
   --command 'X=a/etc IFS=a && rm -rf $X'
 expect_both 'IFS set before the literal blocks' 2 "${RDT_CWD[@]}" --command 'IFS=a; X=a/etc; rm -rf $X'
 
-# An assignment that does not run first in this shell is no binding: a line
-# that goes on through ||, | or \ (past a comment), a subshell, a substitution,
-# a group or a branch. Each of these once read HOME as `build`.
 expect_both 'an assignment after a || line end blocks' 2 "${RDT_CWD[@]}" \
   --command $'true ||\nHOME=build && rm -rf "$HOME"'
 expect_both 'an assignment after a | line end blocks' 2 "${RDT_CWD[@]}" \
@@ -347,14 +307,6 @@ assert_eq "unwatched=0: the decision is ask" ask \
 expect_both "auto mode: rm -rf / still blocks" 2 \
   --payload '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"},"permission_mode":"auto"}'
 
-# --- 5e. Parity with the retired user-level destructive-removal engine (#9770) --
-# Every decision case of that engine's suite (dotfiles 59c12fd^,
-# tools/claude-hooks/test-block-destructive-removal.py: 150 deny and 59 defer,
-# 207 distinct), replayed in order from the git toplevel with the engine's
-# verdict in each label. The engine is already retired (dotfiles 59c12fd), so
-# these cases are the record of what it decided. Where this guard differs, the
-# comment above the case says which side is right and why (#9770).
-# Home roots are assembled from pieces so the source holds no literal user path.
 RDT_EP_UH="/home/""user"
 RDT_EP_MH="/Users/""user"
 RDT_EP_WH='C:\''Users\user'
@@ -375,7 +327,6 @@ expect_both $'engine parity 14 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command 
 expect_both $'engine parity 15 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ${HOME}/*'
 expect_both $'engine parity 16 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'/bin/rm -rf ~'
 expect_both $'engine parity 17 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'cd /tmp && rm -rf ~'
-# old expectation wrong: bash never expands %NAME%: a literal relative name inside the tree
 expect_both $'engine parity 18 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'rm -rf %USERPROFILE%'
 expect_both $'engine parity 19 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -Rf ~'
 expect_both $'engine parity 20 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -RF /'
@@ -499,7 +450,6 @@ expect_both 'engine parity 112 companion: Bash cmd /c "erase /s /q %USERPROFILE%
 expect_both 'engine parity 112 companion: Bash cmd /c del /q of one file is left alone' 0 "${RDT_CWD[@]}" \
   --command 'cmd /c del /q build\x.txt'
 expect_both $'engine parity 113 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd /s /q C:\\'
-# old expectation wrong: bash removes the backslashes, so cmd gets the drive-relative C:Usersname
 expect_both $'engine parity 114 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'cmd /c rd /s /q '"$RDT_EP_WH"
 expect_both $'engine parity 115 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'cmd /c rd /s /q /c/Users/someone'
 expect_both $'engine parity 116 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell -c "Remove-Item -Recurse -Force ~"'
@@ -519,23 +469,14 @@ expect_both 'engine parity 120 companion: PS wsl ls ~ is left alone' 0 "${RDT_CW
   --command 'wsl ls ~'
 expect_both 'engine parity 120 companion: Start-Process bash with a quoted -c text blocks' 2 "${RDT_CWD[@]}" \
   --tool PowerShell --command "Start-Process bash -ArgumentList '-c \"rm -rf ~\"'"
-# old expectation wrong: a single-quoted -c text is a string literal; nothing runs
 expect_both $'engine parity 121 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c "powershell -c \'Remove-Item -Recurse ~\'"'
 expect_both $'engine parity 122 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm.exe -rf ~'
-# old expectation wrong: the escaped quotes are part of the path, a relative name that cannot exist on Windows
 expect_both $'engine parity 123 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force `"~`"'
-# old expectation wrong: the escaped quotes are part of the path, a relative name that cannot exist on Windows
 expect_both $'engine parity 124 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force `"'"$RDT_EP_WH"$'`"'
-# old expectation wrong: the escaped quotes are part of the path, a relative name that cannot exist on Windows
 expect_both $'engine parity 125 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'ri -Recurse -Force `"$HOME`"'
 expect_both $'engine parity 126 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'echo $\'it\\\'s\' ; rm -rf ~'
-# a parse error: bash runs nothing, and the command reader refuses the call
-# as it refuses any text shfmt cannot parse, which is the engine's verdict too
 expect_both $'engine parity 127 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'echo \'unterminated ; rm -rf ~'
-# a parse error: bash runs nothing, and the command reader refuses the call
-# as it refuses any text shfmt cannot parse, which is the engine's verdict too
 expect_both $'engine parity 128 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'echo "unterminated && rm -rf /'
-# old expectation wrong: a parse error: PowerShell runs nothing
 expect_both $'engine parity 129 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Write-Host \'oops ; Remove-Item -Recurse -Force ~'
 expect_both $'engine parity 130 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf ~'
 expect_both $'engine parity 131 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf /'
@@ -605,17 +546,13 @@ expect_both $'engine parity 194 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --
 expect_both $'engine parity 195 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c del /q '"$RDT_EP_WH"$'\\notes.txt'
 expect_both $'engine parity 196 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c echo rd /s /q '"$RDT_EP_WH"
 expect_both $'engine parity 197 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell -Command "Get-ChildItem ~"'
-# plugin stricter, kept: the value is not UTF-16LE text, refused as a decoder sink
 expect_both $'engine parity 198 (PowerShell, engine allow)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell -EncodedCommand cm0gLXJmIH4='
 expect_both $'engine parity 199 (PowerShell, engine allow)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'Write-Host `"~`"'
 expect_both $'engine parity 200 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'echo "unbalanced quote here'
 expect_both $'engine parity 201 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'echo \'oops ; ls ~'
 expect_both $'engine parity 202 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'xargs grep foo'
-# plugin stricter, kept: xargs items arrive on stdin, so the target cannot be placed
 expect_both $'engine parity 203 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'xargs rm -rf build'
-# plugin stricter, kept: xargs items arrive on stdin, so the target cannot be placed
 expect_both $'engine parity 204 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'xargs -n 1 rm -rf ./dist'
-# plugin stricter, kept: xargs items arrive on stdin, so the target cannot be placed
 expect_both $'engine parity 205 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'xargs -I {} rm -rf '"$RDT_EP_UH"$'/projects/{}'
 expect_both $'engine parity 206 (Bash, engine allow)' 0 "${RDT_CWD[@]}" --command $'xargs ls ~'
 expect_both $'engine parity 207 (Bash, engine allow)' 2 "${RDT_CWD[@]}" --command $'find . -name \'*.tmp\' | xargs rm -rf'
@@ -636,11 +573,6 @@ expect_both 'engine parity companion: a balanced rm -rf ~ after echo blocks' 2 "
 expect "kill switch disables the guard" 0 --command 'rm -rf /' \
   -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"
 
-# --- 7. The guard installs no exit-time handler of its own --------------------
-# abort-boundary.sh owns that slot for every guard in this plugin; a second one
-# in the guard would run after it and could change the status the boundary
-# settled. abort-boundary.test.sh asserts the same property across the whole
-# set, and this pins it for this file on its own.
 own_traps="$(grep -n 'trap' "$HOOK" | grep -Ei 'trap[^#]*(EXIT|[[:space:]]0[[:space:]]*$)' || true)"
 assert_eq "the guard installs no exit-time handler of its own" "" "$own_traps"
 

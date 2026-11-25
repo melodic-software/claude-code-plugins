@@ -1,35 +1,4 @@
 #!/bin/sh
-# guardrails-commit-msg-convention v2
-# guardrails commit-msg check: the commit subject matches the commit convention.
-#
-#   commit-msg-convention.sh <message-file>   git runs it as commit-msg
-#
-# The tool-agnostic layer of commit-convention enforcement: the Claude Code
-# guard sees only tool calls, while this git hook checks every commit in the
-# repository, from an editor, `git commit -F <file>`, an IDE or another agent.
-# It reads the team-tracked pattern (`subject_pattern` in
-# docs/conventions/source-control.yaml, else the folder-form
-# docs/conventions/source-control/commit-convention.yml) through the same resolver the guard uses,
-# installed beside this script with its YAML parser as entry assets. Where the
-# team tracks none, the resolver falls back to the operator's own
-# `subject_pattern` in a git-ignored docs/conventions/source-control.local.yaml.
-#
-# Sentinel: the "guardrails-commit-msg-convention" marker on line 1 or 3 marks
-# this hook as derived FROM the tracked config, so convention-inference tooling
-# must not count it as an independent signal.
-#
-# No tracked or personal pattern: no enforcement, exit 0, silent. A pattern
-# that is not POSIX ERE, an unreadable config or a resolver that cannot run also exits 0, but
-# prints a notice with the resolver's diagnostic to stderr (this hook has no
-# model channel): exit 1 with empty stderr is "no pattern", anything else a failure.
-# Fixup, squash and amend subjects pass, as rebase --autosquash consumes them.
-# So do the subjects git writes itself: `Merge ...` from git merge and
-# `Revert "..."` from git revert.
-# A violation prints how to fix the subject and exits 1; this hook never
-# suggests skipping it.
-#
-# POSIX sh, the resolver too, run with `sh`: it needs no bash beside git's sh,
-# and on Windows a bash looked up by name can be System32's WSL launcher.
 # shellcheck shell=sh
 set -u
 
@@ -62,12 +31,6 @@ fi
 [ "$errf" = /dev/null ] || rm -f "$errf"
 [ -n "$subject_ere" ] || exit 0
 
-# The subject is the first non-empty line git keeps. Git drops comment lines
-# only under the strip cleanup: commit.cleanup=strip, or the default when an
-# editor ran. Git sets GIT_EDITOR=: for this hook when none did (-m, -F), so a
-# `-m "#123 fix"` subject is kept and checked. A --cleanup flag cannot be seen
-# here. The comment character follows core.commentChar; `auto` cannot be known
-# here.
 comment_char="$(git config --get core.commentChar 2>/dev/null || true)"
 case "$comment_char" in
 "" | auto) comment_char="#" ;;
@@ -94,7 +57,6 @@ while IFS= read -r line || [ -n "$line" ]; do
   break
 done <"$msg_file"
 
-# An empty message: git aborts the commit itself.
 [ -n "$subject" ] || exit 0
 
 case "$subject" in
@@ -102,8 +64,6 @@ case "$subject" in
 *) ;;
 esac
 
-# A heredoc, as POSIX sh has no here-string: a pipe into an early-exit grep can
-# kill its writer.
 grep -Eq -- "$subject_ere" <<EOF && exit 0
 $subject
 EOF

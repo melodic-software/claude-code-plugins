@@ -1,75 +1,26 @@
 #!/usr/bin/env bash
-# PostToolUse hook: verify CLI flags in newly-written shell/PowerShell/markdown
-# files against `<bin> [<subcmd>...] --help` output via the bundled
-# lib/verification/verify-cli-flag.sh.
-# Triggered on Write|Edit of *.sh, *.bash, *.ps1, *.psm1, *.md files.
-#
-# Catches subagent / training-recall hallucinations — a CLI flag written AS a
-# command that does not exist in the binary's actual --help output.
-#
-# Subcommand-aware + code-span-scoped: each `--flag` is bound to the bin heading
-# its OWN command span and verified against `<bin> [<subcmd>...] --help` (the
-# verifier accepts a subcommand chain). For markdown, only code is scanned —
-# inline-code spans + fenced code blocks — because a flag is a real
-# copy/paste/exec hazard only when written AS a command. This eliminates two
-# false-positive classes a naive line-scan produces: subcommand-flag blindness
-# (checking `<bin> --help` only) and cross-pairing a bin with every `--flag` on
-# a line.
-#
-# NON-BLOCKING (advisory): exits 0 with hookSpecificOutput additionalContext
-# on unknown flags (exit 1 stderr is not shown to the agent per hook contract).
-#
-# Per-binary opt-out via the cli_flag_verify_skip_bins userConfig option (e.g. for
-# extension-heavy CLIs like gh where --help is non-exhaustive). Disable entirely
-# with the cli_flag_verify_enabled userConfig option set to false.
 
 set -uo pipefail
 
-# High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
 [[ "${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
-# The hook's own directory is derived with parameter expansion rather than
-# `dirname`. GNU Bash forks a subshell for every command substitution even when
-# the body is a builtin (Command Substitution, Bash Reference Manual;
-# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
-# fork is a process, and this line runs on every fire — including inside the
-# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
-# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 [[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
 # shellcheck source=abort-boundary.sh
 source "$_HOOK_SELF/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
-# run" notice; 0 is the only status this advisory verifier chooses. Nothing is
-# enforced here, so the loss on an abort is the advisory itself; the notice
-# says it was not produced.
 guard::abort_boundary cli-flag-verify PostToolUse open 0
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 hook::ctx_reset
 
-# Bundled verifier — resolved under the plugin root (CC sets CLAUDE_PLUGIN_ROOT;
-# the BASH_SOURCE fallback keeps the contract tests working when it is unset).
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_HOOK_SELF/.." && pwd)}"
 VERIFIER="$PLUGIN_ROOT/lib/verification/verify-cli-flag.sh"
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
-# or timed-out stdin skips this advisory hook. Buffering does not require jq
-# (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
-# runs before the jq gate below — hook::require jq needs the buffered input
-# for its once per session and agent notice scoping, and hook::read_file_path_to
-# (next) falls back to jq for a payload its builtin parse cannot prove.
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq is required to parse the tool payload. hook::require jq fails OPEN
-# (this hook never blocks) but makes the degraded state visible to both the
-# user (systemMessage) and the agent (additionalContext), once per session and
-# agent — see docs/contracts/hook-observability/.
 hook::require jq "PostToolUse" guardrails "$INPUT"
 
 FILE=""
@@ -81,22 +32,6 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
-# Diff-scope: verify only the content THIS tool call wrote, never re-read the
-# whole file from disk. An Edit's pre-existing lines outside the changed hunk are
-# not this call's claims; scanning the whole file re-flags an unknown flag on
-# every later unrelated edit. Edit -> the changed hunk (new_string); Write -> the
-# full payload content (a PostToolUse Write payload cannot distinguish a new file
-# from an overwrite, so "whole-file only for new files" degrades to whole-content
-# here — still the payload, never disk). The live matcher is Write|Edit; any
-# other tool carries nothing this call wrote that we can scope a scan to.
-#
-# Tool name and both per-tool content fields in ONE jq process
-# (hook::jq_fields), not two — a jq spawn is fork() emulation on Windows Git
-# Bash. Selecting the field inside jq would still cost the same process, so both
-# are fetched and the tool-specific choice happens below in the shell. Failure
-# semantics are unchanged: a missing jq or an unparsable payload yields rc 1
-# here, which exits 0 exactly as the unmatched-TOOL case did — hook::require jq
-# above has already made the degraded state visible once per session and agent.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' '.tool_input.content' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
 case "$TOOL" in
@@ -120,45 +55,16 @@ if [[ ! -x "$VERIFIER" || ! -f "$CFV_SHARED" ]]; then
   exit 0
 fi
 
-# Repo root for telemetry data.file + relative sink resolution (file-anchored).
-# Parameter expansion, not a `$(dirname …)` subshell: this hook runs on every
-# Write and Edit, and a command substitution is a fork per call on Windows Git
-# Bash. Same answers as `dirname`: no slash -> `.`, and a root-level `/x` ->
-# `/` rather than the empty string, which hook::repo_root would read as `.`.
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
 REPO_ROOT="" REPO_ROOT_RESOLVED=1
 hook::repo_root_to REPO_ROOT "$FILE_DIR" || REPO_ROOT_RESOLVED=0
 
-# Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
-# `git`, `npx`, and `npm` are intentionally EXCLUDED — all three have unreliable
-# or non-exhaustive `--help` flag lists whose residuals are all real-flag false
-# positives:
-#   - `git <subcmd> --help` routes to the man page (or a short synopsis under
-#     timeout), not a parseable per-subcommand flag list, AND the flaky output
-#     poisons the 24h --help cache → persistent FPs.
-#   - `npx <pkg> --help` runs an ARBITRARY package's help (reliability is the
-#     package's, not npx's) and an uninstalled `<pkg>` can trigger a network
-#     fetch. Working cases produce no residual (invisible benefit); failing
-#     cases produce visible FPs — same shape that excludes git.
-#   - `npm <subcmd> --help` lists only that subcommand's own options, but EVERY
-#     npm config key is simultaneously a command-line flag on every subcommand —
-#     `npm --help` says so itself: "Specify configs in the ini-formatted file …
-#     or on the command line via: npm <command> --key=value". So the global
-#     config flags (`--prefix`, `--registry`, `--userconfig`, …) appear in
-#     NEITHER `npm <subcmd> --help` NOR `npm --help`, and every use of one is a
-#     false positive. The authoritative list (`npm config ls -l`) prints
-#     `prefix = "…"`, not `--prefix`, so it cannot be consumed by a generic
-#     `--help` flag-list parser without an npm-specific transform.
-# Re-add any of them via the option if it ever ships a stdout-parseable,
-# exhaustive flag list.
 DEFAULT_BINS="claude gh dotnet docker kubectl terraform az aws"
 BINS_RAW="${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS:-$DEFAULT_BINS}"
 BINS="${BINS_RAW//,/ }"
 
-# Per-binary opt-outs. Comma-separated. Common case: gh extensions, docker plugin
-# subcommands where --help is not exhaustive.
 SKIP_RAW="${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS:-}"
 SKIP="${SKIP_RAW//,/ }"
 
@@ -181,11 +87,6 @@ emit_fragments() {
       f && $0 !~ /^[[:space:]]*#/ { print }
     ' 2>/dev/null
   else
-    # Shell/PowerShell: every non-comment line is code. Drop full-line comments
-    # BEFORE separator-splitting — otherwise a backtick-wrapped CLI example in a
-    # comment is split on its backticks into a spurious bin-led command segment
-    # (the comment's leading `#` lands in a different segment). `|| true`: grep
-    # exits 1 when every line is a comment.
     printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*#' 2>/dev/null || true
   fi
 }
@@ -228,25 +129,10 @@ extract_candidates() {
     [[ " $BINS " == *" $bin "* ]] || continue
     is_skipped "$bin" && continue
 
-    # Walk remaining tokens: collect the subcommand chain (real-subcommand-shaped
-    # tokens before the first long flag) + every long flag bound to that chain.
-    #   - `--` ends option parsing — everything after is program args, not flags.
-    #   - A short option before the subcommand is skipped (it does not break the
-    #     chain); after the subcommand it ends the chain.
-    #   - A non-subcommand-shaped token (path, var, csproj, value) is skipped but
-    #     does NOT end the chain — a positional can sit mid-chain (e.g.
-    #     `dotnet list <SLN> package`). Only shaped lowercase words join the chain,
-    #     keeping junk out of the verified `<bin> <chain> --help` invocation.
-    #   - A quoted argument (`-p "<prompt>"`, a positional prompt, `--x="a b"`)
-    #     is one argument: no word inside it is a flag or a subcommand. `read -a`
-    #     split it on blanks, so quote state is carried across tokens; `q` holds
-    #     the open quote. `\"` does not close a double quote. Builtins only.
     local -a chain=() seg_flags=()
     local chain_done=0 k tk fl ct q="" bare dq sq
     for ((k = idx + 1; k < ${#toks[@]}; k++)); do
       tk="${toks[k]}"
-      # Drop escaped backslashes first so only a quote after an odd run of
-      # backslashes counts as escaped (`"C:\\Temp\\"` still closes).
       bare="${tk//\\\\/}"
       bare="${bare//\\\"/}"
       if [[ -n "$q" ]]; then
@@ -289,13 +175,7 @@ extract_candidates() {
       *)
         ct="${tk%[\`\'\"\):;,]}"
         ct="${ct#[\`\'\"\(]}"
-        # A second known bin starts a NESTED command whose flags are not this
-        # bin's — `docker run <img> dotnet restore --force-evaluate`,
-        # `xargs gh issue … --json`. Everything from here belongs to it; stop.
         [[ " $BINS " == *" $ct "* ]] && break
-        # Only shaped lowercase words join the chain; a non-shaped positional
-        # (path, csproj, var, SLN file) is skipped without ending the chain so
-        # `dotnet list <SLN> package --flag` still resolves the full subcommand.
         if ((chain_done == 0)) && [[ "$ct" =~ ^[a-z][a-z0-9-]*$ ]] && ((${#chain[@]} < 4)); then
           chain+=("$ct")
         fi
@@ -324,18 +204,6 @@ done
 
 ((HAS_FLAG_SHAPE && HAS_BIN)) && extract_candidates
 
-# Partial-replacement context reconstruction (Edit only). When an Edit's hunk is
-# a bare flag fragment — a flag token swapped in with no binary/subcommand in the
-# changed region — the diff-scoped scan finds no command candidate and would
-# silently miss a genuinely-introduced unknown flag. Recover bounded context:
-# pull from the on-disk file only the lines carrying one of the hunk's flag
-# tokens (the edit has already been applied by PostToolUse time, so the swapped-in
-# flag is on disk), scan those, and keep only candidates whose flag appears in the
-# hunk. The flag-token filter is what preserves the diff-scope contract: a
-# pre-existing unrelated flag sharing one of those lines never re-fires. The
-# anchor is the flag token, not the line — a bare-flag hunk carries no positional
-# information — so a hunk flag that also occurs on an untouched line is scanned
-# there too; only a DIFFERENT pre-existing flag is excluded.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
   ((${#CANDIDATES[@]} == 0)) || return 0
@@ -391,17 +259,6 @@ split_candidate_key() {
   fi
 }
 
-# CACHE HITS ARE ANSWERED IN THIS PROCESS. The verifier keeps each
-# `<bin> [<subcmd>...] --help` output under a 24 h cache, and on a hit its whole
-# job is to read that file and match one pattern. Spawning it for that cost more
-# than the work: a bash process, the `#!/usr/bin/env` PATH walk for bash (one
-# failed execve per PATH entry ahead of it), then mkdir, find, grep. Measured on
-# a warm cache: 88 failed execve per run on this host, 4 of the 5 env walks
-# being these spawns. The cache location, key, freshness window and match
-# pattern are ONE definition, sourced from lib/verification/cli-flag-cache.sh
-# by this hook and by the verifier, so the two paths cannot drift; a miss still
-# goes through the verifier, which populates the cache, and every exit code
-# keeps its meaning.
 CFV_CACHE_DIR=""
 declare -A CFV_FRESH=()
 CFV_FRESH_INDEXED=0
@@ -417,8 +274,6 @@ cfv_index_fresh_cache() {
     [[ -n "$f" ]] && CFV_FRESH["$f"]=1
   done < <(find "$CFV_CACHE_DIR" -maxdepth 1 -name '*.help' -mmin "-$CFV_CACHE_WINDOW_MIN" 2>/dev/null)
 }
-# verify_candidate <bin> <chain> <flag> -> 0 present, 1 absent, 2 unverifiable
-# (the verifier's contract, answered here on a hit and by the verifier on a miss).
 verify_candidate() {
   local bin="$1" chainstr="$2" flag="$3" key cache_file help rc global
   local -a chainarr=()
@@ -435,9 +290,6 @@ verify_candidate() {
   fi
   "$VERIFIER" --quiet "$bin" "${chainarr[@]}" "$flag" 2>/dev/null
   rc=$?
-  # A miss the verifier could answer (0 or 1) has just written the cache file,
-  # so every later candidate sharing this (bin, chain) is answered here rather
-  # than spawning the verifier again for the same --help text.
   if ((rc == 0 || rc == 1)) && [[ -s "$cache_file" ]]; then
     CFV_FRESH["$cache_file"]=1
   fi
@@ -447,15 +299,9 @@ verify_candidate() {
 FAILURES=()
 for key in "${!CANDIDATES[@]}"; do
   split_candidate_key "$key"
-  # Skip if binary not on PATH (verifier exit 2). Avoids spurious failures on
-  # systems missing tools the file references for documentation purposes.
   command -v "$KEY_BIN" >/dev/null 2>&1 || continue
   verify_candidate "$KEY_BIN" "$KEY_CHAIN" "$KEY_FLAG"
   rc=$?
-  # Exit 1 = flag absent (likely hallucinated); 2 = unverifiable, treat as
-  # neutral (don't flag — could be tool not on this machine, transient
-  # --help failure, or a subcommand whose --help is not parseable). Only
-  # collect exit-1 cases as failures.
   if [[ "$rc" -eq 1 ]]; then
     FAILURES+=("$key")
   fi

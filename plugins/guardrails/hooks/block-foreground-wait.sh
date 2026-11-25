@@ -1,46 +1,7 @@
 #!/usr/bin/env bash
-# PreToolUse hook: deny a foreground Bash call that waits with an `until` loop
-# or a `--watch` flag, with the reason to run it in the background or watch it
-# with a monitor.
-#
-# A foreground wait holds the session until the wait ends. The Bash tool input
-# carries `run_in_background` (hooks reference, "PreToolUse input" > "Bash",
-# https://code.claude.com/docs/en/hooks), so a background call is told apart
-# from a foreground one and passes.
-#
-# MATCHED, on the Bash tool when `run_in_background` is not true:
-#   - an `until` keyword where a command starts: at the start, or after `;`,
-#     `&`, `|`, `(`, `)`, `{`, `}`, `!`, a newline, or the word `do`, `then`,
-#     `else`, `elif`, `if`, `while` or `time`, outside quotes, comments and
-#     heredoc bodies;
-#   - an unquoted `--watch` argument in a segment whose command word (after
-#     any NAME=value prefixes) is not echo or printf, before any `--` unless
-#     the command word is a script runner, which passes the words after `--`
-#     to the script it runs (`npm test -- --watch`). The runners are the
-#     block_foreground_wait_script_runners userConfig option, a comma list
-#     matched against the command word's basename; default
-#     npm,pnpm,yarn,bun,npx; empty stops every scan at `--`.
-#
-# NOT MATCHED: the same text in quotes, a comment or a heredoc body; `until` as
-# an argument (`git log --grep until`); `--watch=<value>`, `--watch-path` and
-# other words that only start with `--watch`; short flags (`-w`) and the
-# `watch` command; a wait inside a `bash -c` operand, a double-quoted `"$(...)"`
-# or a heredoc a shell reads; the PowerShell tool. Foreground `sleep` is the
-# Bash tool's own block. Known false positives: `until` after `)`, `}` or one
-# of the words above used as an argument (`echo $(date) until noon`).
-#
-# Posture: fail-open. Missing jq, a payload that is not JSON and a NUL byte all
-# allow, because this guard advises on a command shape and the row's
-# fail-closed guards already deny those payloads.
-#
-# Kill switch: block_foreground_wait_enabled userConfig option.
-#
-# BLOCKING: exits 2 on a match.
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source. scripts/check-killswitch-hoist.sh
-# pins this line.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_FOREGROUND_WAIT_ENABLED:-true}" == "true" ]] || exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
@@ -109,10 +70,6 @@ fwg::segment() {
 
 hook::bash_parse_segments "$FWG_COMMAND" fwg::segment
 
-# fwg::bare_text: set FWG_BARE to the command with each heredoc body, quoted
-# span, escaped character and comment replaced, so `until` is matched only
-# where bash reads it as a keyword. The body offsets are bytes, so this runs
-# under C.
 # shellcheck disable=SC2329  # invoked through hook::_c_locale
 fwg::bare_text() {
   local e s t at=0 text="" rest out="" c
@@ -133,7 +90,6 @@ fwg::bare_text() {
     rest="${BASH_REMATCH[3]}"
     case "$c" in
     "'")
-      # In `$'...'` a backslash escapes the next character, `\'` included.
       if [[ "$out" == *'$' ]]; then
         while [[ "$rest" =~ $ansi_re ]]; do
           rest="${BASH_REMATCH[3]}"

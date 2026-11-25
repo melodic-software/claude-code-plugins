@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part f of 6:
-# the nesting and size-budget cases of section 1 and the python and node heredoc
-# cases of section 2. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -f.test.sh;
-# block-root-delete-target-fixtures.sh holds what they share.
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
-# no host-repo assertion library.
-#
-# The core table runs through expect_both, so every verdict is asserted twice:
-# once with the guard alone, and once under hooks/run-guards.sh.
-#
-# File-wide, and deliberate: every command string below is a LITERAL the guard
-# must read exactly as an operator wrote it. `$HOME` is matched as text, because
-# the guard never evaluates an expansion (SC2016), and `\\` is a real pair of
-# backslashes rather than an escaped quote (SC1003).
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,8 +20,6 @@ for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="\$($rdt_big"; done
 rdt_big="${rdt_big}${rdt_pad}"
 for ((rdt_d = 0; rdt_d < 32; rdt_d++)); do rdt_big="$rdt_big)"; done
 rdt_payload="$(command_json "$rdt_big")"
-# command_json passes the command to a native jq without MSYS_NO_PATHCONV, so
-# its round trip is checked: Git Bash would rewrite a `NAME=/path` argument.
 assert_eq "the 16 KB payload carries its command verbatim" "$rdt_big" "$(jq -r .tool_input.command <<<"$rdt_payload")"
 
 for rdt_via in direct dispatched; do
