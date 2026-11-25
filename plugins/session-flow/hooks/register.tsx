@@ -78,7 +78,7 @@ const mainCheckout = async ($: EngineInterface, dir: string) => {
 
 const KEEP_DAYS = 30
 const PRUNE =
-  "const fs=require('fs'),path=require('path'),[d,cut]=process.argv.slice(1);for(const n of fs.readdirSync(d)){const p=path.join(d,n);if(/^(observations-.*\\.ndjson|observer-.*\\.log)$/.test(n)||(/^live-.*\\.jsonl$/.test(n)&&fs.statSync(p).mtimeMs<Number(cut)))fs.rmSync(p,{force:true})}"
+  "const fs=require('fs'),path=require('path'),[d,cut]=process.argv.slice(1);for(const n of fs.readdirSync(d)){const p=path.join(d,n);if(/^(live-.*\\.jsonl|observations-.*\\.ndjson|status-.*\\.json|observer-.*\\.(log|lock))$/.test(n)&&fs.statSync(p).mtimeMs<Number(cut))fs.rmSync(p,{force:true})}"
 const prune = async ($: EngineInterface, now: number) => {
   if (await $.fs.exists(st.dataDir)) await $.process.run(['node', '-e', PRUNE, st.dataDir, String(now - KEEP_DAYS * DAY_MS)], { timeoutMs: 10_000 }).catch(() => undefined)
 }

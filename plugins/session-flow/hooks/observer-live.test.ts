@@ -604,7 +604,7 @@ test('the ledger goes to the main checkout when the session runs in a linked wor
   expect(ledgerFiles(w)).toEqual([])
 })
 
-test('session start prunes usage files older than 30 days and the retired observer\'s files', async ($, on) => {
+test('session start prunes every observer file not written for 30 days', async ($, on) => {
   const w = world(on)
   w.files[`${DATA}/session-flow-observer/live-old.jsonl`] = ''
   await start($)

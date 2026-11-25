@@ -8,7 +8,7 @@ bump: minor
 - While a finding is shown, the next check clears it when the assistant has fixed it, and the ledger records it as resolved.
 - Noted now marks the ledger entry confirmed, and each answer is recorded in the usage file.
 - After Dismiss, the band offers the built-in side agent's answers once (`5` That was helpful, `6` Not relevant, `7` Couldn't understand, `8` Turn off checks for this session, `9` Close) and clears itself after 20 seconds. Not relevant keeps the next checks from reporting that finding or ones like it; Couldn't understand makes later checks write in plainer words.
-- Session start deletes observer usage files not written for 30 days and the retired background observer's leftover files.
+- Session start deletes observer files (usage files and the catch-up's working files) not written for 30 days.
 
 ### Changed
 

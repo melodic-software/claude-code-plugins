@@ -75,8 +75,10 @@ how a day's cost is read, and its presence tells the catch-up this session had l
 
 **Storage and retention.** One usage file per session and per machine, each with one writer, so no
 lock is needed; an agent reads them with `jq` or a line search, no index required. Session start
-deletes usage files not written for 30 days and the retired background observer's `observations-*`
-and `observer-*.log` files. Each machine (a Windows host and its WSL, for one) keeps its own data
+deletes every observer file in that folder not written for 30 days: the usage files and the
+catch-up's `observations-*`, `status-*`, `observer-*.log` and `observer-*.lock` files. The catch-up
+only considers transcripts changed in the last 3 days, so a deleted marker never makes it analyze an
+old session again. Each machine (a Windows host and its WSL, for one) keeps its own data
 folder and store; a report that spans machines reads each machine's folder (another machine's
 through `/fleet:reach`) and merges the rows by `at`, with no sync between machines.
 
