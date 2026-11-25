@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { buildRating, main } from "./write-rating.mjs";
+import { buildRating, coverageRow, main, unreadParts } from "./write-rating.mjs";
 
 const HEAD = "a".repeat(40);
 const row = (level, extra = {}) => ({ area: "Impact", level, why: "w", check: "agreed", checker_level: "", checker: "", ...extra });
@@ -53,6 +53,7 @@ test("main writes rating.json only for a good result, and fails red otherwise", 
     CLI_VERSION: "2.1.312",
     STARTED_AT: "100",
     OUT_DIR: join(dir, "out"),
+    COVERAGE_FILE: write("coverage.json", { parts: [], left_out: { chunks: 0, bytes: 0, files: 0 } }),
   };
   assert.equal(main(env, () => 160_000), 0);
   const rating = JSON.parse(readFileSync(join(dir, "out", "rating.json"), "utf8"));
@@ -61,4 +62,100 @@ test("main writes rating.json only for a good result, and fails red otherwise", 
   assert.equal(main({ ...env, OUTPUT_FILE: write("bad.json", "{"), OUT_DIR: join(dir, "out2") }, () => 1), 1);
   assert.equal(main({ ...env, HEAD_SHA: "nope", OUT_DIR: join(dir, "out3") }, () => 1), 1);
   assert.equal(main({ ...env, OUTPUT_FILE: "", OUT_DIR: join(dir, "out4") }, () => 1), 1);
+  assert.equal(main({ ...env, COVERAGE_FILE: "", OUT_DIR: join(dir, "out5") }, () => 1), 1, "no coverage list, no rating");
+});
+
+const RECORDED = JSON.parse(readFileSync(new URL("./fixtures/recorded-execution.json", import.meta.url), "utf8"));
+const DIFF = "/workspace/lane/pr.diff";
+const MAIN_RESULT = 1;
+const SUB_RESULT = 4;
+const part = (lines) => ({ path: DIFF, lines });
+const recorded = (edit = () => {}) => {
+  const copy = structuredClone(RECORDED);
+  edit(copy);
+  return copy;
+};
+
+test("a recorded run's main-thread Read of lines 1-8 and subagent Read of 9-16 cover 16 lines of the 18-line file, not all 18", () => {
+  assert.deepEqual(unreadParts(RECORDED, [part(8)]), []);
+  assert.deepEqual(unreadParts(RECORDED, [part(16)]), []);
+  assert.deepEqual(unreadParts(RECORDED, [part(18)]), [part(18)], "lines 17-18 were never read");
+});
+
+test("a Read with no result, an error result, or a result in another thread reads nothing", () => {
+  const noMainResult = recorded((m) => m.splice(MAIN_RESULT, 1));
+  assert.deepEqual(unreadParts(noMainResult, [part(8)]), [part(8)], "the main thread's Read has no result");
+  const noSubResult = recorded((m) => m.splice(SUB_RESULT, 1));
+  assert.deepEqual(unreadParts(noSubResult, [part(16)]), [part(16)], "the subagent's Read has no result");
+  const failed = recorded((m) => (m[MAIN_RESULT].message.content[0].is_error = true));
+  assert.deepEqual(unreadParts(failed, [part(8)]), [part(8)]);
+  const otherThread = recorded((m) => (m[SUB_RESULT].parent_tool_use_id = null));
+  assert.deepEqual(unreadParts(otherThread, [part(16)]), [part(16)], "the subagent's result posed as the main thread's");
+});
+
+const multiChunk = () => {
+  const dispatch = RECORDED[2];
+  const reply = RECORDED[3];
+  const sides = [
+    ["toolu_rater_chunk1", "sonnet", "claude-sonnet-5-5"],
+    ["toolu_rater_chunk2", "sonnet", "claude-sonnet-5-5"],
+    ["toolu_checker_chunk1", "opus", "claude-opus-5-5"],
+  ];
+  return [
+    { ...structuredClone(RECORDED[0]), message: { ...structuredClone(RECORDED[0].message), model: "claude-opus-5-5" } },
+    ...sides.map(([id, alias]) => {
+      const call = structuredClone(dispatch);
+      Object.assign(call.message.content[0], { id });
+      call.message.content[0].input.model = alias;
+      call.message.model = "claude-opus-5-5";
+      return call;
+    }),
+    ...sides.flatMap(([id, , model]) =>
+      [1, 2].map(() => {
+        const turn = structuredClone(reply);
+        turn.parent_tool_use_id = id;
+        turn.message.model = model;
+        return turn;
+      }),
+    ),
+  ];
+};
+
+test("a multi-chunk run records the checker from the agents dispatched as checkers, not the busier rater side", () => {
+  const base = { output: result(), messages: multiChunk(), pr: 7, head: HEAD, rubric: "8.0.0", cliVersion: "2.1.312", startedAt: 1, endedAt: 2 };
+  assert.deepEqual(
+    (({ rater, checker }) => ({ rater, checker }))(buildRating({ ...base, checkerModel: "opus" })),
+    { rater: "claude-opus-5-5", checker: "claude-opus-5-5" },
+    "four sonnet rater-side turns outnumber the two opus checker turns",
+  );
+  assert.equal(buildRating({ ...base, checkerModel: "haiku" }).checker, "none", "no agent was dispatched as a haiku checker");
+  assert.equal(buildRating(base).checker, "claude-sonnet-5-5", "with no checker model named, every subagent counts, as on a one-chunk run");
+});
+
+test("a rating that did not read the whole diff gains a HIGH Diff coverage row and demotes, even when every row is LOW", () => {
+  const low = result({ risks: [row("LOW"), row("LOW", { area: "Reversibility" })] });
+  const base = { output: low, pr: 7, head: HEAD, rubric: "8.0.0", cliVersion: "2.1.312", startedAt: 1, endedAt: 2 };
+  const none = { chunks: 0, bytes: 0, files: 0 };
+  const whole = buildRating({ ...base, messages: [...messages(), ...RECORDED], coverage: { parts: [part(16)], left_out: none } });
+  assert.equal(whole.max, "LOW");
+  assert.equal(whole.demote, false);
+  assert.equal(whole.risks.length, 2);
+  const partial = buildRating({ ...base, messages: [...messages(), ...RECORDED], coverage: { parts: [part(16), part(18)], left_out: none } });
+  assert.equal(partial.max, "HIGH");
+  assert.equal(partial.demote, true);
+  assert.deepEqual(
+    partial.risks.map(({ area, level, check }) => [area, level, check]),
+    [
+      ["Impact", "LOW", "agreed"],
+      ["Reversibility", "LOW", "agreed"],
+      ["Diff coverage", "HIGH", "unchecked"],
+    ],
+  );
+  assert.match(partial.risks[2].why, /1 of 2 diff parts were never read/);
+  const noResult = buildRating({ ...base, messages: [...messages(), ...recorded((m) => m.splice(MAIN_RESULT, 1))], coverage: { parts: [part(8)], left_out: none } });
+  assert.equal(noResult.demote, true, "a Read with no result never certifies coverage");
+  const leftOut = buildRating({ ...base, messages: [...messages(), ...RECORDED], coverage: { parts: [part(16)], left_out: { chunks: 4, bytes: 1_200_000, files: 90 } } });
+  assert.equal(leftOut.demote, true);
+  assert.match(leftOut.risks.at(-1).why, /4 chunk\(s\) of the diff \(1200000 bytes\)/);
+  assert.equal(coverageRow(RECORDED, { parts: [part(16)], left_out: { chunks: 0 } }), undefined);
 });
