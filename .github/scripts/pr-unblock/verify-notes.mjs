@@ -129,8 +129,6 @@ export function failComment({ head, summary, notes }) {
   ].join("\n");
 }
 
-// The labels come from the pull request read the job already made, when it
-// carries them, so the check costs no call of its own.
 const hasLabel = async (api, pull, pr, name = FAILED_LABEL) => (Array.isArray(pull?.labels) ? pull.labels : await api.listLabels(pr)).some((label) => label.name === name);
 
 async function everyStep(log, steps) {

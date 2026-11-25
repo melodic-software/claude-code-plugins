@@ -28,7 +28,6 @@
 # else an error.
 set -euo pipefail
 : "${GITHUB_REPOSITORY:?}" "${GITHUB_OUTPUT:?}" "${GITHUB_EVENT_NAME:?}"
-# Resolved before the checkouts below move the tree; the read runs on main's.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # rebuild <head> <ci> <annotation> <why>: rebuild, or on a push with <head>'s
@@ -60,7 +59,6 @@ decide() {
   pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open \
     --json id,number,headRefOid,mergeable,isCrossRepository,labels --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
   if [[ -z $pr ]]; then
-    # With none open there are no checks to cancel, so every run builds one.
     echo "No release pull request is open; building one."
     printf 'found=false\nrebuild=true\n' >>"$GITHUB_OUTPUT"
     return
@@ -98,9 +96,6 @@ decide() {
   git checkout -q -f --detach "$main_sha"
   case "$rc" in
     0)
-      # A failed check on a base behind main never clears on a re-run; rebuild on
-      # main's tip. A hold label's red never clears on a rebuild, which would
-      # only change held content.
       if ! git merge-base --is-ancestor "$main_sha" "$head"; then
         ci="$("$here/ci-status.sh" "$head")"
       fi

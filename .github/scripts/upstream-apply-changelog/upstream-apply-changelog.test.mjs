@@ -100,7 +100,6 @@ test("the per-day cap counts only start records from the last 24 hours", () => {
 
 test("a valid plan passes and a stopped plan keeps its handoffs and publishes no branch", () => {
   assert.equal(validatePlan(plan(), ctx).branches.length, 1);
-  // ci-mode.md: cap exceeded is status stopped with one docs-conformance handoff.
   const conformance = { key: "changelog:2.1.300..2.1.300:docs-conformance:plugins/harness-ops/skills/changelog/SKILL.md", title: "t", body: "b" };
   assert.deepEqual(validatePlan(plan({ status: "stopped", stop_reason: "cap-exceeded", handoffs: [conformance] }), ctx), {
     status: "stopped",
@@ -349,7 +348,6 @@ test("the scrub probe runs once per release the gate takes, on a read-only token
   assert.match(job, /^ {4}if: needs\.select-release\.outputs\.proceed == 'true' && needs\.select-release\.outputs\.next-leg != 'subscription' && github\.run_attempt == '1'$/m);
   assert.match(job, /^ {4}cache-mode: read$/m);
   assert.deepEqual(/^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1].trim().split("\n").map((line) => line.trim().split(" #")[0]), ["contents: read"]);
-  // Only the later probe legs wait on a probe; no publishing job does.
   const needers = [...WORKFLOW.matchAll(/^ {2}([a-z0-9-]+):\n(?: {4}name: .*\n)? {4}needs: (.*)$/gm)].filter(([, , list]) => list.includes(PROBE_JOB)).map(([, id]) => id);
   assert.deepEqual(needers, ["verify-env-scrub-subscription", "verify-env-scrub-fallback"]);
   for (const id of ["scan", "push-branches", "publish"]) assert.doesNotMatch(jobOf(id), /needs\.verify-env-scrub/, id);
@@ -369,7 +367,6 @@ test("the scrub probe runs on each credential a model leg may use, after the sam
   assert.match(probe("verify-env-scrub"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
   assert.match(probe("verify-env-scrub-subscription"), /^ {10}subscription-token: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}$/m);
   assert.match(probe("verify-env-scrub-fallback"), /^ {10}fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}$/m);
-  // Each leg's probe looks for its own credential's name.
   for (const [job, name] of [["verify-env-scrub", "ISSUE_LANE_CLAUDE_API_KEY"], ["verify-env-scrub-subscription", "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"], ["verify-env-scrub-fallback", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"]]) {
     assert.match(probe(job), new RegExp(`^ {10}CAPTURE_PROBE_EXTRA_NAMES: ${name}$`, "m"), job);
     assert.match(stepIn(job, CHECK_STEP), new RegExp(`^ {10}KEY_NAME: ${name}$`, "m"), job);
@@ -381,7 +378,6 @@ test("the scrub probe runs on each credential a model leg may use, after the sam
 
 test("the key reaches the probe's run-claude-cli step alone, and that step runs the release's CLI after isolation", () => {
   const job = jobOf(PROBE_JOB);
-  // The probe's input, and the presence check that reads whether it is set.
   assert.deepEqual(job.match(/secrets\.[^\n]*/g), ["secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}", "secrets.ISSUE_LANE_CLAUDE_API_KEY }}"]);
   const probe = stepIn(PROBE_JOB, PROBE_STEP);
   assert.match(probe, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main\b/m);
@@ -389,7 +385,6 @@ test("the key reaches the probe's run-claude-cli step alone, and that step runs 
   assert.match(probe, /^ {10}cli-version: \$\{\{ needs\.select-release\.outputs\.release \}\}$/m);
   assert.match(probe, /^ {10}CAPTURE_PROBE_EXTRA_NAMES: ISSUE_LANE_CLAUDE_API_KEY$/m);
   assert.match(probe, /^ {10}permission-mode: dontAsk$/m);
-  // A handoff ends the job green; the check carries every other failure.
   assert.match(probe, /^ {8}continue-on-error: true$/m);
   assert.deepEqual(/^ {10}allowed-tools: \|\n((?: {12}.*\n)+)/m.exec(probe)[1].trim().split("\n").map((line) => line.trim()), ["Bash(node .base/.github/scripts/pr-verify/capture-probe.mjs)"]);
   for (const rule of ["Read(//proc/**)", "Read(/${{ runner.temp }}/**)", "Edit", "Write", "Agent"]) {
@@ -400,13 +395,11 @@ test("the key reaches the probe's run-claude-cli step alone, and that step runs 
   const at = ["Check the kill switch", "Apply the Claude managed settings", "Isolate the runner", PROBE_STEP, CHECK_STEP].map((name) => indexIn(PROBE_JOB, name));
   assert.deepEqual([...at].sort((a, b) => a - b), at);
   assert.match(stepIn(PROBE_JOB, "Check out the default branch tip"), /^ {10}persist-credentials: false$/m);
-  // Every step after the kill switch waits on it, through the resolver.
   assert.equal(ifOf(stepIn(PROBE_JOB, "Resolve the model")), "steps.kill.outputs.proceed == 'true'");
   for (const name of ["Apply the Claude managed settings", "Isolate the runner", "Write the probe prompt"]) {
     assert.equal(ifOf(stepIn(PROBE_JOB, name)), "steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'", name);
   }
   assert.equal(ifOf(stepIn(PROBE_JOB, PROBE_STEP)), "steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'");
-  // A leg the kill switch skipped or that handed off has nothing to check; a failed one does.
   assert.equal(ifOf(stepIn(PROBE_JOB, CHECK_STEP)), "always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'");
 });
 
@@ -414,7 +407,6 @@ test("the check names the release and hit names on every failure, never a value,
   const run = stepIn(PROBE_JOB, CHECK_STEP).split(/^ {8}run: \|\n/m)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(join(tmpdir(), "scrub-probe-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  // Where the step runs: the real script at .base, as the job's checkout has it.
   const scripts = join(dir, ".base/.github/scripts/pr-verify");
   mkdirSync(scripts, { recursive: true });
   writeFileSync(join(scripts, "capture-probe.mjs"), readFileSync(new URL("../pr-verify/capture-probe.mjs", import.meta.url)));
@@ -491,14 +483,12 @@ test("the gate reads the key's credit history through select-model-credential's 
   assert.doesNotMatch(gate, /secrets\./);
   assert.match(gate, /^ {10}leg: start$/m);
   assert.match(gate, /^ {10}key-job: model$/m);
-  // The window's default lives only in the action: an empty variable is its 1 hour.
   assert.match(gate, /^ {10}window-hours: \$\{\{ vars\.KEY_CREDIT_WINDOW_HOURS \}\}$/m);
   assert.match(gate, /^ {10}reset-at: \$\{\{ vars\.KEY_CREDIT_RESET_AT \}\}$/m);
   assert.match(gate, /^ {10}probe-minutes: "0"$/m);
   assert.ok(indexIn("select-release", "Pick the release") < indexIn("select-release", "Read the key's credit history"));
   assert.ok(indexIn("select-release", "Report the credit skip") > indexIn("select-release", "Read the key's credit history"));
   assert.match(jobOf("select-release"), /^ {6}actions: read\b/m);
-  // Every credential call is the same pinned action.
   const uses = [...WORKFLOW.matchAll(/^ {8}uses: (melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@.*)$/gm)].map((m) => m[1]);
   assert.equal(new Set(uses).size, 1, uses.join("\n"));
 });
@@ -547,8 +537,6 @@ test("the apply-changelog job uploads the gate's marker only after the leg's cre
   assert.equal(row.scan, "upload");
 });
 
-// The steps that write the start record, one per leg: the cap counts one
-// record per such write, and only one leg of a run writes it.
 const LEGS = ["apply-changelog", "apply-changelog-subscription", "apply-changelog-fallback"];
 const startWrite = (job) => ifOf(stepIn(job, "Record the start"));
 test("only the three model legs write a start record", () => {
@@ -569,10 +557,8 @@ test("a leg that hands off writes no start record, so only the leg that runs the
     for (const reason of ["credit-stop", "auth", "limit-stop"]) {
       assert.equal(evalIf(startWrite(job), leg({ "steps.run.outputs.handoff": "true", "steps.run.outputs.handoff-reason": reason })), false, `${job} ${reason}`);
     }
-    // An empty credential hands the release on too.
     assert.equal(evalIf(startWrite(job), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false, `${job} empty credential`);
   }
-  // The last leg never hands off, so a set token always counts.
   assert.equal(evalIf(startWrite("apply-changelog-fallback"), leg({ "steps.run.outputs.handoff": "true" })), true);
   assert.equal(evalIf(startWrite("apply-changelog-fallback"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
 });
@@ -594,7 +580,6 @@ test("a setup failure before the leg still writes a start record, so the cap bou
     for (const models of ["success", "failure"]) {
       assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": models })), true, `${job} resolve ${models}, no leg`);
     }
-    // The kill switch skips Resolve the model: that run is not counted.
     assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": "skipped" })), false, `${job} kill switch`);
     // The scan the record needs comes from the trusted checkout, which runs on the same condition.
     for (const step of ["Clear the trusted checkout path", "Check out the base for the sealer"]) {
@@ -663,24 +648,18 @@ test("a key handoff writes a job summary line naming the subscription leg that t
 
 test("the subscription leg runs after a key handoff, an empty key or a credit-gate skip, and the fallback leg after a subscription handoff", () => {
   const folded = (job) => wf.jobIf(job).replace(/^\$\{\{ (.*) \}\}$/, "$1");
-  // Each leg starts on the leg the one before it names (credential-legs.test.mjs
-  // drives these through every state).
   assert.equal(folded("apply-changelog-subscription"), "!cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1' && (needs.apply-changelog.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription')");
   assert.equal(folded("apply-changelog-fallback"), "!cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1' && needs.apply-changelog-subscription.outputs.next-leg == 'fallback'");
-  // The empty-token run counts toward the cap once, on the fallback leg.
   assert.equal(evalIf(startWrite("apply-changelog-subscription"), leg({ "steps.credential.outputs.present": "false", "steps.run.outcome": "skipped" })), false);
   assert.equal(evalIf(startWrite("apply-changelog-fallback"), leg({ "steps.run.outcome": "success" })), true);
   assert.match(jobOf("apply-changelog-subscription"), /^ {4}needs: \[select-release, apply-changelog\]$/m);
   assert.match(jobOf("apply-changelog-fallback"), /^ {4}needs: \[select-release, apply-changelog-subscription\]$/m);
-  // One credential per leg, each passed to run-claude-cli alone.
   const run = (job) => stepIn(job, "Run the changelog apply");
   assert.match(run("apply-changelog"), /^ {10}api-key: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_API_KEY \}\}$/m);
   assert.match(run("apply-changelog-subscription"), /^ {10}subscription-token: \$\{\{ secrets\.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN \}\}\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}$/m);
   assert.match(run("apply-changelog-fallback"), /^ {10}fallback-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}$/m);
-  // Each leg seals under its own job id, and the scan opens the leg that ran.
   for (const job of LEGS) assert.match(stepIn(job, "Seal the plan and the branches"), new RegExp(`^ {10}JOB_ID: ${job}$`, "m"), job);
   assert.match(stepIn("scan", "Open the apply-changelog job's sealed payloads"), /job-id: \$\{\{ needs\.apply-changelog-fallback\.result != 'skipped' && 'apply-changelog-fallback' \|\| needs\.apply-changelog-subscription\.result != 'skipped' && 'apply-changelog-subscription' \|\| 'apply-changelog' \}\}/);
-  // Only the key leg writes the credit gate's marker.
   for (const job of ["apply-changelog-subscription", "apply-changelog-fallback"]) assert.doesNotMatch(jobOf(job), /key-credit-stop/, job);
 });
 
@@ -782,10 +761,8 @@ test("the scan stops a release whose planned branch changes a hold path, naming 
   const risk = commitFile(RISK_SCORER, base);
   assert.equal(holdPathBranch(dir, base, [branch("discovery", ordinary), branch("review", skill)]), 1);
   assert.equal(holdPathBranch(dir, base, [branch("source-control", risk)]), 0);
-  // A branch outside its plugin still throws before any hold path is read.
   assert.throws(() => holdPathBranch(dir, base, [branch("discovery", skill)]), (e) => /branches\[0\] raw line 1 changes a path outside/.test(e.message) && !e.message.includes("security-review"));
 
-  // The scan subcommand rewrites the scan job's inputs to the stopped plan.
   const scanIn = join(dir, ".scan-in");
   mkdirSync(scanIn);
   const planned = plan({ base_sha: base });
@@ -805,10 +782,8 @@ test("the scan stops a release whose planned branch changes a hold path, naming 
   assert.deepEqual([rewritten.stop_reason, rewritten.branches.length], ["hold-path", 0]);
   assert.equal(readFileSync(join(scanIn, "heads.txt"), "utf8"), "");
   assert.ok(readFileSync(join(scanIn, "publish.txt"), "utf8").includes("stop_reason `hold-path`"));
-  // A plan that claims hold-path itself is refused: only the scan sets it.
   assert.throws(runScan, (e) => /stop_reason hold-path is set by the scan job/.test(String(e.stdout)));
 
-  // The stopped plan keeps its handoffs, publishes no branch and marks done.
   const stopped = readPlan(stoppedPlanText(JSON.stringify(plan())), ctx);
   assert.deepEqual([stopped.status, stopped.stop_reason, stopped.branches], ["stopped", "hold-path", []]);
   assert.equal(stopped.handoffs.length, 1);
@@ -840,7 +815,6 @@ test("a scheduled gate checks only the newest unread releases, newest first", ()
   assert.deepEqual(scheduledCandidates("range: up to date\n"), []);
 });
 
-// A fake Git Data API: each object's sha is its index in the calls made.
 function fakeApi() {
   const calls = [];
   const sha = (kind) => {
