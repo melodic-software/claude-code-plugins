@@ -119,7 +119,7 @@ render() {
     return 0
     ;;
   *.mjs | *.cjs | *.js | *.ts) prefix='//' ;;
-  *.sh | *.bash | *.py | *.ps1 | *.psm1 | *.awk | *.jq) prefix='#' ;;
+  *.sh | *.bash | *.py | *.ps1 | *.psm1 | *.awk | *.jq | *.env) prefix='#' ;;
   *.html)
     IFS= read -r first <"$src" || true
     shopt -s nocasematch
