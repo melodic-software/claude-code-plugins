@@ -262,18 +262,28 @@ session-start probe names a missing or stale copy. It needs `python3` with pygme
 (`python3 -m pip install pygments`); either missing follows the check-placement skip key,
 `git -c checks.skipmissing=python3` or `checks.skipmissing=pygments`.
 
-**CI recipe.** CI re-runs the lint on the pull request's change, judged against the base branch's
-settings, so a branch cannot lower its own level:
+**CI.** CI re-runs the lint on each change, judged against the base branch's settings, so a commit
+that skipped the hook is still checked and a branch cannot lower its own level. The plugin ships
+the script; `/code-tidying:setup apply install-ci` writes the step that calls it. It finds the
+repository's CI system from the files present, reads how the existing jobs get Python and their
+change's commits, asks only what that leaves open, and proposes the step in that system's own
+format and the repository's conventions, written only on your yes. No CI system is a default and no
+vendor template ships. `/code-tidying:setup check` reports the job that runs the script, or the
+drift when a call no longer matches its interface.
 
-1. Fetch the base branch and add a detached worktree of the pull request head.
-2. In it, `git reset --soft "$(git merge-base origin/<base> HEAD)"`, so the whole change is the
-   staged diff.
-3. Take the files the settings come from as the base commit holds them, restoring each with
-   `git restore --source=<merge base> --worktree` or deleting it when the base has none: first the
-   root `AGENTS.md` and `CLAUDE.md`, which bind `<home>`, then `<home>/code-tidying.yaml` and
-   `<home>/code-tidying.local.yaml`.
-4. From the worktree, run `sh <plugin>/git-hooks/comment-lint.sh` with Python 3 and pygments on
-   `PATH`; under `block` it exits 1 on a finding.
+```text
+bash git-hooks/comment-lint-ci.sh <head> <base>
+```
+
+`<head>` is the change's head commit, `<base>` the ref it merges into (such as `origin/main`) or a
+commit id; run it from inside the clone, with history back to their merge base and Python 3 with
+pygments on `PATH`. It adds a worktree at `<head>` without checking files out, soft-resets it to
+the merge base so the change is the staged diff, takes `AGENTS.md`, `CLAUDE.md` and the home's
+`code-tidying.yaml` and `code-tidying.local.yaml` as the merge base holds them, runs
+`comment-lint.sh` from beside itself, and removes the worktree. It exits with the lint's status
+(1 on a finding under `block`) and 2 on a usage error. A shared install
+(`apply install-git-hooks scope=shared`) commits it under `.githooks/code-tidying/` beside the
+hook.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
