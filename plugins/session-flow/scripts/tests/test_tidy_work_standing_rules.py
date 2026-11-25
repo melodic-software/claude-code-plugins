@@ -1,5 +1,5 @@
 """Contract tests for tidy_work.py's standing-rules files: one leaves with its chain's archive,
-and one whose chain has no hot file on disk is an archive item kept until that archive goes."""
+and one whose chain has no handoff file on disk is an archive item kept until that archive goes."""
 
 from __future__ import annotations
 
@@ -54,6 +54,6 @@ def test_a_standing_rules_file_without_its_archive_is_an_archive_item(env):
     standing = standing_rules_file(env)
     items = report(env, *links(env[0], STATE))
     assert items[standing.name]["kind"] == "archive"
-    assert items[standing.name]["reasons"] == ["no hot file of its chain is on disk"]
+    assert items[standing.name]["reasons"] == ["no handoff file of its chain is on disk"]
     assert clean(env, "--apply").returncode == 0
     assert standing.is_file()

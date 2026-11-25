@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "work-items:triage --ci verdict",
+  "description": "The verdict /work-items:triage --issue <n> --ci returns. A runner may narrow size, complexity and uncertainty to the repository's option keys and type to its Issue Types, as enums; check-ci-verdict.mjs holds a verdict to this file.",
+  "type": "object",
+  "properties": {
+    "labels": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 50 }
+    },
+    "comment": { "type": "string", "minLength": 1, "maxLength": 3000 },
+    "needs_human": { "type": "boolean" },
+    "size": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9-]*$" },
+    "complexity": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9-]*$" },
+    "uncertainty": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9-]*$" },
+    "flags": {
+      "type": "array",
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": { "enum": ["intent", "security", "cost", "untrusted"] }
+    },
+    "blocked_by": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 1, "maximum": 999999999 }
+    },
+    "type": { "type": "string", "minLength": 1, "maxLength": 50 }
+  },
+  "required": ["labels", "comment", "needs_human", "size", "complexity", "uncertainty", "flags", "blocked_by"],
+  "additionalProperties": false
+}

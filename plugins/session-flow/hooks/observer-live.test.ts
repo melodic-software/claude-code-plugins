@@ -1,6 +1,6 @@
 import { expect, mock, test as kitTest } from 'claude-code/testing'
 
-import { buildPrompt, parseReply, checksToSkipAfterIgnored } from './observer-live.ts'
+import { buildPrompt, checksToSkipAfterIgnored, isResolved, parseReply, summarize } from './observer-live.ts'
 
 const ON = { options: { observer_enabled: true } }
 const test = (name: string, ...rest: [any] | [any, any]) =>
@@ -27,11 +27,28 @@ type World = {
   forks: string[]
   replies: (() => Promise<object>)[]
   fills: string[]
+  toasts: string[]
+  rewrites: string[]
+  clock?: any
+  runs: (readonly string[])[]
+  gitCommonDir?: string
 }
 
-const world = (on: any, env: Record<string, string> = {}) => {
-  const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [] }
-  mock.clock(on, { now: 1_791_050_400_000 })
+const world = (on: any, env: Record<string, string> = {}, hasProcess = true) => {
+  const w: World = { sid: SID, files: {}, store: {}, forks: [], replies: [], fills: [], toasts: [], rewrites: [], runs: [] }
+  on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
+    if (!hasProcess) throw new Error('process.run is not available on this surface')
+    w.runs.push(e.argv)
+    if (e.argv[0] === 'git') return { value: w.gitCommonDir ? { exitCode: 0, stdout: `${w.gitCommonDir}\n`, stderr: '' } : { exitCode: 128, stdout: '', stderr: 'not a git repository' } }
+    if ((e.argv[2] as string).includes('rmSync')) return { value: { exitCode: 0, stdout: '', stderr: '' } }
+    const path = e.argv[3] as string
+    w.files[path] = (w.files[path] ?? '') + (e.init?.stdin ?? '')
+    return { value: { exitCode: 0, stdout: '', stderr: '' } }
+  })
+  on('ui.toast', ($: unknown, e: { text: string }) => (w.toasts.push(e.text), { value: undefined }))
+  on('command.register', ($: unknown, e: { name: string }) => ({ value: { command: e.name } }))
+  on('command.run', () => ({ text: 'beneath' }))
+  w.clock = mock.clock(on, { now: 1_791_050_400_000 })
   mock.env(on, env)
   on('session.id', () => ({ value: w.sid }))
   on('process.hookEnv', () => ({ value: { CLAUDE_PLUGIN_DATA: DATA, CLAUDE_PROJECT_DIR: PROJECT } }))
@@ -40,11 +57,16 @@ const world = (on: any, env: Record<string, string> = {}) => {
     if (!(e.path in w.files)) throw new Error(`ENOENT: ${e.path}`)
     return { value: w.files[e.path] }
   })
-  on('fs.write', ($: unknown, e: { path: string; text: string }) => ((w.files[e.path] = e.text), { value: undefined }))
+  on('fs.stat', ($: unknown, e: { path: string }) => ({ value: { kind: 'file', size: (w.files[e.path] ?? '').length, mtimeMs: 1_791_050_400_000 } }))
+  on('fs.write', ($: unknown, e: { path: string; text: string }) => {
+    if (e.path in w.files) w.rewrites.push(e.path)
+    w.files[e.path] = e.text
+    return { value: undefined }
+  })
   on('fs.list', ($: unknown, e: { path: string }) => ({
     value: Object.keys(w.files)
       .filter(f => f.startsWith(`${e.path}/`) && !f.slice(e.path.length + 1).includes('/'))
-      .map(f => ({ name: f.slice(e.path.length + 1), kind: 'file', size: 0, mtimeMs: 0, isLink: false })),
+      .map(f => ({ name: f.slice(e.path.length + 1), kind: 'file', size: 0, mtimeMs: 1_791_050_400_000, isLink: false })),
   }))
   on('store.get', ($: unknown, e: { key: string }) => ({ value: w.store[e.key] }))
   on('store.set', ($: unknown, e: { key: string; value: unknown }) => ((w.store[e.key] = e.value), { value: undefined }))
@@ -171,7 +193,7 @@ test('a finding lands in a new self-ignored ledger and the band, and Send fills 
   expect(w.files[ledger]).toContain('Rule: R6 merge only after the verdict')
   expect(w.files[`${PROJECT}/.work/.gitignore`]).toBe('*\n')
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /observer · verification · Merged without reading/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /observer · verification \(step 6\) · Merged without reading/ })).toBeDefined()
   await ui.press({ key: 'send' })
   expect(w.fills.length).toBe(1)
   expect(w.fills[0]).toContain('> verification: Merged without reading the pr-verify verdict.')
@@ -205,6 +227,231 @@ test('a finding seen in an earlier session is not reported again', async ($, on)
   expect(w.forks[0]).toContain('- merged without reading the pr-verify verdict')
 })
 
+test('the ledger and usage file are only appended to, never rewritten, so a checkpoint written alongside survives', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING), async () => ({ isAnswered: true, text: FINDING.replace('Merged without reading', 'Pushed without reading'), usage: USAGE }))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  w.files[ledger] += '\n## Checkpoint written by running-retro\n'
+  await steps($, 't1', 12)
+  expect(w.files[ledger]).toContain('## Checkpoint written by running-retro')
+  expect(w.files[ledger]).toContain('Pushed without reading')
+  expect(w.rewrites).toEqual([])
+})
+
+test('Noted records the finding as confirmed and says so', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'noted' })
+  await ui.unmount()
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toContain('- Confirmed ')
+  expect(w.toasts).toEqual(['observer: noted in the running-retro ledger'])
+})
+
+test('without process.run, appends fall back to read-and-write, so later findings, usage rows and Noted still land', async ($, on) => {
+  const w = world(on, {}, false)
+  w.files[LIVE] = ''
+  w.replies.push(answer(FINDING), async () => ({ isAnswered: true, text: FINDING.replace('Merged without reading', 'Pushed without reading'), usage: USAGE }))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 12)
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toContain('Pushed without reading')
+  expect(live(w).map(r => r.outcome)).toEqual(['shown', 'shown'])
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'noted' })
+  await ui.unmount()
+  expect(w.files[ledger]).toContain('- Confirmed ')
+  expect(live(w).at(-1)).toMatchObject({ answer: 'noted' })
+  const after = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await after.find({ key: 'noted' })).toBeUndefined()
+  await after.unmount()
+})
+
+test('Why shows the rule, the evidence and the off switch; the row alone shows neither', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const closed = await $.ui.mount({ ...BAND, surface })
+    expect(await closed.find({ type: 'Text', text: /R6 merge only after the verdict/ })).toBeUndefined()
+    await closed.press({ key: 'why' })
+    await closed.unmount()
+    const open = await $.ui.mount({ ...BAND, surface })
+    expect(await open.find({ type: 'Text', text: /R6 merge only after the verdict/ })).toBeDefined()
+    expect(await open.find({ type: 'Text', text: /gh pr merge ran before/ })).toBeDefined()
+    expect(await open.find({ type: 'Text', text: /pause: \/observer off/ })).toBeDefined()
+    expect(await open.find({ type: 'Text', text: /this session: .*cache read/ })).toBeDefined()
+    await open.press({ key: 'why' })
+    await open.unmount()
+  }
+  expect(w.fills).toEqual([])
+})
+
+test('buttons put Send first and use hotkeys 5 to 9, clear of the built-in side agent\'s 1 to 4 and 0', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const buttons = await ui.findAll({ type: 'Button' })
+  expect(buttons.map(b => [b.key, b.props.hotkey])).toEqual([
+    ['send', '5'],
+    ['noted', '6'],
+    ['dispute', '7'],
+    ['why', '8'],
+    ['dismiss', '9'],
+  ])
+  await ui.unmount()
+})
+
+test('after Dismiss the row offers the built-in side agent\'s answers on hotkeys 5 to 9, and Turn off stops live checks in this session only', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dismiss' })
+  await ui.unmount()
+  const asked = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const buttons = await asked.findAll({ type: 'Button' })
+  expect(buttons.map(b => [b.key, b.props.hotkey, b.props.label])).toEqual([
+    ['helpful', '5', 'That was helpful'],
+    ['not-relevant', '6', 'Not relevant'],
+    ['unclear', '7', "Couldn't understand"],
+    ['turn-off', '8', 'Turn off checks'],
+    ['close', '9', 'Close'],
+  ])
+  await asked.press({ key: 'turn-off' })
+  await asked.unmount()
+  expect(w.store.paused).toBeUndefined()
+  expect(live(w).at(-1)).toMatchObject({ answer: 'turned_off' })
+  expect(w.toasts.at(-1)).toBe('observer: live checks off for this session (/observer on resumes; /observer off pauses every session)')
+  await steps($, 't1', 12)
+  expect(w.forks.length).toBe(1)
+})
+
+test('Dismiss asks once whether the finding was useful, records the answer, and the question expires', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING), answer(FINDING.replace('Merged without reading', 'Pushed without reading')))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await ui.press({ key: 'dismiss' })
+  await ui.unmount()
+  const asked = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await asked.find({ type: 'Text', text: /observer · Dismissed\./ })).toBeDefined()
+  await asked.press({ key: 'helpful' })
+  await asked.unmount()
+  const gone = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await gone.find({ key: 'helpful' })).toBeUndefined()
+  await gone.unmount()
+  expect(live(w).filter(r => r.answer).map(r => r.answer)).toEqual(['dismissed', 'helpful'])
+  await steps($, 't1', 12)
+  const second = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  await second.press({ key: 'dismiss' })
+  await second.unmount()
+  await w.clock.advance(20_000)
+  const expired = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await expired.find({ key: 'helpful' })).toBeUndefined()
+  await expired.unmount()
+})
+
+test('the next check clears a finding the assistant has fixed, and the ledger says so', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING), answer('finding: none\nresolved: yes'))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 12)
+  expect(w.forks[1]).toContain('The person is being shown this earlier finding: "Merged without reading the pr-verify verdict."')
+  const [ledger] = ledgerFiles(w).filter(f => f.endsWith('.md'))
+  expect(w.files[ledger]).toContain('- Resolved by the assistant ')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ key: 'send' })).toBeUndefined()
+  await ui.unmount()
+  expect(live(w).filter(r => r.answer).map(r => r.answer)).toEqual(['resolved'])
+})
+
+test('/observer off pauses live checks on this machine and /observer on resumes them', async ($, on) => {
+  const w = world(on)
+  await start($)
+  const off = await $.command.run({ command: 'observer', args: 'off' })
+  expect(off.text).toContain('paused')
+  expect(w.store.paused).toBe(true)
+  await turn($, 't1')
+  await steps($, 't1', 12)
+  expect(w.forks.length).toBe(0)
+  await $.command.run({ command: 'observer', args: 'on' })
+  await turn($, 't2')
+  await steps($, 't2', 6)
+  expect(w.forks.length).toBe(1)
+})
+
+test('a check still in flight when /observer off runs shows nothing', async ($, on) => {
+  const w = world(on)
+  let release = (_: object) => {}
+  w.replies.push(() => new Promise(r => (release = r)))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  await $.command.run({ command: 'observer', args: 'off' })
+  release({ isAnswered: true, text: FINDING, usage: USAGE })
+  await settle()
+  expect(ledgerFiles(w).filter(f => f.endsWith('.md'))).toEqual([])
+  expect(live(w).filter(r => r.trigger).map(r => r.outcome)).toEqual(['paused'])
+})
+
+test('/observer reports this session and the last day from the usage files', async ($, on) => {
+  const w = world(on)
+  w.files[`${DATA}/session-flow-observer/live-older.jsonl`] = [
+    { at: '2026-10-01T00:00:00.000Z', trigger: 'step', outcome: 'none', latencyMs: 9000, usage: USAGE },
+    { at: new Date(1_791_050_400_000 - 3_600_000).toISOString(), trigger: 'turn-end', outcome: 'none', latencyMs: 4000, usage: USAGE },
+  ]
+    .map(r => `${JSON.stringify(r)}\n`)
+    .join('')
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const r = await $.command.run({ command: 'observer', args: '' })
+  expect(r.text).toContain('live checks: on; step on, turn end off')
+  expect(r.text).toContain('This session:\n1 checks (step 1); outcomes: none 1')
+  expect(r.text).toContain('Last 24 hours, all sessions:\n2 checks (turn-end 1, step 1)')
+  expect(r.text).toContain('latency: 4s total, 2s per check')
+  const bad = await $.command.run({ command: 'observer', args: 'sideways' })
+  expect(bad.text).toContain('Usage: /observer [on|off]')
+})
+
+kitTest('summarize totals checks, tokens, latency, answers, and flags a cold-cache check', async () => {
+  const text = summarize([
+    { trigger: 'step', outcome: 'none', latencyMs: 2000, usage: { output_tokens: 100, cache_read_input_tokens: 500_000, cache_creation_input_tokens: 300 } },
+    { trigger: 'turn-end', outcome: 'shown', latencyMs: 4000, usage: { output_tokens: 300, cache_read_input_tokens: 100_000, cache_creation_input_tokens: 40_000 } },
+    { answer: 'noted' },
+  ])
+  expect(text).toBe(
+    [
+      '2 checks (step 1, turn-end 1); outcomes: none 1, shown 1',
+      'tokens: 600K cache read, 40K cache written, 400 output; 300K read per check',
+      'latency: 6s total, 3s per check; 1 cold-cache check(s)',
+      'answers: noted 1',
+    ].join('\n'),
+  )
+  expect(summarize([])).toBe('no checks yet')
+  expect(isResolved('finding: none\nResolved: yes')).toBe(true)
+  expect(isResolved('finding: none')).toBe(false)
+})
+
 test('Dispute marks the ledger and suppresses the finding for good', async ($, on) => {
   const w = world(on)
   w.replies.push(answer(FINDING))
@@ -233,7 +480,8 @@ test('ignored findings back off: the third ignored one skips the next eligible c
   await turn($, 't2')
   await steps($, 't2', 12)
   expect(w.forks.length).toBe(2)
-  expect(live(w).map(r => [r.turnId, r.step])).toEqual([['t1', 6], ['t2', 12]])
+  expect(live(w).filter(r => r.trigger).map(r => [r.turnId, r.step])).toEqual([['t1', 6], ['t2', 12]])
+  expect(live(w).filter(r => r.answer).map(r => r.answer)).toEqual(['ignored'])
 })
 
 test('a finding is redacted before the ledger write', async ($, on) => {
@@ -312,4 +560,68 @@ kitTest('buildPrompt lists what was seen and disputed', async () => {
   expect(p).toContain('- a seen one')
   expect(p).toContain('- a disputed one')
   expect(buildPrompt([], [])).not.toContain('Already reported')
+})
+
+test('buildPrompt lists findings marked not relevant and asks for plain words after an unclear one', () => {
+  const p = buildPrompt([], [], undefined, ['a not relevant one'], true)
+  expect(p).toContain('Not relevant to the person')
+  expect(p).toContain('- a not relevant one')
+  expect(p).toContain('could not understand an earlier finding')
+  expect(buildPrompt([], [])).not.toContain('could not understand')
+})
+
+test('Not relevant and Couldn\'t understand shape the next checks', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING), answer(FINDING.replace('Merged without reading', 'Pushed without reading')))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  for (const key of ['not-relevant', 'unclear']) {
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await ui.press({ key: 'dismiss' })
+    await ui.unmount()
+    const asked = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    await asked.press({ key })
+    await asked.unmount()
+    if (key === 'not-relevant') await step($, 't1', 12)
+  }
+  expect(w.store.notRelevant).toEqual(['Merged without reading the pr-verify verdict.'])
+  expect(w.store.unclear).toBe(1)
+  expect(w.forks[1]).toContain('- Merged without reading the pr-verify verdict.')
+  await step($, 't1', 18)
+  expect(w.forks[2]).toContain('could not understand an earlier finding')
+})
+
+test('the ledger goes to the main checkout when the session runs in a linked worktree', async ($, on) => {
+  const w = world(on)
+  w.gitCommonDir = '/main/.git'
+  w.files['/main/.work/running-retros/.keep'] = ''
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(Object.keys(w.files).some(f => /^\/main\/\.work\/running-retros\/.*-running-retro-session\.md$/.test(f))).toBe(true)
+  expect(ledgerFiles(w)).toEqual([])
+})
+
+test('session start prunes every observer file not written for 30 days', async ($, on) => {
+  const w = world(on)
+  w.files[`${DATA}/session-flow-observer/live-old.jsonl`] = ''
+  await start($)
+  await settle()
+  const prune = w.runs.find(a => a[0] === 'node' && (a[2] as string).includes('rmSync'))
+  expect(prune?.[3]).toBe(`${DATA}/session-flow-observer`)
+  expect(Number(prune?.[4])).toBe(1_791_050_400_000 - 30 * 86_400_000)
+})
+
+test('the band keeps a blank line above it', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer(FINDING))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const boxes = await ui.findAll({ type: 'Box' })
+  expect(boxes.some(b => b.props.marginTop === 1)).toBe(true)
+  await ui.unmount()
 })

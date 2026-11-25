@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.8.1] - 2026-11-25
+
+### Fixed
+
+- The behavior-probes runner removes the `~/.claude/projects` folder a probe session created
+  when, after its transcript is collected, the folder holds only empty directories such as the
+  auto-memory `memory` folder. A folder holding any file is left as it was.
+
 ## [10.8.0] - 2026-11-25
 
 ### Added

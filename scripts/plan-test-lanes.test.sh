@@ -386,6 +386,18 @@ rm "$repo/plugins/a/unread.css"
 is "$(key unmapped)" 2 && is "$(key bash)" false && is "$(key windows_steps)" "[]"
 check "an unmapped file on each side of the inert list counts once each" $?
 
+wide=()
+for i in $(seq -w 1 250); do
+  mk "plugins/m/m$i.sh" "echo $i"
+  mk "plugins/m/m$i.test.sh" "bash \"\$(dirname \"\$0\")/m$i.sh\""
+  wide+=("plugins/m/m$i.sh")
+done
+plan -- "${wide[@]}" plugins/z/data.cfg
+rm -rf "${repo:?}/plugins/m"
+is "$(suites bash | wc -l | tr -d ' ')" 250 && is "$(suites bash | head -n 1)" plugins/m/m001.test.sh &&
+  is "$(suites bash | tail -n 1)" plugins/m/m250.test.sh && is "$(key unmapped)" 1
+check "251 changed files, split across selector runs, still plan every sibling once and count the one unmapped file" $?
+
 plan -- plugins/z/z.sh
 is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12 && is "$(key python)" false
 check "an unmapped shell file runs the whole shell corpus and is counted" $?
@@ -443,5 +455,16 @@ yml_jobs="$(awk '
   }' "$REPO_ROOT/.github/workflows/pr-test-platforms.yml" | LC_ALL=C sort -u)"
 same "$yml_jobs" "$(cut -d' ' -f1 <<<"$plan_pairs" | LC_ALL=C sort -u)"
 check "live: every pr-test-platforms.yml job gates on the plan's job list under its own name" $?
+
+caps="$(awk '
+  /^  [A-Za-z0-9_-]+:[[:blank:]]*$/ { job = $1 }
+  job == "select-tests-windows:" && /^    timeout-minutes:/ { j = $2 }
+  job == "select-tests-windows:" && match($0, /timeout [0-9]+m scripts\/plan-test-lanes\.sh/) {
+    s = substr($0, RSTART + 8); sub(/m .*/, "", s)
+  }
+  END { print j + 0, s + 0 }' "$REPO_ROOT/.github/workflows/pr-test-platforms.yml")"
+read -r job_cap plan_cap <<<"$caps"
+((plan_cap > 0 && plan_cap < job_cap))
+check "live: the Windows planner stops itself before its job's cap, so a slow plan fails instead of skipping the Windows jobs (job $job_cap, plan $plan_cap)" $?
 
 test_harness::report

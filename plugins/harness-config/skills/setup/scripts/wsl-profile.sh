@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# wsl-profile.sh — the opt-in WSL hardening profile for Claude Code settings.
-#
-#   wsl-profile.sh detect             exit 0 on a WSL host, 1 otherwise
-#   wsl-profile.sh print              print the settings block for this host (WSL only)
-#   wsl-profile.sh lint <file>        fail on any Write(path) rule or non-`//` Read/Edit path rule
-#
-# Print-only: nothing is written. Paths come from $HOME and the Windows user
-# directories visible under $WSL_PROFILE_MNT_ROOT (default /mnt); nothing
-# machine-specific is baked in. Exit: 0 ok, 1 not WSL (detect/print) or a rule
-# failed lint, 2 usage or missing prerequisite.
 set -uo pipefail
 
 MNT_ROOT="${WSL_PROFILE_MNT_ROOT:-/mnt}"
@@ -50,7 +40,6 @@ print_profile() {
     echo "wsl-profile: ${#win_homes[@]} Windows user directories found; rules emitted for each, delete the ones that are not yours" >&2
   fi
 
-  # `//` plus the path without its leading slash is the absolute form.
   local w rules=(
     "Read(/$HOME/.ssh/id_*)"
     "Read(/$HOME/.azure/msal_token_cache*)"

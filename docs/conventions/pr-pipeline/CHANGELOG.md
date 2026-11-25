@@ -1,5 +1,28 @@
 # Changelog for the PR pipeline convention
 
+## [13.0.2] - 2026-11-25
+
+### Changed
+
+- pr-verify's resolver (`resolve-pr.mjs`) hands `select-trusted-text` the reads it already made of the pull request it judges: the pull request as `GET /commits/{sha}/pulls` listed it, and the first pages of its closing issue references and, where its spec query reads them, its title renames. `select-trusted-text` takes them through its new `reads-path` input instead of reading the pull request and those pages again, so each judgment spends one REST and, for a pull request whose body may be spec, one GraphQL call fewer. Both trust filters run unchanged on the handed-on text. The body is handed on with the edit stamp from the same spec answer, and is kept only when the edit query's stamp for the pull request still matches, so an edit between the two reads withholds it; this also closes the gap between the pull request read and the edit query that a full read had. A handed-on pull request at a head other than the new `head-sha` input fails the step. A missing or malformed hand-off fails the step with no context written, as a failed read does, and the step deletes the hand-off either way.
+
+## [13.0.1] - 2026-11-25
+
+### Changed
+
+- pr-verify's resolver (`resolve-pr.mjs`) and `upstream-jobs.mjs` take the pr-require-checks run from the `workflow_run` event payload instead of reading it back, and read the jobs of that payload's attempt (`/actions/runs/{id}/attempts/{n}/jobs`) instead of the run's latest jobs, so each pr-verify run spends one GitHub API call fewer and a re-run started since cannot change the run or the jobs judged. A payload missing a checked field, or with no attempt number, skips as `not-a-passing-run`; a missing or unreadable payload fails the step. The lost-run reconciler passes the run it already listed to the resolver, so its spec checks spend one call fewer each.
+
+## [13.0.0] - 2026-11-25
+
+### Changed
+
+- **Breaking:** a lane's `stage` is one of `intake`, `admit`, `build`, `refine`, `review`, `fix`, `verify`, `hold`, `merge`, `post-merge`, `upstream` or `maintenance`. `work-resolve-issue` is `build`, `work-unblock` is `admit`, `pr-unblock` is `fix`, and the review lanes are `review`; `work`, `pre-ready` and `unblock` are gone from the schema, so a config that still sets them fails it.
+- `lane-rules.json` is the one list of lane ids: each id is its workflow file stem, or a lane another repository's `lane-grants.json` row admits. The review lanes are `pr-review-hosted` and `pr-review-security-hosted`, and `pr-review-main`, `pr-rate-merge-risk`, `pr-run-plugin-evals`, `post-merge-test-mutation` and `maintenance-audit-lane-runs` have rows. `lane-registry.json` names a review caller's footer under `footer`. `lane-ids.test.mjs` fails when the registry, the funding file, the grants or the README's Lanes table name a lane the list lacks.
+
+### Removed
+
+- `post-merge-verify` and `post-merge-sweep-comments`, which had no workflow and no grant, and the README rows for them, `pr-run-checks` and `pr-explain`.
+
 ## [12.12.2] - 2026-11-25
 
 ### Fixed

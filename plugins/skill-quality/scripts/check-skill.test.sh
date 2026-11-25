@@ -4017,8 +4017,8 @@ None known.
 '
 out="$(run next-malformed 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section 1 bullet(s); the outcome-bullet shape carries two to four; 1 bullet(s) name no /plugin:skill successor" <<<"$out"; then
-  pass "a malformed '## Next' warns on both the bullet count and the missing successor"
+if [[ $rc -eq 0 ]] && grep -q "WARN: '## Next' section a single bullet; write it as the one-line form; 1 bullet(s) name no /plugin:skill successor" <<<"$out"; then
+  pass "a malformed '## Next' warns on both the single bullet and the missing successor"
 else
   fail "malformed '## Next' should warn on count and token (rc=$rc): $out"
 fi
@@ -4177,6 +4177,100 @@ if [[ $rc -eq 0 ]] && ! grep -q "WARN: '## Next'" <<<"$out"; then
 else
   fail "'## Next' with 'this enabled' should not warn (rc=$rc): $out"
 fi
+
+routing_case() {
+  local name="$1" sections="$2" expect="$3" label="$4" desc="${5:-Routing fixture.}"
+  make_skill "$name" '---
+name: '"$name"'
+description: "'"$desc"' Use when: '"'"''"$name"''"'"'."
+---
+
+## Purpose
+
+Routing-section fixture.
+'"$sections"'
+## Gotchas
+
+None known.
+'
+  out="$(run "$name" 2>&1)"
+  rc=$?
+  if [[ -z "$expect" ]]; then
+    if [[ $rc -eq 0 ]] && ! grep -qE "WARN: ('## (Next|Related|See also)|description names)" <<<"$out"; then
+      pass "$label"
+    else
+      fail "$label (rc=$rc): $out"
+    fi
+  elif [[ $rc -eq 0 ]] && grep -qF "$expect" <<<"$out"; then
+    pass "$label"
+  else
+    fail "$label (rc=$rc): $out"
+  fi
+}
+
+routing_case next-five-bullets '
+## Next
+
+- One: /a:one.
+- Two: /a:two.
+- Three: the plan stage (/planning:plan).
+- Four: /a:four.
+- Five: `/a:five args`.
+' '' "five one-target outcome bullets, one a stage target, pass with no bullet cap"
+
+routing_case next-chain '
+## Next
+
+- Fixed: /verification:confirm fix, then /review:quality-gate.
+- Not fixed: /debugging:debug.
+' "WARN: '## Next' section 1 bullet(s) name more than one skill; one target per bullet" \
+  "a chained bullet naming two skills warns on one target per bullet"
+
+routing_case next-no-lead '
+## Next
+
+- /verification:confirm when the fix lands.
+- Not fixed: /debugging:debug.
+' "WARN: '## Next' section 1 bullet(s) do not open with a '<result>: ' lead" \
+  "a token-first bullet warns on the missing result lead"
+
+routing_case next-filler '
+## Next
+
+- Fixed: /verification:confirm.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
+' "WARN: '## Next' section carries the 'unsure where this leaves the work' bullet" \
+  "the unsure-reader workflow bullet warns"
+
+routing_case related-bad '
+## Related
+
+- Ranking first: /a:rank.
+- /a:other covers the rest.
+- A plain note with no skill.
+' "WARN: '## Related' has 2 bullet(s) not in the '<condition>: /plugin:skill [args].' form" \
+  "Related bullets missing a condition lead or a skill warn, counted"
+
+routing_case see-also-skill '
+## See also
+
+- [Source tiers](https://example.com/source-tiers).
+- /a:rank for ranking.
+' "WARN: '## See also' names the skill /a:rank" \
+  "a skill token under See also warns"
+
+routing_case see-also-files '
+## See also
+
+- [Source tiers](https://example.com/source-tiers).
+' '' "a See also holding only files passes"
+
+mkdir -p "$TMP/fixplug/skills/target"
+printf -- '---\nname: target\ndescription: x\n---\n' >"$TMP/fixplug/skills/target/SKILL.md"
+routing_case desc-bare '' "WARN: description names 'fixplug:target' without the slash; write a skill token as /fixplug:target" \
+  "a description naming an existing skill without the slash warns" "Not for ranking: fixplug:target."
+routing_case desc-slash '' '' "a slashed skill token, or a colon pair naming no skill, passes" \
+  "Not for ranking: /fixplug:target. Cites file:line."
 
 make_stage_skill() {
   make_skill "$1" '---

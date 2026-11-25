@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "If it is on this WSL platform, use ListAgents and SendMessage with no SSH. If it is on the Windows platform, use R1 and claude.exe."},
+    {"answer": "No ssh is needed on the same machine.", "why": "mentions ssh without a hop"},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "Run `ssh lap-01 'claude -p \"SendMessage to other: hi\"'`.", "why": "ssh to this laptop"},
+    {"answer": "ssh.exe -t user@desk-01 claude -p", "why": "ssh to another host with flags"}
+  ]
+}

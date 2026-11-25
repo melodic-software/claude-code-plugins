@@ -81,6 +81,34 @@ CTL="$(printf '%s' "$BODY_LINE" | tr -cd '\000-\037' | wc -c | tr -d ' \r')"
 if [[ "$CTL" == "0" ]]; then ok "body argv item has zero control bytes"; else fail "body carries $CTL control bytes"; fi
 if grep -q 'INJECT' <<<"$BODY_LINE"; then ok "printable text preserved (stripped bytes, not content)"; else fail "over-stripped: $BODY_LINE"; fi
 
+LINUX_SHIM="$WORK/linux-shim"
+mkdir -p "$LINUX_SHIM"
+NS_LOG="$WORK/notify-send.log"
+printf '#!/usr/bin/env bash\necho Linux\n' >"$LINUX_SHIM/uname"
+{
+  printf '#!/usr/bin/env bash\nlog=%q\n' "$NS_LOG"
+  cat <<'EOF'
+for a in "$@"; do printf 'ARG=[%s]\n' "$a"; done >"$log"
+EOF
+} >"$LINUX_SHIM/notify-send"
+chmod +x "$LINUX_SHIM/uname" "$LINUX_SHIM/notify-send"
+: >"$NS_LOG"
+# shellcheck disable=SC2016  # $1/$2/$3 below are the inner bash -c positionals; must NOT expand here
+(
+  env -u CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_OS_TOAST_ENABLED \
+    PATH="$LINUX_SHIM:$PATH" \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_ENABLED=true \
+    CLAUDE_PLUGIN_OPTION_LANE_NOTIFY_TERMINAL_ENABLED=false \
+    bash -c 'source "$1"; lane::notify "$2" "$3"' _ "$LIB" "--urgency=critical" "-a evil"
+) >/dev/null 2>&1
+wait_for "$NS_LOG"
+NS_ARGS="$(tr '\n' ' ' <"$NS_LOG" 2>/dev/null)"
+if [[ "$NS_ARGS" == "ARG=[--] ARG=[--urgency=critical] ARG=[-a evil] " ]]; then
+  ok "notify-send ends option parsing before a dash-leading title and body"
+else
+  fail "notify-send argv lets a dash-leading title or body act as an option: $NS_ARGS"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

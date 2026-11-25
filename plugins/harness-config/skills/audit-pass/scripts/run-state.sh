@@ -1,68 +1,4 @@
 #!/usr/bin/env bash
-# run-state.sh — the executable half of `audit-pass`'s run-state contract:
-# where a run's state lives, the lease that tells a live run from an abandoned
-# one, and the append-only partial `--resume` reads.
-#
-# `reference/run-state-and-resumability.md` specifies the lease (path, contents,
-# refresh discipline, a two-sided liveness window, a `released` tombstone) and
-# the epoch-scoped append-only partial that `--resume` reads
-# (`reference/report-location-and-schema.md` §7). This enforces the half a
-# script can; the skill's §3 states which clauses remain model discipline.
-#
-# WHAT IT DOES NOT DO, deliberately. Stale-lease adoption (`owner_epoch`
-# compare-and-set) and report assembly (highest-epoch, highest-terminated-attempt
-# selection) are NOT implemented here. They are specified in §3 and §7 and are
-# carried out by the run itself. This script writes `owner_epoch` into the lease
-# and names the partial after it, so the epoch is a real value on disk rather
-# than a notion — but nothing here increments it or fences a previous holder.
-# Claiming otherwise would put the same "reads as enforced" defect back one layer
-# down.
-#
-# `--epoch <n>` is the seam that boundary leaves behind, and it is named here so
-# it does not read as a feature. On `lease acquire`, an ADOPTING run records the
-# epoch it won; a fresh run omits it and gets 1. On `partial append`, a writer
-# passes the epoch IT HOLDS, and the record lands in that epoch's file no matter
-# what the lease now says — which is what gives a fenced writer its own
-# superseded file instead of letting it interleave into the adopter's. Omitting
-# it there falls back to the lease's current epoch, correct only for a run whose
-# epoch nothing has moved. The compare-and-set that decides who won is §3's,
-# performed by the run, not by this script.
-#
-# `lease acquire` also requires `--plugin-data`: it is the only command that
-# CREATES a directory, so it is where the write tree is pinned. A run dir outside
-# `<plugin-data>/runs/` is refused rather than created.
-#
-# SCOPE OF WRITES. Everything this script writes goes under the run directory it
-# derives, which is `<plugin-data>/runs/<state-key>/<run-id>/`. It never writes
-# into a target repository, so it does not widen the skill's report-only contract
-# (`disallowed-tools: Edit, NotebookEdit`; `Write` and Bash kept for exactly this
-# state). Both path segments it contributes are validated before use:
-# `lib/state-key.sh` already refuses a remote URL that would become traversing
-# directory components, and `--run-id` here is accepted only as a plain segment.
-# An unvalidated id would walk the run directory out of the plugin's namespace
-# through the same door that library documents defending.
-#
-# PORTABILITY. No jq, no GNU-only flags: coreutils plus `git` (only through
-# `lib/state-key.sh`) plus one of `sha256sum` / `shasum` (again, only through
-# that library). Timestamps use `date -u +%s` and `date -u +%Y-%m-%dT%H:%M:%SZ`.
-#
-# Usage:
-#   run-state.sh paths          --plugin-data <dir> --run-id <id> [--root <path>]
-#   run-state.sh lease acquire  --run-dir <dir> --run-id <id> --plugin-data <dir>
-#                               [--stale-after <s>] [--skew-grace <s>] [--epoch <n>]
-#   run-state.sh lease heartbeat --run-dir <dir>
-#   run-state.sh lease release   --run-dir <dir>
-#   run-state.sh lease classify  --run-dir <dir>
-#   run-state.sh partial append  --run-dir <dir> --record <json-line> [--epoch <n>]
-#
-# `--plugin-data` is required because `${CLAUDE_PLUGIN_DATA}` is NOT in the Bash
-# tool's environment (plugins reference: the three placeholders are exported to
-# hook processes and to MCP/LSP subprocesses, and the Bash tool is none of
-# those). It DOES substitute in skill content, so the skill passes the already-
-# resolved path it can see. `$CLAUDE_PLUGIN_DATA` from the environment is honored
-# where one genuinely exists (a hook context); absent both, this exits 2 naming
-# the remedy rather than guessing a directory.
-#
 # Exit codes:
 #   0  the operation succeeded (for `classify`, the verdict is on stdout)
 #   2  usage error, rejected argument, or a missing environment prerequisite
@@ -71,10 +7,6 @@
 #      been superseded and must stop dispatching. Carried in the exit code rather
 #      than only in a stderr string, because a control that announces an abort
 #      nobody enforces is the defect this file exists to remove.
-#
-# `classify` prints one of `live`, `stale`, `released`, `missing` and exits 0 —
-# a classification is an answer, not a failure. Acting on it (refusing `--resume`
-# against a `live` lease) belongs to the caller, which is the skill.
 
 set -uo pipefail
 
@@ -129,8 +61,6 @@ validate_run_id() {
   esac
 }
 
-# Physical (symlink-resolved) form of a directory that exists. `pwd -P` is the
-# portable resolver; `readlink -f` is GNU-only and this must run on BSD userland.
 physical_path() {
   (cd "$1" 2>/dev/null && pwd -P) || return 1
 }
@@ -269,15 +199,6 @@ skew_grace_s=$LEASE_SKEW_GRACE
   mv -f "$tmp" "$dir/lease" || die "cannot replace lease under: $dir"
 }
 
-# parse_run_dir_arg <context> [args…] — the argument loop shared by the three
-# lease commands that take nothing but `--run-dir`. Sets RUN_DIR; <context> is
-# the subcommand name that appears in an unknown-argument refusal. It sets a
-# global rather than printing because `die` must exit the script, and a command
-# substitution would confine that exit to a subshell.
-#
-# Post-parse validation stays with each command: heartbeat and release require
-# an existing run dir, while classify must answer `missing` for one that is not
-# there rather than refusing.
 parse_run_dir_arg() {
   local context="$1"
   shift
@@ -409,31 +330,6 @@ cmd_lease_acquire() {
   *) die "--run-dir is not under \$plugin-data/runs/ — refusing to write outside the plugin's own tree: $run_dir" ;;
   esac
 
-  # A LEXICAL PREFIX CHECK IS NOT CONTAINMENT WHILE SYMLINKS EXIST. With
-  # `runs/link -> /tmp/outside`, the path `<plugin-data>/runs/link/run` passes the
-  # comparison above and then `mkdir` and the lease write follow the link straight
-  # out of the plugin tree — the guarantee would hold on the string and fail on
-  # the filesystem. So both sides are canonicalized physically before they are
-  # compared: `pwd -P` resolves every symlink in a path that exists, and
-  # `readlink -f` is not used because it is GNU-only.
-  #
-  # `--run-dir` usually does not exist yet, which is the point of `mkdir` below,
-  # so its deepest EXISTING ancestor is what gets resolved — the only part a
-  # symlink can be in.
-  #
-  # DISCLOSED RESIDUAL: this is check-then-act, so a symlink planted between the
-  # resolution and the `mkdir` is not covered. Closing that needs an atomic
-  # create-and-verify no portable shell offers, and the attacker would already
-  # need write access inside the plugin's own data directory — at which point they
-  # can write the lease themselves and the guard is moot. Recorded rather than
-  # implied, because a guard whose limits are unstated reads as one without any.
-  # THE PLUGIN DATA ROOT IS CREATED FIRST, because on a plugin's very first run it
-  # does not exist yet and `pwd -P` cannot resolve a directory that is not there —
-  # resolving before creating would have made `acquire` fail for exactly the run
-  # that has never succeeded before, which no test with a pre-made fixture would
-  # ever catch. Creating the plugin's OWN data root is inside this script's
-  # mandate and is not a target write; it is the tree everything below is then
-  # confined to.
   mkdir -p "$plugin_data" || die "cannot create the plugin data directory: $plugin_data"
 
   local real_plugin_data real_prefix

@@ -1,73 +1,23 @@
 #!/usr/bin/env bash
-# Render the landscape artifacts from the committed record.
-#
-# WHY. Table rows, dependency truncation, diagram alias sanitizing, boundary
-# grouping and node labels are all mechanical, and rendering them by hand makes
-# two runs on identical facts produce different files. Everything this script
-# does is decided by the record: nothing here weighs, judges, or describes. Prose
-# comes from the annotations file, written by a person or a model, and this
-# script only appends it.
-#
-# Usage:
-#   render-landscape.sh --record <landscape.json> --out <dir> [options]
-#   render-landscape.sh --help
-#
-# Options:
-#   --record <file>     The landscape record. Required.
-#   --out <dir>         Directory the artifacts are written into. Required.
-#   --dialect <name>    mermaid (default) or structurizr.
-#   --notes <file>      Annotations appended verbatim to the landscape artifact.
-#   --top-external <N>  How many external systems the diagram draws, most
-#                       referenced first (default 5). Every internal system is
-#                       always drawn. The remainder is counted in a line under
-#                       the diagram, and stays in the record and the portfolio.
-#
-# Writes, into <dir>:
-#
-#   landscape.md   with --dialect mermaid: a `C4Context` block used without a
-#                  focal system, one `System` per internal repository inside an
-#                  `Enterprise_Boundary` per owner, one `System_Ext` per external
-#                  repository, and one `Rel` per drawn edge.
-#   landscape.dsl  with --dialect structurizr: a `workspace` whose `model` holds
-#                  the same systems, grouped by owner, plus a `systemLandscape`
-#                  view.
-#   portfolio.md   the application-portfolio table, one row per repository in
-#                  the record, sorted by name.
-#
-# Determinism is the contract: the same record and flags produce byte-identical
-# files, so a re-run shows a diff only when the facts moved.
-#
-# Prints, on stdout, one summary line after the artifacts are written:
-#
-#   landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n>
-#              drawn_edges=<d> unresolved_edges=<u> thin=<yes|no>
-#
-# (one line in the output; wrapped here). The fields:
-#
-#   internal          internal systems; every one is drawn.
-#   external          every external system in the model, drawn or not.
-#   drawn_systems     internal plus the externals the diagram draws.
-#   edges             every edge in the record.
-#   drawn_edges       edges the diagram draws.
-#   unresolved_edges  edges whose source is not a charted repository. Their
-#                     target is still a node: a system reached only by an
-#                     unresolved edge is counted, but gets no arrow.
-#   thin              yes when drawn_systems <= 2 or drawn_edges == 0.
-#
-# The artifacts never carry this line, so they stay byte-identical.
-#
-# Portability: bash plus POSIX awk/grep/sed. No jq, no `grep -P`, no python.
-#
-# Exit: 0 = written; 1 = the record is unreadable, not schema_version 1, or not
-# in the one-object-per-line layout landscape-record.sh writes (nothing is
-# written then), or the output directory does not exist; 2 = usage.
 set -uo pipefail
 
 # shellcheck source=../../../lib/record-layout.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/record-layout.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render the landscape artifacts from the committed record.
+Usage: render-landscape.sh --record <landscape.json> --out <dir> [options]
+  --record <file>     the landscape record. Required.
+  --out <dir>         directory the artifacts are written into. Required.
+  --dialect <name>    mermaid (default) or structurizr
+  --notes <file>      annotations appended verbatim to the landscape artifact
+  --top-external <N>  external systems the diagram draws, most referenced first (default 5)
+Prints: landscape: internal=<i> external=<e> drawn_systems=<s> edges=<n> drawn_edges=<d> unresolved_edges=<u> thin=<yes|no>
+The same record and flags produce byte-identical files.
+Exit: 0 written; 1 the record is unreadable, not schema_version 1, or not one object per line,
+or the output directory does not exist; 2 usage.
+EOF
 }
 
 die() {

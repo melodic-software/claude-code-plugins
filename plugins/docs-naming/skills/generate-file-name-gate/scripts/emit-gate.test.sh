@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: docs/conventions/source-control.yaml
-# Template basenames named for the affected-tests mapping: this suite covers
-# check-file-names.sh.tmpl, check-file-names.test.sh.tmpl, and
-# file-names-rule.md.tmpl.
-#
-# Every single-quoted `$v` below is a jq program argument naming jq's own
-# variable, and every single-quoted backtick or `$(...)` is the literal payload
-# of an injection case. None is a shell expansion.
+# Single-quoted `$v`, backticks and `$(...)` below are jq variables or injection payloads.
 # shellcheck disable=SC2016
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail

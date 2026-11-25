@@ -31,19 +31,9 @@ from harness.stub_harness import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "mypy-report.py"
 CAPTURE = TOOL_OUTPUT / "mypy-any-exprs.txt"
-# The table mypy 1.19.1 writes when a blocking error (a duplicate module name)
-# aborts the build before analysis: no module rows and a Total of 0 over 0.
 ABORTED = TOOL_OUTPUT / "mypy-any-exprs-aborted.txt"
-# A real mypy 1.19.1 table over `pkg/a.py`, `pkg-x/b.py` and `c.py` run from
-# their parent directory: a dotted module, a bare stem under a hyphenated
-# directory (the walk stops there), and a plain top-level module.
 MODULES = TOOL_OUTPUT / "mypy-any-exprs-modules.txt"
-# A real mypy 1.19.1 table over `a-dir/mod.py` and `ok/other.py`: the run the
-# adapter makes once it holds out `b-dir/mod.py`, which derives the same bare
-# `mod` as `a-dir/mod.py` because the walk stops at a hyphenated directory.
 COLLISION = TOOL_OUTPUT / "mypy-any-exprs-collision.txt"
-# mypy 1.19.1's stdout for that pair when both are passed (exit 2, before
-# analysis), first line only.
 DUPLICATE_LINE = (
     'b-dir/mod.py: error: Duplicate module named "mod" (also at "a-dir/mod.py")'
 )
@@ -155,9 +145,6 @@ def rows_of(result: subprocess.CompletedProcess) -> list[dict]:
 
 class MypyReportCollectTests(unittest.TestCase):
     def test_collect_prints_a_row_per_scope_file_and_the_lane_row(self) -> None:
-        # The capture lists `cm_sample`, the bare stem mypy gives a file under
-        # a hyphenated directory (`code-metrics`): a file row for the scope
-        # path plus the lane row summing it.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             result = run(
@@ -224,9 +211,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual([r["labels"] for r in rows[1:]], [[], [], []])
 
     def test_a_src_layout_matches_the_shorter_names_a_config_base_gives(self) -> None:
-        # `mypy_path = src` makes mypy name src/pkg/a.py `pkg.a` while the
-        # cwd-based derivation says `src.pkg.a`: the listed name is matched to
-        # the one scope file whose derived name ends in it.
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(
                 tmp, "src/pkg/a.py", "src/pkg-x/b.py", "src/c.py", exit_code=0
@@ -305,7 +289,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(leaked, [])
 
     def test_a_reporting_exit_code_still_yields_a_row_and_a_label(self) -> None:
-        # mypy exits 1 on any type error while still writing the report (T1).
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(
                 Path(tmp),
@@ -328,11 +311,6 @@ class MypyReportCollectTests(unittest.TestCase):
             )
 
     def test_a_fatal_exit_is_exit_4_with_the_tool_stderr_relayed(self) -> None:
-        # mypy exits 2 on a blocking error (a duplicate module name, a usage or
-        # config error) before analyzing anything, and still writes a report
-        # whose Total row reads 0 over 0. Nothing was measured: the tool
-        # resolved but cannot run on these files, which is the adapter
-        # contract's exit 4, an `unavailable` row carrying mypy's own message.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(
                 Path(tmp),
@@ -372,8 +350,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.stdout, "")
 
     def test_zero_expressions_is_null_coverage_never_100(self) -> None:
-        # A Total of 0 over 0 is "nothing was counted", which the report
-        # contract renders as null, not as the 100.00% mypy prints.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp), exit_code=0, capture=ABORTED)
             result = run(
@@ -398,10 +374,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_collect_passes_explicit_package_bases_and_a_devnull_cache_dir(
         self,
     ) -> None:
-        # --explicit-package-bases derives module names from the path, so two
-        # same-named files under identifier-named directories no longer abort
-        # the build; --cache-dir os.devnull is mypy's documented "disable
-        # caching" value and keeps .mypy_cache out of the consumer's tree.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             make_stub(Path(tmp), argv_log=argv_log)
@@ -424,12 +396,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_a_config_without_namespace_packages_reruns_in_mypys_own_naming(
         self,
     ) -> None:
-        # mypy allows --explicit-package-bases only with namespace packages on;
-        # a consumer config that turns them off makes the first run a usage
-        # error (exit 2, nothing measured). That is not the consumer's tree
-        # failing, so the run repeats without the flag and the note says which
-        # naming the rows follow. The capture's names (`pkg.a`, `b`, `c`) are
-        # the ones mypy's __init__.py walk gives too, so the rows still map.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             make_stub(
@@ -470,10 +436,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_same_named_files_under_hyphenated_dirs_are_a_partial_not_unavailable(
         self,
     ) -> None:
-        # `a-dir/mod.py` and `b-dir/mod.py` both derive `mod`. The second is
-        # held out before mypy runs (the stub would refuse it with mypy's
-        # duplicate-module exit 2), every other file is measured, and the
-        # partial-reason file names the one that was not.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             note = Path(tmp) / "partial"
@@ -519,10 +481,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_a_duplicate_only_mypys_own_naming_gives_is_held_out_from_its_message(
         self,
     ) -> None:
-        # With namespace packages off, `pkg/mod.py` and `other/mod.py` are both
-        # `mod` to mypy although their paths derive `pkg.mod` and `other.mod`,
-        # so nothing is held out up front. mypy's duplicate message names the
-        # file it refused; that file is held out and the run repeats.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             make_stub(
@@ -679,7 +637,6 @@ class MypyReportTableTests(unittest.TestCase):
 
     def test_the_lane_row_percentage_is_formatted_as_mypy_formats_it(self) -> None:
         module = load_module()
-        # This repository's whole-tree Total: mypy prints 89.96% for it.
         self.assertEqual(
             module._summed([(14961, 149042, 89.96)]), (14961, 149042, 89.96)
         )
@@ -706,15 +663,11 @@ class MypyReportModuleNameTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
             cases = {
-                # every directory up to the base is an identifier: the dotted path
                 "plugins/perf/lib/x.py": "plugins.perf.lib.x",
-                # the walk stops at a non-identifier directory: the stem alone
                 "harness-ops/lib/x.py": "x",
-                # a package names its directory; a stub keeps its stem
                 "pkg/sub/__init__.py": "pkg.sub",
                 "pkg/sub/c.pyi": "pkg.sub.c",
                 "top.py": "top",
-                # a package under a non-identifier directory is still a package
                 "dir-with-dash/deeper/__init__.py": "deeper",
                 "dir-with-dash/deeper/leaf.py": "deeper.leaf",
             }

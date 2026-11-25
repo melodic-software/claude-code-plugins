@@ -1,4 +1,4 @@
-// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/* .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 // pr-verify.yml's ordering rules, from its concurrency comment and the
 // README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
 // run must leave no verdict. The upload is therefore each job's only artifact
@@ -745,14 +745,16 @@ test("the subscription and fallback resolvers take check-intent's bundle in its 
   for (const job of [SUB, FB]) {
     const dir = tempDir("pr-verify-carry-");
     const values = {
+      "runner.temp": dir,
       "github.workspace": dir,
       "github.token": "t",
-      "github.event.workflow_run.id": "123",
       "needs.check-intent.outputs.reads": bundle,
       "steps.standards.outputs.path": standardsCheckout(),
       "steps.standards.outputs.sha": "5".repeat(40),
     };
-    const env = { GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: path.join(dir, "out") };
+    const event = path.join(dir, "event.json");
+    writeFileSync(event, JSON.stringify({ workflow_run: { id: 123, run_attempt: 1, path: ".github/workflows/pr-require-checks.yml", event: "pull_request", status: "completed", conclusion: "success", head_sha: carry.headSha, repository: { full_name: REPO }, head_repository: { full_name: REPO } } }));
+    const env = { GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: path.join(dir, "out"), GITHUB_EVENT_PATH: event };
     const block = /^ {8}env:\n((?: {10}.*\n)+)/m.exec(step("Resolve the pull request", job))[1];
     for (const line of block.split("\n").filter((l) => /^ {10}[A-Z_]+: /.test(l))) {
       const [, key, raw] = /^ {10}([A-Z_]+): (.*)$/.exec(line);
@@ -780,7 +782,7 @@ test("the subscription and fallback resolvers take check-intent's bundle in its 
       throw new Error("stop after the first live read");
     };
     await main({ ...env, GITHUB_RUN_ATTEMPT: "2" }, { github: live }).catch(() => {});
-    assert.deepEqual(calls, [`GET /repos/${REPO}/actions/runs/123`], `${job}: another attempt's bundle reads the upstream run again`);
+    assert.equal(calls[0], `GET /repos/${REPO}/commits/${carry.headSha}/pulls?per_page=100&page=1`, `${job}: another attempt's bundle reads again from the payload's run`);
     assert.doesNotMatch(readFileSync(env.GITHUB_OUTPUT, "utf8"), /carried=true/, job);
   }
 });
@@ -811,7 +813,10 @@ test("each job writes the upstream run's jobs into the data directory the prompt
     assert.ok(index("List the upstream run's jobs", job) > index("Assert the gate and the resolver agree", job), job);
     assert.ok(index("List the upstream run's jobs", job) < index("Write the prompt and schema", job), job);
     assert.equal(input(listing, "GITHUB_TOKEN"), "${{ github.token }}", job);
-    assert.equal(input(listing, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
+    for (const name of ["Resolve the pull request", "List the upstream run's jobs"]) {
+      assert.equal(input(step(name, job), "UPSTREAM_RUN_ID"), undefined, `${job}: ${name}`);
+      assert.equal(input(step(name, job), "GITHUB_EVENT_PATH"), undefined, `${job}: ${name}`);
+    }
     assert.equal(input(listing, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
     // The head's tree, written by the diff step from its blobless fetch, outside the data directory.
     const diff = step("Write the diff", job);

@@ -37,31 +37,47 @@ its as-of date.
 
 ## Successor sections
 
-A skill that has a natural successor names it in a `## Next` section placed before `## Gotchas`
-(or before the last H2 when the file has none). The heading is exactly `## Next`. The body is
-either one `/plugin:skill` invocation on a line, with any arguments that skill takes, optionally
-followed by a sentence that names what the successor consumes or why it is next; or two to four
-bullets of `<outcome>: /plugin:skill [args].` when the successor depends on the run's result. It
-is a mention for the human, never an operative chain, so it carries no Skill-tool phrasing, no
-availability gate, and no fallback clause. Keeping the graph current is authoring work:
+Each routing job has one place. Every skill token in any of them is written `/plugin:skill`, with
+the slash.
+
+| Place | Job | Shape |
+| --- | --- | --- |
+| frontmatter `description` | picking the skill (the only text in context before it runs) | when to use; a confusable neighbor as `Not for <case>: /plugin:skill` |
+| `## Next` | after the run, chosen by its result | see below |
+| `## Related` | depends on the reader's situation, not the result | bullets `<condition>: /plugin:skill [args].` |
+| `## See also` | files to read | links only, never a skill |
+| `## What this skill does not do` | scope exclusions in the body | bullets; one that steers selection also goes in the description as `Not for` |
+| steps | a skill the run really invokes as a step | stays in its step |
+
+`## Next` sits before `## Gotchas` (or before the last H2 when the file has none). Its body is
+either:
+
+- one line, `/plugin:skill [args]`, optionally followed by one sentence, when the successor is
+  the same every time; or
+- two or more bullets `<result>: <target>.`, each naming one target. A target is
+  `/plugin:skill [args]` or `the <stage> stage (/plugin:skill)`, where the skill is that stage's
+  entry skill in `plugins/session-flow/skills/workflow/reference/stages.yaml`. No chain ("X, then
+  Y"), no bullet routing an unsure reader to `/session-flow:workflow`, no fixed maximum.
+
+At the end of a run the model offers the one bullet matching the result ("Next: /x:y, because
+..."), and never runs it unasked. A skill's `## Next` wins over the workflow ladder; the ladder is
+the fallback when no bullet matches. `## Next` and `## Related` carry no Skill-tool phrasing, no
+availability gate and no fallback clause; a standalone skill carries neither. A link may name a
+user-only skill; the model presents it as the user's own line to run.
+
+Other routing headings (Boundaries, Siblings, Routing, Handoff, Composition, Integration) fold
+into these places: a suggestion into `## Next` or `## Related`, an exclusion into `## What this
+skill does not do`, an operative step into the steps.
+
+Keeping the graph current is authoring work, checked by `scripts/check-next-graph.py` (run
+`--fix` to rewrite stage targets from the map, `--fix --renames <file>` after a rename):
 
 - A new skill writes its own `## Next` and edits the predecessor whose `## Next` should now name
   it.
-- A renamed skill is swept with `/docs-hygiene:rename-references audit` (if enabled; otherwise
-  grep the old token).
-- A removed skill's token is grepped and every `## Next` and `## Related` that carried it is
-  edited.
-- `/session-flow:workflow` owns stage routing. A `## Next` states the typical successor; when the
-  two disagree, the workflow skill's ladder wins.
-
-## Related sections
-
-A skill with context-dependent links names them in a `## Related` section placed after `## Next`.
-The heading is exactly `## Related`. The body is bullets of `<condition>: /plugin:skill [args].`,
-one condition per line. Like `## Next`, it is a mention for the human, so it carries no Skill-tool
-phrasing, no availability gate, and no fallback clause. A standalone skill carries neither section.
-A link may name a user-only skill with no extra clause; the model presents it as the user's own
-`/plugin:skill` line to run.
+- A renamed or removed skill's token is swept with `/docs-hygiene:rename-references audit` (if
+  enabled; otherwise grep the old token).
+- A `## Next` edge to an earlier stage, or past a stage the map never skips, is declared in the
+  map's `loop-backs` or `skips` with its reason.
 
 ## Optional-plugin mentions
 

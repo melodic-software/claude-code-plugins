@@ -109,16 +109,6 @@ BAKED_FLAGS = (
     "suggest_sentence",
 )
 
-# Extraction lanes the sibling extractor reports integrity for, and the
-# native class each one carries. Session-provided and marketplace classes have
-# no lane: nothing about them is derivable from the binary.
-# `bundled_workflows`, `builtin_agents`, `builtin_tools`, and `builtin_plugins`
-# are optional: an extraction that predates a lane lacks its key, and the lane
-# is then not scored or reported rather than read as broken.
-# `builtin_plugins` (the `cc-plugin-*@builtin` plugins) is keyed by plugin, not
-# by surface: `_lane_payloads` flattens each plugin and each of its skills,
-# agents and commands into a plugin-backed-builtin surface, scored after every
-# other lane so a name another lane already holds is not scored twice.
 PLUGIN_COMPONENT_LANE = "builtin_plugins"
 LANE_ORDER = (
     "builtin_commands",
@@ -137,9 +127,6 @@ LANE_OF_CLASS = {
     "builtin-agent": "builtin_agents",
     "builtin-tool": "builtin_tools",
 }
-# Classes the model reaches by name (a subagent type, a tool) rather than
-# through the Skill tool: nothing wraps them and no user types them as a
-# command, so a component only routes to them.
 ROUTE_ONLY_CLASSES = ("session-skill", "builtin-agent", "builtin-tool")
 CLASS_OF_LANE = {lane: klass for klass, lane in LANE_OF_CLASS.items()}
 CLASS_OF_LANE[PLUGIN_COMPONENT_LANE] = "plugin-backed-builtin"
@@ -192,16 +179,11 @@ MARKER_FORMS = (
 VERBATIM_LINE_RE = re.compile(r"(\[\d+\] )?native description: .*—.*", re.DOTALL)
 VERBATIM_MARKER = " <!-- ai-slop-ignore: verbatim native text -->"
 
-# Every pattern below is applied with `fullmatch`, so a trailing newline fails.
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 AS_OF_RE = re.compile(r"\d+\.\d+\.\d+")
 SEGMENT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 NATIVE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._: -]*")
 REASON_MAX = 300
-# A fingerprint: the first 32 hex chars of the SHA-256 of the whitespace-collapsed
-# text, so a reflowed line never resurfaces a pair. The native side hashes the
-# text detection scores (discover.scored_text); the component side, its description.
-# Shorter digests trip the typos spell check on word-like hex fragments.
 FINGERPRINT_LEN = 32
 FINGERPRINT_RE = re.compile(rf"[0-9a-f]{{{FINGERPRINT_LEN}}}")
 RESURFACED = "resurfaced: description changed"
@@ -285,8 +267,6 @@ def frontmatter_description(frontmatter: str) -> str:
             return collected
 
         if remainder[:1] in ("|", ">"):
-            # Block scalar: the header line carries only style/chomping/indent
-            # indicators; the value is the more-indented lines beneath it.
             parts = _indented_block()
         elif remainder[:1] in ('"', "'"):
             quote = remainder[0]
@@ -294,7 +274,6 @@ def frontmatter_description(frontmatter: str) -> str:
             if body.endswith(quote):
                 parts = [body[:-1]]
             else:
-                # A quoted scalar may span lines; consume until the closing quote.
                 parts = [body]
                 for candidate in rest:
                     stripped = candidate.strip()
@@ -303,7 +282,6 @@ def frontmatter_description(frontmatter: str) -> str:
                         break
                     parts.append(stripped)
         elif remainder:
-            # Plain scalar, possibly continued on more-indented lines.
             parts = [remainder, *_indented_block()]
         else:
             parts = _indented_block()

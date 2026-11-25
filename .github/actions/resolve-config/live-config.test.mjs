@@ -17,7 +17,7 @@ import { decide } from "../../scripts/lib/lane-level.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
 import { statusBotSetters } from "./issue-status.mjs";
 import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase, testScopeFromBase } from "./resolve-config.mjs";
-import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
+import { laneSlots, neededFacts, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
 import { STANDARDS_FIXTURE } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -425,6 +425,17 @@ const ISSUE = {
   labels: ["agent-ready"],
 };
 
+test("live config: intake's triage-issue resolves on a dispatch with no issue field facts, as the live run's resolve-config reads it", () => {
+  assert.deepEqual(neededFacts(FILES, { lane: "intake-triage", activity: "triage-issue", configPath: CONFIG_PATH }), []);
+  const slot = resolve(FILES, { lane: "intake-triage", activity: "triage-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { event: "dispatch", labels: [] } }).selected;
+  assert.equal(slot.applies, true);
+  assert.equal(slot["issue-dimensions"], undefined, "the triage that sets the dimensions is not sized by them");
+  assert.equal(slot["timeout-minutes"], undefined);
+  const large = selected("intake-triage", "triage-issue", { fieldValues: [{ field: 15462270, option: 27053566 }, ...FACTS.fieldValues.slice(1)] });
+  assert.equal(large.applies, true, "a Large issue is still triaged, never skipped for a split");
+  assert.ok(neededFacts(FILES, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH }).includes("fieldValues"), "the issue lane still reads its dimensions");
+});
+
 test("live config: resolve-issue starts on agent-ready alone, whatever its work-class label", () => {
   for (const labels of [
     ["agent-ready"],
@@ -777,7 +788,7 @@ test("live config: fix-docs with a write effect is refused", () => {
   );
 });
 
-test("live config: only fix-docs, resolve-conflicts, address-feedback, review-dependency, fix-ci and resolve-issue set applied-by, each to its own appliers", () => {
+test("live config: only fix-docs, resolve-conflicts, address-feedback, review-dependency, fix-ci, resolve-issue and triage-issue set applied-by, each to its own appliers", () => {
   const { activities } = parse(FILES.config);
   assert.deepEqual(
     Object.entries(activities)
@@ -790,9 +801,11 @@ test("live config: only fix-docs, resolve-conflicts, address-feedback, review-de
       ["review-dependency", { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" }],
       ["fix-ci", { patch: "apply-patch" }],
       ["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }],
+      ["triage-issue", { "triage-verdict": "post-triage" }],
     ],
   );
   assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).effect, "read");
+  assert.equal(selected("intake-triage", "triage-issue", ISSUE).effect, "read");
 });
 
 test("live config: the shipped patch rules pass against the live activities", () => {

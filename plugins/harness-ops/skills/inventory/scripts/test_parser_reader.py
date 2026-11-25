@@ -31,8 +31,6 @@ import inventory as inv
 import parser_reader as pr
 import test_inventory
 
-# The region-rule suite's byte layouts, borrowed by value: binding the TestCase
-# itself at module level would make the loader run its tests here too.
 MARKER, BIG, GAP, DOCTOR = (
     getattr(test_inventory.TestReadBundleRegionRule, n)
     for n in ("MARKER", "BIG", "GAP", "DOCTOR")
@@ -213,8 +211,6 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
     def test_the_windows_form_is_one_child_script_block_so_stop_does_not_leak(
         self,
     ) -> None:
-        # A bare `$ErrorActionPreference = 'Stop'` would be a second top-level
-        # statement and stay set in the session the line is pasted into.
         pwsh = shutil.which("pwsh")
         if pwsh is None:
             self.skipTest("pwsh is not installed")
@@ -236,8 +232,6 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         )
         self.assertEqual(run.stdout.strip(), "0 1 Ampersand ScriptBlockExpressionAst")
 
-    # PowerShell's tokenizer treats U+2018, U+2019, U+201A and U+201B as single-quote
-    # characters (language specification 2.3.5.2); doubling the same character escapes each.
     CURLY_TARGET = pathlib.Path(
         "D:\\it\u2018s \u2019 \u201a \u201b data\\inventory-parser\\abc"
     )
@@ -277,7 +271,6 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
                 "EXPECTED_PATH": str(self.CURLY_TARGET),
             },
         )
-        # Remove-Item, New-Item, Copy-Item -Destination and npm --prefix each carry it once.
         self.assertEqual(run.stdout.strip(), "0 4")
 
     def test_the_default_platform_is_this_one(self) -> None:
@@ -666,7 +659,6 @@ class TestFlowQuery(unittest.TestCase):
         self.assert_unsafe(body + "gn(1,{hook:h});", "h}")
         self.assert_unsafe(body + "gn(1,{});", "{})")
         self.assert_unsafe(body + "gn(1,{hook:!1});gn(2,o);", "o)")
-        # A getter's value is its accessor function, not what reading `hook` returns.
         self.assert_unsafe(
             body + "gn(1,{get hook(){return(x,i,a)=>a.push(2)}});", "{get"
         )
@@ -778,8 +770,6 @@ class TestFlowQuery(unittest.TestCase):
             ("var A=Array;A.prototype.includes=f;", ["write"]),
             ("(0,Array).prototype.includes=f;", ["write"]),
             ("globalThis.Array.prototype.includes=f;", ["write"]),
-            # A computed read whose key may be `require` may load node:vm,
-            # and one whose key may be `constructor` reaches `Function`.
             (
                 'Array["proto"+"type"].includes=f;',
                 ["write", "function-constructor", "unknown-load"],
@@ -814,15 +804,12 @@ class TestFlowQuery(unittest.TestCase):
             ("Function(s)();", ["function-constructor"]),
             ("var F=new Function(s);F();", ["function-constructor"]),
             ("Function.call(0,s)();", ["function-constructor"]),
-            # #5901 slice 6: a build that runs, or folds to code that hits.
             ('Function("Array.prototype.includes=f")();', ["function-constructor"]),
             ('new Function("o","o.includes=f")(P);', ["function-constructor"]),
             ('Function(`eval("")`)();', ["function-constructor"]),
             ('Function("with(o){}")();', ["function-constructor"]),
             ('Function("return this").call(0);', ["function-constructor"]),
-            # The built function binds no `anonymous`; that is a global here.
             ('Function("anonymous.includes=f")();', ["function-constructor"]),
-            # A body's `-->` line is a comment, so the patch below it runs.
             (
                 'Function("var y=0;y\\n-->`\\nArray.prototype.includes=f\\n//`")();',
                 ["function-constructor"],
@@ -852,10 +839,6 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor", "function-constructor"],
             ),
             ("Function.prototype instanceof H;", ["function-constructor"]),
-            # #9990: a loop head, `arguments` or a block function declaration
-            # can hand a fresh-looking target any object; a destructured
-            # `__defineGetter__` defines, and code built from a string loads
-            # unseen.
             ("x={};for(var x of[P])x.includes=f;", ["write"]),
             ("function g(o){arguments[0]=P;o.includes=f}g({});", ["write"]),
             ("{function g(o){o.includes=f}}g(P);", ["write"]),
@@ -867,7 +850,6 @@ class TestFlowQuery(unittest.TestCase):
             ),
             ("Function(\"return import('/b.js')\")();", ["function-constructor"]),
             ("var o={};o.includes=f;o[k]=1;", []),
-            # #5901 slice 6: a `Function` build that runs no unknown code.
             ('Function("return this")();', []),
             ('function t(){try{return new Function(""),!0}catch(e){return!1}}', []),
             ("function c(e){Function(`async function _check() {'use strict';\\n${e}\\n}`)}", []),
@@ -879,15 +861,11 @@ class TestFlowQuery(unittest.TestCase):
                 "class D extends B{constructor(k){super();this[k]=1}}",
                 ["computed-write"],
             ),
-            # #5901 slice 8: a built-in superclass, unless the class can
-            # reach a prototype swap.
             ("class Q extends Error{constructor(k){super();this[k]=1}}", []),
             (
                 "class Q extends Error{constructor(k){super();this[k]=1}}h(Q);",
                 ["computed-write"],
             ),
-            # A [[Set]] of `__proto__` swaps the prototype; a literal's
-            # `__proto__:` sets its own prototype, which `assign` never copies.
             ('Reflect.set(P,"__proto__",Q);', ["proto-swap"]),
             ('Object.assign(P,{["__proto__"]:Q});', ["proto-swap"]),
             ("Object.assign(P,{__proto__:Q});", []),
@@ -986,10 +964,7 @@ class TestFlowQuery(unittest.TestCase):
             ),
             ("for(let i=0;i<n;i++)f(a[i]);", []),
             ("var{constructor:C}=f;C(s)();", ["function-constructor"]),
-            # A method can be called with a function as `this`.
             ("new this.constructor(s);", ["function-constructor"]),
-            # Coercion calls a `toString` or `valueOf` with it as `this`, and
-            # a write of a key it lacks calls an inherited setter the same way.
             ('""+(()=>1).constructor;', ["function-constructor"]),
             ("x.constructor+=s;", ["function-constructor"]),
             ("(()=>1).constructor.y=s;", ["function-constructor"]),

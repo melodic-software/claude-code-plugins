@@ -1462,6 +1462,38 @@ done < <(
   done | sort
 )
 
+SKILL_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
+
+section_block() {
+  awk -v s="$1" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD"
+}
+
+bullet_shapes() {
+  awk -v tok="$SKILL_TOKEN" '
+    function flush(   rest, n, lead, t) {
+      if (b == "") return
+      n = 0; rest = b; lead = ""; split("", seen)
+      while (match(rest, tok)) {
+        t = substr(rest, RSTART, RLENGTH)
+        if (n == 0 && !(t in seen)) lead = substr(rest, 1, RSTART - 1)
+        if (!(t in seen)) { seen[t] = 1; n++ }
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      if (n == 0) notoken++
+      else {
+        if (n > 1) multi++
+        sub(/^- /, "", lead)
+        if (lead !~ /[[:alnum:]][^:]*:[[:space:]]/) nolead++
+      }
+      if (tolower(b) ~ /unsure/ && b ~ /\/session-flow:workflow/) filler++
+      b = ""
+    }
+    /^- / { flush(); b = $0; next }
+    /^[[:space:]]+[^[:space:]]/ { if (b != "") b = b " " $0; next }
+    { flush() }
+    END { flush(); print notoken + 0, multi + 0, nolead + 0, filler + 0 }'
+}
+
 NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
 NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'
 
@@ -1482,26 +1514,31 @@ else
   elif [[ -z "$NEXT_GOTCHAS_LINE" ]] && ((NEXT_LINE == NEXT_LAST_H2)); then
     NEXT_HIT="is the last section; the rule places it before the last H2"
   fi
-  NEXT_BLOCK="$(awk -v s="$NEXT_LINE" 'NR > s { if ($0 ~ /^## /) exit; print }' "$SKILL_MD")"
+  NEXT_BLOCK="$(section_block "$NEXT_LINE")"
   NEXT_BULLETS="$(grep -cE '^- ' <<<"$NEXT_BLOCK" || true)"
-  NEXT_TOKEN='/[a-z0-9-]+:[a-z0-9-]+'
   if ((NEXT_BULLETS == 0)); then
     NEXT_FIRST="$(grep -vE '^[[:space:]]*$' <<<"$NEXT_BLOCK" | head -1 || true)"
     if [[ -z "$NEXT_FIRST" ]]; then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }body is empty"
-    elif ! grep -qE "^\`?${NEXT_TOKEN}(\`|[[:space:]]|[.,;:]|$)" <<<"$NEXT_FIRST"; then
+    elif ! grep -qE "^\`?${SKILL_TOKEN}(\`|[[:space:]]|[.,;:]|$)" <<<"$NEXT_FIRST"; then
       NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }first line does not open with a /plugin:skill invocation"
     fi
   else
-    if ((NEXT_BULLETS < 2 || NEXT_BULLETS > 4)); then
-      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BULLETS bullet(s); the outcome-bullet shape carries two to four"
+    if ((NEXT_BULLETS == 1)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }a single bullet; write it as the one-line form"
     fi
-    NEXT_BAD="$(awk -v tok="$NEXT_TOKEN" '
-      /^- / { if (b != "" && b !~ tok) n++; b = $0; next }
-      /^[[:space:]]+[^[:space:]]/ { b = b " " $0; next }
-      END { if (b != "" && b !~ tok) n++; print n + 0 }' <<<"$NEXT_BLOCK")"
-    if ((NEXT_BAD > 0)); then
-      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_BAD bullet(s) name no /plugin:skill successor"
+    read -r NEXT_NOTOKEN NEXT_MULTI NEXT_NOLEAD NEXT_FILLER <<<"$(bullet_shapes <<<"$NEXT_BLOCK")"
+    if ((NEXT_NOTOKEN > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_NOTOKEN bullet(s) name no /plugin:skill successor"
+    fi
+    if ((NEXT_MULTI > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_MULTI bullet(s) name more than one skill; one target per bullet"
+    fi
+    if ((NEXT_NOLEAD > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }$NEXT_NOLEAD bullet(s) do not open with a '<result>: ' lead"
+    fi
+    if ((NEXT_FILLER > 0)); then
+      NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries the 'unsure where this leaves the work' bullet; /session-flow:workflow is the fallback without it"
     fi
   fi
   NEXT_OPERATIVE="$(grep -oiE 'skill tool|installed|(^|[^[:alnum:]_])(is|are|if|when)( not)? enabled([^[:alnum:]_]|$)|fall ?back|otherwise' <<<"$NEXT_BLOCK" | head -1 | sed -E -e 's/^[^[:alpha:]]+//' -e 's/[^[:alpha:]]+$//' || true)"
@@ -1509,11 +1546,34 @@ else
     NEXT_HIT="${NEXT_HIT:+$NEXT_HIT; }carries operative-chain phrasing ('$NEXT_OPERATIVE'); a successor is a mention, with no Skill-tool phrasing, availability gate, or fallback clause"
   fi
   if [[ -n "$NEXT_HIT" ]]; then
-    warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two to four '<outcome>: /plugin:skill' bullets, placed before '## Gotchas'"
+    warn "'## Next' section $NEXT_HIT. The skill-bodies rule wants one /plugin:skill line, or two or more '<result>: <target>.' bullets with one target each, placed before '## Gotchas'"
   else
     note "'## Next' section present and in the mention-only shape"
   fi
 fi
+
+RELATED_LINE="$(grep -nE '^## Related[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
+if [[ -n "$RELATED_LINE" ]]; then
+  read -r RELATED_NOTOKEN _ RELATED_NOLEAD _ <<<"$(section_block "$RELATED_LINE" | bullet_shapes)"
+  if ((RELATED_NOTOKEN + RELATED_NOLEAD > 0)); then
+    warn "'## Related' has $((RELATED_NOTOKEN + RELATED_NOLEAD)) bullet(s) not in the '<condition>: /plugin:skill [args].' form (skill-bodies rule)"
+  fi
+fi
+
+SEE_ALSO_LINE="$(grep -nE '^## See also[[:space:]]*$' "$SKILL_MD" | head -1 | cut -d: -f1)"
+if [[ -n "$SEE_ALSO_LINE" ]]; then
+  SEE_ALSO_SKILL="$(section_block "$SEE_ALSO_LINE" | grep -oE "$SKILL_TOKEN" | head -1 || true)"
+  if [[ -n "$SEE_ALSO_SKILL" ]]; then
+    warn "'## See also' names the skill $SEE_ALSO_SKILL; it holds files only, and a skill goes under '## Next' or '## Related' (skill-bodies rule)"
+  fi
+fi
+
+DESC_PLUGINS_ROOT="$(cd "$SKILL_DIR/../../.." 2>/dev/null && pwd || true)"
+while IFS= read -r desc_bare; do
+  [[ -n "$desc_bare" && -f "$DESC_PLUGINS_ROOT/${desc_bare%%:*}/skills/${desc_bare#*:}/SKILL.md" ]] || continue
+  warn "description names '$desc_bare' without the slash; write a skill token as /$desc_bare (skill-bodies rule)"
+  break
+done < <(grep -oE "(^|[[:space:](,;'\"])[a-z][a-z0-9-]*:[a-z][a-z0-9-]*([[:space:]).,;'\"]|$)" <<<"$CUR_DESC" | sed -E "s/^[[:space:](,;'\"]//; s/[[:space:]).,;'\"]$//" || true)
 
 META_REGISTRY="$SCRIPT_DIR/metadata-registry.txt"
 META_KEYS="$(awk '

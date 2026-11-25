@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Exit: always 0 on audit paths — a read-only audit must never fail the caller,
-# so -e is omitted; 2 on unknown arguments.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

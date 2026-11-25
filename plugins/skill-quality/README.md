@@ -167,9 +167,11 @@ In detail:
   three `](#` in-page anchor links warns, naming the file. The threshold is the bundled skill-creator's; the
   100-to-300 band stays with `docs-hygiene:audit-progressive-disclosure`, whose TOC heuristic
   this check mirrors.
-- `## Next` successor section (advisory). A section placed after `## Gotchas`, last in the file,
-  in neither the one-invocation nor the two-to-four-outcome-bullet shape, or carrying
-  operative-chain phrasing warns. Absence is an INFO note, because most skills are terminal,
+- Routing sections (advisory). A `## Next` placed after `## Gotchas` or last in the file warns,
+  as does a single bullet, a bullet naming no skill or more than one, a bullet with no
+  `<result>:` lead, the unsure-reader `/session-flow:workflow` bullet, or operative-chain
+  phrasing. A `## Related` bullet not in `<condition>: /plugin:skill` form, a skill token under
+  `## See also`, and an existing skill named without its slash in the description warn too. Absence is an INFO note, because most skills are terminal,
   except on a stage-bearing skill: a `metadata.workflow-stage` of `explore`, `research`, `plan`,
   `implement`, `test`, `review`, `verify`, `pr`, or `retro` with no `## Next` and no `Handoff`,
   `Routing`, `Integration`, or `Skill chaining` heading warns. `interview`, `prd` and `design` are not

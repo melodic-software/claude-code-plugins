@@ -1,35 +1,17 @@
 #!/usr/bin/env bash
-# Render context.json as a C4 system context diagram.
-#
-# WHY. The record is the fact. This script only draws what the record says,
-# and it refuses a record whose JSON is valid but not in the one-object-per-line
-# layout collect-context.sh writes. A reformatted record must not render as an
-# empty diagram with exit 0.
-#
-# Usage:
-#   render-context.sh --record <file> --out <dir> [--dialect likec4|c4-plantuml|none]
-#   render-context.sh --help
-#
-# --dialect is the resolved authoring-formats diagram_dialect.system. It has no
-# default: none, the value when the key is unset, draws no diagram. Mermaid is
-# refused, as the convention refuses it for that key.
-#
-# Writes, into <dir>:
-#   context.md    prose, one fenced likec4 or plantuml block with a focal
-#                 system, a person for each operator-stated actor, and an
-#                 external system for each derived host (no block when the
-#                 dialect is none), then the node and evidence tables
-#
-# Prints one summary line on stdout:
-#   context: focal=<name> externals=<n> actors=<n> thin=<yes|no> dialect=<d>
-# thin is yes when the record has no external systems.
-#
-# Exit: 0 = written; 1 = unreadable, not schema_version 1, or not the
-# one-object-per-line layout (nothing is written); 2 = usage.
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render context.json as a C4 system context diagram.
+Usage: render-context.sh --record <file> --out <dir> [--dialect likec4|c4-plantuml|none]
+  --record <file>  context.json from collect-context.sh
+  --out <dir>      directory context.md is written into
+  --dialect <d>    likec4, c4-plantuml, or none (default; mermaid is refused)
+Prints: context: focal=<name> externals=<n> actors=<n> thin=<yes|no> dialect=<d>
+Exit: 0 written; 1 unreadable, not schema_version 1, or not the one-object-per-line layout
+(nothing written); 2 usage.
+EOF
 }
 
 die() {

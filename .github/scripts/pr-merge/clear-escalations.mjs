@@ -207,10 +207,10 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { branchActivity, LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, readStatuses, REVIEW_LANES } from "./merge-holds.mjs";
+import { branchActivity, changedPaths, LANES_APP_LOGIN as DEFAULT_BOT, laneChangeIn, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, readStatuses, REVIEW_LANES } from "./merge-holds.mjs";
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
-const REASON = /^- Reason: `([a-z-]+)`$/m;
+const REASON = /^- (?:Lane code|Reason): `([a-z-]+)`$/m;
 const outsideActorHeld = (labels) => (labels ?? []).some((item) => same(item?.name, OUTSIDE_ACTOR));
 const OUTSIDE_ACTOR_KEPT = `it carries ${OUTSIDE_ACTOR}, which a person lifts`;
 const CREDENTIAL_KEPT = "pr-verify holds it for a credential, which a person lifts";
@@ -235,8 +235,7 @@ const AGGREGATE = "CI Status";
 const AGGREGATE_JOBS = new Set([AGGREGATE, "ci-status"]);
 const CHECK_PAGES = 3;
 const SHA = /^[0-9a-f]{40}$/;
-// The compare API lists at most 300 files, the PR files API at most 3000.
-const COMPARE_CAP = 300;
+// https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files
 const FILES_CAP = 3000;
 export const CLEARS_PER_RUN = 5;
 export const NATIVE_READS_PER_RUN = 3;
@@ -329,10 +328,9 @@ function personEscalation({ appComments, lifted }) {
 const CHECKS = Object.freeze({
   "workflow-staged": async (context) => {
     const { github, repo, pull, mainSha } = context;
-    const files = (await github("GET", `/repos/${repo}/compare/${pull.head.sha}...${mainSha}`))?.files;
-    const workflow = (path) => /^\.github\/workflows\//.test(String(path ?? ""));
-    const listed = Array.isArray(files) && files.length < COMPARE_CAP;
-    const changed = listed ? files.flatMap((file) => [file.filename, file.previous_filename]).find(workflow) : undefined;
+    const paths = await changedPaths(github, repo, await github("GET", `/repos/${repo}/compare/${pull.head.sha}...${mainSha}`), mainSha, [".github/workflows"]);
+    const listed = paths !== null;
+    const changed = listed ? paths[0] : undefined;
     if (listed && changed === undefined) {
       return `main changes nothing under .github/workflows/ since its merge base with ${pull.head.sha}`;
     }
@@ -426,26 +424,10 @@ async function checksHeld(read, repo, head) {
   return null;
 }
 
+const STATUS_JOBS = new Map(REVIEW_LANES);
 export const LANE_RECORDS = Object.freeze([
-  {
-    file: "pr-review-hosted.yml",
-    lane: "claude-review",
-    jobs: ["PR Review / review-status", "pr-review / review-status", "PR Review / Status", "pr-review / Status", "PR Review / Publish Review", "pr-review / Publish Review"],
-    whole: false,
-  },
-  {
-    file: "pr-review-security-hosted.yml",
-    lane: "claude-security-review",
-    jobs: [
-      "PR Review Security / review-status",
-      "pr-review-security / review-status",
-      "PR Review Security / Status",
-      "pr-review-security / Status",
-      "PR Review Security / Publish Review",
-      "pr-review-security / Publish Review",
-    ],
-    whole: true,
-  },
+  { file: "pr-review-hosted.yml", lane: "claude-review", jobs: STATUS_JOBS.get("pr-review-hosted.yml"), whole: false },
+  { file: "pr-review-security-hosted.yml", lane: "claude-security-review", jobs: STATUS_JOBS.get("pr-review-security-hosted.yml"), whole: true },
 ]);
 const RECORD_TITLE = "claude-lane-review-complete";
 const REVIEW_RECORD =
@@ -1070,7 +1052,7 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
       return { reason: `a review lane holds the current head ${sha}` };
     }
   }
-  const changed = laneChange(await github("GET", `/repos/${repo}/compare/${pull.base.sha}...${head}`));
+  const changed = await laneChangeIn(github, repo, await github("GET", `/repos/${repo}/compare/${pull.base.sha}...${head}`), head);
   if (changed !== null) {
     return { reason: `the head's lane runs prove nothing: it changes ${changed}` };
   }
