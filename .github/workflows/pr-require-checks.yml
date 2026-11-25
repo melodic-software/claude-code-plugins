@@ -1130,6 +1130,19 @@ jobs:
       # (scripts/selection-audit.sh changed). A listing that fails fails this
       # job, as the planner does, so no lane runs on a list nobody read
       # (https://github.com/melodic-software/claude-code-plugins/issues/17522).
+      - name: Set up Python for the comment-only check
+        if: steps.base.outputs.ref != '' && github.event.pull_request.draft != true
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+      - name: Install tree-sitter for the comment-only check
+        if: steps.base.outputs.ref != '' && github.event.pull_request.draft != true
+        timeout-minutes: 3
+        run: |
+          awk '/^tree-sitter(-python|-bash|-javascript)?==/ { f = 1 } f { print } f && !/\\$/ { f = 0 }' \
+            .github/requirements-ci.txt >"$RUNNER_TEMP/tree-sitter.txt"
+          python -m pip install --only-binary=:all: --require-hashes --requirement "$RUNNER_TEMP/tree-sitter.txt" ||
+            echo "::warning::tree-sitter did not install; every changed suite stays listed for test-selection."
       - name: List the suites the change adds or changes
         id: suites
         if: steps.base.outputs.ref != '' && github.event.pull_request.draft != true
