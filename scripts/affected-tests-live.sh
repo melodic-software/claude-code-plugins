@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# The cases of scripts/affected-tests.test.sh that must run against the LIVE
+# repository: the derived shared-lib copy sets, real fan-outs, and the probes
+# discovered in the tree. Each runs the selector over the whole tree, so no test
+# selection can say when it must run; the lint-repo job of
+# .github/workflows/pr-require-checks.yml runs this on every pull request.
+#
+# Usage: scripts/affected-tests-live.sh   (from anywhere; exit 0 all pass, 1 a failure)
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,6 +14,7 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 . "$SELF_DIR/lib/test-harness.sh"
 cd "$REPO_ROOT" || exit 1
 
+# Captured output is matched in-shell, never piped into an early-exit reader.
 has_line() { [[ $'\n'$1$'\n' == *$'\n'"$2"$'\n'* ]]; }
 
 select_for() {
@@ -35,6 +43,10 @@ for src in lib/hook-utils.sh lib/parse-concern-value.sh "$standards_src"; do
   fi
 done
 
+# Every live sync-*.sh (except the test helper) must implement the surface.
+# The publisher's stdout is captured, then matched in-shell with no pipe: an
+# early-exit reader on a pipe can kill a still-writing producer with SIGPIPE,
+# which this script's pipefail then reports as a failed assertion.
 live_missing=0
 for manifest in "$REPO_ROOT"/scripts/sync-*.sh; do
   [[ "$manifest" == *.test.sh ]] && continue
@@ -115,6 +127,15 @@ else
   fail "live python co-located selection (rc=$RC): $out"
 fi
 
+# --- LIVE repo: a real autonomy reference doc selects the contract suite -----
+# The probe doc is discovered, never spelled: a basename written here would make
+# this script name that file, and R3 would then cover it without R7. The suite
+# path below IS spelled on purpose: renaming the suite fails this case instead
+# of R7 silently selecting nothing.
+# The assertion is on the R7 reason, not on bare selection: a live doc can also
+# reach the suite through R4 fan-out (a hook naming it), which would pass without
+# R7. The seed is walked first, so R7's reason is the one recorded.
+# The exit status of this head pipe is never read, so its early exit is harmless.
 live_ref="$(git ls-files 'plugins/autonomy/reference/*.md' | head -n 1)"
 if [[ -z "$live_ref" ]]; then
   fail "LIVE R7: no tracked plugins/autonomy/reference/*.md to probe"
@@ -139,6 +160,7 @@ for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' 
   fi
 done
 
+# --- LIVE repo: files a suite reads select that suite (#8410) ------------------
 s_session=plugins/planning/shared/tests/test_session.py
 s_dims=plugins/work-items/tests/set-dimensions.test.sh
 gh_adapter=plugins/work-items/tools/work-item-tracker/adapters/github

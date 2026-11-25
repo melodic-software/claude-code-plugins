@@ -1,7 +1,9 @@
 // Resolves the pull request a pr-require-checks run passed, for pr-verify.yml.
-// The only event field it takes is the upstream run id; every other fact is
-// read back from the API. It proceeds only when all of these hold, and
-// otherwise writes proceed=false with a reason:
+// It takes the upstream run from the event payload (readUpstreamRun), which
+// GitHub writes for the attempt that completed, and reads that attempt's jobs
+// (attemptJobsPath), so a re-run started since cannot change what is judged;
+// every other fact is read back from the API. It proceeds only when all of
+// these hold, and otherwise writes proceed=false with a reason:
 // - the run is a completed pull_request run of pr-require-checks.yml, by
 //   exact path, in this repository on a head of this repository, that
 //   succeeded or failed only on holds an approving review of the head lifts
@@ -102,6 +104,20 @@ export const keptJobsPath = (env) => (env.RUNNER_TEMP ? path.join(env.RUNNER_TEM
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
+
+export function readUpstreamRun(eventText) {
+  const run = JSON.parse(eventText)?.workflow_run;
+  if (run === null || typeof run !== "object" || Array.isArray(run)) {
+    throw new Error("the event payload holds no workflow_run");
+  }
+  return run;
+}
+
+// The jobs of `run`'s own attempt, which a later attempt does not change
+// (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt).
+export const attemptJobsPath = (repository, run, page) =>
+  `/repos/${repository}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100${page === undefined ? "" : `&page=${page}`}`;
+const isAttempt = (value) => Number.isSafeInteger(value) && value >= 1;
 const MAX_PAGES = 100;
 
 // A 200 whose completeness check failed: a list shorter than its count, or a
@@ -315,7 +331,7 @@ export const errorLines = (log) =>
 // The check is two halves: heldShape reads only the run's jobs, so it runs
 // before the commit's pull requests are read, and heldOnly reads the
 // ci-status log against the pull request's number.
-// `read` is the resolution's one jobs read (latestJobs). Returns the ci-status
+// `read` is the resolution's one jobs read (attemptJobsPath). Returns the ci-status
 // job's id and its failed step names, or null.
 async function heldShape(read) {
   try {
@@ -1066,14 +1082,14 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRun: run, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
   const skip = (reason) => ({ proceed: false, reason });
-  if (!RUN_ID.test(String(upstreamRunId))) {
+  if (!RUN_ID.test(String(run?.id))) {
     throw new Error("the upstream run id is not a run id");
   }
-  const run = await github("GET", `/repos/${repository}/actions/runs/${upstreamRunId}`);
+  const upstreamRunId = run.id;
   if (
-    String(run?.id) !== String(upstreamRunId) ||
+    !isAttempt(run.run_attempt) ||
     run.path !== UPSTREAM_PATH ||
     run.event !== "pull_request" ||
     run.status !== "completed" ||
@@ -1085,7 +1101,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("not-a-passing-run");
   }
   let jobs;
-  const readJobs = () => (jobs ??= latestJobs(github, repository, upstreamRunId));
+  const readJobs = () => (jobs ??= github("GET", attemptJobsPath(repository, run)));
   const shape = run.conclusion === "failure" && typeof readLog === "function" ? await heldShape(readJobs) : null;
   if (run.conclusion === "failure" && shape === null) {
     return skip("not-a-passing-run");
@@ -1363,8 +1379,8 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
   for (const key of [
     "GITHUB_TOKEN",
     "GITHUB_REPOSITORY",
+    "GITHUB_EVENT_PATH",
     "GITHUB_OUTPUT",
-    "UPSTREAM_RUN_ID",
     "SPEC_FILE",
     "SPEC_TEXT_FILE",
     "TRUSTED_ACTORS_PATH",
@@ -1373,6 +1389,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
       throw new Error(`${key} is not set`);
     }
   }
+  const upstreamRun = readUpstreamRun(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
   const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors, latch });
   // A job's log: GitHub answers with a redirect to storage, which is read
@@ -1402,7 +1419,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     readRefs: github ?? api(true),
     readLog,
     repository: env.GITHUB_REPOSITORY,
-    upstreamRunId: env.UPSTREAM_RUN_ID,
+    upstreamRun,
     humans: trusted.humans,
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
@@ -1426,7 +1443,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     writeJson(env.SPEC_TEXT_FILE, result.specText);
     const keptFile = jobs !== undefined && keptJobsPath(env);
     if (keptFile) {
-      writeFileSync(keptFile, `${JSON.stringify(shapeJobs(env.UPSTREAM_RUN_ID, jobs))}\n`);
+      writeFileSync(keptFile, `${JSON.stringify(shapeJobs(upstreamRun.id, jobs))}\n`);
     }
   }
   const lines = [

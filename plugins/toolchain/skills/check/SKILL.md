@@ -2,13 +2,13 @@
 description: "Build, test, and lint verification for changed files in each ecosystem the repository records or its build files imply, running only the project's own commands and reporting any it cannot resolve. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit. Lint only: /toolchain:lint; outcome verification: /verification:confirm."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[ecosystem] [--unattended]"
+argument-hint: "[ecosystem] [--unattended] [--propose-records <dir>]"
 metadata:
   workflow-stage: verify
   summary: Build, test, and lint changed files across detected ecosystems
 ---
 
-**Arguments.** `[ecosystem] [--unattended]`. e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all, /toolchain:check --unattended. Default: auto-detect from git status
+**Arguments.** `[ecosystem] [--unattended] [--propose-records <dir>]`. e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all, /toolchain:check --unattended. Default: auto-detect from git status
 
 ## Repository context. Gather first
 
@@ -32,6 +32,8 @@ Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN
 `$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one recorded, stated or inferred this run ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. A consumer record such as `docs/conventions/ecosystems/rust.yaml` makes `rust` a filter. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
 
 `--unattended` marks the run unattended; strip it before reading the ecosystem filter. A run without it is still unattended when the ladder's "Run kind" says so, including a run that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": it runs only a recorded, stated or inferred command, logs each as `assumed:` with its source, asks nothing, installs nothing, writes no `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` record, and reports a key nothing resolved, or a tie, as `skip (unresolved: <ecosystem>.<key>)`.
+
+`--propose-records <dir>` drafts ecosystem records from the run's `assumed:` lines into `<dir>` (section 5); strip it and its value before reading the ecosystem filter. Only an unattended run drafts; an attended run ignores the flag, says so, and offers `/toolchain:setup` as usual.
 
 Read on demand:
 
@@ -134,7 +136,7 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 ### 3. Report results
 
-Settle the Overall line and record it (section 4) before writing this report, so the report is the reply's last text.
+Settle the Overall line, record it (section 4) and draft any records (section 5) before writing this report, so the report is the reply's last text.
 
 ```text
 ## Build Results
@@ -178,6 +180,26 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill check --dir "$REP
 ```
 
 The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2, for example where a sandbox blocks the git calls that hash the tree, or exit 1 for a line it rejects) changes nothing in the report: put one `Not recorded: <the script's reason>` line above the table, and still end the reply with the full report, its table, the lines below it and the Overall line. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found" or with no ecosystem to run.
+
+### 5. Propose records (only under `--propose-records`)
+
+Run this after section 4 and before writing the report, only in an unattended run given `--propose-records <dir>`. Put `<dir>` outside the working tree, or in a gitignored folder, so a draft neither changes the tree section 4 recorded nor gets committed with the run's change. The script refuses an output inside `docs/conventions/ecosystems/`, the legacy `.claude/ecosystems/` or `~/.claude/ecosystems/`, so no run reads a draft as a record, and refuses to overwrite a file.
+
+For each ecosystem with at least one `assumed:` line and no team record (no `<ecosystem>.yaml` in either folder), write that run's `assumed:` lines, exactly as printed, to `<dir>/<ecosystem>.assumed.txt`, then run, as its own Bash call, with one `--glob` per glob the ecosystem resolved (its `Inferred <id>: globs` line, or the file types a stated command checks):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/check/scripts/lane-record.mjs" write --ecosystem <ecosystem> --glob '<glob>' --out "<dir>/<ecosystem>.yaml" --lines "<dir>/<ecosystem>.assumed.txt" --repo "$REPO_ROOT"
+```
+
+The script re-reads each line's cited `file:line`, which must be tracked and unchanged from the merge-base with the default branch the draft's pull request targets, and accepts only a command that line holds: a record line, an instructions-file line stating it as a whole code span, a root `package.json` script, a `Makefile` target or `justfile` recipe, or a build tool's verb on its entry point, cited at line 1. It refuses an install verb, a package runner, a shell command string and a CI workflow file as the source, leaves a gate's line out with a note, and does not propose a key already recorded. Exit 0 wrote the draft. Exit 1 refused and wrote nothing: list each `refused:` line below the table and propose nothing for that ecosystem; never edit the draft or the lines to get past a refusal. It finds the default branch as section 1's branch diff does: a remote's `refs/remotes/<remote>/HEAD` ref, else the branch the remote's own `HEAD` names (`git ls-remote --symref`, the only source in a GitHub Actions checkout), when that branch has a local tracking ref. Exit 2 is a usage or I/O error, including a repository where the script finds no default branch: report it and draft nothing, rather than pass a `--base` that is not the default branch's merge-base.
+
+Below the table, name each draft path with its content. This skill commits, pushes and opens nothing. After it returns, the unattended session opens one separate pull request per draft, on a branch from the default branch, through `/source-control:pull-request create` (if enabled), that adds it as `docs/conventions/ecosystems/<ecosystem>.yaml`, never inside the pull request for its own change, with the ecosystem's `assumed:` lines in the body. Without that skill, the report is the whole proposal. For an ecosystem record only, "a merged pull request counts as acceptance" ([ecosystem-resolution contract, "Recording rule"](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-resolution/README.md#recording-rule)).
+
+A reviewer or the consumer's CI runs the same script's verify mode on that pull request, from its copy of this plugin, with the lines from the body. It exits non-zero on any key other than `globs` and the command keys, and on any command the lines do not support; it does not check `globs`. It requires `--base`, the pull request's base commit, and exits 2 without it: it reads every cited line as it was at that commit, so the pull request cannot cite lines it adds or alters:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/check/scripts/lane-record.mjs" verify --record "$REPO_ROOT/docs/conventions/ecosystems/<ecosystem>.yaml" --lines <assumed-lines-file> --base <base-commit> --repo "$REPO_ROOT"
+```
 
 ## For other skills referencing /toolchain:check
 

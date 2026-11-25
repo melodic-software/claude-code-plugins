@@ -8,8 +8,6 @@ DETECT="$(cd "$(dirname "$DETECT")" && pwd)/$(basename "$DETECT")"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
-# Clears the inherited git environment for the whole suite; see
-# scripts/check-fixture-git-isolation.sh for why -C alone does not isolate.
 # shellcheck source=test-git-helpers.sh
 . "$SCRIPT_DIR/test-git-helpers.sh"
 # shellcheck source=lib/fixture-tree.sh
