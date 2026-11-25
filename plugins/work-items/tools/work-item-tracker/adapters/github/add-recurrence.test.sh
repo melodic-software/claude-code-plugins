@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: add-recurrence against a gh stub that keeps the item's comments in a JSON file,
-# applies each call's --jq filter to it, and appends a POSTed comment to it.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

@@ -100,7 +100,7 @@ from any workflow in the repository holding `actions: write`.
   after the reconciler waits for the one after. Each tick costs one dispatcher run and its listing
   queries even when nothing is red; a head in the dispatch record is not read again, while a red
   lanes App PR, an `UNKNOWN` PR and a fix-docs candidate are still read per tick. Basis:
-  `dispatch.mjs:194-230,838-839`; `fix-ci-dispatch.mjs:403-413,497-530`;
+  `dispatch.mjs:194-230,838-839`; `fix-ci-dispatch.mjs:403-413,496-529`;
   `fix-docs-dispatch.mjs:284-319`.
 - One runner per conflicting PR per push, capped at 3 per dispatcher run. The cap is judgment
   until the lane's per-run cost is measured. Basis: `dispatch.mjs:78-79`.

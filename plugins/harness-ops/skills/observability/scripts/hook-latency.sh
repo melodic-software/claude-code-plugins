@@ -55,7 +55,6 @@ cannot_evaluate() {
   exit 2
 }
 
-# Judgment, derived from docs/contracts/hook-budget/README.md 'after at S=80 ms' table.
 budgets="Stop=2000,PostToolBatch=1500,UserPromptSubmit=1500,SubagentStop=1500,"
 readonly KNOWN_EVENTS=" SessionStart Setup UserPromptSubmit UserPromptExpansion PreToolUse PermissionRequest PermissionDenied PostToolUse PostToolUseFailure PostToolBatch Notification MessageDisplay SubagentStart SubagentStop TaskCreated TaskCompleted Stop StopFailure TeammateIdle InstructionsLoaded ConfigChange CwdChanged DirectoryAdded FileChanged WorktreeCreate WorktreeRemove PreCompact PostCompact PreModelSwitch PostModelSwitch Elicitation ElicitationResult SessionEnd "
 # Both forms are SQL over digits-only input; make_timestamp(epoch_us(now())) is UTC, the same

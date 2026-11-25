@@ -52,8 +52,6 @@ emit_with_sink() {
   EMIT_RC=$(<"$rc_file")
 }
 
-# Upper bound for a wait of one to five 20ms polls. Generous on purpose: a
-# single process spawn has been measured at 3.2 s on a loaded host.
 BOUND_MS=5000
 
 # shellcheck disable=SC2016  # $1 expands in the child shell, not here

@@ -34,8 +34,6 @@ unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
 assert_contains "unknown flag mentions expected modes" "$unknown_out" "expected"
 
-# --- 3. Source-guard: helpers callable when sourced ------------------------------
-
 # Sourcing installs the script's own EXIT trap (cleanup of its TMPDIR_RUN); the
 # trap set after it replaces that one and removes both directories.
 # shellcheck source=update.sh

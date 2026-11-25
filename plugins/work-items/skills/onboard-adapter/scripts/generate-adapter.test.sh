@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/*
-# test-scope: plugins/work-items/tools/work-item-tracker/seeds/gitea/adapter-spec.json plugins/work-items/tools/work-item-tracker/seeds/gitea/capabilities.json plugins/work-items/tools/work-item-tracker/seeds/jira/capabilities.json plugins/work-items/tools/work-item-tracker/seeds/linear/adapter-spec.json plugins/work-items/tools/work-item-tracker/seeds/linear/capabilities.json
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/* docs/conventions/source-control.yaml plugins/work-items/tools/work-item-tracker/seeds/*/capabilities.json plugins/work-items/tools/work-item-tracker/seeds/*/adapter-spec.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 
@@ -421,11 +420,15 @@ for v in create-item get-item claim renew-lease release reclaim link-blocks add-
   assert_file "full surface emits $v.sh" "$FULL_A/$v.sh"
 done
 
-SC_RC="$SCRIPT_DIR/../../../../../.shellcheckrc"
+SC_RC="$(bash "$SCRIPT_DIR/../../../../../lib/org-standards.sh" dir --root "$SCRIPT_DIR/../../../../.." 2>/dev/null)/.shellcheckrc"
 # ShellCheck before 0.10.0 rejects `--rcfile` with exit 3 (bad syntax, not issues found),
 # so probe whether THIS binary accepts the flag rather than trusting the exit status.
 if ! command -v shellcheck >/dev/null 2>&1; then
   printf 'SKIP: shellcheck not available — generated-shell lint case not run\n' >&2
+elif [[ ! -f "$SC_RC" && -n "${CI:-}${STANDARDS_DIR:-}" ]]; then
+  assert_eq "the standards org layer's .shellcheckrc is readable where CI or STANDARDS_DIR says it must be" "readable" "unreadable"
+elif [[ ! -f "$SC_RC" ]]; then
+  printf 'SKIP: the standards org layer could not be read — generated-shell lint case not run\n' >&2
 elif ! shellcheck --rcfile="$SC_RC" /dev/null >/dev/null 2>&1; then
   printf 'SKIP: shellcheck too old for --rcfile (needs 0.10.0+) — generated-shell lint case not run\n' >&2
 else

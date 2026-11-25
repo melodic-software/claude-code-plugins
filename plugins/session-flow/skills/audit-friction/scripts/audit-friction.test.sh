@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the audit-friction scripts — delegates to the pytest suite.
 # test-scope: plugins/session-flow/skills/audit-friction/scripts/tests/fixtures/*
 # test-scope: plugins/session-flow/scripts/collect.py plugins/session-flow/scripts/census.py plugins/session-flow/scripts/friction_scan.py plugins/session-flow/scripts/redact.py plugins/session-flow/scripts/transcript_reader.py
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/lib/state-key.sh plugins/session-flow/skills/audit-friction/scripts/*

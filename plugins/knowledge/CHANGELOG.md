@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.10] - 2026-11-25
+
+### Changed
+
+- Removed comments from extraction scripts and the vendored node-launcher and video-digestion copies; no behavior change.
+
 ## [3.5.9] - 2026-11-25
 
 ### Changed

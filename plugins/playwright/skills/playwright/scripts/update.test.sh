@@ -188,7 +188,6 @@ stub_latest=""
 out=$(run_check 2>&1)
 assert_exit "registry unreachable: exit 2" 2 "$?"
 
-# --- 10. run_apply preview: repo-side files stay out of the 200-line diff ------------
 # The upstream skill directory ships no LICENSE; the script copies it from the
 # package root afterwards. A LICENSE past 200 lines fills the preview and pushes a
 # real SKILL.md change out of it when it is compared.

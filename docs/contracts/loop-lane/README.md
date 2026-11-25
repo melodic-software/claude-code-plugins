@@ -503,7 +503,7 @@ or malicious-package report, a leaked secret, a compromised publisher).
 
 The owner's standing direction for every session and lane, 2026-10-28, verbatim. Sections 2, 3
 and 10 (2026-10-29) are quoted in [When work stops for the owner](#when-work-stops-for-the-owner); section 6 is
-[design-for-change](../../standards/design-for-change.md).
+[design-for-change](https://github.com/melodic-software/standards/blob/main/standards/engineering/design-for-change.md).
 
 <!-- spellchecker:off -->
 > **1. Decide from evidence**

@@ -276,8 +276,6 @@ mapfile -t in_range < <(printf '%s\n' "$rows" | awk -F'\t' -v mode="$mode" -v la
 latest="$(printf '%s\n' "$rows" | awk -F'\t' '$1 == "release" { print $2 }' | vsort | tail -1)"
 printf 'latest: %s\n' "${latest:-unknown}"
 
-# A body with the right heading but no release marker is a parse failure (the page
-# markup moved), never proof that nothing is pending.
 if [[ -z "$latest" ]]; then
   printf 'range: not computed (no release markers parsed from the changelog body; the page markup may have changed)\n'
   exit 0

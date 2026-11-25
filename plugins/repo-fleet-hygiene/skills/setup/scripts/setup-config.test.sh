@@ -44,7 +44,6 @@ else
   fail "unrelated entries and comments survive" "$(cat "$CONF")"
 fi
 
-# invalid input exits 2 and leaves the file byte-identical
 before="$(cat "$CONF")"
 bad_ok=1
 backslash=$'\\'

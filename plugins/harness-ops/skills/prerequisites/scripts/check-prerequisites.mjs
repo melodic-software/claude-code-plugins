@@ -73,7 +73,6 @@ function claudeListing(env, platform) {
   return r.stdout ?? "";
 }
 
-// The managed settings files, or none on a platform with no documented managed path.
 function managedFiles() {
   try {
     return managedSettingsFiles();

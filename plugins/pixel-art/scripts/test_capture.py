@@ -1,4 +1,3 @@
-"""capture.py: unreviewed exit, and the campfire scene's timeline when a browser exists."""
 import base64
 import io
 import json

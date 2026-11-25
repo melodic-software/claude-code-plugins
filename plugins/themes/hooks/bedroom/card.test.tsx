@@ -9,7 +9,6 @@ import { bedroomSvg } from './scene.ts'
 import { DEFAULT_STATE, type State } from './scene/lib.ts'
 
 const SWITCHES = ['tv', 'tape', 'console', 'pc', 'light', 'lamp', 'lava'] as const
-/** How long a changed room shows alone before the shader starts over it (SETTLE_MS in register.tsx). */
 const SETTLE_MS = 7000
 const STATUS = 'on: tv, pc. off: tape, console, light, lamp, lava. posters: plain. dim: 0'
 

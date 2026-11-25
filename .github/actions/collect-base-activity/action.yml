@@ -210,6 +210,13 @@ runs:
           for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
             [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$dir/$(dirname "$config")" && cp "$BASE_PATH/$config" "$dir/$config"; }
           done
+          # A lint config the base does not keep comes from the standards org
+          # layer, as CI's lint composites and check-affected.sh read it.
+          if [ -f "$BASE_PATH/lib/org-standards.sh" ] && org=$(bash "$BASE_PATH/lib/org-standards.sh" dir --root "$BASE_PATH" 2>/dev/null); then
+            for config in .shellcheckrc .markdownlint-cli2.jsonc; do
+              [ -f "$dir/$config" ] || [ ! -f "$org/$config" ] || cp "$org/$config" "$dir/$config"
+            done
+          fi
           if [ -d "$BASE_PATH/plugins/skill-quality/scripts" ]; then
             mkdir -p "$dir/plugins/skill-quality"
             cp -R "$BASE_PATH/plugins/skill-quality/scripts" "$dir/plugins/skill-quality/"

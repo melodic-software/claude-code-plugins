@@ -150,7 +150,6 @@ rt_adapter_in_repo() {
   fi
 }
 
-# the repository's excludes and nested configs govern it as they do the file.
 # shellcheck disable=SC2154 # CHECKS_TMP is set by check-lib.sh's checks_init
 sp_mirror() {
   local f="$1" root="$CHECKS_TMP/mirror" rel="." rest="$1" name

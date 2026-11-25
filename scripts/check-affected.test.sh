@@ -15,6 +15,7 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # shellcheck source=test-git-helpers.sh
 . "$SELF_DIR/test-git-helpers.sh" || exit 2
 
+unset CI STANDARDS_DIR
 tmp="$(mktemp -d)" || exit 2
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
@@ -198,6 +199,11 @@ check "typos gets the config, the exclusions and the changed files" \
 run PATH="$(path_without typos)" -- --base base
 check "a missing typos is a skip, not a failure" \
   '[[ $RC == 0 && $ERR == *"SKIP typos (typos not installed)"* ]]'
+run CI=true -- --base base
+check "in CI an unreadable standards org layer fails typos instead of falling back to the tree's config" \
+  '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR == *"standards org layer"* && $ERR != *"typos ran"* ]]'
+run STUB_TYPOS=1 -- --base base
+check "on a workstation the same run falls back to the tree's _typos.toml" '[[ $ERR == *"typos ran: --config "*"/_typos.toml"* ]]'
 pre_typos="$(git_test_config "$repo" rev-parse HEAD)"
 workflow="$repo/.github/workflows/pr-require-checks.yml"
 sed -i.bak 's|exclude: plugins/.*|& legacy/samples/**|' "$workflow" && rm -f "$workflow.bak"
@@ -895,13 +901,20 @@ rm -rf "$repo/new-tool"
 # The inner run lints from the scratch repository, with the rcfile beside the
 # outer copy of the script; an optional check the rcfile enables proves it read it.
 if grep -q -- --rcfile <<<"$(shellcheck --help 2>&1)"; then
-  cp "$SELF_DIR/../.shellcheckrc" "$repo/.shellcheckrc"
+  printf 'enable=require-double-brackets\n' >"$repo/.shellcheckrc"
   printf '#!/usr/bin/env bash\nif [ -n "${1:-}" ]; then echo hi; fi\n' >"$repo/lint-me.sh"
   chmod +x "$repo/lint-me.sh"
   run -- --uncommitted
   check "--uncommitted lints a changed shell file with the repository's .shellcheckrc" \
     '[[ $RC == 1 && $ERR == *"FAIL shellcheck"* && $ERR == *"SC2292"* && $ERR != *"unrecognized option"* ]]'
-  rm -f "$repo/.shellcheckrc" "$repo/lint-me.sh"
+  rm -f "$repo/.shellcheckrc"
+  run CI=true -- --uncommitted
+  check "in CI a shell change with no .shellcheckrc and no readable org layer fails shellcheck" \
+    '[[ $RC == 1 && $ERR == *"FAIL shellcheck"* && $ERR == *"standards org layer"* ]]'
+  run -- --uncommitted
+  check "on a workstation the same run skips shellcheck, naming why" \
+    '[[ $ERR == *"SKIP"*"shellcheck (no .shellcheckrc here, and the standards org layer could not be read)"* ]]'
+  rm -f "$repo/lint-me.sh"
 else
   ok "SKIP --uncommitted shellcheck case (no shellcheck with --rcfile here)"
 fi

@@ -106,7 +106,6 @@ OUT="$(bash "$APPEND_COPY/hooks/measure-hook-log-budget.sh" --samples 1 2>&1)"
 assert_exit "a failed append job exits 3" 3 "$?"
 assert_contains "the failure names the append probe" "$OUT" "4 KB append probe job exited non-zero"
 
-# A trailing option with no value is a usage error, not an endless loop.
 for flag in --samples --record --check-doc; do
   timeout 10 bash "$SUT" "$flag" >/dev/null 2>&1
   assert_exit "$flag without a value exits 2" 2 "$?"

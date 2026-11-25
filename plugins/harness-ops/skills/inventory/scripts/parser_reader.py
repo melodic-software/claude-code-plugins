@@ -115,8 +115,6 @@ def deps_base(explicit: str | None) -> tuple[Path, str]:
     if explicit:
         return Path(explicit), "--deps-dir"
     env = os.environ.get("CLAUDE_PLUGIN_DATA")
-    # Exact plugin match. startswith("harness-ops") also accepts a lookalike
-    # such as harness-opsx-foo.
     if env:
         name = Path(env).name
         if name == "harness-ops" or name.startswith("harness-ops-"):
@@ -253,7 +251,6 @@ def ensure_installed(target: Path) -> bool:
 
 
 def _unsafe(res: dict[str, Any], lo: int) -> dict[str, Any]:
-    """The unsafe answer of `flow` or `namespace`, its `at` a position in `src`."""
     if res.get("unreadable"):
         reason, at = "the module holds a character outside the BMP", None
     else:

@@ -73,8 +73,6 @@ PROJECT_ROOT="$(il_realpath "$repo_root")"
 IL_ROOT="$PROJECT_ROOT"
 export IL_ROOT
 
-# A comment ends at the first `-->` after its own opener; an opener that never
-# closes is content, so it is flushed at EOF rather than eaten.
 loaded_content() {
   tr -d '\r' <"$1" | LC_ALL=C awk '
     function uncomment(s,   p, q, out) {

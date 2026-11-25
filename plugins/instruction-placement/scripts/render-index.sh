@@ -57,7 +57,6 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The git-hook installer copies this script and discover.sh flat into one directory.
 discover="$SCRIPT_DIR/lib/discover.sh"
 [[ -f "$discover" ]] || discover="$SCRIPT_DIR/discover.sh"
 # shellcheck source=./lib/discover.sh

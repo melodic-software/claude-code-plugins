@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Contract: each eval scaffold seeds every fixture file under its real name,
-# so the eval cases that read them have a workspace: the nightly-etl
-# repository for the brainstorm cases, the webhook-sender repository for the
-# plan cases, and the partner-feed tracker export for the wayfind work-mode cases.
 # test-scope: plugins/planning/evals/observed-fact-evidence-bar*/scaffold.sh plugins/planning/evals/unilateral-decision-not-folded*/scaffold.sh plugins/planning/evals/work-*/scaffold.sh
 set -euo pipefail
 

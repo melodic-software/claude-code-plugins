@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.5] - 2026-11-25
+
+### Changed
+
+- Shared `resolve-tool.sh` synced where this plugin carries it (https://github.com/melodic-software/claude-code-plugins/pull/18972); no other change to this plugin.
+
 ## [2.3.4] - 2026-11-25
 
 ### Changed

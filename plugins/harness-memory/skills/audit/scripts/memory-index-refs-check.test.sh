@@ -23,8 +23,6 @@ mem_dir_for() {
   mkdir -p "$dir"
   printf '%s' "$dir"
 }
-# CLAUDE_CONFIG_DIR is dropped per run so the host's real memory store cannot answer
-# for the fixture. Case 7 drops GIT_DIR as well and calls `env` directly.
 run() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT" "${2:-}"); }
 
 rc=0

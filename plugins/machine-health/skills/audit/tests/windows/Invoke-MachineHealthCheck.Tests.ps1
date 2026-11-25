@@ -184,7 +184,6 @@ Describe 'Invoke-MachineHealthCheck -ElevatedResultPath' -Tag 'orchestrator' {
     }
 
     It 'imports a matrix result the quiet run did not dispatch, lists it in elevated_checks and logs the import' {
-        # Pre-created before the document is written, as New-ElevatedLaunch leaves it.
         $resultPath = Join-Path $script:root 'elevated-result.json'
         [System.IO.File]::Create($resultPath).Dispose()
         $created = [System.IO.File]::GetCreationTimeUtc($resultPath)
