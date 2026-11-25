@@ -48,6 +48,39 @@ class FindingLine(unittest.TestCase):
         )
 
 
+class UnchangedTrailingComment(unittest.TestCase):
+    def hunks(self, diff):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "diff"
+            p.write_text(diff, encoding="utf-8")
+            return lint._hunks(p)
+
+    def lint(self, path, text, hunks):
+        got = lint.findings(path, text, [(1, text.count("\n"))], "necessary", [], hunks=hunks)
+        return [int(f.split(":")[1]) for f in got]
+
+    def test_diff_hunks_keep_removed_lines(self):
+        diff = "--- a/a.js\n+++ b/a.js\n@@ -2,2 +2,1 @@ f\n-x=1;  // why\n-+++ b/z\n+x = 1; // why\n"
+        self.assertEqual(self.hunks(diff)["a.js"], [(2, ["x=1;  // why", "+++ b/z"], 2, 1)])
+
+    def test_quoted_path_hunk_content_is_never_a_header(self):
+        diff = '+++ "b/q\\303\\251.py"\n@@ -1 +1 @@\n-x\n+++ b/a.py\n'
+        self.assertEqual(self.hunks(diff), {})
+
+    def test_slash_comment_unchanged_behind_respaced_code_passes(self):
+        hunks = [(1, ["let x=1;  // why", "let y=2;"], 1, 2)]
+        self.assertEqual(self.lint("a.js", "let x = 1; // why\nlet y = 2; // new\n", hunks), [2])
+
+    def test_path_in_two_diffs_pairs_nothing(self):
+        diff = "+++ b/a.py\n@@ -1 +1 @@\n-x=1  # why\n+x = 1  # why\n+++ b/a.py\n@@ -1 +1 @@\n-x=1  # why\n+x = 1  # why\n"
+        hunks = self.hunks(diff)["a.py"]
+        self.assertIsNone(hunks)
+        self.assertEqual(self.lint("a.py", "x = 1  # why\n", hunks), [1])
+
+    def test_hunks_that_do_not_fit_the_text_pair_nothing(self):
+        self.assertEqual(self.lint("a.py", "x = 1  # why\n", [(5, ["x=1  # why"], 1, 1)]), [1])
+
+
 class AddedLinesOnly(unittest.TestCase):
     def test_comment_on_unchanged_line_never_fails(self):
         self.assertEqual(flagged("a.sh", "# old note\nx=1\n", added=[(2, 2)]), [])
