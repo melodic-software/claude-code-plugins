@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "One reference still points at the old name:\n\n- `packages/ledger-bridge/pyproject.toml:2`: `name = \"ledger-sync\"` (Form 14, TOML declaration, Certain)", "why": "file and line with the declaration"},
+    {"answer": "| File | Line | Text |\n|---|---|---|\n| packages/ledger-bridge/pyproject.toml | 2 | name = \"ledger-sync\" |", "why": "a table row"},
+    {"answer": "Stale references:\n\n1. packages/ledger-bridge/pyproject.toml, line 2\n   name = \"ledger-sync\"\n   Change it to ledger-bridge.", "why": "the declaration on the next line"},
+    {"answer": "The `ledger-sync` declaration in packages/ledger-bridge/pyproject.toml line 2 still needs updating.", "why": "old name before the path on one line"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "No stale references to ledger-sync found. The rename looks complete.", "why": "misses the TOML declaration"},
+    {"answer": "Container mode: bare-token residue suppressed. 0 actionable stragglers.\n\nChecked: README.md, packages/ledger-bridge/README.md.", "why": "the failure the TOML alternative prevents"},
+    {"answer": "Checked packages/ledger-bridge/pyproject.toml: fine.\n\nNothing else to change.", "why": "the manifest named as clean, without the old name"}
+  ]
+}

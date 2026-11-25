@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run/docs/onboarding.md", "old_string": "This page is basically just here to really help you", "new_string": "This page helps you"}}], "why": "an in-session Edit on the target"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /plugins/docs-hygiene/lib/read-verification.sh --plugin docs-hygiene --skill compress --file docs/conventions/docs-hygiene.yaml"}}, {"tool": "Edit", "input": {"file_path": "docs/onboarding.md", "old_string": "Honestly, the setup is really quite simple.", "new_string": "The setup is simple."}}], "why": "an Edit after the level reader"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call: the old entry-point stop"},
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2"}}], "why": "probes for a linter and stops before compressing"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/notes.md", "old_string": "just", "new_string": ""}}], "why": "an Edit on another file"}
+  ]
+}

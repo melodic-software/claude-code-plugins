@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: rr-toml-manifest-declaration
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:docs-hygiene:)?rename-references"'
+    arm: with-only
+  - name: lists-toml-declaration
+    type: regex
+    pattern: 'pyproject\.toml(?:[^\n]*\n){0,3}?[^\n]*ledger-sync|ledger-sync[^\n]*pyproject\.toml'
+    target: last_message
+    arm: both

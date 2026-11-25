@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)\n\nLint command: npm run lint:md, inferred from package.json.\n\ncompress_articles: keep (default)", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | compressed | lint: PASS |", "why": "a table cell"},
+    {"answer": "- `onboarding.md`: compressed, `lint=PASS` (`bash scripts/lint-md.sh`)", "why": "code-formatted field"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)", "why": "the resolvable script reported as unresolved"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, markdownlint=PASS)", "why": "the old field name"},
+    {"answer": "onboarding.md: reverted (lint=FAIL)", "why": "a failing lint result"},
+    {"answer": "The lint script passed.", "why": "prose without the lint field"}
+  ]
+}

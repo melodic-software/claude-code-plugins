@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md"}}], "why": "the script through npm, on the edited file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md"}}], "why": "the script over every file"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash scripts/lint-md.sh docs/onboarding.md"}}], "why": "the script's command run directly"},
+    {"answer": [{"tool": "Bash", "input": {"command": "./scripts/lint-md.sh docs/onboarding.md"}}], "why": "the executable script by path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git rev-parse --show-toplevel && pnpm lint:md docs/onboarding.md"}}], "why": "pnpm shorthand after another command"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat scripts/lint-md.sh"}}], "why": "reads the script without running it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n lint:md package.json"}}], "why": "finds the script without running it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx markdownlint-cli2 docs/onboarding.md"}}], "why": "a linter the repository never named"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "scripts/lint-md.sh"}}], "why": "a read, not a run"}
+  ]
+}

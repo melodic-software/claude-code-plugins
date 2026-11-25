@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)\n\nLint: no markdown lint command resolved; read docs/conventions/ecosystems/, AGENTS.md, CLAUDE.md and the repository root.\n\ncompress_articles: keep (default)", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | compressed | lint: unresolved |", "why": "a table cell"},
+    {"answer": "- `onboarding.md`: compressed, `lint=unresolved` (no lint command found)", "why": "code-formatted field"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "an unresolved command counted as a pass"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, markdownlint=unresolved)", "why": "the old field name"},
+    {"answer": "markdownlint-cli2 is not installed. Install it with npm install --save-dev markdownlint-cli2 and rerun.", "why": "the old entry-point stop"},
+    {"answer": "The lint step was skipped because no linter could be resolved.", "why": "prose without the lint=unresolved field"}
+  ]
+}

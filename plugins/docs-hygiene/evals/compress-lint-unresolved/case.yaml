@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: compress-lint-unresolved
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: edited-target
+    type: tool_used
+    tool: Edit
+    input_match: 'onboarding\.md'
+    min: 1
+    arm: with-only
+  - name: lint-unresolved
+    type: regex
+    pattern: '\blint\W{1,4}unresolved\b'
+    target: last_message
+    arm: with-only
+  - name: no-shipped-linter
+    type: tool_used
+    tool: Bash
+    input_match: 'markdownlint'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '\b(?:npm|pnpm|yarn|bun)\s+(?:install|i|add)\b|\bnpx\s|\bpip3?\s+install\b'
+    min: 0
+    max: 0
+    arm: both

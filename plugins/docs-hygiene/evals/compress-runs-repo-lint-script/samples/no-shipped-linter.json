@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md"}}], "why": "the repository's own script"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat package.json"}}], "why": "reading the manifest"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v markdownlint-cli2"}}], "why": "a PATH probe for a linter the skill picked"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx markdownlint-cli2 docs/onboarding.md"}}], "why": "runs a linter the repository never named"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md && markdownlint docs/onboarding.md"}}], "why": "a second, shipped linter after the script"}
+  ]
+}
