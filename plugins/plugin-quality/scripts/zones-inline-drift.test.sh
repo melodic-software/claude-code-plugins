@@ -23,15 +23,11 @@
 # The resolver states the same rule in its own wording, and the resolver is a
 # synced byte-identical file this repo does not reword to satisfy a grep.
 #
-# Every load-bearing phrase must appear in BOTH files of its pair after
-# normalization (backticks/emphasis stripped, whitespace flattened), so a value
-# change on either side fails this lane until both move together.
-#
 # SKIPs (exit 0) outside the monorepo checkout: an installed plugin cache is
 # per-plugin isolated and cannot see the sibling plugin's contract file --
 # the lane is meaningful only where both files exist (repo CI's plugin-gate).
 
-# shellcheck disable=SC2088  # the ~/ strings are documented contract PHRASES being grep-matched as data, never paths this script expands
+# shellcheck disable=SC2088,SC2016  # the ~/ and $ strings are contract phrases and resolver code matched as data, never expanded
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,19 +62,36 @@ both() {
 }
 
 resolver_and_contract() {
-  both "$RESOLVER_N" "scripts/context-zone.sh" "$1" "$2"
+  local label="$1" phrase="$2" where="" code
+  shift 2
+  [[ "$CONTRACT_N" == *"$phrase"* ]] || where="reader contract"
+  for code in "$@"; do
+    [[ "$RESOLVER_N" == *"$code"* ]] || where="${where:+$where and }plugin-quality scripts/context-zone.sh ('$code')"
+  done
+  if [[ -z "$where" ]]; then
+    ok "$label"
+  else
+    fail "$label: not found in $where: '$phrase'"
+  fi
 }
 
-resolver_and_contract "staleness window (10 minutes)" "10 minutes"
-resolver_and_contract "snapshot path pattern" "~/.claude/context-usage/context/<session_id>.json"
-resolver_and_contract "zones file path" "~/.claude/context-usage/zones.json"
-resolver_and_contract "percentage floor" "light ≤ 50 < moderate ≤ 75 < heavy"
-resolver_and_contract "200k-class token band" "200000: light ≤ 100000 < moderate ≤ 150000 < heavy"
-resolver_and_contract "1M-class token band" "1000000: light ≤ 128000 < moderate ≤ 500000 < heavy"
-resolver_and_contract "occupancy definition" "total_input_tokens + total_output_tokens"
-resolver_and_contract "token-shape version floor" "cli_version"
-resolver_and_contract "token-shape version floor value" "2.1.132"
-resolver_and_contract "zone vocabulary" "light / moderate / heavy / unknown"
+resolver_and_contract "staleness window (10 minutes)" "10 minutes" "STALENESS_SECONDS=600"
+resolver_and_contract "snapshot path pattern" "~/.claude/context-usage/context/<session_id>.json" \
+  'dir="$HOME/.claude/context-usage"' 'snap="$dir/context/$sid.json"'
+resolver_and_contract "zones file path" "~/.claude/context-usage/zones.json" \
+  'zones="$HOME/.claude/context-usage/zones.json"'
+resolver_and_contract "percentage floor" "light ≤ 50 < moderate ≤ 75 < heavy" \
+  "DEFAULT_LIGHT_MAX=50" "DEFAULT_MODERATE_MAX=75"
+resolver_and_contract "200k-class token band" "200000: light ≤ 100000 < moderate ≤ 150000 < heavy" \
+  "[200000,100000,150000]"
+resolver_and_contract "1M-class token band" "1000000: light ≤ 128000 < moderate ≤ 500000 < heavy" \
+  "[1000000,128000,500000]"
+resolver_and_contract "occupancy definition" "total_input_tokens + total_output_tokens" \
+  '$w.total_input_tokens + $w.total_output_tokens'
+resolver_and_contract "token-shape version floor" "cli_version" ".cli_version"
+resolver_and_contract "token-shape version floor value" "2.1.132" 'TOKEN_SEMANTICS_MIN_VERSION="2.1.132"'
+resolver_and_contract "zone vocabulary" "light / moderate / heavy / unknown" \
+  "light | moderate | heavy) printf" "printf 'unknown\n'"
 
 both "$SKILL_N" "skills/audit/SKILL.md" "evidence-degraded marker path" "<session_id>.compacted"
 
