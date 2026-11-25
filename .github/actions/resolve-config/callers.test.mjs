@@ -12,6 +12,7 @@
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
 // test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
+// test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
