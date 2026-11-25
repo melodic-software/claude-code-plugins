@@ -191,23 +191,41 @@ if not os.environ.get("STUB_NO_LISTING"):
         json.dump({"fetchedAt": "2026-10-25T10:00:00+00:00", "artifacts": listing}, out)
 evidence = os.environ.get("STUB_EVIDENCE") or json.dumps({"refusal": None, "head": sys.argv[-1], "detail": None})
 if "--pass-out" in sys.argv and os.environ.get("STUB_PASS_OUT") != "none":
+    import copy, subprocess
+    def sample(name):
+        with open(os.path.join(os.environ["STUB_SAMPLES"], name)) as f:
+            return json.load(f)
+    def jq(doc, program):
+        return subprocess.run(["jq", "-rc", program], input=json.dumps(doc), capture_output=True, text=True, check=True).stdout
     head = sys.argv[-1]
     try:
         allowed = json.loads(evidence.splitlines()[-1])
     except (ValueError, IndexError):
         allowed = None
-    sent = {"head": head, "verdicts": [], "record": None, "closing": None}
+    sent = sample("refusal.json") | {"head": head}
     if isinstance(allowed, dict) and allowed.get("refusal") is None and allowed.get("head") == head:
+        base, notes = sample("allow-pass.json"), sample("allow-pass-and-pass-notes.json")
+        order = [v["verdict"] for v in notes["verdicts"]]
+        kinds = {v["verdict"]: v for v in notes["verdicts"] + base["verdicts"]}
         runs = json.loads(os.environ.get("STUB_RUNS") or "{}")
+        prefix = f"pr-verify-7-{head}-"
+        sent = base | {"head": head, "verdicts": []}
         for name, ids in json.loads(os.environ.get("STUB_ARTIFACTS") or "{}").items():
-            prefix = f"pr-verify-7-{head}-"
-            if name.startswith(prefix) and name[len(prefix):] in ("pass", "pass-notes"):
-                sent["verdicts"] += [{"name": name, "verdict": name[len(prefix):], "runId": run, "artifact": run * 10, "run": runs.get(str(run))} for run in ids]
-        if sent["verdicts"] and not os.environ.get("STUB_NO_RECORD"):
-            sent["record"] = json.loads(os.environ.get("STUB_RECORD") or '{"linked_issues":[{"number":1}],"spec_kind":"closes"}')
-        sent["closing"] = json.loads(os.environ.get("STUB_CLOSING") or '{"totalCount":1,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}}]}')
+            kind = name[len(prefix):] if name.startswith(prefix) else None
+            for run in ids if kind in kinds else ():
+                read = runs.get(str(run))
+                ran = None if read is None else {k: read.get(k, v) for k, v in kinds[kind]["run"].items()}
+                sent["verdicts"].append(kinds[kind] | {"name": name, "runId": run, "artifact": run * 10, "run": ran})
+        sent["verdicts"].sort(key=lambda v: order.index(v["verdict"]))
+        record = copy.deepcopy(base["record"]) | {"pr": 7, "head_sha": head}
+        for issue in record["linked_issues"]:
+            issue["number"] = 1
+        sent["record"] = None if not sent["verdicts"] or os.environ.get("STUB_NO_RECORD") else json.loads(jq(record, os.environ.get("STUB_RECORD") or "."))
+        node = base["closing"]["nodes"][0]
+        closing = [node | {"number": n, "repository": {"nameWithOwner": "o/r"}} for n in json.loads(os.environ.get("STUB_CLOSING") or "[1]")]
+        sent["closing"] = {"totalCount": len(closing), "nodes": closing}
     with open(sys.argv[sys.argv.index("--pass-out") + 1], "w") as out:
-        out.write(os.environ.get("STUB_PASS_OUT") or json.dumps(sent))
+        out.write(jq(sent, os.environ.get("STUB_PASS_OUT") or "."))
 print(evidence)
 EOF
 mkdir -p "$TMP_ROOT/pr-merge"
@@ -287,6 +305,7 @@ expect() {
 
 export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
 export STUB_ACTORS="$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"
+export STUB_SAMPLES="$ROOT/scripts/fixtures/verify-pass-out"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
@@ -838,8 +857,7 @@ for refusal in verify:unreadable verify:too-old; do
     expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
 done
 NO_PASS_FILE="::error::the verdict reader left no readable pass file for #7 at $SHA; re-run this run."
-for sent in none 'not json' "{\"head\":\"$OLD\",\"verdicts\":[],\"record\":null,\"closing\":null}" \
-  "{\"head\":\"$SHA\",\"verdicts\":{},\"record\":null,\"closing\":null}" "{\"head\":\"$SHA\",\"verdicts\":[],\"closing\":null}"; do
+for sent in none '"not json"' ".head = \"$OLD\"" '.verdicts = {}' 'del(.record)'; do
   STUB_PASS_OUT="$sent" expect "in the merge queue, a pass file that does not read fails closed ($sent)" 1 3 "$NO_PASS_FILE"
 done
 : >"$TMP_ROOT/verify-legacy-fails.json"
@@ -881,27 +899,27 @@ export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' S
 unset STUB_RULES STUB_CARRIED STUB_TOTAL STUB_LISTED_FAILS
 # The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
 # after arming to close or name another issue holds the group.
-NO_CLOSING='{"totalCount":0,"nodes":[]}'
+NO_CLOSING='[]'
 export STUB_CLOSING STUB_RECORD STUB_NO_RECORD
-STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
+STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='.spec_kind = "refs"'
 expect "in the merge queue, a Refs pull request whose pass judged that issue passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":1,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}}]}'
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2]'
 expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Closes #2" 1 3 "its link changed since pr-verify passed it: it closes #2, and the pass judged #1 (refs)"
-STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
+STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='.spec_kind = "refs"'
 expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 3 "its link changed since pr-verify passed it"
 STUB_PULL="$(pull $'Refs: #1\nRefs: #3')" STUB_CLOSING="$NO_CLOSING"
 expect "in the merge queue, a body naming two Refs issues passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
 STUB_PULL="$(pull '## Summary')"
 expect "in the merge queue, a body that drops its link holds" 1 3 "its link changed since pr-verify passed it: it refs no issue, and the pass judged #1 (refs)"
-STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='{"totalCount":2,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
+STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='[1,3]'
 expect "in the merge queue, a body closing the judged issue and another passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":2,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2,3]'
 expect "in the merge queue, a body closing two issues but not the judged one holds" 1 3 "it closes #2, #3, and the pass judged #1"
-STUB_CLOSING='' STUB_RECORD='{"verdict":"pass"}'
+STUB_CLOSING='' STUB_RECORD='del(.linked_issues)'
 expect "in the merge queue, a record with no linked issues holds" 1 3 "its verifier pass's record could not be read"
 STUB_RECORD='' STUB_NO_RECORD=1
 expect "in the merge queue, a record the reader could not read holds" 1 3 "its verifier pass's record could not be read"
-STUB_NO_RECORD='' STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
+STUB_NO_RECORD='' STUB_RECORD='.linked_issues[].number = 9' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
 expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no member veto and no hold path."
 STUB_RECORD='' STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes\":[11]}"
@@ -958,7 +976,7 @@ for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:u
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports $refusal for $SHA."
 done
 STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 1 "$NOT_HELD"
-STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
+STUB_RECORD='.linked_issues[].number = 9' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
 STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 1 "$NOT_HELD"
