@@ -6400,34 +6400,6 @@ jobs:
           else
             echo "#$pr is not the lanes App's, and pr-verify does not judge its author; the carry steps are skipped."
           fi
-      # MAIN'S TIP, LISTED ONCE FOR THE CARRY READERS. carry-run-cache.mjs and
-      # head-ref-map.mjs each run in their own process and take a run's
-      # carried reads only when its head commit is on main
-      # (head-ref-map.mjs onMain), which otherwise reads the tag named main (a
-      # 404 that no process shares) and main's tip over REST. One
-      # unauthenticated `git ls-remote` of this public repository, run outside
-      # any checkout, lists both refs; the tip is output only when the listing
-      # succeeded, names refs/heads/main once as 40 hex and holds no tag named
-      # main. Anything else outputs nothing, and onMain reads both refs
-      # itself. Each run is still compared with the tip.
-      - name: List main's tip for the carry readers
-        id: main_tip
-        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.verify_judged != 'false' }}
-        continue-on-error: true
-        run: |
-          if ! refs=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY" refs/heads/main refs/tags/main); then
-            echo "::notice::could not list main's refs; the carry readers read them over REST."
-            exit 0
-          fi
-          tip=$(awk '$2 == "refs/heads/main" { print $1 }' <<<"$refs")
-          if awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
-            echo "::notice::a tag is named main; the carry readers refuse every run."
-          elif [[ $tip =~ ^[0-9a-f]{40}$ ]]; then
-            echo "sha=$tip" >>"$GITHUB_OUTPUT"
-            echo "main's tip: $tip"
-          else
-            echo "::notice::main's tip was not listed as one commit SHA; the carry readers read it over REST."
-          fi
       # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
       # The reads that never change (FAIL run records, FAIL head refs, run
       # heads on main) that pr-merge's last scheduled or hand-started run kept,
@@ -6458,7 +6430,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
-          PR_MERGE_MAIN_TIP: ${{ steps.main_tip.outputs.sha }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
@@ -6610,7 +6582,7 @@ jobs:
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
-          PR_MERGE_MAIN_TIP: ${{ steps.main_tip.outputs.sha }}
+          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_CONFIG_CHECKOUT: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config:{0}/.base', github.workspace) || format('{0}/.base', github.workspace) }}
           BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}

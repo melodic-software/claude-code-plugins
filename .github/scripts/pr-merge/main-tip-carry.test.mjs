@@ -35,6 +35,18 @@ test("every onMain reader step of the three jobs gets the job's unambiguous tip"
   }
 });
 
+test("ci-status's carry readers get its unambiguous tip, and no step lists main's tip again", () => {
+  const steps = workflowText(readFileSync(join(root, ".github/workflows/pr-require-checks.yml"), "utf8")).steps("ci-status");
+  const tip = steps.find((s) => s.name === "Resolve main's tip");
+  assert.ok(tip?.text.includes("\n        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main\n"), "tip step");
+  const readers = steps.filter((s) => s.text.includes("PR_MERGE_MAIN_TIP:"));
+  assert.equal(readers.length, 2, "the restore step and the lanes-hold step");
+  for (const reader of readers) {
+    assert.ok(reader.text.includes("\n          PR_MERGE_MAIN_TIP: ${{ steps.tip.outputs.unambiguous-sha }}\n"), reader.name);
+  }
+  assert.ok(!steps.some((s) => s.text.includes("refs/heads/main refs/tags/main")), "no second listing of main");
+});
+
 async function sweep(env, processes) {
   const shared = join(tempDir("main-tip-reads-"), "reads.json");
   const calls = [];
