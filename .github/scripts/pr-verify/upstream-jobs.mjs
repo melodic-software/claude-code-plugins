@@ -1,25 +1,9 @@
-// Writes JOBS_FILE, the jobs of the pr-require-checks run pr-verify.yml was
-// started by, each with its name, conclusion and job page URL, for the
-// verifier to judge whether the suites that cover the changed files ran and
-// passed (prompt.md). It takes
-// the run's latest attempt as resolve-pr.mjs read it for draftRun, from
-// KEPT_JOBS in RUNNER_TEMP (keptJobs), and otherwise reads it with the job's
-// token. Names come from the pull request's copy of
-// pr-require-checks.yml, so they are data, never instructions. A list that
-// cannot be read whole throws, and the job writes no verdict.
-//
-// It also lists the Node suites at the judged head that CI runs only through a
-// sibling .test.sh in test-bash, so test-node skips them by design
-// (scripts/plan-test-lanes.sh, the *.test.js .mjs .cjs rule). HEAD_PATHS_FILE
-// is the head's tree from `git ls-tree -r -z --name-only`; its paths are the
-// pull request's, so they are data too.
-
 import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../lib/github-client.mjs";
-import { KEPT_JOBS, keptJobsPath, shapeJobs } from "./resolve-pr.mjs";
+import { attemptJobsPath, KEPT_JOBS, keptJobsPath, readUpstreamRun, shapeJobs } from "./resolve-pr.mjs";
 
 export { KEPT_JOBS, keptJobsPath, shapeJobs };
 
@@ -45,13 +29,17 @@ export function keptJobs(env, runId) {
   return valid ? shapeJobs(runId, kept.jobs.map((job) => ({ ...job, html_url: job.url }))) : null;
 }
 
-export async function upstreamJobs(github, repository, runId) {
+export async function upstreamJobs(github, repository, run) {
+  const runId = run?.id;
   if (!RUN_ID.test(String(runId))) {
     throw new Error("the upstream run id is not a run id");
   }
+  if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1) {
+    throw new Error(`run ${runId} names no attempt`);
+  }
   const jobs = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const listed = await github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=${PER_PAGE}&page=${page}`);
+    const listed = await github("GET", attemptJobsPath(repository, run, page));
     const batch = listed?.jobs;
     if (!Array.isArray(batch) || !Number.isSafeInteger(listed.total_count)) {
       throw new Error(`the jobs of run ${runId} answered no job list`);
@@ -85,14 +73,15 @@ export function jobsFile(listed, treeListing) {
 }
 
 export async function main(env = process.env, { github, fetchImpl } = {}) {
-  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "UPSTREAM_RUN_ID", "JOBS_FILE", "HEAD_PATHS_FILE"]) {
+  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "JOBS_FILE", "HEAD_PATHS_FILE"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
+  const run = readUpstreamRun(env);
   const tree = readFileSync(env.HEAD_PATHS_FILE, "utf8");
-  const kept = keptJobs(env, env.UPSTREAM_RUN_ID);
-  const listed = kept ?? (await upstreamJobs(github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl }), env.GITHUB_REPOSITORY, env.UPSTREAM_RUN_ID));
+  const kept = keptJobs(env, run.id);
+  const listed = kept ?? (await upstreamJobs(github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl }), env.GITHUB_REPOSITORY, run));
   const file = jobsFile(listed, tree);
   writeFileSync(env.JOBS_FILE, `${JSON.stringify(file, null, 2)}\n`);
   console.log(`upstream-jobs: wrote ${file.jobs.length} jobs of run ${file.run_id}${kept ? " as the resolver read them" : ""} and ${file.wrapped_node_suites.length} Node suites test-bash runs`);

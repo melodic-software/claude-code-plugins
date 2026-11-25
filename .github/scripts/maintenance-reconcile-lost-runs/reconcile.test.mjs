@@ -1959,6 +1959,9 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
   const passReads = [];
   const wrap = (github) => async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/commits/${head}/pulls?per_page=100&page=1`) return [pull];
+    if (new RegExp(`^/repos/${REPO}/actions/runs/60[0-9]/attempts/[0-9]+/jobs\\?per_page=100$`).test(apiPath)) {
+      return { total_count: 1, jobs: [{ id: 1, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: "skipped" }] }] };
+    }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(&page=1)?$/.exec(apiPath);
     if (named && !named[2]) passReads.push(apiPath);
     if (named) {
