@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 rdt_bounded_to() {
   local __bt_dest="$1" __bt_limit="$2" __bt_out __bt_rc=0
   shift 2

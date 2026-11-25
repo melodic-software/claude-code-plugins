@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 

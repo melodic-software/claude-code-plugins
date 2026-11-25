@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED:-true}" == "true" ]] || exit 0
