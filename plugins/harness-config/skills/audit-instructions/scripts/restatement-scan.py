@@ -243,9 +243,6 @@ def scan_file(path: Path) -> list[str]:
             continue
         if not section.body.strip():
             continue
-        # Locate the first body unit (or the heading if the body did not
-        # split). The fixer should see the restating prose, not only the
-        # heading, and emit-findings' quoted-trigger fence reads this line.
         loc = section.units[0][0] if section.units else section.line
         if desc_capability and section_wholly_recoverable(section, desc_capability):
             rows.append(f"{path}:{loc}:{CHECK_DESC}")

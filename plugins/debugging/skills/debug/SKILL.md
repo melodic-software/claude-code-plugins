@@ -434,7 +434,6 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 - An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
-- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## Related
 

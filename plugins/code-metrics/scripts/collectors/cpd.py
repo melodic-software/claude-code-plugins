@@ -62,7 +62,6 @@ from adapter_paths import (
 NAME = "cpd"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
-# lane -> the CPD language id (`--language`, whose default is java).
 LANGUAGES = {
     "typescript": "ecmascript",
     "python": "python",

@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# /observability compare: one task run as two sessions, side by side from the OTEL store.
-# Tokens by type (cache writes their own type), split by model and effort, and each
-# session's claude_code.cost.usage reconciled against its api_request events. Read-only.
-#
-# Usage:
-#   bash session-compare.sh <session-a> <session-b>
-#
-#   Each id is a session.id as the OTEL store records it (letters, digits, '.', '_', '-').
-#
-# Reads the hot store only: a session `clean` has compacted to the cold tier is reported as
-# absent. Costs are the estimate Claude Code reports; on a subscription they measure work,
-# not a bill.
-#
-# Exit: 0 rendered, 2 cannot evaluate (bad arguments, no duckdb, no store, a session with no
-# token or cost metric rows, or a non-delta token or cost metric).
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +7,19 @@ OTEL_PROG=session-compare
 # shellcheck source=../otel/otel-sql.sh
 source "$OTEL_DIR/otel-sql.sh"
 
-usage() { sed -n '2,17{s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+/observability compare: one task run as two sessions, side by side from the OTEL store. Read-only.
+
+Usage:
+  bash session-compare.sh <session-a> <session-b>
+
+  Each id is a session.id as the OTEL store records it (letters, digits, '.', '_', '-').
+
+Exit: 0 rendered, 2 cannot evaluate (bad arguments, no duckdb, no store, a session with no
+token or cost metric rows, or a non-delta token or cost metric).
+EOF
+}
 
 ids=()
 for arg in "$@"; do
@@ -33,7 +29,6 @@ for arg in "$@"; do
     exit 0
     ;;
   *)
-    # The ids go into SQL string literals, so this pattern is the injection guard.
     [[ "$arg" =~ ^[A-Za-z0-9._-]+$ ]] || die "not a session id: $arg (letters, digits, '.', '_', '-')"
     ids+=("$arg")
     ;;
@@ -51,11 +46,6 @@ command -v duckdb >/dev/null 2>&1 || die "duckdb not found"
 
 err="$(mktemp)"
 trap 'rm -f "$err"' EXIT
-# Same posture as hook-latency.sh: CC_OTEL_STORE points cc-otel.sql's eager hot views at an
-# empty dir so they fail fast (`.bail off` keeps the macros); the queries read the real store
-# through the macros. The init's expected bind errors land in $err, shown only on failure.
-# `.bail off` also carries the -c statements past an error with exit 0, so success is the
-# temporality check's `checked` row and one cost row per session.
 rows="$(CC_OTEL_STORE="$SCRIPT_DIR/.no-store" duckdb -list -noheader -separator $'\t' -nullvalue '' \
   -init "$(sql_path "$OTEL_DIR/cc-otel.sql")" \
   -c "SET VARIABLE metrics_src = '$(sql_path "$store/cc-metrics.json")';
@@ -68,7 +58,8 @@ if [[ "$(grep -c '^cost'$'\t' <<<"$rows")" != 2 ]] || ! grep -q '^checked'$'\t' 
   die "duckdb query failed"
 fi
 
-# The store path rides in the environment: awk -v would read a Windows path's backslashes as escapes.
+# The store path rides in the environment: awk -v processes escapes, so Windows backslashes would change.
+# https://pubs.opengroup.org/onlinepubs/9799919799/utilities/awk.html
 printf '%s\n' "$rows" | STORE="$store" awk -F'\t' -v a="${ids[0]}" -v b="${ids[1]}" '
 function width(s, w) { return length(s) > w ? length(s) : w }
 $1 == "temporality" { bad = bad sprintf("  %s, session %s: aggregationTemporality %s\n", $2, $3, $4) }

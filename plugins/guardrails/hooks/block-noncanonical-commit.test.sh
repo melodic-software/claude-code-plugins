@@ -69,11 +69,6 @@ run "git commit --message <separated> multi-line (blocked)" \
   "git commit --message \"feat: x \$body\"" 2
 run "git commit --message <separated> single-line (allowed)" \
   "git commit --message 'feat: x'" 0
-# git's parse-options accepts any UNIQUE prefix of a long option, and --message
-# is git commit's only m-initial long option, so every prefix from --m up to
-# one letter short of the full spelling parses as --message (verified on git
-# 2.55) — the abbreviated spellings must hit the same gate in both the
-# =-attached and the separated form.
 run "git commit --mess=<abbreviated attached> multi-line (blocked)" \
   "git commit --mess=\"feat: x \$body\"" 2
 run "git commit --mess=<abbreviated attached> single-line (allowed)" \
@@ -118,8 +113,6 @@ run "git commit --squash=HEAD (allowed)" "git commit --squash=HEAD" 0
 run "git commit -F msg.txt (path, allowed)" "git commit -F msg.txt" 0
 run "git commit --file=msg.txt (path, allowed)" "git commit --file=msg.txt" 0
 
-# --- top-level git options must not be confused with commit options ----------
-# `-c` BEFORE the subcommand is config; only after `commit` is it --reedit.
 run "git -c user.name=x commit -m multi-line (config, still blocked)" \
   "git -c user.name=x commit -m \"feat: x \$body\"" 2
 run "git -c user.name=x commit -F - (config, allowed)" \
@@ -137,8 +130,6 @@ run "inline git alias to a canonical commit (allowed)" \
   "git -c alias.c=commit c -F -" 0
 run "inline alias to an unrelated subcommand (allowed)" \
   "git -c alias.st=status st" 0
-# git applies the LAST -c value for a key; taking the first would let a decoy
-# earlier value expanding to a harmless subcommand mask the real one.
 run "last inline alias value wins (blocked)" \
   "git -c alias.c=status -c alias.c=commit c -m \"x \$y\"" 2
 run "last inline alias value wins (allowed when the last is harmless)" \
@@ -156,9 +147,6 @@ run "#964 benign two-hop chain to canonical commit -F - (allowed)" \
   "git -c alias.c=x -c alias.x='commit -F -' c" 0
 run "#964 alias cycle terminates and allows (no hang)" \
   "git -c alias.a=b -c alias.b=a a" 0
-# A `!` shell alias runs in a NEW git process whose alias-loop guard starts
-# empty, so a body that re-invokes a name from the outer chain is re-expanded
-# there — the reparse must not inherit the outer chain's seen-set.
 run "#964 shell-alias body re-invoking the outer chain name (blocked)" \
   "git -c alias.a='!git -c alias.a=\"commit --allow-empty -m \\\"bypass \$b\\\"\" a' a" 2
 run "#964 shell-alias re-invocation, canonical -F - twin (allowed)" \
@@ -362,9 +350,6 @@ if [[ -d "$PCFG/.git" ]]; then
   done
 fi
 
-# git-config ignores aliases that hide current builtins, so a leftover
-# `alias.status = commit -m <newline>` must not make `git status` look like a
-# commit (and must not pay two `git config` probes to find that out).
 PSTAT="$TEST_TMPDIR/persisted-status"
 mkdir -p "$PSTAT"
 (
@@ -381,11 +366,6 @@ if [[ -d "$PSTAT/.git" ]]; then
   assert_exit "git status is not a commit even when alias.status names one" 0 $?
 fi
 
-# git-config's ignore rule exempts deprecated commands. git.c marks
-# `whatchanged` DEPRECATED (master fetched 2026-09-06); git 2.51+ honors
-# `alias.whatchanged = commit` (t/t0014-alias.sh). This host's git 2.43 still
-# ignores that alias, but the guard must probe the name so a newer git cannot
-# smuggle a newline `-m` through it.
 PWC="$TEST_TMPDIR/persisted-whatchanged"
 mkdir -p "$PWC"
 (
@@ -402,9 +382,6 @@ if [[ -d "$PWC/.git" ]]; then
   assert_exit "git whatchanged alias to newline -m is still a commit" 2 $?
 fi
 
-# Names added after git 2.25 were not yet builtins, so an older git still
-# honors `alias.bugreport = commit`. Stay off the skip list (git 2.27 added
-# the command). `git status` remains unprobed.
 PBR="$TEST_TMPDIR/persisted-bugreport"
 mkdir -p "$PBR"
 (
@@ -711,28 +688,18 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
     "env --chdir other git a" 2
   wrapper_cd_case "env -CDIR (attached short form) moves git" \
     "env -Cother git a" 2
-  # env clusters its short options, so a valueless flag can hide the chdir in the
-  # same word: `-vC` is --debug plus --chdir, and an exact `-C` match misses it.
   wrapper_cd_case "env -vC DIR (clustered short form) moves git" \
     "env -vC other git a" 2
   wrapper_cd_case "env -u NAME before the chdir does not consume it" \
     "env -uFOO -C other git a" 2
-  # env keeps --chdir in ONE slot, so a repeat is last-wins and a relative
-  # operand resolves against the cwd env was invoked from: `-C other -C .` lands
-  # in the payload cwd, NOT in `other/.`. Composing them cumulatively would probe
-  # a path that does not exist and read no alias at all.
   wrapper_cd_case "repeated env -C is last-wins, not cumulative (lands in cwd)" \
     "env -C other -C . git a" 0
   wrapper_cd_case "repeated env -C is last-wins (lands in the LAST operand)" \
     "env -C . -C other git a" 2
   wrapper_cd_case "a canonical commit through the same wrapper stays allowed" \
     "env -C other git k" 0
-  # A NAME=value operand ends env's option parsing, so env looks for a command
-  # named `-C` and runs nothing. The guard must not read a chdir that never
-  # happens — and with no git resolved there is nothing to gate.
   wrapper_cd_case "a NAME=value operand ends option parsing" \
     "env FOO=1 -C other git a" 0
-  # sudo relocates through -D/--chdir (its -C is close-from, not a directory).
   wrapper_cd_case "sudo -D moves git, so the alias lookup follows" \
     "sudo -D other git a" 2
   wrapper_cd_case "sudo --chdir=DIR moves git" \
@@ -746,10 +713,6 @@ if [[ -d "$WRAP/outer/other/.git" ]]; then
     "env -C other -S 'git a'" 2
   wrapper_cd_case "a wrapper chdir into a directory with a space" \
     "env -C 'has space' git a" 2
-  # GNU env refuses `-0` alongside a command outright ("cannot specify --null
-  # (-0) with command"), so nothing runs either way; the guard fails closed and
-  # the peel still reads the chdir out of the cluster. Pinned so a peel change
-  # that swallowed `-0` would surface here.
   wrapper_cd_case "env -0 does not hide the chdir from the peel" \
     "env -0 -C other git a" 2
   wrapper_cd_case "env -vi0C (three-flag cluster) still yields the chdir" \
@@ -789,13 +752,6 @@ if [[ -d "$WRAP/outer/other/child/child/.git" ]]; then
     "env -C other git -c alias.z='!git -C child s' z" 0
 fi
 
-# --- `!` bodies start at the outer repository's TOP LEVEL ---------------------
-# git documents that a shell alias body runs from the top-level directory of the
-# repository, NOT from wherever the outer command was invoked. Invoked from
-# `<repo>/sub` with `alias.a = !git -C child a`, git reaches `<repo>/child`;
-# carrying the subdirectory forward made the guard probe `<repo>/sub/child` and
-# miss the nested repository's `commit -m`. The top level comes from git itself
-# (`rev-parse --show-toplevel`), so it cannot drift from git's own behavior.
 TOPLEVEL="$TEST_TMPDIR/toplevel"
 nested_repo "$TOPLEVEL/outer"
 nested_repo "$TOPLEVEL/outer/child"
@@ -820,15 +776,6 @@ if [[ -d "$TOPLEVEL/outer/child/.git" ]]; then
   done
 fi
 
-# A symlinked component before `..` means the directory git enters is not the one
-# textual cancellation produces. The guard hands the LITERAL path to git rather
-# than resolving it, so git's own semantics decide — which differ by platform:
-# POSIX resolves `link/..` through the kernel (reaching the link target's parent),
-# while Win32 normalizes `..` textually, so Windows git stays in the textual
-# parent. The fixture is therefore gated on the platform actually exhibiting it,
-# probed directly rather than assumed, so this asserts on Linux/macOS and skips
-# loudly on Windows instead of encoding one platform's semantics as the expected
-# answer.
 SYMDIR="$TEST_TMPDIR/symlink"
 mkdir -p "$SYMDIR/base"
 nested_repo "$SYMDIR/target"
@@ -962,19 +909,6 @@ if [[ -d "$CHOKE/repo/.git" ]]; then
     "git --git-dir=$CHOKE/repo/.git --work-tree=$CHOKE/repo -c alias.a='!git commit -m \"x \$y\"' a" 2
 fi
 
-# --- explicit locating globals: a `!` body launches where the CALLER stands ----
-# git chdirs a `!` body to the work-tree top level only when the caller's
-# directory is INSIDE the effective work tree. With `--git-dir`/`--work-tree`
-# and a caller outside that work tree, the body runs in the caller's directory:
-# from `<out>`, `git --git-dir <g> --work-tree <w> -c alias.a='!unset GIT_DIR
-# GIT_WORK_TREE; git -C child p' a` runs `<out>/child`'s persisted `p`, not
-# `<w>/child`'s (verified via `!pwd` on git 2.54.0.windows.1; reported by review
-# on 2.43.0). Collapsing to the top level unconditionally probed the benign
-# `<w>/child` and allowed while real git committed non-canonically — and its
-# mirror twin false-blocked a canonical commit. The inside-the-work-tree pair
-# pins the other branch: from `<w>/sub` the same invocation still launches at
-# the top level, so the guard must keep resolving `<w>/child` there, not
-# `<w>/sub/child`.
 LAUNCH="$TEST_TMPDIR/launchdir"
 launch_tree() {
   nested_repo "$1/work"
@@ -1049,12 +983,6 @@ run_pwsh "PS: -m with an escaped \"\" before a \$ (blocked)" \
 run_pwsh "PS: -m with an escaped \"\" and nothing expanding (allowed)" \
   'git commit -m "say ""hi"" there"' 0
 
-# The ONE sink trigger this guard does not defer. PowerShell reads `# @"` as
-# comment text, so the `@"` opens nothing and the lines under it are live
-# commands; the reduction takes the line as an opener and drops them as
-# here-string body. Deferring would hand the shape straight through, because
-# the sibling that would catch a commit form is looking at the same reduced
-# text. The refusal is unconditional and consults no allow-list.
 run_pwsh "PS: a commented here-string opener is refused here, not deferred (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit -m x" "\"@ fine\"")" 2
 run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
@@ -1124,8 +1052,6 @@ strace_census() {
   env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR= \
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1 || CENSUS_RC=$?
-  # A clone with CLONE_THREAD is a thread (shfmt is Go, whose runtime starts a
-  # varying number), not a process: counted from the opening half of each call.
   CENSUS_CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$log" | grep -v CLONE_THREAD | grep -cE '= [0-9]+$|<unfinished \.\.\.>$')
   CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
 }

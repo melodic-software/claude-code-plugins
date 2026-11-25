@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Exit: 0 ok, 1 failure (an unreadable row on dedupe), 2 usage or a line that is not a JSON object.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
@@ -123,8 +122,6 @@ function userBinding(project, scratch) {
   const bound = physical(repository);
   if (bound !== null && bound === here.top) return { why: "findings_buffer_adapter_repository names the checkout root, not the git common directory" };
   if (bound === null || bound !== here.common) return null;
-  // Git takes a `.git` file's word for the git directory, so any directory can claim this one; the
-  // checkout must be one the repository itself registers.
   if (!checkouts(here.common).includes(here.top)) return { why: "this directory is not a checkout or registered worktree of that repository" };
   if (isAbsolute(path)) return { why: "findings_buffer_adapter_path is not relative to the repository root" };
   const checked = checkAdapter(here.top, resolvePath(here.top, path), { where: "this checkout", missing: "no such directory in this checkout" });

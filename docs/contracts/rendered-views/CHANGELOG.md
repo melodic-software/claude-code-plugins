@@ -3,6 +3,14 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## A consumer may brand rendered pages, 2026-11-25
+
+- **Palette, type and logo become consumer overrides.** The shared chrome section drops "no team or
+  user theme override": a consumer may set the palette, the type stacks and a logo through
+  configuration. Layout, the accessibility floor, the theme toggle and the comment box stay fixed,
+  and a page still offers no accent or palette picker. ADR 0133 records the setting's home, the
+  shared token layer, the migration order and the drift checks; no plugin implements it yet.
+
 ## A CDN library carries an integrity hash, 2026-11-21
 
 - **The pinned CDN library is checked, not only pinned.** Every CDN `<script>` and `<link>` tag

@@ -58,16 +58,17 @@ bash "<skill-dir>/scripts/changelog-status.sh" [--range vA..vB] [--changelog <fi
 
 It prints `key: value` lines: `last-applied`, `source` (`ledger:<path>`, `git-subject`, or `none`),
 `ledger` (path and presence), `installed` (from `claude --version`), `latest`, `range`, `releases`
-(oldest first), `cap`, and when they apply `recommend` and `warn`. Its `--help` lists every line and
-flag. Without `--changelog` it fetches the raw changelog itself by the route below; pass
+(oldest first), `cap`, and when they apply `recommend` and `warn`. Its `--help` lists every flag. Without `--changelog` it fetches the raw changelog itself by the route below; pass
 `--changelog <file>` to reuse a copy already fetched, and `--no-fetch` to read the marker alone.
 
 ## Fetch route
 
 Read the changelog only through the plugin's `scripts/fetch-changelog.sh`, the one place that
 decides the source: Anthropic's own `CHANGELOG.md` in `anthropics/claude-code` first, the docs
-page only when that read fails. Its header names both sources, the identity check on each, and the
-order. Both reads always ask the server, so a failed fetch is `unread`, never a stale cached copy.
+page only when that read fails. Each source's identity check is its first heading: `# Changelog`
+for the repository file, `# Claude Code changelog` for the docs page; a body with any other first
+heading is `unread`, since a moved file or retired slug can answer 200 with other bytes. Both
+reads always ask the server, so a failed fetch is `unread`, never a stale cached copy.
 It writes a complete local copy; search that file. Never report a version "absent from the
 changelog" from anything but a complete local copy: a partial read supports no absence claim, and
 what a summarizing fetch returns is read live from
@@ -75,9 +76,12 @@ what a summarizing fetch returns is read live from
 The status script's `changelog` line names the source it read.
 
 This skill reads release markup only through the plugin's `scripts/changelog-releases.sh`, the one
-parser the status script and the behavior-probes recheck share; its header names the
-release-marker forms it accepts. Items tagged `[VSCode]` belong to the extension and do not count
-as core items.
+parser the status script and the behavior-probes recheck share. A release opens at any marker
+form either source has used (the repository file's `## X.Y.Z` line, the docs page's
+`<Update label="X.Y.Z" ...>` line, or a line that is only `**X.Y.Z**`) and runs to `</Update>`,
+the next marker, or end of input. An item is a `*` or `-` bullet inside a release; bold group
+headings are not items. Items tagged `[VSCode]` belong to the extension and do not count as core
+items.
 
 - **Pointer**: when the status script reports no release markers parsed, or a sliced release
   looks wrong, read <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> and

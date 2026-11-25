@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/*/hooks/hooks.json
-# Pins which hooks.json rows set "onFailure" (#9982). The hook-budget contract,
-# "Which rows set onFailure: block", names exactly the rows that set the key;
-# every other row, the advisory and SessionStart rows included, leaves it unset.
-# One row per line: plugin, event, matcher, `if`, value. A row gaining or losing
-# the key, or a changed value, fails here.
 # test-scope: plugins/guardrails/hooks/hooks.json plugins/disk-hygiene/hooks/hooks.json
 # test-scope: plugins/discovery/hooks/hooks.json plugins/multi-agent/hooks/hooks.json
 # test-scope: docs/contracts/hook-budget/README.md

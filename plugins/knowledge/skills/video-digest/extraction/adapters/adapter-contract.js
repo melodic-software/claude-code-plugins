@@ -431,10 +431,6 @@ export function validateAdapter(spec) {
   } else if (new Set(record.hosts).size !== record.hosts.length) {
     violations.push('attribute "hosts" must not declare the same host twice');
   }
-  // The arg builders push these flags with a truthiness check, so an empty
-  // string silently disables the declaration — for allowedExtractors that
-  // would silently drop the SSRF guard. Fail loud instead: null is the one
-  // way to declare "none".
   for (const attribute of ["extractorArgs", "allowedExtractors"]) {
     const value = record[attribute];
     if (value !== null && (typeof value !== "string" || value.length === 0)) {
@@ -464,8 +460,6 @@ export function validateAdapter(spec) {
       if (!Array.isArray(list) || !list.every((entry) => entry instanceof RegExp)) {
         violations.push(`errorPatterns.${cls} must be an array of RegExp`);
       } else if (list.some((entry) => entry.global || entry.sticky)) {
-        // A g/y-flagged RegExp carries lastIndex state, so repeated .test()
-        // calls in classifyErrorDetail would alternate results.
         violations.push(
           `errorPatterns.${cls} must not use the g or y RegExp flags (stateful lastIndex breaks repeated classification)`,
         );

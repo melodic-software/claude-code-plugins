@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for secret-pattern-detection.sh (guardrails plugin).
-#
-# Black-box subprocess invocation. The hook reads file_path as a string only —
-# fixtures need not exist on disk.
-#
-# Token construction discipline: every real-shape token is assembled at runtime
-# from concatenated parts, so the literal joined string never appears in this
-# file's source bytes — no secret scanner (gitleaks etc.) sees a committed key.
 # test-scope: plugins/guardrails/hooks/hooks.json
 
 set -uo pipefail
@@ -58,8 +50,6 @@ OPENAI_PREFIX='sk-'
 OPENAI_BARE_KEY="${OPENAI_PREFIX}$(printf 'A%.0s' {1..25})"
 PEM_HEADER='-----BEGIN '"PRIVATE KEY-----"
 
-# Force the Windows case-fold path even on Linux CI: OSTYPE must be set BEFORE
-# the hook is sourced (bash resets it to the build value at startup).
 run_hook_windows() {
   bash -c 'OSTYPE=msys; source "$1"' _ "$HOOK" <<<"$1"
 }
@@ -286,8 +276,6 @@ OUT=$(cd "$SCOPE_REPO" && CLAUDE_PROJECT_DIR=. bash "$HOOK" <<<"$(write_json "$O
 RC=$?
 assert_exit "relative root '.' inside a repo: outside write scanned → exit 2" 2 "$RC"
 
-# A directory link to home names home under another path. Linux CI makes a
-# symlink; a Windows host makes a junction (a plain `ln -s` there copies).
 make_dir_link() {
   if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
     command -v cmd >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1 || return 1
@@ -408,14 +396,6 @@ RC=$?
 assert_exit "kill switch off → exit 0" 0 "$RC"
 assert_silent "kill switch off → no stderr" "$OUT"
 
-# --- jq fail-open visibility (finding P4) -----------------------------------
-# Runtime jq-removal is not portably simulable — an isolated bin dir without jq
-# cannot host bash + coreutils (their DLLs / PATH) across Git Bash and Linux.
-# Assert the fail-open guard is present in the hook source via the shared
-# hook::require jq helper (docs/contracts/hook-observability/) — it composes
-# the once per session and agent notice_once gate with the dual-channel
-# (systemMessage + additionalContext) visibility notice; hook::require's own behavior is covered
-# by lib/hook-utils.test.sh, not re-asserted here.
 HOOK_SRC=$(cat "$HOOK")
 assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
 
@@ -728,10 +708,6 @@ else
   echo "SKIP: D1 temp-file cases (mktemp -d failed)"
 fi
 
-# Width on POSIX: the target's lowercased spelling must also fall under a temp
-# candidate, which keeps its case, so a capitalized temp root never declines.
-# Lifted seam: the spd functions run with OSTYPE forced to POSIX and the
-# candidate set replaced by one test-owned directory, capitalized or not.
 # shellcheck disable=SC2016  # the sed addresses are literal hook source text
 D1_SEAM=$(sed -n '/^spd_win=0$/,/^spd_temp_declines "\$FILE" && exit 0$/p' "$HOOK" | sed '$d')
 d1_seam_rc() {
@@ -741,11 +717,6 @@ d1_seam_rc() {
     hook::_temp_root_candidates() { _HOOK_TEMP_CANDS=("$d1_cand"); }
     spd_temp_declines "$3/spd-d1-absent/f.txt"; printf %s "$?"' _ "$HOOK_DIR" "$D1_SEAM" "$1"
 }
-# mktemp names carry capitals, so the seam dirs sit under a lowercase name of
-# their own, removed by name in the EXIT trap. The precondition asks the seam's
-# own resolver: under a forced Linux OSTYPE the library resolves with `cd -P`,
-# which on Git Bash follows the /tmp mount to a capitalized Windows path, so the
-# cases only run where that resolver spells each seam dir as given.
 d1_seam_self() {
   # shellcheck disable=SC2016  # the child shell's expansions are literal source text
   D1_SEAM_GOT=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null)

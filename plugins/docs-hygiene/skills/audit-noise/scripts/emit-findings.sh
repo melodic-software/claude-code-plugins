@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 on success, 2 on usage error, 3 when --from carries no detect.sh
-# blocks at all (not scanner output; refusing beats composing from garbage).
-# Zero EMITTABLE findings with blocks present still WRITES the file — coverage
-# is the payload.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,6 +28,8 @@ unrecorded.
 
 Only `negation` rows are emitted (the one shape carrying a severity-crosswalk
 row); all other shapes are counted as declined and left to the human report.
+
+Exit: 0 written (also with zero emittable findings); 2 usage error; 3 --from holds no detect.sh blocks.
 EOF
 }
 
@@ -124,7 +122,7 @@ fi
 LC_ALL=C awk \
   -v branch="$BRANCH" -v date_utc="$DATE_UTC" -v repo_root="$REPO_ROOT" \
   -v repo_root_alt="$REPO_ROOT_ALT" -v repo_root_pwd="$REPO_ROOT_PWD" -v carveout="$CARVEOUT" '
-  # Tier mirror of the severity crosswalk (see header comment). IMPORTANT on
+  # Tier mirror of the severity crosswalk. IMPORTANT on
   # severity.md stated-rule limb: docs-hygiene:write-for-agents "Prompt the
   # positive" is the stated rule the text violates.
   function rule_tier() { return "IMPORTANT" }

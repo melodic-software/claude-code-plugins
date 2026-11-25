@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# The fix flow's concurrent-edit guard: record a file's sha256 and check it
-# again before each write.
-#
-#   digest-guard.sh init <run-dir>
-#   digest-guard.sh record <absolute file> <run-dir>
-#   digest-guard.sh check <absolute file> <run-dir>
-#
-# init creates the run directory, which must not exist yet. record writes the
-# file's digest to <run-dir>/digests/<sha256 of the file's path>.sha256,
-# creating both directories when absent. check compares the file's digest with
-# the recorded one and prints match or mismatch.
-#
-# The run directory's name is ai-slop-fix-<TS>, TS as `date -u +%Y%m%dT%H%M%SZ`
-# with an optional -<n> suffix, and its parent, symlinks resolved, must sit at
-# or under the state root: AI_SLOP_STATE_ROOT when set; else, when this script
-# runs from a CI lane's staged copy (<lane>/plugins/ai-slop/skills/audit/scripts),
-# the lane's scratch directory <lane>/scratch; else the run directory's parent.
-# A rule that allows this script by path accepts any arguments, so the
-# confinement sits here.
-#
 # Exit: 0 recorded, created or matching; 1 mismatch; 2 usage error or refusal.
 set -euo pipefail
 
@@ -27,7 +7,15 @@ SCRIPT_DIR_LOGICAL="$(cd -L "$(dirname "${BASH_SOURCE[0]}")" && pwd -L)"
 LANE_SUFFIX=/plugins/ai-slop/skills/audit/scripts
 
 usage() {
-  sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed -e '/^set -euo/d' -e 's/^# \{0,1\}//' >&2
+  cat >&2 <<'EOF'
+Record a file's sha256 and check it again before each fix write.
+Usage: digest-guard.sh init <run-dir> | record <absolute file> <run-dir> | check <absolute file> <run-dir>
+  init    create the run directory (ai-slop-fix-<TS>[-<n>]), which must not exist yet
+  record  write the file's digest under <run-dir>/digests/
+  check   compare the file's digest with the recorded one; prints match or mismatch
+The run directory's parent must sit under AI_SLOP_STATE_ROOT, a CI lane's scratch, or itself.
+Exit: 0 recorded, created or matching; 1 mismatch; 2 usage error or refusal.
+EOF
 }
 
 die() {

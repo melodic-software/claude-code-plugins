@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
-# fixed string searched for VERBATIM in markdown and frontmatter, where those
-# placeholders are substituted by Claude Code at load time. Letting the shell
-# expand any of them would make this gate silently match nothing.
 # test-scope: plugins/code-tidying/skills/*.md plugins/code-tidying/skills/*/scripts/*
+# Single-quoted ${…} are literals searched for verbatim in skill frontmatter.
 # shellcheck disable=SC2016
 set -uo pipefail
 

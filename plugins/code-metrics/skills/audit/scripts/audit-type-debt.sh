@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# /code-metrics:audit type-debt entry point: how much of the code is typed,
-# per file and per lane, as a percentage from `type-coverage` (TypeScript) and
-# from mypy's `--any-exprs-report` (Python).
-#
-#   audit-type-debt.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
-#
-# Prints the markdown report; `--json` prints the `code-metrics/v2` document
-# instead. Scope, lanes, and the collector ladder are the dispatcher's
-# (scripts/dispatch.sh in the plugin root); this script owns its own options.
-# Bash, Go, and C# report `not-applicable`: no tool produces a comparable
-# percentage for them. Exit codes are the dispatcher's: 0 report produced
-# (including a run that measured nothing), 2 usage error, 3 a collector ran
-# and produced nothing parseable.
 set -uo pipefail
+
+USAGE="$(
+  cat <<'EOF'
+/code-metrics:audit type-debt entry point: how much of the code is typed, per file and per lane.
+  audit-type-debt.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
+  --json                    print the code-metrics/v2 document instead of the report
+  --all                     measure every file, not the change
+  --base <ref>              measure the change from the merge-base with <ref>
+  --config <resolved.json>  a resolved configuration
+Exit: 0 report produced (including a run that measured nothing); 2 usage error;
+3 a collector ran and produced nothing parseable.
+EOF
+)"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
@@ -20,7 +20,7 @@ DISPATCH="$PLUGIN_ROOT/scripts/dispatch.sh"
 # shellcheck source=../../../scripts/entry-common.sh
 source "$PLUGIN_ROOT/scripts/entry-common.sh"
 
-cm_entry_args "${BASH_SOURCE[0]}" 14 "$@"
+cm_entry_args --usage "$USAGE" "$@"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

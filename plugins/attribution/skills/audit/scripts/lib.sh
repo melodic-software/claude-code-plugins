@@ -1,6 +1,4 @@
 # shellcheck shell=bash
-# Shared helpers for the /attribution:audit scripts (sourceable; not invoked
-# directly).
 
 _CFG_LIB="${BASH_SOURCE[0]%/*}/../../../lib"
 
@@ -9,8 +7,6 @@ source "$_CFG_LIB/config-root.sh"
 # shellcheck source=../../../lib/opt-value.sh
 source "$_CFG_LIB/opt-value.sh"
 
-# json_str <text>: escape for a JSON string. Backslash and quote first, then the
-# control characters a path, a reason, or a matched line can legally carry.
 json_str() {
   local s="$1"
   s="${s//\\/\\\\}"
@@ -37,15 +33,6 @@ cfg_user_config() {
   return 1
 }
 
-# cfg_layers_init <config-root>: fill CFG_LAYERS with the config cascade in
-# refinement order, user-global then team then personal override, skipping a layer that is
-# not present. The team layer is <home>/attribution.yaml and the personal override
-# <home>/attribution.local.yaml (ADR 0075), <home> being the bound convention
-# home, else docs/conventions. The user-global layer is the one JSON file; the
-# repository's old JSON files under .claude/ are not read (retirements.yaml
-# reports them). The config root is a parameter because it is resolved differently per
-# script (CLAUDE_PROJECT_DIR over a corpus root that each one finds its own way).
-# Config-cascade step 2: a home or non-repo root has no team layer or personal override.
 cfg_layers_init() {
   local config_root="$1" home="docs/conventions" resolved name moved_to="this plugin's userConfig (see How to set these in the attribution README) for budgets, judge_samples and accuracy, and"
   local repo_files="a repository's <home>/attribution.yaml or attribution.local.yaml"
@@ -66,9 +53,6 @@ cfg_layers_init() {
   echo "attribution: $old is a retired location, still read below every other layer until it is moved; run /attribution:setup apply to move its settings to $moved_to $repo_files for every other key" >&2
 }
 
-# cfg_layer_add <path>: append <path> when present and not already a layer (two
-# paths naming one file are read once). A YAML file outside the parser's subset
-# is named on stderr and not a layer.
 cfg_layer_add() {
   local path="$1" layer
   [[ -f "$path" ]] || return 0
@@ -83,19 +67,11 @@ cfg_layer_add() {
   CFG_LAYERS+=("$path")
 }
 
-# The one reader every script takes its settings through. A layer is YAML (read
-# with lib/parse-concern-value.sh, --strict, so a document outside the parser's
-# subset is skipped whole) or the user-global JSON (read with jq; without jq it
-# is skipped). Carriage returns are stripped because the Windows build of jq
-# ends its lines with CRLF, and a CR-suffixed value silently stops matching (the
-# ai-slop #3343 finding). CFG_SOURCE is the layer that supplied the value the
-# last call returned, empty when none did, so --show-config can name it.
 # shellcheck disable=SC2034  # read by the sourcing script
 CFG_SOURCE=""
 
 _cfg_is_yaml() { [[ "$1" == *.yaml || "$1" == *.yml ]]; }
 
-# cfg_have_unread_layer: a JSON layer is present and jq is not there to read it.
 cfg_have_unread_layer() {
   local layer
   command -v jq >/dev/null 2>&1 && return 1
@@ -105,10 +81,6 @@ cfg_have_unread_layer() {
   return 1
 }
 
-# cfg_scalar <dest> <dotted-key> [<ere>]: the last layer whose value is non-empty
-# (and, given <ere>, matches it) wins; a missing key, an empty value or a value
-# that fails <ere> leaves the earlier value standing. <dest> is empty when no
-# layer supplied one. The key is dotted (`gates.fix_precision_bar`).
 cfg_scalar() {
   local -n _cfg_dest="$1"
   local _cfg_key="$2" _cfg_ere="${3:-}" _cfg_layer _cfg_v _cfg_out="" _cfg_src=""
@@ -121,6 +93,7 @@ cfg_scalar() {
       command -v jq >/dev/null 2>&1 || continue
       _cfg_v="$(jq -r --arg k "$_cfg_key" 'getpath($k | split(".")) // empty' "$_cfg_layer" 2>/dev/null)" || continue
     fi
+    # A native Windows jq.exe writes CRLF: https://jqlang.org/manual/ (--binary).
     _cfg_v="${_cfg_v//$'\r'/}"
     [[ -n "$_cfg_v" ]] || continue
     [[ -z "$_cfg_ere" || "$_cfg_v" =~ $_cfg_ere ]] || continue
@@ -132,25 +105,17 @@ cfg_scalar() {
   _cfg_dest="$_cfg_out"
 }
 
-# cfg_list <dest-array> <key>: the last layer that defines the top-level <key>
-# replaces the list. Presence, not emptiness, decides: an explicit empty list is
-# a value meaning "none", so a personal override can clear an earlier layer's list, while
-# a layer that lacks the key leaves it standing. One element per line, internal
-# spaces kept.
 cfg_list() {
   local -n _cfg_arr="$1"
   local _cfg_key="$2" _cfg_layer _cfg_v _cfg_src="" _cfg_bom=$'\xEF\xBB\xBF'
   for _cfg_layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
     [[ "$_cfg_layer" != userConfig ]] || continue
     if _cfg_is_yaml "$_cfg_layer"; then
-      # The flattener prints nothing for `key: []`, so presence is the key's line
-      # (after a byte-order mark, the key plain or quoted).
       grep -Eq "^(${_cfg_bom})?[\"']?${_cfg_key}[\"']?[[:space:]]*:" "$_cfg_layer" 2>/dev/null || continue
       _cfg_v="$(bash "$_CFG_LIB/parse-concern-value.sh" --strict --list "$_cfg_layer" "$_cfg_key" 2>/dev/null)" || continue
     else
       command -v jq >/dev/null 2>&1 || continue
       jq -e --arg k "$_cfg_key" 'has($k) and .[$k] != null' "$_cfg_layer" >/dev/null 2>&1 || continue
-      # A value that is not a list (`false`, a string) clears the list.
       _cfg_v="$(jq -r --arg k "$_cfg_key" '(.[$k] // []) | .[]' "$_cfg_layer" 2>/dev/null)" || _cfg_v=""
     fi
     _cfg_v="${_cfg_v//$'\r'/}"
@@ -166,7 +131,6 @@ cfg_list() {
   CFG_SOURCE="$_cfg_src"
 }
 
-# cfg_from_label <source>: how --show-config attributes one effective value.
 cfg_from_label() {
   if [[ -z "$1" ]]; then
     printf '(bundled default)'
@@ -175,8 +139,6 @@ cfg_from_label() {
   fi
 }
 
-# cfg_layers_print: the layer listing every --show-config output opens with.
-# Reads CFG_LAYERS, the same global the cfg_* readers take their layers from.
 cfg_layers_print() {
   local layer
   echo "Config layers (later refines earlier):"

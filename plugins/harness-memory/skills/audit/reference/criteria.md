@@ -42,7 +42,8 @@ against `AGENTS.md`, not against a CLAUDE.md that is not there.
 
 - **Pointer**: for when Claude Code reads `AGENTS.md`, see
   [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md);
-  the condition discovery applies is recorded in `scripts/lib/agents-md.sh`.
+  the condition discovery applies is recorded in
+  [official-guidance.md](official-guidance.md#compaction-by-steering-method).
 
 ### C1: Line Budget [FAIL]
 

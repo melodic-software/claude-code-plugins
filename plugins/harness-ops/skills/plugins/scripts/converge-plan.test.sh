@@ -2,20 +2,16 @@
 # test-scope: .gitattributes
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/converge-plan.sh"
-# Never /tmp, and backslashes folded to slashes: see cache-content-check.test.sh.
 TMP_BASE="${TMPDIR:-${TEMP:-/var/tmp}}"
 TMP_BASE="${TMP_BASE//\\//}"
 TEST_TMPDIR="$(mktemp -d "$TMP_BASE/converge-plan.XXXXXX")"
 TEST_TMPDIR="${TEST_TMPDIR//\\//}"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# A fixture directory that is not a repository must not discover one above it.
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 
 FAILED=0

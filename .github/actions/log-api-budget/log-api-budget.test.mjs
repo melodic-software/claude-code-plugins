@@ -1271,8 +1271,8 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "pr-unblock.yml": Object.fromEntries(
       ["resolve-conflicts-not-run", "check-conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
     ),
-    "pr-review-hosted.yml": { "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
-    "pr-review-security-hosted.yml": { "check-kill-switch": "github-token", "wait-for-refine": "github-token" },
+    "pr-review-hosted.yml": { "check-kill-switch": "github-token" },
+    "pr-review-security-hosted.yml": { "check-kill-switch": "github-token" },
     "pr-run-activity-read.yml": { "check-broker": "github-token", "check-issue-fields": "github-token", "generate-reuse-summary": "github-token", report: "github-token" },
     "pr-run-activity-write.yml": { report: "github-token" },
     "maintenance-tidy-code-upkeep.yml": {
