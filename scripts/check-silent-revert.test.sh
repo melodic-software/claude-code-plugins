@@ -20,7 +20,6 @@ set -uo pipefail
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# The detector under test mktemps scratch files of its own and removes them only on its normal paths.
 export TMPDIR="$TMP"
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,7 +56,7 @@ repo=""
 # SELF_DIR rather than written as a drive-root absolute like /nonexistent/...,
 # which MSYS rewrites into the Git installation prefix on Windows.
 MK_REPO_FAILED="$SELF_DIR/.mk-repo-failed-this-path-does-not-exist"
-mk_repo() { # <out-var>
+mk_repo() {
   local -n _mk_repo_out="$1"
   local dir
   if ! fixture_tree::build dir --sut "$SCRIPT" --git >/dev/null; then
@@ -70,7 +69,6 @@ mk_repo() { # <out-var>
   _mk_repo_out="$dir"
 }
 
-# add_block <repo> <file> <count> <tag> -- the content a later commit will drop.
 add_block() {
   local repo="$1" file="$2" count="$3" tag="$4" i
   for i in $(seq 1 "$count"); do
@@ -81,8 +79,6 @@ add_block() {
   git_test_config "$repo" commit -qm "feat: add the $tag guard"
 }
 
-# drop_block <repo> <file> <tag> <commit-message> -- a squash carrying a tree
-# from before the block existed, exactly as the incident's merges did.
 drop_block() {
   local repo="$1" file="$2" tag="$3" msg="$4"
   grep -v "the $tag guard rejects" "$repo/$file" >"$repo/$file.tmp" || true
@@ -181,8 +177,6 @@ t_fires_on_silent_revert() {
   fi
 }
 
-# Requirement 4: a finding that only says "something changed" is useless. It has
-# to name what vanished, which commit removed it, and which commit added it.
 t_finding_is_actionable() {
   local repo out culprit remover
   mk_repo repo
@@ -237,9 +231,6 @@ t_quiet_outside_recency_window() {
   fi
 }
 
-# Per-culprit aggregation, not a repo-wide sum. Ordinary work deletes a few
-# recent lines from several commits at once; summing them would re-admit exactly
-# the routine case the volume threshold exists to exclude.
 t_does_not_sum_across_culprits() {
   local repo out
   mk_repo repo
@@ -1062,7 +1053,6 @@ drop_fragments() {
   git_test_config "$repo" commit -qm "chore: drop the fragments (#99)"
 }
 
-# Both cases run at the shipped threshold (200) against 300 fragment lines.
 t_release_consuming_fragments_is_not_a_removal() {
   local repo
   mk_repo repo
@@ -1075,7 +1065,7 @@ t_release_consuming_fragments_is_not_a_removal() {
   fi
 }
 
-assert_fragment_drop_fires() { # <consume> <label>
+assert_fragment_drop_fires() {
   local repo sink
   mk_repo repo
   drop_fragments "$repo" "$1"
@@ -1097,14 +1087,6 @@ t_fragments_dropped_beside_another_changelog_still_fire() {
   assert_fragment_drop_fires other "dropping recent .changes/ fragments while editing a different plugin's CHANGELOG fires"
 }
 
-# drop_bumped_fragments <repo> <bump> <changelog> <layout> -- the shape of a
-# release's none-fragment cleanup: 31 seeded changelogs, a recent commit adding
-# thirty ten-line files whose front matter reads `bump: <bump>` (300 lines), then
-# a commit deleting them. changelog=other also edits plugin0's CHANGELOG.md,
-# which has no fragments, so no fragment's own plugin changes its CHANGELOG;
-# changelog=no edits none. layout=fragment writes .changes/pluginN/<name>.md;
-# layout=elsewhere writes half nested a level too deep under .changes/ and half
-# outside .changes/, neither of which is the fragment layout.
 drop_bumped_fragments() {
   local repo="$1" bump="$2" changelog="$3" layout="$4" i j path
   for i in $(seq 0 30); do
@@ -1154,7 +1136,7 @@ t_release_none_fragment_cleanup_is_not_a_removal() {
   fi
 }
 
-assert_bumped_drop_fires() { # <bump> <changelog> <layout> <label>
+assert_bumped_drop_fires() {
   local repo sink
   mk_repo repo
   drop_bumped_fragments "$repo" "$1" "$2" "$3"
@@ -1218,7 +1200,6 @@ t_counts_are_immune_to_ambient_git_config() {
   cfg="$repo/hostile-gitconfig"
   revs="$repo/ignore-revs.txt"
   printf '%s\n' "$culprit" >"$revs"
-  # Deliberately hostile but entirely legitimate developer settings.
   {
     printf '[blame]\n\tignoreRevsFile = %s\n' "$revs"
     printf '[diff]\n\talgorithm = histogram\n\trenames = false\n\tsuppressBlankEmpty = true\n'
@@ -1703,20 +1684,6 @@ t_textconv_pin_is_load_bearing() {
   local clean_rc intact_rc live_before live_after clean_n both_n
   mk_repo repo
   printf '*.md diff=markdown\n' >"$repo/.gitattributes"
-  # feature.md needs content from an EARLIER commit ahead of the block the
-  # culprit adds. Misaligned -L ranges only become visible as a changed
-  # attribution when they slide off one commit's lines and onto another's; with
-  # the culprit's block alone in the file, a shifted range still lands entirely
-  # inside that same culprit and all four arms report 300 -- which is how this
-  # case passed vacuously once already.
-  #
-  # 150 lines rather than a token few. The margin the mixed arms produce is
-  # bounded by how far the ranges can slide, so it scales with this number:
-  # measured 300 vs 295 at 5 base lines, 300 vs 240 at 60, and at 150 the
-  # misattributed count falls below the 200 threshold entirely and the arm goes
-  # SILENT (rc 0, empty sink). That last one is the real-world harm this pin
-  # prevents -- a true finding suppressed, not merely miscounted -- so the
-  # fixture is sized to reproduce it rather than the marginal case.
   printf 'base line %s\n' $(seq 1 150) >"$repo/feature.md"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: name a diff driver for markdown"
@@ -1941,12 +1908,6 @@ t_conventional_revert_subject_is_declared() {
     'revert(disk-hygiene)!: remove the alpha guard (#99)' 0
 }
 
-# The reason why matching is constrained rather than a substring search: a
-# message that merely mentions reverting must NOT silence a real finding, or the
-# false-positive fix becomes a false-negative hole. Both halves are covered --
-# the body (the original case) and the SUBJECT, which is what the new
-# Conventional-Commits form reads and therefore what a substring bug would
-# widen. `revert` must be the type token at position zero, nothing else.
 t_prose_mentioning_revert_still_fires() {
   assert_declared 'prose mentioning "revert" does not silence the canary' \
     "$(printf 'feat: unrelated feature (#99)\n\nThis does not revert anything; the guard work is untouched.\n')" 1
@@ -1960,7 +1921,6 @@ t_prose_mentioning_revert_still_fires() {
     'revert:' 1
 }
 
-# An empty trailer would be a blanket mute with no accountability.
 t_empty_trailer_still_fires() {
   assert_declared 'an empty Intentional-removal trailer does not silence the canary' \
     "$(printf 'refactor: drop the guard (#99)\n\nIntentional-removal:\n')" 1
@@ -1986,8 +1946,6 @@ t_acknowledged_commit_is_cleared() {
   fi
 }
 
-# Abbreviations are refused so one row can never widen to cover a commit nobody
-# reviewed -- the difference between an audit trail and a mute button.
 t_abbreviated_ack_does_not_clear() {
   local repo out sha
   mk_repo repo
@@ -2015,8 +1973,6 @@ t_ack_last_row_without_newline_is_honored() {
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
   sha="$(git -C "$repo" rev-parse HEAD)"
 
-  # Two rows, the match on the last line, no trailing newline. Dropping that
-  # line would leave the commit unacked and fire.
   printf '# ack\n%s  reviewed: last row, no trailing newline' "$sha" \
     >"$repo/scripts/ack.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_ACK=scripts/ack.txt \
@@ -2046,7 +2002,6 @@ t_default_threshold_is_wired() {
   else
     fail "shipped default did not fire on 260 lines, rc=$RC: $out"
   fi
-  # And the shipped default must not fire on a drop well under it.
   mk_repo repo
   add_block "$repo" feature.txt 60 beta
   drop_block "$repo" feature.txt beta "feat: unrelated feature (#98)"
@@ -2156,8 +2111,6 @@ t_root_commit_is_handled() {
   fi
 }
 
-# An empty range is a real state (a push that fast-forwards nothing) and must be
-# distinguishable from a failure.
 t_empty_range_is_clean() {
   local repo out head
   mk_repo repo
@@ -2192,8 +2145,6 @@ t_replay_fails_on_broken_expectation() {
     fail "replay should have passed, rc=$RC: $out"
   fi
 
-  # Same commit, wrong expectation: the harness must go red rather than
-  # rubber-stamp whatever the detector currently happens to do.
   printf 'clean %s deliberately wrong\n' "$sha" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2204,7 +2155,6 @@ t_replay_fails_on_broken_expectation() {
     fail "replay should have failed on a wrong expectation, rc=$RC: $out"
   fi
 
-  # An unreachable commit is a shallow clone, not a pass.
   printf 'fires 0123456789abcdef0123456789abcdef01234567 unreachable\n' \
     >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-known-incidents
@@ -2230,7 +2180,6 @@ t_replay_asserts_the_recorded_attribution() {
   local sha
   sha="$(git -C "$repo" rev-parse HEAD)"
 
-  # Baseline: the true culprit and the true count pass.
   printf 'fires %s [%s=40] a real drop\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2241,7 +2190,6 @@ t_replay_asserts_the_recorded_attribution() {
     fail "replay should have passed on a correct attribution, rc=$RC: $out"
   fi
 
-  # Right commit, right count, WRONG culprit. Exit status alone would pass this.
   printf 'fires %s [%s=40] wrong culprit\n' "$sha" "$other" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2252,7 +2200,6 @@ t_replay_asserts_the_recorded_attribution() {
     fail "a wrong recorded culprit must fail the replay, rc=$RC: $out"
   fi
 
-  # Right commit, right culprit, WRONG count.
   printf 'fires %s [%s=39] wrong count\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2263,8 +2210,6 @@ t_replay_asserts_the_recorded_attribution() {
     fail "a wrong recorded line count must fail the replay, rc=$RC: $out"
   fi
 
-  # A recorded attribution the run does not produce at all -- the two-culprit
-  # shape from cc58cbc53, where a surviving finding would carry the row.
   printf 'fires %s [%s=40,%s=301] one attribution never reproduces\n' \
     "$sha" "$culprit" "$other" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
@@ -2327,8 +2272,6 @@ t_replay_asserts_the_recorded_attribution() {
     fail "expected rc=1 for a firing commit on a clean row, got rc=$RC: $out"
   fi
 
-  # And a `fires` row with no attribution keeps working -- the field is optional
-  # so a row can be pinned before its attribution has been measured.
   printf 'fires %s no attribution recorded\n' "$sha" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2352,8 +2295,6 @@ t_replay_asserts_clean_row_attribution() {
   drop_block "$repo" feature.txt alpha "docs: ordinary iteration (#99)"
   sha="$(git -C "$repo" rev-parse HEAD)"
 
-  # True culprit and true count, under the threshold: the row stays clean
-  # AND the figure is checked.
   printf 'clean %s [%s=15] closest miss\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2364,7 +2305,6 @@ t_replay_asserts_clean_row_attribution() {
     fail "clean-row attribution should have passed, rc=$RC: $out"
   fi
 
-  # Right culprit, WRONG count -- the 129 -> 136 shape.
   printf 'clean %s [%s=14] stale count\n' "$sha" "$culprit" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2375,7 +2315,6 @@ t_replay_asserts_clean_row_attribution() {
     fail "a wrong clean-row count must fail the replay, rc=$RC: $out"
   fi
 
-  # Right count, WRONG culprit.
   printf 'clean %s [%s=15] wrong culprit\n' "$sha" "$other" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2386,9 +2325,6 @@ t_replay_asserts_clean_row_attribution() {
     fail "a wrong clean-row culprit must fail the replay, rc=$RC: $out"
   fi
 
-  # A clean row with no field still replays on exit status alone -- the
-  # field is optional so a row can be pinned before its attribution is
-  # measured.
   printf 'clean %s no attribution recorded\n' "$sha" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2494,8 +2430,6 @@ EOF
     fail "expected rc=2 on injected blame failure in replay, rc=$RC: $out"
   fi
 
-  # Success still discards git stderr -- un-suppressing wholesale would
-  # train readers to ignore the canary.
   CANARY_INJECT_GIT_WARN=1 PATH="$shimdir:$PATH" \
     SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   out="$OUT"
@@ -2575,9 +2509,6 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
     fail "newline and no-newline two-row files must both FAIL on the wrong last row; nl rc=$rc_nl nonl rc=$rc_nonl nl=$out_nl nonl=$out_nonl"
   fi
 
-  # A one-row file that is correct, minus its trailing newline, must still
-  # verify that row -- the idiom must process the last line, not merely
-  # fail-closed when it is missing.
   printf 'fires %s [%s=40] the only row' "$sha" "$culprit" >"$repo/scripts/inc.txt"
   SILENT_REVERT_THRESHOLD=20 SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-known-incidents
@@ -2595,12 +2526,6 @@ t_replay_refuses_a_zero_row_or_truncated_file() {
 #    back -- and every way that assertion could go quietly green.
 # --------------------------------------------------------------------------
 
-# mk_restoration_repo <repo>
-#
-# Lays out the three shapes the assertion has to tell apart:
-#   guarded.txt   holds the marker that IS restored
-#   elsewhere.txt holds a string that exists ONLY outside its bound path
-# and nothing anywhere holds the absent marker. Echoes the head sha.
 mk_restoration_repo() {
   local repo="$1"
   printf 'the restored guard rejects a relocation\nRESTORED_MARKER_SENTINEL\n' \
@@ -2637,7 +2562,6 @@ t_restoration_reports_present_and_absent_markers() {
     fail "a restored marker should have passed, rc=$RC: $out"
   fi
 
-  # An absent marker is the finding this mode exists for.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s guarded.txt NEVER_PRESENT_ANYWHERE\n' "$sha"
@@ -2671,8 +2595,6 @@ t_restoration_reports_present_and_absent_markers() {
     fail "a partially re-landed incident must still fail, rc=$RC: $out"
   fi
 
-  # A dispositioned absent marker is a recorded decision, not a failure -- and
-  # the reason has to be printed, or the disposition is a mute button.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s guarded.txt [not-restored: superseded by the shared guard] NEVER_PRESENT_ANYWHERE\n' "$sha"
@@ -2702,8 +2624,6 @@ t_restoration_reports_present_and_absent_markers() {
     fail "a marker matched outside its bound path is a false green, rc=$RC: $out"
   fi
 
-  # Same corpus, resolved at an explicit rev rather than the working tree --
-  # the form a reviewer replays an incident with.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
@@ -2716,7 +2636,6 @@ t_restoration_reports_present_and_absent_markers() {
     fail "an explicit rev should have resolved, rc=$RC: $out"
   fi
 
-  # A rev that does not exist is a shallow clone, not a pass.
   SILENT_REVERT_INCIDENTS=scripts/inc.txt \
     run_canary "$repo" --verify-restoration 0123456789abcdef0123456789abcdef01234567
   out="$OUT"
@@ -2735,9 +2654,6 @@ t_restoration_refuses_a_malformed_corpus() {
   mk_repo repo
   sha="$(mk_restoration_repo "$repo")"
 
-  # THE central refusal: a `fires` row with no marker. Skipping it would let
-  # this whole assertion be satisfied by pinning one historical incident while
-  # covering no future one.
   printf 'fires %s a real drop with nothing recorded\n' "$sha" >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
@@ -2747,7 +2663,6 @@ t_restoration_refuses_a_malformed_corpus() {
     fail "a marker-less fires row must exit 2, rc=$RC: $out"
   fi
 
-  # A marker naming no `fires` row covers nothing; it is a typo, not coverage.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
@@ -2761,10 +2676,6 @@ t_restoration_refuses_a_malformed_corpus() {
     fail "an orphan marker row must exit 2, rc=$RC: $out"
   fi
 
-  # Malformed marker rows. The last two are the ones that matter most: an
-  # EMPTY disposition reason must be rejected rather than read as a mute, and
-  # an unterminated `[` must not degrade back into ordinary marker text -- the
-  # false green reached by the one route nobody would look at.
   local bad desc
   while read -r desc bad; do
     {
@@ -2787,10 +2698,6 @@ an-unknown-disposition-keyword guarded.txt [ignored: why] RESTORED_MARKER_SENTIN
 an-unterminated-disposition guarded.txt [not-restored: why RESTORED_MARKER_SENTINEL
 BAD_ROWS
 
-  # A corpus with no `fires` row at all must not report a serene pass. The
-  # marker-per-fires-row rule only bites while a `fires` row exists, so removing
-  # a row together with its markers is a mute button reached by deletion rather
-  # than by editing.
   printf '# only comments here\n' >"$repo/scripts/inc.txt"
   SILENT_REVERT_INCIDENTS=scripts/inc.txt run_canary "$repo" --verify-restoration
   out="$OUT"
@@ -2808,9 +2715,6 @@ BAD_ROWS
     fail "a clean-only corpus must exit 2, rc=$RC: $out"
   fi
 
-  # A well-formed sha nobody can resolve is a shallow clone or a typo. A matched
-  # typo on a row AND its marker would otherwise assert content for an incident
-  # that never happened.
   {
     printf 'fires 0123456789abcdef0123456789abcdef01234567 not a real commit\n'
     printf 'marker 0123456789abcdef0123456789abcdef01234567 guarded.txt RESTORED_MARKER_SENTINEL\n'
@@ -2823,16 +2727,6 @@ BAD_ROWS
     fail "an unreachable incident commit must exit 2, rc=$RC: $out"
   fi
 
-  # The disposition ends at the FIRST `]`, and a marker's text is unrestricted
-  # on BOTH sides of that rule. A dispositioned row whose marker text contains
-  # `]` is well-formed -- the split is unambiguous, the reason has no bracket,
-  # and only the marker does.
-  #
-  # This is the case a content-shaped ambiguity check gets wrong. A truncated
-  # reason and this legitimate row are byte-indistinguishable in shape, so a
-  # rule that rejects one rejects the other; the grammar is documented instead,
-  # and the recorded reason is printed verbatim so a truncation is visible to
-  # the human reading the trail.
   printf 'expectations: ["x"] and ] alone\n' >>"$repo/guarded.txt"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "feat: bracketed content"
@@ -2849,7 +2743,6 @@ BAD_ROWS
     fail "a bracketed marker on a dispositioned row must resolve, rc=$RC: $out"
   fi
 
-  # And an ORDINARY marker's text may contain `]` freely too.
   printf 'expectations: ["a", "b"]\n' >>"$repo/guarded.txt"
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "feat: content with a bracket"
@@ -2898,8 +2791,6 @@ BAD_ROWS
     fail "the two readers disagree about comments, rc=$RC: $out"
   fi
 
-  # An abbreviated sha would let a marker widen to a commit nobody recorded --
-  # the same discipline the acknowledgment file holds.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "${sha:0:9}"
@@ -2912,7 +2803,6 @@ BAD_ROWS
     fail "expected rc=2 on an abbreviated marker sha, got rc=$RC: $out"
   fi
 
-  # An unknown row kind is a corpus nobody can read, not a row to skip.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s guarded.txt RESTORED_MARKER_SENTINEL\n' "$sha"
@@ -2927,21 +2817,11 @@ BAD_ROWS
   fi
 }
 
-# A marker's path must resolve to exactly ONE FILE. Handing it to a pathspec
-# instead lets a directory, a glob, a bare `.` or pathspec magic widen the
-# search to a SUPERSET of the bound file -- and because every marker string is
-# by construction also written in the corpus file itself, a widened path makes
-# this whole assertion tautologically satisfiable by its own corpus. That is a
-# false green reachable by a row that looks entirely reasonable, so each shape
-# is pinned here rather than left to reviewer vigilance.
 t_restoration_binds_a_marker_to_exactly_one_file() {
   local repo out sha widened
   mk_repo repo
   sha="$(mk_restoration_repo "$repo")"
 
-  # THE amplifier case, in its strongest form: the target content is nowhere in
-  # the repo, but the marker text is sitting in the corpus file itself. A
-  # pathspec of `.` would report it restored.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s . NEVER_PRESENT_ANYWHERE\n' "$sha"
@@ -2954,9 +2834,6 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     fail "a '.' path let the corpus satisfy its own marker, rc=$RC: $out"
   fi
 
-  # Every widening shape, at the working tree and at a rev. None may report the
-  # marker present, because the content lives only in guarded.txt while the
-  # marker is bound to something broader.
   for widened in "." ".." "*" "plugins" "" "scripts" ":/" ":(glob)**/*"; do
     [[ -n "$widened" ]] || continue
     {
@@ -2974,7 +2851,6 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     fi
   done
 
-  # A directory is a corpus error rather than a finding, and says so.
   {
     printf 'fires %s a real drop\n' "$sha"
     printf 'marker %s scripts RESTORED_MARKER_SENTINEL\n' "$sha"
@@ -2987,10 +2863,6 @@ t_restoration_binds_a_marker_to_exactly_one_file() {
     fail "a directory marker path must exit 2, rc=$RC: $out"
   fi
 
-  # Working-tree mode must stay REPO-SCOPED. Reading the filesystem directly
-  # would let an untracked file -- content that is not on main and never was --
-  # satisfy a marker in exactly the mode the canary job runs, while the same row
-  # reports NOT RESTORED at an explicit rev. The two modes must agree.
   printf 'RESTORED_MARKER_SENTINEL\n' >"$repo/untracked.txt"
   {
     printf 'fires %s a real drop\n' "$sha"
@@ -3154,8 +3026,6 @@ t_restoration_and_replay_share_the_corpus() {
   fi
 }
 
-# The shipped data files must parse and be non-empty, so a truncated or
-# malformed file cannot quietly turn the replay into a no-op.
 t_shipped_data_files_are_wellformed() {
   local inc="$SELF_DIR/silent-revert-incidents.txt"
   local ack="$SELF_DIR/silent-revert-acknowledged.txt"
@@ -3232,8 +3102,6 @@ t_shipped_data_files_are_wellformed() {
     fail "a shipped fires row in silent-revert-incidents.txt carries no marker row"
   fi
 
-  # And the reverse: a marker whose sha names no `fires` row is a typo that
-  # would silently cover nothing.
   bad=0
   while read -r row_sha; do
     [[ -n "$row_sha" ]] || continue

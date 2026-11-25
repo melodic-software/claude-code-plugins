@@ -837,8 +837,19 @@ function trustedClose(args) {
   return readClose(args).then(({ trusted }) => trusted);
 }
 
-function readClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT }) {
+function readClose({ github, repo, where = repo, number, humans, closes, bot = DEFAULT_BOT, blocker = false }) {
   const key = `${where.toLowerCase()}#${number}`;
+  if (blocker) {
+    if (!closes.has(`${key} blocker`)) {
+      closes.set(
+        `${key} blocker`,
+        readClose({ github, repo, where, number, humans, closes, bot }).then(async (read) =>
+          read.trusted || where.toLowerCase() !== repo.toLowerCase() || !byBot(bot)(read.issue?.closed_by) ? read : { issue: read.issue, trusted: await isTrustedClose(github, repo, read.issue, humans, bot, { blocker }) },
+        ),
+      );
+    }
+    return closes.get(`${key} blocker`);
+  }
   if (!closes.has(key)) {
     closes.set(
       key,
@@ -859,7 +870,7 @@ const clearedHere = ({ github, repo, humans, closes, bot = DEFAULT_BOT, events }
     github,
     repository: repo,
     isApp: byBot(bot),
-    trusted: (number) => trustedClose({ github, repo, number, humans, closes, bot }),
+    trusted: (number) => trustedClose({ github, repo, number, humans, closes, bot, blocker: true }),
     after: judgedSince(events, (actor) => trustedLabeler({ actor }, { bot, humans })),
   });
 
@@ -1246,7 +1257,7 @@ async function admissionDecision({ github, repo, number, issue, names, events, h
     rules,
     humans,
     appId,
-    isTrusted: (blocker) => trustedClose({ github, repo, number: blocker, humans, closes, bot }),
+    isTrusted: (blocker, options) => trustedClose({ github, repo, number: blocker, humans, closes, bot, blocker: options?.blocker === true }),
     doneBy,
   });
   const unset = untrustedReady(events, { bot, humans });
@@ -1489,7 +1500,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
     let blocked;
     try {
       if (sweep) {
-        const { issue, trusted } = await readClose({ github, repo, number: source, humans, closes, bot });
+        const { issue, trusted } = await readClose({ github, repo, number: source, humans, closes, bot, blocker: true });
         if (!trusted) {
           console.log(`label-unblocked: #${source} was closed by neither a listed human nor a merge; skipped`);
           continue;
@@ -2659,10 +2670,10 @@ async function restartLimited({ github, actions, jobLog, carry, repo, bot, human
 
 const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 
-async function isTrustedClose(github, repo, issue, humans, bot) {
+async function isTrustedClose(github, repo, issue, humans, bot, options) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
   const isApp = byBot(bot);
-  return (await closedByHumanOrMerge(github, repo, issue, humans, isApp)) || splitParentClosed({ github, repository: repo, issue, isApp, humans, trusted });
+  return (await closedByHumanOrMerge(github, repo, issue, humans, isApp, options)) || splitParentClosed({ github, repository: repo, issue, isApp, humans, trusted });
 }
 
 async function closeSplitParents({ github, repo, closed, sweep, humans, bot, closes = new Map(), writer = NO_WRITER, statusOf, maps = NO_MAPS }) {

@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.9] - 2026-11-25
+
+### Changed
+
+- Comments removed from the vendored `video-digestion` progress module and the docpage digest batch workflow; no behavior change. The patch bump delivers the vendored source to consumers.
+
 ## [3.5.8] - 2026-11-25
 
 ### Changed

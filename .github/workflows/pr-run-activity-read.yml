@@ -257,7 +257,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # the key-credit gate lists this repository's credit-stop markers; the lease claim reads an earlier lease's run status
+      actions: read
       contents: read
       id-token: write
       issues: write
@@ -271,13 +271,6 @@ jobs:
       lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
       blocked: ${{ steps.recheck-blockers.outcome == 'success' && steps.recheck-blockers.outputs.proceed != 'true' }}
       skip-key: ${{ steps.credit.outputs.skip-key }}
-      # A pull-request first call whose key the credit read skipped hands off
-      # here, before the run job: run and report skip, so the caller's
-      # handoff read finds no check posted and starts its subscription call.
-      # Only where declines are posted: a caller passing post-decline false
-      # tells a handoff from a decline by the run job's conclusion
-      # (handoff-evidence.sh handed-off), so its run job still runs. Issue
-      # mode keeps its run job, whose handed-off decides the lease release.
       skip-run: ${{ inputs.issue-number == '' && inputs.post-decline && steps.credit.outputs.skip-key == 'true' }}
       standards-sha: ${{ steps.standards.outputs.sha }}
     env:
@@ -285,7 +278,6 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Assert the default branch is set
@@ -320,9 +312,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # The blocker re-check below reads the issue's Work status through
-      # resolve-config.mjs, whose packages only the resolve-config action
-      # installs; this job does not run it.
       - name: Install resolve-config's packages
         if: inputs.issue-number != '' && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key')
         timeout-minutes: 5
@@ -334,8 +323,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # A first call that starts new work also stops on a low GITHUB_TOKEN
-          # budget; a handed-off or fallback leg checks the switches only.
           budget: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key') && 'true' || 'false' }}
           project: ${{ inputs.start-gate && (inputs.fallback == '' || inputs.fallback == 'credit-stop' || inputs.fallback == 'no-key') && 'true' || 'false' }}
 
@@ -548,8 +535,6 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      # A skill that took no model turn fails. The scan job's verdict reads
-      # it. A skill runs on one of act-key, act-token and act-fallback.
       act-outcome: >-
         ${{ (steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success'
         || steps.act-fallback.outcome == 'success')
@@ -581,9 +566,6 @@ jobs:
       # files, so the leg cannot set them; the presence steps run before it.
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present || steps.fallback-present.outputs.present }}
-      # An empty credential hands on as a handoff does: an empty key to the
-      # second call, an empty subscription token to the third when the caller
-      # runs one (fallback-ready).
       handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' || steps.token-present.outputs.present == 'false' && inputs.fallback-ready == 'true' }}
       # The lane-outcome JSON, empty when the step wrote none; the
       # report-check-run action validates it before the check run carries it,
@@ -1017,8 +999,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
-      # Issue mode: check-broker found a live lease older than its own, so
-      # another session holds the issue and the run stops before any model turn.
       - name: Stop on an existing issue lease
         if: steps.config.outputs.applies == 'true' && needs.check-broker.outputs.lease == 'already-leased'
         env:
@@ -1222,7 +1202,6 @@ jobs:
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRIGGER_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
           TRIGGER_AT: ${{ github.event.issue.updated_at }}
-          # A resumed run's summary of the branch it continues (issue-prior).
           RESUME_BRANCH: ${{ steps.issue-prior.outputs.resume-branch }}
           RESUME_TIP: ${{ steps.issue-prior.outputs.resume-tip }}
           RESUME_CAUSE: ${{ steps.issue-prior.outputs.resume-cause }}
@@ -1364,8 +1343,6 @@ jobs:
           # Written as != so the 0 is not read as false.
           fetch-depth: ${{ steps.config.outputs.prepare != 'merge-base' && 1 || 0 }}
 
-      # The activity judges exactly the commit the check is posted on, and in
-      # issue mode makes its patch on the commit the apply job starts from.
       - name: Assert the head is the gated SHA
         id: start
         if: steps.go.outputs.run == 'true'
@@ -1555,7 +1532,6 @@ jobs:
           role: ${{ inputs.role }}
           credential-set: ${{ secrets.fallback-claude-code-oauth-token != '' }}
 
-      # The leg's start time, for the lane record.
       - name: Record when the leg starts
         id: leg-start
         if: >-
@@ -2366,8 +2342,6 @@ jobs:
     if: always() && inputs.issue-number != '' && needs.run.result != 'skipped'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # pull-requests: read as the run job's earlier-work check reads closing
-    # pull requests with it.
     permissions:
       contents: read
       pull-requests: read
@@ -2384,8 +2358,6 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
-      # Each field through env. issue-run-started is set first, alone, so a
-      # refused field still leaves it; claimed says a branch is named.
       - name: Check the run job's issue fields
         id: issue
         continue-on-error: true
@@ -2472,9 +2444,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # The run job's own earlier-work check, again, into a file of its own.
-      # The run job chose before the model ran, and the default branch may
-      # have moved since, so a resume branch now behind it still resumes.
       - name: Re-derive the earlier run's work on the issue
         id: prior
         if: steps.node.outcome == 'success'
@@ -2619,7 +2588,6 @@ jobs:
         || (steps.open.outcome == 'failure' || steps.decode.outcome == 'failure' || steps.leak-scan.outcome == 'failure') && 'output'
         || '' }}
     steps:
-      # Issue mode: the check-issue-fields job's check, or nothing is published.
       - name: Require the checked issue fields
         if: inputs.issue-number != ''
         env:
@@ -2736,7 +2704,6 @@ jobs:
           DEPENDENCY_VERDICT_BYTES: ${{ needs.run.outputs.carry-dependency-verdict-bytes }}
           WORK_OUTCOME_BYTES: ${{ needs.run.outputs.carry-work-outcome-bytes }}
           LANE_BYTES: ${{ needs.run.outputs.carry-lane-bytes }}
-          # Issue mode, as the check-issue-fields job checked them.
           ISSUE_STARTED: ${{ needs.check-issue-fields.outputs.issue-run-started }}
           ISSUE_RESUME: ${{ needs.check-issue-fields.outputs.resume-branch }}
           OPEN_DIR: ${{ steps.open.outcome == 'success' && format('{0}/scan-in', runner.temp) || '' }}
@@ -3459,12 +3426,6 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  # Issue mode, reuse: the summary pass, in its own job with a read-only
-  # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
-  # reused lane branch, as the check-issue-fields job re-derived it, so that job
-  # ran no model. Every step is continue-on-error, and each pass step is
-  # gated on the one before it: a failed pass leaves no summary and turns
-  # nothing red, and report-outcome keeps the fixed text.
   generate-reuse-summary:
     name: Generate Reuse Summary
     needs: [run, check-issue-fields]
@@ -3481,7 +3442,6 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
@@ -3519,9 +3479,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # write-issue.mjs reads the Work status field events and config through
-      # resolve-config.mjs, whose packages the resolve-config action below
-      # installs only after this pass.
       - name: Install resolve-config's packages for the summary pass
         if: steps.node.outcome == 'success'
         continue-on-error: true
@@ -3728,8 +3685,6 @@ jobs:
           json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
           leg-timeout-minutes: "10"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file || steps.summary-fallback.outputs.execution-file) != ''
         continue-on-error: true
@@ -3884,9 +3839,6 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # A run that never uploaded a verdict (the scan job writes it) is
-      # already a failure, or a neutral superseded-sha on a cancel, in
-      # report-check-run's decision.
       - name: Download the verdict
         if: inputs.issue-number == ''
         continue-on-error: true
@@ -4044,10 +3996,6 @@ jobs:
         with:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
-          # A check-broker failure skips the run job and leaves no verdict, so
-          # the check fails; a cancelled check-broker reads as cancelled. A
-          # scan job that failed (a credential, a withheld or oversize
-          # payload) fails the check after a run job that succeeded.
           run-result: >-
             ${{ steps.head.outputs.forged == 'true' && 'failure'
             || steps.head.outputs.not-run-reason != '' && 'skipped'
@@ -4068,9 +4016,6 @@ jobs:
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
 
-      # Issue mode: the lease handle comes only from check-broker, which ran
-      # before any model turn. A failure warns and leaves the lease to expire
-      # at its TTL without failing the job.
       - name: Release the lane lease
         if: always() && inputs.issue-number != ''
         continue-on-error: true

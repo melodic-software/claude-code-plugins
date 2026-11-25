@@ -90,13 +90,8 @@ SKIPPABLE = frozenset(
         verify_evidence.UNTRUSTED_SPEC,
     }
 )
-# `merge.skip-unchanged` in docs/conventions/pr-pipeline.yaml; 0 turns skipping
-# off. Scheduled runs are 15 minutes apart, so 3 skips gate an unchanged
-# refusal at least every fourth run, and 60 minutes at least hourly whatever
-# else starts a run (judgment).
 DEFAULT_MAX_MINUTES = 60
 DEFAULT_MAX_SKIPS = 3
-# Candidates per GraphQL query.
 CHUNK = 20
 STANDARDS_INPUT = f"standards:{merge_policy.STANDARDS_TRUSTED_ACTORS}"
 MAIN_PATHS = (
@@ -110,9 +105,6 @@ MAIN_PATHS = (
     "plugins/source-control/skills/babysit-prs/scripts",
     "plugins/source-control/skills/babysit-loop/scripts",
 )
-# A review re-run report the next gate repeats unchanged (or that started a
-# run, which changes the check rollup); any other, a re-run still due
-# included, gates again.
 STABLE_RERUNS = (
     "failure class is not ",
     "already re-run on this head",
@@ -144,7 +136,6 @@ def now() -> datetime:
 
 
 def _time(text: Any) -> datetime | None:
-    """A zoned ISO time, else None."""
     if not isinstance(text, str) or not ZONED_RE.search(text):
         return None
     try:
@@ -154,7 +145,6 @@ def _time(text: Any) -> datetime | None:
 
 
 def _malformed(text: str) -> bool:
-    """Whether a limit is neither empty nor a whole number."""
     text = text.strip()
     return text not in ("", "null") and not re.fullmatch(r"[0-9]{1,6}", text)
 
@@ -262,7 +252,6 @@ def read_states(
 
 
 def _complete(connection: Any, limit_: int) -> list[dict[str, Any]] | None:
-    """A connection's nodes when it lists all of them, else None."""
     connection = json_object(connection)
     nodes = connection.get("nodes")
     total = connection.get("totalCount")
@@ -576,8 +565,6 @@ def run_filter(args: argparse.Namespace) -> int:
                 f"::warning::merge.skip-unchanged.{name} is not a whole number; no candidate is skipped"
             )
     if max_minutes <= 0 or max_skips <= 0:
-        # Off: read nothing and leave every candidate for the gate. With no
-        # keys file, `record` stores nothing.
         print("skip-unchanged: off, every candidate is gated")
         return 0
     reader = verify_evidence.Reader(args.repo, args.branch)
@@ -602,8 +589,6 @@ def run_filter(args: argparse.Namespace) -> int:
         max_minutes=max_minutes,
         max_skips=max_skips,
     )
-    # A record still good for its own key, kept for a candidate the loop may
-    # not reach; a stale or malformed one is dropped.
     earlier = {}
     for candidate in candidates:
         number = candidate.get("number")
@@ -685,7 +670,6 @@ def record(
     for number in {*keyed, *carried, *earlier}:
         row = gated.get(number)
         if row is None:
-            # Skipped, or not reached before the gate budget ran out.
             if number in carried:
                 section[number] = carried[number]
             elif number in earlier:

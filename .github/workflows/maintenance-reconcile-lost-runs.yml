@@ -157,11 +157,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
-      # The base config's limits.api, in resolve-config's output shape, for
-      # the pacer; a failed read leaves rate-limits.json's defaults.
       - name: Read the pace override from the base config
         if: steps.reset.outputs.due != 'false' && steps.reset.outputs.post-reset != 'true'
         continue-on-error: true
@@ -553,11 +550,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
-      # A green pass whose plan read every listing and deferred no recovery
-      # work (reconcile.mjs writes clean; a failed listing, the kill switch,
-      # an Actions outage or a deferred place other than a flake re-run does
-      # not). The pacer paces the next scheduled tick only after this step
-      # (.github/actions/log-api-budget/pace.mjs).
       - name: Mark this tick's work done
         if: steps.plan.outputs.clean == 'true'
         run: echo "the reconciler read every listing"
