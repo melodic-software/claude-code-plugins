@@ -161,10 +161,6 @@ for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' 
 done
 
 # --- LIVE repo: files a suite reads select that suite (#8410) ------------------
-# The selection audit traced each suite reading these files while a one-file
-# diff to the file did not select it: each suite reaches them through a path
-# built from parts, a directory glob, or a launcher hooks.json names, so its
-# `# test-scope:` header declares them (R8).
 s_session=plugins/planning/shared/tests/test_session.py
 s_dims=plugins/work-items/tests/set-dimensions.test.sh
 gh_adapter=plugins/work-items/tools/work-item-tracker/adapters/github

@@ -1799,10 +1799,10 @@ fi
 rm -rf "$repo"
 
 help_out="$(bash scripts/affected-tests.sh --help)"
-if contains "$help_out" 'Both stages fail loud'; then
-  ok "--help reaches the end of the header (derived usage)"
+if contains "$help_out" '--each-from' && contains "$help_out" 'Exit: 0'; then
+  ok "--help lists the flags and the exit codes"
 else
-  fail "--help truncated before the header's last sentence: $help_out"
+  fail "--help should list the flags and the exit codes: $help_out"
 fi
 
 test_harness::report
