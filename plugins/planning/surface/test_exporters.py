@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import html.parser
 import json
+import os
 import random
 import re
 import shutil
@@ -765,6 +766,10 @@ class TestExportBrief(SessionCase):
             timeout=120,
         )
         config = Path(org.stdout.strip()) / ".markdownlint-cli2.jsonc"
+        if (org.returncode != 0 or not config.is_file()) and (
+            os.environ.get("CI") or os.environ.get("STANDARDS_DIR")
+        ):
+            self.fail("the standards org layer's .markdownlint-cli2.jsonc could not be read, and CI or STANDARDS_DIR says it must be")
         if org.returncode != 0 or not config.is_file():
             self.skipTest("the standards org layer's .markdownlint-cli2.jsonc could not be read")
         shutil.copy(config, self.tmp)

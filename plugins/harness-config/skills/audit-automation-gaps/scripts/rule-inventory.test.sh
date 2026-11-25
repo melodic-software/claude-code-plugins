@@ -157,6 +157,15 @@ rows="$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R" --rows)"
 assert_line "O: org criteria row" "$rows" "$(printf 'Org rule.\tREVIEW.md in effect:1\tautomated-review\t4')"
 assert_line "O: repository criteria appended" "$rows" "$(printf 'Flag a retry loop with no cap.\tREVIEW.md in effect:5\tautomated-review\t4')"
 
+U="$TMP/org-unreachable"
+new_repo "$U"
+mkdir -p "$U/docs/conventions"
+printf 'standards_repository: acme/standards\n' >"$U/docs/conventions/source-control.yaml"
+commit_all "$U"
+out="$(ORG_STANDARDS_CACHE="$TMP/org-cache" ORG_STANDARDS_GIT_BASE="$TMP/no-such-forge" bash "$GEN" --root "$U")"
+assert_line "U: an unreachable org layer is named, not dropped" "$out" \
+  "- review: the REVIEW.md in effect did not resolve (org-standards: cannot clone $TMP/no-such-forge/acme/standards.git; no org layer this run)"
+
 D="$TMP/records"
 new_repo "$D"
 mkdir -p "$D/.claude/ecosystems" "$D/docs/conventions" "$D/src" "$D/tests/fixtures"

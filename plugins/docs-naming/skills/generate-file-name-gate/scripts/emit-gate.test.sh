@@ -102,7 +102,9 @@ assert_contains "and the case-collision pass" "$out" "differing only by case"
 if command -v shellcheck >/dev/null 2>&1; then
   RC_FILE="$(bash "$SCRIPT_DIR/../../../../../lib/org-standards.sh" dir --root "$SCRIPT_DIR/../../../../.." 2>/dev/null)/.shellcheckrc"
   sc_args=(-x)
-  if [[ -f "$RC_FILE" ]] && grep -q -- '--rcfile' < <(shellcheck --help 2>&1); then
+  if [[ ! -f "$RC_FILE" && -n "${CI:-}${STANDARDS_DIR:-}" ]]; then
+    assert_eq "the standards org layer's .shellcheckrc is readable where CI or STANDARDS_DIR says it must be" "readable" "unreadable"
+  elif [[ -f "$RC_FILE" ]] && grep -q -- '--rcfile' < <(shellcheck --help 2>&1); then
     sc_args+=("--rcfile=$RC_FILE")
     sc="$(shellcheck "${sc_args[@]}" "$root/scripts/check-file-names.sh" "$root/scripts/check-file-names.test.sh" 2>&1)"
     assert_eq "shellcheck is clean on the emitted pair under this repo's rcfile" "" "$sc"

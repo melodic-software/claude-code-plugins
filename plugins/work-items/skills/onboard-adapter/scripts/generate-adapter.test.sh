@@ -488,6 +488,8 @@ SC_RC="$(bash "$SCRIPT_DIR/../../../../../lib/org-standards.sh" dir --root "$SCR
 # so probe whether THIS binary accepts the flag rather than trusting the exit status.
 if ! command -v shellcheck >/dev/null 2>&1; then
   printf 'SKIP: shellcheck not available — generated-shell lint case not run\n' >&2
+elif [[ ! -f "$SC_RC" && -n "${CI:-}${STANDARDS_DIR:-}" ]]; then
+  assert_eq "the standards org layer's .shellcheckrc is readable where CI or STANDARDS_DIR says it must be" "readable" "unreadable"
 elif [[ ! -f "$SC_RC" ]]; then
   printf 'SKIP: the standards org layer could not be read — generated-shell lint case not run\n' >&2
 elif ! shellcheck --rcfile="$SC_RC" /dev/null >/dev/null 2>&1; then

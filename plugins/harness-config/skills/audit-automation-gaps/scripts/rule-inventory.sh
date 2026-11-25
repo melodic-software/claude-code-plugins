@@ -323,7 +323,7 @@ case $? in
   emit_items "$work/review.md" automated-review 0 "$label"
   review_n=1
   ;;
-3) ;;
+3) [[ ! -s "$work/review.err" ]] || note "review: the REVIEW.md in effect did not resolve ($(head -n 1 "$work/review.err"))" ;;
 *) note "review: the REVIEW.md in effect did not resolve ($(head -n 1 "$work/review.err"))" ;;
 esac
 review_files="CODING_STANDARDS.md"

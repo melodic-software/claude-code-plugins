@@ -284,6 +284,18 @@ std_config() {
   fi
 }
 
+std_unread() {
+  echo "$1: neither this tree nor the standards org layer has it (lib/org-standards.sh dir could not read the org layer)"
+  return 1
+}
+no_std_config() {
+  if [[ -n "${CI:-}" || -n "${STANDARDS_DIR:-}" ]]; then
+    run_check "$1" "bash lib/org-standards.sh dir --root ." std_unread "$2"
+  else
+    skip "$1" "no $2 here, and the standards org layer could not be read"
+  fi
+}
+
 fail_check() {
   failed+=("$1")
   {
@@ -378,7 +390,7 @@ if ((${#md[@]} == 0)); then
 elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   skip markdown "markdownlint-cli2 not installed"
 elif [[ -z "$md_config" ]]; then
-  skip markdown "no .markdownlint-cli2.jsonc here or in the standards org layer"
+  no_std_config markdown .markdownlint-cli2.jsonc
 elif ((foreign)); then
   # Lint HEAD's copy of each file beside the tooling tree's configs, overlaid
   # with each markdownlint config the branch changed that the tooling tree's
@@ -431,7 +443,7 @@ if ((${#sh[@]} == 0)); then
 elif ! command -v shellcheck >/dev/null 2>&1; then
   skip shellcheck "shellcheck not installed"
 elif [[ -z "$sc_rc" ]]; then
-  skip shellcheck "no .shellcheckrc here or in the standards org layer"
+  no_std_config shellcheck .shellcheckrc
 else
   run_check shellcheck "shellcheck --rcfile $sc_rc ${sh[*]}" \
     shellcheck --rcfile "$sc_rc" "${sh[@]}"
@@ -509,10 +521,12 @@ typos_check() {
 typos_rel=_typos.toml
 [[ -f "$hygiene_workflow" ]] && typos_rel=$(step_input typos config | head -n 1)
 typos_rel=${typos_rel:-_typos.toml}
+typos_org=1
 if [[ "$typos_rel" == _typos.toml ]] && org="$(bash "$tools/lib/org-standards.sh" dir --root "$tools" 2>/dev/null)" &&
   [[ -f "$org/_typos.toml" ]]; then
   typos_config="$org/_typos.toml"
 else
+  [[ "$typos_rel" != _typos.toml ]] || typos_org=0
   typos_config="$tools/$typos_rel"
   [[ -f "$typos_config" ]] || typos_config="$PWD/$typos_rel"
 fi
@@ -520,6 +534,8 @@ if ((${#changed[@]} == 0)); then
   skip typos "no changed files"
 elif ! command -v typos >/dev/null 2>&1; then
   skip typos "typos not installed"
+elif ((!typos_org)) && [[ -n "${CI:-}" || -n "${STANDARDS_DIR:-}" ]]; then
+  no_std_config typos _typos.toml
 elif [[ ! -f "$typos_config" ]]; then
   skip typos "no $typos_rel"
 else
