@@ -240,8 +240,9 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 ## Self-trigger guard
 
 A SessionStart hook fires on every session start, including the catch-up's own analysis `-p` run.
-The hook runs only when `CLAUDE_CODE_ENTRYPOINT == "cli"` (a real interactive session; the `-p` run
-reports `sdk-cli`), skips when the stdin `agent_type` field is present (subagent / `--agent` run),
+The hook runs only when the shared attended predicate holds (`hooks/session-attended.sh`, generated
+from `lib/session-attended.sh`: a person attends the session, so the `-p` run and background sessions
+never arm), skips when the stdin `agent_type` field is present (subagent / `--agent` run),
 skips `source` values other than `startup`/`resume`, and skips when `SESSION_FLOW_OBSERVER_ANALYSIS`
 is set (the analysis run's own marker). The module loads in that run too and checks the same marker
 and `isInteractive`, so the analysis run gets no live checks. A per-session lock held by a **live pid

@@ -17,13 +17,8 @@
 # then names every recorded segment in one PreToolUse `permissionDecision:
 # "ask"` document.
 #
-# "Attended" means CLAUDE_CODE_SESSION_ATTENDED is exactly `1`: an interactive
-# session reads 1, and `claude -p` and `claude --bg` read 0 (probed 2026-10-15,
-# Claude Code 2.1.301). Any other value, or none, denies, so a CI lane that sets
-# nothing never receives a prompt it cannot answer. Pointer: the decision
-# fields are in https://code.claude.com/docs/en/hooks#pretooluse-decision-control.
-# As of: 2026-10-15. Recheck trigger: that section renames `permissionDecision`
-# or its `ask` value, or a launch shape without a person starts reading 1.
+# Attended: hook::session_attended, ADR 0134.
+# Decision fields: https://code.claude.com/docs/en/hooks#pretooluse-decision-control
 #
 # "Unwatched" means GUARDRAILS_SESSION_UNWATCHED is exactly `1`: an interactive
 # session left running with nobody at it reads ATTENDED=1 all the same, and an
@@ -41,12 +36,15 @@
 
 HOOK_REFUSE_PENDING=()
 
+# shellcheck source=session-attended.sh
+source "${_HOOK_SELF-.}/session-attended.sh" 2>/dev/null || hook::session_attended() { return 1; }
+
 hook::refuse_unwatched() {
-  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 && "${GUARDRAILS_SESSION_UNWATCHED-}" == 1 ]]
+  hook::session_attended && [[ "${GUARDRAILS_SESSION_UNWATCHED-}" == 1 ]]
 }
 
 hook::refuse_asks() {
-  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 && "${GUARDRAILS_SESSION_UNWATCHED-}" != 1 ]]
+  hook::session_attended && [[ "${GUARDRAILS_SESSION_UNWATCHED-}" != 1 ]]
 }
 
 hook::refuse() {

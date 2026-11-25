@@ -22,7 +22,7 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 # CLAUDE_PLUGIN_DATA (another plugin's, leaked) latches hook::notice_once across
 # cases; HOOK_TELEMETRY_SINK (this repo's settings) adds telemetry documents.
 # A suite that needs either sets its own after sourcing this file.
-unset CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK
+unset CLAUDE_PLUGIN_DATA HOOK_TELEMETRY_SINK CLAUDE_CODE_ENTRYPOINT
 
 # Native jq.exe writes CRLF, so a `jq -r` value carries a trailing \r and fails a
 # string comparison. A suite calls this once after sourcing; it shadows jq with

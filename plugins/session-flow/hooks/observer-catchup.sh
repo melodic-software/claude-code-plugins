@@ -12,8 +12,6 @@
 #
 # Self-launch guard (never run from the analysis run itself, subagents, or
 # forked/background helpers):
-#   - CLAUDE_CODE_ENTRYPOINT must be "cli" (a real interactive session; the
-#     headless `-p` analysis run reports "sdk-cli");
 #   - SESSION_FLOW_OBSERVER_ANALYSIS must be unset (set by the analysis run);
 #   - stdin `agent_type` must be absent (present inside a subagent / --agent run);
 #   - stdin `source` must be startup or resume (skip clear / compact / fork).
@@ -31,7 +29,8 @@ set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED:-false}" == "true" ]] || exit 0
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] || exit 0
-[[ "${CLAUDE_CODE_ENTRYPOINT:-}" == "cli" ]] || exit 0
+# shellcheck source=session-attended.sh
+source "${BASH_SOURCE[0]%/*}/session-attended.sh" 2>/dev/null && hook::session_attended || exit 0
 [[ -z "${SESSION_FLOW_OBSERVER_ANALYSIS:-}" ]] || exit 0
 
 INPUT="$(cat)"

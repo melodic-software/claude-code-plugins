@@ -2012,6 +2012,7 @@ class CatchUpHook(unittest.TestCase):
             "CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED": "true",
             "CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED": "true",
             "CLAUDE_PLUGIN_OPTION_OBSERVER_MIN_LINES": "1000000",
+            "CLAUDE_CODE_SESSION_ATTENDED": "1",
             "CLAUDE_CODE_ENTRYPOINT": "cli",
             "CLAUDE_PLUGIN_DATA": str(data),
             "CLAUDE_PROJECT_DIR": str(root / "repo"),
@@ -2038,7 +2039,8 @@ class CatchUpHook(unittest.TestCase):
         blocked = {
             "disabled": ({"CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED": None}, {}),
             "analysis off": ({"CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED": "false"}, {}),
-            "not cli": ({"CLAUDE_CODE_ENTRYPOINT": "sdk-cli"}, {}),
+            "headless": ({"CLAUDE_CODE_ENTRYPOINT": "sdk-cli"}, {}),
+            "unattended": ({"CLAUDE_CODE_SESSION_ATTENDED": "0"}, {}),
             "analysis run": ({"SESSION_FLOW_OBSERVER_ANALYSIS": "1"}, {}),
             "compact": ({}, {"source": "compact"}),
             "subagent": ({}, {"agent_type": "Explore"}),

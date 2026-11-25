@@ -24,7 +24,7 @@ function localSettingsRoot(cwd) {
 
 let raw = '';
 process.stdin.on('data', (d) => { raw += d; });
-process.stdin.on('end', () => {
+process.stdin.on('end', async () => {
   try {
     const payload = JSON.parse(raw);
     if ((process.env.CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED || 'true') === 'false') {
@@ -52,8 +52,9 @@ process.stdin.on('end', () => {
         || (/local/i.test(name) && cwd !== '' && atRoot(localSettingsRoot(cwd))));
     if (!live) process.exit(0);
 
-    const asks = process.env.CLAUDE_CODE_SESSION_ATTENDED === '1'
-      && process.env.GUARDRAILS_SESSION_UNWATCHED !== '1';
+    const { sessionAttended } = await import('./session-attended.mjs')
+      .catch(() => ({ sessionAttended: () => false }));
+    const asks = sessionAttended(process.env) && process.env.GUARDRAILS_SESSION_UNWATCHED !== '1';
     const reason = 'guardrails: this edit changes settings for every future session. '
       + (!asks
         ? 'Nobody can answer a prompt in this session (unattended, or GUARDRAILS_SESSION_UNWATCHED=1), '
