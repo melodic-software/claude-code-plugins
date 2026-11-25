@@ -95,7 +95,6 @@ else
 fi
 gitea_write_binding
 
-# --- a failing per-item blocker count keeps its own status ---
 # The status cases below fail the ISSUE page and never reach the per-item count. These
 # seed a healthy page and break only the dependencies request, so the failure is the one
 # that would otherwise exit inside $( ) and reach the caller as this adapter's internal
@@ -165,7 +164,6 @@ gitea_seed "/issues?" 200 '[]'
 gitea_run "$S" >/dev/null 2>&1
 assert_contains "the list requests type=issues" "$(gitea_requests)" "type=issues"
 
-# --- X-Total-Count is authoritative when gitea sends it ---
 # Under gitea's page clamp every page comes back short, so the header must decide the end.
 # Page 1 is deliberately SHORT (1 row) while the count says 2.
 gitea_reset_routes

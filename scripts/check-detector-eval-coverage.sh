@@ -410,9 +410,6 @@ def hidden_wrapped_emit:
 | .lines[], "CANDIDATES \(.candidates)"
 JQ
 
-# scan_emits <file> <id-ere> <outfile>
-# Fails when shfmt cannot parse the file or jq cannot read the tree.
-# A registered detector turns that into exit 2. Discovery under-counts.
 scan_emits() {
   local file="$1" idre="$2" outfile="$3"
   # pipefail makes the pipeline fail when either shfmt or jq does.
@@ -506,18 +503,6 @@ total_emitted=0
 total_named=0
 advisories=0
 
-# qualifying_detectors -- every non-test skill script that carries a check-id
-# vocabulary next to an eval suite. It runs THE SAME scanner the verdict path
-# runs (scan_emits, under the wider QUALIFYING_ID_ERE rather than a row's own
-# pattern), so a spelling one half of this gate can read is a spelling the
-# other half can read.
-#
-# Discovery reads the scanner's `ID` lines and NOTHING else. Its UNRESOLVED
-# lines and its candidate count belong to the verdict path: an unreadable call
-# site in a script nobody registered is not this run's environment answer, so
-# discovery under-counts (see the stopping rule's residue in the header) rather
-# than exiting 2 over a stranger's shell. A file shfmt cannot parse is the
-# same answer -- no ids, no candidate, no exit code of its own.
 qualifying_detectors() {
   local evals_path skill script count
   for evals_path in plugins/*/skills/*/evals/evals.json; do
