@@ -46,8 +46,8 @@ trap 'rm -rf "$TMP"' EXIT
 
 extract_fail=0
 
-if ! grep -q '^# --- Python CI deps' "$BOOTSTRAP"; then
-  echo "FAIL: end anchor '# --- Python CI deps' not found in $BOOTSTRAP"
+if ! grep -q '^python3 -m pip install' "$BOOTSTRAP"; then
+  echo "FAIL: end anchor '^python3 -m pip install' not found in $BOOTSTRAP"
   echo "      Without it the extraction runs to end of file and would execute the"
   echo "      script's pip, curl, install and git fetch steps once per case."
   extract_fail=1
@@ -65,7 +65,7 @@ BLOCK="$TMP/plugin-block.sh"
 {
   # shellcheck disable=SC2016  # the preamble is fixture text; $1 must stay literal
   printf '#!/usr/bin/env bash\nset -euo pipefail\nrepo_root="$1"\ncd -- "$repo_root"\n'
-  awk '/^claude_bin=/ {p = 1} /^# --- Python CI deps/ {p = 0} p' "$BOOTSTRAP"
+  awk '/^claude_bin=/ {p = 1} /^python3 -m pip install/ {p = 0} p' "$BOOTSTRAP"
 } >"$BLOCK"
 
 if ! grep -q 'plugin list --json' "$BLOCK"; then
