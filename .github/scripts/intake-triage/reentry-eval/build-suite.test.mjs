@@ -1,6 +1,4 @@
-// The builder against a synthetic reusable and caller: it must run the compose
-// script it finds, fail closed when it cannot, and fill each case with that
-// script's prompt. No assertion reads the real reusable's prompt text.
+// test-scope: .github/scripts/intake-triage/reentry-eval/cases/* .github/scripts/intake-triage/package.json
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
