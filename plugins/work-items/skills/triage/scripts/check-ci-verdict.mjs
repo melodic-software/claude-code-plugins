@@ -51,7 +51,7 @@ export function checkVerdict(verdict, schema = SCHEMA) {
   for (const key of Object.keys(DIMENSIONS)) {
     if (!fits(verdict[key], rules[key])) problems.push(`${key} is not one option key`);
   }
-  if ("type" in verdict && !(isText(verdict.type) && fits(verdict.type, rules.type))) {
+  if ("type" in verdict && Object.hasOwn(rules, "type") && !(isText(verdict.type) && fits(verdict.type, rules.type))) {
     problems.push("type is not one Issue Type name");
   }
   const flags = rules.flags;

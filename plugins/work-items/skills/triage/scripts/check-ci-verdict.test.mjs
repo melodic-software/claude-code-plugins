@@ -100,6 +100,12 @@ describe("checkVerdict", () => {
     ]);
   });
 
+  it("reports a type the schema leaves out as an unknown field", () => {
+    const untyped = structuredClone(SCHEMA);
+    delete untyped.properties.type;
+    assert.deepEqual(checkVerdict({ ...verdict(), type: "Task" }, untyped), ["unknown fields: type"]);
+  });
+
   it("caps the comment at the schema's length", () => {
     const long = verdict();
     const comment = `${long.comment}\n${"x".repeat(SCHEMA.properties.comment.maxLength)}`;

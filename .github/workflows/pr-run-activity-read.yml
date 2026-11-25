@@ -1256,6 +1256,7 @@ jobs:
         if: steps.go.outputs.run == 'true' && inputs.issue-verdict
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           ISSUE_FILE: ${{ runner.temp }}/lane-stage/scratch/issue.json
           SCHEMA_FILE: ${{ runner.temp }}/lane-verdict-schema/verdict.schema.json

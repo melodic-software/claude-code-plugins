@@ -190,6 +190,35 @@ describe("post-triage", () => {
     assert.match(clean, /<details><summary>Diagnostics<\/summary>\n\n- Labels rejected: none\n- Labels replaced: none\n\n<\/details>/);
   });
 
+  test("a lane comment that does not post writes nothing else, fails, and says so first", async () => {
+    const base = fakeGitHub();
+    const failing = async (method, path, body) => {
+      if (method === "POST" && path === `${REPO}/issues/7/comments`) {
+        base.calls.push({ method, path, body });
+        throw Object.assign(new Error("POST /repos/o/r/issues/7/comments failed with status 503"), { status: 503 });
+      }
+      return base(method, path, body);
+    };
+    failing.calls = base.calls;
+    const { code, calls, output, summary } = await run({ github: failing });
+    assert.equal(code, 1);
+    assert.equal(output, "");
+    assert.ok(!calls.some((c) => c.path === `${REPO}/issues/7/labels` || c.path === `${REPO}/issues/7/issue-field-values` && c.method === "POST" || c.body?.query?.includes("updateIssue")), "no label, field or type write");
+    assert.equal(summary.split("\n")[2], "Failed: the lane comment did not post (POST /repos/o/r/issues/7/comments failed with status 503); nothing else was written.");
+  });
+
+  test("a write that fails after the lane comment posted says the comment posted", async () => {
+    const base = fakeGitHub();
+    const failing = async (method, path, body) => {
+      if (method === "POST" && path === `${REPO}/issues/7/labels`) throw Object.assign(new Error("POST /repos/o/r/issues/7/labels failed with status 503"), { status: 503 });
+      return base(method, path, body);
+    };
+    failing.calls = base.calls;
+    const { code, summary } = await run({ github: failing, env: { PRIORITY_FIELD_ID: "" } });
+    assert.equal(code, 1);
+    assert.match(summary.split("\n")[2], /^Failed: the lane comment posted, but a write did not land \(POST \/repos\/o\/r\/issues\/7\/labels failed with status 503\)\.$/);
+  });
+
   test("renderSummary shows the first five bullets and collapses any more with the details", () => {
     const bullets = ["a", "b", "c", "d", "e", "f"];
     assert.deepEqual(renderSummary("Applied: x.", bullets, ["g"]), [

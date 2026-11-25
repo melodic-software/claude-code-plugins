@@ -4,6 +4,7 @@
 // page keeps its own ETag, and a page with no ETag or a failed one is read
 // again unconditionally. Then the waits between reads, and what a read that
 // never settles ends in.
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

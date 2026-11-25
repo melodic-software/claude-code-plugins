@@ -186,6 +186,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
   };
   let priorityPick = "";
   let priorityLost = false;
+  let commentPosted = false;
   try {
     const body = laneBody(comment);
     const earlier = (await paginate(client, `${repoPath}/issues/${issue_number}/comments`)).find(
@@ -193,6 +194,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
     );
     if (earlier) await client("PATCH", `${repoPath}/issues/comments/${earlier.id}`, { body });
     else await client("POST", `${repoPath}/issues/${issue_number}/comments`, { body });
+    commentPosted = true;
     const picks = [...labels].filter((label) => label.startsWith("priority:"));
     for (const label of picks) labels.delete(label);
     if (picks.length > 1) exclusive.push(`${picks.join(" and ")} picked, neither applied`);
@@ -304,7 +306,9 @@ export async function main({ env = process.env, github, log = console.log } = {}
 
   const landed = !failure && !priorityLost && !typeDropped;
   const verdictLine = failure
-    ? `Failed: the lane comment posted, but a write did not land (${failure.message}).`
+    ? commentPosted
+      ? `Failed: the lane comment posted, but a write did not land (${failure.message}).`
+      : `Failed: the lane comment did not post (${failure.message}); nothing else was written.`
     : isEscalated
       ? `Escalated: handed to a maintainer with ${escalationLabel} and the fixed note (${escalate.join("; ")}).`
       : !landed
