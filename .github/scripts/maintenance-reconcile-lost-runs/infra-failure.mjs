@@ -116,6 +116,18 @@ export function stepsKnown(job) {
   return gap === -1 || steps.slice(gap).every((step) => /^(Post |Complete job$)/.test(String(step?.name ?? "")));
 }
 
+export function setupFailed(job) {
+  const steps = job?.steps;
+  return (
+    job?.status === "completed" &&
+    job.conclusion === "failure" &&
+    Array.isArray(steps) &&
+    steps.length === 1 &&
+    steps[0]?.name === "Set up job" &&
+    steps[0].conclusion === "failure"
+  );
+}
+
 // A runner that dies cuts its job's list as the API can, so it is told apart
 // by the job's check-run annotations (job.annotations, read by the caller):
 // GitHub's own failure message, as maintenance-monitor-signals matches it.

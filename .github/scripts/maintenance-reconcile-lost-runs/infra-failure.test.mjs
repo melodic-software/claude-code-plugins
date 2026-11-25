@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { contractOnly, gateEntries, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, stepsKnown, testedRun, timeLimitNoted } from "./infra-failure.mjs";
+import { contractOnly, gateEntries, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, setupFailed, stepsKnown, testedRun, timeLimitNoted } from "./infra-failure.mjs";
 
 const recorded = (id) => JSON.parse(readFileSync(new URL(`./fixtures/jobs-${id}.json`, import.meta.url), "utf8")).jobs;
 const MIXED = recorded(39710654665);
@@ -155,6 +155,17 @@ test("a tail-cut job with no runner-loss annotation stays unknown", () => {
   assert.equal(infraCause(died("Process completed with exit code 1.")), "");
   assert.equal(infraCause(died("The runner has received a shutdown signal.", "warning")), "");
   assert.equal(infraOnly([{ ...cut, status: "completed", annotations: [] }]), false);
+});
+
+test("a job that failed at job setup lists every step that ran, though its list is not whole", () => {
+  const setup = (conclusion) => ({ number: 1, name: "Set up job", status: "completed", conclusion });
+  const failed = { name: "Check Trigger", status: "completed", conclusion: "failure", runner_id: 7, steps: [setup("failure")] };
+  assert.equal(setupFailed(failed), true);
+  assert.equal(stepsKnown(failed), false);
+  assert.equal(setupFailed({ ...failed, steps: [setup("success"), { number: 2, name: "Check the trigger", status: "completed", conclusion: "failure" }] }), false);
+  assert.equal(setupFailed({ ...failed, status: "in_progress", conclusion: null }), false);
+  assert.equal(setupFailed({ ...failed, conclusion: "success", steps: [setup("success")] }), false);
+  assert.equal(setupFailed({ ...failed, steps: [setup("success")] }), false);
 });
 
 test("the reconciler keeps a run whose failed jobs' steps did not list, inside its re-run window and RERUN_DUE_MINUTES", () => {

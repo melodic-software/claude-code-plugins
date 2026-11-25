@@ -1076,6 +1076,58 @@ test("a main-run review whose verdict write started in any lane is held with its
   }
 });
 
+const setupFailedJob = {
+  id: 8100,
+  name: "Review Handoffs Credit",
+  status: "completed",
+  conclusion: "failure",
+  runner_id: 7,
+  steps: [{ number: 1, name: "Set up job", status: "completed", conclusion: "failure" }],
+  notes: [{ annotation_level: "failure", message: "Failed to download archive 'https://codeload.github.com/melodic-software/ci-workflows/tar.gz/main' after 3 attempts." }],
+};
+
+test("a main-run review whose only job that ran failed at job setup is re-run once, with no listing failure", async () => {
+  const skipped = MAIN_REVIEW_JOBS.map(({ id, name }) => ({ id, name, status: "completed", conclusion: "skipped", steps: [] }));
+  for (const jobs of [[setupFailedJob], [...skipped, setupFailedJob]]) {
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, jobs)] });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [301]);
+    assert.deepEqual(records(outputs), [`reconcile-rerun-301-2-${MAIN_TIP}`, "", ""]);
+  }
+});
+
+test("a main-run review with a job failed at job setup is still held when another lane's verdict write started", async () => {
+  const [first, ...rest] = MAIN_REVIEW_JOBS;
+  const wrote = { ...first, steps: first.steps.map((s) => (s.name === WRITE_STEP ? { ...s, conclusion: "success" } : s)) };
+  const dir = tempDir("reconcile-summary-");
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, [wrote, ...rest, setupFailedJob])], env: { GITHUB_STEP_SUMMARY: summary } });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+    assert.match(readFileSync(summary, "utf8"), /lane run 301 \(\.github\/workflows\/pr-review-main\.yml\) ended failure after its verdict write started/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a main-run review with a failed job cut after its setup step is still not re-run, and the pass fails", async () => {
+  const cut = {
+    ...setupFailedJob,
+    steps: [
+      { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+      { number: 2, name: "Check Trigger", status: "completed", conclusion: "failure" },
+    ],
+    notes: [],
+  };
+  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, [cut])] });
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
 const MAIN_HELD_NOTE = /echo "::notice title=pr-review-main::(held: [^"]*)"/
   .exec(readFileSync(new URL("../../workflows/pr-review-main.yml", import.meta.url), "utf8"))[1]
   .replace("$retry_call_unknown", "failed 3 times");
