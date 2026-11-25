@@ -1224,4 +1224,39 @@ expect "a cancelled status job asks for a re-run and reads no annotations" 1 "'$
 if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a cancelled status job read annotations"; else ok "a cancelled status job reads no annotations"; fi
 JOBS_10="$PASS_CODE" NOTES_9=""
 
+if [[ "$step" == *"FORMATTER_PROOF: \${{ needs.prove-formatting.outputs.proof }}"* &&
+  "$step" == *"PROOF_HEAD: \${{ needs.prove-formatting.outputs.head }}"* ]]; then
+  ok "the step reads prove-formatting's proof and the head it proved"
+else
+  fail "the step lost FORMATTER_PROOF or PROOF_HEAD from prove-formatting's outputs"
+fi
+export FORMATTER_PROOF PROOF_HEAD
+proof() { BODY="$TMP_ROOT/body.live.sh" expect "$@"; }
+RUNS_CODE="$(runs)" RUNS_SEC="$(runs)" STUB_REVIEWS='[]'
+STUB_FILES="$(files plugins/x/a.sh plugins/x/b.py)" STUB_CHANGED=2 FORMATTER_PROOF=true PROOF_HEAD=$HEAD
+proof "a proven head that changes no trust-gate path needs no review lane" 0 \
+  "The pinned formatters reproduce $HEAD from its base byte for byte, and it changes no trust-gate path" "::error::"
+if grep -q '/actions/' "$TMP_ROOT/log"; then fail "a proven head's run read the review runs"; else ok "a proven head's run reads no review run"; fi
+PROOF_HEAD="${HEAD//0/f}"
+proof "a proof of another head leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
+PROOF_HEAD=$HEAD FORMATTER_PROOF=false
+proof "no proof leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
+FORMATTER_PROOF=true STUB_FILES="$(files plugins/x/a.sh .github/workflows/pr-require-checks.yml)"
+proof "a proven head on a trust-gate path with no approval leaves the lanes to decide" 1 \
+  "::notice::the pinned formatters reproduce $HEAD, but it changes trust-gate paths: .github/workflows/pr-require-checks.yml." "lanes are not required"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")"
+proof "a listed person's approval of a proven head covers its trust-gate paths" 0 \
+  "u153232337, a person on the trusted-actor list, approved it, which covers its trust-gate paths: .github/workflows/pr-require-checks.yml" "::error::"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED "${HEAD//0/f}")")"
+proof "an approval of an older head does not cover a proven head's trust-gate paths" 1 "'$CODE_CHECK' is missing" "lanes are not required"
+STUB_REVIEWS="$(reviews "$(review 777 APPROVED)")"
+proof "an approval by an account not a listed person does not cover them" 1 "'$CODE_CHECK' is missing" "lanes are not required"
+STUB_REVIEWS='[]' STUB_FILES="$(files plugins/x/a.sh)" STUB_CHANGED=3
+proof "a proven head whose file list GitHub cut short leaves the lanes to decide" 1 \
+  "::notice::the pinned formatters reproduce $HEAD, but GitHub listed fewer files than #77 changes" "lanes are not required"
+STUB_CHANGED=1
+HEAD_REPO=fork/r proof "a fork's proven head still gets no pass" 1 "::error::'$CODE_CHECK' did not run on $HEAD (head repository: fork/r)" "formatter-only proof"
+FORMATTER_PROOF='' PROOF_HEAD=''
+RUNS_CODE="$(runs "$(run 10 $CODE)")" RUNS_SEC="$(runs "$(run 20 $SEC)")"
+
 test_harness::report

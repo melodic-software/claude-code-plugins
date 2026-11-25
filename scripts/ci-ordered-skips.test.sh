@@ -77,6 +77,10 @@ expect "lint-repo does not borrow a run_repo row" 0 "success skipped success suc
 expect "a contract-only run passes every skip through" 0 "skipped skipped skipped skipped skipped skipped" \
   "$(lanes skipped "" "" "" skipped skipped skipped "" skipped | sed 's/"lint-repo":{"result":"success"/"lint-repo":{"result":"skipped"/')"
 expect "unreadable lanes fail and write no results" nonzero "" "not json"
+for result in success failure skipped cancelled; do
+  expect "prove-formatting, $result, is no lane" 0 "success success success success success success" \
+    "$(lanes success false false false skipped skipped skipped false skipped | sed "s/}}\$/},\"prove-formatting\":{\"result\":\"$result\",\"outputs\":{}}}/")"
+done
 
 check_tests() {
   printf '{"select-tests":{"result":"%s","outputs":{"run_check_tests":"%s","run_tests":"false"}},' "$1" "$2"
