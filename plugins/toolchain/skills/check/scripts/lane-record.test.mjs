@@ -448,6 +448,21 @@ describe("write mode", { skip: !hasGit() && "git is not installed" }, () => {
     assert.match(stderr, /\(Makefile:1\): the cited target runs as `make build`/);
   });
 
+  it("names a package.json script's package manager from the lockfiles at the merge-base, not one the branch adds", () => {
+    const root = repoFixture(BASE_FILES);
+    writeFileSync(join(root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+    commitAll(root, "lane change");
+    const npm = write(root, ["assumed: typescript.build-cmd=npm run build (package.json:5)"]);
+    assert.equal(npm.status, 0, npm.stderr);
+    rmSync(dirname(npm.out), { recursive: true, force: true });
+    const pnpm = write(root, ["assumed: typescript.build-cmd=pnpm run build (package.json:5)"]);
+    assert.equal(pnpm.status, 1);
+    assert.match(pnpm.stderr, /\(package\.json:5\): the script "build" runs as `npm run build`/);
+    rmSync(dirname(pnpm.out), { recursive: true, force: true });
+    const atHead = write(root, ["assumed: typescript.build-cmd=pnpm run build (package.json:5)"], ["--base", "HEAD"]);
+    assert.equal(atHead.status, 0, "the lockfile counts at the lane's own commit, so the refusal above comes from the base read");
+  });
+
   it("refuses a CLAUDE.md line the branch committed after leaving the default branch, with or without --base", () => {
     const root = fixture(BASE_FILES);
     const base = commitAll(root);

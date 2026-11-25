@@ -10,4 +10,4 @@ bump: patch
 - `/toolchain:check --propose-records` now has the session open each record pull request as a draft with a `Hold:` line saying a person reads the proposed record before it merges, since verify proves where each command came from, not that it suits its key.
 - A record holding a control or invisible character anywhere, a comment included, fails verify.
 - The draft is refused inside `~/.claude/ecosystems` reached through a symlinked or differently cased path.
-- A `package.json` script is refused when git cannot list the lockfiles, instead of counting every lockfile present.
+- The lane record script refuses a `package.json` script when git cannot list the lockfiles at the merge-base, instead of counting every lockfile present. Unattended runs keep the resolution ladder's lockfile rule unchanged.
