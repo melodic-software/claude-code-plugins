@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.20] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [2.2.19] - 2026-11-24
 
 ### Changed

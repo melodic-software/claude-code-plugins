@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.4] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [0.26.3] - 2026-11-24
 
 ### Changed
