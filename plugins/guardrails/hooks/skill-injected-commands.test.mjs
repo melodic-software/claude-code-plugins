@@ -13,14 +13,7 @@ const HOOK_DIR = import.meta.dirname;
 const PLUGIN_DIR = path.dirname(HOOK_DIR);
 const ROOT = path.resolve(PLUGIN_DIR, "../..");
 
-const ALLOWED = [
-  {
-    file: "plugins/knowledge/skills/video-digest/SKILL.md",
-    command:
-      'node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"',
-    reason: "unset asr_python leaves a literal ${user_config.*} token shfmt cannot parse; PR #19104 quotes it",
-  },
-];
+const ALLOWED = [];
 
 export function extractInjected(text) {
   const lines = text.split(/\r?\n/);
