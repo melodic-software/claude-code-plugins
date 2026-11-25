@@ -238,6 +238,36 @@ describe("write mode", { skip: !hasGit() && "git is not installed" }, () => {
       "# Agents\n\nNever run these:\n\n- `terraform destroy -auto-approve`\n",
       "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:5)",
     ],
+    [
+      "the second item of a loose list under a forbidding lead-in",
+      "# Agents\n\nNever run these:\n\n- `rm -rf dist`\n\n- `terraform destroy -auto-approve`\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:7)",
+    ],
+    [
+      "an item after another item's continuation paragraph",
+      "# Agents\n\nNever run:\n- `a`\n\n  More on a.\n- `terraform destroy -auto-approve`\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:7)",
+    ],
+    [
+      "a fenced block below a forbidding lead-in",
+      "# Agents\n\nNever run this:\n\n```sh\nterraform destroy -auto-approve\n```\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:6)",
+    ],
+    [
+      "a fenced block below a forbidding heading",
+      "# Agents\n\n## Forbidden commands\n\n```sh\nterraform destroy -auto-approve\n```\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:6)",
+    ],
+    [
+      "a code-span paragraph below a forbidding heading",
+      "# Agents\n\n## Never run\n\n`terraform destroy -auto-approve`\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:5)",
+    ],
+    [
+      "a paragraph whose forbidding word wraps to the next line",
+      "# Agents\n\nRunning `terraform destroy -auto-approve` in this repository is\nnever allowed for agents.\n",
+      "assumed: terraform.test-cmd=terraform destroy -auto-approve (AGENTS.md:3)",
+    ],
     ["a line that says the command cannot run", "Agents cannot run `npm publish` here.\n", "assumed: terraform.test-cmd=npm publish (AGENTS.md:1)"],
     ["a typographic-apostrophe negation", "Don’t run `rm -rf dist` by hand.\n", "assumed: terraform.test-cmd=rm -rf dist (AGENTS.md:1)"],
   ]) {
@@ -679,12 +709,19 @@ describe("parsing", () => {
 
   it("refuses a package.json script when git cannot list the lockfiles", () => {
     const entry = { ecosystem: "typescript", key: "test-cmd", value: "npm test", file: "package.json", line: 4 };
-    const src = (tracked) => ({ name: "base", locate: (rel) => ({ rel }), read: () => PACKAGE_JSON, exists: () => true, tracked });
+    const src = (tracked) => ({ name: "base", locate: (rel) => ({ rel }), read: () => PACKAGE_JSON, tracked });
     assert.deepEqual(checkSource(entry, src(() => [])), { reason: null, kind: "inferred" });
     assert.deepEqual(checkSource(entry, src(() => null)), {
       reason: "git could not list the lockfiles, so the package manager is unknown",
       kind: "inferred",
     });
+  });
+
+  it("refuses a Makefile target when git cannot list the makefiles", () => {
+    const entry = { ecosystem: "typescript", key: "build-cmd", value: "make build", file: "Makefile", line: 1 };
+    const src = (tracked) => ({ name: "base", locate: (rel) => ({ rel }), read: () => BASE_FILES.Makefile, tracked });
+    assert.deepEqual(checkSource(entry, src((paths) => paths.filter((p) => p === "Makefile"))), { reason: null, kind: "inferred" });
+    assert.deepEqual(checkSource(entry, src(() => null)), { reason: "git could not list the makefiles", kind: "inferred" });
   });
 
   it("knows every command key the schema defines", () => {

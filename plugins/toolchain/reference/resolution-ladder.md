@@ -146,8 +146,8 @@ in this order, stopping at the first that yields it:
    package manager its lockfile names, `npm` with no lockfile), a task-runner target (a `Makefile`
    target, a `justfile` recipe), or the build tool's own verb on a named entry point
    (`dotnet build Cart.sln`, `cargo build` beside the one `Cargo.toml`). A lockfile counts only
-   when it is present and `git ls-files` lists it, so an untracked lockfile names no package
-   manager. Outside a git repository, or when git cannot list the files, the package manager is
+   when the merge-base tracks it, read as it was at the merge-base, so an untracked lockfile names
+   no package manager. Outside a git repository, or when git cannot list the files, the package manager is
    unknown and the key is refused.
 
 Nothing else supplies a command. An unattended run never asks (rung 3) and copies no command text

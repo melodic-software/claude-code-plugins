@@ -274,7 +274,9 @@ function manifestScript(entry, ctx) {
 
 function makeTarget(entry, ctx) {
   if (ctx.rel.includes("/")) return "cites a Makefile outside the repository root";
-  const picked = ["GNUmakefile", "makefile", "Makefile"].find((name) => ctx.src.exists(name));
+  const kept = ctx.src.tracked(["GNUmakefile", "makefile", "Makefile"]);
+  if (!kept) return "git could not list the makefiles";
+  const picked = kept[0];
   if (picked !== ctx.rel) return `make reads ${picked}, not ${ctx.rel}`;
   const m = ctx.text.match(/^([^\s:=#][^:=#]*?)\s*::?(?!:?=)/);
   const targets = m ? m[1].split(/\s+/).filter((t) => /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/.test(t)) : [];
@@ -316,18 +318,13 @@ function isStatedFile(rel) {
 const FORBID_WORDS = /\b(?:never|not|cannot|can\s+not|no|avoid|instead\s+of|forbid\w*|prohibit\w*|unless|without|only)\b|n['’]t\b/i;
 const isBlank = (line) => !line.trim();
 const isHeading = (line) => /^ {0,3}#{1,6}(?:\s|$)/.test(line);
-const isListItem = (line) => /^\s*(?:[-*+]|\d+[.)])\s/.test(line);
 
 function citedBlock(lines, index) {
   let start = index;
-  while (start > 0 && !isHeading(lines[start]) && !isBlank(lines[start - 1])) start--;
-  const block = lines.slice(start, index + 1);
-  if (isListItem(lines[start])) {
-    let lead = start - 1;
-    while (lead >= 0 && isBlank(lines[lead])) lead--;
-    if (lead >= 0) block.unshift(lines[lead]);
-  }
-  return block;
+  while (start > 0 && !isHeading(lines[start])) start--;
+  let end = index;
+  while (end + 1 < lines.length && !isBlank(lines[end + 1]) && !isHeading(lines[end + 1])) end++;
+  return { start, block: lines.slice(start, end + 1) };
 }
 
 function statedLine(entry, ctx) {
@@ -335,8 +332,10 @@ function statedLine(entry, ctx) {
   if (!spans.includes(entry.value) && ctx.text.trim() !== entry.value) {
     return "the cited instructions line does not state the command as a whole code span";
   }
-  const prose = citedBlock(ctx.lines, entry.line - 1).map((line) => line.replace(/`[^`]*`/g, " "));
-  if (ctx.text.trim() === entry.value) prose.pop();
+  const index = entry.line - 1;
+  const { start, block } = citedBlock(ctx.lines, index);
+  const prose = block.map((line) => line.replace(/`[^`]*`/g, " "));
+  if (ctx.text.trim() === entry.value) prose[index - start] = "";
   if (prose.some((line) => FORBID_WORDS.test(line))) return "the cited instructions block may forbid the command";
   return null;
 }
@@ -429,7 +428,6 @@ export function baseRevision(repo, ref, name = ref) {
       const shown = runGit(root, ["cat-file", "blob", `${ref}:${rel}`]);
       return shown.status === 0 ? shown.stdout : null;
     },
-    exists: regularFile,
     tracked(paths) {
       const listed = listTree(paths);
       if (listed.status !== 0) return null;
