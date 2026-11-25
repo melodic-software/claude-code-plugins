@@ -1,7 +1,4 @@
 // test-scope: docs/conventions/work-items.yaml
-// Every GitHub client factory a lane script builds counts each request it
-// sends in $RUNNER_TEMP/api-budget/<token>, one reading line per answer, for
-// the job-end api-calls notice (api-budget.bash api_budget_emit_calls).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
