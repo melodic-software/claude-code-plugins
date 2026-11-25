@@ -201,7 +201,7 @@ if [[ "${1-}" == --batch ]]; then
   source "$_RG_DIR/hook-utils.sh" || exit 70
   for ((_RG_I = 1; ; _RG_I++)); do
     [[ -f "$_RG_BATCH/$_RG_I.in" ]] || break
-    # shellcheck disable=SC1090
+    # shellcheck source=/dev/null  # this script itself; following it would recurse
     (source "$_RG_DIR/${BASH_SOURCE[0]##*/}" "$@") <"$_RG_BATCH/$_RG_I.in" >"$_RG_BATCH/$_RG_I.out"
     printf '%s\n' "$?" >"$_RG_BATCH/$_RG_I.rc"
   done
