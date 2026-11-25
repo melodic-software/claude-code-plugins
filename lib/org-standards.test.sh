@@ -117,6 +117,74 @@ assert_eq "index follows the org repository's standards_dir" "$TEST_TMPDIR/moved
 
 assert_eq "an unknown command is a usage error" "2" "$(code bogus)"
 
+export HOME="$TEST_TMPDIR/home"
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/sub-cache"
+unset STANDARDS_SUBSCRIPTIONS_DISABLED
+USER_INDEX="$HOME/.claude/standards/README.md"
+mkdir -p "$HOME/.claude/standards"
+errs() { bash "$SCRIPT" "$@" 2>&1 >/dev/null; }
+
+HANDBOOK_INDEX='---
+standards-contract: 1.2.0
+---
+
+# Handbook
+
+| Surface | Applies when | File |
+|---|---|---|
+| testing | writing tests | testing.md |
+| naming | naming things | naming.md |'
+
+publish() {
+  local work="$TEST_TMPDIR/work/$1" bare="$TEST_TMPDIR/git/$1.git"
+  mkdir -p "$work/docs/standards" "$(dirname "$bare")"
+  printf '%s\n' "$2" >"$work/docs/standards/README.md"
+  printf '# %s review\n' "$1" >"$work/REVIEW.md"
+  g init -q -b main "$work"
+  g -C "$work" add -A
+  g -C "$work" commit -q -m init
+  g clone -q --bare "$work" "$bare"
+  g -C "$bare" config uploadpack.allowAnySHA1InWant true
+  g -C "$work" remote add origin "$bare"
+}
+head_of() { g -C "$TEST_TMPDIR/work/$1" rev-parse HEAD; }
+user_index() { printf -- '---\nstandards-contract: 1.3.0\n%s---\n\n# My standards\n' "$1" >"$USER_INDEX"; }
+
+publish acme/handbook "$HANDBOOK_INDEX"
+publish stranger/guide "$HANDBOOK_INDEX"
+publish stranger/other "$HANDBOOK_INDEX"
+HANDBOOK=$(head_of acme/handbook)
+GUIDE=$(head_of stranger/guide)
+assert_eq "the fixture remote serves any commit by SHA, as GitHub does" "true" \
+  "$(g -C "$TEST_TMPDIR/git/stranger/guide.git" config uploadpack.allowAnySHA1InWant)"
+assert_eq "the fixture remote leaves allowReachableSHA1InWant unset" "" \
+  "$(g -C "$TEST_TMPDIR/git/stranger/guide.git" config uploadpack.allowReachableSHA1InWant)"
+
+t=$(target subs 'pr_open_state: ready\n')
+
+rm -f "$USER_INDEX"
+assert_eq "no user index: no subscribed layers, exit 0" "0|" "$(code subscriptions --root "$t")|$(run subscriptions --root "$t")"
+user_index ''
+assert_eq "a user index with no list: no subscribed layers" "" "$(run subscriptions --root "$t")"
+
+user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+assert_eq "live trusted: main is read, keyed by its commit" \
+  "acme/handbook@$HANDBOOK	$ORG_STANDARDS_CACHE/acme/handbook@$HANDBOOK	$ORG_STANDARDS_CACHE/acme/handbook@$HANDBOOK/docs/standards/README.md" \
+  "$(run subscriptions --root "$t")"
+
+user_index "standards_repositories:
+  - repo: stranger/guide
+    ref: $GUIDE
+"
+assert_eq "pinned untrusted: the pinned commit is read" \
+  "stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE/docs/standards/README.md" \
+  "$(run subscriptions --root "$t")"
+
+user_index $'standards_repositories:\n  - repo: stranger/other\n'
+assert_eq "unpinned untrusted: refused, nothing read" "" "$(run subscriptions --root "$t")"
+assert_eq "unpinned untrusted: the refusal names the file and line" "1" \
+  "$(errs subscriptions --root "$t" | grep -c "^org-standards: $USER_INDEX:4: stranger/other is not pinned")"
+
 if [[ "$FAILED" -gt 0 ]]; then
   printf '%d test(s) failed\n' "$FAILED" >&2
   exit 1
