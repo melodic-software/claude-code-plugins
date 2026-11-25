@@ -257,7 +257,7 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | Key | Default | Effect |
 |---|---|---|
 | `observer_enabled` | `false` | Turns on both parts. Off, the module hooks nothing and the hook exits. |
-| `observer_step_check` | `true` | Live check on every 6th model step of a turn. |
+| `observer_step_check` | `true` | Live check every `observer_step_every` model steps of a turn. |
 | `observer_turn_end_check` | `false` | Live check at the end of each tool-using turn (see "Cost" above). Idle delivery under auto-send needs it on. |
 | `observer_step_every` | `6` | Model steps between step checks. |
 | `observer_auto_send` | `false` | Deliver findings to the agent without a button press (see "Auto-send"). |
@@ -274,15 +274,15 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | `observer_clear_after_prompts` | `2` | Prompts a shown finding survives unanswered. |
 | `observer_ignored_free` | `2` | Ignored findings before the backoff starts skipping checks. |
 | `observer_skip_max` | `16` | Most checks the backoff skips in a row. |
-
-An invalid value falls back to its default, and session start writes one `option_invalid` usage row
-naming the key.
 | `observer_analysis_enabled` | `true` | Run the catch-up. Off, ended sessions are not analyzed; live checks are unaffected. |
 | `observer_analysis_model` | plugin.json | Catch-up analysis model (a cost lever; see "Model and effort"). |
 | `observer_analysis_effort` | plugin.json | Catch-up analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
 | `observer_min_lines` | `300` | Skip the catch-up for a not-yet-analyzed session with fewer transcript lines (see "Short sessions and run usage"); `0` analyzes every session. |
 | `observer_idle_seconds` | `900` | How long a transcript must be unchanged before the catch-up treats its session as ended; keep above the longest single turn. |
+
+An invalid value falls back to its default, and session start writes one `option_invalid` usage row
+naming the key.
 
 ## Self-trigger guard
 

@@ -219,10 +219,8 @@ const syncSession = async ($: EngineInterface) => {
 
 const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, stepIndex: number) => {
   await syncSession($)
-  const requested = step(m, { kind: 'check-requested', trigger, turnId, step: stepIndex, paused: (await $.store.get('paused')) === true, skip: await count($, 'skip') }, opts)
-  m = requested.state
-  const fork = requested.effects.find(fx => fx.kind === 'fork')
-  for (const fx of requested.effects) await perform($, fx)
+  const { effects } = await dispatch($, { kind: 'check-requested', trigger, turnId, step: stepIndex, paused: (await $.store.get('paused')) === true, skip: await count($, 'skip') })
+  const fork = effects.find(fx => fx.kind === 'fork')
   if (fork?.kind !== 'fork') return
   const { req } = fork
   const started = await $.clock.now()

@@ -307,7 +307,7 @@ tracker filing is offered not automatic, the session is never scored, and it is 
 ```
 
 **Session observer.** With `observer_enabled` on, session-flow watches each session without being
-asked. Its hooks module runs a live check every 6th model step of a long turn (and, when
+asked. Its hooks module runs a live check every `observer_step_every` model steps (default 6) of a long turn (and, when
 `observer_turn_end_check` is on, at the end of each tool-using turn): a no-tools fork of the main
 conversation that reports at most one process fault tied to a written rule or owner decision. A
 finding goes to this session's running-retro ledger and to one row above the prompt, where `1` sends
@@ -557,7 +557,7 @@ night start, report-by times, days off, watched folders and orchestrator posture
 | Key | Default | Effect |
 |---|---|---|
 | `observer_enabled` | `false` | Turns on the live checks and the catch-up. Off = installing the plugin changes nothing. |
-| `observer_step_check` | `true` | Live check on every 6th model step of a turn. |
+| `observer_step_check` | `true` | Live check every `observer_step_every` model steps of a turn. |
 | `observer_turn_end_check` | `false` | Live check at the end of each tool-using turn; off until its cost is measured. |
 | `observer_analysis_enabled` | `true` | Run the catch-up for ended sessions with no live checks. Off = no catch-up; live checks unaffected. |
 | `observer_analysis_model` | see options reference | Catch-up analysis model, chosen for faithful findings; with effort, the dominant cost lever. |
