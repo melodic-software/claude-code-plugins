@@ -1,7 +1,3 @@
-/**
- * Probe video duration via ffprobe.
- */
-
 import { spawnAsync } from "../shared/process.js";
 
 /**

@@ -143,9 +143,6 @@ fi
 # git-remote existence guard below skips the fetch in that case.
 UPSTREAM_REMOTE="${BRANCH_REMOTE:-origin}"
 
-# Resolve the default branch from the tracked remote's HEAD, not a hardcoded
-# origin — a repo whose default branch lives on a non-origin remote (or is not
-# named main) would otherwise slip past the default-branch guard below.
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT" "$UPSTREAM_REMOTE")"
 
 TRACKED_DIRTY="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
@@ -200,10 +197,6 @@ if git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1; then
   fi
 fi
 
-# Re-gate unpushed commits against the just-fetched upstream. The early check
-# ran against a possibly-stale tracking ref; if the upstream advanced (e.g. was
-# force-pushed) the reset would otherwise discard unpushed HEAD commits without
-# requiring --allow-unpushed.
 AHEAD_COUNT="$(ahead_count)"
 if [[ "$AHEAD_COUNT" -gt 0 && "$ALLOW_UNPUSHED" -eq 0 ]]; then
   printf 'Blocked: unpushed-commits (%s ahead of %s after fetch — push first or pass --allow-unpushed)\n' "$AHEAD_COUNT" "$UPSTREAM"

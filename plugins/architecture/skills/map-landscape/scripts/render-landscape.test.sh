@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .markdownlint-cli2.jsonc
+# test-scope: lib/org-standards.sh docs/conventions/source-control.yaml
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -311,8 +311,13 @@ markdownlint_usable() {
   printf '# Probe\n\nOne clean paragraph.\n' >"$TEST_TMPDIR/probe.md"
   npx --no-install markdownlint-cli2 "$TEST_TMPDIR/probe.md" >/dev/null 2>&1
 }
-if markdownlint_usable; then
-  npx --no-install markdownlint-cli2 "$TEST_TMPDIR/mermaid/landscape.md" \
+md_config="$(bash "$SCRIPT_DIR/../../../../../lib/org-standards.sh" dir --root "$SCRIPT_DIR/../../../../.." 2>/dev/null)/.markdownlint-cli2.jsonc"
+if [[ ! -f "$md_config" && -n "${CI:-}${STANDARDS_DIR:-}" ]]; then
+  fail "lint: the standards org layer's .markdownlint-cli2.jsonc could not be read, and CI or STANDARDS_DIR says it must be"
+elif [[ ! -f "$md_config" ]]; then
+  pass "lint: markdownlint skipped, the standards org layer's config could not be read"
+elif markdownlint_usable; then
+  npx --no-install markdownlint-cli2 --config "$md_config" "$TEST_TMPDIR/mermaid/landscape.md" \
     "$TEST_TMPDIR/mermaid/portfolio.md" >/dev/null 2>&1
   assert_equals "lint: the rendered markdown passes markdownlint" "$?" "0"
 else

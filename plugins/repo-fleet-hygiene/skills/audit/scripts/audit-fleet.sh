@@ -498,7 +498,7 @@ graphql_query_admitted() {
   [[ "$q" == "query{"* || "$q" == "query {"* ]] || return 1
   case "$(printf '%s' "$q" | tr '[:upper:]' '[:lower:]')" in
   *mutation* | *subscription* | *'search('* | *'head:'*) return 1 ;;
-  *) ;; # admitted shape continues below
+  *) ;;
   esac
   [[ "$q" == *'headRefName:'* && "$q" == *"$page_states"* &&
     "$q" == *'pullRequests('* && "$q" == *'repository(owner:'* ]]
@@ -963,12 +963,6 @@ record_fleet_worktree_root() {
   FLEET_WT_ROOT_REPOS+=(1)
 }
 
-# --- Classifiers ------------------------------------------------------------
-# Evidence in, findings out. Both classifiers read the parallel arrays the collector filled and
-# make no Git or gh probe of their own, so every finding kind they own is reachable from a case
-# that assigns those arrays. What a repository looks like is decided once, in the collection phase;
-# what that means is decided here.
-
 # Worktree classification. Index i of every WT_* array describes one registration and index 0 is
 # the main worktree:
 #
@@ -1199,10 +1193,6 @@ classify_branches() {
         elif [[ "$branch" == "$current_branch" ]]; then
           protection_reason="current branch of the canonical checkout"
         fi
-        # HIGH, matching merged-local-branch and merged-worktree: the evidence is the
-        # same successful MERGED PR with an exact headRefOid match. The confidence
-        # model separates evidence strength from disposition, so protection belongs in
-        # the disposition, not in a downgraded tier.
         emit_finding merged-protected-branch "$canonical :: $branch" \
           "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals local tip ($pr_url); $protection_reason" \
           "Switch off this branch in $canonical, then rerun to reclassify it"

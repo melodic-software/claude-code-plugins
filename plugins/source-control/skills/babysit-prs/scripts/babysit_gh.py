@@ -502,8 +502,6 @@ ALL_POOLS = "*"
 # The pools a non-`api` subcommand (`gh pr view`, `gh repo list`) may spend:
 # gh picks GraphQL or REST per command.
 _SUBCOMMAND_POOLS = ("core", "graphql")
-# The repository root, five levels up; None in a copy too shallow for one,
-# which then has no config and no margins.
 _PARENTS = Path(__file__).resolve().parents
 _REPO_ROOT = _PARENTS[5] if len(_PARENTS) > 5 else None
 _CONVENTIONS = None if _REPO_ROOT is None else _REPO_ROOT / "docs" / "conventions"
@@ -514,11 +512,8 @@ LIMITS_DEFAULTS = (
     else _REPO_ROOT / ".github" / "actions" / "log-api-budget" / "rate-limits.json"
 )
 LIMITS_FIELDS = ("writer-pause", "read-floor")
-# The shares with no repo config: no margin, so only a signal stops a call.
 NO_MARGINS = dict.fromkeys(LIMITS_FIELDS, 0.0)
 TOKEN_POOLS = frozenset({"github-token", "lanes-app", "owner-token"})
-# The YAML reader's runner, bound at import: a test that fakes `gh` through
-# `run_command` still reads the real limits.
 _reader_run = run_command
 _LOCAL_SUBCOMMANDS = frozenset({"--version", "version", "help", "config"})
 # Subcommand verbs that only read; any other subcommand verb writes.
@@ -976,7 +971,6 @@ def _read_pool_limits(pool: str) -> dict[str, float] | str:
         return f"{LIMITS_CONFIG.name} does not parse"
     shares: dict[str, float] = {}
     for name, (key, _) in zip(LIMITS_FIELDS, keys, strict=True):
-        # The config reader gives text; the defaults file must hold a number.
         raw = values[key][0] if values[key] else dig(defaults, pool, name)
         try:
             share = float(raw)
@@ -1232,8 +1226,6 @@ def _split_headers(stdout: str) -> tuple[int | None, dict[str, str], str]:
 def _api_budget_write(
     token: str, status: int, headers: Mapping[str, str], route: str = "other"
 ) -> None:
-    """Append one reading. Never raises: a reading that cannot be written is
-    dropped."""
     readings = {
         key.removeprefix("x-ratelimit-"): value
         for key, value in headers.items()
@@ -2369,9 +2361,6 @@ def fetch_issue_comments(repo: str, number: int) -> list[dict[str, Any]]:
     ]
 
 
-# One candidate's reads of a pull request's commits, keyed by (repo, number,
-# head SHA): the commit rows and the record's commit count. None outside
-# `candidate_reads`, so nothing is shared beyond one candidate's gate process.
 _CANDIDATE_COMMITS: dict[tuple[str, int, str], list[dict[str, Any]]] | None = None
 _CANDIDATE_TOTALS: dict[tuple[str, int, str], int] | None = None
 
@@ -2444,8 +2433,6 @@ def fetch_pull_request_commits(
             f"{repo}#{number} commits",
         ),
     )
-    # The record's count is for `head`; rows that do not end there were read
-    # after the head moved, so they need a count read alongside them.
     reported_total = None
     if rows and rows[-1].get("sha") == head:
         reported_total = (_CANDIDATE_TOTALS or {}).get(
@@ -2801,8 +2788,6 @@ def carried_lane_attempts(
 def _api_read(
     path: str, env: Mapping[str, str] | None = None, binary: bool = False
 ) -> Any:
-    """One REST GET: parsed JSON, or the raw bytes when `binary`. A failed
-    read raises `RuntimeError`."""
     if binary:
         return _run_gh(
             ["api", path],
@@ -2923,7 +2908,6 @@ MAIN_REVIEW_STOP_TITLE = re.compile(
     r"verdict=none reason=(too-large|binary|long-line|chunk-failed)"
 )
 
-# One record: (findings, CRITICAL), ("stop", reason), or None when unread.
 MainReviewRecord = tuple[int, int] | tuple[str, str] | None
 
 
@@ -3135,13 +3119,6 @@ def collect_lane_runs(
                 jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
                 lane_jobs = [job for job in jobs if job.get("name") in job_names]
                 for job in jobs:
-                    # With no lane job, the kill-switch notice, or the
-                    # upstream-status error that failed the job, shows the
-                    # review never started (`babysit_review_evidence.rerun_binds`).
-                    # `Check Kill Switch` is the job's name, `Kill Switch` its
-                    # name before that rename, and `kill-switch` a head tested
-                    # before an earlier rename, or a repository whose job has
-                    # no display name.
                     if (
                         job in lane_jobs
                         or (

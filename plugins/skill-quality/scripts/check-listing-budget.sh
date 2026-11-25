@@ -181,12 +181,6 @@ if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
   HAVE_GIT=1
 fi
 
-# `skill-frontmatter.sh` is deliberately NOT sourced here. Its helpers are
-# per-call `awk`/`tr` execs, which is what makes a pooled run unrunnable (see
-# the measurement note on the scan below); their behavior is ported into that
-# scan's single awk program instead. `check-skill.sh` remains the library's
-# consumer, so the file itself stays shared.
-
 # Reject a nonnumeric override up front. Without this, `awk` coerces a typo to
 # 0 and the report exits 0 announcing a zero-character budget and a bogus
 # overflow, while the bash-arithmetic call sites die with an undocumented

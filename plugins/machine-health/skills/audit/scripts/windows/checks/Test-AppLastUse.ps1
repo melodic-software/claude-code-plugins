@@ -29,8 +29,6 @@ $commands = @(
     'Get-ChildItem $env:SystemRoot\Prefetch; Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\bam\State\UserSettings\<SID>'
 )
 
-# A folder this shallow ("X:\Program Files") holds many apps, so a launch under
-# it says nothing about one of them.
 $minimumInstallDirDepth = 2
 
 function Get-AppLaunch {

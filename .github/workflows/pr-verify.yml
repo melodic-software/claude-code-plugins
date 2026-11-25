@@ -80,8 +80,6 @@ on:
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [PR Require Checks]
     types: [completed]
-    # Branches of the checks run. Only a pull_request run is judged, so a
-    # merge-queue or main run would only start a run that skips.
     branches-ignore: [main, 'gh-readonly-queue/**']
 
 permissions: {}
@@ -154,8 +152,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The run fails, so the lost-run reconciler re-runs it once the switch
-      # is off and the head is judged then.
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true'
         env:
@@ -202,8 +198,6 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.pr.outputs.proceed == 'true'
-        # Each API call keeps its rate-limit reading for the api-budget
-        # notice the job logs before its last step.
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -312,8 +306,6 @@ jobs:
           SRC: ${{ runner.temp }}/pr-verify-src
           # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
-          # About 75k tokens of patch, the budget pr-review-main.yml sets: room
-          # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
           # One Read returns at most 25,000 tokens
           # (https://code.claude.com/docs/en/tools-reference#large-files), and
@@ -348,10 +340,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
-      # The reads the subscription job would repeat, from the files and
-      # outputs of the steps above, before the model runs: one job output
-      # (resolve-pr.mjs packReads), empty when too large or on any failure,
-      # which leaves that job to read again.
       - name: Hand the reads on
         id: carry
         if: steps.agree.outcome == 'success'
@@ -367,12 +355,6 @@ jobs:
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
         run: node .base/.github/scripts/pr-verify/resolve-pr.mjs carry
 
-      # Whether the key is still out of credit (select-model-credential's
-      # start call: check-key-credit's artifact-list read for the `marker`
-      # this job uploads after a credit stop). Its own step, under
-      # continue-on-error and a 2-minute limit, so a read that fails or hangs
-      # leaves next-leg empty and the key runs. It runs only where the key
-      # call below does, so a run that skips there spends no call.
       - name: Read the key's credit history
         id: credit
         if: steps.agree.outcome == 'success'
@@ -400,8 +382,6 @@ jobs:
           selected: ${{ steps.credit.outputs.next-leg }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # The skipped key leg's lane record: outcome skipped, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credential.outputs.key-skipped == 'true'
         continue-on-error: true
@@ -591,8 +571,6 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
@@ -625,10 +603,6 @@ jobs:
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
 
-      # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
-      # only when the diff has k chunks and chunk k-1 judged and handed nothing
-      # on, so a handoff hands the whole judgment on and the next leg judges
-      # every chunk again. The leg check reads every chunk's log so far.
       - name: Time chunk 2
         id: time-2
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
@@ -1847,7 +1821,6 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
-          # The diff step's, so each file is one Read (workflow.test.mjs).
           PART_BYTES: "15000"
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
@@ -2009,7 +1982,6 @@ jobs:
             ${{ steps.judge-12.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
-          # The whole-spec judgment, which a head of two chunks or more must have.
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
           FINAL_OUTCOME: ${{ steps.judge-spec.outcome }}
@@ -2029,9 +2001,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
-      # A FAIL uploads its index first (write-verdict.mjs failIndexNames), and
-      # the FAIL only after every index uploaded: the merge gate finds a FAIL
-      # by its index alone, so a failed index upload leaves no verdict.
       - name: Upload the FAIL index
         id: fail-index
         if: >-
@@ -2128,8 +2097,6 @@ jobs:
           handoff: ${{ (steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' || steps.judge-5.outputs.handoff == 'true' || steps.judge-6.outputs.handoff == 'true' || steps.judge-7.outputs.handoff == 'true' || steps.judge-8.outputs.handoff == 'true' || steps.judge-9.outputs.handoff == 'true' || steps.judge-10.outputs.handoff == 'true' || steps.judge-11.outputs.handoff == 'true' || steps.judge-12.outputs.handoff == 'true' || steps.judge-spec.outputs.handoff == 'true') && (steps.key-leg.outputs.clean || steps.key-leg-2.outputs.clean || steps.key-leg-3.outputs.clean || steps.key-leg-4.outputs.clean || steps.key-leg-5.outputs.clean || steps.key-leg-6.outputs.clean || steps.key-leg-7.outputs.clean || steps.key-leg-8.outputs.clean || steps.key-leg-9.outputs.clean || steps.key-leg-10.outputs.clean || steps.key-leg-11.outputs.clean || steps.key-leg-12.outputs.clean || steps.key-leg-spec.outputs.clean) == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason || steps.judge-5.outputs.handoff-reason || steps.judge-6.outputs.handoff-reason || steps.judge-7.outputs.handoff-reason || steps.judge-8.outputs.handoff-reason || steps.judge-9.outputs.handoff-reason || steps.judge-10.outputs.handoff-reason || steps.judge-11.outputs.handoff-reason || steps.judge-12.outputs.handoff-reason || steps.judge-spec.outputs.handoff-reason }}
 
-      # Keep the marker Note the hold wrote, for a day and on a green job
-      # only, for monitor signal 13 to read.
       - name: Keep the lane hold marker
         if: steps.note-hold.outcome == 'success'
         continue-on-error: true
@@ -2149,9 +2116,6 @@ jobs:
         with:
           tokens: github-token
 
-      # A clean handoff, an empty key or a key the credit gate skipped hands
-      # the judgment on; any other run that passed the gates and left no
-      # verdict fails here.
       - name: Fail without a verdict
         if: always() && steps.agree.outcome == 'success' && steps.credential.outputs.key-skipped != 'true' && steps.verdict.outcome != 'success' && steps.credential.outputs.present != 'false' && steps.key-leg.outcome != 'success' && steps.key-leg-2.outcome != 'success' && steps.key-leg-3.outcome != 'success' && steps.key-leg-4.outcome != 'success' && steps.key-leg-5.outcome != 'success' && steps.key-leg-6.outcome != 'success' && steps.key-leg-7.outcome != 'success' && steps.key-leg-8.outcome != 'success' && steps.key-leg-9.outcome != 'success' && steps.key-leg-10.outcome != 'success' && steps.key-leg-11.outcome != 'success' && steps.key-leg-12.outcome != 'success' && steps.key-leg-spec.outcome != 'success'
         run: |
@@ -2275,8 +2239,6 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.pr.outputs.proceed == 'true'
-        # Each API call keeps its rate-limit reading for the api-budget
-        # notice the job logs before its last step.
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -2335,8 +2297,6 @@ jobs:
           SRC: ${{ runner.temp }}/pr-verify-src
           # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
-          # About 75k tokens of patch, the budget pr-review-main.yml sets: room
-          # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
           # One Read returns at most 25,000 tokens
           # (https://code.claude.com/docs/en/tools-reference#large-files), and
@@ -3721,7 +3681,6 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
-          # The diff step's, so each file is one Read (workflow.test.mjs).
           PART_BYTES: "15000"
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
@@ -3878,7 +3837,6 @@ jobs:
             ${{ steps.judge-12.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
-          # The whole-spec judgment, which a head of two chunks or more must have.
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
           FINAL_OUTCOME: ${{ steps.judge-spec.outcome }}
@@ -4073,8 +4031,6 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.pr.outputs.proceed == 'true'
-        # Each API call keeps its rate-limit reading for the api-budget
-        # notice the job logs before its last step.
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -4132,8 +4088,6 @@ jobs:
           SRC: ${{ runner.temp }}/pr-verify-src
           # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
           HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
-          # About 75k tokens of patch, the budget pr-review-main.yml sets: room
-          # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
           # One Read returns at most 25,000 tokens
           # (https://code.claude.com/docs/en/tools-reference#large-files), and
@@ -5287,7 +5241,6 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
-          # The diff step's, so each file is one Read (workflow.test.mjs).
           PART_BYTES: "15000"
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
@@ -5418,7 +5371,6 @@ jobs:
             ${{ steps.judge-12.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
-          # The whole-spec judgment, which a head of two chunks or more must have.
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
           FINAL_OUTCOME: ${{ steps.judge-spec.outcome }}
@@ -5550,9 +5502,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
-      # The api-budget library alone, from the default branch. A failed
-      # checkout leaves none: the step below calls GitHub as it would without
-      # it, and no reading is logged.
       - name: Check out the api-budget library
         if: steps.tip.outputs.sha != ''
         continue-on-error: true

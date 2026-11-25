@@ -180,14 +180,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # A verdict the switch stops is deferred, not dropped: this failed
-      # first attempt records it, and the lost-run reconciler's first pass
-      # after the switch lifts re-runs this job (reconcile.mjs
-      # VERDICT_STOP_STEP), which posts what is not on the PR yet. Only a
-      # pr-verify run that succeeded can hold a verdict here: one that failed
-      # (every run while the switch is on fails at its own kill step) is the
-      # reconciler's Lane kind, which re-runs it, whose completion starts this
-      # file again, or holds it for a person.
       - name: Stop on the kill switch
         if: steps.kill.outputs.proceed != 'true' && github.event.workflow_run.conclusion == 'success'
         env:
@@ -249,11 +241,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/verify-notes.mjs
 
-      # The reconciler's re-run of a verdict the kill switch deferred sends no
-      # round (the dispatch job's gate), so it names the head and the verdict
-      # for the next tick, an attempt-1 dispatcher, which finds the record by
-      # name and sends the round (feedback-dispatch.mjs recoverDeferred). The
-      # name and upload time are the record; the file is a placeholder.
       - name: Name the deferred verdict
         id: deferred
         # The actor test here only saves a write: recoverDeferred re-reads the
@@ -410,8 +397,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the run while Actions or npm installs report a degraded component,
-      # with a logged reason; fails open (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -450,9 +435,6 @@ jobs:
           # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
-          # The reader reads the FAIL index by exact name; a pull request with
-          # more index names than one whole listing costs reads that listing,
-          # saved here for the next such read instead of every page again.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json

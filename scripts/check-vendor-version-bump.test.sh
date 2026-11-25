@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-vendor-version-bump.sh. Builds a tiny synthetic repo
-# tree per scenario in a temp dir (git-initialized, since the gate diffs
-# against a base ref) and invokes the script against it directly — the
-# script's own `cd "$(dirname "$0")/.."` makes this work unmodified: copy it
-# to <fixture>/scripts/ and it operates on the fixture tree.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -197,9 +192,6 @@ else
 fi
 rm -rf "$f"
 
-# A verified Dependabot change set needs no fragment: release-generate-dependabot-changelog-fragments.yml
-# writes it after the merge. A gh stub answers the signature lookup with
-# $GH_ANSWER, as in check-changelog-fragments.test.sh.
 base_fixture f
 printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
 git -C "$f" add -A

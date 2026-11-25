@@ -17,8 +17,6 @@ const repoSkillExists = (plugin, skill) => existsSync(join(REPO, "plugins", plug
 const isOwn = (r) => r.kind === "skill" && !r.detect.includes("@") && PLUGIN_SKILL_ID.test(r.id);
 const pinsVersion = (s) => /\d+\.\d+|@v?\d/.test(s);
 
-/** Errors for `value` against the schema keywords routing.schema.json uses. Object, array and string
- * keywords apply to any value of that shape, whether or not the sub-schema states `type`. */
 function validate(s, value, at = "$") {
   const errors = [];
   const fail = (msg) => errors.push(`${at}: ${msg}`);

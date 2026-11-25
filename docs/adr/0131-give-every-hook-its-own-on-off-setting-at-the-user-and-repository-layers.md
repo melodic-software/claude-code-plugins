@@ -28,7 +28,7 @@ page says there is no way to disable an individual hook while keeping it in the 
    turn it on, and only the user's own layer turns it off: the policy-floor class's protection
    against the repository layer, without its condition 2, since the user's own `false` still wins.
 3. **`<name>_enabled` stays affirmative for `userConfig` options and convention-file keys.**
-   [Configuration switch naming](../standards/configuration-switch-naming.md) names a default-on
+   [Configuration switch naming](https://github.com/melodic-software/standards/blob/main/standards/engineering/configuration-switch-naming.md) names a default-on
    switch `<THING>_DISABLED` so an unset switch never turns the behavior off; these keys always
    resolve to a declared default, the standard's case of a boolean that always holds a value. A hook
    that reads an environment variable of its own follows the standard: `<THING>_DISABLED` for a

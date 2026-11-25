@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# JSON emission helpers (CONTRACT.md "JSON output contract"). Sourced.
 
 [[ -n "${_WIT_JSON_LOADED:-}" ]] && return 0
 readonly _WIT_JSON_LOADED=1

@@ -1555,8 +1555,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     const statuses = [];
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/docs/conventions/work-items.yaml");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
-    // merge.diff-check.path-holds (owner decision Q15): off, no hold path
-    // holds, and a refusal naming only hold paths comes off (approvalLift).
     const pathHolds = readPathHolds(env.RESOLVED_CONFIG ?? "");
     let answer = null;
     const onResponse = (response) => {

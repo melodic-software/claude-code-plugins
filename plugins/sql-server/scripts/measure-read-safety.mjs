@@ -227,9 +227,6 @@ class Lab {
     };
   }
 
-  // Samples sessions and waiting tasks of the given programs every interval
-  // until stopped. Each waiting task with a blocking_session_id is attributed
-  // to a waiter and a blocker (see role and blockerOf below), by wait class.
   sampler(programs, intervalMs = 100) {
     const list = programs.map((program) => `N'${program}'`).join(', ');
     const samples = [];

@@ -1,7 +1,3 @@
-/**
- * Shallow-clone GitHub URLs from source/harvested-links.json and write structure analysis.
- */
-
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";

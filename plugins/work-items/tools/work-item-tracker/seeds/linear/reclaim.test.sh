@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# reclaim: offline contract tests.
-#
-# Every case here guards the same invariant: a LIVE lease is never the intended target.
-# Reclaiming one strips a working session's claim and hands the item to someone else
-# while the first is still editing — the most expensive failure this adapter can have,
-# and the one no error message would surface at the time.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/reclaim.sh"
 D="$(dirname "$S")"
@@ -36,8 +30,6 @@ seed_reclaim() {
   lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
   lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid-comment-note","createdAt":"2026-08-20T13:00:00.000Z"}}}'
   lin_data 'issueUpdate' '{"issueUpdate":{"success":true}}'
-  # The activity query selects `comments(first: 50)` with no `after`, so it matches the
-  # same pattern; it is the SECOND call, which is why the sequence has three entries.
   lin_comments "$nodes" "$activity" "$nodes"
   lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" --arg a "$assignee" \
     '{issues: {nodes: [($i | .assignee = (if ($a | length) > 0 then {displayName: $a, email: "x@example.invalid"} else null end))]}}')"

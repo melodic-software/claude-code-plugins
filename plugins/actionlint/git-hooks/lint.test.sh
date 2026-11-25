@@ -349,5 +349,32 @@ git -C "$REPO" commit -q -m fixed >/dev/null 2>&1
 expect "git commit succeeds once the workflow is clean" "0" "$?"
 expect "verify reports ok after the install" "ok	lint" "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
 
+STD="$WORK/standards"
+mkdir -p "$STD/.github"
+printf 'paths:\n  .github/workflows/ci.yml:\n    ignore: ["is not defined"]\n' >"$STD/.github/actionlint.yaml"
+opt_in() {
+  mkdir -p "$REPO/docs/conventions"
+  printf 'standards_repository: acme/standards\n' >"$REPO/docs/conventions/source-control.yaml"
+}
+new_repo NONE
+opt_in
+printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
+git -C "$REPO" add -A
+expect "standards default: the standards config's ignore rule holds" "0||" "$(STANDARDS_DIR="$STD" check "$REPO")"
+expect "standards default, control: opted out of a checkout, the finding blocks" "1||$WF/ci.yml:7: $MSG
+$HINT" "$(STANDARDS_DIR="$WORK/nowhere" check "$REPO")"
+expect "standards default: --resolve names the standards config" \
+  "actionlint	lint	adapter:actionlint	actionlint	yes	config the standards .github/actionlint.yaml; binary actionlint on PATH" \
+  "$(cd "$REPO" && STANDARDS_DIR="$STD" HOME="$WORK/home" bash "$CHECK" --resolve)"
+printf '%s# edited\n' "$BAD" >"$REPO/$WF/ci.yml"
+expect "standards default: a partly staged workflow is linted from the index with the standards config" "0||" \
+  "$(STANDARDS_DIR="$STD" check "$REPO")"
+new_repo
+opt_in
+printf '%s' "$BAD" >"$REPO/$WF/ci.yml"
+git -C "$REPO" add -A
+expect "standards replace: the repository's own actionlint.yaml replaces the standards config whole" "1||$WF/ci.yml:7: $MSG
+$HINT" "$(STANDARDS_DIR="$STD" check "$REPO")"
+
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

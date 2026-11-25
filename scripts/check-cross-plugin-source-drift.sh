@@ -30,7 +30,6 @@ cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 registry="scripts/cross-plugin-source-registry.txt"
 
-# rel path within a plugin -> newline-delimited "plugin:fullpath" entries
 declare -A cluster_entries=()
 # rel path -> IDENTICAL | DIFFERS (only set for clusters with 2+ entries)
 declare -A cluster_status=()

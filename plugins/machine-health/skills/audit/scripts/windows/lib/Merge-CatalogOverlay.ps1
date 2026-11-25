@@ -33,8 +33,6 @@ function Merge-CatalogOverlay {
     $merged = [ordered]@{}
     foreach ($entry in $BaseChecks) {
         if ($null -eq $entry -or -not $entry.PSObject.Properties['id']) { continue }
-        # Clone each shipped entry so overlay patches never mutate caller state.
-        # Shallow by design: nested values stay shared.
         $merged[[string]$entry.id] = $entry.PSObject.Copy()
     }
 

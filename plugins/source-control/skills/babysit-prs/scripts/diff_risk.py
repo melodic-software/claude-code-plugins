@@ -228,9 +228,6 @@ class RiskInput:
     high_paths: tuple[str, ...]  # configured denied paths, joined to Floor.high
     lanes: tuple[LaneEvidence, ...]
     high_floor: bool = True
-    # `merge.diff-check.path-holds`: False moves every path hold (the
-    # `high-path:` floor and configured globs, `review-path:`) to
-    # `RiskResult.skipped`; anything else keeps them (owner decision Q15).
     path_holds: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
@@ -1995,11 +1992,6 @@ def _cost_reasons(
     return reasons
 
 
-# The longest diff line, in bytes, the main-run review reads whole.
-# pr-review-main.yml folds a longer line onto `\ continued: ` lines, and the
-# binder counts no verdict whose longest line is past it
-# (babysit_review_evidence `_main_review_counted`). Bytes are at least
-# characters, so the cap is never looser than a character count.
 LONG_LINE_BYTES = 1800
 
 

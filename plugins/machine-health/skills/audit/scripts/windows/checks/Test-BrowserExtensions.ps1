@@ -157,8 +157,6 @@ $CheckBody = {
 
     $readStates = @($browserReads | ForEach-Object { $_.ReadState }) + @($policy.ReadState)
     $severity = Get-UnmutedSeverity -Items $items -ReadState $readStates
-    # A source that could not be read can hide anything, so no item verdict stands;
-    # the check still ran, and every source it could read is listed.
     if ($unreadableSources.Count -gt 0) { $severity = 'UNKNOWN' }
 
     $flagged = @($items | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' }).Count

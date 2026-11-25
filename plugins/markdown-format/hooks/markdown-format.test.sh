@@ -42,7 +42,7 @@ ok() {
   echo "ok: $*"
   PASS=$((PASS + 1))
 }
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
@@ -99,7 +99,6 @@ else
   fail "probe cases need git and node"
 fi
 
-# --- hooks.json: one PostToolBatch row, one Stop row, no PostToolUse ----------
 # The batch row takes no matcher and no `if`: the hooks reference says neither
 # applies to the event, so its launcher flag is the only filter. The script reads
 # the paths itself.
@@ -433,7 +432,6 @@ expect "with a record, the adapter formats the file" "${FIXED}x" "$(
 )"
 expect "the record command was not called" "no" "$([[ -e "$WORK/record-ran" ]] && echo yes || echo no)"
 
-# --- Spawn budget ----------------------------------------------------------------
 # PostToolBatch has no matcher, so the row fires on every batch of every session.
 # A batch that never mentions .md costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"

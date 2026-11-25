@@ -112,7 +112,6 @@ command -v curl >/dev/null 2>&1 || {
 dir="$(mktemp -d)" || exit 2
 trap 'rm -rf "$dir"' EXIT
 
-# fetch <path in ci-workflows> <out>: the file at the pinned SHA.
 fetch() {
   curl -fsSL --connect-timeout 5 --max-time 20 -o "$2" "$raw_base/$sha/$1" 2>/dev/null || {
     echo "comment-hygiene: fetch of $1 at ci-workflows ${sha:0:12} failed" >&2
@@ -195,8 +194,6 @@ scan() (
     [[ -n "$content" ]] || continue
     rc=0
     hits="$(chp::scan_text "$content")" || rc=$?
-    # A printed hit is a violation whatever the return code, so a library
-    # that reports by output alone cannot pass a file it flagged.
     case "$rc" in
     0 | 1) [[ $rc == 1 || -n "$hits" ]] || continue ;;
     *)

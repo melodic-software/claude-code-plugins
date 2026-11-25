@@ -14,8 +14,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
-# The stubs log each call's arguments, so a case can check what reached gh.
-# `view` must reach only REST endpoints (`gh api`); `list` still uses `gh pr list`.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_STUB_CALLS"

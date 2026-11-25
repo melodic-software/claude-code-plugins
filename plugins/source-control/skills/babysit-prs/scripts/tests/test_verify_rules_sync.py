@@ -487,8 +487,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
     }
 
     def test_the_longest_name_is_name_max(self) -> None:
-        # 194, counted by hand in NAME_MAX's comment; the table's longest
-        # name is that long and every reader takes it.
         longest = max(self.NAMES, key=len)
         self.assertEqual((len(longest), ve.NAME_MAX), (194, 194))
         self.assertIsNotNone(ve.verdict_name(longest))

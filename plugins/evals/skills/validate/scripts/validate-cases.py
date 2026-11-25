@@ -291,7 +291,6 @@ PRECOMPUTED = re.compile(r"(?:^|(?<=\s))!`[^`\n]+`|^[ \t]*```!", re.MULTILINE)
 SLASH_SKILL = re.compile(r"^\s*/(?:[\w.-]+:)?([\w-]+(?:\.[\w-]+)*)(?=[\s:,.;]|$)")
 SKILL_NAME = re.compile(r"^[\w-][\w.-]*$")
 
-# (field, minimum, maximum) for the run fields the schema bounds.
 BOUNDS = (("runs", 1, 50), ("max_turns", 1, 200), ("timeout_seconds", 1, 3600))
 
 # The `schema_version` major the binary supports; a newer major is refused, and
@@ -345,7 +344,6 @@ JS_NAMED_GROUP = re.compile(r"\(\?<(?![=!])")
 JS_NAMED_BACKREF = re.compile(r"\\k<([A-Za-z_][A-Za-z0-9_]*)>")
 GLOB_SPECIAL = frozenset(".+^${}()|[]\\")
 
-# Python-only regex syntax, found by `python_only_tokens`.
 PY_ONLY_ESCAPES = frozenset("AZz")
 PY_ONLY_GROUPS = (
     ("(?>", "atomic group (?>"),
@@ -1486,14 +1484,14 @@ def js_jobs(case, graders, samples):
             mode = options.get("match", "contains")
             count = COUNT_MATCH.match(str(mode))
             if mode not in ("contains", "not_contains") and not count:
-                continue  # the Python check already reports the unknown mode
+                continue
             bounds = None
         elif kind == "tool_used" and options.get("input_match"):
             pattern, flags, mode, count = options.get("input_match"), "", None, None
             low, high = options.get("min"), options.get("max")
             low = 1 if low is None else low
             if not _whole(low) or not (high is None or _whole(high)):
-                continue  # the Python check already reports the bounds
+                continue
             bounds = (low, high)
         else:
             continue
@@ -1507,7 +1505,7 @@ def js_jobs(case, graders, samples):
                 for number, item in enumerate(data.get(key) or [], start=1):
                     answer = item["answer"]
                     if answer_error(kind, answer):
-                        continue  # the Python check already reports the shape
+                        continue
                     if kind == "tool_used":
                         answer = [
                             call.get("input", {})

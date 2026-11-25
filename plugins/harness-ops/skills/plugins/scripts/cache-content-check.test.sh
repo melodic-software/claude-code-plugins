@@ -54,8 +54,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Fixture builders --------------------------------------------------------
-
 # CASE_NUM must be incremented in the CALLER's shell before calling this, never
 # inside it: `case_dir=$(new_case_dir)` runs in a subshell, so an assignment
 # made in here is discarded and every case reuses case-1's directory.

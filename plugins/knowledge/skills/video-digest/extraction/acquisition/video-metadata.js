@@ -1,8 +1,4 @@
 /**
- * VideoMetadata domain model parsed from yt-dlp info JSON.
- */
-
-/**
  * @typedef {Object} VideoChapter
  * @property {number} startSec
  * @property {string} title

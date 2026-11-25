@@ -42,8 +42,6 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCHEMA_DIR = HERE / "schema"
-# This folder first; surface/ last, only for its schema.py, so a same-named module there
-# (session_bridge.py) never shadows one of ours.
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 if str(HERE.parent / "surface") not in sys.path:
@@ -91,8 +89,6 @@ INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "decline
 NOT_SHARED = "The owner did not share the result."
 MERGED_NOTE = "The owner joined your two identities: your earlier answers are yours again."
 NOTIFY_SHOWN = 100
-# What may pop up the moment it happens (web/app.js POPUP_KINDS, GUEST_POPUPS): the owner's Inbox items and
-# offered files, and a guest's answered request, mention and new round.
 POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail", "upload", "request", "mention", "round")
 MAX_COMMENTS = 200
 MAX_ALL_COMMENTS = 2000
@@ -200,8 +196,6 @@ REQUEST_KINDS = ("ask", "research", "explore", "design", "prototype")
 USED_TYPES = ("skill", "workflow", "mcp", "cli")
 TECH_COMFORT = ("low", "ok", "high")
 NOTIFY_KINDS = ("mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report", "discussion")
-# Chat reactions (Phase 4c item 6): the quick row first, then the picker's general set. web/app.js holds the
-# same list (CHAT_EMOJI there); test_session.py checks that the two match.
 CHAT_EMOJI = (
     "👍", "👎", "😂", "❤️", "🎉", "😮",
     "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍",
@@ -559,8 +553,6 @@ def _live_path_error(path):
 
 
 def _live_folder(path, root):
-    """A build folder for a live entry: an existing directory under `root`/staging/ (not staging/ itself), with no
-    hidden part, named by an absolute path; its path relative to `root`, as written in the entry."""
     if not isinstance(path, str) or not os.path.isabs(path):
         raise _bad("folder", "folder must be an absolute path to a build folder under the data folder's staging/.")
     real, base = _resolved(path, root, "folder", f"No folder at {path}.")
@@ -758,7 +750,6 @@ def _body(body):
 
 
 def _person_name(body, *, empty_ok=False):
-    """A person's name; "Claude" (any case) is refused, since "@Claude" asks Claude and must never name a person."""
     name = _text(body, "name", limit=MAX_NAME, empty_ok=empty_ok)
     if _looks_like_claude(name):
         raise DomainError(400, "reserved-name", "Claude is the AI's name in this session; pick another name.", field="name")
@@ -792,7 +783,6 @@ def _hidden(c):
 
 
 def _visible(v):
-    """v with line breaks as \\n and every hidden character dropped (see above)."""
     out, last = [], ""
     for i, part in enumerate(_RGI_FLAGS.split(v.replace("\r\n", "\n").replace("\r", "\n"))):
         if i % 2:  # one of the RGI subdivision flags, kept whole
@@ -887,7 +877,6 @@ _LOOKALIKE = {c: letter for letter, chars in _CLAUDE_LOOKALIKES.items() for c in
 
 
 def _looks_like_claude(name):
-    """Whether name, keyed as _name_key and with each confusable letter read as its Latin prototype, is "claude"."""
     latin = lambda text: "".join(_LOOKALIKE.get(c, c) for c in text)  # noqa: E731
     return latin(latin(_bare(name)).casefold()) == "claude"
 
@@ -940,7 +929,6 @@ def _url(v, field):
 
 
 def _device_info(v):
-    """{kind, browser, screen: {w, h}} with the screen rounded to 10 CSS px; nothing else is kept."""
     if v is None:
         return None
     if not isinstance(v, dict):
@@ -998,7 +986,6 @@ ASSET_MAGIC = ((b"\x89PNG\r\n\x1a\n", "png"), (b"\xff\xd8\xff", "jpg"))
 
 
 def _asset_source(path, root):
-    """An existing regular file under `root` with no hidden part below it; refused otherwise."""
     if not isinstance(path, str) or not os.path.isabs(path):
         raise _bad("path", "path must be an absolute path to a local file.")
     real, base = _resolved(path, root, "path", f"No file at {path}.")

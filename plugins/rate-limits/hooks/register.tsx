@@ -59,8 +59,6 @@ type State = {
   limits: readonly SessionRateLimit[]
   pending: Map<string, Due>
   toastQueue: [string, Event][]
-  // Operator mode: the changes the operator notice offers, and whether its row has been drawn.
-  // The row and a shown suggestion are the person's channel, so a change either reached is never toasted.
   heldToasts: [string, Event][]
   rowSeen: boolean
   handoff: Map<string, Due>
@@ -280,8 +278,6 @@ const voidedLine = (st: State, cfg: Config): { line: string; levels: Level[] } |
   return { line: `rate-limits: ${head} ${tail}`, levels: current.map(([, , level]) => level) }
 }
 
-// Follows any approach or edge line, once per carrier. Facts alone led Claude to stop launching agents
-// and to move work to a smaller model, so the options are stated and lowering quality is not one of them.
 const optionsLine = (cfg: Config) =>
   `rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts${cfg.switchUrl ? ` (${cfg.switchUrl})` : ''}; or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.`
 
@@ -320,8 +316,6 @@ const sameAccount = (a: Identity, b: Identity) =>
       ? a.email === b.email
       : undefined
 
-// The signed-in account changed: everything latched was the old account's. The reading held now
-// is the old account's too until a different one arrives, so it is kept out of the levels.
 function switchAccount($: EngineInterface, st: State) {
   const told =
     st.voided !== undefined ||
@@ -351,8 +345,6 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
   ])
   if (seq < st.appliedSeq) return
   st.appliedSeq = seq
-  // An unreadable identity is no evidence either way, so the recorded one stands; a field one
-  // read lacks is kept from the last, so a UUID that drops out and returns is still compared.
   if (identity !== undefined) {
     const same = st.account === undefined ? undefined : sameAccount(st.account, identity)
     if (same === false) switchAccount($, st)
@@ -366,7 +358,6 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
   st.limits = rateLimits
   st.spend = rateLimits.find(l => l.kind === 'spend_limit')
   if (changed) $.ui.invalidate('ui.render')
-  // No window reported is no reading, never a reset: the levels wait for the next reading.
   if (hasWindows && st.staleSig === undefined) st.toastQueue.push(...recordCrossings(st, reading, cfg, now))
 }
 
@@ -398,11 +389,6 @@ function releaseHeld(st: State, seen: boolean) {
   st.heldToasts = []
 }
 
-// Tells the person of each queued window change: a transcript line always, a toast when the option
-// allows. Run after a carrier's lines are built and never throws, so a failing toast drops no line.
-// While operator mode holds the lines the queue waits: a shown suggestion or the person's next
-// prompt drops it, and a suggestion that cannot show leaves it for the carrier that sends the line.
-// `held` is the carrier's answer from before its lines were taken, which may end a forced turn.
 async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: boolean) {
   try {
     if (st.toastQueue.length === 0) return
@@ -601,10 +587,6 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
   })
 }
 
-// Operator mode: offer the line as the prompt box's suggestion; with text in the box, show the
-// notice row and offer again once the box is empty; where it cannot show, the line goes to Claude.
-// A first offer that cannot show leaves the changes to be toasted with the automatic line; a
-// re-offer comes after the row was up, so the person has seen them unless a survey hid the row.
 async function offer($: EngineInterface, st: State, cfg: Config, first = false) {
   if (st.notice?.kind !== 'operator') return true
   const { text } = st.notice
@@ -731,7 +713,6 @@ export const register: Register = (on, options) => {
     reportOptions($, st, cfg)
     if (e.turnId === undefined) {
       st.origin = e.origin
-      // An untaken suggestion goes to Claude at the next turn no person started; a person's turn drops it.
       const handingOff = !isPersonTurn(st) && (st.handoff.size > 0 || st.handoffVoided !== undefined)
       if (handingOff) {
         for (const [kind, due] of st.handoff) {

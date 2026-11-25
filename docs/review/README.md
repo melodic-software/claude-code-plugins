@@ -5,7 +5,7 @@ concern a change touches; each line names a rule, and its link states the rule i
 
 | File | Applies when the change touches |
 |---|---|
-| [`REVIEW.md`](../../REVIEW.md) | anything: org-wide criteria, synced from `melodic-software/standards` |
+| [`REVIEW.md`](https://github.com/melodic-software/standards/blob/main/REVIEW.md) | anything: org-wide criteria, read from `melodic-software/standards` main |
 | [`findings.md`](findings.md) | anything: how many findings one review posts |
 | [`skills-and-agents.md`](skills-and-agents.md) | skill or agent text, or a standing instruction |
 | [`cost-claims.md`](cost-claims.md) | a cost, price or pricing claim |

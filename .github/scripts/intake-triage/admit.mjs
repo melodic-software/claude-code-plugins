@@ -924,17 +924,20 @@ export function admissionSettled(labels, events, isMark, state) {
 // unrunnable-rules.json (unrunnableCriteria); a file that does not read, or a
 // malformed unrunnable-rules.json (unrunnableRulesOf), throws out of decide,
 // so no issue is admitted on a guess.
-// `reported` (admissionFacts) maps a blocker the lanes App closed
-// report-delivered to {at, url, reason}: that close is no completed work
-// (owner Q9), so the blocker still waits, but its report may answer what the
-// issue waited for. Until a verdict written after that close judges the issue
-// against it, the wait carries `retriage` and admit() sends the issue back to
-// intake; once one has, the issue's own criteria decide. `comments`
-// (admissionFacts) carry report-outcome's patch-cap stop (patchCapStopped).
 // `holdLabels` (admissionFacts), and a parent's own, are the label names as
 // the Work status field decides them (read-status.mjs statusLabels), read in
 // place of the issue's own labels; `fieldState` (admissionFacts) is the
 // trusted Work status admissionSettled reads.
+/**
+ * `reported` (admissionFacts) maps a blocker the lanes App closed
+ * report-delivered to {at, url, reason} only when isTrustedClose does not count
+ * that close (its outcome comment predates the last reopen), so the blocker
+ * still waits, but its report may answer what the issue waited for. Until a
+ * verdict written after that close judges the issue against it, the wait
+ * carries `retriage` and admit() sends the issue back to intake; once one has,
+ * the issue's own criteria decide. `comments` (admissionFacts) carry
+ * report-outcome's patch-cap stop (patchCapStopped).
+ */
 export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], finished = false, doneBy = [], events, comments = [], spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, charges = chargePattern(), chargeEdits = [], holdLabels, fieldState, sourceOpen }) {
   const labels = names(holdLabels ?? issue.labels);
   if (!labels.includes(READY)) {
@@ -1189,11 +1192,13 @@ export function judgedSince(events, trusted) {
   return Math.max(Number.NEGATIVE_INFINITY, ...times);
 }
 
-// Whether a blocker the lanes App closed report-delivered (`report`, as
-// appCloseKind reads it) no longer holds its dependent: something judged the
-// dependent at `after` (ms), after that close, against the report. The close
-// still counts for nothing as completed work (owner Q9); a report with no
-// readable time holds. Pure.
+/**
+ * Whether a blocker the lanes App closed report-delivered (`report`, as
+ * appCloseKind reads it) and isTrustedClose does not count (its outcome comment
+ * predates the last reopen) no longer holds its dependent: something judged
+ * the dependent at `after` (ms), after that close, against the report. A report
+ * with no readable time holds. Pure.
+ */
 export function reportCleared(report, after) {
   const closed = Date.parse(report?.at);
   return report?.stop === "report-delivered" && Number.isFinite(closed) && after > closed;
@@ -1491,15 +1496,18 @@ export async function finishedParent({ github, repository, issue, trusted }) {
   return children.length > 0 && (await subIssueLeftOpen(children, trusted, repository)) === null ? children.map((child) => Number(child.number)) : null;
 }
 
-// admissionFacts' `isTrusted` for admit(): issue `number` here was closed by
-// a listed human or a merge, by the lanes App as already-done with evidence
-// that still holds (isTrustedClose), or is a split parent the lanes App
-// closed (splitParentClosed), read fresh.
+/**
+ * admissionFacts' `isTrusted` for admit(): issue `number` here was closed by a
+ * listed human or a merge, by the lanes App as already-done or verified-done
+ * with evidence that still holds (owner Q9), by the lanes App on its own
+ * outcome close comment when `blocker` is set (owner Q300: blockers only), or
+ * is a split parent the lanes App closed (splitParentClosed), read fresh.
+ */
 export const closedByTrusted = ({ github, repository, humans, appId }) => {
   const isApp = appActor(appId);
-  const trusted = async (number) => {
+  const trusted = async (number, { blocker = false } = {}) => {
     const issue = await github("GET", `/repos/${repository}/issues/${number}`);
-    return (await isTrustedClose(github, repository, issue, humans, isApp)) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
+    return (await isTrustedClose(github, repository, issue, humans, isApp, { blocker })) || splitParentClosed({ github, repository, issue, isApp, humans, trusted });
   };
   return trusted;
 };
@@ -1599,13 +1607,13 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   // trusted close, read fresh from the issue; one closed as not planned or a
   // duplicate counts too, since nothing is left to wait for. `isTrusted`
   // answers for this repository's blockers only.
-  const trusted = isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans, isApp));
+  const trusted = isTrusted ?? (async (blocker, options) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans, isApp, options));
   const trustedCloses = new Set();
   const reported = new Map();
   for (const blocker of blockers) {
     if (!blocker.pull_request && blockerDone(blocker, repository, () => true)) {
       const local = here(blocker.repository_url, repository);
-      const ok = local ? await trusted(blocker.number) : await trustedElsewhere(github, blocker, humans);
+      const ok = local ? await trusted(blocker.number, { blocker: true }) : await trustedElsewhere(github, blocker, humans);
       if (ok) {
         trustedCloses.add(blockerKey(blocker, repository));
       } else if (local && appId !== undefined) {

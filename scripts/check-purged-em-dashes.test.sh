@@ -200,9 +200,6 @@ else
   fail "an entry matching no tracked file fails as stale (rc=$RC): $OUT"
 fi
 
-# Per-entry counts pin the matcher: `*` matches a leading dot and stops at `/`,
-# `?` and brackets are patterns, an escaped bracket is literal, and a glob is
-# only tested against paths of its own depth.
 run "$REPO" "edge.txt" --list
 want=(
   'ok     edge/.dotted.md (1 files)'

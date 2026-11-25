@@ -44,9 +44,6 @@ run-name: "PR Rate Merge Risk #${{ github.event.workflow_run.pull_requests[0].nu
 
 permissions: {}
 
-# One rating per pull request and head, never cancelled once running: the arm's
-# own body edit re-runs pr-require-checks, and that run queues here, then
-# finds the uploaded rating and skips (resolve-pr.mjs ratedBy).
 concurrency:
   group: pr-rate-merge-risk-${{ github.event.workflow_run.pull_requests[0].number || 'none' }}-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
@@ -101,8 +98,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # Report-only: a stopped lane rates nothing and stays green, so the
-      # arm records `unrated`.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -172,13 +167,6 @@ jobs:
           selected: ${{ steps.credit.outputs.next-leg }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare. It is
-      # written before the trigger check, so a head the resolver passes and
-      # the trigger check refuses (an untrusted re-runner) records a handoff
-      # that the subscription leg's own trigger check then refuses, with no
-      # receiving record: a known overcount, accepted so the key job saves
-      # its trigger-check reads on a held-off key.
       - name: Report the skipped key leg
         id: credit-skip
         if: steps.credential.outputs.key-skipped == 'true'
@@ -242,8 +230,6 @@ jobs:
           DATA: ${{ github.workspace }}/merge-risk-data
           CONTEXT_FILE: ${{ runner.temp }}/merge-risk-reads/context.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          # pr-verify's one-judgment diff budget (MAX_DIFF_BYTES), twice: the
-          # skill pages a diff through Read. A larger one gets no rating.
           MAX_DIFF_BYTES: "600000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
@@ -295,8 +281,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # started-at lets the outcome step tell a step timeout from other
-      # failures, and write-rating record the rating's time.
       - name: Write the prompt and schema
         id: prompt
         if: steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true'
@@ -390,8 +374,6 @@ jobs:
           json-schema-file: ${{ runner.temp }}/merge-risk-schema.json
           leg-timeout-minutes: "20"
 
-      # One lane record per run: outcome, class, durationMs, costUsd and
-      # models, under lane pr-merge-risk, the cost per merge's baseline.
       - name: Report the rating's outcome
         if: steps.rate.outcome == 'success' || steps.rate.outcome == 'failure'
         continue-on-error: true
@@ -410,8 +392,6 @@ jobs:
           handoff: ${{ steps.rate.outputs.handoff }}
           fallback-reason: ""
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.rate.outputs.execution-file != ''
         continue-on-error: true
@@ -515,9 +495,6 @@ jobs:
         with:
           tokens: github-token
 
-      # A leg that set out to rate and left no rating is red, so the lane's
-      # failures count; a handoff is no failure, since the next leg rates. The
-      # arm still records `unrated` and goes on.
       - name: Fail without a rating
         if: always() && steps.checker.outcome == 'success' && steps.credential.outputs.present == 'true' && steps.rating.outcome != 'success' && steps.rate.outputs.handoff != 'true'
         run: |
@@ -655,8 +632,6 @@ jobs:
           DATA: ${{ github.workspace }}/merge-risk-data
           CONTEXT_FILE: ${{ runner.temp }}/merge-risk-reads/context.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          # pr-verify's one-judgment diff budget (MAX_DIFF_BYTES), twice: the
-          # skill pages a diff through Read. A larger one gets no rating.
           MAX_DIFF_BYTES: "600000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
@@ -1000,8 +975,6 @@ jobs:
           DATA: ${{ github.workspace }}/merge-risk-data
           CONTEXT_FILE: ${{ runner.temp }}/merge-risk-reads/context.json
           SPEC_TEXT_FILE: ${{ runner.temp }}/merge-risk-reads/spec-text.json
-          # pr-verify's one-judgment diff budget (MAX_DIFF_BYTES), twice: the
-          # skill pages a diff through Read. A larger one gets no rating.
           MAX_DIFF_BYTES: "600000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null

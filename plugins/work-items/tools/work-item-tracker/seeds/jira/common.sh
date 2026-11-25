@@ -55,8 +55,6 @@ readonly EX_AUTH=4
 readonly EX_NOT_FOUND=5
 readonly EX_UNAVAILABLE=8
 
-# HTTP command indirection: the sole testability seam. Tests point WIT_JIRA_CURL at a
-# mock that returns canned responses, keeping the read path offline. Absent → real curl.
 readonly WIT_JIRA_CURL_BIN="${WIT_JIRA_CURL:-curl}"
 
 # Blocker link type + done-category keys default to the documented Jira standards but
@@ -167,8 +165,6 @@ wit_need_jira_config() {
   else
     WIT_JIRA_DONE_KEYS="$WIT_JIRA_DEFAULT_DONE_KEYS"
   fi
-  # resolutions has no default: absent turns won't-do detection off (`null`); a present
-  # value, even `null`, is judged below.
   WIT_JIRA_RESOLUTIONS="$(jq -c '.config.jira | if has("resolutions") then .resolutions // "null-value" else null end' <<<"$ejson")"
   allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' <<<"$ejson")"
   local missing=""
@@ -235,9 +231,6 @@ wit_need_jira_config() {
     printf '%s: invalid jira config value(s):%s — see CONTRACT.md "jira adapter"\n' "$name" "$bad" >&2
     exit "$EX_CONFIG"
   fi
-  # curl is the read path's only prerequisite binary; gate here (exit 3, actionable)
-  # rather than let the first request fail obscurely. WIT_JIRA_CURL_BIN is the real
-  # curl by default or a test-injected mock — either way it must resolve.
   command -v "$WIT_JIRA_CURL_BIN" >/dev/null 2>&1 ||
     {
       printf '%s: prerequisite missing: curl (Jira Cloud REST over HTTPS) — see CONTRACT.md Prerequisites\n' "$name" >&2

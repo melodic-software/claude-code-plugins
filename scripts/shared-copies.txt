@@ -107,6 +107,7 @@ docs/contracts/standards/README.md plugins/review/reference/standards-contract.m
 lib/org-standards.sh plugins/planning/scripts/org-standards.sh
 lib/org-standards.sh plugins/review/scripts/org-standards.sh
 lib/org-standards.sh plugins/improvement/scripts/org-standards.sh
+lib/org-standards.sh plugins/harness-config/scripts/org-standards.sh
 docs/contracts/enforcement-ladder/README.md plugins/review/context/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/session-flow/skills/retro/reference/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md

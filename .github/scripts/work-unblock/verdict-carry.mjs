@@ -107,8 +107,6 @@ function slimJob(job) {
 const runKey = (run) => (RUN_KEY.test(`${run?.id}|${run?.run_attempt}`) ? `${run.id}|${run.run_attempt}` : null);
 const refusalKey = (jobId, mode) => (REFUSAL_KEY.test(`${jobId}|${mode}`) ? `${jobId}|${mode}` : null);
 
-// The sweep's code, as this run checked it out: every module beside this one
-// (tests aside). A deploy that changes any of them drops every carried entry.
 export function codeDigest(dir = dirname(fileURLToPath(import.meta.url))) {
   const digest = createHash("sha256");
   for (const name of readdirSync(dir).filter((file) => file.endsWith(".mjs") && !file.endsWith(".test.mjs")).sort()) {
@@ -117,9 +115,6 @@ export function codeDigest(dir = dirname(fileURLToPath(import.meta.url))) {
   return digest.digest("hex");
 }
 
-// The carry from the file at `path` (missing, unreadable or of other `code`:
-// empty), with the lookups and records label-unblocked.mjs makes and the file
-// the next sweep reads. `now` dates each entry used or added.
 export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   const section = (data, name, keyPattern, valid) => {
     const out = new Map();
@@ -221,13 +216,11 @@ export const anySweepRun = (repo) => (run) =>
   run.head_branch === "main" &&
   run.head_repository?.full_name === repo;
 
-// A successful sweep, the only one whose file is carried.
 export const sweepRun = (repo) => {
   const sweep = anySweepRun(repo);
   return (run) => sweep(run) && run.conclusion === "success";
 };
 
-// `read`: the newest successful sweep's file, written to VERDICTS_IN.
 export async function read({ env = process.env, actions, download } = {}) {
   const { VERDICTS_IN: to, GITHUB_REPOSITORY: repo = "" } = env;
   try {

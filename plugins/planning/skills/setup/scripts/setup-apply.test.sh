@@ -16,8 +16,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -26,13 +24,12 @@ READER="$SCRIPT_DIR/parse-concern-value.sh"
 
 WORKROOT="$(mktemp -d)"
 trap 'chmod -R u+w "$WORKROOT" 2>/dev/null; rm -rf "$WORKROOT"' EXIT
-# A HOME outside every test repository, so the root rule does not refuse them.
 FAKE_HOME="$WORKROOT/home"
 mkdir -p "$FAKE_HOME"
 
 # shellcheck source=../../../lib/test-pass-fail.sh
 source "$SCRIPT_DIR/../../../lib/test-pass-fail.sh"
-check() { # check <label> <command...>: pass when the command succeeds
+check() {
   local label="$1"
   shift
   if "$@"; then pass "$label"; else fail "$label"; fi
@@ -47,7 +44,7 @@ new_repo() {
 
 OUT=""
 CODE=0
-run() { # run <repo> [args...]
+run() {
   local repo="$1"
   shift
   OUT="$(HOME="$FAKE_HOME" node "$SUT" --root "$repo" "$@" 2>&1)"
@@ -55,7 +52,6 @@ run() { # run <repo> [args...]
 }
 one_line_refusal() { [[ "$CODE" -eq 1 && "$(wc -l <<<"$OUT")" -eq 1 && "$OUT" != *"    at "* ]]; }
 
-# Fresh write: both keys written, each reads back.
 repo="$(new_repo)"
 f="$repo/docs/conventions/planning.yaml"
 run "$repo" phase_order=riskiest-first plan_store=tracker
@@ -65,13 +61,11 @@ check 'phase_order reads back as riskiest-first' test "$(bash "$READER" "$f" pha
 check 'plan_store reads back as tracker' test "$(bash "$READER" "$f" plan_store)" = tracker
 check 'fresh write creates no other file' test "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1
 
-# Same value again: nothing changes.
 before="$(cat "$f")"
 run "$repo" phase_order=riskiest-first
 check 'an unchanged value reports already configured and leaves the file' \
   test "$CODE" -eq 0 -a "$(cat "$f")" = "$before" -a -n "$(grep -F 'already configured' <<<"$OUT")"
 
-# Existing file, different value, no --yes: diff printed, nothing written.
 repo="$(new_repo)"
 f="$repo/docs/conventions/planning.yaml"
 mkdir -p "$repo/docs/conventions"
@@ -82,13 +76,11 @@ check 'an existing file that would change exits 3 without --yes' test "$CODE" -e
 if [[ "$OUT" == *"-phase_order: composed"* && "$OUT" == *"+phase_order: subtraction-first"* ]]; then pass 'the refusal prints the diff'; else fail 'the refusal prints the diff'; fi
 check 'the existing file is untouched without --yes' test "$(cat "$f")" = "$before"
 
-# Same change with --yes: written, comment and the other key kept.
 run "$repo" --yes phase_order=subtraction-first
 check 'with --yes the change is written' test "$CODE" -eq 0
 check 'the written file keeps the comment and plan_store' \
   test "$(settings "$f")" = $'# team pick\nplan_store: local\nphase_order: subtraction-first'
 
-# Adding a key the file does not hold yet appends it.
 repo="$(new_repo)"
 f="$repo/docs/conventions/planning.yaml"
 mkdir -p "$repo/docs/conventions"
@@ -96,7 +88,6 @@ printf 'plan_store: tracker\n' >"$f"
 run "$repo" --yes phase_order=composed
 check 'a new key is appended to an existing file' test "$CODE" -eq 0 -a "$(settings "$f")" = $'plan_store: tracker\nphase_order: composed'
 
-# Invalid value and unknown key: refused, nothing created.
 repo="$(new_repo)"
 run "$repo" phase_order=risky-first
 if [[ "$CODE" -eq 1 && "$OUT" == *"phase_order=risky-first"* ]]; then pass 'an invalid value exits 1 and names the key and value'; else fail 'an invalid value exits 1 and names the key and value'; fi
@@ -118,17 +109,12 @@ if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<
 run "$repo" --yes phase_order=riskiest-first
 if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(settings "$f")" == $'phase_order: riskiest-first\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
-# An invalid existing value is replaced by a valid one.
 printf 'phase_order: risky-first\n' >"$f"
 run "$repo" --yes phase_order=composed
 check 'an invalid existing value is replaced by a valid one' \
   test "$CODE" -eq 0 -a "$(bash "$READER" "$f" phase_order)" = composed
 
-# Shapes a schema validator rejects although each line looks plausible.
-# --check reports each as WARN. apply overwrites only an out-of-list, empty
-# (`key:`) or null/~ value on the key it writes, and refuses every other
-# problem with one line and the file untouched.
-shape_case() { # shape_case <label> <refuse|replace> <warning text> <file content>
+shape_case() {
   local label="$1" want="$2" warning="$3" content="$4" repo f before
   repo="$(new_repo)"
   f="$repo/docs/conventions/planning.yaml"
@@ -166,7 +152,6 @@ shape_case 'an unknown key set twice' refuse 'duplicate key "stray"' $'stray: a\
 shape_case 'an unknown key holding a map' refuse 'stray is not in the schema and holds a map or a list' $'stray:\n  a: 1\n'
 shape_case 'an out-of-list value on a key not being written' refuse 'plan_store=bogus is not one of' $'plan_store: bogus\n'
 
-# scaffold_stubs is a boolean: true and false only, written unquoted.
 repo="$(new_repo)"
 f="$repo/docs/conventions/planning.yaml"
 run "$repo" scaffold_stubs=true
@@ -180,7 +165,7 @@ for v in yes on True 1 '"true"'; do
   run "$repo" "scaffold_stubs=$v"
   if [[ "$CODE" -eq 1 && "$OUT" == *"scaffold_stubs="* && ! -e "$repo/docs" ]]; then pass "scaffold_stubs=$v is refused and nothing written"; else fail "scaffold_stubs=$v is refused and nothing written"; fi
 done
-bool_case() { # bool_case <label> <refuse|replace> <warning text> <file content>
+bool_case() {
   local label="$1" want="$2" warning="$3" content="$4" repo f before
   repo="$(new_repo)"
   f="$repo/docs/conventions/planning.yaml"
@@ -211,8 +196,6 @@ printf 'scaffold_stubs: false # team default\nphase_order: composed\n' >"$repo/d
 run "$repo" --check
 if [[ "$CODE" -eq 0 && "$OUT" == *"PASS scaffold_stubs: false"* ]]; then pass '--check prints a valid boolean'; else fail '--check prints a valid boolean'; fi
 
-# A key given twice on the command line is refused before anything is
-# written, whether or not the file exists.
 repo="$(new_repo)"
 f="$repo/docs/conventions/planning.yaml"
 mkdir -p "$repo/docs/conventions"
@@ -223,7 +206,6 @@ repo="$(new_repo)"
 run "$repo" --yes phase_order=composed phase_order=composed
 if one_line_refusal && [[ ! -e "$repo/docs" ]]; then pass 'a key given twice with no file is a one-line refusal and creates nothing'; else fail 'a key given twice with no file is a one-line refusal and creates nothing'; fi
 
-# --check: absent, valid.
 repo="$(new_repo)"
 run "$repo" --check
 if [[ "$CODE" -eq 0 && "$OUT" == *absent* ]]; then pass '--check on a missing file reports absent and exits 0'; else fail '--check on a missing file reports absent and exits 0'; fi
@@ -232,7 +214,6 @@ printf 'phase_order: subtraction-first\n' >"$repo/docs/conventions/planning.yaml
 run "$repo" --check
 if [[ "$CODE" -eq 0 && "$OUT" == *"PASS phase_order: subtraction-first"* && "$OUT" == *"PASS plan_store: (unset)"* ]]; then pass '--check on a valid file prints each key'; else fail '--check on a valid file prints each key'; fi
 
-# Write-path guards, each a one-line refusal with nothing written outside.
 repo="$(new_repo)"
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 mkdir -p "$repo/docs"
@@ -271,7 +252,6 @@ run "$repo" phase_order=composed
 check 'docs as a file is a one-line refusal' one_line_refusal
 check 'docs as a file is left as it was' test "$(cat "$repo/docs")" = 'not a directory'
 
-# An unwritable docs/conventions: the temp-file open fails, one line, no temp left.
 if [[ "$(id -u)" -ne 0 ]]; then
   repo="$(new_repo)"
   mkdir -p "$repo/docs/conventions"
@@ -282,7 +262,6 @@ if [[ "$(id -u)" -ne 0 ]]; then
   chmod u+w "$repo/docs/conventions"
 fi
 
-# A failed write (file size limit 0): one line, no temp file left.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 OUT="$(ulimit -f 0 && HOME="$FAKE_HOME" node "$SUT" --root "$repo" phase_order=composed 2>&1)"
@@ -296,7 +275,7 @@ preload() { # preload <name> <js line...>: writes $WORKROOT/<name>.cjs
   shift
   printf '%s\n' 'const fs = require("node:fs");' "$@" 'require("node:module").syncBuiltinESMExports();' >"$WORKROOT/$name.cjs"
 }
-run_preloaded() { # run_preloaded <name> <repo> [args...]
+run_preloaded() {
   local name="$1" repo="$2"
   shift 2
   OUT="$(HOME="$FAKE_HOME" node --require "$WORKROOT/$name.cjs" "$SUT" --root "$repo" "$@" 2>&1)"
@@ -313,7 +292,6 @@ run_preloaded close-fails "$repo" phase_order=composed
 check 'a failed close is a one-line refusal' one_line_refusal
 check 'a failed close removes the temp file' test -z "$(ls -A "$repo/docs/conventions")"
 
-# A failed close followed by a failed cleanup: still one line, no stack trace.
 preload close-and-rm-fail "$TRACK_TMP_FD" "$CLOSE_FAILS" \
   'fs.rmSync = () => { throw Object.assign(new Error("EBUSY: resource busy, rm"), { code: "EBUSY" }); };'
 repo="$(new_repo)"
@@ -332,7 +310,6 @@ CODE=$?
 check 'a docs symlink swap between mkdirs is a one-line refusal' one_line_refusal
 check 'a docs symlink swap between mkdirs creates nothing outside' test -z "$(ls -A "$outside")"
 
-# Root rule: a root that is $HOME, or an ancestor of it, is refused.
 repo="$(new_repo)"
 OUT="$(HOME="$repo" node "$SUT" --root "$repo" phase_order=composed 2>&1)"
 CODE=$?
@@ -351,7 +328,6 @@ git -C "$weird" init -q
 check 'a root path with $(...) is written as a plain path' test -f "$weird/docs/conventions/planning.yaml"
 check 'the $(...) in the root path never runs' test ! -e "$WORKROOT/PWNED" -a ! -e "$weird/PWNED"
 
-# Usage errors.
 run "$repo"
 check 'no <key>=<value> exits 2' test "$CODE" -eq 2
 run "$repo" --check phase_order=composed
@@ -360,7 +336,6 @@ OUT="$(cd "$WORKROOT" && HOME="$FAKE_HOME" GIT_CEILING_DIRECTORIES="$WORKROOT" n
 CODE=$?
 if [[ "$CODE" -eq 2 && "$OUT" == *"git working tree"* ]]; then pass 'outside a git working tree without --root exits 2'; else fail 'outside a git working tree without --root exits 2'; fi
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 repo="$(new_repo)"
 run "$repo" phase_order=riskiest-first

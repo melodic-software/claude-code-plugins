@@ -382,10 +382,6 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         self.assertFalse(projected["severityFlagged"])
 
     def test_self_non_table_prose_still_flags_severity(self) -> None:
-        # Mirrors count_findings's own rule: stripping is scoped to
-        # classification-TABLE rows, not to every self-authored body. A
-        # self-login also used by a maintainer to raise a genuine new finding
-        # in ordinary prose must still flag.
         record = {
             "id": "T1",
             "comments": [
@@ -1319,9 +1315,6 @@ class IndependentResolverEvidence(unittest.TestCase):
         self.assertEqual(code, 10)
 
     def test_linked_pr_citation_needs_its_own_boundaries(self) -> None:
-        # Each reply names PR 42 only inside a longer token: another repo whose
-        # name ends in owner/repo, a non-GitHub host, or a longer PR number.
-        # No gh result is scripted, so reaching a lookup would raise.
         for reply in (
             "Fixed in xowner/repo#42.",
             "Fixed in https://evil.host/owner/repo/pull/42",
@@ -1530,8 +1523,6 @@ class FixCommitReachability(unittest.TestCase):
         )
 
     def test_ahead_with_nonzero_behind_by_is_refused(self) -> None:
-        # A contradictory status/behind_by pair must not slip through on status
-        # alone — the belt-and-suspenders half of the reachability check.
         self.assertEqual(
             self._compare_result({"status": "ahead", "behind_by": 2}),
             (False, "refused-fix-commit-not-on-head"),
@@ -2006,9 +1997,6 @@ class DispositionDispatchIsExplicit(unittest.TestCase):
     def test_an_unknown_disposition_is_refused_not_counter_evidence_checked(
         self,
     ) -> None:
-        # A disposition added to DISPOSITION_EVIDENCE without a validator here
-        # would otherwise be reported as validated by a check that never looked
-        # at its evidence.
         self.assertEqual(
             rt.verify_disposition(
                 _bot_thread(reply_bodies=["anything at all"]),

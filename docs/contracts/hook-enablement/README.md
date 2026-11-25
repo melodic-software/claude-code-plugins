@@ -31,7 +31,7 @@ When it does, this doc points at the upstream setting and the per-hook key becom
   (`observer_enabled`, `block_no_verify_enabled`). One key per hook; a key is never shared by two
   hooks with different purposes. Title and description follow
   [plugin-option-naming](../plugin-option-naming/README.md#titles).
-- **Naming against the switch standard.** [Configuration switch naming](../../standards/configuration-switch-naming.md)
+- **Naming against the switch standard.** [Configuration switch naming](https://github.com/melodic-software/standards/blob/main/standards/engineering/configuration-switch-naming.md)
   names a default-on switch `<THING>_DISABLED` so that leaving it unset never turns the behavior
   off. A `userConfig` option or convention-file key always resolves to the default the plugin
   declares, so it has no unset state to protect: it is the standard's case of a boolean that always

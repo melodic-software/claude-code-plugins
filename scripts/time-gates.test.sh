@@ -20,8 +20,6 @@ gates=(
   plugins/skill-quality/scripts/check-skill.sh
   plugins/planning/scripts/check-open-questions.sh
 )
-# Each stub records its arguments, and the check-skill stub its skills root, to
-# <gate>.args under the scratch directory. The parity stub fails with exit 1.
 for g in "${gates[@]}"; do
   mkdir -p "$stub_root/$(dirname "$g")"
   rc=0

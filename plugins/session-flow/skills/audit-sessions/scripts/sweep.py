@@ -136,7 +136,6 @@ def _write_5m_share(records: list[dict]) -> float | None:
 
 
 MACHINE_WIDE = {"cache.write_5m_share": _write_5m_share}
-# Metrics whose value is not a median over sessions; the report names the statistic.
 STATISTIC = {
     "cache.write_5m_share": "machine-wide ratio",
     "hooks.stop_ms": "median of per-session p90",
@@ -144,11 +143,6 @@ STATISTIC = {
 
 
 def _churn(records: list[dict]) -> list[tuple[int, dict]]:
-    """Edits to one path within one linked PR, summed over the sessions that link only that PR.
-
-    A session linking several PRs is left out: its edits cannot be split between them. Stored paths
-    are relative to each session's own working directory, so each is joined back onto it first.
-    """
     tickets: dict[tuple[str, int], tuple[Counter, dict]] = {}
     for r in records:
         edits, prs, cwd = r.get("edits"), r.get("prs"), r.get("cwd")
@@ -175,7 +169,6 @@ PER_TICKET = {"edits.churn_per_pr": _churn}
 
 
 def _denial_kinds(records: list[dict], sessions: set[str]) -> dict:
-    """Denials per kind over the named sessions, most first with ties by kind, and the kind with the most."""
     counts: Counter = Counter()
     for r in records:
         tools = r.get("tools") if r.get("session_id") in sessions else None
@@ -245,7 +238,6 @@ def impact(unit: str, excess: float) -> dict | None:
 
 
 def build_data(records, rules, drift, fed, scope, window, catalog, factor, population=None) -> dict:
-    """`population`, given with --session, holds the in-scope sessions each row's p90 is taken over."""
     degraded = set(drift["degraded_metrics"])
     metrics, findings, unchecked = {}, [], []
     for rule in rules:
@@ -378,14 +370,12 @@ def _evidence_key(e: dict) -> tuple:
 
 
 def evidence_md(e: dict) -> str:
-    """A session ID, or a path within a linked PR with its edit count."""
     if "session_id" in e:
         return e["session_id"]
     return f"{markdown_code(e['repo'])}#{e['number']} {markdown_code(e['path'])} ({e['edits']} edits: {', '.join(e['sessions'])})"
 
 
 def evidence_list_md(evidence: list[dict]) -> str:
-    """The worst MAX_LISTED entries, then how many more the JSON report holds."""
     text = ", ".join(evidence_md(e) for e in evidence[:MAX_LISTED])
     more = len(evidence) - MAX_LISTED
     if more > 0:
@@ -567,7 +557,6 @@ def load_verdicts(path: Path) -> dict[str, dict]:
 
 
 def judged_section(turns: list[dict], verdicts: dict[str, dict], scope: str, catalog: set[str] | None) -> dict:
-    """The judge's verdicts joined onto this run's candidates; each `correction` verdict is one finding."""
     ids = {turn["turn_id"] for turn in turns}
     findings = [
         {
@@ -619,7 +608,6 @@ def ticket_key(record: dict, pattern: re.Pattern) -> str | None:
 
 
 def ticket_row(key: str, members: list[dict]) -> dict:
-    """Sessions in start order; a gap runs from the latest end so far to the next start, never below 0."""
     timed = []
     for r in members:
         times = r.get("time") if isinstance(r.get("time"), dict) else {}

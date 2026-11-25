@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.6] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
 ## [0.21.5] - 2026-11-24
 
 ### Changed

@@ -31,10 +31,6 @@ from pathlib import Path
 CHECK_DESC = "I29-a"
 CHECK_SIBLING = "I29-b"
 
-# Footer / index headings are sources for sibling comparison but are never
-# themselves a restatement finding: audit-noise protects them, and a
-# Cross-references section that happens to be shorter than a NOT-do section
-# is the source, not the defect.
 NEVER_FLAG_HEADINGS = frozenset(
     {
         "sources",
@@ -104,7 +100,7 @@ def extract_frontmatter(lines: list[str]) -> tuple[int, list[str]]:
         if re.match(r"^---\s*$", lines[i]):
             return i + 1, fm
         fm.append(lines[i])
-    return len(lines), fm  # unclosed: fail-safe, no body
+    return len(lines), fm
 
 
 def frontmatter_field(fm: list[str], key: str) -> str:

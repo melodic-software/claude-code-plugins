@@ -9,7 +9,6 @@ import { posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-// Whether `value` reads as a full commit SHA, or as an `owner/name` repository.
 const isSha = (value) => /^[0-9a-f]{40}$/.test(String(value));
 const isRepo = (value) => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(value));
 
@@ -82,8 +81,6 @@ export function* visibleLines(body) {
   }
 }
 
-// The issues the visible plain `Refs: #<n>` lines of `body` name, as
-// refsIssue reads them, or null when such a line is in any other form.
 function refsNumbers(body) {
   const numbers = new Set();
   for (const line of visibleLines(body)) {
@@ -211,7 +208,6 @@ export const fromRest = (row) => ({
 // enqueues. enable-auto-merge.mjs reads it from here.
 export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
 
-// How a trusted approval lifts a hold, in the hold messages.
 const APPROVAL_LIFTS = "an approving review of this head by a person on the trusted-actor list lifts it";
 const APPROVAL_CARRIES = `${APPROVAL_LIFTS}, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`;
 
@@ -238,7 +234,6 @@ export function pinHold(items, head) {
 }
 
 const pinLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
-// The lanes App's newest read-back pin among `items` (fromRest's), or undefined.
 const newestPin = (items) =>
   items
     .filter((item) => item.login === LANES_APP_LOGIN && PIN_RE.test(pinLine(item)))
@@ -726,7 +721,6 @@ export async function branchActivity(read, repo, branch) {
   throw new Error(`the branch's push history runs past ${ACTIVITY_PAGES} pages`);
 }
 
-// Whether a COMMENT_EDITED_QUERY answer's node was never edited.
 const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastEditedAt === null;
 
 // Whether two compare answers (base...head) show the same net change of the
@@ -757,8 +751,6 @@ export function sameNetChange(decided, current) {
 const listedCommits = (compare) =>
   Array.isArray(compare?.commits) && Number.isInteger(compare.total_commits) && compare.total_commits === compare.commits.length ? compare.commits : null;
 
-// The commits a compare answer `now` (base...H') lists beyond `then`
-// (base...H), or null when either list is not read whole.
 function newCommits(then, now) {
   const [before, after] = [listedCommits(then), listedCommits(now)];
   if (before === null || after === null) return null;
@@ -1014,8 +1006,6 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
         lifters.add(login);
         continue;
       }
-      // Q10's path reads from...H' when the base-merge path did not; a read
-      // that fails carries nothing by it.
       if (holdPaths !== undefined && merges === null) {
         merges = await compare(`${sha}...${head}`).catch(() => null);
       }
@@ -1027,8 +1017,6 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
   }
 }
 
-// Every page of the REST list at `path`: each answer itself, or the list it
-// holds under `key` when one is given.
 async function pages(github, path, key = null) {
   const rows = [];
   for (let page = 1; ; page += 1) {
@@ -1154,14 +1142,12 @@ export async function costDecision(github, repo, number, body, humans, head, act
         decisions.push({ link: link[0], comment, own: target === number });
       }
     } catch {
-      // An unreadable comment clears nothing.
     }
   }
   const at = (d) => {
     const made = Date.parse(d.comment.created_at);
     return Number.isNaN(made) ? -Infinity : made;
   };
-  // The newest; of two at one time, the first linked.
   const newest = (own) => decisions.filter((d) => d.own === own).reduce((best, d) => (best === undefined || at(d) > at(best) ? d : best), undefined);
   const decision = newest(true) ?? newest(false);
   // The chosen decision, not a fallback, must carry both: an older complete
@@ -1171,7 +1157,6 @@ export async function costDecision(github, repo, number, body, humans, head, act
   return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
 }
 
-// A GitHub REST and GraphQL reader on fetch, for costDecision.
 const fetchGitHub = (env) => async (method, path, body) => {
   const response = await fetch(`${env.GITHUB_API_URL || "https://api.github.com"}${path}`, {
     method,
@@ -1309,9 +1294,6 @@ export function passRefusalOf(evidence, head) {
   return evidence?.head === head && PASS_REFUSALS.includes(evidence.refusal) ? evidence.refusal : null;
 }
 
-// Owner decision (2026-11-04, "Hold until re-judged"): a pass the linked issue
-// changed after holds in the queue too, read or not, until pr-verify judges
-// the head again (the lost-run reconciler re-runs it) or an approval lifts it.
 const STALE = "verify:spec-changed";
 
 // A log line can carry a changed file's name: escape what would start a
@@ -1322,7 +1304,6 @@ const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%
 export const humansOf = (actors) =>
   new Set(actors.filter((actor) => actor?.kind === "human" && Number.isInteger(actor?.id)).map(({ id }) => id));
 
-// The link file's verdict, a file that does not read included.
 function linkOf(file, body, repo) {
   try {
     const { record, closing } = JSON.parse(readFileSync(file, "utf8"));
@@ -1542,18 +1523,11 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
-    // A body hold is not judged here: the lanes App's hold line puts on the
-    // `do-not-merge` label, which ci-status's label steps hold on. A member's
-    // veto comment holds twice: enable-auto-merge labels it `do-not-merge` on
-    // its next reader run, and this read holds it until then and whenever the
-    // label is off.
     const reasons = holds("", items, files, holdPaths, lifters, decision, true, pathHolds, missing);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);
     }
-    // The verifier's holds, recorded under their own annotation title
-    // (VERIFIER_TITLE): they share this step with the path holds.
     const verifier = [];
     if (verdictsFile && baselineOnly(pullAuthor(env.BABYSIT_VERIFY_PULL), files, env.LANES_APP_ID, env.BASELINE_FILE)) {
       console.log(`#${number}: no verifier hold: ${baselineNote(env.BASELINE_FILE)}.`);
@@ -1561,8 +1535,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     } else if (verdictsFile) {
       const records = lines(verdictsFile).map((line) => JSON.parse(line));
       let unverified = verdictHold(records, env.GITHUB_REPOSITORY);
-      // The reader's report; undefined when no evidence file is given or it
-      // does not read, which evidenceHold holds as unreadable.
       let evidence;
       if (evidenceFile) {
         try {
@@ -1577,13 +1549,10 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       } else if (unverified && records.length === 0 && refused) {
         unverified = `pr-verify's reader refuses this head's pass (${refused})`;
       }
-      // An approval lifts the verifier hold whole, the link with it.
       const relinked = unverified || approved.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
       if (!unverified && !relinked) {
         console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
       } else if (!unverified && approved.length === 0) {
-        // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
-        // so only a new head or an approval recovers it.
         verifier.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or ${APPROVAL_LIFTS}, then re-queue`);
       } else if (approved.length) {
         console.log(`#${number}: no verifier hold: ${approved.join(", ")} approved this head, which lifts '${unverified}'.`);
@@ -1600,8 +1569,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
         verifier.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or ${APPROVAL_LIFTS}, then re-queue`);
       }
     }
-    // In the merge queue only, where a moved head would merge: an approval of
-    // the head lifts it, as it lifts the verifier hold.
     const unpinned = verdictsFile ? pinHold(await withPinEdit(github, items), head) : null;
     if (unpinned && approved.length) {
       console.log(`#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '${escape(unpinned)}'.`);

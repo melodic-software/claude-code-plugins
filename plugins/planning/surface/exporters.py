@@ -847,7 +847,6 @@ def merged_register(d, text=None):
     responses = resp.get("responses") or {}
 
     def page_decided(q):
-        """True when the page holds a decision of its own, one made after any import."""
         stamps = [
             x.get("updatedAt") for x in (responses.get(q["id"]), q.get("terminal")) if x
         ]
@@ -861,9 +860,6 @@ def merged_register(d, text=None):
     numbers = ledger_numbers(text)
 
     def held_open(q, status, res, page_res):
-        """True when the ledger reopened q's row (`status` and `res` its ledger cells) and the
-        page's resolution `page_res` still holds the answer it reopened, given before the round
-        that asks it again was posted."""
         entry = reopened.get(f"Q{numbers[q['id']]}")
         tags = parse_tags(split_tags(res)[1], q["id"], "the ledger")
         if status != "open" or not entry or "reopened" not in tags:

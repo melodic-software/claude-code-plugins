@@ -65,7 +65,6 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 RC=.github/actions/resolve-config
 LINE='Broker deploy: melodic-software/azure-iac#44'
 
-# files <path>... : a pulls/<n>/files page with one entry per path.
 files() {
   local p out='['
   for p in "$@"; do out+="{\"filename\":\"$p\",\"status\":\"modified\"},"; done

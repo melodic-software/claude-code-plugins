@@ -27,10 +27,6 @@ TABLE=.github/artifact-retention.json
 WORKFLOW=.github/workflows/build.yml
 ACTION=.github/actions/pack/action.yml
 
-# mk_tree <out-var>: a table whose every row one upload matches, with the
-# retention the table names: an exact name, a dynamic name by its literal
-# prefix, a computed name by its uploading job, a `max` row, and an upload in a
-# composite action.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --sut "$SUT_MJS" --label artifact-retention || return 1
@@ -121,27 +117,20 @@ runs:
 EOF
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]: build a tree, run
-# <setup> in it, then the checker; assert the exit code and that every
-# <must-name> string appears in the output.
 run_case() { test_harness::check_case mk_tree check-artifact-retention.sh "$@"; }
 
-# subst <file> <from> <to>: replace every literal <from> in <file> with <to>.
 subst() {
   local text
   text=$(<"$1") || return 1
   printf '%s\n' "${text//"$2"/"$3"}" >"$1"
 }
 
-# drop_line <file> <line>: remove every line of <file> equal to <line>.
 drop_line() {
   local text
   text=$(grep -vxF -- "$2" "$1") || return 1
   printf '%s\n' "$text" >"$1"
 }
 
-# edit <file> <node expression>: rewrite a JSON file in place with a Node
-# expression over `t`, the parsed file.
 edit() {
   node -e 'const fs=require("fs");const f=process.argv[1];const t=JSON.parse(fs.readFileSync(f,"utf8"));'"$2"';fs.writeFileSync(f,JSON.stringify(t,null,2))' "$1"
 }
@@ -361,7 +350,6 @@ fi
 
 test_harness::assert_unknown_mode "$SUT_SRC"
 
-# This checkout: every upload step carries the retention its row names.
 out="$(bash "$SUT_SRC" --check 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]]; then

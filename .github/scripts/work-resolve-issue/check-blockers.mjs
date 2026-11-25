@@ -141,7 +141,7 @@ export async function main({ env = process.env, github, log = console.log, write
         // verdict or admission postdates its close (admit.mjs reportCleared).
         const after = judgedSince(events, (actor) => humans.has(actor?.id) || isApp(actor));
         const closed = closedByTrusted({ github: client, repository, humans, appId });
-        const trusted = clearedPastReport({ github: client, repository, isApp, trusted: closed, after });
+        const trusted = clearedPastReport({ github: client, repository, isApp, trusted: (blocker) => closed(blocker, { blocker: true }), after });
         pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
         subs = pending.length > 0 ? [] : await openSubIssues(client, base, issue);
         if (pending.length === 0 && subs.length === 0) {

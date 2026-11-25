@@ -57,7 +57,6 @@ FORMAT = "lcov"
 
 
 def _declare(key: tuple, order: list[tuple], declared: dict[str, list[tuple]]) -> None:
-    """Record a function identity the first time the section names it."""
     if key not in order:
         order.append(key)
         declared.setdefault(key[0], []).append(key)

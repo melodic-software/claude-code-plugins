@@ -148,8 +148,6 @@ run_in() {
   (cd "$dir" && "$@")
 }
 
-# capture <command...> — run it with the two streams kept apart, because keeping
-# them apart is half of what this suite asserts.
 capture() {
   local outf errf
   outf="$(mktemp)" || return 2
@@ -212,11 +210,9 @@ cleanup_hidden_paths() {
   return 0
 }
 
-# Installed BEFORE the first fixture_tree::build so the builder chains this trap
-# rather than replacing it: it records whatever trap it finds and runs it first.
 trap cleanup_hidden_paths EXIT
 
-assert_env_failure() { # <label>
+assert_env_failure() {
   local label="$1"
   if ((CAP_RC == 2)) && [[ -n "$CAP_ERR" && -z "$CAP_OUT" ]]; then
     ok "$label: a missing prerequisite exits 2 and reports on stderr"
@@ -225,7 +221,7 @@ assert_env_failure() { # <label>
   fi
 }
 
-assert_clean() { # <label>
+assert_clean() {
   local label="$1"
   if ((CAP_RC == 0)) && [[ -n "$CAP_OUT" ]]; then
     ok "$label: a clean tree exits 0 and says so on stdout"
@@ -234,7 +230,7 @@ assert_clean() { # <label>
   fi
 }
 
-assert_violation() { # <label> <needle>
+assert_violation() {
   local label="$1" needle="$2"
   if ((CAP_RC == 1)) && [[ "$CAP_ERR" == *"$needle"* && "$CAP_OUT" != *"$needle"* ]]; then
     ok "$label: a seeded violation exits 1 with its finding on stderr"
@@ -243,15 +239,9 @@ assert_violation() { # <label> <needle>
   fi
 }
 
-# --- fixture recipes ---------------------------------------------------------
-# One function per covered member: build the fixture for <clean|violation>, run
-# the member against it, and leave the result in CAP_*. Each is the SMALLEST
-# tree the member accepts, since the point here is the interface and not the
-# rule.
-
 HOOKS_LABELED='{"description":"Guards Bash calls.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash x.sh"}]}]}}'
 
-recipe::hooks_description() { # <clean|violation>
+recipe::hooks_description() {
   local body="$HOOKS_LABELED"
   [[ "$1" == violation ]] && body='{"hooks":{"PreToolUse":[]}}'
   fixture_tree::build f --sut "$SELF_DIR/check-hooks-description.sh" --plugins || return 2
@@ -260,7 +250,7 @@ recipe::hooks_description() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hooks-description.sh
 }
 
-recipe::hook_userconfig_argv() { # <clean|violation>
+recipe::hook_userconfig_argv() {
   local body="$HOOKS_LABELED"
   # shellcheck disable=SC2016  # the token is the literal violation; expansion would erase it
   [[ "$1" == violation ]] && body='{"description":"Guards Bash calls.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash","args":["${user_config.level}"]}]}]}}'
@@ -270,7 +260,7 @@ recipe::hook_userconfig_argv() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hook-userconfig-argv.sh
 }
 
-recipe::exec_form_windows_probe() { # <clean|violation>
+recipe::exec_form_windows_probe() {
   local body='{"description":"Asks.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["x.mjs"]}]}]}}'
   # shellcheck disable=SC2016
   [[ "$1" == violation ]] && body='{"description":"Asks.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/hooks/x.sh","args":["a"]}]}]}}'
@@ -283,7 +273,7 @@ recipe::exec_form_windows_probe() { # <clean|violation>
   capture run_in "$f" bash scripts/check-exec-form-windows-probe.sh
 }
 
-recipe::hook_exec_form() { # <clean|violation>
+recipe::hook_exec_form() {
   local body="$HOOKS_LABELED"
   [[ "$1" == violation ]] && body='{"description":"Guards Bash calls.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash","args":["x.sh"]}]}]}}'
   fixture_tree::build f \
@@ -295,7 +285,7 @@ recipe::hook_exec_form() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hook-exec-form.sh
 }
 
-recipe::hook_slow_shapes() { # <clean|violation>
+recipe::hook_slow_shapes() {
   # shellcheck disable=SC2016  # the literal hooks.json command; Claude Code expands it, not this suite
   local cmd='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh'
   # shellcheck disable=SC2016  # see above
@@ -313,10 +303,7 @@ recipe::hook_slow_shapes() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hook-slow-shapes.sh
 }
 
-recipe::killswitch_hoist() { # <clean|violation>
-  # The gate pins its inlined predicate against the real hook::is_enabled, so the
-  # fixture carries the real library: a stub would let the pin pass on text this
-  # repo does not ship.
+recipe::killswitch_hoist() {
   local guard
   fixture_tree::build f --sut "$SELF_DIR/check-killswitch-hoist.sh" --plugins || return 2
   mkdir -p "$f/lib" "$f/plugins/alpha/hooks"
@@ -339,7 +326,7 @@ exit 0'
   capture run_in "$f" bash scripts/check-killswitch-hoist.sh
 }
 
-recipe::docs_naming() { # <clean|violation>
+recipe::docs_naming() {
   local name=plugin-philosophy.md
   [[ "$1" == violation ]] && name=PLUGIN-Philosophy.md
   fixture_tree::build f --sut "$SELF_DIR/check-docs-naming.sh" --git --label docs-naming || return 2
@@ -350,7 +337,7 @@ recipe::docs_naming() { # <clean|violation>
   capture run_in "$f" bash scripts/check-docs-naming.sh --check
 }
 
-recipe::plugin_imports() { # <clean|violation>
+recipe::plugin_imports() {
   # shellcheck disable=SC2016  # the source lines are literal fixture text
   local load='source "$SCRIPT_DIR/../lib/x.sh"'
   # shellcheck disable=SC2016
@@ -363,7 +350,7 @@ recipe::plugin_imports() { # <clean|violation>
   capture run_in "$f" bash scripts/check-plugin-imports.sh
 }
 
-recipe::convention_yaml() { # <clean|violation>
+recipe::convention_yaml() {
   fixture_tree::build f --sut "$SELF_DIR/check-convention-yaml.sh" --git --label convention-yaml || return 2
   mkdir -p "$f/docs/conventions" "$f/plugins/alpha/schemas" "$f/lib"
   cp "$REPO_ROOT/lib/yaml-subset.awk" "$f/lib/yaml-subset.awk"
@@ -375,7 +362,7 @@ recipe::convention_yaml() { # <clean|violation>
   capture run_in "$f" env -u GITHUB_ACTIONS -u GITHUB_BASE_REF CHECK_JSONSCHEMA_BIN=true bash scripts/check-convention-yaml.sh --check
 }
 
-recipe::adr_numbers() { # <clean|violation>
+recipe::adr_numbers() {
   fixture_tree::build f --sut "$SELF_DIR/check-adr-numbers.sh" --label adr-numbers || return 2
   mkdir -p "$f/docs/adr"
   printf 'seed\n' >"$f/docs/adr/0001-first.md"
@@ -384,7 +371,7 @@ recipe::adr_numbers() { # <clean|violation>
   capture run_in "$f" bash scripts/check-adr-numbers.sh --check
 }
 
-recipe::spoke_plugin_root() { # <clean|violation>
+recipe::spoke_plugin_root() {
   local spoke=plugins/demo/skills/audit/context/step.md
   fixture_tree::build f --sut "$SELF_DIR/check-spoke-plugin-root.sh" --label spoke-plugin-root || return 2
   mkdir -p "$f/${spoke%/*}"
@@ -395,7 +382,7 @@ recipe::spoke_plugin_root() { # <clean|violation>
   capture run_in "$f" bash scripts/check-spoke-plugin-root.sh --check
 }
 
-recipe::as_of_recheck() { # <clean|violation>
+recipe::as_of_recheck() {
   local skill=plugins/demo/skills/audit/SKILL.md
   fixture_tree::build f --sut "$SELF_DIR/check-as-of-recheck.sh" --label as-of-recheck || return 2
   mkdir -p "$f/${skill%/*}"
@@ -405,7 +392,7 @@ recipe::as_of_recheck() { # <clean|violation>
   capture run_in "$f" bash scripts/check-as-of-recheck.sh --check
 }
 
-recipe::cost_figures() { # <clean|violation>
+recipe::cost_figures() {
   local skill=plugins/demo/skills/audit/SKILL.md
   fixture_tree::build f --sut "$SELF_DIR/check-cost-figures.sh" --label cost-figures || return 2
   mkdir -p "$f/${skill%/*}"
@@ -416,7 +403,7 @@ recipe::cost_figures() { # <clean|violation>
   capture run_in "$f" bash scripts/check-cost-figures.sh --check
 }
 
-recipe::queue_front_matter() { # <clean|violation>
+recipe::queue_front_matter() {
   local status=unclaimed
   [[ "$1" == violation ]] && status=open
   fixture_tree::build f --sut "$SELF_DIR/check-queue-front-matter.sh" --label queue || return 2
@@ -433,7 +420,7 @@ EOF
   capture run_in "$f" bash scripts/check-queue-front-matter.sh queue
 }
 
-recipe::html_assets() { # <clean|violation>
+recipe::html_assets() {
   local asset=plugins/demo/reference/html-chrome.html
   fixture_tree::build f --sut "$SELF_DIR/check-html-assets.sh" --git --plugins || return 2
   mkdir -p "$f/plugins/demo/reference"
@@ -453,7 +440,7 @@ HTML
     bash "$f/scripts/check-html-assets.sh"
 }
 
-recipe::changelog_parity() { # <clean|violation>
+recipe::changelog_parity() {
   fixture_tree::build f --sut "$SELF_DIR/check-changelog-parity.sh" --plugins || return 2
   mkdir -p "$f/plugins/alpha/.claude-plugin"
   printf '%s\n' '{"name":"alpha","version":"0.1.0"}' >"$f/plugins/alpha/.claude-plugin/plugin.json"
@@ -463,7 +450,7 @@ recipe::changelog_parity() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-parity.sh --check
 }
 
-recipe::changelog_fragments() { # <clean|violation>
+recipe::changelog_fragments() {
   local listed=alpha
   [[ "$1" == violation ]] && listed=""
   fixture_tree::build f --sut "$SELF_DIR/check-changelog-fragments.sh" --plugins || return 2
@@ -474,7 +461,7 @@ recipe::changelog_fragments() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-fragments.sh --check
 }
 
-recipe::pipefail_grep_q() { # <clean|violation>
+recipe::pipefail_grep_q() {
   # shellcheck disable=SC2016  # literal shell source for the fixture; nothing here should expand
   local body='grep -q x <<<"$v"'
   # shellcheck disable=SC2016  # see above
@@ -484,7 +471,7 @@ recipe::pipefail_grep_q() { # <clean|violation>
   capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
 }
 
-recipe::upstream_drift() { # <clean|violation>
+recipe::upstream_drift() {
   local pin=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   local blob=1111111111111111111111111111111111111111
   fixture_tree::build f --sut "$SELF_DIR/check-upstream-drift.sh" --label upstream-drift || return 2
@@ -502,7 +489,6 @@ recipe::upstream_drift() { # <clean|violation>
   capture run_in "$f" env UPSTREAM_DRIFT_FIXTURE_DIR="$f/fx" bash scripts/check-upstream-drift.sh
 }
 
-# The finding each recipe's violation arm must produce, keyed by recipe slug.
 declare -A VIOLATION_NEEDLE=(
   [hooks_description]='HOOKS DESCRIPTION:'
   [hook_userconfig_argv]='USERCONFIG ARGV:'

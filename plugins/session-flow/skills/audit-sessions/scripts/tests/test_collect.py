@@ -1,12 +1,4 @@
-# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/*
-"""Contract tests for collect.py: the CLI envelope and the store records it writes.
-
-Runs the scripts by subprocess, testing the CLI interface, not internals. The tracer test also
-drives sweep.py over the store and transcript_reader.py through collect; repo identity comes from
-lib/state-key.sh. Fixtures: `tracer/proj-a/tracer-0001.jsonl`; `multi/proj-a/sess-a1.jsonl` with
-`sess-a1/subagents/agent-x1.jsonl`, `multi/proj-a/sess-a2.jsonl`, `multi/proj-b/sess-b1.jsonl`.
-Their `cwd` values are placeholders rewritten to `tmp_path` directories.
-"""
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/* plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/tracer/proj-a/tracer-0001.jsonl
 
 from __future__ import annotations
 
@@ -334,7 +326,6 @@ def test_skipping_run_leaves_the_store_a_forced_run_would_write(data_dir, multi)
     assert skipped == forced
 
 
-# The files that decide what a record holds, relative to the plugin root, as the requirement lists them.
 HASHED_INPUTS = (
     "scripts/collect.py",
     "scripts/census.py",
@@ -393,7 +384,6 @@ def test_plugin_version_change_alone_skips_every_session(data_dir, multi, plugin
     manifest["version"] = "999.0.0"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     assert counts(collect_with(plugin_copy, data_dir, root)) == (0, 3)
-    # Skipped records keep the version that wrote them; it is provenance, not policy.
     assert records(data_dir)["sess-a1"]["collector_version"] != "999.0.0"
     assert counts(collect_with(plugin_copy, data_dir, root, "--force")) == (3, 0)
     assert records(data_dir)["sess-a1"]["collector_version"] == "999.0.0"
@@ -432,7 +422,6 @@ with open(out, "w", encoding="utf-8") as handle:
 
 
 def unhashed_plugin_files(plugin: Path, data_dir: Path, root: Path, tmp_path: Path) -> set[str]:
-    """Plugin files a collect run imports, opens or executes that are not hashed (plugin.json is provenance)."""
     driver, out = tmp_path / "audit_driver.py", tmp_path / "touched.json"
     driver.write_text(AUDIT_DRIVER, encoding="utf-8")
     plugin = plugin.resolve()
@@ -500,7 +489,6 @@ def test_clear_after_the_first_turn_does_not_start_the_session(data_dir, multi):
 
 
 def write_session(root: Path, sid: str, turns: list[str]) -> None:
-    """A session where each typed turn follows an assistant reply."""
     lines = []
     for n, text in enumerate(turns):
         lines.append({"type": "assistant", "uuid": f"a{n}", "timestamp": f"2026-09-25T10:{n:02d}:00Z",
@@ -553,7 +541,6 @@ def test_ignored_record_types_change_no_metric(data_dir, multi, tmp_path):
     assert collect(data_dir, root).returncode == 0
     before = records(data_dir)["sess-a1"]
     path = root / "proj-a" / "sess-a1.jsonl"
-    # Fields the collector reads off any known record, so a leak would show in the record.
     leak = {"cwd": "/leak", "version": "9.9.9", "gitBranch": "leak-branch", "entrypoint": "sdk-cli",
             "timestamp": "2026-12-31T23:59:59Z", "message": {"id": "msg_leak", "usage": {"output_tokens": 99}}}
     ignored = [r for r in current_types() if r["type"] != "ai-title"]
@@ -568,7 +555,6 @@ def test_ignored_record_types_change_no_metric(data_dir, multi, tmp_path):
     assert after["unknown"] == before["unknown"]
     assert after["parse"]["records"] == before["parse"]["records"] + len(ignored)
     assert after["parse"]["unknown"] == before["parse"]["unknown"]
-    # Only the transcript's size and the per-version key census see the extra lines.
     unchanged = set(before) - {"fingerprint", "parse", "census", "ingested_at"}
     assert {k: after[k] for k in unchanged} == {k: before[k] for k in unchanged}
 
@@ -589,7 +575,6 @@ def test_ai_title_is_a_redacted_link_key(data_dir, multi):
 
 def test_overlong_typed_turn_is_skipped_unredacted_and_counted(data_dir, tmp_path):
     root = tmp_path / "projects"
-    # One 200 KB word passes the word gate; redacting it took minutes before the length cap.
     write_session(root, "sess-long", ["a-" * 100_000, "short reply"])
     started = time.monotonic()
     result = collect(data_dir, root)
@@ -690,10 +675,8 @@ def test_subagent_branch_and_pr_link_are_stored_apart_from_the_main_session(data
 
 
 def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
-    """Collect from a copy of the plugin's script layout whose one vendored rule cannot compile."""
     plugin = tmp_path / "plugin"
     (plugin / "scripts").mkdir(parents=True)
-    # The same manifest, so the copy reports the same collector version as the real script.
     shutil.copytree(PLUGIN_SCRIPTS.parent / ".claude-plugin", plugin / ".claude-plugin")
     for name in ("collect.py", "census.py", "friction_scan.py", "redact.py", "transcript_reader.py"):
         shutil.copy2(PLUGIN_SCRIPTS / name, plugin / "scripts")
@@ -776,7 +759,6 @@ def test_files_older_than_retention_are_not_parsed(data_dir, multi):
 
 def test_removed_cwd_gives_null_identity_and_one_warning(data_dir, multi):
     root, _ = multi
-    # A second session in a different removed directory: still one warning.
     source = (root / "proj-b" / "sess-b1.jsonl").read_text(encoding="utf-8")
     source = source.replace("sess-b1", "sess-b2").replace("removed", "removed-too")
     (root / "proj-b" / "sess-b2.jsonl").write_text(source, encoding="utf-8", newline="\n")
@@ -923,7 +905,6 @@ def test_orphaned_record_an_earlier_collector_stored_is_purged(data_dir, tmp_pat
     assert collect(data_dir, tmp_path / "projects").returncode == 0
     normal = next((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/gold-0010.json"))
     before = normal.read_bytes()
-    # The record an earlier collector wrote for the set-aside transcript, beside the real one.
     orphan_id = "gold-0010.orphaned-1759500000000-cd34"
     stale = json.loads(before)
     stale["session_id"] = orphan_id

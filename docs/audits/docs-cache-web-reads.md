@@ -91,10 +91,10 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | knowledge | `skills/video-digest/extraction/harvesting/fetch-deck-attachments.js:256` | `node:https` download of deck attachments from harvested links | kept | File downloads, not pages |
 | knowledge | `skills/map-corpus/discovery/link-map-format.md:31` | WebFetch or curl of discovery snapshots | kept | Sitemaps and forge tree listings that a deterministic parser reads byte for byte; the pages themselves are read by the fetch route (line 35) |
 | machine-health | `skills/audit/scripts/windows/lib/Invoke-AllowlistedWeb.ps1:92` | `Invoke-WebRequest` behind a host allowlist | kept | Microsoft Update, winget and CISA KEV data endpoints, logged per call; not docs pages |
-| machine-health | `skills/audit/scripts/windows/lib/Get-CisaKevCache.ps1:141` | CISA KEV feed download | kept | JSON data feed with its own cache; not a page |
+| machine-health | `skills/audit/scripts/windows/lib/Get-CisaKevCache.ps1:138` | CISA KEV feed download | kept | JSON data feed with its own cache; not a page |
 | miro | `server/src/miro-client.ts:33` | Miro REST API through the `@mirohq/miro-api` SDK | kept | Authenticated API, not a page |
 | multi-agent | `agents/drift-checker.md:4` | WebFetch grant | kept | WebFetch-only judge by design, held to first-party docs hosts by a hook; pages reach it as slices read through the cache |
-| multi-agent | `workflows/drift-audit.js:300` | Checkers WebFetch a page the slices do not cover, also at line 302 | kept | The checkers have no shell; every page the slices hold came through the cache |
+| multi-agent | `workflows/drift-audit.js:289` | Checkers WebFetch a page the slices do not cover, also at line 291 | kept | The checkers have no shell; every page the slices hold came through the cache |
 | multi-agent | `skills/audit-defaults/SKILL.md:110` | WebFetch when the cached read fails | kept | Fallback for when the cached read fails |
 | performance | `agents/go-faster-sweeper.md:4` | WebFetch grant | kept | Fallback for a pointer `fetch-docs.sh` records unread |
 | performance | `skills/go-faster/reference/areas.md:53` | WebFetch when the manifest records a page unread | kept | Fallback; the primary read is already on the cache |
@@ -126,8 +126,8 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | user-interface | `skills/write-animation/SKILL.md:65` | WebFetch on official docs as the fourth route | kept | Used when `/context7:lookup` and `/discovery:research` give no answer; the plugin carries no cache copy |
 | wizard | `skills/generate/template.sh:761` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |
 | work-items | `skills/onboard-adapter/scripts/templates/common.sh.tmpl:286` | Tracker REST call in the generated adapter template | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/gitea/common.sh:321` | Gitea REST API | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/jira/common.sh:297` | Jira REST API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/seeds/gitea/common.sh:313` | Gitea REST API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/seeds/jira/common.sh:290` | Jira REST API | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/seeds/linear/common.sh:360` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/conformance/bindings/linear.sh:49` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/seeds/linear/schema-check/fetch-schema.sh:16` | curl of Linear's `schema.graphql` | kept | Schema file compared against the adapter, not a page |

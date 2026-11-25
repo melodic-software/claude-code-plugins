@@ -354,8 +354,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || {
 # self-test can drive small synthetic repos without shipping a second code path.
 THRESHOLD="${SILENT_REVERT_THRESHOLD:-200}"
 WINDOW="${SILENT_REVERT_WINDOW:-40}"
-# Sample lines quoted back in a finding, and the minimum length for a line to be
-# worth quoting (a bare brace tells a reader nothing).
 SAMPLES="${SILENT_REVERT_SAMPLES:-5}"
 SAMPLE_MIN_LEN=25
 MOVED_LINE_MIN_LEN=25
@@ -453,8 +451,6 @@ declares_removal() {
     printf 'the body carries a "This reverts commit <sha>" line\n'
     return 0
   fi
-  # The explicit ack. Requires a non-empty reason so an empty trailer cannot be
-  # pasted in as a blanket mute.
   if grep -Eq '^Intentional-removal:[[:space:]]*[^[:space:]]' <<<"$msg"; then
     printf 'the body carries an Intentional-removal trailer\n'
     return 0
@@ -1155,14 +1151,6 @@ scan_commit() {
     p="${p#plugins/}"
     scope+=(":(exclude,literal).changes/${p%/CHANGELOG.md}/")
   done <"$enum_list"
-  # A release also deletes every `bump: none` fragment, including those of a
-  # plugin it does not release, whose CHANGELOG.md it leaves alone
-  # (scripts/release-plugins.sh). A none fragment never reaches a CHANGELOG,
-  # so deleting it loses no shipped content. In a commit that changes some
-  # fragment root's CHANGELOG.md, the release shape (the release workflow
-  # opens no pull request when nothing released), each deleted
-  # .changes/<p>/<name>.md whose front matter at the parent reads exactly
-  # `bump: none` is skipped. Every other deletion still counts.
   local file
   if [[ -s "$enum_list" ]]; then
     local frag_body
@@ -1192,7 +1180,6 @@ scan_commit() {
   rm -f "$file_attr" "$enum_list"
   discount_moved_lines "$parent" "$sha" "$attributed"
 
-  # Keep only lines whose culprit is inside the recency window.
   local in_window
   in_window="$(mktemp)" || die "mktemp failed"
   if [[ -s "$attributed" ]]; then
@@ -1405,8 +1392,6 @@ largest_attributions() {
   ' "$src"
 }
 
-# report_mismatch <headline> <recorded-label> <expected-file> <observed-file> <row-kind>
-# Prints the FAIL block for a row whose recorded attribution did not reproduce.
 report_mismatch() {
   printf 'FAIL %s\n' "$1"
   printf '     recorded %s:\n' "$2"
@@ -1534,11 +1519,6 @@ verify_known_incidents() {
 
   rm -f "$expected_file" "$observed_file" "$all_attr_file"
 
-  # Zero rows verified is a broken input, not a pass. An empty file, a
-  # comments-only file, or a file whose only row was dropped by a missing
-  # trailing newline would fall through to the success banner -- the
-  # self-proof lane reporting that it reproduced every recorded incident
-  # after it reproduced none.
   ((verified > 0)) ||
     die "$INCIDENTS_FILE verified zero rows -- an incident file that pins nothing is a broken input, not a pass"
 
@@ -1641,16 +1621,6 @@ parse_incidents_file() {
 
   local line kind sha path rest reason marker
   while IFS= read -r line || [[ -n "$line" ]]; do
-    # Split FIRST, then decide what the row is, so blank/comment recognition is
-    # done on the trimmed leading field rather than on the raw line.
-    #
-    # Testing the raw line instead would make an INDENTED comment ("  # note")
-    # or a whitespace-only line an "unknown row kind" and exit 2 -- while
-    # verify_known_incidents (which reads the same file through `read`) skips
-    # both, and t_shipped_data_files_are_wellformed explicitly accepts
-    # `^[[:space:]]*(#|$)`. Three readers of one file must not disagree about
-    # what a comment is: a formatting-only edit to this corpus would otherwise
-    # turn the canary red for a reason having nothing to do with the canary.
     read -r kind sha path rest <<<"$line"
 
     case "$kind" in
@@ -1871,12 +1841,6 @@ verify_restoration() {
   trap "rm -f '$fires' '$markers'" EXIT
   parse_incidents_file "$fires" "$markers"
 
-  # A corpus with no `fires` row at all must not report a serene pass. The
-  # marker-per-fires-row rule below only bites while a `fires` row exists, so
-  # deleting a row together with its markers would otherwise leave
-  # "Every recorded incident has its content (0 marker(s))" and exit 0 -- the
-  # mute button this corpus exists in order not to have, reached by removal
-  # instead of by editing.
   [[ -s "$fires" ]] ||
     die "$INCIDENTS_FILE records no 'fires' row -- the restoration assertion would pass while covering nothing"
 
@@ -1909,9 +1873,6 @@ verify_restoration() {
   local mpath mreason mtext
   while IFS="$SEP" read -r sha mpath mreason mtext; do
     [[ -n "$sha" ]] || continue
-    # And the reverse: a marker on a `clean` row, or on a sha with no row at
-    # all, is a typo rather than coverage. Only a removal has content to
-    # restore.
     grep -qxF "$sha" "$fires" ||
       die "marker row for $sha in $INCIDENTS_FILE names no recorded 'fires' incident"
   done <"$markers"
@@ -1930,9 +1891,6 @@ verify_restoration() {
       printf '        deliberately not restored: %s\n' "$mreason"
       printf '        marker: %s\n' "$mtext"
     else
-      # Never break out of the walk on the first failure: the point of the
-      # report is WHICH content is still missing, and a run that stops at the
-      # first one answers a question nobody asked.
       absent=$((absent + 1))
       rc=1
       printf 'FAIL  %s  %s\n' "${sha:0:9}" "$mpath"
@@ -1969,10 +1927,6 @@ main() {
     exit $?
     ;;
   --verify-restoration)
-    # The rev is optional and defaults to the working tree, which is what the
-    # canary workflow wants (is the content on main RIGHT NOW) while the
-    # explicit form is what lets a reviewer replay the assertion against the
-    # historical tree an incident was measured on.
     [[ $# -le 2 ]] || usage
     verify_restoration "${2:-}"
     exit $?
@@ -1983,7 +1937,6 @@ main() {
     exit $?
     ;;
   -*) usage ;;
-  # Anything else is a range, handled below.
   *) ;;
   esac
 

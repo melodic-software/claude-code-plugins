@@ -437,5 +437,37 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" --wor
 expect "missing shellcheck, --worktree: an agent fails as at commit time" \
   "1|FAIL: shellcheck missing. Install: $SC_INSTALL" "$?|${out%%$'\n'*}"
 
+if command -v shellcheck >/dev/null 2>&1; then
+  STD="$WORK/standards"
+  mkdir -p "$STD" "$WORK/home"
+  printf 'disable=SC2154\n' >"$STD/.shellcheckrc"
+  UNSET="$SHEBANG"$'\necho "$never_assigned"'
+  opt_in() {
+    mkdir -p "$REPO/docs/conventions"
+    printf 'standards_repository: acme/standards\n' >"$REPO/docs/conventions/source-control.yaml"
+  }
+  std_check() { HOME="$WORK/home" STANDARDS_DIR="$1" check "$REPO"; }
+  new_repo NONE
+  opt_in
+  printf '%s\n' "$UNSET" >"$REPO/u.sh"
+  git -C "$REPO" add -A
+  expect "standards default: the standards .shellcheckrc's disable holds" "0||" "$(std_check "$STD")"
+  expect "standards default, control: with no standards checkout SC2154 blocks" "1||u.sh:2: warning: never_assigned is referenced but not assigned. [SC2154]
+$HINT" "$(std_check "$WORK/nowhere")"
+  expect "standards default: --resolve names the standards rc" \
+    "bash-format	lint	adapter:shellcheck	shellcheck	yes	config the standards .shellcheckrc; binary shellcheck on PATH" \
+    "$(cd "$REPO" && HOME="$WORK/home" STANDARDS_DIR="$STD" bash "$CHECK" --resolve)"
+  printf '%s\necho edited\n' "$UNSET" >"$REPO/u.sh"
+  expect "standards default: a partly staged script is linted from the index with the standards rc" "0||" "$(std_check "$STD")"
+  new_repo '# the repository rc'
+  opt_in
+  printf '%s\n' "$UNSET" >"$REPO/u.sh"
+  git -C "$REPO" add -A
+  expect "standards replace: the repository's .shellcheckrc replaces the standards rc whole" "1||u.sh:2: warning: never_assigned is referenced but not assigned. [SC2154]
+$HINT" "$(std_check "$STD")"
+else
+  echo "SKIP: shellcheck not on PATH -- standards rc cases skipped"
+fi
+
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

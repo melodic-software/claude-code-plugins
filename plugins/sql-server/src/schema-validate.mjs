@@ -1,6 +1,3 @@
-// A JSON Schema (draft 2020-12) validator for the keyword subset the plugin's
-// own schemas use. A schema holding any other keyword is refused at compile
-// time, so the schema cannot grow a rule this code would silently skip.
 const ANNOTATIONS = new Set(['$schema', '$id', 'title', 'description']);
 const KEYWORDS = new Set([
   'type',

@@ -22,7 +22,6 @@ while [[ $# -gt 0 ]]; do
     label="$2"
     shift 2
     ;;
-  # Parsed and discarded: the value has nothing to re-target (see the header).
   --repo)
     [[ $# -ge 2 ]] || wit_usage_error "--repo needs a value"
     shift 2
@@ -38,8 +37,6 @@ esac
 wit_need_storage
 limit="$(jq -r '.limits.list_items_max' "$WIT_LOCAL_ADAPTER_DIR/capabilities.json")"
 
-# `truncated` is true only when a matching item past the ceiling exists, so a store
-# holding exactly `limit` matches still reads as complete.
 emitted=0 truncated=false rows=""
 for n in $(wit_item_numbers); do
   file="$(wit_item_file "$n")"

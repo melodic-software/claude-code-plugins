@@ -6,11 +6,12 @@
 // the maximum execution time") while lint-shell failed its
 // fixture-git-isolation check, and 39716948399, whose only failure is
 // ci-status (a superseded contract-only run).
+// test-scope: .github/scripts/maintenance-reconcile-lost-runs/fixtures/jobs-*.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { contractOnly, gateEntries, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, stepsKnown, testedRun, timeLimitNoted } from "./infra-failure.mjs";
+import { contractOnly, gateEntries, infraCause, infraOnly, reconcilerOwns, reconcilerRetries, setupFailed, stepsKnown, testedRun, timeLimitNoted } from "./infra-failure.mjs";
 
 const recorded = (id) => JSON.parse(readFileSync(new URL(`./fixtures/jobs-${id}.json`, import.meta.url), "utf8")).jobs;
 const MIXED = recorded(39710654665);
@@ -155,6 +156,21 @@ test("a tail-cut job with no runner-loss annotation stays unknown", () => {
   assert.equal(infraCause(died("Process completed with exit code 1.")), "");
   assert.equal(infraCause(died("The runner has received a shutdown signal.", "warning")), "");
   assert.equal(infraOnly([{ ...cut, status: "completed", annotations: [] }]), false);
+});
+
+test("a job that failed at job setup lists every step that ran, though its list is not whole", () => {
+  for (const run of [45535944989, 45533783420]) {
+    const failed = recorded(run).filter((j) => j.conclusion === "failure");
+    assert.equal(failed.length, 1, String(run));
+    assert.equal(setupFailed(failed[0]), true, String(run));
+    assert.equal(stepsKnown(failed[0]), false, String(run));
+  }
+  const [failed] = recorded(45535944989).filter((j) => j.conclusion === "failure");
+  const setup = (conclusion) => ({ ...failed.steps[0], conclusion });
+  assert.equal(setupFailed({ ...failed, steps: [setup("success"), { number: 2, name: "Check the trigger", status: "completed", conclusion: "failure" }] }), false);
+  assert.equal(setupFailed({ ...failed, status: "in_progress", conclusion: null }), false);
+  assert.equal(setupFailed({ ...failed, conclusion: "success", steps: [setup("success")] }), false);
+  assert.equal(setupFailed({ ...failed, steps: [setup("success")] }), false);
 });
 
 test("the reconciler keeps a run whose failed jobs' steps did not list, inside its re-run window and RERUN_DUE_MINUTES", () => {

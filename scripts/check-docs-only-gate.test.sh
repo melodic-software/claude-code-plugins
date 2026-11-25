@@ -556,10 +556,6 @@ xform_delete "$base" "      - gamma" "$f"
 xform_insert_after "$f" "  gamma:" "    if: needs.select-tests.outputs.run_python == 'true'" "$scratch/gamma-not-required-2.yml"
 expect "a job-level condition outside the closure is allowed" 0 "scope resolved once" --check "$scratch/gamma-not-required-2.yml"
 
-# A workflow with no aggregate at all is INCONCLUSIVE, not one defect among
-# others: an empty closure makes both rules above pass every workflow, so
-# reporting a single line while two rules quietly stopped asking would be worse
-# than refusing. Exit 2, like a missing resolver.
 f="$scratch/no-aggregate.yml"
 xform_replace_line "$base" "  ci-status:" "  renamed-status:" "$f"
 expect "a missing aggregate is inconclusive, never a pass" 2 "closure cannot be computed" --check "$f"
@@ -644,9 +640,6 @@ f="$scratch/shallow-needs-item.yml"
 xform_replace_line "$base" "      - select-tests # the resolver" "    - select-tests" "$f"
 expect "a same-indent needs item is a declared edge, not a defect" 0 "scope resolved once" --check "$f"
 
-# `continue-on-error` decides whether a failure is absorbed. An expression-valued
-# one cannot be judged without evaluating it, so the gate must refuse rather than
-# guess in either direction.
 f="$scratch/expression-coe.yml"
 xform_replace_line "$base" "        continue-on-error: true" "        continue-on-error: \${{ true }}" "$f"
 expect "an expression-valued continue-on-error is inconclusive, never a pass" 2 "not a literal true/false" --check "$f"

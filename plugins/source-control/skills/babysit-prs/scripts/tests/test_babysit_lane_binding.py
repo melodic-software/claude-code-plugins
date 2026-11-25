@@ -208,13 +208,11 @@ class CheckerTests(unittest.TestCase):
         api = FakeActions({RUN: lane_run([record_entry(body)])})
         check = api.checker()
         self.assertTrue(check(comment(body)))
-        # Another id, kind, pull request, lane or body digest: not listed.
         self.assertFalse(check(comment(body, id=12)))
         self.assertFalse(check(comment(body, kind="issue_comment")))
         self.assertFalse(api.checker(pr=8)(comment(body)))
         self.assertFalse(check(comment(bound("finding", lane="claude-security-review"))))
         self.assertFalse(check(comment(bound("other"))))
-        # One run and one artifacts read per run per checker.
         self.assertEqual(api.calls.count(("run", RUN)), 2)
         self.assertEqual(api.calls.count(("artifacts", RUN)), 2)
 
@@ -232,7 +230,6 @@ class CheckerTests(unittest.TestCase):
         other = bound("finding", sha="b" * 40)
         api = FakeActions({RUN: lane_run([record_entry(other)])})
         self.assertFalse(api.checker()(comment(other)))
-        # The security lane's footer against the code lane's caller.
         sec = bound("finding", lane="claude-security-review")
         api = FakeActions({RUN: lane_run([record_entry(sec, lane="claude-security-review")])})
         self.assertFalse(api.checker()(comment(sec)))

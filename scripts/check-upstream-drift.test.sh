@@ -234,8 +234,6 @@ want_rc "path with space, = and |" 1
 want_out_line "path with space, = and |" "row line=7 status=A path=skills/alpha/a b=c|d.md"
 want_out_line "path with space, = and |" "page repo=acme/widgets pin=aaaaaaaaaaaa head=bbbbbbbbbbbb status=drift path=$PAGE"
 
-# A control character in a tree path exits 2 with nothing on stdout. A raw
-# newline splits the fixture line, so the second half is a malformed line.
 for ctl in tab cr newline; do
   case "$ctl" in
   tab) setup "${PIN_TREE[@]}" "$B4 skills/alpha/a"$'\t'"b.md" ;;

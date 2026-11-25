@@ -1,4 +1,4 @@
-// test-scope: .github/scripts/work-resolve-issue/* .github/scripts/branch-cleanup/* .github/actions/check-born-triaged/check-born-triaged.mjs
+// test-scope: .github/scripts/work-resolve-issue/* .github/scripts/branch-cleanup/* .github/actions/check-born-triaged/check-born-triaged.mjs .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -5040,9 +5040,6 @@ test("main fails a crashed run whose retries are spent: Work status to needs-tri
   });
 });
 
-// Element 4 of docs/conventions/pr-pipeline/README.md#outage-posture: a fault is no evidence about the
-// issue, so retries that were all faults do not fail it. The earlier retries'
-// comments here are the ones main itself posts, for the crash below.
 const crashRetryComment = async () =>
   withAsyncDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([

@@ -162,7 +162,6 @@ if [[ -z "$STATE_KEY" ]]; then
   die "state-key.sh produced no state key"
 fi
 
-# Read the body before creating anything, so an empty report writes nothing.
 STAGED_INPUT=$(mktemp "${TMPDIR:-/tmp}/persist-report.XXXXXX") || fail_write "cannot stage the report"
 if [[ "$REPORT" == "-" ]]; then
   cat >"$STAGED_INPUT" || fail_write "cannot read the report from stdin"

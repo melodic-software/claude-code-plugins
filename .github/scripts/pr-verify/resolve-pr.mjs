@@ -94,7 +94,6 @@ export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
 const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
-// The jobs as JOBS_FILE lists them, each with the job page the verifier cites.
 export const shapeJobs = (runId, jobs) => ({
   run_id: Number(runId),
   jobs: jobs.map((job) => ({ name: String(job?.name ?? ""), conclusion: job?.conclusion ?? null, url: typeof job?.html_url === "string" ? job.html_url : null })),

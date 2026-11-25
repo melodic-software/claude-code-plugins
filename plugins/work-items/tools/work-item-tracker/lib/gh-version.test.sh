@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/gh-version.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
 
 STUB_BIN="$(mktemp -d)"
-NOGH="$(mktemp -d)" # left empty: the "gh absent from PATH" case
+NOGH="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN" "$NOGH"' EXIT
 
 cat >"$STUB_BIN/gh" <<'EOF'

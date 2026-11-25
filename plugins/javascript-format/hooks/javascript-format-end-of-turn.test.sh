@@ -59,8 +59,6 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# The finding lines are the tool's own documented messages; the closing hint
-# line is this plugin's wording, so the case drops it instead of restating it.
 findings() { printf '%s' "${1%$'\n'*}"; }
 FINDING='a.ts:2: lint/correctness/noUnusedVariables: This variable unusedVar is unused.'
 printf 'export const seed = 1;\nconst unusedVar = 1;\n' >"$R/a.ts"

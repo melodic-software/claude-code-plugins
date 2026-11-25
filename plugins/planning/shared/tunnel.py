@@ -211,7 +211,6 @@ def config(rec):
 
 
 def _load(path):
-    """The JSON document at `path`, or None when it cannot be read or parsed."""
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -219,7 +218,6 @@ def _load(path):
 
 
 def _has_pid(rec):
-    """True when rec is a record naming a process id."""
     return isinstance(rec, dict) and isinstance(rec.get("pid"), int)
 
 
@@ -255,9 +253,6 @@ def _legacy_start(rec):
 
 
 def _ours(data_dir, rec, held):
-    """True when rec's process is the recorded cloudflared. A record with no processStart is
-    accepted once, when _legacy_start proves it, and gets processStart written back (under the
-    tunnel lock, which `held` says the caller already has), so an update keeps the guest link."""
     if rec.get("processStart"):
         return detached.alive(*_identity(rec))
     start = _legacy_start(rec)
@@ -286,7 +281,6 @@ def host(url):
 
 
 def _wait_url(proc, log, seconds, pattern=BANNER):
-    """The first match of `pattern` in the log (its group 1 when it has one), or None once cloudflared exits or time is up."""
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         try:
@@ -302,10 +296,6 @@ def _wait_url(proc, log, seconds, pattern=BANNER):
 
 
 def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verify=None, path=None, log_name=LOG, fields=None):
-    """Start cloudflared in `data_dir` and write its record, with `retired_entry` (a tunnel left running) as its retired.
-    `verify(url)`, when given, says why the new address does not reach this session (else None); then nothing is
-    recorded. `path`, `log_name` and `fields`: another record than the session's (a live prototype's), its log, and the
-    fields it keeps beside the tunnel's."""
     problem = hostname and (hostname_problem(hostname) or token_file_problem(token_file))
     if problem:
         raise TunnelDown(problem)
@@ -443,7 +433,6 @@ def _url_arg(args):
 
 
 def _points_at(args, port):
-    """True when the one `--url` in args is http://127.0.0.1:<port> or http://localhost:<port>."""
     try:
         target = urllib.parse.urlsplit(_url_arg(args) or "")
         to = (target.scheme, target.hostname, target.port)
@@ -486,8 +475,6 @@ def adopt(data_dir, pid, url, port):
 
 
 def _end(rec):
-    """Stop the recorded cloudflared, unless it was adopted: that one is never signaled, so the
-    prototype it came from can take its link back. True when one was stopped."""
     return not rec.get("adopted") and detached.stop(*_identity(rec))
 
 
@@ -552,7 +539,6 @@ def write_live(path, rec):
 
 
 def _server(rec):
-    """(pid, marker, start) of the static server a live record names, or None."""
     srv = rec.get("server")
     if not _has_pid(srv):
         return None

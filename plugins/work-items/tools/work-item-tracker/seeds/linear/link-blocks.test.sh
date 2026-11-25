@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# link-blocks: offline contract tests. The case that matters most is DIRECTION — an
-# inverted edge would make the frontier release exactly the items it should hold, and
-# nothing would report an error.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/link-blocks.sh"
 D="$(dirname "$S")"
