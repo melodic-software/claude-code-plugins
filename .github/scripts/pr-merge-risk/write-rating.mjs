@@ -39,20 +39,32 @@ const contentOf = (message) => (Array.isArray(message?.message?.content) ? messa
 
 export function unreadParts(messages, parts) {
   const list = Array.isArray(messages) ? messages : [];
-  const failed = new Set(list.flatMap((message) => contentOf(message).filter((block) => block?.type === "tool_result" && block.is_error === true).map((block) => block.tool_use_id)));
-  const reach = new Map();
+  const thread = (message) => message?.parent_tool_use_id ?? "";
+  const succeeded = new Set(
+    list
+      .filter((message) => message?.type === "user")
+      .flatMap((message) => contentOf(message).filter((block) => block?.type === "tool_result" && block.is_error !== true).map((block) => `${thread(message)}\0${block.tool_use_id}`)),
+  );
+  const ranges = new Map();
   for (const message of list) {
     if (message?.type !== "assistant") continue;
     for (const block of contentOf(message)) {
-      if (block?.type !== "tool_use" || block.name !== "Read" || failed.has(block.id) || typeof block.input?.file_path !== "string") continue;
-      const { offset, limit } = block.input;
-      if (offset !== undefined && !(Number(offset) <= 1)) continue;
-      const lines = limit === undefined ? Infinity : Number(limit) || 0;
+      if (block?.type !== "tool_use" || block.name !== "Read" || typeof block.input?.file_path !== "string" || !succeeded.has(`${thread(message)}\0${block.id}`)) continue;
+      const start = Math.max(1, Number(block.input.offset ?? 1) || 1);
+      const end = block.input.limit === undefined ? Infinity : start + (Number(block.input.limit) || 0) - 1;
       const path = resolve(block.input.file_path);
-      reach.set(path, Math.max(reach.get(path) ?? 0, lines));
+      ranges.set(path, [...(ranges.get(path) ?? []), [start, end]]);
     }
   }
-  return parts.filter((part) => (reach.get(resolve(part.path)) ?? 0) < Math.max(1, part.lines));
+  const reach = (path) => {
+    let next = 1;
+    for (const [start, end] of (ranges.get(path) ?? []).sort((a, b) => a[0] - b[0])) {
+      if (start > next) break;
+      next = Math.max(next, end + 1);
+    }
+    return next - 1;
+  };
+  return parts.filter((part) => reach(resolve(part.path)) < Math.max(1, part.lines));
 }
 
 export function coverageRow(messages, coverage) {

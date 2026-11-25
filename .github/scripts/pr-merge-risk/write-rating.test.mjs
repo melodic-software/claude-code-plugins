@@ -65,35 +65,43 @@ test("main writes rating.json only for a good result, and fails red otherwise", 
   assert.equal(main({ ...env, COVERAGE_FILE: "", OUT_DIR: join(dir, "out5") }, () => 1), 1, "no coverage list, no rating");
 });
 
-const PARTS = [
-  { path: "/w/data/diff/chunk-1/part-001.patch", lines: 1000 },
-  { path: "/w/data/diff/chunk-2/part-001.patch", lines: 40 },
-  { path: "/w/data/diff/chunk-2/part-002.patch", lines: 0 },
-];
-const readCall = (id, input, parent = null) => ({ type: "assistant", parent_tool_use_id: parent, message: { model: "claude-opus-5-5", content: [{ type: "tool_use", id, name: "Read", input }] } });
-const readResult = (id, isError, parent = null) => ({ type: "user", parent_tool_use_id: parent, message: { content: [{ type: "tool_result", tool_use_id: id, is_error: isError, content: "..." }] } });
-const allRead = [
-  readCall("r1", { file_path: PARTS[0].path }, "toolu_a"),
-  readResult("r1", false, "toolu_a"),
-  readCall("r2", { file_path: PARTS[1].path, offset: 1, limit: 40 }, "toolu_b"),
-  readCall("r3", { file_path: PARTS[2].path }),
-];
+const RECORDED = JSON.parse(readFileSync(new URL("./fixtures/recorded-execution.json", import.meta.url), "utf8"));
+const DIFF = "/workspace/lane/pr.diff";
+const MAIN_RESULT = 1;
+const SUB_RESULT = 4;
+const part = (lines) => ({ path: DIFF, lines });
+const recorded = (edit = () => {}) => {
+  const copy = structuredClone(RECORDED);
+  edit(copy);
+  return copy;
+};
 
-test("unreadParts counts a part read whole from its first line in any thread, and nothing less", () => {
-  assert.deepEqual(unreadParts(allRead, PARTS), []);
-  assert.deepEqual(unreadParts([readCall("x", { file_path: PARTS[0].path, offset: 500 }), readCall("y", { file_path: PARTS[1].path, limit: 39 })], PARTS), PARTS, "a read from line 500, one line short, and no read at all");
-  assert.deepEqual(unreadParts([...allRead, readResult("r2", true, "toolu_b")], PARTS), [PARTS[1]], "a Read whose result is an error read nothing");
-  assert.deepEqual(unreadParts([readCall("g", { file_path: PARTS[0].path }), { ...readCall("h", {}), message: { content: [{ type: "tool_use", id: "h", name: "Grep", input: { file_path: PARTS[1].path } }] } }], PARTS), [PARTS[1], PARTS[2]]);
+test("a recorded run's main-thread Read of lines 1-8 and subagent Read of 9-16 cover 16 lines of the 18-line file, not all 18", () => {
+  assert.deepEqual(unreadParts(RECORDED, [part(8)]), []);
+  assert.deepEqual(unreadParts(RECORDED, [part(16)]), []);
+  assert.deepEqual(unreadParts(RECORDED, [part(18)]), [part(18)], "lines 17-18 were never read");
+});
+
+test("a Read with no result, an error result, or a result in another thread reads nothing", () => {
+  const noMainResult = recorded((m) => m.splice(MAIN_RESULT, 1));
+  assert.deepEqual(unreadParts(noMainResult, [part(8)]), [part(8)], "the main thread's Read has no result");
+  const noSubResult = recorded((m) => m.splice(SUB_RESULT, 1));
+  assert.deepEqual(unreadParts(noSubResult, [part(16)]), [part(16)], "the subagent's Read has no result");
+  const failed = recorded((m) => (m[MAIN_RESULT].message.content[0].is_error = true));
+  assert.deepEqual(unreadParts(failed, [part(8)]), [part(8)]);
+  const otherThread = recorded((m) => (m[SUB_RESULT].parent_tool_use_id = null));
+  assert.deepEqual(unreadParts(otherThread, [part(16)]), [part(16)], "the subagent's result posed as the main thread's");
 });
 
 test("a rating that did not read the whole diff gains a HIGH Diff coverage row and demotes, even when every row is LOW", () => {
   const low = result({ risks: [row("LOW"), row("LOW", { area: "Reversibility" })] });
   const base = { output: low, pr: 7, head: HEAD, rubric: "8.0.0", cliVersion: "2.1.312", startedAt: 1, endedAt: 2 };
-  const whole = buildRating({ ...base, messages: [...messages(), ...allRead], coverage: { parts: PARTS, left_out: { chunks: 0, bytes: 0, files: 0 } } });
+  const none = { chunks: 0, bytes: 0, files: 0 };
+  const whole = buildRating({ ...base, messages: [...messages(), ...RECORDED], coverage: { parts: [part(16)], left_out: none } });
   assert.equal(whole.max, "LOW");
   assert.equal(whole.demote, false);
   assert.equal(whole.risks.length, 2);
-  const partial = buildRating({ ...base, messages: [...messages(), ...allRead.slice(0, 2)], coverage: { parts: PARTS, left_out: { chunks: 0, bytes: 0, files: 0 } } });
+  const partial = buildRating({ ...base, messages: [...messages(), ...RECORDED], coverage: { parts: [part(16), part(18)], left_out: none } });
   assert.equal(partial.max, "HIGH");
   assert.equal(partial.demote, true);
   assert.deepEqual(
@@ -104,9 +112,11 @@ test("a rating that did not read the whole diff gains a HIGH Diff coverage row a
       ["Diff coverage", "HIGH", "unchecked"],
     ],
   );
-  assert.match(partial.risks[2].why, /2 of 3 diff parts were never read/);
-  const leftOut = buildRating({ ...base, messages: [...messages(), ...allRead], coverage: { parts: PARTS, left_out: { chunks: 4, bytes: 1_200_000, files: 90 } } });
+  assert.match(partial.risks[2].why, /1 of 2 diff parts were never read/);
+  const noResult = buildRating({ ...base, messages: [...messages(), ...recorded((m) => m.splice(MAIN_RESULT, 1))], coverage: { parts: [part(8)], left_out: none } });
+  assert.equal(noResult.demote, true, "a Read with no result never certifies coverage");
+  const leftOut = buildRating({ ...base, messages: [...messages(), ...RECORDED], coverage: { parts: [part(16)], left_out: { chunks: 4, bytes: 1_200_000, files: 90 } } });
   assert.equal(leftOut.demote, true);
   assert.match(leftOut.risks.at(-1).why, /4 chunk\(s\) of the diff \(1200000 bytes\)/);
-  assert.deepEqual(coverageRow(allRead, { parts: PARTS, left_out: { chunks: 0 } }), undefined);
+  assert.equal(coverageRow(RECORDED, { parts: [part(16)], left_out: { chunks: 0 } }), undefined);
 });
