@@ -631,9 +631,10 @@ export function laneChangeListed(compare, from, to) {
 
 export async function laneChangeIn(read, repo, compare, head) {
   const why = laneChange(compare);
-  if (why !== "too many files") return why;
-  const changed = await changedPaths(read, repo, compare, head, REVIEW_LANES.map(([file]) => `.github/workflows/${file}`));
-  return changed === null ? why : changed.length > 0 ? "a review-lane workflow" : null;
+  const from = compare?.merge_base_commit?.sha;
+  if (why !== "too many files" || !isSha(from) || !isSha(head)) return why;
+  const listing = (ref) => read("GET", `/repos/${repo}/contents/.github/workflows?ref=${ref}`);
+  return laneChangeListed(compare, await listing(from), await listing(head));
 }
 
 // The cost hold notices among one status job's `annotations`, as { sha, at }

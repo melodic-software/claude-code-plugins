@@ -845,6 +845,9 @@ STUB_LISTINGS="$(jq -cn --arg h "$HEAD" --arg m "$MAIN_SHA" --argjson a "$LISTIN
 expect "a lane run on a 300-file head whose lane workflows match its merge base clears the hold" yes yes yes "$LINK"
 STUB_LISTINGS="$(jq -cn --arg h "$HEAD" --arg m "$MAIN_SHA" --argjson a "$LISTING" --argjson b "$EDITED" '{($m): $a, ($h): $b}')"; export STUB_LISTINGS
 expect "a lane run on a 300-file head that changes a lane workflow since its merge base clears nothing" no no no "changes a review-lane workflow"
+CAPPED="$(jq -c '. + [range(1000 - length) | {name: "w\(.).yml", sha: ("c" * 40)}]' <<<"$LISTING")"
+STUB_LISTINGS="$(jq -cn --arg h "$HEAD" --arg m "$MAIN_SHA" --argjson a "$LISTING" --argjson b "$CAPPED" '{($m): $a, ($h): $b}')"; export STUB_LISTINGS
+expect "a 300-file head whose lane workflows listing is at the 1000-entry cap clears nothing" no no no "changes too many files"
 STUB_LISTINGS="$(jq -cn --arg m "$MAIN_SHA" --argjson a "$LISTING" '{($m): $a}')"; export STUB_LISTINGS
 expect "a 300-file head whose lane workflows cannot be listed clears nothing" no no no "are unreadable"
 unset STUB_LISTINGS
