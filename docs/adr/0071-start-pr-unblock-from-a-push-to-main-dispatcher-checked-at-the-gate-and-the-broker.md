@@ -39,9 +39,9 @@ from any workflow in the repository holding `actions: write`.
    from the GitHub Actions app, and dispatching `pr-unblock.yml` for at most 3 per run with
    `pr-number` and `dispatcher-run-id`. It filters no labels or authors; the lane decides those
    once, from its own config and gate. Basis:
-   [`pr-unblock-dispatch.yml:3-54`](../../.github/workflows/pr-unblock-dispatch.yml);
-   [`dispatch.mjs:25-36,91-279`](../../.github/scripts/pr-unblock/dispatch.mjs). The retry count and
-   delay and the cap of 3 (`dispatch.mjs:32-34`) are judgment.
+   [`pr-unblock-dispatch.yml`](../../.github/workflows/pr-unblock-dispatch.yml), its triggers and
+   job `dispatch`; [`dispatch.mjs`](../../.github/scripts/pr-unblock/dispatch.mjs), `DEFAULTS`,
+   `listAll` and `dispatchConflicting`. The retry count and delay and the cap of 3 (`DEFAULTS`) are judgment.
 2. **The lane runs on `workflow_dispatch` only**, from the dispatcher or a listed human. Basis:
    [`pr-unblock.yml`](../../.github/workflows/pr-unblock.yml).
 3. **The gate checks the dispatcher run.** A `workflow_dispatch` sent by `github-actions[bot]`
@@ -62,7 +62,7 @@ from any workflow in the repository holding `actions: write`.
    `melodic-software/azure-iac` `src/lanes-token-broker/src/dispatcher.mjs:40-77`.
 5. **The skill step admits the bot only then.** claude-code-action gets
    `allowed_bots: github-actions` only when `dispatcher-run-id` is set. Basis:
-   [`pr-run-activity-write.yml:492-494`](../../.github/workflows/pr-run-activity-write.yml).
+   [`pr-run-activity-write.yml:546-549`](../../.github/workflows/pr-run-activity-write.yml).
 
 ## Alternatives considered
 
@@ -74,7 +74,7 @@ from any workflow in the repository holding `actions: write`.
   Basis: judgment, under the same owner confirmation.
 - **Require the dispatcher run to still be running.** Replaced by the window: a dispatched run
   that waited in the per-PR queue would fail it, while the window still binds the dispatched run
-  to one dispatcher run. Basis: `pr-unblock.yml:398-400` (job-level queue); check-trusted-trigger
+  to one dispatcher run. Basis: `pr-unblock.yml` (each job's `queue: max`); check-trusted-trigger
   README, window paragraph.
 - **The reconciler dispatches the dispatcher, or the dispatcher starts on `workflow_run`.**
   Rejected for the schedule in point 1: either sends a dispatcher run the gate and the broker
@@ -100,11 +100,12 @@ from any workflow in the repository holding `actions: write`.
   after the reconciler waits for the one after. Each tick costs one dispatcher run and its listing
   queries even when nothing is red; a head in the dispatch record is not read again, while a red
   lanes App PR, an `UNKNOWN` PR and a fix-docs candidate are still read per tick. Basis:
-  `dispatch.mjs:142-178,759-760`; `fix-ci-dispatch.mjs:338-348,431-464`;
-  `fix-docs-dispatch.mjs:208-243`.
+  `dispatch.mjs`, `dispatchConflicting` and `dispatchAll`; `fix-ci-dispatch.mjs`, `dispatchCiFixes`;
+  `fix-docs-dispatch.mjs`, `dispatchDocsFixes`.
 - One runner per conflicting PR per push, capped at 3 per dispatcher run. The cap is judgment
-  until the lane's per-run cost is measured. Basis: `dispatch.mjs:32`.
+  until the lane's per-run cost is measured. Basis: `dispatch.mjs`, `DEFAULTS.maxDispatch`.
 - A merge-queue merge raises one push for a batch, so the dispatcher lists PRs against `main` as
-  it is when it runs, not against the pushed commit. Basis: `pr-unblock-dispatch.yml:3-5`.
+  it is when it runs, not against the pushed commit. Basis: `pr-unblock-dispatch.yml`, the
+  `push` trigger and the `Resolve main's tip` step.
 - The lane went live with the dispatcher. Basis: dispatcher run 38201493950 dispatched pr-unblock
   run 38201565861, which minted through the broker and escalated as expected.

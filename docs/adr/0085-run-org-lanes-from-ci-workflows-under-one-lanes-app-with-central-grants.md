@@ -67,13 +67,14 @@ prefixed repository; a `.github/` or `docs/` path with no prefix is this reposit
 - **Lane model steps hold no write token.** Every model activity has `effect: read`
   (`docs/conventions/pr-pipeline.yaml:11,42,102,176,236,332`); every write is a scripted `apply-*`
   or `report-*` activity, and patch-carrying ones run under `patch-rules.json`, whose rows all
-  refuse the `UNIVERSAL_REFUSE` classes (`.github/actions/resolve-config/patch-rules.mjs:5-13,30-34`).
+  refuse the `UNIVERSAL_REFUSE` classes (`.github/actions/resolve-config/patch-rules.mjs:5-14,31-35`).
   Those classes cover workflows and CODEOWNERS, not `.github/actions/**` or `.github/standards/**`.
   Every workflow job that runs a model holds no write scope, write credential or dependency cache
   ([`.github/scripts/lib/model-job-permissions.test.mjs`](../../.github/scripts/lib/model-job-permissions.test.mjs)).
 - **Only intake calls ci-workflows today**, for its model jobs (`.github/workflows/intake-triage.yml:297`);
   its write job mints from the caller file (`intake-triage.yml:440-447`). The review lanes call
-  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:174`) and sit outside the broker.
+  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml`, job `pr-review`) and sit outside
+  the broker.
 
 ### Corrected premise
 

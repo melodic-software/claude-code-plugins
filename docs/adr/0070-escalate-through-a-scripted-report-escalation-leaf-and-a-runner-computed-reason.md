@@ -27,14 +27,16 @@ point 4).
    runs it as its own job after `resolve-conflicts`, only when that job set a reason and was not
    cancelled. Basis: [`pr-pipeline.yaml:33-39`](../conventions/pr-pipeline.yaml);
    [`activity-rules.json:5-8`](../../.github/actions/resolve-config/activity-rules.json);
-   [`pr-unblock.yml:4594`](../../.github/workflows/pr-unblock.yml).
+   [`pr-unblock.yml`](../../.github/workflows/pr-unblock.yml), job `report-escalation`.
 2. **The reason comes from runner steps only.** The write runner's `escalation-reason` output is
    one of `protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`, set
    by `prepare.sh` before any model turn or by `post.sh` after it, never from model text. The
    skill escalates by leaving the conflict unresolved. The caller passes the value as the
    escalation job's `escalation-reason` input, which the runner's first step checks against that
    enum, and hands the script as `ESCALATION_REASON`. Basis:
-   [`pr-run-activity-write.yml:68,244,288,389-421,1116`](../../.github/workflows/pr-run-activity-write.yml).
+   [`pr-run-activity-write.yml`](../../.github/workflows/pr-run-activity-write.yml): the
+   `escalation-reason` input and output, the enum check in the `Assert the lanes App sender id, default branch and
+   inputs are set` step, and `ESCALATION_REASON` in the `Run the script activity` step.
 3. **The script writes nothing from the model.** It reads only the trusted base and the API,
    adds the label before the comment, keys the comment's resume marker to the gated head SHA,
    tries the comment three times, and writes nothing when the label and a lanes-bot marker for the
@@ -55,8 +57,8 @@ point 4).
 
 ## Consequences
 
-- Each escalation costs a second job and a second mint. Basis: `pr-unblock.yml:4594`; ADR 0058
-  point 3.
+- Each escalation costs a second job and a second mint. Basis: `pr-unblock.yml`, job
+  `report-escalation`; ADR 0058 point 3.
 - A forged reason can only cause an escalation, which is the fail-safe direction. Basis:
   judgment, from point 2: the input passes only the enum, and every value escalates.
 - The resume key is the gated head SHA alone. The script always escalates on that head: dropping

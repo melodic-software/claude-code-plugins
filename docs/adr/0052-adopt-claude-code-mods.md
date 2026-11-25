@@ -204,11 +204,13 @@ amendment. The decision stands: no policy narrowing of what a mod may do.
   That covers the owner's Max machines. No CI lane here falls in that gap: every workflow that
   starts Claude first writes root-owned `/etc/claude-code/managed-settings.json`, so the guard
   loads there. Lanes on ci-workflows' `run-claude-cli` run `apply-claude-managed-settings` before
-  the launcher (`pr-verify.yml:453` before `:502`, `intake-triage.yml:1166` before `:1188`,
-  `pr-run-activity-read.yml:1271`, `pr-unblock.yml:1983`, and the review and intake reusables),
-  and the launcher refuses to start without it (`pr-run-activity-read.yml:3648`). The plugin-eval
-  lanes, which call `claude` directly, install their own policy there (`pr-run-plugin-evals.yml:370`,
-  `maintenance-measure-skill-edit-pass.yml:271`).
+  the launcher (the `Apply the Claude managed settings` step ahead of the `run-claude-cli` step in
+  `pr-verify.yml` job `check-intent`, `intake-triage.yml` job `refine-issue`,
+  `pr-run-activity-read.yml` job `run` and `pr-unblock.yml` job `adjudicate-feedback`, and in the
+  review and intake reusables), and the launcher refuses to start without it (the note above that
+  step in `pr-verify.yml` job `check-intent`). The plugin-eval lanes, which call `claude` directly,
+  install their own policy there (step `Deny the eval's reads of process and runner state` in
+  `pr-run-plugin-evals.yml` and `maintenance-measure-skill-edit-pass.yml`, job `run-eval`).
 - **Without the guard, a mod gets past `ask` rules and `PreToolUse` hooks as well as `deny`.**
   [overview: what a mod can reach](https://code.claude.com/docs/en/plugins/mods/overview#what-a-mod-can-reach):
   "Without either, a mod can approve a call that an `ask` rule would prompt for, or that your

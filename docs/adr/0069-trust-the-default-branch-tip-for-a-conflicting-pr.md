@@ -32,10 +32,12 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
 2. That one SHA is the `base-sha` output, the source of config, actions and trusted actors, and
    the merge's second parent
    ([ADR 0068](0068-push-a-lane-merge-as-an-api-made-two-parent-commit-signed-by-the-app.md)).
-   Basis: [`pr-run-activity-write.yml:278,502-508`](../../.github/workflows/pr-run-activity-write.yml).
+   Basis: [`pr-run-activity-write.yml`](../../.github/workflows/pr-run-activity-write.yml),
+   job `run`: its `base-sha` output and the `Assert the base is on the default branch` step.
 3. Both pr-unblock jobs pass `trusted-base: default-tip`; no other caller passes the input, so
    every other lane keeps the `pr-base` default. Basis:
-   [`pr-unblock.yml`](../../.github/workflows/pr-unblock.yml); `pr-run-activity.md:61`.
+   [`pr-unblock.yml`](../../.github/workflows/pr-unblock.yml), the `trusted-base: default-tip`
+   input of each job that calls a runner; `pr-run-activity.md:61`.
 
 ## Alternatives considered
 
@@ -59,10 +61,11 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
   the `pr-unblock-<n>` group and gates the PR's head as it is when it starts. A PR whose mergeable
   state stays `UNKNOWN`, or that falls past the per-run cap, waits for the next push to `main`,
   the dispatcher's half-hourly tick (ADR 0071) or a hand run of the dispatcher. Basis:
-  [`dispatch.mjs:4-13,16-58`](../../.github/scripts/pr-unblock/dispatch.mjs);
-  `pr-unblock.yml`;
+  [`dispatch.mjs`](../../.github/scripts/pr-unblock/dispatch.mjs), `DEFAULTS` and
+  `dispatchConflicting`;
+  `pr-unblock.yml`, the workflow `concurrency` group and each job's `queue: max`;
   [`check-trusted-trigger.mjs:349-353`](../../.github/actions/check-trusted-trigger/check-trusted-trigger.mjs);
-  the check run is posted only by the report job (`pr-run-activity-write.yml`,
+  the check run is posted only by the report job (`pr-run-activity-write.yml` job `report`,
   [`report-check-run.mjs:101`](../../.github/actions/report-check-run/report-check-run.mjs)).
 - The caller file is lane-power, and the broker checks it against the tip (`workflow-modified`).
   Basis: ADR 0058 point 3.
