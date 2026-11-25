@@ -7,8 +7,9 @@ usage: comment_only.py <base-sha> <head-sha>   (run inside the repository)
 Reads candidate paths on stdin, one per line, and prints, one per line in
 input order, those that qualify. A path qualifies only when all hold:
 
-  - it is modified in place, a regular non-executable file on both sides
-    (`:100644 100644 ... M` in `git diff --raw --no-renames`);
+  - it is modified in place with one file mode on both sides, regular or
+    executable (`:100644 100644 ... M` or `:100755 100755 ... M` in
+    `git diff --raw --no-renames`);
   - code-tidying's change-shape.py `classify()` says COMMENT-ONLY or
     DOCSTRING-ONLY for its base and head blobs, through a tree-sitter grammar
     change-shape maps to its extension;
@@ -70,7 +71,7 @@ DIRECTIVES = (
     "suppressmessage",
 )
 PROVEN = ("COMMENT-ONLY", "DOCSTRING-ONLY")
-REGULAR = "100644"
+FILE_MODES = ("100644", "100755")
 
 
 def load_change_shape():
@@ -103,7 +104,7 @@ def modified_in_place(base: str, head: str) -> dict[str, tuple[str, str]]:
             fields[i + 1].decode("utf-8", "surrogateescape"),
         )
         old_mode, new_mode, old_sha, new_sha, status = meta.lstrip(":").split(" ")
-        if status == "M" and old_mode == REGULAR and new_mode == REGULAR:
+        if status == "M" and old_mode == new_mode and old_mode in FILE_MODES:
             found[path] = (old_sha, new_sha)
     return found
 

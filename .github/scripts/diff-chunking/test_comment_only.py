@@ -166,10 +166,15 @@ def test_each_case_gets_the_verdict_its_rule_states(outcome, path):
     assert (path in printed) is CASES[path][2], f"{path}: printed={printed}"
 
 
-@pytest.mark.parametrize("path", [RENAMED_FROM, RENAMED_TO, MODE_CHANGED, EXECUTABLE])
-def test_renames_mode_changes_and_executables_never_qualify(outcome, path):
+@pytest.mark.parametrize("path", [RENAMED_FROM, RENAMED_TO, MODE_CHANGED])
+def test_renames_and_mode_changes_never_qualify(outcome, path):
     assert outcome.returncode == 0, outcome.stderr
     assert path not in outcome.stdout.splitlines()
+
+
+def test_an_executable_that_keeps_its_mode_qualifies(outcome):
+    assert outcome.returncode == 0, outcome.stderr
+    assert EXECUTABLE in outcome.stdout.splitlines()
 
 
 def test_prints_only_qualifying_paths_in_input_order(outcome):
@@ -178,6 +183,7 @@ def test_prints_only_qualifying_paths_in_input_order(outcome):
         "comment.js",
         "comment.sh",
         "docstring.py",
+        EXECUTABLE,
     ]
 
 
