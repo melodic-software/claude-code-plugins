@@ -169,9 +169,6 @@ OUT="$(run "$(build_input permission_prompt)" \
   CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false)"
 if [[ -z "$OUT" ]]; then ok "both terminal channels off → silent stdout"; else fail "both off → stdout not empty: $OUT"; fi
 
-# ============================================================================
-# Telemetry (HOOK_TELEMETRY_SINK) tests
-# ============================================================================
 
 # --- Case 10: sink unset → stdout parity, no envelope leak ------------------
 OUT="$(run "$(build_input permission_prompt)")"
@@ -181,7 +178,6 @@ if printf '%s' "$OUT" | jq -e '.schema_version' >/dev/null 2>&1; then fail "tele
 # --- Case 11: stub sink → schema-valid envelope, status ok, channels --------
 TEL="$(mktemp)"
 STUB="$(make_sink "cat >\"$TEL\"")"
-# Enable both terminal channels (os_toast still off) → channels = [terminal_notify, bell], status ok.
 _OUT="$(run "$(build_input permission_prompt)" HOOK_TELEMETRY_SINK="$STUB")"
 RC=$?
 wait_for_sink "$TEL"
@@ -310,9 +306,6 @@ wait_for_sink "$FAIL_FILE"
 if [[ $RC_FS -eq 0 ]]; then ok "telemetry/fail-sink: hook exit 0 despite sink failure"; else fail "telemetry/fail-sink: hook exit $RC_FS"; fi
 rm -f "$FAIL_FILE"
 
-# ============================================================================
-# Security: untrusted .message / branch sanitization
-# ============================================================================
 
 # A hostile .message carrying: a leading dash, a double-quote, a raw ESC + OSC 9
 # open + BEL (escape-smuggling attempt), a raw newline (statement-injection
