@@ -1,13 +1,13 @@
 ---
-description: "When the bundled simplify skill resolves in this session, prefer it for the current diff; this skill for proactive lane hunts. Hunts one rotated lane for Beck tidyings and ships one structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy lane', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window."
-argument-hint: "[<lane>|<glob>...|dry-run|self-update|help] [override] [in-place[=commit]] [--repo <repo> ...]"
+description: "When the bundled simplify skill resolves in this session, prefer it for the current diff; this skill for proactive focus area hunts. Hunts one rotated focus area for Beck tidyings and ships one structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy focus area', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window."
+argument-hint: "[<area>|<glob>...|dry-run|self-update|help] [override] [in-place[=commit]] [--repo <repo> ...]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/comment-settings.sh:*)", "Bash(grep:*)", "Bash(echo:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Proactively hunt one lane for safe structural tidyings and ship a structure-only PR
+  summary: Proactively hunt one focus area for safe structural tidyings and ship a structure-only PR
 ---
 
 ## Repository context. Gather first
@@ -44,25 +44,25 @@ tidyings Beck 14 and P-5 may add ([reference/tidyings.md](reference/tidyings.md)
 
 ## Purpose
 
-Tidy is the proactive Boy Scout loop: what small structural improvements can one slice of the codebase safely take today, shipped as one tight PR that never mixes structural and behavioral change? It applies Kent Beck's *Tidy First?* tidyings, separated from behavioral changes by commit and by PR (*"Always one or the other, never both at the same time."*), under the Boy Scout Rule, and keeps to structure-only work because autonomous agents introduce defects measurably more often in unhealthy code (Tornhill / CodeScene). Its value is rotated lane discipline, a scope budget, structure-only commits, and research before editing.
+Tidy is the proactive Boy Scout loop: what small structural improvements can one slice of the codebase safely take today, shipped as one tight PR that never mixes structural and behavioral change? It applies Kent Beck's *Tidy First?* tidyings, separated from behavioral changes by commit and by PR (*"Always one or the other, never both at the same time."*), under the Boy Scout Rule, and keeps to structure-only work because autonomous agents introduce defects measurably more often in unhealthy code (Tornhill / CodeScene). Its value is rotated focus area discipline, a scope budget, structure-only commits, and research before editing.
 
-**Not**: `/simplify`, which tightens the conversation's recent diff, while tidy hunts a lane independent of recent activity; `batch-simplify`, which sweeps a time window, a branch, or the repository in waves (on docs it owns factual staleness across the whole doc set in one pass, while tidy's `docs-prose` lane owns incremental structural prose work under a scope budget); issue-tracker work, since tidy never starts from a filed item and files its overflow as deferred items; a docs fact-checker, since tidy improves structure, not factual accuracy.
+**Not**: `/simplify`, which tightens the conversation's recent diff, while tidy hunts a focus area independent of recent activity; `batch-simplify`, which sweeps a time window, a branch, or the repository in waves (on docs it owns factual staleness across the whole doc set in one pass, while tidy's `docs-prose` focus area owns incremental structural prose work under a scope budget); issue-tracker work, since tidy never starts from a filed item and files its overflow as deferred items; a docs fact-checker, since tidy improves structure, not factual accuracy.
 
 ## Action Router
 
 Parse `$ARGUMENTS` to determine the action. The argument hint shows `dry-run` without its
-`[<lane>|<glob>...]` to stay within its length budget; the table below lists every form.
+`[<area>|<glob>...]` to stay within its length budget; the table below lists every form.
 
 | Argument | Action | Use case |
 |----------|--------|----------|
-| *(empty)* | **Smart default** | Infer the most appropriate lane from current branch / recent commits / git status. If the inference is ambiguous, pause and ask the user. Otherwise proceed as if `<lane>` was passed. |
-| `<lane>` (from the catalog below) | **Targeted lane run** | Load the lane file, run the full Workflow on that lane's scope. |
-| `<glob>...` | **Ad hoc scope** | No lane covers the files. Run the full Workflow on those globs per **Ad hoc scope when no lane fits** below. Combines with `dry-run`. |
-| `dry-run [<lane>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. No edits, no branch, no push, no tracker items. The user reviews and decides whether to proceed. |
-| `self-update` | **Maintainer lane** | Shorthand for `<lane>=self-update`. Operates on this plugin's own files. Valid only in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
-| `help` | **Print this Action Router + lane catalog** | Diagnostic / orientation. |
-| `override` (flag, combines with any row above) | **Lift the GLOBAL HARD path list for this run, behind an enumeration gate** | The user wants this lane's tidyings to reach a path the HARD list would otherwise drop (agent config, a CI workflow, lint config). Strip the token before reading the rest of `$ARGUMENTS`; match it whole, never as a substring, and treat `./override` as a path. Because a lane is a glob set rather than a named file, Phase D enumerates the specific HARD paths it intends to touch and takes a go-ahead on that list before Phase E edits any of them; non-interactive, the run reports the list and proceeds without those edits (`reference/exclusions.md` section 4). `dry-run override` produces the enumeration alone. Path entries only: the behavioral guards, the work-tracking entries, SELF-UPDATE EXTRA HARD, and the override machinery itself hold regardless. Every lifted path is named in Phase H's report with the channel that lifted it. |
-| `in-place` or `in-place=commit` (flag, combines with the smart default, `<lane>`, and `override`) | **Run on the current branch, no branch, no PR** | A caller already holds the branch and PR (a repo-sweep playbook, a feature branch). Strip the token before reading the rest of `$ARGUMENTS`, matched whole like `override`. Phase B stays on the current branch and refuses the default branch; Phase E stages tidyings without committing; Phase H opens no PR and posts no comment, and prints its report to the user instead. `in-place` leaves the changes staged; `in-place=commit` makes one commit of them. The backlog throttle does not apply; every other gate (exclusions, scope budget, verification, self-review) still runs, measured on the staged diff. |
+| *(empty)* | **Smart default** | Infer the most appropriate focus area from current branch / recent commits / git status. If the inference is ambiguous, pause and ask the user. Otherwise proceed as if `<area>` was passed. |
+| `<area>` (from the catalog below) | **Targeted focus area run** | Load the focus area file, run the full Workflow on that focus area's scope. |
+| `<glob>...` | **Ad hoc scope** | No focus area covers the files. Run the full Workflow on those globs per **Ad hoc scope when no focus area fits** below. Combines with `dry-run`. |
+| `dry-run [<area>]` | **Plan + present, no edits** | Run Phases A-D (triage, explore, research, hunt). Present the prioritized findings table and the proposed PR scope. No edits, no branch, no push, no tracker items. The user reviews and decides whether to proceed. |
+| `self-update` | **Maintainer focus area** | Shorthand for `<area>=self-update`. Operates on this plugin's own files. Valid only in a working-tree checkout of the plugin (marketplace clone or `--plugin-dir`), never an installed copy. Manual-merge always. |
+| `help` | **Print this Action Router + focus area catalog** | Diagnostic / orientation. |
+| `override` (flag, combines with any row above) | **Lift the GLOBAL HARD path list for this run, behind an enumeration gate** | The user wants this focus area's tidyings to reach a path the HARD list would otherwise drop (agent config, a CI workflow, lint config). Strip the token before reading the rest of `$ARGUMENTS`; match it whole, never as a substring, and treat `./override` as a path. Because a focus area is a glob set rather than a named file, Phase D enumerates the specific HARD paths it intends to touch and takes a go-ahead on that list before Phase E edits any of them; non-interactive, the run reports the list and proceeds without those edits (`reference/exclusions.md` section 4). `dry-run override` produces the enumeration alone. Path entries only: the behavioral guards, the work-tracking entries, SELF-UPDATE EXTRA HARD, and the override machinery itself hold regardless. Every lifted path is named in Phase H's report with the channel that lifted it. |
+| `in-place` or `in-place=commit` (flag, combines with the smart default, `<area>`, and `override`) | **Run on the current branch, no branch, no PR** | A caller already holds the branch and PR (a repo-sweep playbook, a feature branch). Strip the token before reading the rest of `$ARGUMENTS`, matched whole like `override`. Phase B stays on the current branch and refuses the default branch; Phase E stages tidyings without committing; Phase H opens no PR and posts no comment, and prints its report to the user instead. `in-place` leaves the changes staged; `in-place=commit` makes one commit of them. The backlog throttle does not apply; every other gate (exclusions, scope budget, verification, self-review) still runs, measured on the staged diff. |
 | `--repo <repo>` (and the other target forms; combines with any row above but `in-place` and `help`) | **The run once per repository** | Strip the target-form tokens before reading the rest of `$ARGUMENTS`, then run per **Over several repositories** below. |
 
 ## Over several repositories
@@ -74,14 +74,14 @@ repositories, which resolve, count, fan out and merge as
 forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs the
 whole Workflow, Phases A to H, with its root anchored. What differs here:
 
-- **Lane per repository.** The lane resolves against that repository's own
-  `.claude/tidy-lanes/` over the bundled lane. A named lane neither layer defines there is reported
-  skipped. With no lane, the smart default infers it from that repository's recent commits at
+- **Focus area per repository.** The focus area resolves against that repository's own
+  `.claude/tidy-areas/` over the bundled focus area. A named focus area neither layer defines there is reported
+  skipped. With no focus area, the smart default infers it from that repository's recent commits at
   `origin/HEAD`; where the inference is ambiguous, ask once with every such repository listed, or,
   non-interactive, report that repository skipped. `self-update` runs only in a repository that is
   this plugin's working-tree checkout; every other is reported skipped.
 - **Cursor, throttle and settings per repository.** The Phase A anchor commit is the last merged
-  `chore/tidy-<lane>-` PR in that repository, and the backlog throttle counts that repository's
+  `chore/tidy-<area>-` PR in that repository, and the backlog throttle counts that repository's
   open `chore/tidy-*` PRs, so one repository's backlog never stops another's run. The pre-computed
   lines describe this checkout only: the per-repository subagent runs `open-pr-count.sh` and
   `comment-settings.sh` with that repository's root as its working directory, and reads that
@@ -96,53 +96,53 @@ whole Workflow, Phases A to H, with its root anchored. What differs here:
 - **One report.** `dry-run` merges the findings tables, each row carrying its repository; a run
   that ships lists each repository's PR, or the reason it opened none.
 
-## Lane catalog
+## Focus area catalog
 
-A lane is a glob-scoped slice of the repo, defined in a lane file that specifies scope globs, watch-for tidyings, lane-specific exclusions, verification commands, default Conventional Commits type, and preferred research sources.
+A focus area is a glob-scoped slice of the repo, defined in a focus area file that specifies scope globs, watch-for tidyings, area-specific exclusions, verification commands, default Conventional Commits type, and preferred research sources.
 
-**Lane resolution.** A lane named `<lane>` has up to two layers:
+**Focus area resolution.** A focus area named `<area>` has up to two layers:
 
-1. `${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md`, the consuming project's own lane definition, if present
-2. `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md`, the bundled generic lane
+1. `${CLAUDE_PROJECT_DIR}/.claude/tidy-areas/<area>.md`, the consuming project's own focus area definition, if present
+2. `${CLAUDE_PLUGIN_ROOT}/skills/tidy/areas/<area>.md`, the bundled generic focus area
 
-With no project layer, the bundled lane resolves alone. With one, the **project layer's own `## Merge semantics` section** governs (per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md)):
+With no project layer, the bundled focus area resolves alone. With one, the **project layer's own `## Merge semantics` section** governs (per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md)):
 
-- Declared → **read both layers and merge per that declaration** (typically `Scope` and most sections override per section, watch-for patterns additive). A section absent from the project layer keeps the bundled value. The bundled `docs-prose` and `shell-tooling` lanes each publish a recommended declaration a project layer adopts by reference or restates; the project layer's declaration governs.
-- Not declared → it resolves **project-only** (the bundled lane is not read).
+- Declared → **read both layers and merge per that declaration** (typically `Scope` and most sections override per section, watch-for patterns additive). A section absent from the project layer keeps the bundled value. The bundled `docs-prose` and `shell-tooling` focus areas each publish a recommended declaration a project layer adopts by reference or restates; the project layer's declaration governs.
+- Not declared → it resolves **project-only** (the bundled focus area is not read).
 
-Bundled lanes cover surfaces that look the same in most repos; templates scaffold the ones that do not. To define a project lane, copy the closest template from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/` into `.claude/tidy-lanes/<lane>.md` and fill in the scope globs and watch-for patterns. The catalog is the union of both locations: list `.claude/tidy-lanes/*.md` (if the directory exists) plus the bundled lanes when printing `help`.
+Bundled focus areas cover surfaces that look the same in most repos; templates scaffold the ones that do not. To define a project focus area, copy the closest template from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/` into `.claude/tidy-areas/<area>.md` and fill in the scope globs and watch-for patterns. The catalog is the union of both locations: list `.claude/tidy-areas/*.md` (if the directory exists) plus the bundled focus areas when printing `help`.
 
-**Declared deviation: no user-global layer or `*.local.*` personal override.** Unlike the config-cascade contract, this surface resolves only the team layer (`.claude/tidy-lanes/<lane>.md`) over the bundled lane, because lane globs, verification commands, and watch-for patterns are anchored to this repo's layout, CI, and stack, and the bundled lane is already the portable baseline. Personal variation is limited to lane names the team does not track: keep an uncommitted `.claude/tidy-lanes/<lane>.md` (never added to the index), not a `*.local.*` sibling, so rotation and catalog discovery stay on one filename per lane. Gitignoring a path the team already tracks does not make it personal; setup documents that escape hatch and its limits. Merge granularity within the team+bundled pair is unchanged.
+**Declared deviation: no user-global layer or `*.local.*` personal override.** Unlike the config-cascade contract, this surface resolves only the team layer (`.claude/tidy-areas/<area>.md`) over the bundled focus area, because focus area globs, verification commands, and watch-for patterns are anchored to this repo's layout, CI, and stack, and the bundled focus area is already the portable baseline. Personal variation is limited to focus area names the team does not track: keep an uncommitted `.claude/tidy-areas/<area>.md` (never added to the index), not a `*.local.*` sibling, so rotation and catalog discovery stay on one filename per focus area. Gitignoring a path the team already tracks does not make it personal; setup documents that escape hatch and its limits. Merge granularity within the team+bundled pair is unchanged.
 
-Bundled lanes:
+Bundled focus areas:
 
-| Lane | File | Covers |
+| Focus area | File | Covers |
 |------|------|--------|
-| `shell-tooling` | `lanes/shell-tooling.md` | Shell/PowerShell scripts under the project's tooling directories |
-| `docs-prose` | `lanes/docs-prose.md` | Markdown prose: skill bodies, docs |
-| `self-update` | `lanes/self-update.md` | This plugin's own files (maintainer checkout only) |
+| `shell-tooling` | `areas/shell-tooling.md` | Shell/PowerShell scripts under the project's tooling directories |
+| `docs-prose` | `areas/docs-prose.md` | Markdown prose: skill bodies, docs |
+| `self-update` | `areas/self-update.md` | This plugin's own files (maintainer checkout only) |
 
-Bundled templates (copy + adapt into `.claude/tidy-lanes/`):
+Bundled templates (copy + adapt into `.claude/tidy-areas/`):
 
 | Universal pattern | Template |
 |------|------|
-| Framework/library core that downstream code depends on | `templates/dependency-root-lane.template.md` |
-| Hosting infrastructure, logging, registration, service defaults | `templates/host-wiring-lane.template.md` |
-| User-facing applications + their tests | `templates/apps-lane.template.md` |
-| Non-primary-language services / MCP servers / sidecars | `templates/polyglot-services-lane.template.md` |
+| Framework/library core that downstream code depends on | `templates/dependency-root-area.template.md` |
+| Hosting infrastructure, logging, registration, service defaults | `templates/host-wiring-area.template.md` |
+| User-facing applications + their tests | `templates/apps-area.template.md` |
+| Non-primary-language services / MCP servers / sidecars | `templates/polyglot-services-area.template.md` |
 
-Read the resolved lane file in full at Phase A entry; do not infer scope from this table.
+Read the resolved focus area file in full at Phase A entry; do not infer scope from this table.
 
-### Ad hoc scope when no lane fits
+### Ad hoc scope when no focus area fits
 
-When no bundled or project lane covers the target files, pass globs in place of a lane name: `dry-run <glob>...` to plan, `<glob>...` to run. An argument that names no catalog lane and contains `/` or a glob character is ad hoc scope. The run then:
+When no bundled or project focus area covers the target files, pass globs in place of a focus area name: `dry-run <glob>...` to plan, `<glob>...` to run. An argument that names no catalog focus area and contains `/` or a glob character is ad hoc scope. The run then:
 
 - takes its scope from those globs, still filtered by the global exclusions below;
-- borrows the watch-for list, the lane-specific extra exclusions, and the Conventional Commits type from the closest template (`templates/polyglot-services-lane.template.md` for source code, the `docs-prose` lane for markdown), filling each template `<placeholder>` from the scoped files or dropping just that placeholder's clause when nothing in scope fills it;
+- borrows the watch-for list, the area-specific extra exclusions, and the Conventional Commits type from the closest template (`templates/polyglot-services-area.template.md` for source code, the `docs-prose` focus area for markdown), filling each template `<placeholder>` from the scoped files or dropping just that placeholder's clause when nothing in scope fills it;
 - takes verification from the repository's documented test command;
 - names its branch `chore/tidy-adhoc-<slug>-YYYY-MM-DD`, where `<slug>` is the first glob's literal directory prefix in kebab case (`github-scripts` for `.github/scripts/*.mjs`), or `root` when the glob has no directory;
 - skips the anchor-commit lookup and hunts the whole scope, since no earlier sweep is known to cover the same globs;
-- writes no `.claude/tidy-lanes/` file, so Phase H's body facts name the globs in place of the lane and `none (ad hoc)` in place of the anchor commit.
+- writes no `.claude/tidy-areas/` file, so Phase H's body facts name the globs in place of the focus area and `none (ad hoc)` in place of the anchor commit.
 
 ## Workflow (8 phases)
 
@@ -150,15 +150,15 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 
 ### Phase A. Triage
 
-1. Resolve the lane from `$ARGUMENTS` per the Action Router.
-2. Load the lane per **Lane resolution** and read the full file(s), merging both layers when the project lane declares `## Merge semantics`. The resolved lane owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
+1. Resolve the focus area from `$ARGUMENTS` per the Action Router.
+2. Load the focus area per **Focus area resolution** and read the full file(s), merging both layers when the project focus area declares `## Merge semantics`. The resolved focus area owns scope globs, watch-for list, area-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
 3. Resolve the HARD-path override channels per `reference/exclusions.md` section 4 (the `override` argument, `.claude/code-tidying/exclusion-overrides.md`, then `hard_exclusions`) and write down the lifted set with the channel that lifted each entry. Empty is the normal answer.
 4. Backlog throttle (skipped under `in-place`): if the pre-computed context above reports `Throttle active: yes` (open `chore/tidy-*` PRs at the `upkeep_max_open` limit, [reference/config.md](../../reference/config.md)), stop, surface a one-line note, and exit cleanly. It is a stop signal, not a warning: reviews are backed up, so do not queue one more.
-5. Find the anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if none merged yet), the "what has drifted since the last sweep" baseline.
+5. Find the anchor commit: the most recent merged `chore/tidy-<area>-` PR for this focus area (or `git log --grep` if none merged yet), the "what has drifted since the last sweep" baseline.
 
 ### Phase B. Branch
 
-`git checkout -b chore/tidy-<lane>-YYYY-MM-DD origin/<default-branch>`. The date suffix disambiguates daily reruns. **Never** commit tidyings directly on the default branch; a feature-prefixed branch keeps the structure-only PR reviewable and revertable.
+`git checkout -b chore/tidy-<area>-YYYY-MM-DD origin/<default-branch>`. The date suffix disambiguates daily reruns. **Never** commit tidyings directly on the default branch; a feature-prefixed branch keeps the structure-only PR reviewable and revertable.
 
 **`in-place`:** create no branch; stay on the current one. If it is the default branch, or the index already holds staged changes, stop and tell the user: the staged set this run hands back (or commits under `in-place=commit`) must be the tidyings alone.
 
@@ -166,13 +166,13 @@ Run in order. Each phase has one job, and every phase runs whatever the tidying'
 
 Understand before changing; this holds even for a one-line tidying, since rework from skipped research costs more than the research.
 
-1. Explore the lane's scope globs: if the `discovery` plugin is enabled, invoke `/discovery:explore` (if enabled) via the Skill tool on the lane scope; otherwise read 5-10 representative files in the lane to understand current patterns, conventions, and existing tidyings.
-2. Research current best practice for the lane's stack: if the `discovery` plugin is enabled, invoke `/discovery:research` (if enabled) via the Skill tool using the lane file's preferred-source list; otherwise do a focused inline research pass (official docs + the lane's preferred sources) before editing.
+1. Explore the focus area's scope globs: if the `discovery` plugin is enabled, invoke `/discovery:explore` (if enabled) via the Skill tool on the focus area scope; otherwise read 5-10 representative files in the focus area to understand current patterns, conventions, and existing tidyings.
+2. Research current best practice for the focus area's stack: if the `discovery` plugin is enabled, invoke `/discovery:research` (if enabled) via the Skill tool using the focus area file's preferred-source list; otherwise do a focused inline research pass (official docs + the focus area's preferred sources) before editing.
 
 ### Phase D. Hunt + prioritize + scope-budget enforce
 
 1. Read `reference/tidyings.md` for the full taxonomy (Beck 15 + Fowler 5 + prose tidyings P-1..P-6 = 26 entries).
-2. Hunt: walk the lane's scope globs for instances of the lane's watch-for tidyings. Classify each candidate: tidying type, file, line range, estimated LOC delta, confidence.
+2. Hunt: walk the focus area's scope globs for instances of the focus area's watch-for tidyings. Classify each candidate: tidying type, file, line range, estimated LOC delta, confidence.
 3. Build a prioritized findings table. Each row carries a `Basis:`, `verified` with the `file:line`, tool output, or Phase C source URL it rests on, or `judgment` (never for a consequential change: cross-repo, shared infrastructure, irreversible, or security; one that cannot be verified is withheld and routed to the overflow list as an open question naming the evidence that would settle it). Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label).
 4. Apply the scope budget: the target and hard cap in [`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`](../../reference/pr-scope-budget.md), with tidy's priority order and greedy selection in `reference/scope-budget.md` (spokes write the plugin directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`). Take the highest-priority subset that fits.
 5. **Override enumeration gate**, only for paths lifted by the `override` argument. List those specific HARD paths the surviving candidates would touch, each with its tidying, and take a go-ahead on that list before Phase E. Interactive: the user answers. Non-interactive: report the list and continue with those argument-lifted candidates dropped, since a blanket token is not a decision about paths nobody has seen yet. Paths lifted by `hard_exclusions=advisory` or by `.claude/code-tidying/exclusion-overrides.md` skip this gate: those channels already are a standing decision, and a non-interactive run must honor them. A `dry-run` presents the argument-lifted enumeration and stops there. An argument-lifted path that no candidate touches never reaches this gate.
@@ -186,12 +186,12 @@ Zero applicable improvements: clean exit with a one-line note and no PR. Do not 
 2. **One commit per logical tidying.** Atomic, structure-only. Beck: *"Each commit should fit comfortably in your head, on your screen, and in the team's review pipeline."*
 3. `git add <path>` only, never `-A` or `.`: WIP from a parallel session can sneak in, even on a tidy branch.
 4. Pre-flight every file with `git diff <path>` *before* staging. After staging, use `git diff --cached <path>` to confirm only the tidying went in.
-5. Commit messages follow Conventional Commits with the lane's default type (e.g., `refactor:` for code lanes, `docs:` for prose lanes, `chore:` for tooling).
+5. Commit messages follow Conventional Commits with the focus area's default type (e.g., `refactor:` for code focus areas, `docs:` for prose focus areas, `chore:` for tooling).
 6. **`in-place`:** stage each tidying per steps 3-4 but do not commit; Phase H handles it.
 
 ### Phase F. Verify
 
-Tidying is behavior-preserving, so verification confirms exactly that: run the project's build + tests + linters for the affected ecosystem (the lane file's verification commands; the consuming project's own CLAUDE.md / rules may name canonical commands). Red branch → fix or abort cleanly. **Never push red.** A tidying that broke a test or build was secretly behavioral: back it out; it belongs in a different PR with proper test coverage.
+Tidying is behavior-preserving, so verification confirms exactly that: run the project's build + tests + linters for the affected ecosystem (the focus area file's verification commands; the consuming project's own CLAUDE.md / rules may name canonical commands). Red branch → fix or abort cleanly. **Never push red.** A tidying that broke a test or build was secretly behavioral: back it out; it belongs in a different PR with proper test coverage.
 
 ### Phase G. Self-review + simplify
 
@@ -206,12 +206,12 @@ Self-review by the producing context is enough here: a fresh-context verifier is
 
 Otherwise, never call `git commit` or `gh pr create` directly. Phase E already committed the tidyings, so what is left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips.
 
-If the `source-control` plugin is enabled, invoke `/source-control:pull-request create` (if enabled) via the Skill tool. Its stage-and-commit step is a no-op here (the tree is clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and the facts the body needs (lane, tidyings, anchor commit, verification commands run and their results); it writes the body from the repo's configured sections. Tidy's own audit trail goes in a follow-up comment (below), not the PR body:
+If the `source-control` plugin is enabled, invoke `/source-control:pull-request create` (if enabled) via the Skill tool. Its stage-and-commit step is a no-op here (the tree is clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and the facts the body needs (focus area, tidyings, anchor commit, verification commands run and their results); it writes the body from the repo's configured sections. Tidy's own audit trail goes in a follow-up comment (below), not the PR body:
 
 Title:
 
 ```text
-<lane-default-type>(<lane-area>): <what was tidied>
+<area-default-type>(<area-scope>): <what was tidied>
 ```
 
 Examples:
@@ -221,7 +221,7 @@ Examples:
 
 Body facts to supply:
 
-- Which lane, which tidyings, and the anchor commit. Name a tidying without a bare `#` (`Beck 8, Explaining Variables`), so the number is not [autolinked as an issue or PR reference](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls#issues-and-pull-requests).
+- Which focus area, which tidyings, and the anchor commit. Name a tidying without a bare `#` (`Beck 8, Explaining Variables`), so the number is not [autolinked as an issue or PR reference](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls#issues-and-pull-requests).
 - Verification commands run and their results.
 
 `/source-control:pull-request create` (if enabled) reports the created `<pr_number>`. Immediately post one follow-up comment on that PR with `tidy`'s audit trail:
@@ -250,17 +250,17 @@ Then monitor checks (`gh pr checks <n> --watch`) until green. Address review-bot
 
 ## Global HARD/SOFT exclusions
 
-Three exclusion tiers gate every lane. The full lists live in `reference/exclusions.md`; read it at the start of every run. This summary is orientation only.
+Three exclusion tiers gate every focus area. The full lists live in `reference/exclusions.md`; read it at the start of every run. This summary is orientation only.
 
-1. **GLOBAL HARD**: paths not touched by default, regardless of lane, and lifted only through the override channels below: agent/CI/hook configuration (`.claude/**` in full, any script wired as a hook command in `.claude/settings.json` or `.claude/settings.local.json` wherever it lives, `.github/workflows/**`, git-hook manager config, `.mcp.json`, lint configs like `.editorconfig`) plus every path the consuming project's own rules declare protected.
+1. **GLOBAL HARD**: paths not touched by default, regardless of focus area, and lifted only through the override channels below: agent/CI/hook configuration (`.claude/**` in full, any script wired as a hook command in `.claude/settings.json` or `.claude/settings.local.json` wherever it lives, `.github/workflows/**`, git-hook manager config, `.mcp.json`, lint configs like `.editorconfig`) plus every path the consuming project's own rules declare protected.
 2. **GLOBAL SOFT**: areas an autonomous run cannot verify safely (browser-rendered UI, interactive auth flows, DB migrations against real instances, IDE-only flows, and areas the project marks unverifiable). Routed to the deferred-items list in Phase D unless an interactive user explicitly overrides.
-3. **SELF-UPDATE EXTRA HARD**: added when `<lane>=self-update`. Protects the skill's contract surface: frontmatter, the Action Router / Workflow / Lane-catalog sections, lane-file `## Scope` / `## Watch-for patterns` / `## Lane-specific extra exclusions` blocks, and `${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`, a generated copy of the shared convention whose numbers change only there. It is the only thing between an autonomous self-update run and this skill's own contract surface.
+3. **SELF-UPDATE EXTRA HARD**: added when `<area>=self-update`. Protects the skill's contract surface: frontmatter, the Action Router / Workflow / Focus area catalog sections, focus area file `## Scope` / `## Watch-for patterns` / `## Area-specific extra exclusions` blocks, and `${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`, a generated copy of the shared convention whose numbers change only there. It is the only thing between an autonomous self-update run and this skill's own contract surface.
 
 **Behavioral exclusions** apply whatever path an edit targets: DB migrations against real instances (safe only against an ephemeral test DB), breaking API changes, HTTP route signature changes, MCP tool schema changes, branch-protection or security-workflow rule changes, and work-tracking exclusions (items another agent claimed, items with an open linked PR, items labeled blocked/deferred). A candidate that would alter any of these is behavioral: file an issue instead.
 
 **Overriding the HARD path list.** Every tier-1 path entry is overridable through three channels: the `override` argument (this run), the `hard_exclusions` userConfig option (this operator), and a tracked `.claude/code-tidying/exclusion-overrides.md` of root-relative globs (this repository). Precedence per path: argument, then repository file, then userConfig, then enforced. Full contract, file shape, and collision rules: `reference/exclusions.md` section 4. Nothing outside the tier-1 **path** entries is reachable: the behavioral guards, the work-tracking entries, tier 2 SOFT, and tier 3 EXTRA HARD hold at every setting. Lifting is not silent: a run that lifted anything names every lifted path and its channel in the Phase H report; a run that cannot produce that line enforces instead.
 
-**Enforcement across phases:** Phase A seeds path-validation from the HARD list and resolves the three override channels into a lifted set. Phase D classifies candidates against HARD (drop unless lifted) and SOFT (defer). Phase E validates every Edit / Write target path against the HARD list minus the lifted set. The self-update lane additionally applies the EXTRA HARD list during Phases D and E, and the override channels do not reach it.
+**Enforcement across phases:** Phase A seeds path-validation from the HARD list and resolves the three override channels into a lifted set. Phase D classifies candidates against HARD (drop unless lifted) and SOFT (defer). Phase E validates every Edit / Write target path against the HARD list minus the lifted set. The self-update focus area additionally applies the EXTRA HARD list during Phases D and E, and the override channels do not reach it.
 
 ## Deferred items contract
 
@@ -268,7 +268,7 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Every ite
 
 ## Boundary with the bundled `simplify` skill
 
-`simplify` cleans up code and applies its fixes; for what it reviews and the targets it takes, read the `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands). This skill hunts unfiled structural drift across a rotated, glob-scoped lane regardless of recent activity, under a scope budget, and ships one structure-only PR. When `simplify` resolves, prefer it for refining a diff that exists (what you just wrote, a path, a PR); prefer this skill when nothing has changed yet and the question is what small structural improvement one slice can take today. `batch-simplify` owns the same cleanup at sweep scale.
+`simplify` cleans up code and applies its fixes; for what it reviews and the targets it takes, read the `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands). This skill hunts unfiled structural drift across a rotated, glob-scoped focus area regardless of recent activity, under a scope budget, and ships one structure-only PR. When `simplify` resolves, prefer it for refining a diff that exists (what you just wrote, a path, a PR); prefer this skill when nothing has changed yet and the question is what small structural improvement one slice can take today. `batch-simplify` owns the same cleanup at sweep scale.
 
 **Mutation gate.** `simplify` edits the working tree. This skill makes its own scope-budgeted edits and commits them as tidyings, so never chain into a `simplify` run on this skill's behalf; the two anchors differ and their diffs would mix.
 
@@ -283,4 +283,4 @@ It carries the opened tidy PR through CI and review findings; the merge is the r
 ## Gotchas
 
 - **Beck's New Interface, Old Implementation is context-dependent.** Safe only when the new interface has zero existing consumers. If consumers exist, treat it as behavioral and skip. Do not trust the "structural" label blindly.
-- **Do not tidy your way around a banned or deprecated API.** If the lane scope contains call sites of an API the project bans, migrating them is behavioral. File an issue and defer.
+- **Do not tidy your way around a banned or deprecated API.** If the focus area scope contains call sites of an API the project bans, migrating them is behavioral. File an issue and defer.

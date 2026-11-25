@@ -524,6 +524,9 @@ Each maps to the term or doctrine that owns the concept.
 | slice *(the benchmark sense)* | **workload** above; bare "slice" means the topic folder |
 | task *(for a lane)* | **lane** above; collides with the `Task` Issue Type admission reads ([`admission-rules.json`](../.github/actions/resolve-config/admission-rules.json)) |
 | factory workflow *(for a lane)* | **lane** above; not every workflow is a lane |
+| lane *(the slice of a repository a hunt rotates through)* | focus area, the word `code-tidying:tidy` and `bugs:scan` (`--area`) use; bare **lane** means a stage worker |
+| lane *(one interface concern an audit pass judges)* | concern, the word `user-interface:audit` uses |
+| lane *(one audit a drift sweep runs)* | check, the word the `drift-delta-sweep` routine uses |
 | approval *(for admission)* | **admission** above; implies a judge, and admission runs no model |
 | commitment point | **admission** above; Kanban's name for the point, which collides with a git commit |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |

@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| Project focus areas present | INFO | none in .claude/tidy-areas/ |\n| hard_exclusions | PASS | enforce |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Project focus areas present | FAIL | none in .claude/tidy-areas/ |",
+      "why": "absence graded FAIL"
+    },
+    {
+      "answer": "FAIL - no project focus areas configured",
+      "why": "absence graded FAIL"
+    }
+  ]
+}

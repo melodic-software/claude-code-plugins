@@ -22,5 +22,5 @@ git working tree, or under a broken pointer, the team layer does not apply.
 The surface has the plugin default and the team layer only: no `userConfig` option and no personal
 override, because the limit protects a shared review queue.
 
-The hard-exclusion option and the lane files are separate surfaces, described in the
+The hard-exclusion option and the focus area files are separate surfaces, described in the
 [README](../README.md) and `skills/tidy/SKILL.md`.

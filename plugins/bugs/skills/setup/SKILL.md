@@ -1,5 +1,5 @@
 ---
-description: "Check where /bugs:write --file reports land, check or write the tracked docs/conventions/bugs.yaml lanes and filing posture /bugs:scan reads, and move settings out of the old ~/.claude/bugs.md and .claude/bugs.local.md."
+description: "Check where /bugs:write --file reports land, check or write the tracked docs/conventions/bugs.yaml focus areas and filing posture /bugs:scan reads, and move settings out of the old ~/.claude/bugs.md and .claude/bugs.local.md."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -10,7 +10,7 @@ disable-model-invocation: true
 | Surface | Holds | Written by |
 |---|---|---|
 | `output_dir`, `gotchas_file`. Native `userConfig` | one operator's personal `--file` destination on one machine; one operator's gotchas file for every repository | Claude Code's own plugin configuration prompt, never this skill |
-| `docs/conventions/bugs.yaml`. Tracked, cascade-layered | team policy: `/bugs:scan` lanes and filing posture | `apply` here; besides it, only the gated old-path move |
+| `docs/conventions/bugs.yaml`. Tracked, cascade-layered | team policy: `/bugs:scan` focus areas and filing posture | `apply` here; besides it, only the gated old-path move |
 
 This is the narrow-write setup shape: `apply` writes the team YAML, plus what the gated old-path
 move writes. `output_dir` and `gotchas_file` stay check-only: each is a
@@ -26,7 +26,7 @@ Keys, layers, merge semantics, the `output_dir` partition rule, and the file for
 writing; never restate its keys here or disagree with it.
 
 No argument runs `check`. Both actions run without questions when the invocation and the repo make
-the values unambiguous: report and recommend, and ask only where a lane genuinely needs the user.
+the values unambiguous: report and recommend, and ask only where a focus area genuinely needs the user.
 
 ## `check` (read-only, the default)
 
@@ -61,7 +61,7 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
      [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
      live.
 
-### B. `docs/conventions/bugs.yaml` (tracked lane config)
+### B. `docs/conventions/bugs.yaml` (tracked focus area config)
 
 Anchor at the repo root (`${CLAUDE_PROJECT_DIR}` when set, otherwise
 `git rev-parse --show-toplevel`), never the CWD. Report **each layer separately** and the effective
@@ -71,13 +71,13 @@ merged result:
    present-and-parsed, or malformed, plus each old path B6 names. A malformed layer degrades soft: surface the error, name the
    layer, resolve as if it were absent. Check a present team YAML against
    [`${CLAUDE_PLUGIN_ROOT}/schemas/bugs.schema.json`](../../schemas/bugs.schema.json) and report
-   each violation; the reference still governs how a run treats an unknown key or a bad lane entry.
-2. **Effective config and provenance.** The merged `lanes` and the resolved `filing_posture` (the
+   each violation; the reference still governs how a run treats an unknown key or a bad focus area entry.
+2. **Effective config and provenance.** The merged `areas` and the resolved `filing_posture` (the
    reference's Filing posture section) and the layer that supplied each, honoring the reference's
    merge semantics. A `filing_posture` in a bugs layer is WARN: deprecated, move it to
    `docs/conventions/work-items.yaml`; an explicit empty-list opt-out is
    reported as an opt-out, not a broken layer. All layers absent is a fully working state: INFO,
-   never FAIL, since `/bugs:scan` falls through to its bundled default lanes.
+   never FAIL, since `/bugs:scan` falls through to its bundled default focus areas.
 3. **Per-layer version-control verdict.** A present team file must be tracked, which takes **two**
    probes per file. `git check-ignore -v docs/conventions/bugs.yaml`: a non-empty result is FAIL,
    naming the matching pattern. `git ls-files --error-unmatch docs/conventions/bugs.yaml`: a
@@ -90,7 +90,7 @@ merged result:
 5. **Unknown keys.** Report them as inert, naming their layer, including `output_dir`, which is not a
    recognized key here.
 6. **Old paths.** For each old file the reference's "Old paths (dual-read window)" section names
-   that exists, report its path, what it holds (gotchas, `lanes`, `filing_posture`), which of its
+   that exists, report its path, what it holds (gotchas, `areas`, `filing_posture`), which of its
    settings the new files already supply and so win, the new home of each setting from that
    section's table, and `apply` as the command that moves it. The `gotchas_file` option is
    `${user_config.gotchas_file}` in this text; an empty or unexpanded value is unset.
@@ -129,10 +129,10 @@ home, never two. For each old file, one at a time:
      the section there, then have them set the option to that path through the native flow in
      `check` step A4. Re-run `check` in a fresh session before step 3, since a same-session value can
      be stale.
-   - `lanes` from `~/.claude/bugs.md`: ask which repository it was for and write it to that
+   - `areas` from `~/.claude/bugs.md`: ask which repository it was for and write it to that
      repository's `docs/conventions/bugs.local.md`. When the user says the team shares it, write it
      to the team YAML now, behind the same yes, scaffolded in the reference's format when absent and
-     merged by lane `name` when present.
+     merged by focus area `name` when present.
    - `filing_posture` from either file: show the line to add to `docs/conventions/work-items.yaml`,
      as step 3 of "Converge the team YAML" does for the team YAML.
 3. **Check the new home resolves the same values.** Run
@@ -150,16 +150,16 @@ home, never two. For each old file, one at a time:
 ### Converge the team YAML
 
 1. **Read the effective config across every layer** and present it. Where a personal override
-   layer changes the team file's effect (adding lanes, replacing one by name, opting out with an
+   layer changes the team file's effect (adding focus areas, replacing one by name, opting out with an
    empty list), say so: a team-scope edit alone will not
-   account for it, and re-adding a lane a personal override opts out of will not restore it on this machine.
+   account for it, and re-adding a focus area a personal override opts out of will not restore it on this machine.
    Prompt the user to update that layer; do not edit it for them.
-2. **Draft lanes from the repository** before asking anything: entrypoint and API directories, the
+2. **Draft focus areas from the repository** before asking anything: entrypoint and API directories, the
    highest-churn source areas in `git log`, and any subsystem the repo's own docs treat as critical.
-   Propose kebab-case lane names with globs relative to the repo root. With lanes already in the
+   Propose kebab-case focus area names with globs relative to the repo root. With focus areas already in the
    team YAML, propose only additions; with nothing to infer from, propose the bundled generic
-   default lanes.
-3. **Confirm one decision at a time.** Present each drafted lane with a recommendation; the user
+   default focus areas.
+3. **Confirm one decision at a time.** Present each drafted focus area with a recommendation; the user
    accepts, edits, or drops it. Never write `filing_posture`: it lives in
    `docs/conventions/work-items.yaml`. When the team YAML still sets it, show the line to add there
    and, once that file sets it and the user says yes, drop it from the team YAML.
@@ -168,7 +168,7 @@ home, never two. For each old file, one at a time:
    report rather than silently rewrite anything you cannot reconcile. Never rewrite a file you did
    not first read.
 5. **Verify after writing.** Re-run the `check` B probes against the file on disk: it parses, it
-   meets the schema, every lane declares `name` and `globs`, the globs match real paths (a lane
+   meets the schema, every focus area declares `name` and `globs`, the globs match real paths (a focus area
    matching nothing is reported as skipped), and `git check-ignore -v docs/conventions/bugs.yaml`
    confirms it is not ignored. Report the values observed, never an unobserved change.
 6. **Recommend the personal override line; do not write it.** Personal deviations belong in
@@ -199,7 +199,7 @@ by re-reading it, for `output_dir` by a rerun in a fresh session.
 ## Next
 
 - Produce a bug report: `/bugs:write`.
-- Hunt the configured lanes: `/bugs:scan`.
+- Hunt the configured focus areas: `/bugs:scan`.
 
 ## Gotchas
 

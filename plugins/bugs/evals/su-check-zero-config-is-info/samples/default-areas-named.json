@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "INFO: no bugs config at any layer; /bugs:scan uses its bundled generic default focus areas.",
+      "why": "bundled default focus areas"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: docs/conventions/bugs.yaml missing.",
+      "why": "no fallback named"
+    },
+    {
+      "answer": "Zero config works: the default focus areas apply.",
+      "why": "unqualified default focus areas"
+    }
+  ]
+}

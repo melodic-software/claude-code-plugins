@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "remove the pattern .claude/tidy-lanes/scratch-*.md from .gitignore"
+      "answer": "remove the pattern .claude/tidy-areas/scratch-*.md from .gitignore"
     }
   ],
   "fail": [

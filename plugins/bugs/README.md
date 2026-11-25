@@ -8,7 +8,7 @@ fix them, open a PR, or file an issue on its own.
 |---|---|
 | `/bugs:write` | Turns an informal defect description, one you already observed, into the five-field report. |
 | `/bugs:scan` | Hunts for defects **nobody has observed yet** in resting code, verifies each candidate adversarially, and reports what survives. |
-| `/bugs:setup` | `check` inspects both configuration files read-only; `apply` writes the tracked lane config `scan` reads. |
+| `/bugs:setup` | `check` inspects both configuration files read-only; `apply` writes the tracked focus area config `scan` reads. |
 
 Invoke `/bugs:write <description>` (or let Claude reach for it
 when you describe a defect). The five fields are:
@@ -52,18 +52,18 @@ No diff, no failing test, no stack trace, no comment marker. It reads resting co
 looks for what is wrong in it.
 
 ```text
-/bugs:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]
+/bugs:scan [<path|feature|diff>] [--area <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]
 ```
 
 | Flag | Effect |
 |------|--------|
-| (none) | Rotate: self-select the next lane from the tracked lane config, hunt it, report |
+| (none) | Rotate: self-select the next focus area from the tracked focus area config, hunt it, report |
 | `<path\|feature\|diff>` | Hunt exactly that scope. No rotation |
-| `--lane <name>` | Hunt the named lane's globs |
+| `--area <name>` | Hunt the named focus area's globs |
 | `--track` | File the verified findings as raw intake through the `work-items` plugin |
 | `--dry-run` | Report to stdout only. Persists nothing, advances no rotation |
 | `--unattended` | Nobody is present: run none of the scanned code, and file rather than fix. A run is also unattended when `CLAUDE_CODE_REMOTE` is set, under `claude -p`, or in an autonomous loop |
-| `--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip` | Scan several repositories, one pass each, per the shipped `reference/target-scope.md`. Lanes, cursor, reports and filing stay per repository |
+| `--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip` | Scan several repositories, one pass each, per the shipped `reference/target-scope.md`. Focus areas, cursor, reports and filing stay per repository |
 
 One invocation is **one bounded pass**, which makes it usable interactively, from a loop,
 or as a daily routine. Four properties matter before you rely on it:
@@ -79,8 +79,8 @@ or as a daily routine. Four properties matter before you rely on it:
   [`reference/run-reviewed-code.md`](reference/run-reviewed-code.md).
 - **A bare run is read-only toward your repository and stays within a budget**. It stops at
   the verified-finding count the [skill's Effort table](skills/scan/SKILL.md#effort) sets for the
-  session's effort level, or at a complete lane sample. Filing happens only when you pass
-  `--track`, and a complete lane sample is never reported as the lane being bug-free.
+  session's effort level, or at a complete focus area sample. Filing happens only when you pass
+  `--track`, and a complete focus area sample is never reported as the focus area being bug-free.
 - **Cost follows the scope, never the precision.** Hunters and gates take their models from the
   multi-agent role map (the skill's sizing table names the roles); hunters pass no effort and gates
   always pass one, the map's verifier effort or the session's level when higher, and the
@@ -117,8 +117,8 @@ prompts for the value and where it stores it, fetch
 [plugins manifest reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
 live.
 
-**Team, the tracked `docs/conventions/bugs.yaml`**, which `/bugs:scan` reads for its lanes
-(`lanes`), checked against
+**Team, the tracked `docs/conventions/bugs.yaml`**, which `/bugs:scan` reads for its focus areas
+(`areas`), checked against
 [`schemas/bugs.schema.json`](schemas/bugs.schema.json). Its filing policy (`filing_posture`) lives in
 the work-items team file, `docs/conventions/work-items.yaml`; for one release `/bugs:scan` still
 reads a `filing_posture` left in `docs/conventions/bugs.yaml`, with a notice to move it. A `## Gotchas` section in the prose file
@@ -131,12 +131,12 @@ config-cascade convention: the `gotchas_file` option, this tracked team file, an
 personal override, `docs/conventions/bugs.local.md`. While an old `~/.claude/bugs.md` or
 `.claude/bugs.local.md` exists, it is still read where the new file for its layer is absent, and
 each run warns you to move it with `/bugs:setup apply`. All layers are optional: with no config at all, `scan` rotates over bundled generic
-default lanes. Keys, defaults, layer order, and per-key merge semantics live in
+default focus areas. Keys, defaults, layer order, and per-key merge semantics live in
 [`reference/config.md`](reference/config.md), their single home.
 
 Run `/bugs:setup` to work on either surface. `check` (the default) reports both read-only:
-the rendered `output_dir`, which layer supplied each lane config value, and each old config file.
-`apply` writes the tracked file. It drafts lane candidates from your repository and confirms them
+the rendered `output_dir`, which layer supplied each focus area config value, and each old config file.
+`apply` writes the tracked file. It drafts focus area candidates from your repository and confirms them
 one at a time. It also moves each old config file to its new home after a preview and your yes,
 checks the new home resolves the same values, then deletes the old file. It never touches
 settings, `pluginConfigs`, or your `.gitignore`.

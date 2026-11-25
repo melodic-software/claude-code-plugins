@@ -59,22 +59,22 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 layer "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" '# bugs config
 
 ```yaml
-lanes: []
+areas: []
 ```
 
 ## Gotchas
 
-- Team lane: skip the billing sandbox.
+- Team focus area: skip the billing sandbox.
 '
 # shellcheck disable=SC2016  # backticks are the literal markdown code span in the expected fixture, not substitution
-run_case "team-only layer" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Team lane: skip the billing sandbox.\n' "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md")"
+run_case "team-only layer" "$(printf '### Consumer gotchas (cascade)\n\n#### team (`%s`)\n\n- Team focus area: skip the billing sandbox.\n' "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md")"
 
 HOME="${FIXTURES}/home-k"
 CLAUDE_PROJECT_DIR="${FIXTURES}/repo-k"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 layer "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" '# bugs
 
-Why the lanes are what they are.
+Why the focus areas are what they are.
 
 ## Gotchas
 
@@ -94,7 +94,7 @@ layer "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" '# bugs
 
 ## Keys
 
-lanes concatenate.
+focus areas concatenate.
 
 ## Gotchas
 
@@ -123,7 +123,7 @@ old_read() { printf 'Warning: bugs read `%s`, an old config path. Run `/bugs:set
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
 superseded() { printf 'Warning: bugs no longer reads the gotchas in `%s`, because `%s` supplies the %s layer. Run `/bugs:setup apply` to %s, then delete the old file.' "$1" "$2" "$3" "$4"; }
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
-user_move() { printf 'move its `## Gotchas` to %s and any `lanes` or `filing_posture` to the homes `/bugs:setup check` names' "$1"; }
+user_move() { printf 'move its `## Gotchas` to %s and any `areas` or `filing_posture` to the homes `/bugs:setup check` names' "$1"; }
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
 personal_move() { printf 'move what it holds into `%s`' "$1"; }
 # shellcheck disable=SC2016  # backticks are the literal markdown code spans in the expected warning, not substitution
@@ -206,7 +206,7 @@ CLAUDE_PROJECT_DIR="${FIXTURES}/repo-e"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR/.claude"
 layer "$CLAUDE_PROJECT_DIR/docs/conventions/bugs.md" '## Keys
 
-lanes.
+focus areas.
 
 ## Gotchas
 '
@@ -217,7 +217,7 @@ CLAUDE_PROJECT_DIR="${FIXTURES}/repo-f"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 layer "$HOME/bugs-gotchas.md" '# no gotchas heading
 
-lanes: []
+areas: []
 '
 run_case "layer without Gotchas heading is skipped" $'(none)' --user-file "$HOME/bugs-gotchas.md"
 

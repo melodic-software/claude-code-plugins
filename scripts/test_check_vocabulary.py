@@ -41,6 +41,7 @@ HITS = {
     "tier-precedence": "The project tier takes precedence over the user tier.",
     "surface-config": "Edit the settings surface to change it.",
     "contract-brief": "The Brief is the contract the plan builds on.",
+    "lane-hunt-scope": "Run /bugs:scan --lane core-logic to hunt one slice.",
 }
 
 ALLOWED = {
@@ -777,7 +778,7 @@ def rules_match(sense: str, line: str) -> bool:
 
 
 class EachSense(unittest.TestCase):
-    def test_the_data_file_names_the_six_senses(self):
+    def test_the_data_file_names_every_sense(self):
         data = json.loads(DATA.read_text(encoding="utf-8"))
         self.assertEqual([s["id"] for s in data["senses"]], list(HITS))
 
@@ -812,6 +813,31 @@ class EachSense(unittest.TestCase):
 
     def test_a_line_outside_the_sense_context_is_not_reported(self):
         code, out, _ = run_gate({"docs/guide.md": "Each rung up costs more tokens."})
+        self.assertEqual((code, out), (0, ""))
+
+    def test_each_retired_lane_sense_is_reported(self):
+        lines = [
+            "tidy hunts a rotated lane for Beck tidyings.",
+            "Copy the template into .claude/tidy-lanes/web.md.",
+            "user-interface:audit reviews one concern lane at a time.",
+        ]
+        code, out, _ = run_gate({"docs/guide.md": "\n".join(lines)})
+        self.assertEqual(code, 1, out)
+        self.assertEqual(
+            out,
+            "".join(
+                f"docs/guide.md:{n}: lane-hunt-scope: {line}\n"
+                for n, line in enumerate(lines, 1)
+            ),
+        )
+
+    def test_a_stage_worker_lane_is_not_reported(self):
+        lines = [
+            "The merge lane merges the pull request once CI Status is green.",
+            "Run the pr-merge lane with --lane-merges-only.",
+            "The video digest reads each artifact from its concern lane folder.",
+        ]
+        code, out, _ = run_gate({"docs/guide.md": "\n".join(lines)})
         self.assertEqual((code, out), (0, ""))
 
     def test_surface_as_a_verb_or_a_key_is_not_reported(self):

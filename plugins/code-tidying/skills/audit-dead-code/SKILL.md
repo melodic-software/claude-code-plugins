@@ -244,7 +244,7 @@ one.
 
 ## Boundaries
 
-- `/code-tidying:tidy` applies Beck's Dead Code tidying inside one rotated lane; this hunts the
+- `/code-tidying:tidy` applies Beck's Dead Code tidying inside one rotated focus area; this hunts the
   whole repository and reports.
 - `/code-tidying:batch-simplify` sweeps recently changed files; this targets the long-untouched
   ones a recency window excludes.

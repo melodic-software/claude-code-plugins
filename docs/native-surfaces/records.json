@@ -53,7 +53,7 @@
       },
       "verdict": "complementary",
       "integration": "route",
-      "reason": "Different trigger, not a different job. The bundled skill refines the code a change already touched; tidy proactively hunts unfiled structural drift across a rotated, glob-scoped lane and ships one structure-only PR per invocation. tidy's own description already routes current-diff work away to the native surface, which is the routing this row records rather than replaces.",
+      "reason": "Different trigger, not a different job. The bundled skill refines the code a change already touched; tidy proactively hunts unfiled structural drift across a rotated, glob-scoped focus area and ships one structure-only PR per invocation. tidy's own description already routes current-diff work away to the native surface, which is the routing this row records rather than replaces.",
       "evidence": [
         "`simplify` present in the extraction as bundled-skill",
         "native description: Clean up the changed code without changing behavior",

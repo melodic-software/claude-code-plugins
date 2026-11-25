@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "FAIL .claude/tidy-lanes/api.md: missing `## Verification commands`"
+      "answer": "FAIL .claude/tidy-areas/api.md: missing `## Verification commands`"
     }
   ],
   "fail": [

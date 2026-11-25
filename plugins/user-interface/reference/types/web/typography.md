@@ -252,7 +252,7 @@ second one under "Units for text" in `typography/scale-and-rhythm.md`.
    inputs), not just the stylesheet.
 3. Report findings grouped by file. Each finding is one bullet: where it is, what's wrong, the
    corrected declaration in the project's idiom, and which rule it serves. Inside a
-   `/user-interface:audit` lane, that skill's report shape governs (grouped by severity); each
+   `/user-interface:audit` concern, that skill's report shape governs (grouped by severity); each
    finding still carries the corrected declaration and the rule it serves.
 4. Stay silent on rules the code already follows; a short list of true issues beats an exhaustive
    tour.

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# A git repository with a tracked team layer (one entrypoints lane), a tracked work-items file that
-# sets filing_posture: allowed, and a gitignored personal override that opts out with lanes: [].
 set -euo pipefail
 set -o noclobber
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -13,7 +11,7 @@ printf '.claude/**/*.local.*\n' >.gitignore
 printf '# Service\n' >README.md
 printf 'export const ping = () => "pong";\n' >src/api/ping.ts
 cat >docs/conventions/bugs.yaml <<'YAML'
-lanes:
+areas:
   - name: entrypoints
     globs:
       - 'src/api/**/*.ts'
@@ -27,6 +25,6 @@ cat >.claude/bugs.local.md <<'MD'
 I hunt nothing on this machine for now.
 
 ```yaml
-lanes: []
+areas: []
 ```
 MD

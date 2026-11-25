@@ -7,7 +7,7 @@ countdown, a keyboard shortcut, or a page and its headings. The project's own co
 and conventions win over every rule here; suggest a change to them, never override them.
 
 The accessibility floor in `../../principles.md` applies first; this file is its web detail. A
-mistake in this lane excludes people, so fix these first. Some users reach your interface through a
+mistake in this concern excludes people, so fix these first. Some users reach your interface through a
 thumb, a keyboard, or a screen reader and never touch a mouse. UI that only works with a fine
 pointer and perfect vision is broken however polished it looks. The rules below are the baseline,
 so do not defer them.

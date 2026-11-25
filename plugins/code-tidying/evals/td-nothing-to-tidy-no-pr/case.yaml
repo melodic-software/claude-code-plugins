@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: td-nothing-to-tidy-no-pr
-description: 'full lane run where the only in-scope script is declared protected by the project''s CLAUDE.md: the run edits nothing, commits nothing, attempts no PR, and reports a clean exit'
+description: 'full focus area run where the only in-scope script is declared protected by the project''s CLAUDE.md: the run edits nothing, commits nothing, attempts no PR, and reports a clean exit'
 tags: [tidy, empty-pr, hard-exclusion]
 expected_outcome: 'scripts/release.sh is unchanged; no commit and no gh pr create; the final message says there was nothing eligible to tidy and no PR was opened.'
 context:
