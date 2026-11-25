@@ -6,7 +6,7 @@ How `/docs-hygiene:compress` composes with sibling skills and with a consuming r
 
 | Surface | Direction | Contract |
 |---|---|---|
-| The consuming repo's markdown lint | `/docs-hygiene:compress` runs it | Post-edit verification. SKILL.md "Hard rules" requires `markdownlint-cli2` PASS on every ship, using the consuming repository's markdownlint config when present; failure blocks ship per the revert rule. A broader consumer lint workflow may run after a batch to surface the full report |
+| The consuming repo's markdown lint | `/docs-hygiene:compress` runs it | Post-edit verification. SKILL.md "Hard rules" requires the repository's resolved markdown lint command to pass on every ship; failure blocks ship per the revert rule, and an unresolved command is reported, never run. A broader consumer lint workflow may run after a batch to surface the full report |
 | A planning workflow (if the consumer has one) | calls `/docs-hygiene:compress` | When a planning artifact grows ≥ 2000 words (or an exploration/research artifact beyond 1500 words), the author may invoke `/docs-hygiene:compress <path>` on it before handoff. The consumer's workflow decides when |
 | An instruction-audit workflow (if the consumer has one) | calls `/docs-hygiene:compress` | When such an audit flags `CLAUDE.md` or rule-file size bloat and expected yield exceeds `compress_revert_below_pct` (default 3%), the user may invoke `/docs-hygiene:compress <path>`, or `/docs-hygiene:compress --force <path>` to keep a targeted result below that threshold. `--force` is required only to **keep** such a result; without it the run proceeds and auto-reverts (SOFT-BLOCK per SKILL.md; not a structural refuse) |
 | `/docs-hygiene:audit-encapsulation` | parallel concern | No invocation either direction and no runtime interaction. `/docs-hygiene:audit-encapsulation` detects external citations into skill-private surfaces; `/docs-hygiene:compress` edits the markdown targets it is given |
@@ -34,15 +34,15 @@ Never cite this skill's `context/` files, its scripts, or any heading anchor ins
 
 | Don't | Do |
 |---|---|
-| `/docs-hygiene:compress` to compress code files (`.cs`, `.py`, `.sh`) | Out of scope per SKILL.md "When NOT to use"; code-comment compression is out of scope |
-| Chain `/docs-hygiene:compress` + a separate markdown lint pass assuming `/docs-hygiene:compress` skipped lint | `/docs-hygiene:compress` runs `markdownlint-cli2` internally per Hard rules; a redundant lint invocation costs an extra pass with no signal |
+| `/docs-hygiene:compress` to compress code files | Out of scope per SKILL.md "When NOT to use"; code-comment compression is out of scope |
+| Chain `/docs-hygiene:compress` + a separate markdown lint pass assuming `/docs-hygiene:compress` skipped lint | `/docs-hygiene:compress` runs the repository's markdown lint command internally per Hard rules; a redundant lint invocation costs an extra pass with no signal |
 | Pipe `/docs-hygiene:compress` output into an orchestrator expecting structured data | `/docs-hygiene:compress` summary is human-readable, not structured. No `--json` |
 | `/docs-hygiene:compress` to summarize a conversation | That's the built-in `/compact`, different semantic (conversation summarization, not markdown content) |
 | Bypass the semantic-diff dispatch with a `--no-verify`-style flag | No such flag exists. SKILL.md "Hard rules" makes dispatch mandatory for default action; `audit` is the read-only escape if dispatch cost is the concern |
 
 ## Composition with build/test front-ends
 
-`/docs-hygiene:compress` does not compose with build or test workflows: markdown has no build or test gate beyond markdownlint, which it invokes directly. In the consuming repository's pre-PR sequence it is opportunistic before staging when uncommitted markdown exists, not a mandatory step.
+`/docs-hygiene:compress` does not compose with build or test workflows: markdown has no build or test gate beyond markdown lint, which it runs itself. In the consuming repository's pre-PR sequence it is opportunistic before staging when uncommitted markdown exists, not a mandatory step.
 
 ## Cross-references
 

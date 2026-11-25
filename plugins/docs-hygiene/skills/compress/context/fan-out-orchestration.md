@@ -61,7 +61,7 @@ Per FINDING block returned in Phase B:
 
 - `SEMANTIC LOSS` / `AMBIGUITY` / `UNCERTAIN` → main session reverts that specific CONDENSED line back to ORIGINAL (per-finding revert via the Edit tool, not whole-file revert)
 - `FALSE POSITIVE` → keep the compression. An article drop counts here only under `compress_articles: cut`; under `keep` the auditor classes it SEMANTIC LOSS, and the main session also restores any dropped article a finding misclassed, since no `keep` run ships one
-- Markdownlint each file post-reconcile; non-zero exit → whole-file revert (per-finding revert produced malformed state)
+- Run the markdown lint step on each file post-reconcile; non-zero exit → whole-file revert (per-finding revert produced malformed state)
 - Update any batch-tracking artifact your workflow maintains, main session only; subagents never write shared state
 
 ## Request budget

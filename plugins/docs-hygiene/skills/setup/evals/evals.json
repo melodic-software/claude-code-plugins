@@ -2,35 +2,11 @@
   "skill_name": "setup",
   "evals": [
     {
-      "id": 2,
-      "name": "missing-binary-reports-remediation",
-      "prompt": "compress stopped and said markdownlint-cli2 is missing. Run the docs-hygiene setup and fix it for me.",
-      "expected_output": "Reports FAIL for the missing binary with the explicit install remediation, names that compress stops at its entry point without it, and does not install anything itself.",
-      "files": [],
-      "expectations": [
-        "Reports a FAIL row with the install remediation (npm install --save-dev markdownlint-cli2 or a global install)",
-        "Does not run npm, npx, or any download on the operator's behalf",
-        "Does not offer apply as a fix for the missing binary"
-      ]
-    },
-    {
-      "id": 3,
-      "name": "broken-shim-is-a-fail",
-      "prompt": "/docs-hygiene:setup check. node_modules/.bin/markdownlint-cli2 exists but our Node install was removed.",
-      "expected_output": "Reports FAIL because the resolved shim prints an execution error instead of the version banner under --help, carries that error in the remediation line, and does not claim the prerequisite is met.",
-      "files": [],
-      "expectations": [
-        "Treats a resolved shim whose --help output does not start with the version banner as FAIL",
-        "Includes the execution error text in the remediation line",
-        "Does not claim success from resolution alone"
-      ]
-    },
-    {
       "id": 4,
       "name": "check-reports-effective-compress-articles",
       "narration": true,
-      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and its --help output starts with the version banner. The repository has no docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so the skill's userConfig line substitutes to cut.]",
-      "expected_output": "PASS rows for markdownlint-cli2 resolution and its --help run. setup-apply.mjs --check prints an INFO line that docs/conventions/docs-hygiene.yaml is absent. The effective compress_articles is cut, supplied by userConfig. Nothing is written.",
+      "prompt": "/docs-hygiene:setup check [The repository has no docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so the skill's userConfig line substitutes to cut.]",
+      "expected_output": "setup-apply.mjs --check prints an INFO line that docs/conventions/docs-hygiene.yaml is absent. The effective compress_articles is cut, supplied by userConfig. Nothing is written.",
       "files": [],
       "expectations": [
         "Runs setup-apply.mjs --check and reports the absent repository file as INFO, not WARN or FAIL",
@@ -68,7 +44,7 @@
       "id": 7,
       "name": "check-invalid-repo-value-resolves-to-default-not-userconfig",
       "narration": true,
-      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and its --help output starts with the version banner. docs/conventions/docs-hygiene.yaml holds compress_articles: drop. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
+      "prompt": "/docs-hygiene:setup check [docs/conventions/docs-hygiene.yaml holds compress_articles: drop. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
       "expected_output": "setup-apply.mjs --check prints a WARN naming docs/conventions/docs-hygiene.yaml, compress_articles and drop, then WARN compress_articles: dropped. The repository layer is the highest, so with it dropped no valid layer sits above it, and the effective compress_articles is keep from the default, the value /docs-hygiene:compress resolves for the same files. The userConfig value cut is not used. Nothing is written.",
       "files": [],
       "expectations": [
