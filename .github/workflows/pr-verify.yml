@@ -170,6 +170,7 @@ jobs:
         id: pr
         if: steps.kill.outputs.proceed == 'true'
         env:
+          GITHUB_READ_STORE: ${{ runner.temp }}/github-reads
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           # A rate-guard stop holds green with the resolver's other GitHub
@@ -199,6 +200,7 @@ jobs:
         if: steps.pr.outputs.proceed == 'true'
         env:
           API_BUDGET_TOKEN: github-token
+          GITHUB_READ_STORE: ${{ runner.temp }}/github-reads
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           standards-path: ${{ steps.standards.outputs.path }}
@@ -281,6 +283,8 @@ jobs:
           pr-number: ${{ steps.pr.outputs.pr-number }}
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
+          reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       # A blobless fetch of the two commits into its own repository outside
@@ -2205,6 +2209,7 @@ jobs:
         id: pr
         if: steps.kill.outputs.proceed == 'true'
         env:
+          GITHUB_READ_STORE: ${{ runner.temp }}/github-reads
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           # A rate-guard stop holds green with the resolver's other GitHub
@@ -2238,6 +2243,7 @@ jobs:
         if: steps.pr.outputs.proceed == 'true'
         env:
           API_BUDGET_TOKEN: github-token
+          GITHUB_READ_STORE: ${{ runner.temp }}/github-reads
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           standards-path: ${{ steps.standards.outputs.path }}
@@ -2281,6 +2287,8 @@ jobs:
           pr-number: ${{ steps.pr.outputs.pr-number }}
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
+          reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       - name: Write the diff
@@ -3999,6 +4007,7 @@ jobs:
         id: pr
         if: steps.kill.outputs.proceed == 'true'
         env:
+          GITHUB_READ_STORE: ${{ runner.temp }}/github-reads
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           # A rate-guard stop holds green with the resolver's other GitHub
@@ -4028,6 +4037,7 @@ jobs:
         if: steps.pr.outputs.proceed == 'true'
         env:
           API_BUDGET_TOKEN: github-token
+          GITHUB_READ_STORE: ${{ runner.temp }}/github-reads
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           standards-path: ${{ steps.standards.outputs.path }}
@@ -4070,6 +4080,8 @@ jobs:
           pr-number: ${{ steps.pr.outputs.pr-number }}
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
+          reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       - name: Write the diff

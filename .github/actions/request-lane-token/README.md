@@ -20,7 +20,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `audience` | The OIDC audience, `${{ vars.LANES_BROKER_AUDIENCE }}`. Empty fails red |
 | `lane`, `activity` | Sent to the broker; the lane must be the caller workflow's file stem |
 | `pr-number` | `token` mode: the gated PR; sent as `pr_number` when set, which the broker needs off `pull_request` |
-| `issue-number` | `token` mode: the issue an `issues` lane works; sent as `issue_number` when set, which the broker needs on an `issues` event. Never with `pr-number` or `dispatcher-run-id` |
+| `issue-number` | `token` mode: the issue an `issues` lane works; sent as `issue_number` when set, which the broker needs on an `issues` event. Never with `pr-number` or `dispatcher-run-id`. `check` mode: required from a `workflow_dispatch` run of `intake-triage.yml` on `refs/heads/main`, and refused from any other caller |
 | `release` | `token` mode: the Claude Code release an `upstream-apply-changelog.yml` job works, one `MAJOR.MINOR.PATCH`; sent as `release`, a string, when set, which the broker needs from that caller and refuses from any other. Anything else fails red. Never with `pr-number`, `issue-number` or `dispatcher-run-id` |
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
 | `expected-upstream-head` | `token` mode: for a job after `pr-unblock`'s model job, the head that job was gated on; sent as `expected_upstream_head` when set. A lowercase commit SHA, with `dispatcher-run-id` only |
@@ -147,10 +147,11 @@ controls that job, so this adds nothing it could not already do.
 
 ## Check mode
 
-With `mode: check` the action takes only `broker-url`, `audience`, `lane` and `activity`; a
-`pr-number`, `issue-number`, `release`, effect or grant fails it red, so the read file's check job never carries the write
-path's inputs. It posts to `broker-url`, retrying a 503 `github-unavailable` or `github-rate-limited` as in step 3, with its final `/token` replaced by `/check` (a URL
-that does not match `^https://[^/]+/(.+/)?token$` fails red), with the body `{"lane", "activity"}`, and passes only on a 200
+With `mode: check` the action takes only `broker-url`, `audience`, `lane` and `activity`, and
+`issue-number` from an `intake-triage.yml` dispatch, which must pass it; a `pr-number`, `release`,
+effect or grant fails it red, and so does an `issue-number` from any other caller or a missing one
+from intake, so the read file's check job never carries the write path's inputs. It posts to `broker-url`, retrying a 503 `github-unavailable` or `github-rate-limited` as in step 3, with its final `/token` replaced by `/check` (a URL
+that does not match `^https://[^/]+/(.+/)?token$` fails red), with the body `{"lane", "activity"}` (plus `issue_number`, a JSON integer, from intake), and passes only on a 200
 whose `decision` is `allow` and whose `lane` and `activity` are its own. Any other answer fails red
 with `lane-check-denied`; no response is `broker-unreachable`. An allow sets `allowed=true`. With
 `kill-switch-ok: true`, a 403 `kill-switch` ends green with a `lane-check-stopped` notice,

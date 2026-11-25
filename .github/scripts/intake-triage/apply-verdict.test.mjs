@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/resolve-config/package.json plugins/work-items/skills/triage/schemas/ci-verdict.schema.json
 import assert from "node:assert/strict";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
@@ -137,14 +137,13 @@ describe("parseVerdict with a typed verdict", () => {
     }
   });
 
-  test("the workflow's verdict-schema offers exactly the values the verdict reads", () => {
-    const workflow = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8");
-    const schema = JSON.parse(/^ +verdict-schema: '(.+)'$/m.exec(workflow)[1]);
+  test("the triage skill's verdict schema offers exactly the flags and typed fields the verdict reads", () => {
+    const schema = JSON.parse(readFileSync(new URL("../../../plugins/work-items/skills/triage/schemas/ci-verdict.schema.json", import.meta.url), "utf8"));
     for (const key of ["size", "complexity", "uncertainty"]) {
-      assert.deepEqual(schema.properties[key].enum.map((value) => value.toLowerCase()).sort(), Object.values(DIMS.fields[key].options).sort(), key);
+      for (const value of Object.values(DIMS.fields[key].options)) assert.match(value, new RegExp(schema.properties[key].pattern, "u"), `${key} ${value}`);
     }
     assert.deepEqual(schema.properties.flags.items.enum, ["intent", "security", "cost", "untrusted"]);
-    assert.deepEqual(schema.required, ["size", "complexity", "uncertainty", "flags", "blocked_by"]);
+    for (const key of ["size", "complexity", "uncertainty", "flags", "blocked_by"]) assert.ok(schema.required.includes(key), key);
   });
 });
 

@@ -171,6 +171,9 @@ outputs:
   applied-by-patch:
     description: The activity that applies the selected activity's patch (its applied-by.patch); empty when it hands on none.
     value: ${{ steps.resolve.outputs.applied-by-patch }}
+  applied-by-triage-verdict:
+    description: The activity that applies the selected activity's intake verdict (its applied-by.triage-verdict); empty when it hands on none.
+    value: ${{ steps.resolve.outputs.applied-by-triage-verdict }}
   permission-mode:
     description: >
       A skill activity's launcher permission mode, `dontAsk` (the default)
