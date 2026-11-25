@@ -18,6 +18,9 @@ from pathlib import Path
 
 import pytest
 
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+
 SCRIPT = Path(__file__).with_name("comment_only.py")
 REQUIREMENTS = Path(__file__).with_name("requirements-comment-only.txt")
 GRAMMARS = (
