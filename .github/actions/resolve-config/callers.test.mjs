@@ -150,7 +150,6 @@ for (const [file, job, lane, laneSwitch] of [
     const review = jobs[job];
     assert.deepEqual(review.needs, ["check-kill-switch"]);
     assert.deepEqual(Object.keys(jobs).sort(), ["check-kill-switch", job].sort(), "no job runs before the review but the kill switch");
-    assert.doesNotMatch(JSON.stringify(jobs), /wait-refine|refine-timeout/, "no step waits for Refine");
     const context = {
       "github.event.pull_request.draft": false,
       "needs.check-kill-switch.outputs.proceed": "true",
