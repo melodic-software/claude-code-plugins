@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
@@ -108,7 +109,7 @@ test("a diff over the old 600,000-byte cap is rated: 70 files of 10,000 bytes cu
   }
   assert.equal(coverage().parts.length, chunks.flatMap(({ parts }) => parts).length);
   assert.equal(JSON.parse(read("facts.json")).files.length, 70);
-  assert.match(output(), /^agents=20\n$/);
+  assert.match(output(), /^agents=20\nchunks=3\n$/);
 });
 
 test("chunks past MAX_CHUNKS are left out and counted, and the agents output covers a rater and a checker per chunk", () => {
@@ -120,11 +121,41 @@ test("chunks past MAX_CHUNKS are left out and counted, and the agents output cov
   assert.deepEqual(listed.left_out, { chunks: 2, bytes: 2000, files: 2 });
   assert.deepEqual(capped.coverage().left_out, { chunks: 2, bytes: 2000, files: 2 });
   assert.equal(existsSync(join(capped.env.DATA, "diff", "chunk-11")), false);
-  assert.match(capped.output(), /^agents=20\n$/);
+  assert.match(capped.output(), /^agents=20\nchunks=10\n$/);
   const all = setup(diff, { CHUNK_BYTES: "1000", MAX_CHUNKS: "50" });
   assert.equal(main(all.env), 0);
   assert.equal(JSON.parse(all.read("chunks.json")).chunks.length, 12);
-  assert.match(all.output(), /^agents=24\n$/);
+  assert.match(all.output(), /^agents=24\nchunks=12\n$/);
+});
+
+function gitDiff(name, before, after) {
+  const dir = join(tempDir("merge-risk-git-"), "repo");
+  mkdirSync(dir);
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+  const git = (...args) => {
+    const run = spawnSync("git", ["-C", dir, ...args], { encoding: "utf8", env });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout;
+  };
+  git("init", "-q");
+  writeFileSync(join(dir, name), before);
+  git("add", name);
+  writeFileSync(join(dir, name), after);
+  return git("diff", "--no-color", "--no-ext-diff");
+}
+
+test("a git diff line of 5,000 bytes is folded into part lines of at most 1,800 bytes, each counted as a line the rating must read", () => {
+  const long = `{"min":"${"q".repeat(4990)}"}`;
+  const diff = gitDiff("bundle.json", "{}\n", `${long}\n`);
+  const { env, read, coverage } = setup(diff);
+  assert.equal(main(env), 0);
+  const text = read("diff/chunk-1/part-001.patch");
+  const lines = text.split("\n").slice(0, -1);
+  assert.ok(lines.every((line) => Buffer.byteLength(line) <= 1800), "no part line is longer than the fold");
+  const folds = lines.filter((line) => line.startsWith("\\ continued: "));
+  assert.equal(folds.length, 2, "5,001 bytes with its + sign fold into 1,800 + 2 continuations");
+  assert.equal(lines.join("\n").replaceAll("\n\\ continued: ", ""), diff.slice(0, -1), "the folds rejoin into the diff");
+  assert.deepEqual(coverage().parts, [{ path: join(env.DATA, "diff/chunk-1/part-001.patch"), lines: lines.length }]);
 });
 
 test("main refuses a cut it cannot make, writing no facts", () => {

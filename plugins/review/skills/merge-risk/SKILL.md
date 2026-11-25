@@ -53,7 +53,9 @@ Read every diff part whole, each with one Read and no offset or limit. When `chu
 more than one chunk, read only `facts.json`, `issue.md` and `chunks.json` yourself and rate the
 diff through agents instead, all dispatched in one message so they run at once: for each chunk, one
 read-only `review:brief-reviewer` agent on your side and one blind checker (step 3), each with the
-chunk brief below. Your row for an area is the highest level any of your side's agents gives it,
+chunk brief below. When the caller names a model for each side, pass it as each agent's `model`
+parameter, so your side and the checker run on the models the caller chose for them; otherwise pass
+none. Your row for an area is the highest level any of your side's agents gives it,
 with that agent's reason; raise a level from your own reads, never lower one. When
 `chunks.json` shows chunks left out, or any agent returns no rows or says it could not read a
 part, add a `Diff coverage` row at `HIGH` naming what went unread: a rating never claims a diff it

@@ -126,7 +126,7 @@ export function main(env = process.env) {
     mkdirSync(dirname(env.COVERAGE_FILE), { recursive: true });
     writeFileSync(env.COVERAGE_FILE, `${JSON.stringify(coverage)}\n`);
     const agents = Math.max(DEFAULT_SUBAGENTS, 2 * chunks.length);
-    if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `agents=${agents}\n`);
+    if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `agents=${agents}\nchunks=${chunks.length}\n`);
     console.log(
       `merge-risk input: pr=${pr} head=${env.HEAD_SHA} files=${facts.files.length} diff-bytes=${size} chunks=${chunks.length} parts=${coverage.parts.length} left-out-chunks=${leftOut.chunks}`,
     );
