@@ -416,7 +416,8 @@ of a full sweep. It guards the lanes App's 5,250 calls an hour, but a full sweep
 109 of them (55 sweeps in six hours), where the 800 it once spent (2026-11-10, run 42898100951)
 set the old value of 15. Against the 15-minute schedule, 15 skipped 12 of 21 such sweeps, so a
 freed slot waited for the next scheduled one; 5 still skips the sweeps of runs that finish just
-after a full sweep. `limits.restarts-per-run` (10) never deferred a restart in 69 full sweeps over 32 hours
+after a full sweep. Re-derive it when a full sweep's `lanes-app=` annotation passes 250 calls: the
+busiest hour measured held 21 sweeps, which at 250 each reach the App's limit. `limits.restarts-per-run` (10) never deferred a restart in 69 full sweeps over 32 hours
 spanning both schedules, so it stays: lower leaves slots idle between sweeps, far higher lets
 queued runs go stale on a lane workflow change.
 
