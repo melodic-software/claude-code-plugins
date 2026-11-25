@@ -347,7 +347,7 @@ assert_contains "a reference reconstructed out of multibyte content is intact" "
 
 SEP_SED='s|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 SEP='' SEP_NAME=''
-# shellcheck disable=SC2059  # the candidate IS the format string: its \nnn octal
+# shellcheck disable=SC2059  # the candidate IS the format string: its \nnn octal escapes must print as UTF-8 bytes
 for _cand in 'U+3000 IDEOGRAPHIC SPACE:\343\200\200' \
   'U+2000 EN QUAD:\342\200\200' \
   'U+2028 LINE SEPARATOR:\342\200\250' \

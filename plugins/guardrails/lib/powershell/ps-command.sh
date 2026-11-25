@@ -1302,7 +1302,7 @@ ps::write_bypass() {
     seg="${seg#"${seg%%[![:space:]]*}"}"
     [[ "$seg" == *'>'* ]] || continue
     # Exclude the `$null` discard (PowerShell's /dev/null).
-    # portability-ok: `\>` escapes a literal `>` inside a bash [[ =~ ]] ERE, it
+    # portability-ok: `\>` is a literal `>` in a bash [[ =~ ]] ERE, not GNU grep's word boundary.
     [[ "$seg" =~ \>\>?[[:space:]]*\$null([[:space:]]|$) ]] && continue
     seg="${seg//[()]/}"
     seg="${seg//\{/}"
