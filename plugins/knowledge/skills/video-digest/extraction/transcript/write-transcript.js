@@ -22,14 +22,6 @@ import { resolveTranscriptStrategy } from "./transcript-strategy.js";
 /** @import { TranscriptStrategy } from '../adapters/adapter-contract.js' */
 /** @import { HarvestedLink } from '../harvesting/models.js' */
 
-/**
- * Paragraph count of a formatted transcript: {@link formatTranscript} joins
- * timestamped paragraphs with a blank line, and empty text has none. Shared by
- * the caption and ASR routes so the two cannot drift.
- *
- * @param {string} transcript
- * @returns {number}
- */
 function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
 }
@@ -63,24 +55,12 @@ function comparableWord(word) {
   return plain.slice(start, end);
 }
 
-/**
- * Sentence punctuation (quotes, brackets, ellipses) trimmed from a word's ends
- * by a scan rather than a regex, so a long punctuation run costs linear time.
- * Hyphens and dashes stay, so C-- and C never compare equal.
- */
 const EDGE_PUNCTUATION = new Set('.,;:!?"\u2018\u201a\u201c\u201d\u201e\u2039\u203a\u00ab\u00bb()[]{}\u2026');
 
-/**
- * The lexical words of `text`: punctuation-only tokens such as `>>` are not
- * words, so they never count toward a run's length.
- *
- * @param {string} text
- */
 function words(text) {
   return tokens(text).filter(isWord);
 }
 
-/** @param {string} token - a word holds at least one letter or digit */
 function isWord(token) {
   return /[\p{L}\p{N}]/u.test(token);
 }
@@ -395,9 +375,6 @@ export async function writeEnvelopeTranscriptArtifacts(
     requested === "asr" || entries.some((entry) => !entry.caption && entry.mediaPath);
   const asrDetection = needAsrProbe ? await detectAsr() : null;
 
-  // Every strategy gets the lexicon, repair-only: captions+repair and ASR cues
-  // are repaired against it. It is never fed to ASR as an initial prompt (the
-  // probe in reference/sources/x.md showed no gain and a worse hallucination).
   const repairLexicon = buildRepairLexicon(metadata.description, harvestedLinks, metadata.title);
 
   /** @type {EnvelopeTranscriptEntry[]} */

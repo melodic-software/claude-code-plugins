@@ -180,11 +180,6 @@ done
 [[ -d "$ROOT" ]] || die "--root is not a directory: $ROOT"
 cd "$ROOT" || die "cannot enter --root: $ROOT"
 
-# ---------------------------------------------------------------------------
-# Corpus rules. Exclusions are absolute and applied before anything else, so
-# nothing below can reach the fact stream. Mirrors context/corpus.md; that
-# document is the prose owner and this is its executable form.
-# ---------------------------------------------------------------------------
 is_excluded() {
   case "$1" in
   */evals/fixtures/* | evals/fixtures/* | \
@@ -436,10 +431,6 @@ sha256_hex() {
   fi
 }
 
-# One IDENTITY record for the section starting at --start, from the sweep's own
-# SECTION records. The heading path takes, level by level, the nearest preceding
-# section with a strictly lower level than the last one taken, so a skipped level
-# (an H3 directly under an H1) leaves no gap and borrows no unrelated heading.
 emit_identity() {
   [[ -f "$ID_FILE" ]] || id_die "not a readable file: $ID_FILE"
   local -a starts=() levels=() heads=()

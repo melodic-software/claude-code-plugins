@@ -225,19 +225,6 @@ ours_agents_bytes() {
   file_bytes "$dir/AGENTS.md"
 }
 
-# Classify a CLAUDE.md by how far it is from the target shape, which is a file
-# that is EXACTLY `@AGENTS.md`. Prints one of:
-#
-#   shim               nothing but the import. Whether it is the target shape
-#                      byte for byte is is_exact_shim's question
-#   shim-with-comment  the import plus HTML comments and nothing else. It loads
-#                      the same way, but the comment is content the migration
-#                      still has to move or delete, so it is not `shim` and it
-#                      is not `both-with-content` either. Both `dotfiles` and
-#                      `medley` are in this state today
-#   content            anything else
-#
-# Comments are matched as blocks, so a note spanning several lines counts once.
 classify_claude_md() {
   local file="$1" import=0 comment=0 other=0 inblock=0 line trimmed
   [[ -f "$file" ]] || {
@@ -447,42 +434,6 @@ if [[ -n "$HOME_DIR" ]]; then
   done
 fi
 
-# --- PATHDET --------------------------------------------------------------
-# Code that finds a directory by the existence of CLAUDE.md. Each one keeps
-# working while the shim exists and breaks the day it comes out, which is why
-# this is a plan row rather than a cutover surprise.
-#
-# `.claude/` is scanned like any other tree: a hook or helper script there can
-# locate a path by CLAUDE.md exactly as one anywhere else can. The one file
-# excluded from it is the cutover acknowledgement list, whose every line quotes
-# a detector by design; reporting those quotations as detectors would make the
-# file that answers this row also generate it.
-#
-# The match is a WIDE list of existence-ish shapes, not a narrow one, and it
-# is still a list: it reports what it recognizes. Reporting every mention of
-# the name instead was measured at 519 rows here against 54 for this pattern,
-# and an acknowledgement list nobody reads is one that gets rubber-stamped,
-# which fails the same way a miss does. So the bias is wide but bounded, and
-# the residue is stated rather than hidden:
-#
-#   REPORTED: -e/-f/-s/-r/-h/-L tests, `test -e`, `find -name`, Test-Path,
-#     File.Exists, os.path.exists, os.stat, Path(...).exists(), fs.existsSync,
-#     accessSync, statSync, File.exist?, .isFile(), a `x=CLAUDE.md` assignment,
-#     and any exists/stat/access/is-file/locate/find-root idiom within 60
-#     characters of the name.
-#   NOT REPORTED, and known: a name reached only through a variable assigned
-#     far from its use, a shell `ls`/`cat` used as an existence probe, and any
-#     spelling outside the list above. Those land in MENTION, which condition 4
-#     does not grade, so an operator triaging MENTION rows is the backstop.
-#
-# Over-reporting costs a line in the acknowledgement file; under-reporting
-# clears a cutover that breaks a repository.
-#
-# Benign shapes, dropped before reporting:
-#   - a comment line (`#`, `//`, `*`, `--`, `<!--`, `;`)
-#   - a name that is part of a LONGER filename (`CLAUDE.md.bak`, `xCLAUDE.md`)
-#   - the instruction files themselves, and markdown generally, which locate
-#     no path
 BENIGN_COMMENT=':[0-9]+:[[:space:]]*(#|//|\*|--|<!--|;)'
 
 PATHDET_PATTERN='(\[\[|\[|\(|^|[[:space:];&|]|!)[[:space:]]*-(e|f|s|r|h|L|name)[[:space:]][^;&|]{0,60}CLAUDE\.md'
@@ -539,11 +490,6 @@ git grep -n -I -F 'CLAUDE.md' \
   roll_up_mentions |
   sed 's/^/MENTION\t/' | emit_rows MENTION
 
-# --- RULES ----------------------------------------------------------------
-# What the repository already homes in `.claude/rules/`, and how much of it is
-# always-loaded. On a large corpus this is the difference between "that text
-# has a home" and re-deriving the answer by hand across a hundred files. A rule
-# without `paths:` costs what a CLAUDE.md line costs, every session.
 rules_total=0
 rules_unscoped=0
 rules_unscoped_bytes=0
@@ -581,9 +527,6 @@ ACTION_DIRS=()
 [[ -d ".github/workflows" ]] && ACTION_DIRS+=(".github/workflows")
 [[ -d ".github/actions" ]] && ACTION_DIRS+=(".github/actions")
 if [[ ${#ACTION_DIRS[@]} -gt 0 ]]; then
-  # A `uses:` line only. A comment mentioning the action is not a pin, and
-  # reporting one as a version CI installs sends the cutover check after a
-  # string nothing reads.
   action_rc=0
   action_rows="$(grep -rn -E '^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*[^#]*claude-code-action(/[A-Za-z0-9._-]+)*@' \
     "${ACTION_DIRS[@]}" 2>/dev/null)" || action_rc=$?
