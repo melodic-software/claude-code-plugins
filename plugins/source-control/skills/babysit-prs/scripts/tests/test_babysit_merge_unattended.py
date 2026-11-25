@@ -1609,7 +1609,6 @@ class LaneMode(Unattended):
             self.assertEqual(merge.main(), 2)
 
     def test_a_lane_kill_switch_outside_the_lane_is_a_usage_error(self) -> None:
-        # Local babysit keeps its variables read; it never takes a passed value.
         for flags in (
             ["--unattended", "--lane-kill-switch", "proceed"],
             ["--unattended", "--authority", "local-babysit"]
@@ -3150,8 +3149,6 @@ class OneUnattendedMergeInFlight(Unattended):
     def test_a_queued_entry_whose_issue_turned_untrusted_dequeues_itself(
         self,
     ) -> None:
-        # A human labels the linked issue untrusted-provenance after the
-        # enqueue: the trust hold refuses it, so its own entry leaves.
         self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
         self.queued = [PR]
         self.eligible = policy.Eligibility(False, "untrusted-provenance")
@@ -3582,7 +3579,6 @@ class ReasonsComment(Unattended):
         self.assertNotIn("never an agent", self.body())
 
     def test_an_unsafe_path_hold_does_not_claim_the_floor(self) -> None:
-        # A symlink or unreadable list scores this code with the floor off.
         unsafe = merge.diff_risk.Reason(
             merge.diff_risk.UNSAFE_PATH_CODE, merge.diff_risk.Risk.HIGH, "x"
         )
@@ -5047,8 +5043,6 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                 calls, result = self.read()
                 self.assertIsInstance(result, RuntimeError)
                 self.assertIn(refusal, str(result))
-                # One attempt, on the read token: no retry, no limit read,
-                # and no call at all under the lane token.
                 self.assertEqual(calls, [(timeline, "read-tok")])
 
     def test_the_next_candidate_reads_with_the_read_token_again(self) -> None:

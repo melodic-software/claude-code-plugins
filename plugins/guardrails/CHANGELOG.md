@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.2] - 2026-11-25
+
+### Fixed
+
+- The merge guard's README entry says to post a reply or comment that quotes a merge command in backticks with `--body-file <file>` or `-F body=@<file>`, since the guard refuses that text on the command line and does not read a body file.
+
+## [5.2.1] - 2026-11-25
+
+### Fixed
+
+- The merge guard reads every page of a pull request's reviews, check runs and commit statuses (and of the changed files, branch rules, annotations and pr-verify artifacts it reads), not only the first 100 ([#18954](https://github.com/melodic-software/claude-code-plugins/issues/18954)). A change request in a later review, or a failed or pending check past the first 100, now blocks the merge. A list longer than 20 pages lets the merge run with the "will run unchecked" notice, as the review-thread read already did past 2,000 threads.
+
 ## [5.2.0] - 2026-11-25
 
 ### Added

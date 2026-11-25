@@ -1,11 +1,3 @@
-"""Unit tests for the audit-skill-visibility classifier.
-
-The classifier is pure -- `(denominator, events, config, clock) -> model` -- and
-every test here pins a defect found during this topic's audit. Each test names
-the failure it prevents, because a fixture whose purpose is forgotten gets
-"fixed" by the next person who sees it fail.
-"""
-
 import contextlib
 import io
 import json
@@ -48,7 +40,6 @@ def _write_json(path, blob):
 
 
 def _fleet(count=10, chars=1000):
-    """`count` competing skills, each with a `chars`-long description."""
     return [
         {
             "qualified_name": f"a:{i}",
@@ -3531,7 +3522,6 @@ class ListingCaptureTest(unittest.TestCase):
 
 
 def _capture_of(*rendered):
-    """A read capture whose listing is the given rendered entries, in order."""
     names = [line[2:].split(": ", 1)[0] for line in rendered]
     record = {
         "type": "attachment",

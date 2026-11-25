@@ -309,10 +309,6 @@ MAX_REPORTED_PATHS=10
 SENTINEL_SHAPE=$'\x01shape'
 SENTINEL_UNKNOWN=$'\x01unknown'
 
-# --- Arg parsing ---------------------------------------------------------------
-# Parsed before any file is read, so a usage error costs no process.
-
-# Built-ins only, so --help runs on a machine that lacks jq or git.
 usage() {
   local text
   IFS= read -r -d '' text <<'EOF' || true
@@ -406,7 +402,6 @@ if [[ -n "$IDS_MODE" && "$MODE" == "all" ]]; then
   exit 2
 fi
 
-# Checked after argument parsing so --help and usage errors work without jq or git.
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
   exit 2
@@ -433,15 +428,6 @@ for f in "$INSTALLED_JSON" "$MARKETPLACES_JSON"; do
   fi
 done
 
-# Shape validation rides the SAME jq pass that reads the records, so a
-# marketplace costs one jq for its whole install list rather than one to
-# validate plus one to read. It still fails LOUD: a malformed state file read
-# leniently produces an empty install list, which is indistinguishable from a
-# clean fleet — the one wrong answer this check must never give.
-#
-# Every marketplace's records are read here, once, and the per-marketplace
-# filter is a suffix test in the shell. A filtered subsequence keeps
-# `to_entries` order, so the install order in the report is unchanged.
 installed_bad() {
   echo "ERROR: $INSTALLED_JSON is not valid installed_plugins.json (expected an object with a .plugins map of arrays)" >&2
   exit 2
@@ -477,19 +463,11 @@ marketplaces_bad() {
   exit 2
 }
 
-# --- Per-marketplace check -----------------------------------------------------
-
-# NUL-separated enumeration of every comparable file under the install roots
-# given as arguments. One definition for both flushes of the chunked walk below,
-# so the two can never disagree on what the cache side contains.
 walk_cache_roots() {
   find "$@" \( -type f -o -type l \) \
     -not -path '*/.git/*' -not -path '*/.in_use/*' -print0 2>/dev/null
 }
 
-# Emits, on stdout, the single-marketplace JSON body for $1 whose resolved
-# installLocation is $2. Returns non-zero with a message on stderr only for a
-# marketplace that cannot be named at all.
 check_marketplace() {
   local mp="$1" install_loc="$2"
   local install_loc_native
@@ -506,13 +484,6 @@ check_marketplace() {
     loc_verdict="not-a-git-worktree"
   fi
 
-  # name<US>source for every plugin entry in the marketplace.json at one sha,
-  # cached so a marketplace whose records share a sha pays for it once. Only
-  # entries whose source is a plain path string are kept: an object source names
-  # a remote checkout with no local tree here, and is left out so the lookup
-  # miss becomes an honest `no-source` verdict. Each entry is stored under
-  # "<sha><US><name>", so a record's lookup is one map read rather than a scan
-  # of every entry. When a name is listed twice, its first entry wins.
   local -A source_by_sha_name=() source_map_loaded=()
   load_source_map() {
     local s="$1" raw="" parsed="" entry entry_key

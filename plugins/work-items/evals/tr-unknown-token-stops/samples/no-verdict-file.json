@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [".work/triage/notes.md"],
+      "why": "a scratch note, not a verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".lane/scratch/triage-verdict.json"],
+      "why": "wrote a verdict"
+    }
+  ]
+}

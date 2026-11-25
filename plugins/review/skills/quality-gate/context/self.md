@@ -23,8 +23,10 @@ For large diffs, dispatch two parallel `code-reviewer` workers with the same tem
 You are a fresh-context reviewer. You did not author this work.
 
 Read in order:
-1. The project's own review criteria and conventions when present (REVIEW.md,
-   review guides, CLAUDE.md, project rules for the changed file types).
+1. The project's own review criteria and conventions when present (the
+   REVIEW.md in effect, which `bash "<plugin-root>/scripts/org-standards.sh" review`
+   prints: the organization's with the repository's appended; review guides,
+   CLAUDE.md, project rules for the changed file types).
 2. The change set: git diff <review-diff-base> (the dispatcher substitutes the
    resolved review diff base from SKILL.md "Shared inputs", the PR's real base
    when one exists, else the origin/HEAD -> remote default branch -> origin/main fallback;

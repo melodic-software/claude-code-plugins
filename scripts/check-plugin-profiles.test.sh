@@ -39,7 +39,8 @@ mkdir -p "$caller/home/.claude/plugin-profiles" "$caller/work/docs/conventions/p
 printf 'plugins:\n  - ghost@vendor\n' >"$caller/home/.claude/plugin-profiles/mine.yaml"
 printf 'plugins: notalist\n' >"$caller/home/.claude/plugin-profiles/broken.yaml"
 printf 'plugins:\n  - phantom@vendor\n' >"$caller/work/docs/conventions/plugin-profiles/team.yaml"
-clean="$(run)"
+mkdir -p "$caller/neutral"
+clean="$(cd "$caller/neutral" && run "$REPO")"
 polluted="$(cd "$caller/work" && HOME="$caller/home" CLAUDE_CONFIG_DIR="$caller/home/.claude" CLAUDE_PROJECT_DIR="$caller/work" bash "$SUT" "$REPO" 2>&1)"
 status=$?
 if [[ $status -eq 0 && "$polluted" == "$clean" ]]; then

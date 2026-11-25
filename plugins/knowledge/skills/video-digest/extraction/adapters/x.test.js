@@ -143,7 +143,6 @@ describeSourceAdapterContract(adapter, {
     "https://x.com/someuser",
     "https://x.com/i/spaces/1YqKDqWqdPLxV",
     "https://x.com/someuser/status/not-a-status-id",
-    // Bounded grammar: a 26-digit "status id" exceeds any snowflake and is refused.
     `https://x.com/someuser/status/${"9".repeat(26)}`,
     `https://x.com/someuser/status/${TWID}/video/1000`,
     "https://example.com/someuser/status/1720000000000000000",

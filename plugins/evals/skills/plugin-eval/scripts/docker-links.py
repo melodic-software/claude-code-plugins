@@ -113,8 +113,6 @@ def process_live(process):
 
 
 def is_live(holder):
-    """A holder is live while its wrapper or the command it started runs, so a
-    wrapper killed alone does not free the copies under its command."""
     child = holder.get("child")
     return process_live(holder) or (child is not None and process_live(child))
 
@@ -179,7 +177,6 @@ def replace_with_copy(path):
 
 
 def restore_links(state):
-    """Put every recorded link back; delete the manifest only when all are back."""
     failed = []
     for entry in reversed(state["links"]):
         path, target = Path(entry["path"]), entry["target"]
@@ -207,7 +204,6 @@ def restore_links(state):
 
 
 def acquire(me):
-    """Join a live swap, or restore a killed run's leftover and swap afresh."""
     state = load()
     if state is not None and state["holders"]:
         others = ", ".join(str(h["pid"]) for h in state["holders"])
@@ -263,7 +259,6 @@ def same(holder, me):
 
 
 def track(me):
-    """Record the started command on this run's holder entry."""
     state = load()
     if state is None:
         return

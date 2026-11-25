@@ -121,8 +121,6 @@ MIN_PYTHON = (3, 8)
 EVALS_DIR = "evals"
 NOT_SLUG = re.compile(r"[^a-z0-9]+")
 
-# The source keys this converter carries into the case. Any other key is named
-# in a note, so nothing is dropped without a person seeing it.
 KNOWN_KEYS = frozenset(
     [
         "id",
@@ -153,12 +151,7 @@ ALLOWED_TOOLS = ("Read", "Glob", "Grep", "Skill")
 # - Recheck trigger: that section names a tool other than Bash for the line.
 PRECOMPUTED = re.compile(r"!`[^`\n]+`")
 BASH_IN_BODY = re.compile(r"\b(?:through|via|with|using|the) Bash\b|\bBash tool\b")
-# A clause that tells the skill to stay off Bash grants nothing. Only the
-# clause holding the Bash phrase counts, so "lines do not run, so run X through
-# Bash" still grants it.
 NEGATION = re.compile(r"\b(?:not|never|don['’]t|do not|avoid|without)\b", re.IGNORECASE)
-# A hard-wrapped line joins the next unless that line starts a block (blank
-# line, list item, heading, quote or table row).
 WRAP = re.compile(r"[ \t]*\n(?![ \t]*(?:[\n\-*#>|]|\d+\.))[ \t]*")
 
 
@@ -174,7 +167,6 @@ def body_needs_bash(text):
 # the name is consumed with it, so the words inside are not read as tools.
 TOOL_TOKEN = re.compile(r"([A-Za-z][\w.:-]*)\s*(?:\([^)]*\))?")
 
-# Wording that says the skill must stay quiet. Such a case gets no Skill grader.
 NO_TRIGGER = re.compile(
     r"(?:\b(?:not|never|no|without)\b|n't\b)[^.;\n]{0,60}?"
     r"\b(?:trigger\w*|invok\w*|fir(?:e|es|ed|ing)\b|activat\w*|load\w*"
@@ -244,9 +236,7 @@ FILE_CREATED = re.compile(
     r"^(?:Writes|Creates) (?:(?:the|a|an) [\w -]+? )?(?:at|to|under) "
     r"`?([\w.](?:[\w./-]*[\w/])?)`?\.?$"
 )
-# A token holding a placeholder or a quote is not a literal the run can echo.
 NOT_LITERAL = re.compile(r"[<>…\"\\]|\.\.\.")
-# Must-fail replies for a regex grader; the first that cannot match is used.
 STOCK_REPLIES = ("The reply names nothing in particular.", "Done.", "0", "-")
 # Tools that let a run create a file; Edit only changes one.
 CREATES_FILES = frozenset(["Write", "Bash"])
@@ -325,7 +315,6 @@ def frontmatter_tools(lines):
 
 
 def skill_tools(plugin_dir, skill):
-    """The case's allowed_tools: the base list plus what the skill needs to run."""
     try:
         with open(
             os.path.join(plugin_dir, "skills", skill, "SKILL.md"), "r", encoding="utf-8"
@@ -373,7 +362,6 @@ def case_dir_name(skill, case, where):
 
 
 def criteria_list(case, where, notes):
-    """The case's expectation strings, in order; blank items are skipped."""
     items = []
     for key in ("expectations", "assertions"):
         listed = case.get(key)
@@ -419,7 +407,6 @@ def skill_match(plugin, skill):
 
 
 def own_skill(ref, plugin, skills):
-    """The skill a SKILL_REF names when it is one of this plugin's, else None."""
     ref = ref.strip("`")
     if ref.lower().startswith("the "):
         name = ref[4:-6].strip("`")
@@ -448,7 +435,6 @@ COMMAND_START = (
 )
 COMMAND_SEGMENT = r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n))?'
 COMMAND_ANYWHERE = r'(?:[^"\\;&|]|\\[^n])*?(?<![\w.-])'
-# Between two words: whitespace, with an optional closing and opening quote.
 COMMAND_GAP = r"(?:\\\"|')?\s+(?:\\\"|')?"
 
 
@@ -501,9 +487,6 @@ def command_samples(command, ran):
 
 
 def deterministic(text, where, plugin, skill, skills, tools, slash_invoked, has_files):
-    """(grader option lines, samples, skill it forbids or None) for an
-    expectation whose whole wording maps to a deterministic check, or None to
-    keep it an llm judgment."""
     found = SKILL_INVOKED.match(text)
     if found and not slash_invoked:
         name = own_skill(found.group(1), plugin, skills)
@@ -553,7 +536,6 @@ def deterministic(text, where, plugin, skill, skills, tools, slash_invoked, has_
             pattern = regex_escape(token)
             present = ["The answer names %s here." % token]
             absent = []
-        # A must-fail reply that cannot hold the literal; none fits, stay llm.
         compiled = re.compile(pattern)
         absent += [r for r in STOCK_REPLIES if not compiled.search(r)][:1]
         if not absent:
@@ -608,7 +590,6 @@ def sample_text(data):
 
 
 def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
-    """Return (directory name, {relative path: text}, notes) for one case."""
     notes = []
     name = case_dir_name(skill, case, where)
     prompt = case.get("prompt")
@@ -704,8 +685,6 @@ def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
             "has expectations but no expected_output, so its llm graders have no "
             "sample answers; add samples/<grader>.json by hand"
         )
-    # A mapped expectation says which skill it is about, so only the wording
-    # left to the judge can leave the direction unknown.
     if slash_invoked or skill in forbidden:
         pass
     elif any(NO_TRIGGER.search(t) for t in [expected] + judged_text):
@@ -734,7 +713,6 @@ def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
 
 
 def plan(plugin_dir):
-    """Every case to write, per source file, or raise Refusal with all reasons."""
     plugin = plugin_name(plugin_dir)
     eval_dir = os.path.join(plugin_dir, EVALS_DIR)
     if os.path.lexists(eval_dir) and not os.path.isdir(eval_dir):
@@ -804,7 +782,7 @@ def write_cases(eval_dir, sources):
         try:
             os.rmdir(os.path.dirname(path))
         except OSError:
-            pass  # fixtures or other files remain beside it
+            pass
     if left:
         raise OSError("the cases were written, but not removed: %s" % ", ".join(left))
 

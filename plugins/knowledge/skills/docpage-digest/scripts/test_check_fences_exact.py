@@ -230,7 +230,6 @@ none
         self.assertIn(b"PASS", proc.stdout)
 
     def test_star_list_inside_fence_is_not_rewritten(self):
-        # The defect the hook caused in a blockquote; a fence holds "* ".
         proc = self.run_gate(CLEAN, 0)
         self.assertIn(b"PASS", proc.stdout)
 

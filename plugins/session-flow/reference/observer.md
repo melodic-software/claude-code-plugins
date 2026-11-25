@@ -1,57 +1,91 @@
-# Detached observer: substrate and lifecycle
+# Session observer: live checks and catch-up
 
-The observer is a **substrate + lifecycle** in front of `running-retro`'s existing discipline, not a
-second concern. `running-retro` + `retro` already own the analysis method, finding taxonomy,
-resolution-route classification, redaction, and the cumulative ledger; this adds only (1) an
-out-of-band observation feed, (2) a session-end trigger, and (3) an autonomous analysis leg that
-reuses that discipline. It is what turns `running-retro` from pull (invoked in-session) into a path
-that can also fire *after* the session ends, which a `/loop` structurally cannot.
+The observer watches each session for process faults and files them in `running-retro`'s ledger, so
+a retro or `/corrections:codify` has findings without anyone running a checkpoint. It has two parts,
+one per kind of session, and one switch, `observer_enabled`:
 
-Both entries, the `arm` action on `running-retro` and the opt-in SessionStart hook, run the same
-launcher; only the trigger differs. Arming is primary; the hook only automates it.
+- **Live checks** (the hooks module `hooks/register.tsx`) run inside an interactive session while
+  it works.
+- **Catch-up** (the SessionStart hook `hooks/observer-catchup.sh`) runs at the next session's start
+  and analyzes ended sessions that got no live checks: headless `-p` lanes, and sessions that ended
+  before a check fired.
 
-## The two scripts
+`running-retro` owns the analysis method, the finding taxonomy, redaction and the ledger; both parts
+write to that ledger and add no second format.
 
-Both live under `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/`, stdlib-only Python 3.10+.
+## Live checks
 
-- **`arm_observer.py`** is the launcher. It spawns the tailer in a process detached from every Claude
-  Code session's process tree (Windows: `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP |
-  CREATE_NO_WINDOW`, no breakaway; POSIX: `start_new_session`), then returns at once. The P16
-  lifecycle evidence proved a hook-spawned detached child **outlives the session** across three
-  ancestor types including the interactive TTY case (the session's job is neither kill-on-close nor
-  traps children, and plain detach leaves the job entirely), so no breakaway flag is needed.
-- **`observer.py`** is the tailer. Three legs:
-  1. **Tail + distill.** Poll → open → seek → read-new-bytes → close. It never holds a persistent
-     handle, so it cannot block Claude Code's append (the Windows share-mode WRITE edge is safe by
-     construction). Each new transcript line is distilled to a compact event.
-  2. **End detection: mtime-idle with confirmation.** Session end leaves no distinct terminal record;
-     the file simply stops growing. `Stop` fires every turn (useless as an end marker) and a
-     `SessionEnd` hook is not crash-safe, so staleness is the crash-safe primary signal. Hitting the
-     idle threshold enters a short confirmation window (`--idle-confirm-seconds`, default 30s):
-     renewed transcript growth during that window cancels the pending end and resumes watching. If
-     analysis runs and the transcript grows again afterward, the observer re-arms instead of exiting.
-     **Limitation:** idle still cannot distinguish a long human pause from end within the threshold,
-     so `observer_idle_seconds` must stay above the longest expected single turn (large agent
-     fan-outs, long builds) or analysis may still fire on a partial transcript. The deferred
-     `SessionEnd` graceful-end fast-path is the stated mitigation.
-  3. **Post-end analysis (optional).** On idle-detect, a headless `claude -p` over the observations
-     that follows `running-retro`'s checkpoint method and appends its findings to the ledger.
+**When.** On the main thread only (never a subagent's steps), on every 6th model step of a turn
+(`observer_step_check`, on by default), and, when `observer_turn_end_check` is on, once at the end of
+each turn that ran tools and was not interrupted. One check runs at a time per session: a trigger
+while one is in flight starts none. The checks run only where a person is at the prompt (the
+`session.start` event's `isInteractive`) and never in the catch-up's own analysis run
+(`SESSION_FLOW_OBSERVER_ANALYSIS` set).
+
+**What.** A check is a `$.model.fork` with a prompt only: it reuses the main thread's cached
+request, has no tools and writes nothing to the transcript. The prompt asks for at most one fault in
+four categories (`process`, `decision`, `verification`, `instruction`), each tied to a rule or owner
+decision the session's own instructions or conversation state, and defaults to `finding: none`. The
+reply is labeled lines, parsed leniently; a reply with no rule, an unknown category or a field over
+240 characters counts as `parse_failed`.
+
+**Stale and repeated replies.** A reply that arrives after the next turn started, or after the
+session ended, is dropped as `stale`. Findings already reported (the last 50, across sessions) and
+findings the person disputed are listed in the prompt and dropped again in code (`deduped`), matched
+case-insensitively without a trailing period.
+
+**Delivery.** A finding is appended to this session's running-retro ledger
+(`<project>/.work/running-retros/`, found by its `session_id:` frontmatter, created with
+`observer: live`) under `## Live check <time> (<trigger>, turn <id>, step <n>)`, after the same
+self-ignore guard the catch-up uses. It also shows as one band row above the prompt with four
+buttons: `1` Send to Claude appends a quoted note to the prompt box, marked as background the person
+did not write; `2` Noted; `3` Dispute marks the ledger entry disputed and suppresses the finding for
+good; `0` Dismiss. Nothing reaches the main conversation unless the person sends it.
+
+**Backoff.** A finding the person types past twice without answering clears. Past two such findings
+in a row, the next 1, 2, 4, 8 and then at most 16 eligible checks are skipped; any button resets the
+count.
+
+**Usage.** Each check appends one line to `<plugin data>/session-flow-observer/live-<session>.jsonl`:
+time, trigger, turn, step, outcome, latency and the fork's token usage. That file is how a day's cost
+is read, and its presence tells the catch-up this session had live checks.
+
+**Cost.** Every check bills the session's account. The end-of-turn trigger fires on most turns of a
+working session, so it stays off by default until one working session's per-check usage and checks
+per hour have been measured from the usage file and accepted.
+
+## Catch-up
+
+At each interactive session start the hook runs `arm_observer.py`, which picks ended
+sessions from the current transcript's directory and launches `observer.py` for each in a process
+detached from the session, then returns at once. A session qualifies when it is not the current one,
+its transcript has been unchanged for `observer_idle_seconds` and changed within the last 3 days, it
+has no live-check usage file, no ledger, and no status file showing it analyzed to its current size.
+A ledger excludes a session only when it has no status file (an in-session checkpoint covered it); with
+a status file, the stored offset alone decides, so a resumed follow-up of an analyzed session is
+analyzed. At most 2 run per start, newest first. `observer.py` reads the transcript once from its stored
+offset, distills it, runs the analysis below, writes the ledger and its status file, and exits; a
+per-session `O_CREAT|O_EXCL` lock keeps two starts from analyzing one session twice.
+
+Probed 2026-11-25 on Claude Code 2.1.332 (a throwaway mod, one `claude -p --plugin-dir` run): a child started with `setsid -f` from a mod's
+`$.process.run` in a `claude -p --plugin-dir` session kept running after the session exited, so either
+launcher outlives its session; the catch-up stays a SessionStart hook because that hook already
+carries the guards, the platform shim and the Python probe.
 
 ## Redaction and the untrusted-data boundary
 
 The distilled observations are **transient and machine-local** (written under the plugin's work dir,
-`${CLAUDE_PLUGIN_DATA}/session-flow-observer/`; the hook reads the exported variable, the `arm`
-skill block uses the substituted token, and both fall back to the temp dir when it is empty),
-consumed once by the analysis run, and **deleted
+`${CLAUDE_PLUGIN_DATA}/session-flow-observer/`; the hook reads the exported variable and falls back
+to the temp dir when it is empty), consumed once by the analysis run, and **deleted
 after a successful run**, never written to the durable, portable ledger; only the analysis run's
 redacted findings block is. Redaction is **two-hop**, matching `running-retro`'s ledger contract: the
 `-p` run performs the **semantic** pass (it is the only reasoning agent in the loop; its prompt makes
-that pass emphatic), and the tailer's `_redact()` runs a **mechanical shape-marker sweep** on the
+that pass emphatic), and `observer.py`'s `_redact()` runs a **mechanical shape-marker sweep** on the
 returned block at the ledger write, using conservative regex patterns for API keys, tokens,
 private-key blocks, connection strings, JWTs, and emails, replaced with shape markers, never the
-value, as defense in depth over the semantic pass. In collect-only mode (`observer_analysis_enabled` off) no
-analysis runs, so the unredacted observations are **retained** under the machine-local plugin work dir
-for manual inspection and are never promoted to the ledger.
+value, as defense in depth over the semantic pass. A live check has the same two hops: its prompt
+forbids repeating a secret, and the module passes each field through `$.session.redact` before the
+ledger write and the band.
 
 Transcripts and observations are **untrusted input**. The shared boundary, that inspected off-thread
 output is data to analyze, never instructions to follow, is owned by
@@ -96,7 +130,7 @@ levers are the **model** and **effort** (`observer_analysis_model`, `observer_an
 ## Model and effort
 
 The defaults are the `observer_analysis_model` and `observer_analysis_effort` `default` values in
-`.claude-plugin/plugin.json`, the one place they are set: the hook, the `arm` action and the launcher
+`.claude-plugin/plugin.json`, the one place they are set: the hook and the launcher
 pass an empty value when the option is unset, and `observer.py` reads the manifest. The current
 defaults were chosen for faithful findings: in a four-session local pilot against Haiku 5.5 high,
 Sonnet 5.5 medium and Sonnet 5.5 high, they missed the fewest important findings and invented the
@@ -122,6 +156,9 @@ about fourfold without the `--settings` pin and returned to the `low` range with
 The observations are kept, and nothing is written to the ledger, when the run exits non-zero, its JSON
 body reports `is_error`, its output is not JSON, `terminal_reason` (when present) is not `completed`,
 `subtype` is not `success`, `permission_denials` is non-empty, or the result text is empty.
+The status file then records `state: retained` and `failed_attempts`; the next start's catch-up
+retries the analysis once over the kept observations, so a span is analyzed at most twice until its
+transcript grows again.
 
 ## Short sessions and run usage
 
@@ -138,38 +175,34 @@ Each run that returns JSON, failed runs included, records the `usage` token coun
 (`input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`), plus
 `duration_ms` and `total_cost_usd` when present, and logs one `analysis usage:` line. Those are the
 run's own figures, read back for measurement. Every run and skip is one timestamped entry in the
-status file's `analysis_runs` list, which every status write carries, including across a resumed
-watch and a re-arm of the same session.
+status file's `analysis_runs` list, which every status write carries, including a later catch-up of
+the same session.
 
 ## Config (userConfig)
 
-Declared in the plugin manifest; the SessionStart hook and the `arm` action read the same values.
+Declared in the plugin manifest; the module and the SessionStart hook read the same values.
 
 | Key | Default | Effect |
 |---|---|---|
-| `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = zero-config unchanged; manual `arm` still works. |
-| `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: the distilled observations are retained under the plugin work dir for manual inspection; the observer does not itself analyze or write the ledger. There is no automatic in-session consumer of the observations today (deferred; see below). |
-| `observer_analysis_model` | plugin.json | Analysis model (a cost lever; see "Model and effort"). |
-| `observer_analysis_effort` | plugin.json | Analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
+| `observer_enabled` | `false` | Turns on both parts. Off, the module hooks nothing and the hook exits. |
+| `observer_step_check` | `true` | Live check on every 6th model step of a turn. |
+| `observer_turn_end_check` | `false` | Live check at the end of each tool-using turn (see "Cost" above). |
+| `observer_analysis_enabled` | `true` | Run the catch-up. Off, ended sessions are not analyzed; live checks are unaffected. |
+| `observer_analysis_model` | plugin.json | Catch-up analysis model (a cost lever; see "Model and effort"). |
+| `observer_analysis_effort` | plugin.json | Catch-up analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
-| `observer_min_lines` | `300` | Skip the analysis for a not-yet-analyzed session with fewer transcript lines (see "Short sessions and run usage"); `0` analyzes every session. |
-| `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
-| `observer_max_seconds` | `86400` | Hard lifetime safety valve; exits without analysis. |
+| `observer_min_lines` | `300` | Skip the catch-up for a not-yet-analyzed session with fewer transcript lines (see "Short sessions and run usage"); `0` analyzes every session. |
+| `observer_idle_seconds` | `900` | How long a transcript must be unchanged before the catch-up treats its session as ended; keep above the longest single turn. |
 
-## Self-arm guard
+## Self-trigger guard
 
-A SessionStart hook fires on every session start, including the observer's own analysis `-p` run, so
-a naive arming hook would spawn an observer for the analysis run. The hook arms only when
-`CLAUDE_CODE_ENTRYPOINT == "cli"` (a real interactive session; the `-p` run reports `sdk-cli`), skips
-when the stdin `agent_type` field is present (subagent / `--agent` run), skips `source` values other
-than `startup`/`resume`, and skips when `SESSION_FLOW_OBSERVER_ANALYSIS` is set (the analysis run's
-own marker). The tailer additionally self-guards on `session_id` via an atomic (`O_CREAT|O_EXCL`) lock
-file so a resume does not double-arm. A lock held by a **live pid is never reclaimed** (staleness is a
-dead pid; age/mtime is only a fallback when liveness is unknowable), and an idle-ended observer can
-legitimately hold its lock through the whole analysis run. Because the same session-id maps to one
-lock, a manual `arm` against an already-live (e.g. auto-armed) observer **reports it visibly** and does
-not spawn a redundant one, rather than silently dropping the manual arm's memory-dir / continuity /
-config overrides. Stop the live observer to re-arm with new settings.
+A SessionStart hook fires on every session start, including the catch-up's own analysis `-p` run.
+The hook runs only when `CLAUDE_CODE_ENTRYPOINT == "cli"` (a real interactive session; the `-p` run
+reports `sdk-cli`), skips when the stdin `agent_type` field is present (subagent / `--agent` run),
+skips `source` values other than `startup`/`resume`, and skips when `SESSION_FLOW_OBSERVER_ANALYSIS`
+is set (the analysis run's own marker). The module loads in that run too and checks the same marker
+and `isInteractive`, so the analysis run gets no live checks. A per-session lock held by a **live pid
+is never reclaimed** (staleness is a dead pid; age is only a fallback when liveness is unknowable).
 
 ## Findings-return channel
 
@@ -178,7 +211,7 @@ config overrides. Stop the live observer to re-arm with new settings.
   checkpoint. No new plumbing beyond the existing ledger-on-disk model. Before its first ledger write
   the observer runs the self-ignore guard on the memory root (ensures
   `<memory_dir>/.gitignore` contains `*`; refuses a repo-root memory root; never the consumer's root
-  `.gitignore`). On a `source=resume` re-arm the observer resumes from the prior run's persisted byte
+  `.gitignore`). A later catch-up of the same session starts from the prior run's stored byte
   offset, so an already-analyzed span is not re-analyzed into a duplicate ledger entry.
 - **`SendMessage`** is reserved for the case where findings must reach a still-running session.
   Reaching another session is cross-session messaging, not an agent-teams surface: "Cross-session
@@ -196,35 +229,15 @@ config overrides. Stop the live observer to re-arm with new settings.
 
 ## Deferred alternatives (with triggers)
 
-- **Native Observer Agents** (highest-priority trigger). Claude Code compiles in an experimental
-  observer-agent subsystem (`observerAgentType`, `ObserverReport`), gated behind
-  `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` **and** a server-side Statsig flag not locally
-  controllable in 2.1.218. It consumes a read-only per-turn XML digest (not the JSONL), returns a
-  one-way advisory, and is officially undocumented, so it does **not** cover the classify / route /
-  ledger discipline today. The substrate here is kept thin precisely so migration stays cheap.
-  **Trigger:** re-evaluate the bespoke tailer leg if Observer Agents gains a transcript-level feed or
-  a richer return and is officially documented / stabilized upstream.
-- **`SessionEnd` graceful-end fast-path.** A real distinct event that also fires headless and carries
-  `transcript_path`; layer it on mtime-idle only if the one-turn idle latency is unacceptable.
-  mtime-idle ships regardless, because it is crash-safe where `SessionEnd` is not.
 - **`retro` parser in the analysis run.** Deferred while the analysis is Read-only over untrusted
   data. **Trigger:** a sandbox that can run the parser safely over untrusted transcript content.
-- **Headless prose-inferred memory root.** The SessionStart hook always uses the `.work` default; it cannot do retro's rung-2
-  inference of a `memory_dir` documented only in `CLAUDE.md`/rules prose (that needs an in-session
-  agent). A hook-armed observer would then write under `.work` while in-session checkpoints look under
-  the prose-documented root. The manual `arm` entry resolves it in-session and is unaffected.
-  **Trigger:** a safe headless inference path.
-- **Headless cross-session continuity.** The opt-in SessionStart hook arms the observer without the
-  `previous_running_retro` / `previous_session_id` continuity pointers, because a detached process
-  cannot safely apply retro's Phase 1.0 continuity gate (blindly linking the newest handoff could
-  splice an unrelated session). The manual `arm` entry passes them (it resolves the chain in-session);
-  a later in-session checkpoint reconciles continuity for hook-armed sessions. **Trigger:** a
-  safe headless way to resolve the continuity gate.
-- **In-session consumer of collect-only observations.** Collect-only mode retains the distilled
-  observations under the plugin work dir, but no code path in the in-session `running-retro` checkpoint
-  reads them today; they are for manual inspection. **Trigger:** wire the checkpoint flow to fold a
-  retained observations file into its analysis (weigh against the redaction boundary, since the observations
-  are unredacted, so any promotion to the ledger must pass the same two-hop redaction).
-- **Cross-session spend report.** Each run's usage lands in its own status file (see "Short sessions
-  and run usage"); totals across sessions are `harness-ops:observability` territory. **Trigger:** a
-  need to report observer spend across sessions.
+- **Prose-inferred memory root.** Both parts write under `<project>/.work`; neither can do retro's
+  rung-2 inference of a `memory_dir` documented only in `CLAUDE.md` or rules prose, which needs an
+  in-session agent. **Trigger:** a safe headless inference path.
+- **Cross-session continuity.** Neither part writes the `previous_running_retro` /
+  `previous_session_id` pointers, because applying retro's Phase 1.0 continuity gate needs an
+  in-session judgment; a later in-session checkpoint reconciles them. **Trigger:** a safe headless way
+  to resolve the continuity gate.
+- **Cross-session spend report.** Each check's usage is in its session's live usage file and each
+  catch-up run's in its status file; totals across sessions are `harness-ops:observability`
+  territory. **Trigger:** a need to report observer spend across sessions.

@@ -91,7 +91,7 @@ export function longestLine(texts) {
   return longest;
 }
 
-export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, maxLineBytes }) {
+export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, standardsSha, runId, maxLineBytes }) {
   if (!LANES.includes(lane)) {
     throw new Error("unknown lane");
   }
@@ -101,9 +101,9 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
   if (!NUMBER.test(String(pr)) || !RUN_ID.test(String(runId))) {
     throw new Error("the pull request number or run id is malformed");
   }
-  for (const sha of [headSha, baseSha, tree]) {
+  for (const sha of [headSha, baseSha, tree, standardsSha]) {
     if (!SHA.test(String(sha))) {
-      throw new Error("a head, base or tree SHA is malformed");
+      throw new Error("a head, base, tree or standards SHA is malformed");
     }
   }
   if (!isObject(output) || Object.keys(output).sort().join() !== "findings,summary") {
@@ -146,6 +146,7 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
     head_sha: headSha,
     base_sha: baseSha,
     tree,
+    standards_sha: standardsSha,
     run_id: Number(runId),
     findings: findings.length,
     critical: findings.filter((f) => f.severity === "CRITICAL").length,
@@ -181,7 +182,7 @@ export function buildChunkedVerdict({ outputs, ...rest }) {
 // The diff is DIFF_DIR/chunk-<k>/part-<n>.patch; EXECUTION_FILES names each
 // chunk's execution file, one per line in chunk order.
 export function main(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
+  for (const key of ["EXECUTION_FILES", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "STANDARDS_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -236,6 +237,7 @@ export function main(env = process.env) {
     headSha: env.HEAD_SHA,
     baseSha: env.BASE_SHA,
     tree: env.TREE_SHA,
+    standardsSha: env.STANDARDS_SHA,
     runId: env.GITHUB_RUN_ID,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });

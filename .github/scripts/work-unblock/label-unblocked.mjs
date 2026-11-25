@@ -405,7 +405,6 @@ const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
 const DEFERRED_LABEL = "admission-deferred";
 const FAILED = new Set(["failure", "timed_out", "startup_failure"]);
-// A label event's run is created within seconds; this window finds it.
 const RUN_WINDOW_MS = 10 * 60_000;
 const BLOB = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
@@ -424,10 +423,7 @@ const KILL_STEP = "Check the kill switch";
 // GITHUB_TOKEN budget (cause budget). Its name carries the window's reset,
 // in epoch seconds, from the gate's reset output.
 const BUDGET_STEP = /^Stop on a low GITHUB_TOKEN budget(?: until (.*))?$/;
-// The second line of a breaker record whose stop was a budget stop.
 const BUDGET_TAG = "<!-- work-unblock cause=budget -->";
-// The budget record's last line: when each of its earlier edits was made, so
-// every budget re-fire keeps its date once the record is edited again.
 const BUDGET_EARLIER = /^<!-- work-unblock earlier ([^>]*) -->$/m;
 const budgetEarlier = (body) => (BUDGET_EARLIER.exec(String(body ?? ""))?.[1] ?? "").split(" ").filter(Boolean);
 const floorTag = (reset) => `<!-- work-unblock cause=floor reset=${isoSecond(reset)} -->`;

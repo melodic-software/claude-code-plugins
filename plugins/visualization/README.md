@@ -144,6 +144,14 @@ reports its absolute path. Your resolved `medium` does not override it; a medium
 argument, a form you name, or a calling skill that needs the diagram inline in its own document
 does. Outside a repository it falls back to `auto`.
 
+**Collaborative canvas mode.** Ask for it, or accept the offer `/planning:design`,
+`/planning:interview` or `/planning:wayfind` makes on a structural question, and you and the agent
+draw and revise one live Excalidraw or tldraw canvas over several turns. It uses a canvas server
+you connected, under the same surface and `hosted_canvas` rules as the `excalidraw` and `tldraw`
+targets, so it does not run in the Claude Code terminal. When you call the canvas done, the agent
+writes the final text diagram; that text is the record, and the canvas is not saved in the
+repository.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference

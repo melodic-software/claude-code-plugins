@@ -1,6 +1,6 @@
 ---
-description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'watch this session in the background', or on a /loop."
-argument-hint: "[topic|arm]"
+description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, never applied. Use when: 'running retro', 'checkpoint this session', or on a /loop."
+argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: In-flight retro checkpoint appended to a running ledger
 ---
 
-**Arguments.** `[topic|arm]`. e.g., /running-retro, /running-retro phase-3, /running-retro arm
+**Arguments.** `[topic]`. e.g., /running-retro, /running-retro phase-3
 
 ## Context. Gather first
 
@@ -44,9 +44,9 @@ No arming at session start for the default in-session checkpoint. A checkpoint r
 transcript on disk (`<session-id>.jsonl`) with `/session-flow:retro`'s parser rather than parsing
 anew. When checking what that transcript records, fetch
 [Work with sessions](https://code.claude.com/docs/en/how-claude-code-works#work-with-sessions)
-live. Invoke a checkpoint any time. (The `arm`
-action and its opt-in SessionStart hook are the exception: they arm a detached observer to run the
-checkpoint *after* the session ends; see "Arming a detached observer" below.)
+live. Invoke a checkpoint any time. With `observer_enabled` on, the session-flow observer also
+writes live findings to this same ledger and analyzes ended sessions that got none; see
+[`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md).
 
 ## The checkpoint flow
 
@@ -123,16 +123,18 @@ every later checkpoint do not create a second file: locate this session's existi
 equals the current `$CLAUDE_CODE_SESSION_ID`, then re-read it from disk and **append** a new
 `## Checkpoint <TS>` section. Create a new file only when no such match exists.
 
-**Stamp the plugin usage.** After each append, resolve `$PY` as the `arm` block below does, then run:
+**Stamp the plugin usage.** After each append, run:
 
 ```bash
+PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
+  && "$c" -c 'import sys;sys.exit(0 if sys.version_info>=(3,10) else 1)' 2>/dev/null && { PY="$c"; break; }; done
 "$PY" "${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/stamp_plugin_usage.py" \
   --ledger "<ledger>" --session-id "$CLAUDE_CODE_SESSION_ID" --session-data-dir "$SESSION_DATA_DIR"
 ```
 
 It sets the frontmatter key `plugin_usage` to one line of JSON, `{"skills": {"<plugin>:<skill>": <count>}}`,
 counted over the whole session by the parser, replacing the last stamp. A non-zero exit leaves the
-ledger as it was: note it and go on. The observer stamps its own appends the same way.
+ledger as it was: note it and go on. The observer's catch-up analysis stamps its own appends the same way.
 
 **The ledger is a public artifact.** Its directory, its name glob and its `session_id` and
 `plugin_usage` frontmatter keys are the contract other plugins read (`/plugin-quality:audit session` (if enabled)
@@ -191,74 +193,11 @@ Tick each in the response so the exit shape is verifiable:
 - [ ] Routes offered, nothing auto-applied, no `CLAUDE.md`, rule or memory file written even when
   asked (step 5); the task continues in this same session
 
-## Arming a detached observer (`arm`)
-
-When `$ARGUMENTS` is `arm` (or the user asks to watch/observe this session in the background), do
-not run the in-session checkpoint above. Instead launch the **detached observer** for the current
-session: a substrate that outlives the session, tails its transcript out-of-band at zero context
-cost, detects end by mtime-idle, and (unless analysis is disabled) runs this same checkpoint method
-headless afterwards, appending its findings to this session's ledger. The substrate, lifecycle,
-config, untrusted-data boundary, and the deferred native Observer-Agents alternative live in
-[`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md). Read
-it, do not restate it. To arm the current session, resolve the inputs and run the launcher:
-
-First resolve these into shell variables the block below reads. A skill runs **in-session**, so read
-config from the **rendered `${user_config.observer_*}` values** (an unexpanded token or empty = the
-default), never from the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses (where each form resolves:
-[Plugin manifest reference § User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
-and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)):
-
-- `OBS_MODEL` ← `${user_config.observer_analysis_model}`; `OBS_EFFORT` ←
-  `${user_config.observer_analysis_effort}`. Leave either empty for its default: the observer reads
-  it from the plugin's `.claude-plugin/plugin.json` `userConfig`
-- `OBS_IDLE` ← `${user_config.observer_idle_seconds}` (default `900`); `OBS_MAX` ←
-  `${user_config.observer_max_seconds}` (default `86400`)
-- `OBS_ANALYSIS` ← `${user_config.observer_analysis_enabled}` (default `true`), an operator who set it
-  `false` to avoid autonomous spend must not get a `claude -p` run from a manual arm
-- `OBS_BARE` ← `${user_config.observer_analysis_bare}` (default `false`)
-- `OBS_MIN_LINES` ← `${user_config.observer_min_lines}`; leave empty for the plugin.json default
-- `DECLARED_MEMORY_DIR` ← a `memory_dir` the consuming repo documents in prose (its `CLAUDE.md` /
-  rules). Retro's rung-2 inference; empty otherwise. Being in-session, the manual arm can honor this
-  (and cross-session continuity below); the headless hook uses the `.work` default and cannot infer a
-  prose-documented root.
-- `PREV_LEDGER` / `PREV_SID` ← for cross-session continuity, if this session resumed from a handoff
-  chain or an earlier running-retro ledger: resolve the prior ledger and its session id under retro's
-  Phase 1.0 continuity gate (same as the checkpoint flow's step 2). A detached/headless observer cannot
-  make that judgment safely (blindly linking the newest handoff could splice an unrelated session), so
-  the SessionStart hook leaves these empty and a later in-session checkpoint reconciles them.
-
-The launcher resolves the ledger dir to an absolute path, so a relative `memory_dir` still lands in the
-consumer repo, not the plugin cache.
-
-```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-TRANSCRIPT="$SESSION_DATA_DIR/${CLAUDE_CODE_SESSION_ID}.jsonl"   # SESSION_DATA_DIR per retro's "Paths"
-MEMORY_DIR="${DECLARED_MEMORY_DIR:-.work}"
-PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}"
-WORK_DIR="${PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
-
-PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
-  && "$c" -c 'import sys;sys.exit(0 if sys.version_info>=(3,10) else 1)' 2>/dev/null && { PY="$c"; break; }; done
-
-args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros"
-  --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT"
-  --previous-running-retro "${PREV_LEDGER:-}" --previous-session-id "${PREV_SID:-}"
-  --model "${OBS_MODEL:-}" --effort "${OBS_EFFORT:-}" --min-lines "${OBS_MIN_LINES:-}"
-  --idle-seconds "${OBS_IDLE:-900}" --max-seconds "${OBS_MAX:-86400}")
-[[ "${OBS_ANALYSIS:-true}" != "false" ]] && args+=(--analysis)
-[[ "${OBS_BARE:-false}" == "true" ]] && args+=(--bare)
-"$PY" "$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py" "${args[@]}"
-```
-
-This is the same launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works
-whether or not the auto-arm is on, and is the primary entry. The launcher prints
-the observer pid and returns at once; it never blocks the session.
-
 ## Cadence
 
 Manual checkpoint by default. Composes with `/loop` for periodic checkpoints across a long session;
 running-retro ships no scheduler of its own. It is non-terminating. After routing, the underlying
-task continues in this same session. The detached observer (`arm`) is the push/end-of-life
+task continues in this same session. The observer (`observer_enabled`) is the automatic
 counterpart. When checking when a `/loop` task stops firing, fetch
 [scheduled tasks, Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations) live.
 

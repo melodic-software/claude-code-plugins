@@ -112,7 +112,6 @@ const LEFTHOOK_DOT_CONFIGS = lefthookConfigs("lefthook", "lefthook-local");
 // Path refusals a row may add to the universal set, in any case and through
 // any .. segment; rename-into-refused does not read them.
 const ROW_PATH_RULES = {
-  // A path under a skills/ directory at any depth.
   skills: (s) => s.slice(0, -1).includes("skills"),
   "skill-md": (s) => s.at(-1) === "skill.md",
   // Files that change what git, or a hook it runs, does on the next checkout
@@ -193,8 +192,6 @@ const unscannedKind = (file, kind) => (existsSync(file) && lstatSync(file).isFil
 
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED = new RegExp(`^(.+?): escalated (${REASONS})(?: |$)`);
-// The reasons a fix-ci retry one model rung up may answer; protected-path,
-// weaken-required and flaky stay with a person.
 const RUNG_UP_REASONS = new Set(["unfixed", "not-reproducible"]);
 
 // A report's `<check>: escalated <reason> <sentence>` lines, as { check,
@@ -245,8 +242,6 @@ const reportText = (reportDir) => {
   return Boolean(file) && existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : "";
 };
 
-// The producer reports a row may read: each says whether the model escalated,
-// and whether a retry one model rung up may answer every escalation.
 const REPORTS = {
   "ci-escalations": {
     escalated: (reportDir) => escalatedChecks(reportText(reportDir)).length > 0,
@@ -255,7 +250,6 @@ const REPORTS = {
   },
 };
 
-// What the producer's output must say before anything applies.
 const REQUIREMENTS = {
   "dependency-verdict: fix": (context) => context.dependencyVerdict === "fix",
 };
@@ -414,7 +408,6 @@ const tierGlob = (glob) => {
 const FROZEN_MATCHERS = Object.entries(FROZEN_TIERS).map(([tier, globs]) => [tier, globs.map(tierGlob)]);
 const frozenTier = (path) => FROZEN_MATCHERS.find(([, tests]) => tests.some((matches) => matches(segments(path))))?.[0];
 
-// A standalone marker line; a mention inside other text is not one.
 const BEGIN_GENERATED = /^[ \t]*<!-- BEGIN GENERATED:(.*)-->[ \t]*$/;
 const END_GENERATED = /^[ \t]*<!-- END GENERATED:.*-->[ \t]*$/;
 // A blob's lines, each with its line end, as latin1 so they rebuild to the same bytes.
@@ -462,7 +455,6 @@ const fileWarning = (path, why) => `::warning file=${commandText(path, true)}::$
 const regionWarning = (path, line, generator) =>
   `::warning file=${commandText(path, true)},line=${line}::${commandText(`apply-patch dropped a change to the generated region of ${path} (${generator}); change the generator's inputs and regenerate`)}`;
 
-// The byte offset each line of a blob starts at.
 function lineStarts(bytes) {
   const starts = [];
   for (let at = 0; at < bytes.length; at = bytes.indexOf(10, at) + 1 || bytes.length) {
@@ -565,7 +557,6 @@ export function protectedRegions(git, entry, hunks = hunksOf) {
   if (check.error || regionBytes(linesOf(rebuilt), check.regions) !== headRegions) {
     return restore("whose generated regions its kept hunks would change");
   }
-  // The head's bytes, under the patch's mode change if it made one.
   if (rebuilt.equals(before)) {
     return { sha: entry.oldSha, mode: ZERO.test(entry.oldSha) ? entry.oldMode : entry.newMode, warnings };
   }
@@ -576,8 +567,6 @@ export function protectedRegions(git, entry, hunks = hunksOf) {
 // returns the index entries to set, as `git update-index -z --index-info`
 // reads them, and a warning line per dropped part.
 export const CONTENT_DROPS = {
-  // A generated region's lines, its marker lines included, and the whole
-  // change to a frozen tier's file (protectedRegions).
   "protected-content": ({ entries, git }) => {
     const updates = [];
     const warnings = [];
@@ -715,7 +704,6 @@ export function checkRow(row) {
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
   }
-  // push reads every requirement before anything applies.
   if (!Array.isArray(row.requires)) {
     fail("has no requires list");
   }
@@ -747,8 +735,6 @@ export function checkRow(row) {
   }
   const parents = JSON.stringify(row.commit?.parents);
   if (parents === '["head","base"]') {
-    // A merge commit only for a PR, and only of the conflicted paths' resolutions.
-    // A clean-patch row takes a patch on a clean merge, of registered copies only.
     const only = row["clean-patch"] === true ? '["shared-copies"]' : '["merge-result"]';
     if (JSON.stringify(row.allow) !== only || row.target !== "pr") {
       fail(`commits a merge but does not allow ${JSON.parse(only)[0]} alone on a pull request`);
@@ -767,7 +753,6 @@ export function checkRow(row) {
   if (!Object.hasOwn(TARGETS, String(row.target))) {
     fail(`names an unknown target: ${row.target}`);
   }
-  // Lane-Thread lines name kept threads, so only a kept-threads row writes them.
   if (row["thread-trailer"] !== undefined && (row["thread-trailer"] !== true || !row.allow.includes("kept-threads"))) {
     fail("sets thread-trailer but does not allow kept-threads");
   }
@@ -814,7 +799,6 @@ export function commitMessage(row, values, threads = []) {
 
 const sha256Of = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-// At most `cap` bytes from the start of a regular file.
 function readCapped(file, cap) {
   const fd = openSync(file, "r");
   try {
@@ -844,7 +828,6 @@ export function leakedBlob(git, entries) {
   }
   return undefined;
 }
-// The log line for a leakedBlob hit.
 const leakWhy = (leaked) => `the patched ${leaked.path} ${leaked.unread ? "is too large to scan, so it may carry" : "carries"} a credential shape`;
 
 // Why the patch file is not to be applied, as {kind, why}, or null when it is:
@@ -883,16 +866,11 @@ export function patchProblem(file, expected) {
 // weaken-required stop there takes its one fresh fixer round (weakenStop).
 export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, weakenRetry = false, mergeState = "" }) {
   checkRow(row);
-  // A stop routed to a failing status skips lane-stopped (escalation-routes.mjs).
   const decide = (proceed, skipReason, escalationReason) => ({
     proceed,
     skipReason: skipReason === "awaiting-human" && escalationReason ? stopSkip(escalationReason) : skipReason,
     escalationReason,
   });
-  // A merge row: a clean merge commits with no patch; a conflicted one needs
-  // the model's patch, and an empty one leaves the conflicts as git left them.
-  // A clean-patch row takes a clean merge alone: with its producer's patch,
-  // or with none when the producer found nothing to change (empty).
   if (isMerge(row)) {
     if (mergeState !== "clean" && mergeState !== "conflicted") {
       return decide(false, "awaiting-human", reasonFor(row, "invalid"));
@@ -941,9 +919,6 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   if (problem) {
     return decide(false, "awaiting-human", reasonFor(row, problem.kind));
   }
-  // A written patch pushes a new head, and the report's escalations are about
-  // the old one: the new head's CI decides. A red new head gets its own run,
-  // which escalates what it cannot fix, and the round cap ends the rounds.
   return decide(true, "", "");
 }
 
@@ -994,8 +969,6 @@ const fieldsAndPath = (record) => {
   return [record.slice(0, tab).split(" "), record.slice(tab + 1)];
 };
 
-// The first [entry, names] pair whose entry matches one of its names'
-// refusals, as { kind, why }, or null.
 function firstRefusal(checks) {
   for (const [entry, names] of checks) {
     const [refusal] = refusalsOf(entry, names);
@@ -1006,7 +979,6 @@ function firstRefusal(checks) {
   return null;
 }
 
-// Why the written blobs are too large, one or all together, or "".
 function oversizeBlobs(git, written) {
   const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
   const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
@@ -1016,7 +988,6 @@ function oversizeBlobs(git, written) {
   return sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES ? `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes` : "";
 }
 
-// The tree the patch makes on a commit's tree, or "" when it does not apply.
 function applyOnto(git, sha, patchFile, threeWay) {
   try {
     git(["read-tree", sha]);
@@ -1103,9 +1074,6 @@ function workflowsAreBaseOwn(git, headSha, baseSha, tree) {
   return JSON.stringify(workflowEntries(git, baseSha)) === JSON.stringify(merged);
 }
 
-// A merge row's push. `merge` is { baseSha, conflictTree, state, unmerged
-// (a Set of the paths the merge left conflicted), treeEntries: { script,
-// sha256 } }.
 async function pushMerge({ api, cwd, gitBin, row, context, number, target, headSha, patchHeadSha, headRef, message, patchFile, patchSha256, holdLabels, repository, escalate, log }) {
   const merge = context.merge;
   if (
@@ -1119,7 +1087,6 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
   ) {
     throw new Error("a merge row needs the pinned base, the conflict tree, the merge state, the conflicted paths and tree-entries.sh");
   }
-  // A row names a merge reason as is or under its own prefix (shared-copy-).
   const reason = (name, why) => {
     const named = row.escalations.find((listed) => listed === name || listed.endsWith(`-${name}`));
     if (!named) {
@@ -1145,9 +1112,6 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (!hasCommit(git, headSha) || !hasCommit(git, merge.baseSha) || git(["cat-file", "-t", merge.conflictTree]).toString("utf8").trim() !== "tree") {
       throw new Error("the head, the base or the conflict tree is not in the checkout");
     }
-    // P: the patch on T0, or T0 itself for a clean merge. A clean-patch row's
-    // patch is the one the select step checked: given a file or a SHA-256, it
-    // must apply; given neither, the producer's run was empty.
     let tree = merge.conflictTree;
     let entries = [];
     if (merge.state === "conflicted" || (row["clean-patch"] === true && (patchFile || patchSha256))) {
@@ -1170,7 +1134,6 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     } else if (patchFile) {
       return escalate("invalid", "a clean merge takes no patch");
     }
-    // Only the patch's own changes face the rules; one refused entry refuses it whole.
     const renames = diffEntries(git, merge.conflictTree, tree, ["-M", "--diff-filter=R"]);
     const refuse = [...row.refuse, ...ALWAYS];
     const refused = firstRefusal([...renames.map((item) => [item, ["rename-into-refused"]]), ...entries.map((item) => [item, refuse])]);
@@ -1189,7 +1152,6 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (oversize) {
       return escalate("invalid", oversize);
     }
-    // Every conflicted path still in the tree is resolved.
     const listed = merge.unmerged.size === 0 ? [] : git(["ls-tree", "-z", "--full-tree", "-r", tree, "--", ...merge.unmerged]).toString("utf8").split("\0").filter(Boolean);
     for (const record of listed) {
       const [[mode, , oid], path] = fieldsAndPath(record);
@@ -1424,13 +1386,9 @@ export async function push({
   refusalBase = "",
   log = () => {},
 }) {
-  // Everything the row names resolves before any git or API work.
   checkRow(row);
   const target = TARGETS[row.target];
-  // A merge row builds its predicates once the conflict tree is checked.
   const allow = isMerge(row) ? [] : row.allow.map((name) => PREDICATES[name](context));
-  // A commit naming no thread would land no reply, so a thread-trailer row
-  // writes nothing without the threads the replies fix.
   if (row["thread-trailer"] === true && !Array.isArray(context.fixedThreads)) {
     throw new Error("the thread-trailer row needs the model job's scanned replies");
   }
@@ -1488,7 +1446,6 @@ export async function push({
     return escalate("invalid", elsewhere);
   }
   if (moved) {
-    // The moved commits may touch no path the patch changes.
     if (!SHA.test(String(patchHeadSha)) || !hasCommit(git, patchHeadSha)) {
       return { outcome: "superseded" };
     }
@@ -1505,7 +1462,6 @@ export async function push({
   }
   let tree = applyOnto(git, headSha, patchFile, moved);
   if (!tree) {
-    // A row with no credential reason keeps its not-applied reason.
     const holds = row.escalations.some((reason) => reason.endsWith("-credential"));
     return escalate(holds ? unscannedKind(patchFile, "not-applied") : "not-applied", "the patch does not apply to the gated head");
   }
@@ -1530,8 +1486,6 @@ export async function push({
   }
   const reaching = from === headSha ? entries : diffEntries(git, from, tree);
   const renames = diffEntries(git, from, tree, ["-M", "--diff-filter=R"]);
-  // One refused entry refuses the whole patch, before anything is written.
-  // A rename is checked as one first; every entry then meets the rest.
   const refuse = [...row.refuse, ...ALWAYS];
   const refused = firstRefusal([
     ...renames.map((entry) => [entry, ["rename-into-refused"]]),
@@ -1565,7 +1519,6 @@ export async function push({
       git(["update-index", "-z", "--index-info"], { input: updates.map((update) => `${update}\0`).join(""), stdio: ["pipe", "pipe", "pipe"] });
       tree = git(["write-tree"]).toString("utf8").trim();
       entries = diffEntries(git, headSha, tree);
-      // Nothing is left to push and nobody is asked for anything.
       if (entries.length === 0) {
         log("the patch changes nothing outside protected content; nothing is pushed");
         return { outcome: "not-applicable" };
@@ -1582,8 +1535,6 @@ export async function push({
     }
   }
   const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
-  // Before any tree or commit is built: each file's change must also meet the
-  // row's content rule.
   const contentRefusal = Object.hasOwn(CONTENT_RULES, String(row["content-rule"])) ? await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr, headSha }) : null;
   if (contentRefusal) {
     return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
@@ -1601,7 +1552,6 @@ export async function push({
       }
     }
   }
-  // A hold set while the model worked stops the commit.
   if (await target.held(api, number, { holds: new Set(holdLabels), required: requiredLabels, repository })) {
     log(`the ${row.target} is held; the patch is dropped`);
     return { outcome: "held" };
@@ -1654,7 +1604,6 @@ export async function failedAnswer(response, token) {
       text = JSON.stringify({ message: body.message, errors: body.errors });
     }
   } catch {
-    // Not JSON: the text as it came.
   }
   if (token) {
     text = text.split(token).join("[redacted]");
@@ -1788,7 +1737,6 @@ export function fixedThreadsFrom(file, kept) {
         valid.add(reply.thread);
       }
     } catch {
-      // Not a reply.
     }
   }
   return (kept?.ids ?? []).filter((id) => valid.has(id));
@@ -1933,7 +1881,6 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     baseRef: env.BASE_REF ?? "",
     lane: env.LANE,
     activity: env.PATCH_ACTIVITY,
-    // A clean merge has no patch, but for a clean-patch row's checked one.
     patchFile: merge?.state === "clean" && !(row["clean-patch"] === true && env.PATCH_SHA256) ? "" : env.PATCH_FILE,
     patchSha256: env.PATCH_SHA256 ?? "",
     holdLabels: ["do-not-merge", ...labelList(env, "HOLD_LABELS")],
