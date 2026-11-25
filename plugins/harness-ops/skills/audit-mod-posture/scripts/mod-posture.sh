@@ -25,7 +25,7 @@ Usage: mod-posture.sh [--date YYYY-MM-DD] [--project <dir>] [--builtin-json <fil
 Inventory the mods this Claude Code can run and whether the built-in guard is seated.
   --date          report date (default: today)
   --project       project directory to read (default: the current directory)
-  --builtin-json  built-in mod list to read instead of asking claude
+  --builtin-json  inventory report JSON from /harness-ops:inventory (its builtin_plugins section); without it the built-in tier is not read
   --overview      mods overview page to read instead of fetching it
   --no-fetch      fetch nothing
   --managed-file  managed settings file to read

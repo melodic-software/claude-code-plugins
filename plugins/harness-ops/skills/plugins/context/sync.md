@@ -245,9 +245,19 @@ first. It found none for how many of them are required or for a disabled-by-defa
 `sync-run.sh` reads those from the message (`unset_user_config_of`, `install_disabled_notice`). The
 shapes it matches live only in the script and its probe evidence, never here.
 
+- **Claim**: `claude plugin update --json` prints `updateOutcome` (`updated`, `up_to_date`),
+  `oldVersion` and `newVersion`; install and update print `outcome` (`ok`, `failed`), `message`
+  and, on failure, `failureCode`. Install adds `unsetOptionCount` (only when an option is unset) and
+  `configApplied` (only with `--config`). No field gives the required count or a disabled-by-default
+  install.
+- **Basis**: attended probes on Claude Code 2.1.310 and 2.1.330, recorded in
+  `scripts/fixtures/cli-json-results.jsonl`;
+  [JSON result format](https://code.claude.com/docs/en/plugins/cli-reference#json-result-format).
+- **As of**: 2026-11-22
+- **Recheck trigger**: a Claude Code release adds a field for the required count or the
+  disabled-by-default sentence, renames `unsetOptionCount`, or changes `updateOutcome`'s values.
 - **Pointer**: when either classifier misses, compare a fresh `claude plugin install --json`
-  result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the `cli_json`
-  basis comment in `scripts/sync-run.sh`.
+  result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the claim above.
 
 An up-to-date result is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so

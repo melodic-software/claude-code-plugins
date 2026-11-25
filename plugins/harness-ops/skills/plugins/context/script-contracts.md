@@ -56,6 +56,31 @@ compares only installs recorded at the marketplace clone's HEAD, and reports eve
 how the finding is reported, and [scope-semantics.md](scope-semantics.md) for the mechanism that
 makes a cache directory and its recorded sha disagree in the first place.
 
+Each install record gets one `verdict`:
+
+| Verdict | Meaning |
+|---|---|
+| `match` | every file at the recorded sha is in the cache with the same blob id, and the cache has no extra file |
+| `stale-content` | at least one file differs, is missing from the cache, or is in the cache and not at the sha; `paths[]` lists some of them |
+| `not-at-head` | the recorded `gitCommitSha` is not the clone's HEAD, so the record is not compared; counted in `not_checked` |
+| `no-clone-head` | the clone's HEAD names no commit (an unborn branch) |
+| `no-git-commit-sha` | the record has no `gitCommitSha` |
+| `no-install-location` | the marketplace has no `installLocation`, or it is not a directory here |
+| `not-a-git-worktree` | the `installLocation` is not a git work tree |
+| `no-source` | the plugin is absent from `marketplace.json` at the recorded sha, its `source` is not a plain path, or that commit has no `marketplace.json` |
+| `no-source-at-sha` | the plugin's source directory names no path at that sha, so there is no expected tree to compare |
+| `install-path-missing` | the record's `installPath` is not a directory |
+| `hash-batch-misaligned` | `git hash-object --stdin-paths` returned fewer hashes than paths, so the two sides cannot be lined up |
+
+The JSON object is `{marketplace, scope, checked, match, stale_content, unverifiable, not_checked,
+skipped_absent_project_paths, installs: […]}`. `unverifiable` counts every verdict other than
+`match`, `stale-content` and `not-at-head`; `checked` is the sum of `match`, `stale_content`,
+`unverifiable` and `not_checked`. `skipped_absent_project_paths` counts project and local records
+whose `projectPath` is not a directory on this machine; they are not in `checked`.
+`installs[].unreleased_changes` is true when the clone's work tree holds `.changes/<plugin>/`. With
+`--all` the output is `{marketplaces: {"<name>": <one marketplace's object>}}`, and a marketplace
+that fails appears as `{"<name>": {error: …}}` without stopping the others.
+
 ## `converge-plan.sh`: the converge plan, read-only
 
 `converge` Step 1 calls it once. It reads a `fleet-state.sh` report and prints one JSON plan, one row

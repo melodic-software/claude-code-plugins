@@ -469,7 +469,7 @@ assert_contains "reconciliation names each bucket" "$OUT" \
 assert_not_contains "no candidate escaped a bucket" "$OUT" "DENOMINATOR BUG"
 
 BROKEN="$TEST_TMPDIR/broken-check.sh"
-# shellcheck disable=SC2016  # single quotes are required: the $((...)) here is the
+# shellcheck disable=SC2016  # literal source text matched by sed, not an expansion
 sed 's/^    fm_no_block=$((fm_no_block + 1))$/    : # bucket increment deliberately removed/' \
   "$SCRIPT" >"$BROKEN"
 if grep -q 'bucket increment deliberately removed' "$BROKEN"; then

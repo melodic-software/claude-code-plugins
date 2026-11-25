@@ -275,10 +275,15 @@ removed personal skill cannot be told from a built-in by name. It also reports i
 `listing.capture` the descriptions the session shed; a budget row that says
 `listing-fits` while the session shed descriptions is listed under
 `disagrees`. The engine only reads the file; it never launches Claude Code.
-The transcript's listing record is not a published format: its shape, as-of
-date (2026-10-04, Claude Code 2.1.289) and recheck trigger are stamped beside
-`parse_listing_capture` in the script, and a shape it does not recognize
-reports the capture as `not-read` rather than guessing.
+The transcript's listing record is not a published format. The record is an
+`attachment` line of type `skill_listing` carrying `content` (the rendered
+listing, entries joined by newlines), `names` (entry names in order), `skillCount`
+and `isInitial`; `parse_listing_capture` takes the model from a `model`
+attachment's `identity.modelId`. That shape was observed in a Claude Code 2.1.289 transcript
+on 2026-10-04. Recheck it when a release note names transcripts or the skill
+listing, or the reader returns `not-read` on a fresh transcript. A shape it does
+not recognize reports the capture as `not-read` with its reason, and the verdict
+falls back to enumerated coverage rather than guessing.
 
 A verdict covers the main session at the stated window. A subagent gets a
 listing sized to its own window and can shed where the main session does not.

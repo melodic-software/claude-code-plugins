@@ -732,22 +732,26 @@ assert_eq "an I32 on a project surface is IMPORTANT" "IMPORTANT" \
 assert_contains "the CRITICAL I32 ranks above the IMPORTANT one" \
   "$(printf '%s\n' "$SURFROWS" | head -n 1)" "| CRITICAL |"
 
-CYGBIN="$TEST_TMPDIR/cygbin"
-CYGLOG="$TEST_TMPDIR/cygpath.log"
-CYGCWD="$TEST_TMPDIR/cygcwd"
-mkdir -p "$CYGBIN" "$CYGCWD"
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$CYGLOG" >"$CYGBIN/cygpath"
-chmod +x "$CYGBIN/cygpath"
-# shellcheck disable=SC2016  # the $( and backticks are hostile fixture text, not a subshell
-CYGFILE='C:/w/x'"'"'$(touch PWNED_SUB)`touch PWNED_TICK`.md'
-mkdir -p "$CYGCWD/C:/w"
-printf 'CRITICAL: run it.\n' >"$CYGCWD/$CYGFILE"
-printf '%s\n' "$CYGFILE:1:I28-a" >"$TEST_TMPDIR/cyg-rows.txt"
-(cd "$CYGCWD" && PATH="$CYGBIN:$PATH" bash "$EMIT" --from "$TEST_TMPDIR/cyg-rows.txt" \
-  --out "$TEST_TMPDIR/cyg-out.md" --branch testbranch >/dev/null 2>&1)
-assert_contains "a Windows row path reaches cygpath through a file, never the command line" \
-  "$(cat "$CYGLOG" 2>/dev/null)" "-l -m -f"
-assert_eq "no command inside a scanner-supplied path ran" "0" "$(find "$CYGCWD" -name 'PWNED*' | wc -l | tr -d ' ')"
+if command -v cygpath >/dev/null 2>&1; then
+  printf 'SKIP: the C:/ fixture path is absolute on a host with a native cygpath\n'
+else
+  CYGBIN="$TEST_TMPDIR/cygbin"
+  CYGLOG="$TEST_TMPDIR/cygpath.log"
+  CYGCWD="$TEST_TMPDIR/cygcwd"
+  mkdir -p "$CYGBIN" "$CYGCWD"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$CYGLOG" >"$CYGBIN/cygpath"
+  chmod +x "$CYGBIN/cygpath"
+  # shellcheck disable=SC2016  # the $( and backticks are hostile fixture text, not a subshell
+  CYGFILE='C:/w/x'"'"'$(touch PWNED_SUB)`touch PWNED_TICK`.md'
+  mkdir -p "$CYGCWD/C:/w"
+  printf 'CRITICAL: run it.\n' >"$CYGCWD/$CYGFILE"
+  printf '%s\n' "$CYGFILE:1:I28-a" >"$TEST_TMPDIR/cyg-rows.txt"
+  (cd "$CYGCWD" && PATH="$CYGBIN:$PATH" bash "$EMIT" --from "$TEST_TMPDIR/cyg-rows.txt" \
+    --out "$TEST_TMPDIR/cyg-out.md" --branch testbranch >/dev/null 2>&1)
+  assert_contains "a Windows row path reaches cygpath through a file, never the command line" \
+    "$(cat "$CYGLOG" 2>/dev/null)" "-l -m -f"
+  assert_eq "no command inside a scanner-supplied path ran" "0" "$(find "$CYGCWD" -name 'PWNED*' | wc -l | tr -d ' ')"
+fi
 
 printf '\n'
 if [[ "$FAILED" -gt 0 ]]; then

@@ -83,7 +83,7 @@ else
 fi
 
 BROKEN_SEG="$TEST_TMPDIR/broken-seg.sh"
-# shellcheck disable=SC2016  # single quotes are required: `$id` here is the
+# shellcheck disable=SC2016  # literal source text matched by sed, not an expansion
 sed 's|^  if \[\[ ! "\$id" =~ .*$|  if false; then|' "$SCRIPT" >"$BROKEN_SEG"
 if grep -q 'if false; then' "$BROKEN_SEG"; then
   rc=0
@@ -168,7 +168,7 @@ assert_eq "a heartbeat within the skew grace still classifies live" \
   "live" "$(run lease classify --run-dir "$SKEW_DIR")"
 
 BROKEN_SKEW="$TEST_TMPDIR/broken-skew.sh"
-# shellcheck disable=SC2016  # single quotes are required: the $((...)) here is the
+# shellcheck disable=SC2016  # literal source text matched by sed, not an expansion
 sed '/-lt \$((-skew_grace))/s/.*/  if false; then/' "$SCRIPT" >"$BROKEN_SKEW"
 if grep -q 'if false; then' "$BROKEN_SKEW"; then
   {

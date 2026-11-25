@@ -72,7 +72,7 @@ file store, and opt-in skill-usage.jsonl).
 Usage:
   bash clean.sh [--keep-days N] [--dry-run] [--quiet] [--hook-root REL]
                 [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL]
-                [--keep-skill-usage-days N]
+                [--skill-usage-data-root PATH] [--keep-skill-usage-days N]
 
   --keep-days N               JSONL retention window in days (default: 30); the OTEL store
                               uses CC_OTEL_RETENTION_DAYS / CC_OTEL_BODY_RETENTION_DAYS (7 / 2)
@@ -80,7 +80,9 @@ Usage:
   --quiet                     suppress progress output (still prints the final summary)
   --hook-root REL             hook log root, project-relative (default .observability/claude)
   --skill-usage-scope SCOPE   prune skill-usage.jsonl: repo, user or data-dir (off when absent)
-  --skill-usage-dir REL       the skill-usage directory; required for data-dir
+  --skill-usage-dir REL       skill-usage directory under the repo or home root, for the repo
+                              and user scopes (default .claude/observability)
+  --skill-usage-data-root PATH  absolute plugin data root; required for data-dir
   --keep-skill-usage-days N   skill-usage retention window in days (default: 365)
 
 Exit: 0 success or skip-on-contention; 1 a file could not be pruned or the OTEL prune
@@ -90,7 +92,7 @@ EOF
     ;;
   *)
     echo "ERROR: unknown flag: $1 (see --help)" >&2
-    echo "Usage: $0 [--keep-days N] [--dry-run] [--quiet] [--hook-root REL] [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL] [--keep-skill-usage-days N]" >&2
+    echo "Usage: $0 [--keep-days N] [--dry-run] [--quiet] [--hook-root REL] [--skill-usage-scope repo|user|data-dir] [--skill-usage-dir REL] [--skill-usage-data-root PATH] [--keep-skill-usage-days N]" >&2
     exit 2
     ;;
   esac

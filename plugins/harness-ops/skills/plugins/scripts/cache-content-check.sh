@@ -84,8 +84,7 @@ Exit: 0 ran to completion (a per-install verdict is not an error); 2 usage
 error, jq or git missing, an unknown marketplace, or a state file that does not
 match its expected shape.
 
-The verdicts are in the plugins skill's context/script-contracts.md and
-context/stale-records-cache-content.md.
+The verdicts and JSON fields are in the plugins skill's context/script-contracts.md.
 EOF
   printf '%s\n' "$text"
 }

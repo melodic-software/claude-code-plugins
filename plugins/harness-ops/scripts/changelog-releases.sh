@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exit: 0 parsed (zero rows when the body has no release marker); 3 invalid argument
+# Exit: 0 parsed (zero rows when the body has no release marker); 3 invalid argument or unreadable file.
 
 set -uo pipefail
 
