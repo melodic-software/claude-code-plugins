@@ -126,9 +126,6 @@ for path in plugins/q/README.md plugins/q/evals/c/package.json plugins/pp/README
   assert_exit "check-paths refuses $path" 1 "$?"
 done
 
-# check-paths: a file the pull request already changes (pr_paths) joins every thread's scope while
-# the gated head holds it; a new file and a .github/workflows/ path stay out even when pr_paths
-# lists them (the select job leaves instruction and HIGH floor paths out of pr_paths)
 setup
 mkdir -p "$STUB/ws/.github/workflows"
 echo 'c' >"$STUB/ws/.github/workflows/ci.yml"
@@ -229,8 +226,6 @@ assert_contains "the tool says the reply job posts it" "$out" "reply job posts i
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a second record on the same thread is refused" 1 "$?"
 assert_eq "the refused second record appends nothing" 1 "$(recorded)"
-# the CLI's empty scrub stubs at the top of the checkout are no fix: an
-# untracked empty one is passed over, one with content is refused
 setup
 echo 'guarded' >"$STUB/ws/src/a.js"
 : >"$STUB/ws/package.json"
@@ -305,8 +300,6 @@ run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a note naming a token placeholder and a commit sha is recorded" 0 "$?"
 assert_eq "the placeholder note record makes no API call" 0 "$(wc -l <"$STUB/calls")"
 
-# the note limit counts code points, as the reply job does: 2000 emoji pass,
-# 2001 are refused
 setup
 note=$(printf '😀%.0s' {1..2000})
 disposition "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"$note\"}"

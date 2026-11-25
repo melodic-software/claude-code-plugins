@@ -122,10 +122,6 @@ die() {
   exit "${2:-2}"
 }
 
-# ---------------------------------------------------------------------------
-# Path comparison
-# ---------------------------------------------------------------------------
-
 # Windows shells render a drive as /d/repos/<repo> while git emits D:/repos/<repo>, so the
 # two operands compared here differ by CONSTRUCTION — one comes from git, the
 # other from the filesystem. audit-fleet.sh:500's path_key() never had to
@@ -162,10 +158,6 @@ path_key() {
     printf '%s' "$value"
   fi
 }
-
-# ---------------------------------------------------------------------------
-# Arguments
-# ---------------------------------------------------------------------------
 
 REPO_DIR="."
 BASE_REF=""
@@ -230,10 +222,6 @@ command -v git >/dev/null 2>&1 || die "git not found on PATH" 4
 if [[ -n "$MERGED_REFS_FILE" && ! -f "$MERGED_REFS_FILE" ]]; then
   die "--merged-refs-file not found: $MERGED_REFS_FILE"
 fi
-
-# ---------------------------------------------------------------------------
-# Probes
-# ---------------------------------------------------------------------------
 
 # is_worktree_root <path>: true when <path> is the ROOT of a work tree.
 #
@@ -379,8 +367,6 @@ patch_ids() {
   local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$" pairs="$WORKDIR/pairs.$$" rc=0
   : >"$out"
   git -C "$p" log -p --no-merges --no-color "$range" >"$patches" 2>/dev/null || rc=1
-  # An empty stream is a legitimate empty range, so only a non-empty one is fed
-  # to patch-id; $out stays truncated either way.
   if ((rc == 0)) && [[ -s "$patches" ]]; then
     git patch-id --verbatim <"$patches" >"$pairs" || rc=1
     cut -d' ' -f1 "$pairs" | sort >"$out"
@@ -421,9 +407,6 @@ extend_base_window() {
     if ((rc == 0)) && [[ -s "$patches" ]]; then
       git patch-id --verbatim <"$patches" >"$new" || rc=1
     fi
-    # A commit marked seen whose pair failed to append is a short base set,
-    # which the caller's count check names; the reverse order could hash a
-    # commit twice.
     if ((rc == 0)); then
       { sort -m "$seen" "$missing" >"$seen.next" && mv "$seen.next" "$seen" && cat "$new" >>"$pairs"; } || rc=1
     fi
@@ -495,10 +478,6 @@ classify_landed() {
     return 0
   fi
 
-  # Base side, the step that dominates the run: a worktree far behind the base
-  # has thousands of commits in mb..base. Each commit is hashed once per run into
-  # the shared window (extend_base_window), and this worktree's set is the
-  # window's entries whose commit is in its own mb..base.
   local base_commits="$WORKDIR/base.range" base_pairs="$WORKDIR/base.pairs" base_expected base_count
   base_ids="$WORKDIR/base.ids"
   if ! git -C "$p" rev-list --no-merges "$mb..$base_sha" >"$base_commits.raw" 2>/dev/null ||
@@ -731,7 +710,6 @@ merged_pr_listing() {
     got=$((got + n))
     more=$(sed -n 's/^page //p' "$page")
     cursor="${more#* }"
-    # An empty page ends the listing too, so a bad cursor cannot loop forever.
     [[ "${more%% *}" == "true" && -n "$cursor" && "$n" -gt 0 && "$got" -lt "$MERGED_PR_LIMIT" ]] || break
     after=(-f after="$cursor")
   done
@@ -765,8 +743,6 @@ merged_pr_proof() {
     add_reason "merged-pr-read-failed:gh-not-found"
     return 1
   fi
-  # Only a PR merged INTO the resolved base proves anything: a stacked PR merged
-  # into another feature branch never reached the base.
   local base_name="${L_BASE%@*}"
   base_name="${base_name#*/}"
   if [[ -z "$L_BASE" || -z "$base_name" ]]; then
@@ -798,7 +774,6 @@ merged_pr_proof() {
     esac
   done <"$out"
   if [[ ${#pr_heads[@]} -eq 0 ]]; then
-    # A full listing may have cut off an older PR for this branch, so say so.
     local window=""
     if [[ "$(grep -c '^pr ' "$MP_FILE")" -ge "$MERGED_PR_LIMIT" ]]; then
       window="-in-newest-$MERGED_PR_LIMIT"
@@ -834,10 +809,6 @@ merged_pr_proof() {
   L_REASON="every-unpushed-commit-in-merged-pr"
   return 0
 }
-
-# ---------------------------------------------------------------------------
-# Targets
-# ---------------------------------------------------------------------------
 
 WORKDIR=""
 cleanup() { [[ -n "$WORKDIR" ]] && rm -rf "$WORKDIR"; }
@@ -928,7 +899,6 @@ merged_ref() {
   grep -Fxq "$name" "$MERGED_REFS_FILE"
 }
 
-# push_counts <staged> <unstaged> <conflicted> <untracked>
 push_counts() {
   R_STAGED+=("$1")
   R_UNSTAGED+=("$2")
@@ -936,8 +906,6 @@ push_counts() {
   R_UNTRACKED+=("$4")
 }
 
-# push_unprobed_row <notgit> <bare> <value> <inprogress> <count> <reason>: a row
-# the probes skip. unpushed and landed take <value>, every status count <count>.
 push_unprobed_row() {
   R_NOTGIT+=("$1")
   R_BARE+=("$2")
@@ -997,9 +965,6 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   fi
 
   if [[ "$unpushed" == "0" ]]; then
-    # Nothing unpushed means nothing to strand, and skipping the landed
-    # computation here is what lets an empty patch-id set downstream mean ONLY
-    # "something failed" rather than "the range was legitimately empty".
     R_LANDED+=("n/a")
     R_METHOD+=("none")
     R_BASE+=("")
@@ -1035,9 +1000,6 @@ fi
 
 assert_row_count "${#T_PATH[@]}" "${#R_LANDED[@]}" || exit 5
 
-# Peers: another registered worktree holding the same commits, either at the same
-# HEAD or at a descendant of it. A peer means removal does not make these commits
-# unreachable, which is a different disposition from the same row without one.
 PEERS=()
 for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   PEERS+=("")
