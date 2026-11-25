@@ -5,6 +5,7 @@
 - [Where save-points live](#where-save-points-live)
 - [Locate the position first](#locate-the-position-first)
 - [Choosing the path: full save-point vs prompt-only](#choosing-the-path-full-save-point-vs-prompt-only)
+- [Urgent handoff](#urgent-handoff)
 - [Redaction pass, mandatory on both paths](#redaction-pass-mandatory-on-both-paths)
 - [Claim provenance, mandatory on both paths](#claim-provenance-mandatory-on-both-paths)
 - [Original goal, mandatory on both paths](#original-goal-mandatory-on-both-paths)
@@ -82,6 +83,22 @@ Any doubt → full save-point. A wrongly-skipped file loses state the fresh sess
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect, but
 `prompt` leaves a gap in the session-id chain that `/session-flow:retro` walks (no file, no chain
 pointer).
+
+## Urgent handoff
+
+When the [handoff skill selects its urgent path](../skills/handoff/SKILL.md#urgent-path),
+use the full file path in the same turn. The normal file guards and refusal paths still apply.
+
+1. Apply the [redaction pass](#redaction-pass-mandatory-on-both-paths) before each write or emit.
+   Run `new`. Record running work and its dependencies in Environment without waiting. List each
+   named subagent as `not inspected (urgent)`. Skip subagent output reads and plugin-profile calls,
+   and record `wip_commit: not applied (urgent)` in the file.
+2. Apply the slots in one `fill`, including Reminders, Environment and its recurring entries,
+   and the next session's `Next:` actions. On PASS or WARN, paste the rails `fill` returns.
+3. On a repairable FAIL, make one repair and run `validate`. If the file still fails, show only
+   `UNVALIDATED: <first failing line>` immediately above the copy instruction, outside the copy
+   region. Emit the stored rails even on failure. On every verdict, skip the position panel and
+   checklist echo and end with the resume prompt.
 
 ## Redaction pass, mandatory on both paths
 
@@ -283,6 +300,8 @@ file it creates; the self-ignore guard is the skill's own bash step (structure d
 and refuses without.
 
 ## Emit the position panel
+
+An [urgent handoff](#urgent-handoff) skips this section.
 
 A save-point is written for the next session, but a human reads the turn that produces it, and at
 that moment they decide two things the save-point never tells them: whether this is a sane place
@@ -639,6 +658,7 @@ Or reopen the producing session in place: `claude --resume <UUID>`.
 
 Everything in this sub-section applies to the full path. The prompt-only rules above and below
 are untouched: prompt-only writes no file, so nothing here has a file to validate or emit from.
+For an [urgent handoff](#urgent-handoff), use its repair limit and failure banner.
 
 - **The verdict decides which rails are pasted.** `fill` writes the file, then prints its
   verdict and the rails, whatever the verdict. On a PASS or WARN verdict those rails are the

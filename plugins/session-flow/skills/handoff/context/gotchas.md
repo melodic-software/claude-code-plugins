@@ -19,10 +19,11 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   the skill reads as license to end the turn once the file exists. Two rules exist against it, and
   they are the same rule from both ends: STOP ends the underlying task, never the response before
   the prompt is on screen (SKILL.md, "What STOP means"); and the rails block plus its below-rail
-  `/loop` re-arm notes are the response's final text (SKILL.md, "Output order is fixed"). Recovery
+  notes are the response's final text (SKILL.md, "Output order is fixed"). Recovery
   when it happens anyway: `/session-flow:find-handoff` rung 1 globs the handoffs dir and needs no
   transcript.
-- **The panel eating the prompt.** The position panel is emitted before the rails block, so it is
+- **The panel eating the prompt.** An [urgent handoff](../SKILL.md#urgent-path) skips the panel.
+  On the normal path the position panel is emitted before the rails block, so it is
   text standing between the start of the response and the one thing the operator has to have. Under
   the same heavy context that produces the failure above, a panel that grows, with every unit of a
   long rail spelled out, blocks wrapping into paragraphs, and a divergence explained rather than
@@ -72,9 +73,9 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
 - **Writing the save-point while work it describes is still running.** A subagent whose result
   the handoff depends on returns seconds after the file is written; its result lands in the old
   session, and the brief, criteria, Environment and `Next:` now describe settled work as in
-  flight. Inventorying it is not settling it: wait for dependent work before `new`, or record it
-  as in flight on the user's choice ("Settle in-flight work before writing" in `SKILL.md`). That
-  stays the first choice. When a result still lands after emit, repair the file with
+  flight. On the urgent path, record it in flight immediately. On the normal path, wait or record
+  it as directed by [Settle in-flight work before writing](../SKILL.md#settle-in-flight-work-before-writing).
+  When a result lands after emit, repair the file with
   `save_point.py amend`, never a hand edit or a second `new` ("Late events after emit" in
   `SKILL.md`).
 - **Saying nothing about the active `/loop`s on resume.** Never assume a `/loop` survived the

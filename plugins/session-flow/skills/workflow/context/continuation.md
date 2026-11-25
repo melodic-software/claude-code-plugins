@@ -7,10 +7,10 @@ whenever "continue, clear, handoff, background, stop, or compact?" is the live q
 ## Outcome set (derived, not inherited)
 
 The terminals are exactly the continuation mechanisms this plugin installs plus the built-ins:
-continue in session, `/clear`, `/rewind`, `session-flow:handoff`, `session-flow:continue-in-background`,
-`session-flow:clean-stop`, and `/compact`. Two session-flow siblings are deliberately not
-terminals: `reconcile` and `orient` are state hygiene. They inform this decision (what is still
-running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
+continue in session (including automatic compaction), `/clear`, `/rewind`, `session-flow:handoff`,
+`session-flow:continue-in-background`, `session-flow:clean-stop`, and `/compact`. Two session-flow
+siblings are deliberately not terminals: `reconcile` and `orient` are state hygiene. They inform
+this decision (what is still running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
 spawn-brief decision owned by `session-flow:orchestrate` (if enabled); question 2 below is its
 only entrance and is the router's one non-terminal edge. A cloud session is not a terminal either:
 it rides along as advice (Output shape, below).
@@ -90,8 +90,8 @@ boundary.
    question 5 (handoff).*
 2. **Is the remaining work scoped to run away from the keyboard, with no decision the human still owes
    it, no mid-flight approval it must stop for?** → hand the spawn-brief decision to
-   `session-flow:orchestrate` (if enabled), then continue to question 3 for this session's own
-   mechanism. *The AFK criterion, asked here because a yes changes who does the remaining work,
+   `session-flow:orchestrate` (if enabled), then decide how this session continues.
+   *The AFK criterion, asked here because a yes changes who does the remaining work,
    while every question below asks how this session carries it, a question only well-posed once
    the work that is leaving has left. Ordered after question 1 because feasibility the router
    infers must never pre-empt an instruction the user actually gave: question 1's gate is the
@@ -101,6 +101,12 @@ boundary.
    that skill: say that the work looks delegable and what a brief would have to carry, meaning
    scope, turn and budget caps, a checkable completion condition (`/goal` or a Stop-hook check),
    and the return contract, then leave the spawn decision with the user.)
+
+**Is a `/goal` or `/loop` active?** Only an explicit user request for a handoff routes to
+`session-flow:handoff`. Otherwise let automatic compaction run and keep working in this session.
+This takes precedence over the remaining questions, including at a phase boundary, under
+`continue auto`, or in a worker handoff relay.
+
 3. **Is there enough light zone left, or is the remaining work simple enough for a degraded
    context, and does neither question 4 nor question 5 apply?** → continue in session.
    *Questions 4 and 5 do not depend on the zone, so their cases route there whatever the zone
@@ -153,6 +159,8 @@ boundary.
    compaction applies, a "Compact Instructions" section in CLAUDE.md, see
    [when context fills up](https://code.claude.com/docs/en/how-claude-code-works#when-context-fills-up).
 
+The timing and task-boundary defaults below apply when no goal or loop is active.
+
 **Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
 leaving.
 
@@ -198,11 +206,12 @@ does; work that leaves the session hands off.
 The router's product is a recommendation addressed to the human, not an action taken on their
 behalf. Emit three things:
 
-- **The mechanism.** Exactly one, named as the skill or built-in the human would invoke.
+- **The mechanism.** Name one route. For automatic compaction, say "let automatic compaction run".
+  For an invoked route, name the skill or built-in.
 - **The evidence that drove it.** The zone word as resolved (or why it is unknown), the informant
   findings that mattered, and the edge whose yes selected the mechanism.
-- **The next step.** The literal invocation to run, plus whatever hand-work an absent-skill
-  fallback requires.
+- **The next step.** For automatic compaction, keep working with no command to type. Otherwise
+  give the literal invocation to run, plus whatever hand-work an absent-skill fallback requires.
 
 State the evidence even when it is thin: "no zone snapshot and no orient briefing, judged from
 window position and response quality" is a legitimate recommendation basis, and an honest one.
@@ -293,9 +302,10 @@ explicit licenses. It never elects autonomy for itself, and no standing config g
 For long-running delegated work, the same routing applies one level down, with a twist that keeps
 the parent's window clean:
 
-- A **worker** approaching its zone boundary writes its own handoff file (per the handoff
-  engine's structure) and returns only the file path to its parent, never the contents.
-- The **orchestrator**, standing in for the human at that boundary, retires the worker and seeds
+- A **worker** approaching its zone boundary writes its own handoff file unless the active goal or
+  loop rule selects automatic compaction. When it writes a handoff, it uses the handoff engine's
+  structure and returns only the path to its parent.
+- On receiving the path, the **orchestrator** retires the worker and seeds
   a fresh agent with the resume prompt built from that path, briefed "read that file, then
   continue its remaining next steps", and never reads the handoff body itself. State passes
   worker → worker without ever occupying the parent's context window.

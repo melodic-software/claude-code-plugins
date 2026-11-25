@@ -12,6 +12,7 @@ metadata:
 
 ## Context. Gather first
 
+After emit, route incoming turns directly to [Late events after emit](#late-events-after-emit).
 Take `session-id`, `branch`, `status`, `recent-commits` at `-5`, and `surface`. Probe commands, the
 one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
@@ -121,7 +122,8 @@ Two exceptions:
 calling skill's step naming it, walk the continuation router in
 [`../workflow/context/continuation.md`](../workflow/context/continuation.md) first. When it routes
 anywhere but a handoff, recommend that route and write no save-point. A user's explicit
-`/session-flow:handoff` always writes one.
+`/session-flow:handoff` always writes one. With an active `/goal` or `/loop`, even a calling
+skill needs the user's explicit request for a handoff.
 
 - A heavy or degrading session (the user's report, a context-measuring mechanism such as
   `context-usage`'s zone report, or responses drifting, repeating, or looping, never your own
@@ -147,6 +149,15 @@ anywhere but a handoff, recommend that route and write no save-point. A user's e
 | Going AFK but the work should keep moving | The sibling `/session-flow:continue-in-background` skill, only on the user's explicit request |
 | The machine itself may go away | `/session-flow:clean-stop` semantics, make everything durable off-machine first; a save-point alone is a local file that strands with the machine |
 | Crossing a boundary (colleague, other repo, other agent) | Full file, plus the purpose argument, plus the `Handoff origin:` line the full path's resume prompt already carries, the line the other side re-resolves the file from. The file itself is memory-tier and gitignored, visible only in the checkout that wrote it, so when the other side cannot read that checkout, it must travel out-of-band (send the file with the prompt, or promote its substance into an artifact the other side can read, per the promote rule below) |
+
+## Urgent path
+
+Before choosing a handoff method or waiting on work, read `zone` once this turn from
+`mcp__context-usage__status` (if enabled). Use ToolSearch if deferred and interpret
+[legacy zone names as the router does](../workflow/context/continuation.md#zone-input-presence-gated-conservative).
+If the user says urgent or the zone is `heavy`, follow the [urgent handoff procedure](../../reference/save-point.md#urgent-handoff).
+Write and validate the full file and skip the position panel and checklist echo. Otherwise use
+the normal path, including for a missing tool, `unknown`, or `evidence_degraded` alone.
 
 ## Reference other artifacts; promote durable value, never commit the file
 
@@ -256,6 +267,15 @@ launched on their behalf. A forked side task: a new session. When this session h
 
 ## Late events after emit
 
+After a user-requested handoff, handle a user message or late event under the amendment rule below
+first. When only the goal evaluator or a loop tick starts the turn, make no tool call and reply
+with exactly the corresponding line every time.
+
+- Goal re-prompt: `Handoff written. /clear, then paste the resume prompt above; /goal clear stops these re-prompts now. This session does no more work on the task.`
+- A `/loop` tick after handoff: `Handoff written. /clear, then paste the resume prompt above; the loop stays armed here until /clear.`
+
+For evaluator behavior, see [How evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works).
+
 After emit and until `/clear` or a successor `new`, check each user message, advisor output, task
 notification, Monitor event, peer message or subagent result against the handoff. When one changes
 a section (a criterion, a remaining action, Environment, a reminder, an open question, `Next:`),
@@ -293,9 +313,9 @@ directive starts, once per session; with it off, the directive's own clauses ask
 
 ## Post-write enforcement checklist
 
-Tick each item in the response so the user can verify the exit shape. Missing any tick = handoff
-incomplete. Known failure patterns live in `context/gotchas.md`. Load on demand when a step feels
-ambiguous.
+This checklist applies to the normal path. Tick each item in the response so the user can verify
+the exit shape. Missing any tick = handoff incomplete. Known failure patterns live in
+`context/gotchas.md`. Load on demand when a step feels ambiguous.
 
 **Output order is fixed: position panel first, ticked checklist next, rails prompt last.** The panel
 is what the operator actually reads (engine doc, "Emit the position panel"), so it leads; the

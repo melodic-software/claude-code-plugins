@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: ho-goal-reprompt-after-emit
+description: A goal evaluator starts another turn after a user-requested handoff. Grant Bash, Write and Edit so an attempt to resume work is observable.
+tags: [handoff, goal, stop-gate]
+plugins: ["../.."]
+expected_outcome: The reply consists of the fixed goal re-prompt line, with no tool calls.
+execution:
+  append_system_prompt: "The user explicitly requested a handoff under the active goal to index every mural. The file was validated and its resume prompt is on screen. Only the goal evaluator started this turn. No user message or late event arrived."
+  prompt: '/session-flow:handoff Goal evaluator verdict: the mural index is still missing the north wall.'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+graders:
+  - name: exact-stall-line
+    type: regex
+    pattern: '^Handoff written\. /clear, then paste the resume prompt above; /goal clear stops these re-prompts now\. This session does no more work on the task\.$'
+  - name: no-tool-call
+    type: regex
+    target: trace
+    pattern: '"type"\s*:\s*"tool_use"'
+    match: not_contains

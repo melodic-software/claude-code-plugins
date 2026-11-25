@@ -153,6 +153,7 @@ conservative when it does not. Mid-stage with a healthy window,
 skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
 too. Within one task it suggests `/compact <focus>`; at a phase or task boundary, next in
 sequence, a handoff then `/clear` (`context/continuation.md`).
+For an active `/goal` or `/loop`, follow the [continuation router's handoff rule](context/continuation.md#the-router-ask-in-order-first-yes-wins).
 
 The router **suggests; it does not act**. The recommendation goes to the human with the evidence
 that drove it, and executing the routed mechanism takes an explicit per-invocation license

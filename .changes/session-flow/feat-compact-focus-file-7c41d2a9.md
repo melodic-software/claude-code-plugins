@@ -12,3 +12,6 @@ bump: minor
   return.
 - `compact_focus_enabled` (default on) turns the hook and every focus write off. The user's own
   value wins over `docs/conventions/session-flow.yaml`.
+- Active goals and loops use automatic compaction until the user requests a handoff. Afterward,
+  evaluator re-prompts and loop ticks get a single line without a tool call. An urgent handoff
+  writes and validates the file and skips the position panel and checklist echo.
