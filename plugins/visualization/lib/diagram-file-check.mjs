@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Format pointer: https://plus.excalidraw.com/docs/sdk/codebase/json-schema#excalidraw-files.
-// The element rules follow the loader's restore step, read at
-// https://github.com/excalidraw/excalidraw/blob/v0.18.1/packages/excalidraw/data/restore.ts
-// (as of 2026-11-18; recheck trigger: an Excalidraw release that changes restoreElement's type
-// cases or the file `type` marker in data/json.ts).
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

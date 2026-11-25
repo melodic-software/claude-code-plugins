@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-// Build the change digest page: the checked-in template plus the digest data as
-// a JSON data block, through the shared view-builder's interactive profile.
-// The data is K2 (it describes a pull request), so nothing here writes a data
-// value into markup; view-builder puts it in the data block and the inlined
-// runtime renders it as text. The one exception is the title, which view-builder
-// escapes into the page's <title> (rendered-views rule 5).
-//
-//   build-digest.mjs < data.json      write the page into a fresh temp dir, print its path
-//   build-digest.mjs --connect http://127.0.0.1:<port> --dir <data_dir> < data.json
-//                                     write the Claude-interactive page to <data_dir>/page.html,
-//                                     the view-bridge data dir that serves that origin
-//   build-digest.mjs --check <file>   validate a page
-// The caller never picks the output path, so a diff-steered caller cannot aim
-// the page at a rules, shell, or settings file: --dir takes only a private
-// view-bridge data dir outside any working tree, and the file name is fixed.
-// Exit 0 ok, 1 the page fails its profile, 2 usage, input, or output path.
 
 import { existsSync, lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -45,7 +29,6 @@ export function shapeDigest(input) {
     .map((q) => ({ question: text(q.question), choices: texts(q.choices), answer: text(q.answer) }))
     .filter((q) => q.question !== "");
   const recording = src.recording && typeof src.recording === "object" ? src.recording : {};
-  // Repo-relative only: an absolute or home path would show the reader's username.
   const recordingPath = /^(?:[/\\~]|[A-Za-z]:)/.test(text(recording.path)) ? "" : text(recording.path);
   return {
     title: text(src.title) || "Change digest",
@@ -176,7 +159,6 @@ function main(args) {
     fail(error.message, 1);
   }
   if (connected) {
-    // Never write through a link a K2-steered run might have planted.
     const out = join(realpathSync(flags["--dir"]), "page.html");
     if (existsSync(out) && lstatSync(out).isDirectory()) fail(`refused: ${out} is a directory`, 2);
     rmSync(out, { force: true });

@@ -1,10 +1,3 @@
-// The single-statement reject lists of ADR 0086 section 1 and its write-tier
-// amendment: heuristic controls. checkStatement accepts one SELECT, optionally led by WITH, and
-// checkWriteStatement one INSERT, UPDATE, DELETE or MERGE; each refuses
-// everything else it can recognize. The principals, not these lists, are the
-// guarantee.
-// It works on tokens, so a keyword inside a comment, a string literal or a
-// bracketed or quoted identifier never counts.
 
 export class TokenizeError extends Error {
   constructor(message) {
@@ -13,8 +6,6 @@ export class TokenizeError extends Error {
   }
 }
 
-// Token kinds: word (an unquoted keyword or name, value upper-cased), ident (a
-// [bracketed] or "quoted" identifier), string, number, punct.
 export function tokenize(sql) {
   const tokens = [];
   let i = 0;
@@ -24,11 +15,9 @@ export function tokenize(sql) {
     if (/\s/u.test(c)) {
       i += 1;
     } else if (c === '-' && sql[i + 1] === '-') {
-      // Ending at a lone \r too can only refuse more, never hide a keyword.
       const end = sql.slice(i).search(/[\r\n]/u);
       i = end === -1 ? n : i + end + 1;
     } else if (c === '/' && sql[i + 1] === '*') {
-      // T-SQL block comments nest.
       let depth = 1;
       i += 2;
       while (i < n && depth > 0) {
@@ -76,10 +65,6 @@ export function tokenize(sql) {
   return tokens;
 }
 
-// Reserved T-SQL keywords that start a statement and have no place inside a
-// single SELECT, so any of them marks a second statement in a batch written
-// without semicolons. The first token is checked separately, so this list
-// never decides which statement kinds are allowed.
 const STATEMENT_WORDS = new Set([
   'ADD',
   'ALTER',
@@ -165,7 +150,6 @@ function tokenizeOrRefuse(sql) {
   }
 }
 
-// Returns { ok: true } or { ok: false, reason }.
 export function checkStatement(sql) {
   const { tokens, refusal } = tokenizeOrRefuse(sql);
   if (refusal) return refusal;
@@ -178,7 +162,6 @@ export function checkStatement(sql) {
   }
 
   let depth = 0;
-  // A WITH preamble may hold one top-level SELECT, the main query.
   let mainSeen = first.value === 'SELECT';
   for (let k = 0; k < tokens.length; k += 1) {
     const t = tokens[k];
@@ -226,10 +209,6 @@ const WRITE_REFUSALS = new Map([
   ...REMOTE_REFUSALS,
 ]);
 
-// The write tier's reject list, a heuristic like the read one: it accepts one
-// INSERT, UPDATE, DELETE or MERGE, optionally led by WITH. Returns
-// { ok: true, terminated } (whether the text ends in a semicolon) or
-// { ok: false, reason }.
 export function checkWriteStatement(sql) {
   const { tokens, refusal } = tokenizeOrRefuse(sql);
   if (refusal) return refusal;
@@ -262,7 +241,6 @@ export function checkWriteStatement(sql) {
     if (WRITE_REFUSALS.has(t.value)) return refuse(WRITE_REFUSALS.get(t.value));
     if (depth > 0) continue;
     if (DML_WORDS.has(t.value)) {
-      // A MERGE's WHEN ... THEN INSERT, UPDATE or DELETE is part of it.
       const mergeAction = main === 'MERGE' && prev?.kind === 'word' && prev.value === 'THEN' && t.value !== 'MERGE';
       if (main !== undefined && !mergeAction) return refuse(`only one statement is allowed; a second ${t.value} follows the first`);
       main ??= t.value;
@@ -273,11 +251,8 @@ export function checkWriteStatement(sql) {
     } else if (t.value === 'VALUES' || t.value === 'DEFAULT') {
       if (main === 'INSERT') sourced = true;
     } else if (t.value === 'INTO') {
-      // INSERT INTO and MERGE INTO come before any SELECT; one after it is SELECT ... INTO, which creates a table.
       if (selects > 0) return refuse('SELECT ... INTO writes a new table');
     } else if (t.value === 'SELECT' && !isSetOperator(prev)) {
-      // INSERT ... SELECT is the one write with a top-level SELECT; any other
-      // would be a second statement, and @@ROWCOUNT would count its rows.
       selects += 1;
       if (main !== 'INSERT' || sourced || selects > 1) return refuse('a top-level SELECT is allowed only once, as the source of INSERT ... SELECT');
     }

@@ -28,7 +28,6 @@ $commands = @(
     'Get-ScheduledTask | Where-Object { $_.Triggers.CimClass.CimClassName -eq ''MSFT_TaskLogonTrigger'' }'
 )
 
-# Each startup location; RunOnce entries have no StartupApproved state.
 $locations = @(
     @{ Scope = 'hkcu'; Key = 'Run'; Approved = $true }
     @{ Scope = 'hkcu'; Key = 'RunOnce'; Approved = $false }
@@ -99,7 +98,6 @@ $CheckBody = {
                 }))
     }
 
-    # Entries with no StartupApproved value start like enabled ones.
     $enabledCount = @($items | Where-Object { $_.approved_state -in 'enabled', 'none' }).Count
     $disabledCount = @($items | Where-Object { $_.approved_state -eq 'disabled' }).Count
     $unknownCount = @($items | Where-Object { $_.approved_state -eq 'unknown' }).Count

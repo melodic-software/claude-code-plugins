@@ -213,8 +213,15 @@ evasion.
   forward record, not a clean bill of health. A sealed packet asserts bytes at seal time, never the
   current state of the audited world
   ([#3867](https://github.com/melodic-software/claude-code-plugins/issues/3867)).
-- **Basis:** this file's three rules and Resume verify cases; the `scripts/packet-seal.sh` header
-  (COVERED / NOT COVERED, ACKNOWLEDGED DIVERGENCE, SEAL MOMENT, exits 0 / 1 / 2 / 3);
+- **Coverage:** `verify` reports every divergence after the last seal (a formatter re-run, a
+  truncation, tampering). It cannot see the first in-place rewrite: a `PostToolUse` hook runs after
+  the write succeeds, so the earliest digest already covers the post-hook bytes, and the writer's
+  read-back catches that one. Each generation manifest `packet.sha256.<n>` is checked beside
+  `packet.sha256`, and `verify` prints `ACKNOWLEDGED generation=<n>` on every run while one
+  exists. The `# sealed-at` line is self-attested from the local clock and unsigned; it never
+  changes an exit code. Exits: 0 recorded or all matching, 1 a sealed file changed or is missing
+  (or `record` refused), 2 usage or a symlink entry, 3 all matching but some file UNSEALED.
+- **Basis:** this file's three rules and Resume verify cases; `packet-seal.sh` and
   `packet-seal.test.sh` acknowledge cases; the `agents/auditor.md` Write grant.
 - **Recheck:** a mechanical write-once lock ships, `sealed-at` becomes signed or `verify` starts
   gating on it, `packet-seal.sh` grows a currency or superseded marker, or the Resume rule stops

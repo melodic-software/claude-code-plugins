@@ -44,14 +44,10 @@ $CheckBody = {
         Write-Verbose "Test-Services: Win32_Service query failed. $($_.Exception.Message)"
     }
 
-    # Stopped Automatic services: trigger_start (TriggerInfo key, stopped is normal),
-    # delayed_pending (DelayedAutoStart, uptime < 10 min), else unexpected_stopped (WARN).
     $unexpectedStopped = [System.Collections.Generic.List[pscustomobject]]::new()
     $triggerStartStopped = [System.Collections.Generic.List[pscustomobject]]::new()
     $delayedPending = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    # SilentlyContinue so a per-service permission error (WaaSMedicSvc) cannot drop the check
-    # to UNKNOWN; zero services back is a catastrophic SCM/RPC failure, reported with svcErrs.
     $svcErrs = $null
     $allServices = @(Get-Service -ErrorAction SilentlyContinue -ErrorVariable svcErrs)
     if ($allServices.Count -eq 0) {

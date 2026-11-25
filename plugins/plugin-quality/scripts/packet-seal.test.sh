@@ -270,14 +270,6 @@ else
   fail "generation 3 still lists the deleted file"
 fi
 
-# --- the seal moment is recorded and printed --------------------------------
-#
-# The manifest's first line is `# sealed-at <UTC ISO-8601>`. The value is
-# self-attested (written by this script, unsigned, editable by whoever can write
-# the manifest), so these cases pin what the packet says, not that it is true.
-# A header is never a manifest entry: it must not be sealed, graded, or reported
-# as UNSEALED or MISSING, and a manifest written before it existed still verifies.
-
 iso_header='^# sealed-at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 
 has_line() {
@@ -406,13 +398,6 @@ has_line "sealed-at=unknown" "a header-less original reports unknown"
 has_line "gen-sealed-at=unknown" "a header-less generation reports unknown"
 has "matched=1 changed=1 missing=0 unsealed=0 gen-matched=3 gen-changed=0 gen-missing=0" "header-less manifests keep the summary"
 real_clock
-
-# --- symlinks are visible, and escaping ones are refused --------------------
-#
-# `-type f` cannot see a symlink, so an all-symlink packet enumerated as EMPTY
-# and then verified "intact" — the worst answer an integrity tool can give.
-# Needs real symlinks (MSYS=winsymlinks:nativestrict on Git Bash); SKIP loudly
-# otherwise rather than passing vacuously.
 
 sym="$WORK/symlink-packet"
 rm -rf "$sym"

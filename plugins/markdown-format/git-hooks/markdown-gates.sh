@@ -1,34 +1,10 @@
 #!/usr/bin/env bash
-#
-#   md_trust <root>                 after a "code" state, set MD_TRUST to
-#                                   approved, gate, nostore, unverifiable or
-#                                   unpinnable, and MD_TRUST_DIR to the approval
-#                                   directory for gate and approved
-#   md_local_bin <dir> <root>       print a repo-local node_modules/.bin shim
-#                                   whose physical target stays inside <root>
-#
-# A markdownlint config is the opt-in: markdownlint-cli2 ships a default rule
-# set, so a run without one would impose a style the repository never chose.
-# The candidates are the files markdownlint-cli2 discovers on its own (its README
-# "Configuration" section); a package.json property is honored only under an
-# explicit --config flag, so it is no opt-in.
-#
-# A config that can run code (.cjs or .mjs, or customRules, markdownItPlugins and
-# outputFormatters keys) runs only once the user approves its exact content
-# state. The key test is a plain-text over-approximation, so a double-quoted
-# string holding a backslash, or a YAML escape or tag able to spell a key
-# differently, counts as code too, and as unverifiable: text whose meaning the
-# scan cannot read gets no approval route.
 
-# md_classify <config>: 0 and the config added to MD_CODE_CONFIGS when it can
-# run code, with MD_TRUST_BLOCK set when no approval can cover it; 1 otherwise.
 md_classify() {
   local code=1
   case "$1" in
     *.cjs | *.mjs)
       code=0
-      # An executable cli2 config resolves these keys' entries itself, from any
-      # expression that yields a string, so the module scan cannot pin them.
       if [[ "${1##*/}" == .markdownlint-cli2.* && -z "$MD_TRUST_BLOCK" ]] &&
         grep -Eq 'customRules|markdownItPlugins|outputFormatters' "$1" 2>/dev/null; then
         MD_TRUST_BLOCK=unpinnable
@@ -51,14 +27,11 @@ md_classify() {
   MD_CODE_CONFIGS+=("$1")
 }
 
-# The first config of each family wins in a directory, as markdownlint-cli2
-# resolves it, so a shadowed executable config does not count.
 md_scan_dir() {
   md_scan_family "$1" .markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs .markdownlint-cli2.mjs
   md_scan_family "$1" .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml .markdownlint.cjs .markdownlint.mjs
 }
 
-# md_scan_family <dir> <name>...: note the first of the names present in <dir>.
 md_scan_family() {
   local dir="$1" c
   shift
@@ -79,10 +52,6 @@ md_note_config() {
   fi
 }
 
-# Walks from the file's directory up to <root> inclusive; <root> is "." for a
-# repo-relative path or an absolute directory the file lies under. A directory
-# above the root is never read: a walk past the repository would adopt someone
-# else's config as this repository's opt-in.
 md_config_state() {
   local dir="${1%/*}" root="$2"
   [[ "$dir" == "$1" ]] && dir=.
@@ -109,8 +78,6 @@ md_config_state() {
   done
 }
 
-# md_abs <path>: the physical absolute path, its directory resolved through
-# symlinks; 1 when the directory does not resolve.
 md_abs() {
   local d="${1%/*}"
   [[ "$d" == "$1" ]] && d=.
@@ -119,15 +86,6 @@ md_abs() {
   printf '%s/%s' "${d%/}" "${1##*/}"
 }
 
-# md_unpinnable_js <file>: 0 when a JS source names code this text scan cannot
-# pin to a file. Path-building machinery anywhere (the path module, string
-# concatenation, a template, __dirname, process.*) refuses it, as does a loader
-# call left over once every plainly written require("x") or import("x") is
-# deleted: a loader the plain pattern did not consume takes an argument the scan
-# cannot read. A letter-capable escape in a string refuses it too, since Node
-# decodes it to another path, and so does a "#" specifier, which package.json
-# "imports" maps to a file the scan never sees. POSIX ERE only, no \b, so BSD grep reads it alike.
-# Deliberately over-approximating: the cost of a false refusal is a skipped run.
 md_unpinnable_js() {
   grep -Eq \
     -e "(require[[:space:]]*\([[:space:]]*|from[[:space:]]*)[\"'](node:)?path[\"']" \
@@ -145,24 +103,11 @@ md_unpinnable_js() {
     < <(sed -E "s/(require|import)[[:space:]]*\([[:space:]]*(\"[^\"]*\"|'[^']*')/ /g" "$1" 2>/dev/null)
 }
 
-# md_collect_modules <physical root> <config>...: add to MD_MODULES every
-# repository file the configs could load, so the approval covers the code that
-# would run and not only the config naming it. Resolving the real module graph
-# would mean running Node, the thing being gated, so every string literal and
-# path-shaped bare token is tried as a path from the file's directory and from
-# the root, with Node's extension and directory-entry candidates, and each hit is
-# scanned the same way in turn (at most 64 files). 1, with MD_TRUST_BLOCK set to
-# unpinnable, for a JS source md_unpinnable_js refuses, a symlinked module, or a
-# module that resolves outside the root: no signature over repository content
-# covers those. A bare package name resolves to node_modules, which the user
-# installs separately, so it stays outside the signature.
 md_collect_modules() {
   local root="$1" item dir str tag base cand res scanned=0
   local seen_scan=$'\n' seen_mod=$'\n' queue=()
   shift
   for item in "$@"; do
-    # A symlinked config loads its requires from the link target's directory,
-    # which the scan below would not read.
     if [[ -L "$item" ]]; then
       MD_TRUST_BLOCK=unpinnable
       return 1
@@ -234,14 +179,6 @@ md_collect_modules() {
   return 0
 }
 
-# md_trust <root>: judge the code-capable configs the last md_config_state
-# found. The approval store is markdown-format/ under the repository's git
-# common directory, so the batch row, the Stop row and every commit read one
-# store; CLAUDE_PLUGIN_DATA is not used, since an agent's shell can carry
-# another plugin's value. The approval is a directory there named for a signature over the root, every config and every
-# module md_collect_modules reaches, so a change to any of them, a branch switch
-# included, revokes it. Only the user creates that directory: the pre-commit
-# entry never hands an agent the command. Verdicts are cached per config set.
 MD_TRUST_CACHE=$'\n'
 md_trust() {
   local root key hit base common sig f h
@@ -301,16 +238,11 @@ md_trust() {
   MD_TRUST_CACHE+="$key"$'\t'"$MD_TRUST"$'\t'"$MD_TRUST_DIR"$'\n'
 }
 
-# Walks from <dir> up to <root>, so a monorepo workspace install is found. A
-# shim is accepted only after its symlinks are followed and the physical target
-# lies in this repository's node_modules tree, which rejects a checked-in or
-# replaced .bin symlink that points out of the repository.
 md_local_bin() {
   local dir="$1" root cand target link tdir here parent depth
   root="$(cd -P -- "$2" 2>/dev/null && pwd -P)" || return 1
   while :; do
     cand="$dir/node_modules/.bin/markdownlint-cli2"
-    # A node_modules the repository commits is its code, not the user's install.
     if [[ -f "$cand" && -x "$cand" && -z "$(rt_git -C "$dir" ls-files -- ':(literal)node_modules' 2>/dev/null)" ]]; then
       target="$cand"
       depth=0

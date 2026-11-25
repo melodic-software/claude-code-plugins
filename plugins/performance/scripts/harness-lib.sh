@@ -1,41 +1,14 @@
 #!/usr/bin/env bash
-# Shared preconditions for the performance measurement harnesses.
-#
-# Sourced, never executed. Every function here fails LOUD rather than degrading
-# into a weaker check that passes, because a harness that silently works around
-# a broken precondition reports a confident wrong number, and a confident wrong
-# number is worse than no number. See reference/harness-integrity.md rules 1, 2
-# and 6, and the five source-run failures the plugin README tabulates.
-#
-# Path handling here is not defensive tidiness. Three of those five failures
-# came down to Windows path spelling: both arms exited 127, the grep found
-# nothing in either, and the harness reported a clean verdict for a check that
-# never ran. Rule 6 records which spellings break and which do not.
 
-# harness_die <message...>
-#
-# Terminate the CALLING script. Exit status 2 is reserved across this directory
-# for "the harness could not run", kept distinct from a subject's own failure so
-# a caller can tell "the thing under test is broken" from "the instrument is".
-#
-# Never call this from inside $( ), where `exit` would leave only the
-# substitution's subshell and the caller would sail on with an empty string.
 harness_die() {
   printf 'HARNESS FAIL: %s\n' "$*" >&2
   exit 2
 }
 
-# harness_warn <message...>
 harness_warn() {
   printf 'HARNESS WARNING: %s\n' "$*" >&2
 }
 
-# harness_posix_form <path>
-#
-# Print the MSYS spelling of a path: backslashes folded to forward slashes and a
-# drive letter rewritten as a root segment, so `D:\a\b` and `D:/a/b` both become
-# `/d/a/b`. Pure string work, no filesystem access, so it is safe to call on a
-# path that does not exist (a Windows TEMP value bash cannot cd into, say).
 harness_posix_form() {
   local value="$1"
   value="${value//\\//}"
@@ -49,11 +22,6 @@ harness_posix_form() {
   printf '%s\n' "$value"
 }
 
-# harness_require_posix_path <what> <value>
-#
-# Refuse a Windows drive-letter path anywhere in <value>. Matching is not
-# anchored, so an embedded one inside a `bash -c` command string is caught too:
-# that is the shape the source-run harnesses actually shipped.
 harness_require_posix_path() {
   local what="$1" value="$2"
   local drive_letter_re='(^|[^A-Za-z0-9])[A-Za-z]:[/\]'
@@ -62,31 +30,12 @@ harness_require_posix_path() {
   fi
 }
 
-# harness_real_dir <path>
-#
-# Print the PHYSICAL path of <path> when it exists, and its POSIX spelling
-# otherwise. Resolving through the filesystem rather than comparing strings is
-# load-bearing on Windows: TEMP is often the 8.3 short form
-# `C:\Users\<SHORT~1>\AppData\Local\Temp`, while the same directory reached
-# through `/tmp` reports `/c/Users/<longname>/AppData/Local/Temp`. A string
-# prefix test between those two spellings finds nothing, and a temp-rooted shim
-# directory would sail straight through the check meant to catch it.
 harness_real_dir() {
   local posix
   posix="$(harness_posix_form "$1")"
   (cd "$posix" 2>/dev/null && pwd -P) || printf '%s\n' "$posix"
 }
 
-# harness_resolve_shim_dir <dir>
-#
-# Sets the global HARNESS_SHIM_DIR to a resolved, stability-checked shim
-# directory. Call it directly, never inside $( ), so harness_die can terminate.
-#
-# The shim directory goes on PATH for the subject, so under rule 1 it must be
-# FIXED across runs. The canonical defect this refuses is `mktemp -d`: a fresh
-# directory each run changed PATH each run, the subject cached keyed on PATH,
-# every run was a forced cache miss, and the census reported "no improvement"
-# while measuring nothing but its own randomization.
 harness_resolve_shim_dir() {
   local dir="$1"
   if [[ -z "$dir" ]]; then
@@ -119,11 +68,6 @@ harness_resolve_shim_dir() {
   HARNESS_SHIM_DIR="$resolved"
 }
 
-# harness_ledger_path <key>
-#
-# Sets HARNESS_LEDGER_FILE for <key>. The ledger deliberately does NOT live
-# inside the shim directory: a ledger keyed on the thing whose stability it is
-# proving is reset by the very change it must detect.
 harness_ledger_path() {
   local key="$1" dir base
   dir="${PERF_HARNESS_LEDGER_DIR:-}"
@@ -139,13 +83,6 @@ harness_ledger_path() {
   HARNESS_LEDGER_FILE="$dir/$key.path"
 }
 
-# harness_ledger_check <key> <injected-value>
-#
-# Rule 1, enforced by the standalone script rather than only by its driver. A
-# census is invoked on its own far more often than through a before/after
-# driver, so the driver's two-runs-agree proof cannot be the only enforcement.
-# The first run for a key records and passes; a later run whose injected PATH
-# entry differs fails and names both values.
 harness_ledger_check() {
   local key="$1" value="$2" previous
   harness_ledger_path "$key"
@@ -158,24 +95,11 @@ harness_ledger_check() {
   printf '%s\n' "$value" >"$HARNESS_LEDGER_FILE"
 }
 
-# harness_ledger_reset <key>
 harness_ledger_reset() {
   harness_ledger_path "$1"
   rm -f "$HARNESS_LEDGER_FILE"
 }
 
-# harness_require_python
-#
-# Sets HARNESS_PYTHON to an ABSOLUTE interpreter path that was proven to run.
-# Fails rather than skipping: the summarizers are where the refusal rules live,
-# so a run without them is not a weaker run, it is no run.
-#
-# A bare name resolves by PATH order, and on a mixed host that order can reach a
-# stub: a WindowsApps alias with no Python behind it, or a different install than
-# the one the caller meant. harness-integrity.md rule 6 covers resolution as well
-# as spelling for exactly this reason, so each candidate is pinned to the path
-# `type -P` finds and is run once before it is trusted. A candidate that does not
-# run is named and skipped, never silently used.
 harness_require_python() {
   local candidate resolved
   for candidate in python3 python; do

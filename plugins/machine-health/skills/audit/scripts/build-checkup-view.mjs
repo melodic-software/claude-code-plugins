@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Build the checkup decision page for one audit run.
-//
-//   build-checkup-view.mjs --latest <state/latest.json> --views-dir <StateBase/views>
-//                          --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id> --report <file name>
-//
-// Reads latest.json and the remediation id list the orchestrator passes, and writes
-// exactly three files into the views folder, which the orchestrator creates:
-//   checkup-<runStamp>.html      the page, built by the shared view builder
-//   checkup-<runStamp>.json      the page data
-//   checkup-<runStamp>.ids.json  the id map setup's picks step resolves a payload against
-//
-// Every machine-derived string in latest.json is K2: it reaches the page only as JSON
-// data that the shared runtime renders as text. The markup is templates/checkup.html.
-// A row id is <parent row id>-<list key>-<n>, the scheme the runtime assigns, so the
-// id map names each pick the page can return. The page carries one hidden run choice,
-// the lowercased run stamp, so a copied payload names the map it belongs to.
-// Exit 0 built, 1 the input or the page fails its checks, 2 usage or environment.
 
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -31,8 +14,6 @@ const SEVERITIES = ["crit", "warn", "unknown", "info", "ok"];
 const ITEM_FIELDS_SHOWN = 8;
 const TEXT_MAX = 300;
 const RUN_PLACEHOLDER = 'value="run-stamp"';
-// A Defender exclusion value stays off the page, its data and the id map, as it stays out of
-// the report; the appendix shows the same placeholder.
 const EXCLUSION_WITHHELD = "(exclusion value withheld)";
 
 export class CheckupInputError extends Error {}
@@ -118,7 +99,6 @@ export function toCheckupData(latest, remediations, report) {
     elevated: latest.elevated === true ? "elevated" : "not elevated",
     report: text(report),
   };
-  // A scheduled run's research notes, named by file only; win32 basename splits on / and \.
   if (typeof latest.discovery_path === "string" && latest.discovery_path) {
     run.notes = text(win32.basename(latest.discovery_path));
   }

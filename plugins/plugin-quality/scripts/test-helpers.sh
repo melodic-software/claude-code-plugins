@@ -1,27 +1,4 @@
 # shellcheck shell=bash
-# test-helpers.sh - assertion primitives for this plugin's *.test.sh suites.
-# Sourced, not executed; the plugin test runner collects *.test.sh only.
-#
-# Two lane shapes live here, and a suite calls exactly ONE initializer. The
-# initializer defines that shape's primitives and its counters as globals:
-#
-#   test_helpers::drift_lane     ok / fail / norm / require_readable /
-#                                drift_report, with the PASS and FAIL counters.
-#                                The shape for lanes that assert load-bearing
-#                                phrases across prose surfaces.
-#   test_helpers::contract_lane  pass / fail / run / has / contract_report, with
-#                                the fails counter and last_out. The shape for
-#                                black-box lanes that invoke $SUT and assert its
-#                                exit code and output.
-#
-# The two reporters carry the shape in their name because both shapes are
-# visible to a reader (and to shellcheck) of this one file at once.
-#
-# The two shapes keep separate wording and separate counters on purpose: each
-# suite's own lines are a contract its readers and this repo's lanes rely on.
-#
-# Duplicated across plugins by design, not drift - see
-# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 # test_helpers::drift_lane - phrase-drift assertion shape.
 # shellcheck disable=SC2329  # the primitives below are invoked by the suite that sources this file, never here
@@ -39,13 +16,11 @@ test_helpers::drift_lane() {
     PASS=$((PASS + 1))
   }
 
-  # norm <file> - drop markdown emphasis/backticks, flatten all whitespace runs.
   norm() {
     # shellcheck disable=SC2312  # the suites that source this file set pipefail, so no stage's status is masked
     tr -d '`*' <"$1" | tr '\n' ' ' | tr -s ' '
   }
 
-  # require_readable <file>... - a surface this lane reads must be there.
   require_readable() {
     local f
     for f in "$@"; do
@@ -56,7 +31,6 @@ test_helpers::drift_lane() {
     done
   }
 
-  # drift_report - final tally. Call it LAST: its status is the suite's exit status.
   drift_report() {
     echo
     echo "PASS=$PASS FAIL=$FAIL"
@@ -64,8 +38,6 @@ test_helpers::drift_lane() {
   }
 }
 
-# test_helpers::contract_lane - black-box script-under-test shape. The suite
-# sets $SUT to the script under test before the first `run`.
 test_helpers::contract_lane() {
   fails=0
   last_out=""
@@ -77,7 +49,6 @@ test_helpers::contract_lane() {
     fails=$((fails + 1))
   }
 
-  # run <expected-exit> <label> [args...] - captures output into last_out for reuse.
   run() {
     local expected="$1" label="$2"
     shift 2
@@ -92,7 +63,6 @@ test_helpers::contract_lane() {
     fi
   }
 
-  # has <phrase> <label> - the last run's combined output carries <phrase>.
   has() {
     if [[ "$last_out" == *"$1"* ]]; then
       pass "$2"
@@ -101,7 +71,6 @@ test_helpers::contract_lane() {
     fi
   }
 
-  # contract_report <script-name> - final tally; exits the suite.
   contract_report() {
     echo
     if [[ $fails -eq 0 ]]; then

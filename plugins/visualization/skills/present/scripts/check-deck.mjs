@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// Decide whether a Slides deck written under <root>/project/ may be published,
-// before anything is sent to claude.ai. Refuses a root inside a working tree (a
-// view never sits beside its record) or reached through a symlink, gates the
-// deck title the create call will use, refuses a K2 slide holding anything
-// outside a fixed text-and-layout allowlist, resolves the medium through the
-// shared medium resolver, then runs the shared publish gate over every file the
-// publish would send. Prints one JSON object.
-//
-//   check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2
-//                  [--argument <medium>] [--option <plugin medium option>]
-// Exit 0 decided (read `publishes`, and `medium` for the name), 1 a deck refused, 2 usage or an
-// unreadable root.
 
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -217,7 +205,6 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
   const text = files.map(([p, t]) => `${p}\n${t}`).join("\n");
   const gate = publishGate({ explicit, visibility, text, subject: "deck" });
   if (explicit) gate.reason = `${decidedBy} sets medium: ${preferred === "hosted" ? "hosted, treated as artifact" : "artifact"}`;
-  // The title is printed only for a create call; a deck kept local never echoes it.
   const named = gate.medium === "artifact" ? { title } : {};
   const report = reportLines(gate.medium === medium ? resolution : { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}` });
   return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, publishes: Boolean(mediumOf(gate.medium)?.publishes), report } };

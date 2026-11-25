@@ -38,9 +38,6 @@ $commands = @(
     "Get-ChildItem Env: | Where-Object Name -match '(_TOKEN|_API_KEY|_SECRET|_PASSWORD)$' | Select-Object Name"
 )
 
-# Legacy System Properties editor truncates a User Path REG_SZ/REG_EXPAND_SZ
-# at 2047 characters. WARN before that ceiling so a human can act; CRIT at
-# the ceiling because further appends are silently lost.
 $userPathWarnChars = 1800
 $userPathCritChars = 2047
 
@@ -67,10 +64,6 @@ function Get-NormalizedPathEntry {
     [OutputType([string])]
     param([Parameter(Mandatory = $true)] [string] $PathEntry)
 
-    # Windows accepts both separators for the same directory. A REG_EXPAND_SZ
-    # value often keeps a forward slash after the expanded token
-    # (%SystemRoot%/System32) while the live process PATH uses backslashes.
-    # Scope lookup compares those two strings, so leave them in one form.
     $normalized = $PathEntry.Trim().TrimEnd('\', '/').ToLowerInvariant()
     return $normalized.Replace('/', '\')
 }
@@ -149,9 +142,6 @@ function Read-PersistentEnvironment {
         $kind = $key.GetValueKind($name).ToString()
         $value = $null
         if (-not $isCredential) {
-            # 1 = RegistryValueOptions.DoNotExpandEnvironmentNames. Numeric so
-            # the check does not depend on Microsoft.Win32.Registry at parse
-            # time (Pester on a non-Windows host still has to load this file).
             $raw = $key.GetValue($name, $null, 1)
             if ($raw -is [string[]]) { $value = ($raw -join ';') }
             elseif ($null -ne $raw) { $value = [string]$raw }
@@ -213,8 +203,6 @@ function New-FindingList {
     [CmdletBinding()]
     [OutputType([System.Collections.Generic.List[object]])]
     param()
-    # Unary comma: an empty List enumerates to nothing, so a bare return
-    # would bind $null and the next .Count would throw under StrictMode.
     return , [System.Collections.Generic.List[object]]::new()
 }
 
@@ -318,9 +306,6 @@ $CheckBody = {
             })
     }
 
-    # Live search order is the process PATH (what CreateProcess actually
-    # walks). Scope labels still come from the persisted User/Machine lists
-    # so a conda-prepended directory is 'unknown' rather than mislabeled.
     $processEntries = [System.Collections.Generic.List[string]]::new()
     foreach ($p in @(Split-PathEntries $env:PATH)) { $processEntries.Add($p) }
     if ($processEntries.Count -eq 0) {
@@ -378,10 +363,6 @@ $CheckBody = {
             })
     }
 
-    # Severity ladder (most severe first). No finding here writes anything;
-    # CRIT is reserved for the User Path length ceiling because further
-    # appends are silently discarded by the legacy editor. Everything else
-    # is a shape a human decides what to do with.
     $severity = 'OK'
     $reasons = [System.Collections.Generic.List[string]]::new()
     $processReasons = [System.Collections.Generic.List[string]]::new()

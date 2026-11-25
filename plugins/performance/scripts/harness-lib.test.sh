@@ -14,7 +14,6 @@ trap 'rm -rf "$WORK"' EXIT
 export PERF_HARNESS_LEDGER_DIR="$WORK/ledger"
 
 # portability-ok: 'D:\a\b' is literal Windows path DATA under test, not a regex; the
-# backslash pairs are the input this conversion exists to fold, not GNU escapes.
 assert_eq "backslash drive path folds to POSIX" "/d/a/b" "$(harness_posix_form 'D:\a\b')"
 assert_eq "forward-slash drive path folds to POSIX" "/d/a/b" "$(harness_posix_form 'D:/a/b')"
 assert_eq "drive root folds to POSIX" "/c/" "$(harness_posix_form 'C:/')"
@@ -42,11 +41,6 @@ capture harness_resolve_shim_dir "${TMPDIR:-/tmp}/performance-harness-shim-probe
 assert_eq "a shim directory under the temporary root is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the mktemp defect" "temporary root" "$RUN_OUT"
 
-# The same physical directory reached by a DIFFERENT SPELLING must still be
-# refused. On Windows, TEMP is often the 8.3 short form
-# (C:\Users\<SHORT~1>\...) while /tmp resolves to the long form, and a string
-# prefix test between the two finds nothing: the rejection would silently stop
-# working on exactly the platform the source failures came from.
 # discriminating-skip-required: the spelling-independence of the temp-root
 # rejection is the only thing this case proves.
 TMPDIR_ALIAS="$(cd /tmp && pwd -P)"
@@ -75,9 +69,6 @@ capture env -u PERF_HARNESS_LEDGER_DIR -u XDG_CACHE_HOME -u HOME \
   bash -c "source '$SCRIPT_DIR/harness-lib.sh'; harness_ledger_path k"
 assert_eq "no writable ledger location is refused, not skipped" "2" "$RUN_RC"
 
-# A stub named python3 that exits like a missing interpreter stands FIRST on
-# PATH, the shape a WindowsApps alias or a WSL launcher takes on a mixed host.
-# The harness must skip it by name and pin the next candidate by absolute path.
 REAL_PYTHON="$(type -P python3 || type -P python)"
 STUB_DIR="$WORK/stub-python"
 REAL_DIR="$WORK/real-python"

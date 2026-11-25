@@ -1,27 +1,6 @@
 #!/usr/bin/env bash
-# Set one checklist line in the current branch's sweep PR body (grammar:
-# ../SKILL.md "Formats").
-#
-#   tick.sh <id> in-progress
-#   tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...
-#   tick.sh <id> no-findings <skill@version>...
-#   tick.sh <id> partial <detail> <skill@version>...     zero findings, partial coverage
-#   tick.sh <id> not-applicable <evidence>                records no skill version
-#   tick.sh <id> [--partial <detail>] report-only <n> <skill@version>...
-#   tick.sh <id> [--partial <detail>] declined <n> <skill@version>...
-#   tick.sh <id> [--partial <detail>] filed <issue-url> <skill@version>...
-#
-# Reads the body with `gh pr view --json body`, writes it with `gh pr edit --body-file -`,
-# re-reads it, and prints the new line. Only the first line for <id> between the repo-sweep
-# markers changes; every other line keeps its bytes, CRLF included. A "[ ]", "[~]", or bare
-# "[x]" line can be set; a done line cannot. No lock: one session per sweep.
-# Exit: 0 ok; 1 line missing or already done, or the edit did not land (any other non-zero
-# code is a failed gh or jq); 2 usage.
 set -euo pipefail
 
-# Under Git Bash or Cygwin, run jq with -b: the CRLF-preserving rewrite below needs jq's output
-# bytes unchanged, with no CR added to any line of the body.
-# Pointer: https://jqlang.org/manual/#invoking-jq (--binary). REPO_SWEEP_OSTYPE is the test seam for the platform.
 case ${REPO_SWEEP_OSTYPE:-${OSTYPE-}} in
 msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
 *) ;;
@@ -98,8 +77,6 @@ trap 'rm -rf "$tmp"' EXIT
 
 body=$(gh pr view --json body | jq -r .body)
 rc=0
-# BINMODE=3 stops gawk on Windows from stripping each input line's CR, which the rewrite
-# below must see to keep it; a POSIX awk reads it as an ordinary variable.
 printf '%s\n' "$body" | awk -v BINMODE=3 -v id="$id" -v mode="$mode" -v done_text="$versions$suffix" -v newf="$tmp/new" '
   { cr = sub(/\r$/, "") }
   /^<!-- repo-sweep:begin / { inb = 1 }

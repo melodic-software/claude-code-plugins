@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Self-contained tests for setup.sh: each case builds a git repository and an
-# empty home beside it, so no real layer is read or written.
-#
-# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown
-# fences written into fixtures, never shell expansions.
+# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown fences written into fixtures.
 # shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR

@@ -30,7 +30,6 @@ function fakeExecutor() {
   };
 }
 
-// A stream may deliver a written chunk on a later tick; wait one turn.
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 const modernMeta = { 'io.modelcontextprotocol/protocolVersion': PROTOCOL_VERSION, 'io.modelcontextprotocol/clientCapabilities': {} };

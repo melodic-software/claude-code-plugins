@@ -82,7 +82,6 @@ def percentile_floor(p: float) -> int:
     """Smallest sample count from which percentile `p` is expressible at all."""
     if not 0.0 <= p < 100.0:
         fail(f"percentile {p} is out of range")
-    # Exact arithmetic: in floats, 1/(1-0.999) lands above 1000 and ceils to 1001.
     return math.ceil(100 / (100 - Fraction(str(p))))
 
 
@@ -99,10 +98,6 @@ def nearest_rank(ordered: list[int], p: float) -> int:
 
 
 def load(path: str) -> tuple[list[int], list[int]]:
-    # Resolved rather than opened literally: the caller is a shell that hands
-    # this over in an environment variable, and whether MSYS converts a POSIX
-    # path there is a heuristic rather than a guarantee. An unconverted /tmp/...
-    # would be read against the CURRENT drive root by a native interpreter.
     resolved, note = pathfix.resolve_existing(path)
     if note:
         print(f"NOTE: {note}", file=sys.stderr)

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Tests for pathfix.py, the MSYS-versus-native path spelling resolver.
-#
-# The case that carries the weight is a REAL file addressed by the MSYS spelling
-# on a host whose Python is a native Windows build. That combination is the
-# mirror of harness-integrity.md rule 6, it is the default on the host this
-# plugin was built from, and without it the Python harnesses report a phantom
-# missing file for a file that plainly exists.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,14 +19,10 @@ readonly WORK
 trap 'rm -rf "$WORK"' EXIT
 printf 'content\n' >"$WORK/real-file.txt"
 
-# --- 1. a real file addressed in this shell's own spelling always resolves ---
-# $WORK is the MSYS spelling under Git Bash and an ordinary POSIX path
-# elsewhere, so this case is meaningful on both.
 run_pathfix "$WORK/real-file.txt"
 assert_eq "an existing file resolves" "0" "$RUN_RC"
 assert_contains "the resolution is reported" "resolved=" "$RUN_OUT"
 
-# --- 2. a path that resolves for the interpreter is NEVER rewritten ---
 # discriminating-skip-required: silent rewriting of a working path is the
 # failure mode this whole file has to avoid, and this is the case that proves
 # it does not happen.

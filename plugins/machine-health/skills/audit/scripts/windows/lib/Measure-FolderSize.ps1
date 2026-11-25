@@ -22,16 +22,8 @@ public static extern uint GetCompressedFileSizeW(string lpFileName, out uint lpF
 '@
 }
 
-# Offline | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS: a file carrying any of
-# these is a placeholder and is skipped unread and uncounted; a directory
-# carrying any is never descended (Test-FolderDescent). The enumeration itself
-# skips nothing, so such a directory is still seen and reported. The
-# two RECALL bits are not named FileAttributes members and PowerShell refuses a
-# cast to undefined flag bits, so the value is built with ToObject.
 $script:PlaceholderSkipMask = [System.Enum]::ToObject([System.IO.FileAttributes], 0x441000)
 
-# RECALL_ON_OPEN | PINNED | UNPINNED | RECALL_ON_DATA_ACCESS: with ReparsePoint,
-# any of these marks a directory as under a cloud sync root.
 $script:CloudAttributeMask = [System.Enum]::ToObject([System.IO.FileAttributes], 0x5C0000)
 
 function New-ScanBudget {
@@ -285,8 +277,6 @@ function Measure-FolderSize {
 
     foreach ($raw in $Root) {
         if ([string]::IsNullOrWhiteSpace($raw)) { continue }
-        # GetFullPath also expands an 8.3 short name, so a root reached through
-        # %TEMP% compares the same as its long form.
         $path = [System.IO.Path]::GetFullPath($raw)
         if ($path.Length -gt 3) { $path = $path.TrimEnd('\', '/') }
         if (-not $seen.Add($path)) { continue }

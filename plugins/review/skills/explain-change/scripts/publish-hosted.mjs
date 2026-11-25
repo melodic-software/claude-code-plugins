@@ -1,23 +1,4 @@
 #!/usr/bin/env node
-// Publish a built digest page to the shared page host through `pages-publish`,
-// after the shared publish gate has read the exact bytes that would leave the
-// machine. A credential refuses the upload; a repository that is not PUBLIC or a
-// machine path or hostname sends the page to the private host. The page's id
-// lives in a sidecar under the plugin data dir, keyed by repository and pull
-// request, so a rebuild replaces the same page. When the page changes host, the
-// copy on the old host is deleted. A replace that fails (the recorded page was
-// deleted elsewhere, for one) is retried once as a create.
-//
-//   publish-hosted.mjs <page> --facts <facts.json> --data-dir <dir>
-// The repository, its host and the pull request number come from the pull request
-// URL in the facts file `/source-control:pull-request view` writes, never from an
-// argument a caller types (#7740). The script looks up that repository's
-// visibility itself, on the URL's host (gh's default host for github.com); no caller
-// passes a visibility. Another host is asked only when this machine's gh is already
-// logged in to it, else the page goes private. A facts file with no usable URL, an
-// IP-address host included, publishes nothing.
-// Prints one JSON object. Exit 0 published, 1 upload failed (keep the file),
-// 2 usage, unusable facts or not a builder page, 4 refused: credential-shaped content.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -71,7 +52,6 @@ const pagesPublish = (args) => spawnSync("pages-publish", args, { encoding: "utf
 /** @returns {{exit: number, result: object}} */
 export function publishHosted({ page, host, repo, pr, dataDir }) {
   const html = readFileSync(page, "utf8");
-  // A connected page names the session bridge in its policy; it only works on this machine.
   if (!validateView(html).ok || /connect-src http:\/\/127\.0\.0\.1:\d{1,5}"/.test(html)) {
     return { exit: 2, result: { medium: "file", reason: "not a page the builder made for publishing" } };
   }
@@ -87,8 +67,6 @@ export function publishHosted({ page, host, repo, pr, dataDir }) {
   const args = [page, "--visibility", gate.destination];
   const replacing = old?.visibility === gate.destination;
   let run = pagesPublish(replacing ? [...args, "--id", old.id] : args);
-  // A page deleted outside this script fails the replace; the contract's exit 6 does not say why,
-  // so one create follows any failed replace, and the old id goes under stale like any changed id.
   if (replacing && !run.error && run.status === 6) run = pagesPublish(args);
   const failed = (reason) => ({ exit: 1, result: { medium: "file", reason } });
   if (run.error) return failed(`pages-publish did not run (${run.error.code ?? run.error.message})`);
@@ -117,7 +95,6 @@ export function publishHosted({ page, host, repo, pr, dataDir }) {
       ? `delete failed; ${left.map((e) => e.url ?? e.id).join(", ")} still up, retried on the next publish`
       : `deleted from the ${[...new Set(stale.map((e) => e.visibility))].join(" and ")} host`;
   }
-  // pages-publish may lower public to private, never raise it; the sidecar keeps the id so a rerun deletes it.
   if (gate.destination === "private" && landed === "public") {
     return { exit: 1, result: { ...result, reason: `the gate chose the private host (${gate.reason}) but pages-publish put the page on the public host; take down ${url}` } };
   }

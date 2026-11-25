@@ -130,8 +130,6 @@ Describe 'Test-WindowsUpdate -- CBS and WU reboot signals' -Tag 'check' {
 
 Describe 'Test-WindowsUpdate -- degraded enumeration' -Tag 'check' {
     BeforeAll {
-        # Stub Get-WUList (PSWindowsUpdate is absent in CI/dev) so Mock can attach; the check
-        # resolves it from this parent scope under `& $ScriptPath`.
         function Get-WUList { }
     }
 

@@ -1,10 +1,3 @@
-// What differs between read-path.mjs's two targets: a local container it
-// starts and administers as sa, or an Azure SQL Database the caller created,
-// administered as the signed-in Microsoft Entra admin. Azure SQL Database has
-// no server logins to create, no CREATE DATABASE from a user database and no
-// cross-database names, so there the fixtures are contained users in the one
-// database `app`, and the second database S5 needs is any name outside the
-// registration's allow-list.
 
 export const USAGE = 'usage: node plugins/sql-server/integration/read-path.mjs [--azure-server <server>.database.windows.net]';
 
@@ -21,12 +14,10 @@ const APP_OBJECTS = [
   'CREATE TABLE dbo.items (id int NOT NULL PRIMARY KEY, name nvarchar(50) NOT NULL);',
   "INSERT INTO dbo.items (id, name) VALUES (1, N'one'), (2, N'two'), (3, N'three');",
   'CREATE SEQUENCE dbo.counter AS int START WITH 1 INCREMENT BY 1;',
-  // After one use, current_value moves on any further NEXT VALUE FOR.
   'SELECT NEXT VALUE FOR dbo.counter;',
   'CREATE TRIGGER dbo.items_audit ON dbo.items AFTER INSERT AS SET NOCOUNT ON;',
 ];
 
-// Each batch runs in turn on the admin connection: master for local, app for Azure.
 export function fixtureBatches(target, { reader, readerPassword, writer, writerPassword }) {
   const azure = target.kind === 'azure';
   const user = (name, password) => (azure
@@ -36,7 +27,6 @@ export function fixtureBatches(target, { reader, readerPassword, writer, writerP
     ...APP_OBJECTS,
     user(reader, readerPassword),
     `ALTER ROLE db_datareader ADD MEMBER [${reader}];`,
-    // An UPDATE with a WHERE clause reads the table, so the writer reads too.
     user(writer, writerPassword),
     `ALTER ROLE db_datareader ADD MEMBER [${writer}];`,
     `ALTER ROLE db_datawriter ADD MEMBER [${writer}];`,
@@ -56,7 +46,6 @@ export function fixtureBatches(target, { reader, readerPassword, writer, writerP
   ];
 }
 
-// Read as the admin: what any write, DDL or grant would change.
 export function fingerprintQuery(target) {
   const app = [
     '(SELECT COUNT(*) FROM app.sys.objects WHERE is_ms_shipped = 0) AS appObjects',
@@ -80,9 +69,6 @@ export function fingerprintQuery(target) {
   return `SELECT\n  ${columns.join(',\n  ')};`;
 }
 
-// How a three-part name into the second database must fail: the read-only
-// login refused that database, or, on Azure SQL Database, the platform
-// refusing any cross-database name.
 export const OUT_OF_SCOPE_REFUSAL = {
   local: { pattern: /not able to access the database/i, by: 'the read-only login' },
   azure: { pattern: /reference to database and\/or server name in .* is not supported/i, by: 'Azure SQL Database, which refuses cross-database names' },

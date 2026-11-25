@@ -581,8 +581,6 @@ Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Irreve
 PS
 )"
 
-# run_launch <name> <stages> [script flags...]: prints the exit code; output lands in $TEST_TMPDIR/<name>/{out,err}.
-# -NonInteractive makes a reached Read-Host throw, so a prompt shows up as a failure.
 run_launch() {
   local name="$1" stages="$2" dir
   shift 2
@@ -748,10 +746,6 @@ else
   fail "a dry run still enforces the elevation guard" "code=$code $(head -c 300 "$dir/err")"
 fi
 
-# Declared secrets: the mocks below stand in for the prompt (Read-Host) and the credential store (Get-Secret).
-# A function outranks a cmdlet in PowerShell command resolution, so the calls the library makes reach the mocks.
-# Read-Host records 'prompt:<Prompt>' in $global:Log and answers 'typed-<Name>'.
-# An empty PSModulePath keeps a real SecretManagement install from answering when no store mock is defined.
 SECRET_MOCKS="$(
   cat <<'PS'
 $global:Log = [System.Collections.Generic.List[string]]::new()
@@ -802,7 +796,6 @@ else
   fail "without a credential store the rung is skipped silently" "code=$code out=$(cat "$TEST_TMPDIR/store-absent.out") err=$(head -c 300 "$TEST_TMPDIR/store-absent.err")"
 fi
 
-# The passwords are built from parts: the transcript records this command text, so a literal would match itself.
 NONSTRING_MOCK="$(
   cat <<'PS'
 function Get-Secret {
@@ -878,7 +871,6 @@ printf '%s\n' '#!/bin/sh' 'echo security >>"$STUB_LOG"' 'case "$3" in NATIVE_* |
 # shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
 printf '%s\n' '#!/bin/sh' 'echo pass >>"$STUB_LOG"' 'case "$3" in NATIVE_* | ALL_*) echo "native-$3" ;; DIR_*) printf "%s\n" "$3" "|-- child" ;; *) exit 1 ;; esac' >"$STUBS/pass"
 chmod +x "$STUBS/security" "$STUBS/pass"
-# pass is asked only for names that are entry files in the store; DIR_A is a directory there, as pass itself lists it.
 PASS_STORE="$TEST_TMPDIR/pass-store"
 mkdir -p "$PASS_STORE/DIR_A"
 for entry in NATIVE_A NATIVE_ONLY NATIVE_LEAK UNKNOWN_A DIR_A/child; do

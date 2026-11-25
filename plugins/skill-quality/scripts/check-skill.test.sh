@@ -441,7 +441,6 @@ else
   fail "quoting an unquoted item should not warn as dropped (rc=$rc): $out"
 fi
 
-# 9b. Single-quoted triggers in when_to_use alone satisfy check 12 (#1451).
 make_skill wtu-only-skill '---
 name: wtu-only-skill
 description: "Summary without Use-when prose in the description field."
@@ -696,10 +695,6 @@ else
   fail "commented misnamed skill should still fail (rc=$rc): $out"
 fi
 
-# 17b. The effective name is capped at the Agent Skills spec's 64 codepoints.
-#      With no declared `name:` the directory leaf IS the name the harness uses,
-#      so a 65-char leaf FAILs even though the frontmatter carries no name line.
-#      Claude Code itself loads such a skill; the finding is portability.
 long_leaf='abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-abcde-fghij'
 make_skill "$long_leaf" '---
 description: "Over-long directory leaf. Use when: '"'"'checking the name length cap'"'"'."
@@ -742,9 +737,6 @@ else
   fail "a 64-codepoint name should pass the length cap (rc=$rc): $out"
 fi
 
-# 17c. A reserved word anywhere in the effective name WARNs (a Skills API upload
-#      rejects it; Claude Code loads it). Directory-leaf form: no declared name,
-#      the leaf carries "claude".
 make_skill claude-helper '---
 description: "Reserved word in the leaf. Use when: '"'"'checking reserved names'"'"'."
 ---
@@ -1277,7 +1269,6 @@ Vendor-backed fixture for the sha-paired sync exception.
 None known.
 '
 }
-# sha256sum where present, else shasum -a 256 (macOS without coreutils), as check 8 does.
 sha256_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | awk '{print $1}'; }
 mkdir -p "$SKILLS/vendor-skill-sha/vendor"
 printf 'v1\n' >"$SKILLS/vendor-skill-sha/vendor/UPSTREAM.txt"
@@ -2045,12 +2036,6 @@ else
   fail "nested quoted fence content should stay suppressed (rc=$rc): $out"
 fi
 
-# 37p. Check 21: an escaped backslash-< renders literally, so the escaped
-#      comment form is text, not an HTML comment, and therefore not a
-#      directive at all. The backslash reaches the fixture through ${fe_bs}
-#      so neither shell-portability-lint's backslash-< token nor a quote
-#      splice shellcheck misreads ever appears on a source line; the fixture
-#      bytes are unchanged.
 fe_bs="\\"
 fe_escaped_body=$(
   cat <<FIXTURE
@@ -2421,10 +2406,6 @@ else
   fail "multi-byte 100-codepoint summary should pass (rc=$rc): $out"
 fi
 
-# 38d. Check 22: the #3162 regression. An unquoted summary carrying ": " passed
-#      this gate while failing CI, because the gate enforced only the cap. It is
-#      a YAML mapping indicator: the frontmatter does not parse, and a skill
-#      whose frontmatter does not parse loads with EMPTY metadata.
 make_skill summary-colon "---
 name: summary-colon
 description: \"Summary colon fixture. Use when: 'colon fixture'.\"
@@ -2448,10 +2429,6 @@ else
   fail "summary with a mapping indicator should FAIL (rc=$rc): $out"
 fi
 
-# 38e. Check 22: the other half of the #3162 regression. Quoting the scalar is
-#      the remedy an author reaches for first; it made the YAML parse but failed
-#      a different CI gate. The gate must reject it HERE, and its message must
-#      point at rewording rather than at quoting.
 make_skill summary-quoted "---
 name: summary-quoted
 description: \"Summary quoting fixture. Use when: 'quoted fixture'.\"
@@ -2652,12 +2629,6 @@ else
   fail "unhosted ref should keep the broken-internal-ref message (rc=$rc): $out"
 fi
 
-# 36d. Check 5: a backslash-separated pointer FAILs in its own right, naming the
-#      forward-slash form. The resolve loop never sees such a path (its
-#      char-class has no backslash), so without this limb a Windows-authored
-#      pointer skipped the check silently. Both citation forms are covered; the
-#      file existing under the skill does not rescue it, because the defect is
-#      the separator (rejected at plugin load on macOS and Linux), not a miss.
 mkdir -p "$SKILLS/backslash-citer/scripts" "$SKILLS/backslash-citer/reference"
 printf 'echo helper\n' >"$SKILLS/backslash-citer/scripts/helper.py"
 printf 'guide\n' >"$SKILLS/backslash-citer/reference/guide.md"
@@ -2808,8 +2779,6 @@ Fixture skill shaped like a marketplace cache install (no .git).
 
 None known.
 EOF
-# Isolate from ambient git: empty GIT_DIR would still walk parents; run from
-# the non-git cache tree itself with GIT_DIR unset.
 out="$(
   cd "$CACHE_TMP" &&
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_PREFIX \
@@ -3092,9 +3061,6 @@ else
   fail "non-boolean value should fail (rc=$rc): $out"
 fi
 
-# 24d-spellings. Boolean frontmatter accepts `yes`, `no`, `on`, `off`, `1` and
-#      `0` in any letter case beside `true` and `false`
-#      (https://code.claude.com/docs/en/skills#frontmatter-reference).
 assert_dmi_spelling() {
   local spelling="$1" expected="$2" name
   name="dmi-spelling-$(tr '[:upper:]' '[:lower:]' <<<"$spelling")"
@@ -3614,29 +3580,6 @@ else
   fail "a long nested spoke without a TOC should WARN (rc=$rc): $out"
 fi
 
-# Portability guard: no ERE interval expressions in the checker's awk regexes.
-#
-# Every other assertion here is black-box, but this failure mode is invisible to
-# a black-box run on the CI runner: gawk compiles intervals happily, so a
-# reintroduced interval passes the whole suite on CI and only breaks for
-# consumers on mawk — silently, because mawk 1.3.4 panics out of the awk program
-# before it emits a record and mawk 1.3.3 matches the braces as literal text.
-# Either way the affected check reports a clean run over a file it never
-# scanned, which is the worst shape a gate can fail in. A source-level assertion
-# is the only form that fires on a gawk runner, so it is deliberately
-# implementation-aware.
-#
-# All three interval forms are rejected, {n} included: mawk panics on an
-# exact-count interval before a group (a{3}(b)) exactly as it does on the
-# a{0,3}(b) that motivated this guard, so a comma-only pattern would leave the
-# same silent-failure class open.
-#
-# Scoped to what awk actually compiles, because Bash is not mawk and its own
-# [[ =~ ]] regexes may use intervals freely — check-skill.sh dates a frontmatter
-# synced: value with one, and rejecting it would be a false positive on correct
-# code. Two surfaces reach awk:
-# slash-delimited regex literals inside the embedded programs, and the judge
-# regex handed across with -v.
 INTERVAL_RE='\{[0-9]+(,[0-9]*)?\}'
 interval_hits="$(
   {
@@ -3765,11 +3708,6 @@ else
   fail "check 2b should catch desc 1100 while check 2 passes the 1143 entry (rc=$rc): $out"
 fi
 
-# 2b-iv. Codepoints, not bytes. 600 'é' is 600 characters and 1200 UTF-8 bytes;
-#        the spec's limit is "Maximum 1024 characters", so this must stay silent.
-#        Run under LC_ALL=C, where `${#var}` degrades to byte counting and would
-#        report 1200 — now a hard FAIL rather than a warning, so a byte-counting
-#        implementation cannot slip past this assertion.
 desc_600_multibyte="$(printf 'é%.0s' $(seq 1 600))"
 make_skill field-cap-multibyte "---
 name: field-cap-multibyte
@@ -3846,7 +3784,6 @@ else
   fail "an empty baseline setting must not downgrade anything (rc=$rc): $out"
 fi
 
-# 47. --require-evals honors a recorded warrant skip (#3135).
 mkdir -p "$TMP/plugins/p1/skills/skipme" "$TMP/scripts"
 cat >"$TMP/plugins/p1/skills/skipme/SKILL.md" <<'EOF'
 ---
@@ -3946,13 +3883,6 @@ else
 fi
 rm -rf "${TMP:?}/plugins/p1/evals"
 
-# 49. The evals-warrant walk stops at a filesystem root instead of spinning.
-# `dirname` is a fixed point at every root: `.` for a relative path on any
-# platform, and `<drive>:` on Git Bash, where `git rev-parse --show-toplevel`
-# hands back a drive-letter path. A walk that only stops on `/` never reaches
-# it from either, so the whole run hangs with no output. The fixture is
-# deliberately outside a git repo and anchored on a relative root, which is the
-# shape that reproduces the fixed point on Linux as well as Windows.
 WALK_TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP"' EXIT
 mkdir -p "$WALK_TMP/plugins/p1/skills/walkroot"
@@ -4510,10 +4440,8 @@ else
   fail "R14b: an unmatched glob literal should exit 2 naming it (rc=$rc): $out"
 fi
 
-# R15. A relative root is resolved against the cwd, never through CDPATH. `cd`
-#      consults CDPATH before `.` and ECHOES the directory it landed in, so an
-#      unguarded `$(cd "$arg" && pwd)` both resolves the wrong tree and captures
-#      two lines into the root string.
+# cd that uses a CDPATH entry prints the new directory, so `$(cd "$arg" && pwd)` would capture two lines:
+# https://www.gnu.org/software/bash/manual/html_node/Bourne-Shell-Builtins.html#index-cd
 mkdir -p "$TMP/cdpath-decoy/a"
 ROOTS_CWD="$TMP"
 out="$(cd "$TMP/roots" &&
@@ -4583,12 +4511,6 @@ else
   fail "R17b: verdict must not depend on the caller's cwd (from-caller=$rc from-own=$rc2): $out2"
 fi
 
-# R18. A root in NO repo at all, driven from a repo cwd, SKIPS the git-backed
-#      checks with their documented notes rather than answering from the
-#      caller's repo. Before the cwd fix this passed only by accident: SKILL_REL
-#      came out empty, `git ls-files ""` failed as an invalid pathspec, and the
-#      error was swallowed, so the run misreported "new skill" instead of
-#      naming the absent repo.
 mkdir -p "$XREPO/nogit/skills/xskill"
 printf '%s' "$root_body" >"$XREPO/nogit/skills/xskill/SKILL.md"
 out="$(cd "$XREPO/caller" &&
@@ -4627,10 +4549,6 @@ else
   fail "R19b: an absent base ref should exit 2 from the child (rc=$rc): $out"
 fi
 
-# R20. Check 6 runs markdownlint from the skill's repo top level, so a config
-#      there applies when the dispatched root is a subdirectory below it
-#      (markdownlint-cli2 never looks above its cwd). A stub npx records the
-#      cwd and file it was handed, so the assertion needs no Node.
 mkdir -p "$XREPO/bin"
 printf '#!/usr/bin/env bash\nprintf "%%s|%%s\\n" "$PWD" "${*: -1}" >"%s/npx.log"\n' "$XREPO" >"$XREPO/bin/npx"
 chmod +x "$XREPO/bin/npx"
@@ -4639,7 +4557,6 @@ out="$(cd "$XREPO/caller" &&
     PATH="$XREPO/bin:$PATH" bash "$SUT" "$XREPO/external/skills" 2>&1)"
 rc=$?
 ml_log="$(cat "$XREPO/npx.log" 2>/dev/null)"
-# Suffix match: git and the shell spell the same temp dir differently on Windows.
 if [[ $rc -eq 0 && "$ml_log" == */external\|skills/xskill/SKILL.md ]]; then
   pass "R20: markdownlint runs from the skill's repo top level"
 else

@@ -25,14 +25,9 @@ Pins four behaviors of the service-restart remediation:
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Remediation 'Restart-StoppedService'
 
-    # Stub the Windows-only Get-Service/Start-Service so Mock can attach off Windows; the
-    # remediation resolves them from this parent scope. Every test mocks both.
-    # The -Name parameter lets a -ParameterFilter bind it.
     function Get-Service { param([string]$Name) }
     function Start-Service { param([string]$Name) }
 
-    # Reports Stopped for the first $StoppedCalls calls, then Running, so before/after reads
-    # straddle the restart. The counter rides in a closure: mock bodies cannot see $script:.
     function Get-StoppedThenRunningMock {
         param([Parameter(Mandatory)] [int] $StoppedCalls)
         $state = @{ count = 0; stopped = $StoppedCalls }

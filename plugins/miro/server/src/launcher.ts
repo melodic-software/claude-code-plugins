@@ -1,16 +1,3 @@
-// What src/launch.ts, the entry point Claude Code starts, runs. Installs the server's npm
-// dependencies from the committed lockfile into ${CLAUDE_PLUGIN_DATA} on first launch, then
-// runs the TypeScript source with Node's type stripping.
-// Rules: docs/contracts/on-demand-dependencies/README.md.
-//
-// Layout under the data directory:
-//   mcp-server/<lock hash>/node_modules   runtime dependencies, from `npm ci --omit=dev`
-//   mcp-server/<lock hash>/app-<hash>     a copy of src/ plus the current package.json, keyed
-//                                         by both; Node resolves its imports from the
-//                                         node_modules above it
-// Both are built in a `.partial-<pid>` sibling and renamed into place, so an interrupted run
-// leaves nothing that looks complete and concurrent first launches end with one good copy.
-// Nothing here writes to stdout: it is the MCP stdio channel.
 
 import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -70,15 +57,11 @@ export function installDir(dataDir: string): string {
 
 const currentManifest = (): Buffer => readFileSync(join(SERVER_DIR, "package.json"));
 
-// The source copy carries its own package.json, so Node reads the package scope (`type`,
-// `imports`, `exports`) from the current manifest even when an unchanged lockfile reuses an
-// install made from an older one. Dependencies still resolve from the node_modules above it.
 export function appDir(target: string, manifest = currentManifest()): string {
   const parts = runtimeSources().flatMap((path) => [relative(SRC_DIR, path), readFileSync(path)]);
   return join(target, `app-${digest(["package.json", manifest, ...parts])}`);
 }
 
-// npm gets no credential: the token alias and every plugin option Claude Code exports.
 export function npmEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(
     Object.entries(source).filter(
@@ -91,11 +74,9 @@ export function installCommand(target: string, platform = process.platform): str
   const sources = MANIFESTS.map((name) => join(SERVER_DIR, name));
   const [ci, ...flags] = NPM_CI_ARGS;
   if (platform === "win32") {
-    // Windows PowerShell 5.1 has no `&&`; Stop turns each cmdlet failure into a halt, and the
-    // child script block keeps it out of the user's session. Bare `npm` resolves to `npm.ps1`,
-    // which the default Restricted execution policy refuses to run; `npm.cmd` is not subject to it.
-    // PowerShell reads U+2018, U+2019, U+201A and U+201B as single quotes too; doubling escapes each.
-    const q = (path: string) => `'${path.replace(/['‘’‚‛]/g, "$&$&")}'`;
+    // Windows PowerShell 5.1 has no `&&` (PowerShell 7 added it), so statements chain with `;`:
+    // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_pipeline_chain_operators
+    const q =(path: string) => `'${path.replace(/['‘’‚‛]/g, "$&$&")}'`;
     return (
       `& { $ErrorActionPreference = 'Stop'; ` +
       `Remove-Item -LiteralPath ${q(target)} -Recurse -Force -ErrorAction SilentlyContinue; ` +
@@ -120,8 +101,6 @@ function installed(dir: string): boolean {
   );
 }
 
-// A `.partial-*` sibling untouched for longer than any live `npm ci` runs was left by a
-// killed launch; a younger one may belong to a concurrent launch, so it stays.
 function removeStalePartials(target: string): void {
   const parent = dirname(target);
   if (!existsSync(parent)) return;
@@ -135,8 +114,6 @@ function removeStalePartials(target: string): void {
   }
 }
 
-// Builds `target` through `build(partial)`, then renames it into place. Any failure, of the
-// build or the rename, is fine when a concurrent launch's copy already satisfies `ready`.
 export function buildAtomically(
   target: string,
   ready: (dir: string) => boolean,
@@ -179,8 +156,6 @@ export function ensureDependencies(target: string): boolean {
         timeout: NPM_TIMEOUT_MS,
         windowsHide: true,
       };
-      // npm is a .cmd shim on Windows, which Node spawns only through a shell. The command is
-      // fixed flags and the paths travel in `cwd`, so the shell parses nothing variable.
       const run =
         process.platform === "win32"
           ? spawnSync(`npm ${NPM_CI_ARGS.join(" ")}`, { ...options, shell: true })

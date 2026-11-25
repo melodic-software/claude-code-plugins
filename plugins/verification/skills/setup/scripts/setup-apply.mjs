@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// Write or check the repository layer of the verification plugin's settings,
-// <home>/verification.yaml, against schemas/verification.schema.json.
-// --ref reads the file as committed at a 40-hex commit id or origin/<name>, so
-// proof_level is read from the default branch and a branch cannot lower it.
-// The options, guarantees and exit codes are in ../../../lib/setup-apply.mjs.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
