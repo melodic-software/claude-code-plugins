@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Check that every tracked test that creates a temp path also removes it on every
-# exit path: a *.test.sh that uses mktemp installs a `trap ... EXIT`, and a
-# *.test.mjs/js/cjs that makes a folder under os.tmpdir() registers its removal.
-#
-#   scripts/check-test-tmp-cleanup.sh          discover: list every offender
-#   scripts/check-test-tmp-cleanup.sh --check  same, explicit form matching the
-#                                              sibling gates (exit 1 on any offender)
-#
-# The rule: a suite whose non-comment lines mention `mktemp` and none of whose
-# non-comment lines match `trap ... EXIT` leaves its fixtures behind on every
-# run, and on an early exit or a failed assertion. Any offender is a fail: fix
-# a suite by adding the trap. The match is lexical: `trap ... EXIT` inside a
-# string a suite runs in a child shell also counts, so a passing suite still
-# needs its own trap.
-#
-# A JS suite offends when a non-comment line passes os.tmpdir() to mkdtemp or
-# mkdtempSync and the file never registers a removal that runs on failure too:
-# an after/afterAll/afterEach/onTestFinished/t.after hook, a finally block, or a
-# process exit handler. tempDir from lib/test-tmp.mjs needs none of these, but
-# importing it does not cover a bare call in the same file. A folder whose only
-# handle is the join(mkdtempSync(...), "file") expression can never be removed
-# by name, so that shape offends whatever else the file does. Both are lexical:
-# a file with a hook still has to remove every folder in it.
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): one finding per line on stderr, the clean-run statement on
-# stdout. Exit: 0 clean, 1 any offender, 2 environment or usage (git or awk
-# missing, bad argument).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

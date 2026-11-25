@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a queued pull request a hold stops, before the lanes` step
-# body of .github/workflows/pr-require-checks.yml's select-tests under the
-# shell Actions gives a step with no `shell:` (bash -e), against a stub `gh`,
-# with the repository's own merge-holds.mjs and api-budget.bash as the base
-# commit's.
-#
-# In the merge queue a pull request carrying a hold label (do-not-merge, the
-# tracker's human-gated label, pr-verify-failed), a head a pr-unblock lane
-# stopped, or a lanes App pull request while the kill switch is on fails
-# select-tests, which every lane needs, so no lane runs (#10747). ci-status
-# still judges each hold. A read that fails, an unparsable ref or a base module
-# without queueHolds leaves the hold to ci-status and passes. The step ends
-# with the api-calls notice: two requests, the pull and one statuses page.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 

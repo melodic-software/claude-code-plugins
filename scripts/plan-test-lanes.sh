@@ -1,92 +1,4 @@
 #!/usr/bin/env bash
-# Plan the test lanes from the change's suite selection: which suites each lane
-# of pr-require-checks.yml runs, on how many legs and with which optional toolchains, and which
-# jobs and steps of pr-test-platforms.yml run.
-#
-#   scripts/plan-test-lanes.sh                 the whole tree
-#   scripts/plan-test-lanes.sh --base <ref>    the change since the merge base with <ref>
-#   scripts/plan-test-lanes.sh -- <path>...    the change made of these paths
-#
-# Prints one `key=value` line per key on stdout, the form $GITHUB_OUTPUT takes,
-# and a summary on stderr:
-#   bash, python, node        `true` when the lane has work, else `false`
-#   bash_legs, python_legs, node_legs
-#                             the lane's matrix, a JSON list of leg numbers (`[0]` at least)
-#   bash_plan, python_plan, node_plan
-#                             a JSON object from leg number to the suites (for
-#                             node, the Node packages) that leg runs
-#   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
-#                             its suites need: animation (the animation and
-#                             speech suites), inventory, duckdb, visualcheck, browser
-#                             (the shared-page UI and alignment suites, which drive Chromium), lefthook
-#                             (every plugin's lefthook-remote suite: lefthook, typos, actionlint;
-#                             https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md),
-#                             demovideo (the demo-video shell suite: its locked requirements and
-#                             ffmpeg), mediarender
-#                             (the media-render and explainer-video suites: lib/media-render's locked
-#                             Playwright for Python and its Chromium)
-#   node_packages             every leg's Node packages, space-separated
-#   windows_jobs              the pr-test-platforms.yml jobs to run, a JSON list
-#   windows_steps             the pr-test-platforms.yml steps to run, a JSON list of the keys
-#                             in scripts/test-windows-plan.txt
-#   unmapped                  how many changed files mapped to no suite
-#
-# THE SELECTION is scripts/affected-tests.sh --unmapped-corpus over the changed
-# files: the suites the change runs or reads, plus the whole corpus of an
-# unmapped file's language. Each suite goes to the lane of its ecosystem:
-#   *.test.sh               test-bash
-#   test_*.py               test-python (eval fixtures under /evals/fixtures/ are data)
-#   *.test.js .mjs .cjs     the sibling <stem>.test.sh when there is one (CI runs such a
-#                           suite only through it), else the Node package holding it.
-#                           Eval fixtures (scripts/outside-node-exclusions.txt) are data.
-#                           A Node suite with neither fails the plan: no lane would run it.
-#   *.Tests.ps1             test-windows; Pester has no Linux lane
-# The Windows steps run on the selection of the changed files minus the paths
-# scripts/test-windows-inert-paths.txt lists; a path it does not list selects as usual, and a change to the list runs
-# every Windows step.
-#
-# WIDER THAN THE SELECTION, NEVER NARROWER:
-#   - the whole tree (no base and no paths: a schedule, a dispatch, a push with no
-#     usable base), or a change to pr-require-checks.yml or
-#     .github/actions/download-full-history/, the one local action every lane
-#     runs: every suite of every pr-require-checks.yml lane. pr-test-platforms.yml,
-#     that action and .python-version (every Windows job sets up its Python
-#     from it) do the same for the Windows plan. The other local actions are
-#     Node packages the selector maps like any other code.
-#   - a Python pin (.python-version, pyproject.toml, uv.lock, requirements*.txt,
-#     .github/requirements-ci*.txt, plugins/animation/requirements.txt, which
-#     test-python installs): every Python suite.
-#   - a lock test-bash's toolchain step installs (.github/requirements-ci.txt and
-#     the animation, demo-video and lib/media-render requirements.txt): leg 0 of
-#     test-bash needs animation, demovideo and mediarender, so it installs every
-#     lock in the one pip call the whole tree may put them in, and two locks
-#     pinning one package apart fail here, not on main.
-#   - a Node pin (.node-version, the root package.json or package-lock.json):
-#     every Node package.
-#   - a Node package also runs when a file under its directory, its trigger (a test
-#     facade or a directory) or a `file:` dependency of its package.json changed.
-#
-# LEGS ARE SIZED FROM SUITE-SECONDS: ceil(seconds / budget), at least 1, at most
-# the lane's cap and the suite count. test-bash takes 120 s a leg (three suites
-# run at a time, so about 40 s of wall) up to 12 legs, and the whole tree always
-# takes 12; test-python takes 180 s a leg (one suite at a time) up to 9;
-# test-node takes 140 s a leg (one package at a time, a package's seconds the
-# wall of its install and test steps) up to 8. A
-# suite's seconds are its median wall in scripts/suite-seconds.txt, measured
-# over whole-tree CI runs; a suite the file does not list counts the mean of
-# the listed suites of its runner, rounded and at least 5, and a suite
-# scripts/run-plugin-tests-serial.txt runs alone counts three times its
-# seconds. A leg's load is its suite-seconds plus two thirds of three times its
-# longest suite that runs three at a time: list scheduling on three workers
-# ends within a third of the total plus two thirds of the longest suite, since
-# one suite cannot be split across workers. Weighing only the larger of the two
-# filled a long suite's other two workers right up to its length, so its leg
-# had no room for a slow run. Suites go longest first to the least-loaded leg,
-# so the legs finish close together, and every selected suite lands on exactly
-# one leg.
-#
-# Exit: 0 planned; 2 usage, a failed selector or listing, or a selected suite no
-# lane runs.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
@@ -105,7 +17,16 @@ DEFAULT_SECONDS=5
 SUBPROJECTS_LIST="scripts/node-subprojects.txt"
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}" >&2
+  cat >&2 <<'EOF'
+Plan the pr-require-checks.yml test lanes and pr-test-platforms.yml jobs from the change's suite selection.
+
+  scripts/plan-test-lanes.sh                 the whole tree
+  scripts/plan-test-lanes.sh --base <ref>    the change since the merge base with <ref>
+  scripts/plan-test-lanes.sh -- <path>...    the change made of these paths
+
+Prints key=value lines for $GITHUB_OUTPUT on stdout and a summary on stderr.
+Exit: 0 planned; 2 usage, a failed selector or listing, or a selected suite no lane runs.
+EOF
   exit 2
 }
 die() {
@@ -213,7 +134,6 @@ fi
 cat "$WORK/win-selection" "$WORK/inert-selection" >"$WORK/selection"
 WIN_SELECTION="$WORK/win-selection"
 
-# Assigned through a nameref, which shellcheck cannot follow (SC2154).
 exclusions=() outside=() subprojects=() rows=()
 read_list::into exclusions "$EXCLUSIONS_LIST" --comments inline || exit 2
 read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2

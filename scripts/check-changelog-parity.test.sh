@@ -12,8 +12,6 @@ SCRIPT="$SELF_DIR/check-changelog-parity.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 repo=""
 
 mk_repo() {
@@ -175,20 +173,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ABSORBED CHANGELOG HEADING"* && "$out" == *"0.51.8"* ]]; then ok "absorbed heading with no manifest bump fails --check-bump"; else fail "absorbed-no-bump not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# LARGE CHANGELOG (SIGPIPE): the new entry sits near the top
-# of a changelog far larger than the pipe buffer — the shape every mature
-# changelog has. A has_heading reader that exits on first match kills
-# rendered_lines mid-write with SIGPIPE, and pipefail turns the FOUND heading
-# into a false UNDOCUMENTED BUMP. The small fixtures above fit in one buffer
-# and cannot catch this; the padding here (~260 KB) exceeds the pipe CAPACITY,
-# so against an early-exiting reader the writer blocks mid-write and the
-# SIGPIPE is deterministic, not a winnable race — but only under gawk (the CI
-# runner's awk): mawk survives the closed pipe and passes regardless, so on a
-# machine where `awk` resolves to mawk this guard would silently prove
-# nothing. The run below therefore FORCES gawk via a PATH shim, and skips
-# loudly when gawk is absent rather than reporting a pass that exercised
-# nothing. The fix itself is engine-independent — the reader consumes to EOF,
-# so no writer can ever take SIGPIPE under any awk.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -256,9 +240,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"PRE-EXISTING CHANGELOG ENTRY"*"alpha"* && "$out" != *"UNDOCUMENTED BUMP"* ]]; then ok "bump reusing a base-pre-existing '## [x.y.z]' entry fails --check-bump"; else fail "preexisting-entry not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# SEMVER BUILD METADATA: a version like 1.0.1+build.1 must round-trip — the
-# fixed-string heading match must not interpret "+" as a regex quantifier, so
-# a correctly-added `## [1.0.1+build.1]` entry passes the gate.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -301,10 +282,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "fenced-code example heading (column zero inside a fence) does not satisfy --check-bump"; else fail "fenced-block heading wrongly satisfied gate: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# MISMATCHED INNER FENCE DELIMITER: a backtick fence contains a ~~~ content line
-# (a different delimiter, so NOT a close per CommonMark); a `## [1.1.0]` after it
-# is still inside the backtick fence -> fails as UNDOCUMENTED. Proves fence
-# tracking closes only on the opening delimiter, not any fence-looking line.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -320,11 +297,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "mismatched inner fence delimiter (tilde line inside a backtick fence) does not prematurely close"; else fail "fence delimiter mismatch wrongly toggled: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# NON-CLOSING FENCE LINES: a backtick fence contains a ```not-a-close line (text
-# after the run) and a four-space-indented ``` line (indented code column, not a
-# fence per CommonMark); neither closes, so a `## [1.1.0]` after them is still
-# fenced -> fails as UNDOCUMENTED. Proves a close requires a whitespace-only
-# suffix and at-most-three-space indentation.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -526,10 +498,6 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"VERSION COLLISION"*"alpha"* && "$out" != *"UNDOCUMENTED"* ]]; then ok "bump equal to the base ref's current version fails as VERSION COLLISION (not skipped as not-bumped)"; else fail "version collision not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# SYNTHETIC PR MERGE COMMIT (pull_request checkout): same collision as above,
-# but HEAD is a merge of the PR branch into the base tip — the shape CI checks
-# out. merge-base(base, HEAD) degenerates to the base tip there, which read the
-# collision as not-bumped; the gate must fork from HEAD^2 instead.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -550,17 +518,11 @@ git -C "$repo" merge -q --no-ff -m 'synthetic PR merge' pr >/dev/null 2>&1
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"VERSION COLLISION"*"alpha"* ]]; then ok "collision detected from a synthetic PR merge-commit checkout (fork from HEAD^2)"; else fail "synthetic-merge collision not caught: rc=$rc out='$out'"; fi
-# #7871: the pull_request lane sets CHANGELOG_PARITY_COLLISIONS=advisory, so a
-# branch only behind a main that took the same number is reported, not failed.
 out="$(cd "$repo" && CHANGELOG_PARITY_COLLISIONS=advisory bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 && "$out" == *"ADVISORY"*"VERSION COLLISION"*"alpha"* ]]; then ok "advisory mode reports the merge-commit collision without failing"; else fail "advisory collision: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# MERGE QUEUE SHAPE: the queue commits the pull request's change as one commit
-# on top of main and checks it against HEAD^1, with no advisory mode. A pull
-# request that claimed main's 1.1.0 lands there as shipped changes with no new
-# version, and the gate still fails it.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -645,13 +607,6 @@ rc=$?
 if [[ $rc -eq 0 ]]; then ok "manifest edit without a version change on a stale branch is not flagged (fork-scoped, no regression false positive)"; else fail "cosmetic manifest edit wrongly flagged: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# NO COMMON ANCESTOR (git diff cannot compute a diff): base is a resolvable
-# commit but shares no history with HEAD (an orphan root), so 'git diff
-# base...HEAD' fails ("fatal: no merge base", exit 128). The gate must fail LOUD
-# (exit 2), not silently pass: an empty result from a FAILED git invocation would
-# skip every plugin and let this required merge gate exit 0 without checking
-# anything (fail-open). This is distinct from a legitimate "zero files changed"
-# diff, which git computes successfully and which must still pass (covered above).
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -803,10 +758,6 @@ rc=$?
 if [[ $rc -eq 0 ]]; then ok "a stale branch that never integrated main is not flagged (fork-point comparison, no false positive)"; else fail "stale branch wrongly flagged: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# CHANGELOG NEW IN THIS CHANGE SET: absent at the fork point, so there is nothing
-# to preserve. (`git cat-file -e` cannot express this — it exits 128 for a
-# missing path exactly as it does for an unusable rev — so this case is the guard
-# on the existence probe.)
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 no
@@ -874,9 +825,6 @@ rc=$?
 if [[ $rc -eq 0 ]]; then ok "reformatting a heading to another accepted form is not a deletion"; else fail "heading reformat wrongly flagged: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# HEADINGLESS CHANGELOG: the shared extractor's `grep -oE` exits 1 when a file
-# declares no version heading at all. Under pipefail that status must NOT be read
-# as a failed check — a false positive on every prose-only changelog.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -916,10 +864,6 @@ rc=$?
 if [[ $rc -eq 1 && "$out" == *"docs/conventions/demo/CHANGELOG.md"* && "$out" == *"2.0.0"* ]]; then ok "convention changelogs are in --check-preserved scope"; else fail "convention changelog absorption missed: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# LARGE CHANGELOG under gawk (the SIGPIPE shape, applied to this mode): the heading
-# lists are read through the same rendered_lines writer, so no reader in this
-# path may exit before EOF. Forced gawk for the same reason as the --check-bump
-# fixture above — mawk survives a closed pipe and would prove nothing.
 mk_repo repo
 git_init_test_repo "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
@@ -1151,9 +1095,6 @@ manifest_edit() {
 bump_case manifest_edit
 if [[ $rc -eq 0 ]]; then ok "a bump with a non-version plugin.json edit passes"; else fail "manifest edit wrongly failed: rc=$rc out='$out'"; fi
 
-# ------------------------ --check-bump fragment mode (ADR 0048) -------------
-# fragment_case <setup> [head-ref]: alpha is in fragment mode with one pending
-# fragment on the base; <head-ref> is the CHANGELOG_HEAD_REF CI would pass.
 fragment_case() {
   mk_repo repo
   git_init_test_repo "$repo"
@@ -1267,14 +1208,6 @@ legacy_reuse() { ship_change "$repo" beta; }
 fragment_case legacy_reuse
 if [[ $rc -eq 1 && "$out" == *"PUBLISHED VERSION REUSE: beta"* ]]; then ok "a plugin not in fragment mode keeps the per-PR bump rules"; else fail "legacy plugin lost PUBLISHED VERSION REUSE: rc=$rc out='$out'"; fi
 
-# ------------- synthetic PR merge after main released the plugin -------------
-# On a pull_request run HEAD is the merge of the branch into the base tip, so
-# the working tree carries every release main made after the fork. The gate
-# judges the branch's own tip (HEAD^2), never that tree.
-# merge_case <mode> <main-change> <branch-change>: alpha is in fragment mode,
-# beta is not. The manifest is multi-line so a branch field edit and main's
-# version bump merge without a conflict.
-# wide_manifest <plugin> <version> <description>: that multi-line manifest.
 wide_manifest() {
   printf '{\n  "name": "%s",\n  "version": "%s",\n  "author": "a",\n  "license": "MIT",\n  "description": "%s"\n}\n' "$1" "$2" "$3" >"$repo/plugins/$1/.claude-plugin/plugin.json"
 }

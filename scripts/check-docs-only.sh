@@ -1,39 +1,4 @@
 #!/usr/bin/env bash
-# Detect whether a PR's diff is confined to durably-inert documentation paths, so
-# the heavy code lanes can report an HONEST evaluated-and-not-applicable success
-# instead of running their full suites on a diff that cannot affect them.
-#
-#   scripts/check-docs-only.sh <base-ref>
-#
-# Emits `docs_only=true|false` to $GITHUB_OUTPUT (and stdout). "true" means every
-# path changed vs <base-ref> matches an allowlist prefix in
-# scripts/docs-only-paths.txt — a small POSITIVE set of paths proven to feed no
-# code lane. The allowlist (not a blocklist) is the design's safety property: any
-# path NOT on it, including a brand-new code input, forces docs_only=false and the
-# full suite runs. See that file for the inertness-proof contract.
-#
-# This never SKIPS a required job (a skipped required job's result is not
-# `success`, which the ci-status aggregate rejects, and GitHub leaves a
-# workflow-skipped required check Pending — troubleshooting-required-status-checks).
-# The lane still runs and still reports success; only its inner expensive steps
-# are gated on this output, with an explicit not-applicable log line.
-#
-# Fail-closed toward RUNNING the full suite: an unresolvable base ref, a missing
-# or empty allowlist, or an empty diff all emit docs_only=false with a stderr
-# note — never a skip we cannot justify. Exit status is 0 for the normal has-code
-# case (a code PR is not an error) and for every fail-closed path; non-zero only
-# on usage error (no base-ref argument) or a failure to reach this script's own
-# directory and shared libraries.
-#
-# An unwritable $GITHUB_OUTPUT is NOT one of those non-zero cases: emit() does
-# not check its redirect, so the flag simply never reaches the consumer. That is
-# deliberate rather than overlooked, and it is why the workflow's guarantee is
-# built on the flag being UNSET rather than on this script's exit status — the
-# `select-tests` job derives its published output as `docs_only != 'true'`, so an
-# absent flag resolves toward running the full suite. Asserted by
-# scripts/check-docs-only-gate.test.sh, not by this paragraph.
-#
-# DOCS_ONLY_ALLOWLIST overrides the allowlist path (test injection).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -48,8 +13,6 @@ emit() {
   [[ -z "${GITHUB_OUTPUT:-}" ]] || printf 'docs_only=%s\n' "$1" >>"$GITHUB_OUTPUT"
 }
 
-# Every fail-closed path (and the normal has-code case) resolves the same way:
-# say why on stderr, emit docs_only=false, exit 0 — a code PR is not an error.
 run_full() {
   echo "check-docs-only: $1 — running full suite" >&2
   emit false

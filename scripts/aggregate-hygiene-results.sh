@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# Aggregate the hygiene step outcomes without treating trailing blank records
-# as checks. This remains a script so its parser contract can be regression
-# tested independently of GitHub expression evaluation.
-#
-# Each failed gate gets one `::error` annotation that says why it failed: the
-# last HYGIENE_TAIL_LINES (default 10) non-empty lines of the output its step
-# captured through scripts/run-hygiene-gate.sh, read from
-# <HYGIENE_OUTPUT_DIR, else $RUNNER_TEMP/hygiene>/<check>.log. A gate named in
-# STEP_LOG_CHECKS (whitespace-separated) runs as a `uses:` action whose output
-# cannot be captured, so its annotation quotes the `::error` annotations the
-# job's check run holds (CHECK_RUN_ID in GITHUB_REPOSITORY, read with gh api,
-# GH_TOKEN needing checks: read, counted in the job's api-calls notice on a
-# runner), less the runner's exit-code lines, this
-# script's own and any a captured gate printed. The check run does not say
-# which step wrote an annotation, so when several such gates failed each
-# quotes the same set and names them all. With no check run id, an API
-# failure or nothing left to quote, it points at the step log instead. A
-# failed gate with no output file falls back to the outcome plus "no captured
-# output". Every failed gate is also listed, with its tail, in
-# $GITHUB_STEP_SUMMARY when that is set. Pass/fail is decided by the outcomes
-# alone.
 
 # shellcheck disable=SC2016 # Backticks in this file are literal Markdown, not expansions.
 set -u
@@ -28,8 +7,6 @@ output_dir() {
   printf '%s\n' "${HYGIENE_OUTPUT_DIR:-${RUNNER_TEMP:+$RUNNER_TEMP/hygiene}}"
 }
 
-# Workflow-command escaping: the message keeps its newlines and percent signs,
-# and a property value (the title) cannot end the property list early.
 escape_data() {
   local s=$1
   s=${s//'%'/'%25'}
@@ -65,10 +42,6 @@ is_step_log_check() {
   return 1
 }
 
-# gate_annotations: the job's failure annotations a composite gate may have
-# written, one `<path>:<line>: <message>` line each (the path alone at line 0,
-# the message alone with no file), first HYGIENE_TAIL_LINES of them. Returns 1
-# when there is no check run to read or the read fails.
 gate_annotations() {
   [[ -n "${CHECK_RUN_ID:-}" && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
   local json dir path line message
@@ -92,9 +65,6 @@ gate_annotations() {
   [[ "${PIPESTATUS[0]}" -eq 0 ]]
 }
 
-# describe_failure <check> <result> [<failed composite gates>]: prints the
-# first line (the reason headline), then the captured tail or quoted
-# annotations, if any.
 describe_failure() {
   local check=$1 result=$2 composites=${3:-$1}
   local dir file
@@ -102,8 +72,6 @@ describe_failure() {
   file="$dir/$check.log"
   local headline="Hygiene check $check finished with outcome: $result"
   if is_step_log_check "$check"; then
-    # GATE_ANNOTATIONS: read once by aggregate_results, since this runs in a
-    # subshell per gate.
     local quoted=${GATE_ANNOTATIONS:-}
     if [[ -z "$quoted" ]]; then
       printf '%s. This gate runs as a composite action, so its output is not captured here; see the step log.\n' "$headline"
@@ -132,8 +100,6 @@ write_summary() {
     printf '### `%s` failed (%s)\n\n' "$check" "$result"
     printf '%s\n\n' "${description%%$'\n'*}"
     if [[ "$description" == *$'\n'* ]]; then
-      # The fence outgrows any backtick run in the tail, so no captured line
-      # can close it early.
       local body=${description#*$'\n'} fence='````'
       while [[ "$body" == *"$fence"* ]]; do fence+='`'; done
       printf '%stext\n%s\n%s\n\n' "$fence" "$body" "$fence"
@@ -152,8 +118,6 @@ aggregate_results() {
   done <<< "$input"
 
   while IFS='=' read -r check result; do
-    # YAML block scalars and Bash here-strings can each contribute a trailing
-    # newline. Ignore only a fully blank record; a named empty outcome fails.
     [[ -n "$check" || -n "$result" ]] || continue
 
     if [[ "$result" != success ]]; then
@@ -252,7 +216,6 @@ self_test() {
   grep -qxF '### `markdown` failed (failure)' "$summary" ||
     fail 'the job summary must list a failed composite gate'
 
-  # A captured line of backticks cannot close the summary's fence.
   printf 'before\n````\n[link](https://example.invalid)\n' >"$tmp/out/fenced.log"
   : >"$summary"
   HYGIENE_OUTPUT_DIR=$tmp/out GITHUB_STEP_SUMMARY=$summary STEP_LOG_CHECKS='' \
@@ -261,12 +224,6 @@ self_test() {
     fail "the summary fence must outgrow any backtick run in the tail, got: $(cat "$summary")"
   fi
 
-  # A composite gate quotes its own ::error annotations from the job's check
-  # run. The fixture holds the annotation shapes a failed lint-repo job
-  # returns: the runner's "Process completed" line, a notice, this script's
-  # own annotation, a run: gate's annotation (also in its captured log), and
-  # the gates' own file annotations, markdownlint's with a line and
-  # check-exec-bit's with line 0.
   mkdir -p "$tmp/bin"
   printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "$*" >>"$GH_CALLS"' \
     '[[ -z "${GH_DEBUG:-}" ]] || echo "* Request to https://api.github.com/x" >&2' \
@@ -299,16 +256,12 @@ JSON
   grep -qxF 'plugins/knowledge/skills/docpage-digest/SKILL.md:172: Lists should be surrounded by blank lines [Context: "- **Pointer**: <https://code.c..."]' "$summary" ||
     fail "the job summary must list a composite gate's annotations, got: $(cat "$summary")"
 
-  # On a runner the read goes through the job's gh wrapper, so the job's
-  # api-calls notice counts it.
   mkdir -p "$tmp/runner"
   env "${api[@]}" "RUNNER_TEMP=$tmp/runner" "HYGIENE_OUTPUT_DIR=$tmp/out" GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS=markdown \
     GITHUB_REPOSITORY=o/r CHECK_RUN_ID=1 GH_TOKEN=t CHECK_RESULTS=$'markdown=failure\n' bash "$self" >/dev/null
   [[ "$(cat "$tmp/runner/api-budget/github-token" 2>/dev/null)" == "request {x}" ]] ||
     fail "the annotation read must count one request, got: $(cat "$tmp/runner/api-budget/github-token" 2>/dev/null)"
 
-  # Two failed composite gates share the one set: the API does not say which
-  # step wrote an annotation, so the text names both.
   out=$(env "${api[@]}" "HYGIENE_OUTPUT_DIR=$tmp/out" GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS='markdown exec-bit' \
     GITHUB_REPOSITORY=o/r CHECK_RUN_ID=1 GH_TOKEN=t CHECK_RESULTS=$'exec-bit=failure\nmarkdown=failure\n' bash "$self")
   [[ "$out" == *'::error title=exec-bit failed::Hygiene check exec-bit finished with outcome: failure. This gate runs as a composite action; annotations of the failed composite gates (exec-bit markdown), which the check run does not tell apart:%0A'* ]] ||

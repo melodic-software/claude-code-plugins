@@ -31,8 +31,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# `from __future__ import annotations` needs 3.7; the .test.sh wrapper parses
-# this tuple to pick an interpreter.
+# `from __future__ import annotations` needs Python 3.7:
+# https://docs.python.org/3/library/__future__.html
 MIN_PYTHON = (3, 7)
 
 SCRIPT = Path(__file__).resolve()

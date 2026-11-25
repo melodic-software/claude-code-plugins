@@ -1,20 +1,4 @@
 # shellcheck shell=bash
-# The changelog entry for a Dependabot update. Sourced, never executed.
-#
-# scripts/dependabot-fragments.sh writes it into a plugin's changelog fragment
-# after the Dependabot pull request merges (ADR 0048).
-#
-#   dependabot_entry::deps            commit messages on stdin; prints one
-#                                     "<package>\t<from>\t<to>" line per
-#                                     "Updates `<package>` from <a> to <b>" line,
-#                                     sorted and unique
-#   dependabot_entry::item <title> <pr-number> <bundle>
-#                                     deps lines (as printed above) on stdin;
-#                                     prints the Keep a Changelog list item: the
-#                                     title without its Conventional Commits
-#                                     prefix, " (#<pr>)" when <pr-number> is set,
-#                                     one indented line per dependency, and a
-#                                     bundle note when <bundle> is 1
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/dependabot-entry.sh is sourced-only\n' >&2

@@ -42,8 +42,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-# `from __future__ import annotations` needs 3.7+ at parse time; the test
-# wrapper text-matches this line to pick an interpreter, so keep its shape.
+# `from __future__ import annotations` needs Python 3.7:
+# https://docs.python.org/3/library/__future__.html
 MIN_PYTHON = (3, 7)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -71,7 +71,6 @@ class _DuplicateKeyCollector:
         self.duplicates: list[str] = []
 
     def __call__(self, pairs: list[tuple[str, object]]) -> dict[str, object]:
-        # Counter keeps dict insertion order (guaranteed at MIN_PYTHON): first-seen order.
         for key, count in Counter(key for key, _value in pairs).items():
             if count > 1 and key not in self.duplicates:
                 self.duplicates.append(key)

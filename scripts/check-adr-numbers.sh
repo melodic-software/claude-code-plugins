@@ -1,30 +1,4 @@
 #!/usr/bin/env bash
-# Check that every ADR under docs/adr/ carries a number no other record uses.
-#
-#   scripts/check-adr-numbers.sh          discover: list every offender
-#   scripts/check-adr-numbers.sh --check  same, explicit form matching the
-#                                         sibling gates (exit 1 on any offender)
-#
-# The rule: the four-digit prefix of each `docs/adr/NNNN-*` file names one
-# record. A prefix carried by two or more files is an offender unless every one
-# of those files is listed in scripts/adr-numbers-baseline.txt, the pairs that
-# merged before this gate existed. The baseline is stale-guarded: an entry whose
-# file is gone, or whose number no longer collides, is an offender too, so an
-# exemption cannot outlive its pair.
-#
-# WHY. Two branches that each compute "highest plus one" against the same base
-# both merge, and the repository gains a second record under one number. The
-# existing pairs stay: renumbering breaks every inbound link, and the duplicate
-# is a fact about the repository's history (the same posture as
-# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/architecture/skills/adr/SKILL.md#gotchas).
-# This gate stops the next pair. A
-# baseline keyed on file names rather than numbers means a third record on a
-# baselined number still fails.
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): one `NNNN: file, file` finding per offending number on stderr,
-# the clean-run statement on stdout. Exit: 0 clean, 1 any offender, 2
-# environment or usage (bad argument, unreadable baseline, malformed entry).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

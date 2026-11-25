@@ -1,57 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for scripts/test-git-helpers.sh — specifically the fixture
-# ISOLATION property (#2840), which is the one property of that harness a
-# reviewer cannot check by reading it.
-#
-# WHAT IS BEING PROVEN. `git -C <fixture>` is a readability guard, not an
-# isolation guarantee. `-C` does chdir; what an exported ABSOLUTE GIT_DIR
-# overrides is repository DISCOVERY, and `git config` writes its default
-# --local scope to whatever `--git-dir` finally resolves to. So under an
-# exported absolute GIT_DIR, `git -C <fixture> config user.email X` writes the
-# CALLER's config and leaves the fixture with no `.git` at all — and the
-# caller's next commit is authored as the fixture identity. (The RELATIVE form
-# `GIT_DIR=.git` is safe: `-C` chdirs first and `.git` then resolves against
-# the new cwd. The absolute form is the footgun, not the mere presence of
-# GIT_DIR.)
-#
-# A poisoned user.email silently re-authors commits. Such a commit fails this
-# repo's required_signatures rule with `no_user` and CANNOT be force-pushed
-# over: the branch has to be abandoned and the tree rebuilt.
-#
-# FOUR SCENARIOS, all live in this repo:
-#   A  plain caller repo, absolute GIT_DIR exported
-#   B  GIT_DIR pointing at a LINKED WORKTREE's gitdir — a config write there
-#      lands in the MAIN clone's SHARED .git/config, because git creates no
-#      config.worktree of its own. This repo runs dozens of linked worktrees.
-#   C  fixture target NESTED inside the caller repo — repository discovery
-#      walks upward out of a non-repo directory.
-#   D  exported GIT_CONFIG — not a discovery variable at all. It replaces the
-#      file the `git config` subcommand reads and writes, so the identity write
-#      follows it past `-C`, past a cleared GIT_DIR, and past the cwd.
-#
-# EVERY assertion reads the caller's identity with `config --local --get`. A
-# plain `--get` falls through to ~/.gitconfig and returns rc=0, which would
-# mask the very leak these tests measure — the read/write asymmetry that makes
-# this bug quiet in the first place.
-#
-# Each scenario exports GIT_DIR inside its OWN subshell, so the harness can
-# never poison the shell that runs it.
-#
-# fixture-isolation-scope: this suite is the counter-fixture for
-# scripts/check-fixture-git-isolation.sh — it must EXPORT GIT_DIR to prove the
-# harness survives it, so it cannot itself clear the environment the gate
-# normally requires. Every export is subshell-local (see above).
-#
-# TEST_GIT_HELPERS_UNDER_TEST overrides which harness copy is exercised. It
-# exists so the fail/pass discrimination of these tests can be re-run against a
-# pre-fix copy without editing a tracked file; it defaults to the shipped
-# harness, which is what CI exercises.
-#
-# SC2030/SC2031 ("modification of GIT_DIR is local to the subshell", "might be
-# lost") describe exactly the property being relied on, not a defect: each
-# export MUST stay inside its own subshell so this suite cannot poison the
-# shell that runs it. Losing the value on the way out is the safety guarantee.
-# shellcheck disable=SC2030,SC2031
+# fixture-isolation-scope: the counter-fixture for check-fixture-git-isolation.sh; it must export GIT_DIR
+# shellcheck disable=SC2030,SC2031  # every export is subshell-local, on purpose
 set -uo pipefail
 
 TMP="$(mktemp -d)"
@@ -126,8 +75,6 @@ scenario_b() {
     fail "B linked worktree: could not create the linked worktree fixture"
     return
   fi
-  # A linked worktree's `.git` is a FILE pointing at the real gitdir; resolve
-  # it rather than assuming a layout.
   lgd="$(git -C "$wt" rev-parse --absolute-git-dir)"
   fixture="$(mktemp -d "$TMP/x.XXXX")/fx"
   mkdir -p "$fixture"
@@ -162,14 +109,6 @@ scenario_c() {
   assert_isolated "C nested non-repo dir" "$caller" "$fixture" "$before"
 }
 
-# GIT_CONFIG is a SECOND leak path, not another spelling of the first. It does
-# not redirect discovery at all: it replaces the file the `git config`
-# subcommand itself reads and writes, so `git -C <fixture> config user.email X`
-# lands in whatever file it names even when GIT_DIR is unset, the cwd is
-# elsewhere, and `-C` points squarely at the fixture. Clearing the six
-# discovery variables therefore does not close it, which is why the harness
-# clears GIT_CONFIG too. Verified against the unpatched harness: this scenario
-# rewrites the caller's identity and the six-variable clear does not stop it.
 scenario_d() {
   local caller fixture before
   caller="$(new_caller)"
@@ -187,11 +126,6 @@ scenario_d() {
   assert_isolated "D exported GIT_CONFIG" "$caller" "$fixture" "$before"
 }
 
-# No inherited environment at all: a fixture build that failed unchecked leaves
-# its path variable empty or pointing at a directory with no .git. `git -C ""`
-# keeps the cwd (git(1), -C) and a non-repo directory discovers the enclosing
-# repo, so either write lands in the caller. The helper must refuse both, and
-# the refusal must be a nonzero exit so the suite sees it.
 scenario_e() {
   local caller before rc_empty rc_nested
   caller="$(new_caller)"
@@ -220,8 +154,6 @@ scenario_e() {
   fi
 }
 
-# TMPDIR inside the caller: a failed build's empty path reaches raw `git -C`
-# calls the helper never sees, so sourcing the harness must stop the suite.
 scenario_f() {
   local caller out rc
   caller="$(new_caller)"
@@ -237,10 +169,6 @@ scenario_f() {
   fi
 }
 
-# The harness must clear every variable that can redirect a fixture write, not
-# just the two the reproduction happens to use — GIT_INDEX_FILE and
-# GIT_OBJECT_DIRECTORY redirect writes the same way, and GIT_CONFIG redirects
-# the `git config` subcommand outright.
 scenario_declares_full_env_clear() {
   local v missing=()
   for v in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_CONFIG; do

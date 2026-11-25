@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Behavior test for the two lane lib scripts the workflows run from .base:
-# revoke-lane-token.sh prints "the lane token is revoked" on a 204, else the
-# not-revoked warning, and exits 0 either way; install-pinned-pyyaml.sh installs
-# exactly the `pyyaml==` block of the requirements-ci.txt two directories above
-# it, and on a failed install prints its argument as a warning and exits 1.
-# Stub curl and python3 stand in for the network.
 # test-scope: .github/scripts/lib/revoke-lane-token.sh .github/scripts/lib/install-pinned-pyyaml.sh .github/requirements-ci.txt
 set -uo pipefail
 

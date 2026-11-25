@@ -1,22 +1,4 @@
 #!/usr/bin/env node
-// Render one `claude plugin validate --json` report as per-file findings.
-//
-// Stdin is the command's stdout. Exit 0 when the payload is a report object
-// (success may still be false; the caller keeps the CLI's exit code). Exit 2
-// when stdin is not that object, so the caller can fall back to text output.
-//
-// Report shape, from the plugin commands reference
-// (https://code.claude.com/docs/en/plugins/cli-reference#plugin-validate):
-// success, strict, target, manifest (or null), contents[] of {file, errors,
-// warnings, notes}. Each finding is {path, message, code}.
-//
-// We print a per-file gatingHooks item whose hasCatch is false as a warning
-// row, so a mod hook that can refuse an action and has no .catch shows up in
-// the validate output without failing it. Any other item prints nothing.
-// - Pointer: when the gatingHooks item shape matters, fetch
-//   https://code.claude.com/docs/en/plugins/cli-reference#plugin-validate live.
-// - As of: 2026-10-10
-// - Recheck trigger: that section renames gatingHooks or its hasCatch field.
 
 import { readFileSync } from "node:fs";
 

@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# Run Node suites that sit outside the sub-projects CI already runs
-# (scripts/node-subprojects.txt).
-#
-#   scripts/run-outside-node-suites.sh
-#   scripts/run-outside-node-suites.sh --paths FILE
-#
-# With no arguments, run `npm test` in every directory listed in
-# scripts/outside-node-packages.txt. That file is the package's own test
-# command, read from package.json "scripts.test". This script does not guess
-# node --test versus vitest. A package's `file:` dependency that has a lockfile
-# is installed (`npm ci`) before its tests run. Git reads a fixed test config in
-# place of the host's (scripts/lib/test-git-env.sh).
-#
-# --paths FILE is one repo-relative path per line (the suites affected-tests.sh
-# declined). A path is classified, not guessed:
-#   * under scripts/outside-node-exclusions.txt: recorded and not run
-#   * under a registered package: that package's npm test runs once
-#   * *.Tests.ps1: owned by the test-windows Pester lane
-#   * under a sub-project owner directory: owned by its existing CI step
-#   * a sibling *.test.sh wrapper: owned by run-plugin-tests.sh
-#   * anything else: exit 1, so a new suite cannot pass having run nothing
-#
-# Exit 0 when every selected package test passes, or the list names only
-# exclusions and suites another lane owns. Exit 1 on a failing package test or
-# an unclassified path. Exit 2 on usage or a missing list file.
 # shellcheck disable=SC2310
 set -euo pipefail
 
@@ -51,7 +26,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Assigned through a nameref, which shellcheck cannot follow (SC2154).
 packages=() exclusions=() subprojects=() subproject_owners=()
 read_list::into packages "$PACKAGES_FILE" --comments inline || exit 2
 read_list::into exclusions "$EXCLUSIONS_FILE" --comments inline || exit 2

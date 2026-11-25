@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Resolve the ref every diff-scoped step of pr-require-checks.yml diffs against,
-# for the `select-tests` job's "Resolve the diff base" step.
-#
-#   scripts/resolve-diff-base.sh
-#
-# Run from the checkout, with full history. Reads GITHUB_EVENT_NAME, BASE_REF
-# and MERGE_GROUP_BASE_SHA; writes `ref=<base>` to $GITHUB_OUTPUT, or nothing
-# for the whole tree. Always exits 0: every failure resolves toward the whole
-# tree.
-#
-# - pull_request: origin/$BASE_REF.
-# - merge_group: the queue's base, MERGE_GROUP_BASE_SHA
-#   (github.event.merge_group.base_sha), so the group's own diff selects what
-#   runs, as on its pull request. A release group is scoped the same way: its
-#   release gates (--check-release among them) take their own base, not this
-#   one. The whole tree when that commit is missing or is not an
-#   ancestor of HEAD.
-# - anything else (schedule, dispatch): the whole tree.
 set -uo pipefail
 
 event=${GITHUB_EVENT_NAME:-}

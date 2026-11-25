@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract wrapper for vendor_gitleaks_rules.py's pytest suite.
-#
-# SKIPs (exit 0) when no interpreter meets the script's MIN_PYTHON (3.11, for
-# tomllib) or pytest is missing. -p no:cacheprovider keeps a .pytest_cache out
-# of the tree.
 # test-scope: scripts/fixtures/vendor-gitleaks-rules/*
 set -euo pipefail
 

@@ -1,40 +1,5 @@
 #!/usr/bin/env bash
-# awk-probe.sh — the runtime half of the shell-portability gate's `awk -v`
-# rule (#4143), sourced by scripts/check-shell-portability.sh for its
-# `--awk-probe SUITE...` mode.
-#
-# POSIX gives an `awk -v name=value` assignment escape processing, and the
-# implementations disagree on an escape they do not know: gawk warns and
-# drops the backslash, so `\]\([^)]*$` reaches the
-# program as `]([^)]*$` and gawk dies on the unmatched paren; mawk passes the
-# backslash through and the same script works. `ENVIRON["name"]` carries the
-# value byte for byte on every implementation. The dangerous value sits in a
-# shell variable, not on the source line, so no token can see it; running the
-# suite once per implementation can.
-#
-# awk_probe::run SUITE... runs each suite with `bash`, once per distinct awk
-# implementation, with a shim directory holding an `awk` symlink to that
-# implementation placed first on PATH. A suite whose exit status differs across
-# implementations is DIVERGENT, and the tail of each failing run's output is
-# printed. A suite that fails under every implementation fails for some other
-# reason; it is reported and left to the test lanes.
-#
-# Candidates are SHELL_PORTABILITY_AWKS (space-separated command names; the
-# suite overrides it) or gawk, mawk, nawk, original-awk, bwk-awk. Two names can
-# be one implementation (Debian's nawk is often gawk), so candidates are
-# deduplicated by the first line of their version banner. Fewer than two
-# distinct implementations is exit 2: one awk cannot diverge from itself, and a
-# probe that silently compared one implementation with itself would report clean.
-#
-# Residual: a suite that calls an awk by absolute path (`/usr/bin/awk`) or by
-# implementation name bypasses the shim.
-#
-# Exit 0 = no suite diverged; 1 = at least one DIVERGENT suite; 2 = usage /
-# environment error (fewer than two implementations, a missing suite).
 
-# awk_probe::banner <cmd> — the first line of an awk's version banner, or
-# nothing. gawk and the one-true-awk answer `--version`; mawk answers
-# `-W version`.
 awk_probe::banner() {
   local cmd="$1" line
   line="$("$cmd" --version 2>/dev/null </dev/null | sed -n 1p)"

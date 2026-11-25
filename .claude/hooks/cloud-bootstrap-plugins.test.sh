@@ -20,7 +20,6 @@ if [[ ! -f "$BOOTSTRAP" ]]; then
   exit 1
 fi
 
-# silent-skip-ok: routed to a visible SKIP line counted apart from PASS
 host_executes_extensionless_claude_stub() {
   local d stub out
   d="$(mktemp -d)"
@@ -285,8 +284,6 @@ run_case fresh "$NONE" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a first-run install counts as installed, not failed" \
   "plugins 2 declared, 2 newly installed, 0 refreshed, 0 failed"
 
-# The regression this whole change set exists for: the refresh chain's trailing
-# `plugin enable` exits 1 on the healthy path, and the stub reproduces that.
 run_case refreshed "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" "$REG_BOTH_HEAD"
 expect "a healthy refresh is not a failure even though \`plugin enable\` exits 1" \
   "plugins 2 declared, 0 newly installed, 1 refreshed, 0 failed"

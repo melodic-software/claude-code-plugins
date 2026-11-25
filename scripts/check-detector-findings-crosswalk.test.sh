@@ -10,8 +10,6 @@ cd "$SELF_DIR/.."
 . "$SELF_DIR/lib/fixture-tree.sh"
 
 script="scripts/check-detector-findings-crosswalk.sh"
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 tmp=""
 fixture_tree::build tmp --label crosswalk
 

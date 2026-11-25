@@ -9,3 +9,4 @@ comment_lint: block
 comment_lint_allow:
   - '^#[[:space:]]*test-scope:'
   - '^//[[:space:]]*test-scope:'
+  - '^#[[:space:]]*fixture-isolation-scope:'

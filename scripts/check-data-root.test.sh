@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: docs/conventions/attribution.yaml
-# Contract test for CHECK_DATA_ROOT in the spoke-plugin-root, plugin-options-docs,
-# changelog-parity and cross-plugin-source-drift checks: each reads the tree the
-# variable names, not the one holding the script. scripts/check-affected.sh relies
-# on it when the pre-push hook runs a merge-base copy of the scripts against a branch.
-#
-#   bash scripts/check-data-root.test.sh
-#
-# Each case runs the real script against a fixture tree. This repository's own
-# tree passes all four checks, so a script that ignored the variable would exit
-# 0 on the failing fixture.
 # test-scope: plugins/*/.claude-plugin/plugin.json plugins/*/README.md
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -62,7 +52,6 @@ check "plugin-options-docs --check leaves the named tree's README alone" \
 run_in "$opts_ok" python3 "$SELF_DIR/sync-plugin-options-docs.py" --check
 check "plugin-options-docs passes a clean tree CHECK_DATA_ROOT names" '[[ $RC == 0 ]]'
 
-# The generated block points at upstream docs instead of restating them (#12700).
 opts_gen="$tmp/opts-gen"
 mkdir -p "$opts_gen/plugins/p/.claude-plugin"
 printf '# p\n' >"$opts_gen/plugins/p/README.md"

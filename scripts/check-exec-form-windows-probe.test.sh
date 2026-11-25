@@ -145,9 +145,6 @@ for name in node.exe powershell.exe pwsh.exe; do
   rm -rf "$f"
 done
 
-# --- the gate and the probe read one allowlist ------------------------------
-# Same fixture, same bare name, both scripts: they must agree, and each must
-# have judged the row (exit 0 or 1), not stopped on the environment (exit 2).
 for name in node node.exe bash sh python3 pwsh powershell.exe; do
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "{\"hooks\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$name\",\"args\":[]}]}]}"
@@ -344,8 +341,6 @@ EOF
   fi
   rm -rf "$f"
 
-  # A Windows backslash execPath still counts as node.exe. The fake answers the
-  # spawn half; the launcher half needs a real node, so it gets the real one.
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
   winnode="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
