@@ -101,7 +101,7 @@ json_str() {
   printf '"%s"' "$s"
 }
 
-parse() { # parse <file>
+parse() {
   awk -f "$PARSER" "$1"
 }
 
@@ -162,13 +162,13 @@ kv_name() {
   n="${n//-/_H_}"
   printf '%s' "${n//./_D_}"
 }
-set_kv() { # set_kv <key> <value> <source layer>
+set_kv() {
   local n
   n="$(kv_name "$1")"
   printf -v "VAL_$n" '%s' "$2"
   printf -v "SRC_$n" '%s' "$3"
 }
-kv_get() { # kv_get VAL|SRC <key>
+kv_get() {
   local n
   n="$1_$(kv_name "$2")"
   printf '%s' "${!n:-}"
@@ -179,9 +179,6 @@ src() { kv_get SRC "$1"; }
 ROLES=()
 NOTES=()
 LAYERS_JSON=()
-# Workload names any layer declares, and every role workload key applied as
-# "<layer>\t<key>\t<workload>": a key's workload must be declared once all
-# layers are read, whichever layer declares it.
 WL_NAMES=()
 WL_KEYS=()
 WL_NAME_RE='^[A-Za-z0-9_][A-Za-z0-9_-]*$'
@@ -208,7 +205,7 @@ if [[ "$TARGET" != all && " ${ROLES[*]} " != *" $TARGET "* ]]; then
   exit 2
 fi
 
-valid_value() { # valid_value <field> <value>
+valid_value() {
   case "$1" in
   model) [[ "$2" == inherit || "$ALIASES" == *" $2 "* ]] ;;
   fanout_model) [[ "$ALIASES" == *" $2 "* ]] ;;
@@ -230,11 +227,10 @@ valid_value() { # valid_value <field> <value>
   esac
 }
 
-layer_state() { # layer_state <label> <path> <state>
+layer_state() {
   LAYERS_JSON+=("{\"layer\":$(json_str "$1"),\"path\":$(json_str "$2"),\"state\":$(json_str "$3")}")
 }
 
-# apply_layer <label> <path> <records>
 apply_layer() {
   local label="$1" path="$2" records="$3" key value field role w sid=""
   if [[ "$(awk -F '\t' '$1=="schema"{print $2}' <<<"$records")" != 1 ]]; then
@@ -249,7 +245,6 @@ apply_layer() {
     sid=""
     case "$key" in
     frontier) field=frontier ;;
-    # Not a role-map key: lib/read-verification.sh reads it from the team file at the default branch.
     verification | verification_skills.*) continue ;;
     fanout.frontier_guard) field=frontier_guard ;;
     fanout.model) field=fanout_model ;;
@@ -322,7 +317,6 @@ apply_layer() {
   done <<<"$records"
 }
 
-# read_layer <label> <path>
 read_layer() {
   local label="$1" path="$2" records where msg
   if ! records="$(parse "$path")"; then
@@ -379,8 +373,6 @@ user_where="the file the role_map_file option names (set it in /config)"
 dual_read user-config user-global "$USER_FILE" "$OLD_USER" "$user_where"
 USER_LAYER="$READ_FILE"
 
-# The convention home is the one the repository binds in AGENTS.md or CLAUDE.md
-# (lib/resolve-convention-home.sh); docs/conventions when it binds none.
 CONVENTION_HOME="docs/conventions"
 if [[ -f "$SCRIPT_DIR/../lib/resolve-convention-home.sh" ]]; then
   home_out="$(bash "$SCRIPT_DIR/../lib/resolve-convention-home.sh" --root "$ROOT" 2>/dev/null)" && CONVENTION_HOME="$home_out"
@@ -400,7 +392,6 @@ else
     "$ROOT/.claude/multi-agent.local.yaml" "$PERSONAL_OVERRIDE"
 fi
 
-# A workload is declared when its last workloads.<w> value is true.
 DECLARED=" "
 for w in "${WL_NAMES[@]+"${WL_NAMES[@]}"}"; do
   [[ "$(val "workloads.$w")" == true && "$DECLARED" != *" $w "* ]] && DECLARED+="$w "
@@ -415,21 +406,16 @@ done
 
 FRONTIER=",$(val frontier),"
 is_frontier() { [[ "$FRONTIER" == *",$1,"* ]]; }
-# An unknown session counts as frontier: the guard fails toward `opus`.
 SESSION_FRONTIER=true
 [[ -n "$SESSION_MODEL" ]] && ! is_frontier "$SESSION_MODEL" && SESSION_FRONTIER=false
 
-variant() { # variant <model> <effort> <guarded>
+variant() {
   local omit=false
   [[ "$1" == inherit ]] && omit=true
   printf '{"model":%s,"omit_model":%s,"effort":%s,"guarded":%s}' \
     "$(json_str "$1")" "$omit" "$(json_str "$2")" "$3"
 }
 
-# basis_of <role prefix> <field> <source layer> [<workload>]: the bundled
-# basis_[<workload>_]<field> (upstream or judgment) when the bundled layer
-# supplied the value, `config` when a consumer layer did, `unrecorded` when the
-# bundled entry names none. Pass the workload only when its key set the value.
 basis_of() {
   local b
   if [[ -z "$3" ]]; then

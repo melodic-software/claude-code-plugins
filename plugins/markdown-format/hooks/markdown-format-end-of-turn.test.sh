@@ -75,8 +75,6 @@ report() {
   REPORT_ERR="$(cat "$WORK/report.err")"
 }
 
-# The finding lines are the tool's own documented messages; the closing hint
-# line is this plugin's wording, so the case drops it instead of restating it.
 findings() { printf '%s' "${1%$'\n'*}"; }
 FINDING='a.md:3: MD033/no-inline-html Inline HTML [Element: b]'
 printf '# Seed\n\n<b>x</b>\n' >"$R/a.md"

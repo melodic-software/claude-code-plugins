@@ -124,7 +124,6 @@ digest16() {
   printf '%s' "${out:0:16}"
 }
 
-# The closed node-kind vocabulary, read from the reference table's first column.
 read_kinds() {
   awk '
     /^#### The node-kind vocabulary/ { inv = 1; next }
@@ -305,7 +304,6 @@ ok_count=0
 failed=0
 kind_failure=0
 
-# Grades the entry whose fields the loop below accumulated, then clears them.
 grade_entry() {
   [[ -n "$cur_id" ]] || return 0
   entries=$((entries + 1))
@@ -426,8 +424,6 @@ for record in "${records[@]}"; do
         ;;
       reason) [[ -z "$f2" ]] || has_reason=1 ;;
       date)
-        # A nonempty value satisfies the required-key check whatever it says;
-        # only its calendar validity is a separate defect.
         if [[ -n "$f2" ]]; then
           has_date=1
           is_calendar_iso_date "$f2" ||

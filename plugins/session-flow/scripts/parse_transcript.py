@@ -707,13 +707,6 @@ def build_multi_session_output(
 
         agg_subagents.extend({**sub, "session_id": sid} for sub in subagents)
 
-    # The denominator is the chain: the sessions requested (the walk, under
-    # --chain-from), plus under --chain-from the other transcripts that mention
-    # the handoff topic, which are the sessions a walk that stopped early did
-    # not reach. Every transcript in the project directory is NOT the chain: a
-    # $HOME-launched project slug holds every session ever run on the machine,
-    # so that count is reported apart as `project_transcripts`. An unreadable
-    # base directory leaves the topic count unknown, so `available` is null then.
     mentions, project_transcripts, fork_candidates = _scan_project(
         base_path, session_ids, topic
     )
