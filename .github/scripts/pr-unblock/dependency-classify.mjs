@@ -782,8 +782,6 @@ export function contentStep({ commits = [], commitFiles = () => null, files, con
   return contentReason(files, config, extra);
 }
 
-// The standards-synced Dependabot policy, read at the base.
-export const POLICY_PATH = ".github/standards/dependabot-policy/policy.json";
 export const STANDARDS_POLICY_PATH = "components/dependabot-policy/policy.json";
 export const policyPath = (env, fallback) => (env.STANDARDS_DIR ? `${env.STANDARDS_DIR}/${STANDARDS_POLICY_PATH}` : fallback);
 export const POLICY_UNREADABLE = "dependabot-policy-unreadable";

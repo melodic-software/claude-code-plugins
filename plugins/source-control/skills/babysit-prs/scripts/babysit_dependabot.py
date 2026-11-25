@@ -83,8 +83,6 @@ RED = frozenset(
     {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}
 )
 MARKER_PREFIX = "<!-- pr-unblock:review-dependency-round "
-# The standards-synced Dependabot policy, read at the base.
-POLICY_PATH = ".github/standards/dependabot-policy/policy.json"
 STANDARDS_POLICY = "components/dependabot-policy/policy.json"
 POLICY_UNREADABLE = "dependabot-policy-unreadable"
 # The head branch's ecosystem segment in `dependabot.yml` spelling; any other

@@ -51,7 +51,7 @@ import { loadTrustedList, trustedListPath } from "../lib/trusted-actors.mjs";
 import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
-import { DEPENDABOT_ID, POLICY_PATH, policyPath } from "./dependency-classify.mjs";
+import { DEPENDABOT_ID, policyPath } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, RUN_ID, sendDispatch, writeRecord } from "./dispatch-record.mjs";
 import { laneReader, withLaneBinding } from "./address-feedback.mjs";
@@ -855,7 +855,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     listed,
     record,
     config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),
-    policy: readPolicy(policyPath(env, env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`), log),
+    policy: readPolicy(policyPath(env, env.DEPENDABOT_POLICY), log),
     repository: env.GITHUB_REPOSITORY,
     laneAppId: appSenderId,
   });
