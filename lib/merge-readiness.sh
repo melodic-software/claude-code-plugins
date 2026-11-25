@@ -277,7 +277,7 @@ _mg_threads_ccr() {
 }
 
 _mg_verify() {
-  local skip uid login default head conf="" base def repo digest suffix run judged
+  local skip uid login default head conf="" base def digest suffix run judged counted
   read -r skip uid login default head <<<"$_mg_pv"
   [[ "$skip" == - && -n "$_mg_base" && "$_mg_base" != null ]] || return 0
   local wf=.github/workflows/pr-verify.yml pp=docs/conventions/pr-pipeline.yaml ta=.github/standards/trusted-actors/trusted-actors.json
@@ -351,7 +351,7 @@ _mg_verify() {
   [[ "$judged" == yes ]] || return 0
   digest="$(printf '%s' "$head" | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | cut -c1-16)"
   [[ "$digest" =~ ^[0-9a-f]{16}$ ]] || _mg_unchecked "no SHA-256 tool to name the pass artifact" "its pr-verify verdict"
-  if ! def="$(jq -cn --arg d "$default" '$d')" || ! repo="$(jq -cn --arg r "$MG_REPO" '$r')"; then
+  if ! def="$(jq -cn --arg d "$default" '$d')"; then
     _mg_unchecked "jq could not quote the branch name" "its pr-verify verdict"
   fi
   for suffix in pass "pass-$digest" pass-notes "pass-notes-$digest"; do
@@ -360,11 +360,10 @@ _mg_verify() {
       _mg_unchecked "$MG_ERR" "its pr-verify verdict"
     for run in $MG_OUT; do
       [[ "$run" =~ ^[0-9]+$ ]] || continue
-      _mg_api "repos/$MG_REPO/actions/runs/$run" --jq ".status == \"completed\" and .conclusion == \"success\"
-        and .path == \".github/workflows/pr-verify.yml\" and .event == \"workflow_run\" and .head_branch == $def
-        and .repository.full_name == $repo and .head_repository.full_name == $repo" ||
-        _mg_unchecked "$MG_ERR" "its pr-verify verdict"
-      [[ "$MG_OUT" == true ]] && return 0
+      _mg_api "repos/$MG_REPO/actions/runs/$run" || _mg_unchecked "$MG_ERR" "its pr-verify verdict"
+      counted="$(jq -r --arg def "$default" --arg repo "$MG_REPO" -f "$_MG_DIR/pr-verify-run.jq" <<<"$MG_OUT")" ||
+        _mg_unchecked "the pr-verify run $run could not be judged" "its pr-verify verdict"
+      [[ "$counted" == true ]] && return 0
     done
   done
   # pr-verify starts when the head's checks finish, and a head it never judges
