@@ -2941,7 +2941,9 @@ shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or 
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
 verdict from a judge step `run-claude-cli` failed on its own credential scan, is written as a `fail`
 with a fixed text in place of all the model's, which counts toward the repeated-fail cap, so the head
-is not judged twice. A `pass` or `pass-notes` holding only a secret assignment, which may be a
+is not judged twice. A later chunk counts as such a stop only when it failed and `run-review-chunks`'
+`chunk-classes` gives it no lane class; a later chunk that failed with one (a handoff, max turns, a
+timeout), or with no class list, left no output. A `pass` or `pass-notes` holding only a secret assignment, which may be a
 fixture, uploads nothing, and the run fails. The chunk-results step stops with no verdict, before the final
 judge runs, on results over 300000 bytes. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since

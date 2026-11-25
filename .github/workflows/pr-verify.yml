@@ -651,6 +651,7 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs later-fail
@@ -664,6 +665,7 @@ jobs:
             ${{ steps.judge.outputs.log-file }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           LANE_CLASS: ${{ steps.judge-chunks.outputs.lane-class }}
         run: |
           case "$LANE_CLASS" in
@@ -718,6 +720,7 @@ jobs:
             ${{ steps.judge.outcome }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
@@ -786,6 +789,7 @@ jobs:
             ${{ steps.judge-spec.outputs.log-file }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           LANE_CLASS: ${{ steps.judge-spec.outputs.lane-class }}
         run: |
           case "$LANE_CLASS" in
@@ -838,6 +842,7 @@ jobs:
             ${{ steps.judge.outcome }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
@@ -1409,6 +1414,7 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs later-fail
@@ -1422,6 +1428,7 @@ jobs:
             ${{ steps.judge.outputs.log-file }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           HANDOFF_REASON: ${{ steps.judge-chunks.outputs.handoff-reason }}
         run: |
           node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
@@ -1468,6 +1475,7 @@ jobs:
             ${{ steps.judge.outcome }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
@@ -1537,6 +1545,7 @@ jobs:
             ${{ steps.judge-spec.outputs.log-file }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           HANDOFF_REASON: ${{ steps.judge-spec.outputs.handoff-reason }}
         run: |
           node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
@@ -1583,6 +1592,7 @@ jobs:
             ${{ steps.judge.outcome }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
@@ -2068,6 +2078,7 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs later-fail
@@ -2112,6 +2123,7 @@ jobs:
             ${{ steps.judge.outcome }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
@@ -2210,6 +2222,7 @@ jobs:
             ${{ steps.judge.outcome }}
           CHUNKS_DIR: ${{ steps.judge-chunks.outputs.results-dir }}
           CHUNK_OUTCOMES: ${{ steps.judge-chunks.outputs.chunk-outcomes }}
+          CHUNK_CLASSES: ${{ steps.judge-chunks.outputs.chunk-classes }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}

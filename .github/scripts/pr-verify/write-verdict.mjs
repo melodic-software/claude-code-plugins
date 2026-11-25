@@ -374,11 +374,14 @@ const fileList = (value) => positions(value).filter(Boolean);
 export function laterRuns(env) {
   if (!env.CHUNK_OUTCOMES) return [];
   requireEnv(env, ["CHUNKS_DIR"]);
-  return env.CHUNK_OUTCOMES.split(",").map((outcome, i) => {
+  const outcomes = env.CHUNK_OUTCOMES.split(",");
+  const classes = String(env.CHUNK_CLASSES ?? "").split(",");
+  return outcomes.map((outcome, i) => {
     const dir = path.join(env.CHUNKS_DIR, `chunk-${i + 2}`);
     const ran = outcome === "success" || outcome === "failure";
+    const scanStop = outcome === "failure" && classes.length === outcomes.length && classes[i] === "";
     const execution = path.join(dir, "execution.json");
-    return { outcome: ran ? outcome : "", execution: ran && existsSync(execution) ? execution : "", log: ran ? path.join(dir, "log.jsonl") : "" };
+    return { outcome: ran ? outcome : "", execution: (outcome === "success" || scanStop) && existsSync(execution) ? execution : "", log: ran ? path.join(dir, "log.jsonl") : "" };
   });
 }
 

@@ -950,6 +950,7 @@ const chunkOneLists = (block, job) => {
   assert.deepEqual(list(block, "JUDGE_OUTCOMES"), ["${{ steps.judge.outcome }}"], job);
   assert.equal(input(block, "CHUNKS_DIR"), "${{ steps.judge-chunks.outputs.results-dir }}", job);
   assert.equal(input(block, "CHUNK_OUTCOMES"), "${{ steps.judge-chunks.outputs.chunk-outcomes }}", job);
+  assert.equal(input(block, "CHUNK_CLASSES"), "${{ steps.judge-chunks.outputs.chunk-classes }}", job);
 };
 
 test("the chunk ceiling is set once, in chunk-diff.sh, and holds 3000 files at 40 a chunk", () => {
@@ -976,6 +977,7 @@ test("a counted fail a later chunk left before the others handed off holds the h
     assert.match(check, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/write-verdict\.mjs later-fail$/m, job);
     assert.equal(input(check, "CHUNKS_DIR"), "${{ steps.judge-chunks.outputs.results-dir }}", job);
     assert.equal(input(check, "CHUNK_OUTCOMES"), "${{ steps.judge-chunks.outputs.chunk-outcomes }}", job);
+    assert.equal(input(check, "CHUNK_CLASSES"), "${{ steps.judge-chunks.outputs.chunk-classes }}", job);
     const results = ifOf("Write the chunk results", job);
     assert.ok(admits(results, { steps: steps("true") }), `${job}: the fail is written`);
     assert.ok(!admits(results, { steps: steps("false") }), `${job}: a clean handoff writes nothing`);
