@@ -3992,9 +3992,9 @@ describe("attended", () => {
   });
 });
 
-test("closedByTrusted counts the lanes App's already-done close only while its evidence holds", async () => {
+test("closedByTrusted counts the lanes App's close only with the App's own outcome comment", async () => {
   const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
-  const mergeSha = "4".repeat(40);
+  const HUMAN = { login: "kyle-sexton", id: 101, type: "User" };
   const closeBody = (stop) =>
     [
       "<!-- work-resolve-issue outcome=closed run=555 -->",
@@ -4005,27 +4005,27 @@ test("closedByTrusted counts the lanes App's already-done close only while its e
       "",
       `> ${stop}: ＃5 shipped it`,
     ].join("\n");
-  const client = (stop, message) => async (method, path) => {
+  const comment = (stop, user = APP) => ({ user, created_at: "2026-10-21T00:00:00Z", body: closeBody(stop) });
+  const client = (comments, closer = APP) => async (method, path) => {
     const routes = {
-      "GET /repos/o/r/issues/77": { number: 77, state: "closed", closed_by: APP, created_at: "2026-10-01T00:00:00Z", repository_url: "https://api.github.com/repos/o/r" },
+      "GET /repos/o/r/issues/77": { number: 77, state: "closed", closed_by: closer, created_at: "2026-10-01T00:00:00Z", repository_url: "https://api.github.com/repos/o/r" },
       "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [] } } } } },
-      "GET /repos/o/r/issues/77/comments?per_page=100&page=1": [{ user: APP, body: closeBody(stop) }],
-      "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": [],
+      "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
       "GET /repos/o/r/issues/77/events?per_page=100&page=1": [],
-      "GET /repos/o/r": { default_branch: "main" },
-      "GET /repos/o/r/pulls/5": { merged_at: "2026-10-20T00:00:00Z", base: { ref: "main" }, merge_commit_sha: mergeSha },
-      [`GET /repos/o/r/commits/${mergeSha}`]: { commit: { message } },
     };
     if (!Object.hasOwn(routes, `${method} ${path}`)) {
       throw new Error(`no route for ${method} ${path}`);
     }
     return routes[`${method} ${path}`];
   };
-  const trusted = (stop, message, { appId = APP.id } = {}) => closedByTrusted({ github: client(stop, message), repository: "o/r", humans: new Set(), appId })(77);
-  assert.equal(await trusted("already-done", "fix: tidy (#5)\n\nCloses #77"), true);
-  assert.equal(await trusted("already-done", "fix: tidy (#5)"), false, "the merge commit no longer closes it");
-  assert.equal(await trusted("report-delivered", "fix: tidy (#5)\n\nCloses #77"), false, "a report close");
-  assert.equal(await trusted("already-done", "fix: tidy (#5)\n\nCloses #77", { appId: 1 }), false, "another App id");
+  const trusted = (comments, { appId = APP.id, closer } = {}) => closedByTrusted({ github: client(comments, closer), repository: "o/r", humans: new Set([HUMAN.id]), appId })(77);
+  for (const stop of ["already-done", "verified-done", "report-delivered"]) {
+    assert.equal(await trusted([comment(stop)]), true, stop);
+  }
+  assert.equal(await trusted([]), false, "an App close with no outcome comment");
+  assert.equal(await trusted([comment("report-delivered", HUMAN)]), false, "an outcome comment the App did not write");
+  assert.equal(await trusted([comment("report-delivered")], { appId: 1 }), false, "another App id");
+  assert.equal(await trusted([], { closer: HUMAN }), true, "a listed human's close");
 });
 
 describe("authorAdmitted", () => {

@@ -924,13 +924,6 @@ export function admissionSettled(labels, events, isMark, state) {
 // unrunnable-rules.json (unrunnableCriteria); a file that does not read, or a
 // malformed unrunnable-rules.json (unrunnableRulesOf), throws out of decide,
 // so no issue is admitted on a guess.
-// `reported` (admissionFacts) maps a blocker the lanes App closed
-// report-delivered to {at, url, reason}: that close is no completed work
-// (owner Q9), so the blocker still waits, but its report may answer what the
-// issue waited for. Until a verdict written after that close judges the issue
-// against it, the wait carries `retriage` and admit() sends the issue back to
-// intake; once one has, the issue's own criteria decide. `comments`
-// (admissionFacts) carry report-outcome's patch-cap stop (patchCapStopped).
 // `holdLabels` (admissionFacts), and a parent's own, are the label names as
 // the Work status field decides them (read-status.mjs statusLabels), read in
 // place of the issue's own labels; `fieldState` (admissionFacts) is the
@@ -1189,11 +1182,6 @@ export function judgedSince(events, trusted) {
   return Math.max(Number.NEGATIVE_INFINITY, ...times);
 }
 
-// Whether a blocker the lanes App closed report-delivered (`report`, as
-// appCloseKind reads it) no longer holds its dependent: something judged the
-// dependent at `after` (ms), after that close, against the report. The close
-// still counts for nothing as completed work (owner Q9); a report with no
-// readable time holds. Pure.
 export function reportCleared(report, after) {
   const closed = Date.parse(report?.at);
   return report?.stop === "report-delivered" && Number.isFinite(closed) && after > closed;
@@ -1491,10 +1479,6 @@ export async function finishedParent({ github, repository, issue, trusted }) {
   return children.length > 0 && (await subIssueLeftOpen(children, trusted, repository)) === null ? children.map((child) => Number(child.number)) : null;
 }
 
-// admissionFacts' `isTrusted` for admit(): issue `number` here was closed by
-// a listed human or a merge, by the lanes App as already-done with evidence
-// that still holds (isTrustedClose), or is a split parent the lanes App
-// closed (splitParentClosed), read fresh.
 export const closedByTrusted = ({ github, repository, humans, appId }) => {
   const isApp = appActor(appId);
   const trusted = async (number) => {

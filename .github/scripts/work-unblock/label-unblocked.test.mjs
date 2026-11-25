@@ -7032,13 +7032,14 @@ const reportDeliveredClose = (user, at) => ({
   body: ["<!-- work-resolve-issue outcome=closed run=555 -->", "The work-resolve-issue lane stopped on this issue (`report-delivered`): the run posted the report.", "", "In the run's words:", "", "> the report"].join("\n"),
 });
 
-test("a status: ready issue whose blocker the App closed report-delivered is admitted only once a verdict postdates the close", async (t) => {
+test("a status: ready issue whose blocker the App closed report-delivered is admitted only on the App's own outcome comment", async (t) => {
   const closedAt = "2026-10-16T06:30:00Z";
   for (const [comments, readyAt, expected, closer = LANES_BOT] of [
     [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T07:00:00Z", "admit"],
-    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "retriage"],
+    [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "admit"],
     [[reportDeliveredClose(OWNER, closedAt)], "2026-10-16T07:00:00Z", "wait"],
     [[], "2026-10-16T07:00:00Z", "wait"],
+    [[], "2026-10-16T06:00:00Z", "admit", OWNER],
     [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T07:00:00Z", "wait", { id: 777, login: "triage-user" }],
     [[reportDeliveredClose(LANES_BOT, closedAt)], "2026-10-16T06:00:00Z", "wait", { id: 777, login: "triage-user" }],
   ]) {

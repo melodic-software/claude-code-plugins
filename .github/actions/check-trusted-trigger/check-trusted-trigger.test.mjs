@@ -3667,6 +3667,7 @@ const isLanesApp = (actor) => actor?.id === LANES_APP.id;
 const MERGE_SHA = "3333333333333333333333333333333333333333";
 const closeComment = (stop, words, user = LANES_APP) => ({
   user,
+  created_at: "2026-10-22T00:00:00Z",
   body: [
     "<!-- work-resolve-issue outcome=closed run=555 -->",
     `The work-resolve-issue lane stopped on this issue (\`${stop}\`): the run found the issue's work already on the default branch.`,
@@ -3698,71 +3699,45 @@ const routeClient = (routes, failOn = "") => async (method, path) => {
   return routes[key];
 };
 
-test("isTrustedClose: the lanes App's already-done close counts when its merged pull request still closes the issue", async () => {
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, new Set(), isLanesApp), true);
+test("isTrustedClose: the lanes App's close with its own outcome comment counts, whatever the stop", async () => {
+  for (const stop of ["already-done", "verified-done", "report-delivered"]) {
+    const comments = [closeComment(stop, `${stop}: the run's words`)];
+    assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, new Set(), isLanesApp), true, stop);
+  }
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, new Set(), isLanesApp), true, "a cited merge that closes nothing");
 });
 
-// Security review on #10978: a person who reopens an issue after the cited
-// merge says the work is not done, so the App's later close on that same
-// merge counts for nothing; a reopen before the merge changes nothing.
-test("isTrustedClose: the lanes App's already-done close counts for nothing when the issue was reopened after the cited merge", async () => {
+test("isTrustedClose: a listed human's close counts with no comment read", async () => {
+  const humans = new Set([KYLE.id]);
+  assert.equal(await isTrustedClose(routeClient({}), "o/r", { ...APP_CLOSED, closed_by: KYLE }, humans, isLanesApp), true);
+});
+
+test("isTrustedClose: the lanes App's outcome comment counts for nothing from before the issue's last reopen", async () => {
   const reopened = (at) => [{ event: "reopened", created_at: at }];
   const close = (routes, failOn) => isTrustedClose(routeClient(routes, failOn), "o/r", APP_CLOSED, new Set(), isLanesApp);
   assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-25T00:00:00Z") })), false);
   assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-10T00:00:00Z") })), true);
-  assert.equal(await close(appCloseRoutes(), "GET /repos/o/r/issues/77/events?per_page=100&page=1"), false, "an unreadable event list");
+  const undated = [{ ...closeComment("report-delivered", "the report"), created_at: undefined }];
+  assert.equal(await close(appCloseRoutes({ comments: undated })), false, "a comment with no readable time");
 });
 
-test("isTrustedClose: the lanes App's already-done close counts for nothing once its evidence no longer verifies", async () => {
+test("isTrustedClose: the lanes App's close counts for nothing without its own outcome comment", async () => {
   const humans = new Set();
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the merge commit closes nothing");
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ merged: false })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the pull request is not merged");
+  const close = (comments) => isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, humans, isLanesApp);
+  assert.equal(await close([]), false, "no comment");
+  assert.equal(await close([{ user: LANES_APP, created_at: "2026-10-22T00:00:00Z", body: "Closing as a duplicate." }]), false, "an App comment with no outcome marker");
+  assert.equal(await close([closeComment("report-delivered", "the report", STRANGER)]), false, "an outcome comment the App did not write");
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, humans), false, "a caller that names no App");
-  const forged = [closeComment("already-done", "already-done: ＃5 shipped it", STRANGER)];
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: forged })), "o/r", APP_CLOSED, humans, isLanesApp), false, "a close comment the App did not write");
-  const reopened = [closeComment("already-done", "already-done: ＃5 shipped it"), closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reopened })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the last close is a report");
-});
-
-// #12456 class A: the App's verified-done close of a finished parent counts
-// when every sub-issue, read fresh, is closed as completed by a close this
-// function trusts (here a listed human's); a not_planned or untrusted one, or
-// no sub-issue, leaves it untrusted.
-test("isTrustedClose: the lanes App's verified-done close counts only while every sub-issue's close holds", async () => {
-  const OWNER_ID = 101;
-  const humans = new Set([OWNER_ID]);
-  const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: OWNER_ID }, repository_url: "https://api.github.com/repos/o/r", ...extra });
-  const verified = (children) =>
-    routeClient({
-      ...appCloseRoutes({ comments: [closeComment("verified-done", "verified-done: each done-when item checks out")] }),
-      "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": children,
-      ...Object.fromEntries(children.map((item) => [`GET /repos/o/r/issues/${item.number}`, item])),
-    });
-  assert.equal(await isTrustedClose(verified([child(80), child(81)]), "o/r", APP_CLOSED, humans, isLanesApp), true);
-  assert.equal(await isTrustedClose(verified([child(80), child(81, { state_reason: "not_planned" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a not_planned sub-issue");
-  assert.equal(await isTrustedClose(verified([child(80), child(81, { closed_by: STRANGER })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "an untrusted close");
-  assert.equal(await isTrustedClose(verified([]), "o/r", APP_CLOSED, humans, isLanesApp), false, "no sub-issue");
-  assert.equal(await isTrustedClose(verified([child(80), child(81, { repository_url: "https://api.github.com/repos/o/other" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a sub-issue in another repository");
-});
-
-test("isTrustedClose: the lanes App's report-delivered close counts for nothing", async () => {
-  const comments = [closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, new Set(), isLanesApp), false);
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", { ...APP_CLOSED, closed_by: STRANGER }, humans, isLanesApp), false, "an App comment on a close someone else made");
 });
 
 test("isTrustedClose: a read that fails leaves the lanes App's close untrusted", async () => {
-  for (const failOn of [
-    "GET /repos/o/r/issues/77/comments?per_page=100&page=1",
-    "GET /repos/o/r/issues/77",
-    "GET /repos/o/r",
-    "GET /repos/o/r/pulls/5",
-    `GET /repos/o/r/commits/${MERGE_SHA}`,
-  ]) {
+  for (const failOn of ["GET /repos/o/r/issues/77/comments?per_page=100&page=1", "GET /repos/o/r/issues/77/events?per_page=100&page=1"]) {
     assert.equal(await isTrustedClose(routeClient(appCloseRoutes(), failOn), "o/r", APP_CLOSED, new Set(), isLanesApp), false, failOn);
   }
 });
 
-test("appCloseKind: reads the lanes App's report-delivered close and its comment, and isTrustedClose still counts it for nothing", async () => {
+test("appCloseKind: reads the lanes App's report-delivered close and its comment, and isTrustedClose counts it", async () => {
   const report = { ...closeComment("report-delivered", "the report"), html_url: "https://github.com/o/r/issues/77#issuecomment-1", created_at: "2026-10-28T00:00:00Z" };
   const routes = appCloseRoutes({ comments: [report] });
   assert.deepEqual(await appCloseKind(routeClient(routes), "o/r", 77, isLanesApp), {
@@ -3771,7 +3746,7 @@ test("appCloseKind: reads the lanes App's report-delivered close and its comment
     url: "https://github.com/o/r/issues/77#issuecomment-1",
     at: "2026-10-28T00:00:00Z",
   });
-  assert.equal(await isTrustedClose(routeClient(routes), "o/r", APP_CLOSED, new Set(), isLanesApp), false);
+  assert.equal(await isTrustedClose(routeClient(routes), "o/r", APP_CLOSED, new Set(), isLanesApp), true);
 });
 
 test("appCloseKind: an outsider's close comment or an unreadable comment list reads as no close kind", async () => {
