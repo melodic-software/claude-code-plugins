@@ -13,7 +13,6 @@ mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 export PERF_HARNESS_LEDGER_DIR="$WORK/ledger"
 
-# --- harness_posix_form ---
 # portability-ok: 'D:\a\b' is literal Windows path DATA under test, not a regex; the
 # backslash pairs are the input this conversion exists to fold, not GNU escapes.
 assert_eq "backslash drive path folds to POSIX" "/d/a/b" "$(harness_posix_form 'D:\a\b')"
@@ -76,7 +75,6 @@ capture env -u PERF_HARNESS_LEDGER_DIR -u XDG_CACHE_HOME -u HOME \
   bash -c "source '$SCRIPT_DIR/harness-lib.sh'; harness_ledger_path k"
 assert_eq "no writable ledger location is refused, not skipped" "2" "$RUN_RC"
 
-# --- harness_require_python ---
 # A stub named python3 that exits like a missing interpreter stands FIRST on
 # PATH, the shape a WindowsApps alias or a WSL launcher takes on a mixed host.
 # The harness must skip it by name and pin the next candidate by absolute path.
