@@ -17,7 +17,9 @@ architecture repository).
 Run inside a checkout whose object store holds <base>, a commit, and <head>, a
 commit or tree (a pull request's test merge commit in CI). Every changed path
 must be one of:
-- an added changelog fragment, .changes/<plugin>/<name>.md, set aside;
+- an added changelog fragment, .changes/<plugin>/<name>.md, of at most 16384
+  bytes, that the base's changelog_fragments::validate accepts, with bump
+  patch or none, for a plugin holding a reproduced file;
 - a registered copy (scripts/shared-copies.txt) or a file holding a block
   scripts/sync-hold-floor.py writes, regenerated from the formatted base;
 - a shell file (*.sh, *.bash) an .editorconfig shell section governs, run
@@ -105,13 +107,19 @@ holds_sync_hold_floor_block() {
 }
 
 git -C "$repo" diff --raw -z --no-renames --no-abbrev "$base" "$head" >"$scratch/diff" || fail_run "could not diff $base and $head"
-shell=() python=() regen=() fragments=0
+fragment_cap=16384
+shell=() python=() regen=() fragments=()
 declare -A want=() was=()
 while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
   read -r old_mode new_mode old_blob new_blob status <<<"${meta#:}"
   if [[ $path == .changes/* ]]; then
     if [[ $status == A && $new_mode == 100644 && $path =~ ^\.changes/[^/]+/[^/]+\.md$ ]]; then
-      fragments=$((fragments + 1))
+      size=$(git -C "$repo" cat-file -s "$new_blob") || fail_run "could not read $path"
+      if ((size > fragment_cap)); then
+        no "$path: a fragment of $size bytes, over the $fragment_cap-byte cap"
+      else
+        fragments+=("$path") want[$path]=$new_blob
+      fi
     else
       no "$path: a change under .changes/ other than one added fragment .md file"
     fi
@@ -146,7 +154,7 @@ done <"$scratch/diff"
 ((${#shell[@]} + ${#python[@]})) || no "no file the formatters cover changed"
 verdict
 if ((classify)); then
-  echo "candidate: ${#shell[@]} shell, ${#python[@]} Python and ${#regen[@]} regenerated file(s), $fragments fragment(s)"
+  echo "candidate: ${#shell[@]} shell, ${#python[@]} Python and ${#regen[@]} regenerated file(s), ${#fragments[@]} fragment(s)"
   exit 0
 fi
 
@@ -212,6 +220,40 @@ cat "$scratch"/shfmt.*.log >"$scratch/run.log"
   out=$(bash scripts/sync-shared-copies.sh 2>&1) || echo "failed: scripts/sync-shared-copies.sh failed: ${out%%$'\n'*}"
   out=$(python3 -I scripts/sync-hold-floor.py 2>&1) || echo "failed: scripts/sync-hold-floor.py failed: ${out%%$'\n'*}"
 ) >>"$scratch/run.log" 2>&1
+paths=(${shell[@]+"${shell[@]}"} ${python[@]+"${python[@]}"} ${regen[@]+"${regen[@]}"})
+for f in ${fragments[@]+"${fragments[@]}"}; do
+  { mkdir -p "$tree/${f%/*}" && git -C "$repo" cat-file blob "${want[$f]}" >"$tree/$f"; } || fail_run "could not write $f"
+done
+(
+  cd "$tree" || exit 2
+  ((${#fragments[@]})) || exit 0
+  unset CF_LIST
+  # shellcheck source=../../../scripts/lib/changelog-fragments.sh
+  . scripts/lib/changelog-fragments.sh || {
+    echo "failed: the base's changelog-fragments.sh did not load"
+    exit 0
+  }
+  for f in "${fragments[@]}"; do
+    err=$(changelog_fragments::validate "$f" 2>&1 >/dev/null)
+    case $? in
+      0) ;;
+      1)
+        echo "reason: $f: the base's fragment validator refuses it: ${err%%$'\n'*}"
+        continue
+        ;;
+      *)
+        echo "failed: the base's fragment validator could not check $f"
+        continue
+        ;;
+    esac
+    bump=$(changelog_fragments::bump_of "$f")
+    [[ $bump == patch || $bump == none ]] || echo "reason: $f: bump: $bump, past the patch a formatter-only change may release"
+    plugin=${f#.changes/} plugin=${plugin%%/*}
+    root=$(changelog_fragments::root_of "$plugin")
+    for p in ${paths[@]+"${paths[@]}"}; do [[ $p == "$root"/* ]] && continue 2; done
+    echo "reason: $f: no reproduced file belongs to $plugin"
+  done
+) >>"$scratch/run.log" 2>&1
 while IFS= read -r line; do
   case $line in
     'failed: '*) fail_run "${line#failed: }" ;;
@@ -222,7 +264,6 @@ while IFS= read -r line; do
   esac
 done <"$scratch/run.log"
 
-paths=(${shell[@]+"${shell[@]}"} ${python[@]+"${python[@]}"} ${regen[@]+"${regen[@]}"})
 mapfile -t got < <(cd "$tree" && printf '%s\n' "${paths[@]}" | git hash-object --stdin-paths) || fail_run "could not hash the formatted files"
 ((${#got[@]} == ${#paths[@]})) || fail_run "hashed ${#got[@]} of ${#paths[@]} formatted files"
 for i in "${!paths[@]}"; do
@@ -235,4 +276,4 @@ for i in "${!paths[@]}"; do
   fi
 done
 verdict
-echo "proof: ${#paths[@]} file(s) reproduced byte for byte (${#shell[@]} shfmt, ${#python[@]} Ruff, ${#regen[@]} regenerated); $fragments changelog fragment(s) set aside"
+echo "proof: ${#paths[@]} file(s) reproduced byte for byte (${#shell[@]} shfmt, ${#python[@]} Ruff, ${#regen[@]} regenerated); ${#fragments[@]} changelog fragment(s) accepted"

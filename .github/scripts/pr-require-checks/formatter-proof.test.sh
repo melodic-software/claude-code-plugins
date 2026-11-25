@@ -31,7 +31,8 @@ R="$TMP/repo"
 mkdir -p "$R"
 git_init_test_repo "$R" || exit 1
 for f in .editorconfig ruff.toml plugins/bash-format/git-hooks/shfmt-rewrite.sh \
-  .github/actions/setup-pinned-shfmt/action.yml scripts/run-ruff.sh .github/requirements-ci.txt; do
+  .github/actions/setup-pinned-shfmt/action.yml scripts/run-ruff.sh .github/requirements-ci.txt \
+  scripts/lib/changelog-fragments.sh scripts/lib/read-list.sh; do
   mkdir -p "$(dirname "$R/$f")"
   cp "$ROOT/$f" "$R/$f"
 done
@@ -61,6 +62,9 @@ put lib/ok.sh 'echo ok\n'
 put lib/broken.sh 'if then (\n'
 put tool/broken.py 'def (:\n'
 put docs/x.md '# X\n'
+put scripts/fragment-plugins.txt 'p\nq\n'
+put plugins/p/.claude-plugin/plugin.json '{"name": "p", "version": "1.0.0"}\n'
+put plugins/q/.claude-plugin/plugin.json '{"name": "q", "version": "1.0.0"}\n'
 tg add -A && tg commit -q -m base || exit 1
 BASE="$(tg rev-parse HEAD)"
 
@@ -101,9 +105,35 @@ h="$(make_head extra "${FORMATTED[@]}" tool/b.py 'x = 1 \n')"
 prove "$BASE" "$h"
 expect "one byte the formatter does not write is no proof" 1 "- tool/b.py: the formatted base differs from the head"
 
-h="$(make_head fragment "${FORMATTED[@]}" .changes/p/note.md 'note\n')"
+fragment() { printf -- '---\nbump: %s\n---\n\n### Changed\n\n- %s\n' "$1" "${2:-Shell files reformatted with shfmt; no behavior change.}"; }
+FRAG=.changes/p/fmt-1234abcd.md
+h="$(make_head fragment "${FORMATTED[@]}" "$FRAG" "$(fragment patch)")"
 prove "$BASE" "$h"
-expect "an added changelog fragment beside the formatting is set aside" 0 "1 changelog fragment(s) set aside"
+expect "a valid patch fragment for a plugin with a reproduced file is accepted" 0 "1 changelog fragment(s) accepted"
+h="$(make_head fragment-none "${FORMATTED[@]}" "$FRAG" '---\nbump: none\n---\n\nFormatting only.\n')"
+prove "$BASE" "$h"
+expect "a valid bump: none fragment is accepted" 0 "1 changelog fragment(s) accepted"
+h="$(make_head fragment-invalid "${FORMATTED[@]}" .changes/p/note.md 'note\n')"
+prove "$BASE" "$h"
+expect "a fragment the base's validator refuses is no proof" 1 \
+  "- .changes/p/note.md: the base's fragment validator refuses it: FRAGMENT NAME"
+h="$(make_head fragment-body "${FORMATTED[@]}" "$FRAG" '---\nbump: patch\n---\n\nAnything at all.\n')"
+prove "$BASE" "$h"
+expect "a fragment body outside the validator's sections is no proof" 1 \
+  "- $FRAG: the base's fragment validator refuses it: FRAGMENT BODY"
+for bump in minor major; do
+  h="$(make_head "fragment-$bump" "${FORMATTED[@]}" "$FRAG" "$(fragment "$bump")")"
+  prove "$BASE" "$h"
+  expect "a bump: $bump fragment is no proof" 1 "- $FRAG: bump: $bump, past the patch a formatter-only change may release"
+done
+h="$(make_head fragment-other "${FORMATTED[@]}" .changes/q/fmt-1234abcd.md "$(fragment patch)")"
+prove "$BASE" "$h"
+expect "a fragment for a plugin with no reproduced file is no proof" 1 \
+  "- .changes/q/fmt-1234abcd.md: no reproduced file belongs to q"
+big="$(fragment patch "$(printf 'x%.0s' {1..16384})")"
+h="$(make_head fragment-big "${FORMATTED[@]}" "$FRAG" "$big")"
+prove --classify "$BASE" "$h"
+expect "a fragment over the cap is no proof before any tool runs" 1 "- $FRAG: a fragment of ${#big} bytes, over the 16384-byte cap"
 
 h="$(make_head fragment-edit "${FORMATTED[@]}" .changes/p/note.txt 'note\n')"
 prove "$BASE" "$h"

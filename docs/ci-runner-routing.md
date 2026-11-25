@@ -85,7 +85,10 @@ base's copy of each changed shell and Python file, then the base's
 `scripts/sync-shared-copies.sh` and `scripts/sync-hold-floor.py`. When that
 reproduces every changed file of the head byte for byte, with only added
 `.changes/<plugin>/*.md` fragments beside them, the step accepts the head
-without the lanes. A trust-gate path among the changed files (the step's
+without the lanes. A fragment counts only when the base's
+`changelog_fragments::validate` accepts it, its bump is `patch` or `none`,
+its plugin holds a reproduced file, and it is at most 16,384 bytes (the
+largest of the 12,259 fragments added on main up to 2026-11-25 is 16,170). A trust-gate path among the changed files (the step's
 `hold_patterns`, whoever the author) still needs a person on the trusted-actor
 list to approve the head. Any other file, an added, deleted or renamed file, a
 mode change, a byte the formatters do not write, a tool off its pin or a run
@@ -97,8 +100,11 @@ fail as before.
 No pull request code runs in `prove-formatting`: after its checkout it moves
 the working tree to the merge commit's first parent, the base branch commit
 GitHub merged into, so the local shfmt action, the Ruff pin and the script are
-the base's, and the head is read only as blob ids. The job holds a read-only
-token and keeps no credential. It is not a lane: `ci-status` leaves its result
+the base's, and the head is read only as blob ids. The job and `ci-status`
+themselves come from the pull request's own workflow file, though, so a head
+that rewrites `pr-require-checks.yml` can set the proof itself, as it can
+rewrite the review-lane check; that file is a trust-gate path. The job holds a
+read-only token and keeps no credential. It is not a lane: `ci-status` leaves its result
 out of the aggregate, so its failure only means no proof. It runs on every
 non-draft `pull_request` event except contract-only ones, as the lanes do; a
 change with any path no formatter or regenerator covers stops after the
