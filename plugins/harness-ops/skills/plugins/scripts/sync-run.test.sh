@@ -50,8 +50,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Fixture builders --------------------------------------------------------
-
 # CASE_NUM must be incremented in the CALLER's shell before calling this, never
 # inside it: `case_dir=$(new_case_dir)` runs in a subshell, so an assignment made
 # in here is discarded and every case would silently reuse case-1's directory.
@@ -3246,9 +3244,6 @@ assert_contains "reuse: a read during which an old-mtime input is moved into pla
 assert_eq "reuse: and the post report sees the moved-in scope" "false" \
   "$(jq -r '.enabled["alpha@market1"]' "$run_dir/post.market1.json")"
 
-# The chmod moves installed_plugins.json's ctime alone, just before the pre read.
-# The margin is its default (an empty override falls back to it), and the refresh
-# pauses 3 s after its touch, so only the ctime is under 2 s old.
 reuse_case
 reuse_run CLAUDE_STUB_REFRESH_TOUCH="$case_dir/user_settings.json" \
   CLAUDE_STUB_REFRESH_CHMOD="$case_dir/installed_plugins.json" SYNC_FLEET_STATE_STORE_MARGIN_S= \

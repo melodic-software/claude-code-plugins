@@ -430,6 +430,7 @@ Failure patterns from real sessions: `context/gotchas.md`.
 - **A term that clashes with an existing concept.** When a term the interview asks about clashes with a concept the code or the glossary already names, the recommendation is a qualified name the interview proposes itself, so the user never has to add the qualifier; once agreed, it is written through the inline vocabulary update ("Domain-aware behaviors"), under `domain_docs`. Read [`context/term-clash.md`](context/term-clash.md) when a clash is found.
 - **An outcome that feeds a prototype.** Ask what the prototype must prove, and split it into one small piece per question that can be built at once in separate worktrees. Read [`context/prototype-questions.md`](context/prototype-questions.md) once the quality bar is a throwaway prototype or the next step builds one.
 - **A question that turns on a fact.** Look it up yourself; never send the user to find it. When a quick lookup does not settle it, run `/discovery:explore` (if enabled) (what the code does) or `/discovery:research` (if enabled) (an external fact) as a lookup ([`context/lookups.md`](context/lookups.md)); otherwise the same work inline; read what a live system holds now (a database, a tracker, a service) directly through its CLI or MCP tool; this dispatch is how the exploration recommendation in "What this skill does NOT do" is carried out, never a request that the user run it. Do not stall the round proving the fact beyond what the recommendation needs: in an engineering session, the Brief's `### Captured assumptions` lists each fact from such a lookup that a recommendation rests on, with its source and the tag `verify during build`. A fact only the user's environment or an unconnected system holds still takes the self-answer step's offer, and a decision is still the user's.
+- **A structural question that would settle faster drawn together.** For a structural question ("Visual-first for structural questions"), end its Context with one line offering `/visualization:visualize` (if enabled) in collaborative canvas mode. Offer it on no other question. The ledger's recorded answer stays the record; the canvas is not saved.
 
 ## What this skill does NOT do
 
@@ -447,10 +448,10 @@ Failure patterns from real sessions: `context/gotchas.md`.
 - The user confirmed the shared understanding and the work needs a spec: /planning:prd when product intent (users, success measures) is still unsettled; for an engineering task, /planning:design, which records a one-line early exit when no design question is open and hands on to planning.
 - Quickly accepted answers want a fresh-context check: /planning:audit-answers.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
-- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Related
 
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 - Problem still too rough to frame approaches: /planning:brainstorm.
 - Unfamiliar area needs blindspot pass first: /discovery:blindspot.
 

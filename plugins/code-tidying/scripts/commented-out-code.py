@@ -207,7 +207,6 @@ def run_ps_tokens(*args: str) -> list[dict]:
 
 
 def powershell_code_like(bodies: list[str]) -> list[bool]:
-    """Reparse every candidate body in one pwsh process."""
     if not bodies:
         return []
     with tempfile.TemporaryDirectory() as tmp:
@@ -232,7 +231,6 @@ def load_language(entry):
 
 
 def merge_comment_runs(comments):
-    """(start_row, end_row, start_col, text), 0-based -> merged 1-based blocks."""
     blocks: list[list] = []
     for row, end_row, col, text in comments:
         single_line = "\n" not in text
@@ -252,7 +250,6 @@ def merge_comment_runs(comments):
 
 
 def comment_blocks(src: bytes, lang):
-    """Yield (start_line, end_line, text) for comment nodes, adjacent lines merged."""
     from tree_sitter import Parser
 
     nodes = []
@@ -307,7 +304,6 @@ def looks_like_code(body: str, lang, lang_name: str) -> bool:
 
 
 def directive_free_runs(lines: list[str]) -> list[list[int]]:
-    """Indexes of consecutive non-directive lines, one list per run."""
     grouped = groupby(range(len(lines)), key=lambda i: bool(DIRECTIVE.match(lines[i])))
     return [list(run) for is_directive, run in grouped if not is_directive]
 

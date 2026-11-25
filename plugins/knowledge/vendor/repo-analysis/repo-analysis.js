@@ -1,11 +1,3 @@
-/**
- * Course code repository analysis functions.
- *
- * Pure functions for detecting repo structure, frameworks, and generating
- * section diffs. No side effects — cloning and file writing are in the
- * orchestrator (analyze-code-repo.js).
- */
-
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
@@ -154,7 +146,6 @@ export function detectFrameworks(dir) {
       if (pkg.dependencies)
         details.depCount = Object.keys(pkg.dependencies).length;
     } catch {
-      /* ignore parse errors */
     }
     return details;
   }
@@ -235,15 +226,6 @@ export function countFiles(dir) {
   return { total, byExtension };
 }
 
-/**
- * Run `diff -rq` between two directories and parse the output into
- * added/modified/removed counts with sanitized detail lines.
- *
- * @param {string} fromDir
- * @param {string} toDir
- * @param {string} codeDir — base path to strip from detail output
- * @returns {{ added: number, modified: number, removed: number, details: string[] }}
- */
 function parseDirDiff(fromDir, toDir, codeDir) {
   const result = spawnSync("diff", ["-rq", fromDir, toDir], {
     encoding: "utf-8",

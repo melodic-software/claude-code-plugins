@@ -294,9 +294,6 @@ CORROBORATING_LEDGER_GLOBS = (
 
 DELIBERATE_STATE_HOTSPOTS = ("plugins/data",)
 
-# Corroborating names count only this many directory levels below a hotspot.
-# A real revert store sits at `plugins/data/<plugin-id>/<experiment>/`; vendored
-# payloads bury their manifests far deeper.
 HOTSPOT_CORROBORATING_MAX_DEPTH = 3
 
 LEDGER_SCAN_SKIP_PREFIXES = ("plugins/cache", "plugins/marketplaces")

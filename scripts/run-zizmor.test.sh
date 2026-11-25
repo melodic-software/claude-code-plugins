@@ -125,7 +125,8 @@ git_test_config "$repo" commit -q -m head
 
 bare=""
 fixture_tree::build bare --git --label run-zizmor-bare
-printf 'readme\n' >"$bare/README.md"
+mkdir -p "$bare/docs/conventions"
+printf 'standards_repository: example-org/standards\n' >"$bare/docs/conventions/source-control.yaml"
 git_test_config "$bare" add -A
 git_test_config "$bare" commit -q -m base
 bare_sha=$(git_test_config "$bare" rev-parse HEAD)
@@ -164,8 +165,22 @@ check 'the offline run and the online run both pass that config' \
 
 printf 'rules: standards\n' >"$scratch/gh.out"
 run_in "$bare" "$bare_sha"
-check "a base with no config falls back to standards' config, whatever the head adds" \
-  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: standards\nrules: standards' && "$(head -n 1 "$scratch/gh.calls")" == *repos/melodic-software/standards/contents/.github/zizmor.yml ]] && echo yes)"
+check "a base with no config falls back to the config of its standards_repository, whatever the head adds" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: standards\nrules: standards' && "$(head -n 1 "$scratch/gh.calls")" == *repos/example-org/standards/contents/.github/zizmor.yml ]] && echo yes)"
+
+nokey=""
+fixture_tree::build nokey --git --label run-zizmor-nokey
+printf 'readme\n' >"$nokey/README.md"
+git_test_config "$nokey" add -A
+git_test_config "$nokey" commit -q -m base
+nokey_sha=$(git_test_config "$nokey" rev-parse HEAD)
+mkdir -p "$nokey/docs/conventions"
+printf 'standards_repository: head-org/standards\n' >"$nokey/docs/conventions/source-control.yaml"
+git_test_config "$nokey" add -A
+git_test_config "$nokey" commit -q -m head
+run_in "$nokey" "$nokey_sha"
+check "a base with no config and no standards_repository fails closed, whatever the head adds" \
+  "$([[ $RC -eq 2 && ! -s "$scratch/calls" && ! -s "$scratch/gh.calls" ]] && echo yes)"
 
 rm "$scratch/gh.out"
 run_in "$bare" "$bare_sha"

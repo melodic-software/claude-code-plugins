@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
-"""Detached launcher for the running-retro observer.
+"""Session-start catch-up launcher for the running-retro post-session analysis.
 
-Spawns observer.py in a process detached from every Claude Code session's
-process tree, so it OUTLIVES the session that armed it, then exits immediately.
-This is the survival primitive proven in the P16 lifecycle evidence: plain
-detach flags put the child outside any Windows Job Object, and the interactive
-session's job is neither kill-on-close nor traps children -- so no breakaway
-flag is needed. Same primitive whether the caller is the SessionStart hook or
-the running-retro `arm` action; only the trigger differs.
+Given the current session's transcript, picks up to two ended sibling sessions
+that got no live checks and no analysis, newest first, and spawns observer.py
+once for each in a process detached from every Claude Code session's process
+tree, so the run outlives the session that launched it. Returns at once.
 
-Prints the spawned observer PID (or a reason it declined) to stdout and exits 0
--- callers fire-and-forget and never block on it.
+A sibling is a candidate when its transcript:
+  - is not the current session's;
+  - has been idle at least --idle-seconds (it counts as ended) and changed
+    within the last three days;
+  - has no `live-<sid>.jsonl` marker in the work dir (the mod ran live checks);
+  - has grown past the byte offset its status file records, or its last
+    analysis failed and may run once more (observer.retry_due);
+  - has no running-retro ledger naming it, when it has no status file (an
+    in-session checkpoint covered it); with a status file the offset decides.
+
+Prints one line per launch (or why none ran) and exits 0: callers
+fire-and-forget and never block on it.
 """
 
 from __future__ import annotations
@@ -18,11 +25,14 @@ from __future__ import annotations
 import argparse
 import functools
 import importlib.util
-import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
+
+MAX_AGE_SECONDS = 3 * 86400
+MAX_LAUNCHES = 2
 
 
 def spawn_detached(cmd: list[str], cwd: str) -> int:
@@ -46,7 +56,7 @@ def spawn_detached(cmd: list[str], cwd: str) -> int:
 
 @functools.cache
 def _observer_mod():
-    """Load the sibling observer.py module once (to reuse its liveness check)."""
+    """Load the sibling observer.py once, to share its status and ledger readers."""
     path = Path(__file__).with_name("observer.py")
     spec = importlib.util.spec_from_file_location("observer_mod", str(path))
     mod = importlib.util.module_from_spec(spec)
@@ -54,111 +64,96 @@ def _observer_mod():
     return mod
 
 
-def live_observer_pid(work_dir: str, session_id: str) -> int | None:
-    """Return the pid of a live observer already holding this session's lock, else None.
-
-    Reuses observer.py's `_pid_alive` and its `observer-<sid>.lock` path convention
-    so the launcher and the observer agree on liveness.
-    """
-    lock = Path(work_dir) / f"observer-{session_id}.lock"
-    try:
-        pid = int(json.loads(lock.read_text(encoding="utf-8")).get("pid", -1))
-    except (OSError, ValueError, json.JSONDecodeError):
-        return None
-    return pid if pid > 0 and _observer_mod()._pid_alive(pid) else None
-
-
-# Passed to observer.py unchanged, in this order, after the three resolved paths.
-_FORWARDED_VALUES = (
-    "session_id",
-    "plugin_root",
-    "topic",
-    "previous_running_retro",
-    "previous_session_id",
-    "model",
-    "effort",
-    "min_lines",
-    "poll_seconds",
-    "idle_seconds",
-    "idle_confirm_seconds",
-    "max_seconds",
-    "analysis_timeout_seconds",
-)
-_FORWARDED_SWITCHES = ("analysis", "bare")
+def catch_up_candidates(
+    transcript: Path,
+    session_id: str,
+    work_dir: Path,
+    ledger_dir: Path,
+    idle_seconds: float,
+    now: float | None = None,
+) -> list[Path]:
+    """Ended sibling transcripts still owed an analysis, newest first, at most two."""
+    obs = _observer_mod()
+    now = time.time() if now is None else now
+    found: list[tuple[float, Path]] = []
+    for path in transcript.parent.glob("*.jsonl"):
+        sid = path.stem
+        if sid == session_id:
+            continue
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        if not idle_seconds <= now - st.st_mtime <= MAX_AGE_SECONDS:
+            continue
+        if (work_dir / f"live-{sid}.jsonl").exists():
+            continue
+        status = obs.read_status(work_dir, sid)
+        if obs.stored_offset(status) >= st.st_size and not obs.retry_due(status):
+            continue
+        if not status and obs.find_session_ledger(ledger_dir, sid) is not None:
+            continue
+        found.append((st.st_mtime, path))
+    found.sort(reverse=True)
+    return [path for _, path in found[:MAX_LAUNCHES]]
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="detached launcher for observer.py")
-    p.add_argument("--transcript", required=True)
+    p = argparse.ArgumentParser(description="session-start catch-up for observer.py")
+    p.add_argument("--transcript", required=True, help="current session's transcript")
+    p.add_argument("--session-id", default="", help="defaults to transcript stem")
     p.add_argument("--work-dir", required=True)
     p.add_argument("--ledger-dir", required=True)
-    p.add_argument("--session-id", default="")
     p.add_argument("--plugin-root", default="")
-    p.add_argument("--topic", default="")
-    p.add_argument("--previous-running-retro", default="")
-    p.add_argument("--previous-session-id", default="")
+    p.add_argument(
+        "--idle-seconds",
+        type=float,
+        default=900.0,
+        help="a transcript idle this long counts as ended",
+    )
     # Empty = observer.py reads the plugin.json userConfig default.
     p.add_argument("--model", default="")
     p.add_argument("--effort", default="")
     p.add_argument("--min-lines", default="")
     p.add_argument("--analysis", action="store_true")
     p.add_argument("--bare", action="store_true")
-    p.add_argument("--poll-seconds", default="5")
-    p.add_argument("--idle-seconds", default="900")
-    p.add_argument("--idle-confirm-seconds", default="30")
-    p.add_argument("--max-seconds", default="86400")
-    p.add_argument("--analysis-timeout-seconds", default="600")
     args = p.parse_args()
 
-    transcript = Path(args.transcript)
-    if not transcript.exists():
-        print(f"observer: transcript not found, not arming: {transcript}")
-        return 0
-
     observer_py = Path(__file__).with_name("observer.py")
-    if not observer_py.exists():
-        print(f"observer: observer.py missing at {observer_py}")
-        return 0
-
-    # Resolve to ABSOLUTE paths against THIS launcher's cwd (the caller's cwd --
-    # the consumer project root for the skill entry) before handing them to the
-    # detached observer, whose cwd is the scripts dir. A relative --ledger-dir
-    # would otherwise land findings under the installed plugin cache instead of
-    # the consumer repo. The SessionStart hook already passes absolute paths;
-    # abspath is a no-op for those.
-    transcript = transcript.resolve()
-    work_dir = str(Path(args.work_dir).resolve())
-    ledger_dir = str(Path(args.ledger_dir).resolve())
-
+    transcript = Path(args.transcript).resolve()
+    work_dir = Path(args.work_dir).resolve()
+    ledger_dir = Path(args.ledger_dir).resolve()
     sid = args.session_id or transcript.stem
-    existing = live_observer_pid(work_dir, sid)
-    if existing is not None:
-        print(
-            f"observer: already live for {sid} (pid {existing}); overrides NOT "
-            f"applied -- stop it (or let it finish) to re-arm with new settings"
-        )
-        return 0
 
-    cmd = [
-        sys.executable,
-        str(observer_py),
-        "--transcript",
-        str(transcript),
-        "--work-dir",
-        work_dir,
-        "--ledger-dir",
-        ledger_dir,
-    ]
-    for name in _FORWARDED_VALUES:
-        cmd += [f"--{name.replace('_', '-')}", getattr(args, name)]
-    cmd += [f"--{name}" for name in _FORWARDED_SWITCHES if getattr(args, name)]
-
-    try:
-        pid = spawn_detached(cmd, cwd=str(observer_py.parent))
-    except Exception as e:  # noqa: BLE001 -- any spawn-time failure must degrade gracefully
-        print(f"observer: failed to spawn: {e}")
+    picked = catch_up_candidates(
+        transcript, sid, work_dir, ledger_dir, args.idle_seconds
+    )
+    if not picked:
+        print("observer: no ended session to catch up")
         return 0
-    print(f"observer: armed for session {sid} (pid {pid})")
+    passthrough = ["--plugin-root", args.plugin_root, "--model", args.model]
+    passthrough += ["--effort", args.effort, "--min-lines", args.min_lines]
+    passthrough += [f"--{name}" for name in ("analysis", "bare") if getattr(args, name)]
+    for path in picked:
+        cmd = [
+            sys.executable,
+            str(observer_py),
+            "--transcript",
+            str(path),
+            "--session-id",
+            path.stem,
+            "--work-dir",
+            str(work_dir),
+            "--ledger-dir",
+            str(ledger_dir),
+            *passthrough,
+        ]
+        try:
+            pid = spawn_detached(cmd, cwd=str(observer_py.parent))
+        except Exception as e:  # noqa: BLE001 -- any spawn-time failure must degrade gracefully
+            print(f"observer: failed to spawn for {path.stem}: {e}")
+            continue
+        print(f"observer: catch-up for session {path.stem} (pid {pid})")
     return 0
 
 

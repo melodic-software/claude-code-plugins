@@ -77,11 +77,6 @@ def candidate(path: str, tier: str = "high") -> dict[str, object]:
 
 
 def refuse_call(name: str):
-    """Patch a hygiene function to fail the test if it is ever called.
-
-    Used to prove an already-blocked, unvisited candidate short-circuits
-    before reaching a live, unbounded filesystem/VCS/process check.
-    """
     return mock.patch.object(
         hygiene,
         name,

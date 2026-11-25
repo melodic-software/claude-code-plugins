@@ -1,5 +1,5 @@
 ---
-ecosystem-resolution: 1.1.1
+ecosystem-resolution: 1.1.2
 ---
 
 <!-- GENERATED from docs/contracts/ecosystem-resolution/generic-resolution.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -30,7 +30,7 @@ written with.
    | Choice | Record | Writer |
    |---|---|---|
    | A build, test, lint or format command for one ecosystem | `docs/conventions/ecosystems/<ecosystem>.yaml` | `/toolchain:setup apply <ecosystem>`, the one writer of `fix-cmd` and `lint-cmd` (a format or lint plugin's setup drafts them for it); a lane's record pull request, once merged |
-   | A language, framework or library convention, or a review criterion | the standards index (`docs/standards/README.md` unless `.claude/standards.yaml` moves it) and the files its rows route to | the standards setup, on acceptance |
+   | A language, framework or library convention, or a review criterion | the standards index (`docs/standards/README.md` unless `.claude/standards.yaml` moves it) and the files its rows route to, over the org layer's index when `docs/conventions/source-control.yaml` names a `standards_repository` (the standards contract's "Org layer") | the standards setup, on acceptance |
    | The repository's chosen way for a task it repeats | the file the `paved-path` row of that index routes to | `/discipline:reuse-or-replace`, after a yes |
    | The order of enforcement mechanisms | the project instructions: `CLAUDE.md`, an `AGENTS.md` the session reads, or a rules file | the person |
 
