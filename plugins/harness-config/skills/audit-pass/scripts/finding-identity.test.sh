@@ -295,7 +295,7 @@ else
 
   PWN_DIR="$TEST_TMPDIR/pwn"
   mkdir -p "$PWN_DIR"
-  PWN_RECORD='{"record":"finding","identity":null,"lane":"x$(touch PWNED_SUB)`touch PWNED_TICK`'"'"'\""}'
+  PWN_RECORD=$(printf '{"record":"finding","identity":null,"lane":"x%s(touch PWNED_SUB)%stouch PWNED_TICK%s%s\\""}' '$' '`' '`' "'")
   rc=0
   OUT=$(cd "$PWN_DIR" && bash "$SCRIPT" validate-record --record "$PWN_RECORD" 2>&1) || rc=$?
   assert_exit "a record carrying shell metacharacters gets the record verdict, not a shell error" 4 "$rc"

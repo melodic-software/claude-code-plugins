@@ -91,8 +91,8 @@ so a `restart_request` it has not yet rewritten cannot fire a second restart, an
 the consumer never patches a comment another identity owns. The relaunch goes
 through `lane-launcher.sh restart <lane>`, which carries the lane's prompt, model,
 effort, settings and plugin profile from the same config. `claude respawn` is not
-used: it keeps the conversation, and a restart request exists because a fresh
-context is the only reset a lane gets.
+used, because a restart request exists to give the lane a fresh context
+([CLI reference](https://code.claude.com/docs/en/cli-reference)).
 
 **Only the lanes' own comments count.** The sentinel is public, so anyone who can
 comment on a telemetry issue can post a lookalike carrying `restart_request`. The
