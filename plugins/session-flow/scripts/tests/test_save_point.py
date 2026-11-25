@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/*
 
 from __future__ import annotations
 
