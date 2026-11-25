@@ -193,20 +193,10 @@ _RG_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$_RG_DIR" == "${BASH_SOURCE[0]}" ]] && _RG_DIR=.
 # shellcheck source=abort-boundary.sh
 source "$_RG_DIR/abort-boundary.sh"
-# Could-not-run posture (#3528): fail-open with a visible notice. This covers
-# the dispatcher's own code, before and after the guards: stdin, the field
-# priming, the classifier load, the merge. An abort here would otherwise skip
-# EVERY guard of the event with a bare status and no line of its own. The
-# event is filled in once the payload is read (it names the additionalContext
-# block; until then the notice is systemMessage only), and the trap is
-# released right before the deliberate aggregated exit, so a non-block status
-# a guard returned still surfaces exactly as it did. That fail-open holds only
-# for a run without the verdict marker (run_guards::verdict below): an abort
-# writes none, so a row passing exec-bash --require-verdict, as every
-# hooks.json row does, denies the call. With a marker to write the boundary is
-# closed, so its line says the call is denied.
-guard::abort_boundary run-guards "" open 0 2
-[[ -z "${EXEC_BASH_VERDICT_FILE-}" ]] || guard::abort_boundary run-guards "" closed 0 2
+# Abort posture: open with a notice, closed under --require-verdict, labeled PreToolUse:
+# https://code.claude.com/docs/en/hooks#preskillshellcommand-decision-control
+guard::abort_boundary run-guards PreToolUse open 0 2
+[[ -z "${EXEC_BASH_VERDICT_FILE-}" ]] || guard::abort_boundary run-guards PreToolUse closed 0 2
 # shellcheck source=hook-utils.sh
 source "$_RG_DIR/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 HOOK_BPS_MEMO=1
@@ -308,7 +298,6 @@ PRIME_FILTERS=(
   '.tool_input.command' '.tool_name' '.cwd'
   '.tool_input.file_path' '.tool_input.notebook_path' '.tool_input.path'
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source'
-  '.hook_event_name'
 )
 
 # Fused capture: GNU Bash forks a subshell for INPUT=$(hook::buffer_stdin)
@@ -364,18 +353,10 @@ if ((RUN_GUARDS_STDIN_RC == 0)) &&
   ((${#HOOK_JQ_FIELDS[@]} == ${#PRIME_FILTERS[@]})) &&
   ((HOOK_JQ_FIELDS_NUL == 0)); then
   RUN_GUARDS_PRIMED=1
-  # The primed values are keyed by the FILTER that produced them, so every
-  # later read is by name. A position is not a name: a filter added ahead of
-  # another silently hands its neighbor's value to whatever read the index,
-  # and nothing at run time says so. The dispatcher itself reads two of these
-  # (`.tool_name` below, `.hook_event_name` here); abort-boundary.test.sh
-  # inserts a filter ahead of them on a copy and checks both still resolve.
   for _rg_i in "${!PRIME_FILTERS[@]}"; do
     RUN_GUARDS_FIELD["${PRIME_FILTERS[_rg_i]}"]="${HOOK_JQ_FIELDS[_rg_i]}"
   done
   unset _rg_i
-  [[ "${RUN_GUARDS_FIELD['.hook_event_name']-}" =~ ^[A-Za-z]+$ ]] &&
-    _GAB_EVENT="${RUN_GUARDS_FIELD['.hook_event_name']}"
 fi
 
 run_guards::count_subst() {
@@ -592,7 +573,7 @@ if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
     echo "BLOCKED: $_rg_subst command or process substitutions, over the $RUN_GUARDS_MAX_SUBST the guards can check in time. Split the command, or run the work from a script file." >&2
     if hook::telemetry_enabled; then
       hook::json_str_object_to _rg_data tool "${RUN_GUARDS_FIELD['.tool_name']-}" form "too-many-substitutions" count "$_rg_subst"
-      hook::emit_telemetry run-guards "${_GAB_EVENT:-PreToolUse}" blocked "$RUN_GUARDS_START" "$_rg_data" "${CLAUDE_PROJECT_DIR:-}"
+      hook::emit_telemetry run-guards PreToolUse blocked "$RUN_GUARDS_START" "$_rg_data" "${CLAUDE_PROJECT_DIR:-}"
     fi
     run_guards::verdict
     exit 2
@@ -1046,7 +1027,7 @@ run_guards::finish() {
   local __rg_posture=open
   ((RC == 2)) && __rg_posture=closed
   [[ -n "${EXEC_BASH_VERDICT_FILE-}" ]] && __rg_posture=closed
-  guard::abort_boundary run-guards "$_GAB_EVENT" "$__rg_posture" 0 2
+  guard::abort_boundary run-guards PreToolUse "$__rg_posture" 0 2
   # A guard that exited 2 denies the call, so an ask another guard emitted is
   # dropped rather than shown beside the deny.
   if ((RC == 2 && ${#OUTS[@]})); then

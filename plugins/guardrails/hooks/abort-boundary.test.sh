@@ -245,12 +245,6 @@ else
   bad "a guard::payload_verdict call with no exit was not detected"
 fi
 
-if grep -Fq "'.hook_event_name'" < <(awk '/^PRIME_FILTERS=\(/,/^\)/' "$HOOK_DIR/run-guards.sh"); then
-  ok "run-guards.sh primes .hook_event_name"
-else
-  bad "run-guards.sh no longer primes .hook_event_name; the dispatcher's notice cannot name the event"
-fi
-
 COPY="$TEST_TMPDIR/plugin"
 cp -R "$PLUGIN_DIR" "$COPY"
 for name in "${REGISTERED[@]}"; do
@@ -331,27 +325,30 @@ assert_exit "dispatcher abort before stdin fails open (declared posture)" 0 "$RC
 assert_contains "dispatcher abort before stdin names run-guards" "$ERR" "guardrails run-guards: ${NOTICE}1); this call was not checked"
 assert_contains "dispatcher abort before stdin carries systemMessage" \
   "$(json_field "$OUT" .systemMessage)" "guardrails run-guards:"
-assert_eq "dispatcher abort before stdin has no hookSpecificOutput (event unknown)" "" \
+assert_eq "dispatcher abort before stdin has no hookSpecificOutput (the notice is the user's only)" "" \
   "$(json_field "$OUT" .hookSpecificOutput)"
 
+SKILL_FORCE_PUSH=$(jq -nc '{hook_event_name:"PreSkillShellCommand",tool_name:"Bash",cwd:"/x",tool_input:{command:"git push --force origin main"}}')
 RG_LATE="$TEST_TMPDIR/rg-late"
 cp -R "$PLUGIN_DIR" "$RG_LATE"
 inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
 inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' "$EVENT_PROBE"
-run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
+run_hook -- feed_run "$SKILL_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher abort after priming fails open (declared posture)" 0 "$RC"
-assert_contains "dispatcher abort after priming holds the event from the payload" "$ERR" "event=PreToolUse"
+assert_contains "dispatcher labels the event PreToolUse whatever the payload's hook_event_name says" "$ERR" "event=PreToolUse"
 assert_eq "dispatcher abort after priming tells the user only" "" "$(json_field "$OUT" .hookSpecificOutput)"
 
+# shellcheck disable=SC2016  # expands in the injected copy, not here
+TOOL_PROBE='printf "tool=%s\n" "${RUN_GUARDS_FIELD[.tool_name]-}" >&2'
 RG_SHIFT="$TEST_TMPDIR/rg-shift"
 cp -R "$PLUGIN_DIR" "$RG_SHIFT"
-inject_after "$RG_SHIFT/hooks/run-guards.sh" "^  '[.]tool_input[.]content' " "  '.tool_input.abort_boundary_test_probe'"
+inject_after "$RG_SHIFT/hooks/run-guards.sh" '^PRIME_FILTERS=[(]$' "  '.tool_input.abort_boundary_test_probe'"
 inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
-inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' "$EVENT_PROBE"
+inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' "$TOOL_PROBE"
 run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_SHIFT/hooks/run-guards.sh" block-dangerous-git.sh
-assert_exit "dispatcher: a prime filter inserted ahead of .hook_event_name still fails open" 0 "$RC"
-assert_contains "dispatcher: a prime filter inserted ahead of .hook_event_name still resolves the event" \
-  "$ERR" "event=PreToolUse"
+assert_exit "dispatcher: a prime filter inserted ahead of .tool_name still fails open" 0 "$RC"
+assert_contains "dispatcher: a prime filter inserted ahead of .tool_name still resolves the tool" \
+  "$ERR" "tool=Bash"
 
 printf '#!/usr/bin/env bash\nexit 3\n' >"$TEST_TMPDIR/three.sh"
 run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$TEST_TMPDIR/three.sh"

@@ -42,11 +42,6 @@
 # consumer who sets nothing. The setting is read only on an abort, so a call
 # that does not abort starts no process for it.
 #
-# <HookEventName> is the event the hook is registered for (PreToolUse,
-# PostToolUse), kept in _GAB_EVENT for the dispatcher's telemetry. Pass an empty
-# string when the event is not known at install time (the dispatcher serves
-# both).
-#
 # Why a trap and not `set -e`: errexit across the hook set would change
 # behavior on every non-zero status a guard tests on purpose. The trap sees
 # only the status the process actually terminates with.

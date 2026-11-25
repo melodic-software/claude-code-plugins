@@ -44,15 +44,9 @@ _GUARD_REQUIRES_DIR="${BASH_SOURCE[0]%/*}"
 # priming needs one, so this table stays readable rather than carrying a record
 # separator for a case it does not have.
 #
-# run-guards.sh appears here as a consumer in its own right: it reads
-# `.tool_name` to decide whether the event needs the PowerShell classifier and
-# whether single quotes discount a substitution, `.hook_event_name` to name the
-# event in its own abort notice, and `.tool_input.command` to count its
-# substitutions under --max-substitutions.
-#
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS=(
-  ["run-guards.sh"]='.tool_name .hook_event_name .tool_input.command'
+  ["run-guards.sh"]='.tool_name .tool_input.command'
   ["block-body-format-violation.sh"]='.tool_input.command .tool_name .cwd'
   ["block-cd-prefix.sh"]='.tool_input.command .tool_name .cwd'
   ["block-convention-violation.sh"]='.tool_input.command .tool_name .cwd'

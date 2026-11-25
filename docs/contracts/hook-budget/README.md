@@ -251,8 +251,9 @@ call is denied instead of running unguarded. Each session made one matched call.
 
 ## Which rows set `onFailure: "block"`
 
-Only a named security guard sets `"onFailure": "block"`: a `PreToolUse` row whose job is to deny a
-call, where a hook that could not judge the call must deny it rather than let it run unguarded.
+Only a named security guard sets `"onFailure": "block"`: a `PreToolUse` or `PreSkillShellCommand`
+row whose job is to deny a call, where a hook that could not judge the call must deny it rather
+than let it run unguarded.
 Every other row leaves the key unset and keeps the default, under which the action goes ahead when
 the hook fails. The owner chose this scope on 2026-10-18
 ([#6755](https://github.com/melodic-software/claude-code-plugins/issues/6755), D17).
@@ -273,7 +274,7 @@ them, and `plugins/guardrails/hooks/onfailure-rows.test.sh` fails when a row gai
 
 | Plugin | Row | Why `block` |
 | --- | --- | --- |
-| guardrails | `PreToolUse` `Write\|Edit\|NotebookEdit`; the GitHub MCP file-write row; the MCP merge row; the GitHub MCP comment row; `Bash\|PowerShell` | Each row runs the launcher with `--fail-closed --require-verdict`, which denies when the dispatcher's bash dies by a signal, exits with a status other than 0 or 2, or ends without a verdict. The launcher still exits 1 when no bash resolves, and it cannot act at all when `node` is missing or the hook times out. `block` denies in those three cases too |
+| guardrails | `PreToolUse` `Write\|Edit\|NotebookEdit`; the GitHub MCP file-write row; the MCP merge row; the GitHub MCP comment row; `Bash\|PowerShell`; `PreSkillShellCommand` `Bash\|PowerShell`, the same guards on a skill's injected commands ([#18985](https://github.com/melodic-software/claude-code-plugins/issues/18985)) | Each row runs the launcher with `--fail-closed --require-verdict`, which denies when the dispatcher's bash dies by a signal, exits with a status other than 0 or 2, or ends without a verdict. The launcher still exits 1 when no bash resolves, and it cannot act at all when `node` is missing or the hook times out. `block` denies in those three cases too |
 | disk-hygiene | `PreToolUse` `Bash(*hygiene.py*)` and `PowerShell(*hygiene.py*)` | The command names the clean engine. With no Python, the launcher already denies such a call. `block` also denies it when `node` or bash is missing, when the guard crashes, and on a timeout |
 | discovery | `PreToolUse` `Bash`, the docs-fetcher gate | If the gate fails, `discovery:docs-fetcher`, the agent that reads untrusted pages, gets a `Bash` with no gate on it |
 | multi-agent | `PreToolUse` `Bash`, the docs-fetcher gate; `PreToolUse` `Bash`, the registry-fetcher gate; `PreToolUse` `WebFetch`, the drift-checker gate | The same holds for `multi-agent:docs-fetcher` and `multi-agent:registry-fetcher`. If the fetch gate fails, the drift checker can fetch any URL |
