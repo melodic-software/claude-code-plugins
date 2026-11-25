@@ -1,11 +1,15 @@
 import type { EngineInterface, Register } from 'claude-code'
 
+import { askedRow, band } from './observer-band.tsx'
 import {
   buildPrompt,
   CLEAR_AFTER_PROMPTS,
   disputeLine,
+  notedLine,
+  resolvedLine,
   type Finding,
   isKnown,
+  isResolved,
   isStepCheck,
   ledgerHeader,
   ledgerSection,
@@ -13,12 +17,16 @@ import {
   parseReply,
   remember,
   checksToSkipAfterIgnored,
+  summarize,
   type Trigger,
 } from './observer-live.ts'
 
+const DAY_MS = 86_400_000
+const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
+
 const PERSON_ORIGINS = ['composer', 'bridge']
 
-type Card = { finding: Finding; ledger: string; promptsSurvived: number }
+type Card = { finding: Finding; ledger: string; source: string; promptsSurvived: number; isOpen: boolean }
 type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 
 const fresh = () => ({
@@ -32,6 +40,10 @@ const fresh = () => ({
   inFlight: false,
   ended: false,
   card: null as Card | null,
+  asked: false,
+  dismissed: null as Finding | null,
+  icon: '◆',
+  rows: [] as object[],
 })
 let st = fresh()
 
@@ -44,7 +56,33 @@ const count = async ($: EngineInterface, key: string) => {
   return typeof v === 'number' ? v : 0
 }
 const readOr = async ($: EngineInterface, path: string) => ((await $.fs.exists(path)) ? await $.fs.read(path) : '')
-const appendTo = async ($: EngineInterface, path: string, text: string) => $.fs.write(path, (await readOr($, path)) + text)
+const APPEND = "const fs=require('fs'),p=process.argv[1];fs.mkdirSync(require('path').dirname(p),{recursive:true});fs.appendFileSync(p,fs.readFileSync(0))"
+const appendTo = async ($: EngineInterface, path: string, text: string) => {
+  const r = await $.process.run(['node', '-e', APPEND, path], { stdin: text, timeoutMs: 10_000 }).catch(() => undefined)
+  if (r?.exitCode === 0) return
+  const mark = async () => ((await $.fs.exists(path)) ? JSON.stringify(await $.fs.stat(path)) : '')
+  for (let tries = 0; tries < 3; tries++) {
+    const before = await mark()
+    const old = await readOr($, path)
+    if ((await mark()) !== before) continue
+    await $.fs.write(path, old + text)
+    return
+  }
+  throw new Error(`append failed: ${path} kept changing`)
+}
+const mainCheckout = async ($: EngineInterface, dir: string) => {
+  const r = await $.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: dir, timeoutMs: 10_000 }).catch(() => undefined)
+  const common = r?.exitCode === 0 ? r.stdout.trim() : ''
+  return /[\\/]\.git$/.test(common) ? common.replace(/[\\/]\.git$/, '') : dir
+}
+
+const KEEP_DAYS = 30
+const PRUNE =
+  "const fs=require('fs'),path=require('path'),[d,cut]=process.argv.slice(1);for(const n of fs.readdirSync(d)){const p=path.join(d,n);if(/^(live-.*\\.jsonl|observations-.*\\.ndjson|status-.*\\.json|observer-.*\\.(log|lock))$/.test(n)&&fs.statSync(p).mtimeMs<Number(cut))fs.rmSync(p,{force:true})}"
+const prune = async ($: EngineInterface, now: number) => {
+  if (await $.fs.exists(st.dataDir)) await $.process.run(['node', '-e', PRUNE, st.dataDir, String(now - KEEP_DAYS * DAY_MS)], { timeoutMs: 10_000 }).catch(() => undefined)
+}
+
 const iso = async ($: EngineInterface) => new Date(await $.clock.now()).toISOString()
 
 const ensureMemoryRootIgnored = async ($: EngineInterface) => {
@@ -80,7 +118,27 @@ const writeFinding = async ($: EngineInterface, at: string, trigger: Trigger, tu
   return path
 }
 
-const record = async ($: EngineInterface, row: object) => appendTo($, st.liveFile, `${JSON.stringify(row)}\n`)
+const record = async ($: EngineInterface, row: object) => {
+  st.rows.push(row)
+  await appendTo($, st.liveFile, `${JSON.stringify(row)}\n`)
+}
+
+const parseRows = (text: string) =>
+  text.split('\n').flatMap(l => {
+    try {
+      return l.trim() === '' ? [] : [JSON.parse(l) as object]
+    } catch {
+      return []
+    }
+  })
+
+const lastDayRows = async ($: EngineInterface) => {
+  if (!(await $.fs.exists(st.dataDir))) return []
+  const since = (await $.clock.now()) - DAY_MS
+  const files = (await $.fs.list(st.dataDir)).filter(e => e.kind === 'file' && /^live-.*\.jsonl$/.test(e.name) && e.mtimeMs >= since)
+  const rows = (await Promise.all(files.map(async e => parseRows((await $.fs.read(`${st.dataDir}/${e.name}`)) as string)))).flat()
+  return rows.filter(r => Date.parse(String((r as { at?: string }).at)) >= since)
+}
 
 const syncSession = async ($: EngineInterface) => {
   const sid = await $.session.id()
@@ -88,10 +146,11 @@ const syncSession = async ($: EngineInterface) => {
   st.sid = sid
   st.liveFile = `${st.dataDir}/live-${sid}.jsonl`
   st.card = null
+  st.rows = parseRows(await readOr($, st.liveFile))
 }
 
 const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, step: number) => {
-  if (st.inFlight) return
+  if (st.inFlight || (await $.store.get('paused')) === true) return
   await syncSession($)
   const skip = await count($, 'skip')
   if (skip > 0) {
@@ -104,15 +163,27 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   let outcome = 'error'
   let usage: Usage | undefined
   try {
-    const [seen, disputed] = [await list($, 'seen'), await list($, 'disputed')]
-    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed) })
+    const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
+    const open = st.card
+    const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0) })
     if (!r.isAnswered) {
       outcome = r.reason === 'nothing-to-fork' || r.reason === 'empty-reply' ? 'none' : String(r.reason).replace('-', '_')
       return
     }
     usage = r.usage
     const parsed = parseReply(r.text)
-    if (st.ended || st.gen !== gen) outcome = 'stale'
+    if ((await $.store.get('paused')) === true) {
+      outcome = 'paused'
+      return
+    }
+    const isCurrent = !st.ended && st.gen === gen
+    if (isCurrent && open !== null && st.card === open && isResolved(r.text)) {
+      await appendTo($, open.ledger, resolvedLine(await iso($), open.finding))
+      await record($, { at: await iso($), answer: 'resolved' })
+      st.card = null
+      $.ui.invalidate('ui.render')
+    }
+    if (!isCurrent) outcome = 'stale'
     else if (parsed.kind !== 'finding') outcome = parsed.kind === 'none' ? 'none' : 'parse_failed'
     else if (isKnown(parsed.value.finding, seen, disputed)) outcome = 'deduped'
     else {
@@ -122,7 +193,7 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
       await $.store.set('seen', remember(seen, f.finding))
       if (ledger === undefined) outcome = 'unsafe_memory_root'
       else {
-        st.card = { finding: f, ledger, promptsSurvived: 0 }
+        st.card = { finding: f, ledger, source: trigger === 'step' ? `step ${step}` : 'turn end', promptsSurvived: 0, isOpen: false }
         outcome = 'shown'
         $.ui.invalidate('ui.render')
       }
@@ -136,8 +207,13 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   }
 }
 
-const answered = async ($: EngineInterface) => {
+const ASKED_MS = 20_000
+
+const answered = async ($: EngineInterface, answer: string, toast?: string) => {
   st.card = null
+  st.asked = false
+  if (toast) $.ui.toast(toast)
+  await record($, { at: await iso($), answer }).catch(() => undefined)
   await $.store.set('typedPast', 0)
   await $.store.set('skip', 0)
   $.ui.invalidate('ui.render')
@@ -156,11 +232,37 @@ export const register: Register = (on, options) => {
     st.dataDir = `${env.CLAUDE_PLUGIN_DATA}/session-flow-observer`
     st.sid = ''
     await syncSession($)
-    st.ledgerDir = `${env.CLAUDE_PROJECT_DIR || e.cwd}/.work/running-retros`
+    st.ledgerDir = `${await mainCheckout($, env.CLAUDE_PROJECT_DIR || e.cwd)}/.work/running-retros`
+    void prune($, await $.clock.now())
+    st.icon = (await $.env.get('TERM')) === 'dumb' ? '*' : '◆'
     st.ended = false
     st.on = true
+    await $.command.register({ name: 'observer', description: 'Session observer: show its checks and token use, or turn its live checks on or off on this machine' })
     return result
   }).catch(($, e, next) => next(e))
+
+  on('command.run', { command: 'observer' }, async ($, e) => {
+    const arg = e.args.trim().toLowerCase()
+    if (arg === 'off' || arg === 'on') {
+      await $.store.set('paused', arg === 'off')
+      if (arg === 'on') st.on = !st.ended
+      if (arg === 'off' && st.card !== null) await answered($, 'dismissed')
+      return { text: arg === 'off' ? 'Live checks paused on this machine until /observer on. The catch-up for ended sessions still runs.' : 'Live checks on.' }
+    }
+    if (arg !== '') return { text: USAGE }
+    const paused = (await $.store.get('paused')) === true
+    return {
+      text: [
+        `live checks: ${paused ? 'paused (/observer on)' : 'on'}; step ${stepCheck ? 'on' : 'off'}, turn end ${turnEndCheck ? 'on' : 'off'}`,
+        '',
+        'This session:',
+        summarize(st.rows),
+        '',
+        'Last 24 hours, all sessions:',
+        summarize(await lastDayRows($)),
+      ].join('\n'),
+    }
+  })
 
   on('session.end', ($, e, next) => {
     st.ended = true
@@ -197,6 +299,7 @@ export const register: Register = (on, options) => {
       card.promptsSurvived += 1
       if (card.promptsSurvived >= CLEAR_AFTER_PROMPTS) {
         st.card = null
+        await record($, { at: await iso($), answer: 'ignored' }).catch(() => undefined)
         const typedPast = (await count($, 'typedPast')) + 1
         await $.store.set('typedPast', typedPast)
         await $.store.set('skip', checksToSkipAfterIgnored(typedPast))
@@ -209,40 +312,67 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
     const card = st.card
-    if (card === null || e.props.hasSurvey) return theirs
-    const { Box, Button, Text } = $.ui.resolve(e)
+    if (e.props.hasSurvey || (card === null && !st.asked)) return theirs
+    const ui = $.ui.resolve(e)
+    const { Box } = ui
+    if (card === null) {
+      const rate = (answer: string) => async () => {
+        st.asked = false
+        const f = st.dismissed
+        if (answer === 'not_relevant' && f !== null) await $.store.set('notRelevant', remember(await list($, 'notRelevant'), f.finding))
+        if (answer === 'unclear') await $.store.set('unclear', (await count($, 'unclear')) + 1)
+        await record($, { at: await iso($), answer }).catch(() => undefined)
+        $.ui.invalidate('ui.render')
+      }
+      return (
+        <Box flexDirection="column" marginTop={1}>
+          {askedRow(ui, st.icon, {
+            helpful: rate('helpful'),
+            notRelevant: rate('not_relevant'),
+            unclear: rate('unclear'),
+            turnOff: async () => {
+              st.on = false
+              $.ui.toast('observer: live checks off for this session (/observer on resumes; /observer off pauses every session)')
+              await rate('turned_off')()
+            },
+            close: rate('closed'),
+          })}
+          {theirs}
+        </Box>
+      )
+    }
     const f = card.finding
     return (
-      <Box flexDirection="column">
-        <Box>
-          <Text color="warning">◆ </Text>
-          <Text wrap="wrap">
-            observer · {f.category} · {f.finding}
-          </Text>
-        </Box>
-        <Box>
-          <Button
-            key="send"
-            hotkey="1"
-            label="Send to Claude"
-            onPress={async () => {
-              await $.prompt.fill({ text: noteFor(f), mode: 'append' })
-              await answered($)
-            }}
-          />
-          <Button key="noted" hotkey="2" label="Noted" onPress={() => answered($)} />
-          <Button
-            key="dispute"
-            hotkey="3"
-            label="Dispute"
-            onPress={async () => {
-              await $.store.set('disputed', remember(await list($, 'disputed'), f.finding))
-              await appendTo($, card.ledger, disputeLine(await iso($), f))
-              await answered($)
-            }}
-          />
-          <Button key="dismiss" hotkey="0" label="Dismiss" dimColor onPress={() => answered($)} />
-        </Box>
+      <Box flexDirection="column" marginTop={1}>
+        {band(ui, st.icon, f, card.source, card.isOpen, `this session: ${summarize(st.rows).split('\n')[1] ?? ''} (/observer for more)`, {
+          noted: async () => {
+            const ok = await appendTo($, card.ledger, notedLine(await iso($), f)).then(() => true, () => false)
+            await answered($, 'noted', ok ? 'observer: noted in the running-retro ledger' : `observer: could not write ${card.ledger}`)
+          },
+          send: async () => {
+            await $.prompt.fill({ text: noteFor(f), mode: 'append' })
+            await answered($, 'sent')
+          },
+          dispute: async () => {
+            await $.store.set('disputed', remember(await list($, 'disputed'), f.finding))
+            await appendTo($, card.ledger, disputeLine(await iso($), f)).catch(() => undefined)
+            await answered($, 'disputed', 'observer: disputed; it will not be reported again')
+          },
+          why: () => {
+            card.isOpen = !card.isOpen
+            $.ui.invalidate('ui.render')
+          },
+          dismiss: async () => {
+            st.dismissed = f
+            await answered($, 'dismissed')
+            st.asked = true
+            $.clock.after(ASKED_MS, () => {
+              st.asked = false
+              $.ui.invalidate('ui.render')
+            })
+            $.ui.invalidate('ui.render')
+          },
+        })}
         {theirs}
       </Box>
     )
