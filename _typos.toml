@@ -1,3 +1,12 @@
 [type.dependabot-fragment]
 extend-glob = ["dependabot-[0-9]*-*.md"]
 check-filename = false
+
+[type.lane-record]
+extend-glob = ["lane-record.mjs"]
+
+[type.lane-record.extend-words]
+ba = "ba"
+instal = "instal"
+isntall = "isntall"
+udpate = "udpate"
