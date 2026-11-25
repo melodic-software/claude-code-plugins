@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Findings buffer front door.
-#   buffer.sh append < rows.jsonl
-#   buffer.sh read [--since <UTC ISO-8601>]
 # Exit: 0 ok, 1 failure, 2 usage or a malformed row, 3 not in a repository or node/python3 missing.
 set -uo pipefail
 

@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Exit table:
-#   0  every marker present in the lesson was replaced; the lesson is overwritten from a fully
-#      built sibling temp file.
-#   1  a present marker's asset file is missing, not a regular file, unreadable, or empty (the
-#      message names the file); or a marker occurs more than once, counted by occurrence and not
-#      by line (the message names the marker and the count); or a marker shares its line with
-#      anything other than whitespace (the message names the marker and prints the line); or an
-#      asset read failed during the build (the message names the file); or the build or the final
-#      write failed (the message names the step). The lesson is byte-identical to before the
-#      call, except when the final write itself failed.
-#   2  the argument count is not 2, `<lesson.html>` is not a readable and writable regular file,
-#      or `<assets-dir>` is not a directory. Usage goes to stderr and the lesson is untouched.
-#   `--help`, or `-h`, prints usage to stdout and exits 0.
 set -uo pipefail
 
 usage() {

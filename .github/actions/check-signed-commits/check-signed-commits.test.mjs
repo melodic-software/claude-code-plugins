@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { GitHubError } from "../../scripts/lib/github-client.mjs";
-import { main, SIGNED_COMMITS_HOLD } from "./check-signed-commits.mjs";
+import { checkSignedCommits, main, SIGNED_COMMITS_HOLD } from "./check-signed-commits.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +25,7 @@ function routesFrom(api, since = B) {
     [`GET /repos/${REPOSITORY}/pulls/42`]: api.pull,
     [`GET /repos/${REPOSITORY}/git/ref/heads/feat/lane-probe`]: api.headRef,
     [`GET /repos/${REPOSITORY}/pulls/42/commits?${page1}`]: api.commits,
-    [`GET /repos/${REPOSITORY}/compare/${since}...${D}`]: api.compare,
+    [`GET /repos/${REPOSITORY}/compare/${since}...${D}?${page1}`]: api.compare,
     [`GET /repos/${REPOSITORY}/labels?${page1}`]: api.labels,
     [`POST /repos/${REPOSITORY}/issues/42/labels`]: [],
     [`POST /repos/${REPOSITORY}/issues/42/comments`]: { id: 1 },
@@ -213,6 +213,47 @@ test("a truncated comparison on a PR over 250 commits fails closed", async () =>
   assert.equal(github.writes[0].body.labels[0], "needs-human");
 });
 
+const PAGED = JSON.parse(readFileSync(path.join(HERE, "fixtures", "compare-paged.json"), "utf8"));
+
+function pagedRoutes(pages) {
+  const api = overCap(load());
+  api.pull.head.sha = PAGED.head;
+  api.headRef.object.sha = PAGED.head;
+  const routes = routesFrom(api, PAGED.base);
+  delete routes[`GET /repos/${REPOSITORY}/compare/${PAGED.base}...${D}?${page1}`];
+  pages.forEach((answer, index) => {
+    routes[`GET /repos/${REPOSITORY}/compare/${PAGED.base}...${PAGED.head}?per_page=2&page=${index + 1}`] = answer;
+  });
+  return routes;
+}
+
+const pagedCheck = async (pages) => {
+  const github = fakeGitHub(pagedRoutes(pages));
+  const result = await checkSignedCommits({ github, repository: REPOSITORY, prNumber: "42", sinceSha: PAGED.base, sleep: async () => {}, pageSize: 2 });
+  return { result, compareReads: github.reads.filter((read) => read.includes("/compare/")).length };
+};
+
+test("a captured comparison of 5 commits read 2 a page is checked in full", async () => {
+  const { result, compareReads } = await pagedCheck(PAGED.pages);
+  assert.equal(result.allVerified, true, "every commit GitHub verified on the three pages passes");
+  assert.equal(result.checkable, true);
+  assert.equal(compareReads, 3, "pages of 2 cover the 5 commits the comparison counts, with no fourth read");
+  const flipped = structuredClone(PAGED.pages);
+  flipped[2].commits[0].commit.verification.verified = false;
+  const late = await pagedCheck(flipped);
+  assert.equal(late.result.allVerified, false);
+  assert.deepEqual(late.result.unverified, [PAGED.pages[2].commits[0].sha], "an unverified commit on the last page is named");
+});
+
+test("a paged comparison that ends short of its count, or counts past the 10,000-commit bound, fails closed", async () => {
+  const short = await pagedCheck([PAGED.pages[0], PAGED.pages[1], PAGED.pages[3]]);
+  assert.equal(short.result.allVerified, false, "a third page that comes back empty leaves the lane unchecked");
+  assert.equal(short.result.checkable, false);
+  const huge = await pagedCheck([{ ...PAGED.pages[0], total_commits: 10_001 }, PAGED.pages[1]]);
+  assert.equal(huge.result.allVerified, false);
+  assert.equal(huge.compareReads, 1, "a count over the bound reads no second page");
+});
+
 test("a comparison with no commit count on a PR over 250 commits fails closed", async () => {
   const api = overCap(load());
   for (const commit of [...api.commits, ...api.compare.commits]) {
@@ -264,7 +305,7 @@ test("a recorded head GitHub does not know fails closed on a PR over 250 commits
     commit.commit.verification.verified = true;
   }
   const routes = routesFrom(api);
-  delete routes[`GET /repos/${REPOSITORY}/compare/${B}...${D}`];
+  delete routes[`GET /repos/${REPOSITORY}/compare/${B}...${D}?${page1}`];
   const { outputs } = await check({ api, routes });
   assert.equal(outputs["all-verified"], "false");
   assert.equal(outputs["since-is-ancestor"], "false");
@@ -379,7 +420,7 @@ test("a recorded head that is not an ancestor of the current head checks every P
 test("a recorded head GitHub does not know is treated as not an ancestor", async () => {
   const api = load();
   const routes = routesFrom(api);
-  delete routes[`GET /repos/${REPOSITORY}/compare/${B}...${D}`];
+  delete routes[`GET /repos/${REPOSITORY}/compare/${B}...${D}?${page1}`];
   const { outputs } = await check({ api, routes });
   assert.equal(outputs["since-is-ancestor"], "false");
   assert.equal(outputs.unverified, D);

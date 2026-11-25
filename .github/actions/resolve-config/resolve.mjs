@@ -317,7 +317,8 @@ function checkModels(models, activities) {
 const dimensionedBy = (activity, models) =>
   models?.["issue-dimensions"] !== undefined &&
   typeof activity.skill === "string" &&
-  (activity.inputs ?? []).includes("issue");
+  (activity.inputs ?? []).includes("issue") &&
+  activity["applied-by"]?.["triage-verdict"] === undefined;
 
 export function loadConfig(files, { configPath }) {
   checkConfigPath(configPath);

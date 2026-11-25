@@ -1,38 +1,6 @@
 #!/usr/bin/env bash
-# emit-findings.sh — compose the rename plan the realign skill consumes.
-#
-# Takes the inventory and the sweep and writes one findings artifact. It
-# adjudicates nothing: the form, the tier, and the action on every site come
-# from the sweep, and the offenders come from the inventory.
-#
-# IDS ARE DERIVED FROM THE OLD PATH, never from rank. An id that shifted when a
-# re-audit reordered the plan would make an operator's "apply FN-005" name a
-# different file than the one they read, and a record whose id moved carries no
-# decision forward. Presentation order is still site count, most-cited first.
-#
-# A RE-AUDIT MERGES. When the target exists and its branch matches, every record
-# keeps the status it had: a decision the operator already made is never
-# re-proposed, and a finding whose offender is gone is dropped rather than left
-# behind. `--replace` starts a fresh artifact and says so.
-#
-# A COLLISION REFUSES THE WHOLE PLAN. Two paths differing only by case cannot
-# coexist on a case-insensitive checkout, so a plan containing one is not a plan
-# to review. Nothing is written.
-#
-# Usage:
-#   emit-findings.sh --inventory <tsv> --sweep <tsv> --out <path>
-#                    [--root <dir>] [--config-path <text>] [--replace]
-#   emit-findings.sh --help
-#
-# Every single-quoted backtick below is literal markdown in the artifact body,
-# never a shell expansion.
+# Every single-quoted backtick below is literal markdown, never a shell expansion.
 # shellcheck disable=SC2016
-#
-# Exit: 0 written, 1 a case collision (nothing written, the pair named on
-#       stderr), 2 usage or an unreadable input, 3 the inputs carry no records
-#       at all (refusing beats composing from garbage), or the inventory scanned
-#       0 files while the existing plan holds findings and --replace is absent
-#       (an empty root would drop every recorded decision; nothing written).
 set -uo pipefail
 
 die() {
@@ -41,7 +9,18 @@ die() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+Compose the rename plan the realign skill consumes from an inventory and a sweep.
+Usage: emit-findings.sh --inventory <tsv> --sweep <tsv> --out <path> [options]
+  --inventory <tsv>     inventory.sh output
+  --sweep <tsv>         sweep.sh output
+  --out <path>          the findings artifact; an existing one on the same branch is merged
+  --root <dir>          repository root
+  --config-path <text>  configuration path recorded in the artifact
+  --replace             start a fresh artifact instead of merging
+Exit: 0 written; 1 a case collision (nothing written); 2 usage or an unreadable input;
+3 the inputs carry no records, or zero files scanned while the plan holds findings and --replace is absent.
+EOF
 }
 
 INVENTORY=""

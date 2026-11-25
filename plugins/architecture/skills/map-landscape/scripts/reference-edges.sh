@@ -1,72 +1,4 @@
 #!/usr/bin/env bash
-# Extract typed reference edges from ONE repository's tracked files, as JSON.
-#
-# WHY. A landscape drawn only from repositories that happen to be checked out
-# locally shows one node and no edges, because the related systems are named by
-# REFERENCE, not by adjacency on disk. This script reads what a repository says
-# about other repositories and types each reference by the surface that carries
-# it, so an edge means something specific instead of "these names co-occur".
-#
-# Extraction is per source type on purpose. A single `owner/repo` regex over all
-# tracked text is what makes a landscape untrustworthy: on a docs-heavy
-# repository it matches `sponsors/...` out of a funding URL, `en/...` out of a
-# documentation path, and every `acme/billing` in a fixture. Each rule below
-# either anchors on a syntax that only ever names a repository (`uses:`, a
-# module path, a marketplace source) or requires the owner to match this
-# repository's own.
-#
-# Sample data names no system. Every extractor skips test and fixture files
-# (`*.test.*`, `*.spec.*`, `*.vectors.json`, and `tests/`, `evals/`,
-# `fixtures/`, `testdata/` directories) and this skill's own output, and drops a
-# target whose owner is a documentation placeholder (`owner`, `acme`, `other`)
-# or is not a valid account name (an owner holding a dot, as in an elided
-# `github.com/.../issues`).
-#
-# Usage:
-#   reference-edges.sh <repo-path> [--owner <owner>]
-#   reference-edges.sh <repo-path> [--owner <owner>] --print-owner
-#   reference-edges.sh --help
-#
-# --owner overrides the owner segment taken from the `origin` remote. It decides
-# which references are `internal` (same owner) and which are `external`, and it
-# is the only way a bare `owner/repo` token is trusted at all.
-#
-# --print-owner prints the owner this run resolved and extracts nothing, so a
-# caller can record which organization the graph was drawn from without
-# reimplementing the resolution. `unknown` when none resolves.
-#
-# Output: JSON Lines on stdout, one object per (target, type) pair, sorted:
-#
-#   {"from":…,"to":…,"type":…,"relation":…,"count":N,"files":[…]}
-#
-#   from      github.com origin repository name when origin resolves; else directory basename (#4554)
-#   to        `owner/repo`
-#   type      uses-workflow | installs-plugin | depends-on | cites
-#   relation  internal (owner matches this repository's) | external
-#   count     how many references of this type name that target
-#   files     up to FILE_CAP repo-relative files carrying them, sorted
-#
-# Edge types, and the syntax each one trusts:
-#
-#   uses-workflow   a `uses:` step in a workflow or composite action. Names a
-#                   reusable workflow or action this repository RUNS.
-#   installs-plugin a marketplace `source`, or a `/plugin marketplace add`
-#                   line. Names a repository this one INSTALLS FROM.
-#   depends-on      a Go module path, or a git dependency URL in a package
-#                   manifest. Names code this repository BUILDS AGAINST.
-#   cites           a github.com URL, or a bare `owner/repo` whose owner is this
-#                   repository's own, anywhere else in tracked text. The weakest
-#                   type: it means "mentioned", nothing more.
-#
-# Nothing here fetches, and nothing is inferred from a name's resemblance to
-# another. A repository referenced only by a name that looks like a sibling
-# produces no edge.
-#
-# Portability: bash plus POSIX awk/grep/sed, and git for the tracked-file scope.
-# No jq, no `grep -P`, no python.
-#
-# Exit: 0 = edges emitted (possibly none); 1 = the path is not a readable git
-# repository; 2 = usage.
 set -uo pipefail
 
 FILE_CAP=5
@@ -75,7 +7,13 @@ FILE_CAP=5
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/github-remote.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Extract typed reference edges from one repository's tracked files, one JSON object per line.
+Usage: reference-edges.sh <repo-path> [--owner <owner>] [--print-owner]
+  --owner <owner>  owner deciding internal vs external (default: the origin remote's owner)
+  --print-owner    print the resolved owner and extract nothing
+Exit: 0 edges emitted (possibly none); 1 the path is not a readable git repository; 2 usage.
+EOF
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then

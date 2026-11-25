@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# PostToolBatch has no matcher, so this row fires on every batch and filters by
-# extension itself before any other process starts:
-# https://code.claude.com/docs/en/hooks#posttoolbatch
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_ENABLED:-true}" == "true" ]] || exit 0

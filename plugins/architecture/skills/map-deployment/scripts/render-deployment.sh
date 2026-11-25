@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
-# Render deployment.md from a collect-deployment.sh record.
-#
-# Usage:
-#   render-deployment.sh --record <deployment.json> --out <dir>
-#       [--dialect likec4|c4-plantuml|none] [--env <name>] [--diff <a> <b>]
-#   render-deployment.sh --help
-#
-# --dialect is diagram_dialect.system, resolved by lib/resolve-diagram-dialect.sh.
-# likec4 and c4-plantuml write deployment.md with one fenced likec4 or plantuml
-# block. none (the default) writes the same file with the tables and no diagram.
-# Every printed value passes through lib/redact-connection.awk.
-#
-# Exit: 0 rendered; 1 unreadable record; 2 usage; 3 unknown environment,
-# refusal rendered.
 set -uo pipefail
 
 REDACT_AWK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/redact-connection.awk"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render deployment.md from a collect-deployment.sh record.
+Usage: render-deployment.sh --record <deployment.json> --out <dir> [options]
+  --record <file>  deployment.json from collect-deployment.sh
+  --out <dir>      directory deployment.md is written into
+  --dialect <d>    likec4, c4-plantuml, or none (default)
+  --env <name>     one environment to render
+  --diff <a> <b>   what differs between two environments
+Exit: 0 rendered; 1 unreadable record; 2 usage; 3 unknown environment, refusal rendered.
+EOF
 }
 
 die() {

@@ -69,9 +69,6 @@ async function cloneRepoToTemp(parsed, tempRoot) {
   const githubUrl = `https://github.com/${parsed.owner}/${parsed.repo}`;
   log.info(`  Cloning to temp: ${cloneDir}`);
 
-  // A course repository is one the enrolled user may reach only with their own
-  // credentials, so git runs in the user's environment; LFS objects stay
-  // pointers, since the analysis reads only structure and file names.
   let gitStderr = "";
   const cloned = await shallowCloneGitHubRepo(githubUrl, cloneDir, undefined, {
     inheritGitEnvironment: true,
