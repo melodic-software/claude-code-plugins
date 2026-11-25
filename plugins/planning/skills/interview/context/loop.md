@@ -144,7 +144,7 @@ When the action is `auto` (default), insert between Step 1 (Survey) and Step 2 (
 
 - Goal phrased as solution (no outcome stated)
 - Acceptance criteria absent or fuzzy ("works correctly")
-- Trigger observed: "ask me everything", "I'm not sure", "help me think", "fuzzy"
+- Trigger observed: "interview me", "I'm not sure", "help me think", "fuzzy"
 - 2+ unstated assumptions visible (scale, users, frequency, untouchable areas)
 
 **Mixed (ask only the residue):** one or a few unknowns the Brief turns on amid otherwise-clear intent → ask them as one residue round, then synthesize the rest.

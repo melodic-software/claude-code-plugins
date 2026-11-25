@@ -343,7 +343,7 @@ declares_both_fixtures B "$CASE_B"
 # #14879: the description now opens with the vague-build case (a build request that names no problem, users or scope); every other key byte-identical, no qualifier added to auto or lock, so the auto-guard and lock STOP-on-gap defenses hold
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "fe61167530911afddada73458fa8267c1f76fcd68974166c3408dade99790d68"
+  "aeee61b37df0e79abd73eaac56c9b5834612e256bdf05fecb9d2612949d087b3"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
 # confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
@@ -565,7 +565,7 @@ pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\`
   "$LOOP" \
   "## Step 1.5. Auto-detect: gap analysis without asking" \
   "## Step 2. Drive the decision tree" \
-  "4fe937fb18eaf35bcd7367bcd1fc3de9d62d8daeb341394b49e2b27c065e0a8c"
+  "970ef631797fe04ec1999a0a78860ccbbbeeaad0fce4fc8d52737601b3164673"
 # The problem-confirmation paragraph puts the unattended confirmation under rung 3 as a
 # `blocked` USER-RESERVED row; a pre-confirmed item writes that row `answered` citing the label, so the register still gates. Rungs 3-5 are byte-identical.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
