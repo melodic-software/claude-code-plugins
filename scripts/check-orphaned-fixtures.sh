@@ -56,10 +56,6 @@ discover | --check) ;;
   ;;
 esac
 
-# Active baseline entries. `inline`: each entry is one exact fixture path, never
-# a regex, so a `#` anywhere on the line is a comment (scripts/lib/read-list.sh
-# owns the two comment families and why they must stay distinct). Matched by
-# full-string equality below.
 entries=()
 if [[ -f "$BASELINE" ]]; then
   read_list::into entries "$BASELINE" --comments inline || exit 2

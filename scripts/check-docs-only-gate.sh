@@ -647,14 +647,6 @@ fi
 
 # --- 2. FAIL-CLOSED DEFAULT -------------------------------------------------
 
-# Every table row must be published, by exactly its expression; and the
-# resolver must publish nothing the table does not name. The first half is what
-# makes an unset detector output resolve toward RUNNING; the second is what
-# keeps a new polarity decision from being introduced where nothing checks it.
-
-# find_published <name>: sets published_expr to the expression the resolver
-# publishes <name> by (its last one, if it publishes the name twice); fails when
-# it publishes no such output.
 find_published() {
   local ojob oname oexpr found=1
   published_expr=""
@@ -675,9 +667,6 @@ while IFS="$TAB" read -r tname texpr; do
   fi
 done <<<"$OUTPUT_TABLE"
 
-# The data rows are pinned the same way: the value a consumer diffs against is
-# exactly what the resolver's step wrote, so an unset step output is the empty
-# string every reader takes as "the whole tree".
 while IFS="$TAB" read -r tname texpr; do
   [[ -n "$tname" ]] || continue
   if ! find_published "$tname"; then
