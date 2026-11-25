@@ -111,9 +111,16 @@ carries the parser-first-then-selective-read method, the finding categories, the
 classification, and the **mandatory redaction pass** on the returned findings. The subagent returns
 a compact findings block only; the verbose transcript stays in its context.
 
+Before appending, drop any returned finding that repeats one of this session's `## Live check`
+sections in the ledger (the observer's): reference it by its heading instead, with its status
+(open, confirmed, disputed or resolved).
+
 ### 4. Append to the running ledger
 
-The ledger lives at `<memory_dir>/running-retros/` (default `.work/running-retros/`).
+The ledger lives at `<memory_dir>/running-retros/` (default `.work/running-retros/`), resolved
+against the repository's main checkout (the parent of `git rev-parse --path-format=absolute
+--git-common-dir`) so a session in a linked worktree shares its ledger with the observer and keeps
+it when the worktree is removed.
 
 **One ledger file per session, appended. Discover before creating.** Name it
 `<TS>-running-retro-<topic>.md` (`TS = date -u +%Y%m%dT%H%M%SZ`, topic = argument or inferred),
