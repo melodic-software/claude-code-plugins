@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: ho-urgent-handoff
-description: An urgent handoff with one small follow-up and no context-usage tool. Run with --scaffold, --allow-tools Bash Write Edit, and a session UUID.
+description: An urgent handoff with one small follow-up and no context-usage tool. The heavy-zone branch has no eval case, since no eval session can expose the mcp__context-usage__status name the skill reads. Run with --scaffold, --allow-tools Bash Write Edit, and a session UUID.
 tags: [handoff, urgent]
 plugins: ["../.."]
 expected_outcome: The file is written and validated, and its resume prompt is shown without a position panel or checklist.

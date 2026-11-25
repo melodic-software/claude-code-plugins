@@ -1,9 +1,0 @@
-{
-  "pass": [
-    {"answer": "`/clear`, then copy everything between the dashed lines:\n──────────\nRead @/workspace/.work/handoffs/20301101T120000Z-handoff-color-index.md and continue.\nNext: check the blue entry.\n──────────"}
-  ],
-  "fail": [
-    {"answer": "`/clear`, then copy everything between the dashed lines:\n──────────\nCheck the blue entry.\n──────────"},
-    {"answer": "Read @/workspace/.work/handoffs/20301101T120000Z-handoff-color-index.md and continue."}
-  ]
-}
