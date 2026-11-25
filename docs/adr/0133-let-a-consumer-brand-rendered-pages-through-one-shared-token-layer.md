@@ -60,29 +60,30 @@ the parts the evidence decides.
      `image/jpeg` or font media type only in the logo slot and in `@font-face`. Every other
      scheme and position stays refused. The owner accepted this recommendation in session:
      "go w/ recommendations".
-3. **The accessibility floor decides, not the override.** The resolver checks each resolved pair the
-   floor names (body text, link text, focus outline, in both schemes;
-   `lib/html-chrome.html:176-180`) and drops an override that fails it, keeping the shipped value
-   for that role and printing a notice that names the role, the scheme and the measured ratio.
-   A page is never built below the floor.
+3. **The accessibility floor decides, not the override.** The resolver checks, in both schemes,
+   every resolved pair an overridable role takes part in: `fg`, `muted` and `link` text on `bg` and
+   on `panel` at the 4.5:1 text floor, and the `focus` outline on `bg` and on `panel` at the 3:1
+   non-text floor (`lib/html-chrome.html:97-100`, `:176-179`). It drops an override that fails any
+   of its pairs, keeping the shipped value for that role and printing a notice that names the role,
+   the scheme, the pair and the measured ratio. A page is never built below the floor.
 4. **Values are validated, never escaped into place.** Override values land inside `<style>` and
    inline SVG, where the security baseline forbids unescaped interpolation
    (`docs/contracts/rendered-views/README.md:717-719`). The resolver accepts a color only as a
    six-digit hex value, a font family only from a closed character set, an SVG logo only after the
    SVG allowlist check, and an embedded logo or font file only as a file the resolver reads, checks
    by its magic bytes against the allowed media types, and base64-encodes itself. A value that fails is reported and ignored without dropping another layer's
-   value, as `medium` is (`docs/contracts/rendered-views/README.md:908`).
+   value, as `medium` is (`docs/contracts/rendered-views/README.md:915`).
 5. **The setting lives in the convention home, with `userConfig` as the per-user value** (Q2). The
    key is `branding` in the rendered-views team file `docs/conventions/rendered-views.yaml` and its
    personal override `docs/conventions/rendered-views.local.yaml`, the scopes `medium` already uses
-   (`docs/contracts/rendered-views/README.md:885-890`). Each view-lane plugin also takes a per-user
+   (`docs/contracts/rendered-views/README.md:892-897`). Each view-lane plugin also takes a per-user
    value through its `userConfig`, as it does for `medium`. Precedence is plain ADR 0075 order,
    personal override, then team, then `userConfig`, then the shipped default, so the convention home
    wins on conflict. `branding` does not take the publish trust walk `medium` takes
-   (`docs/contracts/rendered-views/README.md:893-906`): it changes how a page looks, never whether it
+   (`docs/contracts/rendered-views/README.md:900-913`): it changes how a page looks, never whether it
    leaves the machine. A lane that reads the team file from a named commit (`--team-ref`,
-   `docs/contracts/rendered-views/README.md:910-912`) reads `branding` from that commit too. The one
-   resolver, `lib/view-settings.mjs` (`docs/contracts/rendered-views/README.md:882`), resolves it.
+   `docs/contracts/rendered-views/README.md:917-919`) reads `branding` from that commit too. The one
+   resolver, `lib/view-settings.mjs` (`docs/contracts/rendered-views/README.md:889`), resolves it.
 6. **One token layer, copied per plugin** (Q3). The token layer is one canonical file,
    `lib/html-tokens.css`: the shipped values for every role and stack in both schemes, and the
    rules that apply them. `lib/html-chrome.html` takes its values from it instead of carrying its
@@ -106,7 +107,7 @@ the parts the evidence decides.
    - **First: visualization, adhd, planning and architecture**, the plugins that carry the chrome.
      Q4's recommendation named three because three carried it when the refinement was written; the
      architecture plugin took a copy on 2026-11-16
-     (`docs/contracts/rendered-views/CHANGELOG.md:17-20`, `scripts/shared-copies.txt:647`). Q4's
+     (`docs/contracts/rendered-views/CHANGELOG.md:25-28`, `scripts/shared-copies.txt:647`). Q4's
      reason, carrying the chrome, applies to it in the same way, so it migrates in the first wave.
    - **Then the rest, by the inventory**, page sources that already use the chrome's `--clay`
      before those with only their own scheme flip. Pages on the shared view builder
