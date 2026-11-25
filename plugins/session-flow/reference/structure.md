@@ -787,7 +787,9 @@ that follow-up. The original handoff keeps `Next: none (closed)`.
   unreadable prompt file stops the launch. The user pastes only that command. `fill` and `amend`
   refresh the prompt when they emit. `tidy_work.py clean` keeps or prunes it with its handoff.
 - Use the printed form for the session's shell. `emit --shell posix` selects bash, zsh or Git
-  Bash. `emit --shell powershell` requires PowerShell 7.3 or newer. Git Bash calls `pwsh`
+  Bash. `emit --shell powershell` requires PowerShell 7.3 or newer, and refuses when `claude`
+  resolves to a `.cmd` or `.bat` shim, since cmd.exe cuts a multi-line prompt at its first
+  newline and expands `%VAR%` text in it. Git Bash calls `pwsh`
   for a PowerShell profile command. For shell quoting and Claude flags, see
   [PowerShell argument passing](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_parsing#passing-arguments-that-contain-quote-characters)
   and the [CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).

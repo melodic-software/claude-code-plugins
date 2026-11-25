@@ -2956,6 +2956,9 @@ def _launch_command(checkout: Path, command: str, prompt: Path, shell: str | Non
         read_ps = f"(Get-Content -LiteralPath {_ps_quote(prompt_path)} -Raw -Encoding UTF8 -ErrorAction Stop)"
         launch_ps = (
             "if ($PSVersionTable.PSVersion -lt [version]'7.3') { throw 'Run this command in pwsh 7.3 or newer.' }; "
+            "if ((Get-Command claude -ErrorAction Ignore).Source -match '[.](cmd|bat)$') { throw "
+            "'claude here is a .cmd or .bat shim, which cuts a multi-line prompt and expands %VARS%: "
+            "start claude and paste the copy region instead.' }; "
             f"$PSNativeCommandArgumentPassing = 'Standard'; {command} {read_ps}"
         )
         if shell == "powershell":
