@@ -111,7 +111,8 @@ const lastDayRows = async ($: EngineInterface) => {
   if (!(await $.fs.exists(st.dataDir))) return []
   const since = (await $.clock.now()) - DAY_MS
   const files = (await $.fs.list(st.dataDir)).filter(e => e.kind === 'file' && /^live-.*\.jsonl$/.test(e.name) && e.mtimeMs >= since)
-  return (await Promise.all(files.map(async e => parseRows((await $.fs.read(`${st.dataDir}/${e.name}`)) as string)))).flat()
+  const rows = (await Promise.all(files.map(async e => parseRows((await $.fs.read(`${st.dataDir}/${e.name}`)) as string)))).flat()
+  return rows.filter(r => Date.parse(String((r as { at?: string }).at)) >= since)
 }
 
 const syncSession = async ($: EngineInterface) => {
@@ -146,6 +147,10 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
     }
     usage = r.usage
     const parsed = parseReply(r.text)
+    if ((await $.store.get('paused')) === true) {
+      outcome = 'paused'
+      return
+    }
     const isCurrent = !st.ended && st.gen === gen
     if (isCurrent && open !== null && st.card === open && isResolved(r.text)) {
       await appendTo($, open.ledger, resolvedLine(await iso($), open.finding))

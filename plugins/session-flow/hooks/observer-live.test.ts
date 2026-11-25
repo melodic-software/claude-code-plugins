@@ -317,16 +317,36 @@ test('/observer off pauses live checks on this machine and /observer on resumes 
   expect(w.forks.length).toBe(1)
 })
 
+test('a check still in flight when /observer off runs shows nothing', async ($, on) => {
+  const w = world(on)
+  let release = (_: object) => {}
+  w.replies.push(() => new Promise(r => (release = r)))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  await $.command.run({ command: 'observer', args: 'off' })
+  release({ isAnswered: true, text: FINDING, usage: USAGE })
+  await settle()
+  expect(ledgerFiles(w).filter(f => f.endsWith('.md'))).toEqual([])
+  expect(live(w).filter(r => r.trigger).map(r => r.outcome)).toEqual(['paused'])
+})
+
 test('/observer reports this session and the last day from the usage files', async ($, on) => {
   const w = world(on)
-  w.files[`${DATA}/session-flow-observer/live-older.jsonl`] = `${JSON.stringify({ trigger: 'turn-end', outcome: 'none', latencyMs: 4000, usage: USAGE })}\n`
+  w.files[`${DATA}/session-flow-observer/live-older.jsonl`] = [
+    { at: '2026-10-01T00:00:00.000Z', trigger: 'step', outcome: 'none', latencyMs: 9000, usage: USAGE },
+    { at: new Date(1_791_050_400_000 - 3_600_000).toISOString(), trigger: 'turn-end', outcome: 'none', latencyMs: 4000, usage: USAGE },
+  ]
+    .map(r => `${JSON.stringify(r)}\n`)
+    .join('')
   await start($)
   await turn($, 't1')
   await steps($, 't1', 6)
   const r = await $.command.run({ command: 'observer', args: '' })
   expect(r.text).toContain('live checks: on; step on, turn end off')
   expect(r.text).toContain('This session:\n1 checks (step 1); outcomes: none 1')
-  expect(r.text).toContain('Last 24 hours, all sessions:\n2 checks')
+  expect(r.text).toContain('Last 24 hours, all sessions:\n2 checks (turn-end 1, step 1)')
+  expect(r.text).toContain('latency: 4s total, 2s per check')
   const bad = await $.command.run({ command: 'observer', args: 'sideways' })
   expect(bad.text).toContain('Usage: /observer [on|off]')
 })
