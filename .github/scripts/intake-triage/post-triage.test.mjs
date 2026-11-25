@@ -7,7 +7,7 @@ import { after, describe, test } from "node:test";
 
 import { verdictLines } from "../../../plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs";
 import { MARKER as APPLY_MARKER, parseVerdict } from "./apply-verdict.mjs";
-import { CREDENTIAL, DEFERRED, ESCALATED_NOTE, laneBody, main, MARKER, plan, readDenials } from "./post-triage.mjs";
+import { CREDENTIAL, DEFERRED, ESCALATED_NOTE, laneBody, main, MARKER, MAX_BULLETS, plan, readDenials, renderSummary, SUMMARY_HEADING } from "./post-triage.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "post-triage-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -45,6 +45,7 @@ function fakeGitHub({ labels = ["priority: medium", "priority: high", "needs-hum
 
 const run = async ({ v = verdict(), turns = { denied_total: 0 }, github = fakeGitHub(), env = {} } = {}) => {
   const output = file("");
+  const stepSummary = file("");
   const lines = [];
   const code = await main({
     env: {
@@ -58,12 +59,13 @@ const run = async ({ v = verdict(), turns = { denied_total: 0 }, github = fakeGi
       PRIORITY_FIELD_ID: "49622037",
       AUTHOR_IDS: "153232337",
       GITHUB_OUTPUT: output,
+      GITHUB_STEP_SUMMARY: stepSummary,
       ...env,
     },
     github,
     log: (line) => lines.push(line),
   });
-  return { code, lines, calls: github.calls, output: readFileSync(output, "utf8") };
+  return { code, lines, calls: github.calls, output: readFileSync(output, "utf8"), summary: readFileSync(stepSummary, "utf8") };
 };
 const writes = (calls) => calls.filter((c) => c.method !== "GET" && !(c.method === "POST" && c.path === "/graphql" && !c.body.query.includes("updateIssue")));
 
@@ -163,6 +165,38 @@ describe("post-triage", () => {
     const { calls } = await run({ v: verdict({ type: "Epic" }) });
     assert.ok(!calls.some((c) => c.path === "/graphql" && c.body.query.includes("updateIssue")));
     assert.ok(calls.some((c) => c.method === "POST" && c.path === `${REPO}/issues/7/labels` && c.body.labels[0] === "needs-triage"));
+  });
+
+  test("the step summary leads with the lane and activity, then the result, at most five bullets and the rest collapsed", async () => {
+    assert.equal(SUMMARY_HEADING, "### intake-triage / post-triage");
+    const shape = (text) => {
+      const lines = text.trimEnd().split("\n");
+      assert.equal(lines[0], SUMMARY_HEADING);
+      assert.equal(lines[1], "");
+      const open = lines.indexOf("<details><summary>Diagnostics</summary>");
+      const visible = open === -1 ? lines : lines.slice(0, open);
+      assert.ok(visible.filter((line) => line.startsWith("- ")).length <= MAX_BULLETS, text);
+      assert.ok(lines.length <= 40, "the step summary limit");
+      return lines[2];
+    };
+    assert.match(shape((await run()).summary), /^Applied: comment posted, \d+ label\(s\) added, Issue Type Task\.$/);
+    assert.match(shape((await run({ v: verdict({ needs_human: true }) })).summary), /^Escalated: handed to a maintainer with needs-human and the fixed note \(the model asked for a person\)\.$/);
+    assert.match(shape((await run({ turns: { denied_total: 2 } })).summary), /^Deferred: 2 permission denial\(s\) on an otherwise clean triage; nothing applied/);
+    const bad = verdict();
+    const refused = await run({ v: { ...bad, comment: bad.comment.replace("Size: small", "Size: large") } });
+    assert.equal(shape(refused.summary), "Not applied: the verdict fails check-ci-verdict.");
+    assert.match(refused.summary, /<details><summary>Diagnostics<\/summary>\n\n- comment line 1 is not `Size: small`/);
+    const clean = (await run()).summary;
+    assert.match(clean, /<details><summary>Diagnostics<\/summary>\n\n- Labels rejected: none\n- Labels replaced: none\n\n<\/details>/);
+  });
+
+  test("renderSummary shows the first five bullets and collapses any more with the details", () => {
+    const bullets = ["a", "b", "c", "d", "e", "f"];
+    assert.deepEqual(renderSummary("Applied: x.", bullets, ["g"]), [
+      SUMMARY_HEADING, "", "Applied: x.", "", "- a", "- b", "- c", "- d", "- e",
+      "", "<details><summary>Diagnostics</summary>", "", "- f", "- g", "", "</details>",
+    ]);
+    assert.deepEqual(renderSummary("Not applied: y."), [SUMMARY_HEADING, "", "Not applied: y."]);
   });
 
   test("a malformed issue number writes nothing", async () => {

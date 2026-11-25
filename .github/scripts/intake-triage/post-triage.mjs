@@ -62,6 +62,17 @@ export function plan({ verdict, allowed, escalationLabel }) {
 
 export const laneBody = (comment) => [MARKER, comment, FOOTER].join("\n\n");
 
+export const SUMMARY_HEADING = "### intake-triage / post-triage";
+export const MAX_BULLETS = 5;
+
+export function renderSummary(verdictLine, bullets = [], details = []) {
+  const lines = [SUMMARY_HEADING, "", verdictLine];
+  if (bullets.length > 0) lines.push("", ...bullets.slice(0, MAX_BULLETS).map((line) => `- ${line}`));
+  const rest = [...bullets.slice(MAX_BULLETS), ...details];
+  if (rest.length > 0) lines.push("", "<details><summary>Diagnostics</summary>", "", ...rest.map((line) => `- ${line}`), "", "</details>");
+  return lines;
+}
+
 export async function main({ env = process.env, github, log = console.log } = {}) {
   const output = (name, value) => env.GITHUB_OUTPUT && appendFileSync(env.GITHUB_OUTPUT, `${name}=${value}\n`);
   const summary = (lines) => env.GITHUB_STEP_SUMMARY && appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
@@ -74,18 +85,20 @@ export async function main({ env = process.env, github, log = console.log } = {}
     verdict = JSON.parse(readFileSync(env.VERDICT_FILE, "utf8"));
   } catch (error) {
     log(`::error::the verdict file is unreadable: ${error.message}; nothing applied`);
+    summary(renderSummary("Not applied: the verdict file is unreadable."));
     return 1;
   }
   const problems = checkVerdict(verdict);
   if (problems.length > 0) {
     log(`::error::the verdict fails check-ci-verdict: ${problems.join("; ")}; nothing applied`);
+    summary(renderSummary("Not applied: the verdict fails check-ci-verdict.", [], problems));
     return 1;
   }
   const denials = readDenials(env.ACT_TURNS_FILE ?? "");
   if (denials > 0) {
     log(`::warning::${denials} ${DEFERRED}: nothing applied, so a later triage run retries the issue.`);
     output("deferred", "true");
-    summary(["### intake triage", "", `- Permission denials: ${denials}`, "- Applied: nothing (deferred for a retry)"]);
+    summary(renderSummary(`Deferred: ${denials} permission denial(s) on an otherwise clean triage; nothing applied, and a later run retries the issue.`));
     return 0;
   }
 
@@ -289,20 +302,26 @@ export async function main({ env = process.env, github, log = console.log } = {}
   }
   failure ??= typeFailure;
 
-  summary([
-    "### intake triage",
-    "",
-    `- Labels applied: ${[...labels].join(", ") || "none"}`,
-    `- Labels rejected: ${rejected.join(", ") || "none"}`,
-    `- Labels replaced: ${replaced.join(", ") || "none"}`,
-    `- Priority: ${exclusive.join("; ") || "as applied"}`,
-    `- Issue Type: ${typeSet || "not set"} (requested: ${usable ? wanted : "none"})`,
-    `- Floor label: ${floorCleared ? "removed" : floorAdded ? "added" : "unchanged"}`,
-    `- Escalation: ${escalate.join("; ") || "none"}`,
-    "- Comment posted: yes",
-    `- Write error: ${failure?.message ?? "none"}`,
-  ]);
   const landed = !failure && !priorityLost && !typeDropped;
+  const verdictLine = failure
+    ? `Failed: the lane comment posted, but a write did not land (${failure.message}).`
+    : isEscalated
+      ? `Escalated: handed to a maintainer with ${escalationLabel} and the fixed note (${escalate.join("; ")}).`
+      : !landed
+        ? `Applied, verdict withheld: ${priorityLost ? "no field or label could carry the priority pick" : "GitHub did not keep the Issue Type"}, so apply-verdict writes nothing.`
+        : `Applied: comment posted, ${labels.size} label(s) added, Issue Type ${typeSet || "not set"}.`;
+  summary(
+    renderSummary(
+      verdictLine,
+      [
+        `Labels applied: ${[...labels].join(", ") || "none"}`,
+        `Priority: ${exclusive.join("; ") || "as applied"}`,
+        `Issue Type: ${typeSet || "not set"} (requested: ${usable ? wanted : "none"})`,
+        `Floor label: ${floorCleared ? "removed" : floorAdded ? "added" : "unchanged"}`,
+      ],
+      [`Labels rejected: ${rejected.join(", ") || "none"}`, `Labels replaced: ${replaced.join(", ") || "none"}`],
+    ),
+  );
   if (!isEscalated && landed) {
     const { size, complexity, uncertainty, flags, blocked_by } = verdict;
     output("verdict", JSON.stringify({ size, complexity, uncertainty, flags, blocked_by }));
