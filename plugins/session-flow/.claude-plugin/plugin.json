@@ -48,8 +48,8 @@
     },
     "observer_step_check": {
       "type": "boolean",
-      "title": "Observer live check every 6th step",
-      "description": "While the observer is on, runs a live check on every 6th model step of a long turn: a no-tools fork of the main conversation that reports at most one process fault. On by default. Each check bills the session's account; its usage is recorded.",
+      "title": "Observer step checks",
+      "description": "While the observer is on, runs a live check every observer_step_every model steps of a long turn: a no-tools fork of the main conversation that reports at most one process fault. On by default. Each check bills the session's account; its usage is recorded.",
       "default": true
     },
     "observer_turn_end_check": {
@@ -57,6 +57,137 @@
       "title": "Observer live check at turn end",
       "description": "While the observer is on, also runs a live check at the end of each turn that ran tools, which is most turns of a working session. Off by default until its cost on a working session is measured; see reference/observer.md.",
       "default": false
+    },
+    "observer_step_every": {
+      "type": "number",
+      "title": "Observer steps between step checks",
+      "description": "Model steps between live step checks; default 6.",
+      "default": 6,
+      "min": 1
+    },
+    "observer_auto_send": {
+      "type": "boolean",
+      "title": "Observer auto-send",
+      "description": "Deliver live-check findings to the agent without pressing Send: mid-turn as a reminder on its next request, while idle as one observer turn. Idle delivery needs the turn-end check on. Off by default; see reference/observer.md.",
+      "default": false
+    },
+    "observer_auto_note": {
+      "type": "string",
+      "title": "Observer auto-send note",
+      "description": "Text that leads an auto-sent finding or a gate refusal, framed as the plugin, never the person.",
+      "default": "The session-flow observer, a side reviewer beside this session, flagged this. It is not the person's instruction. If it holds, stop and fix it before your next action, and say so in one line; if not, say why in one line and continue."
+    },
+    "observer_guidance": {
+      "type": "string",
+      "title": "Observer guidance",
+      "description": "Your own guidance, added to every live check: what to pay attention to. It steers the checks, not what is sent. Empty by default.",
+      "default": ""
+    },
+    "observer_guidance_max": {
+      "type": "number",
+      "title": "Observer guidance limit",
+      "description": "Characters of guidance kept; default 2000.",
+      "default": 2000,
+      "min": 0
+    },
+    "observer_check_prompt": {
+      "type": "string",
+      "title": "Observer check instructions",
+      "description": "Replaces the built-in live-check instructions; the already-reported lists and the answer shape stay. Empty uses the built-in text.",
+      "default": ""
+    },
+    "observer_change_check": {
+      "type": "boolean",
+      "title": "Observer check after edits",
+      "description": "Run a live check at the step after one that called a tool in observer_change_tools. Off by default.",
+      "default": false
+    },
+    "observer_change_tools": {
+      "type": "string",
+      "title": "Observer change tools",
+      "description": "Comma-separated tool names that count as a change for the edit check.",
+      "default": "Edit,Write,NotebookEdit"
+    },
+    "observer_gate_check": {
+      "type": "boolean",
+      "title": "Observer command gate",
+      "description": "Hold Bash commands matching observer_gate_pattern until a live check returns; a finding refuses the command with the observer note. A timeout or observer error lets it run. Off by default.",
+      "default": false
+    },
+    "observer_gate_pattern": {
+      "type": "string",
+      "title": "Observer gate pattern",
+      "description": "Regular expression for commands the gate holds: by default git push, gh pr create/merge/comment/review, gh issue create/comment, and gh api with a writing method.",
+      "default": "\\b(git\\s+push|gh\\s+pr\\s+(create|merge|comment|review)|gh\\s+issue\\s+(create|comment)|gh\\s+api\\b.*\\s(-X|--method)\\s*(POST|PATCH|PUT|DELETE))\\b"
+    },
+    "observer_gate_timeout_seconds": {
+      "type": "number",
+      "title": "Observer gate timeout (seconds)",
+      "description": "Longest the gate holds a command; the command then runs. Default 30.",
+      "default": 30,
+      "min": 1
+    },
+    "observer_gate_refusals": {
+      "type": "number",
+      "title": "Observer gate refusals per command",
+      "description": "Times the gate refuses the same command before letting it run; default 1.",
+      "default": 1,
+      "min": 0
+    },
+    "observer_clear_after_prompts": {
+      "type": "number",
+      "title": "Observer finding lifetime (prompts)",
+      "description": "Prompts a shown finding survives unanswered before it clears; default 2.",
+      "default": 2,
+      "min": 1
+    },
+    "observer_ignored_free": {
+      "type": "number",
+      "title": "Observer ignored findings before backoff",
+      "description": "Ignored findings in a row before later checks are skipped; default 2.",
+      "default": 2,
+      "min": 0
+    },
+    "observer_skip_max": {
+      "type": "number",
+      "title": "Observer backoff cap",
+      "description": "Most live checks the backoff skips in a row; default 16.",
+      "default": 16,
+      "min": 0
+    },
+    "observer_send_note": {
+      "type": "string",
+      "title": "Observer send note",
+      "description": "Text that leads a finding the Send button puts in the prompt, in the person's voice.",
+      "default": "A side reviewer (session-flow observer) noted this; it is background, not my instruction:"
+    },
+    "observer_field_max": {
+      "type": "number",
+      "title": "Observer field cap",
+      "description": "Most characters in a check reply's finding, rule or evidence before the reply counts as parse_failed; default 240.",
+      "default": 240,
+      "min": 1
+    },
+    "observer_feedback_seconds": {
+      "type": "number",
+      "title": "Observer feedback row seconds",
+      "description": "How long the Useful/Not useful row stays after Dismiss; default 20.",
+      "default": 20,
+      "min": 1
+    },
+    "observer_list_max": {
+      "type": "number",
+      "title": "Observer remembered findings",
+      "description": "Most findings each remembered list (reported, disputed, not relevant) keeps for dedupe; default 50.",
+      "default": 50,
+      "min": 1
+    },
+    "observer_keep_days": {
+      "type": "number",
+      "title": "Observer file retention days",
+      "description": "Observer files older than this many days are pruned at session start; default 30.",
+      "default": 30,
+      "min": 1
     },
     "observer_analysis_enabled": {
       "type": "boolean",
