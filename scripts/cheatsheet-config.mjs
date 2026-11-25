@@ -1,4 +1,3 @@
-
 export const STAGES = [
   { slug: "interview", heading: "1. Interview", workflow: true },
   { slug: "explore", heading: "2. Explore", workflow: true },

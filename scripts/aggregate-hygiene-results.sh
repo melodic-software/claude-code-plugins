@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # shellcheck disable=SC2016 # Backticks in this file are literal Markdown, not expansions.
 set -u
 

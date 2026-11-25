@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 awk_probe::banner() {
   local cmd="$1" line
   line="$("$cmd" --version 2>/dev/null </dev/null | sed -n 1p)"
