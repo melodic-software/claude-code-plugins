@@ -52,8 +52,9 @@ def test_mid_pattern_case_flag_survives_vendoring() -> None:
 
 # The word after each token is 10+ characters, which generic-api-key takes after a placeholder
 # whose label holds one of its keywords.
-def test_bare_anthropic_oauth_token_is_redacted() -> None:
-    token = "".join(("sk-ant-", "oat01-", "Qx7_-" * 19, "AA"))
+@pytest.mark.parametrize("prefix", ["oat01-", "oat02-"])
+def test_bare_anthropic_oauth_token_is_redacted(prefix: str) -> None:
+    token = "".join(("sk-ant-", prefix, "Qx7_-" * 19, "AA"))
     assert redact.load_redactor().redact(f"saw {token} successfully") == (
         "saw <redacted:anthropic-oauth-token> successfully"
     )
