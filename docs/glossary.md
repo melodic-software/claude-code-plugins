@@ -469,6 +469,12 @@ constraints, acceptance criteria and assumptions.
 
 Avoid: contract
 
+**collaborative canvas mode**
+
+The `/visualization:visualize` mode where a person and the agent draw and revise one live canvas
+(tldraw or Excalidraw) over several turns; the final text diagram, not the canvas, is the record
+([`visualize`](../plugins/visualization/skills/visualize/SKILL.md)).
+
 ### Upstream records
 
 **pointer record**
