@@ -1,6 +1,3 @@
-# WHAT is detected is data — scripts/shell-portability-tokens.txt, one ERE per
-# active line. HOW a hit is excused is this program (a `portability-ok:`
-
 BEGIN {
   SQ = "\047"; DQ = "\042"; BS = "\134"; BT = "\140"; NL = "\012"
   AMPTOK = "!subst-replacement-ampersand"
@@ -21,8 +18,6 @@ BEGIN {
 }
 function is_annotated(l) { return l ~ /portability-ok:/ }
 function is_comment(l) { return l ~ /^[[:space:]]*#/ }
-# ordinary text (#1544):
-#   echo ok # portability-ok: x \   the trailing backslash is comment text,
 function mq_hold(st,   d) {
   HELD_ST = st
   HELD_CMT = MQ_CMT
@@ -219,8 +214,6 @@ function collapse_subs(q, m,   i, c, r, out, len, kinds, nc, inbt, prev, top) {
   }
   return out r
 }
-#     throughout (#1513), and the residue direction is a reportable false
-#     positive with the one-line `portability-ok:` escape, never a
 function is_wordbreak(mc) { return index(" \t;&|()<>" NL BT, mc) > 0 }
 function skip_redirection(m, at, limit) {
   while (at <= limit && substr(m, at, 1) ~ /[<>&]/) at++
@@ -324,8 +317,6 @@ function dashdash_demoted(view, m, at, mend,   ce, pe, os, oe) {
   DD_OS = os
   return dashdash_between(view, m, ce + 1, os - 1)
 }
-# Every rejection here is an over-flag with the one-line
-# `portability-ok:` escape; accepting any of them ships a GNU-only call
 function fallback_proven(q, m, opos, os, oe,   i, c, w, uw, phase, j, wantarg) {
   phase = 0
   wantarg = 0
@@ -662,8 +653,6 @@ function annot_block_above(k, annotated_above,   j, t) {
   }
   return annotated_above
 }
-# to the physical line it actually sits on (PHYSOFF/PHYSNO below). Both the
-# reported line number and the `portability-ok:` scope follow that
 {
   if (in_heredoc) {
     body = $0
