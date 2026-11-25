@@ -4,7 +4,9 @@ The person and the agent draw and revise one live canvas over several turns, the
 the final text diagram. Run it when the person asks for it, directly or by accepting a calling
 skill's offer, and never under `--unattended`: nobody is there to revise with. It draws only where
 the `excalidraw` or `tldraw` target would: such a server connected, a surface that renders it, and
-`hosted_canvas` allowing it, under the canvas rule in `SKILL.md` Step 3. Use the server
+`hosted_canvas` allowing it, under the canvas rule in `SKILL.md` Step 3. That rule's
+committed-diagram exception does not stop this mode: the canvas is a working surface, never the
+committed diagram, and the text written at Close is what a document commits. Use the server
 `diagram_target` names when it is one of the two; otherwise the one connected canvas server, asking
 which when both are. When none qualifies, say in one line what is missing and use `auto`.
 
