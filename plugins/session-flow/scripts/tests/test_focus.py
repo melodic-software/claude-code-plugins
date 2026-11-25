@@ -297,6 +297,34 @@ def test_step_away_task_file_roundtrip(env: dict[str, str], tmp_path: Path) -> N
     assert "Step-away task file" not in text and "its condition: g" in text
 
 
+def test_step_away_posture_reaches_precompact(env: dict[str, str], project: Path, tmp_path: Path) -> None:
+    tasks = tmp_path / "tasks-11111111.md"
+    set_focus(env, "--task-file", str(tasks), "--posture", "orchestrator")
+    result = precompact(env, project)
+    assert result.returncode == 0
+    assert f"Step-away task file: {tasks}" in result.stdout
+    assert "## Posture\nStep-away orchestrator posture is on: invoke /session-flow:orchestrate" in result.stdout
+    set_focus(env, "--posture", "off")
+    text = printed(env)
+    assert "## Posture" not in text and "Step-away task file" in text, "posture off removes only its section"
+    set_focus(env, "--posture", "orchestrator")
+    assert run(env, "clear", "--session", SESSION, "--task-file", "--posture").returncode == 0
+    assert not focus_file(env).exists(), "the return step clears both and leaves no file"
+
+
+def test_step_away_posture_rejects_other_values(env: dict[str, str]) -> None:
+    result = run(env, "set", "--session", SESSION, "--posture", "maybe")
+    assert result.returncode == 2 and "--posture" in result.stderr
+    assert not focus_file(env).exists()
+
+
+def test_step_away_set_with_focus_off_exits_0_and_writes_nothing(env: dict[str, str], project: Path) -> None:
+    result = run(env, "set", "--session", SESSION, "--task-file", "t.md", "--posture", "orchestrator", "--enabled", "false")
+    assert result.returncode == 0 and "focus=skipped" in result.stdout
+    assert not focus_file(env).exists()
+    assert precompact({**env, OPTION: "false"}, project).stdout == ""
+
+
 def test_clear_all_removes_file(env: dict[str, str]) -> None:
     set_focus(env, "--goal", "g")
     assert run(env, "clear", "--session", SESSION, "--all").returncode == 0

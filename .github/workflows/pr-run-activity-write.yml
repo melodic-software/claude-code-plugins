@@ -1322,6 +1322,7 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           STAGED_SCRIPT: ${{ steps.stage.outputs.script-path }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
           LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The job's own token, for the review lanes' comment records only.
           ARTIFACT_READ_TOKEN: ${{ github.token }}

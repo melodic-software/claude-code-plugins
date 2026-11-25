@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.1] - 2026-11-25
+
+### Fixed
+
+- The reviewer-media `redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth
+  token, the same way it redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets
+  `CLAUDE_CODE_OAUTH_TOKEN` start with either prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
+## [13.21.0] - 2026-11-25
+
+### Changed
+
+- The babysit merge gate reads the Dependabot policy only from the repository `standards_repository` names in `docs/conventions/source-control.yaml`, never from the repository's `.github/standards/dependabot-policy/policy.json` copy. A repository that sets no `standards_repository` gets `dependabot-policy-unreadable`, so the lane merges no Dependabot update there until it names its standards repository.
+
 ## [13.20.1] - 2026-11-25
 
 ### Fixed

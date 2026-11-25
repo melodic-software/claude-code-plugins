@@ -68,16 +68,17 @@ no renumbering.
 | Stage | What happens | Starts on |
 |---|---|---|
 | `intake` | Issues are triaged into work items. | issue events |
-| `work` | An agent works one issue a person labeled `agent-ready` to a PR opened ready, or hands it back ([Issue mode](pr-run-activity.md#issue-mode)). | the `agent-ready` label |
-| `pre-ready` | The implementer writes the change and may push draft checkpoints at any time. Local today; the design assumes no particular implementer. | the implementer |
+| `admit` | An issue whose blockers closed is labeled `agent-ready` (`work-unblock`). | an issue closing, and a sweep |
+| `build` | An agent works one issue a person labeled `agent-ready` to a PR opened ready, or hands it back ([Issue mode](pr-run-activity.md#issue-mode)); locally, the implementer writes the change and may push draft checkpoints at any time. | the `agent-ready` label, or the implementer |
 | `refine` | Behavior-preserving changes that make the PR review-ready: simplify, tidy, docs and format fixes. One push at the end. | ready (or opened ready) |
-| `verify` | Checks, reviews and outcome verification on the refined commit. Mechanical and judgment lanes start together; a failed mechanical gate cancels the running judgment lanes, and `pr-require-checks` aggregates the results into `ci-status`. | dispatch from `refine` |
-| `unblock` | Take the action that unblocks a PR: resolve conflicts with the base branch, fix failing CI, address review feedback, review a Dependabot update, or sync shared copies. | see [Lanes](#lanes) |
+| `review` | The AI review lanes review the refined commit. | a ready head |
+| `fix` | Take the action that unblocks a PR: resolve conflicts with the base branch, fix failing CI, address review feedback, review a Dependabot update, or sync shared copies. | see [Lanes](#lanes) |
+| `verify` | Checks and outcome verification on the head. A failed mechanical gate cancels the running judgment lanes, and `pr-require-checks` aggregates the results into `ci-status`. | see [Lanes](#lanes) |
 | `merge` | Merge, within the configured rung. | final check green, or a hold removed |
-| `post-merge` | Verify the default branch and sweep late comments into issues. | push to the default branch |
+| `post-merge` | Check the default branch after a merge. | push to the default branch |
 
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
-into `intake`.
+into `intake`. `hold` is a stage no lane has yet.
 
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `needs-owner-decision`
@@ -143,9 +144,7 @@ cancels every running pipeline lane for it.
 
 ### Refine before review
 
-A PR's path, in order: build, refine, review, fix, verify, merge. Build is `work` or `pre-ready`;
-review is the AI review lanes; fix is `unblock` (fixing CI, addressing review feedback); verify and
-merge are their stages.
+A PR's path, in order: build, refine, review, fix, verify, merge, each a stage above.
 
 `pr-refine.yml` runs the Refine passes. Its `select-passes` job lists the PR's changed files and picks each
 activity with `stage: refine` whose `applies-when` `paths` match a changed file that no
@@ -186,21 +185,21 @@ checkout. No workflow holds the App key. Their job contract is
 
 Each lane's stage, the effects and gating it may not use, and what it never does are in
 [`lane-rules.json`](../../../.github/actions/resolve-config/lane-rules.json), which the config
-reader applies.
+reader applies. It is the one list of lane ids: each is its workflow's file stem here, or a lane
+another repository's [`lane-grants.json`](../../../.github/actions/resolve-config/lane-grants.json)
+row admits. `lane-registry.json` and `lane-funding.json` key their entries by workflow file, and
+`lane-ids.test.mjs` fails when a file names a workflow that is neither a lane nor one it records as
+not a lane, such as `maintenance-measure-skill-edit-pass` (a `workflow_call` reusable).
 
 | Lane | Starts on |
 |---|---|
 | `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml`'s `refine` job, on the PR's own `pull_request_target` event (opened, reopened, ready for review or pushed), for each ready PR that changes Markdown, never had `fix-docs` and is not a `work-resolve-issue` PR tidied in its own run (within the tidy cutoffs), or a trusted human's dispatch; a push to the default branch or the dispatcher's half-hourly tick starts none, and `limits.fix-docs-per-run: 0` turns the dispatches off; on a listed human's event (never the lanes App's) the same job also dispatches each activity `refine-dispatch.activities` lists, from the allowlist in `refine-event-dispatch.mjs` (`fix-marker`), empty by default |
-| `pr-run-checks` | dispatch from `pr-refine` |
-| `pr-review`, `pr-review-security` | the PR's own `pull_request` run on a ready head (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`), whose `wait-for-refine` job first waits for this head's `pr-refine` run |
+| `pr-review-hosted`, `pr-review-security-hosted` | the PR's own `pull_request` run on a ready head, whose `wait-for-refine` job first waits for this head's `pr-refine` run |
 | `pr-verify` | `workflow_run` on the completion of a successful, or hold-only, `pr-require-checks` run of a same-repository, non-draft PR ([Verifier verdict](#verifier-verdict)) |
-| `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread or a trusted person's top-level comment addressed to the lane, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and a sweep every 15 minutes ([the work-unblock sweep](#the-work-unblock-sweep)) of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran; a sweep whose closed-issue listing fails holds green, and the next one reads back past it), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs (one a merged `Refs:` pull request names after its newest decision comment goes to triage instead) and relabels a red-main fix issue a repeat failure reopened |
-| `post-merge-verify` | push to the default branch |
-| `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
 that runs on a push to `main`, half-hourly (five minutes after the lost-run reconciler's :04 and
@@ -1217,13 +1216,13 @@ order inside a lane comes from config:
 ([Refine before review](#refine-before-review)); a format pass takes the highest `order` and
 `group: serial`, because earlier passes change whitespace, and its first job waits on the earlier
 batches.
-`verify` runs on the refined commit; a push during `unblock` makes earlier verify results stale,
-and verify reruns on the new head. `refine` does not rerun on `unblock` pushes.
+`verify` runs on the refined commit; a push during `fix` makes earlier verify results stale,
+and verify reruns on the new head. `refine` does not rerun on `fix` pushes.
 
 The schema checks each file's shape. The config reader also rejects:
 
 - an activity whose `effect` or `gating` the lane's row in `lane-rules.json` forbids, such as a
-  branch-writing activity in `pr-run-checks` or a `merge` effect outside `pr-merge`;
+  branch-writing activity in `pr-verify` or a `merge` effect outside `pr-merge`;
 - a leaf whose `effect` its row in
   [`activity-rules.json`](../../../.github/actions/resolve-config/activity-rules.json) forbids; a
   leaf with no row is valid;
@@ -2867,9 +2866,10 @@ reading the schedule at the default branch's tip. resolve-pr marks each spec ent
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. One of
-them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
-judgment was started by, each with its name, conclusion and job page URL, read with the job's own
-token: the verifier judges from it whether the suites that cover the changed files ran, and runs no
+them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks attempt
+the judgment was started by, each with its name, conclusion and job page URL, read with the job's own
+token. resolve-pr takes that run from the event payload's `workflow_run` rather than reading it
+back, and reads that attempt's jobs, so a re-run started since changes neither; the verifier judges from it whether the suites that cover the changed files ran, and runs no
 test or eval itself. A suite's job that concluded `success` on the judged head settles a done-when
 "X exits 0" item and any "not run" or "likely fails" doubt about it; the diff is still judged for
 a test that cannot fail or was weakened. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a

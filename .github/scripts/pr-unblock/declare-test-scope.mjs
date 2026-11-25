@@ -109,7 +109,7 @@ const REGULAR_MODES = new Set(["100644", "100755"]);
 
 function laneMayWrite(path) {
   const parts = path.toLowerCase().split("/");
-  return parts[0] !== ".github" && parts.at(-1) !== "codeowners" && !parts.at(-1).startsWith("lane-grants");
+  return !(parts[0] === ".github" && parts[1] === "workflows") && parts.at(-1) !== "codeowners" && !parts.at(-1).startsWith("lane-grants");
 }
 
 export function planDeclarations({ gaps, changed, headEntry, baseHas, headText }) {

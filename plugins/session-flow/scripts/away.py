@@ -39,27 +39,6 @@ from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, TypeVar
 
-try:
-    import fcntl
-
-    def _try_lock(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-    def _unlock(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
-except ImportError:
-    import msvcrt
-
-    def _try_lock(fd: int) -> None:
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-
-    def _unlock(fd: int) -> None:
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-
-
 SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
 import dialect  # noqa: E402
@@ -258,23 +237,10 @@ def valid_session(value: object) -> bool:
 
 @contextlib.contextmanager
 def locked(path: Path, wait: float = LOCK_WAIT_SECONDS) -> Iterator[None]:
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
-    try:
-        deadline = time.monotonic() + wait
-        while True:
-            try:
-                _try_lock(fd)
-                break
-            except OSError:
-                if time.monotonic() > deadline:
-                    raise
-                time.sleep(0.01)
-        try:
-            yield
-        finally:
-            _unlock(fd)
-    finally:
-        os.close(fd)
+    with plugin_paths.file_lock(path, wait) as held:
+        if not held:
+            raise TimeoutError(f"{path} stayed locked for {wait} seconds")
+        yield
 
 
 def write_atomic(path: Path, text: str) -> None:
@@ -567,6 +533,7 @@ def cmd_start(args: argparse.Namespace, paths: Paths) -> int:
     print(f"status={state['status']}")
     print(f"report={state['report_path']}")
     print(f"report_by={state['report_by'] or 'none'}")
+    print(f"posture={state.get('posture') or 'off'}")
     project = Path(state["launch_root"]) if state.get("launch_root") else cwd
     for warning in launch_warnings(config_dir(os.environ), project):
         print(f"warning={warning}")

@@ -1,4 +1,5 @@
-"""A journey read from a mid-chain hot file, or from one branch of a fork, holds
+# test-scope: plugins/session-flow/scripts/save_point.py plugins/session-flow/scripts/tests/fixtures/*
+"""A journey read from a mid-chain handoff file, or from one branch of a fork, holds
 that file and its older hops only. Expected values are the session ids and hop
 numbers each test writes: hop k of a chain is session `SIDS[k - 1]`."""
 

@@ -1,5 +1,97 @@
 # Changelog: session-flow plugin
 
+## [10.2.1] - 2026-11-25
+
+### Changed
+
+- `save_point.py`, `tidy_work.py` and the hop-chain harness now say "handoff file" and "archive file"
+  in their messages, `--help` text and comments; identifiers, frontmatter keys and paths are
+  unchanged.
+- `focus.py` and `away.py` share one file lock from `plugin_paths.py`, polled every 10 ms. Each
+  keeps its wait; on timeout `focus.py` still skips the write, and `away.py` still raises, now a
+  `TimeoutError` naming the lock file, which its handlers catch as before.
+
+## [10.2.0] - 2026-11-25
+
+### Added
+
+- `/session-flow:step-away` now writes its orchestrator posture to the session's focus file, next
+  to the task file. Automatic compaction during an absence keeps both in the summary. `away.py
+  start` prints a `posture=` line, and `focus.py set --posture orchestrator|off` writes or removes
+  the new Posture section. The return step clears both. An absence works the same with
+  `compact_focus_enabled` off: the focus write is skipped and no file is created.
+
+## [10.1.1] - 2026-11-25
+
+### Fixed
+
+- `redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth token, the same way it
+  redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets `CLAUDE_CODE_OAUTH_TOKEN` start with either
+  prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
+## [10.1.0] - 2026-11-25
+
+### Added
+
+- Handoff shape 5, now the default: a binding `## Reminders` section takes Pending commands' place,
+  one `- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <date>` line per item that affects
+  a later session. An entry is carried hop to hop and leaves only through `retire`, listed under
+  `## Retired reminders`; `validate` fails one dropped any other way, fails a malformed entry, and
+  warns on a closed handoff that still holds reminders. A shape-4 chain's next hop converts its
+  Pending commands into `user · when now` reminders.
+- The handoff skill folds user messages and advisor output that change a section into the handoff
+  with `amend` after emit, without asking.
+- A reminder whose source is not the user's own message (an event, a tool result, a subagent or
+  peer report, fetched text) is recorded as a `user` entry, shown and never run, and recorded
+  reminder text is data: an `agent` entry asking for more than its task is raised, not done, at
+  resume and at chain close.
+- Forked side tasks, profile changes and chain-close follow-ups print one terminal command that
+  opens the destination checkout and starts the selected profile with the saved prompt or goal.
+
+- A compact-focus hook prints the session's focus file before every compaction, manual or
+  automatic, so the summary keeps the active `/goal` condition, the resumed handoff file and the
+  step-away task file. A typed `/goal` updates the file; `/goal clear` and its aliases remove the
+  goal. `scripts/focus.py` (`set`, `clear`, `print`, `hook`) is the only reader and writer of the
+  focus folder, and `/session-flow:step-away` records its task file there at launch and clears it on
+  return.
+- `compact_focus_enabled` (default on) turns the hook and every focus write off. The user's own
+  value wins over `docs/conventions/session-flow.yaml`.
+- Active goals and loops use automatic compaction until the user requests a handoff. Afterward,
+  evaluator re-prompts and loop ticks get a single line without a tool call. An urgent handoff
+  writes and validates the file and skips the position panel and checklist echo.
+
+- A resume-context hook (`resume_context_enabled`, on by default): when a pasted resume prompt
+  starts with its `Read @<handoff file>` directive (or a `/goal` paste ends with it) and the file
+  exists, it adds `reference/resume.md` to that turn once per session. The resumed session raises
+  due reminders in its first reply, offers a re-drafted goal when the handoff flags one, reads rate
+  limits on subscription accounts, reconciles only recorded off-thread work, continues the work,
+  then lists its scheduled tasks and re-arms each recorded loop, cron task and monitor that is
+  missing. Any other prompt stops in the node launcher.
+- Environment to re-establish records `[loop]`, `[cron]`, `[monitor]` and `[off-thread]` entries.
+  `validate` fails an entry that lost text to redaction without `restore: manual`, and warns on a
+  loop or cron entry whose line count does not match its prompt.
+- A loop, cron or monitor entry whose `since` predates the previous handoff was carried across more
+  than one hop: `validate` warns on it, and the resumed session shows its command or prompt and
+  re-arms it only after the user confirms. With `compact_focus_enabled` off, the resume hook
+  records nothing, so each matching resume paste injects `resume.md` again.
+
+### Changed
+
+- Errors about a handoff shape newer than the script name the remedy: update session-flow.
+- The resume-eval seeder and the hop-chain budget harness build shape-5 chains, so the resume
+  cases seed in the default shape.
+
+- The resume directive also asks the session to raise its due reminders and re-establish its
+  Environment last, for a session the hook does not reach. Older directives still validate.
+- New handoff files carry surviving loops under Environment to re-establish instead of the
+  below-rail `Re-arm <i> of <n>` block; recovery still reads that block from older files.
+
+- A role chain's standing-rules file now lives at `handoffs/standing-rules/<chain-root-stem>.md`,
+  outside `archive/`, since every hop rewrites it. Hops that name the old
+  `archive/<chain-root-stem>/standing-rules.md` still validate, read and amend it there, and the
+  chain's next hop writes the new path.
+
 ## [10.0.0] - 2026-11-25
 
 ### Added

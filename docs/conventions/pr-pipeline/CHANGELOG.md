@@ -1,5 +1,34 @@
 # Changelog for the PR pipeline convention
 
+## [13.0.1] - 2026-11-25
+
+### Changed
+
+- pr-verify's resolver (`resolve-pr.mjs`) and `upstream-jobs.mjs` take the pr-require-checks run from the `workflow_run` event payload instead of reading it back, and read the jobs of that payload's attempt (`/actions/runs/{id}/attempts/{n}/jobs`) instead of the run's latest jobs, so each pr-verify run spends one GitHub API call fewer and a re-run started since cannot change the run or the jobs judged. A payload missing a checked field, or with no attempt number, skips as `not-a-passing-run`; a missing or unreadable payload fails the step. The lost-run reconciler passes the run it already listed to the resolver, so its spec checks spend one call fewer each.
+
+## [13.0.0] - 2026-11-25
+
+### Changed
+
+- **Breaking:** a lane's `stage` is one of `intake`, `admit`, `build`, `refine`, `review`, `fix`, `verify`, `hold`, `merge`, `post-merge`, `upstream` or `maintenance`. `work-resolve-issue` is `build`, `work-unblock` is `admit`, `pr-unblock` is `fix`, and the review lanes are `review`; `work`, `pre-ready` and `unblock` are gone from the schema, so a config that still sets them fails it.
+- `lane-rules.json` is the one list of lane ids: each id is its workflow file stem, or a lane another repository's `lane-grants.json` row admits. The review lanes are `pr-review-hosted` and `pr-review-security-hosted`, and `pr-review-main`, `pr-rate-merge-risk`, `pr-run-plugin-evals`, `post-merge-test-mutation` and `maintenance-audit-lane-runs` have rows. `lane-registry.json` names a review caller's footer under `footer`. `lane-ids.test.mjs` fails when the registry, the funding file, the grants or the README's Lanes table name a lane the list lacks.
+
+### Removed
+
+- `post-merge-verify` and `post-merge-sweep-comments`, which had no workflow and no grant, and the README rows for them, `pr-run-checks` and `pr-explain`.
+
+## [12.12.2] - 2026-11-25
+
+### Fixed
+
+- The write runner's script activity step passes the standards checkout (`STANDARDS_DIR`), so the scripts that read the base config through resolve-config (`report-outcome.mjs`, `declare-test-scope.mjs`) load the vocabulary instead of failing work-resolve-issue's Report Outcome job with `the vocabulary is missing or does not have its expected shape`.
+
+## [12.12.1] - 2026-11-25
+
+### Changed
+
+- pr-unblock's dispatch reads the Dependabot policy only from the standards checkout (`STANDARDS_DIR`) or `DEPENDABOT_POLICY`; with neither it reads no policy, so every Dependabot pull request is tier `review` with `dependabot-policy-unreadable`, instead of falling back to the base's `.github/standards/` copy.
+
 ## [12.12.0] - 2026-11-25
 
 ### Changed

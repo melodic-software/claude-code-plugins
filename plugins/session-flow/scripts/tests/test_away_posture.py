@@ -27,6 +27,21 @@ def test_posture_on_shows_in_status(ctx):
     assert status["posture"] == "orchestrator"
 
 
+@pytest.mark.parametrize(("value", "printed"), [("true", "orchestrator"), ("false", "off")])
+def test_start_prints_the_posture_for_the_focus_file(ctx, value, printed):
+    result = ctx.start("--kind", "bed", "--setting", f"away_orchestrate={value}")
+    assert f"posture={printed}" in result.stdout.splitlines()
+
+
+def test_absence_runs_without_a_focus_file(ctx):
+    task = ctx.repo / "tasks.md"
+    task.write_text("- [ ] write the docs\n", encoding="utf-8")
+    ctx.start("--kind", "trip", "--task-file", str(task), "--setting", "away_orchestrate=true")
+    fill_report(ctx.report())
+    assert "session-flow:orchestrate" in json.loads(ctx.hook("Stop", "stop"))["reason"]
+    assert not (ctx.data / "focus").exists(), "away.py neither writes nor needs the focus file"
+
+
 def test_posture_rejects_other_values(ctx):
     result = ctx.cli("start", "--kind", "bed", "--setting", "away_orchestrate=maybe")
     assert result.returncode != 0
