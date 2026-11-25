@@ -15,10 +15,13 @@ write to that ledger and add no second format.
 
 ## Live checks
 
-**When.** On the main thread only (never a subagent's steps), on every 6th model step of a turn
-(`observer_step_check`, on by default), and, when `observer_turn_end_check` is on, once at the end of
-each turn that ran tools and was not interrupted. One check runs at a time per session: a trigger
-while one is in flight starts none. The checks run only where a person is at the prompt (the
+**When.** On the main thread only (never a subagent's steps), on every `observer_step_every`th
+(default 6) model step of a turn (`observer_step_check`, on by default); when
+`observer_turn_end_check` is on, once at the end of each turn that ran tools and was not
+interrupted; when `observer_change_check` is on, at the step after one whose tool calls match
+`observer_change_tools` (default `Edit,Write,NotebookEdit`); and when `observer_gate_check` is on,
+before each Bash command matching `observer_gate_pattern` (see "Gate"). One check runs at a time per
+session: a trigger while one is in flight starts none, except a gate check, which always runs. The checks run only where a person is at the prompt (the
 `session.start` event's `isInteractive`) and never in the catch-up's own analysis run
 (`SESSION_FLOW_OBSERVER_ANALYSIS` set).
 
@@ -52,7 +55,7 @@ marked as background the person did not write), `6` Noted (marks the ledger entr
 Dispute (marks it disputed and suppresses it for good), `8` Why (shows the rule, the evidence, this
 session's check cost and how to pause) and `9` Dismiss. The hotkeys are `5` to `9` because the
 built-in side agent's band uses `1` to `4` and `0`, and a hotkey two plugins share presses neither.
-Nothing reaches the main conversation unless the person sends it. After Dismiss, one row offers
+Nothing reaches the main conversation unless the person sends it or auto-send is on. After Dismiss, one row offers
 the built-in side agent's answers on our hotkeys: `5` That was helpful, `6` Not relevant, `7`
 Couldn't understand, `8` Turn off checks (live checks stop for this session only; `/observer off`
 pauses every session) and `9` Close. It clears itself after 20 seconds; the answer goes to the usage
@@ -64,13 +67,38 @@ understand makes every later check ask for plain words. Nothing is sent outside 
 `resolved: yes` when the assistant has since fixed it; the band then clears and the ledger records
 it as resolved by the assistant.
 
-**Backoff.** A finding the person types past twice without answering clears. Past two such findings
-in a row, the next 1, 2, 4, 8 and then at most 16 eligible checks are skipped; any button resets the
-count.
+**Auto-send.** With `observer_auto_send` on (off by default, attended or away alike), a finding
+reaches the agent without a button press, framed as the observer's note, never the person's words
+(`observer_auto_note` sets its lead). Found while a main turn runs, it is appended with
+`$.session.append` and rides the agent's next model request, starting no turn. Found while the
+session is idle, it starts one observer turn with `$.prompt.submit`, unless an observer prompt is
+already waiting or the last turn was itself an observer turn; such a finding is appended and rides
+the next turn, whoever starts it. Idle findings come from the end-of-turn check, so idle delivery
+needs `observer_turn_end_check` on. The observer turn is recognized by its start text; `/observer
+off` or Turn off before it starts aborts it. The band keeps a delivered finding, marked sent, with
+Send hidden and Noted, Dispute, Why and Dismiss working; a refused delivery leaves it unsent and
+records the error. `observer_guidance` steers what checks look for; it does not choose what is sent:
+to stop sending, turn auto-send off.
+
+**Gate.** With `observer_gate_check` on, a Bash command matching `observer_gate_pattern` waits for a
+check that sees the command. A finding refuses the command, and the agent reads the observer's note
+as the error; the same command is refused at most `observer_gate_refusals` times (default 1), after
+which it runs and its row carries `repeat: true`, so the usage file shows refused commands retried
+unchanged. No finding, a fork error or `observer_gate_timeout_seconds` (default 30) lets the command
+run: an observer fault never blocks work.
+
+**Backoff.** A finding the person types past `observer_clear_after_prompts` (default 2) times without
+answering clears. Past `observer_ignored_free` (default 2) such findings in a row, the next 1, 2, 4,
+8 and then at most `observer_skip_max` (default 16) eligible checks are skipped; any button resets
+the count. A delivered finding clears the same way without counting as ignored.
 
 **Usage.** Each check appends one line to `<plugin data>/session-flow-observer/live-<session>.jsonl`:
 time, trigger, turn, step, outcome, latency and the fork's token usage; each answer (sent, noted,
-disputed, dismissed, ignored, resolved, and the answers after Dismiss) appends one too. That file is
+disputed, dismissed, ignored, resolved, and the answers after Dismiss) appends one too. Auto-send adds
+`auto_sent` rows (delivery `append` or `submit`, note length in `chars`, and `stepsLate` for an
+append), `auto_send_failed` rows with the error, and one row per observer turn with its token usage;
+gate rows carry trigger `gate`, outcome `refused`, `none`, `timeout`, `error` or
+`allowed_after_refusals`, and `repeat`. That file is
 how a day's cost is read, and its presence tells the catch-up this session had live checks.
 
 **Storage and retention.** One usage file per session and per machine, each with one writer, so no
@@ -229,7 +257,25 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 |---|---|---|
 | `observer_enabled` | `false` | Turns on both parts. Off, the module hooks nothing and the hook exits. |
 | `observer_step_check` | `true` | Live check on every 6th model step of a turn. |
-| `observer_turn_end_check` | `false` | Live check at the end of each tool-using turn (see "Cost" above). |
+| `observer_turn_end_check` | `false` | Live check at the end of each tool-using turn (see "Cost" above). Idle delivery under auto-send needs it on. |
+| `observer_step_every` | `6` | Model steps between step checks. |
+| `observer_auto_send` | `false` | Deliver findings to the agent without a button press (see "Auto-send"). |
+| `observer_auto_note` | the plugin-voice note | Text that leads an auto-sent note or a gate refusal. |
+| `observer_guidance` | `""` | The person's own guidance, added to every live check's prompt; never the catch-up's. |
+| `observer_guidance_max` | `2000` | Characters of guidance kept. |
+| `observer_check_prompt` | `""` | Replaces the built-in check instructions; the already-reported lists and the answer shape stay. A replacement that breaks the answer shape shows as `parse_failed`. |
+| `observer_change_check` | `false` | Check at the step after one that called a tool in `observer_change_tools`. |
+| `observer_change_tools` | `Edit,Write,NotebookEdit` | Comma-separated tool names that count as a change. |
+| `observer_gate_check` | `false` | Hold matching Bash commands until a check returns (see "Gate"). |
+| `observer_gate_pattern` | `git push`, `gh pr create\|merge\|comment\|review`, `gh issue create\|comment`, `gh api` with a writing method | Regular expression for the held commands. |
+| `observer_gate_timeout_seconds` | `30` | Longest hold; the command then runs. |
+| `observer_gate_refusals` | `1` | Times the same command is refused before it runs. |
+| `observer_clear_after_prompts` | `2` | Prompts a shown finding survives unanswered. |
+| `observer_ignored_free` | `2` | Ignored findings before the backoff starts skipping checks. |
+| `observer_skip_max` | `16` | Most checks the backoff skips in a row. |
+
+An invalid value falls back to its default, and session start writes one `option_invalid` usage row
+naming the key.
 | `observer_analysis_enabled` | `true` | Run the catch-up. Off, ended sessions are not analyzed; live checks are unaffected. |
 | `observer_analysis_model` | plugin.json | Catch-up analysis model (a cost lever; see "Model and effort"). |
 | `observer_analysis_effort` | plugin.json | Catch-up analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
