@@ -36,27 +36,6 @@ import traceback
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
-try:
-    import fcntl
-
-    def _try_lock(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-    def _unlock(fd: int) -> None:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
-except ImportError:
-    import msvcrt
-
-    def _try_lock(fd: int) -> None:
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-
-    def _unlock(fd: int) -> None:
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-
-
 SCRIPT = Path(__file__).resolve()
 sys.path.insert(0, str(SCRIPT.parent))
 import plugin_paths  # noqa: E402
@@ -227,24 +206,8 @@ def section_text(name: str, value: str) -> str:
 @contextlib.contextmanager
 def locked(path: Path) -> Iterator[bool]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
-    try:
-        deadline = time.monotonic() + LOCK_WAIT_SECONDS
-        while True:
-            try:
-                _try_lock(fd)
-                break
-            except OSError:
-                if time.monotonic() > deadline:
-                    yield False
-                    return
-                time.sleep(0.02)
-        try:
-            yield True
-        finally:
-            _unlock(fd)
-    finally:
-        os.close(fd)
+    with plugin_paths.file_lock(path, LOCK_WAIT_SECONDS) as held:
+        yield held
 
 
 def read_sections(path: Path) -> dict[str, str]:

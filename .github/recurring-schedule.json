@@ -60,8 +60,8 @@
       "area": [],
       "category": "general",
       "triggers": [],
-      "last_checked": "2026-10-24",
-      "next_due": "2026-11-24",
+      "last_checked": "2026-11-25",
+      "next_due": "2026-12-25",
       "notes": "Re-read https://code.claude.com/docs/en/model-config#automatic-model-fallback. If it still names Opus 5, Opus 4.8 and Sonnet 5, change nothing. For each model no longer named, file an issue: remove plugins/playbooks/reference/model-adaptation/<model>.md, update fable-5 meta-rule 3 with the new read date, fable-5 evals, playbooks CHANGELOG and version, then sweep stale references (spec: #4349). Retire the row when the opus-5, opus-4-8 and sonnet-5 chapters are gone.",
       "close_previous": true
     },

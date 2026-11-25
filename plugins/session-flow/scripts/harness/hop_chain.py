@@ -71,11 +71,8 @@ READ_ONLY_TOOLS = frozenset({"Read", "Glob", "Grep"})
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 CREATION_MARKER_RE = re.compile(r"save_point\.py\S*\s+new\b")
 WRITE_INDICATOR_RE = re.compile(
-    # An output redirect, but not `2>&1`, `&>`, or a `<<` heredoc opener.
     r"(?<![0-9&<])>>?"
-    # Mutating coreutils verbs.
     r"|\b(?:cp|mv|rm|touch|mkdir|tee|dd|rsync|install|ln)\b"
-    # In-place stream editors, with any flags before the -i.
     r"|\b(?:sed|perl)\s+(?:-\S+\s+)*-i"
 )
 WRITE_CMDLET_RE = re.compile(
@@ -130,11 +127,6 @@ CUMULATIVE_ENTRY_WIDTH = 600
 BUDGET_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
 BUDGET_EPOCH = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
-# The child environment the spec fixes, plus the five variables the Phase 0
-# probe carried and a headless Windows child still needs (PATHEXT to resolve
-# `claude` as `claude.cmd`, HOMEDRIVE/HOMEPATH/windir/USERNAME for the native
-# tools git and PowerShell). Every other variable, `CLAUDE_*` included, is
-# dropped: an allowlist cannot leak the launching session's id or effort.
 ENV_ALLOWLIST = (
     "HOME",
     "USERPROFILE",
@@ -200,9 +192,6 @@ def _clear_readonly(func, path, _error):  # noqa: ANN001 - shutil callback signa
 def rmtree(path: Path) -> None:
     if not path.exists():
         return
-    # `onerror` is deprecated from 3.12 and removed in 3.14; `onexc` does not
-    # exist before 3.12 and the repo floor is 3.10, so the parameter is chosen
-    # at run time rather than pinned to either.
     if sys.version_info >= (3, 12):
         shutil.rmtree(path, onexc=_clear_readonly)
     else:
@@ -602,9 +591,6 @@ def skill_evidence(records: list[dict]) -> SkillEvidence:
     for index, record, block in _tool_uses(records):
         block_input = block.get("input") or {}
         serialized = json.dumps(block_input, ensure_ascii=False)
-        # The Skill tool's structured input names the skill in its own `skill`
-        # key. Matching the serialized input instead would let a call to any
-        # other skill pass by merely mentioning this one in its `args`.
         if (
             evidence.skill_index is None
             and block.get("name") == "Skill"
@@ -849,9 +835,7 @@ def make_fixture(work_dir: Path, run: int, pad_tokens: int) -> Path:
         ["git", "init", "-q", "-b", "main", "."],
         ["git", "config", "user.email", "harness@example.invalid"],
         ["git", "config", "user.name", "hop-chain"],
-        # The user's global config signs commits; the child has no signer.
         ["git", "config", "commit.gpgsign", "false"],
-        # Kill the LF/CRLF warnings the model otherwise investigates.
         ["git", "config", "core.autocrlf", "false"],
         ["git", "add", "-A"],
         ["git", "commit", "-qm", "fixture: initial"],
@@ -918,9 +902,6 @@ def live_runner(cfg: argparse.Namespace):
             "-p",
             "--output-format",
             "json",
-            # Observed: `dontAsk` plus an allow list denied every mutating tool on CLI 2.1.260.
-            # The fixture is a throwaway repo, so bypass prompts and pin tools with `--tools`.
-            # `permission_prompts_args` adds the no-prompt flag only where the CLI has it.
             "--permission-mode",
             "bypassPermissions",
             *permission_prompts_args(claude),
@@ -1286,12 +1267,12 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
 
         hot = generate_chain(root / "shape3", SHAPE3_BUDGET_HOPS, shape=3)
         hot_sizes = [len(path.read_bytes()) for path in hot]
-        print(f"shape 3: {len(hot)} hot files validate strictly")
+        print(f"shape 3: {len(hot)} handoff files validate strictly")
         for hop in SHAPE3_REPORT_HOPS:
-            print(f"{hop}\t{hot_sizes[hop - 1]} bytes\tshape-3 hot file")
+            print(f"{hop}\t{hot_sizes[hop - 1]} bytes\tshape-3 handoff file")
         if max(hot_sizes) > HOT_FILE_MAX_BYTES:
             print(
-                f"budget: a projected shape-3 hot file reaches {max(hot_sizes)} bytes by hop {SHAPE3_BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
+                f"budget: a projected shape-3 handoff file reaches {max(hot_sizes)} bytes by hop {SHAPE3_BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
                 file=sys.stderr,
             )
             return 1
