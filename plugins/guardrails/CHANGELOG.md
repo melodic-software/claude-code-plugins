@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.0] - 2026-11-25
+
+### Added
+
+- `block-pr-poller` denies a Monitor command, or a background Bash command, that loops, sleeps and polls a pull request (`gh pr view`, `gh pr checks`, `gh pr status`, or `gh api` on its pulls, check runs, statuses, artifacts or comments). The reason names `/source-control:pull-request monitor` and `gh event listen` on the pull request. The monitor skill's `monitor-poll.sh` passes. Kill switch: `block_pr_poller_enabled`.
+
 ## [5.1.1] - 2026-11-25
 
 ### Changed

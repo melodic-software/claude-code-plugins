@@ -103,7 +103,6 @@ const DEFERRED = "admission-deferred";
 const WORKFLOW = "intake-triage.yml";
 // The issues actions a Work status field change starts this run with.
 const FIELD_ACTIONS = new Set(["field_added", "field_removed"]);
-// The holds other than needs-info, as the field-first names carry them.
 const INFO_HOLDS = new Set([NEEDS_HUMAN, NEEDS_DECISION, "needs-spec"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
@@ -162,8 +161,6 @@ export async function classify({ github, repository, issue, comment, humans, ids
       return "decision";
     }
   }
-  // A listed human's decision re-enters a status: confirmed issue whether
-  // admission parked it there or a person confirmed it before any admission.
   if (humans.has(user.id) && confirmedOnly(labels)) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
@@ -193,10 +190,6 @@ async function removeLabel(github, base, name) {
   }
 }
 
-// A listed human lifted `needs-human` and left the issue parked nowhere or at
-// `needs-owner-decision`: true when intake should take it again. `labels`
-// are the issue's names as the field decides them; `events()` its
-// statusEvents, whose newest `needs-human` removal names who lifted it.
 async function liftReenters({ issue, humans, lanesAppId, labels, events }) {
   if (!openIssue(issue)) {
     return false;
@@ -288,14 +281,6 @@ async function dropRecord(client, repository, id) {
   }
 }
 
-// The Work status field path: a listed human's release (fieldReleases) posts
-// its record (releaseMarker), sets the field to needs-triage when the release
-// left it empty, and dispatches intake once; it writes no label. Runs for one
-// issue wait in line, so only a re-run can see the same release again, and it
-// finds the record and dispatches nothing. A hold a person set since then
-// keeps the field and takes the record back. A failed field write or
-// dispatch takes the record back, leaves the field as written and fails the
-// run, so a re-run, which walks past the field write, can claim again.
 async function releaseField({ client, repository, base, issue, humans, lanesAppId, env, log }) {
   const senderId = positiveId(env.SENDER_ID);
   const { fieldEvents, issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
@@ -382,8 +367,6 @@ const dispatch = (client, repository, issue) =>
     inputs: { "issue-number": String(issue.number) },
   });
 
-// Puts back `label` when the run took it off, and sets the Work status back
-// to `state`, when given, unless a person's hold landed since (keepHold).
 async function restore({ set, client, base, number, state, label, log, next = "; re-run the job to send the issue back to triage" }) {
   const back = async (what, write) => {
     try {
@@ -401,8 +384,6 @@ async function restore({ set, client, base, number, state, label, log, next = ";
   }
 }
 
-// Each answer's status: the label it takes off when the issue carries it, and
-// the Work status state a failed run sets back. A statusless answer has neither.
 const ANSWERED = {
   decision: [DECISION_LABELS, "needs-owner-decision"],
   parked: [[CONFIRMED], "confirmed"],
@@ -485,11 +466,7 @@ export async function main({ env = process.env, github, log = console.log, statu
     }
     const removed = took ? `removed ${status}, ` : "";
     const { set } = await statusWriter({ env, github: client, repository });
-    // Past the claim, a failed call sets the answered status back, so a re-run
-    // of the job finds the issue parked and the answer is not lost.
     try {
-      // A hold a person set since the read stands (write-status.mjs
-      // keepHold), except the hold this answer releases.
       const moved = await set(number, NEEDS_TRIAGE, { keepHold: true, releases: prior });
       if (moved?.outcome === "held") {
         await restore({ set, client, base, number, state: null, label: took ? status : null, log, next: "" });

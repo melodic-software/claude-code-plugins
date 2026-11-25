@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The copies in carrying plugins are byte-identical and registered in
-# scripts/cross-plugin-source-registry.txt, so this suite covers all of them.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

@@ -2316,6 +2316,7 @@ def _validate_shape3(
     _check_decision_fields(doc, f)
 
     _check_github_claims(doc, f)
+    _check_dated_observations(doc, f)
     if hop is None or start is None or not root:
         return doc
 
@@ -2655,6 +2656,22 @@ def _check_github_claims(doc: Doc, f: Findings) -> None:
                     f"line {i + 1}: GitHub state claim ({label}); state goes stale, so the hot file lists the command that re-reads it instead"
                 )
                 break
+
+
+_BARE_PRESENT = re.compile(r"(?i)\b(?:currently|now)\b")
+_CLAIM_ANCHOR = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|@[0-9a-f]{7,40}\b")
+
+
+def _check_dated_observations(doc: Doc, f: Findings) -> None:
+    for name, start, end in doc.sections:
+        if name != "Observations":
+            continue
+        for i in range(start, end):
+            line = doc.lines[i]
+            if _BARE_PRESENT.search(line) and not _CLAIM_ANCHOR.search(line):
+                f.warn(
+                    f"line {i + 1}: Observations: bare 'currently' or 'now' with no date or commit; date the claim (save-point.md, 'Write history, not the present')"
+                )
 
 
 def _open_handoff(file: str) -> tuple[Doc | None, int]:
@@ -4554,7 +4571,7 @@ def build_skeleton_3(
         (
             "Observations",
             "observations",
-            f"session-wide observations, summarized, one line each; detail stays in {hop_rel} or the transcript; no live GitHub state, list its re-read command under Review before you continue",
+            f"session-wide observations, summarized, one line each, each claim about code or state dated and a code claim citing its commit (save-point.md, 'Write history, not the present'); detail stays in {hop_rel} or the transcript; no live GitHub state, list its re-read command under Review before you continue",
         ),
         (
             "Pending commands",
@@ -4569,7 +4586,7 @@ def build_skeleton_3(
         (
             "Decisions in force",
             "decisions",
-            f"one per line, '- [D<n>] <decision> (<reason>)', the decisions the remaining actions depend on, new ids from D{floors['next_decision_id']}; {DECISION_TAG_SHAPE}; a carried decision keeps its id; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[D<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {S3.id_spec('D').retired_heading}'; settled history stays in the archive",
+            f"one per line, '- [D<n>] <decision> (<reason>)', the decisions the remaining actions depend on, a claim about code or state in one dated (save-point.md, 'Write history, not the present'), new ids from D{floors['next_decision_id']}; {DECISION_TAG_SHAPE}; a carried decision keeps its id; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '[D<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {S3.id_spec('D').retired_heading}'; settled history stays in the archive",
         ),
         (
             "Suggested skills",

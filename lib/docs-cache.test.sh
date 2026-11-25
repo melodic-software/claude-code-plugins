@@ -1049,8 +1049,6 @@ got="$(
 )"
 assert_eq "bash32: dc_utc and dc_lower match the Bash 4 forms they replace" \
   '1970-01-01T00:00:00Z 2000-02-29T00:00:00Z 2024-02-29T23:59:59Z 2100-02-28T23:59:59Z 200109090146.40 https://docs.test/a-z_09/é' "$got"
-# A server-sent header line is unbounded: 100 KB of upper case takes well under
-# a second when dc_lower is linear, and close to a minute when it is quadratic.
 got="$(
   # shellcheck source=docs-cache.sh
   . "$SCRIPT"

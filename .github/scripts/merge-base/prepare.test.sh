@@ -29,7 +29,6 @@ check() {
   if [[ $2 == "$3" ]]; then ok "$1"; else not_ok "$1: expected [$2], got [$3]"; fi
 }
 
-# A no-op version-bump script, and one that fails the way a git error does.
 NOOP_BUMP="$TMP/noop-bump.sh"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$NOOP_BUMP"
 BROKEN_BUMP="$TMP/broken-bump.sh"
@@ -45,7 +44,6 @@ commit() {
   tg commit -q --allow-empty -m "$1"
 }
 
-# new_repo: R is a repo on `main` with one base commit holding keep.txt.
 new_repo() {
   R="$(mktemp -d "$TMP/repo.XXXXXX")"
   git init -q -b main "$R"
@@ -53,8 +51,6 @@ new_repo() {
   put keep.txt 'keep\n'
   commit base
 }
-# diverge <path> <pr-content> <main-content>: the path is set on both sides;
-# leaves R on `pr`.
 on_pr() { tg checkout -q -B pr "${1:-main}"; }
 side() {
   tg checkout -q "$1"
@@ -62,8 +58,6 @@ side() {
   commit "$1 edits $2"
 }
 
-# run_prepare [env assignments...]: runs prepare.sh in R with the lanes
-# identity; sets OUT (stdout), ERR, RC and DIR (the out dir).
 run_prepare() {
   DIR="$(mktemp -d "$TMP/out.XXXXXX")"
   local head base
@@ -72,7 +66,6 @@ run_prepare() {
   tg checkout -q pr
   invoke "$head" "$base" "$@"
 }
-# invoke <head> <base> [env assignments...]: prepare.sh alone, no other git call.
 invoke() {
   local head=$1 base=$2
   shift 2
@@ -89,10 +82,8 @@ sha_of() {
   printf '%s' "${s%% *}"
 }
 merge_head() { tg rev-parse -q --verify MERGE_HEAD || true; }
-# stages <path>: the stage numbers the saved snapshot holds for the path.
 stages() { tr '\0' '\n' <"$DIR/index-snapshot" | awk -F'\t' -v p="$1" '$2 == p { split($1, f, " "); s = s f[3] } END { print s }'; }
 
-# conflict <path> <base> <pr> <main>: a fresh repo where both sides edit path.
 conflict() {
   new_repo
   put "$1" "$2"
@@ -148,14 +139,12 @@ run_prepare LC_ALL=en_US.UTF-8
 check 'conflict-tree: the same tree under another locale' "$T0_C" "$(val conflict-tree)"
 check 'conflict-tree: the bump sorted in the C locale' 'B _x a b ' "$(tg cat-file -p "$T0_C:plugins/p/sorted.txt" | tr '\n' ' ')"
 unset BUMP
-# A clean merge's T0 is the merged index's tree.
 new_repo
 on_pr
 side pr p.txt 'pr\n'
 side main m.txt 'main\n'
 run_prepare
 check 'conflict-tree: a clean merge is the merged tree' clean/"$(tg write-tree)" "$(val merge-state)/$(val conflict-tree)"
-# An escalation names no tree.
 conflict .github/workflows/ci.yml 'on: push\n' 'on: pull_request\n' 'on: workflow_dispatch\n'
 run_prepare
 check 'conflict-tree: an escalation names none' escalate/ "$(val merge-state)/$(val conflict-tree)"
@@ -197,7 +186,6 @@ commit 'main deletes d.txt'
 run_prepare
 check 'modify-delete: escalates unresolved-conflict' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 check 'modify-delete: snapshot holds stages 1 2' 12 "$(stages d.txt)"
-# The kept side quoting conflict markers does not make it a text conflict.
 new_repo
 put d.md 'one\n'
 commit 'add d.md'
@@ -210,8 +198,6 @@ run_prepare
 check 'modify-delete: a kept side holding marker text still escalates' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 
 echo '# symlink-conflict'
-# symlink_base <pr-op> <main-op>: a fresh repo whose base holds l.txt as a
-# symlink; each op is `link:<target>` or `file:<content>`, applied on its side.
 symlink_base() {
   new_repo
   ln -s keep.txt "$R/l.txt"
@@ -226,7 +212,6 @@ symlink_base() {
     commit "$branch edits l.txt"
   done
 }
-# Both sides turned the link into a regular file: an ordinary text conflict.
 symlink_base 'file:pr\n' 'file:main\n'
 run_prepare
 check 'symlink-conflict: a symlink ancestor under two text sides is a text conflict' conflicted/ "$(val merge-state)/$(val escalation-reason)"
@@ -243,7 +228,6 @@ check 'workflow-conflict: merge-state' escalate "$(val merge-state)"
 check 'workflow-conflict: reason' protected-path-conflict "$(val escalation-reason)"
 check 'workflow-conflict: a conflicting tree is not hidden by the escalation' "$(tg rev-parse main)" "$(merge_head)"
 
-# A workflow change from the base side alone merges cleanly and never escalates.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 side main .github/workflows/ci.yml 'on: push\n'
 run_prepare
@@ -353,7 +337,6 @@ check 'preconditions: merge ran with the fsmonitor configured' conflicted "$(val
 if [[ -e $TMP/fsmonitor-ran ]]; then not_ok 'preconditions: a configured fsmonitor command does not run'; else ok 'preconditions: a configured fsmonitor command does not run'; fi
 
 echo '# repeat-cap'
-# bot_commit <message>: a first-parent lane commit authored by the lanes bot.
 bot_commit() {
   tg checkout -q pr
   put "bot-$RANDOM.txt" 'x\n'
@@ -364,8 +347,6 @@ lane_msg=$'Merge main into pr\n\n'"$TRAILER"
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 bot_commit "$lane_msg"
 bot_commit "$lane_msg"
-# The third lane commit is a merge whose second parent holds a human commit:
-# only the first-parent chain counts.
 tg checkout -q -b side pr~1
 put human.txt 'h\n'
 commit 'human on a side branch'

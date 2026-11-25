@@ -29,7 +29,6 @@ export const LANE_LEVEL_DEFAULTS = Object.freeze({
   default: 3,
   "clean-windows": 2,
   pools: Object.freeze(["lanes-app"]),
-  // Read and publish (lane-level-value.mjs, publish-lane-level.mjs), not decide().
   shadow: true,
   variable: "CLAUDE_LANE_LEVEL",
   "valid-minutes": 150,
