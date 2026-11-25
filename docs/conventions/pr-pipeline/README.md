@@ -2272,7 +2272,7 @@ label only for a cause a person must clear ([when work stops for the owner](../.
 kept): that hold
 line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
 a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, a
-security finding, a trusted-actor widening or a listing past 300 files. It puts the label back while the comment stands
+security finding, a trusted-actor widening or a listing at GitHub's 3000-file cap. It puts the label back while the comment stands
 unless a person removed it since; a person's own hold text gets neither. Every other refusal, a
 listing read that failed included, is the lanes': later scheduled runs judge it again, and once a
 lanes' refusal has stood at the head for `merge.risk-escalation-minutes`, timed from the first one

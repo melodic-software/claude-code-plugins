@@ -762,13 +762,15 @@ test("a refusal a lane clears is commented on, with no label", async () => {
   assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
 });
 
-test("a listing past the page cap is a person's refusal; one that did not read is a lane's; neither arms", async () => {
-  const exactly = Array.from({ length: 300 }, (_, index) => ({ filename: `docs/${index}.md` }));
-  const full = await run([pull(1, { files: exactly })]);
-  assert.deepEqual(full.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-  assert.deepEqual(full.notes, []);
-  const files = Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` }));
-  const { code, notes, writes } = await run([pull(1, { files })]);
+test("a listing at GitHub's 3000-file cap is a person's refusal; one that did not read is a lane's; neither arms", async () => {
+  const docs = (length) => Array.from({ length }, (_, index) => ({ filename: `docs/${index}.md` }));
+  for (const length of [301, 2999]) {
+    const under = await run([pull(1, { files: docs(length) })]);
+    assert.deepEqual(under.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }], `${length} files are all listed, so the head arms`);
+    assert.deepEqual(under.notes, [], `${length} files leave no refusal note`);
+  }
+  const { code, notes, writes, calls } = await run([pull(1, { files: docs(3000) })]);
+  assert.equal(filesPages(calls), 30, "3000 files read as 30 pages and no 31st, which GitHub never fills");
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
   assert.deepEqual(notes, [
@@ -1910,7 +1912,7 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
       autoMergeRequest: {},
       files: [{ filename: "plugins/a/README.md" }, { filename: "docs/a.md", previous_filename: ".github/standards/trusted-actors/trusted-actors.json" }],
     }),
-    pull(3, { files: Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` })) }),
+    pull(3, { files: Array.from({ length: 3000 }, (_, index) => ({ filename: `docs/${index}.md` })) }),
     pull(4, { files: [{ filename: "docs/held.md" }] }),
     pull(5),
     pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-unblock/other.mjs" }] }),
