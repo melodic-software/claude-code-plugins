@@ -49,20 +49,10 @@ from babysit_util import (
 # GitHub recomputes mergeStateStatus asynchronously and flaps e.g.
 # UNKNOWN<->CLEAN without any real change to react to.
 ACTIONABLE_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
-# Marker embedded in the message of a head-ref alias cross-check failure. That
-# check is purely advisory: it proves global branch uniqueness across the fleet
-# and its failure leaves every per-PR classification and the persisted state
-# intact, so callers must be able to tell it apart from a substantive per-PR
-# hydration or discovery error. Both construction sites (the queue path here and
-# the single-PR path in pr_queue_snapshot.py) build the message through this
-# constant so the two cannot drift.
 HEAD_REF_ALIAS_ERROR_MARKER = "head-ref alias check:"
 DEFAULT_MAX_QUIET_RECHECK_SECONDS = 4 * 60 * 60
 DEFAULT_STUCK_CHECK_AGE_SECONDS = 30 * 60
 ADVISORY_FIX_ROUND_CAP = 100
-# Provenance classes in `safety.md`'s (a)/(b)/(c) round taxonomy: (a) a genuine
-# duplicate, (b) a new distinct finding, (c) a self-inflicted finding against
-# text this lane's own prior fix introduced.
 ADVISORY_ROUND_CLASSES = ("a", "b", "c")
 
 

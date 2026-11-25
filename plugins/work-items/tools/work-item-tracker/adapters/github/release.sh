@@ -69,8 +69,6 @@ else
 fi
 holder="$(jq -r '.holder // empty' <<<"$lease_json")"
 
-# Every exit-0 path for the caller's own lease hands the assignee back too, since the caller
-# relies on release for it; another login's superseded lease exits 0 with no write.
 hand_back() {
   [[ "$holder" == "$login" ]] && wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "$lease_comment_id"
   emit "$1" "$2"
@@ -94,9 +92,6 @@ fi
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 now_epoch="$(date -u +%s)"
 
-# An expired lease already blocks nobody; superseding it is reclaim's business. It is
-# still refused under a newer non-superseded lease, as a stale handle, and the assignee
-# goes back unless that lease or another live one is this login's.
 if ! wit_lease_is_live "$lease_json" "$now_epoch"; then
   wit_select_active_lease "$leases"
   if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
@@ -108,8 +103,6 @@ if ! wit_lease_is_live "$lease_json" "$now_epoch"; then
   hand_back false "lease already expired"
 fi
 
-# The holder is the earliest live lease (claim step 4); a newer live lease is a claimant
-# that has not backed off yet and does not stop the holder's release.
 wit_lease_winner "$leases" "$now_epoch" "$lease_comment_id" wit_lease_released_by_run
 if [[ "$WIT_WINNER_ID" != "$lease_comment_id" ]]; then
   outcome="lease superseded"

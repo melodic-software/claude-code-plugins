@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# GitHub-adapter lease-coordination correctness that the abstract conformance
-# suite cannot assert (that suite needs a live GitHub target; these cases drive
-# specific claim/renew-lease/reclaim decision paths deterministically against a
-# stubbed gh). Covers three lease-coordination findings:
-#   (1) renew-lease REFUSES an expired lease even when it is still the active
-#       (non-superseded) lease whose handle matches — no revive, exit 7, no PATCH;
-#   (2) reclaim removes ONLY the expired lease's holder, leaving a co-assignee
-#       (manual or concurrent claimer) in place; and revalidates ownership before
-#       mutating, so a concurrent claim during the activity window aborts cleanly;
-#   (3) claim's own protocol path (assign, sole-assignee check, lease post,
-#       arbitration), which claim.test.sh does not reach;
-#   (4) release ends the caller's own live lease, so a same-login claim that
-#       backed off on it succeeds afterwards, and refuses any lease that is not
-#       the caller's or that an earlier live lease outranks;
-#   (5) a lane's lease-only claim and release under a --holder override: a local
-#       claim backs off while the lane lease is live and holds once it is
-#       released, and a lane claim backs off on a live local lease;
-#   (6) claim --phase writes the lease's phase and renew-lease keeps it;
-#   (7) a lease held by a completed workflow run (session_id run-<id>) is
-#       treated as released, while a live run, a non-run session or an
-#       unreadable run status keeps the lease winning;
-#   (8) release and renew act on the holder's lease under a newer lease not yet
-#       arbitrated, release unassigns only when no other live lease of the login
-#       remains, and a same-login loser leaves no assignee that outlives the leases.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 unset RUNNER_TEMP GITHUB_SERVER_URL

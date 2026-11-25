@@ -97,8 +97,6 @@ on:
 
 permissions: {}
 
-# A newer dispatch of the same activity for the same PR replaces one still
-# waiting; a running one finishes.
 concurrency:
   group: pr-unblock-${{ inputs.activity }}-${{ inputs.pr-number }}
   cancel-in-progress: false
@@ -117,13 +115,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out main; the dispatcher file at its run's head
-      actions: read # the dispatcher run's file and head
+      contents: read
+      actions: read
     outputs:
       stale: ${{ steps.current.outputs.stale }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -188,9 +184,9 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      actions: read # the review lanes' comment records
-      contents: read # check out main and the PR head
-      pull-requests: read # the PR's head and mergeable state
+      actions: read
+      contents: read
+      pull-requests: read
     outputs:
       # true only for a conflicted merge; false on a skip, a clean merge or
       # an escalation; empty when the job stopped before deciding.
@@ -214,8 +210,6 @@ jobs:
       # apply-conflict-patch pushes past it (lane-hold.mjs).
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -321,7 +315,6 @@ jobs:
         if: steps.slot.outputs.applies == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -332,9 +325,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
 
-      # The base every merge of this round uses: the default branch tip now,
-      # pinned, so the read runner and the push job merge the same commit
-      # however the branch moves.
       - name: Pin the base
         id: base-sha
         if: steps.hold.outputs.held == 'false'
@@ -436,17 +426,6 @@ jobs:
         with:
           tokens: github-token
 
-  # A select that skipped, merged cleanly, or handed the PR to a person runs
-  # no model job, so no resolve-conflicts check would land on the head and
-  # dispatch.mjs would dispatch it again on every run. This job posts it
-  # neutral on the head the select job read: the slot's skip reason, else
-  # clean-merge (the push job commits it), else the stop's own skip
-  # (escalation-routes.mjs stopSkip: lane-stopped for a stop routed to a
-  # failing status, which ends the head until the base moves;
-  # awaiting-human for one held for a person). A kill-switch stop reads no
-  # head, and nothing is posted; nor is an up-to-date skip, since a neutral
-  # check would end the head for the dispatcher should a later default-branch
-  # push conflict with it.
   resolve-conflicts-not-run:
     name: Resolve Conflicts Not Run
     needs: resolve-conflicts-select
@@ -523,7 +502,7 @@ jobs:
     needs: resolve-conflicts-select
     if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -562,13 +541,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -613,9 +590,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
-  # only when resolve-conflicts-handoff read no check posted, which a credit
-  # stop or an empty key leaves, and holds the OAuth token alone.
   resolve-conflicts-subscription:
     name: Resolve Conflicts Subscription
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-handoff]
@@ -623,7 +597,7 @@ jobs:
       ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true'
       && needs.resolve-conflicts-handoff.outputs.posted != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -664,12 +638,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -704,16 +676,12 @@ jobs:
         with:
           tokens: github-token
 
-  # The third call, on the central fallback subscription's token alone: it
-  # runs only on resolve-conflicts-subscription-handoff's read, after
-  # resolve-conflicts-subscription's leg handed off (a limit stop, a credit
-  # stop, or a 401 or 402). It is the last leg and never hands off.
   resolve-conflicts-fallback:
     name: Resolve Conflicts Fallback
     needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-handoff, resolve-conflicts-subscription, resolve-conflicts-subscription-handoff]
     if: ${{ !cancelled() && needs.resolve-conflicts-handoff.outputs.fallback-ready == 'true' && needs.resolve-conflicts-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -760,7 +728,7 @@ jobs:
       && ((needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'written'
       || (needs.resolve-conflicts-fallback.result != 'skipped' && needs.resolve-conflicts-fallback.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-fallback.result == 'skipped' && needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'empty')) }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -898,9 +866,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # the review lanes' comment records
-      contents: read # check out main and the PR head
-      pull-requests: read # the PR's head, author and labels
+      actions: read
+      contents: read
+      pull-requests: read
     outputs:
       # true when the sync ran on the clean merge: it wrote a patch, or found
       # the merge's copies current (empty), when the refused head still needs
@@ -916,10 +884,6 @@ jobs:
       conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
       patch-sha256: ${{ steps.sync.outputs.sha256 }}
       patch-attempt: ${{ steps.sync.outputs.state == 'written' && github.run_attempt || '' }}
-      # The sync script's own refusals, or shared-copy-merge-conflicted for a
-      # merge that is not clean: resolve-conflicts stays held by the label
-      # pr-merge's refusal put on, so the stop goes to the session queue
-      # rather than sitting silent on this head.
       escalation-reason: >-
         ${{ steps.sync.outputs.refused
         || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' && 'shared-copy-merge-conflicted' || '' }}
@@ -1036,7 +1000,6 @@ jobs:
         if: steps.slot.outputs.applies == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -1190,15 +1153,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Every select outcome posts the sync-shared-copies check on the head the
-  # select job read, so dispatch.mjs sends a head once: no-model-turn when it
-  # proceeded (apply-shared-copies pushes the merge), else the skip reason, else
-  # the refusal's own skip (escalation-routes.mjs stopSkip). A select job
-  # whose hold read held on a fault posts nothing. A select job that failed
-  # after reading the head posts failure, which dispatch.mjs retries
-  # until limit-stops-per-head failures stand on the head, as it does
-  # resolve-conflicts's. A kill-switch stop reads no head, and nothing is
-  # posted.
   sync-shared-copies-not-run:
     name: Sync Shared Copies Not Run
     needs: sync-shared-copies-select
@@ -1276,7 +1230,7 @@ jobs:
     needs: sync-shared-copies-select
     if: ${{ !cancelled() && needs.sync-shared-copies-select.outputs.proceed == 'true' }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -1592,11 +1546,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main
-      pull-requests: read # the PR, its reviews, review comments and threads
-      checks: read # the model check runs that count rounds
-      actions: read # an earlier FAIL's verdict artifact and its pr-verify run (verify-earlier-fail-heads)
-      issues: read # the closing issues' spec text an advisory thread is judged against (closing_issues)
+      contents: read
+      pull-requests: read
+      checks: read
+      actions: read
+      issues: read
     outputs:
       # true once the context is uploaded; false on a skip or an escalation;
       # empty when the job stopped before deciding.
@@ -1628,8 +1582,6 @@ jobs:
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -1719,7 +1671,6 @@ jobs:
         if: steps.slot.outputs.applies == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           HEAD_SHA: ${{ steps.head.outputs.sha }}
@@ -1797,11 +1748,6 @@ jobs:
         with:
           tokens: github-token
 
-  # A select that kept nothing, or handed the PR to a person, runs no model
-  # or reply job, so neither check would land on the head and
-  # feedback-dispatch.mjs would dispatch it again. This job posts both
-  # neutral on the head the select job read; a kill-switch stop reads none,
-  # and nothing is posted.
   address-feedback-not-run:
     name: Address Feedback Not Run
     needs: address-feedback-select
@@ -1881,7 +1827,7 @@ jobs:
     needs: address-feedback-select
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -1920,13 +1866,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -1971,9 +1915,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
-  # only when address-feedback-handoff read no check posted, which a credit
-  # stop or an empty key leaves, and holds the OAuth token alone.
   address-feedback-subscription:
     name: Address Feedback Subscription
     needs: [address-feedback-select, address-feedback, address-feedback-handoff]
@@ -1981,7 +1922,7 @@ jobs:
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
       && needs.address-feedback-handoff.outputs.posted != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -2023,12 +1964,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -2063,16 +2002,12 @@ jobs:
         with:
           tokens: github-token
 
-  # The third call, on the central fallback subscription's token alone: it
-  # runs only on address-feedback-subscription-handoff's read, after
-  # address-feedback-subscription's leg handed off (a limit stop, a credit
-  # stop, or a 401 or 402). It is the last leg and never hands off.
   address-feedback-fallback:
     name: Address Feedback Fallback
     needs: [address-feedback-select, address-feedback, address-feedback-handoff, address-feedback-subscription, address-feedback-subscription-handoff]
     if: ${{ !cancelled() && needs.address-feedback-handoff.outputs.fallback-ready == 'true' && needs.address-feedback-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -2110,9 +2045,6 @@ jobs:
   # output is the one head after the select job's that the reply job and
   # report-escalation accept.
   apply-feedback-patch:
-    # After adjudicate-feedback too, so the push lands right before the reply
-    # job: a review run on the pushed head that finishes while this run still
-    # goes would find it in progress, skip, and start no next round.
     name: Apply Feedback Patch
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, adjudicate-feedback]
     # One leg answers the round: the fallback call when it ran, else the
@@ -2125,7 +2057,7 @@ jobs:
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '') == 'written'
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != '' }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -2152,7 +2084,6 @@ jobs:
       patch-head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
       patch-threads-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       patch-threads-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
-      # The same leg's scanned replies, whose VALID threads the commit names.
       patch-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       patch-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       # fix-request drops the human-gated label from the holds: the select job
@@ -2172,7 +2103,6 @@ jobs:
   check-adjudicator-key-credit:
     name: Check Adjudicator Key Credit
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback]
-    # adjudicate-feedback's own condition: a round with a disputed reply.
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != ''
@@ -2180,7 +2110,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # list this repository's credit-stop markers
+      actions: read
     outputs:
       next-leg: ${{ steps.credit.outputs.next-leg }}
       next-reason: ${{ steps.credit.outputs.next-reason }}
@@ -2199,8 +2129,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -2242,9 +2170,9 @@ jobs:
     timeout-minutes: 75
     cache-mode: read
     permissions:
-      contents: read # the base checkout and the disputed files at the head
-      issues: read # the linked issues' spec text (contract.json)
-      pull-requests: read # the PR's closing issues and Refs: line
+      contents: read
+      issues: read
+      pull-requests: read
     outputs:
       attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
       sha256: ${{ steps.upload.outcome == 'success' && steps.collect.outputs.sha256 || '' }}
@@ -2442,8 +2370,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 0's sealed transcript
         if: always() && steps.judge-0.outputs.execution-file != ''
         continue-on-error: true
@@ -2455,8 +2381,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-0
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 0's leg
         if: always() && steps.judge-0.outcome != 'skipped'
         continue-on-error: true
@@ -2473,8 +2397,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # Whether the subscription leg judges thread 0: after the key leg's
-      # handoff, or when the key did not run.
       - name: Pick disputed thread 0's next leg
         id: next-0
         if: ${{ always() }}
@@ -2526,8 +2448,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 0's sealed transcript on the subscription
         if: always() && steps.judge-0-subscription.outputs.execution-file != ''
         continue-on-error: true
@@ -2539,8 +2459,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-0-subscription
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 0's leg on the subscription
         if: always() && steps.judge-0-subscription.outcome != 'skipped'
         continue-on-error: true
@@ -2557,9 +2475,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.next-0.outputs.next-reason }}
 
-      # Whether the fallback leg judges thread 0: after the subscription
-      # leg's handoff, or when its token is empty. The subscription state is
-      # the job's one call, so it counts only when this slot reached that leg.
       - name: Pick disputed thread 0's next leg after the subscription
         id: next-0-subscription
         if: ${{ always() }}
@@ -2610,8 +2525,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 0's sealed transcript on the fallback token
         if: always() && steps.judge-0-fallback.outputs.execution-file != ''
         continue-on-error: true
@@ -2623,8 +2536,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-0-fallback
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 0's leg on the fallback token
         if: always() && steps.judge-0-fallback.outcome != 'skipped'
         continue-on-error: true
@@ -2703,8 +2614,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 1's sealed transcript
         if: always() && steps.judge-1.outputs.execution-file != ''
         continue-on-error: true
@@ -2716,8 +2625,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-1
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 1's leg
         if: always() && steps.judge-1.outcome != 'skipped'
         continue-on-error: true
@@ -2734,8 +2641,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # Whether the subscription leg judges thread 1: after the key leg's
-      # handoff, or when the key did not run.
       - name: Pick disputed thread 1's next leg
         id: next-1
         if: ${{ always() }}
@@ -2787,8 +2692,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 1's sealed transcript on the subscription
         if: always() && steps.judge-1-subscription.outputs.execution-file != ''
         continue-on-error: true
@@ -2800,8 +2703,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-1-subscription
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 1's leg on the subscription
         if: always() && steps.judge-1-subscription.outcome != 'skipped'
         continue-on-error: true
@@ -2818,9 +2719,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.next-1.outputs.next-reason }}
 
-      # Whether the fallback leg judges thread 1: after the subscription
-      # leg's handoff, or when its token is empty. The subscription state is
-      # the job's one call, so it counts only when this slot reached that leg.
       - name: Pick disputed thread 1's next leg after the subscription
         id: next-1-subscription
         if: ${{ always() }}
@@ -2871,8 +2769,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 1's sealed transcript on the fallback token
         if: always() && steps.judge-1-fallback.outputs.execution-file != ''
         continue-on-error: true
@@ -2884,8 +2780,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-1-fallback
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 1's leg on the fallback token
         if: always() && steps.judge-1-fallback.outcome != 'skipped'
         continue-on-error: true
@@ -2964,8 +2858,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
         continue-on-error: true
@@ -2977,8 +2869,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-2
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 2's leg
         if: always() && steps.judge-2.outcome != 'skipped'
         continue-on-error: true
@@ -2995,8 +2885,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # Whether the subscription leg judges thread 2: after the key leg's
-      # handoff, or when the key did not run.
       - name: Pick disputed thread 2's next leg
         id: next-2
         if: ${{ always() }}
@@ -3048,8 +2936,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 2's sealed transcript on the subscription
         if: always() && steps.judge-2-subscription.outputs.execution-file != ''
         continue-on-error: true
@@ -3061,8 +2947,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-2-subscription
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 2's leg on the subscription
         if: always() && steps.judge-2-subscription.outcome != 'skipped'
         continue-on-error: true
@@ -3079,9 +2963,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.next-2.outputs.next-reason }}
 
-      # Whether the fallback leg judges thread 2: after the subscription
-      # leg's handoff, or when its token is empty. The subscription state is
-      # the job's one call, so it counts only when this slot reached that leg.
       - name: Pick disputed thread 2's next leg after the subscription
         id: next-2-subscription
         if: ${{ always() }}
@@ -3132,8 +3013,6 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload disputed thread 2's sealed transcript on the fallback token
         if: always() && steps.judge-2-fallback.outputs.execution-file != ''
         continue-on-error: true
@@ -3145,8 +3024,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-2-fallback
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs.
       - name: Record disputed thread 2's leg on the fallback token
         if: always() && steps.judge-2-fallback.outcome != 'skipped'
         continue-on-error: true
@@ -3247,7 +3124,6 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-      # The prepare step's contents reads, from their own responses.
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -3268,7 +3144,7 @@ jobs:
     needs: [address-feedback-select, address-feedback, address-feedback-subscription, address-feedback-fallback, apply-feedback-patch, adjudicate-feedback]
     if: ${{ !cancelled() && (needs.address-feedback-select.outputs.proceed == 'true' || needs.address-feedback-select.outputs.resolve-only == 'true') }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -3286,7 +3162,6 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       review-replies: true
-      # run.json and its SHA-256, from the select job.
       review-run-sha256: ${{ needs.address-feedback-select.outputs.run-sha256 }}
       review-run-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       # The replies, their SHA-256 and the patch state, all from the one leg
@@ -3338,7 +3213,7 @@ jobs:
       || needs.publish-feedback.outputs.skip-reason == 'finding-stands'
       || needs.publish-feedback.outputs.skip-reason == 'no-model-turn') }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -3384,10 +3259,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main
-      pull-requests: read # the PR, its commits and files
-      checks: read # ci-status and the model check runs that count rounds
-      issues: read # the round markers
+      contents: read
+      pull-requests: read
+      checks: read
+      issues: read
     outputs:
       # true once the context is uploaded; false on a skip or an escalation;
       # empty when the job stopped before deciding.
@@ -3415,8 +3290,6 @@ jobs:
       cdn-sync-state: ${{ steps.upload-cdn-sync.outcome == 'success' && 'written' || '' }}
       cdn-sync-sha256: ${{ steps.upload-cdn-sync.outcome == 'success' && steps.select.outputs.cdn-sync-sha256 || '' }}
       cdn-sync-attempt: ${{ steps.upload-cdn-sync.outcome == 'success' && github.run_attempt || '' }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -3512,7 +3385,6 @@ jobs:
           # The review-only dependencies, read from the base.
           DEPENDABOT_POLICY: ${{ steps.standards.outputs.path }}/components/dependabot-policy/policy.json
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          # A stale install-script pin's patch (install-script-pin.mjs).
           PIN_PATCH_FILE: ${{ runner.temp }}/dependency-pin/patch.diff
           RELOCK_DIR: ${{ runner.temp }}/dependency-relock
           BASE_DIR: .base
@@ -3566,8 +3438,6 @@ jobs:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/dependency-pin/patch.diff
 
-      # Named as the push job's patch-activity reads it: no model job runs in
-      # this round, so nothing else uploads that name.
       - name: Upload the pin patch
         id: upload-pin
         if: (steps.select.outputs.pin-state == 'written') && steps.scan-pin.outputs.clean == 'true'
@@ -3622,11 +3492,6 @@ jobs:
         with:
           tokens: github-token
 
-  # A select that skipped, or handed the PR to a person, runs no model job,
-  # so no review-dependency check would land on the head and
-  # dependency-dispatch.mjs would dispatch it again on every run. This job
-  # posts it neutral on the head the select job read; a kill-switch stop
-  # reads none, and nothing is posted.
   review-dependency-not-run:
     name: Review Dependency Not Run
     needs: review-dependency-select
@@ -3692,7 +3557,7 @@ jobs:
     needs: review-dependency-select
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -3730,13 +3595,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -3781,9 +3644,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
-  # only when review-dependency-handoff read no check posted, which a credit
-  # stop or an empty key leaves, and holds the OAuth token alone.
   review-dependency-subscription:
     name: Review Dependency Subscription
     needs: [review-dependency-select, review-dependency, review-dependency-handoff]
@@ -3791,7 +3651,7 @@ jobs:
       ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true'
       && needs.review-dependency-handoff.outputs.posted != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -3832,12 +3692,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -3872,16 +3730,12 @@ jobs:
         with:
           tokens: github-token
 
-  # The third call, on the central fallback subscription's token alone: it
-  # runs only on review-dependency-subscription-handoff's read, after
-  # review-dependency-subscription's leg handed off (a limit stop, a credit
-  # stop, or a 401 or 402). It is the last leg and never hands off.
   review-dependency-fallback:
     name: Review Dependency Fallback
     needs: [review-dependency-select, review-dependency, review-dependency-handoff, review-dependency-subscription, review-dependency-subscription-handoff]
     if: ${{ !cancelled() && needs.review-dependency-handoff.outputs.fallback-ready == 'true' && needs.review-dependency-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -3928,7 +3782,7 @@ jobs:
       && (needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '') == 'written'
       && (needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-verdict || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-verdict || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-verdict || '') == 'fix' }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -3953,7 +3807,6 @@ jobs:
       patch-prepare: dependency-review
       # The head the select job read, from a job that ran no head code.
       patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
-      # The scanned verdict the row's dependency-verdict requirement reads.
       patch-verdict-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
       patch-verdict-sha256: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
       reply-attempt: ${{ needs.review-dependency-fallback.result != 'skipped' && needs.review-dependency-fallback.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-reply-attempt || needs.review-dependency-fallback.result == 'skipped' && needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-reply-attempt || '' }}
@@ -3963,7 +3816,7 @@ jobs:
     needs: review-dependency-select
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.pin-state == 'written' }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4323,7 +4176,7 @@ jobs:
     needs: [review-dependency-select, review-dependency, review-dependency-subscription, review-dependency-fallback, apply-dependency-patch]
     if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4341,7 +4194,6 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       dependency-verdict: true
-      # context.json, its SHA-256 and the head, from the select job.
       dependency-context-attempt: ${{ needs.review-dependency-select.outputs.context-attempt }}
       dependency-run-sha256: ${{ needs.review-dependency-select.outputs.run-sha256 }}
       dependency-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
@@ -4370,11 +4222,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main
-      pull-requests: read # the PR's head and commits
-      checks: read # the head's check runs and their annotations
-      actions: read # each failing job's workflow file and log
-      statuses: read # the head's pr-unblock/fix-ci weaken retry stop
+      contents: read
+      pull-requests: read
+      checks: read
+      actions: read
+      statuses: read
     outputs:
       proceed: ${{ steps.context.outputs.proceed }}
       head-sha: ${{ steps.context.outputs.head-sha }}
@@ -4398,14 +4250,11 @@ jobs:
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
@@ -4439,8 +4288,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # fix-ci-context.mjs reads loop.fix-ci-rounds through the base's
-      # resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'
@@ -4451,7 +4298,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -4493,11 +4339,6 @@ jobs:
         with:
           tokens: github-token
 
-  # A fix-ci-context skip (a closed PR, a human-gated hold, or no failing
-  # check) or stop (the round cap, lane-stopped) runs no fix-ci job,
-  # so no fix-ci check would land on the head and fix-ci-dispatch.mjs would
-  # dispatch it again on every run. This job posts fix-ci neutral on that head,
-  # as address-feedback-not-run does; a kill-switch stop leaves the head empty.
   fix-ci-not-run:
     name: Fix CI Not Run
     needs: fix-ci-context
@@ -4563,7 +4404,7 @@ jobs:
     needs: fix-ci-context
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' && vars.CLAUDE_API_KEYS_DISABLED != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4604,13 +4445,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -4655,12 +4494,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription fallback, as a second call on new VMs: it runs only when
-  # fix-ci posted no check, which a credit stop or an empty key leaves as a
-  # handoff with no upload, lane record or check. Its start reads only
-  # fix-ci-handoff, and it holds the OAuth token alone. fallback is handoff,
-  # the one fact that read attests: the lane record says the key posted no
-  # check, not why, since only the run job knows.
   fix-ci-subscription:
     name: Fix CI Subscription
     needs: [fix-ci-context, fix-ci, fix-ci-handoff]
@@ -4668,7 +4501,7 @@ jobs:
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
       && needs.fix-ci-handoff.outputs.posted != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4709,12 +4542,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -4749,16 +4580,12 @@ jobs:
         with:
           tokens: github-token
 
-  # The third call, on the central fallback subscription's token alone: it
-  # runs only on fix-ci-subscription-handoff's read, after
-  # fix-ci-subscription's leg handed off (a limit stop, a credit
-  # stop, or a 401 or 402). It is the last leg and never hands off.
   fix-ci-fallback:
     name: Fix CI Fallback
     needs: [fix-ci-context, fix-ci, fix-ci-handoff, fix-ci-subscription, fix-ci-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-ci-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4804,7 +4631,7 @@ jobs:
       || (needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'empty'
       || (needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-collect-refused || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-collect-refused || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4826,7 +4653,6 @@ jobs:
       patch-attempt: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-patch-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
-      # A same-head retry's producer ran a rung up: no second in-run rung-up.
       patch-model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
       patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       # The head fix-ci-context gated, from a job that ran no head code; the
@@ -4842,13 +4668,6 @@ jobs:
       patch-human-gate: ${{ needs.fix-ci-context.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       reply-attempt: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
 
-  # fix-ci's one retry one model rung up, in this same run: when apply-patch
-  # skipped rung-up (the run changed nothing and escalated only unfixed or
-  # not-reproducible checks), fix-ci runs again at model-rung 1 on the same
-  # context and head, with its own subscription fallback and apply-patch.
-  # Whatever the retry ends in reaches report-escalation, which hands the PR
-  # to a person unless the retry's patch applied cleanly; nothing here runs
-  # at rung 1 twice.
   fix-ci-rung-up:
     name: Fix CI Rung Up
     needs: [fix-ci-context, apply-patch]
@@ -4856,7 +4675,7 @@ jobs:
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
       && needs.apply-patch.outputs.rung-up == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4883,7 +4702,6 @@ jobs:
       claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # As fix-ci-handoff and fix-ci-subscription are for fix-ci.
   fix-ci-rung-up-handoff:
     name: Fix CI Rung Up Handoff
     needs: [fix-ci-context, fix-ci-rung-up]
@@ -4893,13 +4711,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -4952,7 +4768,7 @@ jobs:
       && needs.fix-ci-rung-up.result != 'skipped'
       && needs.fix-ci-rung-up-handoff.outputs.posted != 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -4994,12 +4810,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
+      actions: read
+      contents: read
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -5034,16 +4848,12 @@ jobs:
         with:
           tokens: github-token
 
-  # The third call, on the central fallback subscription's token alone: it
-  # runs only on fix-ci-rung-up-subscription-handoff's read, after
-  # fix-ci-rung-up-subscription's leg handed off (a limit stop, a credit
-  # stop, or a 401 or 402). It is the last leg and never hands off.
   fix-ci-rung-up-fallback:
     name: Fix CI Rung Up Fallback
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff, fix-ci-rung-up-subscription, fix-ci-rung-up-subscription-handoff]
     if: ${{ !cancelled() && needs.fix-ci-rung-up-handoff.outputs.fallback-ready == 'true' && needs.fix-ci-rung-up-subscription-handoff.outputs.handed-off == 'true' }}
     permissions:
-      actions: read # the read runner's key-credit gate lists the credit-stop markers
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -5079,7 +4889,7 @@ jobs:
       || (needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'empty'
       || (needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-collect-refused || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-collect-refused || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -5103,9 +4913,7 @@ jobs:
       patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       patch-human-gate: ${{ needs.fix-ci-context.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
-      # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
-      # A weaken-required stop here still takes the head's fresh fixer round.
       patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       reply-attempt: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
 
@@ -5124,7 +4932,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs and their steps
+      actions: read
       checks: write
       contents: read
     env:
@@ -5161,7 +4969,6 @@ jobs:
         with:
           lane: pr-unblock
           activity: fix-ci
-          # No verdict: posts failure, "The run left no verdict."
           run-result: failure
           head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
           can-commit: "false"
@@ -5269,8 +5076,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # this run's jobs
-      checks: read # the reply job's annotations
+      actions: read
+      checks: read
       contents: read
       statuses: write
     outputs:
@@ -5292,7 +5099,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      # report-escalation.sh's tokenRefusal read imports the base's modules.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -5407,7 +5213,7 @@ jobs:
       && needs.apply-patch-rung-up.outputs.escalation-reason == ''
       && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')) }}
     permissions:
-      actions: read # the write runner's run job reads the review lanes' comment records
+      actions: read
       contents: read
       pull-requests: write
       checks: write
@@ -5467,10 +5273,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # this run's jobs and their steps
-      contents: read # the default branch tip's handoff-evidence.sh
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
+      actions: read
+      contents: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:

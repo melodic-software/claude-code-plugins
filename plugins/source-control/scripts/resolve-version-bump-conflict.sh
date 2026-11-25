@@ -31,8 +31,6 @@ conflicted_plugins() {
   git diff --name-only --diff-filter=U |
     sed -n -e 's#/\.claude-plugin/plugin\.json$##p' -e 's#/CHANGELOG\.md$##p' | sort -u
 }
-# Any other operation (a revert, a merge onto the default branch): name the
-# conflicted pairs as left for manual resolution, never report them resolved.
 unsupported() {
   local dirs
   dirs=$(conflicted_plugins)
@@ -61,8 +59,6 @@ status=0
 semver() { [[ $1 =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; }
 version_at() { git show "$1:$2" 2>/dev/null | jq -r '.version // empty'; }
 version_headings() { grep -o '^## \[[0-9][^]]*\]' | sort; }
-# Replace the first "version" member's value; the three copies then differ only
-# where the sides' other edits do.
 set_version() { awk -v v="$1" '!done && sub(/"version"[ \t]*:[ \t]*"[^"]*"/, "\"version\": \"" v "\"") { done = 1 } 1'; }
 
 # cp below would write through a link, out of the checkout.
@@ -91,7 +87,6 @@ resolve() {
   added=$(comm -13 <(version_headings <"$tmp/cl.base") <(version_headings <"$tmp/cl.pr"))
   [[ -n $added && $added != *$'\n'* ]] || return 1
 
-  # Split the PR's changelog into its new section and everything else.
   awk -v h="$added" -v sec="$tmp/section" -v rest="$tmp/cl.pr.rest" '
     /^## / { insec = (index($0, h) == 1) }
     insec { print > sec; next }
@@ -116,7 +111,6 @@ resolve() {
   echo "resolved $dir: $b -> PR $p, main $m -> $new"
 }
 
-# Plugin names the default branch lists as in fragment mode, `#` comments dropped.
 fragment_mode=" $(git show "$main:scripts/fragment-plugins.txt" 2>/dev/null | sed 's/#.*//' | tr -s ' \t\r\n' ' ') "
 
 while IFS= read -r dir; do

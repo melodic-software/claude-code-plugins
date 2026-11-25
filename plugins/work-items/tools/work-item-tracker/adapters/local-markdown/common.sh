@@ -277,13 +277,10 @@ wit_emit_local_item() {
     fi
   fi
   labels="$(wit_fm_field "$file" labels)"
-  # `type` is additive — items created before the field existed have none, so an
-  # empty read projects as JSON null (parity with the GitHub adapter's untyped case).
   type="$(wit_fm_field "$file" type)"
   [[ -n "$type" ]] || type="null"
   parent="$(wit_fm_field "$file" parent)"
   url="$(wit_fm_field "$file" url)"
-  # Written by create-item; an item created before the field existed reads as null.
   created_at="$(wit_fm_field "$file" created_at)"
   [[ -n "$created_at" ]] || created_at="null"
   # Capture then iterate via here-string — a `< <(cmd)` process substitution whose
