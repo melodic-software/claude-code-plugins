@@ -16,3 +16,5 @@ bump: minor
 ### Changed
 
 - Errors about a handoff shape newer than the script name the remedy: update session-flow.
+- The resume-eval seeder and the hop-chain budget harness build shape-5 chains, so the resume
+  cases seed in the default shape.

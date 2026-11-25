@@ -1519,7 +1519,7 @@ def test_shape3_spec_errors_are_refused_before_any_file_is_written(tmp_path):
                 {"id": "x", "hop": 2, "section": "amendment", "text": "t\n**bold**"}
             ]
         },
-        {"shape": 5},
+        {"shape": 6},
     )
     for i, overrides in enumerate(bad):
         repo = tmp_path / str(i)

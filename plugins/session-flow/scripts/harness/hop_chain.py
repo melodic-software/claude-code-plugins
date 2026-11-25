@@ -366,12 +366,12 @@ def fill_skeleton(
     satisfying validate_doc: written in place when `write`, and returned as the
     slot values `save_point.py fill` takes.
 
-    Shapes 3 and 4 id their open questions and decisions: hop 1 writes them, and
+    Shapes 3 to 5 id their open questions and decisions: hop 1 writes them, and
     later hops carry them off disk unchanged and add none through the `-new` slots."""
     lines = path.read_text(encoding="utf-8").split("\n")
     ids = (
         {"open-questions": "Q", "decisions": "D"}
-        if frontmatter_value(path, "handoff_shape") in ("3", "4")
+        if frontmatter_value(path, "handoff_shape") in ("3", "4", "5")
         else {}
     )
     out: list[str] = []
@@ -385,8 +385,10 @@ def fill_skeleton(
         slot = match.group(1)
         prefix = line[: match.start()]
         counter += 1
-        if slot in DELETED_SLOTS or (
-            slot.removesuffix("-new") in ids and slot.endswith("-new")
+        if (
+            slot in DELETED_SLOTS
+            or slot == "reminders-new"
+            or (slot.removesuffix("-new") in ids and slot.endswith("-new"))
         ):
             continue
         if slot == "did":
@@ -420,6 +422,7 @@ def _slot_filler(
         "drift-check": "the first remaining action writes the next save-point, which is the goal.",
         "left": f"hops after {hop} still to generate",
         "rescan": "the re-scan read the lossless on-disk transcript; no compaction occurred.",
+        "reminders": "None. A generated chain records no reminder.",
     }
     if slot in fixed:
         return True, [fixed[slot]]
@@ -1158,7 +1161,7 @@ def generate_chain(
 ) -> list[Path]:
     """Generate `hops` handoff files of `shape` through the real
     `save_point.py new`, each filled with deterministic filler, each validated
-    strictly. Shape 4 fills through `save_point.py fill`, which fits the handoff file;
+    strictly. Shapes 4 and later fill through `save_point.py fill`, which fits the handoff file;
     a hop whose only FAILs are OVER-CAP is kept, its first OVER-CAP line recorded
     in `over_caps`."""
     over_caps = {} if over_caps is None else over_caps
@@ -1205,7 +1208,7 @@ def generate_chain(
         if hop == 1:
             lines, chars, slots = measure_skeleton(path)
             size = size_filler(lines, chars, slots)
-        if shape == 4:
+        if shape >= 4:
             over_cap = _fill_4(path, hop, size, projects=root / "projects")
             if over_cap:
                 over_caps[hop] = over_cap
@@ -1239,7 +1242,7 @@ def generate_chain(
 
 
 def _fill_4(path: Path, hop: int, size: FillerSize, projects: Path) -> str | None:
-    """Fill a shape-4 skeleton through `save_point.py fill`; return its first
+    """Fill a shape-4 or later skeleton through `save_point.py fill`; return its first
     OVER-CAP line when OVER-CAP is its only FAIL, else None once it validates."""
     values = fill_skeleton(path, hop, size, write=False)
     slots = path.with_suffix(".slots.json")
