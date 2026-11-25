@@ -46,6 +46,7 @@ target() {
 }
 run() { bash "$SCRIPT" "$@" 2>/dev/null; }
 code() { bash "$SCRIPT" "$@" >/dev/null 2>&1; echo $?; }
+errs() { { bash "$SCRIPT" "$@" >/dev/null; } 2>&1; }
 
 OPTED=$'standards_repository: acme/standards # org layer\n'
 
@@ -120,6 +121,53 @@ printf -- '---\nstandards-contract: 1.2.0\n---\n' >"$TEST_TMPDIR/moved-index/std
 assert_eq "index follows the org repository's standards_dir" "$TEST_TMPDIR/moved-index/std/README.md" \
   "$(STANDARDS_DIR="$TEST_TMPDIR/moved-index" run index --root "$t")"
 
+OUTSIDE="$TEST_TMPDIR/outside"
+mkdir -p "$OUTSIDE"
+printf -- '---\nstandards-contract: 1.2.0\n---\n' >"$OUTSIDE/README.md"
+SECRET="$TEST_TMPDIR/secret.txt"
+printf 'secret\n' >"$SECRET"
+org_checkout() {
+  local dir="$TEST_TMPDIR/$1"
+  mkdir -p "$dir/.claude"
+  [[ -z "$2" ]] || printf 'standards_dir: %s\n' "$2" >"$dir/.claude/standards.yaml"
+  printf '%s\n' "$dir"
+}
+o=$(org_checkout escape-dots ../outside)
+assert_eq "a standards_dir with a '..' segment is no usable index: exit 5" "5" "$(STANDARDS_DIR="$o" code index --root "$t")"
+assert_eq "a standards_dir with a '..' segment is refused naming the file" "1" \
+  "$(STANDARDS_DIR="$o" errs index --root "$t" | grep -c "^org-standards: $o/.claude/standards.yaml: standards_dir ../outside has a '..' segment; no usable index")"
+o=$(org_checkout escape-abs "$OUTSIDE")
+assert_eq "an absolute standards_dir is no usable index: exit 5" "5" "$(STANDARDS_DIR="$o" code index --root "$t")"
+assert_eq "an absolute standards_dir is refused naming the file" "1" \
+  "$(STANDARDS_DIR="$o" errs index --root "$t" | grep -c "^org-standards: $o/.claude/standards.yaml: standards_dir $OUTSIDE is absolute; no usable index")"
+o=$(org_checkout escape-link '')
+mkdir -p "$o/docs"
+ln -s "$OUTSIDE" "$o/docs/standards"
+assert_eq "a standards directory symlinked out of the checkout is no usable index: exit 5" "5" "$(STANDARDS_DIR="$o" code index --root "$t")"
+assert_eq "a standards directory symlinked out of the checkout is refused naming the index" "1" \
+  "$(STANDARDS_DIR="$o" errs index --root "$t" | grep -c "^org-standards: $o/docs/standards/README.md: the index resolves outside its checkout; no usable index")"
+
+o=$(org_checkout escape-rows '')
+mkdir -p "$o/docs/standards"
+printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |\n| linked | x | linked.md |\n| nested | x | sub/README.md |\n| external | x | ext.md |\n' \
+  >"$o/docs/standards/README.md"
+printf '# Testing\n' >"$o/docs/standards/testing.md"
+ln -s "$SECRET" "$o/docs/standards/linked.md"
+ln -s "$OUTSIDE" "$o/docs/standards/sub"
+ln -s "$SECRET" "$o/ext.md"
+confined=$(STANDARDS_DIR="$o" run index --root "$t")
+assert_eq "org index: rows whose File resolves outside the checkout are dropped" \
+  "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |')" \
+  "$(cat "$confined")"
+assert_eq "org index: the confined index sits beside the original, so its rows resolve there" "$o/docs/standards" "$(dirname "$confined")"
+rows=$(STANDARDS_DIR="$o" errs index --root "$t")
+assert_eq "org index: each dropped row is reported with its file, line and value" \
+  "org-standards: $o/docs/standards/README.md:8: File linked.md resolves outside its checkout; row dropped|org-standards: $o/docs/standards/README.md:9: File sub/README.md resolves outside its checkout; row dropped|org-standards: $o/docs/standards/README.md:10: File ext.md resolves outside its checkout; row dropped" \
+  "$(paste -sd'|' - <<<"$rows")"
+ln -s "$SECRET" "$o/REVIEW.md"
+assert_eq "an org REVIEW.md that resolves outside the checkout is not read" "3|" \
+  "$(STANDARDS_DIR="$o" code review --root "$t")|$(STANDARDS_DIR="$o" run review --root "$t")"
+
 assert_eq "an unknown command is a usage error" "2" "$(code bogus)"
 
 export HOME="$TEST_TMPDIR/home"
@@ -127,7 +175,6 @@ export ORG_STANDARDS_CACHE="$TEST_TMPDIR/sub-cache"
 unset STANDARDS_SUBSCRIPTIONS_DISABLED
 USER_INDEX="$HOME/.claude/standards/README.md"
 mkdir -p "$HOME/.claude/standards"
-errs() { { bash "$SCRIPT" "$@" >/dev/null; } 2>&1; }
 
 HANDBOOK_INDEX='---
 standards-contract: 1.2.0
@@ -237,6 +284,9 @@ printf -- '---\nstandards-contract: 1.3.0\ntrusted_owners:\n  - stranger\n---\n'
 user_index $'standards_repositories:\n  - repo: stranger/other\n'
 assert_eq "a repository-layer trusted_owners is ignored: the unpinned subscription stays refused" "" \
   "$(run subscriptions --root "$layered")"
+assert_eq "a repository-layer trusted_owners is reported as ignored, naming each file and line" \
+  "org-standards: $layered/docs/conventions/source-control.yaml:1: trusted_owners is read from the user-global index only; ignored here|org-standards: $layered/docs/standards/README.md:3: trusted_owners is read from the user-global index only; ignored here" \
+  "$(errs subscriptions --root "$layered" | grep 'ignored here' | paste -sd'|' -)"
 
 user_index "trusted_owners:
   - acme
@@ -338,6 +388,16 @@ assert_eq "the fork-only refusal says why" "1" "$(errs subscriptions --root "$t"
 g -C "$TEST_TMPDIR/git/stranger/guide.git" tag released "$FORK"
 assert_eq "a commit a tag reaches is accepted" "stranger/guide@$FORK" "$(run subscriptions --root "$t" | cut -f1)"
 
+g -C "$TEST_TMPDIR/git/stranger/guide.git" tag -a -m pinned pinned "$GUIDE"
+TAG_OBJECT=$(g -C "$TEST_TMPDIR/git/stranger/guide.git" rev-parse pinned)
+user_index "standards_repositories:
+  - repo: stranger/guide
+    ref: $TAG_OBJECT
+"
+assert_eq "a pin naming an annotated tag object reads, caches and names the commit it tags" \
+  "stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE/docs/standards/README.md|" \
+  "$(run subscriptions --root "$t")|$(find "$ORG_STANDARDS_CACHE" -name "*@$TAG_OBJECT")"
+
 printf 'private\n' >"$TEST_TMPDIR/private.txt"
 ln -s "$TEST_TMPDIR/private.txt" "$GUIDE_WORK/docs/standards/linked.md"
 g -C "$GUIDE_WORK" add -A
@@ -351,6 +411,52 @@ user_index "standards_repositories:
 linked="$(dirname "$(run subscriptions --root "$t" | cut -f3)")/linked.md"
 assert_eq "a subscribed symlink is checked out as a plain file holding its target path" \
   "file|$TEST_TMPDIR/private.txt" "$([[ -L "$linked" ]] && echo link || echo file)|$(cat "$linked")"
+
+publish stranger/escape "$HANDBOOK_INDEX"
+ESCAPE_WORK="$TEST_TMPDIR/work/stranger/escape"
+mkdir -p "$ESCAPE_WORK/.claude"
+printf 'standards_dir: ../../../outside\n' >"$ESCAPE_WORK/.claude/standards.yaml"
+g -C "$ESCAPE_WORK" add -A
+g -C "$ESCAPE_WORK" commit -q -m escape
+g -C "$ESCAPE_WORK" push -q origin main
+ESCAPE=$(head_of stranger/escape)
+user_index "standards_repositories:
+  - repo: stranger/escape
+    ref: $ESCAPE
+  - repo: stranger/guide
+    ref: $GUIDE
+"
+assert_eq "a subscribed standards_dir that leaves its checkout skips that layer only" "stranger/guide@$GUIDE" \
+  "$(run subscriptions --root "$t" | cut -f1)"
+assert_eq "a subscribed standards_dir that leaves its checkout is refused naming the file" "1" \
+  "$(errs subscriptions --root "$t" | grep -c "^org-standards: $ORG_STANDARDS_CACHE/stranger/escape@$ESCAPE/.claude/standards.yaml: standards_dir ../../../outside has a '..' segment")"
+
+publish stranger/rows "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |\n| up | x | ../../../secret.txt |\n| abs | x | /etc/hostname |\n| home | x | ~/.ssh/id_rsa |\n| naming | naming things | naming.md |')"
+ROWS=$(head_of stranger/rows)
+ROWS_INDEX="$ORG_STANDARDS_CACHE/stranger/rows@$ROWS/docs/standards/README.md"
+user_index "standards_repositories:
+  - repo: stranger/rows
+    ref: $ROWS
+"
+confined=$(run subscriptions --root "$t" | cut -f3)
+assert_eq "subscription: rows whose File is absolute, home-relative or climbs out are dropped" \
+  "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |\n| naming | naming things | naming.md |')" \
+  "$(cat "$confined")"
+assert_eq "subscription: the confined index sits beside the original" "$(dirname "$ROWS_INDEX")" "$(dirname "$confined")"
+rows=$(errs subscriptions --root "$t")
+assert_eq "subscription: each dropped row is reported with its file, line and value" \
+  "org-standards: $ROWS_INDEX:8: File ../../../secret.txt has a '..' segment; row dropped|org-standards: $ROWS_INDEX:9: File /etc/hostname is absolute; row dropped|org-standards: $ROWS_INDEX:10: File ~/.ssh/id_rsa is not a relative forward-slash path; row dropped" \
+  "$(paste -sd'|' - <<<"$rows")"
+user_index "standards_repositories:
+  - repo: stranger/rows
+    ref: $ROWS
+    topics:
+      - up
+      - naming
+"
+assert_eq "subscription: a topic filter keeps only confined rows" \
+  "$(printf -- '---\nstandards-contract: 1.2.0\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| naming | naming things | naming.md |')" \
+  "$(cat "$(run subscriptions --root "$t" | cut -f3)")"
 
 user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
 printf '# Local\n' >"$t/REVIEW.md"
@@ -400,6 +506,67 @@ assert_eq "two concurrent refreshes of one live repository: both read main" \
   "acme/handbook@$HANDBOOK2|acme/handbook@$HANDBOOK2" "$(cut -f1 "$TEST_TMPDIR/l1.out")|$(cut -f1 "$TEST_TMPDIR/l2.out")"
 assert_eq "two concurrent refreshes of one live repository: no error and no leftover build directory" "|||" \
   "$(cat "$TEST_TMPDIR/l1.err")|$(cat "$TEST_TMPDIR/l2.err")|$(find "$ORG_STANDARDS_CACHE" -name '.build.*')|$(find "$ORG_STANDARDS_CACHE/acme/handbook@$HANDBOOK2" -maxdepth 1 -name '.build.*')"
+
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/collide-cache"
+publish acme/handbook.last "$HANDBOOK_INDEX"
+collide=$(target collide $'standards_repository: acme/handbook.last\n')
+user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+run subscriptions --root "$collide" >/dev/null
+collided=$(run dir --root "$collide")
+assert_eq "a subscription's read state never takes the cache path of a repository named <repo>.last" \
+  "$ORG_STANDARDS_CACHE/acme/handbook.last|checkout" "$collided|$([[ -d "$collided/.git" ]] && echo checkout || echo 'not a checkout')"
+
+INVENTORY="$SCRIPT_DIR/../plugins/harness-config/skills/audit-automation-gaps/scripts/rule-inventory.sh"
+inv=$(target inventory 'pr_open_state: ready\n')
+g init -q "$inv"
+user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+assert_eq "rule inventory: a subscribed layer is named as present, not counted" "1|0" \
+  "$(bash "$INVENTORY" --root "$inv" 2>/dev/null | grep -cxF -e "- review: the personal standards subscription acme/handbook@$HANDBOOK2 is present, not counted: it is the user's, not this repository's")|$(bash "$INVENTORY" --root "$inv" --rows 2>/dev/null | grep -c 'acme/handbook')"
+
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/net-cache"
+unset GIT_SSH_COMMAND GIT_ASKPASS
+mkdir -p "$TEST_TMPDIR/netshim"
+cat >"$TEST_TMPDIR/netshim/git" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+  *" ls-remote "*|*" fetch "*|*" clone "*)
+    printf '%s|%s|%s|%s\n' "\${GIT_TERMINAL_PROMPT-}" "\${GIT_SSH_COMMAND-}" "\${GIT_ASKPASS-unset}" "\$*" >>"$TEST_TMPDIR/net.log"
+    [[ -z "\${SLOW_NET:-}" ]] || exec sleep 20
+    [[ -z "\${BAD_LS:-}" || " \$* " != *" ls-remote "* ]] || { printf '../../escape\trefs/heads/main\n'; exit 0; } ;;
+esac
+exec "$(command -v git)" "\$@"
+EOF
+chmod +x "$TEST_TMPDIR/netshim/git"
+net=$(target net "$OPTED")
+user_index "trusted_owners:
+  - acme
+standards_repositories:
+  - repo: acme/handbook
+  - repo: stranger/guide
+    ref: $GUIDE
+"
+PATH="$TEST_TMPDIR/netshim:$PATH" run dir --root "$net" >/dev/null
+PATH="$TEST_TMPDIR/netshim:$PATH" ORG_STANDARDS_TTL=0 run dir --root "$net" >/dev/null
+PATH="$TEST_TMPDIR/netshim:$PATH" run subscriptions --root "$net" >/dev/null
+assert_eq "every clone, fetch and ls-remote runs with prompts off, ssh in batch mode, no askpass and no credential helper" "1|1|1|0" \
+  "$(grep -cE '[| ]clone ' "$TEST_TMPDIR/net.log")|$(grep -cE -m1 '[| ]fetch ' "$TEST_TMPDIR/net.log")|$(grep -cE '[| ]ls-remote ' "$TEST_TMPDIR/net.log")|$(grep -vc '^0|ssh -o BatchMode=yes||-c credential.helper= ' "$TEST_TMPDIR/net.log")"
+
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/bad-ls-cache"
+user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+assert_eq "a remote that answers main with something other than a commit SHA is not used as a cache key" "1|" \
+  "$(PATH="$TEST_TMPDIR/netshim:$PATH" BAD_LS=1 errs subscriptions --root "$net" | grep -c 'cannot read acme/handbook; layer skipped')|$(find "$ORG_STANDARDS_CACHE" -name 'handbook@*')"
+
+if command -v timeout >/dev/null 2>&1; then
+  export ORG_STANDARDS_CACHE="$TEST_TMPDIR/slow-cache"
+  user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+  start=$SECONDS
+  slow=$(PATH="$TEST_TMPDIR/netshim:$PATH" SLOW_NET=1 ORG_STANDARDS_GIT_TIMEOUT=1 bash "$SCRIPT" subscriptions --root "$net" 2>&1)
+  assert_eq "a stalled remote is given up after ORG_STANDARDS_GIT_TIMEOUT and the layer skipped" "1|yes" \
+    "$(grep -c 'cannot read acme/handbook; layer skipped' <<<"$slow")|$([[ $((SECONDS - start)) -lt 10 ]] && echo yes || echo "no, $((SECONDS - start))s")"
+  start=$SECONDS
+  assert_eq "a stalled org clone is given up after ORG_STANDARDS_GIT_TIMEOUT: exit 4" "4|yes" \
+    "$(PATH="$TEST_TMPDIR/netshim:$PATH" SLOW_NET=1 ORG_STANDARDS_GIT_TIMEOUT=1 code dir --root "$net")|$([[ $((SECONDS - start)) -lt 10 ]] && echo yes || echo "no, $((SECONDS - start))s")"
+fi
 
 if [[ "$FAILED" -gt 0 ]]; then
   printf '%d test(s) failed\n' "$FAILED" >&2

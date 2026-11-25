@@ -13,7 +13,14 @@ layer with its checkout and its (topic-filtered) index, reports malformed entrie
 index drift, and prints the index diff when a pin moves; `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
 skips them for a session. A user index that uses the list declares 1.3.0. Validation tightens:
 a repository name made only of dots (`.`, `..`) is not `<owner>/<repo>`, for `standards_repository`
-and for every subscription entry, so a cache path cannot resolve outside its cache root. An index at 1.2.0 is
+and for every subscription entry, so a cache path cannot resolve outside its cache root. A layer
+read from another repository (the org layer and each subscription) is confined to its checkout:
+a `standards_dir` or `File` value that is absolute, has a `..` segment or resolves (symbolic links
+included) outside the checkout is reported and dropped, as is an org `REVIEW.md` that resolves
+outside it, and the printed index is then a filtered copy beside the original. Every clone, fetch
+and `ls-remote` gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), never prompts and
+uses no credential helper. A `ref` naming an annotated tag object reads the commit it tags. Reader
+state moves to `.state/` in the cache directory. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but
 the version.
 

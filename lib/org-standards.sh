@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2310  # every function here answers through its return code; callers branch on it
 set -euo pipefail
 
 REPLACE_MARKER='<!-- review-base: replace -->'
@@ -29,8 +30,19 @@ yaml_value() {
 }
 
 CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"
+STATE="$CACHE/.state"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+GIT_TIMEOUT=${ORG_STANDARDS_GIT_TIMEOUT:-60}
+[[ "$GIT_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || GIT_TIMEOUT=60
+net_git() {
+  local limit=()
+  command -v timeout >/dev/null 2>&1 && limit=(timeout "$GIT_TIMEOUT")
+  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" \
+    ${limit[@]+"${limit[@]}"} git -c credential.helper= "$@"
+}
 REPO_RE='^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*$'
+SHA_RE='^[0-9a-f]{40}([0-9a-f]{24})?$'
 
 org_dir() {
   if [[ -n "${STANDARDS_DIR:-}" ]]; then
@@ -53,7 +65,7 @@ org_dir() {
     if [[ -f "$stamp" ]] && [[ $((now - $(cat "$stamp"))) -lt "$ttl" ]]; then
       printf '%s\n' "$cache"; return 0
     fi
-    if git -C "$cache" fetch --quiet --depth=1 origin main 2>/dev/null \
+    if net_git -C "$cache" fetch --quiet --depth=1 origin main 2>/dev/null \
       && git -C "$cache" checkout --quiet --force --detach FETCH_HEAD 2>/dev/null; then
       printf '%s\n' "$now" >"$stamp"
     else
@@ -64,7 +76,7 @@ org_dir() {
   mkdir -p "$(dirname "$cache")"
   local tmp
   tmp=$(mktemp -d "$(dirname "$cache")/.clone.XXXXXX")
-  if ! git clone --quiet --depth=1 --branch main "$url" "$tmp/c" 2>/dev/null; then
+  if ! net_git clone --quiet --depth=1 --branch main "$url" "$tmp/c" 2>/dev/null; then
     rm -rf "${tmp:?}"
     printf 'org-standards: cannot clone %s; no org layer this run\n' "$url" >&2
     return 4
@@ -75,17 +87,90 @@ org_dir() {
   printf '%s\n' "$cache"
 }
 
+printable() { printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177'; }
+
+phys() {
+  local p=$1 n=0 target dir
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -- "$p" 2>/dev/null && return 0
+  fi
+  while [[ -L "$p" && $n -lt 40 ]]; do
+    target=$(readlink "$p") || return 1
+    case "$target" in /*) p=$target ;; *) p="$(dirname "$p")/$target" ;; esac
+    n=$((n + 1))
+  done
+  if [[ -d "$p" ]]; then
+    (CDPATH='' cd -- "$p" && pwd -P)
+  else
+    dir=$(CDPATH='' cd -- "$(dirname "$p")" && pwd -P) || return 1
+    printf '%s/%s\n' "$dir" "$(basename "$p")"
+  fi
+}
+
+inside() {
+  local base path
+  base=$(phys "$1") && path=$(phys "$2") || return 1
+  [[ "$path" == "$base" || "$path" == "$base"/* ]]
+}
+
+path_problem() {
+  case "$1" in
+    /*) printf 'is absolute' ;;
+    ..|../*|*/..|*/../*) printf "has a '..' segment" ;;
+    *) [[ "$1" =~ ^[A-Za-z0-9._@+/\ -]*$ ]] && return 1; printf 'is not a relative forward-slash path' ;;
+  esac
+}
+
 index_of() {
-  local dir index
-  dir=$(yaml_value "$1/.claude/standards.yaml" standards_dir)
+  local conf="$1/.claude/standards.yaml" dir index why
+  dir=$(yaml_value "$conf" standards_dir)
+  if why=$(path_problem "$dir"); then
+    note "$conf: standards_dir $(printable "$dir") $why; no usable index"; return 1
+  fi
   index="$1/${dir:-docs/standards}"; index="${index%/}/README.md"
-  [[ -f "$index" ]] && awk 'NR == 1 && $0 != "---" { exit 1 } NR > 1 && $0 == "---" { exit 1 } /^standards-contract:/ { found = 1; exit } END { exit !found }' "$index" \
+  [[ -f "$index" ]] || return 1
+  if ! inside "$1" "$index"; then
+    note "$index: the index resolves outside its checkout; no usable index"; return 1
+  fi
+  awk 'NR == 1 && $0 != "---" { exit 1 } NR > 1 && $0 == "---" { exit 1 } /^standards-contract:/ { found = 1; exit } END { exit !found }' "$index" \
     && printf '%s\n' "$index"
 }
 
 first_line() { awk 'NF { sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print; exit }' "$1"; }
 
 TABLE_SEP='^[|][ :|-]+$'
+
+file_cells() {
+  awk -v sepre="$TABLE_SEP" -F'|' '
+    sep && /^\|/ { f = $4; gsub(/^[ \t]+|[ \t]+$/, "", f); if (f ~ /^`[^`]+`$/) f = substr(f, 2, length(f) - 2); if (f != "") print NR "\t" f; next }
+    $0 ~ sepre { sep = 1 }' "$1"
+}
+
+confine() {
+  local root=$1 index=$2 topics=$3 sdir line f why cand drop="" key out
+  sdir=$(dirname "$index")
+  while IFS=$'\t' read -r line f; do
+    if ! why=$(path_problem "$f"); then
+      why=""
+      for cand in "$sdir/$f" "$root/$f"; do
+        if [[ -e "$cand" || -L "$cand" ]] && ! inside "$root" "$cand"; then why="resolves outside its checkout"; fi
+      done
+      [[ -n "$why" ]] || continue
+    fi
+    note "$index:$line: File $(printable "$f") $why; row dropped"
+    drop="$drop $line"
+  done < <(file_cells "$index")
+  if [[ -z "$topics" && -z "$drop" ]]; then printf '%s\n' "$index"; return 0; fi
+  key=$(tr ' ' '\n' <<<"$topics" | sort -u | paste -sd+ -)
+  out="$sdir/.README.${key:-@all}.md"
+  awk -v sepre="$TABLE_SEP" -v topics="$topics" -v drop="$drop" '
+    BEGIN { n = split(topics, T, " "); for (i = 1; i <= n; i++) keep[T[i]] = 1; m = split(drop, D, " "); for (i = 1; i <= m; i++) gone[D[i]] = 1 }
+    FNR in gone { next }
+    sep && /^\|/ { id = $0; sub(/^\|[ \t]*/, "", id); sub(/[ \t]*\|.*$/, "", id); if (n == 0 || id in keep) print; next }
+    $0 ~ sepre { sep = 1 }
+    { print }' "$index" | write_atomic "$out" || return 1
+  printf '%s\n' "$out"
+}
 
 surfaces() {
   awk -v sepre="$TABLE_SEP" -F'|' '
@@ -174,7 +259,9 @@ version_lt() {
 }
 
 layer_checkout() {
-  local repo=$1 sha=$2 verify=$3 dest tmp leaf
+  local repo=$1 sha=$2 verify=$3 dest tmp leaf peeled="$STATE/$1@$2.commit" commit=""
+  [[ -f "$peeled" ]] && read -r commit <"$peeled" || true
+  [[ "$commit" =~ $SHA_RE ]] && sha=$commit
   dest="$CACHE/$repo@$sha"
   [[ -d "$dest/.git" ]] && { printf '%s\n' "$dest"; return 0; }
   mkdir -p "$(dirname "$dest")"
@@ -184,15 +271,20 @@ layer_checkout() {
     rm -rf "${tmp:?}"; return 4
   fi
   if [[ "$verify" -eq 1 ]]; then
-    if ! git -C "$tmp" fetch --quiet --filter=blob:none --no-tags origin \
+    if ! net_git -C "$tmp" fetch --quiet --filter=blob:none --no-tags origin \
       '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*' 2>/dev/null; then
       rm -rf "${tmp:?}"; return 4
     fi
-    if ! git -C "$tmp" cat-file -e "$sha^{commit}" 2>/dev/null \
-      || [[ -z "$(git -C "$tmp" for-each-ref --count=1 --contains "$sha" 2>/dev/null)" ]]; then
+    if ! commit=$(git -C "$tmp" rev-parse --verify --quiet "$sha^{commit}" 2>/dev/null) \
+      || [[ -z "$(git -C "$tmp" for-each-ref --count=1 --contains "$commit" 2>/dev/null)" ]]; then
       rm -rf "${tmp:?}"; return 6
     fi
-  elif ! git -C "$tmp" fetch --quiet --depth=1 origin "$sha" 2>/dev/null; then
+    if [[ "$commit" != "$sha" ]]; then
+      mkdir -p "$(dirname "$peeled")" && printf '%s\n' "$commit" | write_atomic "$peeled"
+      sha=$commit; dest="$CACHE/$repo@$sha"
+      [[ ! -d "$dest/.git" ]] || { rm -rf "${tmp:?}"; printf '%s\n' "$dest"; return 0; }
+    fi
+  elif ! net_git -C "$tmp" fetch --quiet --depth=1 origin "$sha" 2>/dev/null; then
     rm -rf "${tmp:?}"; return 4
   fi
   if ! git -C "$tmp" -c core.symlinks=false -c advice.detachedHead=false checkout --quiet --detach "$sha" 2>/dev/null; then
@@ -211,14 +303,16 @@ write_atomic() {
 
 live_sha() {
   local repo=$1 stamp sha now at=0
-  stamp="$CACHE/$repo@main"
+  stamp="$STATE/$repo@main"
   now=$(date +%s)
   if [[ -f "$stamp" ]]; then read -r sha at <"$stamp" || true; fi
+  [[ "${sha:-}" =~ $SHA_RE && "$at" =~ ^[0-9]+$ ]] || { sha=""; at=0; }
   if [[ -n "${sha:-}" ]] && [[ $((now - at)) -lt "${ORG_STANDARDS_TTL:-3600}" ]] && [[ -d "$CACHE/$repo@$sha/.git" ]]; then
     printf '%s\n' "$sha"; return 0
   fi
   local fresh
-  fresh=$(git ls-remote "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" refs/heads/main 2>/dev/null | awk 'NR == 1 { print $1 }') || fresh=""
+  fresh=$(net_git ls-remote "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" refs/heads/main 2>/dev/null | awk 'NR == 1 { print $1 }') || fresh=""
+  [[ "$fresh" =~ $SHA_RE ]] || fresh=""
   if [[ -z "$fresh" ]]; then
     [[ -n "${sha:-}" ]] && [[ -d "$CACHE/$repo@$sha/.git" ]] || return 4
     note "refreshing $repo failed; using its main as cached at ${sha:0:12}"
@@ -241,7 +335,6 @@ subscription() {
     note "$at: $repo is also this repository's org layer; it is read once there, at the org layer's commit and team strength${ref:+ (pin ${ref:0:12} skipped)}"
     return 0
   fi
-  # shellcheck disable=SC2310  # layer_checkout's and live_sha's return codes are the answer, not a failure
   if [[ -n "$ref" ]]; then
     sha=$ref
     dir=$(layer_checkout "$repo" "$sha" 1) || status=$?
@@ -253,18 +346,17 @@ subscription() {
     return 0
   fi
   case "$status" in
-    0) ;;
+    0) sha=${dir##*@} ;;
     6) note "$at: $sha is not reachable from a branch or tag of $repo; subscription refused"; return 0 ;;
     *) note "$at: cannot read $repo@${sha:0:12}; layer skipped this run"; return 0 ;;
   esac
-  # shellcheck disable=SC2310  # index_of failing means no index, reported here
   index=$(index_of "$dir") || { note "$at: $repo@${sha:0:12} has no standards index; layer skipped"; return 0; }
-  laststate="$CACHE/$repo.last"
+  laststate="$STATE/$repo.last"
   last=""
   [[ -f "$laststate" ]] && read -r last <"$laststate" || true
+  [[ "$last" =~ $SHA_RE ]] || last=""
   if [[ -n "$last" ]] && [[ "$last" != "$sha" ]]; then
     local old
-    # shellcheck disable=SC2310  # a last read whose checkout is gone has nothing to diff against
     old=$(index_of "$CACHE/$repo@$last" 2>/dev/null) || old=""
     if [[ -n "$old" ]]; then
       if [[ -n "$ref" ]]; then
@@ -276,21 +368,15 @@ subscription() {
       done < <(drift "$old" "$index")
     fi
   fi
-  [[ "$last" == "$sha" ]] || printf '%s\n' "$sha" | write_atomic "$laststate"
+  [[ "$last" == "$sha" ]] || { mkdir -p "$(dirname "$laststate")" && printf '%s\n' "$sha" | write_atomic "$laststate"; }
   if [[ -n "$topics" ]]; then
-    local t ids filtered
+    local t ids
     ids=$(surfaces "$index" | cut -f1)
     for t in $topics; do
       grep -qxF -- "$t" <<<"$ids" || note "$at: topic $t is not a Surface id in the index of $repo@${sha:0:12}"
     done
-    filtered="$(dirname "$index")/.README.$(tr ' ' '\n' <<<"$topics" | sort -u | paste -sd+ -).md"
-    awk -v sepre="$TABLE_SEP" -v topics="$topics" '
-      BEGIN { n = split(topics, T, " "); for (i = 1; i <= n; i++) keep[T[i]] = 1 }
-      sep && /^\|/ { id = $0; sub(/^\|[ \t]*/, "", id); sub(/[ \t]*\|.*$/, "", id); if (id in keep) print; next }
-      $0 ~ sepre { sep = 1 }
-      { print }' "$index" | write_atomic "$filtered"
-    index=$filtered
   fi
+  index=$(confine "$dir" "$index" "$topics") || { note "$at: $repo@${sha:0:12} has no usable index; layer skipped"; return 0; }
   printf '%s@%s\t%s\t%s\n' "$repo" "$sha" "$dir" "$index"
 }
 
@@ -342,19 +428,22 @@ subscriptions() {
   local entries
   entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted)\t' || true)
   [[ -n "$entries" ]] || return 0
-  # shellcheck disable=SC2310  # version_lt's return code is the answer
   if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
     note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
-  export GIT_TERMINAL_PROMPT=0
-  local org cur line repo ref topics only except prob
+  local org cur line repo ref topics only except prob layerfile at
+  for layerfile in "$root/docs/conventions/source-control.yaml" "$(index_of "$root" 2>/dev/null || true)"; do
+    [[ -f "$layerfile" ]] || continue
+    at=$(if [[ "$layerfile" == *.md ]]; then frontmatter "$layerfile"; else cat "$layerfile"; fi | grep -n -m1 '^trusted_owners:' | cut -d: -f1 || true)
+    [[ -z "$at" ]] || note "$layerfile:$at: trusted_owners is read from the user-global index only; ignored here"
+  done
   org=$(lower "$(yaml_value "$root/docs/conventions/source-control.yaml" standards_repository)")
   cur=$(origin_repo)
   while IFS="$US" read -r line repo ref topics only except prob; do
     if [[ -z "$prob" ]]; then
       if [[ -z "$repo" ]]; then prob="no repo key"
       elif ! [[ "$repo" =~ $REPO_RE ]]; then prob="repo $repo is not <owner>/<repo>"
-      elif [[ -n "$ref" ]] && ! [[ "$ref" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$ ]]; then prob="ref is not a full commit SHA"
+      elif [[ -n "$ref" ]] && ! [[ "$ref" =~ $SHA_RE ]]; then prob="ref is not a full commit SHA"
       elif [[ -n "$topics" ]] && ! [[ "$topics" =~ ^[A-Za-z0-9._\ -]+$ ]]; then prob="a topic is not a Surface id"
       fi
     fi
@@ -367,10 +456,9 @@ case "$cmd" in
   dir)
     org_dir ;;
   index)
-    # shellcheck disable=SC2310  # org_dir's return code is the answer, not a failure
     org=$(org_dir) || exit $?
-    # shellcheck disable=SC2310  # index_of failing means no index, reported below
-    index_of "$org" || { printf 'org-standards: %s has no standards index\n' "$org" >&2; exit 5; } ;;
+    idx=$(index_of "$org") || { printf 'org-standards: %s has no standards index\n' "$org" >&2; exit 5; }
+    confine "$org" "$idx" "" || { printf 'org-standards: %s has no usable index\n' "$org" >&2; exit 5; } ;;
   subscriptions)
     subscriptions ;;
   review)
@@ -381,9 +469,12 @@ case "$cmd" in
       cat "$local_file"; exit 0
     fi
     status=0
-    # shellcheck disable=SC2310  # org_dir's return code is the answer, not a failure
     org=$(org_dir) || status=$?
     [[ "$status" -eq 0 ]] || [[ "$status" -eq 3 ]] || [[ "$status" -eq 4 ]] || exit "$status"
+    if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]] && ! inside "$org" "$org/REVIEW.md"; then
+      note "$org/REVIEW.md resolves outside its checkout; not read"
+      status=3
+    fi
     if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]]; then
       cat "$org/REVIEW.md"
       if [[ -f "$local_file" ]] && ! cmp -s "$org/REVIEW.md" "$local_file"; then

@@ -103,6 +103,18 @@ explicit confirmation before any conversion (see Setup and migration).
 - A skill that hits a broken row surfaces it and offers the fix (Boy
   Scout), never silent and never skipped quietly.
 - Consumers are recommended to include the index in their link-check lane.
+- **Confinement (normative) for a layer read from another repository** (the
+  org layer and each personal subscription): its `standards_dir` and every
+  `File` value are relative forward-slash paths (letters, digits, `.`,
+  `_`, `-`, `@`, `+`, space and `/`) with no `..` segment, and each resolves,
+  symbolic links included, inside that repository's checkout; so does its
+  `REVIEW.md`. `org-standards.sh` reports on stderr and drops what breaks
+  this: a `standards_dir` leaves the layer with no usable index (`index`
+  exits 5; a subscription is skipped), a `File` row is left out of the
+  printed index (naming the index file, line and value), and an org
+  `REVIEW.md` is not read. When it leaves a row out, the index it prints is
+  a filtered copy beside the original, so the remaining rows resolve the
+  same way.
 
 ## Standards files
 
@@ -236,9 +248,11 @@ index, so the standards they follow reach every repository they work in.
   read.
 - **Reading it:** `org-standards.sh subscriptions` prints one tab-separated
   line per subscribed layer, in list order: `<repo>@<sha>`, its checkout
-  root, and its index (filtered to `topics`, written beside the original so
-  its rows resolve the same way). A row's `File` resolves against that
-  layer's own checkout, by the usual lookup order. Each checkout is cached
+  root, and its index (filtered to `topics` and confined, written beside the
+  original so its rows resolve the same way; see Confinement under The
+  index). A row's `File` resolves against that layer's own checkout, by the
+  usual lookup order. A `ref` naming an annotated tag object reads the
+  commit it tags, and `<sha>` names that commit. Each checkout is cached
   once per `<repo>@<sha>`, built in a temporary directory and renamed into
   place; a pinned read never refreshes, and a live read rechecks `main`
   once the refresh window (`ORG_STANDARDS_TTL`) has passed. Exit 0 with no
@@ -246,7 +260,9 @@ index, so the standards they follow reach every repository they work in.
   skips every subscription for the session.
 - **Reports:** on stderr, naming the index file and line where one applies:
   a malformed entry, skipped while the rest of the list is read; a refused
-  entry; a topic the subscribed index lacks; index drift since the last
+  entry; a `trusted_owners` key in the repository's
+  `docs/conventions/source-control.yaml` or index, ignored; a topic the
+  subscribed index lacks; a dropped `standards_dir` or `File` row; index drift since the last
   read (Surface ids added, removed or renamed); "subscriptions not read:
   user index unreadable"; an index that uses the list but declares a
   version before 1.3.0, which is still read.
@@ -279,7 +295,13 @@ copied into each repository.
   subscriptions). Exit 3 means no
   org layer; exit 4 means it could not be read this run (a failed refresh
   keeps the cached copy, with a notice). `--root DIR` names the repository
-  (default: the git top level). A skill
+  (default: the git top level). Every clone, fetch and `ls-remote` the
+  script runs, for the org layer and for subscriptions, gives up after
+  `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60; needs `timeout` on the
+  `PATH`), never prompts for a password, passphrase or host key, and uses
+  no credential helper. Its state (the last commit read per subscription,
+  the live `main` per trusted repository) lives under `.state/` in the cache
+  directory, a name no `<owner>` can take. A skill
   without the script, or without a shell, reads the same files with
   `gh api repos/<owner>/<repo>/contents/<path>?ref=main`.
 - **Unavailable:** a skill that cannot read the org layer says so in its
