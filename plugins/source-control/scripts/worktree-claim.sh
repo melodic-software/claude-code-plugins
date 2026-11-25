@@ -189,7 +189,6 @@ canonicalize_path_to() {
   fi
   local parent="${p%/*}"
   if [[ -d "$p" && ! -L "$p" && -n "$parent" && "$parent" == "$CANON_PARENT" ]]; then
-    # Sibling of the last directory resolved: reuse its parent's physical path.
     p="${CANON_PARENT_PHYS}/${p##*/}"
   elif [[ -d "$p" && -d "$here" ]] && CDPATH='' builtin cd -P -- "$p" 2>/dev/null; then
     phys="$PWD"
@@ -410,7 +409,6 @@ if [[ -n "$repo_dir" ]]; then
   repo_dir="$(canonicalize_path "$repo_dir")"
 fi
 
-# A path can locate the repository when --repo-dir was omitted.
 repo_hint="$repo_dir"
 if [[ -z "$repo_hint" && -n "$path" ]]; then
   repo_hint="$path"
@@ -470,8 +468,6 @@ worktree_git() {
   return 1
 }
 
-# Generate a session id only when claiming and the caller supplied none.
-# Distinct per invocation so two concurrent claims on one host differ.
 ensure_claim_session() {
   [[ -z "$session_id" ]] || return 0
   local host="${HOSTNAME:-unknown-host}" rand
@@ -524,7 +520,6 @@ do_claim_all() {
 do_check_enter() {
   local idx
   if ! find_worktree_index "$path"; then
-    # Not a linked (or main) worktree path — nothing to consult.
     return "$EX_OK"
   fi
   idx="$WT_INDEX"
@@ -814,7 +809,6 @@ claim) if ((all_unclaimed)); then do_claim_all; else do_claim_one; fi ;;
 check-enter) do_check_enter ;;
 release) do_release ;;
 handover) do_handover ;;
-# Unknown verbs already exited above, where the verb was validated.
 *) ;;
 esac
 exit $?

@@ -39,14 +39,12 @@ name: Maintenance Tidy Code Upkeep
 on:
   push:
     branches: [main]
-  # 05:27 UTC sits clear of the other scheduled runs here.
   schedule:
     - cron: "27 5 * * *"
   workflow_dispatch:
 
 permissions: {}
 
-# One batch at a time; a detect run never waits behind one.
 concurrency:
   group: maintenance-tidy-code-upkeep-${{ github.event_name == 'push' && github.sha || 'batch' }}
   cancel-in-progress: false
@@ -62,7 +60,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # read the pushed range
+      contents: read
     steps:
       - name: Check out the pushed commit's scripts
         uses: actions/checkout@v7
@@ -79,7 +77,6 @@ jobs:
         with:
           node-version-file: .node-version
 
-      # Trees only: naming the changed paths reads no file content.
       - name: Name the changed areas
         env:
           BEFORE: ${{ github.event.before }}
@@ -94,9 +91,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # list and download the sweep records
-      contents: read # check out main with history
-      pull-requests: read # list the tidy pull requests
+      actions: read
+      contents: read
+      pull-requests: read
     outputs:
       proceed: ${{ steps.gate.outputs.proceed }}
       areas: ${{ steps.gate.outputs.areas }}
@@ -110,7 +107,6 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
-      # Full history, no blobs: select-areas reads commits back to the oldest sweep.
       - name: Check out the default branch tip
         uses: actions/checkout@v7
         with:
@@ -135,7 +131,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Report the kill switch
@@ -168,13 +163,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs gate --root "$PWD"
 
-      # Whether the key is still out of credit, and so which leg runs first
-      # (ci-workflows select-model-credential, its start call: check-key-credit's
-      # one artifact-list call for the `marker` the sweep-areas job uploads after a
-      # credit stop). A credit stop inside the window names the subscription
-      # leg, and sweep-areas-subscription sweeps on the subscription token. It runs
-      # only once areas are picked. Probing is off: one batch runs at a time.
-      # Every failure runs the key.
       - name: Read the key's credit history
         id: credit
         if: steps.gate.outputs.proceed == 'true'
@@ -189,8 +177,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -228,7 +214,7 @@ jobs:
     timeout-minutes: 90
     cache-mode: read
     permissions:
-      contents: read # check out main with history, to branch from it
+      contents: read
     # No global or system git config applies to any step: one the model writes
     # during its leg would otherwise reach every later git call.
     env:
@@ -295,8 +281,6 @@ jobs:
           credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # The plugin and the prompt, written from main before the root checkout
-      # replaces .base.
       - name: Stage the plugin and the prompt
         if: steps.models.outcome == 'success'
         env:
@@ -555,7 +539,7 @@ jobs:
     timeout-minutes: 90
     cache-mode: read
     permissions:
-      contents: read # check out main with history, to branch from it
+      contents: read
     # No global or system git config applies to any step: one the model writes
     # during its leg would otherwise reach every later git call.
     env:
@@ -625,8 +609,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.sweep-areas.outputs.next-reason || needs.select-areas.outputs.next-reason }}
 
-      # The plugin and the prompt, written from main before the root checkout
-      # replaces .base.
       - name: Stage the plugin and the prompt
         if: steps.models.outcome == 'success'
         env:
@@ -827,9 +809,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The fallback leg: the same steps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-  # alone, after the subscription leg handed off. It is the last leg and
-  # never hands off.
   sweep-areas-fallback:
     name: Sweep Areas Fallback
     needs: [select-areas, sweep-areas-subscription]
@@ -842,7 +821,7 @@ jobs:
     timeout-minutes: 90
     cache-mode: read
     permissions:
-      contents: read # check out main with history, to branch from it
+      contents: read
     # No global or system git config applies to any step: one the model writes
     # during its leg would otherwise reach every later git call.
     env:
@@ -906,8 +885,6 @@ jobs:
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.sweep-areas-subscription.outputs.next-reason }}
 
-      # The plugin and the prompt, written from main before the root checkout
-      # replaces .base.
       - name: Stage the plugin and the prompt
         if: steps.models.outcome == 'success'
         env:
@@ -1099,7 +1076,7 @@ jobs:
       name: pr-pipeline-scan-carrier
       deployment: false
     permissions:
-      contents: read # check out main
+      contents: read
     outputs:
       clean: ${{ steps.upload.outcome == 'success' }}
       branches: ${{ steps.check.outputs.branches }}
@@ -1185,8 +1162,6 @@ jobs:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/scan-in/publish.txt
 
-      # Holds only the base commit's time and slugs of areas select-areas chose. Its absence means a later run
-      # picks those areas again, so a failed upload costs a repeat sweep only.
       - name: Upload the sweep record
         if: steps.check.outputs.recorded != '0' && steps.check.outputs.recorded != ''
         uses: actions/upload-artifact@v7
@@ -1239,8 +1214,8 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out main
-      pull-requests: read # count the open tidy pull requests for the cap
+      contents: read
+      pull-requests: read
       id-token: write # prove to the token broker which workflow this is
     env:
       GIT_CONFIG_GLOBAL: /dev/null
@@ -1377,7 +1352,7 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out main
+      contents: read
       id-token: write # prove to the token broker which workflow this is
     env:
       GIT_CONFIG_GLOBAL: /dev/null

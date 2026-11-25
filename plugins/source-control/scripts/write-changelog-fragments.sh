@@ -104,8 +104,6 @@ done < <(tr -d '\r' <"$list")
 declare -A seen=()
 plugins=()
 while IFS= read -r path; do
-  # A listed name with no plugin and a docs/contracts/<name>/CHANGELOG.md or
-  # docs/conventions/<name>/CHANGELOG.md is a convention in fragment mode.
   case "$path" in
   plugins/*/*)
     name="${path#plugins/}" name="${name%%/*}"
@@ -208,10 +206,6 @@ version_of() {
   done
 }
 
-# Fragments this branch added: committed since the merge base with --base, or
-# with the default branch, plus staged and untracked ones. A fragment main
-# already holds belongs to another change, even when its name carries the same
-# branch slug.
 ref="$base"
 if [[ -z "$ref" ]]; then
   ref="$(git symbolic-ref -q --short refs/remotes/origin/HEAD)" || ref=""
@@ -281,7 +275,6 @@ for plugin in "${plugins[@]}"; do
     continue
   fi
   [[ -z "$base" && "$level" != none ]] || continue
-  # A rerun after a failed or amended commit finds its entry already there.
   ! has_entry "$own" "$section" || {
     echo "$own"
     continue

@@ -171,8 +171,6 @@ jobs:
       || contains(fromJSON('["failure", "timed_out", "startup_failure", "cancelled"]'), github.event.workflow_run.conclusion)
       || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.run_attempt >= 2)))
     runs-on: ubuntu-24.04
-    # Up to 20 minutes waiting on the re-run; for a dispatched run,
-    # red-main.confirm-wait-minutes, at most 60.
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 70 || 30 }}
     permissions:
       issues: write # file the demotion issue or comment on it
@@ -218,9 +216,6 @@ jobs:
       reverted-prs: ${{ steps.file.outputs.reverted-prs }}
       tip: ${{ steps.tip.outputs.sha }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading (the gh wrapper below and
-    # babysit_gh.py under the judge), for the job-end api-budget notice
-    # (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -229,9 +224,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
-      # main's tip, for babysit_postmerge.py --judge-run and the plan script it
-      # runs in a worktree of the last green SHA, and for a canary run's push
-      # and the commits it reverts; full history for both.
       - name: Check out the default branch tip
         uses: actions/checkout@v7
         with:
@@ -416,7 +408,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # check out main's tip for the config and merge-path.mjs
+      contents: read
       issues: write # create the merge-path labels
       pull-requests: write # add them to pull requests (GITHUB_TOKEN answers 403 with issues: write alone); read each one's body, commits and merge-queue event
     env:
@@ -424,7 +416,6 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the default branch tip
@@ -440,7 +431,6 @@ jobs:
         with:
           ref: ${{ needs.file-demotion-issue.outputs.standards-sha }}
 
-      # merge-path.mjs reads post-merge.paths through the base's resolve-config.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
@@ -581,7 +571,6 @@ jobs:
       && needs.file-demotion-issue.outputs.excused != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
-    # Up to red-main.confirm-wait-minutes (at most 60) waiting on the re-run.
     timeout-minutes: 75
     permissions:
       actions: read # read runs, attempts and jobs
@@ -599,7 +588,6 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
@@ -607,7 +595,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
-      # Full history, so the revert's fit to main's tip is checked in memory.
       - name: Check out the default branch tip
         uses: actions/checkout@v7
         with:
@@ -640,8 +627,6 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this report (reason ${REASON:-unreadable}); nothing read or written"
 
-      # report.mjs reads the red-main leaf through the base's resolve-config,
-      # which needs its dependencies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'
@@ -651,7 +636,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # Each call's rate-limit reading, for the api-budget notice below.
           API_BUDGET_TOKEN: github-token
           REPOSITORY: ${{ github.repository }}
           BASE_PATH: .base
@@ -695,10 +679,10 @@ jobs:
       group: post-merge-close-cleared
       cancel-in-progress: false
     permissions:
-      actions: read # list green full runs and canary runs on main
-      contents: read # read merge.agent-identity, files and commits on main
+      actions: read
+      contents: read
       issues: write # comment on, unlabel and close a cleared record
-      pull-requests: read # read the pull requests that reference a record
+      pull-requests: read
     steps:
       - name: Resolve main's tip
         id: tip

@@ -45,10 +45,7 @@ name: PR Test Platforms
 # lane is not one.
 
 on:
-  # A dispatch runs every Windows step.
   workflow_dispatch:
-  # Every Windows step, at pr-require-checks.yml's whole-tree hours: the net for a Windows
-  # suite a change reaches through something the selector does not see.
   schedule:
     - cron: '17 9,16 * * *'
   pull_request:

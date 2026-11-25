@@ -50,7 +50,6 @@ on:
 
 permissions: {}
 
-# One run per pushed head; pushes never wait on one another.
 concurrency:
   group: post-merge-test-mutation-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
@@ -70,8 +69,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # download the range artifact from the triggering run
-      contents: read # check out main for the kill-switch action
+      actions: read
+      contents: read
     outputs:
       proceed: ${{ steps.range.outputs.proceed }}
       before: ${{ steps.range.outputs.before }}
@@ -107,7 +106,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Report the kill switch
@@ -172,7 +170,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # list this repository's credit-stop markers
+      actions: read
     outputs:
       generate-next-leg: ${{ steps.credit-generate.outputs.next-leg }}
       generate-next-reason: ${{ steps.credit-generate.outputs.next-reason }}
@@ -194,8 +192,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped generate key leg
         if: steps.credit-generate.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -233,10 +229,6 @@ jobs:
           known-failure-class: credit-stop
           handoff: "true"
 
-  # The generate chain's key leg, on the automations role's API key alone: it
-  # generates the mutants (skill Phases 0 to 2) and runs no test. A credit
-  # stop, or a 401 or 402, hands off to generate-subscription; an empty key,
-  # or one the gate skipped, runs nothing here.
   generate:
     name: Generate
     needs: [check-range, check-key-credit]
@@ -280,10 +272,6 @@ jobs:
         with:
           ref: ${{ needs.check-range.outputs.standards-sha }}
 
-      # The head must be on main, and the diff target is the push's previous
-      # head, or the head's first parent when the push had none (a first push
-      # or a rewrite), said in the summary. The personal override is gitignored
-      # (.claude/**/*.local.*), so the audit sees a clean tree.
       - name: Set the diff target
         id: target
         env:
@@ -296,7 +284,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # The verify-pr route's profile: a judgment model with its turn cap.
       - name: Resolve the model
         id: models
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
@@ -463,10 +450,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
-      # that hands nothing on is a designed stop, not a defect: the run ends
-      # green with a notice and the report says so. A handoff is no failure;
-      # any other failed leg fails the job.
       - name: Fail the leg unless it handed off or a limit stopped it
         id: stop
         if: always() && steps.run.outcome == 'failure' && steps.run.outputs.handoff != 'true'
@@ -543,10 +526,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The generate chain's subscription leg: the key leg's steps on a fresh
-  # runner, on the automations subscription token alone. With the fallback
-  # token set, a limit stop, a credit stop, or a 401 or 402 hands off to
-  # generate-fallback, and so does an empty token.
   generate-subscription:
     name: Generate Subscription
     needs: [check-range, check-key-credit, generate]
@@ -800,10 +779,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The generate chain's fallback leg: the key leg's steps on a fresh runner,
-  # on the central fallback token, after the subscription leg handed off or
-  # found its token empty, and only when the fallback token is set. It never
-  # hands off.
   generate-fallback:
     name: Generate Fallback
     needs: [check-range, check-key-credit, generate-subscription]
@@ -1070,7 +1045,6 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the pushed head
@@ -1123,8 +1097,6 @@ jobs:
         with:
           python-version-file: .python-version
 
-      # What the covering suites need, as a developer machine installs it;
-      # resolve-config's suites take their own lockfile.
       - name: Install the test dependencies
         if: steps.mutants.outputs.generated == 'true'
         timeout-minutes: 20
@@ -1202,10 +1174,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # The triage chain's key leg, on the automations role's API key alone: it
-  # triages the survivors the run-mutants job ran (skill Phase 4) and runs no test.
-  # A credit stop, or a 401 or 402, hands off to triage-subscription; an empty
-  # key, or one the gate skipped, runs nothing here.
   triage:
     name: Triage
     needs: [check-range, check-key-credit, run-mutants]
@@ -1249,10 +1217,6 @@ jobs:
         with:
           ref: ${{ needs.check-range.outputs.standards-sha }}
 
-      # The head must be on main, and the diff target is the push's previous
-      # head, or the head's first parent when the push had none (a first push
-      # or a rewrite), said in the summary. The personal override is gitignored
-      # (.claude/**/*.local.*), so the audit sees a clean tree.
       - name: Set the diff target
         id: target
         env:
@@ -1265,7 +1229,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # The verify-pr route's profile: a judgment model with its turn cap.
       - name: Resolve the model
         id: models
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
@@ -1461,10 +1424,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # A usage limit (rate-limit) or an overloaded API (overloaded) on a leg
-      # that hands nothing on is a designed stop, not a defect: the run ends
-      # green with a notice and the report says so. A handoff is no failure;
-      # any other failed leg fails the job.
       - name: Fail the leg unless it handed off or a limit stopped it
         id: stop
         if: always() && steps.run.outcome == 'failure' && steps.run.outputs.handoff != 'true'
@@ -1541,10 +1500,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The triage chain's subscription leg: the key leg's steps on a fresh
-  # runner, on the automations subscription token alone. With the fallback
-  # token set, a limit stop, a credit stop, or a 401 or 402 hands off to
-  # triage-fallback, and so does an empty token.
   triage-subscription:
     name: Triage Subscription
     needs: [check-range, check-key-credit, run-mutants, triage]
@@ -1825,10 +1780,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The triage chain's fallback leg: the key leg's steps on a fresh runner, on
-  # the central fallback token, after the subscription leg handed off or found
-  # its token empty, and only when the fallback token is set. It never hands
-  # off.
   triage-fallback:
     name: Triage Fallback
     needs: [check-range, check-key-credit, run-mutants, triage-subscription]
