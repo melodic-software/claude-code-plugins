@@ -4220,7 +4220,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.ok(steps(read["check-broker"]).includes("Check the kill switch"));
   const checkSteps = steps(read["check-broker"]);
   assert.ok(checkSteps.indexOf("Claim the issue with a lane lease") > checkSteps.indexOf("Ask the broker whether the lane may run"));
-  assert.match(read["check-broker"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
+  assert.match(read["check-broker"], /^ {6}- name: Claim the issue with a lane lease\n {8}id: lease\n {8}if: inputs\.issue-number != '' && !inputs\.issue-verdict && steps\.broker\.outcome == 'success' && steps\.broker\.outputs\.allowed == 'true'\n/m);
   assert.ok(checkSteps.indexOf("Stop on an open blocker") > checkSteps.indexOf("Claim the issue with a lane lease"));
   assert.ok(read.run !== undefined);
   assert.ok(steps(read.run).includes("Stop on stale workflow files"));
