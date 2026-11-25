@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/guardrails/hooks/hooks.json plugins/guardrails/hooks/*.sh
-# test-scope: plugins/guardrails/hooks/exec-bash.mjs plugins/guardrails/lib/powershell/*
+# test-scope: plugins/guardrails/hooks/*.mjs plugins/guardrails/lib/powershell/*
 set -uo pipefail
 export CLAUDE_CODE_SESSION_ATTENDED=0
 
