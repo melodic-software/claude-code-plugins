@@ -16,9 +16,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
 // The lanes App bot's user id (https://github.com/melodic-software/standards/blob/main/components/trusted-actors/trusted-actors.json).
 const LANES_APP = 337595936;
-// The title GitHub gives a pr-unblock.yml run, read from the workflow file:
-// its top-level run-name scalar as YAML reads it (a double-quoted string, or a
-// plain one cut at " #", which starts a comment), with the inputs filled in.
 function pr_unblockTitle(activity, number) {
   const workflow = readFileSync(new URL("../../workflows/pr-unblock.yml", import.meta.url), "utf8");
   const raw = /^run-name:[ \t]*(.*)$/m.exec(workflow)?.[1] ?? "";
@@ -28,8 +25,6 @@ function pr_unblockTitle(activity, number) {
     .replaceAll("${{ inputs.pr-number }}", String(number));
 }
 const SUCCESS_RUN = { status: "completed", conclusion: "success", output: { title: "Resolved" } };
-// The lane-outcome record report-check-run writes into a posted check run's
-// output.text (ci-workflows docs/lane-outcome.md), for `activity`.
 const recordText = (activity, fields) =>
   `lane-outcome ${JSON.stringify({
     v: 1,
@@ -40,8 +35,6 @@ const recordText = (activity, fields) =>
     ...fields,
   })}`;
 const resets = (at) => ({ resets: { at, window: "five_hour" } });
-// A failed run carrying a rate-limit record; `fields` add to it, and null
-// leaves no record.
 const failedRun = (completed, fields = {}) => ({
   name: CHECK_NAME,
   status: "completed",
@@ -71,15 +64,6 @@ function pr(number, overrides = {}) {
   };
 }
 
-// A fake of the four GitHub calls. `pages` is the open-PR listing, one array
-// per page; `requeries` is, per re-query round, the PR nodes GitHub returns;
-// `checked` is the set of head SHAs that already carry a successful check run,
-// or a Map from head SHA to the check runs GitHub returns for it. `runIds`
-// maps a PR number to the workflow_run_id its dispatch returns, undefined
-// included; any other PR gets 9000 plus its number. `workflowRuns` is the
-// pr-unblock.yml run listing. `stops` maps a head SHA to its
-// pr-unblock / apply-conflict-patch check runs, read into calls.stops.
-// `baseTip` is the base branch tip readBaseTip returns, an Error to throw.
 function fakeApi({
   baseTip = { oid: "b".repeat(40), committedAt: 0 },
   stops = new Map(),
@@ -104,8 +88,6 @@ function fakeApi({
     async listCiFixCandidates() {
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
     },
-    // fix-docs's listing and history reads, recorded so a test can show the
-    // tick never makes them: only a PR's own event starts fix-docs.
     async listDocsFixCandidates() {
       calls.docs.push("list");
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: docsPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
@@ -165,12 +147,10 @@ function fakeApi({
     async readRequiredRun() {
       return { run: null, jobs: [] };
     },
-    // The REST issue timeline: its comments, then its label events.
     async listTimeline(number) {
       calls.timeline.push(number);
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
     },
-    // The REST review comments and reviews, with an inline reply's in_reply_to_id.
     async listReviewComments(number) {
       calls.reviewComments.push(number);
       return reviewComments.get(number) ?? [];
@@ -236,7 +216,6 @@ test("dispatches only open, non-draft, same-repo CONFLICTING PRs into main", asy
 });
 
 test("never dispatches resolve-conflicts on a Dependabot head", async () => {
-  // Dependabot's user id (dependency-classify.mjs DEPENDABOT_ID).
   const dependabot = { login: "dependabot", databaseId: 49699333 };
   const { api, run } = harness({
     pages: [
@@ -356,9 +335,6 @@ test("an in-progress run or any other completed conclusion but a failure counts 
   assert.deepEqual(api.calls.dispatch, []);
 });
 
-// A run the usage limit stopped (FINAL-DESIGN C5) stops counting as handled
-// once its limit resets: at its `resets=` time, else five hours after it
-// ended. Until then it still counts; a failure with no lane record is retried.
 test("a limit-stopped run counts as handled only until its limit resets", async () => {
   const now = Date.parse("2026-10-17T12:00:00Z");
   const [statedPast, statedFuture, fallbackPast, fallbackFuture, noRecord] = [pr(21), pr(22), pr(23), pr(24), pr(25)];
@@ -391,11 +367,6 @@ test("the resolved limits set how many reset limit stops hold a head", async () 
   assert.deepEqual(dispatchedNumbers(one.api), []);
 });
 
-// The 2026-10-25 credential outage: every leg ended class=auth on a 401, and a
-// failure with no lane record was retried at once, so #9826's head spent its
-// three runs in 23 minutes and was recorded at the cap before the secrets were
-// re-set. A refused credential now waits out fallback-reset like a usage limit,
-// and the skip names the class and the reset.
 const authRun = (completed) => ({
   ...failedRun(completed, null),
   output: { title: "Failed", summary: "The activity step failed.", text: recordText("resolve-conflicts", { class: "auth", turns: 1 }) },
@@ -419,7 +390,6 @@ test("a head whose run was refused its credential waits out fallback-reset, logg
     { now, record, maxDispatch: 9 },
   );
   await run();
-  // The unrecorded failure is retried at once, as before; the refused one waits.
   assert.deepEqual(dispatchedNumbers(api), ["42", "43"]);
   assert.ok(
     lines.includes(
@@ -439,8 +409,6 @@ test("a head with a success beside an unreset stop is skipped as handled, not as
   assert.ok(!lines.some((line) => line.includes("stopped on class=")), lines.join("\n"));
 });
 
-// A failed resolve-conflicts run is retried on the same head until
-// limits.limit-stops-per-head (3 by default) failures stand on it.
 test("a failed run is retried until three failures stand on the head", async () => {
   const once = pr(31);
   const twice = pr(32);
@@ -463,13 +431,11 @@ test("a failed run is retried until three failures stand on the head", async () 
   assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], [thrice.headRefOid]);
 });
 
-// The neutral check a select job posts when it skipped a held PR.
 const HELD_SKIP = { status: "completed", conclusion: "neutral", output: { title: "Skipped: awaiting-human" } };
 const LABELS = (...names) => ({ labels: { nodes: names.map((name) => ({ name })) } });
 const OWNER = { login: "kyle-sexton", id: 153232337, type: "User" };
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: LANES_APP, type: "Bot" };
 const labeledBy = (actor) => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-18T10:00:00Z" }];
-// report-escalation.sh's comment, with the reason it names.
 const escalationComment = (reason) => [
   {
     user: APP_USER,
@@ -543,8 +509,6 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
   assert.deepEqual(api.calls.reviewComments, [], "a PR the timeline alone holds needs no review read");
 });
 
-// GitHub's timeline has no event for a reply inside an existing review thread
-// (#10526, #10533): it is only in pulls/<n>/comments, with in_reply_to_id.
 const inlineReply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }];
 
 test("a person's inline review-thread reply since another lane's escalation holds both, read once", async () => {
@@ -629,7 +593,6 @@ test("an unreadable run listing holds: nothing dispatched, a warning, and no fai
   assert.ok(!lines.some((line) => line.startsWith("::error::")));
 });
 
-// The error the adapter throws when budgetedFetch gave up on a rate limit.
 const rateLimitedListing = () =>
   Object.assign(new Error("GET https://api.example/repos/o/r/actions/workflows/pr-unblock.yml/runs returned 403"), { rateLimited: true });
 
@@ -763,8 +726,6 @@ test("a workflow_run_id that is not 1 to 15 digits without a leading zero counts
   }
 });
 
-// The outage posture's element 2: a failed read holds, whatever GitHub
-// answered (docs/conventions/pr-pipeline/README.md#outage-posture).
 test("a check-run read that fails, on a 5xx after its retries or any other answer, skips that PR with a warning and fails nothing", async () => {
   const { api, lines, run } = harness({ pages: [[pr(97), pr(98)]] });
   const listCheckRuns = api.listCheckRuns;
@@ -803,7 +764,6 @@ test("a 15-digit workflow_run_id is accepted", async () => {
   assert.equal(result.failed, 0);
 });
 
-// main against a fake API, with GITHUB_OUTPUT a real file it appends to.
 async function runMain(apiOptions, limits = LIMIT_DEFAULTS, now = undefined) {
   const dir = tempDir("pr-unblock-dispatch-");
   const output = join(dir, "output");
@@ -866,8 +826,6 @@ test("main records a review-dependency dispatch beside the conflict dispatches",
   assert.equal(output, "listed=true\nrun-ids=9130 9131\n");
 });
 
-// review-dependency holds a limit-stopped head by the base's resolved limits and
-// main's clock, as resolve-conflicts does.
 test("main holds a limit-stopped review-dependency head until its reset, by the resolved limits", async () => {
   const dependabot = pr(135, {
     mergeable: "MERGEABLE",
@@ -895,7 +853,6 @@ test("main holds a limit-stopped review-dependency head until its reset, by the 
   assert.deepEqual(capped, { code: 0, output: "listed=true\n" }, "one stop reaches a cap of 1");
 });
 
-// A lanes App PR whose head's lanes failed, as fix-ci-dispatch.mjs lists it.
 const ciFixPull = (number) => {
   const head = String(number).padStart(40, "c");
   return {
@@ -934,7 +891,6 @@ test("main records fix-ci dispatches beside the others, capped by limits.fix-ci-
   assert.deepEqual(fallback, { code: 0, output: "listed=true\nrun-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
 });
 
-// A ready PR a person opened that changes Markdown, as fix-docs-dispatch.mjs lists it.
 const docsPull = (number) => {
   const head = String(number).padStart(40, "d");
   return {
@@ -950,8 +906,6 @@ const docsPull = (number) => {
   };
 };
 
-// The owner's rule: Refine starts on a PR's own event only, never from a push
-// to main, the half-hourly tick or a hand run of the dispatcher.
 test("a push, tick or hand run starts no fix-docs, with fix-docs candidates listed and limits.fix-docs-per-run on", async () => {
   for (const limits of [{ ...LIMIT_DEFAULTS, "fix-docs-per-run": 2 }, { ...LIMIT_DEFAULTS, "fix-docs-per-run": undefined }]) {
     const api = fakeApi({ pages: [[pr(170)]], docsPulls: [docsPull(171), docsPull(172)] });
@@ -972,8 +926,6 @@ test("a push, tick or hand run starts no fix-docs, with fix-docs candidates list
   }
 });
 
-// main against a fake API whose run listing fails with `error`, holding one
-// candidate for resolve-conflicts and fix-ci each.
 async function mainWithFailedListing(error) {
   const api = fakeApi({ pages: [[pr(181)]], ciFixPulls: [ciFixPull(182)], workflowRuns: error });
   const lines = [];
@@ -1020,7 +972,6 @@ test("main ends green, dispatching and recording nothing, on an open pull reques
     );
     assert.equal(code, 0);
     assert.deepEqual(api.calls.dispatch, []);
-    // No listed either, so the next scheduled tick is never paced after it.
     assert.equal(existsSync(out), false, "no run-ids, record-changed or listed output");
     assert.deepEqual(lines, ["::warning::the open pull request listing could not be read (POST https://api.example/graphql returned 401); nothing dispatched, a later run retries"]);
   } finally {
@@ -1028,11 +979,6 @@ test("main ends green, dispatching and recording nothing, on an open pull reques
   }
 });
 
-// dispatchDocsFixes, as refine-event-dispatch.mjs runs it, over fix-docs
-// candidates whose history reads go through the real adapter and
-// budgetedFetch to GitHub's scripted GraphQL answers: `answers` maps a PR
-// number to the responses its reads get, in order; a PR left out is answered
-// with an empty history.
 async function docsWithHistoryAnswers(answers, pulls) {
   const sent = new Map();
   const fetch = async (_url, init) => {
@@ -1073,8 +1019,6 @@ test("a fix-docs history read that keeps answering 502 skips that PR with a warn
   assert.equal(failed, 0);
 });
 
-// The step still ends red on the limit: the rate guard's latch fails the
-// process, which this test's latch does not.
 test("a rate-limited fix-docs history read is sent once and holds that PR", async () => {
   const reset = Math.floor(Date.now() / 1000) + 19 * 60;
   const limited = () =>
@@ -1091,7 +1035,6 @@ test("a rate-limited fix-docs history read is sent once and holds that PR", asyn
 
 test("the adapter marks a run listing budgetedFetch gave up on as rate limited, and a refusal as not", async () => {
   const reset = Math.floor(Date.now() / 1000) + 19 * 60;
-  // Each listing gets its own latch: a limit refuses its latch's later calls.
   const apiFor = (answer) => {
     const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
     const budget = budgetedFetch({ fetch: async () => answer, log: () => {}, sleep: async () => assert.fail("no wait fits"), latch });
@@ -1157,14 +1100,6 @@ test("main writes only listed to GITHUB_OUTPUT when no run was dispatched", asyn
   assert.deepEqual(noRunId, { code: 1, output: "listed=true\n" });
 });
 
-// The REST contract (docs.github.com rest/actions/workflows "Create a workflow
-// dispatch event", API version 2022-11-28: 200 with workflow_run_id only when
-// return_run_details is true, else 204; rest/checks/runs "List check runs
-// for a Git reference" with check_name) and the GraphQL listing.
-// The dispatch follows up to 5 x 10 s of waiting. A pooled socket that sat
-// idle that long may have been dropped by GitHub, and a dispatch is not resent,
-// so it must go out on a connection no earlier request used. Real fetch
-// against a local server that keeps idle sockets open, as a pool would see.
 test("the GitHub adapter sends the dispatch on a connection no earlier request used", async () => {
   const { createServer } = await import("node:http");
   const seen = new Map();
@@ -1322,8 +1257,6 @@ test("resolve-conflicts and fix-ci page through one listing: each page is one Gr
   const ci = await api.listCiFixCandidates({ base: "main" });
   assert.equal(ci.baseCommittedAt, "2026-11-01T00:00:00Z");
   assert.equal(sent.length, 3, "the later view reads no page again");
-  // Each consumer's own fields: resolve-conflicts's mergeable state and
-  // Dependabot's commit count, fix-ci's rollup states.
   for (const field of ["mergeable", "changedFiles", "commits(last: 1) {\n          totalCount", "conclusion title completedAt", "first: 50"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
@@ -1341,7 +1274,6 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   const head = "c".repeat(40);
   const urls = [];
   const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } });
-  // Run 14 is a contract-only run (only ci-status ran), stepped past.
   const contractOnly = [
     { name: "ci-status", conclusion: "failure" },
     { name: "Lint Repo", conclusion: "skipped" },
@@ -1394,7 +1326,6 @@ test("the required-run read skips a fork's newer run at the same head SHA", asyn
   const head = "c".repeat(40);
   const urls = [];
   const own = { id: 21, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z", status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } };
-  // A fork PR pushed the same commit: its run is newer and still going.
   const fork = { ...own, id: 22, created_at: "2026-10-22T03:00:00Z", status: "in_progress", conclusion: null, head_repository: { full_name: "someone/repo" } };
   const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: 1, jobs: [{ name: "Test Node", conclusion: "failure" }] }];
   const api = createGitHubApi({
@@ -1411,10 +1342,6 @@ test("the required-run read skips a fork's newer run at the same head SHA", asyn
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/21/jobs?filter=latest&per_page=100");
 });
 
-// The record a run leaves: the next run, against the same GitHub state,
-// dispatches the same PRs and skips the reads the record makes redundant.
-// #1 conflicts at a head a successful run handled; #2 conflicts and is new;
-// #3 reads UNKNOWN, then CONFLICTING at a head a successful run handled.
 const recordState = () => ({
   pages: [[pr(1), pr(2), pr(3, { mergeable: "UNKNOWN" })]],
   requeries: [[pr(3)]],
@@ -1425,8 +1352,6 @@ test("a run records heads a finished run handled, and the next run skips their r
   const record = emptyRecord();
   const first = harness(recordState(), { record });
   await first.run();
-  // Without a record: a check-run read per conflicting head (#1, #2, #3) and
-  // one re-query round after one 10 s wait.
   assert.deepEqual(dispatchedNumbers(first.api), ["2"]);
   assert.equal(first.api.calls.checks.length, 3);
   assert.equal(first.api.calls.get.length, 1);
@@ -1462,7 +1387,6 @@ test("only a finished run that handles the head for good is recorded", async () 
   const record = emptyRecord();
   const { run } = harness({ pages: [[pr(1), pr(2), pr(3), pr(4), pr(5)]], checked: runs }, { record, maxDispatch: 9 });
   await run();
-  // #4 failed once, so it is retried; #5 finished: handled for good.
   assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], [pr(5).headRefOid]);
 });
 
@@ -1497,7 +1421,6 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     APP_SENDER_ID: String(LANES_APP),
     DISPATCH_RECORD: path,
   };
-  // A recorded head no open PR carries any more is dropped.
   const gone = emptyRecord();
   markHandled(gone, CHECK_NAME, "f".repeat(40));
   gone.bases.set("f".repeat(40), "b".repeat(40));
@@ -1520,12 +1443,9 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
   }
 });
 
-// The per-head cap is the loop's hard end, so it is shown: one warning on the
-// run that records the head, and none from the runs that skip it on the record.
 test("a head at the resolve-conflicts cap is warned about once, as it is recorded; a head done for another reason is not", async () => {
   const capped = pr(61);
   const done = pr(62);
-  // Three failures then a success: done, not capped.
   const resolved = pr(63);
   const failed = failedRun("2026-10-17T10:00:00Z", null);
   const state = () => ({
@@ -1617,9 +1537,6 @@ test("the dispatcher lists review comments since a time when given one, and shar
   ]);
 });
 
-// A same-head retry after a stop routed to a failing status: the push job's
-// lane-stopped skip (escalation-routes.mjs stopSkip) releases the head's
-// earlier resolve-conflicts checks, up to limit-stops-per-head stops.
 const at = (time) => `2026-10-26T${time}:00Z`;
 const modelRun = (time) => ({ ...SUCCESS_RUN, started_at: at(time), completed_at: at(time) });
 const laneStopRun = (time) => ({ status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time) });
@@ -1647,7 +1564,6 @@ test("a push job's lane stop releases the head for a same-head retry, up to limi
 
 test("a retry that did not stop, or a select job's own lane stop, handles the head", async () => {
   const head = pr(1).headRefOid;
-  // The newest push job check is not a stop: the retry landed.
   const landed = harness({
     pages: [[pr(1)]],
     checked: new Map([[head, [modelRun("10:00"), modelRun("10:30")]]]),
@@ -1655,7 +1571,6 @@ test("a retry that did not stop, or a select job's own lane stop, handles the he
   });
   await landed.run();
   assert.deepEqual(dispatchedNumbers(landed.api), []);
-  // A select job's stop (the repeat cap) is deterministic: no retry.
   const terminal = harness({ pages: [[pr(1)]], checked: new Map([[head, [laneStopRun("10:00")]]]) });
   await terminal.run();
   assert.deepEqual(dispatchedNumbers(terminal.api), []);
@@ -1755,9 +1670,6 @@ test("a head held untouched is read again on the next base move and compared fro
   assert.deepEqual([dispatchedNumbers(moved.api), moved.api.calls.compares], [["1"], [`${STOP_BASE}...${NEW_TIP}`]]);
 });
 
-// sync-shared-copies: pr-merge's shared-copy escalation as babysit_merge.py
-// writes it (the marker comment, then the lanes App's label), read through
-// gate-source.mjs sharedCopyGate.
 const COPY_APP = { login: "melodic-automation-lanes[bot]", id: LANES_APP, type: "Bot" };
 const copyPr = (number, overrides = {}) =>
   pr(number, { mergeable: "MERGEABLE", author: { login: COPY_APP.login, databaseId: LANES_APP }, labels: { nodes: [{ name: "needs-human" }] }, ...overrides });
@@ -1850,10 +1762,6 @@ test("sync-shared-copies: a failed select job's failure is retried until limit-s
   assert.deepEqual(next.calls.checkReads, [], "recorded at the cap: nothing read again");
 });
 
-// The gate stopped the run head-lag (GET /pulls and the branch ref never
-// agreed): report-check-run posts a superseded-sha skip on the head the run
-// read. On the head the dispatcher reads, the PR's current one, the run did
-// no work there, so it is sent again once, under limit-stops-per-head.
 const lagStop = (time) => ({ status: "completed", conclusion: "neutral", output: { title: "Skipped: superseded-sha" }, started_at: at(time), completed_at: at(time) });
 
 test("resolve-conflicts: a head-lag stop on the current head is sent again once, under the cap", async () => {
@@ -1904,9 +1812,6 @@ test("sync-shared-copies: a head-lag stop on the current head is sent again once
   }
 });
 
-// A select job's own stop (pr-unblock.yml resolve-conflicts-not-run) judged
-// the base it merged: once main moves, the same conflicting head is tried
-// again, and an unchanged head and base stay skipped.
 const OLD_TIP = "c".repeat(40);
 const NEW_TIP = "d".repeat(40);
 const tipAt = (oid, time) => ({ oid, committedAt: Date.parse(at(time)) });
