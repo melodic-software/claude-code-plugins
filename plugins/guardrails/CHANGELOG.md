@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.2] - 2026-11-25
+
+### Fixed
+
+- The merge guard's README entry says to post a reply or comment that quotes a merge command in backticks with `--body-file <file>` or `-F body=@<file>`, since the guard refuses that text on the command line and does not read a body file.
+
 ## [5.2.1] - 2026-11-25
 
 ### Fixed

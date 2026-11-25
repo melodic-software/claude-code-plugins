@@ -1,9 +1,3 @@
-/**
- * yt-dlp acquisition machinery the source adapters compose. Source dispatch
- * lives in `adapters/registry.js` (`acquireMedia`); this module never imports
- * the registry, keeping the adapter module graph acyclic.
- */
-
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -403,9 +397,6 @@ export async function acquireYouTubeMedia(
 
   const captionOptional = mode === "full" && Boolean(artifacts.videoPath);
 
-  // A live-derived video's captions can still be in post-stream processing: hold it while
-  // the wait is open, in either mode, rather than stop or digest caption-less. A caller
-  // that can transcribe the downloaded media itself skips the hold.
   /** @type {import('./caption-wait.js').CaptionWaitDecision} */
   let captionWait = { state: "none" };
   let captionWaitNote = "";

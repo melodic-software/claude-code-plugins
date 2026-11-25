@@ -547,9 +547,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         New-DefaultApprovalState
     }
 
-    # Custom-check clamp: after every upgrade path, so no rule can lift a custom
-    # check past WARN before it has a clean record or the owner's recorded review
-    # (reference/shared/catalog-overlay.md).
     try {
         $checkResults = @(Invoke-CustomCheckClamp -CheckResults $checkResults -CustomIds $customIds `
                 -HistoryTail $historyTail -ReviewedIds @(Get-ReviewedCheckId -State $approvalState))
