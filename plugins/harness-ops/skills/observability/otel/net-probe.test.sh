@@ -20,8 +20,6 @@ readonly FREE_PORT=49732
 readonly LISTEN_PORT=49731
 
 server_pid=""
-# Inline trap (repo convention; a named cleanup fn invoked only via trap would
-# trip SC2329).
 trap 'if [[ -n "$server_pid" ]]; then kill "$server_pid" 2>/dev/null; wait "$server_pid" 2>/dev/null; fi' EXIT
 
 assert_eq "unbound port => free (curl branch)" "free" "$(port_status "$FREE_PORT")"

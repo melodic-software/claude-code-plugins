@@ -1,61 +1,4 @@
 #!/usr/bin/env bash
-# instruction-files.sh: the project-root instruction files the unhobble strip
-# moves aside, and the git commands that move them and put them back.
-#
-# AGENTS.md and .claude/AGENTS.md are on the list unconditionally. Claude Code
-# reads them as the project instructions only when no CLAUDE.md name displaces
-# them, and the strip removes exactly those CLAUDE.md names, so a file that is
-# merely imported by a one-line shim today is read natively the moment the shim
-# goes. A baseline that left it in place would declare itself bare while the
-# repository's whole instruction surface was still loading. Whether a session
-# reads one at all, and which files the instruction-files mode loads, carry their
-# dated records in this plugin's reference/agents-md-liveness.md. The caller
-# decides candidacy from those; this script only moves the names it is given.
-#
-#   instruction-files.sh list <root>                     print the files present under <root>
-#   instruction-files.sh strip <root> <name>...          git rm each NAMED file
-#   instruction-files.sh strip <root> --all              git rm every name present
-#   instruction-files.sh restore <root> <ref> <name>...  git checkout <ref> -- each NAMED file
-#   instruction-files.sh restore <root> <ref> --all      ABANDON the experiment: the
-#                                                        pre-strip state of every name
-#
-# <root> is always an explicit argument. This script never falls back to the
-# working directory: a strip that resolved its own target would run against
-# whatever repository the operator happened to be standing in rather than the
-# checkout they named.
-#
-# BOTH DIRECTIONS NAME WHAT THEY TOUCH. The strip plan classifies per file, so a
-# repository can hold a behavioral CLAUDE.md beside an AGENTS.md the operator
-# classified `policy` or `convention` and chose to keep; a strip that took the
-# whole list would delete the surface the plan said to retain. Phase 4 is the
-# mirror: it re-adds only the instructions the stumble ledger defended, so a
-# restore of everything would hand back the ones it did not and undo the result.
-# `list` reports the candidates; the caller classifies them and names its choice.
-# `--all` exists on both verbs for the cases where the whole set IS the decision,
-# and is a separate word because taking the set is never the default.
-#
-# `restore --all` IS THE ABANDON PATH, NOT THE CLOSE PATH. It is for walking the
-# whole experiment back to its pre-strip state, discarding the result. Closing an
-# experiment normally is the opposite: the editorial surfaces the ledger did not defend
-# STAY retired, which is the finding the experiment was run to produce, so a
-# close never calls it. Reaching the pre-strip state means both halves: a name the
-# ref has is checked out over whatever is on disk, since a file the experiment
-# recreated or rewrote is exactly what an abandon discards, and a name the ref
-# does NOT have but git TRACKS is removed, since being tracked and absent from
-# the ref is git's own evidence the experiment added it. A name the ref does not
-# have and git does not track is the one case this cannot decide: a file that was
-# never tracked is absent from every commit, so a `CLAUDE.local.md` that predated
-# the experiment looks exactly like one the experiment wrote. It is named for the
-# operator and left in place; an unrecoverable delete is the worse error.
-#
-# `strip` checks every present file is tracked AND clean BEFORE it removes any of
-# them, and exits 2 naming the offenders with the tree untouched. `git rm` refuses
-# both an untracked file (the ordinary case for CLAUDE.local.md) and a tracked one
-# whose content differs from the tip of the branch, and either refusal mid-loop
-# leaves the files ahead of it gone while the ones behind it stay loaded, which is
-# the half-stripped baseline this whole change exists to prevent. Back an untracked
-# file up through the manifest, and commit or stash a dirty one, then strip.
-#
 # Exit: 0 done, 2 usage, a bad root, or an instruction file git rm would refuse.
 set -euo pipefail
 
@@ -105,10 +48,6 @@ occupied() {
   occupied_ancestor "$1"
 }
 
-# Prints a reason when the index carries a bit that makes git stop comparing the
-# worktree copy, so a "clean" answer from `git diff` cannot be trusted for it.
-# `ls-files -v` marks these: a LOWERCASE status letter means assume-unchanged,
-# and `S` means skip-worktree.
 index_flag_hidden() {
   local v
   v="$(git -C "$root" ls-files -v -- "$1" 2>/dev/null | head -n 1)"
@@ -173,7 +112,6 @@ strip)
       continue
     fi
     present+=("$n")
-    # Resolved outside the conditions below, per SC2310 as elsewhere here.
     hidden="$(index_flag_hidden "$n")"
     if ! git -C "$root" ls-files --error-unmatch -- "$n" >/dev/null 2>&1; then
       refused+=("$n (untracked: not this helper's to strip; back it up to the manifest and remove it there, as with settings)")
@@ -234,8 +172,6 @@ restore)
   for n in "$@"; do
     known=""
     for k in "${NAMES[@]}"; do [[ "$n" == "$k" ]] && known=1 && break; done
-    # Resolved outside the condition below: a function called inside one
-    # suppresses `set -e` for its body (SC2310).
     blocked="$(occupied "$n")"
     if [[ -z "$known" ]]; then
       refused+=("$n (not an instruction file name; names: ${NAMES[*]})")

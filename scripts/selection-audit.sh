@@ -203,7 +203,8 @@ cmd_trace() {
   git ls-files >"$out/tracked"
   git update-index -q --refresh >/dev/null 2>&1 || true
   fallback_corpus >"$out/fallback" || die "cannot derive the suites pr-require-checks.yml's UNMAPPED fallback runs"
-  if ((${#suites[@]} == 0)); then
+  local named=${#suites[@]}
+  if ((named == 0)); then
     mapfile -t suites < <(traceable <"$out/tracked" | grep -v '\.test\.mjs$' | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
   fi
   ((${#suites[@]})) || die "no suites to trace"
@@ -211,6 +212,10 @@ cmd_trace() {
     mapfile -t suites < <(printf '%s\n' "${suites[@]}" |
       awk 'NR == FNR { if (!/^#/) s[$1] = $2; next } { print ($0 in s ? s[$0] : 0) "\t" $0 }' scripts/suite-seconds.txt - |
       sort -s -t $'\t' -k1,1nr | cut -f2-)
+  fi
+  if ((named > 0 && n > 1)); then
+    mapfile -t suites < <(printf '%s\n' "${suites[@]}" | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
+    ((${#suites[@]})) || die "shard $shard holds none of the $named suite(s) named"
   fi
 
   AUDIT_UNMAPPED_FLAG="$(unmapped_flag)"

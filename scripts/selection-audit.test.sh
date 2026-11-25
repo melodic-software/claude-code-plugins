@@ -257,6 +257,19 @@ EOF
   else
     fail "trace: budget without --strict exit $rc, want 0"
   fi
+  shards=""
+  for k in 0 1; do
+    (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+      bash "$AUDIT" trace --strict --shard "$k/2" --out "$TMP_ROOT/out-named-$k" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 &&
+      shards+="$(cut -f1 "$TMP_ROOT/out-named-$k/suites.tsv")|"
+  done
+  rc=0
+  (cd "$t" && bash "$AUDIT" trace --shard 2/3 --out "$TMP_ROOT/out-named-empty" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 || rc=$?
+  if [[ "$shards" == "suites/declared.test.sh|suites/node.test.mjs|" && "$rc" -eq 2 ]]; then
+    ok "trace --shard: named suites split across shards, one each, and a shard holding none of them exits 2"
+  else
+    fail "trace --shard over named suites: shards [$shards], empty-shard exit $rc, want 2"
+  fi
 
   s="$TMP_ROOT/stale-repo"
   git_repo "$s"

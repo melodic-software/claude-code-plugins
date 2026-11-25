@@ -1,27 +1,5 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part d of 5:
-# sections 2o to 4c. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -e.test.sh; block-root-delete-target-fixtures.sh
-# holds what they share.
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
-# no host-repo assertion library.
-#
-# The core table runs through expect_both, so every verdict is asserted twice:
-# once with the guard alone, and once under hooks/run-guards.sh. A guard that
-# decides one way by itself and another under the dispatcher is a failure here
-# rather than a blind spot.
-#
-# The guard is NOT host-gated, so no case forces OSTYPE: a recursive delete of
-# `/`, of `~`, of `$HOME`, or with --no-preserve-root is unrecoverable on every
-# host this plugin runs on, and CI is Linux.
-#
-# File-wide, and deliberate: every command string below is a LITERAL the guard
-# must read exactly as an operator wrote it. `$HOME` and `${HOME}` are matched
-# as text, because the guard never evaluates an expansion (SC2016), and `\\` is
-# a real pair of backslashes rather than an escaped quote (SC1003). Expanding
-# either here would test something other than what the guard sees.
+# Command strings are literals the guard reads as written: $HOME stays text (SC2016), \\ is two backslashes (SC1003).
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -249,12 +227,6 @@ expect "PS kill switch disables the guard" 0 \
   --tool PowerShell --command 'Remove-Item -Recurse C:\' \
   -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"
 
-# --- 4a. PowerShell statement boundaries and $env: operands (#4516) ------------
-# A statement ends at an unquoted newline (LF, CRLF or a bare CR), `{`, `}`, `(`,
-# `)` and `$(`, not only at `; | &`, so a delete after a newline or inside a
-# scriptblock or a grouping is judged as a statement of its own. The shared field
-# reader drops every CR from the command, so the guard re-reads a PowerShell
-# command from the payload to see a bare CR.
 # portability-ok: Windows path strings in test fixtures, not regex/sed constructs
 for rdt_sep in $'\n' $'\r\n' $'\r'; do
   rdt_nl="LF"
@@ -409,14 +381,6 @@ expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)} blocks (bare varia
 expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache allowed' 0 \
   --tool PowerShell --command 'Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache'
 
-# --- 4a2. A literal `$` in a PowerShell target (#6626) ------------------------
-# PowerShell expands nothing inside single quotes, and a backtick-escaped `$` is
-# literal anywhere, so such a target is judged as the path it names instead of
-# being left alone as an expansion. On Win32 a `::$INDEX_ALLOCATION` (or other
-# `:<name>:$<TYPE>`) stream suffix names the file or directory before it, so the
-# target is judged as that path. A `$` PowerShell would expand is still left
-# alone, and a target made of a `$` name alone is still refused as a bare
-# variable.
 # portability-ok: Windows path strings in test fixtures, not regex/sed constructs
 expect_both 'PS single-quoted outside target holding a $ blocks' 2 \
   --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\a\$b'"
@@ -453,9 +417,6 @@ expect_both 'PS single-quoted $ name with a trailing \ still blocks (bare variab
   --tool PowerShell --command "Remove-Item -Recurse '\$X\\'"
 expect_both 'PS unquoted $env:TEMP still blocks (bare variable)' 2 \
   --tool PowerShell --command 'Remove-Item -Recurse $env:TEMP'
-# Stay quiet: a word whose every `$` is literal names a path of that name, which
-# pwsh 7 cannot even resolve (`'$env:TEMP'`: "Cannot find drive '$env'"), so it
-# is not also read as an expansion.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "PS literal \$ is not read as an expansion: $rdt_cmd" 0 \
@@ -494,13 +455,9 @@ expect_both 'PS a here-string keeps the expansion reading' 2 \
 expect_both 'PS a typographic double quote keeps the expansion reading' 2 \
   --tool PowerShell "${RDT_CWD[@]}" \
   --command "iex "$'\xe2\x80\x9c'"echo; Remove-Item -Recurse '\$env:SystemDrive\\' "$'\xe2\x80\x9d'
-# A `$( ... )` inside a double-quoted string is a full script, so a `"` in it
-# does not close the string as the walk reads it.
 expect_both 'PS a quote inside a $( ) subexpression keeps the expansion reading' 2 \
   --tool PowerShell "${RDT_CWD[@]}" \
   --command $'iex "$(\'"\'.Length) #\'\nRemove-Item -Recurse \'$env:SystemDrive\\\'\n" #"'
-# A `${name}` inside a double-quoted string reads its name to the first `}`, so
-# a `"` in it does not close the string as the walk reads it.
 expect_both 'PS a quote inside a ${ } braced name keeps the expansion reading' 2 \
   --tool PowerShell "${RDT_CWD[@]}" \
   --command $'iex "${a"}; Remove-Item -Recurse \'$env:SystemDrive\\\'"'

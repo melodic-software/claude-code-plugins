@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .github/workflows/pr-require-checks.yml
+# test-scope: .github/workflows/pr-require-checks.yml .github/workflows/pr-unblock.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -108,15 +108,48 @@ for line in "      run_check_tests: \${{ steps.base.outputs.ref == '' }}" \
   if grep -qF -- "$line" "$WORKFLOW"; then ok "the workflow carries '$line'"; else fail "the workflow lost '$line'"; fi
 done
 
+shard_step="$(awk '/^      - name: Shard the listed suites$/ { on = 1; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW")"
+awk '/^        run: \|$/ { on = 1; next }
+  on && /^          / { print substr($0, 11); next }
+  on { exit }' <<<"$shard_step" >"$TMP_ROOT/shards.sh"
+per_shard="$(sed -n 's/^          PER_SHARD: \([0-9][0-9]*\)$/\1/p' <<<"$shard_step")"
+shards_for() {
+  : >"$TMP_ROOT/shards.out"
+  SUITES="$(jq -nc --argjson n "$1" '[range($n) | "s\(.).test.sh"]')" PER_SHARD="$per_shard" \
+    GITHUB_OUTPUT="$TMP_ROOT/shards.out" bash -e "$TMP_ROOT/shards.sh" >/dev/null 2>&1 &&
+    sed -n 's/^list=//p' "$TMP_ROOT/shards.out" | jq -c '[length, .[0], .[-1]]'
+}
+if [[ -n "$per_shard" && "$(shards_for 1)" == "[1,0,0]" && "$(shards_for "$per_shard")" == "[1,0,0]" &&
+  "$(shards_for $((per_shard + 1)))" == "[2,0,1]" && "$(shards_for 125)" == "[$(((125 + per_shard - 1) / per_shard)),0,$(((125 + per_shard - 1) / per_shard - 1))]" &&
+  "$(shards_for $((per_shard * 300)))" == "[256,0,255]" ]]; then
+  ok "select-tests shards the listed suites: one shard up to PER_SHARD ($per_shard), more past it, and at most 256"
+else
+  fail "the shard step gave 1:[$(shards_for 1)] $((per_shard + 1)):[$(shards_for $((per_shard + 1)))] 125:[$(shards_for 125)] $((per_shard * 300)):[$(shards_for $((per_shard * 300)))]"
+fi
+for line in "        shard: \${{ fromJSON(needs.select-tests.outputs.selection_shards || '[0]') }}" \
+  "      SHARD: \${{ strategy.job-index }}" "      SHARDS: \${{ strategy.job-total }}" \
+  "          name: selection-trace-\${{ github.run_id }}-\${{ github.run_attempt }}-\${{ strategy.job-index }}"; do
+  if grep -qxF -- "$line" "$WORKFLOW"; then ok "test-selection carries '$line'"; else fail "test-selection lost '$line'"; fi
+done
+if grep -qxF -- "          pattern: selection-trace-\${{ steps.locate.outputs.run-id }}-\${{ steps.locate.outputs.run-attempt }}-*" \
+  "$ROOT/.github/workflows/pr-unblock.yml"; then
+  ok "pr-unblock downloads every shard's trace artifact"
+else
+  fail "pr-unblock's trace download does not match the shard artifacts"
+fi
+
 trace_step="$(awk '/^      - name: Trace the changed suites$/ { on = 1; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW")"
-if grep -qE 'selection-audit\.sh trace --strict .*--budget [0-9]+' <<<"$trace_step" &&
+# shellcheck disable=SC2016 # a workflow literal to match, not a shell expansion
+if grep -qE 'selection-audit\.sh trace --strict --shard "\$SHARD/\$SHARDS" .*--budget [0-9]+' <<<"$trace_step" &&
   [[ "$(grep -v '^[[:space:]]*$' <<<"$trace_step" | tail -n1)" == "          exit \"\$rc\"" ]] &&
   ! grep -qE 'exit 0|\|\| true' <<<"$trace_step"; then
-  ok "test-selection traces with --strict and a --budget, and exits with the trace's own status"
+  ok "test-selection traces its shard with --strict and a --budget, and exits with the trace's own status"
 else
-  fail "test-selection's trace step lost --strict, its --budget or its closing exit \"\$rc\": [$trace_step]"
+  fail "test-selection's trace step lost --strict, --shard, its --budget or its closing exit \"\$rc\": [$trace_step]"
 fi
 
 test_harness::report

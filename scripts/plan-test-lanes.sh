@@ -96,21 +96,38 @@ for f in ${changed[@]+"${changed[@]}"}; do
 done
 
 select_into() {
-  local out="$1" rc=0
+  local out="$1" n parts size i
+  local -a pids=() rcs=()
   shift
-  bash scripts/affected-tests.sh --unmapped-corpus -- "$@" >"$out" 2>"$WORK/selector.err" || rc=$?
-  case "$rc" in
-  0) ;;
-  4)
-    unmapped=$((unmapped + $(awk '/^UNMAPPED:/ { n = $2; exit } END { print n + 0 }' "$WORK/selector.err")))
-    awk '/^UNMAPPED:/ { f = 1; print; next } f && /^  - / { print; next } { f = 0 }' "$WORK/selector.err" >&2
-    ;;
-  *)
-    cat "$WORK/selector.err" >&2
-    die "scripts/affected-tests.sh exited $rc; the selection is unknown"
-    ;;
-  esac
+  n=$#
+  parts=$(((n + 99) / 100))
+  ((parts <= CPUS)) || parts=$CPUS
+  size=$(((n + parts - 1) / parts))
+  for ((i = 0; i * size < n; i++)); do
+    bash scripts/affected-tests.sh --unmapped-corpus -- "${@:i*size+1:size}" >"$out.$i" 2>"$WORK/selector.$i.err" &
+    pids+=($!)
+  done
+  for i in "${!pids[@]}"; do
+    rcs[i]=0
+    wait "${pids[i]}" || rcs[i]=$?
+  done
+  for i in "${!pids[@]}"; do
+    case "${rcs[i]}" in
+    0) ;;
+    4)
+      unmapped=$((unmapped + $(awk '/^UNMAPPED:/ { n = $2; exit } END { print n + 0 }' "$WORK/selector.$i.err")))
+      awk '/^UNMAPPED:/ { f = 1; print; next } f && /^  - / { print; next } { f = 0 }' "$WORK/selector.$i.err" >&2
+      ;;
+    *)
+      cat "$WORK/selector.$i.err" >&2
+      die "scripts/affected-tests.sh exited ${rcs[i]}; the selection is unknown"
+      ;;
+    esac
+  done
+  LC_ALL=C sort -u "$out".* >"$out" || die "merging the selector runs failed"
 }
+CPUS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)"
+[[ "$CPUS" =~ ^[1-9][0-9]*$ ]] || CPUS=1
 
 inert=() win_changed=() inert_changed=()
 read_list::into inert "$WINDOWS_INERT" --comments inline || exit 2
@@ -150,7 +167,6 @@ declare -A OUTSIDE_TRIGGERS=(
   [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
   [.github/scripts/pr-run-activity-read]=".github/workflows/pr-run-activity-read.yml .github/scripts/lib/"
   [.github/scripts/upstream-apply-changelog]=".github/workflows/upstream-apply-changelog.yml .github/scripts/lib/"
-  [.github/scripts/pr-review]=".github/scripts/pr-unblock/request-budget.mjs .github/actions/log-api-budget/ .github/actions/check-trusted-trigger/ .github/scripts/lib/github-client.mjs .github/scripts/lib/trusted-actors.mjs lib/test-tmp.mjs"
   [.github/scripts/pr-review-main]=".github/workflows/pr-review-main.yml .github/scripts/lib/"
   [.github/scripts/pr-merge-risk]=".github/workflows/pr-rate-merge-risk.yml .github/scripts/lib/"
   [.github/scripts/post-merge-test-mutation]=".github/workflows/post-merge-test-mutation.yml .github/scripts/lib/"

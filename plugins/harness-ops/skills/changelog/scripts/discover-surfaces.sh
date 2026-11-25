@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Discover the Claude Code surfaces a changelog item can touch, from the repo shape.
-#
-# Usage: discover-surfaces.sh [ROOT]
-#
-# Prints "repo-shape: marketplace|plugin|consumer", then one line per present surface
-# class with its count and glob. A marketplace repo has plugins/ and
-# .claude-plugin/marketplace.json; a standalone plugin has .claude-plugin/plugin.json
-# and no marketplace; anything else is a consumer. Vendored upstream
-# docs (*/skills/*/vendor) are not counted; the last line says how many trees were
-# skipped. Exits 0 whenever ROOT exists, 2 for a missing ROOT or an unknown argument.
 set -euo pipefail
 
 if [[ "$#" -gt 1 || "${1:-}" == -* ]]; then

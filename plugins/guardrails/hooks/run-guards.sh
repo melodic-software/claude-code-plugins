@@ -193,6 +193,20 @@ _RG_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$_RG_DIR" == "${BASH_SOURCE[0]}" ]] && _RG_DIR=.
 # shellcheck source=abort-boundary.sh
 source "$_RG_DIR/abort-boundary.sh"
+if [[ "${1-}" == --batch ]]; then
+  [[ -d "${2-}" ]] || exit 70
+  _RG_BATCH=$2
+  shift 2
+  # shellcheck source=hook-utils.sh
+  source "$_RG_DIR/hook-utils.sh" || exit 70
+  for ((_RG_I = 1; ; _RG_I++)); do
+    [[ -f "$_RG_BATCH/$_RG_I.in" ]] || break
+    # shellcheck source=/dev/null  # this script itself; following it would recurse
+    (source "$_RG_DIR/${BASH_SOURCE[0]##*/}" "$@") <"$_RG_BATCH/$_RG_I.in" >"$_RG_BATCH/$_RG_I.out"
+    printf '%s\n' "$?" >"$_RG_BATCH/$_RG_I.rc"
+  done
+  exit 0
+fi
 # Could-not-run posture (#3528): fail-open with a visible notice. This covers
 # the dispatcher's own code, before and after the guards: stdin, the field
 # priming, the classifier load, the merge. An abort here would otherwise skip
