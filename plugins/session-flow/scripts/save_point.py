@@ -139,14 +139,17 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     BULLET_RE,
     HANDOFF_NAME_RE,
     HOP_FILE_SHAPES,
+    NEWEST_SHAPE,
     RETIRED_PREFIX,
     SHAPES,
     STANDING_INLINE_OK,
     STANDING_PREFIX,
     STANDING_SECTIONS,
+    WRITABLE_SHAPES,
     IdSpec,
     MovePointer,
     entry_text,
+    fitted,
     fm_value,
     follow,
     hop_file_path,
@@ -162,14 +165,13 @@ from handoff_chain import (  # noqa: E402  (handoff_chain.py beside this script)
     section_spans,
     standing_pointer,
     standing_rel,
+    standing_rels,
 )
 import dialect  # noqa: E402  (dialect.py beside this script)
 import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
 from handoff_fit import PURPOSE_PREFIX, REOPEN_PREFIX  # noqa: E402
 
-HANDOFF_SHAPE = 4
-NEWEST_SHAPE = 4
-WRITABLE_SHAPES = (2, 3, 4)
+HANDOFF_SHAPE = 5
 CHECKS = 3
 CONTENT_ONLY_DOWNGRADE_FROM = 2
 ID_REUSE_FROM = 3
@@ -177,7 +179,12 @@ UNVERIFIED_SETTLE_FROM = 3
 SLOT_SIZE_FROM = 3
 
 S3 = SHAPES[3]
+ID_SPECS = SHAPES[NEWEST_SHAPE].id_specs
 RULES = S3.id_spec("R")
+REMINDERS = SHAPES[NEWEST_SHAPE].id_spec("M")
+REMINDER_RE = re.compile(
+    r"^\[M\d+\] (?:user|agent|peer \S[^·]*?) · (?:at close|at \S+|when [^·]+?) · .+ · added h\d+(?: \d{4}-\d{2}-\d{2})?$"
+)
 RETIRED_RULES = RULES.retired_heading
 AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
 TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
@@ -192,15 +199,16 @@ DECISION_TAG_SHAPE = (
     "'- [D<n>] [security|design] <decision> (<reason>) buys: <what it gains>; "
     "surface: <the surface exposed today, or none>; cost: <measured cost so far, or none yet>'"
 )
+REMINDER_SHAPE = "'- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <YYYY-MM-DD>', actor 'user', 'agent' or 'peer <session or lane>', trigger 'at <ISO-8601 time with UTC offset>', 'when <condition>' (optionally '; check `<read-only command>`') or 'at close', a command verbatim in one backtick span"
 CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
 POINTED_HEADINGS = (
-    *(spec.retired_heading for spec in S3.id_specs if spec is not RULES),
+    *(spec.retired_heading for spec in ID_SPECS if spec != RULES),
     *S3.retired_entry_sections.values(),
 )
 RETIRE_HEADINGS = (RETIRED_RULES, *POINTED_HEADINGS)
 HOP_NAME_RE = re.compile(r"\bh\d+-[0-9a-f]{8}\.md\b")
 RETIRE_REF_RE = re.compile(
-    r"^\[(?P<prefix>[RQD])(?P<n>\d+)\]$"
+    rf"^\[(?P<prefix>[{''.join(s.prefix for s in ID_SPECS)}])(?P<n>\d+)\]$"
     r"|^\[(?P<tag>h\d+(?:-h?\d+)?)\](?:#(?P<tag_ord>\d+))?$"
     r"|^amendment#(?P<ord>\d+)$"
 )
@@ -222,7 +230,7 @@ FRONTMATTER_KEYS_3 = (
     "archive",
     "archive_from",
     "standing_rules",
-    *(spec.floor_key for spec in S3.id_specs),
+    *(spec.floor_key for spec in ID_SPECS),
     "repo",
 )
 PRIOR_ROWS_KEPT = 3
@@ -1111,7 +1119,7 @@ def validate_doc(
         return f, 1
     if shape > NEWEST_SHAPE:
         f.fail(
-            f"handoff_shape {shape} is newer than this validator knows ({NEWEST_SHAPE}): read it, do not rewrite it"
+            f"handoff_shape {shape} is newer than this validator knows ({NEWEST_SHAPE}): read it, do not rewrite it; update session-flow to validate it"
         )
         return f, 3
 
@@ -1590,7 +1598,7 @@ def _next_id(pred: Doc | None, spec: IdSpec) -> int:
     if pred.shape in HOP_FILE_SHAPES:
         floor = _fm_int(pred, spec.floor_key)
         ids = [n for n, _, _ in _id_entries(pred, spec) if n is not None]
-    if floor is None and spec is not RULES:
+    if floor is None and spec != RULES:
         text = "\n".join(pred.lines)
         ids += [int(n) for n in re.findall(rf"\b{spec.prefix}(\d+)\b", text)]
     return max(floor or 1, max(ids, default=0) + 1)
@@ -1631,8 +1639,53 @@ def _folds(line: str, hop: int) -> bool:
     return newest is not None and hop - newest >= DIRECTION_HOPS_KEPT
 
 
+def _id_specs(shape: int | None) -> tuple[IdSpec, ...]:
+    """The id families a file of `shape` holds; shape 3's for a shape with none."""
+    spec = SHAPES.get(shape) if isinstance(shape, int) else None
+    return spec.id_specs if spec is not None and spec.id_specs else S3.id_specs
+
+
+def _family(prefix: str) -> IdSpec:
+    return next(spec for spec in ID_SPECS if spec.prefix == prefix)
+
+
+def _converted_commands(pred: Doc | None, hop: int, date: str) -> list[str]:
+    """A shape-4 predecessor's Pending commands as `user · when now` reminders,
+    `None.` lines left out, so no command drops when a chain moves to shape 5."""
+    if pred is None or REMINDERS in _id_specs(pred.shape):
+        return []
+    held = [
+        entry.text
+        for entry in parse_entries(pred.section("Pending commands") or [])
+        if not entry.exempt
+    ]
+    return [
+        f"- [M{n}] user · when now · {text} · added h{hop} {date[:10]}"
+        for n, text in enumerate(held, start=1)
+    ]
+
+
+def _check_reminders(doc: Doc, f: Findings) -> None:
+    if REMINDERS not in _id_specs(doc.shape):
+        return
+    open_ids: list[str] = []
+    for n, entry, _ in _id_entries(doc, REMINDERS):
+        if n is None:
+            continue
+        open_ids.append(f"[M{n}]")
+        if not REMINDER_RE.match(entry.text):
+            f.fail(
+                f"Reminders: [M{n}] is not {REMINDER_SHAPE}: {entry.text[:60]!r}"
+            )
+    span = _next_span(doc)
+    if open_ids and span is not None and doc.lines[span[0]] == NEXT_CLOSED:
+        f.warn(
+            f"Reminders: this handoff is closed ({NEXT_CLOSED}) but {', '.join(open_ids)} are not retired; raise each in the closing turn, then retire it 'raised at chain close', or on an unattended run list each user or 'at close' entry under Needs you"
+        )
+
+
 def _carries(pred: Doc | None, spec: IdSpec) -> bool:
-    if spec is RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
+    if spec == RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
         return False
     entries = _id_entries(pred, spec)
     return (
@@ -1809,10 +1862,11 @@ CORE_NEVER_MOVES = (
 
 def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
     size, core, carried, written = _size_parts(doc)
-    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+    spec = SHAPES[doc.shape]
+    cap = spec.cap_bytes or HOT_FILE_MAX_BYTES
     if core + carried > cap:
         name, held = max(
-            ((title, _section_bytes(doc, (title,))) for title in SHAPES[4].binding),
+            ((title, _section_bytes(doc, (title,))) for title in spec.binding),
             key=lambda pair: pair[1],
         )
         return (
@@ -1822,13 +1876,13 @@ def _size_finding_4(doc: Doc, rel: str) -> tuple[str, str] | None:
     if size > cap:
         return (
             "FAIL",
-            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(SHAPES[4].movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
+            f"size: {size} bytes is over the {cap}-byte hot-file cap; move {', '.join(spec.movable)} content into {rel} with a pointer ({_size_text(core, carried, written)})",
         )
     return None
 
 
 def _size_finding(doc: Doc, rel: str) -> tuple[str, str] | None:
-    if doc.shape == 4:
+    if fitted(doc.shape):
         return _size_finding_4(doc, rel)
     size, core, carried, written = _size_parts(doc)
     parts = _size_text(core, carried, written)
@@ -2070,9 +2124,10 @@ def _check_standing(doc: Doc, f: Findings, root: str, standing: str | None) -> D
     pointed = _standing_pointed(doc)
     if not held and not pointed:
         return doc
-    want = standing_rel(root) if root else None
-    if held and want and held != want:
-        f.fail(f"frontmatter: standing_rules must be '{want}' (got {held!r})")
+    if held and root and held not in standing_rels(root):
+        f.fail(
+            f"frontmatter: standing_rules must be '{standing_rel(root)}' (got {held!r})"
+        )
         return doc
     if not held:
         f.fail(
@@ -2272,7 +2327,7 @@ def _validate_shape3(
         _check_headings(doc, f, spec.legacy_names)
     else:
         _check_headings(doc, f, spec.names)
-    if doc.shape == 4:
+    if spec.fitted:
         _check_moves(doc, f, spec)
     _check_original_goal(doc, f, hop or 1)
     raw = doc
@@ -2292,15 +2347,18 @@ def _validate_shape3(
                 f"frontmatter: repo {fm['repo']!r} must equal the Handoff origin's first slot {slots[0]!r}"
             )
 
-    for spec in S3.id_specs:
+    for spec in _id_specs(doc.shape):
         seen: set[int] = set()
         required = (
-            spec is RULES
+            spec == RULES
             or previous is None
             or (
                 pred is not None
                 and pred.shape in HOP_FILE_SHAPES
-                and _fm_int(pred, spec.floor_key) is not None
+                and (
+                    _fm_int(pred, spec.floor_key) is not None
+                    or spec not in _id_specs(pred.shape)
+                )
             )
         )
         for n, entry, title in _id_entries(doc, spec):
@@ -2314,6 +2372,7 @@ def _validate_shape3(
             else:
                 seen.add(n)
     _check_decision_fields(doc, f)
+    _check_reminders(doc, f)
 
     _check_github_claims(doc, f)
     if hop is None or start is None or not root:
@@ -2370,7 +2429,7 @@ def _validate_shape3(
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
     slots = _check_slot_sizes(raw, f)
-    if raw.shape == 4 and _cap_state(raw)[0] > READ_CAP_BYTES:
+    if fitted(raw.shape) and _cap_state(raw)[0] > READ_CAP_BYTES:
         f.warn(
             f"size: {_cap_state(raw)[0]} bytes is over the {READ_CAP_BYTES}-byte Read page cap; the resume prompt directs a paged Read (offset and limit)",
             CheckKind.SIZE,
@@ -2432,10 +2491,10 @@ def _check_id_reuse(
     doc: Doc, f: Findings, pred: Doc | None, archived: str | None
 ) -> None:
     retired = read_chain(pred.path, strict=True).retired_ids() if pred else {}
-    for prefix, ids in retired_in(archived or "", S3).items():
+    for prefix, ids in retired_in(archived or "", SHAPES.get(doc.shape, S3)).items():
         for n, text in ids.items():
             retired.setdefault(prefix, {}).setdefault(n, text)
-    for spec in S3.id_specs:
+    for spec in _id_specs(doc.shape):
         spent = retired.get(spec.prefix, {})
         for n, entry, title in _id_entries(doc, spec):
             was = spent.get(n) if n is not None else None
@@ -2462,7 +2521,7 @@ def _check_carry_3(
         if archived is None:
             return
         hop = _fm_int(doc, "hop")
-        for spec in S3.id_specs:
+        for spec in _id_specs(doc.shape):
             own = {n: e for n, e, _ in _id_entries(doc, spec) if n is not None}
             retired = _retired_ids(archived, spec)
             marked = _carries(pred, spec)
@@ -2709,7 +2768,7 @@ def _readable_link(file: str):
     if link.status == "unsupported_shape":
         return None, _die(
             3,
-            f"handoff_shape {link.shape} is newer than this script knows ({NEWEST_SHAPE}): read the file itself: {_posix(path)}",
+            f"handoff_shape {link.shape} is newer than this script knows ({NEWEST_SHAPE}): read the file itself, or update session-flow: {_posix(path)}",
         )
     return link, 0
 
@@ -2871,7 +2930,7 @@ def _locate_ref(
     if moved is not None:
         doc = _aliased(doc, moved)
     if m["prefix"]:
-        spec = S3.id_spec(m["prefix"])
+        spec = _family(m["prefix"])
         for title in spec.sections:
             base = doc.section_start(title) + 1
             for entry in parse_entries(doc.section(title) or []):
@@ -3255,16 +3314,16 @@ def cmd_fill(args: argparse.Namespace) -> int:
             out.append(part + (inner if position < len(parts) - 1 else terminator))
 
     writes: list[tuple[Path, str, bytes | None]] = []
-    standing_key = doc.frontmatter.get("standing_rules") if shape == 4 else None
-    want = standing_rel(doc.frontmatter.get("chain_root", ""))
-    if standing_key and standing_key != want:
+    standing_key = doc.frontmatter.get("standing_rules") if fitted(shape) else None
+    root = doc.frontmatter.get("chain_root", "")
+    if standing_key and standing_key not in standing_rels(root):
         return _die(
             1,
-            f"standing_rules {standing_key!r} is not this chain's standing-rules file ({want}); nothing written",
+            f"standing_rules {standing_key!r} is not this chain's standing-rules file ({standing_rel(root)}); nothing written",
         )
     if standing_key and (code := _forked(path, doc)) is not None:
         return code
-    if retire or shape == 4:
+    if retire or fitted(shape):
         hop_number = _fm_int(doc, "hop") or 0
         own = hop_file_path(
             path.parent,
@@ -3288,7 +3347,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
             if isinstance(moved, str):
                 return _die(1, f"{moved}; nothing written")
             out, hop_lines = moved
-        if shape == 4:
+        if fitted(shape):
             term = (_line_parts(lines[0])[1] if lines else "") or "\n"
             if standing_key:
                 out, standing = _split_standing(
@@ -3299,6 +3358,13 @@ def cmd_fill(args: argparse.Namespace) -> int:
                     prior = target.read_bytes()
                 except FileNotFoundError:
                     prior = None
+                    try:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                    except OSError as exc:
+                        return _die(
+                            1,
+                            f"cannot create the standing-rules folder {target.parent} ({exc}); nothing written",
+                        )
                 except OSError as exc:
                     return _die(
                         1,
@@ -3314,8 +3380,8 @@ def cmd_fill(args: argparse.Namespace) -> int:
             out, hop_lines, _ = handoff_fit.fit(
                 out,
                 hop_lines,
-                movable=SHAPES[4].movable,
-                cap=SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES,
+                movable=SHAPES[shape].movable,
+                cap=SHAPES[shape].cap_bytes or HOT_FILE_MAX_BYTES,
                 rel=rel,
                 hop_number=hop_number,
                 term=term,
@@ -3340,7 +3406,7 @@ def cmd_fill(args: argparse.Namespace) -> int:
         marker.unlink(missing_ok=True)
     except OSError:
         pass
-    if shape != 4:
+    if not fitted(shape):
         return 0
     written = parse_doc(path)
     findings, code = validate_doc(written, None, False)
@@ -3351,10 +3417,10 @@ def cmd_fill(args: argparse.Namespace) -> int:
 
 
 AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
-FLOOR_KEYS = tuple(spec.floor_key for spec in S3.id_specs)
+FLOOR_KEYS = tuple(spec.floor_key for spec in ID_SPECS)
 AMENDED_HEADING = "Amended"
 _SNIPPET_RE = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
-_DIGITS_RE = re.compile(r"(\[[RQD]\d+\])|\d+")
+_DIGITS_RE = re.compile(rf"(\[[{''.join(s.prefix for s in ID_SPECS)}]\d+\])|\d+")
 
 
 def _fail_key(message: str) -> str:
@@ -3630,12 +3696,12 @@ def cmd_amend(args: argparse.Namespace) -> int:
     hot = text.splitlines(keepends=True)
     hop = hop_text.splitlines(keepends=True)
     term = (_line_parts(hot[0])[1] if hot else "") or "\n"
-    standing_key = fm.get("standing_rules") if doc.shape == 4 else None
+    standing_key = fm.get("standing_rules") if fitted(doc.shape) else None
     standing_path: Path | None = None
     standing_before: bytes | None = None
     standing_text: str | None = None
     if standing_key:
-        if standing_key != standing_rel(fm.get("chain_root", "")):
+        if standing_key not in standing_rels(fm.get("chain_root", "")):
             return _die(
                 1,
                 f"standing_rules {standing_key!r} is not this chain's standing-rules file; nothing written",
@@ -3740,7 +3806,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     for item in retire:
         m = RETIRE_REF_RE.match(item["ref"])
         if m and m["prefix"]:
-            key = S3.id_spec(m["prefix"]).floor_key
+            key = _family(m["prefix"]).floor_key
             raised[key] = max(raised.get(key, 0), int(m["n"]) + 1)
     current = _content_doc(hot)
     for key, n in raised.items():
@@ -3779,7 +3845,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
                         1,
                         f"section {title!r}: the rewrite removes an entry added this hop; retire it in the same call: {unit[0][:60]!r}",
                     )
-        for spec in S3.id_specs:
+        for spec in ID_SPECS:
             if title not in spec.sections:
                 continue
             kept_ids = {n for n, _, _ in _id_entries(amended, spec) if n is not None}
@@ -4343,7 +4409,19 @@ def build_skeleton_3(
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
     carried = pred is not None and pred.shape in HOP_FILE_SHAPES
-    floors = {spec.floor_key: _next_id(pred, spec) for spec in S3.id_specs}
+    converted = (
+        _converted_commands(pred, hop, date) if REMINDERS in _id_specs(shape) else []
+    )
+    floors = {
+        spec.floor_key: (
+            len(converted) + 1
+            if pred is not None
+            and pred.shape in HOP_FILE_SHAPES
+            and spec not in _id_specs(pred.shape)
+            else _next_id(pred, spec)
+        )
+        for spec in _id_specs(shape)
+    }
     next_id = floors[RULES.floor_key]
     fm = [
         "---",
@@ -4489,21 +4567,26 @@ def build_skeleton_3(
 
     def id_body(title: str, name: str, instruction: str) -> list[str]:
         spec = next(
-            (s for s in S3.id_specs if s is not RULES and title in s.sections), None
+            (s for s in ID_SPECS if s != RULES and title in s.sections), None
         )
-        if spec is None or not _carries(pred, spec):
+        if spec == REMINDERS and converted:
+            carried_lines = converted
+        elif spec is None or not _carries(pred, spec):
             return [_fill(name, instruction)]
+        else:
+            carried_lines = _section_lines(pred, title)
         ref = f"[{spec.prefix}<n>]"
-        shape = {
+        entry_shape = {
             "Q": f"'- {ref} <question>' with its options, a recommendation and what it unblocks",
             "D": f"'- {ref} <decision> (<reason>)', a decision the remaining actions depend on; {DECISION_TAG_SHAPE}",
+            "M": f"{REMINDER_SHAPE}",
         }[spec.prefix]
         return [
-            *_section_lines(pred, title),
+            *carried_lines,
             "",
             _fill(
                 f"{name}-new",
-                f"optional: new entries below the carried ones, one per line, {shape}, new ids from {spec.prefix}{floors[spec.floor_key]}; a carried entry is copied off disk and keeps its text, or is rewritten in place under its id ending with '{REWRITE_MARK} h{hop}: <why>', its prior text staying in {hop_rel}; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '{ref}', 'reason': ...}}, which lists it in {hop_rel} under '## {spec.retired_heading}'; write 'None.' plus a reason here when that list empties the section; delete this line when nothing changes",
+                f"optional: new entries below the carried ones, one per line, {entry_shape}, new ids from {spec.prefix}{floors[spec.floor_key]}; a carried entry is copied off disk and keeps its text, or is rewritten in place under its id ending with '{REWRITE_MARK} h{hop}: <why>', its prior text staying in {hop_rel}; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '{ref}', 'reason': ...}}, which lists it in {hop_rel} under '## {spec.retired_heading}'; write 'None.' plus a reason here when that list empties the section; delete this line when nothing changes",
             ),
         ]
 
@@ -4560,6 +4643,11 @@ def build_skeleton_3(
             "Pending commands",
             "commands",
             "every command waiting on the user, verbatim; 'None.' plus a reason when none waits",
+        ),
+        (
+            "Reminders",
+            "reminders",
+            f"one per line, {REMINDER_SHAPE}, new ids from M{floors.get(REMINDERS.floor_key, 1)}; every item that affects a later session: a user-run command gated on a condition, a timed reminder, a point to raise at chain close; one that is done leaves only through the slots' 'retire' list as {{'ref': '[M<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {REMINDERS.retired_heading}'; 'None.' plus a reason when nothing waits",
         ),
         (
             "Environment to re-establish",
@@ -4766,7 +4854,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         if isinstance(pred.shape, int) and pred.shape > NEWEST_SHAPE:
             return _die(
                 1,
-                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it",
+                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it; update session-flow, then re-run",
             )
         if args.shape is None and pred.shape in HOP_FILE_SHAPES:
             args.shape = max(HANDOFF_SHAPE, pred.shape)
@@ -4793,10 +4881,10 @@ def cmd_new(args: argparse.Namespace) -> int:
         args.shape = HANDOFF_SHAPE
     standing = bool(args.standing_rules) or (
         pred is not None
-        and pred.shape == 4
+        and fitted(pred.shape)
         and bool(pred.frontmatter.get("standing_rules"))
     )
-    if standing and args.shape != 4:
+    if standing and not fitted(args.shape):
         return _die(
             2,
             f"a standing-rules file belongs to a shape-4 chain; this hop is shape {args.shape}",
@@ -4895,7 +4983,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     except OSError:
         pass
     print(_posix(target))
-    if args.shape == 4:
+    if fitted(args.shape):
         skeleton = content
         if standing:
             split, _ = _split_standing(
@@ -4903,12 +4991,12 @@ def cmd_new(args: argparse.Namespace) -> int:
             )
             split, _ = _split_index(split, index_rel(root), "\n", None, [])
             skeleton = "".join(split)
-        print(_budget_line(skeleton), file=sys.stderr)
+        print(_budget_line(skeleton, args.shape), file=sys.stderr)
     return 0
 
 
-def _budget_line(skeleton: str) -> str:
-    cap = SHAPES[4].cap_bytes or HOT_FILE_MAX_BYTES
+def _budget_line(skeleton: str, shape: int) -> str:
+    cap = SHAPES[shape].cap_bytes or HOT_FILE_MAX_BYTES
     fixed = len(FILL_SLOT_RE.sub("", skeleton).encode("utf-8"))
     slots = ", ".join(
         f"{name} {n} bytes" for name, n in handoff_fit.SLOT_BUDGETS.items()
@@ -4984,7 +5072,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument(
         "--standing-rules",
         action="store_true",
-        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's archive/<chain>/standing-rules.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
+        help="role chain: `fill` keeps Current rules, Standing preferences and Decisions in force in the chain's standing-rules/<chain>.md and the retire pointers in archive/<chain>/retired-index.md, the hot file holds a pointer to each, and the resume prompt loads the standing-rules file first; a successor of such a hop keeps it without the flag (shape 4 only)",
     )
     p_new.set_defaults(func=cmd_new)
 

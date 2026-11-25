@@ -214,7 +214,7 @@ The body sections, the TaskList reconstitute format, and the frontmatter shape (
 Walk it while writing the file; never write the section list from memory.
 
 **The file is a handoff file plus its archive file, and a script owns its deterministic tier.** This
-flow describes the shape `new` writes by default, shape 4.
+flow describes the shape `new` writes by default, shape 5.
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` has five subcommands, run through the interpreter
 ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.10+, stdlib only):
 
@@ -250,7 +250,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   dropped predecessor entry are all failures. `--strict-transcript` turns the honest
   `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
   a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above. On a
-  shape-3 or shape-4 file it also checks the carry against the predecessor and both archive files, and
+  shape-3, shape-4 or shape-5 file it also checks the carry against the predecessor and both archive files, and
   the size; each FAIL line names the fix.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
@@ -260,7 +260,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   worktree) it warns on stderr and substitutes the current path on stdout only; the file is never
   rewritten.
 - `save_point.py amend <file> --json <path>` folds an event that arrives after emit into a
-  filled shape-3 or shape-4 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
+  filled shape-3, shape-4 or shape-5 tip file. The JSON object takes any of `sections` (`{title: body}`, replacing
   written sections), `append` (`{title: [lines]}`, adding lines to Original goal or Direction
   changes), `retire` (`[{ref, reason}]`, as `fill` takes it), `next` (new `Next:` lines) and
   `floors` (raising id floors only). It appends what it replaces to this hop's file, validates

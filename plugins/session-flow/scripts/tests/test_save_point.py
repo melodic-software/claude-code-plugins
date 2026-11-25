@@ -47,7 +47,7 @@ FIXTURE_MANIFEST = (
     "non-uuid/handoffs/20260901T100000Z-handoff-widget.md",
     "ascii-rails/handoffs/20260901T100000Z-handoff-widget.md",
     "fill-leftover/handoffs/20260901T100000Z-handoff-widget.md",
-    "shape-5/handoffs/20260901T100000Z-handoff-widget.md",
+    "shape-6/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260901T100000Z-handoff-widget.md",
     "malformed-predecessor/handoffs/20260902T100000Z-handoff-widget.md",
     "dropped-entry/handoffs/20260901T100000Z-handoff-widget.md",
@@ -162,7 +162,7 @@ def test_validate_shape1_seven_section_legacy_warns_and_exits_zero(tmp_path):
 
 
 def test_validate_newer_shape_hard_fails_with_exit_3(tmp_path):
-    handoffs = materialize(tmp_path, "shape-5")
+    handoffs = materialize(tmp_path, "shape-6")
     result = run("validate", str(handoffs / HOP1))
     assert result.returncode == 3, out(result)
     assert "read it, do not rewrite it" in out(result)
@@ -2277,7 +2277,7 @@ def test_fill_refuses_a_file_that_is_not_a_handoff(tmp_path):
 @pytest.mark.parametrize(
     ("line", "expected", "needle"),
     [
-        ("handoff_shape: 5\n", 3, "read it, do not rewrite it"),
+        ("handoff_shape: 6\n", 3, "read it, do not rewrite it"),
         ("handoff_shape: 1\n", 2, "handoff_shape 1"),
         ("", 2, "no handoff_shape key"),
         ("handoff_shape: 0\n", 2, "handoff_shape 0 is not a shape"),
@@ -2509,6 +2509,7 @@ SHAPE3_VALUES = {
     "rules": "- [R1] The thing must stay green.\n- [R2] Never push to main.",
     "observations": "- The thing takes a minute to run.",
     "commands": "None. No command waits on the user.",
+    "reminders": "None. Nothing waits for a later session.",
     "environment": "Branch `main`, clean tree; nothing to recreate.",
     "decisions": "- [D1] The thing over the other thing.",
     "skills": "None. Remaining work runs inline.",
@@ -2602,12 +2603,12 @@ def _sections_by_hand(text: str) -> dict[str, str]:
     return found
 
 
-def test_shape4_is_what_new_writes_by_default(tmp_path):
+def test_shape5_is_what_new_writes_by_default(tmp_path):
     repo = make_repo(tmp_path)
     made = run(*new_args(repo, tmp_path, "--no-previous", shape=None))
     assert made.returncode == 0, err(made)
     text = (repo / ".work" / "handoffs" / HOP1).read_text(encoding="utf-8")
-    assert "handoff_shape: 4\n" in text
+    assert "handoff_shape: 5\n" in text
     assert "\nchain:" not in text
     for line in (
         f"chain_root: {HOP1}",

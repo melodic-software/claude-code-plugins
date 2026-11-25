@@ -7,12 +7,12 @@ and destination resolution live in the sibling `save-point.md` engine doc).
 Reader is a session with no prior context. It will act on this file. Be specific. A vague handoff
 costs the next session a re-investigation, which is the cost this document exists to avoid.
 
-**Shape 4.** A handoff written by this procedure is the shape `new` writes by default,
-`handoff_shape: 4`: a handoff file plus one archive file per hop
+**Shape 5.** A handoff written by this procedure is the shape `new` writes by default,
+`handoff_shape: 5`: a handoff file plus one archive file per hop
 ([Shape 3](#shape-3-handoff-file-and-per-hop-archive), with the order and moves of
-[Shape 4](#shape-4)). Shape-2 and shape-3 files
-([Body sections (shape 2)](#body-sections-shape-2)) still validate and read unchanged, and a
-shape-2 or shape-3 chain's next hop writes shape 4. Every
+[Shape 4](#shape-4) and the Reminders of [Shape 5](#shape-5-reminders)). Shape-2, shape-3 and
+shape-4 files ([Body sections (shape 2)](#body-sections-shape-2)) still validate and read
+unchanged, and their chain's next hop writes shape 5. Every
 deterministic field is written by the engine script
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` (`new` writes the skeleton, `fill` replaces its
 slots from one JSON object, `validate` gates it, `emit` prints its resume prompt); the model
@@ -26,6 +26,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
 - [Shape 3: handoff file and per-hop archive](#shape-3-handoff-file-and-per-hop-archive)
   - [Shape 4](#shape-4)
     - [Role chains: the standing-rules file](#role-chains-the-standing-rules-file)
+  - [Shape 5: Reminders](#shape-5-reminders)
 - [Body sections (shape 2)](#body-sections-shape-2)
   - [Cumulative sections and provenance tags](#cumulative-sections-and-provenance-tags)
   - [Original goal](#original-goal)
@@ -47,7 +48,7 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
   - [Resume prompt](#resume-prompt)
 - [How this document is referenced elsewhere](#how-this-document-is-referenced-elsewhere)
 - [Full-path write procedure](#full-path-write-procedure)
-  - [Frontmatter shape 4](#frontmatter-shape-4)
+  - [Frontmatter shape 5](#frontmatter-shape-5)
   - [Frontmatter shape 2](#frontmatter-shape-2)
   - [Chain continuity, same task only](#chain-continuity-same-task-only)
   - [Legacy predecessors and unfinished skeletons](#legacy-predecessors-and-unfinished-skeletons)
@@ -89,7 +90,7 @@ What the writer owns, since no script can judge it:
   file lists the re-read command instead, taken from the source-control plugin's surface (for a
   pull request, `/source-control:pull-request` names its status read); `validate` warns on a
   state claim it recognizes.
-- **Never shorten what binds to meet the size cap.** Fitting is `fill`'s on shape 4. When binding
+- **Never shorten what binds to meet the size cap.** Fitting is `fill`'s on shape 4 and 5. When binding
   content alone is over the cap, the answer is a relevance call, never a cut.
 - **Keep by relevance; retire with a reason.** Relevance is the writer's call. An amendment,
   direction-change line, question or decision that is superseded, answered or done may leave the
@@ -121,8 +122,8 @@ archive-file hop (`archive_from`).
 
 A shape-4 file (`handoff_shape: 4`) has the same frontmatter, archive files and id rules as shape 3,
 with its sections in another order: binding sections stay whole in the handoff file, and movable ones
-may move to this hop's file (the shape-4 `ShapeSpec` marks which). Bare `new` writes shape 4, the
-default, and continues a shape-4 chain as shape 4. Its stderr
+may move to this hop's file (the shape-4 `ShapeSpec` marks which). Shape 5 keeps all of it. Bare
+`new` writes shape 5, the default, and continues a shape-4 chain as shape 5. Its stderr
 `budget:` line gives the bytes left for the written slots and each size-classed slot's budget:
 write the slots to it. `fill` does the rest (fit, moves with pointers, the slot-size refusal) and
 prints the verdict and the rails.
@@ -140,13 +141,18 @@ holds what the next action needs and one pointer line for each body that lives e
 fits one Read page.
 
 - **Where the rules and decisions live.** `fill` moves Current rules, Standing preferences and
-  Decisions in force into `archive/<chain-root-stem>/standing-rules.md`, one file per chain beside
-  its archive files, so it is gitignored with the rest of the memory tier. Each section stays in
-  its usual place in the handoff file as one line,
-  `- Standing rules: archive/<chain-root-stem>/standing-rules.md#<section>`. The binding order and
+  Decisions in force into `standing-rules/<chain-root-stem>.md`, one file per chain in a folder
+  beside the handoff files, so it is gitignored with the rest of the memory tier. It stays out of
+  `archive/`, whose files never change once written, because every hop rewrites it; and out of
+  the handoffs folder itself, so the direct-child `*-handoff-*.md` listing never matches it. Each
+  section stays in its usual place in the handoff file as one line,
+  `- Standing rules: standing-rules/<chain-root-stem>.md#<section>`. The binding order and
   the entry mechanics (ids, rewrite in place, `retire`) do not change: a decision leaves only
   through `retire`, listed with its reason under `## Retired decisions` in the archive file. A
   handoff file that still holds Decisions in force inline validates; its next `fill` moves them.
+- **Chains started before the move.** A hop whose `standing_rules` key names the old path,
+  `archive/<chain-root-stem>/standing-rules.md`, still validates and reads from it, and `amend`
+  edits it there. The chain's next hop writes the new path and leaves the old file as it was.
 - **How a resume loads them.** The directive reads
   `Read @<standing-rules file> then @<handoff file>, …`, so the rules and decisions load before
   the handoff file. A standing-rules file over one Read page makes the directive say to page it.
@@ -163,7 +169,7 @@ fits one Read page.
 #### The retired-entries index
 
 A role chain's `- Retired entries: <archive file> § <heading>` lines live in one index,
-`archive/<chain-root-stem>/retired-index.md`, beside the standing-rules file. Review before you
+`archive/<chain-root-stem>/retired-index.md`, beside the chain's archive files. Review before you
 continue holds one line in their place,
 `- Retired entries index: archive/<chain-root-stem>/retired-index.md`; read the index, then the
 archive file it names, only when an earlier entry's history matters.
@@ -177,6 +183,55 @@ archive file it names, only when an earlier entry's history matters.
   in the copy of its index in this hop's file, is still in one of the two. A missing index fails.
 - **Ordinary chains.** A chain without `standing_rules` keeps its pointers in Review before you
   continue, as below.
+
+### Shape 5: Reminders
+
+Shape 5 is shape 4 with `## Reminders` in the place of `## Pending commands`. Reminders holds every
+item that affects a later session and must not drop between hops: a command the user runs once a
+condition holds, a timed reminder, a point to raise when the chain closes. It is binding, so no
+entry leaves to meet the size cap.
+
+- **Entry shape.** One line per entry,
+  `- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <YYYY-MM-DD>`. Ids take the prefix `M`
+  and the floor `next_reminder_id`, carried and raised like the other id floors. `validate` fails an
+  entry without an id or out of this shape.
+- **Actor.** `agent` is the default: the resumed session does it. `user` only for what the agent
+  cannot run or observe: work behind the OS consent prompt, a secret, a decision on the owner's stop
+  list, a click in a dashboard. A user entry that has a command carries it verbatim in one backtick
+  span, and recording `user` for a command the agent could run is an error. `peer <session or
+  lane>` for work another live session or lane owns; raising it means a message to that peer.
+- **Trigger.** `at <ISO-8601 time with UTC offset>`, `when <condition>` optionally followed by
+  `; check <read-only command>` (the command in its own backtick span), or `at close`. The kind (time, condition, end of chain) is the
+  trigger's form.
+- **Due.** A time entry is due once now is at or after its instant, compared in UTC, with no grace
+  period; one past its time is raised as overdue since then. A condition entry is due when its
+  `check` command, run once at resume, shows the condition holds; with no `check` it is raised as
+  "check whether <condition>". An `at close` entry is due only at a closing handoff. The resumed
+  session's first reply lists the due entries, with the exact command for a user entry, then one
+  count line for the rest: `<n> reminders not yet due (next: [M4] at 5:00 PM EST)`. Times shown to
+  the user are local 12-hour time with the zone.
+- **Done, then retired.** A user entry is done when the user says they ran it or its `check` shows
+  the effect, and is raised again at every resume until then. An agent entry is done when the agent
+  did it and a commit, file or command output in this session shows it. A peer entry is done when
+  the peer confirms or its artifact shows the effect. A note with no action is done once raised in
+  a reply. An `at close` entry is done once listed in the closing turn. A done entry leaves only
+  through `retire` with its reason (`ran h<k>`, `raised h<k>`, `raised at chain close`), listed
+  verbatim under `## Retired reminders` in this hop's archive file; `validate` fails one that left
+  any other way. Retirement runs automatically and costs one `retire` entry in the JSON the turn
+  already writes; a wrong call is undone by one `read --section` of the archive file.
+- **Closing handoff.** The closing turn lists every open entry before the file closes: each `at
+  close` entry, retired `raised at chain close`; a time or condition entry that has not fired is
+  done now when its trigger holds and it fits the current work, handed to a new local session with
+  its launch command, or filed as an issue only when its trigger cannot fire within the chain. An
+  unattended close never retires a user or `at close` entry: the closing file keeps it, and the
+  run's final report lists it under **Needs you**. `validate` warns, without failing, on a closed
+  file that still holds open reminders.
+- **Sessions that never hand off.** A `/goal` or `/loop` session raises due reminders at resume and
+  records each one it settles in its task list or reply; the next `fill` retires them. It never
+  edits the predecessor's files.
+- **From shape 4.** `new` continues a shape-4 predecessor as shape 5 and turns each of its Pending
+  commands bullets, `None.` lines left out, into `- [M<n>] user · when now · <bullet> · added h<k>
+  <date>`, so no command drops at the cutover.
 
 ## Body sections (shape 2)
 
@@ -865,8 +920,8 @@ JSON and a re-run of the same `fill`, never a hand-edit; nothing is half-applied
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
 (`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
-after a shape-3 or shape-4 predecessor, a shape-4 handoff file (the frontmatter below with
-`handoff_shape: 4` and the `checks:` value `CHECKS` names in `save_point.py`, then the sections
+after a shape-3, shape-4 or shape-5 predecessor, a shape-5 handoff file (the frontmatter below with
+`handoff_shape: 5` and the `checks:` value `CHECKS` names in `save_point.py`, then the sections
 in the table below, in order) and its archive file holding the predecessor's sections other than
 Original goal and Resume prompt, copied with the Read and Write tools, never retyped; otherwise a
 shape-2 file (the 17 headings of [Body sections (shape 2)](#body-sections-shape-2), in order).
@@ -886,7 +941,7 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 | 6 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …`; copied off disk each hop, a changed one rewritten in place under its id; a retired one leaves only as a retire listing |
 | 7 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)`; copied off disk each hop; a promoted one leaves only as a retire listing |
 | 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on; copied off disk each hop; a settled one leaves only as a retire listing |
-| 9 | Pending commands | every command waiting on the user, verbatim |
+| 9 | Reminders | `- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <date>`, every item that affects a later session ([Shape 5](#shape-5-reminders)); copied off disk each hop; a done one leaves only as a retire listing |
 | 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
 | 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per archive file and retire heading this hop used (a role chain holds them in its retired-entries index and one line naming it) |
@@ -915,6 +970,7 @@ Without a script, the hand-writer owns the carry that `new`, `fill` and `retire`
   | Open questions | `## Retired open questions` |
   | Current rules, Standing preferences | `## Retired rules` |
   | Decisions in force | `## Retired decisions` |
+  | Reminders | `## Retired reminders` |
 
 - **Point at every retirement.** For each retire heading but `## Retired rules` that this hop used,
   add `- Retired entries: <archive file> § <heading>` to Review before you continue, and keep every
@@ -924,17 +980,17 @@ Without a script, the hand-writer owns the carry that `new`, `fill` and `retire`
   `- Retired entries index:` line in Review before you continue.
 - **Role chains keep their split.** Current rules, Standing preferences and Decisions in force
   stay in the standing-rules file, edited there, and the handoff file keeps their pointer lines.
-- **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id` and
-  `next_decision_id` from the predecessor's frontmatter, then raise each past every id this hop
+- **Carry each id floor, and raise it.** Copy `next_rule_id`, `next_question_id`,
+  `next_decision_id` and `next_reminder_id` from the predecessor's frontmatter, then raise each past every id this hop
   added. Never lower one, even when the highest id was retired: the next hop would offer that id
   again.
 
-### Frontmatter shape 4
+### Frontmatter shape 5
 
 ```yaml
 ---
 type: handoff
-handoff_shape: 4
+handoff_shape: 5
 checks: <CHECKS in save_point.py>         # rule-set version the file was written under
 date: <ISO-8601 UTC>
 topic: <kebab>
@@ -944,11 +1000,12 @@ previous_handoff: <prior-filename>.md     # CONDITIONAL — omit at the first ho
 chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
-archive_from: <M>                         # first archive-file hop (shape 3 or 4); archive files exist from M on
-standing_rules: archive/<chain-root-stem>/standing-rules.md  # CONDITIONAL — role chains only
+archive_from: <M>                         # first archive-file hop (shape 3 or later); archive files exist from M on
+standing_rules: standing-rules/<chain-root-stem>.md  # CONDITIONAL — role chains only; older hops name archive/<chain-root-stem>/standing-rules.md
 next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
 next_question_id: <K>                     # first [Q<n>] id this hop may assign; never lowered
 next_decision_id: <K>                     # first [D<n>] id this hop may assign; never lowered
+next_reminder_id: <K>                     # first [M<n>] id this hop may assign; never lowered (shape 5)
 repo: <the Handoff origin: line's first slot>
 ---
 ```
