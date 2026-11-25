@@ -165,7 +165,10 @@ if [[ -z "$num" ]]; then
 fi
 
 if [[ "$DIFF" == 1 ]]; then
-  api -H 'Accept: application/vnd.github.diff' "repos/$api_repo/pulls/$num" || die 2 "pull request diff read failed"
+  range=$(api "repos/$api_repo/pulls/$num" | jq -r '"\(.base.sha // "")...\(.head.sha // "")"' | tr -d '\r') ||
+    die 2 "pull request read failed"
+  [[ "$range" =~ ^[[:alnum:]]+\.\.\.[[:alnum:]]+$ ]] || die 2 "pull request read returned no base and head sha"
+  api -H 'Accept: application/vnd.github.diff' "repos/$api_repo/compare/$range" || die 2 "pull request diff read failed"
   exit 0
 fi
 

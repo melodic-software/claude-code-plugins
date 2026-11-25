@@ -68,9 +68,15 @@ repos/*/pulls/7/files*)
   jq -n --argjson s "$(((page - 1) * 100))" --argjson t "$total" \
     '[range($s; [$s + 100, $t] | min) | {filename: "f\(.).md", status: (if . == 0 then "removed" else "modified" end), additions: 1, deletions: 0}]'
   ;;
+repos/*/compare/b1...h1)
+  [[ "$accept" == "Accept: application/vnd.github.diff" ]] || { echo "gh-stub: compare without the diff media type" >&2; exit 1; }
+  for ((i = 0; i < ${GH_STUB_FILES:-1}; i++)); do printf 'diff --git a/f%d.md b/f%d.md\n' "$i" "$i"; done
+  ;;
 repos/*/pulls/7)
   if [[ "$accept" == "Accept: application/vnd.github.diff" ]]; then
-    printf 'diff --git a/a.md b/a.md\n'
+    # GitHub refuses a pull request diff over 300 files.
+    ((${GH_STUB_FILES:-1} > 300)) && { echo "gh: Sorry, the diff exceeded the maximum number of files (300). (HTTP 406)" >&2; exit 1; }
+    printf 'diff --git a/f0.md b/f0.md\n'
   elif [[ "${GH_STUB_MERGED:-}" == 1 ]]; then
     printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"closed","draft":false,"merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":"m1","title":"t","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[]}' "$url_host" "$url_repo"
   else
@@ -179,12 +185,16 @@ run view 404 >/dev/null 2>&1
 assert_exit "no pull request exits 2" 2 "$?"
 
 out=$(run view 7 --diff)
-assert_contains "view --diff prints the diff" "$out" "diff --git a/a.md b/a.md"
+assert_contains "view --diff prints the diff" "$out" "diff --git a/f0.md b/f0.md"
 assert_contains "view --diff asks REST for the diff media type" "$(cat "$TEST_TMPDIR/calls")" "Accept: application/vnd.github.diff"
+
+out=$(GH_STUB_FILES=1045 run view 7 --diff)
+assert_exit "view --diff on a pull request over 300 files succeeds" 0 "$?"
+assert_eq "view --diff over 300 files prints every file's header" "1045" "$(grep -c '^diff --git ' <<<"$out")"
 
 out=$(run view 7 --diff --out "$TEST_TMPDIR/pr.diff")
 assert_silent "--out leaves stdout empty" "$out"
-assert_eq "--out writes the diff to the file" "diff --git a/a.md b/a.md" "$(cat "$TEST_TMPDIR/pr.diff")"
+assert_eq "--out writes the diff to the file" "diff --git a/f0.md b/f0.md" "$(cat "$TEST_TMPDIR/pr.diff")"
 run view 7 --out "$TEST_TMPDIR/facts.json" >/dev/null
 assert_eq "--out writes the facts to the file" "PUBLIC" "$(jq -r .visibility "$TEST_TMPDIR/facts.json")"
 
