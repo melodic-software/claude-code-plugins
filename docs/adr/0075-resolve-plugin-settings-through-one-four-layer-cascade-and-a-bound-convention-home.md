@@ -1,13 +1,12 @@
 # Resolve plugin settings through one four-layer cascade and a bound convention home
 
-- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below); the D100 floor is narrowed by [ADR 0089](0089-narrow-d100-to-pull-requests-tidied-in-their-own-run.md)
+- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below); the D100 floor is narrowed by `limits.fix-docs-per-run` in [`pr-pipeline.yaml`](../conventions/pr-pipeline.yaml)
 - Date: 2026-10-18
-- Supersedes: [ADR 0061](0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)
-  for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
+- Supersedes: ADR 0061 (retired) for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
   "lower layer keeps the key" invalid-value rule);
   [ADR 0064](0064-home-plugin-customization-in-docs-conventions-yaml.md) Decisions 2 and 3 (the fixed
   `docs/conventions` root) and Decision 8 (its layer list);
-  [ADR 0015](0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md) in full (the
+  ADR 0015 (retired) in full (the
   tracker binding at the repo root).
 - Related: [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
   (ADR 0064 Decision 2 carried its fixed root),
@@ -160,7 +159,7 @@ context". The values land with the threads that use them.
 
 ## Consequences
 
-- ADR 0061, ADR 0064 and ADR 0015 each carry a status line that links this record.
+- ADR 0064 carries a status line that links this record; ADR 0061 and ADR 0015 are retired.
 - The config-cascade contract lists the four layers, the pointer region and the `Floor direction`
   column, and its `CHANGELOG.md` records a major `contract_version` bump, because the layer set and
   precedence change.

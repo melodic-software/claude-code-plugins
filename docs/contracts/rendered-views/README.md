@@ -5,8 +5,7 @@ deliverable defaults to an HTML page, when it stays markdown or terminal
 output, how interactive a view is, which content may carry model-written script, how the
 choice is overridden, and what every rendered view owes for security and accessibility.
 The view genres and patterns below come from the "Unreasonable Effectiveness of HTML" corpus (the
-article, its example gallery, and the "Know your unknowns" collection); the decision record is
-[ADR 0025](../../adr/0025-adopt-the-rendered-views-doctrine-with-a-cascade-carried-preference.md).
+article, its example gallery, and the "Know your unknowns" collection).
 
 This directory is the source of truth for the concern. The shared chrome and token
 reference lives in the adopting plugins (canonical copy: `lib/html-chrome.html`). Where a record and the

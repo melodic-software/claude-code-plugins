@@ -79,7 +79,7 @@ both:
 - **Double-quoted is still unsafe.** The path is pasted in as literal text, and bash expands `$name`,
   executes a backtick or `$(…)` substitution, and consumes a backslash *inside* double quotes.
   Verified in the plugin's acceptance review (probe record: the marketplace's
-  `docs/adr/0093-record-plugin-acceptance-security-reviews.md`, section "Review record: `x`",
+  `docs/plugin-acceptance-security-reviews.md`, section "Review record: `x`",
   criterion 4): for a spool path under a directory named ``lit$name-`whoami`.txt``, the variable
   expanded and the command substitution ran, while the single-quoted form opened the correct
   file.
@@ -134,7 +134,7 @@ that dies afterwards still reports `200`.
 
 Verified against curl 8.19.0, as of 2026-07-25. An over-cap response printed `200` on stdout **and
 exited 63**. Probe record: the `x` review record (the marketplace's
-`docs/adr/0093-record-plugin-acceptance-security-reviews.md`, criterion 5); the transcript below
+`docs/plugin-acceptance-security-reviews.md`, criterion 5); the transcript below
 shows the shape, with a placeholder host. Recheck when the step-1
 flag set changes, or when a curl release notes a change to `--max-filesize` or to exit-code
 semantics:
@@ -234,7 +234,7 @@ Two limits, reported rather than worked around:
 Observed during the 0.1.0 pre-release verification (2026-07-24), the probe behind every bullet
 below. Each bullet names where its evidence is recorded: this plugin's `CHANGELOG.md` entry for
 0.1.0, or the `x` review record (the marketplace's
-`docs/adr/0093-record-plugin-acceptance-security-reviews.md`, section "Review record: `x`"); a
+`docs/plugin-acceptance-security-reviews.md`, section "Review record: `x`"); a
 bullet naming neither is recorded only here. Recheck when xtomd or Thread Reader App changes an endpoint or response shape, or a package is published under `@xtomd/mcp-server`:
 
 - **A GET to `/api/markdown` returns HTTP `200`.** Not a success. The body is a self-describing

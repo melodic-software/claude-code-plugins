@@ -634,8 +634,7 @@ subscription fallback) returns its verdict as structured output and leaves a fix
 `apply-dependency-patch` (a script, `mutate-branch`) pushes that patch only on a scanned `fix`
 verdict; and `apply-dependency-verdict` (a script, `publish-artifact`) acts on the verdict and
 never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
-([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
-[ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
+([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review)).
 When the head's `package.json` approves the `@anthropic-ai/claude-code` install script
 (`allowScripts`) for a version other than the one its `package-lock.json` installs,
 `review-dependency-select` writes the patch that moves that one pin to the lockfile's version,
@@ -743,8 +742,7 @@ unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-hu
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
-CI `fix-docs` runs on every pull request not tidied in its own run
-([ADR 0089](../../adr/0089-narrow-d100-to-pull-requests-tidied-in-their-own-run.md)). The skip
+CI `fix-docs` runs on every pull request not tidied in its own run. The skip
 reads the base config's tidy cutoffs when it dispatches, not the ones the lane run used.
 `limits.fix-docs-per-run` is `2` here; each event offers one pull request, so any value from `1`
 up turns its dispatch on. At `0` the dispatcher logs
@@ -795,12 +793,9 @@ handoff job succeeded, with no next leg started, is a held run, and so is a run 
 or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for its next event.
 
-`workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
-from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
 [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md).
-Lane commits are signed, and signing is enforced by the default-branch rule only:
-[ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
+Lane commits are signed, and signing is enforced by the default-branch rule only.
 
 Every lane:
 
@@ -819,14 +814,13 @@ Every lane:
   `ci-status` no lane can write (below).
 - Reads its config, scripts and the trusted-actor list from the base SHA, never from the PR head,
   so a PR cannot change the rules it is judged by. Only the default branch is a trusted base, and a
-  skill activity loads nothing else from the head:
-  [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
+  skill activity loads nothing else from the head
+  ([skill activities](pr-run-activity.md#skill-activities)).
 - Checks the org and repository kill switches before its model step starts, and runs only when
   both read exactly `false`.
 - Never holds `checks: write` or `workflows` permission in a job that runs the model. `ci-status`
   and the `<lane> / <activity>` check runs are written by scripted jobs with no model step, and
-  branch protection pins `ci-status` to the source that writes it
-  ([ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md)).
+  branch protection pins `ci-status` to the source that writes it.
   A base merge escalates to a human instead of being pushed when a path under
   `.github/workflows/` is left conflicted by the merge (before any model turn), or when the model
   staged a change under `.github/workflows/` (after it). A workflow change that comes cleanly from
@@ -2504,8 +2498,7 @@ linking it.
 
 ### Dependabot pull requests
 
-No Dependabot pull request waits on a human
-([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)), except a major
+No Dependabot pull request waits on a human (the owner's decision), except a major
 update, an unreadable version or disagreeing sources under `merge.dependabot.majors: hold`
 (below). This repository sets `review`, so the review verdict decides those too (owner
 direction 2026-10-24). The pr-merge

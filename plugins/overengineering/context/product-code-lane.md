@@ -9,9 +9,8 @@ section asks a lane for: the item inventory, the layer vocabulary and discovery 
 sources mapped onto the §2 tiers, and the lane's protected-class defaults extending §7. Every bare
 `§N` below is a section of that document.
 
-Status: **specification**. The lane's shipping shape is recorded in
-[ADR 0017](../../../docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md); this document is
-what that skill binds when it lands.
+Status: **specification**. The lane ships as its own skill; this document is what that skill
+binds when it lands.
 
 ## Why this lane needs its own binding at all
 

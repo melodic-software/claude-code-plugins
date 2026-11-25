@@ -4,8 +4,7 @@
 - Date: 2026-10-10
 - Amends: [ADR 0049](0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
   condition 3
-- Closes: the App key part of the secret-set residual in
-  [ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)
+- Closes: the App key part of the skill-activity runner's secret-set residual
 - Amended by
   [ADR 0071](0071-start-pr-unblock-from-a-push-to-main-dispatcher-checked-at-the-gate-and-the-broker.md):
   point 3 gains the dispatcher path
@@ -23,7 +22,7 @@ must be assumed to reach every job in it. Probe P1 on pr-pipeline-sandbox (runs 
 37243281369, 37243281349, 37243281476) showed a key referenced only in a step that never ran, plus
 the `secrets:` pass to the reusable, still reached that job; a sibling job and a job calling a
 different reusable logged the literal canary. A clean log cannot prove absence, so the run stays
-the boundary. ADR 0055 recorded the result as an accepted residual: the App key sat in the run job's
+the boundary. The skill-activity runner recorded the result as an accepted residual: the App key sat in the run job's
 secret set, for `read` jobs too, until a token broker kept it off every runner that runs head code.
 
 The App is installed on every organization repository, so the key can mint for all of them. Any
@@ -67,7 +66,7 @@ github-iac
 [ADR 0015](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0015-oidc-token-broker-for-pr-pipeline-lane-app-tokens.md)
 records the GitHub-side trust and declares the variables.
 
-### What this changes in ADR 0049 and ADR 0055
+### What this changes in ADR 0049 and the skill-activity residual
 
 ADR 0049 condition 3 now reads: each job gets its App token from the lanes token broker, which
 mints it after the checks above, valid for at most one hour, scoped to this repository and the
@@ -75,7 +74,7 @@ permissions the job's effect grants, and revoked when the job ends. The job hold
 of the condition stands: no long-lived write token reaches a model step, and no model step holds
 `checks: write` or `workflows`.
 
-ADR 0055's residual that the App key and the OAuth token are in the run job's secret set is closed
+The skill-activity residual that the App key and the OAuth token are in the run job's secret set is closed
 for the App key. The Claude OAuth token stays in every skill job's secret set; the broker does not
 address it.
 

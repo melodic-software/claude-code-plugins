@@ -546,7 +546,7 @@ out of scope until such a signal exists.
   runtime and passed by a tool this guard does not match, either an MCP file-write
   tool or a Bash form the command lane's own residuals already allow.
 - **`block-windows-drive-tmp`'s file-path lane shipped blocking in 0.30.0
-  (2026-08-31) on a measured sweep, per [ADR 0003](../../docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md).**
+  (2026-08-31) on a measured sweep: a default-on guard earns its place by measured precision.**
   Corpus: 259 distinct `file_path` / `notebook_path` values that a real `Write`,
   `Edit`, `MultiEdit` or `NotebookEdit` actually carried across 227 local Claude
   Code session transcripts on a Windows host, covering absolute Windows and MSYS paths,
@@ -1877,8 +1877,7 @@ non-literal cd) is left alone. That is a measured decision
 that still holds an expansion (`rm -rf "$X/build"`) fired on 900 of 5,926 delete-shaped commands in
 one operator's recorded corpus, and in at least 145 of them the target, with the value the command
 assigned substituted, was inside an allowed root. A blocking check ships with zero false positives
-([ADR 0080](../../docs/adr/0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md)),
-so the guard does not refuse it. The suite replays every decision case of the retired user-level
+([enforcement ladder](../../docs/contracts/enforcement-ladder/README.md)), so the guard does not refuse it. The suite replays every decision case of the retired user-level
 destructive-removal engine, with each difference and its reason beside the case. With the same payload cwd, a protected tree is refused ahead of
 every root above, the working tree included: a `.git`, and a directory holding one, so a throwaway clone under temp
 too; the git toplevel itself; every worktree root git has registered for that repository (the

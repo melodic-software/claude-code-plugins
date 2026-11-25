@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-21
-- Supersedes in part: [ADR 0021](0021-reject-the-three-unused-official-plugin-components.md), its
+- Supersedes in part: ADR 0021 (retired), its
   `bin/` verdict, for the external-agents plugin only
 - Refs: [#17954](https://github.com/melodic-software/claude-code-plugins/pull/17954); owner interview
   of 2026-11-21 (Q61, Q62: "go w/ recomendations");

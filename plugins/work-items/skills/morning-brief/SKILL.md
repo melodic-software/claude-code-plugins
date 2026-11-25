@@ -42,9 +42,7 @@ own.
 **A GitHub-only surface.** The brief reads GitHub's queues, pull requests, review threads, Actions
 runs and billing, and Azure's cost data, so it names `gh` and `az` directly and does not go through
 the work-items tracker seam: it is a declared-provider surface, which keeps its provider details
-(ADR 0060 "Declared-provider surfaces stay as they are",
-`docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md` in
-the marketplace repository). A repository whose issues and pull requests are not on GitHub gets no
+(`docs/review/skills-and-agents.md` in the marketplace repository). A repository whose issues and pull requests are not on GitHub gets no
 brief from it.
 
 ## Run it

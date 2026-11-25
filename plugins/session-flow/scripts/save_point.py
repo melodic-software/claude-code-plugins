@@ -243,9 +243,7 @@ FRONTMATTER_KEYS_3 = (
 )
 PRIOR_ROWS_KEPT = 3
 ARCHIVE_TYPE = "handoff-archive"
-# ADR 0084
 HOT_FILE_MAX_BYTES = S3.cap_bytes
-# ADR 0084
 READ_CAP_BYTES = 58_500
 _GH_REF = r"(?:\bPR\s*#?\d+|#\d+|/(?:pull|issues)/\d+)"
 _GH_STATE = (

@@ -30,8 +30,8 @@ constraints and prerequisite set, so the user arbitrates it.
 
 **Status:** taken (#7368). `map-corpus` has a `repo-tree` discovery rung: a
 repository seed pinned to a commit SHA plus include and exclude globs, the forge
-tree listing read through an adapter (`reference/providers/github/repo-tree.md`,
-per ADR 0060), and the URL set computed by `parse_discovery.py`. A corpus may
+tree listing read through an adapter (`reference/providers/github/repo-tree.md`),
+and the URL set computed by `parse_discovery.py`. A corpus may
 have a repository seed as its only seed.
 
 Before this, repository files entered only as human-enumerated **resource

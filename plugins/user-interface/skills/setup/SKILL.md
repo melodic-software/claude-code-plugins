@@ -10,8 +10,8 @@ disable-model-invocation: true
 The plugin reads its settings through four layers, later wins per key: plugin defaults, the
 plugin's `css_*` userConfig options, the team file and the personal `.local` file. The order, merge rules and locations are owned by ADR 0075 in the marketplace
 repository
-(`docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md`,
-which supersedes ADR 0061) and by the resolver header in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/config-cascade.mjs`;
+(`docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md`)
+and by the resolver header in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/config-cascade.mjs`;
 keys and allowed values by `${CLAUDE_PLUGIN_ROOT}/reference/team.schema.json`. Never name a layer
 path from memory: take each one from detect's `config.layers[].path`.
 

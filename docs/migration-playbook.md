@@ -807,7 +807,8 @@ interpolation, or what a plugin may bundle.
      mechanical half of this criterion.
 2. **MCP servers: `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
    **local** `stdio`, bundled server (its record in
-   [ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md)); no plugin ships a **remote**
+   [the review log](plugin-acceptance-security-reviews.md#review-record-miro-first-party-mcp-server-accept-2026-07-12));
+   no plugin ships a **remote**
    server, which remains the higher-scrutiny case. A plugin's MCP server **starts automatically when the plugin is enabled**
    (subject to per-server approval), unless it ships `defaultEnabled: false`. Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
    to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine**, since a remote
@@ -869,8 +870,8 @@ interpolation, or what a plugin may bundle.
    `scripts/`, and each one's provenance is reviewed like any hook script.
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
-that introduces a new surface re-triggers this review. Each record is a dated section amending
-[ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md).
+that introduces a new surface re-triggers this review. Each record is a dated section in the
+[plugin-acceptance security review log](plugin-acceptance-security-reviews.md).
 
 ## Marketplace schema positions
 
@@ -1101,19 +1102,9 @@ playbook:
 
 - [ADR 0019](adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md), sharing code
   across plugins (2026-07-04).
-- [ADR 0020](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md), deferred
-  surfaces (2026-07-12).
-- [ADR 0021](adr/0021-reject-the-three-unused-official-plugin-components.md), unused official plugin
-  components (2026-07-12).
 - [ADR 0022](adr/0022-consume-the-knowledge-corpus-from-a-separate-repository.md), knowledge-corpus
   consuming repo and integration flow (2026-07-13).
-- [ADR 0023](adr/0023-scope-skill-quality-to-the-generic-static-checker.md), `skill-quality`
-  retrofit scope (2026-07-13).
-- [ADR 0024](adr/0024-decline-forgery-prone-human-ratification-gates.md), convention
-  ratification and the shared-identity limitation (2026-07-23).
 - [ADR 0092](adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md), the MCP carry verdicts for
   medley's servers (2026-07-12).
-- [ADR 0093](adr/0093-record-plugin-acceptance-security-reviews.md), the plugin-acceptance
-  security review records (2026-07-12 onward).
 - [ADR 0101](adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md), ecosystem
   specifics resolved from the consumer repository (2026-11-13).

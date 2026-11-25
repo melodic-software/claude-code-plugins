@@ -4,7 +4,7 @@ The `source-control` skill bodies name operations (open a draft change request, 
 reply on a review thread). This file is how GitHub, the one forge the plugin supports today, does
 each with the `gh` CLI. Read it before a skill's first forge operation. Skill bodies stay
 forge-neutral and the provider detail lives here per
-[ADR 0060](../../../../../docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
+[the skills and agents review rules](../../../../../docs/review/skills-and-agents.md).
 
 This file indexes operations to commands; a skill's spoke is the authority on the full step around
 each. A spoke whose steps need more than a table row has a provider file of the same name under a

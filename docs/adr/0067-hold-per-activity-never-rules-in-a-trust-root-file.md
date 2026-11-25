@@ -17,7 +17,7 @@ cannot loosen it.
 Per-activity rules live in
 [`.github/actions/resolve-config/activity-rules.json`](../../.github/actions/resolve-config/activity-rules.json),
 beside `lane-rules.json` and `effect-grants.json`, keyed by leaf
-([ADR 0066](0066-group-pipeline-activities-into-composites-with-effects-and-grants-on-leaves-only.md)):
+([composites](../conventions/pr-pipeline/README.md)):
 
 1. Each row holds `never`, a statement of what the leaf never does, and optionally
    `forbidden-effects`, effects it may never be given. A leaf with no row is valid; a missing or

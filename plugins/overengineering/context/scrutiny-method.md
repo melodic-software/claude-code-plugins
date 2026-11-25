@@ -46,8 +46,7 @@ of the artifact's vocabulary.
 
 The **second lane**, product code, supplies its own four in
 [`product-code-lane.md`](product-code-lane.md) and reuses §§1–12 verbatim. That document is a
-specification ahead of its skill; the shipping shape is
-[ADR 0017](../../../docs/adr/0017-ship-the-product-code-lane-as-its-own-skill.md).
+specification ahead of its own skill.
 
 The **third lane**, justification, supplies its own four in
 [`justification-lane.md`](justification-lane.md) and owns the last five layers. It is pointed at one

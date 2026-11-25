@@ -139,8 +139,8 @@ coverage cross-referenced. One work item covers the chapter.
 
 **The repo has already executed this lane's remedy.** A fleet-wide `/claude-api prompt-audit`
 run (Claude Code 2.1.258 against Fable 5.1) covered 74 plugins, 241 skills, 798 files, about
-115k lines; 805 findings applied, 207 withheld, 694 files changed
-(ADR-0028), which makes it a repeating lane
+115k lines; 805 findings applied, 207 withheld, 694 files changed,
+which makes it a repeating lane
 per model change. The `harness-config:audit-instructions` criteria catalog maps one-to-one onto
 the six anti-pattern families the article names:
 
@@ -166,7 +166,7 @@ docs page lists hillclimb and build-eval).
 
 | Topic | Ours | Verdict | Pointer | As of |
 |---|---|---|---|---|
-| Instruction anti-patterns on current models | `audit-instructions` catalog + executed fleet-wide prompt-audit | COVERED (Claude Code surfaces; decided 2026-09-10). Explore mapping re-verified against criteria.md TOC and rows; ADR-0028's repeat-per-model-change lane is the standing remedy | [Audit prompts against the current model](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#audit-prompts-against-the-current-model) and the skill's `prompt-audit.md` | 2026-09-09 |
+| Instruction anti-patterns on current models | `audit-instructions` catalog + executed fleet-wide prompt-audit | COVERED (Claude Code surfaces; decided 2026-09-10). Explore mapping re-verified against criteria.md TOC and rows; the repeat-per-model-change prompt-audit lane is the standing remedy | [Audit prompts against the current model](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#audit-prompts-against-the-current-model) and the skill's `prompt-audit.md` | 2026-09-09 |
 | Prompt audit of application-code prompts | No repo skill audits app-code prompts; `audit-instructions` scope is deliberately Claude Code surfaces | REJECT scope-widening (decided 2026-09-10). The bundled prompt-audit owns the app-code surface; the skill's scope boundary is deliberate. Our source-as-spec read found request-building code in its Step 0-1 inventory. Revisit only if marketplace-native app-code coverage is wanted later | [Claude API skill](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill#what-the-skill-provides) and the skill's `prompt-audit.md` | 2026-09-09 |
 | Manual thinking budgets on newer models | I17 family covers the instruction-surface version | COVERED (decided 2026-09-10) | [Configuring thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#configuring-thinking) | 2026-09-09 |
 
@@ -208,7 +208,7 @@ Decided at interview, 2026-09-10:
 | Question | Verdict | Reasoning, basis, as-of |
 |---|---|---|
 | Record shape | DECIDED: keep this file's shape. Only the row-schema FORMAT is borrowed from aihero-course.md (per-row records, verdict vocabulary); this source is unrelated to AI Hero and this record stands alone | Owner interview, 2026-09-10 |
-| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/harness-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview. Amended 2026-09-11: a registry row alone is not the deliverable; each non-`defer` verdict lands as a `## Boundary` section in the skill body with detail in a same-skill reference file, and the native-references convention (1.1.0) now requires the pair | Owner interview, 2026-09-10 and 2026-09-11; PLUGIN-PHILOSOPHY Native-first section; ADR-0028 precedent |
+| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/harness-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview. Amended 2026-09-11: a registry row alone is not the deliverable; each non-`defer` verdict lands as a `## Boundary` section in the skill body with detail in a same-skill reference file, and the native-references convention (1.1.0) now requires the pair | Owner interview, 2026-09-10 and 2026-09-11; PLUGIN-PHILOSOPHY Native-first section; the fleet-wide prompt-audit precedent |
 | Vendor-internal numbers and beta features | DECIDED: adopt mechanisms only; cite figures as vendor-reported and unreproduced; every adopted line touching a beta feature carries its beta qualifier and GA/model-list boundary | Owner interview, 2026-09-10 |
 | Citing hillclimb | DECIDED: cite it as a bundled Claude Code command with an upstream-drift record that points at the published guides (finding 1); recheck trigger fires when the platform claude-api skill docs page lists the subcommand | Owner interview, 2026-09-10; eval-design and hillclimbing interview, 2026-10-01 |
 

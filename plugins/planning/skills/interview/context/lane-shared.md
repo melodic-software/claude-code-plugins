@@ -334,7 +334,14 @@ cap: a later digest lists them, so place only the listed ones.
 People ask for work on a question: `ask`, `explore`, `research`, `design` or `prototype`. Only the
 owner's Run starts one, and only requests named in a `request-run` event run. Route each by its
 intent to whatever fits among the skills, workflows, MCP servers and CLI tools enabled in this
-session right now, and say why in `why`:
+session right now, and say why in `why`.
+
+Guests never reach Claude directly because the work runs on the owner's own account. The
+[Consumer Terms](https://www.anthropic.com/legal/consumer-terms), section 2, say a user "may not
+make your Account available to anyone else", and the
+[Claude Code usage policy](https://code.claude.com/docs/en/legal-and-compliance#usage-policy)
+says plan limits "assume ordinary, individual usage" (both as of 2026-10-16; recheck when either
+section changes).
 
 - `ask`: answer from the question, the session's answers and what this session already knows.
 - `explore`: look inside what the session has: answers, chat, uploads, and the linked project. Its answer, like a

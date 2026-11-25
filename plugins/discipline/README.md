@@ -124,7 +124,7 @@ declared managed / locally-owned boundary.
 Rereads every instruction file Claude Code loads for the session (the user's, the project's, and
 the rules already loaded) with the Read tool, on every invocation, then audits the work in flight
 against that text and corrects drift. It stores no procedures and no fallback baseline: the
-instruction files are the only source ([ADR 0112](../../docs/adr/0112-keep-operating-procedures-in-the-user-instructions-and-reread-them-on-demand.md)).
+instruction files are the only source, so no copy in this public repository can drift from them.
 It names a missing file and continues, stops when it finds none, and reports drift that needs a
 pull request, issue or comment as open without acting on it. Each invocation adds the full text of
 those files to the session, so it is invoked on demand and never runs in `sweep-all`.

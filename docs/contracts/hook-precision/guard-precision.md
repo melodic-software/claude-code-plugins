@@ -1,7 +1,7 @@
 # Guard precision: the default-on blocking guards, measured
 
 Each guardrails guard that blocks by default earns that default by its measured precision
-([ADR 0003](../../adr/0003-verification-guards-earn-default-on-by-measured-precision.md)). This
+([plugin philosophy](../../plugin-philosophy.md#classifying-a-hook)). This
 table records the measurement and the verdict for each one. It holds aggregate counts only.
 
 ## Corpus and method
@@ -9,7 +9,7 @@ table records the measurement and the verdict for each one. It holds aggregate c
 - **Corpus.** The local Claude Code transcripts of one operator on one Linux (WSL) host, read on
   2026-10-15: 5,492 transcript files holding 133,038 distinct Bash and PowerShell tool calls.
   Seeded probe sessions (runs built to exercise a guard) are left out, and so is the session that
-  ran this measurement, from the replays. ADR 0003 asks that the corpus be named because one host's sessions
+  ran this measurement, from the replays. The corpus is named because one host's sessions
   are not evidence about other distributions; the Windows-only guards get none here.
 - **Logged refusals.** Every tool result that is a guardrails hook refusal, attributed to the
   guard whose refusal text it carries. This measures the guard as it shipped at the time.
@@ -22,7 +22,7 @@ table records the measurement and the verdict for each one. It holds aggregate c
   hazard the guard names (for block-root-delete-target, a delete outside the session's allowed
   roots is its documented target), and a false positive when it did not. block-hook-bypass, with
   1,684 fires, was classified on a random sample of 40.
-- **The bar.** ADR 0003 fixes no threshold and asks for one to be named. For a guard that blocks
+- **The bar.** For a guard that blocks
   a tool call: most of its fires must be right (precision at least 50%), or its false positives
   must come from one identified cause with a scoped fix. A guard that stops irreversible
   damage may stay on below the bar when every cause of its noise is identified and kept on

@@ -45,7 +45,7 @@ of its cited page no longer matching the bullet re-derives it here):
 - **Multi-repo product:** consumers do not memorize 200+ skill names; model-side discoverability
   is part of what this marketplace sells. This inverts upstream's solo-operator premise.
 - **Listing budget is manageable, not a forcing function:** every skill name is always listed;
-  only descriptions are dropped, in the order ADR 0016 records, under the listing budget
+  only descriptions are dropped, in the order the [listing scorer](../../../plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md) sets, under the listing budget
   (`skillListingBudgetFraction`), with a per-entry cap (`skillListingMaxDescChars`); the current
   figures and their source records are in `/playbooks:skill-authoring` `## Descriptions`.
   The per-skill `skillOverrides: "name-only"` lever reaches project/user skills only, and plugin
@@ -62,7 +62,7 @@ reasons, each measured rather than assumed:
 
 - **The harness already does what the flip would do, and keeps what the flip destroys.** Under
   overflow Claude Code drops descriptions by a usage score that sheds a never-invoked skill first
-  ([ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md)), while
+  ([listing scorer](../../../plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md)), while
   the listing "always contains every skill name". A rarely invoked operator audit, the proposed
   population, is therefore already near the front of the line for name-only, and it stays model-invocable and
   chainable. The flip frees at most that skill's name on top, and pays the whole cost the first
@@ -88,14 +88,14 @@ history, so it is not evidence that a skill is operator-only. A skill whose timi
 really are the human's call already fits class (i) on those grounds, and cost plays no part.
 
 Verification record. Claim: overflow keeps every name and sheds a never-invoked skill's description
-first, by the scorer ADR 0016 records from the binary, whose order differs from the skills page's
+first, by the scorer recovered from the binary, whose order differs from the skills page's
 sentence on drop order; plugin skills ignore `skillOverrides`; `/skill-doctor` routes plugin skills
 away from `skillOverrides`. Basis:
-[ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md) for the
+[listing-scorer.md](../../../plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md) for the
 order, <https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short", "Override
 skill visibility from settings", "Find unused skills"), and for the figures
 `bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills` at `0fc60e845` (211
-listing-eligible skills). As of: 2026-11-04 for the page; the scorer as ADR 0016 dates it. Recheck:
+listing-eligible skills). As of: 2026-11-04 for the page; the scorer as listing-scorer.md dates it. Recheck:
 the skills page changing its drop order or its plugin-skill lever, a changelog entry naming the
 listing scorer, or a fleet audit's re-run moving the flipped-set arithmetic past a documented budget.
 
@@ -220,14 +220,14 @@ problem is answered by `docs/skill-cheat-sheet.md` and `harness-ops:inventory`.
 derived from corrector metadata) are a distinct, admitted pattern; they compose model-invoked skills
 rather than recovering discoverability for hidden ones.
 
-## Fleet grade, 2026-08-17 (ADR 0005-bounded)
+## Fleet grade, 2026-08-17 (bounded by question)
 
 Bounding question: *do the 10 non-setup `disable-model-invocation: true` skills fall into an
 exception class?* (Fleet measurement, re-counted 2026-08-17 at the chain-close merge: 215
 top-level skills = 141 `false` / 17 missing key / 57 `true` = 47 `*:setup` + these 10. The 47
 setup skills are class (ii) by contract; the 141
 `false` skills conform to the default and are not swept, per
-[ADR 0005](../../adr/0005-bound-instruction-surface-work-by-question-not-population.md).)
+the bounding question.)
 
 | Skill | Class | Verdict |
 |---|---|---|
@@ -241,7 +241,7 @@ setup skills are class (ii) by contract; the 141
 | `planning:questionnaire` | none: no side effects, not setup, not maintainer-only | **FLIPPED → `false`** ([#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969); the re-check for a latent rationale found none, as recorded below; the skill was retired 2026-11-11 into `planning:interview`'s document surface) |
 | `playbooks:update` | (iii) maintainer-only | KEEP `true` |
 | `repo-fleet-hygiene:apply` | (i) mutating fleet apply incl. branch deletion | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, the local deletion gate is satisfied by a model-passable `--yes`; evidence in [the re-grade below](#re-grade-repo-fleet-hygieneapply-under-the-2026-10-18-decision-9707)) |
-| `session-flow:recommend-skills` (graded as `show-options`) | none: a human-facing catalog surface with no side effect whose timing must be human-chosen, an *uttered* trigger rather than a human-internal one, not setup, not maintainer-only | **FLIPPED → `false`** ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); graded after the fact, and the re-check against ADR 0016's latent rationale did not hold it, as recorded below) |
+| `session-flow:recommend-skills` (graded as `show-options`) | none: a human-facing catalog surface with no side effect whose timing must be human-chosen, an *uttered* trigger rather than a human-internal one, not setup, not maintainer-only | **FLIPPED → `false`** ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024); graded after the fact, and the re-check against its manual-only rationale did not hold it, as recorded below) |
 
 The 17 missing-key skills were normalized to explicit `false` (all sat in the default class), and
 the enforcement criterion shipped alongside them as `skill-quality:check` **check 24**, both under
@@ -265,14 +265,14 @@ made unreachable while it stayed hidden. Fleet after the flip: 162 `false` / 58 
 plus 10 non-setup.
 
 **The second flip: `session-flow:recommend-skills` (then `show-options`), graded after the fact (2026-08-21, #3024).** It
-landed 2026-08-18, a day after the grade, so the table's population predated it and the ADR 0005
+landed 2026-08-18, a day after the grade, so the table's population predated it and the question
 bound left it unswept rather than silently covered, and check 24 emitted its hand-verify note for
 exactly that case. It is now graded, and the verdict is a flip.
 
 *It is not the rejected router.* That verdict names a model-invoked skill routing **the agent** to
 user-invoked skills, and rejects it on two grounds: the always-in-context listing already does that
 job, and a router reaching into the deliberately-hidden `true` set would defeat the exception
-classes. Neither reaches this skill. The first is false here by measurement: ADR 0016 records the
+classes. Neither reaches this skill. The first is false here by measurement: the skill's measurement records the
 listing omitting every `true` skill and dropping ~82% of descriptions, a never-invoked skill's first
 by the usage score its 2026-08-31 revision records, which is
 the whole reason this skill resolves from the installed catalog instead. The second turns on
@@ -293,18 +293,18 @@ not state whose timing must be a deliberate human choice; the skill is a one-sho
 only the human can detect.
 
 *The latent rationale it was re-checked against, per the #2969 precedent.* Here one existed and was
-dated: [ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md)
+dated: the skill's V1 design
 shipped V1 manual-only for three stated reasons. None holds as an exception class. (1) *Costs no
 listing-budget description*, where the default section above rejects exactly this move: hiding a skill
 from the model is a near-total trade, not a listing-budget optimization. (2) *Avoids a verbatim trigger
 collision with `session-flow:workflow`*, the same shape as #2969's candidate, and it dissolves the
-same way: ADR 0016 itself resolved that collision reciprocally, amending `workflow`'s
+same way: that design itself resolved that collision reciprocally, amending `workflow`'s
 "never present both" mandate to govern **stage** routing and cede option surfacing, and each
 description now routes to the other on that axis. Hiding adds nothing, since another
 mechanism already fixed the collision. (3) *Graduation is evidence-gated*, the real
-objection, but its own criterion measures the bucket cut rather than the mode (the ADR says to
+objection, but its own criterion measures the bucket cut rather than the mode (the design says to
 revisit the buckets first and the posture second), and the evidence cannot accrue while the
-recursion the ADR names goes unsolved: the operator must remember to invoke the skill about
+recursion the design names goes unsolved: the operator must remember to invoke the skill about
 forgetting skills.
 
 *The two costs of the `true`, both now paid*, are the same pair #2969 surfaced. Its trigger phrases
@@ -334,7 +334,7 @@ fleet-wide budget question, owned by `harness-ops:audit-skill-visibility` and me
 instrument above; it is not a reason to hide a skill, which the default section forecloses in
 terms ("hiding a skill from the model is therefore a near-total trade, not a listing-budget optimization").
 
-ADR 0016 is amended in place to record the revised posture; its core decision, to resolve candidates
+The revised posture stands; the skill's core decision, to resolve candidates
 from the catalog rather than the listing, is untouched and is what makes this skill worth reaching.
 
 Fleet after this flip (2026-08-21): 222 top-level skills = 165 `false` / 0 missing key / 57 `true`
@@ -347,7 +347,7 @@ owner decision on #9572.)
 Bounding question: *do the six non-setup `disable-model-invocation: true` skills added after the
 2026-08-17 grade fall into an exception class?* The population is exactly the six skills below;
 the `setup` skills (class (ii) by contract) and the nine skills the 2026-08-17 table graded KEEP are
-not re-swept, per [ADR 0005](../../adr/0005-bound-instruction-surface-work-by-question-not-population.md).
+not re-swept, since the bounding question names the population.
 Grading follows the owner's 2026-10-05 direction on
 [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): model-invocable by
 default, so a skill whose mutating step already asks for approval is graded FLIP, since the

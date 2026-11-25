@@ -5,9 +5,7 @@
   (the tool, not the writer, fits the handoff file by moving movable sections; binding content over
   the cap reports OVER-CAP)
 - Date: 2026-11-07
-- Supersedes: decision 6 of
-  [ADR 0084](0084-ship-handoff-shape-3-on-measured-size-and-leave-accuracy-to-the-resume-eval.md)
-  (leave the core's growth unbounded)
+- Supersedes: decision 6 of ADR 0084 (retired): leave the core's growth unbounded
 - Related: [#13847](https://github.com/melodic-software/claude-code-plugins/issues/13847); owner
   decisions Q1-Q3,
   [2026-11-07](https://github.com/melodic-software/claude-code-plugins/issues/13847#issuecomment-6703829081)
@@ -61,6 +59,6 @@ take in late events (owner, 2026-11-07).
 - Size stays the writer's judgment of relevance, checked for losslessness by `validate`; a wrong
   relevance call is recoverable from the archive file the pointer names.
 - `amend` never blocks on a size finding, so a late event is never lost to the cap.
-- The resume eval reruns on this change, as ADR 0084 requires, with two cases that grade the new
+- The resume eval reruns on this change, with two cases that grade the new
   read path: a writer keeping a still-binding amendment, and a reader answering from a retired
   entry.

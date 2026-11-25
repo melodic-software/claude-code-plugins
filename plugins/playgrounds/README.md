@@ -29,7 +29,11 @@ places. It generates nothing itself.
 Form selection for conversation content belongs to a visualization capability, and
 throwaway variations of your own project's UI belong to a prototyping capability;
 this plugin fires on requests for an interactive parameter explorer whose output
-returns as a prompt. Generation and templates belong entirely to the upstream skill.
+returns as a prompt. Generation and templates belong entirely to the upstream skill: wrapping it
+rather than rebuilding it lets consumers inherit upstream fixes, and losing the dependency only
+degrades this plugin to guidance. Upstream defects found here are recorded as consumer guidance in
+the consumer notes, never filed upstream, and the design-sync commands stay unintegrated until an
+operator adopts claude.ai/design or upstream documents them.
 
 ## Provenance
 

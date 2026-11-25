@@ -2278,8 +2278,7 @@ guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the
 - **High-consequence areas:** emphasis there is still flagged. A safety gate, a destructive or
   irreversible action, a security or permission boundary, or an external contract keeps its
   directive in plain words with its scope and reason; the marker is downgraded like any other. A
-  rule there that must hold every time belongs in a hook, deny rule or CI check, not a louder line
-  ([ADR 0098](../../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
+  rule there that must hold every time belongs in a hook, deny rule or CI check, not a louder line.
   Not flagged: a stated hard precondition. An ordering an API genuinely requires ("resolve
   the ID first; the call fails without it") is a fact and stays; emphasis set on it is still
   downgraded. Not flagged: a document *about* the pattern, on the same audience test I8-b
@@ -2345,7 +2344,7 @@ guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the
   **whole bolded sentence** used as a shout, and a **general all-caps imperative run** beyond the
   fixed marker list. Both are too common in ordinary technical prose to select without a false-
   positive rate that would swamp the relay. A bold list-item label or a defined term at its first
-  use is structure, not a shout (ADR 0098), and a regex cannot tell it from a bolded rule;
+  use is structure, not a shout, and a regex cannot tell it from a bolded rule;
   all-caps runs collide with acronyms, file names, and env vars. The model lane still judges them
   under this row; only the deterministic scanner withholds. Widening either is a calibration
   change that lands in the scanner with fixtures.

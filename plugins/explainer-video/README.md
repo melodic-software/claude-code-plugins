@@ -60,8 +60,7 @@ moment's frame comes from an escaping HTML template captured with Playwright for
 captions are burned in and kept as a soft track and
 `captions.srt`, and the video is encoded once at CRF 18. Every hold's frame must reach luma SSIM
 0.999 against its source above the caption band. The narration, frame text and screenshot sidecars
-pass a secret and machine-data scan before anything renders
-([ADR 0107](../../docs/adr/0107-scan-every-media-upload-and-online-voice-request-against-a-fixed-floor.md)).
+pass a secret and machine-data scan before anything renders (`scripts/media_scan.py`).
 `manifest.json` lists the files a caller may publish. The shared media code is
 [`lib/media-render`](../../lib/media-render), vendored here
 ([ADR 0103](../../docs/adr/0103-write-the-shared-media-library-in-python-with-ffmpeg-by-subprocess.md)).

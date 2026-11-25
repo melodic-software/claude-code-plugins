@@ -192,7 +192,7 @@ they graduate into a skill body only on observed, repeated stumble evidence:
 
 Two more from Addy Osmani's "Critical thinking when agents do the work"
 (`https://x.com/addyosmani/status/2117512471930167377`, published 2026-11-03), both
-BEHAVIORAL under ADR 0025; the dispositions are in
+BEHAVIORAL (a human habit, landed as a doc line with an eval candidate); the dispositions are in
 [the upstream record](upstream/x-com-addyosmani-status-2117512471930167377.md). The page
 returned HTTP 402 to an unattended fetch on 2026-11-03, so no snapshot or hash is recorded.
 Recheck trigger: a raw retrieval, which records its date and hash here.

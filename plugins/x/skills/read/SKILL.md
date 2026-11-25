@@ -308,5 +308,5 @@ recommendation.
 Every one of these services is a third party outside this plugin's control. Each one sees every URL
 or id it is sent. Assume indefinite logging: the plugin's acceptance review found no published
 retention policy for either ladder vendor (the marketplace's
-`docs/adr/0093-record-plugin-acceptance-security-reviews.md`, section "Review record: `x`"). A
+`docs/plugin-acceptance-security-reviews.md`, section "Review record: `x`"). A
 consumer who does not accept that egress disables the plugin.

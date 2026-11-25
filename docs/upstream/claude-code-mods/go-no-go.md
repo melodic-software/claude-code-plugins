@@ -3,7 +3,7 @@
 Run this top to bottom on Windows, compare every output with the recorded runs, and record each
 criterion's state. It assumes no memory of the 2026-09-19 investigation. The runs feed
 [ADR 0052](../../adr/0052-adopt-claude-code-mods.md), which supersedes
-[ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md), and the
+the 2026-09-19 Defer, and the
 mods row under "Recorded gate runs" in [docs/plugin-philosophy.md](../../plugin-philosophy.md).
 
 Beside this file: [experiments.md](experiments.md) holds E1 to E6 as rerunnable procedures with
@@ -20,7 +20,7 @@ narrowing of what a mod may do, and criterion 5 is replaced by the check under
 [Criterion 5 as replaced](#criterion-5-as-replaced). A run records each criterion's state. A
 criterion that changes state is a reason to re-derive ADR 0052, not a verdict by itself.
 
-ADR 0035's rule, which decided the 2026-09-19 baseline: go requires **all five** criteria. Any one
+The Defer's rule, which decided the 2026-09-19 baseline: go requires **all five** criteria. Any one
 failing is **no-go**. They are not weighted and none substitutes for another.
 
 ### Baseline verdict, 2026-09-19, Claude Code 2.1.278, Windows 11: NO-GO
@@ -468,14 +468,12 @@ Record the run whatever the outcome. A run that is not written down gets re-deri
 - **[ADR 0052](../../adr/0052-adopt-claude-code-mods.md)**: leave it alone while its decisions and
   verdict hold. If a re-derivation changes either, a superseding record or an amendment carries the
   new decision; a runbook run does not amend an ADR by itself.
-  [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md) is superseded and stays
-  as it was written.
 - **[research-2026-09-19/](research-2026-09-19/)** is frozen: if the research is redone, write a new
   dated snapshot folder beside it and never edit a dated one. **[sources.md](sources.md)** gains a
   row for any external URL a rerun newly relies on, and a refreshed `Fetched` column for rows it
   re-fetched.
 
-**Guard conversion is a parity question, not a criterion.** ADR 0035 kept three conditions on
+**Guard conversion is a parity question, not a criterion.** The Defer kept three conditions on
 converting a guard hook to a mod; ADR 0052 replaces them with one rule: a guard moves into a mod
 only when the mod matches every behavior of the hook it replaces, and a settings hook stays where it
 must run with mods off. Passing criteria says a consumer who installs one of this repository's

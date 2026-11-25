@@ -76,7 +76,7 @@ source of truth for its own addition:
 - **Per-model doctrine.** `playbooks`' `fable-5` pack carries its own deliberately
   independent formulation of this framing (channel-based authority, embedded imperatives as
   facts about the artifact) plus a deeper three-branch resolution procedure for conflicting
-  authority claims, scoped per model version behind ADR-0006's promotion gate. The pack ships
+  authority claims, scoped per model version. The pack ships
   to consumers as self-contained doctrine, so the independent wording is intentional
   and a conformance sweep must not flatten it onto the spine.
 

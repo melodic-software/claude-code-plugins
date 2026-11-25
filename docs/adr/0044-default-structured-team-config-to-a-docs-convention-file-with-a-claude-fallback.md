@@ -92,5 +92,5 @@ moment, and the warning is how they see it.
   budget on WSL.
 
 Recheck when a surface needs a repository-configurable docs location. The pointer file that roots
-`standards` ([ADR 0042](0042-ratify-consumer-config-location-outliers-in-place.md)) is the
+`standards` ([config cascade](../contracts/config-cascade/README.md)) is the
 sanctioned mechanism for it.

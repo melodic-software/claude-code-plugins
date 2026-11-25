@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-11-13
 - Refs: owner decisions of 2026-11-13 (Q22, Q35, Q49, Q59, Q75, Q84; design thread T7);
-  [ADR 0056](0056-verify-ui-with-linux-side-playwright-and-attach-produced-demo-evidence-to-prs.md)
+  [evidence posting](../../plugins/source-control/skills/pull-request/reference/evidence.md)
   (attach route)
 
 ## Context
@@ -31,7 +31,7 @@ outside the markers is rewritten.
 ### One-way doors
 
 An attachment on a public repository cannot be deleted; the scan floor runs before every upload
-([ADR 0107](0107-scan-every-media-upload-and-online-voice-request-against-a-fixed-floor.md)).
+([`media_scan.py`](../../lib/media-render/media_scan.py)).
 
 ## Considered options
 

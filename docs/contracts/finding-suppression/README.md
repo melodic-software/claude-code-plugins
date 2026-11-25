@@ -243,8 +243,7 @@ A skill reading this surface:
 - **No expiry key.** An expiry would be a second staleness mechanism competing with obligation 3,
   which already retires an entry the moment its finding is gone. Revisit if a consumer demonstrates a
   suppression that should lapse while its finding persists. Age is still reported: per
-  [ADR 0080](../../adr/0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md)
-  and owner decision Q199 (2026-10-20), exceptions expire after `exceptions.max_days`, default 90, a
+  owner decision Q199 (2026-10-20), exceptions expire after `exceptions.max_days`, default 90, a
   team setting. A consumer reports an entry whose required `date` is older than that as a finding
   that names the entry, its reason and its age, and removes nothing, so obligation 3 stays the only
   retirement path and no key is added.

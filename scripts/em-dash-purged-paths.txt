@@ -53,7 +53,7 @@
 # in scope whatever its path. The unlisted ones are unpurged, and the
 # ai-slop.yaml entries defer their purge; they do not exempt them as a class.
 # docs/upstream/claude-code-mods/ is not a third-party ledger: it is this
-# repository's own evidence trail for ADR 0035, so its live documents and the
+# repository's own evidence trail for the mods decision (ADR 0052), so its live documents and the
 # dated research snapshot are declared below.
 
 # Root README, purged in #3265.
@@ -100,7 +100,7 @@ docs/contracts/upstream-drift/*.md
 docs/contracts/windows-path-emit/*.md
 # The out-of-scope records were purged whole.
 docs/out-of-scope/*.md
-# The Claude Code mods evidence trail behind ADR 0035, purged in #4288: the
+# The Claude Code mods evidence trail behind ADR 0052, purged in #4288: the
 # reading-order README, the cited source index, the go-no-go runbook, the
 # experiments, and the dated research snapshot. First-party prose under
 # docs/upstream/, so the rule above puts it on this list rather than off it.

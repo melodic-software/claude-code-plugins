@@ -61,7 +61,7 @@ listed the repositories that hold records.
    look the same. When no recorded entry still holds the value the profile wrote, nothing is left
    to put back: the file is left as it is and its record removed. Otherwise reset keeps the record,
    writes nothing by itself and asks a yes for that file through the per-file question of
-   [ADR 0114](0114-remove-a-folders-unrecorded-profile-entries-only-on-a-yes-for-that-folder.md),
+   [`profiles.mjs`](../../plugins/plugin-profiles/scripts/profiles.mjs),
    default no: the yes puts back only the entries still at the profile's values, never one changed
    by hand, then removes the record. An entry an unfinished switch still owes counts as still at
    the profile's value until it is back at its value before the profile, since it may hold an
