@@ -155,7 +155,7 @@ test("the newest labeled event is read by its time, not its place in the list", 
 const escalated = (reason, at = "2026-10-18T10:00:05Z", codeLabel = "Lane code", stopLine = "<!-- stop-reason lane=pr-unblock reason=design -->") =>
   commented(
     APP,
-    `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\n${stopLine}\n### pr-unblock / report-escalation\nHeld for a person: why.\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n- \`src/a.js:1\`: https://github.com/o/r/pull/1#discussion_r1\n\n</details>`,
+    `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\n${stopLine && `${stopLine}\n`}### pr-unblock / report-escalation\nHeld for a person: why.\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n- \`src/a.js:1\`: https://github.com/o/r/pull/1#discussion_r1\n\n</details>`,
     at,
   );
 const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
@@ -163,6 +163,7 @@ const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) 
 
 test("report-escalation.sh's pr-unblock stop-reason marker is read; another lane's, another code or a mangled one is unknown", () => {
   const marked = (stopLine) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed", undefined, "Lane code", stopLine)];
+  assert.equal(source(marked("")), "lane-escalation", "a hold route with no owner reason writes no marker line");
   for (const code of PERSON_REASONS) {
     assert.equal(source(marked(personReasonLines("pr-unblock", code)[0])), "lane-escalation", code);
   }

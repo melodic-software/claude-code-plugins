@@ -35,7 +35,7 @@ const ANY_ESCALATION = "<!-- work-items:escalation";
 export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
 export const MODEL_RUN = /^<!-- pr-unblock:address-feedback-model-run \S+ -->$/;
 export const HOLD_REASON = /^<!-- stop-reason lane=pr-unblock reason=(?:intent|design|security|cost) -->$/;
-export const CLEARED =/^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
+export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
 // report-escalation.sh's comment for a fail-routed stop, one per activity,
 // edited in place; it adds no label.
 export const LANE_STOPPED = /^<!-- pr-unblock:lane-stopped activity=[a-z]+(?:-[a-z]+)* -->$/;
