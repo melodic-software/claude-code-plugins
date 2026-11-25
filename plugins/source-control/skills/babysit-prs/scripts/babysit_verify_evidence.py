@@ -455,6 +455,7 @@ TOO_OLD_DAYS = 80
 # `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
 LISTING_WAITS = (2.0, 4.0)
+PASS_RECORD_WAITS = (5.0, 15.0, 30.0)
 # The listing's pages share one timeout (babysit_gh._run_pages), so it grows
 # with the artifact count, not gh's per-call default: 7,522 artifacts took 76
 # pages at 0.7 to 1 s a page on 2026-10-27, past that default's 60 s.
@@ -4839,11 +4840,16 @@ class Reader:
             ),
         )
         record: Any = None
-        if passes:
+        for wait in (*PASS_RECORD_WAITS, None) if passes else ():
             try:
                 record = self._record(*passes[0])
-            except _Unreadable:
-                record = None
+                break
+            except _Unreadable as exc:
+                print(f"pass-out: {exc}", file=sys.stderr)
+                if wait is None:
+                    record = None
+                else:
+                    _listing_sleep(wait)
         return {
             "head": head,
             "verdicts": [

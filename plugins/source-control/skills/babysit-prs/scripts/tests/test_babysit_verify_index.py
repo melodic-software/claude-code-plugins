@@ -406,8 +406,37 @@ class PassOut(IndexFixture):
         fake = self.passing(notes, runs={2: run(2, run_started_at=later)})
         fake.records[named(HEAD, "pass-notes")] = record()
         del fake.records[named(HEAD, "pass")]
-        self.assertIsNone(self.cli(fake, "--pass-out", str(self.out))["refusal"])
+        errors = io.StringIO()
+        with (
+            mock.patch.object(ve, "_listing_sleep") as sleep,
+            contextlib.redirect_stderr(errors),
+        ):
+            self.assertIsNone(self.cli(fake, "--pass-out", str(self.out))["refusal"])
         self.assertIsNone(json.loads(self.out.read_text())["record"])
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], list(ve.PASS_RECORD_WAITS))
+        self.assertEqual(errors.getvalue().count("pass-out: "), len(ve.PASS_RECORD_WAITS) + 1)
+
+    def test_a_record_download_that_fails_once_is_read_again(self) -> None:
+        later = "2026-10-20T00:00:00Z"
+        notes = artifact(named(HEAD, "pass-notes"), 2)
+        fake = self.passing(notes, runs={2: run(2, run_started_at=later)})
+        fake.records[named(HEAD, "pass-notes")] = record(summary="notes")
+        failed: list[str] = []
+
+        def flaky(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
+            if args[-1].endswith("/10/zip") and not failed:
+                failed.append(args[-1])
+                return subprocess.CompletedProcess(args, 1, b"", "gh: HTTP 503\n")
+            return fake(args, **kwargs)
+
+        with (
+            mock.patch.object(ve, "_listing_sleep") as sleep,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertIsNone(self.cli(flaky, "--pass-out", str(self.out))["refusal"])
+        self.assertEqual(failed, [f"repos/{REPO}/actions/artifacts/10/zip"])
+        self.assertEqual(json.loads(self.out.read_text())["record"], record())
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [ve.PASS_RECORD_WAITS[0]])
 
 
 SEED_ETAG = 'W/"e909a084392d174b"'
