@@ -13,7 +13,7 @@
       "minLength": 1
     },
     "adr_extra_triggers": {
-      "description": "Extra conditions that join the ADR admission test's 'at least one' list (for example 'touches personal data'). A real alternative must still have been weighed.",
+      "description": "Decisions the team treats as one-way doors in the ADR admission test (for example 'touches personal data'). A real alternative must still have been weighed, and the reason must still be invisible in the code.",
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     },

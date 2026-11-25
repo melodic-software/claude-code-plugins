@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# /observability latency — hook p95 against a budget and within-session latency growth, per
-# (lane, hook_event), from hook_execution_complete events in the OTEL logs store. Read-only.
-#
-# Usage:
-#   bash hook-latency.sh [--days N | --since YYYY-MM-DD] [--budget EVENT=MS]...
-#                        [--min-fires N] [--min-sessions N] [--transcript PATH]...
-#
-#   --days N          window starts now minus N days (default 7)
-#   --since DATE      window starts DATE 00:00 UTC
-#   --budget EVENT=MS p95 budget in ms for EVENT; repeatable, overrides the defaults below
-#   --min-fires N     fires one session needs on an event before its slope counts (default 20)
-#   --min-sessions N  sessions with a slope an event needs before it can be slope-flagged
-#                     (default 5, minimum 3: the sign test cannot flag fewer)
-#   --transcript PATH with no duckdb or no store, read hook durations from this session
-#                     transcript instead (hook-transcript-timing.sh --latency); repeatable
-#
-# Reads the hot store only: fires older than `clean` keeps hot sit in the cold tier and are
-# not included. A full read of a large store takes about a minute: run it on demand or from
-# a routine or loop, never from a SessionStart hook.
-#
-# Exit: 0 nothing flagged, 1 at least one row flagged, 2 cannot evaluate (no duckdb, no store,
-# or no hook_execution_complete rows in the window). Those three exits name two routes forward:
-# turning telemetry on, and --transcript, whose transcript the first two then read instead.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +7,28 @@ OTEL_PROG=hook-latency
 # shellcheck source=../otel/otel-sql.sh
 source "$OTEL_DIR/otel-sql.sh"
 
-usage() { sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() {
+  cat <<'EOF'
+/observability latency: hook p95 against a budget and within-session latency growth, per
+(lane, hook_event), from hook_execution_complete events in the OTEL logs store. Read-only.
+
+Usage:
+  bash hook-latency.sh [--days N | --since YYYY-MM-DD] [--budget EVENT=MS]...
+                       [--min-fires N] [--min-sessions N] [--transcript PATH]...
+
+  --days N          window starts now minus N days (default 7)
+  --since DATE      window starts DATE 00:00 UTC
+  --budget EVENT=MS p95 budget in ms for EVENT; repeatable, overrides the defaults
+  --min-fires N     fires one session needs on an event before its slope counts (default 20)
+  --min-sessions N  sessions with a slope an event needs before it can be slope-flagged
+                    (default 5, minimum 3)
+  --transcript PATH with no duckdb or no store, read hook durations from this session
+                    transcript instead (hook-transcript-timing.sh --latency); repeatable
+
+Exit: 0 nothing flagged, 1 at least one row flagged, 2 cannot evaluate (no duckdb, no store,
+or no hook_execution_complete rows in the window).
+EOF
+}
 routes() {
   cat >&2 <<'EOF'
 hook-latency: routes to hook latency:
@@ -57,8 +54,6 @@ cannot_evaluate() {
 
 budgets="Stop=2000,PostToolBatch=1500,UserPromptSubmit=1500,SubagentStop=1500,"
 readonly KNOWN_EVENTS=" SessionStart Setup UserPromptSubmit UserPromptExpansion PreToolUse PermissionRequest PermissionDenied PostToolUse PostToolUseFailure PostToolBatch Notification MessageDisplay SubagentStart SubagentStop TaskCreated TaskCompleted Stop StopFailure TeammateIdle InstructionsLoaded ConfigChange CwdChanged DirectoryAdded FileChanged WorktreeCreate WorktreeRemove PreCompact PostCompact PreModelSwitch PostModelSwitch Elicitation ElicitationResult SessionEnd "
-# Both forms are SQL over digits-only input; make_timestamp(epoch_us(now())) is UTC, the same
-# clock cc_logs_from builds event_time on.
 since_sql="make_timestamp(epoch_us(now())) - INTERVAL (7) DAY"
 min_fires=20
 min_sessions=5
@@ -113,9 +108,6 @@ otel_store_to store
 
 err="$(mktemp)"
 trap 'rm -f "$err"' EXIT
-# CC_OTEL_STORE points cc-otel.sql's eager hot views at an empty dir so they fail fast
-# (`.bail off` keeps the macros); the query reads the real store through cc_logs_from.
-# The init's expected hot-view bind errors also land in $err, so only a failed exit shows it.
 if ! rows="$(CC_OTEL_STORE="$SCRIPT_DIR/.no-store" duckdb -list -noheader -separator $'\t' -nullvalue '' \
   -init "$(sql_path "$OTEL_DIR/cc-otel.sql")" \
   -c "SET VARIABLE src = '$(sql_path "$store/cc-logs.json")';
@@ -126,7 +118,6 @@ $(cat "$OTEL_DIR/hook-latency.sql")" 2>"$err" | tr -d '\r')"; then
   die "duckdb query failed"
 fi
 
-# The store path rides in the environment: awk -v would read a Windows path's backslashes as escapes.
 printf '%s\n' "$rows" | STORE="$store" awk -F'\t' -v budgets="$budgets" -v min_sessions="$min_sessions" -v min_fires="$min_fires" '
 BEGIN {
   n = split(budgets, pairs, ",")

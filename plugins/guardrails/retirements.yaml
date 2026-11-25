@@ -1,6 +1,3 @@
-# Retired consumer-facing conventions for the guardrails plugin.
-# Contract: docs/contracts/retired-conventions/README.md (append-only; ids never reused).
-# Evaluated by lib/check-retirements.sh in setup `check`; cleanup is operator-gated in `apply`.
 ---
 id: guardrails-r001
 retired: 2026-10-16

@@ -59,8 +59,8 @@ Never invent them.
 Three optional keys, all documented in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
 "Decision-record keys", which owns the layers and the invalid-value rule: `adr_template`, a template
-file used when the repository has no ADR convention; `adr_extra_triggers`, triggers that join the
-admission test's "at least one" list; and `adr_retirement`, how a record is retired (`delete`, the
+file used when the repository has no ADR convention; `adr_extra_triggers`, decisions the team treats
+as one-way doors in the admission test; and `adr_retirement`, how a record is retired (`delete`, the
 default, `supersede` or `archive`). Resolve them once, before any action, and report each value with
 the layer that supplied it, `adr_retirement` in one line. The `userConfig` values are
 `${user_config.adr_template}` and `${user_config.adr_retirement}`; empty or a literal unexpanded

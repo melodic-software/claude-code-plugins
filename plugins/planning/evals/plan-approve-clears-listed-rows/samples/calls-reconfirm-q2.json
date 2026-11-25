@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/planning/surface/round.sh\" resolve --ledger .work/report-speed/interview-checklist.md Q2 reconfirm"
+          }
+        }
+      ],
+      "why": "Q2 reconfirmed through the tool"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/planning/surface/round.sh\" resolve --ledger .work/report-speed/interview-checklist.md Q4 reconfirm"
+          }
+        }
+      ],
+      "why": "only Q4 is reconfirmed"
+    },
+    {
+      "answer": [],
+      "why": "no call: approve was read as covering the plan only"
+    }
+  ]
+}

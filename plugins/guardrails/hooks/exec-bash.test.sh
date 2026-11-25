@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# exec-bash.mjs is the exec-form entry for run-guards.sh: command is node,
-# this file is args[0], and bash is a child. Bare bash is not the hook command.
 # test-scope: plugins/guardrails/hooks/hooks.json
 set -uo pipefail
 
@@ -61,8 +59,6 @@ err=$(node "$ENTRY" --fail-closed "$segv" 2>&1 >/dev/null) || rc=$?
 grep -q 'segv.sh' <<<"$err" || fail "--fail-closed line should name the script: $err"
 grep -q 'SIGSEGV' <<<"$err" || fail "--fail-closed line should name the cause: $err"
 if [[ "$(node -p process.platform)" == win32 ]]; then
-  # Without the flag Git Bash's raw 2816 passes through; $? would keep only its
-  # low byte (0), so read the status from node.
   rc=$(node -e 'const r = require("node:child_process").spawnSync(process.execPath, process.argv.slice(1), { stdio: "ignore" }); console.log(r.status)' "$ENTRY" "$segv")
   [[ "$rc" -eq 2816 ]] || fail "a SIGSEGV child without --fail-closed should pass exit 2816 through on Windows (got $rc)"
 else
@@ -84,9 +80,6 @@ rc=0
 node "$ENTRY" "$TEST_TMPDIR/exit.sh" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 3 ]] || fail "exit 3 without --fail-closed should pass through (got $rc)"
 
-# Windows Git Bash reports a SIGSEGV death as exit 2816 (seen on the Windows CI
-# runner); only that shape on win32 under --fail-closed decodes to a signal.
-# 0xC0000100 has a zero low byte but is an NTSTATUS code, not signal 0xC00001.
 decoded=$(node --input-type=module -e '
 import { pathToFileURL } from "node:url";
 const { msysSignal } = await import(pathToFileURL(process.argv[2]).href);
@@ -100,10 +93,6 @@ rc=0
 CLAUDE_PLUGIN_OPTION_FC_GATE=false node "$ENTRY" --fail-closed --require-true FC_GATE "$segv" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 0 ]] || fail "--fail-closed must not change a closed gate (got $rc)"
 
-# --- --require-verdict: exit 0 counts only with the marker written ------------
-# Git Bash reports a crashed bash as exit 0 with empty stdout (#7681). The
-# launcher names a marker file in EXEC_BASH_VERDICT_FILE; the script writes it
-# as its last action, and an exit 0 without it denies.
 silent="$TEST_TMPDIR/silent.sh"
 printf '#!/bin/bash\nexit 0\n' >"$silent"
 rc=0

@@ -72,7 +72,6 @@ ACTIVE_SESSION_WINDOW_S = 3600
 STALE_SWEEP_DAYS = 2.0
 SUBPROCESS_TIMEOUT_S = 20
 
-#: Plugin install scopes, most specific first. A plugin installed at two scopes loads once.
 SCOPE_PRECEDENCE = ("local", "project", "user")
 
 ALLOWLISTED_READS = (
@@ -82,17 +81,8 @@ ALLOWLISTED_READS = (
     "installed_plugins.json",  # plugins/installed_plugins.json: where each plugin is installed
 )
 
-#: Kernel-generated `/proc/<pid>/` files whose CONTENT this engine may read on Linux, and only
-#: to tell a kernel thread from a user process. Both are produced by the kernel from task state
-#: and carry no user content: `status` holds the `Kthread:` line, `stat` holds the task flags
-#: word. Enforced in `read_proc_text`, which raises on any other name. `cmdline` is deliberately
-#: absent: it is process-supplied text, and an empty read is not evidence of a kernel thread.
 PROC_TEXT_READS = frozenset({"status", "stat"})
 PROC_ROOT = Path("/proc")
-#: `PF_KTHREAD` in the kernel's task flags word, stable from v2.6.32 through v6.18. proc(5)
-#: disclaims stability for the flags field, so a renumbering would classify every kernel thread
-#: as user-space: the failure mode is under-exclusion (an investigable false alarm), never
-#: over-exclusion (a hidden user-space leak).
 PF_KTHREAD = 0x00200000
 KTHREAD_CLASSIFY_CAP = 50
 SHORTLIST_SIZE = 10
@@ -122,11 +112,6 @@ ORPHAN_CANDIDATE_NAMES = frozenset(
     }
 )
 DEAD_PARENT_CENSUS_MIN_AGE_SECONDS = 5.0
-#: MSYS coreutils names background tasks and Monitors leave behind, added to the census
-#: and not to the verdict set. Suffixed only: the census runs on Windows process tables
-#: alone (see attribute_orphans), where every image name carries its extension.
-#: `find.exe` is omitted: name-only matching cannot tell MSYS find from
-#: C:\Windows\System32\find.exe.
 DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
     {
         "tail.exe",
@@ -139,20 +124,13 @@ DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
 )
 DEAD_PARENT_BY_CPU_SIZE = 10
 
-#: Executable names a `claude` on PATH can carry. Windows resolves `.exe` and `.cmd` through
-#: PATHEXT, so a PATH scan that looks only for the bare name under-reports there.
 CLAUDE_ON_PATH_NAMES = ("claude", "claude.exe", "claude.cmd")
 DOCTOR_ROUTE = "run `claude doctor`"
-#: Only the native installer has a documented binary path, so an unrecognized path is an
-#: unclassified layout rather than evidence of an irregular install.
 UNCLASSIFIED_LAYOUT_NOTE = (
     "official docs publish a binary path only for the native installer; Homebrew, WinGet, "
     "apt/dnf/apk, npm-global and direct-download installs land wherever they land"
 )
 
-#: Hook events that fire on every matching tool call. These scale with tool-call volume, and
-#: they are also the only events on which the handler `if` field is evaluated: a hook carrying
-#: an `if` on any other event never runs at all.
 PER_TOOL_CALL_EVENTS = frozenset(
     {
         "PreToolUse",
@@ -162,16 +140,11 @@ PER_TOOL_CALL_EVENTS = frozenset(
         "PermissionDenied",
     }
 )
-#: Hook events that fire once per conversational turn. These are what make a long session degrade.
 PER_TURN_EVENTS = frozenset(
     {"Stop", "SubagentStop", "UserPromptSubmit", "Notification"}
 )
 
-#: A matcher built only from these characters is an exact tool name, or a list of exact names
-#: separated by `|` or `,`. A matcher containing anything else is an unanchored regular
-#: expression instead, which is why `Edit.*` also selects `NotebookEdit`.
 MATCHER_EXACT_CHARS = re.compile(r"^[A-Za-z0-9_\- ,|]+$")
-#: Matcher spellings that select every tool. An absent matcher does the same.
 MATCHER_MATCH_ALL = frozenset({"*", ""})
 
 PROJECTION_FILE_KINDS = (".md", ".py", ".sh", ".ts", ".json", "other")
@@ -208,17 +181,12 @@ SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
 COMMAND_POSITION_PREDECESSORS = frozenset(
     {"exec", "env", "sudo", "nohup", "command", "|", "||", "&&", ";"}
 )
-#: `-c` is deliberately NOT in that set: it means "count" to grep and "create" to tar, so it
-#: hands the next token the command slot only when the token before it is itself a shell.
 SHELL_COMMAND_FLAG = "-c"
 OPERATOR_RUN = re.compile(r"([;|&]+)")
 QUOTED_SENTINELS = {" ": "\x00", ";": "\x01", "|": "\x02", "&": "\x03"}
 SENTINEL_CHARACTERS = {sentinel: raw for raw, sentinel in QUOTED_SENTINELS.items()}
 QUOTE_CHARACTERS = "\"'"
-#: The variable that selects which bash Claude Code hands a shell-form command to on Windows.
 GIT_BASH_PATH_ENV = "CLAUDE_CODE_GIT_BASH_PATH"
-#: The only filenames Claude Code accepts in that variable. Any other name is ignored and the
-#: harness auto-detects Git Bash as if the variable were unset.
 ACCEPTED_GIT_BASH_NAMES = frozenset({"bash.exe", "sh.exe", "bash", "sh"})
 
 HARNESS_WRAPPER_NOTE = (
@@ -240,28 +208,13 @@ HARNESS_WRAPPER_NOTE = (
     "gains a documented no-shell variant for shell form.)"
 )
 
-#: Concurrency and fan-out env vars, with the default the official docs state.
-#: A value of None means the variable is not documented at all, which is itself reportable.
-#: Pointer: https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit (the
-#: concurrent-subagent default and its exemptions) and
-#: https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents (the
-#: nesting-depth default). As of 2026-10-18. Recheck when either
-#: section changes a default, its accepted values, or its exemptions.
 CONCURRENCY_ENV_DEFAULTS = {
     "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": 20,
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": 3,
     "CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS": None,
 }
-#: Vars gated by a JavaScript truthiness test on the raw string. In JavaScript the string
-#: "0" is truthy, so setting one of these to "0" reads like a disable and is a silent no-op:
-#: only ABSENCE disables them. Never advise setting one to 0.
 TRUTHINESS_GATED_ENV = frozenset({"CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS"})
 
-#: Kernel object types the Windows census reports, Token first. A Token object that outlives
-#: every handle to it is alive only through a kernel reference, and a reference leak in a
-#: driver or service path accumulates them for the life of the boot. The host that motivated
-#: this probe carried 3.81M Token objects and about 10 GB of paged pool at two days' uptime,
-#: every process creation on it cost 1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor.
 KERNEL_OBJECT_TYPES = (
     "Token",
     "Process",
@@ -272,21 +225,9 @@ KERNEL_OBJECT_TYPES = (
     "Event",
     "EtwRegistration",
 )
-#: Live Token objects at or above which the census reports a leak: ten times what the audited
-#: host carried two hours after a clean boot, a fifteenth of what it carried when spawns cost
-#: seconds. Calibrated on one host's two states; see known-performance-issues.md for the basis.
 TOKEN_LEAK_OBJECTS = 250_000
-#: Paged pool at or above which the census reports it as high. The leaking host sat near
-#: 10 GB; the same host after reboot near 1 GB. The figure is aggregate and unattributed
-#: (GetPerformanceInfo cannot say what charged it), so this finding never carries the
-#: Token-leak verdict on its own; `poolmon` is what attributes pool to a tag.
 PAGED_POOL_HIGH_MB = 4096
 
-# NtQueryObject(NULL, ObjectTypesInformation) block layout on x64. The information class is
-# unofficial but has been stable across Windows releases (it is what Process Explorer and
-# System Informer read). A ULONG count padded to pointer alignment leads the block; each
-# entry is a 0x68-byte OBJECT_TYPE_INFORMATION whose first 16 bytes are the UNICODE_STRING
-# type name, followed by that name's buffer padded to 8 bytes.
 _OBJECT_TYPES_INFORMATION = 3
 _OBJECT_TYPES_HEADER_BYTES = 8
 _OBJECT_TYPE_INFORMATION_BYTES = 0x68
@@ -656,7 +597,6 @@ def _windows_object_type_table() -> dict[str, dict]:
         ctypes.c_uint32,
         ctypes.POINTER(ctypes.c_uint32),
     ]
-    # ~75 types at ~130 bytes each; a megabyte leaves two orders of magnitude spare.
     size = 1 << 20
     block = ctypes.create_string_buffer(size)
     needed = ctypes.c_uint32(0)
@@ -968,7 +908,6 @@ def _parent_state(record: dict, by_pid: dict[int, dict], started: float) -> str:
     if parent_started is None:
         return "unknown"
     if parent_started > started:
-        # The PID was recycled: this "parent" started after its supposed child.
         return "recycled"
     return "live"
 
@@ -1427,10 +1366,6 @@ def flatten_hook_block(hooks_block: dict, source: str) -> list[dict]:
                         "args": [str(a) for a in args]
                         if isinstance(args, list)
                         else [],
-                        # The KEY's presence, not the list's truthiness: upstream makes a
-                        # hook exec form when `args` is present, and an explicit `[]` is
-                        # present. `args` itself keeps its normalized value, which
-                        # `command_key` and the projection both read.
                         "exec_form": "args" in hook,
                         "timeout": hook.get("timeout"),
                         "if": hook.get("if"),
@@ -1845,11 +1780,6 @@ def invocation_shape(entry: dict) -> list[str]:
     basenames = [shell_basename(t) for t in tokens]
     if sum(1 for b in basenames if b in SHELL_TOKENS) >= 2:
         findings.append("nested-shell-invocation")
-    # Exec form (`args` present) is documented as having no shell at all, so the harness
-    # wraps nothing and there is no second shell to name. A record that carries `exec_form`
-    # states the KEY's presence; one that does not falls back to the list's truthiness, which
-    # is what the statusline wants: statusline.md documents a command string run in a shell
-    # and no exec form at all, so its `args: []` must stay shell form.
     exec_form = entry["exec_form"] if "exec_form" in entry else bool(entry.get("args"))
     if not exec_form and names_a_shell_in_command_position(lowered):
         findings.append("shell-form-hook-names-a-second-shell")

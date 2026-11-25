@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -159,7 +157,6 @@ COLLATE="$TEST_TMPDIR/collate.tsv"
 printf 'ab.md\t%s\na-b.md\t%s\n' "$FIX/ab.md" "$FIX/a-b.md" >"$COLLATE"
 HAB=$(ref_sha <"$FIX/ab.md")
 HA_B=$(ref_sha <"$FIX/a-b.md")
-# Byte order: '-' (0x2D) < 'b' (0x62), so `a-b.md` precedes `ab.md`.
 EXPECTED_BYTE=$(printf 'a-b.md\x1f%s\x1eab.md\x1f%s' "$HA_B" "$HAB" | ref_sha)
 assert_eq "entries sort by byte order, not by locale collation" \
   "$EXPECTED_BYTE" "$(run digest --list "$COLLATE")"

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs/adr",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "listing the directory writes nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > docs/adr/0002-run-lint-first.md <<'EOF'\n# 2. Run lint first\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "wrote the record through the shell"
+    }
+  ]
+}

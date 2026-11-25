@@ -15,9 +15,8 @@ writes, deletes, moves and commits nothing; removing a candidate is [`prune`](pr
      the code. Evidence: the search that found nothing, and the commit that removed it.
    - **Contradicted**: a later commit or record decides otherwise. Evidence: the commit, or the
      record's `file:line`.
-   - **Fails admission**: no real alternative was weighed, none of the "at least one" conditions
-     holds, or the decision is still provisional on a prototype that has not run. Evidence: the
-     record's `file:line`.
+   - **Fails admission**: one of the test's three parts fails (name it), or the decision is still
+     provisional on a prototype that has not run. Evidence: the record's `file:line`.
 3. Run the [citation sweep](record.md#step-3-retire-the-record-the-decision-replaces) for each
    retire candidate; the new record is a Contradicted candidate's later record, and with none the
    proposal is drop. Done when every candidate has its hits listed, or none.

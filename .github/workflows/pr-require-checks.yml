@@ -857,6 +857,7 @@ jobs:
       node_legs: ${{ steps.plan.outputs.node_legs }}
       node_plan: ${{ steps.plan.outputs.node_plan }}
       selection_suites: ${{ steps.suites.outputs.list }}
+      selection_shards: ${{ steps.shards.outputs.list }}
       # The one Playwright browser cache key test-bash and test-python restore
       # and save under. It is named here because workflow- and job-level env
       # allow neither runner nor hashFiles. It names the install arguments, so
@@ -1156,6 +1157,17 @@ jobs:
           cat "$RUNNER_TEMP/changed-suites.txt"
           if [ -s "$RUNNER_TEMP/changed-suites.txt" ]; then echo "any=true"; else echo "any=false"; fi >>"$GITHUB_OUTPUT"
           echo "list=$(jq -Rnc '[inputs]' <"$RUNNER_TEMP/changed-suites.txt")" >>"$GITHUB_OUTPUT"
+      - name: Shard the listed suites
+        id: shards
+        if: steps.suites.outputs.any == 'true'
+        env:
+          SUITES: ${{ steps.suites.outputs.list }}
+          PER_SHARD: 8
+        run: |
+          count=$(jq length <<<"$SUITES")
+          shards=$(((count + PER_SHARD - 1) / PER_SHARD))
+          ((shards <= 256)) || shards=256
+          echo "list=$(jq -nc --argjson n "$shards" '[range($n)]')" >>"$GITHUB_OUTPUT"
       - name: Log what a narrower merge-group run would skip
         id: mq_scope
         if: github.event_name == 'merge_group'
@@ -1507,7 +1519,12 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash scripts/run-hygiene-gate.sh comment-lint {0}
-        run: scripts/check-comment-lint.sh
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::comment lint declined on a $GITHUB_EVENT_NAME event; there is no pull request diff to judge."
+            exit 0
+          fi
+          bash plugins/code-tidying/git-hooks/comment-lint-ci.sh "$HEAD_SHA" "origin/$BASE_REF"
 
       - name: Check no changed file crosses the size reference
         id: size_check
@@ -3974,8 +3991,14 @@ jobs:
     timeout-minutes: 19
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.select-tests.outputs.selection_shards || '[0]') }}
     env:
       SUITES: ${{ needs.select-tests.outputs.selection_suites }}
+      SHARD: ${{ strategy.job-index }}
+      SHARDS: ${{ strategy.job-total }}
     steps:
       - name: Check out
         uses: actions/checkout@v7
@@ -4032,7 +4055,7 @@ jobs:
             exit 1
           fi
           rc=0
-          scripts/selection-audit.sh trace --strict --jobs 3 --budget 720 \
+          scripts/selection-audit.sh trace --strict --shard "$SHARD/$SHARDS" --jobs 3 --budget 720 \
             --out "$RUNNER_TEMP/selection-audit" "${suites[@]}" || rc=$?
           case "$rc" in
           0) ;;
@@ -4058,7 +4081,7 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
-          name: selection-trace-${{ github.run_id }}-${{ github.run_attempt }}
+          name: selection-trace-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
           path: |
             ${{ runner.temp }}/selection-audit/*.md
             ${{ runner.temp }}/selection-audit/*.tsv

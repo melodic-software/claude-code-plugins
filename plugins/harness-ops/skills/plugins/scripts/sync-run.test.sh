@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
-# Black-box contract tests for sync-run.sh (self-contained — ships with the plugin).
-# Fixtures are built per case into a temp dir and driven through the REAL
-# fleet-state.sh via its FLEET_STATE_* env overrides, so every `--from` projection
-# and its exit status is the production one. Only the two siblings whose real work
-# needs a machine — the `claude` CLI and cache-content-check.sh's git compare — are
-# stubbed, through sync-run.sh's own SYNC_RUN_* overrides.
 # test-scope: .claude/settings.json plugins/harness-ops/.claude-plugin/plugin.json
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect a fixture's git usage into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -50,9 +42,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# CASE_NUM must be incremented in the CALLER's shell before calling this, never
-# inside it: `case_dir=$(new_case_dir)` runs in a subshell, so an assignment made
-# in here is discarded and every case would silently reuse case-1's directory.
 new_case_dir() {
   local case_dir="$TEST_TMPDIR/case-$CASE_NUM"
   mkdir -p "$case_dir/catalog" "$case_dir/journal" "$case_dir/stubs"
@@ -76,15 +65,6 @@ norm_path() {
   fi
 }
 
-# The `claude` stub. Records every invocation and, on `plugin update`, rewrites the
-# fixture's installed_plugins.json so the post-sweep re-read really moves.
-# With `--json` on `plugin install|update`, it ends with the result line in the
-# shape an attended probe captured from Claude Code 2.1.310 (`outcome`, `message`,
-# `failureCode`, and on update `updateOutcome`, `oldVersion`, `newVersion`), and
-# the failure's `✘` line beside it, as the CLI's stderr is merged into the
-# capture. CLAUDE_STUB_TEXT=1 acts as a CLI older than the flag: it rejects
-# `--json` as an unknown option and prints text only without it. CLAUDE_STUB_REWORD=1 keeps the fields and rewords an update's
-# message, so a case can show the fields decide, not the sentence.
 write_claude_stub() {
   local case_dir="$1"
   cat >"$case_dir/stubs/claude" <<'STUB'
@@ -696,11 +676,6 @@ assert_eq "--all: the other marketplace still refreshed" "0" \
   "$(jq -r '.marketplaces[] | select(.name == "market2") | .refresh.rc' <<<"$out")"
 assert_eq "--all: the checker ran once per marketplace" "2" "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
 
-# ============================================================================
-# Case: a marketplace's literal `autoUpdate: false` reaches the digest as false,
-# a literal `true` as true. jq's `//` reads false as absent, so a `// null`
-# default would report the off marketplace as unreadable.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.1.0
@@ -816,11 +791,6 @@ assert_eq "misfire: it is reported as its own failed row" "alpha@market1" \
 assert_contains "misfire: the reason names the sibling worktree's path" \
   "$(jq -r '.marketplaces[0].in_repo.failed[0].reason' <<<"$out")" "updated \"$sibling\" instead"
 
-# ============================================================================
-# Case: the CLI says "already at the latest version" for a project record that
-# is still below the catalog (a linked worktree, #6713). That is a failure, not
-# a quiet no-op; a record already at the catalog stays a no-op.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 0.2.0
@@ -930,14 +900,6 @@ assert_eq "user-home record: the digest counts the record" "1" \
 assert_eq "user-home record: and names its path" "/mnt/c/Users/someone" \
   "$(jq -r '.marketplaces[0].user_home_records.paths[0]' <<<"$out")"
 
-# ============================================================================
-# Case: the digest carries per-step timings from a clock ladder. The same
-# fixture runs three times: on the host's own clock, on a stubbed `date` whose
-# `%N` prints a literal N (an older date), and on the host's `date` with
-# EPOCHREALTIME withheld, so every rung of the ladder is exercised.
-# ============================================================================
-# The `date` stub answers only the `%N` probe; every other call (the run
-# directory's timestamp) goes to the real date.
 REAL_DATE=$(command -v date)
 write_date_stub() {
   local case_dir="$1" n_output="$2"
@@ -1233,12 +1195,6 @@ out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-ro
 assert_eq "text result: the update line still yields an Updated row" "alpha@market1 0.1.0 0.2.0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated[0] | "\(.id) \(.old) \(.new)"' <<<"$out")"
 
-# --- the stub's result lines keep the recorded shape ----------------------------
-# fixtures/cli-json-results.jsonl holds result lines attended probes captured
-# from Claude Code 2.1.310 and, for the install-unset-count and
-# install-config-partial rows, 2.1.330. Each stub line must carry the same keys
-# and updateOutcome as its recording, so a stub drifting from the CLI fails here:
-# https://code.claude.com/docs/en/plugins/cli-reference#json-result-format
 stub_line() {
   local -a vars=()
   while [[ "$1" != -- ]]; do
@@ -2044,12 +2000,6 @@ assert_golden "render errors: the failing marketplace's errors render under its 
 assert_eq "render errors: a github source carries no source_checkout" "null" \
   "$(jq -c '.marketplaces[0].source_checkout' <<<"$REPORT_DIGEST")"
 
-# --- a fleet whose divergence records pass one exec argument's size limit ---
-# 1,000 ids, each with a user record and a project pin behind it at a path that
-# is not present, put the block's divergences past Linux's per-argument cap
-# (MAX_ARG_STRLEN, 131,072 bytes on 4 KiB pages), so the run passes only if no
-# fleet-sized field rides on jq's command line. Audit keeps the records inline,
-# and they alone carry the block past the cap.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 big_n=1000
@@ -2117,11 +2067,6 @@ assert_contains "block failure: the report lists it under Action needed" "$REPOR
 assert_not_contains "block failure: the report does not read as if no marketplace resolved" "$REPORT_TEXT" \
   "Marketplace: none resolved for this run"
 
-# --- a directory source whose checkout is behind its upstream ----------------
-# The checkout is a real clone two commits behind its origin as of its last
-# fetch, with a modified tracked file. The source path is recorded in native
-# form where cygpath exists, the way Claude Code records it on Windows. The run
-# reads the checkout and changes nothing in it.
 fixture_git() { git -C "$1" -c user.email=fixture@example.invalid -c user.name=fixture -c commit.gpgsign=false -c core.autocrlf=false "${@:2}"; }
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -2985,8 +2930,6 @@ assert_eq "in-repo guard: the stopping call and the untried record are failures"
 report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "in-repo guard: the stop is under Action needed" "$report" "update stopped in $proj"
 
-# An ignored .claude/settings.local.json in a git work tree: git status cannot see
-# it change, so only the checksum stops the path.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 catalog_plugin "$case_dir" market1 alpha 2.0.0

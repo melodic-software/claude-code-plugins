@@ -311,6 +311,24 @@ run "$repo" --check
 assert_true '--check flags retro_lenses: 2' code_is 1
 assert_true '--check names retro_lenses' out_has 'retro_lenses'
 
+for value in local factory; do
+  repo="$(new_repo)"
+  run "$repo" "implementation_route=$value"
+  assert_true "implementation_route=$value writes" code_is 0
+  assert_true "implementation_route reads back as $value" [ "$(bash "$READER" "$repo/$REL" implementation_route)" = "$value" ]
+done
+for pair in implementation_route=remote implementation_route=Factory implementation_route=; do
+  repo="$(new_repo)"
+  run "$repo" "$pair"
+  assert_true "$pair exits 1" code_is 1
+  assert_true "$pair writes nothing" [ ! -e "$repo/docs" ]
+done
+repo="$(new_repo)"
+seed "$repo" 'implementation_route: cloud\n'
+run "$repo" --check
+assert_true '--check flags implementation_route: cloud' code_is 1
+assert_true '--check names implementation_route' out_has 'implementation_route'
+
 # recall_doc_paths and recall_report_kinds are comma-separated strings. A value
 # YAML would not read back as plain (a leading *, a colon) is written
 # double-quoted. recall_doc_paths entries go inside single quotes in recall's
