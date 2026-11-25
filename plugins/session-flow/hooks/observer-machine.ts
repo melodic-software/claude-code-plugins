@@ -101,6 +101,7 @@ export type State = {
   nextTurnIsObserver: boolean
   pendingSubmit: string | null
   observerTurnId: string | null
+  observerTurnMatched: boolean
   lastTurnWasObserver: boolean
   changed: boolean
   refused: Readonly<Record<string, number>>
@@ -122,6 +123,7 @@ export const initial = (): State => ({
   nextTurnIsObserver: false,
   pendingSubmit: null,
   observerTurnId: null,
+  observerTurnMatched: false,
   lastTurnWasObserver: false,
   changed: false,
   refused: {},
@@ -223,7 +225,8 @@ export const step = (s: State, e: Event, o: Options): Result => {
     case 'turn-started': {
       if (!e.main) return none()
       const p = s.pendingSubmit
-      const observer = s.nextTurnIsObserver || (p !== null && e.text.trim() !== '' && (e.text.includes(p) || p.includes(e.text.trim())))
+      const matched = s.nextTurnIsObserver || (p !== null && e.text.trim() !== '' && (e.text.includes(p) || p.includes(e.text.trim())))
+      const observer = matched || s.submitWaiting
       const state = {
         ...s,
         gen: s.gen + 1,
@@ -231,11 +234,12 @@ export const step = (s: State, e: Event, o: Options): Result => {
         lastStep: 0,
         turnRunning: true,
         nextTurnIsObserver: false,
-        pendingSubmit: observer ? null : p,
-        submitWaiting: observer ? false : s.submitWaiting,
+        pendingSubmit: null,
+        submitWaiting: false,
         observerTurnId: observer ? e.turnId : null,
+        observerTurnMatched: matched,
       }
-      return observer && (!s.on || e.paused) ? { state, effects: [{ kind: 'abort', turnId: e.turnId }] } : none(state)
+      return matched && (!s.on || e.paused) ? { state, effects: [{ kind: 'abort', turnId: e.turnId }] } : none(state)
     }
     case 'tool-called':
       return none(e.main ? { ...s, tools: s.tools + 1, changed: s.changed || (o.changeCheck && o.changeTools.includes(e.name)) } : s)
@@ -266,7 +270,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
       if (!e.main) return none()
       const wasObserver = s.observerTurnId !== null && s.observerTurnId === e.turnId
       const state = { ...s, turnRunning: false, lastTurnWasObserver: wasObserver, observerTurnId: null }
-      const effects: Effect[] = wasObserver ? [{ kind: 'record', row: { observerTurn: e.turnId, durationMs: e.durationMs, usage: e.usage } }] : []
+      const effects: Effect[] = wasObserver ? [{ kind: 'record', row: { observerTurn: e.turnId, matched: s.observerTurnMatched, durationMs: e.durationMs, usage: e.usage } }] : []
       if (s.on && o.turnEndCheck && !e.isAborted && s.tools > 0) effects.push({ kind: 'check', trigger: 'turn-end', turnId: e.turnId, step: -1 })
       return { state, effects }
     }

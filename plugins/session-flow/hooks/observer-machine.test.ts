@@ -116,3 +116,16 @@ test('a check still running when Turn off is pressed shows its finding but sends
   expect(r.state.card).not.toBeNull()
   expect(r.effects.some(fx => fx.kind === 'deliver')).toBe(false)
 })
+
+test('an observer turn whose start text does not match still clears the wait, is never aborted, and is recorded unmatched', () => {
+  const { options } = readOptions({ observer_auto_send: true })
+  const waiting = { ...initial(), on: false, submitWaiting: true, pendingSubmit: 'the note' }
+  const started = step(waiting, { kind: 'turn-started', main: true, turnId: 't2', text: 'framed differently', paused: true }, options)
+  expect(started.effects).toEqual([])
+  expect(started.state).toMatchObject({ submitWaiting: false, pendingSubmit: null, observerTurnId: 't2', observerTurnMatched: false })
+  const done = step({ ...started.state, on: true }, { kind: 'turn-completed', main: true, turnId: 't2', isAborted: false }, options)
+  expect(done.state.lastTurnWasObserver).toBe(true)
+  expect(done.effects).toContainEqual({ kind: 'record', row: { observerTurn: 't2', matched: false, durationMs: undefined, usage: undefined } })
+  const next = step(done.state, { kind: 'turn-started', main: true, turnId: 't3', text: 'person', paused: false }, options)
+  expect(next.state.observerTurnId).toBeNull()
+})

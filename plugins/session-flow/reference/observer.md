@@ -74,8 +74,9 @@ reaches the agent without a button press, framed as the observer's note, never t
 session is idle, it starts one observer turn with `$.prompt.submit`, unless an observer prompt is
 already waiting or the last turn was itself an observer turn; such a finding is appended and rides
 the next turn, whoever starts it. Idle findings come from the end-of-turn check, so idle delivery
-needs `observer_turn_end_check` on. The observer turn is recognized by its start text; `/observer
-off` or Turn off before it starts aborts it. The band keeps a delivered finding, marked sent, with
+needs `observer_turn_end_check` on. The first main turn after an observer submit counts as the observer
+turn; when its start text matches the note, `/observer off` or Turn off before it starts aborts it,
+and when it does not, the turn runs and its usage row reads `matched: false`. The band keeps a delivered finding, marked sent, with
 Send hidden and Noted, Dispute, Why and Dismiss working; a refused delivery leaves it unsent and
 records the error. `observer_guidance` steers what checks look for; it does not choose what is sent:
 to stop sending, turn auto-send off.
