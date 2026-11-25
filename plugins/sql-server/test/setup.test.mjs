@@ -30,7 +30,6 @@ const check = (...args) =>
     env: { PATH: process.env.PATH, SQL_READER_USER: 'reader' },
   });
 
-// Every config example the docs show, so a doc edit that breaks one fails here.
 const DOCS = ['README.md', 'reference/azure-sql-database.md'];
 const examples = DOCS.flatMap((doc) =>
   [...readFileSync(pluginFile(doc), 'utf8').matchAll(/```json\n([\s\S]*?)```/g)]

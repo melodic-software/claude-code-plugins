@@ -19,7 +19,7 @@ mkdir -p "$HOME"
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -43,7 +43,7 @@ new_repo() { # [ruff.toml body; "NONE" for no config]
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
 }
-record() { # <body>: commit .claude/ecosystems/python.yaml
+record() {
   mkdir -p "$REPO/.claude/ecosystems"
   printf '%s\n' "$1" >"$REPO/.claude/ecosystems/python.yaml"
   git -C "$REPO" add .claude/ecosystems/python.yaml

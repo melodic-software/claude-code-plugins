@@ -5040,9 +5040,6 @@ test("main fails a crashed run whose retries are spent: Work status to needs-tri
   });
 });
 
-// Element 4 of docs/conventions/pr-pipeline/README.md#outage-posture: a fault is no evidence about the
-// issue, so retries that were all faults do not fail it. The earlier retries'
-// comments here are the ones main itself posts, for the crash below.
 const crashRetryComment = async () =>
   withAsyncDir({}, async (dir) => {
     const { fetch, calls } = fakeFetch([
