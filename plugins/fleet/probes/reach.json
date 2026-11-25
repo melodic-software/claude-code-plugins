@@ -44,7 +44,7 @@
       "id": "pos-val-01",
       "split": "validation",
       "expect_trigger": true,
-      "request": "Can you query the Claude lane on my other machine for its free disk space?"
+      "request": "Can you query Claude Code on my other machine for its free disk space?"
     },
     {
       "id": "pos-val-02",
