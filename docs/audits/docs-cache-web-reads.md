@@ -126,8 +126,8 @@ Each path is relative to `plugins/<plugin>/`, and line numbers are as of the com
 | user-interface | `skills/write-animation/SKILL.md:65` | WebFetch on official docs as the fourth route | kept | Used when `/context7:lookup` and `/discovery:research` give no answer; the plugin carries no cache copy |
 | wizard | `skills/generate/template.sh:761` | curl in an example stage | kept | Example text the author deletes; an API call, not a page |
 | work-items | `skills/onboard-adapter/scripts/templates/common.sh.tmpl:286` | Tracker REST call in the generated adapter template | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/gitea/common.sh:321` | Gitea REST API | kept | Authenticated tracker API, not a page |
-| work-items | `tools/work-item-tracker/seeds/jira/common.sh:297` | Jira REST API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/seeds/gitea/common.sh:313` | Gitea REST API | kept | Authenticated tracker API, not a page |
+| work-items | `tools/work-item-tracker/seeds/jira/common.sh:290` | Jira REST API | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/seeds/linear/common.sh:360` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/conformance/bindings/linear.sh:49` | Linear GraphQL API | kept | Authenticated tracker API, not a page |
 | work-items | `tools/work-item-tracker/seeds/linear/schema-check/fetch-schema.sh:16` | curl of Linear's `schema.graphql` | kept | Schema file compared against the adapter, not a page |

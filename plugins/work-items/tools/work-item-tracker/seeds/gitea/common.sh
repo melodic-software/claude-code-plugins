@@ -67,9 +67,6 @@ readonly EX_NOT_FOUND=5
 readonly EX_CONFLICT=7
 readonly EX_UNAVAILABLE=8
 
-# HTTP command indirection: the sole testability seam. Tests point
-# WIT_GITEA_CURL at a mock returning canned responses, keeping every
-# verb path offline. Absent → real curl.
 readonly WIT_GITEA_CURL_BIN="${WIT_GITEA_CURL:-curl}"
 
 # config.gitea.host becomes the request host that RECEIVES the credential,
@@ -229,8 +226,6 @@ wit_need_gitea_config() {
     exit "$EX_CONFIG"
   fi
 
-  # Value-level validation (all exit 3): the credential-bearing host, the token env
-  # var name, and every interpolated scope entry against its allowlist charset.
   local bad=""
   if ! [[ "$WIT_GITEA_HOST" =~ $WIT_GITEA_HOSTNAME_RE ]]; then
     bad+=" host:'$WIT_GITEA_HOST'(not a bare hostname)"
@@ -252,9 +247,6 @@ wit_need_gitea_config() {
     exit "$EX_CONFIG"
   fi
 
-  # curl is the only prerequisite binary; gate here (exit 3, actionable) rather than
-  # let the first request fail obscurely. The bin is the real curl by default or a
-  # test-injected mock — either way it must resolve.
   command -v "$WIT_GITEA_CURL_BIN" >/dev/null 2>&1 ||
     {
       printf '%s: prerequisite missing: curl (Gitea / Forgejo REST over HTTPS) — see CONTRACT.md Prerequisites\n' "$name" >&2

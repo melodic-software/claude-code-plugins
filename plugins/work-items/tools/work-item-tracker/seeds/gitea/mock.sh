@@ -1,15 +1,5 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # GITEA_OUT/GITEA_ERR/GITEA_FIX/GITEA_MOCK are read by the sourcing test files, not within this helper
-# Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
-#
-# Every verb path is exercised against a MOCK curl injected through WIT_GITEA_CURL, so
-# no test in this adapter touches the network (README.md "Recorded deferrals").
-#
-# The mock answers by REQUEST URL rather than by call count, because Gitea's verbs
-# interleave several endpoints (issues, dependencies, labels) and a count-indexed mock
-# would silently pass while answering the wrong endpoint. Responses are seeded with
-# gitea_seed <url-substring> <status> <body-json>; the first seeded substring that the
-# requested URL contains wins, so more specific patterns must be seeded first.
 
 GITEA_FIX=""
 GITEA_MOCK=""

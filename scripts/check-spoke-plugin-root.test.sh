@@ -107,7 +107,6 @@ run_case "a baseline entry that is not a spoke path is an environment error" 2 \
 run_case "a missing baseline is an environment error" 2 \
   "rm scripts/spoke-plugin-root-baseline.txt"
 
-# Findings on stderr only; the clean statement on stdout only.
 tree=""
 if mk_tree tree; then
   # shellcheck disable=SC2016
