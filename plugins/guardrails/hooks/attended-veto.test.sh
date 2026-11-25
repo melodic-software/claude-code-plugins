@@ -22,9 +22,9 @@ SETTINGS_PAYLOAD=$(jq -n --arg fp "$PROJECT/.claude/settings.json" --arg cwd "$P
   '{tool_name:"Write",tool_input:{file_path:$fp,content:"{}"},cwd:$cwd}')
 
 git_verdict() {
-  local dir="$1"
-  shift
-  guard_invoke --hook "$dir/block-dangerous-git.sh" --command "git reset --hard" \
+  local dir="$1" via="$2"
+  shift 2
+  guard_invoke --via "$via" --hook "$dir/block-dangerous-git.sh" --command "git reset --hard" \
     --cwd "$REPO" --chdir "$REPO" -- "$@"
   case "$GUARD_RC:$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT" 2>/dev/null)" in
   0:ask) echo ask ;;
@@ -57,7 +57,8 @@ for att in "$UNSET" 0 1 true; do
       want=$old
       [[ $ep == sdk-cli ]] && want=deny
       cell="ATTENDED=$att ENTRYPOINT=$ep UNWATCHED=$unw (old $old)"
-      assert_eq "block-dangerous-git: $cell" "$want" "$(git_verdict "$HOOK_DIR" "${envs[@]}")"
+      assert_eq "block-dangerous-git: $cell" "$want" "$(git_verdict "$HOOK_DIR" direct "${envs[@]}")"
+      assert_eq "run-guards: $cell" "$want" "$(git_verdict "$HOOK_DIR" dispatched "${envs[@]}")"
       assert_eq "settings-write-ask: $cell" "$want" "$(settings_verdict "$HOOK_DIR" "${envs[@]}")"
     done
   done
@@ -69,15 +70,26 @@ copy_without() {
   rm -f -- "$dir/$1"
   printf '%s' "$dir"
 }
+copy_emptied() {
+  local dir="$TEST_TMPDIR/emptied-$1"
+  cp -R "$HOOK_DIR" "$dir"
+  : >"$dir/$1"
+  printf '%s' "$dir"
+}
 attended=(HOME="$TEST_TMPDIR/home" CLAUDE_CODE_SESSION_ATTENDED=1 CLAUDE_CODE_ENTRYPOINT=cli)
 assert_eq "block-dangerous-git: attended, session-attended.env deleted, denies" deny \
-  "$(git_verdict "$(copy_without session-attended.env)" "${attended[@]}")"
+  "$(git_verdict "$(copy_without session-attended.env)" direct "${attended[@]}")"
 assert_eq "block-dangerous-git: attended, session-attended.sh deleted, denies" deny \
-  "$(git_verdict "$(copy_without session-attended.sh)" "${attended[@]}")"
+  "$(git_verdict "$(copy_without session-attended.sh)" direct "${attended[@]}")"
 assert_eq "settings-write-ask: attended, session-attended.mjs deleted, denies" deny \
   "$(settings_verdict "$(copy_without session-attended.mjs)" "${attended[@]}")"
 assert_eq "settings-write-ask: attended, session-attended.env deleted, denies" deny \
   "$(settings_verdict "$(copy_without session-attended.env)" "${attended[@]}")"
+
+assert_eq "block-dangerous-git: attended, session-attended.sh empty, denies" deny \
+  "$(git_verdict "$(copy_emptied session-attended.sh)" direct "${attended[@]}")"
+assert_eq "settings-write-ask: attended, session-attended.mjs empty, denies" deny \
+  "$(settings_verdict "$(copy_emptied session-attended.mjs)" "${attended[@]}")"
 
 echo "attended-veto: $PASS passed, $FAIL failed"
 ((FAIL == 0))

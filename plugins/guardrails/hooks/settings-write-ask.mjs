@@ -52,9 +52,10 @@ process.stdin.on('end', async () => {
         || (/local/i.test(name) && cwd !== '' && atRoot(localSettingsRoot(cwd))));
     if (!live) process.exit(0);
 
-    const { sessionAttended } = await import('./session-attended.mjs')
-      .catch(() => ({ sessionAttended: () => false }));
-    const asks = sessionAttended(process.env) && process.env.GUARDRAILS_SESSION_UNWATCHED !== '1';
+    const { sessionAttended } = await import('./session-attended.mjs').catch(() => ({}));
+    let attended = false;
+    try { attended = sessionAttended(process.env) === true; } catch {}
+    const asks = attended && process.env.GUARDRAILS_SESSION_UNWATCHED !== '1';
     const reason = 'guardrails: this edit changes settings for every future session. '
       + (!asks
         ? 'Nobody can answer a prompt in this session (unattended, or GUARDRAILS_SESSION_UNWATCHED=1), '
