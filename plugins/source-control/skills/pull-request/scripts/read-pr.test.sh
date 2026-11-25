@@ -74,8 +74,9 @@ repos/*/compare/b1...h1)
   ;;
 repos/*/pulls/7)
   if [[ "$accept" == "Accept: application/vnd.github.diff" ]]; then
-    # GitHub refuses a pull request diff over 300 files.
-    ((${GH_STUB_FILES:-1} > 300)) && { echo "gh: Sorry, the diff exceeded the maximum number of files (300). (HTTP 406)" >&2; exit 1; }
+    [[ "${GH_STUB_DIFF_FAIL:-}" == 1 ]] && { printf '{"message":"Server Error"}'; echo "gh: Server Error (HTTP 502)" >&2; exit 1; }
+    # Like gh, a refused request prints the error body on stdout.
+    ((${GH_STUB_FILES:-1} > 300)) && { printf '{"message":"Sorry, the diff exceeded the maximum number of files (300).","status":"406"}'; echo "gh: Sorry, the diff exceeded the maximum number of files (300). Consider using 'List pull requests files' API or locally cloning the repository instead. (HTTP 406)" >&2; exit 1; }
     printf 'diff --git a/f0.md b/f0.md\n'
   elif [[ "${GH_STUB_MERGED:-}" == 1 ]]; then
     printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"closed","draft":false,"merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":"m1","title":"t","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[]}' "$url_host" "$url_repo"
@@ -186,11 +187,20 @@ assert_exit "no pull request exits 2" 2 "$?"
 
 out=$(run view 7 --diff)
 assert_contains "view --diff prints the diff" "$out" "diff --git a/f0.md b/f0.md"
-assert_contains "view --diff asks REST for the diff media type" "$(cat "$TEST_TMPDIR/calls")" "Accept: application/vnd.github.diff"
+calls=$(cat "$TEST_TMPDIR/calls")
+assert_contains "view --diff asks the pull request endpoint for the diff media type" "$calls" "-H Accept: application/vnd.github.diff repos/{owner}/{repo}/pulls/7"
+assert_not_contains "view --diff on a small pull request never reads compare, which needs Contents read" "$calls" "/compare/"
 
 out=$(GH_STUB_FILES=1045 run view 7 --diff)
 assert_exit "view --diff on a pull request over 300 files succeeds" 0 "$?"
 assert_eq "view --diff over 300 files prints every file's header" "1045" "$(grep -c '^diff --git ' <<<"$out")"
+assert_contains "view --diff falls back to compare base...head after an HTTP 406" "$(cat "$TEST_TMPDIR/calls")" "compare/b1...h1"
+assert_eq "view --diff after an HTTP 406 starts at the first file header, with no error body before it" "diff --git a/f0.md b/f0.md" "$(head -n 1 <<<"$out")"
+
+err=$(GH_STUB_DIFF_FAIL=1 run view 7 --diff 2>&1 >/dev/null)
+assert_exit "view --diff on a failed read other than HTTP 406 exits 2" 2 "$?"
+assert_contains "view --diff passes the forge's error through" "$err" "(HTTP 502)"
+assert_not_contains "view --diff on a failed read other than HTTP 406 does not fall back to compare" "$(cat "$TEST_TMPDIR/calls")" "/compare/"
 
 out=$(run view 7 --diff --out "$TEST_TMPDIR/pr.diff")
 assert_silent "--out leaves stdout empty" "$out"

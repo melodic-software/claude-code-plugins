@@ -164,16 +164,21 @@ if [[ -z "$num" ]]; then
   [[ -n "$num" ]] || die 2 "no pull request found for branch $(printf '%q' "$branch")"
 fi
 
+work=$(mktemp -d) || die 2 "cannot make a temp directory"
+trap 'rm -rf "$work"' EXIT
+
 if [[ "$DIFF" == 1 ]]; then
+  if api -H 'Accept: application/vnd.github.diff' "repos/$api_repo/pulls/$num" >"$work/pr.diff" 2>"$work/diff.err"; then
+    cat "$work/pr.diff"
+    exit 0
+  fi
+  grep -q '(HTTP 406)' "$work/diff.err" || { cat "$work/diff.err" >&2; die 2 "pull request diff read failed"; }
   range=$(api "repos/$api_repo/pulls/$num" | jq -r '"\(.base.sha // "")...\(.head.sha // "")"' | tr -d '\r') ||
     die 2 "pull request read failed"
   [[ "$range" =~ ^[[:alnum:]]+\.\.\.[[:alnum:]]+$ ]] || die 2 "pull request read returned no base and head sha"
   api -H 'Accept: application/vnd.github.diff' "repos/$api_repo/compare/$range" || die 2 "pull request diff read failed"
   exit 0
 fi
-
-work=$(mktemp -d) || die 2 "cannot make a temp directory"
-trap 'rm -rf "$work"' EXIT
 api "repos/$api_repo/pulls/$num" >"$work/pull.json" || die 2 "pull request read failed"
 # The files endpoint pages at 100 and stops at 3000 files.
 for page in $(seq 1 30); do
