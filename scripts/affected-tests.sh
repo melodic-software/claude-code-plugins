@@ -492,7 +492,7 @@ token_hits() {
       if (b in nrt) same[b, ++nsame[b]] = $0
       next
     }
-    # R3 for a Python import, which names a module and never its file:
+    # R3 (docs/ci-runner-routing.md#selection-rules) for a Python import, which names a module and never its file:
     # `from a.b import c as d, e` names a.py and b.py, and c.py and e.py where
     # the package a/b/ holds them, since an imported name can be a submodule.
     # Same language, so no transition.
@@ -636,7 +636,7 @@ token_hits() {
         if (a == r) return 0
       }
     }
-    # runs_or_loads: R4. An interpreter or process API on the line, or a path
+    # runs_or_loads: R4 (docs/ci-runner-routing.md#selection-rules). An interpreter or process API on the line, or a path
     # to the file.
     function runs_or_loads(name, n,   j) {
       if (exec_line) return 1
@@ -648,7 +648,7 @@ token_hits() {
       if (!(key in kept)) { kept[key] = 0; order[++nkept] = key }
       if (!kept[key] && runs_or_loads(name, n)) kept[key] = 1
     }
-    # comment_only: a whole-line comment names nothing (COMMENTS in the header),
+    # comment_only: a whole-line comment names nothing (docs/ci-runner-routing.md#comments),
     # except a shellcheck source directive and a JSDoc type import.
     function comment_only(path, text) {
       if (path ~ /\.(js|mjs|cjs)$/)
@@ -743,7 +743,7 @@ package_scope_importers() {
     fi
     if ! copy="$(jq -r '[.dependencies, .devDependencies, .optionalDependencies, .peerDependencies]
         | map(select(type == "object") | keys[]) | unique[]' <<<"$copy")"; then
-      echo "error: cannot read the dependencies of $manifest (R10 needs jq and valid JSON)." >&2
+      echo "error: cannot read the dependencies of $manifest (rule R10 in docs/ci-runner-routing.md needs jq and valid JSON)." >&2
       exit 2
     fi
     deps+="$copy"$'\n'
