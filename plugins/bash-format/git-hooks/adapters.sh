@@ -10,12 +10,26 @@ BF_SC_INSTALL='see https://github.com/koalaman/shellcheck#installing'
 BF_SC_ARGS=(-x -f gcc -S warning)
 BF_SC_LARGE_LINES=2000
 
-# shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
+BF_SC_RC=""
+export BF_SC_RC
+
+# shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN, BF_SC_RC and the files
 bf_sc_script() {
   local a
   RT_SCRIPT='"$RT_BIN"'
   for a in "${BF_SC_ARGS[@]}" "$@"; do RT_SCRIPT+=" $a"; done
-  RT_SCRIPT+=' -- "$@"'
+  RT_SCRIPT+=' ${BF_SC_RC:+--rcfile "$BF_SC_RC"} -- "$@"'
+}
+
+bf__standards_rc() {
+  [[ "${BF_SC_RC_FOR:-}" == "$1" ]] && return 0
+  BF_SC_RC_FOR="$1" BF_SC_RC=""
+  rt_standards_file "$1" .shellcheckrc || return 0
+  [[ -e "$1/.shellcheckrc" || -e "$1/shellcheckrc" ]] && return 0
+  [[ -z "$(rt_git -C "$1" ls-files -- ':(glob)**/.shellcheckrc' ':(glob)**/shellcheckrc' 2>/dev/null)" ]] || return 0
+  # shellcheck disable=SC2154 # set by resolve-tool.sh's rt_standards_file
+  BF_SC_RC="$RT_STANDARDS_FILE"
+  return 0
 }
 
 bf_lines() {
@@ -253,7 +267,9 @@ rt_adapter() {
     bf__rel "$BF_WALK_DIR" "$3" .shellcheckrc
     [[ -e "$BF_WALK_DIR/.shellcheckrc" ]] || bf__rel "$BF_WALK_DIR" "$3" shellcheckrc
   else
+    bf__standards_rc "$3"
     BF_REL="none (ShellCheck defaults)"
+    [[ -z "$BF_SC_RC" ]] || BF_REL="the standards .shellcheckrc"
   fi
   bf__set "$1" "$BF_REL" "$3"
 }
@@ -282,7 +298,11 @@ rt_adapter_in_repo() {
     else
       f="$(rt_git -C "$2" ls-files -- ':(glob)**/.shellcheckrc' ':(glob)**/shellcheckrc' 2>/dev/null | head -n 1)"
     fi
-    [[ -n "$f" ]] || f="none (ShellCheck defaults)"
+    if [[ -z "$f" ]]; then
+      bf__standards_rc "$2"
+      f="none (ShellCheck defaults)"
+      [[ -z "$BF_SC_RC" ]] || f="the standards .shellcheckrc"
+    fi
   fi
   bf__set "$1" "$f" "$2"
 }

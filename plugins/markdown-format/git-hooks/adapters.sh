@@ -10,6 +10,18 @@ RT_IDS=markdown
 RT_DRIFT_CONFIGS=".markdownlint-cli2.jsonc .markdownlint-cli2.yaml .markdownlint-cli2.cjs .markdownlint-cli2.mjs .markdownlint.jsonc .markdownlint.json .markdownlint.yaml .markdownlint.yml .markdownlint.cjs .markdownlint.mjs"
 MF_INSTALL='npm i -D markdownlint-cli2, or another method at https://github.com/DavidAnson/markdownlint-cli2'
 MF_HELD=()
+MF_STD=""
+export MF_STD
+
+mf__std() {
+  [[ "${MF_STD_FOR:-}" == "$1" ]] && return 0
+  MF_STD_FOR="$1" MF_STD=""
+  rt_standards_file "$1" .markdownlint-cli2.jsonc || return 0
+  local held=(${MD_CODE_CONFIGS[@]+"${MD_CODE_CONFIGS[@]}"}) block="${MD_TRUST_BLOCK:-}"
+  md_classify "$RT_STANDARDS_FILE" || MF_STD="$RT_STANDARDS_FILE"
+  MD_CODE_CONFIGS=(${held[@]+"${held[@]}"}) MD_TRUST_BLOCK="$block"
+  return 0
+}
 
 rt_wants() {
   case "$1" in
@@ -84,10 +96,13 @@ rt_adapter() {
     croot="$MF_PROOT"
     md_config_state "$dir/$name" "$croot"
   fi
+  mf__std "$root"
   case "$MD_STATE" in
   none)
-    RT_DETAIL="no markdownlint config"
-    return 1
+    if [[ -z "$MF_STD" ]]; then
+      RT_DETAIL="no markdownlint config"
+      return 1
+    fi
     ;;
   code)
     md_trust "$croot"
@@ -99,13 +114,18 @@ rt_adapter() {
   *) ;;
   esac
   mf__bin "$dir" "$root"
-  mf__detail "$MD_NEAREST" "$croot" "$root"
+  if [[ "$MD_STATE" == none ]]; then
+    mf__detail "the standards .markdownlint-cli2.jsonc" "$croot" "$root"
+  else
+    mf__detail "$MD_NEAREST" "$croot" "$root"
+    [[ -z "$MF_STD" ]] || RT_DETAIL="${RT_DETAIL/; binary/ over the standards config; binary}"
+  fi
   RT_ADAPTER=markdownlint-cli2 RT_TOOL=markdownlint-cli2 RT_DIR="$root" RT_INSTALL="$MF_INSTALL"
   RT_CONFIGS="$RT_DRIFT_CONFIGS"
   # shellcheck disable=SC2016 # the command text sh -c expands, with RT_BIN and the files
   case "$1" in
-  format) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" --no-globs --fix "$@"' ;;
-  *) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" --no-globs "$@"' ;;
+  format) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" --no-globs ${MF_STD:+--config "$MF_STD"} --fix "$@"' ;;
+  *) RT_SCRIPT='for f do set -- "$@" ":$f"; shift; done; exec "$RT_BIN" --no-globs ${MF_STD:+--config "$MF_STD"} "$@"' ;;
   esac
 }
 
@@ -122,6 +142,13 @@ rt_adapter_in_repo() {
     done
     found="$(rt_git -C "$2" ls-files -- "${specs[@]}" 2>/dev/null | grep -v -e '^node_modules/' -e '/node_modules/' | head -n 1)"
   fi
+  mf__std "$2"
+  if [[ -z "$found" && -n "$MF_STD" ]]; then
+    mf__bin "$2" "$2"
+    RT_ADAPTER=markdownlint-cli2 RT_TOOL=markdownlint-cli2
+    mf__detail "the standards .markdownlint-cli2.jsonc" "$2" "$2"
+    return 0
+  fi
   if [[ -z "$found" ]]; then
     RT_DETAIL="no markdownlint config"
     return 1
@@ -129,4 +156,5 @@ rt_adapter_in_repo() {
   mf__bin "$2" "$2"
   RT_ADAPTER=markdownlint-cli2 RT_TOOL=markdownlint-cli2
   mf__detail "$found" "$2" "$2"
+  [[ -z "$MF_STD" ]] || RT_DETAIL="${RT_DETAIL/; binary/ over the standards config; binary}"
 }

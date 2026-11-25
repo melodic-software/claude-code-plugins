@@ -46,6 +46,15 @@
 #                            one TSV row for the repository, or one per file:
 #                            plugin, concern, source, tool, found (yes | no |
 #                            n/a), detail. Executes nothing.
+#   rt_standards_file <root> <path>
+#                            0, with RT_STANDARDS_FILE set to <path> in the
+#                            standards repository, when <root>'s
+#                            docs/conventions/source-control.yaml names one in
+#                            standards_repository (<owner>/<repo>) and a local
+#                            checkout holds the file: STANDARDS_DIR when set,
+#                            else <ghq root>/github.com/<owner>/<repo> (git
+#                            config ghq.root, default ~/ghq). 1, with it empty,
+#                            otherwise: the adapter keeps its own default.
 
 # shellcheck disable=SC2034 # the RT_* results are read by the plugin that sources this file
 RT_PLUGIN="${RT_PLUGIN:-}"
@@ -197,6 +206,30 @@ rt_lint() { # <files...>
   rm -f "$out"
   [[ -n "$own" ]] && rm -rf "$tmp"
   return "$status"
+}
+
+rt_standards_file() {
+  local repo base pat='^[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*$'
+  RT_STANDARDS_FILE=""
+  if [[ "${RT__STD_FOR:-}" != "$1" ]]; then
+    RT__STD_FOR="$1" RT__STD_DIR=""
+    repo="$(awk '/^standards_repository[[:space:]]*:/ {
+        v = $0; sub(/^[^:]*:[[:space:]]*/, "", v); sub(/[[:space:]]+#.*$/, "", v)
+        sub(/[[:space:]\r]+$/, "", v); gsub(/^["\047]|["\047]$/, "", v); print v; exit
+      }' "$1/docs/conventions/source-control.yaml" 2>/dev/null)"
+    if [[ "$repo" =~ $pat ]]; then
+      if [[ -n "${STANDARDS_DIR:-}" ]]; then
+        RT__STD_DIR="$STANDARDS_DIR"
+      else
+        base="$(git config --path --get ghq.root 2>/dev/null)"
+        base="${base%$'\r'}"
+        RT__STD_DIR="${base:-${HOME:-}/ghq}/github.com/$repo"
+      fi
+      RT__STD_DIR="$(CDPATH='' cd -- "$RT__STD_DIR" 2>/dev/null && pwd)"
+    fi
+  fi
+  [[ -n "$RT__STD_DIR" && -f "$RT__STD_DIR/$2" ]] || return 1
+  RT_STANDARDS_FILE="$RT__STD_DIR/$2"
 }
 
 rt_found() { # <bin>
