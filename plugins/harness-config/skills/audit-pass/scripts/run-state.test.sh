@@ -20,8 +20,6 @@ assert_file() {
   if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "no such file: $2"; fi
 }
 
-# Every invocation runs with CLAUDE_PLUGIN_ROOT pinned, so a copy of the script
-# placed outside the plugin tree still resolves lib/state-key.sh.
 run() {
   CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" "$@"
 }

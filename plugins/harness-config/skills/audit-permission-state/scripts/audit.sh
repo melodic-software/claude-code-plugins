@@ -104,8 +104,6 @@ run_block_lint() {
 
 rc=0
 
-# The autoMode block lint reads the CLI, not stdin, so it is the one stage that
-# needs no inventory. Run it alone when it is all that was asked for.
 if [[ "$want_scopes" -eq 0 && "$want_entry" -eq 0 && "$want_lint" -eq 0 && "$want_managed" -eq 0 && "$want_block" -eq 1 ]]; then
   run_block_lint || rc=$?
   exit "$rc"
