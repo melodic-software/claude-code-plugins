@@ -88,12 +88,23 @@ export function projectionStops(reading, { share, minutes, labels = START_LABELS
   if (left === null) {
     return { stop: false, left: null, text: `projection unreadable for this reading, so it does not hold the start (${labels.minutes}=${minutes})` };
   }
-  const stop = left < share;
+  const resetIn = Math.round(reading.reset - now);
+  const resetsFirst = resetIn < minutes * 60;
+  const stop = resetsFirst ? left === 0 : left < share;
   const shown = Math.round(left * 100) / 100;
+  if (resetsFirst) {
+    return {
+      stop,
+      left: shown,
+      why: `the window is projected to run out before its reset in ${resetIn} s, inside the ${minutes} min run`,
+      text: `projected left ${shown} of the limit at the reset in ${resetIn} s, inside the run's ${minutes} min (${labels.minutes}=${minutes}), so the run ends in the next window and ${labels.share}=${share} does not apply; stop=${stop}${stop ? ": the window would run out before its reset" : ""}`,
+    };
+  }
   return {
     stop,
     left: shown,
-    text: `projected left ${shown} of the limit ${minutes} min ahead or at the reset, against ${labels.share}=${share} (${labels.minutes}=${minutes}) stop=${stop}${stop ? `: the run would end in a window with under its ${labels.share} share of the limit left` : ""}`,
+    why: `the window is projected to have ${shown} of its limit left ${minutes} min ahead, under ${labels.share}=${share}`,
+    text: `projected left ${shown} of the limit ${minutes} min ahead, against ${labels.share}=${share} (${labels.minutes}=${minutes}) stop=${stop}${stop ? `: the run would end in a window with under its ${labels.share} share of the limit left` : ""}`,
   };
 }
 
@@ -127,6 +138,7 @@ export async function checkBudget({ token, api = "https://api.github.com", share
       stop,
       reset: reading.reset,
       projected: ahead?.left ?? null,
+      why: ahead?.why ?? null,
       line:
         `::notice title=${title}::github-token ${share === null ? "defer" : `start-gate=${share}`} decided from ${reading.source}: limit=${reading.limit} remaining=${reading.remaining} reset=${reading.reset} stop=${stop}; ` +
         `${ahead ? `${ahead.text}; ` : ""}body core ${core ? show(coreFields) : "absent"}; headers ${show(header)}`,
@@ -260,10 +272,7 @@ export async function main(
         log(budget.line);
         if (budget.stop) {
           result = { proceed: "false", reason: "kill-switch", cause: "defer", reset: String(budget.reset) };
-          const why =
-            budget.projected === null || budget.projected === undefined
-              ? "the budget read was refused"
-              : `the window is projected to have ${budget.projected} of its limit left ${gate.minutes} min ahead or at the reset, under defer-project=${gate.share}`;
+          const why = budget.why ?? "the budget read was refused";
           log(`::notice title=defer::deferred until the GITHUB_TOKEN window resets at ${budget.reset} (${isoOf(budget.reset)}): ${why}; cause=defer, so a later run after the reset does this work`);
         }
       }

@@ -12,7 +12,8 @@ description: >
   expected end. With defer "true", on a gate whose work a later run
   recovers, the same read defers the job (cause defer) while the window is
   projected to have under github-token's defer-project share of its limit
-  left at the job's end; it reads no start-gate floor, never waits, and never
+  left at the job's end. A run whose end falls after the reset stops only
+  when the window is projected to run out before the reset. Defer reads no start-gate floor, never waits, and never
   defers a re-run attempt. Every stop is proceed=false reason=kill-switch,
   with cause switch, budget or defer.
   Always exits 0: the model step's `if:` reads the output, so a missing
@@ -43,16 +44,18 @@ inputs:
     description: >
       `true`, with budget "true", also stops the lane while the pacer's
       projection of the window's spend to github-token's start-run-minutes
-      ahead (or the reset, when sooner) leaves under start-project of the
-      limit, both from rate-limits.json. Set only on the issue lane's first call.
+      ahead leaves under start-project of the limit, both from
+      rate-limits.json; with the reset sooner, only while the window runs out
+      before it. Set only on the issue lane's first call.
     required: false
     default: "false"
   defer:
     description: >
       `true` stops a job whose work a later run recovers while the window's
-      burn rate, projected defer-minutes ahead (or to the reset, when
-      sooner), leaves under github-token's defer-project share of the limit
-      (limits.api in resolved-config over rate-limits.json). Reads no
+      burn rate, projected defer-minutes ahead, leaves under github-token's
+      defer-project share of the limit (limits.api in resolved-config over
+      rate-limits.json); with the reset sooner, only while the window runs
+      out before it. Reads no
       start-gate floor and never waits. Never defers when the run attempt is
       over 1, so a re-run always does its work. defer-project 0 turns it off.
     required: false

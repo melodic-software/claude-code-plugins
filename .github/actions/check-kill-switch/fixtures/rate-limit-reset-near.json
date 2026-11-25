@@ -1,0 +1,12 @@
+{
+  "run": "https://github.com/melodic-software/claude-code-plugins/actions/runs/45703833390/attempts/1",
+  "read_at": "2026-11-25T21:29:12.237Z",
+  "headers": {
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "1312",
+    "x-ratelimit-reset": "1795642264",
+    "x-ratelimit-used": "3688",
+    "x-ratelimit-resource": "core"
+  },
+  "core": { "limit": 5000, "remaining": 1312, "reset": 1795642264, "used": 3688 }
+}
