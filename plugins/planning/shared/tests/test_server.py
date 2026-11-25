@@ -46,7 +46,6 @@ PAST_WRITE = session.WRITE_INTERVAL + 0.05
 
 
 def raw_exchange(port, data, *, wait=5.0):
-    """Send raw bytes and read until the server closes or `wait` passes: (bytes read, closed)."""
     with socket.create_connection(("127.0.0.1", port), timeout=wait) as s:
         s.sendall(data)
         got, closed = b"", False
@@ -77,8 +76,6 @@ def text_q(qid):
 
 
 def port_leaks(doc, port, path="$"):
-    """Paths in parsed JSON where `port` shows: an integer equal to it, or a key or string holding its digits. A float
-    such as a timestamp is never a port, whatever digits it contains."""
     if isinstance(doc, dict):
         return [f"{path}.{k}" for k in doc if str(port) in k] + [p for k, v in doc.items() for p in port_leaks(v, port, f"{path}.{k}")]
     if isinstance(doc, list):

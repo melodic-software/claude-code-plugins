@@ -263,10 +263,6 @@ delete_mode() {
   if [[ "$1" == SAFE && ! "$2" =~ $PR_MERGED_RE ]]; then printf 'safe'; else printf 'force'; fi
 }
 
-# What a safe delete must be merged into: origin/<default>, which is what the
-# audit's "merged (git ancestry)" verdict was computed against; then the local
-# default branch, then HEAD, when origin/<default> is not fetched. Empty when
-# none resolves, which fails every safe delete closed.
 MERGE_TARGET=""
 for candidate in "refs/remotes/origin/$DEFAULT_BRANCH" "refs/heads/$DEFAULT_BRANCH" HEAD; do
   if git -C "$REPO_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
@@ -420,12 +416,6 @@ resolve_file() {
   printf '%s/%s' "$dir" "$(basename "$path")"
 }
 
-# The ledger sits beside the capture's real file. Derived from the path as
-# given, a capture reached through a symlink (or a relative path) would put the
-# ledger next to the link, outside the durable sink the capture was written to.
-# A `--capture-file` outside `.git` is honored as given: it is the documented
-# fallback when the sink is unwritable, and the pin, not the ledger, is what
-# protects the tip.
 CAPTURE_REAL="$(resolve_file "$CAPTURE")" || CAPTURE_REAL="$CAPTURE"
 LEDGER="${CAPTURE_REAL%.tsv}.deleted.tsv"
 BACKUP_NS="refs/repo-hygiene/deleted"

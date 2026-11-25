@@ -1,10 +1,3 @@
-/**
- * Shallow clone of a repository URL: hardened for an untrusted repository by
- * default, or run in the user's own git environment when the caller asks.
- *
- * Node builtins only.
- */
-
 import { spawn, spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import fs from "node:fs/promises";
@@ -13,10 +6,6 @@ import path from "node:path";
 
 export const CLONE_TIMEOUT_MS = 120_000;
 
-/**
- * The command-line config of a hardened clone: no credential helper, https as
- * the only transport, and symbolic links checked out as plain files.
- */
 const HARDENED_GIT_ARGS = [
   "-c",
   "credential.helper=",
@@ -99,14 +88,6 @@ export async function shallowCloneGitHubRepo(
   }
 }
 
-/**
- * The parent's environment without any `GIT_*` variable or a variable the table
- * sets (names compared upper-cased), then the fixed hardening table.
- *
- * @param {string} isolatedHome
- * @param {string} emptyConfig
- * @returns {NodeJS.ProcessEnv}
- */
 function hardenedEnv(isolatedHome, emptyConfig) {
   const table = {
     GIT_CONFIG_GLOBAL: emptyConfig,
@@ -183,7 +164,6 @@ function runClone({ url, destDir, spawnFn, timeoutMs, onStderr, gitArgs, env, ow
   });
 }
 
-/** Live detached clone children, whose groups the parent kills if it dies first. */
 const liveCloneGroups = new Set();
 
 /** The signals whose default exit a listener would remove. */
@@ -199,7 +179,6 @@ function killLiveCloneGroups() {
     try {
       rmSync(home, { recursive: true, force: true });
     } catch {
-      // A home that cannot be removed must not stop the exit.
     }
   }
   liveHomes.clear();
@@ -227,7 +206,6 @@ function removeParentHandlers() {
   for (const [signal, listener] of signalListeners) process.off(signal, listener);
 }
 
-/** Clones being spawned or live; the parent handlers exist while this is non-zero. */
 let trackedClones = 0;
 
 /**

@@ -1,9 +1,9 @@
 globs: ["*.md"]
 build-cmd: null
 test-cmd: null
-check-cmd: 'markdownlint-cli2 --config "$REPO_ROOT/.markdownlint-cli2.jsonc" <files>'
-fix-cmd: 'markdownlint-cli2 --config "$REPO_ROOT/.markdownlint-cli2.jsonc" --fix <files>'
-opt-in: ".markdownlint-cli2.jsonc at the repository root"
+check-cmd: 'markdownlint-cli2 --config "${STANDARDS_DIR:-$(git config --path --get ghq.root || printf ''%s'' "$HOME/ghq")/github.com/melodic-software/standards}/.markdownlint-cli2.jsonc" <files>'
+fix-cmd: 'markdownlint-cli2 --config "${STANDARDS_DIR:-$(git config --path --get ghq.root || printf ''%s'' "$HOME/ghq")/github.com/melodic-software/standards}/.markdownlint-cli2.jsonc" --fix <files>'
+opt-in: "the standards .markdownlint-cli2.jsonc"
 install-hint: "npm i -g markdownlint-cli2@0.24.1 (the version package.json pins), so the binary is on PATH as scripts/check-affected.sh expects"
 tool-pin:
   markdownlint-cli2: "0.24.1"

@@ -12,9 +12,6 @@ assert_not_contains "no CR remains" "$OUT" "$(printf '\r')"
 
 assert_eq "schema version constant" "1.0" "$WIT_SCHEMA_VERSION"
 
-# created_at normalization: each provider's own timestamp shape becomes UTC with second
-# precision, so timestamps from one adapter sort as text. Expected values are the input
-# instants shifted to UTC by hand.
 utc() { jq -c "$WIT_JQ_DEF_UTC_TS map(wit_utc_ts)" <<<"$1"; }
 assert_eq "github Z form passes through" '["2026-01-02T03:04:05Z"]' "$(utc '["2026-01-02T03:04:05Z"]')"
 assert_eq "linear fractional seconds are dropped" '["2026-01-02T03:04:05Z"]' "$(utc '["2026-01-02T03:04:05.123Z"]')"

@@ -5,6 +5,7 @@
 # exit codes, not from the script's output.
 # test-scope: plugins/verification/lib/parse-concern-value.sh
 # test-scope: plugins/verification/lib/resolve-convention-home.sh
+# test-scope: plugins/verification/.claude-plugin/plugin.json plugins/verification/lib/yaml-subset.awk
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -12,8 +13,6 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -48,7 +47,6 @@ if ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
-# new_root <name>: a fresh repository root with docs/conventions/ present.
 new_root() {
   local r="$TEST_TMPDIR/$1"
   mkdir -p "$r/docs/conventions"
@@ -114,8 +112,6 @@ out="$(run --root "$R5" --check)"
 assert_eq "case 5: --check on a valid file exits 0" "0" "$?"
 assert_contains "case 5: a valid file reports the value" "$out" "PASS proof_level: live"
 
-# check_warns <label> <file body>: --check exits 1 with a WARN, and apply over
-# the same file refuses unless its result validates.
 check_warns() {
   local r
   r="$(new_root "w-$1")"
@@ -218,7 +214,6 @@ assert_eq "case 11: --check with a key=value exits 2" "2" "$?"
 run --root "$TEST_TMPDIR/no-such-root" proof_level=strict >/dev/null
 assert_eq "case 11: a missing root exits 2" "2" "$?"
 
-# one_line <label> <output>: a refusal is exactly one line with no stack frame.
 one_line() {
   assert_eq "$1: the refusal is one line" "1" "$(printf '%s\n' "$2" | grep -c .)"
   assert_eq "$1: the refusal carries no stack trace" "0" "$(printf '%s\n' "$2" | grep -c '^    at ')"
@@ -257,9 +252,7 @@ apply_refuses "an empty single-quoted string" $'proof_level: \'\'\n'
 apply_refuses "an unknown key set twice" $'stray: 1\nstray: 2\n'
 apply_refuses "an unknown key holding a block map" $'stray:\n  a: 1\n'
 apply_refuses "an unknown key holding a flow list" $'stray: [1]\n'
-# An unknown key in the file is named in one warning, ignored, and its line is
-# kept byte for byte; the asked-for key is written.
-apply_keeps_unknown() { # apply_keeps_unknown <label> <file body> <expected file>
+apply_keeps_unknown() {
   local r f out
   r="$(new_root "ak-$1")"
   f="$(yaml_of "$r")"
@@ -433,8 +426,6 @@ one_line "case 19: a temp name already taken" "$out"
 assert_eq "case 19: a temp file this run did not create is kept" "someone else" \
   "$(settings "$R19P/docs/conventions/.verification.yaml.4242.tmp")"
 
-# A failed rename followed by a failed cleanup: still one line naming the
-# rename error, no stack trace, no target.
 P19X="$(preload rename-and-rm-fail \
   'fs.renameSync = () => { throw Object.assign(new Error("EXDEV: cross-device link, rename"), { code: "EXDEV" }); };' \
   'fs.rmSync = () => { throw Object.assign(new Error("EBUSY: resource busy, rm"), { code: "EBUSY" }); };')"
@@ -605,7 +596,7 @@ done
 # ADR 0064 Decision 7: the reading skill names the file, key and value and
 # drops the layer. The skill reads the value only from a PASS line, so an
 # invalid value must print a WARN naming it and no PASS proof_level line.
-bad_value() { # bad_value <label> <file body> <text the WARN must name>
+bad_value() {
   local r out
   r="$(new_root "bv-$1")"
   printf '%s' "$2" >"$(yaml_of "$r")"
@@ -622,7 +613,7 @@ bad_value "an empty quoted string" $'proof_level: ""\n' 'proof_level=""'
 bad_value "a flow list" $'proof_level: [strict]\n' "proof_level=[strict]"
 bad_value "a block list" $'proof_level:\n  - strict\n' "proof_level"
 bad_value "a key set twice" $'proof_level: strict\nproof_level: live\n' 'line 2: duplicate key "proof_level"'
-file_level() { # file_level <label> <file body>
+file_level() {
   local r out
   r="$(new_root "fl-$1")"
   printf '%s' "$2" >"$(yaml_of "$r")"
@@ -699,7 +690,7 @@ done
 # --- Case 28: --check names an invalid live_workers and drops only that key -----
 # ADR 0064 Decision 7: the WARN names the key and the value, no PASS live_workers
 # line is printed, and a valid proof_level beside it still gets its PASS line.
-lw_warns() { # lw_warns <label> <live_workers line(s)> <text the WARN must name>
+lw_warns() {
   local r out
   r="$(new_root "lw-$1")"
   printf 'proof_level: live\n%s' "$2" >"$(yaml_of "$r")"
@@ -722,7 +713,7 @@ lw_warns "a flow list" $'live_workers: [2]\n' "live_workers=[2]"
 lw_warns "a block list" $'live_workers:\n  - 2\n' "live_workers"
 
 # --- Case 29: apply overwrites an out-of-range or non-integer live_workers -------
-lw_replaces() { # lw_replaces <label> <file body>
+lw_replaces() {
   local r f
   r="$(new_root "lr-$1")"
   f="$(yaml_of "$r")"
@@ -738,7 +729,7 @@ lw_replaces "a quoted number" $'live_workers: "2"\n'
 lw_replaces "a word" $'live_workers: many\n'
 lw_replaces "an empty value" $'live_workers:\n'
 lw_replaces "a null value" $'live_workers: ~\n'
-lw_refuses() { # lw_refuses <label> <file body>: one line, file byte for byte unchanged
+lw_refuses() {
   local r f before out
   r="$(new_root "lf-$1")"
   f="$(yaml_of "$r")"

@@ -247,7 +247,6 @@ assert_contains "missing child inside a running hook stays ambiguous" "$OUT_S" \
 assert_absent "missing child inside a running hook is not stale config" "$OUT_S" "$STALE_LABEL"
 OUT_S=$(stale_case bash-c-line "$STATUS_MSG" "${PFX}bash: line 1: helper.sh: No such file or directory")
 assert_absent "bash -c line-numbered error is not stale config" "$OUT_S" "$STALE_LABEL"
-# A command line that names a different script than the missing path.
 # shellcheck disable=SC2016 # literal ${CLAUDE_PLUGIN_ROOT} must not expand
 OUT_S=$(stale_case other-basename 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/wrapper.sh' \
   "${PFX}bash: C:/code/plugins/x/hooks/child-helper.sh: No such file or directory")

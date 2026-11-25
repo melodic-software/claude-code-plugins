@@ -349,7 +349,6 @@ CLAUDE_CODE_SESSION_ID=env-own run_claim release "$EXT/wt-env" --repo-dir "$REPO
 assert_exit "release with only CLAUDE_CODE_SESSION_ID unlocks its own claim" 0 "$?"
 assert_not_contains "own claim is gone after the env-only release" "$(stanza_for wt-env)" "locked"
 
-# Precedence: --session-id, then CLAUDE_CODE_SESSION_ID, then CLAUDE_SESSION_ID.
 git -C "$REPO" worktree add -q "$EXT/wt-env-order" -b feat/env-order
 CLAUDE_CODE_SESSION_ID=env-new CLAUDE_SESSION_ID=env-legacy run_claim claim "$EXT/wt-env-order" --repo-dir "$REPO"
 assert_contains "CLAUDE_CODE_SESSION_ID wins over CLAUDE_SESSION_ID" "$OUT" "session env-new since"

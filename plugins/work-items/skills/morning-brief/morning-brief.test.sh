@@ -2275,8 +2275,6 @@ assert_exit "cost 403 live: a gh 403 on billing counts the cost section as lost"
 assert_contains "cost 403 live: the live refusal reads as a missing org admin" "$(section "$OUT_COST_403_LIVE" "== Cost")" \
   "UNREADABLE GitHub usage 2026-07: org admin needed: run gh auth login with an org admin account"
 
-# az logged out: every Azure line is UNREADABLE and names az login; the
-# GitHub lines still print.
 jq 'del(.account)' "$TMP/azure-clear.json" >"$TMP/azure-no-account.json"
 OUT_COST_NOAZ="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
   --azure-json "$TMP/azure-no-account.json")"
@@ -2289,8 +2287,6 @@ assert_contains "logged out: the Log Analytics line names az login" "$COST_NOAZ"
   "UNREADABLE Azure Log Analytics: no account in --azure-json; run az login"
 assert_contains "logged out: the GitHub lines still print" "$COST_NOAZ" "OK         GitHub usage 2026-07 actions: net 0"
 
-# One read that failed is an UNREADABLE line beside the lines that read; the
-# section counts as lost (exit 6), never as all-clear.
 jq 'del(.pricings)' "$TMP/azure-clear.json" >"$TMP/azure-no-pricings.json"
 OUT_COST_ONE="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
   --azure-json "$TMP/azure-no-pricings.json")"
@@ -2306,16 +2302,12 @@ COST_BAD="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-bad.j
 assert_contains "cost unparsable: a usage response of the wrong shape is UNREADABLE" "$COST_BAD" \
   "UNREADABLE GitHub usage 2026-07: could not parse the billing usage"
 
-# Every other section lost while the cost section read: the brief still carries
-# data, so it exits 6, not 5.
 OUT_COST_ONLY="$(run_stub blocked)"
 RC_COST_ONLY=$?
 assert_exit "cost only: a brief whose cost lines read is never exit 5" 6 "$RC_COST_ONLY"
 assert_contains "cost only: the header counts the nine lost sections" "$OUT_COST_ONLY" \
   "9 of 10 sections unreadable: queues stuck merge-ready decisions telemetry stranded landed lanes touches"
 
-# A fixture run with no cost fixtures reads nothing live: every cost line is
-# UNREADABLE with the fix, six GitHub lines and ten Azure lines.
 OUT_FIXTURE_RUN="$(cost_brief)"
 RC_FIXTURE_RUN=$?
 COST_FIXTURE_RUN="$(section "$OUT_FIXTURE_RUN" "== Cost")"
@@ -2335,7 +2327,6 @@ mkdir -p "$COST_LIVE"
 cp "$REST/"*.json "$COST_LIVE/"
 cp "$TMP/billing-usage-alert.json" "$COST_LIVE/$(rest_key "orgs/example/settings/billing/usage?year=2026&month=7").json"
 cp "$TMP/billing-budgets-alert.json" "$COST_LIVE/$(rest_key "orgs/example/settings/billing/budgets?per_page=100").json"
-# The org scan's REST reads, built from the same org scan the fixture run reads.
 jq '[.repos[] | {name, visibility, archived, default_branch: "main"}]' "$TMP/org-scan-alert.json" \
   >"$COST_LIVE/$(rest_key "orgs/example/repos?per_page=100&type=all").json"
 jq '[.admins[] | {login: .}]' "$TMP/org-scan-alert.json" >"$COST_LIVE/$(rest_key "orgs/example/members?role=admin&per_page=100").json"
@@ -2374,8 +2365,6 @@ assert_contains "cost live: budgets with their forecast are read with a GET" "$A
 assert_contains "cost live: each workspace's Usage table is queried for its peak day" "$AZ_LOG" \
   "monitor log-analytics query --workspace 22222222-2222-2222-2222-222222222222 --analytics-query Usage | where TimeGenerated > ago(31d)"
 
-# The Defender charge rule: a plan off Free with no charge is INFO only; no
-# Defender cost rows is OK; a failed or throttled query is UNREADABLE.
 jq '.pricings.value[0].pricingTier = "Standard" | .defenderCost.properties.rows = [[7, "Storage", "Storage", "USD"]]' \
   "$TMP/azure-clear.json" >"$TMP/azure-plan-no-charge.json"
 OUT_PLAN="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
@@ -2407,7 +2396,6 @@ assert_contains "defender: a cost response without its columns is UNREADABLE" "$
   --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-cost-bad.json")" "== Cost")" \
   "UNREADABLE Azure Defender charges, month to date: could not parse the defenderCost response"
 
-# Fail closed: a missing amount is a line that could not be read, never OK.
 jq '.usageItems[1] |= del(.netAmount)' "$TMP/billing-usage-clear.json" >"$TMP/billing-usage-no-net.json"
 jq '.budgets.value[0].properties |= del(.currentSpend)' "$TMP/azure-clear.json" >"$TMP/azure-no-spend.json"
 COST_MISSING="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-no-net.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
@@ -2428,15 +2416,12 @@ assert_contains "403: SAML enforcement is UNREADABLE" "$COST_403_OTHER" \
 assert_contains "403: a rate limit is UNREADABLE" "$COST_403_OTHER" "UNREADABLE GitHub budgets: API rate limit exceeded for user ID 1."
 assert_not_contains "403: neither reads as a missing org admin" "$COST_403_OTHER" "org admin needed"
 
-# A named subscription that az cannot read is a failed read, not a skip.
 COST_SUB_FAIL="$(section "$(PATH="$GH_STUB_DIR:$PATH" cost_brief --subscription 00000000-0000-0000-0000-000000000009 \
   --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")" "== Cost")"
 assert_contains "subscription: a named subscription az cannot read is UNREADABLE" "$COST_SUB_FAIL" \
   "UNREADABLE Azure subscription 00000000-0000-0000-0000-000000000009: Please run 'az login' to setup account."
 assert_not_contains "subscription: a named subscription is never skipped" "$COST_SUB_FAIL" "SKIPPED    Azure"
 
-# Every other section lost and every cost line UNREADABLE: the brief carries
-# no data, so it exits 5.
 jq 'del(.account)' "$TMP/azure-clear.json" >"$TMP/azure-skip.json"
 COST_ARGS=(--billing-usage-json "$TMP/billing-403.json" --billing-budgets-json "$TMP/billing-403.json" --azure-json "$TMP/azure-skip.json")
 OUT_ALL_SKIP="$(run_stub blocked)"
@@ -2446,9 +2431,6 @@ assert_exit "no data: seven lost sections beside a cost section of UNREADABLE li
 assert_contains "no data: the refused billing lines carry no data" "$(section "$OUT_ALL_SKIP" "== Cost")" \
   "UNREADABLE GitHub usage 2026-07: org admin needed"
 
-# Fail closed on the fields that classify a line: a budget with no
-# prevent_further_usage, an activity event with no operation, and a cost row
-# naming neither service nor meter category are each an UNREADABLE line.
 jq '.budgets[1] |= del(.prevent_further_usage)' "$TMP/billing-budgets-clear.json" >"$TMP/billing-budgets-no-stop.json"
 jq '.activity += [{"caller": "x@example.invalid", "eventTimestamp": "2000-01-01T00:00:00Z"}]
   | .defenderCost.properties.rows += [[9, null, null, "USD"]]' "$TMP/azure-clear.json" >"$TMP/azure-unclassified.json"
@@ -2462,8 +2444,6 @@ assert_contains "fail closed: an activity event with no operation is UNREADABLE"
 assert_contains "fail closed: a cost row naming no service or meter category is UNREADABLE" "$COST_UNCLASSIFIED" \
   "UNREADABLE Azure Defender charges, month to date: could not parse the defenderCost response"
 
-# A cost row whose service and meter category are not strings, and an activity
-# event whose operation is an empty string, are UNREADABLE too.
 jq '.activity += [{"operationName": {"value": ""}, "caller": "x@example.invalid", "eventTimestamp": "2000-01-01T00:00:00Z"}]
   | .defenderCost.properties.rows += [[9, [3, 5, 7], 4, "USD"]]' "$TMP/azure-clear.json" >"$TMP/azure-wrong-types.json"
 COST_WRONG_TYPES="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
@@ -2514,9 +2494,6 @@ assert_contains "escapes: an error message prints without its control characters
   "UNREADABLE Azure Defender plans: boom [2Jcleared"
 assert_eq "escapes: no ESC or BEL reaches the cost section" "0" "$(grep -c $'[\x1b\x07]' <<<"$COST_ESC")"
 
-# Each new line is UNREADABLE when its read fails or its response is the wrong
-# shape: an Actions item with no unit, a budget with no forecast, no scheduled
-# actions, no workspace list, and one workspace whose query failed.
 jq '.usageItems[1] |= del(.unitType)' "$TMP/billing-usage-clear.json" >"$TMP/billing-usage-no-unit.json"
 jq '.budgets.value[0].properties |= del(.forecastSpend) | del(.scheduledActions)
   | .laUsage = {}' "$TMP/azure-clear.json" >"$TMP/azure-new-reads-fail.json"
@@ -2599,8 +2576,6 @@ assert_not_contains "fork forms: secrets: inherit on pull_request is not a fork 
 assert_not_contains "fork forms: a literal index without _CLAUDE_ keeps the name filter" "$COST_FORMS" "plain-index.yml"
 assert_not_contains "fork forms: no OK line beside the alerts" "$COST_FORMS" "OK         GitHub fork-triggered workflows"
 
-# A scan that listed no repo, or stopped at its workflow-file cap, never reads
-# as clear: each prints UNREADABLE with its counts.
 printf '{"admins": ["owner-example"], "partial": 0, "repos": []}\n' >"$TMP/org-scan-empty.json"
 COST_SCAN_EMPTY="$(section "$(cost_brief --org-scan-json "$TMP/org-scan-empty.json" --azure-json "$TMP/azure-clear.json")" "== Cost")"
 assert_contains "scan counts: no repo listed makes the collaborators line UNREADABLE" "$COST_SCAN_EMPTY" \
@@ -2672,7 +2647,6 @@ COST_NONASCII="$(section "$(LC_ALL=C.UTF-8 cost_brief --azure-json "$TMP/azure-p
 assert_contains "pages: a next page with a non-ASCII byte is never read" "$COST_NONASCII" \
   "UNREADABLE Azure Defender charges, month to date: the cost query's next page is not the query endpoint; it was not read"
 
-# The org and the alert percents are validated.
 cost_brief --org 'bad/org' >/dev/null
 assert_exit "validation: an --org that is not a GitHub owner name exits 3" 3 "$?"
 cost_brief --usage-alert-percent 150 >/dev/null
@@ -2754,14 +2728,12 @@ EOF
     "morning_brief.required_budgets has an invalid value"
   assert_contains "settings: --config-home names the home" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)" "== Cost")" \
     "settings: org=team-org (work-items.yaml)"
-  # Run by bare filename from its own directory, the parser is still found.
   OUT_BARE="$(cd "${BRIEF%/*}" && bash "${BRIEF##*/}" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)"
   assert_contains "settings: a bare-filename run reads the team file" "$(section "$OUT_BARE" "== Cost")" \
     "settings: org=team-org (work-items.yaml)"
   assert_not_contains "settings: a bare-filename run parses the team file" "$OUT_BARE" "could not be parsed"
   assert_contains "settings: outside a checkout no file is read" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")" \
     "settings: defaults (no morning_brief cost key in work-items.yaml or work-items.local.yaml)"
-  # A settings file never turns a fixture run live: no gh or az call is made.
   NET_BIN="$TMP/net-bin"
   mkdir -p "$NET_BIN"
   for _tool in gh az; do
@@ -2778,7 +2750,6 @@ EOF
   assert_eq "settings: a team-file org and subscription make no gh or az call in a fixture run" "" "$(cat "$TMP/net-log")"
   assert_contains "settings: the GitHub lines say the run was not live" "$(section "$OUT_NET" "== Cost")" \
     "UNREADABLE GitHub usage 2026-07: not read live in a fixture run; pass --org or the billing and org-scan fixtures"
-  # An org setting that is not a GitHub owner name, and a percent above 100, take the default.
   printf 'morning_brief:\n  org: "bad org;x"\n  log_cap_alert_percent: 101\n' >"$TMP/cfg-net/work-items.yaml"
   OUT_BAD_VALUES="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
   assert_contains "settings: an org that is not a GitHub owner name is invalid" "$OUT_BAD_VALUES" \
@@ -2790,7 +2761,6 @@ EOF
   OUT_ESC_KEY="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
   assert_contains "settings: a parse error quoting a key is reported" "$OUT_ESC_KEY" "work-items.yaml could not be parsed"
   assert_eq "settings: no ESC from a key reaches the terminal" "0" "$(grep -c $'\x1b' <<<"$OUT_ESC_KEY")"
-  # The tracker binding's owner-decision role label is the decision label; the flag beats it.
   mkdir -p "$TMP/cfg-decision"
   printf 'tracker:\n  config:\n    role_labels:\n      owner-decision: awaiting-owner\n' >"$TMP/cfg-decision/work-items.yaml"
   assert_contains "decision label: the binding's owner-decision role label names it" \

@@ -1620,7 +1620,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A CLI-supplied bad path is a typo, not config drift: the run must still hard-fail.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/never-existed" >"$ladder_out" 2>&1; then
   printf 'FAIL: CLI-supplied missing repo did not hard-fail\n' >&2
   failures=$((failures + 1))
@@ -1916,12 +1915,6 @@ assert_contains_file "fleet summary lists the repository that used its own root"
 assert_not_contains_file "a repository on the fleet default root is not listed as an override" \
   "$TMP/conform-canon uses" "$per_repo_out"
 
-# This fixture is the only one that puts TWO findings on a single target, so it
-# is the only place the detail and JSON emitters' dedupe is exercised at all. A
-# dedupe that stops suppressing duplicates emits the target's whole block twice;
-# nothing else in this suite notices, because every other count still matches.
-# The match must be whole-line: the roll-up prints the same path with a
-# " (N linked)" suffix, which a substring match would count as a second block.
 no_origin_target_blocks=$(grep -cxF "Target: $TMP/no-origin-canon" "$no_origin_out" || true)
 if [[ "$no_origin_target_blocks" == "1" ]]; then
   printf 'PASS: a target carrying two findings is emitted once, not once per finding\n'
@@ -1995,7 +1988,6 @@ assert_contains_file "pluginConfigs worktree_root is used when git key unset" \
 assert_contains_file "pluginConfigs origin names settings.json" \
   "settings.json" "$plugin_out"
 
-# Convention-git allowlist: only the fixed worktree-root shapes are admitted.
 # shellcheck source=audit-fleet.sh
 source "$SCRIPT"
 conv_ok=true
@@ -2024,12 +2016,6 @@ else
   failures=$((failures + 1))
 fi
 
-# The tier table is the contract a consumer tiers decisions on, and it silently fell to covering
-# half the emitted kinds. Assert set equality in BOTH directions instead: a registered kind with no
-# documented disposition fails here, and so does a table row for a kind the collector no longer
-# registers. The collector side comes from its own registry (--print-finding-registry), never from
-# a regex over this file's source -- comparing two hand-maintained lists would reproduce the drift
-# this replaces, and a scrape goes quietly empty when the emitter's argument shape changes.
 MODEL_DOC="$SCRIPT_DIR/../reference/confidence-model.md"
 registry_rows="$TMP/finding-registry.tsv"
 emitted_kinds="$TMP/emitted-kinds.txt"

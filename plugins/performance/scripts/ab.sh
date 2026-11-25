@@ -146,9 +146,6 @@ fi
 # PERF_AB_SIMULATE_COMMA_CLOCK, like the seam above, can only FORCE this failure,
 # never suppress it, so it cannot turn a broken host green.
 if [[ -n "${PERF_AB_SIMULATE_COMMA_CLOCK:-}" ]]; then
-  # The simulated branch must NOT assert the real observation, because the real
-  # observation is fine. A forced failure that claims a locale defect the host
-  # does not have sends the next reader chasing a working locale.
   harness_die "SIMULATED: PERF_AB_SIMULATE_COMMA_CLOCK is set, so this run forces the comma-decimal-separator refusal. No real defect was observed; EPOCHREALTIME actually reads '${EPOCHREALTIME}'. Unset the variable to measure normally."
 fi
 if [[ "$EPOCHREALTIME" != *.* ]]; then

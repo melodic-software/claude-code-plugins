@@ -54,13 +54,11 @@ export const PREFLIGHT_PRINT_TEMPLATE = [
   "%(repost_count)s",
   "%(comment_count)s",
   "%(like_count)s",
-  // After the emptiness probes, so their field positions stay fixed.
   "%(live_status)s",
 ].join(PREFLIGHT_FIELD_SEP);
 
 const LIVE_STATUS_FIELD = 8;
 
-/** `live_status` values whose captions may still be in post-stream processing. */
 const STREAM_PROCESSING_STATUSES = new Set(["is_live", "post_live"]);
 
 /** Display cap for the queue `title` cell (keeps the markdown table scannable). */

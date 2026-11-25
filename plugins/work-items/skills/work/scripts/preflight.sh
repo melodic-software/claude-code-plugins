@@ -330,7 +330,6 @@ detect_layout() {
     root_n="$NORM_OUT"
     norm_path "$home"
     home_n="$NORM_OUT"
-    # Physical paths too: a symlinked HOME names the same directory.
     root_p="$(cd -P -- "$main_root" 2>/dev/null && pwd -P)"
     home_p="$(cd -P -- "$home" 2>/dev/null && pwd -P)"
     if [[ "$root_n" == "$home_n" || (-n "$root_p" && "$root_p" == "$home_p") ]]; then

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for session-compare.sh against tiny OTLP/JSON fixture stores
-# (CC_OTEL_STORE points at a temp dir; the real store is never read). The cases that need the
-# real duckdb query gate on `command -v duckdb` (CI installs it in ci.yml test-linux).
 
 set -uo pipefail
 
@@ -34,8 +31,6 @@ metric() {
   printf '{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"%s","unit":"x","sum":{"dataPoints":[%s],"aggregationTemporality":%s,"isMonotonic":true}}]}]}]}\n' \
     "$name" "$*" "$temporality"
 }
-# api_request log line: <session> <cost attribute fragment>. cc_logs_from binds intValue on
-# event.sequence, so the record carries it, as a real one does.
 api_request() {
   printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"timeUnixNano":"%s000000000","body":{"stringValue":"claude_code.api_request"},"attributes":[{"key":"session.id","value":{"stringValue":"%s"}},{"key":"event.name","value":{"stringValue":"api_request"}},{"key":"event.sequence","value":{"intValue":"3"}},{"key":"input_tokens","value":{"intValue":"10"}},%s],"traceId":"","spanId":""}]}]}]}\n' \
     "$EPOCHSECONDS" "$1" "$2"

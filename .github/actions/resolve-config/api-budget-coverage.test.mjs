@@ -1,4 +1,9 @@
 // test-scope: .github/scripts/post-merge-demotion-alert/file-demotion-issue.sh
+// test-scope: .github/workflows/*.yml .github/actions/*.mjs
+// test-scope: scripts/*.sh scripts/*.mjs
+// test-scope: .github/scripts/*.sh .github/scripts/*.bash .github/scripts/*.mjs
+// test-scope: plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
+// test-scope: plugins/formal-verification/scripts/check.mjs
 // Every workflow job that calls the GitHub API leaves api-budget readings and
 // logs them at its end, so the lane record's githubCalls covers the job: each
 // step that runs gh itself wraps it with api_budget_wrap_gh, or sources

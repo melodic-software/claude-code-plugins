@@ -114,7 +114,6 @@ assert_contains "heading: an anchor wrapping the H2 text keeps it" $'\n## Setup\
 assert_contains "heading: an anchor wrapping a span keeps its text" $'\n## Usage\n' "$wrap_md"
 assert_contains "heading: an in-page link inside the heading keeps its text" $'\n## See Install now\n' "$wrap_md"
 
-# --- Case: text hidden from sight or from screen readers inside a heading is dropped ---
 hid_md="$(printf '%s' '<html><body><main><h1>Doc</h1><h2 id="x">Install<a class="anchor" href="#x"><span class="sr-only">Permalink to this heading</span></a></h2><h2>Deploy<span aria-hidden="true">#</span></h2><h2 id="y"><a href="#y">Build<span class="visually-hidden"><span>(</span>anchor)</span></a> steps</h2><h2>Run<span class="screen-reader-text"> section</span></h2><p>End.</p></main></body></html>' | conv)"
 assert_contains "heading: screen-reader-only text in a permalink anchor is dropped" $'\n## Install\n' "$hid_md"
 assert_contains "heading: an aria-hidden glyph span is dropped" $'\n## Deploy\n' "$hid_md"

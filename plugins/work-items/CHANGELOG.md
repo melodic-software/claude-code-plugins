@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.16.0] - 2026-11-25
+
+### Added
+
+- `/work-items:triage --issue <n> --ci`: an intake lane mode that writes `triage-verdict.json` (labels, comment, needs_human, size, complexity, uncertainty, flags, blocked_by) for the lane to apply, with no tracker writes of its own, and `scripts/check-ci-verdict.mjs`, which checks that the comment opens with the five verdict lines its fields give.
+
+## [15.15.2] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [15.15.1] - 2026-11-24
 
 ### Changed

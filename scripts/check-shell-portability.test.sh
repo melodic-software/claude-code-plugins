@@ -32,9 +32,6 @@ REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
-# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
-# without those, the copy dies on a missing source at line 1 and every assertion
-# below turns into the same opaque failure.
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 

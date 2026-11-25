@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.4] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
+## [4.4.3] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [4.4.2] - 2026-11-24
 
 ### Changed

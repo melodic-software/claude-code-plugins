@@ -33,7 +33,9 @@ Sources, one adapter each:
               *Tests.*, outside fixtures and testdata directories, one
               behavior-test row per file (a unit of files, not of test cases)
   control     .claude/skills/control-*/SKILL.md, a runtime-verification each
-  review      statements of REVIEW.md, CODING_STANDARDS.md, the review-criteria
+  review      statements of the REVIEW.md in effect (scripts/org-standards.sh
+              review: the organization's with the repository's appended),
+              CODING_STANDARDS.md, the review-criteria
               index docs/review/README.md and the docs/review/ files it links,
               an automated-review each
   instruction statements of every tracked CLAUDE.md and AGENTS.md and of
@@ -168,7 +170,7 @@ list_items() {
 emit_items() {
   local line text
   while IFS=$'\t' read -r line text; do
-    emit "$text" "$1:$line" "$2"
+    emit "$text" "${4:-$1}:$line" "$2"
   done < <(list_items "$1" "${3:-0}")
 }
 
@@ -309,15 +311,28 @@ for s in .claude/skills/*/SKILL.md; do
   esac
 done
 
-review_files="REVIEW.md
-CODING_STANDARDS.md"
+review_n=0
+bash "$plugin_root/scripts/org-standards.sh" review --root "$root" >"$work/review.md" 2>"$work/review.err"
+case $? in
+0)
+  label=REVIEW.md
+  if ! cmp -s "$work/review.md" REVIEW.md 2>/dev/null; then
+    label="REVIEW.md in effect"
+    note "review: the REVIEW.md in effect is the organization's criteria with this repository's appended (org-standards.sh review); its rows cite lines of that text"
+  fi
+  emit_items "$work/review.md" automated-review 0 "$label"
+  review_n=1
+  ;;
+3) [[ ! -s "$work/review.err" ]] || note "review: the REVIEW.md in effect did not resolve ($(head -n 1 "$work/review.err"))" ;;
+*) note "review: the REVIEW.md in effect did not resolve ($(head -n 1 "$work/review.err"))" ;;
+esac
+review_files="CODING_STANDARDS.md"
 idx=docs/review/README.md
 if [[ -r "$idx" ]]; then
   review_files="$review_files
 $idx
 $(grep -oE '\]\([^)#[:space:]]+\.md' "$idx" | sed -E 's/^\]\(//; s|^\./||' | grep -Ev '^/|^\.\./|://' | sed 's|^|docs/review/|' | sort -u)"
 fi
-review_n=0
 while IFS= read -r f; do
   [[ -n "$f" && -r "$f" ]] || continue
   emit_items "$f" automated-review

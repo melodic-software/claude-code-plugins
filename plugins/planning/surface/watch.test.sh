@@ -46,7 +46,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Run a command in the background with a deadline; returns its exit code, or 124 on timeout.
-bounded() { # seconds out err cmd...
+bounded() {
   local end=$((SECONDS + $1)) out=$2 err=$3 pid
   shift 3
   "$@" >"$out" 2>"$err" &

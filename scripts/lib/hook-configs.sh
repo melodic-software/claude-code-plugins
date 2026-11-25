@@ -83,7 +83,6 @@ HOOK_CONFIGS_JQ_DEFS='
     | map(flat) | join("\u001f");
 '
 
-# Hook files: every hook row under the whole document.
 # shellcheck disable=SC2016  # jq source, never shell-expanded
 HOOK_CONFIGS_JQ_FILE="${HOOK_CONFIGS_JQ_DEFS}"'input_filename as $file | hook_rows($file; .; "")'
 

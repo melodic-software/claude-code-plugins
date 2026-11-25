@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.lane/scratch/triage-verdict.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "writes a verdict"
+    }
+  ]
+}

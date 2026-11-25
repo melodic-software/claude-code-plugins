@@ -1,10 +1,3 @@
-/**
- * Contact-sheet generation via ImageMagick montage.
- *
- * Composites frame thumbnails into a labeled grid for vision triage.
- * Defaults: 4×4 tile on 1280×720 canvas per RESEARCH lane 3.
- */
-
 import { spawnSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 

@@ -38,9 +38,6 @@ if [[ -z "$base" ]]; then
   exit 2
 fi
 gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
-# Compare against the fork point, not the tip of the base: a branch behind its
-# base would otherwise count the base's own later changes as its changes. $base
-# stays the name the messages print.
 if ! mb="$(git merge-base "$base" HEAD)"; then
   echo "error: 'git merge-base $base HEAD' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
   exit 2

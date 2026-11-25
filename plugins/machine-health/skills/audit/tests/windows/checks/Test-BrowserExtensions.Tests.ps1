@@ -32,7 +32,6 @@ BeforeAll {
         param([string] $Browser, [object[]] $Extensions = @(), [string] $ReadState = 'ok', [int] $Stubs = 0)
         [pscustomobject]@{
             Browser = $Browser; ReadState = $ReadState; ProfileCount = 1; StubsSkipped = $Stubs
-            # A browser-level failure (Local State unread) lists no profiles, as the adapter does.
             Profiles = @(if ($ReadState -eq 'ok') { [pscustomobject]@{ ProfileDir = 'Default'; ReadState = 'ok' } }); Extensions = $Extensions
         }
     }

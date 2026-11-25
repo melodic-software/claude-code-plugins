@@ -12,6 +12,13 @@ It uses **your repository's own markdownlint configuration**. It ships none and 
 no rules of its own. A repository with no discoverable markdownlint config has chosen no
 Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
 
+A repository whose `docs/conventions/source-control.yaml` names a `standards_repository`
+(`<owner>/<repo>`) uses that repository's `.markdownlint-cli2.jsonc`, read from a local checkout: `STANDARDS_DIR`
+when set, else `<ghq root>/github.com/<owner>/<repo>` (`git config ghq.root`, default `~/ghq`).
+It is the `--config` base, an opt-in too, and the repository's own configs merge over it
+rule by rule, so they extend or partly override it. A standards config that could run code
+(`customRules`, `markdownItPlugins`, `outputFormatters`) is never used. With no such checkout or file, only the repository's own config counts.
+
 The hooks run only this plugin's markdownlint-cli2 adapter (`git-hooks/adapters.sh`). They
 never run a command from the repository's markdown record (`docs/conventions/ecosystems/markdown.yaml`):
 `/toolchain:lint` and `/toolchain:check` run that on request, and `/markdown-format:setup check`

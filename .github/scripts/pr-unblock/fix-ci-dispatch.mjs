@@ -423,7 +423,6 @@ export async function dispatchCiFixes({
     if (!pullRequests.pageInfo.hasNextPage) {
       break;
     }
-    // 20 pages is 1,000 open pull requests; a repeated cursor ends it too.
     if (page === MAX_PAGES || pullRequests.pageInfo.endCursor === after) {
       log(`::warning::fix-ci listing stopped after page ${page}; later pull requests wait for a later run`);
       break;

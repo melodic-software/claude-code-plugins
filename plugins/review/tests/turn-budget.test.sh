@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Offline test of the review agents' turn budgets and the checkpoint contract
-# of the reviewers that write a findings file: derives both sets from the agent
-# definitions, checks each capped agent's stated cap, stop turn and closing
-# not-reached line, each findings-file reviewer's sentinel, and that every
-# caller of the contract names the same sentinel. Reads files only.
 # test-scope: plugins/review/agents/*.md plugins/review/reference/reviewer-handback.md plugins/review/reference/findings-normalization.md plugins/review/skills/quality-gate/context/*.md plugins/review/workflows/fanout-sweep.js
 set -uo pipefail
 

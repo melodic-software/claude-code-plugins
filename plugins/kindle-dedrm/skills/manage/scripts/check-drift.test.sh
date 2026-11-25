@@ -106,7 +106,6 @@ got_sha="$(pin "${TMP}/versions.md" "Kindle for PC" "SHA256")"
 assert_eq "pin() reads a second label in the same section" \
   "abc123" "${got_sha}"
 
-# pin() calls exit, so the miss case must run in a subshell.
 if ( pin "${TMP}/versions.md" "Kindle for PC" "Missing row" >/dev/null 2>"${TMP}/pin.err" ); then
   fail "pin() exits non-zero when the label is absent"
 else

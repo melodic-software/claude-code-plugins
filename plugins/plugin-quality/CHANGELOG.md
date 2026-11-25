@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-11-25
+
+### Removed
+
+- The `/plugin-quality:audit arm` entry. The session-flow observer runs by itself when session-flow's `observer_enabled` is on, so `arm` now launches nothing and says so.
+
+## [0.22.8] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [0.22.7] - 2026-11-24
 
 ### Changed

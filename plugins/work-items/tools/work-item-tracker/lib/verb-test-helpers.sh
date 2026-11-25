@@ -1,6 +1,4 @@
 # shellcheck shell=bash
-# Shared assertions for adapter verb *.test.sh files. Sourced, never run
-# directly (runner ignores non-*.test.sh).
 set -uo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"

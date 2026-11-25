@@ -65,8 +65,7 @@ else
   fail "a subdirectory of a checkout resolves the checkout top" "$out"
 fi
 
-# Ancestor rung: parents of a non-repo cwd.
-mkfleet() { # dir count
+mkfleet() {
   local i
   for ((i = 1; i <= $2; i++)); do git -C "$1" init -q -b main "$1/r$i"; done
 }

@@ -71,7 +71,6 @@ import diff_risk as risk
 
 BASH = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
 ROOT = pathlib.Path(__file__).resolve().parents[6]
-# This repository's effective floor: the built-in rows joined to its config.
 ROWS = policy.floor_paths_in(
     (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
 )
@@ -157,10 +156,8 @@ def py_runs(text: str) -> list[str]:
 
 def python_closure(js_files: list[str]) -> list[str]:
     todo = [SCRIPTS / "diff_risk.py"]
-    # A floor entry for a script not in this tree yet runs nothing here.
     floored = {g for g in FLOOR.all if g.endswith(".mjs") and (ROOT / g).is_file()}
     for name in sorted(floored | {n for n in js_files if (ROOT / n).is_file()}):
-        # Quoted paths only: a floored module's strings, not its prose.
         for path, _ in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
             if path:
                 todo.append(ROOT / path)
@@ -193,7 +190,6 @@ console.log(JSON.stringify({
   configured: paths.map((path) => pathHold([path], globs) !== null),
 }));
 """
-# A configured denied-paths list, for the presence case.
 CONFIGURED = ["Docs/Conventions/PR-Pipeline.yaml", ".github/workflows/**"]
 PATHS = [
     "plugins/multi-agent/reference/defaults.yaml",
@@ -277,9 +273,6 @@ def module(paths: list[str]) -> dict[str, Any]:
 
 
 def _glob_samples(glob: str) -> list[str]:
-    """Paths a floor glob should and should not match: its literal core at
-    the root and nested under it, deeper below a trailing `**`, and near
-    misses that share its prefix or suffix."""
     core = glob.removeprefix("**/").removesuffix("/**")
     found = [core, f"{core}x", f"x{core}", f"{core}/a", f"{core}/a/b/c.md"]
     if glob.startswith("**/"):
@@ -514,7 +507,6 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 }
                 self.assertEqual(held, gate)
                 self.assertEqual(path in FLOOR.review, not gate)
-        # Nothing else of that directory: the floor tracks the closure.
         self.assertEqual(
             sorted(g for g in FLOOR.all if g.startswith(f"{scripts}/")), files
         )
@@ -795,7 +787,6 @@ def _link(target: int, kind: str = "pull", repo: str = REPO) -> str:
     return f"https://github.com/{repo}/{kind}/{target}#issuecomment-11"
 
 
-# Each case: the body, then the comment its link names.
 DECISIONS = {
     "on the pull request": (_link(7), _comment(7)),
     "on the closing issue after the pull request, naming it": (
@@ -906,9 +897,6 @@ def _run(
     created: str = "2026-01-02T11:00:00Z",
     repo: str | None = "o/r",
 ) -> dict[str, Any]:
-    """A review lane's run on `sha` with its head in `repo`, started at
-    `created`, whose status job (or `job`) finished at `at` with a hold notice
-    naming `notice`."""
     message = f"claude-lane-hold lane=claude-review sha={notice or sha} criteria={criteria} label=needs-human"
     return {
         "lane": lane,
@@ -936,18 +924,13 @@ TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 LATE = "2026-01-02T18:00:00Z"
 NEW = "1" * 40
-# A base commit a merge of the base names as its second parent.
 MAIN = "5" * 40
-# The base branch's tip commit, which its full ref resolves to.
 _TIP = "3" * 40
-# The decided head OLD, then NEW pushed before the decision; HEAD carries
-# OLD's net change.
 SINCE = [_push(NEW, "2026-01-02T13:00:00Z"), _push(OLD, "2026-01-02T10:00:00Z")]
 SAME = {OLD: {"files": [TF]}, HEAD: {"files": [TF]}}
 
 
 def _plain(lane: str) -> dict[str, Any]:
-    """A run on NEW before the decision whose status job noticed no cost."""
     return _run(
         NEW,
         "2026-01-02T13:10:00Z",
@@ -957,7 +940,6 @@ def _plain(lane: str) -> dict[str, Any]:
     )
 
 
-# Each case: the heads world for a decision on the pull request (_link(7)).
 CARRIES = {
     "a notice at the head": DEFAULT_HEADS,
     "a base merge since the decided head": {
@@ -1418,7 +1400,6 @@ _HELD = ".github/actions/resolve-config/live-config.test.mjs"
 _PATCH = {"filename": _HELD, "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 _DOC = {"filename": "docs/a.md", "status": "modified", "patch": "+x"}
 _LIFTED = "2026-10-27T23:26:14Z"
-# The merge bases of the approved head and of the head with the base's tip.
 _MB_OLD = "1" * 40
 _MB_HEAD = "2" * 40
 
@@ -1505,8 +1486,6 @@ _HELPER = {
     "status": "modified",
     "patch": "@@ -1 +1 @@\n-x\n+y",
 }
-# What the merges brought into the approved head (compare _OLD..._HEAD) and
-# what the base changed between the merge bases (_MB_OLD..._MB_HEAD).
 _BASE_DOC = {
     "filename": "docs/base.md",
     "status": "modified",
@@ -1559,7 +1538,6 @@ def _tree(*entries: tuple[str, str], truncated: Any = False) -> dict[str, Any]:
 
 _PATHS = [_HELD, _SHARED, "docs/base.md", "docs/a.md", "scripts/helper.sh"]
 _ALL = _tree(*((p, "100644") for p in _PATHS))
-# The trees of the head and of its merge base with the tip.
 _TREES = [_ALL, _ALL]
 _GONE = {"filename": "docs/gone.md", "status": "removed", "patch": "-x"}
 _REPLAY_THEN = _THEN | {"files": [_PATCH, _SHARED_OLD]}
@@ -1569,8 +1547,6 @@ _MANY = [
     {"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"}
     for i in range(300)
 ]
-# (then, now, in_base, merges, based, dismissal): whether the approval at _OLD
-# carries to _HEAD, by base_merge_carry (the cost carry) and approval_carry.
 CARRY_CASES = {
     "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None, _TREES),
     "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None, _TREES),
@@ -1802,16 +1778,10 @@ class TheUngatedCarryIsTheGates(unittest.TestCase):
             policy.approval_carry(
                 None, None, _OLD, set(), docs, None, "c" * 40, None, [], floor=FLOOR)
         )
-        # No hold paths read: only the base-merge path decides.
         self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None, floor=FLOOR))
 
 
-# Every local file a hold-path file loads: the floor entries' JS closure and
-# the Python it runs, and each hold-path workflow's local actions (every
-# file of the action) and the scripts its steps name, with their closures.
 USES = re.compile(r"uses:\s*\./(?:\.base/)?(\.github/actions/[A-Za-z0-9_.-]+)")
-# Any repository path to a script a workflow names, from the head checkout or
-# `.base/`, whatever its directory: only a tracked file counts.
 RUNS = re.compile(
     r"(?<![\w./-])(?:\./)?(?:\.base/)?((?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)+[A-Za-z0-9_.-]+\.(?:mjs|js|sh|bash|py))"
 )
@@ -1836,8 +1806,6 @@ def loaded_closure() -> list[str]:
     for workflow in workflows:
         text = (ROOT / workflow).read_text(encoding="utf-8")
         for action in USES.findall(text):
-            # The action's own files; its tests and fixtures run in CI, not
-            # when a workflow uses it.
             for f in (ROOT / action).iterdir():
                 if f.is_file() and ".test." not in f.name:
                     name = f.relative_to(ROOT).as_posix()
@@ -1855,8 +1823,6 @@ def loaded_closure() -> list[str]:
     todo = [ROOT / e for e in entries if e.endswith(".mjs")]
     while todo:
         file = todo.pop().resolve()
-        # A spec that names no file beside the module (a repository-root
-        # path in a string) loads nothing from here.
         if not file.exists():
             continue
         name = file.relative_to(ROOT).as_posix()
@@ -1870,9 +1836,6 @@ def loaded_closure() -> list[str]:
             file.parent / spec
             for spec in IMPORT.findall(file.read_text(encoding="utf-8"))
         )
-    # The Python those modules and the workflows run, as python_closure
-    # walks it, from the scripts that exist (a module's string can name an
-    # example path).
     run = [
         ROOT / p
         for n in sorted(files | js)
@@ -1907,7 +1870,6 @@ def loaded_closure() -> list[str]:
 class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
     def test_every_file_a_hold_path_loads_stops_the_carry(self) -> None:
         files = loaded_closure()
-        # The peer review's own example: babysit_postmerge.py's imports.
         for name in ("babysit_merge_policy.py", "babysit_gh.py", "babysit_util.py"):
             self.assertIn(f"{_SCRIPTS_DIR}/{name}", files)
         self.assertIn(".github/workflows/pr-require-checks.yml", files)
@@ -1923,8 +1885,6 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
                 self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR), path)
 
     def test_the_carry_reads_the_config_rows_from_its_floor(self) -> None:
-        # The caller's hold paths are empty, and CARRY_REFUSES does not cover
-        # this path: only `floor` holds a config row.
         path = "docs/standards/REVIEW.md"
         self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR))
         self.assertTrue(

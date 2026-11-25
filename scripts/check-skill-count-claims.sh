@@ -201,9 +201,6 @@ skill_count() {
 # number so ordinary edits above the site cannot silently retire the entry.
 exempt_keys=()
 if [[ -f "$exemptions_file" ]]; then
-  # `inline`: an entry is `<path>|<substring>`, never a regex, so a `#` anywhere
-  # on the line opens the reason comment (scripts/lib/read-list.sh owns the two
-  # comment families and why they must stay distinct).
   # shellcheck disable=SC2310  # the non-zero return IS the handled case; the library reports it
   read_list::into exempt_keys "$exemptions_file" --comments inline || exit 2
   for raw in ${exempt_keys[@]+"${exempt_keys[@]}"}; do

@@ -3,7 +3,7 @@
 # the I001 fix sorts `import sys` after `import os`.
 # test-scope: plugins/python-format/git-hooks/entries.json plugins/python-format/git-hooks/adapters.sh
 # test-scope: plugins/python-format/lib/git-hooks/check-lib.sh plugins/python-format/lib/git-hooks/install.mjs
-# test-scope: plugins/python-format/lib/git-hooks/resolve-tool.sh
+# test-scope: plugins/python-format/lib/git-hooks/resolve-tool.sh plugins/python-format/git-hooks/lint.sh plugins/python-format/.claude-plugin/plugin.json
 # shellcheck disable=SC2016 # record commands are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
@@ -19,7 +19,7 @@ mkdir -p "$HOME"
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -43,7 +43,7 @@ new_repo() { # [ruff.toml body; "NONE" for no config]
   git -C "$REPO" add -A
   git -C "$REPO" commit -q -m seed --no-verify
 }
-record() { # <body>: commit .claude/ecosystems/python.yaml
+record() {
   mkdir -p "$REPO/.claude/ecosystems"
   printf '%s\n' "$1" >"$REPO/.claude/ecosystems/python.yaml"
   git -C "$REPO" add .claude/ecosystems/python.yaml

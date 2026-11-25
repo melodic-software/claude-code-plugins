@@ -177,10 +177,6 @@ fi
 check_layer "team" "$team_file" yes
 dual_read_rows local "layer local location" "personal override" no "$old_local" "$personal_file" "$personal_file"
 
-# The resolver reads an ecosystem record only for a lane in the resolved
-# `lanes` mapping whose id matches its LANE_ID pattern, so the configuration
-# resolves before the ecosystem rows. The pattern is imported from the
-# resolver, never copied, so the rows cannot drift from what it reads.
 RESOLVED="$(mktemp)"
 LIVE="$(mktemp -d)"
 trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT

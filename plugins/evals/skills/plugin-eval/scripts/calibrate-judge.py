@@ -85,14 +85,13 @@ VALIDATOR = os.path.join(HERE, "..", "..", "validate", "scripts", "validate-case
 
 SAFE_NAME = re.compile(r"[A-Za-z0-9._-]+")
 SKIP_DIRS = frozenset(["results", "mocks", "graders", "samples", "__pycache__"])
-REPLY_FOCUSES = (None, "last_message")  # the judge reads the final reply
+REPLY_FOCUSES = (None, "last_message")
 TRACE_FOCUS = "trace"
 
 PLUGIN_NAME = "judge-calibration"
 EVAL_DIR = "evals"
 MANIFEST = "manifest.json"
 
-# Generated case limits. No tool is granted, so the reply needs one turn.
 MAX_TURNS = 3
 TIMEOUT_SECONDS = 120
 

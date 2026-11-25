@@ -208,8 +208,6 @@ def test_malformed_store_values_are_ignored():
 
 
 def test_canary_population_narrows_to_its_subtype():
-    # Stop-hook timing is checked only where stop_hook_summary records exist: a machine without
-    # stop hooks never loses the canary.
     hooks = {
         "key": "key_path:system:hookInfos[].durationMs",
         "record_type": "system",

@@ -24,8 +24,6 @@ mem_dir_for() {
   printf '%s' "$dir"
 }
 
-# CLAUDE_CONFIG_DIR is unset per-run: the resolver honors it over $HOME, so leaving an
-# ambient value in place would let the host machine's real config answer for the fixture.
 run() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT" "$2"); }
 
 rc=0

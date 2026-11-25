@@ -164,7 +164,7 @@ instead of a page, except for a diagram that will be committed (Step 2). A canva
 for a page, so a resolved medium with no page (`page` false) draws none, and one that keeps delivery
 on the machine (`publishes` false) uses a local server only, as under `deny` below. The surface facts behind
 this rule, and the optional servers a person can install, are in
-[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server).
+[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server). Collaborative canvas mode, revising one live canvas with the person: [`context/collaborative-canvas.md`](context/collaborative-canvas.md).
 
 Before drawing on a canvas, resolve `hosted_canvas` (`allow` or `deny`) from three layers: the
 option `${user_config.hosted_canvas}` (empty, or still an unsubstituted placeholder, is unset);

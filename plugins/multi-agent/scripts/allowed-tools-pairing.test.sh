@@ -31,13 +31,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
 SKILLS=(assess route audit-defaults setup)
 
-# Optional per-skill allowlist, space-separated and sorted. When a skill names
-# one, the granted set must equal it EXACTLY: this is the guard for a
-# deliberate narrowing decision, which the pairing checks below cannot catch on
-# their own: a script that is bundled, executable, and mentioned in the body
-# "pairs" fine, so a later edit could re-widen the grant to cover it and every
-# other assertion here would still pass green. A skill with no arm reports a
-# NOTE at the comparison site rather than comparing nothing.
 expected_granted() {
   case "$1" in
   *) echo "" ;;
@@ -61,8 +54,6 @@ fail() {
 # skip, and this path is a declared absence of an allowlist, not of a tool.
 note() { echo "NOTE: $1"; }
 
-# Frontmatter is the leading `---`-delimited block; the allowed-tools value runs
-# to the next top-level key so a YAML list is captured whole.
 allowed_tools() {
   awk 'NR==1&&/^---$/{f=1;next} f&&/^---$/{exit} f' "$1" |
     awk '/^allowed-tools:/{f=1;print;next} f&&/^[A-Za-z_-]+:/{exit} f'
@@ -88,8 +79,6 @@ for skill in "${SKILLS[@]}"; do
     pass "$skill: allowed-tools free of \${CLAUDE_PLUGIN_ROOT}"
   fi
 
-  # Every markdown file bundled with the skill must invoke the script the same
-  # way the rule spells it: no `bash` wrapper, no quotes around the path.
   mapfile -t mds < <(find "skills/$skill" -name '*.md' -not -path '*/evals/*' | sort)
   for f in "${mds[@]}"; do
     if grep -qF 'bash ${CLAUDE_SKILL_DIR}' "$f" || grep -qF 'bash "${CLAUDE_SKILL_DIR}' "$f"; then
@@ -100,9 +89,6 @@ for skill in "${SKILLS[@]}"; do
     fi
   done
 
-  # Each granted script must exist, be executable, and be invoked by the body :
-  # a grant nothing runs is dead weight, and a non-executable target cannot be
-  # invoked directly at all.
   mapfile -t granted < <(grep -oE 'Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/[^:)]+' <<<"$at" | sed 's|.*/||')
 
   workflow_grant="$(expected_workflow_grant "$skill")"

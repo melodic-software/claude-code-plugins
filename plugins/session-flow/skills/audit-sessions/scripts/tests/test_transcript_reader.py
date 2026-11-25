@@ -17,7 +17,6 @@ from conftest import FIXTURES
 
 READER = FIXTURES / "reader"
 
-# The record types type-inventory §1 names, in the fixture's order.
 KNOWN_TYPES = [
     "user",
     "assistant",

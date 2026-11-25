@@ -60,16 +60,11 @@ const PROTECTED_NAMES = [
   '.gitattributes', '.gitmodules',
 ]
 const PROTECTED_PATTERNS = [/^requirements.*\.txt$/, /^\.env(\..*)?$/, /\.(pem|key|p12|pfx)$/, /^id_(rsa|dsa|ecdsa|ed25519)/, /^credentials/, /^secrets?\./]
-// A changed path that decides whether a check passes: a test, snapshot or
-// fixture file, or a runner config or test setup file. Matched on the path
-// alone, so the list is mechanical and needs no model.
 const TEST_DIRS = ['test', 'tests', '__tests__', 'spec', 'specs', '__snapshots__', '__fixtures__', 'fixtures', 'testdata']
 const TEST_NAME_PATTERNS = [
   /(^|[._-])(tests?|spec)([._-]|$)/i, /(Tests?|Spec)\.(java|kt|cs|fs|vb|scala|swift)$/, /\.snap$/i,
   /^conftest\.py$/i, /^pytest\.ini$/i, /^(jest|vitest|playwright|karma|cypress)\.config\./i, /^\.mocharc/i,
 ]
-// Ignored dependency directories the base re-run links in from the main tree,
-// so a missing install does not read as a test that needs its edits.
 const DEP_DIRS = ['node_modules', '.venv', 'venv', '.tox', 'vendor', '.bundle']
 const isTestFile = p => {
   const segs = p.split('/')
@@ -94,10 +89,6 @@ if (askedScope.length && !SCOPE.length) {
 }
 const inScope = f => !SCOPE.length || SCOPE.some(p => p === '.' || f === p || f.startsWith(p + '/'))
 
-// Role variants as /multi-agent:route emits them. `single` serves a stage that
-// runs one agent; `fanout` a stage that runs several. The fallback names opus
-// for the fixer fan-out because the session model is unknown here, and a
-// frontier session must never fan out on its own model.
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
@@ -118,10 +109,6 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
 }
 if (!input.roles) log('no roles in args: built-in fallbacks apply (the fixer fan-out on opus)')
 
-// Each stage runs as a testing agent whose definition inherits the model, pins
-// no effort and holds only that stage's tools: the runner a shell, fixers
-// Read, Edit and a shell, the verifier Read and a shell. `inherit` omits
-// opts.model; effort is always explicit.
 function opts(agentType, variant) {
   return variant.model === 'inherit'
     ? { agentType, effort: variant.effort }
@@ -144,7 +131,6 @@ async function agentRetry(prompt, o) {
   }
 }
 
-// Run thunks at most `cap` at a time, in order; a failed thunk yields null.
 async function inWaves(thunks, cap) {
   const out = []
   for (let i = 0; i < thunks.length; i += cap) {
@@ -279,13 +265,6 @@ async function runCommand(label, base, restore) {
   return { passed: got.passed === true && failures.length === 0, exitCode: got.exitCode ?? null, failures, head: shaOf(got.head), root: typeof got.root === 'string' ? norm(got.root) : null, changedFiles: got.changedFiles, note: got.note || '', environmentFailure: got.environmentFailure === true }
 }
 
-// Group failures into components that share no file: two failures sharing a
-// test file or a suspect source file land in one group, so fixers never edit
-// the same file and can share the main working tree. A worktree per fixer
-// would avoid conflicts too, but this script has no way to merge a changed
-// worktree back, so disjoint groups are the isolation.
-// `extra` holds files a fixer asked for by test file; they join that file's
-// suspects in every later grouping.
 const extra = new Map()
 function groupFailures(failures) {
   const parent = new Map()
@@ -323,7 +302,6 @@ if (!first.passed && !BASE) {
   return { green: false, rounds: 0, remaining: first.failures, changes: [], stoppedBecause: 'no-base', nulls, ran: ['run:0'] }
 }
 const DIFF = '`git diff ' + BASE + '`'
-// What every check reports about the tree.
 const CHANGED =
   ' Report as changedFiles ' + changedList(BASE) + ', and as head the output of `git rev-parse HEAD`. ' +
   'Read each untracked file in full and judge it with the diff: a new file that deselects, skips or ' +
@@ -331,7 +309,6 @@ const CHANGED =
 const everAllowed = new Set()
 let dispatched = false
 let outsideEdits = []
-// The changed files the latest check, re-run or final verifier read from git.
 let lastChanged = []
 
 // Judge what a check agent saw: a changed tracked file no fixer was allowed to
@@ -352,8 +329,6 @@ let rounds = 0
 let stall = 0
 let stoppedBecause = null
 let weakening = []
-// On a no-progress stop: the root causes the fixers acted on in the two stalled
-// rounds, the premise the run kept building on and never tested.
 let stalledRootCauses = []
 
 while (true) {
@@ -450,8 +425,6 @@ while (true) {
   }
   if (scopeStops.length) { stoppedBecause = 'out-of-scope'; break }
   if (round.widened.length) log('round ' + rounds + ': next round adds ' + round.widened.join(', ') + ' to the groups that asked')
-  // Nothing changed and a group widened: the failures stand as they are, so
-  // the next round regroups them without a re-run.
   if (round.widened.length && reports.every(r => !r.filesChanged.length)) continue
 
   phase('Run')
@@ -467,7 +440,6 @@ while (true) {
   if (current.passed) { stoppedBecause = 'green'; break }
   if (stall >= 2) {
     stoppedBecause = 'no-progress'
-    // Only a round that re-ran the command can stall, so the last two such rounds are the stalled pair.
     const stalled = changes.filter(r => r.failuresAfter != null).slice(-2)
     stalledRootCauses = [...new Set(stalled.flatMap(r => r.fixers.map(f => f.rootCause))
       .filter(x => typeof x === 'string' && x.trim() !== ''))]
@@ -499,9 +471,6 @@ if (green && FINAL_VERIFY && dispatched) {
   else green = true
 }
 
-// A green that depends on the fixers' test edits is not decided here: fixing
-// a wrong test is allowed, so a failing base re-run escalates to a person and
-// nothing is reverted.
 const testEdits = lastChanged.filter(isTestFile)
 let baseRerun = null
 if (green && testEdits.length) {

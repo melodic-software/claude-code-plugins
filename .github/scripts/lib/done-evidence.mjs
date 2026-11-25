@@ -1,8 +1,5 @@
 // done-evidence.mjs: whether an already-done stop's cited work is on the
 // default branch and closes the issue, and how its close comment reads back.
-// report-outcome writes the close comment and checks the evidence before it
-// closes; check-trusted-trigger's isTrustedClose checks it again when a
-// dependent or a split parent counts the lanes App's close.
 //
 // A lane script that runs from a copy of its own directory imports this as
 // `../lib/done-evidence.mjs`: collect-base-activity copies the base
@@ -143,7 +140,7 @@ export async function parentDone(github, repo, issueNumber, trusted) {
 // merged before a person reopened it is no evidence; NaN when its events do
 // not read whole within EVENT_PAGES pages, which fails the check closed.
 const EVENT_PAGES = 10;
-async function lastReopened(github, repo, issueNumber) {
+export async function lastReopened(github, repo, issueNumber) {
   let last = -Infinity;
   for (let page = 1; page <= EVENT_PAGES; page += 1) {
     const events = await github("GET", `${repo}/issues/${issueNumber}/events?per_page=100&page=${page}`).catch(() => null);

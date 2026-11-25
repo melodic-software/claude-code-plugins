@@ -306,7 +306,6 @@ def test_queue_operation_counted(tmp_path):
 
 
 def test_except_syntax_handles_non_string_timestamp(tmp_path):
-    """Non-string timestamp doesn't crash (Python 2 except syntax regression)."""
     _run_with_event(
         tmp_path,
         {
@@ -455,12 +454,6 @@ def test_multi_session_all_missing_is_error(tmp_path):
 
 
 def test_a_complete_chain_beside_unrelated_transcripts_scores_one(tmp_path):
-    """The denominator is the chain, not the project directory.
-
-    Under a $HOME cwd the project slug holds every session run on the machine;
-    a complete 6-hop chain once scored 0.032 against it. The directory count
-    stays visible as `project_transcripts`, never as the denominator.
-    """
     chain = [f"sid-hop-{i}" for i in range(6)]
     for sid in chain + [f"sid-unrelated-{i}" for i in range(20)]:
         _write_assistant_event(tmp_path, sid)

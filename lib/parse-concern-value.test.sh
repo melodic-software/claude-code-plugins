@@ -50,9 +50,6 @@ assert_eq 'unquoted .work/#topic keeps the #' ".work/#topic" "$(resolve 'memory_
 assert_eq 'quoted value with trailing comment drops comment, keeps inner #' \
   "a#b" "$(resolve 'memory_dir: "a#b"  # inline comment')"
 
-# --- Regression 2: valid YAML key spacing must not read as "key absent" ---
-# Reading a declared key as absent silently substitutes the caller's fallback
-# for a value the repo really chose.
 assert_eq 'space before the colon resolves' ".scratch" "$(resolve 'memory_dir : .scratch')"
 assert_eq 'indented root mapping resolves' ".scratch" "$(resolve '  memory_dir: .scratch')"
 assert_eq 'a tab-indented key is a parse error, so it reads as unset' "" "$(resolve "$(printf '\tmemory_dir: .scratch')")"
@@ -66,7 +63,6 @@ assert_eq 'a nested key never answers for an absent root key' ".notes" \
   "$(resolve "$(printf 'other:\n  memory_dir: nested\n')" memory_dir '.notes')"
 assert_eq 'a key deeper than an indented root mapping is still nested' ".notes" \
   "$(resolve "$(printf '  other:\n    memory_dir: nested\n  other_key: docs/x')" memory_dir '.notes')"
-# Directives and document markers are outside the subset: the file reads as unset.
 assert_eq 'a YAML directive is a parse error, so it reads as unset' ".notes" \
   "$(resolve "$(printf -- '%%YAML 1.2\n  memory_dir: .scratch')" memory_dir .notes 2>/dev/null)"
 assert_eq 'a leading document marker is a parse error, so it reads as unset' ".notes" \
@@ -149,8 +145,6 @@ assert_eq 'a root key after such a sequence is still a root key' "1" \
 assert_eq 'stdin form equals the file form' "$(bash "$SCRIPT" "$EX" merge.rung)" \
   "$(bash "$SCRIPT" - merge.rung <"$EX")"
 
-# --- YAML quote escapes: '' inside single quotes, \" and \\ inside double quotes ---
-# Expected values are the YAML 1.2 meaning of each literal, worked by hand.
 esc() { printf '%b' "$1" >"$TEST_TMPDIR/esc.yaml"; shift; bash "$SCRIPT" --strict "$TEST_TMPDIR/esc.yaml" "$@" 2>&1; }
 assert_eq "a doubled single quote is one quote" "it's" "$(esc "a: 'it''s'\nb: 2\n" a)"
 assert_eq "a sibling of an escaped value still reads" "2" "$(esc "a: 'it''s'\nb: 2\n" b FB)"

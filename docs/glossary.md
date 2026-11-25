@@ -285,6 +285,14 @@ Also called: kitchen
 One Claude Code session inside one CI lane run, on one credential
 ([`pull.mjs`](../scripts/lane-transcripts/pull.mjs) `LEGS`).
 
+**lane output format**
+
+The one shape for what a lane posts on a PR comment, check run, step summary or step log: a
+heading, a plain verdict line, at most five bullets, then the **lane-outcome record** where the
+surface carries it ([lane output format](contracts/loop-lane/lane-output-format.md)). Distinct
+from the lane-outcome record, which names only the structured JSON part
+([ADR 0087](adr/0087-keep-one-public-safe-lane-record-for-every-lane.md)).
+
 **brake**
 
 A mechanism that slows or stops work on its way to merge: a hold, a cap, a gate.
@@ -468,6 +476,12 @@ The section of a `PLAN.md` that `/planning:interview` locks for an engineering t
 constraints, acceptance criteria and assumptions.
 
 Avoid: contract
+
+**collaborative canvas mode**
+
+The `/visualization:visualize` mode where a person and the agent draw and revise one live canvas
+(tldraw or Excalidraw) over several turns; the final text diagram, not the canvas, is the record
+([`visualize`](../plugins/visualization/skills/visualize/SKILL.md)).
 
 ### Upstream records
 

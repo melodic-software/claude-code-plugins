@@ -7,7 +7,7 @@
 # text, and that a framed page without its own CSP still has every fetch blocked by policy, so it
 # cannot read the token or post a note.
 # SKIPs without playwright-cli, python3 or curl.
-# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
+# test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -17,9 +17,8 @@ bridge=$(cd "$skill/../../notes-bridge" && pwd)
 source "$here/../../../lib/browser-test-helpers.sh"
 browser_setup ed-harness edh playwright-cli python3 curl
 
-# The fixture's switcher placeholder becomes a click counter and the bundled switcher, inlined whole.
 marker='<!-- The bundled assets/variant-switcher.html is inlined whole here; elided from this fixture. -->'
-build() { # out-file [strip-csp]
+build() {
   local line
   while IFS= read -r line; do
     if [[ "$line" == "$marker" ]]; then
@@ -37,13 +36,11 @@ build "$d/explore-directions.html"
 browser_serve
 
 script_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
-# One page script through playwright-cli; every PASS or FAIL line it returns is graded.
-run() { # script
+run() {
   local name out path
   name=$(basename "$1" .js)
   sed "s/__PORT__/$port/" "$1" >"$tmp/$name.js"
   path=$(script_path "$tmp/$name.js")
-  # A failed run prints no PASS line, which the grading below counts as a failure.
   out=$(cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" run-code --filename "$path" 2>&1) || true # prereq-ok: test-only
   local n=0 line
   while IFS= read -r line; do

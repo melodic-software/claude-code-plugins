@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: scripts/ci-deps/package.json
-# Black-box contract test for check-read-caller-keys.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway tree with fixture
-# workflows, runs the checker against it, and asserts on exit code and output.
-# Mutates only its own mktemp dir. The SUT resolves the repository root
-# relative to its own location, so the fixture tree carries a copy of it under
-# scripts/.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,9 +12,6 @@ DEPS_DIR="$SCRIPT_DIR/../scripts/ci-deps"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# mk_tree <out-var>: a key-free read workflow, a write workflow that takes the
-# key, a read-only lane caller (pr-unblock.yml, on the caller map) and a
-# write-only lane caller.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --sut "$SUT_MJS" --label read-caller-keys || return 1
@@ -215,7 +205,6 @@ append_check_job() {
   printf '  %s:\n    permissions:\n      id-token: write\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          ref: %s\n' \
     "$1" "$2" >>"$READ"
 }
-# rewrite <command...>: filters the read workflow through <command> in place.
 rewrite() {
   "$@" <"$READ" >"$READ.tmp" && mv "$READ.tmp" "$READ"
 }

@@ -34,8 +34,6 @@ esac
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id (expected local-markdown:<owner>/<repo>#<number>)"
 
 wit_need_storage
-# The `parent` frontmatter field stores the JSON-quoted id (create-item.sh), so
-# compare against the quoted form, never the bare id.
 parent_quoted="$(jq -cn --arg p "$id" '$p')"
 
 {

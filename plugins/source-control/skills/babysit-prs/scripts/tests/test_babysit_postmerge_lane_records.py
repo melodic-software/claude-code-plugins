@@ -172,8 +172,6 @@ class TheCarrySparesTheRecordReads(LaneRecordCase):
 
 
 def lane_rerun(case: LaneRecordCase) -> pm.PostMergeVerdict:
-    """Run 11, lane-dispatched, red on attempt 1 and green on the lane's
-    recorded attempt 2; the first check, which proves both records."""
     case.lane_runs(1)
     case.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
         dispatch_run(11, run_attempt=2, actor=BOT, triggering_actor=BOT)

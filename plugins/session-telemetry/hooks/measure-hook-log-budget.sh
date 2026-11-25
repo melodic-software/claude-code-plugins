@@ -172,7 +172,6 @@ STOP_PAYLOAD="$WORK/stop.json"
 printf '%s' '{"session_id":"budget","cwd":"/x","hook_event_name":"Stop"}' >"$STOP_PAYLOAD"
 samples_file="$WORK/samples.txt"
 
-# One registered hook row: $1 the payload file, $2 the option value (true opens the gate).
 run_row() {
   env -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED="$2" \
     CLAUDE_PROJECT_DIR="$PROJ" \

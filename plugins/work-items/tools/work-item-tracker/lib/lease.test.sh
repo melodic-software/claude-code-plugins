@@ -14,8 +14,6 @@ assert_eq "wit_iso_to_epoch known ts" "1783828800" "$(wit_iso_to_epoch '2026-07-
 
 assert_eq "lease json extracted" '{"holder":"me"}' "$(wit_lease_json '<!-- work-item-lease v1 {"holder":"me"} -->')"
 assert_eq "non-marker → empty" "" "$(wit_lease_json 'just a comment')"
-# Trailing content after the marker (a bot footer, a signature) must still parse, or
-# claim grants over a live incumbent.
 assert_eq "trailing footer after the marker still parses" '{"holder":"me"}' \
   "$(wit_lease_json '<!-- work-item-lease v1 {"holder":"me"} -->
 
@@ -60,7 +58,7 @@ assert_not_live "a lease over the 168 h cap is not live" "$OVER_CAP" "$NOW"
 
 # Expiry boundary vs fixed injected clock (#1675 / medley#1675): exclusive end —
 # live while now < renewed_at+ttl; exact expiry and after are dead.
-FIXED_NOW=1783828800 # 2026-07-12T04:00:00Z
+FIXED_NOW=1783828800
 BOUNDARY_TTL=1
 BOUNDARY_EXPIRY=$((FIXED_NOW + BOUNDARY_TTL * 3600))
 BOUNDARY_RENEWED_ISO="$(date -u -d "@$FIXED_NOW" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$FIXED_NOW" +%Y-%m-%dT%H:%M:%SZ)" # portability-ok: GNU-first, BSD fallback (#1510)

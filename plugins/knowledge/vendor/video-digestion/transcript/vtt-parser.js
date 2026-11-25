@@ -163,7 +163,6 @@ export function deduplicateCues(cues) {
   const unique = [];
 
   for (const cue of cues) {
-    // Round to 0.1s to handle floating-point drift across segments
     const roundedStart = Math.round(cue.startSec * 10) / 10;
     const normalizedText = cue.text
       .toLowerCase()

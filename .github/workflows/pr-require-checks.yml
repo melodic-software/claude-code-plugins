@@ -6,11 +6,6 @@ name: PR Require Checks
 # gate, and a hold would pass a check it could not read. So every step here
 # still ends red on a rate limit past the guard's budget.
 on:
-  # A dispatch runs the full contract corpus. pr-merge.yml starts one on main's
-  # newest tip after merges land, whoever merged them, at most one per 30
-  # minutes counting the scheduled and hand-started runs. While
-  # merge.full-run-cap-bypass is on, a lane merge no lane run covers gets one
-  # inside that cap (docs/conventions/pr-pipeline.yaml).
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
@@ -239,7 +234,6 @@ jobs:
   # local action; it is the only job here that needs to write a commit status
   # besides `ci-status`, which runs no pull request code either.
   mark-lanes:
-    # The contract-only gate, verbatim (see `select-tests`).
     name: Mark Lanes
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
@@ -844,25 +838,15 @@ jobs:
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
-      # Whether each test lane has work, from the plan below. A lane whose row
-      # is 'false' skips as a job, and `ci-status` passes that skip only
-      # against this row.
       run_bash: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
-      # Whether `lint-shell` has input: its filter group matched. No docs-only
-      # term, because a shell file under a docs-only prefix is still ShellCheck
-      # input (scripts/docs-only-paths.txt).
       run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
       run_check_tests: ${{ steps.base.outputs.ref == '' }}
       run_selection: ${{ steps.base.outputs.ref != '' && github.event.pull_request.draft != true && steps.suites.outputs.any != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
-      # VALUES, not gates: the ref every diff-scoped step diffs against (empty
-      # for the whole tree), read only as an env entry; and the plan of each
-      # test lane: its matrix as a JSON list of leg numbers, the suites of
-      # each leg, and the optional toolchains each leg installs.
       lane_base: ${{ steps.base.outputs.ref }}
       bash_legs: ${{ steps.plan.outputs.bash_legs }}
       bash_plan: ${{ steps.plan.outputs.bash_plan }}
@@ -962,12 +946,6 @@ jobs:
         uses: $/.github/actions/download-full-history
         with:
           filter: blob:none
-      # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch, and a merge group against the queue's base commit, a release
-      # group included, so a manifest change selects only the suites that
-      # declare they read it (test-scope). A schedule or dispatch run gets no
-      # base: the whole tree, the net for what a diff cannot show.
-      # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
       - name: Resolve the diff base
         id: base
         env:
@@ -1132,16 +1110,6 @@ jobs:
               **/agents/**
               **/SKILL.md
               plugins/**
-      # THE TEST LANES ARE PLANNED HERE, ONCE. scripts/plan-test-lanes.sh runs
-      # the affected-suite selector over the diff and gives each test lane its
-      # suites, packed into legs by suite-seconds, and each leg the optional
-      # toolchains its suites need; its header states every rule. A lane the
-      # plan gives nothing skips as a job. No diff base plans the whole tree.
-      # An UNMAPPED file adds the whole corpus of its language and is recorded
-      # as a warning, so its rate is countable per run. A planner that fails
-      # fails this job and so every lane: there is no plan to run, and a
-      # guessed one could leave a selected suite unrun. Skipped on a draft and
-      # on a docs-only diff, where no test lane runs.
       - name: Plan the test lanes
         id: plan
         if: github.event.pull_request.draft != true && steps.detect.outputs.docs_only != 'true'
@@ -1263,7 +1231,6 @@ jobs:
   lint-repo:
     name: Lint Repo
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 13
@@ -1376,21 +1343,12 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh adr-numbers {0}
         run: scripts/check-adr-numbers.sh --check
 
-      # The AGENTS.md "Conventions that load on demand" table is generated from
-      # .claude/rules/ and the nested instruction files. Ungated: a change that
-      # adds, removes or renames only a rule is docs-only, and that is the edit
-      # that leaves the table stale. On drift it names each row to add, change
-      # or remove, then the command that rewrites the table.
       - name: Check the AGENTS.md rules index matches .claude/rules/
         id: rules_index
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh rules-index {0}
         run: bash plugins/instruction-placement/scripts/render-index.sh check --file AGENTS.md
 
-      # An as-of date in a skill, agent or reference paragraph needs a recheck
-      # trigger beside it (.claude/rules/skill-bodies-state-current-rules.md).
-      # Ungated: the edit that adds one is docs-only. Existing debt sits in
-      # scripts/as-of-recheck-baseline.txt, which fails when it could shrink.
       - name: Check every as-of date in a skill file has a recheck trigger
         id: as_of_recheck
         continue-on-error: true
@@ -1410,10 +1368,6 @@ jobs:
           fi
           sh plugins/guardrails/git-hooks/reference-verify.sh --base "$DIFF_BASE"
 
-      # No price, rate, per-task cost or percentage saving in a skill, agent,
-      # reference, doc or prompt (.claude/rules/cost-claims.md). Ungated: the
-      # edit that adds one is docs-only. Existing debt sits in
-      # scripts/cost-figures-baseline.txt, which fails when it could shrink.
       - name: Check no skill, doc or prompt states a cost figure
         id: cost_figures
         continue-on-error: true
@@ -1430,12 +1384,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh convention-yaml-schema {0}
         run: scripts/check-convention-yaml.sh --check
 
-      # The config-cascade "Semantics at a glance" table is generated from the
-      # Implementers rows, so the failure this catches is a row edited without
-      # regenerating the table, or a table hand-edited away from its rows. The
-      # gate is ungated on purpose: a change that edits only the Implementers
-      # table is docs-only, and that is exactly the edit that can leave the
-      # generated block stale.
       - name: Check the config-cascade semantics table against the `Implementers` rows
         id: config_cascade_semantics
         continue-on-error: true
@@ -1470,11 +1418,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh code-metrics-skill-prose {0}
         run: python3 scripts/check-code-metrics-skill-prose.py
 
-      # A `path:N` citation in markdown goes stale when the CITED file shrinks,
-      # usually in a change that never touches the citing file, so the scan is
-      # whole-repository and ungated. It fails only the mechanical case, a line
-      # past the end of the file; whether the line still says what the citation
-      # claims is left to review.
       - name: Check markdown line citations stay inside the cited file
         id: line_citations
         continue-on-error: true
@@ -1571,13 +1514,6 @@ jobs:
           esac
           bash plugins/code-metrics/skills/audit/scripts/audit-size.sh --check --base "$base"
 
-      # The docs-only short-circuit is a fail-open shape by construction:
-      # getting it wrong makes a heavy lane report success without running. Its
-      # safety properties — one resolution, an output table whose unset values
-      # mean "run the lane", a detector failure absorbed rather than
-      # propagated, an unweakened self-test, exactly one spelling for a
-      # consumer to copy, and a required-lane closure in which no job-level
-      # condition may hide — are what this step checks against this workflow.
       - name: Check the docs-only scope contract holds in pr-require-checks.yml
         id: docs_only_contract
         continue-on-error: true
@@ -1597,12 +1533,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh lane-coverage {0}
         run: scripts/check-lane-coverage.sh --check
 
-      # The whole-tree test plan of the live tree: the bash plan is the bash
-      # runner's corpus, each suite once; the Python plan is every test module
-      # but the eval fixtures; no leg is empty; and every Node suite runs
-      # through a wrapper or a Node package. Each reads the whole tree, so no
-      # test selection can say when it must run, and it runs here on every pull
-      # request rather than as a case of scripts/plan-test-lanes.test.sh.
       - name: Check the whole-tree test plan covers the live corpus
         id: test_plan_corpus
         continue-on-error: true
@@ -1623,10 +1553,6 @@ jobs:
             { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
           exit "$rc"
 
-      # The test selector's cases against the live tree: the derived shared-lib
-      # copy sets and real fan-outs. Each runs the selector over the whole tree,
-      # so no test selection can say when it must run, and it runs here on every
-      # pull request rather than as a case of scripts/affected-tests.test.sh.
       - name: Check the test selector against the live tree
         id: selector_live
         continue-on-error: true
@@ -1682,7 +1608,7 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/typos@main
         with:
-          config: .github/typos-local.toml
+          standards-ref: ${{ steps.standards.outputs.sha || env.STANDARDS_COMMIT || 'main' }}
           paths: ${{ steps.typos_paths.outputs.paths }}
           # The managed config cannot carry a consumer-local exclusion, so the
           # exemptions live on the caller. A vendored baseline (a skill pack's,
@@ -1714,12 +1640,6 @@ jobs:
           scan-mode: git
           log-opts: ${{ contains(fromJSON('["schedule","workflow_dispatch"]'), github.event_name) && 'HEAD' || '' }}
 
-      # Offline links and anchors: local files and #fragments only, no
-      # network. Ungated like the other whole-repo scanners, because a
-      # docs-only diff is exactly what can break a link. The excludes are test
-      # data whose links are meant not to resolve here: the attribution audit's
-      # golden fixtures, and a verbatim copy of an upstream table with a
-      # site-root-relative link.
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
@@ -1731,11 +1651,6 @@ jobs:
             (^|/)plugins/attribution/skills/audit/evals/fixtures/golden/
             (^|/)scripts/fixtures/hooks-lifecycle-table\.md$
 
-      # Online check of only the external links a pull request adds or changes
-      # in markdown, so a dead URL or a missing #anchor fails here instead of in
-      # the weekly online run after merge. lychee.toml's accept list keeps a
-      # throttled host, a 5xx or a timeout from failing it. It runs the lychee
-      # the offline step installed. Other events have no pull-request diff.
       - name: Check added and changed external links online
         id: lychee_online
         continue-on-error: true
@@ -1764,12 +1679,6 @@ jobs:
           # and the corpus tests compare them byte for byte.
           exclude: (^|/)plugins/review/evals/revert-[^/]+/fixtures/|(^|/)plugins/formal-verification/skills/chart/scripts/test/corpus/[^/]+/graph\.dot$
 
-      # The path-scoped readers gate on the filter group of what they read:
-      # actionlint and the dependabot and workflow schemas on `run_workflows`
-      # (.github/**), the two manifest schemas and the duplicate-key detector
-      # in `check-plugins` on `run_manifests`. Both rows carry the docs-only
-      # term, and on a merge-group, schedule or dispatch run every group reports
-      # true.
       - name: Lint workflows
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
@@ -1845,15 +1754,6 @@ jobs:
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@main
         with:
-          # The remove-comments skill's audit action IS a code-comment linter:
-          # its detector fixtures and shape library necessarily contain the
-          # markers this policy bans (TODO/FIXME, PR/issue refs) as test corpus
-          # and as the documented TODO(#issue) sanctioned-exemption. Exempt that
-          # action's scripts + evals (its SKILL.md is markdown, already outside
-          # the scan's extension set). The implementation eval scaffolds write a
-          # PLAN.md whose `### Phase N: ... [TODO]` heading is the phase status
-          # tag the skill under test reads, not a comment; the scan sees the
-          # heredoc line as a shell comment.
           exclude: >-
             :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect*
             :(exclude)plugins/code-tidying/skills/remove-comments/scripts/lib/**
@@ -1866,29 +1766,18 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh hook-wiring-liveness {0}
         run: scripts/check-hook-wiring-liveness.sh
 
-      # Deliberately UNGATED, like the other whole-repo scanners. This gate
-      # reads markdown prose, which is exactly what a docs-only diff changes,
-      # so gating it would disable it on precisely the pull requests most able
-      # to trip it. A regression would then reach main under a green check
-      # rather than an honest not-applicable.
       - name: Check purged surfaces stayed free of em dashes
         id: purged_em_dashes
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh purged-em-dashes {0}
         run: scripts/check-purged-em-dashes.sh
 
-      # Ungated for the same reason: the planning chain's `## Next` sections
-      # are markdown, and a rename elsewhere can strand one of their targets.
       - name: Check the planning chain's `Next` graph against the workflow ladder
         id: next_graph
         continue-on-error: true
         shell: bash scripts/run-hygiene-gate.sh next-graph {0}
         run: python3 scripts/check-next-graph.py
 
-      # Ungated for the same reason: a retired vocabulary sense (rung, default
-      # ladder, overlay, tier, surface, contract) comes back through prose, and
-      # the checker reads the whole tracked tree
-      # (scripts/vocabulary-senses.json).
       - name: Check the repository for retired vocabulary senses
         id: vocabulary
         continue-on-error: true
@@ -1929,24 +1818,12 @@ jobs:
         if: needs.select-tests.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, purged-em-dashes, next-graph and vocabulary scan the whole repo and stay unconditional."
 
-      # ONE DETERMINISTIC PROSE DETECTOR, AS WARNINGS. The ai-slop audit's own
-      # detector reads the markdown this pull request changed and annotates
-      # each finding on its line. It carries no `continue-on-error` and no
-      # aggregator feed row because it cannot fail: the script exits 0 on every
-      # path, and a step that cannot fail needs neither the flag nor a row
-      # reading an outcome that is always `success`. Advisory is the point: the
-      # annotations are measured before anything is allowed to block on them.
       - name: Report ai-slop findings on changed markdown
         id: ai_slop_report
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/ai-slop-report.sh "origin/$BASE_REF"
 
-      # Runner policy, previously its own job. Reads .github/workflows/** and
-      # the pinned policy package, so it gates on the workflows filter group:
-      # a change that touches nothing under .github/ cannot move a runner
-      # label. Its Node install is gated on the same group so a run that will
-      # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -2037,24 +1914,6 @@ jobs:
       - name: Aggregate hygiene results
         if: always()
         env:
-          # Display names (left) are annotations; step ids (right) use
-          # underscores. A gated step's intentional skip is mapped to `success`
-          # here BECAUSE the step provably did not run, so no real outcome is
-          # masked. The aggregator stays fail-closed on any real non-`success`
-          # (including `skipped`); it is never told to pass on `skipped`. Each
-          # override tests the SAME output that gates its step, against that
-          # output's only other value, so the two can never disagree.
-          # `scripts/check-docs-only-gate.sh` pins both halves: that the
-          # override is the sanctioned complement of the gate, and that every
-          # step named on the right of an override is one that carries the
-          # matching gate — an override on an UNGATED step, or one paired with
-          # a different output than the step's gate, would map a skip that
-          # never happened, and that is the direction that fails open. The
-          # ungated whole-repo scanners feed their raw outcome.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene workflow-naming graphql-operations
@@ -2119,29 +1978,9 @@ jobs:
         with:
           tokens: github-token
 
-  # THE SHELL LINTERS: ShellCheck, and the repo-local gates that read shell
-  # source (GNU-only constructs, piped early-exit greps, temp-path cleanup,
-  # fixture git isolation, discriminating skips, the kill-switch hoist, silent
-  # prerequisite skips, slow hook shapes). Every one is a gate step: absorbed
-  # with `continue-on-error`, fed to the aggregator at the foot of this job.
-  # Python comes with the pinned requirements file because the slow-shapes
-  # gate reads hook frontmatter through PyYAML.
-  #
-  # ITS OWN JOB BECAUSE OF THE WHOLE-REPOSITORY SCAN. ShellCheck lints the
-  # changed shell files on most diffs, but the whole repository (up to 292 s
-  # measured) on the whole tree, or when the rcfile, this workflow or a sourced
-  # file outside plugins/ changes; inside `lint-repo` that scan would set the
-  # critical path.
-  #
-  # The job skips on a contract-only event, on a draft, and on a change that
-  # touches none of its inputs (`select-tests`'s `run_shell` row, the `lint_shell`
-  # filter group). `ci-status` passes that skip only against the row, as it
-  # does a test lane's.
   lint-shell:
     name: Lint Shell
     needs: [select-tests]
-    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
-    # this lane's ordered skip.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_shell == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -2159,9 +1998,6 @@ jobs:
         with:
           filter: blob:none
 
-      # PyYAML reads the frontmatter surface (YAML has no jq) for the slow-shapes
-      # gate, which fails closed if the module is missing rather than clearing
-      # files it never parsed, so this install is load-bearing, not convenience.
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -2215,8 +2051,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh silent-skips {0}
         run: scripts/check-silent-skips.sh
 
-      # A skip_case that vacates the only discriminating assertions in a case
-      # group lets a suite report green while proving nothing.
       - name: Check plugin test suites for discriminating skip_case sites
         id: discriminating_test_skips
         continue-on-error: true
@@ -2277,7 +2111,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh pipefail-grep-q {0}
         run: scripts/check-pipefail-grep-q.sh
 
-      # A *.test.sh that runs mktemp must trap EXIT to remove it.
       - name: Gate test suites on cleaning up their temp paths
         id: test_tmp_cleanup
         continue-on-error: true
@@ -2379,11 +2212,6 @@ jobs:
       - name: Aggregate hygiene results
         if: always()
         env:
-          # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job. Gates that run as `uses:` actions,
-          # whose output scripts/run-hygiene-gate.sh cannot capture: a failure
-          # here quotes the job's own check-run annotations (checks: read),
-          # else points at the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: shellcheck
@@ -2407,29 +2235,9 @@ jobs:
         with:
           tokens: github-token
 
-  # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
-  # catalog presence and enablement, option docs, the changelog and vendor-bump
-  # gates, the hook-declaration gates, the performance counter ceilings, the
-  # cross-plugin drift check, and the delivery checks of the shared-library
-  # copies. The steps that read the root npm install (`claude plugin validate`
-  # and the rendered-view HTML assets), and the copy and prerequisite gates,
-  # are `check-catalog`'s, whose header says why.
-  #
-  # The hook, catalog and changelog gates run first, on Python with the pinned
-  # requirements, then the manifest schema steps, on the check-jsonschema that
-  # install provides. Node follows for the counter ceilings, gated like the
-  # steps that read it.
-  #
-  # The shared-library bump checks need base history: `download-full-history`
-  # runs once, at the top, and every bump check below resolves
-  # `origin/$BASE_REF` from it. Each returns early off a pull request rather than
-  # diffing against a ref that does not exist.
-  #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-plugins:
     name: Check Plugins
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 19
@@ -2448,11 +2256,6 @@ jobs:
       - name: Fetch base
         uses: $/.github/actions/download-full-history
 
-      # PyYAML reads the frontmatter surface (YAML has no jq) for the
-      # hook-exec-form and summary-reader-parity gates. Those gates fail closed
-      # if the module is missing rather than clearing files they never parsed,
-      # so this install is load-bearing, not convenience. It also installs the
-      # check-jsonschema the manifest schema steps run.
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -2509,11 +2312,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh exec-form-windows-probe {0}
         run: scripts/check-exec-form-windows-probe.sh
 
-      # A test that cannot fail (/testing:audit's scan: no assertion, or an
-      # expected value recomputed from the actual) passes whatever the code
-      # does. A diff scans only its changed test files, in seconds, and reports
-      # the gate not applicable when it changes none; with no diff base the
-      # whole tree is `check-tests`'s.
       - name: Check changed tests for tests that cannot fail
         id: cant_fail_scan
         continue-on-error: true
@@ -2558,11 +2356,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh summary-reader-parity {0}
         run: bash scripts/check-summary-reader-parity.test.sh
 
-      # Every option a plugin declares must be documented in that plugin's
-      # README. The block is generated from the manifest, so the failure this
-      # catches is an option added to plugin.json whose README block was never
-      # regenerated -- an undocumented knob is indistinguishable from one that
-      # does not exist.
       - name: Check plugin option docs are in sync with each manifest
         id: plugin_options_docs
         continue-on-error: true
@@ -2591,13 +2384,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh plugin-catalog-enablement {0}
         run: scripts/check-plugin-catalog-enablement.sh
 
-      # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose
-      # newest version heading does not outrun the manifest (static --check),
-      # only the release pull request may move a plugin's version or add a
-      # CHANGELOG heading, and its bump must be monotonic and documented
-      # (--check-bump), and no change may DROP a version heading a changelog
-      # already carried (--check-preserved). Every plugin is in fragment mode,
-      # so no other pull request bumps a version.
       - name: Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version
         id: changelog_parity_check
         continue-on-error: true
@@ -2697,9 +2483,6 @@ jobs:
             exit 0
           fi
           scripts/check-changelog-parity.sh --check-preserved "origin/$BASE_REF"
-      # Whole-file, not per-diff: the other two modes reason about one version
-      # at a time, so neither can see that two branches staged the same number
-      # or that a stale-based entry landed below one already on main.
       - name: Verify every changelog reads newest-first with no duplicate versions
         id: changelog_parity_order
         continue-on-error: true
@@ -2792,7 +2575,6 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
-          # The Dependabot exemption, read as changelog_fragments_required reads it.
           CHANGELOG_PR_AUTHOR: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.author || github.event.pull_request.user.login }}
           CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
@@ -2840,10 +2622,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh manifest-duplicate-keys {0}
         run: python3 scripts/check-manifest-duplicate-keys.py
 
-      # Node for the counter ceilings, whose hook rows start each hook through
-      # its node launcher. They read no root npm install: that is
-      # `check-catalog`'s. Gated like the counter ceilings, so a docs-only diff
-      # does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -2978,8 +2756,6 @@ jobs:
       - name: Aggregate hygiene results
         if: always()
         env:
-          # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job.
           CHECK_RESULTS: |
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
@@ -3035,7 +2811,6 @@ jobs:
   check-catalog:
     name: Check Catalog
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
@@ -3047,25 +2822,18 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
-      # The plugin validation diffs against the lane base and against
-      # origin/<base_ref>, which this fetches on a pull request.
       - name: Fetch base
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: $/.github/actions/download-full-history
         with:
           filter: blob:none
 
-      # The pinned interpreter for the native-overlap registry checks
-      # scripts/validate-plugins.sh runs. They read no package, so nothing is
-      # installed into it.
       - name: Set up Python
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
 
-      # The root npm install, for the steps below that read it: htmlhint and the
-      # claude CLI from node_modules/.bin, and node for the prerequisite gate.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -3101,10 +2869,6 @@ jobs:
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node .github/scripts/pr-unblock/install-script-pin.mjs check
 
-      # The html-assets gate needs the root npm ci above (its linter is the
-      # exact-pinned htmlhint in node_modules/.bin): a tracked rendered-view
-      # asset must lint clean and be registered in the gate's manifest, per the
-      # rendered-views convention.
       - name: Check rendered-view HTML assets
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/check-html-assets.sh
@@ -3145,15 +2909,9 @@ jobs:
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
-      # docs/contracts/prerequisites/: the gate validates every
-      # prerequisites.json and fails on an undeclared tool not listed in
-      # scripts/prerequisites-baseline.txt. Its suites run through the selector.
       - name: Check plugin prerequisites are declared
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
-      # The shipped plugin profiles name only catalogued plugins under the
-      # catalog's own name, and interface-design keeps every planning member.
-      # A plugin removed or renamed in the catalog fails here.
       - name: Check the shipped plugin profiles against the catalog
         if: needs.select-tests.outputs.run_tests == 'true'
         env:
@@ -3182,21 +2940,9 @@ jobs:
         with:
           tokens: github-token
 
-  # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
-  # portability lint, leaf names, spoke paths, the listing budgets, the eval
-  # schema, quality lint and suite validation, the invocation probes, the
-  # detector/eval crosswalk and coverage, orphaned fixtures, the fleet finding
-  # and grammar gates, and precompute composition. Python comes with the pinned
-  # requirements file, and the eval-coverage gate reads the pinned shfmt.
-  #
-  # ITS OWN JOB BECAUSE OF CHECK 25. The full skill corpus (about 300 s) runs on
-  # a diff that touches the checker or its inputs, and the changed-skills gate
-  # checks each changed skill in turn; beside `lint-repo` either one would set
-  # the critical path.
   check-skills:
     name: Check Skills
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 21
@@ -3212,8 +2958,6 @@ jobs:
       - name: Fetch base
         uses: $/.github/actions/download-full-history
 
-      # The pinned interpreter and requirements: the fleet grammar gate probes a
-      # collector that runs python3.
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -3299,11 +3043,6 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh spoke-plugin-root {0}
         run: scripts/check-spoke-plugin-root.sh --check
 
-      # Every file under a skill's evals/fixtures/ must be consumed by a
-      # grader — an eval files[] entry or a test assertion — so an ungraded
-      # suite cannot sit in the tree reading as tested. Existing debt is
-      # grandfathered in scripts/orphaned-fixtures-baseline.txt with a stale
-      # guard.
       - name: Check for orphaned eval fixtures
         id: orphaned_fixtures
         continue-on-error: true
@@ -3384,18 +3123,8 @@ jobs:
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
-      # Self-test first so a broken lint cannot mask a regression behind a
-      # green step.
       - name: Test the eval-quality lint
         run: bash plugins/skill-quality/scripts/check-evals-quality.test.sh
-      # Beyond-schema quality lint (FAIL tier: duplicate case ids/names, empty
-      # criterion items, unresolvable files fixtures; WARN tier stays advisory
-      # and never fails the step). Static, and it runs on every event like the
-      # schema step above. Each eval set is linted on its own, and its `files`
-      # entries resolve under its skill directory (evals/ or the skill root), so
-      # a diff lints the set of every skill directory it touched; the whole
-      # corpus when the lint itself or this workflow changed, or when there is
-      # no diff base.
       - name: Lint every eval set for quality
         id: evals_quality
         continue-on-error: true
@@ -3442,8 +3171,6 @@ jobs:
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
       - name: Test the invocation-probe harness
         run: bash plugins/skill-quality/scripts/measure-invocation.test.sh
-      # One validate per plugins/<plugin>/probes directory; any failing
-      # directory fails the step after every directory has reported.
       - name: Validate invocation probes
         run: |
           status=0
@@ -3494,13 +3221,6 @@ jobs:
           CHECK_SKILL_LISTING_BUDGET_FRACTION="$fraction" \
             bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 
-      # Portability lint: skills declared ecosystem/forge/tracker-agnostic must
-      # not ship bare hardcoded stack/forge/branch/tracker defaults — the
-      # coupling class the external reviewer re-caught PR after PR. On a pull
-      # request it scans the skill files the change touches (not the whole
-      # corpus) against the coupling-token list, so enabling a token class
-      # prevents NEW coupling without red-lining existing violations that
-      # member issues own.
       - name: Gate changed skill files on the portability contract
         id: portability
         continue-on-error: true
@@ -3520,12 +3240,6 @@ jobs:
       - name: Aggregate hygiene results
         if: always()
         env:
-          # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
           CHECK_RUN_ID: ${{ job.check_run_id }}
           GH_TOKEN: ${{ github.token }}
           STEP_LOG_CHECKS: evals-schema
@@ -3587,8 +3301,6 @@ jobs:
   test-bash:
     name: Test Bash
     needs: [select-tests]
-    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
-    # this lane's ordered skip.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_bash == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -3686,8 +3398,6 @@ jobs:
         with:
           path: ~/.cache/ci-tools-ffmpeg
           key: ${{ steps.ffmpeg_cache.outputs.cache-primary-key }}
-      # The Chromium the animation and browser legs drive shares test-python's cache entry,
-      # keyed on the locked playwright version (the lockfile hash); a hit skips the download.
       - name: Restore the Playwright browser
         id: playwright_cache
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'animation') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'browser')
@@ -3695,14 +3405,6 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ env.BROWSER_CACHE_KEY }}
-      # The animation wheels (numpy and opencv; the speech suites need their
-      # numpy), demo-video's locked numpy and Pillow, the inventory's parser
-      # packages and check-visual-parity's pixelmatch and pngjs go only on a leg
-      # whose suites need them, per the plan (`LEG_PLAN`). An under-install is
-      # loud, not quiet: those suites fail rather than skip without their
-      # dependency (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS,
-      # DEMO_VIDEO_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN and
-      # VISUAL_COMPARE_REQUIRE).
       - name: Install locked plugin test toolchains
         timeout-minutes: 5
         id: toolchains
@@ -3784,9 +3486,6 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ${{ steps.playwright_cache.outputs.cache-primary-key }}
-      # The harness-ops observability suites (prune-otel-store, hook-latency,
-      # session-compare) query fixture stores with the DuckDB CLI and skip those
-      # cases without it, so the plan names every harness-ops suite for it.
       - name: Install DuckDB CLI
         env:
           DUCKDB_VERSION: v1.5.5
@@ -3821,10 +3520,6 @@ jobs:
       - name: Install pinned Go and goimports for the go-format remote suite
         if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'lefthook')
         run: bash .github/scripts/lib/install-pinned-goimports.sh "$RUNNER_TEMP/gobin" "$HOME/.cache/ci-tools"
-      # The guardrails remote's end-to-end suite runs real lefthook against a
-      # stand-in remote; a broken lefthook-remote.yml would block every
-      # consumer's commits, so it fails here instead of skipping
-      # (GUARDRAILS_REQUIRE_LEFTHOOK).
       - name: Install pinned lefthook
         run: |
           if [[ "$(jq -r --arg leg "$LEG" '.[$leg] // ""' <<<"$LEG_PLAN")" != *lefthook* ]]; then
@@ -3838,31 +3533,18 @@ jobs:
         with:
           path: ~/.cache/ci-tools
           key: ${{ steps.tools_cache.outputs.cache-primary-key }}
-      # A leg with no suites is a broken plan, never "nothing to do": the plan
-      # makes no more legs than it has suites.
       - name: Run this leg's shell suites
         env:
-          # The animation suites fail on a missing numpy, opencv or Chromium here instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
-          # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
-          # The demo-video suite fails on a missing numpy, Pillow, ffmpeg or ffprobe here instead of skipping green.
           DEMO_VIDEO_REQUIRE_DEPS: '1'
-          # The media-render suite fails on a missing Playwright for Python, Chromium, ffmpeg or ffprobe here instead of skipping green.
           MEDIA_RENDER_REQUIRE_DEPS: '1'
-          # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
-          # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
-          # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
           VISUAL_COMPARE_REQUIRE: '1'
           VISUAL_COMPARE_DEPS_DIR: .work
-          # The guardrails remote's end-to-end cases fail on a missing lefthook here instead of skipping green.
           GUARDRAILS_REQUIRE_LEFTHOOK: '1'
           LEFTHOOK_REMOTE_REQUIRE_TOOLS: '1'
-          # On main (schedule, dispatch) a failing suite in
-          # scripts/run-plugin-tests-advisory.txt warns instead of failing the
-          # leg; pull requests and merge groups still fail on it.
           PLUGIN_TEST_ADVISORY: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
         run: |
           jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
@@ -3888,8 +3570,6 @@ jobs:
   test-python:
     name: Test Python
     needs: [select-tests]
-    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
-    # this lane's ordered skip (see `test-bash`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_python == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 13
@@ -4033,8 +3713,6 @@ jobs:
   test-node:
     name: Test Node
     needs: [select-tests]
-    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
-    # this lane's ordered skip (see `test-bash`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_node == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 11
@@ -4060,9 +3738,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
         with:
           node-version-file: .node-version
-      # One npm cache for every package, keyed on the Node pin and the five
-      # sub-projects' lockfiles, so a change to any one of them invalidates the
-      # cache the others share.
       - name: Restore the npm cache
         id: npm_cache
         uses: actions/cache/restore@v6
@@ -4179,8 +3854,6 @@ jobs:
           [[ " $PACKAGES " == *" plugins/ai-briefing/skills/generate/output/build "* ]] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
 
-      # The knowledge plugin's course-digest extraction pipeline: the same shape
-      # as video-digest's above, shared vendor/ packages included.
       - name: Install dependencies
         timeout-minutes: 3
         run: |
@@ -4409,7 +4082,6 @@ jobs:
   check-managed-files:
     name: Check Managed Files
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 16
@@ -4442,7 +4114,6 @@ jobs:
   check-tests:
     name: Check Tests
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_check_tests == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -6951,11 +6622,6 @@ jobs:
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
           PR_MERGE_MAIN_TIP: ${{ steps.main_tip.outputs.sha }}
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
-          # Where the reader takes what this job already holds, each checked
-          # and else read live: the config files at the group's base from the
-          # hold config checkout when its HEAD is that commit, the default
-          # branch from the event, and the pull request from the record this
-          # step read (written below) when it is the same number and head.
           BABYSIT_CONFIG_CHECKOUT: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config:{0}/.base', github.workspace) || format('{0}/.base', github.workspace) }}
           BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           BABYSIT_VERIFY_PULL: ${{ runner.temp }}/lanes-pull.json
@@ -7493,8 +7159,6 @@ jobs:
           # for the lane list — through the ordered-skip check. Adding a lane
           # to needs automatically extends this check.
           results: ${{ steps.lanes.outputs.results }}
-          # A `skipped` lane is red, except on a draft, where every lane skips
-          # (see `Note a draft`).
           treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
           exempt-authors: 'dependabot[bot],melodic-release[bot]'
           draft: allow
@@ -7516,8 +7180,6 @@ jobs:
           # docs/ci-runner-routing.md, section Contract-only ci-status.
           yield-wait-seconds: ${{ github.event.pull_request.draft && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
-          # This step's own name, so the own-step lookup never depends on
-          # how many steps of the job are in progress.
           step-name: Aggregate lane results
       # The composite's step concludes on the lanes alone; the contract and
       # draft results fail the job here
@@ -7583,9 +7245,6 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
-          # A contract-only run (a label flip or body edit) does not wait: it
-          # holds no review the full run's wait would not, and each would keep
-          # a runner.
           REVIEW_WAIT_SECONDS: ${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}
           REVIEW_POLL_SECONDS: 60
         run: |
@@ -8145,8 +7804,6 @@ jobs:
             esac
           done <<<"$lanes"
           exit "$failed"
-      # Last, and on failure too, so the notices hold every step's readings:
-      # each step that sources gh-read.sh leaves them in $RUNNER_TEMP/api-budget.
       - name: Log the API budget at the end
         if: always()
         timeout-minutes: 1

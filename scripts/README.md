@@ -101,8 +101,8 @@ Every gate below has a local form.
 | `plugin-options-docs` | `python3 scripts/sync-plugin-options-docs.py --check` | Regenerates from `plugin.json` `userConfig`. Do not hand-edit the README block. |
 | `config-cascade-semantics` | `python3 scripts/sync-config-cascade-semantics.py --check` | Regenerates the glance table from the Implementers rows; run it without `--check` after editing a row. Do not hand-edit the generated block. |
 | `gather-block` | `python3 scripts/sync-gather-block.py --check` | Regenerates each skill's gather-block rule text from `docs/conventions/gather-block/block.md`; run it without `--check` after editing that file. Do not hand-edit a generated block. |
-| `typos` | `typos --config .github/typos-local.toml` | Same config CI passes to the composite; typos layers it over the managed `_typos.toml` it finds in the parent directories. |
-| `markdown` | `markdownlint-cli2` | Config: `.markdownlint-cli2.jsonc`. |
+| `typos` | `typos --config <standards>/_typos.toml` | As the CI composite runs it: the standards org layer's `_typos.toml` is the `--config`, and typos merges in this repository's root `_typos.toml`. |
+| `markdown` | `markdownlint-cli2` | Config: the standards org layer's `.markdownlint-cli2.jsonc`. |
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |

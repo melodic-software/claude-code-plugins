@@ -749,7 +749,6 @@
   };
 
   const BROWSERS = [[/SamsungBrowser\//, "samsung"], [/Edg\//, "edge"], [/(FBAN|FBAV|Instagram|Line\/|; wv\))/, "in-app"], [/Firefox\/|FxiOS\//, "firefox"], [/Chrome\/|CriOS\//, "chrome"], [/Safari\//, "safari"]];
-  // A touch screen's short side, which a rotation leaves alone, tells a phone from a tablet: a phone in landscape is still a phone.
   const deviceKind = () => (matchMedia("(pointer: coarse)").matches ? (Math.min(screen.width, screen.height) < 600 ? "phone" : "tablet") : "computer");
   const browserKind = () => BROWSERS.find(([re]) => re.test(navigator.userAgent))?.[1] || "other";
   const scopeOf = qid => (qOf(Core.state.questions, qid)?.answerScope === "device" ? { device: deviceKind() } : {});
@@ -838,8 +837,6 @@
         if (e instanceof TypeError) fault("api", e.message, { route: path, code: "network" });
         throw e;
       }
-      // A refusal the server logged itself is kept here for a problem report only; an answer that is not the server's
-      // (no X-Shared-Build: the tunnel's own error page) is a fault.
       if (!r.ok) r.clone().json().catch(() => ({})).then(j => {
         noteError("api", String(j.error || r.status), `HTTP ${r.status}: ${j.message || r.statusText}`);
         if (!r.headers.has("X-Shared-Build")) fault("api", `HTTP ${r.status}`, { route: path, code: "no-answer", noted: true });
@@ -1089,7 +1086,6 @@
     close.focus();
     return dlg;
   }
-  /** The notice line with its link; `cls` styles it where it sits. */
   function notice(cls = "core-rec") {
     const box = Core.el("div", cls), p = Core.el("p", "core-rec-line", REC_LINE + " "), a = Core.el("a", "core-rec-link", "What this page records");
     a.href = "#records";
@@ -1425,7 +1421,6 @@
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";
     dlg.addEventListener("cancel", e => e.preventDefault());
-    // Tab cycles inside the dialog instead of leaving for the browser's own toolbar.
     dlg.addEventListener("keydown", e => {
       if (e.key !== "Tab") return;
       const f = [...dlg.querySelectorAll("input, button, a[href]")].filter(x => !x.disabled), i = f.indexOf(document.activeElement);

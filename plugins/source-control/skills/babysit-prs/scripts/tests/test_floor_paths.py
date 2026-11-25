@@ -1,8 +1,4 @@
 # test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/workflows/* docs/conventions/pr-pipeline.yaml
-"""`merge.diff-check.floor-paths`: this repository's effective floor stays what
-it was when its rows moved out of the plugin default, the built-in floor holds
-only what every consumer shares, a row can only tighten the floor, and the
-loader refuses a row it cannot trust."""
 
 from __future__ import annotations
 
@@ -228,7 +224,6 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
                 self.assertTrue(risk.holds(result))
 
     def test_dropping_the_marker_is_what_grants_the_lift(self):
-        # The control: the same path, the row without `author-lift: false`.
         path = "docs/standards/REVIEW.md"
         loosened = tuple(
             (g, c, True) if g == "docs/standards/**" else (g, c, lift)

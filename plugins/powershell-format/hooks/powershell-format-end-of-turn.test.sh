@@ -5,7 +5,7 @@
 # keeps it from blocking twice in one turn; the plugin kill switch wins. The
 # spawn budget case fences the cost every user pays per turn with the option
 # off: the node launcher only.
-# test-scope: plugins/powershell-format/hooks/hooks.json plugins/powershell-format/git-hooks/lint.sh plugins/powershell-format/.claude-plugin/plugin.json
+# test-scope: plugins/powershell-format/hooks/hooks.json plugins/powershell-format/git-hooks/lint.sh plugins/powershell-format/.claude-plugin/plugin.json plugins/powershell-format/hooks/exec-bash.mjs
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
 set -uo pipefail
 unset CLAUDECODE AI_AGENT GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED
@@ -31,7 +31,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -41,7 +41,6 @@ expect() { # <label> <want> <got>
   fi
 }
 
-# The Stop row's args from hooks.json, with the plugin root substituted.
 mapfile -t ARGS < <(jq -r '.hooks.Stop[0].hooks[0].args[]' "$PLUGIN/hooks/hooks.json" | sed "s#\${CLAUDE_PLUGIN_ROOT}#$PLUGIN#g")
 expect "the Stop row launches node with the end-of-turn gate" \
   "node --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED --require-true POWERSHELL_FORMAT_END_OF_TURN --end-of-turn" \

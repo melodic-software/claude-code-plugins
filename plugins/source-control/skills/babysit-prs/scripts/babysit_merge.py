@@ -483,9 +483,6 @@ def rerun_rate_limited_review(
             + due.isoformat().replace("+00:00", "Z")
         )
         return report
-    # The binding takes attempt 2 only after an attempt 1 that concluded
-    # failure, or for a lost run one an outage lost before its lane posted
-    # (review_evidence.rerun_binds), so the re-run must too.
     try:
         first = json_object(
             gh_json(["api", f"repos/{repo}/actions/runs/{run_id}/attempts/1"])
@@ -571,7 +568,6 @@ def rerun_rate_limited_reviews(
 
 
 def _pr_number(ref: Any) -> int | None:
-    """The number in a report's `pr` (`owner/repo#n`), or None."""
     match = re.fullmatch(r"[^#\s]+#(\d+)", ref) if isinstance(ref, str) else None
     return int(match.group(1)) if match else None
 
@@ -1059,10 +1055,6 @@ def evaluate_decision_default_veto(
     blockers: list[str] = []
     held: list[str] = []
     for ref in closing_issues:
-        # Untyped either way: a linked-issue ref arrives as a raw number or as an
-        # object whose "number" key may be absent. The int() below, guarded by
-        # its own except, is the validation -- annotating the declared type here
-        # keeps that the single place the shape is decided.
         number: Any
         if is_json_object(ref):
             number = ref.get("number")
@@ -1109,8 +1101,6 @@ def _human_comments(
     review_comments: list[dict[str, Any]] | None,
     actor_config: FeedbackConfig,
 ) -> list[tuple[str, str, str, str]]:
-    """(login, time, body, association) of every human-authored issue comment, review
-    summary and inline review comment on the pull request."""
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
     corpus.extend(reviews)
     # Inline review-thread comments are neither issue comments nor review
@@ -2348,7 +2338,6 @@ def _ejected_enqueue(pr: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _failed_ejections(pr: dict[str, Any]) -> int | None:
-    """How many removals `_failed_removals` reads, or None when it cannot."""
     removals = _failed_removals(pr)
     return None if removals is None else len(removals)
 
@@ -2385,8 +2374,6 @@ def _failed_removals(pr: dict[str, Any]) -> list[str] | None:
 
 
 def _last_removal_reason(pr: dict[str, Any]) -> str | None:
-    """The reason of the queue's newest removal of the pull request, or None
-    when a head change is newer than every removal or none can be read."""
     nodes = json_object(pr.get("timelineItems")).get("nodes")
     for node in map(json_object, reversed(json_array(nodes))):
         if node.get("__typename") != REMOVED:
@@ -2657,7 +2644,6 @@ def async_merge(
 def _open_lower_layers(
     repo: str, number: int, stack_number: Any
 ) -> list[tuple[int, str]]:
-    """`(number, head sha)` of every open, unmerged layer below this PR, read now."""
     members = stack_members(repo, int(stack_number))
     numbers = [member.get("number") for member in members]
     if number not in numbers:
@@ -2922,8 +2908,6 @@ def _record_pending(
     pin: str,
     result: dict[str, Any],
 ) -> None:
-    """Keep a request that is still live on GitHub, or a PR it put in the merge
-    queue; forget a finished one."""
     key = f"{repo}#{number}"
     live = (
         bool(record.get("uuid")) and record.get("status") not in ASYNC_TERMINAL_STATUSES
@@ -3078,7 +3062,6 @@ RISK_ESCALATION_LINE = (
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
-# Cleared by clear-escalations.mjs once the head moves, like the verify one.
 SHARED_COPY_ESCALATION_MARKER = "<!-- babysit-merge-shared-copy-escalation -->"
 # The attended queue's escalation marker (work-items reference
 # escalation-marker.md): first line of the held-major comment, so
@@ -3103,8 +3086,6 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
 
 
 def _checkout() -> Path:
-    """The checkout the lane runs in, which the promotion evidence must sit
-    outside; the working directory when it is not a git checkout."""
     try:
         proc = run_command(
             ["git", "rev-parse", "--show-toplevel"],
@@ -3284,13 +3265,6 @@ def _main_reviews(
     main: bool | None = None,
     floor: diff_risk.Floor,
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
-    """The main-run reviews `bind()` reads for a pull request that changes a
-    lane source, with the context it checks them against (the head's tree,
-    read from the commit, the default branch, and per lane the most CRITICAL
-    findings the record job's check runs carry on any head of the pull
-    request: its commits and the heads force pushes replaced), or
-    (None, None) when the pull request changes none, so no read is spent.
-    `main` is the caller's `needs_main_review` answer, computed when None."""
     if main is None:
         main = review_evidence.needs_main_review(
             changed_paths, head_file, base_sha, floor
@@ -3358,7 +3332,6 @@ _FORCE_PUSHES_QUERY = (
     "{pageInfo{hasNextPage endCursor}"
     "nodes{... on HeadRefForcePushedEvent{beforeCommit{oid}}}}}}}"
 )
-# A pull request rebased more often than this is past what the gate reads.
 _FORCE_PUSH_PAGES = 10
 
 
@@ -3889,7 +3862,6 @@ def risk_cleared_body(head: str) -> str:
 def _newest_marker_comment(
     comments: list[dict[str, Any]], identity: str, marker: str
 ) -> dict[str, Any] | None:
-    """The identity's newest comment whose first or second line is `marker`."""
     mine = [
         c
         for c in comments
@@ -3908,9 +3880,6 @@ def _newest_marker_comment(
 
 
 def _stood_unchanged(comment: dict[str, Any], body: str, minutes: int) -> bool:
-    """Whether `comment` already reads `body` (the same score, reasons and
-    head) and has for at least `minutes`, timed from its last change: a
-    rewrite of its reasons restarts the time."""
     if _normalized(comment.get("body")) != _normalized(body):
         return False
     changed = parse_github_timestamp(
@@ -4016,14 +3985,12 @@ def shared_copy_escalation_body(
 
 
 def _inputs_head(inputs: Mapping[str, Any]) -> str:
-    """The head SHA of the policy inputs' pull request, as a string."""
     return str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
 
 
 def _issue_comments(
     repo: str, number: int, comments: list[dict[str, Any]] | None
 ) -> list[dict[str, Any]]:
-    """`comments` when already read, else the pull request's comments."""
     if comments is not None:
         return comments
     return fetch_paginated_api(
@@ -4032,7 +3999,6 @@ def _issue_comments(
 
 
 def _verdict_read_env() -> dict[str, str] | None:
-    """The env override that reads under the verdict reader's token, if set."""
     token = os.environ.get(verify_evidence.TOKEN_ENV)
     return {"GH_TOKEN": token} if token else None
 
@@ -4247,7 +4213,6 @@ MERGE_GROUP_FAILURE_PAGES = 5
 
 
 def _verdict_read(path: str) -> Any:
-    """One GET under the verdict reader's Actions token when one is set."""
     proc = gh_capture(["api", path], env_overrides=_verdict_read_env())
     if proc.returncode != 0:
         raise RuntimeError(f"gh api {path}: {proc.stderr.strip()}")
@@ -4309,7 +4274,6 @@ def _merge_group_failures(
 
 
 def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:
-    """The links of `_merge_group_failures`, or None when it cannot be read."""
     runs = _merge_group_failures(repo, branch, number)
     if runs is None:
         return None
@@ -4392,8 +4356,6 @@ def _diagnostic_lines(message: str) -> list[str]:
 
 
 def _annotation_lines(repo: str, check_run: Any) -> list[str] | None:
-    """The diagnostic lines of a check run's failure annotations, or None
-    when a full page may hide more."""
     annotations = json_array(
         _verdict_read(f"repos/{repo}/check-runs/{check_run}/annotations?per_page=100")
     )
@@ -4428,7 +4390,6 @@ def _failure_line(message: str, gate: bool = True) -> dict[str, Any]:
 
 
 def _attempt_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
-    """A run attempt's jobs, or None when the listing is not whole."""
     jobs = json_object(
         _verdict_read(
             f"repos/{repo}/actions/runs/{run.get('id')}/attempts/"
@@ -4475,11 +4436,6 @@ def _entry_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
 def _job_causes(
     job: dict[str, Any], causes: tuple[str, ...]
 ) -> dict[str, list[str]] | None:
-    """Each of `causes` a failed job's lines name, with the reset times its
-    lines name, or None when the job failed on its own: a line that is
-    neither one of `causes`, generic nor a consequence, no cause line at all
-    (the gate alone may fail on generic lines, as it does when a lane failed
-    on a cause), or lines that could not all be read."""
     lines = job.get("lines")
     if not is_json_array(lines):
         return None
@@ -4501,11 +4457,6 @@ def _job_causes(
 def _red_on_main(
     repo: str, branch: str, run: dict[str, Any], job: dict[str, Any], removed: datetime
 ) -> bool:
-    """Whether `job` also failed on `branch` at the time of the removal, on
-    the same lines: in the newest completed run of the merge-group run's
-    workflow on `branch` that started within `MAIN_RED_WINDOW` before it, a
-    job of its name failed with every line `job` failed with that is
-    neither generic nor a consequence, and there is one."""
     own = job.get("lines")
     if not is_json_array(own):
         return False
@@ -4728,8 +4679,6 @@ def queue_ejection_body(head: str, count: int, runs: list[str] | None) -> str:
 
 
 def _queued_verify_hold(verifier: verify_evidence.Reader, number: int) -> str | None:
-    """One queued entry's verifier hold. An unexpected error refuses that
-    entry, so it leaves the queue and the sweep goes on to the next."""
     try:
         return verifier.queued_hold(number)
     except Exception:  # noqa: BLE001 -- any crash refuses this entry alone
@@ -4741,10 +4690,6 @@ def _sweep_key(repo: str, branch: str, identity: str, number: int) -> str:
 
 
 def _kept_recently(repo: str, branch: str, identity: str, number: int) -> bool:
-    """Whether a gate process of this run kept the queued entry on reads
-    taken at most `run_cache.MAX_AGE` ago, dated by its oldest input (a
-    shared permission, trusted list or verdict listing included): the bound
-    every judgment of an entry already keeps."""
     stamp = run_cache.get(SWEEP, _sweep_key(repo, branch, identity, number), None)
     try:
         at = datetime.fromisoformat(stamp)
@@ -4979,13 +4924,6 @@ def _whole_review_record(
     head: str,
     prior: dict[str, Any] | None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """The reasons comment body with every whole-review record line the
-    prior comment holds, and the request: `{"toggle": True}` when this run
-    records a new one. A pull request the agent identity opened or the lane
-    adopted (`Eligibility.adoption`), scored `wholeReviewWanted`, whose
-    comment is not escalated, with no record at this head and fewer than
-    `MAX_TOGGLES` in all (record lines and the identity's conversions to
-    draft on the timeline), is recorded when this sweep's limits allow it."""
     text = _normalized((prior or {}).get("body"))
     kept = whole_review.with_records(body, whole_review.record_lines(text))
     inputs = policy.inputs or {}
@@ -5015,8 +4953,6 @@ def _whole_review_record(
 def _identity_queue_entries(
     repo: str, branch: str, identity: str
 ) -> list[dict[str, Any]] | None:
-    """The identity's merge-queue entries, earliest-enqueued first, or None
-    when the queue cannot be read whole."""
     owner, name = repo.split("/", 1)
     try:
         data = gh_json(

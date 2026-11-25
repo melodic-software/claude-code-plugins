@@ -666,9 +666,6 @@ summarize() {
 # Fenced code blocks are ignored in the body so a literal example cannot
 # satisfy or trip the body limbs.
 
-# Drop a negated mutate-verb clause so "never rewrites the files" cannot
-# advertise mutation. Scoped to those verbs — a blanket "not ..." strip
-# would eat unrelated lead text.
 vc_strip_negated_mutate() {
   printf '%s' "$1" | sed -E \
     's/(never|not|does not|do not)[[:space:]]+(rewrites?|fixes|remediates?|mutates|applies)[^.;]*//g'

@@ -105,7 +105,6 @@ _MARKER = re.compile(
     r"^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40}) "
     r"verdict=([a-z]+) run=([0-9]+-[0-9]+) -->$"
 )
-# The files each ecosystem's updates edit, in the configured directory.
 MANIFESTS = {
     "npm": re.compile(
         r"^(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$"
@@ -214,9 +213,6 @@ def rebase_body(base_sha: str, command: str = REBASE_COMMAND) -> str:
 _REQUEST_MARKER = re.compile(
     r"^<!-- babysit-dependabot-rebase base=([0-9a-f]{40}) -->$"
 )
-# At most one request per pull request in this window, so a head that stays
-# behind does not collect a comment at every base tip (judgment). A conflict
-# still gets its request, once per base tip.
 REQUEST_COOLDOWN = timedelta(hours=1)
 
 
@@ -513,7 +509,6 @@ def all_own(updates: Sequence[Update], globs: Sequence[str]) -> bool:
 
 
 def _from_subject(message: str, update: Update) -> Update:
-    """`update` with its jump read from its commit's subject (`subject_jump`)."""
     jump = subject_jump(message, update)
     if jump is None:
         return Update(update.name, None, update.version)
@@ -654,7 +649,6 @@ _NPM_STABLE = re.compile(r"^\d+\.\d+\.\d+$")
 _PIP_STABLE = re.compile(r"^\d+(\.\d+)*(\.post\d+)?$")
 _WHEEL = re.compile(r"^[^-]+-([^-]+)-.+\.whl$")
 _SDIST = re.compile(r"^.+-([^-]+)\.(tar\.gz|zip)$")
-# `fetch(url, accept)` returns the registry's parsed JSON, or raises.
 Fetch = Callable[[str, str], Any]
 
 
@@ -863,8 +857,6 @@ def provenance_reasons(
     return tuple(reasons)
 
 
-# The reasons a pull request goes to review only because the classifier could
-# not read something: a parse gap, not a risk.
 CLASSIFIER_GAPS = frozenset(
     {
         "unparsed-updates",
@@ -1067,7 +1059,6 @@ def content_refusal(
 
 
 def _ancestry(sha: str, by_sha: dict[str, Any]) -> set[str]:
-    """`sha` and its ancestors among the pull request's commits `by_sha`."""
     found: set[str] = set()
     todo = [sha]
     while todo:
@@ -1164,7 +1155,6 @@ _REQUIREMENT = re.compile(
 )
 _HASH_LINE = re.compile(r"\s+--hash=sha256:[0-9a-f]{64}(\s+\\)?")
 _BLANK_OR_COMMENT = re.compile(r"\s*(#.*)?")
-# Every range set is bounded: no wildcard major and no lower bounds alone.
 _WILD_MAJOR = re.compile(r"(\^|~|[<>]=?|=)?v?[xX*]")
 # The package a lock key installs: the last `node_modules/<name>` of the path.
 _LOCK_KEY = re.compile(
@@ -1517,7 +1507,6 @@ def lock_refusal(before: Any, after: Any) -> str | None:
     def script(packages: dict[str, Any], name: str) -> bool:
         return json_object(packages.get(name)).get("hasInstallScript") is True
 
-    # Both sides hold the same keys, checked above.
     for name in sorted(now["packages"]):
         if script(old["packages"], name) != script(now["packages"], name):
             return f"lock-install-script:{name}"
@@ -1541,7 +1530,6 @@ def requirements_refusal(before: Any, after: Any) -> str | None:
             added.append(_project(text))
         elif not (_BLANK_OR_COMMENT.fullmatch(text) or _HASH_LINE.fullmatch(text)):
             return "requirements-line"
-    # A fix repins; every pin it adds names a project a removed line named.
     removed = {_project(line.removesuffix("\r")) for line, n in kept.items() if n > 0}
     fresh = next((name for name in added if name not in removed), "")
     return f"requirements-new-package:{fresh}" if fresh else None

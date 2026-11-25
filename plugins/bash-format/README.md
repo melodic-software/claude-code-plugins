@@ -41,8 +41,8 @@ The plugin ships no rules of its own.
   a file. For what each does, see the DESCRIPTION section and the `--apply-ignore` entry of the
   [shfmt manual page](https://github.com/mvdan/sh/blob/master/cmd/shfmt/shfmt.1.scd), which the
   [mvdan/sh README: shfmt](https://github.com/mvdan/sh#shfmt) section links.
-- **Pre-existing drift is rewritten whole.** The batch payload carries no pre-edit bytes, so a file
-  that already drifted from your style is formatted in full, as the pre-commit entry would.
+- **Drift already in the file is rewritten whole.** The batch payload carries no pre-edit bytes, so a
+  file that already drifted from your style is formatted in full, as the pre-commit entry would.
 - **A rewrite that would change an array subscript is put back.** shfmt parses an unquoted
   subscript as arithmetic and spaces it, because it cannot know the array is associative, so
   `${m[a-b]}` would become the different key `${m[a - b]}` (see the Caveats section of the
@@ -181,6 +181,13 @@ bash 5.3.9, shfmt v3.14.1).
 Then verify prerequisites with `/bash-format:setup check`.
 
 ## Configuration
+
+A repository whose `docs/conventions/source-control.yaml` names a `standards_repository`
+(`<owner>/<repo>`) uses that repository's `.shellcheckrc`, read from a local checkout: `STANDARDS_DIR`
+when set, else `<ghq root>/github.com/<owner>/<repo>` (`git config ghq.root`, default `~/ghq`).
+It is passed with `--rcfile` when the repository has no `.shellcheckrc` of its own;
+ShellCheck reads one rc file and has no include, so any repository `.shellcheckrc` replaces it
+whole. Suppress a single finding with a `# shellcheck disable=` directive. With no such checkout or file, ShellCheck's own defaults apply.
 
 The linting and formatting rules come from the `.shellcheckrc` and
 `.editorconfig` already in your repository, which the plugin reads automatically.

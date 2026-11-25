@@ -72,7 +72,6 @@ else
   login="$WIT_GH_OUT"
 fi
 
-# A lease-only claim assigns no one, so steps 1-2 and their rollback do not apply.
 if [[ "$lease_only" == false ]]; then
   # Guard the partial-claim window, armed before the assign so an assign that lands
   # but reports failure is covered: any failure before a successful lease-comment
@@ -135,9 +134,6 @@ wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->${footer}" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
 
-# A claim that fails before its emit supersedes its own comment, so a lease whose
-# handle never reached the caller does not block the item for its TTL; a default
-# claim also rolls back its assignment.
 _wit_claim_abort() {
   wit_try_supersede_lease_comment "$owner" "$repo" "$our_comment_id" "$lease"
   [[ "$lease_only" == true ]] || _wit_claim_rollback
@@ -157,19 +153,12 @@ winner_id="$WIT_WINNER_ID"
 winner_holder=""
 [[ -z "$WIT_WINNER_JSON" ]] || winner_holder="$(jq -r '.holder // empty' <<<"$WIT_WINNER_JSON")"
 
-# Earliest LIVE lease wins. No live lease at all (e.g. ttl 0) → our claim stands;
-# expiry is reclaim's concern.
-# The abort trap backs off: it supersedes our lease, then hands back @me
-# (wit_hand_back_assignee).
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
   exit "$EX_CONFLICT"
 fi
 
-# A same-login release that ran between step 2 and our post can have removed @me
-# or a same-login back-off (each saw no other live lease of ours yet); put it back.
-# Each re-lists the leases after its removal, so one of the two sees the other's write.
 if [[ "$lease_only" == false ]]; then
   wit_read_assignees "$owner" "$repo" "$number"
   if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$WIT_GH_OUT" >/dev/null; then
@@ -177,7 +166,7 @@ if [[ "$lease_only" == false ]]; then
   fi
 fi
 
-trap - EXIT # arbitration confirms our lease is the winner — claim complete
+trap - EXIT
 jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg holder "$login" \
   --arg now "$now" --arg ttl "$ttl" --arg cid "$our_comment_id" --arg sid "$session_id" \
   '{schema_version: $sv, id: $id, holder: $holder, acquired_at: $now, renewed_at: $now,
