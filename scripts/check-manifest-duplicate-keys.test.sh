@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The Python floor lives in the detector's MIN_PYTHON; the probe parses it there.
 # shellcheck source=lib/python-probe.sh
 . "$SCRIPT_DIR/lib/python-probe.sh"
 

@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The Python floor has one origin: MIN_PYTHON in the gate itself.
 # shellcheck source=lib/python-probe.sh
 . "$SCRIPT_DIR/lib/python-probe.sh"
 
