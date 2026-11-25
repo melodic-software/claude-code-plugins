@@ -1,18 +1,24 @@
-# Fleet manifest: the hosts and lanes the peer list queries
+# fleet.json: the hosts and lanes the peer list queries
 
 `~/.config/fleet/fleet.json` lists the machines in one person's fleet and how to reach the Claude
 Code lanes on each. The fleet plugin's SessionStart peer list reads it to run
-`claude agents --json` on every lane. Schema: [schema.json](schema.json) (JSON Schema draft
-2020-12). Decision: [ADR 0135](../../adr/0135-read-the-fleet-from-a-rendered-manifest-whose-contract-this-repository-owns.md).
+`claude agents --json` on every lane it can reach. Schema: [schema.json](schema.json) (JSON Schema
+draft 2020-12). Decision: [ADR 0135](../../adr/0135-read-the-fleet-from-a-rendered-manifest-whose-contract-this-repository-owns.md).
+
+This is not `~/.config/fleet/FLEET.md`, the prose fleet description `/fleet:reach` reads.
 
 ## Who writes and reads it
 
-- **Writer:** the owner's own config, rendered once per lane (a WSL lane and the Windows lane on
-  the same machine each get their own file, under their own home folder). No plugin writes it.
+- **Writer:** the owner's own config, rendered once per lane: a WSL lane and the Windows lane on
+  the same machine each get their own file, under their own home folder. No plugin writes it. A
+  renderer that validates against this schema vendors `schema.json` at a named commit and records
+  that commit beside the copy.
 - **Reader:** the fleet plugin's peer-list hook, which reads only this path. With no file, the
   hook lists only the lane it runs on.
 
 ## Shape
+
+The file as rendered on host-b's WSL lane:
 
 ```json
 {
@@ -42,35 +48,69 @@ Code lanes on each. The fleet plugin's SessionStart peer list reads it to run
 }
 ```
 
-This is the file as rendered on host-b's WSL lane.
+On host-b's Windows lane, host-b's entry instead reads:
+
+```json
+{
+  "key": "host-b",
+  "os": "windows",
+  "role": "server",
+  "lanes": [
+    { "kind": "windows", "route": "local", "claudePath": "C:\\Tools\\claude\\claude.exe" },
+    { "kind": "wsl", "route": "wsl-exe", "distro": "Ubuntu-24.04", "claudePath": "/opt/claude/bin/claude" }
+  ]
+}
+```
 
 | Field | Meaning |
 | --- | --- |
 | `version` | Contract version, `1`. |
-| `self` | `key` of the host the file was rendered on. The reader finds its own lane by `self` plus its own kind. |
+| `self` | `key` of the host the file was rendered on. |
 | `hosts[].key` | Host name the peer list prints. |
-| `hosts[].os` | `windows`, `linux` or `macos`. |
+| `hosts[].os` | `windows` (lanes of kind `wsl` and `windows`), `linux` (kind `linux`) or `macos` (kind `macos`). |
 | `hosts[].role` | `client` is never queried; any other value is. |
 | `lanes[].kind` | `wsl`, `windows`, `linux` or `macos`. |
-| `lanes[].route` | How this lane reaches that lane: `local` (the same lane), `interop` (WSL to Windows on the same machine), `wsl-exe` (Windows to WSL on the same machine, with `distro`), `ssh` (another machine, with `alias`). |
-| `lanes[].alias` | ssh host alias, resolved by the reader's ssh config. Required for `ssh`. |
+| `lanes[].route` | How the reading lane reaches that lane: `local` (itself), `interop` (WSL to the same machine's Windows lane), `wsl-exe` (Windows to the same machine's WSL lane, with `distro`), `ssh` (another machine, with `alias`). |
+| `lanes[].alias` | ssh host alias, resolved by the reading lane's ssh config. Required for `ssh`. |
 | `lanes[].distro` | WSL distribution name. Required for `wsl-exe`. |
-| `lanes[].claudePath` | Absolute path of the claude binary, as seen from the reading lane for `local`, `interop` and `wsl-exe`, and from the remote lane for `ssh`. |
+| `lanes[].claudePath` | Absolute path of the claude binary, as the program that runs it reads it: the reading lane for `local` and `interop` (a `/mnt/<drive>/...` path for `interop`), the target lane for `wsl-exe` (`wsl.exe --exec` runs it inside the distro) and `ssh` (the remote shell runs it). A drive-letter path for a `windows` lane on `local` or `ssh`; a `/` path everywhere else. |
 
-Every object rejects unknown properties. `linux` and `macos` lanes take route `local` or `ssh`.
+The schema also holds these, which it cannot express:
+
+- Each `hosts[].key` is unique, and `self` names one of them.
+- A host has at most one lane per kind.
+- The `self` host has exactly one lane with route `local`, and its kind is the reading lane's own:
+  `windows` on native Windows, `wsl` inside WSL, `linux` or `macos` otherwise. That lane is the
+  reader's own.
+
+`linux` and `macos` lanes take route `local` only, so a Linux or macOS host is queried only by its
+own lane; other hosts' files list it with `lanes: []`.
+
+Every object rejects unknown properties.
 
 ## Safe sets
 
 The reader builds every command itself, so a value that could change the command is refused, not
 quoted:
 
-- `self`, `key`, `alias` and `distro` match `^[A-Za-z0-9][A-Za-z0-9._-]*$`.
-- `claudePath` starts with `/` or a drive letter and `:\`, and holds only letters, digits and
-  `. _ / \ : -`: no space, no `~`, no leading `-`.
+- `alias` and `distro` match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. `self` and `key` match the same
+  set, because the peer list prints them into the session's context.
+- A `/` `claudePath` holds only letters, digits and `. _ / -`. A drive-letter `claudePath` is a
+  letter, `:\`, then only letters, digits and `. _ \ -`. Neither allows a space, `~`, `$`, a quote
+  or a leading `-`.
 
-Over ssh the remote login shell parses the command line, so these sets keep each value one word
-with nothing for that shell to expand. A lane whose value fails its set is never run; the peer
-list prints it as `not reached (unsafe manifest entry)`.
+Over ssh the remote shell parses the command line: a POSIX shell on a WSL or Linux lane, and on a
+Windows lane whichever shell its OpenSSH server starts. A POSIX path holds no backslash, which
+those shells treat as an escape, and a Windows path holds nothing cmd.exe or PowerShell expands,
+so every value reaches the remote side as one unchanged word.
+
+## What the reader does with a bad file
+
+- An unparsable file, a `version` other than `1`, or a broken rule outside `lanes[]`: the reader
+  ignores the file and lists only its own lane.
+- A lane that breaks any lane rule (a safe set, a missing `alias` or `distro`, an unknown value or
+  property): that lane is never run, and the peer list prints it as
+  `not reached (unsafe manifest entry)`. The other lanes are still queried.
 
 ## Trust
 
@@ -79,6 +119,5 @@ known-hosts configuration, and sign-in stays with ssh.
 
 ## Versioning
 
-A reader that finds a `version` it does not know, or a file it cannot parse, ignores the file and
-lists only its own lane. Any change to a field's name, meaning or allowed values raises `version`
-by one.
+Any change to the fields, including a new one, raises `version` by one, since every object rejects
+unknown properties.

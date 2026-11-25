@@ -8,7 +8,7 @@
 ## Context
 
 The fleet plugin's SessionStart peer list runs `claude agents --json` on every Claude Code lane in
-the owner's fleet, unprompted, before the first prompt. It needs each lane's route, ssh alias, WSL
+the owner's fleet it can reach, unprompted, before the first prompt. It needs each lane's route, ssh alias, WSL
 distribution and claude binary path in a form a hook can read without a model. The owner's fleet
 data lives in their dotfiles, which also hold SSH host keys, user names and provisioning details the
 hook has no use for. `/fleet:reach` reads the fleet from prose written for a model. The plugin is
@@ -24,9 +24,11 @@ public and consumer-agnostic, so it may carry no one person's topology.
    `version` first, and an unknown version or unparsable file means the hook lists only its own
    lane.
 3. **Every value the hook puts in a command passes a safe set**: names match
-   `^[A-Za-z0-9][A-Za-z0-9._-]*$` and `claudePath` is absolute with no space, `~` or leading `-`.
-   Over ssh the remote login shell parses the command line, so the safe sets keep each value one
-   word with nothing for that shell to expand; a lane that fails is never run.
+   `^[A-Za-z0-9][A-Za-z0-9._-]*$`; `claudePath` is a `/` path with no backslash, or, for a Windows
+   lane run locally or over ssh, a drive-letter path; neither allows a space, `~`, `$`, a quote or
+   a leading `-`. Over ssh the remote shell parses the command line, so the safe sets keep each
+   value one word that shell leaves unchanged. A lane that fails is never run; any other broken
+   rule makes the hook ignore the file.
 4. **The file carries no secrets and no SSH host keys.** Host-key pinning stays in the ssh client's
    known-hosts configuration.
 

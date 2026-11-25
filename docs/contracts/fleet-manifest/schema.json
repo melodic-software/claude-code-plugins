@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/fleet-manifest/schema.json",
-  "title": "Fleet manifest",
-  "description": "Schema for ~/.config/fleet/fleet.json: the hosts and Claude Code lanes the fleet plugin's peer list queries. Contract: docs/contracts/fleet-manifest/README.md.",
+  "title": "fleet.json",
+  "description": "Schema for ~/.config/fleet/fleet.json, version 1: the hosts and Claude Code lanes the fleet plugin's peer list queries. Contract: docs/contracts/fleet-manifest/README.md.",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "self", "hosts"],
@@ -38,7 +38,21 @@
           "type": "array",
           "items": { "$ref": "#/$defs/lane" }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "os": { "const": "windows" } } },
+          "then": { "properties": { "lanes": { "items": { "properties": { "kind": { "enum": ["wsl", "windows"] } } } } } }
+        },
+        {
+          "if": { "properties": { "os": { "const": "linux" } } },
+          "then": { "properties": { "lanes": { "items": { "properties": { "kind": { "const": "linux" } } } } } }
+        },
+        {
+          "if": { "properties": { "os": { "const": "macos" } } },
+          "then": { "properties": { "lanes": { "items": { "properties": { "kind": { "const": "macos" } } } } } }
+        }
+      ]
     },
     "lane": {
       "type": "object",
@@ -51,16 +65,31 @@
         "distro": { "$ref": "#/$defs/name", "description": "WSL distribution name." },
         "claudePath": {
           "type": "string",
-          "description": "Absolute path of the claude binary on that lane.",
-          "pattern": "^(/|[A-Za-z]:\\\\)[A-Za-z0-9._/\\\\:-]*$"
+          "description": "Absolute path of the claude binary, in the form the shell or process that runs it reads.",
+          "pattern": "^(/[A-Za-z0-9._/-]*|[A-Za-z]:\\\\[A-Za-z0-9._\\\\-]*)$"
         }
       },
       "allOf": [
         { "if": { "properties": { "route": { "const": "ssh" } } }, "then": { "required": ["alias"] } },
-        { "if": { "properties": { "route": { "const": "wsl-exe" } } }, "then": { "required": ["distro"] } },
+        {
+          "if": { "properties": { "route": { "const": "wsl-exe" } } },
+          "then": { "required": ["distro"], "properties": { "kind": { "const": "wsl" } } }
+        },
+        {
+          "if": { "properties": { "route": { "const": "interop" } } },
+          "then": { "properties": { "kind": { "const": "windows" } } }
+        },
         {
           "if": { "properties": { "kind": { "enum": ["linux", "macos"] } } },
-          "then": { "properties": { "route": { "enum": ["local", "ssh"] } } }
+          "then": { "properties": { "route": { "const": "local" } } }
+        },
+        {
+          "if": {
+            "properties": { "kind": { "const": "windows" }, "route": { "enum": ["local", "ssh"] } },
+            "required": ["kind", "route"]
+          },
+          "then": { "properties": { "claudePath": { "pattern": "^[A-Za-z]:" } } },
+          "else": { "properties": { "claudePath": { "pattern": "^/" } } }
         }
       ]
     }
