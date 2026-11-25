@@ -1,12 +1,3 @@
-# Trace one C# entry point through textual call sites.
-#
-# The bash wrapper sets FLOW_ROOT, FLOW_ENTRY, FLOW_DEPTH, FLOW_SUBJECT,
-# FLOW_GENERATED_ON, and FLOW_STATUS. Arguments are repo-relative .cs paths.
-# Matched text only. Nothing is executed.
-#
-# A refusal is one line written to FLOW_STATUS beginning with "refused:".
-# On success the record is written to stdout and FLOW_STATUS is left empty.
-
 function jesc(s) {
   gsub(/\\/, "\\\\", s)
   gsub(/"/, "\\\"", s)
@@ -16,7 +7,6 @@ function jesc(s) {
   return s
 }
 
-# A line without its trailing comment and with string contents emptied.
 function strip(line,    s) {
   s = line
   sub(/\/\/.*/, "", s)
@@ -49,14 +39,10 @@ function read_file(rel,    path, line, n) {
   index_file(rel)
 }
 
-# A type declaration line; leaves RSTART and RLENGTH on its modifiers, keyword and name.
 function is_type_decl(s) {
   return match(s, /^[[:space:]]*(\[[^]]*\][[:space:]]*)*([a-z]+[[:space:]]+)*(class|struct|record|interface)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*/)
 }
 
-# Brace depth at the start of every line, and one record per class, struct,
-# record or interface: file, header line, body range, member depth, kind and
-# base types. A call binds through these records, never through a bare name.
 function index_file(rel,    n, i, depth, s, hdr, rest, tk, nt, name, kind, is_partial, base, nb, bs, b, k) {
   n = nlines[rel]
   depth = 0
@@ -112,7 +98,6 @@ function index_file(rel,    n, i, depth, s, hdr, rest, tk, nt, name, kind, is_pa
   }
 }
 
-# The innermost type whose body holds the line, or 0.
 function class_at(rel, line,    j, k, best, span, bspan) {
   best = 0
   bspan = 0
@@ -136,8 +121,6 @@ function route_of(line,    s) {
   return ""
 }
 
-# A declaration line starts with an access modifier, after any attributes. A
-# modifier inside an identifier (_internalService, publicUrl) is not one.
 function has_modifier(line) {
   return line ~ /^[[:space:]]*(\[[^]]*\][[:space:]]*)*(public|private|protected|internal)[[:space:]]/
 }
@@ -147,8 +130,6 @@ function is_decl(line, name) {
   return match(line, "(^|[^A-Za-z0-9_])" name "[[:space:]]*\\(")
 }
 
-# The declaration a route attribute sits on. A route above a type is not
-# composed with the routes of its methods, so it names no method (0).
 function method_after(rel, attr_line,    i, line) {
   for (i = attr_line; i <= attr_line + 12 && i <= nlines[rel]; i++) {
     line = lines[rel, i]
@@ -158,9 +139,6 @@ function method_after(rel, attr_line,    i, line) {
   return attr_line
 }
 
-# Whether the handler takes the verb. The Map* call on the route line, or an
-# Http* attribute in the handler's attribute block, names the verbs it takes;
-# none named takes any.
 function verb_ok(rel, i, ml, verb,    lo, hi, j, s, vs) {
   if (verb == "") return 1
   lo = i
@@ -181,10 +159,6 @@ function verb_ok(rel, i, ml, verb,    lo, hi, j, s, vs) {
   return (vs == "" || index(vs " ", " " verb " ") > 0)
 }
 
-# The one declaration a Map* call names as its handler, MapGet("/x", Handle) or
-# MapGet("/x", Type.Handle): a member of a class holding the call, or of Type.
-# Sets mh_rel and mh_line and returns 1. A lambda, or a name that is not exactly
-# one declaration, returns 0.
 function map_handler(rel, at,    s, n, hp, j, p, i, k, hits) {
   s = lines[rel, at]
   if (!match(s, /Map(Get|Post|Put|Delete|Patch)[[:space:]]*\([[:space:]]*"[^"]*"[[:space:]]*,[[:space:]]*[A-Za-z_][A-Za-z0-9_.]*[[:space:]]*[,)]/)) return 0
@@ -204,7 +178,6 @@ function map_handler(rel, at,    s, n, hp, j, p, i, k, hits) {
   return (hits == 1)
 }
 
-# Counts the members of class record p declared as `name` and remembers the last in mh_rel and mh_line.
 function count_decl(p, name,    i, hits) {
   hits = 0
   for (i = c_lo[p] + 1; i <= c_hi[p]; i++)
@@ -236,7 +209,6 @@ function find_body(rel, start_line,    i, n, depth, started, line, stripped, c, 
     stripped = strip(line)
     for (j = 1; j <= length(stripped); j++) {
       c = substr(stripped, j, 1)
-      # An expression-bodied member has no block; the next brace belongs to someone else.
       if (!started && substr(stripped, j, 2) == "=>") return 0
       if (!started && c == ";") return 0
       if (c == "{") {
@@ -263,9 +235,6 @@ function keyword(method) {
   return method ~ /^(if|for|while|switch|catch|foreach|lock|using|return|sizeof|typeof|nameof|else|do|throw|try|get|set|new)$/
 }
 
-# The type written before `name` in the declaration on stripped line s, "var"
-# when it is inferred, or "" when s declares no such name. member=1 reads a
-# field or property, member=0 a parameter or local.
 function type_in_line(s, name, member,    ty, tail) {
   if (index(s, name) == 0) return ""
   while (s ~ /<[^<>]*>/) gsub(/<[^<>]*>/, "", s)
@@ -286,7 +255,6 @@ function type_in_line(s, name, member,    ty, tail) {
   return ty
 }
 
-# The type of a parameter or local declared in lines lo..hi of rel; the last declaration wins.
 function scan_decl(rel, lo, hi, name,    i, t, found) {
   found = ""
   for (i = lo; i <= hi; i++) {
@@ -296,8 +264,6 @@ function scan_decl(rel, lo, hi, name,    i, t, found) {
   return found
 }
 
-# The type of a field, a property or a primary-constructor parameter of one
-# class declaration, or "".
 function class_member(p, name,    r, i, s, t) {
   r = c_rel[p]
   for (i = c_line[p]; i <= c_hi[p]; i++) {
@@ -315,9 +281,6 @@ function class_member(p, name,    r, i, s, t) {
   return ""
 }
 
-# The type of a member of the class named nm, its other parts and its in-tree
-# base classes. A member found in a base class or in a class declared in
-# another file than the call site sets tv_ev to "inferred".
 function member_type(nm, name, hop,    j, p, ty, nb, bs, i) {
   if (hop > 8) return ""
   for (j = 1; j <= nparts[nm]; j++) {
@@ -339,7 +302,6 @@ function member_type(nm, name, hop,    j, p, ty, nb, bs, i) {
   return ""
 }
 
-# The declared type of `name` where the method that starts at decl_line calls it at line `at`.
 function scope_type(rel, decl_line, at, name,    ty, k) {
   ty = scan_decl(rel, decl_line, at, name)
   if (ty != "") return ty
@@ -348,10 +310,6 @@ function scope_type(rel, decl_line, at, name,    ty, k) {
   return member_type(c_name[k], name, 0)
 }
 
-# The type of the receiver path parts[1..m], or "" when it cannot be told. A
-# type name written at the call site (Repository.Save, Console.WriteLine) is
-# its own evidence. After the first name each step reads a member of the type
-# before it, and a type outside the tree ends the walk.
 function receiver_type(rel, decl_line, at, parts, m, k,    ty, j) {
   j = 1
   if (parts[1] == "this") {
@@ -373,8 +331,6 @@ function receiver_type(rel, decl_line, at, parts, m, k,    ty, j) {
   return ty
 }
 
-# Declarations of `method` among the members of the class named nm, or of its
-# in-tree base classes when the class has none (then via_base is set).
 function find_in_class(nm, method, hop,    j, p, i, r, nb, bs, b) {
   if (hop > 8) return
   for (j = 1; j <= nparts[nm]; j++) {
@@ -402,10 +358,6 @@ function find_in_class(nm, method, hop,    j, p, i, r, nb, bs, b) {
   }
 }
 
-# Bind one call. A call is followed only when its receiver's declared type is
-# a class in the tree that declares the method. Anything less is an unresolved
-# hop with a mechanism and is never walked. Sets b_res, b_mech, b_file, b_line
-# and b_follow. pre is the text before the call on its line.
 function resolve_call(rel, decl_line, at, parts, n, pre,    method, k, ty) {
   method = parts[n]
   b_res = "unresolved"
@@ -530,8 +482,6 @@ function walk(rel, decl_line, depth,    from_role, i, lo, hi, line, work, chunk,
       cline = ""
       follow = 0
       if (method == "Publish" || method == "Send") {
-        # The broker owns delivery: never resolved here, always a hand-off,
-        # and asynchronous whether or not the call is awaited.
         handoff = "yes"
         to_role = "external"
         sync = "asynchronous"

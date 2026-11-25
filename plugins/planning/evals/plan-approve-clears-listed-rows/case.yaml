@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: plan-approve-clears-listed-rows
+context:
+  scaffold_script: scaffold.sh

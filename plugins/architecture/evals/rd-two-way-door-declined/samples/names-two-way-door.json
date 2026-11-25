@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "This does not earn a record: it is a two-way door, since reverting the commit to skills/release/SKILL.md undoes it. The reason fits beside the checklist or in the pull request. Want me to skip it, or record it anyway?",
+      "why": "names the failed part"
+    },
+    {
+      "answer": "Fails the admission test on part 2: the order is a Two-way door, plain skill text. Skip it?"
+    },
+    {
+      "answer": "A weighed alternative and an unstated reason, but it isn't a one-way door: reverting the commit undoes it. Skip, or record it anyway?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote docs/adr/0002-run-lint-before-tests.md.",
+      "why": "recorded without applying the test"
+    },
+    {
+      "answer": "It is a one-way door, so I wrote docs/adr/0002-run-lint-first.md.",
+      "why": "calls it a one-way door"
+    },
+    {
+      "answer": "This is easy to change back, so I would skip the record. Skip it?",
+      "why": "declines without naming the one-way-door part"
+    }
+  ]
+}

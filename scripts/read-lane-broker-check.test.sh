@@ -72,7 +72,7 @@ url_case "check mode refuses a host with no path" "https://h.example" "$REFUSED"
 url_case "check mode refuses a last segment that only ends in token" "https://h.example/api/xtoken" "$REFUSED"
 url_case "check mode accepts https://<host>/api/token" "https://h.example/api/token" "$ACCEPTED"
 url_case "check mode accepts https://<host>/token" "https://h.example/token" "$ACCEPTED"
-CHECK_ONLY="check mode takes no effect, grant, PR or issue number, release, or dispatcher run id"
+CHECK_ONLY="check mode takes no effect, grant, PR number, release, or dispatcher run id"
 url_case "check mode refuses a dispatcher run id" "https://h.example/api/token" "$CHECK_ONLY" 123
 url_case "check mode refuses a release" "https://h.example/api/token" "$CHECK_ONLY" "" 2.1.312
 
@@ -210,7 +210,7 @@ who() {
     const step = (pred) => read.jobs.run.steps.find(pred);
     const leaseId = lease === "held" ? "41" : "";
     const runCtx = {
-      "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
+      "inputs.issue-number": "7", "inputs.issue-verdict": false, "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
       "steps.workflow-current.outputs.stale": "", "needs.check-broker.outputs.lease": lease,
       "needs.check-broker.outputs.blocked": blocked,
     };

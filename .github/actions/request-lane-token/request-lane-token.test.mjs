@@ -717,7 +717,7 @@ for (const [name, env] of [
 test("check mode refuses a pushed commit before the broker request", () => {
   const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", PUSHED_COMMIT: "a".repeat(40) });
   assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR number, release, or dispatcher run id/);
   assert.equal(run.body, null);
 });
 
@@ -777,11 +777,36 @@ for (const [name, inputs] of [
   });
 }
 
-test("check mode refuses an issue number before the broker request", () => {
-  const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", ISSUE_NUMBER: "77" });
-  assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
-  assert.equal(run.body, null);
+const INTAKE_CALLER = { CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/intake-triage.yml@refs/heads/main", CALLER_EVENT: "workflow_dispatch" };
+
+test("check mode refuses an issue number from any caller but an intake-triage.yml dispatch on main", () => {
+  for (const caller of [
+    {},
+    { ...INTAKE_CALLER, CALLER_EVENT: "issues" },
+    { ...INTAKE_CALLER, CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/intake-triage.yml@refs/heads/feature" },
+    { ...INTAKE_CALLER, CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/work-resolve-issue.yml@refs/heads/main" },
+  ]) {
+    const run = request({ ...CHECK, LANE: "intake-triage", ACTIVITY: "triage-issue", ISSUE_NUMBER: "77", ...caller });
+    assert.equal(run.status, 1, JSON.stringify(caller));
+    assert.match(run.stdout, /::error::check mode sends issue_number only from an intake-triage\.yml dispatch on refs\/heads\/main/);
+    assert.equal(run.body, null);
+  }
+});
+
+test("an intake-triage.yml dispatch's check sends lane, activity and issue_number as a JSON integer, and must send it", () => {
+  const run = request({ ...CHECK, LANE: "intake-triage", ACTIVITY: "triage-issue", ISSUE_NUMBER: "77", ...INTAKE_CALLER }, { body: { decision: "allow", lane: "intake-triage", activity: "triage-issue" } });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), { lane: "intake-triage", activity: "triage-issue", issue_number: 77 });
+  const missing = request({ ...CHECK, LANE: "intake-triage", ACTIVITY: "triage-issue", ISSUE_NUMBER: "", ...INTAKE_CALLER });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stdout, /::error::an intake-triage\.yml check sends the dispatched issue number as issue_number/);
+  assert.equal(missing.body, null);
+});
+
+test("any other caller's check sends only lane and activity", () => {
+  const run = request({ ...CHECK, CALLER_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/pr-unblock.yml@refs/heads/main", CALLER_EVENT: "workflow_dispatch" }, CHECK_ALLOW);
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(Object.keys(JSON.parse(run.body)).sort(), ["activity", "lane"]);
 });
 
 const RELEASE_LANE = { LANE: "upstream-apply-changelog", ACTIVITY: "apply-changelog-branches", PR_NUMBER: "" };
@@ -818,7 +843,7 @@ for (const [name, inputs] of [
 test("check mode refuses a release before the broker request", () => {
   const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", RELEASE: "2.1.312" });
   assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR number, release, or dispatcher run id/);
   assert.equal(run.body, null);
 });
 
