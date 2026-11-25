@@ -4139,7 +4139,7 @@ def test_amend_refusals_leave_both_files_byte_identical(
     "prep, code, needle",
     [
         ("skeleton", 1, "unfinished skeleton"),
-        ("shape2", 2, "shape-3 and shape-4 hot files only"),
+        ("shape2", 2, "shape-3 and shape-4 handoff files only"),
         ("not-handoff", 2, "not a handoff file"),
     ],
 )
@@ -4345,7 +4345,7 @@ def test_carry_checks_stay_failing_after_a_size_only_predecessor_failure(tmp_pat
     hop1 = s3_hop(repo, tmp_path, values={"observations": "- " + "x" * 30000})
     oversized = strict(hop1)
     assert oversized.returncode == 1, out(oversized)
-    assert "hot-file cap" in out(oversized), out(oversized)
+    assert "handoff-file cap" in out(oversized), out(oversized)
     hop2 = s3_hop(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
     edit(hop2, "- [R1] The thing must stay green.\n", "")
     dropped = strict(hop2)

@@ -13,23 +13,49 @@
   that outlasts the retries. The file is created 0600.
 - `run_git(directory, *args, timeout=None)` is `git -C <directory> <args>` as a completed process,
   or None when git cannot start or runs past `timeout`.
+- `file_lock(path, wait)` holds an exclusive lock on `path` (created 0600, its folder must exist)
+  and yields True, or yields False without the lock when another holder kept it past `wait`
+  seconds.
 
 Stdlib only; Python 3.10+.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import subprocess
 import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
+
+try:
+    import fcntl
+
+    def _try_lock(fd: int) -> None:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _unlock(fd: int) -> None:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+except ImportError:
+    import msvcrt
+
+    def _try_lock(fd: int) -> None:
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+
+    def _unlock(fd: int) -> None:
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
 
 PLUGIN_NAME = "session-flow"
 REPLACE_RETRIES = 20
 REPLACE_RETRY_SECONDS = 0.05
+LOCK_POLL_SECONDS = 0.01
 
 
 def data_root(env: Mapping[str, str], plugin_root: str | os.PathLike | None) -> Path | None:
@@ -68,6 +94,28 @@ def write_atomic(path: Path, text: str) -> bool:
         raise
     Path(tmp).unlink(missing_ok=True)
     return False
+
+
+@contextlib.contextmanager
+def file_lock(path: Path, wait: float) -> Iterator[bool]:
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                _try_lock(fd)
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    yield False
+                    return
+                time.sleep(LOCK_POLL_SECONDS)
+        try:
+            yield True
+        finally:
+            _unlock(fd)
+    finally:
+        os.close(fd)
 
 
 def run_git(directory: str | os.PathLike, *args: str, timeout: float | None = None) -> subprocess.CompletedProcess | None:
