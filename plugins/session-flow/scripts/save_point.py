@@ -3573,25 +3573,20 @@ def cmd_amend(args: argparse.Namespace) -> int:
     ]
     if any(FILL_MARK in value for value in values):
         return _die(1, f"a value carries the literal {FILL_MARK!r}; rewrite it without")
-    titles = [t for t in sections if t not in VERBATIM_SECTIONS]
-    appended = [t for t in append if t not in VERBATIM_SECTIONS]
-    fixed = iter(
-        _american(
-            [(sections[t], f"section {t!r}") for t in titles]
-            + [(line, f"section {t!r}") for t in appended for line in append[t]]
-            + [(line, "next") for line in next_lines or []]
-            + [(item["reason"], "retire reason") for item in retire],
-            path,
-        )
-    )
-    for title in titles:
-        sections[title] = next(fixed)
-    for title in appended:
-        append[title] = [next(fixed) for _ in append[title]]
-    if next_lines:
-        next_lines = [next(fixed) for _ in next_lines]
-    for item in retire:
-        item["reason"] = next(fixed)
+    targets = [
+        *((sections, t, f"section {t!r}") for t in sections if t not in VERBATIM_SECTIONS),
+        *(
+            (lines, j, f"section {t!r}")
+            for t, lines in append.items()
+            if t not in VERBATIM_SECTIONS
+            for j in range(len(lines))
+        ),
+        *((next_lines, j, "next") for j in range(len(next_lines or []))),
+        *((item, "reason", "retire reason") for item in retire),
+    ]
+    fixed = _american([(box[key], where) for box, key, where in targets], path)
+    for (box, key, _), value in zip(targets, fixed, strict=True):
+        box[key] = value
     for title in sections:
         if title in S3.carried:
             return _die(

@@ -4,12 +4,14 @@
 The stub `typos` replays the JSON line shape typos-cli 1.52.2 prints for
 `typos --locale en-us --format json -` (one object per finding: type, path,
 line_num, byte_offset in UTF-8 bytes, typo, corrections) and reports only when
-called with `--locale en-us`. Its two British forms and their American
+called with `--locale en-us`. Like the repo's typos config, it skips the line
+after an ignore-next-line directive. Its two British forms and their American
 corrections are the ones real typos 1.52.2 gives for them under that locale.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -32,8 +34,11 @@ import json, re, sys
 WORDS = {AMERICAN!r}
 if sys.argv[1:3] != ["--locale", "en-us"]:
     sys.exit(0)
-found = False
+found = skip = False
 for number, line in enumerate(sys.stdin.buffer.read().split(b"\\n"), 1):
+    skip, skipped = re.search(rb"#\\s*spellchecker:ignore-next-line", line) is not None, skip
+    if skipped:
+        continue
     for match in re.finditer(rb"[A-Za-z]+", line):
         word = match.group().decode()
         if word in WORDS:
@@ -112,6 +117,38 @@ def test_americanize_all_matches_one_call_per_text_with_one_typos_run(stub_path,
     assert one_by_one[4] == ("Last color, modeled.", [(UK_COLOR, "color"), (UK_MODELED, "modeled")])
 
 
+IGNORE_NEXT = "# spellchecker" ":ignore-next-line"
+
+
+def test_americanize_all_keeps_a_directive_from_reaching_the_next_text(stub_path, monkeypatch):
+    monkeypatch.setenv("PATH", stub_path)
+    texts = [f"Notes\n{IGNORE_NEXT}", f"We {UK_COLOR} it."]
+    calls = []
+    real = dialect.subprocess.run
+    monkeypatch.setattr(dialect.subprocess, "run", lambda *a, **k: calls.append(a) or real(*a, **k))
+    assert dialect.americanize_all(texts) == [
+        (texts[0], []),
+        ("We color it.", [(UK_COLOR, "color")]),
+    ]
+    assert len(calls) == 2
+
+
+def test_americanize_all_maps_findings_across_trailing_newlines_and_multiline_texts(stub_path, monkeypatch):
+    monkeypatch.setenv("PATH", stub_path)
+    texts = [
+        f"ends in a newline {UK_MODELED}\n",
+        f"{UK_COLOR} first\n",
+        "one\ntwo\nthree",
+        f"{UK_MODELED} on the first line\nand {UK_COLOR} on the second",
+    ]
+    assert dialect.americanize_all(texts) == [
+        ("ends in a newline modeled\n", [(UK_MODELED, "modeled")]),
+        ("color first\n", [(UK_COLOR, "color")]),
+        ("one\ntwo\nthree", []),
+        ("modeled on the first line\nand color on the second", [(UK_MODELED, "modeled"), (UK_COLOR, "color")]),
+    ]
+
+
 def test_no_typos_on_path_leaves_the_text_and_prints_nothing(bare_path, monkeypatch, capsys):
     monkeypatch.setenv("PATH", bare_path)
     line = f"We {UK_MODELED} the {UK_COLOR}."
@@ -164,6 +201,33 @@ def test_amend_writes_next_lines_american(tmp_path, stub_path, monkeypatch):
     amended = run("amend", str(path), "--json", str(payload), "--now", "2026-09-01T11:00:00Z")
     assert amended.returncode == 0, err(amended) + out(amended)
     assert "Finish the color pass" in path.read_text(encoding="utf-8")
+
+
+def test_amend_writes_each_value_back_to_its_own_place(tmp_path, stub_path, monkeypatch):
+    from test_save_point import hop_file
+    from test_save_point_standing_decisions import SIDS, role_hop
+
+    path = role_hop(make_repo(tmp_path), tmp_path)
+    payload = tmp_path / "amend.json"
+    payload.write_text(
+        json.dumps(
+            {
+                "sections": {"Observations": f"- Alpha {UK_COLOR} observation."},
+                "append": {"Direction changes": [f"- [h1] bravo: the owner {UK_MODELED} it (owner-directed)."]},
+                "next": [f"Charlie {UK_COLOR} next step"],
+                "retire": [{"ref": "[D1]", "reason": f"delta {UK_MODELED} reason"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PATH", stub_path)
+    amended = run("amend", str(path), "--json", str(payload), "--now", "2026-09-01T11:00:00Z")
+    assert amended.returncode == 0, err(amended) + out(amended)
+    assert body(path, "Observations") == "- Alpha color observation."
+    assert body(path, "Direction changes").endswith("- [h1] bravo: the owner modeled it (owner-directed).")
+    assert "Charlie color next step" in body(path, "Resume prompt")
+    own = hop_file(path.parent, path.name, 1, SIDS[0]).read_text(encoding="utf-8")
+    assert "Retired: delta modeled reason" in own
 
 
 DONE = f'## Done\n\n- We {UK_MODELED} the {UK_COLOR} pass.\n- Kept "the {UK_COLOR} stays".\n> keep the {UK_COLOR}\n\n'
