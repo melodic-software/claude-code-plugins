@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "Out-of-scope: - [Should we also rewrite the mobile app?](https://example.com/acme/billing/issues/51): web billing only\nComment on #51:\n> Decision: no mobile rewrite. Basis: web billing only.\n`/work-items:track done 51 --not-planned --summary \"Out of scope.\"`",
+      "why": "wrong: an Out-of-scope line plus an in-scope decision comment"
     }
   ]
 }

@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "`/work-items:track add --parent 200 --label 'wayfind: design' --body-file storage.md \"Choose per-tenant invoice storage\"`\n`/work-items:track reopen 39` to revisit [Share one invoice table across tenants](https://example.com/acme/billing/issues/39).",
+      "why": "wrong: the new item does not link #39; the link sits on the next action, a reopen"
     }
   ]
 }

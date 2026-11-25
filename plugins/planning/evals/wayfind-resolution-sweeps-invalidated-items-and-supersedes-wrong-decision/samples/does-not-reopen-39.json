@@ -15,6 +15,10 @@
     {
       "answer": "",
       "why": "an empty reply reopens nothing"
+    },
+    {
+      "answer": "`/work-items:track edit 39 --comment-file see-new.md`\n> Revisited by [Revisit the invoice table design](URL).",
+      "why": "a new comment on #39, not an edit of it"
     }
   ],
   "fail": [
@@ -33,6 +37,14 @@
     {
       "answer": "```\nSkill: work-items:track   args: edit 39 --state open\n```",
       "why": "reopens through an edit"
+    },
+    {
+      "answer": "`/work-items:track edit 39 --body-file 39.md` (mark the old decision wrong). Then open 'Revisit the invoice table design' linking [Share one invoice table across tenants](URL).",
+      "why": "wrong: edits closed #39 while also opening the new item"
+    },
+    {
+      "answer": "Update #39's resolution comment: tables are per tenant now.",
+      "why": "wrong: rewrites the old resolution under another verb"
     }
   ]
 }

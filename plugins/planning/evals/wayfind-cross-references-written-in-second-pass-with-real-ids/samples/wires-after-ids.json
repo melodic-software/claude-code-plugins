@@ -25,6 +25,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --body-file format.md \"Pick the export format\"\n/work-items:track add --parent <map-id> --body-file channel.md \"Choose the delivery channel\"\nI'll leave the blocked-by edge for later.",
+      "why": "wrong: creates both, then skips the edge"
     }
   ]
 }

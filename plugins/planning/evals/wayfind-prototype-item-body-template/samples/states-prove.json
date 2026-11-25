@@ -10,6 +10,7 @@
     {"answer": "Prototype Knock.", "why": "no Prove line"},
     {"answer": "**Prove:** Knock is a good vendor.", "why": "Prove line without what must be shown"},
     {"answer": "**Prove:** Knock sends a templated email.", "why": "drops the in-app half and the one call"},
-    {"answer": "We need to prove that one Knock API call sends email and in-app.", "why": "prose in chat, no Prove field"}
+    {"answer": "We need to prove that one Knock API call sends email and in-app.", "why": "prose in chat, no Prove field"},
+    {"answer": "**Prove:** Knock supports both the email and in-app channels.\n**Pass checks:** 1. One call sends the email. 2. The same call shows the in-app message.", "why": "wrong: Prove line drops the one-call claim, which appears only in the checks"}
   ]
 }

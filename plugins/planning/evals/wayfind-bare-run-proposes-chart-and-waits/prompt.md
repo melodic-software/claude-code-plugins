@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 12, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "A bare run with no open map proposes charting the effort and creates no map or item before the user's yes (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

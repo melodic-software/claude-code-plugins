@@ -11,6 +11,8 @@
     {"answer": "**On fail:** reopen the vendor decision. **Fallback:** none.", "why": "no Courier fallback"},
     {"answer": "**On fail:** none\n**Fallback:** Courier", "why": "no action on fail"},
     {"answer": "**On fail:** <what happens>\n**Fallback:** Courier", "why": "unfilled template placeholder"},
-    {"answer": "If Knock fails we could look at Courier.", "why": "prose, no template fields"}
+    {"answer": "If Knock fails we could look at Courier.", "why": "prose, no template fields"},
+    {"answer": "**Prove:** one Knock API call sends a templated email and an in-app message.\n**Pass checks:** 1. Email arrives. 2. In-app message appears.\n**On fail:** TBD after the prototype runs.\n**Fallback:** Courier.", "why": "wrong: template filled except the on-fail action, left as TBD"},
+    {"answer": "**On fail:** to be decided at resolution.\n**Fallback:** Courier", "why": "wrong: on-fail deferred instead of named"}
   ]
 }

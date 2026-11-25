@@ -39,6 +39,14 @@
       "why": "no discovery:research call"
     },
     {
+      "answer": "Skill: discovery:research  args: \"Pick the index library\" --verification light\nWhen it returns, dispatch discovery:research-verifier on RESEARCH.md before graduating.",
+      "why": "wrong: light level, then a separate verifier agent anyway"
+    },
+    {
+      "answer": "/discovery:research 'Pick the index library' (light). Then run the phase verifier over the findings.",
+      "why": "wrong: light level plus a verifier pass under another name"
+    },
+    {
       "answer": "",
       "why": "an empty reply"
     }

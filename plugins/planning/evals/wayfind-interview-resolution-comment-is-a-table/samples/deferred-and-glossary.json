@@ -33,6 +33,14 @@
     {
       "answer": "| Client | Auth |\n|---|---|\n| Partners | OAuth client credentials |",
       "why": "answers only the result"
+    },
+    {
+      "answer": "**Deferred:** mutual TLS, to a later phase.\n**Glossary changes:** no changes; partner app stays an informal term.",
+      "why": "wrong: uses the Glossary label but records no glossary change"
+    },
+    {
+      "answer": "**Deferred:** nothing.\n**Out of scope:** mutual TLS (not deferred).\n**Glossary:** added 'partner app'.",
+      "why": "wrong: mutual TLS moved out of scope instead of deferred"
     }
   ]
 }

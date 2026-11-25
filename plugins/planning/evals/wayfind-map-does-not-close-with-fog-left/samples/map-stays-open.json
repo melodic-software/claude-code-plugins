@@ -29,6 +29,14 @@
     {
       "answer": "Skill: work-items:track args: done https://example.com/acme/billing/issues/200",
       "why": "closes the map, skill-call form"
+    },
+    {
+      "answer": "The Tax display bullet is too vague to block the close, so I'm leaving it in Not-yet-specified. Posted the closing comment on #200 and closed the map.",
+      "why": "wrong: closes over the fog bullet in prose"
+    },
+    {
+      "answer": "Closing the map: every decision item is closed and the frontier is empty.",
+      "why": "wrong: closes despite the bullet"
     }
   ]
 }

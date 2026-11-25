@@ -8,6 +8,7 @@
     {"answer": "", "why": "empty"},
     {"answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://example.com/acme/shop/issues/504): Knock.", "why": "final, not provisional"},
     {"answer": "Decisions-so-far: Knock (provisional).", "why": "provisional without naming the item"},
-    {"answer": "Knock is provisional until the vendor contract is signed.", "why": "provisional on something else"}
+    {"answer": "Knock is provisional until the vendor contract is signed.", "why": "provisional on something else"},
+    {"answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://example.com/acme/shop/issues/504): Knock (final; no longer provisional on #504, the design discussion settled it).", "why": "wrong: records the decision as final while naming the item"}
   ]
 }

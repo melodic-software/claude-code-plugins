@@ -29,6 +29,10 @@
     {
       "answer": "### Notes\n\n- Audit logs: 7 years.\n- Source: `.work/data-retention/`",
       "why": "a later Notes bullet points at the slice"
+    },
+    {
+      "answer": "**Notes**\n- Seeded from the interview ledger at `.work/data-retention/interview-checklist.md`.",
+      "why": "wrong: bold Notes heading without a colon, citing the ledger path"
     }
   ]
 }

@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Second pass: /work-items:track edit <channel-id> --body-file channel.md\nchannel.md: Blocked by Pick the export format (#<format-id>).",
+      "why": "wrong: second-pass edit links by a bare number, not the URL"
     }
   ]
 }

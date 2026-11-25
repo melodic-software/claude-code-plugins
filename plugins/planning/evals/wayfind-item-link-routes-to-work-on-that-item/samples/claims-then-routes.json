@@ -37,6 +37,10 @@
     {
       "answer": "No map found for this; shall I chart one?",
       "why": "a different action"
+    },
+    {
+      "answer": "#43 is unassigned, so there is no need for `/work-items:track start 43`; routing by `wayfind: design` straight to /planning:design.",
+      "why": "wrong: names the claim call only to skip it, then routes"
     }
   ]
 }

@@ -33,6 +33,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Proceeding unattended: I'll mark items that need a human as needs-human and chart the rest.",
+      "why": "wrong: the need for a human is about items, not about charting"
     }
   ]
 }

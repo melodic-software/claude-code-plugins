@@ -33,6 +33,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "No map exists yet. I'd normally chart one, but this sounds like it fits one session, so run /planning:interview again.",
+      "why": "wrong: names charting only as the usual move, then routes away"
     }
   ]
 }

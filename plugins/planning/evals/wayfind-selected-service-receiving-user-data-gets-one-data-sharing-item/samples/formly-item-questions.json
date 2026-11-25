@@ -29,6 +29,14 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\nformly.md: which of name, date of birth and symptoms cross to Formly?\nStatusly receives no user data, so it needs no data-processing agreement and no item.",
+      "why": "wrong: the Formly item asks only about fields; the agreement is mentioned for Statusly"
+    },
+    {
+      "answer": "`/work-items:track edit 702 --comment-file res.md`\n> Formly receives name, date of birth and symptoms under its standard agreement.\n\n`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\nformly.md: which fields cross to Formly?",
+      "why": "wrong: the agreement sits in #702's resolution, not the Formly item"
     }
   ]
 }

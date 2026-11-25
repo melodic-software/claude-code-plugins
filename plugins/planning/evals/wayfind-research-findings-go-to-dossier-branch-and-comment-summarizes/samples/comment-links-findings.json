@@ -27,6 +27,14 @@
       "why": "a path in a command, not a link in the comment"
     },
     {
+      "answer": "Comment on #305:\nResolution: Pick <library>, because <why>.\nFull findings: [RESEARCH.md](.work/305-pick-the-index-library/RESEARCH.md)",
+      "why": "wrong: links the local research copy, not the file on the dossier branch"
+    },
+    {
+      "answer": "Full findings: [RESEARCH.md](https://example.com/acme/search/blob/dossier/305-pick-the-index-library/RESEARCH.md)",
+      "why": "wrong: links a per-item branch, not the item folder on the map's dossier branch"
+    },
+    {
       "answer": "",
       "why": "an empty reply"
     }

@@ -35,6 +35,10 @@
       "why": "refuses to create the branch"
     },
     {
+      "answer": "The map has no dossier branch, and dossier/300-map-search-rewrite is not created in this run; the findings stay in .work/ until it exists.",
+      "why": "wrong: names the branch and the word created but does not create it"
+    },
+    {
       "answer": "",
       "why": "an empty reply"
     }

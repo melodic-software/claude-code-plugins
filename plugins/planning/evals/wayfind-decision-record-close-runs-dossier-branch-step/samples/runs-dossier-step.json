@@ -29,6 +29,14 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Skipping `/work-items:track dossier-branches 800`: the branch stays until a container closes.",
+      "why": "wrong: names the call only to skip it"
+    },
+    {
+      "answer": "Closing comment posted. `/work-items:track dossier-branches 800` can run later, once a container closes.",
+      "why": "wrong: defers the step to a container close"
     }
   ]
 }

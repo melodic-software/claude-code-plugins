@@ -10,6 +10,8 @@
     {"answer": "Invoking /prototype:pressure-test in its vendor-fit mode for #504.", "why": "prototype route"},
     {"answer": "The prototype plugin is missing, so I'm stopping here; not routing to /planning:design.", "why": "negated mention and a stop"},
     {"answer": "Handing the design to /planning:design-handoff.", "why": "sibling skill name"},
-    {"answer": "Routing #504 to /planning:interview.", "why": "wrong skill"}
+    {"answer": "Routing #504 to /planning:interview.", "why": "wrong skill"},
+    {"answer": "#504 is a prototype item and the prototype plugin is not enabled in this repository, so I'm stopping here. You can run /planning:design to settle the vendor by discussion.", "why": "wrong: stops and hands the fallback to the user"},
+    {"answer": "The prototype plugin is missing, so I can't work #504. Enable it, or run /planning:design yourself.", "why": "wrong: stops, names the fallback only as the user's job"}
   ]
 }

@@ -9,6 +9,8 @@
     {"answer": "", "why": "empty"},
     {"answer": "Resolution: /prototype:pressure-test passed every check.", "why": "names no vendor-fit mode"},
     {"answer": "Resolution: /prototype:explore-directions vendor-fit passed.", "why": "names the wrong skill"},
-    {"answer": "Routing #504 to /planning:design.", "why": "a different route"}
+    {"answer": "Routing #504 to /planning:design.", "why": "a different route"},
+    {"answer": "Route: Skill `prototype:pressure-test`, args `Prove Knock sends email and in-app from one call`. Result: both pass checks passed.", "why": "wrong: right skill in its default mode, no vendor-fit mode"},
+    {"answer": "This is a vendor-fit question, so I route #504 to /prototype:explore-directions to compare Knock against Courier.", "why": "wrong: says vendor-fit but names the other prototype skill"}
   ]
 }

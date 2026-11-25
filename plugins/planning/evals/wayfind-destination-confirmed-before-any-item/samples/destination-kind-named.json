@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Destination: to be decided once the map is charted. What does done look like?",
+      "why": "wrong: asks about the destination but names no kind"
     }
   ]
 }

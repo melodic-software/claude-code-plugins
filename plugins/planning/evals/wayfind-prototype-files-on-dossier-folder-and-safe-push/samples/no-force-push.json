@@ -4,12 +4,14 @@
     {"answer": "```\ngit fetch origin dossier/500-map-notification-vendor\ngit rebase origin/dossier/500-map-notification-vendor\ngit push origin dossier/500-map-notification-vendor\n```", "why": "plain push command"},
     {"answer": "git push origin dossier/500-map-notification-vendor (no --force, no lease: no two items write the same folder).", "why": "negated flag inside the command line"},
     {"answer": "Never `git push --force` here; a plain `git push` is enough.", "why": "negated force command"},
-    {"answer": "", "why": "empty reply never force-pushes"}
+    {"answer": "", "why": "empty reply never force-pushes"},
+    {"answer": "Plain push. It doesn't need a force-push: the other session writes only its own item's folder.", "why": "negated force-push in prose"}
   ],
   "fail": [
     {"answer": "git push --force-with-lease origin <dossier>.", "why": "lease push"},
     {"answer": "git push --force origin dossier/500-map-notification-vendor", "why": "force push"},
     {"answer": "git push -f origin dossier/500-map-notification-vendor", "why": "short force flag"},
-    {"answer": "git push origin +dossier/500-map-notification-vendor", "why": "plus refspec"}
+    {"answer": "git push origin +dossier/500-map-notification-vendor", "why": "plus refspec"},
+    {"answer": "Fetch and rebase onto the dossier branch, then force-push it with a lease so the other session's commits are checked first.", "why": "wrong: force push in prose, no git push command"}
   ]
 }

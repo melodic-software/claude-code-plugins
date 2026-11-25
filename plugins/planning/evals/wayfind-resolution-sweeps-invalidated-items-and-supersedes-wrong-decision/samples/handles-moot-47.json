@@ -33,6 +33,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "`/work-items:track done 47 --not-planned --summary \"Moot.\"`\n`/work-items:track edit 44 --comment-file res.md` with [Decide invoice numbering](https://example.com/acme/billing/issues/44#issuecomment-1)",
+      "why": "wrong: closes #47 without the link; the link belongs to the next action on #44"
     }
   ]
 }

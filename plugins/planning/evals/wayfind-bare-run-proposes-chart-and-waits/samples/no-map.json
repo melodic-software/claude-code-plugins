@@ -15,6 +15,14 @@
     {
       "answer": "",
       "why": "an empty reply creates nothing"
+    },
+    {
+      "answer": "I propose charting the warehouse-routing rework. Reply yes to start; nothing is created before your yes.",
+      "why": "proposal only"
+    },
+    {
+      "answer": "Shall I build a map for it? Once you say yes, I'll survey the rework and create the decision items.",
+      "why": "future-tense plan, nothing created"
     }
   ],
   "fail": [
@@ -37,6 +45,14 @@
     {
       "answer": "## Map: Warehouse-routing rework\n\n## Not-yet-specified\n- **Zone model**: nobody can say yet.",
       "why": "proposes the map body"
+    },
+    {
+      "answer": "No open map exists, so I created one for the warehouse-routing rework and charted its first decision item. Any questions?",
+      "why": "wrong: charts in prose, then asks a question"
+    },
+    {
+      "answer": "Charting now: I opened the map for the warehouse-routing rework with two items, zone model and pick-path engine.",
+      "why": "wrong: charts without the yes"
     }
   ]
 }

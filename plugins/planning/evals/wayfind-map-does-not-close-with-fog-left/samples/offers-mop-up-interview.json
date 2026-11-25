@@ -27,6 +27,14 @@
       "why": "negated"
     },
     {
+      "answer": "A mop-up interview item isn't worth it for one vague bullet, so I'm closing the map.",
+      "why": "wrong: names the mop-up item only to reject it"
+    },
+    {
+      "answer": "Normally this goes to a mop-up item, not an interview; I'll leave it in Not-yet-specified.",
+      "why": "wrong: negation between the words"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

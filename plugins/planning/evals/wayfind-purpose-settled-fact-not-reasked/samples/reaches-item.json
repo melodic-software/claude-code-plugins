@@ -29,6 +29,10 @@
     {
       "answer": "Which channel should statements go out on: SFTP, S3 or email?",
       "why": "asks about delivery but never takes up the item"
+    },
+    {
+      "answer": "Map #700 frontier: 'Choose the delivery channel and file retention' (#703, interview).\n\nShall I claim 'Choose the delivery channel and file retention' (#703) and start its interview?",
+      "why": "wrong: lists the item and asks to claim it, asks nothing about delivery or retention"
     }
   ]
 }

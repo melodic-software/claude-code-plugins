@@ -33,6 +33,10 @@
     {
       "answer": "I suggest going to /planning:plan to sequence the overhaul.",
       "why": "routes to plan"
+    },
+    {
+      "answer": "Before charting, one more interview round would help: /planning:interview on the delivery model.",
+      "why": "wrong: offers a fresh interview without a route verb"
     }
   ]
 }

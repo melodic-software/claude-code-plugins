@@ -31,6 +31,10 @@
       "why": "names neither the per-client identity nor the rate-limit item"
     },
     {
+      "answer": "**What later items inherit:** nothing; the per-client identity is out of scope for the rate-limit item.",
+      "why": "wrong: inheritance section says nothing is inherited"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

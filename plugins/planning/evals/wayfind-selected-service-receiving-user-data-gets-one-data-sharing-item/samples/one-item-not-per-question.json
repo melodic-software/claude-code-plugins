@@ -21,6 +21,10 @@
     {
       "answer": "",
       "why": "an empty reply creates no item"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file f1.md \"Formly data sharing: which fields cross\"`\n`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file f2.md \"Which data-processing agreement covers the intake vendor\"`",
+      "why": "wrong: one item per question, the second without the vendor's name"
     }
   ]
 }

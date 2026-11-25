@@ -27,6 +27,10 @@
       "why": "no resolution comment"
     },
     {
+      "answer": "No resolution comment on #43 is needed since the answer is just Stripe.\nDecisions-so-far: - [Pick the payment-provider adapter](https://example.com/acme/pay/issues/43): Stripe.\n`/work-items:track done 43`",
+      "why": "wrong: names the resolution comment only to skip it"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

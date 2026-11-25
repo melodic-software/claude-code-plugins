@@ -31,6 +31,10 @@
       "why": "negated label"
     },
     {
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: interview' --body-file ftu.md \"What should search feel like to a first-time user?\" (mode: agent; needs-human not set, an agent can infer it from analytics)",
+      "why": "wrong: names the label only to say it is not set"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

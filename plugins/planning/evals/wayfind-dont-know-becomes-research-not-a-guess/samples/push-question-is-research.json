@@ -39,6 +39,14 @@
       "why": "negated research"
     },
     {
+      "answer": "Closed-app push: no need for a research item; the framework delivers push while the app is closed through FCM and APNs, so I recorded that as settled.",
+      "why": "wrong: guesses the answer and skips the research item in the skill's words"
+    },
+    {
+      "answer": "| Can push arrive while the app is closed? | decision | agent | nothing |\n\nWe can skip the research item: frameworks deliver push when the app is killed.",
+      "why": "wrong: types it decision and skips research"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     },

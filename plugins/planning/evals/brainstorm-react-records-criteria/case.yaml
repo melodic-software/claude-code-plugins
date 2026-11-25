@@ -13,12 +13,12 @@ graders:
     type: regex
     arm: both
     flags: i
-    pattern: '\b(?:criteri(?:on|a)|requirements?|constraints?)\b[\s\S]{0,200}?(?:\bno (?:new |other |another |extra |additional |second )?services?\b|\b(?:can(?:no|''|’)t|can not) run (?:another|a new|an extra|any new|a second) service|\bwithout (?:a |any )?(?:new |another |extra )?service)|(?:\bno (?:new |another |extra |additional )?services?\b|\b(?:can(?:no|''|’)t|can not) run (?:another|a new|an extra|any new) service)[^\n]{0,120}\b(?:criteri(?:on|a)|requirements?|constraints?)\b'
+    pattern: '\b(?:criteri(?:on|a)|requirements?|constraints?)\b[^.!?]{0,200}?(?:\bno (?:new |other |another |extra |additional |second )?services?\b|\b(?:can(?:no|''|’)t|can not) run (?:another|a new|an extra|any new|a second) service|\bwithout (?:a |any )?(?:new |another |extra )?service)|(?:\bno (?:new |another |extra |additional )?services?\b|\b(?:can(?:no|''|’)t|can not) run (?:another|a new|an extra|any new) service)(?:[^.!?\n]{0,120}|[^.!?\n]{0,60}\.\s+(?:that|this|it)\b[^.!?\n]{0,60})\b(?:criteri(?:on|a)|requirements?|constraints?)\b'
   - name: asks-why-candidate-5
     type: regex
     arm: both
     flags: i
-    pattern: '(?:\b(?:candidate|option|idea|approach)\s*#?5\b|\(5\)|#5\b|\breplica\b)[\s\S]{0,300}?(?:\bwhy\b|\bwhat\b[^?\n]{0,60}\b(?:draws?|appeals?|attracts?|resonat\w*|like about|offers?|give you|gives you|buy you|buys you)\b)[^?\n]{0,200}\?|(?:\bwhy\b|\bwhat\b[^?\n]{0,60}\b(?:draws?|appeals?|attracts?|resonat\w*|like about|offers?|give you|gives you|buy you|buys you)\b)[^?\n]{0,200}(?:\b(?:candidate|option|idea|approach)\s*#?5\b|\(5\)|#5\b|\breplica\b|\b5\b(?!\s*(?:s\b|sec)))[^?\n]{0,100}\?'
+    pattern: '(?:\b(?:candidate|option|idea|approach)\s*#?5\b|\(5\)|#5\b|\breplica\b)[\s\S]{0,300}?\b(?:why(?!\s+not\b)|what)\b[^?\n.]{0,120}?\b(?:it|replica|resonat\w*|draws?|appeals?|attracts?|like about|offers?|give you|gives you|buy you|buys you|5(?!\s*(?:s\b|sec)))\b[^?\n]{0,200}\?|(?:\bwhy\b(?!\s+not\b)|\bwhat\b[^?\n]{0,60}\b(?:draws?|appeals?|attracts?|resonat\w*|like about|offers?|give you|gives you|buy you|buys you)\b)[^?\n]{0,200}(?:\b(?:candidate|option|idea|approach)\s*#?5\b|\(5\)|#5\b|\breplica\b|\b5\b(?!\s*(?:s\b|sec)))[^?\n]{0,100}\?'
   - name: does-not-decide-for-user
     type: llm
     arm: both

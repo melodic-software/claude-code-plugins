@@ -33,6 +33,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "After #44's resolution, #39's line reads: [Share one invoice table across tenants](URL): superseded by [Decide invoice numbering](https://example.com/acme/billing/issues/44).",
+      "why": "wrong: points #39 at #44 now instead of at the new decision once it resolves"
     }
   ]
 }

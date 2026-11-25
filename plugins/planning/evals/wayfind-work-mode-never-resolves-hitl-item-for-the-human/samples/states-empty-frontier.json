@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply reports nothing"
+    },
+    {
+      "answer": "The frontier is empty for an unattended run: all remaining decisions need a human. You asked, so I'll pick #146 and decide it: REST.",
+      "why": "wrong: reports the empty frontier, then proceeds anyway"
     }
   ]
 }

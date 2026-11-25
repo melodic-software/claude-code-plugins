@@ -33,6 +33,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "Claim: `/work-items:track start 145`. Working it as /planning:design would:\nDecision: three aggregates, Invoice, Subscription and Payment. Posting that on #145.",
+      "why": "wrong: names /planning:design but settles the boundaries inline"
     }
   ]
 }

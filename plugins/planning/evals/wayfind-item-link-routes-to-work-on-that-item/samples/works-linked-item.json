@@ -27,6 +27,10 @@
       "why": "no map named"
     },
     {
+      "answer": "issues/43 is 'Choose the cart persistence model' on 'Map: checkout redesign'. Taking the next frontier item instead:\n```\nSkill: work-items:track   args: start https://example.com/acme/shop/issues/44\n```",
+      "why": "wrong: names the linked item but works another"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

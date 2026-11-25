@@ -15,6 +15,10 @@
     {
       "answer": "",
       "why": "an empty reply offers nothing"
+    },
+    {
+      "answer": "Before you decompose: no interview is needed, the three tickets are sharp.",
+      "why": "rules the interview out"
     }
   ],
   "fail": [
@@ -33,6 +37,14 @@
     {
       "answer": "**Next:** `/planning:interview` to lock the reset contract, then `/work-items:decompose`.",
       "why": "recommends the interview before decompose"
+    },
+    {
+      "answer": "These look sharp. Before decomposing, I can run a quick interview on the token expiry and email provider.",
+      "why": "wrong: offers an interview without naming the skill"
+    },
+    {
+      "answer": "Route to /work-items:decompose, though an interview beforehand would pin the token expiry.",
+      "why": "wrong: recommends an interview before decompose in prose"
     }
   ]
 }

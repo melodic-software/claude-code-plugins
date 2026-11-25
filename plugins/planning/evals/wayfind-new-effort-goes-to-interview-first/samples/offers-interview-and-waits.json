@@ -27,6 +27,10 @@
       "why": "negated offer"
     },
     {
+      "answer": "Nothing shows an interview of this yet. Starting /planning:interview, preloaded with the search indexing rewrite.\n\n**Question 1:** what is driving the rewrite: latency, cost or freshness?",
+      "why": "wrong: starts the interview without asking, then ends on the interview's first question"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

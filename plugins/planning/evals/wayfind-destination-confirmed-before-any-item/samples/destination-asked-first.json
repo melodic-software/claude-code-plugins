@@ -11,6 +11,10 @@
     {
       "answer": "Please confirm the destination before I propose the map: a PRD for partner-API v2.",
       "why": "confirm before destination"
+    },
+    {
+      "answer": "Destination: a PRD for partner-API v2. Confirm it, and nothing is created until you do.",
+      "why": "confirm request, created only in a negated clause"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "I created the map and three decision items: auth scheme, rate-limit model, versioning policy. Destination: a PRD. Any questions?",
+      "why": "wrong: creates in prose, then asks about the destination"
     }
   ]
 }

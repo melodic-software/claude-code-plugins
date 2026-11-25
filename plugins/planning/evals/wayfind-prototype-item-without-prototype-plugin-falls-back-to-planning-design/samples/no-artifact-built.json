@@ -8,6 +8,7 @@
     {"answer": "", "why": "empty"},
     {"answer": "Resolution comment on #504: Verdict: both pass checks passed. Knock confirmed.", "why": "claims a verdict, no no-artifact line"},
     {"answer": "Resolution comment on #504: Resolved: Knock. Basis: design discussion.\n\nDecisions-so-far: Knock (provisional; no artifact was built).", "why": "no-artifact line outside the comment"},
-    {"answer": "Routing #504 to /planning:design.", "why": "no comment at all"}
+    {"answer": "Routing #504 to /planning:design.", "why": "no comment at all"},
+    {"answer": "Resolution comment on #504: Resolved: Knock, settled by the /planning:design discussion; Knock's docs show one call covers both channels, so the pass checks are satisfied.", "why": "wrong: comment treats the checks as met and never says no artifact was built"}
   ]
 }

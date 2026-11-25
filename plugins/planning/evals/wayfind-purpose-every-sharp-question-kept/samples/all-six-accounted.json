@@ -8,6 +8,7 @@
     {"answer": "", "why": "empty"},
     {"answer": "Items: 'Decide partner signup' (self sign-up or invitation; mandatory fields) and 'Decide invoicing cadence'.", "why": "drops registration, cadence options, currencies and credit limit"},
     {"answer": "Items: 'Decide partner signup' (invitation; identity fields; registration number) and 'Decide billing' (monthly or annual; currencies).", "why": "drops the credit-limit question"},
-    {"answer": "Not-yet-specified: **Support hand-offs**: something about partner support hand-offs, not yet phrasable.", "why": "only the fog"}
+    {"answer": "Not-yet-specified: **Support hand-offs**: something about partner support hand-offs, not yet phrasable.", "why": "only the fog"},
+    {"answer": "Items:\n1. **Partner signup** (interview): self sign-up or invitation only? Which identity fields are mandatory? Do we verify the business registration number?\n\nNot-yet-specified:\n- **Billing setup**: invoicing and currencies are still unclear.\n- **Support hand-offs**: not yet phrasable.", "why": "wrong: billing questions folded into a fog bullet, cadence and credit-limit questions dropped"}
   ]
 }

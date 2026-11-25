@@ -11,6 +11,10 @@
     {
       "answer": "1. Create 'Pick the export format'. 2. Create 'Choose the delivery channel'. 3. Then wire them.",
       "why": "prose creates"
+    },
+    {
+      "answer": "Plan: 'Choose the delivery channel' depends on 'Pick the export format', so both are created first.\n1. /work-items:track add --parent <map-id> --body-file format.md \"Pick the export format\"\n2. /work-items:track add --parent <map-id> --body-file channel.md \"Choose the delivery channel\"\n3. /work-items:track edit <channel-id> --blocked-by <format-id>",
+      "why": "restates the dependency in the plan, creates hold no reference"
     }
   ],
   "fail": [
@@ -33,6 +37,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "/work-items:track add --parent <map-id> --body 'Depends on the export-format item' \"Choose the delivery channel\"\n/work-items:track add --parent <map-id> --body-file format.md \"Pick the export format\"\nThen /work-items:track edit <channel-id> --blocked-by <format-id>.",
+      "why": "wrong: the channel create already carries the reference in prose"
     }
   ]
 }

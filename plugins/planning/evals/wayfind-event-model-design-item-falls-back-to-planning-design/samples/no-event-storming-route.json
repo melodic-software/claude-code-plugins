@@ -33,6 +33,10 @@
     {
       "answer": "Handing it off to /event-storming:methodology even though the plugin is off.",
       "why": "hands it to event-storming"
+    },
+    {
+      "answer": "The plugin is listed as off, but domain events are its job, so calling /event-storming:methodology for #903 rather than /planning:design.",
+      "why": "wrong: takes the event-storming route over the fallback"
     }
   ]
 }

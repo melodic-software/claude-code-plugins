@@ -27,6 +27,10 @@
       "why": "a table that does not hold the result"
     },
     {
+      "answer": "Resolution comment on #402:\n\n**Agreed result:** OAuth client credentials for partners; API keys for the sandbox only.\n\n| Section | Entry |\n|---|---|\n| Deferred | mutual TLS |\n| Glossary | partner app |",
+      "why": "wrong: tables the other sections but gives the agreed result as prose"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

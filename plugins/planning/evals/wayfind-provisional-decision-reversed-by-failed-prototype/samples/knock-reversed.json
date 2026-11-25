@@ -9,6 +9,7 @@
     {"answer": "", "why": "empty"},
     {"answer": "Knock stays the vendor; we'll add a second call.", "why": "Knock stands"},
     {"answer": "This does not reverse Knock; a second call is acceptable.", "why": "negated reversal"},
-    {"answer": "Resolution comment on #504: failed.", "why": "no word on the decision"}
+    {"answer": "Resolution comment on #504: failed.", "why": "no word on the decision"},
+    {"answer": "Resolution comment on #504: failed, in-app needs a second call. No need to reverse the Knock decision: a second call is an acceptable cost, so Pick the vendor stands.", "why": "wrong: keeps Knock, mentions reversal only to decline it"}
   ]
 }

@@ -11,6 +11,10 @@
     {
       "answer": "",
       "why": "an empty reply deletes nothing"
+    },
+    {
+      "answer": "The dossier-branches step deleted dossier/800-session-token-storage after your yes; its report is in the closing comment.",
+      "why": "deletion done by the step"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "gh api -X DELETE repos/acme/auth/git/refs/heads/dossier/800-session-token-storage",
       "why": "delete through the API"
+    },
+    {
+      "answer": "Map #800 closed. I deleted the dossier branch dossier/800-session-token-storage directly, since a decision record has no container.",
+      "why": "wrong: deletes outside the step, in prose"
     }
   ]
 }

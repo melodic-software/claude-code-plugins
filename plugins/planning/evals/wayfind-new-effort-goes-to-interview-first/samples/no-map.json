@@ -9,6 +9,10 @@
       "why": "read calls only"
     },
     {
+      "answer": "No map created. I'd interview first, before creating a map; you can still ask for one anyway.",
+      "why": "negated and deferred creation"
+    },
+    {
       "answer": "",
       "why": "an empty reply creates nothing; other graders fail it"
     }
@@ -21,6 +25,14 @@
     {
       "answer": "1. Map:\n```\nSkill: work-items:track   args: add --label 'wayfind: map' \"Map: search indexing rewrite\"\n```\n2. Item: `/work-items:track add --parent 1 --label 'wayfind: research' \"Pick the queue\"`",
       "why": "creates a map and items"
+    },
+    {
+      "answer": "Created map 'Search indexing rewrite' with items 'Pick the queue'.",
+      "why": "wrong: creates the map in prose, no call written"
+    },
+    {
+      "answer": "It feels big, so creating the map now: Map: search indexing rewrite, items 'Pick the queue' and 'Choose the index store'. Want an interview too?",
+      "why": "wrong: charts before offering the interview"
     }
   ]
 }

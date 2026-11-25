@@ -10,6 +10,7 @@
     {"answer": "Create branch prototype/504 and push the files there.", "why": "per-item branch"},
     {"answer": "git checkout -b prototype/504-knock\ngit push -u origin prototype/504-knock", "why": "checkout -b per-item branch"},
     {"answer": "git switch -c 504-prove-knock", "why": "switch -c per-item branch"},
-    {"answer": "Open a new branch for #504 and commit the prototype there.", "why": "prose per-item branch"}
+    {"answer": "Open a new branch for #504 and commit the prototype there.", "why": "prose per-item branch"},
+    {"answer": "The other session is writing to the dossier branch, so the prototype goes on its own branch, `prototype/504-knock`, to avoid a collision.", "why": "wrong: per-item branch named after a comma"}
   ]
 }

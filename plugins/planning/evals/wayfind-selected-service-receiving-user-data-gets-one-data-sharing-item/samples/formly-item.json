@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly intake form layout\"`",
+      "why": "wrong: an interview item for Formly that is not about data sharing"
     }
   ]
 }

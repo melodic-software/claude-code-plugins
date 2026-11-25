@@ -29,6 +29,10 @@
     {
       "answer": "/work-items:track add --label 'wayfind: map' --body-file map.md \"Map: cart persistence\"",
       "why": "creates a map"
+    },
+    {
+      "answer": "The link points at an issue, not a map. I'll chart a new map for the cart persistence question once you say yes.",
+      "why": "wrong: offers to chart in plain words"
     }
   ]
 }

@@ -29,6 +29,10 @@
     {
       "answer": "Body: 'Depends on #<n>'.",
       "why": "a bare placeholder number"
+    },
+    {
+      "answer": "Channel body: 'Depends on issue 57 (Pick the export format)'.",
+      "why": "wrong: guessed issue number in prose"
     }
   ]
 }

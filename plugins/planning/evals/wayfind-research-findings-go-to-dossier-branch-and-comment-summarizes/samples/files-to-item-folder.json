@@ -31,6 +31,10 @@
       "why": "not the item's own folder"
     },
     {
+      "answer": "Research returned RESEARCH.md plus two sidecars. Copy RESEARCH.md into 305-pick-the-index-library/ on dossier/300-map-search-rewrite.",
+      "why": "wrong: mentions the sidecars but copies only the findings file"
+    },
+    {
       "answer": "",
       "why": "an empty reply"
     }

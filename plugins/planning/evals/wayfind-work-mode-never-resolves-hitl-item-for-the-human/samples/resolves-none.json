@@ -29,6 +29,14 @@
     {
       "answer": "```\nSkill: work-items:track   args: done 147 --summary \"Resolved; see the resolution comment.\"\n```",
       "why": "skill-and-arguments close"
+    },
+    {
+      "answer": "The frontier is empty for an unattended run, but you asked, so I'll stand in on #146.\nComment on #146:\n> Decision: REST. Basis: the clients already speak it.",
+      "why": "wrong: reports the rule, then resolves a needs-human item in prose"
+    },
+    {
+      "answer": "`/work-items:track comment 146 --body-file res.md` (choose REST), then close it.",
+      "why": "wrong: a written-out resolution comment through the comment action"
     }
   ]
 }

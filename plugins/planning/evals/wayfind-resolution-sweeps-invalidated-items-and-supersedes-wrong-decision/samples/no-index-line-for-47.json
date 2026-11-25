@@ -33,6 +33,10 @@
     {
       "answer": "Decisions-so-far gains:\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44)\n- [Global sequence store](https://example.com/acme/billing/issues/47): closed",
       "why": "a pointer to #47 under another title"
+    },
+    {
+      "answer": "## Decisions-so-far\n\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44): per-tenant numbering\n- #47 Pick the global invoice sequence store: moot",
+      "why": "wrong: an index line for #47 written without a link"
     }
   ]
 }

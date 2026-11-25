@@ -33,6 +33,14 @@
     {
       "answer": "Run `gh issue create --title \"Map: notification preferences\"`.",
       "why": "a provider create"
+    },
+    {
+      "answer": "Created the map issue and the catalogue item.",
+      "why": "wrong: creates in prose, no tracker call written out"
+    },
+    {
+      "answer": "Created map 'Map: notification preferences' with items 'Define the notification catalogue' and 'Pick the delivery-retry policy'. Now the three ready questions: email digests on by default? Recommend yes.",
+      "why": "wrong: charts before the ready round and the yes"
     }
   ]
 }

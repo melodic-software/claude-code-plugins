@@ -37,6 +37,10 @@
     {
       "answer": "Claimed #903 with /work-items:track start 903. The event-storming plugin is not enabled, so I stop.",
       "why": "routes nowhere"
+    },
+    {
+      "answer": "Claimed #903. The event-storming plugin is missing, so I stop here; you could run /planning:design yourself later.",
+      "why": "wrong: stops for the missing plugin and only suggests the fallback"
     }
   ]
 }

@@ -9,6 +9,7 @@
     {"answer": "", "why": "empty"},
     {"answer": "**Pass checks:** it works well.", "why": "vague, no checks"},
     {"answer": "**Pass checks:**\n1. It works.\n2. It is fast.", "why": "numbered but names neither output"},
-    {"answer": "**Prove:** one Knock call sends email and in-app.", "why": "no pass checks at all"}
+    {"answer": "**Prove:** one Knock call sends email and in-app.", "why": "no pass checks at all"},
+    {"answer": "**Pass checks:**\n1. It works.\n2. It is fast.\n**On fail:** reopen the vendor decision for email and in-app.\n**Fallback:** Courier", "why": "wrong: vague checks, email and in-app named only in the next field"}
   ]
 }

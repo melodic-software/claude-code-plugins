@@ -33,6 +33,14 @@
     {
       "answer": "Destination confirmed: a PRD. What should the catalogue cover?",
       "why": "answers a different question"
+    },
+    {
+      "answer": "Proposed map items: 'Email digests on by default?', 'Keep the legacy SMS toggle?', 'Show a per-channel mute?', 'Define the notification catalogue', 'Pick the delivery-retry policy'. Create it?",
+      "why": "wrong: the ready questions become quoted item titles, none is asked"
+    },
+    {
+      "answer": "Skill: planning:interview   args: email digests on by default (rec yes)\n\nAfter that answer: Skill: planning:interview   args: keep the legacy SMS toggle (rec no)\n\nThen: Skill: planning:interview   args: per-channel mute (rec yes)",
+      "why": "wrong: one interview call per question, one at a time"
     }
   ]
 }

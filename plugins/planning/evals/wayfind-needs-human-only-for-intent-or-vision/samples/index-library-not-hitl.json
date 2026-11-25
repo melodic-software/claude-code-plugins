@@ -19,6 +19,10 @@
       "why": "needs-human on a continued line"
     },
     {
+      "answer": "Design items need your judgment, so both carry the label:\n/work-items:track add --parent 300 --label \"wayfind: design,needs-human\" \"Which index library meets the 50 ms p95 budget we already set?\"",
+      "why": "wrong: sets needs-human by type in a comma label list"
+    },
+    {
       "answer": "'Which index library meets the 50 ms p95 budget?': wayfind: design, no needs-human.",
       "why": "no create call written out"
     },

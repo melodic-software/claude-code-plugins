@@ -3,12 +3,14 @@
     {"answer": "Copy the files to 504-prove-knock-sends-email-and-in-app/ on the map's dossier branch.", "why": "the item's folder on the dossier branch"},
     {"answer": "Files: `prototype/` copied to `dossier/500-map-notification-vendor:504-prove-knock-sends-email-and-in-app-from-one-call/prototype/`.", "why": "branch:path form"},
     {"answer": "On the dossier branch `dossier/500-map-notification-vendor`, the files go in the folder `504-prove-knock-sends-email-and-in-app-from-one-call`.", "why": "folder named without trailing slash"},
-    {"answer": "Save to `504-prove-knock-sends-email-and-in-app-from-one-call` folder on **dossier** branch.", "why": "name then the word folder"}
+    {"answer": "Save to `504-prove-knock-sends-email-and-in-app-from-one-call` folder on **dossier** branch.", "why": "name then the word folder"},
+    {"answer": "Copy `prototype/` into dossier/500-map-notification-vendor/504-prove-knock/ and commit.", "why": "branch name then the item folder as one path"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
     {"answer": "Create branch prototype/504 and push the files there.", "why": "a per-item branch, no item folder on the dossier"},
     {"answer": "Copy prototype/ to .work/notification-vendor/ in the memory slice.", "why": "wrong place"},
-    {"answer": "Copy the files to 504-prove-knock/ on branch prototype-504.", "why": "item folder but no dossier branch"}
+    {"answer": "Copy the files to 504-prove-knock/ on branch prototype-504.", "why": "item folder but no dossier branch"},
+    {"answer": "The dossier branch is busy with the other session's research findings, so I copy `prototype/` to `.work/notification-vendor/504-prove-knock/` instead.", "why": "wrong: item-named folder off the dossier branch, dossier mentioned only to avoid it"}
   ]
 }

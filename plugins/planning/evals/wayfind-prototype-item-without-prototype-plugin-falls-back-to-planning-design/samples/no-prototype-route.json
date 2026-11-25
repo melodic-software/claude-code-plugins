@@ -9,6 +9,8 @@
   "fail": [
     {"answer": "Invoking /prototype:pressure-test in its vendor-fit mode for #504.", "why": "prototype route"},
     {"answer": "Skill call: `prototype:pressure-test` with args `vendor-fit Knock`", "why": "Skill call form"},
-    {"answer": "Invoking **/prototype:explore-directions** for #504.", "why": "the other prototype skill"}
+    {"answer": "Invoking **/prototype:explore-directions** for #504.", "why": "the other prototype skill"},
+    {"answer": "#504 carries wayfind: prototype, so routing it to `/prototype:pressure-test` in vendor-fit mode.", "why": "wrong: routes to the disabled prototype skill with no Skill or invoke word"},
+    {"answer": "Route: /prototype:pressure-test vendor-fit Prove Knock sends email and in-app from one call", "why": "wrong: route line to the prototype skill"}
   ]
 }

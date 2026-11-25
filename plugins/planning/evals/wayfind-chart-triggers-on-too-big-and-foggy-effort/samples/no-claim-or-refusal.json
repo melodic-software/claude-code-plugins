@@ -11,6 +11,10 @@
     {
       "answer": "",
       "why": "an empty reply claims nothing"
+    },
+    {
+      "answer": "Charting the overhaul. Once the map exists, working its first item starts with a claim.",
+      "why": "describes later work, claims nothing"
     }
   ],
   "fail": [
@@ -25,6 +29,14 @@
     {
       "answer": "I won't chart this; it needs an interactive session.",
       "why": "refuses to chart"
+    },
+    {
+      "answer": "Working the first frontier item of the open notifications map: claiming it now.",
+      "why": "wrong: claims an item in prose"
+    },
+    {
+      "answer": "This is too big to chart in one go; narrow it first.",
+      "why": "wrong: refuses to chart"
     }
   ]
 }

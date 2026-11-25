@@ -21,6 +21,10 @@
     {
       "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file statusly.md \"Statusly: confirm no user data crosses\"`",
       "why": "a written-out Statusly create"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: add --parent 700 --label 'wayfind: interview' --body-file s.md \"Confirm Statusly receives no patient data\"\n```",
+      "why": "wrong: charts an item for Statusly anyway"
     }
   ]
 }

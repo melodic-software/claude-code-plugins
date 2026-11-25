@@ -37,6 +37,14 @@
     {
       "answer": "Add the mobile-sync fog bullet to Out-of-scope alongside #51.",
       "why": "adds fog to Out-of-scope"
+    },
+    {
+      "answer": "Map body edit: add the #51 line, and the mobile-related fog in Not-yet-specified goes to Out-of-scope with it.",
+      "why": "wrong: fog moved with a verb after the section name"
+    },
+    {
+      "answer": "Sweep Not-yet-specified: any fog about the mobile app is out of scope too, so migrate it into Out-of-scope.",
+      "why": "wrong: fog swept into Out-of-scope"
     }
   ]
 }

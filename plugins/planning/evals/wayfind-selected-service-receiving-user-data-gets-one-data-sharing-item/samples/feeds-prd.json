@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\nIts resolution feeds Decisions-so-far; the PRD is drafted separately at map close.",
+      "why": "wrong: the resolution feeds the index, not the PRD"
     }
   ]
 }

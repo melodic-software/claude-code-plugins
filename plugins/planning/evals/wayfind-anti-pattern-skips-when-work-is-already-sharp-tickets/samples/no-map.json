@@ -15,6 +15,10 @@
     {
       "answer": "",
       "why": "an empty reply creates nothing"
+    },
+    {
+      "answer": "Charting a map would add nothing here: three sharp tickets. Route them to /work-items:decompose.",
+      "why": "names charting only to decline it"
     }
   ],
   "fail": [
@@ -33,6 +37,14 @@
     {
       "answer": "Proposed map.\nDecision items:\n- 'Choose the reset-token lifetime' (design)\n\nNot-yet-specified:\n- **Email tone**: unclear.",
       "why": "proposes a map with items and fog"
+    },
+    {
+      "answer": "Charting anyway since you asked for chart. I created the map 'Forgot-password email flow' with decision items 'Token lifetime' and 'Email provider'.",
+      "why": "wrong: charts in prose with no Map: line"
+    },
+    {
+      "answer": "I'll chart it as a small map with two decision items: token lifetime and email provider.",
+      "why": "wrong: charts a map in one sentence"
     }
   ]
 }

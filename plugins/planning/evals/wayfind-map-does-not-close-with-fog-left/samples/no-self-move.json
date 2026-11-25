@@ -13,6 +13,10 @@
       "why": "conditional passive"
     },
     {
+      "answer": "You can rule it out of scope. Moving it to Out-of-scope needs your ruling and a reason; I have not moved it.",
+      "why": "moving phrased as the user's step"
+    },
+    {
       "answer": "",
       "why": "an empty reply moves nothing; other graders fail it"
     }
@@ -29,6 +33,10 @@
     {
       "answer": "I moved the Tax display bullet into Out-of-scope since it can't be phrased.",
       "why": "self-move in prose"
+    },
+    {
+      "answer": "Tax display can't be phrased as a question, so moving it to Out-of-scope (reason: too vague to act on). The map can now close.",
+      "why": "wrong: moves the bullet itself, present tense"
     }
   ]
 }

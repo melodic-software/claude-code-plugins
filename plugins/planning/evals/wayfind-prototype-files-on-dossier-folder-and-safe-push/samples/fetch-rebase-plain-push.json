@@ -10,6 +10,7 @@
     {"answer": "git push origin <dossier>.", "why": "no fetch or rebase"},
     {"answer": "git fetch; git rebase origin/dossier/500-map-notification-vendor; git push. Done.", "why": "no retry on rejection"},
     {"answer": "git fetch; git rebase origin/dossier; git push. If rejected, just retry the push.", "why": "retry without a fresh fetch and rebase"},
-    {"answer": "Resolution comment posted on #504 and the item closed.", "why": "a different part of the work"}
+    {"answer": "Resolution comment posted on #504 and the item closed.", "why": "a different part of the work"},
+    {"answer": "Push: `git push origin dossier/500-map-notification-vendor`. If the push is rejected because the other session pushed first, fetch, rebase and push again.", "why": "wrong: skips the first fetch and rebase, only uses them on the retry"}
   ]
 }

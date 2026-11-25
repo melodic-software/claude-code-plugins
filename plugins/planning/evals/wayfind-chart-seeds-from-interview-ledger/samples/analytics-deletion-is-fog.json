@@ -29,6 +29,14 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Not-yet-specified: none; the derived-analytics deletion question becomes a decision item.",
+      "why": "wrong: inline section says none and turns the worry into an item"
+    },
+    {
+      "answer": "## Not-yet-specified\n- **Backup scope**: unclear.\n- Decision item: define deletion for derived analytics (interview).",
+      "why": "wrong: listed under the section but as a decision item"
     }
   ]
 }

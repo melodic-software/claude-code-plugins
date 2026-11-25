@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "Create 'Choose per-tenant invoice storage' (wayfind: design). The Not-yet-specified bullet about tenants sharing invoice data stays until that item resolves, and is deleted then.",
+      "why": "wrong: defers the fog-bullet deletion"
     }
   ]
 }

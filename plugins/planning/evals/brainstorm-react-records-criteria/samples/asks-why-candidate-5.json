@@ -35,6 +35,10 @@
       "why": "5 here is the latency target, not the candidate"
     },
     {
+      "answer": "Candidate 5 resonates because a read replica isolates report load from writes, so I recorded that as its criterion. Why not start with the cache and add the replica later?",
+      "why": "wrong: invents 5's reason, then asks an unrelated why-not question"
+    },
+    {
       "answer": "",
       "why": "an empty reply"
     }

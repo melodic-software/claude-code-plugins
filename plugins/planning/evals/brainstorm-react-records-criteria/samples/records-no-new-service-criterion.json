@@ -31,6 +31,10 @@
       "why": "a criterion, but not the stated reason"
     },
     {
+      "answer": "Requirement: under 5 seconds for large accounts. Candidate 2 needs no new service, so I would pick it.",
+      "why": "wrong: no-new-service appears only as a property of 2, never recorded as a criterion"
+    },
+    {
       "answer": "",
       "why": "an empty reply"
     }

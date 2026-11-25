@@ -9,6 +9,8 @@
     {"answer": "", "why": "empty"},
     {"answer": "The new item starts from a fresh vendor survey.", "why": "not Courier"},
     {"answer": "The new item starts from scratch.\n\nThe item body lists the fallback as Courier.", "why": "Courier on a different line from the starting point"},
-    {"answer": "Resolution comment on #504: failed, in-app needs a second call.", "why": "different part of the work"}
+    {"answer": "Resolution comment on #504: failed, in-app needs a second call.", "why": "different part of the work"},
+    {"answer": "New item 'Re-pick the vendor': it starts from scratch with a vendor survey; options include Courier, OneSignal and Novu.", "why": "wrong: starts from a fresh survey, Courier only one listed option"},
+    {"answer": "Courier is not the starting point; the new item re-surveys vendors first.", "why": "wrong: negated Courier start"}
   ]
 }

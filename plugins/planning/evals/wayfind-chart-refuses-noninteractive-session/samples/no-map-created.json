@@ -15,6 +15,10 @@
     {
       "answer": "",
       "why": "an empty reply creates nothing"
+    },
+    {
+      "answer": "Stopped: charting needs a human, and this run is unattended. Nothing created; re-run when a person can answer.",
+      "why": "stops"
     }
   ],
   "fail": [
@@ -33,6 +37,10 @@
     {
       "answer": "Created item 'Pick the identity store' under the map.",
       "why": "creates an item in prose"
+    },
+    {
+      "answer": "Charting needs a human in the loop, but no one is available, so I'm proceeding on my own assumptions. I drafted the map for the customer-data-platform overhaul and stopped before claiming any item.",
+      "why": "wrong: says the rule and stops late, after charting in prose"
     }
   ]
 }

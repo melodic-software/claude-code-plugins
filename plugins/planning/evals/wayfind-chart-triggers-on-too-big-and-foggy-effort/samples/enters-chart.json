@@ -25,6 +25,14 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "I can't apply the fog test without a tracker here, so run /planning:interview again to narrow the overhaul.",
+      "why": "wrong: names the fog test only to refuse charting"
+    },
+    {
+      "answer": "Working the first frontier item: the Not-yet-specified bullets stay as they are, and I am claiming 'Choose the delivery channels'.",
+      "why": "wrong: work mode that mentions the map's sections"
     }
   ]
 }

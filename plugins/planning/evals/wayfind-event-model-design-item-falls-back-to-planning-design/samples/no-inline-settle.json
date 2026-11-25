@@ -11,6 +11,10 @@
     {
       "answer": "Claimed #903. Event-storming is off, so /planning:design takes it; nothing is resolved yet.",
       "why": "states nothing is resolved, without a resolution line"
+    },
+    {
+      "answer": "Routed #903 to /planning:design.\n**Resolution:** pending the design session. Closing #903 waits for that resolution.",
+      "why": "a pending Resolution line and a deferred close"
     }
   ],
   "fail": [
@@ -29,6 +33,14 @@
     {
       "answer": "Skill: work-items:track args: done https://example.com/acme/shop/issues/903",
       "why": "closes the item"
+    },
+    {
+      "answer": "Event-storming is off, so /planning:design would normally take this, but the event list is clear: OrderPlaced, OrderPaid, OrderShipped, OrderDelivered. Posting that as the resolution on #903 and closing #903.",
+      "why": "wrong: names the fallback skill, then settles the events inline in prose"
+    },
+    {
+      "answer": "**Resolution:** OrderPlaced -> OrderPaid -> OrderShipped -> OrderDelivered.\n`/work-items:track comment 903 --body-file resolution.md`",
+      "why": "wrong: a Resolution heading with its own event list"
     }
   ]
 }

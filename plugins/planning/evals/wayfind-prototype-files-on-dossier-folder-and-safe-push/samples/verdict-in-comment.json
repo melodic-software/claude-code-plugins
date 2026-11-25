@@ -8,6 +8,7 @@
     {"answer": "", "why": "empty"},
     {"answer": "Resolution: files saved.", "why": "no verdict"},
     {"answer": "Resolution comment on #504: files are in 504-prove-knock/ on the dossier branch.\n\nDecisions-so-far: [Prove Knock](url): both checks passed.", "why": "verdict only outside the comment"},
-    {"answer": "Comment on #504: files saved.\n\nClose #504. The prototype passed.", "why": "verdict stated after the close, not in the comment"}
+    {"answer": "Comment on #504: files saved.\n\nClose #504. The prototype passed.", "why": "verdict stated after the close, not in the comment"},
+    {"answer": "Route: /prototype:pressure-test vendor-fit. Result: both pass checks passed.\n\nResolution comment on #504: prototype files are in [504-prove-knock/](https://example.com/tree/dossier/500-map-notification-vendor/504-prove-knock/).", "why": "wrong: verdict only in the routing narration before the comment, the comment carries just the link"}
   ]
 }

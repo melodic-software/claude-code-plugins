@@ -15,6 +15,10 @@
     {
       "answer": "The work isn't foggy at all; it is three clear, scoped tickets.",
       "why": "says it is not foggy"
+    },
+    {
+      "answer": "This looks like three sharp tickets, not a foggy effort.",
+      "why": "looks-like phrasing"
     }
   ],
   "fail": [
@@ -37,6 +41,10 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Even though you call them already sharp tickets, the token lifetime and email provider are still foggy, so I'll chart a map first.",
+      "why": "wrong: quotes the user's sharp claim, then treats the work as fog"
     }
   ]
 }

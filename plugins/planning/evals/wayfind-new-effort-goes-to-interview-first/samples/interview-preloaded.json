@@ -27,6 +27,10 @@
       "why": "names the topic but not that the interview starts from it"
     },
     {
+      "answer": "Shall I run /planning:interview from scratch on the search indexing rewrite?",
+      "why": "wrong: offers the interview without carrying what the user said"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     },

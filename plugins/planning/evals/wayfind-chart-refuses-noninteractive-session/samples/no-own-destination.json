@@ -11,6 +11,10 @@
     {
       "answer": "",
       "why": "an empty reply picks nothing"
+    },
+    {
+      "answer": "Stopping. I won't assume a destination; charting needs a person to choose it.",
+      "why": "names assuming only to refuse it"
     }
   ],
   "fail": [
@@ -25,6 +29,14 @@
     {
       "answer": "Going with a PRD as the destination, since nobody can answer.",
       "why": "defaults the destination"
+    },
+    {
+      "answer": "Assuming a PRD as the destination, since no one can confirm it, here is the map.",
+      "why": "wrong: assumes a destination"
+    },
+    {
+      "answer": "**Destination (assumed):** a PRD.",
+      "why": "wrong: labeled-assumed destination line"
     }
   ]
 }

@@ -31,6 +31,10 @@
       "why": "negated"
     },
     {
+      "answer": "Your ruling isn't needed here: Tax display is plainly out of scope, so it goes to Out-of-scope.",
+      "why": "wrong: waves off the user's ruling and decides scope itself"
+    },
+    {
       "answer": "",
       "why": "empty reply"
     }

@@ -29,6 +29,10 @@
     {
       "answer": "Here is the adapter:\n\n```\nconst stripe = require('stripe')(key);\nfunction charge(amount) { return stripe.charges.create({ amount }); }\n```",
       "why": "unlabeled fence with code"
+    },
+    {
+      "answer": "Graduated #43. Following the Notes, here is the adapter as a patch:\n\n```diff\n+export class StripePaymentAdapter implements PaymentAdapter {\n+  charge(amount: number) { /* ... */ }\n+}\n```",
+      "why": "wrong: graduates, then builds the adapter in a diff fence"
     }
   ]
 }

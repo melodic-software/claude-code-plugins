@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "Decision: three aggregates, Invoice, Subscription and Payment, one transaction each.\nNow claim and record it: `/work-items:track start 145`.",
+      "why": "wrong: settles the boundaries first, claims afterwards"
     }
   ]
 }

@@ -29,6 +29,10 @@
     {
       "answer": "",
       "why": "an empty reply"
+    },
+    {
+      "answer": "Map body edit: Not-yet-specified bullet becomes '- **Choose per-tenant invoice storage**: sharpened by #44, chart once #39 is revisited.'",
+      "why": "wrong: keeps it as a fog bullet instead of charting a typed item"
     }
   ]
 }

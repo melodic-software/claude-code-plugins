@@ -10,6 +10,7 @@
     {"answer": "Reopen #502 and change its resolution to Courier.", "why": "reopens #502"},
     {"answer": "`/work-items:track reopen 502`", "why": "tracker reopen"},
     {"answer": "Edit #502's resolution comment to say Courier.", "why": "edits the resolution comment"},
-    {"answer": "I'm reopening Pick the vendor so it can be re-decided.", "why": "reopening by title"}
+    {"answer": "I'm reopening Pick the vendor so it can be re-decided.", "why": "reopening by title"},
+    {"answer": "The prototype failed, so reopening [Pick the vendor](https://example.com/acme/shop/issues/502) and re-deciding it with Courier as the starting point.", "why": "wrong: reopens the linked decision instead of opening a new item"}
   ]
 }
