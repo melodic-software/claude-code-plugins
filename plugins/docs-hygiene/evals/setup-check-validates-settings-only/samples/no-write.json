@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "docs/conventions/docs-hygiene.yaml"}}], "why": "a read only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "docs/conventions/docs-hygiene.yaml", "content": "compress_articles: keep\n"}}], "why": "check writes the repository file"}
+  ]
+}

@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: setup-check-validates-settings-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-check
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:\\"|'')?\s+--check\b'
+    arm: with-only
+  - name: pass-row
+    type: regex
+    pattern: 'PASS\W+compress_articles\W+cut\b'
+    target: last_message
+    arm: with-only
+  - name: no-linter-probe
+    type: tool_used
+    tool: Bash
+    input_match: 'markdownlint'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
