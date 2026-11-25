@@ -37,18 +37,40 @@ case-insensitively without a trailing period.
 **Delivery.** A finding is appended to this session's running-retro ledger
 (`<project>/.work/running-retros/`, found by its `session_id:` frontmatter, created with
 `observer: live`) under `## Live check <time> (<trigger>, turn <id>, step <n>)`, after the same
-self-ignore guard the catch-up uses. It also shows as one band row above the prompt with four
-buttons: `1` Send to Claude appends a quoted note to the prompt box, marked as background the person
-did not write; `2` Noted; `3` Dispute marks the ledger entry disputed and suppresses the finding for
-good; `0` Dismiss. Nothing reaches the main conversation unless the person sends it.
+self-ignore guard the catch-up uses. Every ledger and usage write is an append (`node`'s
+`appendFileSync`, run through `$.process.run`), never a read-and-rewrite, so a running-retro
+checkpoint written at the same moment is never lost. The finding also shows as a band row above the
+prompt, a blank line above it, led by `observer`, its category and the trigger that found it
+(`step 12`, `turn end`), with buttons `5` Send to Claude (appends a quoted note to the prompt box,
+marked as background the person did not write), `6` Noted (marks the ledger entry confirmed), `7`
+Dispute (marks it disputed and suppresses it for good), `8` Why (shows the rule, the evidence, this
+session's check cost and how to pause) and `9` Dismiss. The hotkeys are `5` to `9` because the
+built-in side agent's band uses `1` to `4` and `0`, and a hotkey two plugins share presses neither.
+Nothing reaches the main conversation unless the person sends it.
+
+**Auto-clear.** While a finding is shown, the next check is told about it and answers
+`resolved: yes` when the assistant has since fixed it; the band then clears and the ledger records
+it as resolved by the assistant.
 
 **Backoff.** A finding the person types past twice without answering clears. Past two such findings
 in a row, the next 1, 2, 4, 8 and then at most 16 eligible checks are skipped; any button resets the
 count.
 
 **Usage.** Each check appends one line to `<plugin data>/session-flow-observer/live-<session>.jsonl`:
-time, trigger, turn, step, outcome, latency and the fork's token usage. That file is how a day's cost
-is read, and its presence tells the catch-up this session had live checks.
+time, trigger, turn, step, outcome, latency and the fork's token usage; each answer (sent, noted,
+disputed, dismissed, ignored, resolved) appends one too. That file is how a day's cost is read, and
+its presence tells the catch-up this session had live checks.
+
+**Cache.** A check forks the request the main thread just sent, mid-turn or at the turn's end, so it
+reads the conversation from a warm prompt cache and writes only its own prompt; it passes no effort
+level, since a level other than the main thread's can cost a cache write of the whole conversation.
+A check that wrote more than 20,000 cache tokens is counted as cold in `/observer`.
+
+**Commands.** The module registers `/observer`: bare, it shows whether live checks are on and, for
+this session and for the last 24 hours of usage files, the checks by trigger and outcome, tokens
+(cache read, cache written, output, read per check), latency, cold-cache checks and answers.
+`/observer off` pauses live checks on this machine until `/observer on`; the catch-up still runs.
+The lasting switches are the `observer_*` options in `/plugin configure`.
 
 **Cost.** Every check bills the session's account. The end-of-turn trigger fires on most turns of a
 working session, so it stays off by default until one working session's per-check usage and checks
