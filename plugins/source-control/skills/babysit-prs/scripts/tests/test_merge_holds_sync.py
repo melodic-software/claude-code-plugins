@@ -1894,7 +1894,7 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
 
 _FIXTURES = ROOT / ".github/scripts/pr-merge/fixtures"
 _LISTED = json.loads((_FIXTURES / "compare-paged-1.json").read_text(encoding="utf-8"))
-_DIFF = json.loads((_FIXTURES / "compare-diff.json").read_text(encoding="utf-8"))
+_DIFF = (_FIXTURES / "compare.diff").read_text(encoding="utf-8")
 _MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
 _BINARY = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"
 DIFF_CASES = {

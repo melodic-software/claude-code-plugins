@@ -1,0 +1,3757 @@
+diff --git a/.changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md b/.changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/animation/chore-comment-sweep-rem-2-f9744b5a.md b/.changes/animation/chore-comment-sweep-rem-2-f9744b5a.md
+new file mode 100644
+index 00000000000..6fa360300b6
+--- /dev/null
++++ b/.changes/animation/chore-comment-sweep-rem-2-f9744b5a.md
+@@ -0,0 +1,5 @@
++---
++bump: none
++---
++
++Comment-only removal; no behavior change.
+diff --git a/.changes/architecture/chore-comment-sweep-rem-2-9012180e.md b/.changes/architecture/chore-comment-sweep-rem-2-9012180e.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/architecture/chore-comment-sweep-rem-2-9012180e.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/attribution/chore-comment-sweep-rem-2-65c82d01.md b/.changes/attribution/chore-comment-sweep-rem-2-65c82d01.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/attribution/chore-comment-sweep-rem-2-65c82d01.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/bugs/chore-comment-sweep-rem-2-2b87c239.md b/.changes/bugs/chore-comment-sweep-rem-2-2b87c239.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/bugs/chore-comment-sweep-rem-2-2b87c239.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/code-tidying/chore-comment-sweep-rem-2-6e84a012.md b/.changes/code-tidying/chore-comment-sweep-rem-2-6e84a012.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/code-tidying/chore-comment-sweep-rem-2-6e84a012.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/codebase-health/chore-comment-sweep-rem-2-c7c04d01.md b/.changes/codebase-health/chore-comment-sweep-rem-2-c7c04d01.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/codebase-health/chore-comment-sweep-rem-2-c7c04d01.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/debugging/chore-comment-sweep-rem-2-465744a9.md b/.changes/debugging/chore-comment-sweep-rem-2-465744a9.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/debugging/chore-comment-sweep-rem-2-465744a9.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/developer-experience/chore-comment-sweep-rem-2-f089a679.md b/.changes/developer-experience/chore-comment-sweep-rem-2-f089a679.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/developer-experience/chore-comment-sweep-rem-2-f089a679.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/discipline/chore-comment-sweep-rem-2-744732a6.md b/.changes/discipline/chore-comment-sweep-rem-2-744732a6.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/discipline/chore-comment-sweep-rem-2-744732a6.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/discovery/chore-comment-sweep-rem-2-4090b524.md b/.changes/discovery/chore-comment-sweep-rem-2-4090b524.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/discovery/chore-comment-sweep-rem-2-4090b524.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/docs-hygiene/chore-comment-sweep-rem-2-94179e6b.md b/.changes/docs-hygiene/chore-comment-sweep-rem-2-94179e6b.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/docs-hygiene/chore-comment-sweep-rem-2-94179e6b.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/docs-naming/chore-comment-sweep-rem-2-3c3f8b0e.md b/.changes/docs-naming/chore-comment-sweep-rem-2-3c3f8b0e.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/docs-naming/chore-comment-sweep-rem-2-3c3f8b0e.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/education/chore-comment-sweep-rem-2-4b226f8d.md b/.changes/education/chore-comment-sweep-rem-2-4b226f8d.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/education/chore-comment-sweep-rem-2-4b226f8d.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/event-storming/chore-comment-sweep-rem-2-9f7d4a96.md b/.changes/event-storming/chore-comment-sweep-rem-2-9f7d4a96.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/event-storming/chore-comment-sweep-rem-2-9f7d4a96.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/explainer-video/chore-comment-sweep-rem-2-a3102366.md b/.changes/explainer-video/chore-comment-sweep-rem-2-a3102366.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/explainer-video/chore-comment-sweep-rem-2-a3102366.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/formal-verification/chore-comment-sweep-rem-2-146265e6.md b/.changes/formal-verification/chore-comment-sweep-rem-2-146265e6.md
+new file mode 100644
+index 00000000000..6fa360300b6
+--- /dev/null
++++ b/.changes/formal-verification/chore-comment-sweep-rem-2-146265e6.md
+@@ -0,0 +1,5 @@
++---
++bump: none
++---
++
++Comment-only removal; no behavior change.
+diff --git a/.changes/guardrails/chore-comment-sweep-rem-2-56e6a597.md b/.changes/guardrails/chore-comment-sweep-rem-2-56e6a597.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/guardrails/chore-comment-sweep-rem-2-56e6a597.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/harness-config/chore-comment-sweep-rem-2-67b9473b.md b/.changes/harness-config/chore-comment-sweep-rem-2-67b9473b.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/harness-config/chore-comment-sweep-rem-2-67b9473b.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/harness-memory/chore-comment-sweep-rem-2-4a1824b1.md b/.changes/harness-memory/chore-comment-sweep-rem-2-4a1824b1.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/harness-memory/chore-comment-sweep-rem-2-4a1824b1.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/harness-ops/chore-comment-sweep-rem-2-56a7220d.md b/.changes/harness-ops/chore-comment-sweep-rem-2-56a7220d.md
+new file mode 100644
+index 00000000000..d09c2d88e70
+--- /dev/null
++++ b/.changes/harness-ops/chore-comment-sweep-rem-2-56a7220d.md
+@@ -0,0 +1,8 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk` synced (comment-only removal).
++- The observability SQL and awk files lose their comments, with no behavior change; the privacy reference now names `prune-compact.sh`'s column constants as the authoritative cold content list.
+diff --git a/.changes/implementation/chore-comment-sweep-rem-2-831c0696.md b/.changes/implementation/chore-comment-sweep-rem-2-831c0696.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/implementation/chore-comment-sweep-rem-2-831c0696.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/knowledge/chore-comment-sweep-rem-2-61214d58.md b/.changes/knowledge/chore-comment-sweep-rem-2-61214d58.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/knowledge/chore-comment-sweep-rem-2-61214d58.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/knowledge/fix-video-digest-preflight-quote-5d2a9c41.md b/.changes/knowledge/fix-video-digest-preflight-quote-5d2a9c41.md
+new file mode 100644
+index 00000000000..9bc810727e6
+--- /dev/null
++++ b/.changes/knowledge/fix-video-digest-preflight-quote-5d2a9c41.md
+@@ -0,0 +1,10 @@
++---
++bump: patch
++---
++
++### Fixed
++
++- The video-digest readiness report runs when the `asr_python` option is unset. The pre-computed
++  preflight command now single-quotes its `--asr-python` argument, so the literal
++  `${user_config.asr_python}` token Claude Code leaves for an unset option reaches the script
++  instead of failing in bash with "bad substitution".
+diff --git a/.changes/multi-agent/chore-comment-sweep-rem-2-07d15360.md b/.changes/multi-agent/chore-comment-sweep-rem-2-07d15360.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/multi-agent/chore-comment-sweep-rem-2-07d15360.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/mutation-testing/chore-comment-sweep-rem-2-0138a988.md b/.changes/mutation-testing/chore-comment-sweep-rem-2-0138a988.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/mutation-testing/chore-comment-sweep-rem-2-0138a988.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/pixel-art/chore-comment-sweep-rem-2-82177a3b.md b/.changes/pixel-art/chore-comment-sweep-rem-2-82177a3b.md
+new file mode 100644
+index 00000000000..6fa360300b6
+--- /dev/null
++++ b/.changes/pixel-art/chore-comment-sweep-rem-2-82177a3b.md
+@@ -0,0 +1,5 @@
++---
++bump: none
++---
++
++Comment-only removal; no behavior change.
+diff --git a/.changes/planning/chore-comment-sweep-rem-2-3622c08f.md b/.changes/planning/chore-comment-sweep-rem-2-3622c08f.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/planning/chore-comment-sweep-rem-2-3622c08f.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/planning/fix-18801-test-load-5f637628.md b/.changes/planning/fix-18801-test-load-5f637628.md
+new file mode 100644
+index 00000000000..5d451947c13
+--- /dev/null
++++ b/.changes/planning/fix-18801-test-load-5f637628.md
+@@ -0,0 +1,5 @@
++---
++bump: none
++---
++
++Test-only change: the load test's write-count floor now accounts for measured latency; no shipped behavior changes.
+diff --git a/.changes/playbooks/chore-comment-sweep-rem-2-3818b461.md b/.changes/playbooks/chore-comment-sweep-rem-2-3818b461.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/playbooks/chore-comment-sweep-rem-2-3818b461.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/playwright/chore-comment-sweep-rem-2-878207b6.md b/.changes/playwright/chore-comment-sweep-rem-2-878207b6.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/playwright/chore-comment-sweep-rem-2-878207b6.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/plugin-quality/chore-comment-sweep-rem-2-e902a9c2.md b/.changes/plugin-quality/chore-comment-sweep-rem-2-e902a9c2.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/plugin-quality/chore-comment-sweep-rem-2-e902a9c2.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/pr-pipeline/refactor-review-lane-status-jobs-c7a91e3d.md b/.changes/pr-pipeline/refactor-review-lane-status-jobs-c7a91e3d.md
+new file mode 100644
+index 00000000000..47ef413661f
+--- /dev/null
++++ b/.changes/pr-pipeline/refactor-review-lane-status-jobs-c7a91e3d.md
+@@ -0,0 +1,5 @@
++---
++bump: none
++---
++
++ci-status's cost-hold step reads the review lanes' status job names and its review-lane workflow test from the hold config's merge-holds.mjs (REVIEW_LANES, laneChange), and clear-escalations.mjs LANE_RECORDS takes its job names from REVIEW_LANES, in place of two copies of the table; which holds clear is unchanged.
+diff --git a/.changes/prototype/chore-comment-sweep-rem-2-c61f90c4.md b/.changes/prototype/chore-comment-sweep-rem-2-c61f90c4.md
+new file mode 100644
+index 00000000000..876afaabcf0
+--- /dev/null
++++ b/.changes/prototype/chore-comment-sweep-rem-2-c61f90c4.md
+@@ -0,0 +1,8 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `host.html` synced (comment-only removal).
++- The variant switcher's page-authoring rules moved from the asset's header comment to `reference/switcher.md`.
+diff --git a/.changes/review/chore-comment-sweep-rem-2-6e565b17.md b/.changes/review/chore-comment-sweep-rem-2-6e565b17.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/review/chore-comment-sweep-rem-2-6e565b17.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/session-flow/chore-comment-sweep-rem-2-273307c7.md b/.changes/session-flow/chore-comment-sweep-rem-2-273307c7.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/session-flow/chore-comment-sweep-rem-2-273307c7.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/skill-quality/chore-comment-sweep-rem-2-6576744c.md b/.changes/skill-quality/chore-comment-sweep-rem-2-6576744c.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/skill-quality/chore-comment-sweep-rem-2-6576744c.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/songwriting/chore-comment-sweep-rem-2-773f0158.md b/.changes/songwriting/chore-comment-sweep-rem-2-773f0158.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/songwriting/chore-comment-sweep-rem-2-773f0158.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/source-control/chore-comment-sweep-rem-2-f1f84c0e.md b/.changes/source-control/chore-comment-sweep-rem-2-f1f84c0e.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/source-control/chore-comment-sweep-rem-2-f1f84c0e.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/source-control/feat-18859-intake-lane-move-4b03d45f.md b/.changes/source-control/feat-18859-intake-lane-move-4b03d45f.md
+new file mode 100644
+index 00000000000..3c358619e6d
+--- /dev/null
++++ b/.changes/source-control/feat-18859-intake-lane-move-4b03d45f.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- `babysit-prs` `CARRY_REFUSES` adds the work-items triage skill's `scripts/` and `schemas/`, which the intake lane's workflow now loads, so a push that touches one stops an approval carrying, as `merge-holds.mjs` does.
+diff --git a/.changes/testing/chore-comment-sweep-rem-2-e7154a39.md b/.changes/testing/chore-comment-sweep-rem-2-e7154a39.md
+new file mode 100644
+index 00000000000..d23f56c0097
+--- /dev/null
++++ b/.changes/testing/chore-comment-sweep-rem-2-e7154a39.md
+@@ -0,0 +1,8 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk` synced (comment-only removal).
++- The audit skill's adapter file format moved from the `adapter-load.awk` header comment to `skills/audit/reference/adapter-format.md`; the audit scanners lose their comments, with no behavior change.
+diff --git a/.changes/user-interface/chore-comment-sweep-v060-a9938050.md b/.changes/user-interface/chore-comment-sweep-v060-a9938050.md
+deleted file mode 100644
+index 19dd3dee6aa..00000000000
+--- a/.changes/user-interface/chore-comment-sweep-v060-a9938050.md
++++ /dev/null
+@@ -1,5 +0,0 @@
+----
+-bump: none
+----
+-
+-Comments were removed from user-interface tests, with no behavior change.
+diff --git a/.changes/verification/chore-comment-sweep-rem-2-0f67f69e.md b/.changes/verification/chore-comment-sweep-rem-2-0f67f69e.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/verification/chore-comment-sweep-rem-2-0f67f69e.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/visualization/chore-comment-sweep-rem-2-25d9d2b8.md b/.changes/visualization/chore-comment-sweep-rem-2-25d9d2b8.md
+new file mode 100644
+index 00000000000..6fa360300b6
+--- /dev/null
++++ b/.changes/visualization/chore-comment-sweep-rem-2-25d9d2b8.md
+@@ -0,0 +1,5 @@
++---
++bump: none
++---
++
++Comment-only removal; no behavior change.
+diff --git a/.changes/visualization/chore-comment-sweep-v060-9a4b8552.md b/.changes/visualization/chore-comment-sweep-v060-9a4b8552.md
+deleted file mode 100644
+index 7f6487c99ad..00000000000
+--- a/.changes/visualization/chore-comment-sweep-v060-9a4b8552.md
++++ /dev/null
+@@ -1,5 +0,0 @@
+----
+-bump: none
+----
+-
+-Comments were removed from visualization scripts and tests, with no behavior change.
+diff --git a/.changes/wizard/chore-comment-sweep-rem-2-463f5c1e.md b/.changes/wizard/chore-comment-sweep-rem-2-463f5c1e.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/wizard/chore-comment-sweep-rem-2-463f5c1e.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/wizard/chore-comment-sweep-v060-33505039.md b/.changes/wizard/chore-comment-sweep-v060-33505039.md
+deleted file mode 100644
+index ee5b41d3ff1..00000000000
+--- a/.changes/wizard/chore-comment-sweep-v060-33505039.md
++++ /dev/null
+@@ -1,5 +0,0 @@
+----
+-bump: none
+----
+-
+-Comments were removed from wizard templates and tests, with no behavior change.
+diff --git a/.changes/work-items/chore-comment-sweep-rem-2-1b538069.md b/.changes/work-items/chore-comment-sweep-rem-2-1b538069.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/work-items/chore-comment-sweep-rem-2-1b538069.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.changes/work-items/chore-comment-sweep-v060-c50c133f.md b/.changes/work-items/chore-comment-sweep-v060-c50c133f.md
+deleted file mode 100644
+index 50471b8eddf..00000000000
+--- a/.changes/work-items/chore-comment-sweep-v060-c50c133f.md
++++ /dev/null
+@@ -1,5 +0,0 @@
+----
+-bump: none
+----
+-
+-Comments were removed from work-items scripts and tests, with no behavior change.
+diff --git a/.changes/work-items/chore-comment-sweep-v064-165c3f3d.md b/.changes/work-items/chore-comment-sweep-v064-165c3f3d.md
+deleted file mode 100644
+index 48fe64812ca..00000000000
+--- a/.changes/work-items/chore-comment-sweep-v064-165c3f3d.md
++++ /dev/null
+@@ -1,5 +0,0 @@
+----
+-bump: none
+----
+-
+-Remove comments with no behavior change.
+diff --git a/.changes/writing/chore-comment-sweep-rem-2-6601a90e.md b/.changes/writing/chore-comment-sweep-rem-2-6601a90e.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/writing/chore-comment-sweep-rem-2-6601a90e.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
++
++### Changed
++
++- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+diff --git a/.editorconfig-checker.json b/.editorconfig-checker.json
+deleted file mode 100644
+index 7142160a781..00000000000
+--- a/.editorconfig-checker.json
++++ /dev/null
+@@ -1,21 +0,0 @@
+-{
+-  "Version": "",
+-  "Exclude": [
+-    "bin/",
+-    "build/",
+-    "\\.git/",
+-    "\\.ruff_cache/",
+-    "\\.lock$",
+-    "\\.min\\.",
+-    "node_modules/",
+-    "obj/",
+-    "package-lock\\.json$",
+-    "packages\\.lock\\.json$",
+-    "\\.venv/"
+-  ],
+-  "Disable": {
+-    "EndOfLine": true,
+-    "IndentSize": true,
+-    "MaxLineLength": true
+-  }
+-}
+diff --git a/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-issue-patch-prepare.yaml b/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-issue-patch-prepare.yaml
+index c8ba8f9e35d..7093886938d 100644
+--- a/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-issue-patch-prepare.yaml
++++ b/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-issue-patch-prepare.yaml
+@@ -17,7 +17,7 @@ activities:
+     inputs: [issue]
+ lanes:
+   work-resolve-issue:
+-    stage: work
++    stage: build
+     slots:
+       - activity: resolve-issue
+       - activity: apply-issue-patch
+diff --git a/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-patch-prepare.yaml b/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-patch-prepare.yaml
+index 23245047858..223664191b4 100644
+--- a/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-patch-prepare.yaml
++++ b/.github/actions/resolve-config/fixtures/invalid-applied-by-apply-patch-prepare.yaml
+@@ -18,7 +18,7 @@ activities:
+     inputs: [pr, head-sha]
+ lanes:
+   pr-unblock:
+-    stage: unblock
++    stage: fix
+     slots:
+       - activity: fix-ci
+       - activity: apply-patch
+diff --git a/.github/actions/resolve-config/fixtures/invalid-applied-by-missing-needs.yaml b/.github/actions/resolve-config/fixtures/invalid-applied-by-missing-needs.yaml
+index 23c71ec0672..11f178d0122 100644
+--- a/.github/actions/resolve-config/fixtures/invalid-applied-by-missing-needs.yaml
++++ b/.github/actions/resolve-config/fixtures/invalid-applied-by-missing-needs.yaml
+@@ -19,7 +19,7 @@ activities:
+     inputs: [pr, head-sha]
+ lanes:
+   pr-unblock:
+-    stage: unblock
++    stage: fix
+     slots:
+       - activity: fix-ci
+       - activity: apply-patch
+diff --git a/.github/actions/resolve-config/fixtures/invalid-applied-by-not-script.yaml b/.github/actions/resolve-config/fixtures/invalid-applied-by-not-script.yaml
+index e2b376eb834..c61475569e7 100644
+--- a/.github/actions/resolve-config/fixtures/invalid-applied-by-not-script.yaml
++++ b/.github/actions/resolve-config/fixtures/invalid-applied-by-not-script.yaml
+@@ -24,7 +24,7 @@ activities:
+     inputs: [pr, head-sha]
+ lanes:
+   pr-unblock:
+-    stage: unblock
++    stage: fix
+     slots:
+       - activity: fix-ci
+       - activity: review-patch
+diff --git a/.github/actions/resolve-config/fixtures/invalid-applied-by-outside-lane.yaml b/.github/actions/resolve-config/fixtures/invalid-applied-by-outside-lane.yaml
+index 6bd552147ca..d1f40410f75 100644
+--- a/.github/actions/resolve-config/fixtures/invalid-applied-by-outside-lane.yaml
++++ b/.github/actions/resolve-config/fixtures/invalid-applied-by-outside-lane.yaml
+@@ -19,6 +19,6 @@ activities:
+     inputs: [pr, head-sha]
+ lanes:
+   pr-unblock:
+-    stage: unblock
++    stage: fix
+     slots:
+       - activity: fix-ci
+diff --git a/.github/actions/resolve-config/issue-status.mjs b/.github/actions/resolve-config/issue-status.mjs
+index aa4676c7c69..ac621104b84 100644
+--- a/.github/actions/resolve-config/issue-status.mjs
++++ b/.github/actions/resolve-config/issue-status.mjs
+@@ -15,7 +15,6 @@ export class StatusDisagreement extends Error {
+ // GitHub label names compare without case.
+ const fold = (name) => String(name).toLowerCase();
+ 
+-// The folded label names on an issue, from names or REST label objects.
+ const labelNames = (labels) =>
+   new Set((labels ?? []).map((label) => fold(typeof label === "string" ? label : label?.name)));
+ 
+diff --git a/.github/scripts/apply-patch/protected-paths.test.mjs b/.github/scripts/apply-patch/protected-paths.test.mjs
+index 16a6b397970..d19dd92af4b 100644
+--- a/.github/scripts/apply-patch/protected-paths.test.mjs
++++ b/.github/scripts/apply-patch/protected-paths.test.mjs
+@@ -36,7 +36,7 @@ test("claude-protected refuses Claude Code's protected directories and files at
+     ".bashrc",
+     ".envrc",
+     ".pre-commit-config.yaml",
+-    ".github/standards/pyright/pyrightconfig.json",
++    "plugins/x/pyrightconfig.json",
+     "gradle/wrapper/gradle-wrapper.properties",
+     "bunfig.toml",
+     ".claude.json",
+diff --git a/.github/scripts/intake-triage/edges.mjs b/.github/scripts/intake-triage/edges.mjs
+index 2e9fa19ad44..d0f9ef0a10e 100644
+--- a/.github/scripts/intake-triage/edges.mjs
++++ b/.github/scripts/intake-triage/edges.mjs
+@@ -188,7 +188,6 @@ async function addEdges({ github, repository, number, blockers, log }) {
+   if (wanted.length === 0) {
+     return { result, ids };
+   }
+-  // The blockers past the cap are skipped after the rest, in their order.
+   const done = () => {
+     wanted.slice(MAX_EDGES).forEach((blocker) => skip(blocker, `past the first ${MAX_EDGES}`));
+     return { result, ids };
+diff --git a/.github/scripts/intake-triage/fixtures/intake-issue/issue-types.json b/.github/scripts/intake-triage/fixtures/intake-issue/issue-types.json
+new file mode 100644
+index 00000000000..18603caaed7
+--- /dev/null
++++ b/.github/scripts/intake-triage/fixtures/intake-issue/issue-types.json
+@@ -0,0 +1 @@
++{"data":{"repository":{"issueTypes":{"nodes":[{"name":"Task","isEnabled":true},{"name":"Bug","isEnabled":true},{"name":"Feature","isEnabled":true}]}}}}
+diff --git a/.github/standards/github-actions-conventions/vocabulary.json b/.github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json
+similarity index 100%
+rename from .github/standards/github-actions-conventions/vocabulary.json
+rename to .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json
+diff --git a/.github/standards/github-actions-conventions/vocabulary.schema.json b/.github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json
+similarity index 100%
+rename from .github/standards/github-actions-conventions/vocabulary.schema.json
+rename to .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json
+diff --git a/.github/standards/trusted-actors/trusted-actors.json b/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json
+similarity index 100%
+rename from .github/standards/trusted-actors/trusted-actors.json
+rename to .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json
+diff --git a/.github/standards/trusted-actors/trusted-actors.schema.json b/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
+similarity index 100%
+rename from .github/standards/trusted-actors/trusted-actors.schema.json
+rename to .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
+diff --git a/.github/scripts/lib/lane-level.mjs b/.github/scripts/lib/lane-level.mjs
+index 111bb9600b5..554e3df833b 100644
+--- a/.github/scripts/lib/lane-level.mjs
++++ b/.github/scripts/lib/lane-level.mjs
+@@ -29,7 +29,6 @@ export const LANE_LEVEL_DEFAULTS = Object.freeze({
+   default: 3,
+   "clean-windows": 2,
+   pools: Object.freeze(["lanes-app"]),
+-  // Read and publish (lane-level-value.mjs, publish-lane-level.mjs), not decide().
+   shadow: true,
+   variable: "CLAUDE_LANE_LEVEL",
+   "valid-minutes": 150,
+diff --git a/.github/scripts/lib/lane-registry.mjs b/.github/scripts/lib/lane-registry.mjs
+index 19270c099ec..f188fea0811 100644
+--- a/.github/scripts/lib/lane-registry.mjs
++++ b/.github/scripts/lib/lane-registry.mjs
+@@ -42,4 +42,4 @@ export function statusChecks(workflow, registry = REGISTRY) {
+ }
+ 
+ export const reviewLanes = (registry = REGISTRY) =>
+-  Object.entries(registry.workflows).flatMap(([workflow, { lane }]) => (lane === undefined ? [] : [{ lane, workflow }]));
++  Object.entries(registry.workflows).flatMap(([workflow, { footer }]) => (footer === undefined ? [] : [{ footer, workflow }]));
+diff --git a/.github/scripts/merge-base/tree-entries.test.sh b/.github/scripts/merge-base/tree-entries.test.sh
+index 5fb0accbffd..6d0a12c37db 100755
+--- a/.github/scripts/merge-base/tree-entries.test.sh
++++ b/.github/scripts/merge-base/tree-entries.test.sh
+@@ -44,8 +44,6 @@ merge_main() {
+   tg checkout -q pr
+   tg merge --no-commit --no-ff main >/dev/null 2>&1 || true
+ }
+-# run_entries [<head> <base> <tree>]: sets OUT (sorted), ERR and RC. The tree
+-# defaults to the index written as a tree.
+ run_entries() {
+   local head=${1:-$(tg rev-parse pr)} base=${2:-$(tg rev-parse main)} tree=${3:-}
+   [[ -n $tree ]] || tree=$(tg write-tree 2>/dev/null) || tree=none
+diff --git a/.github/scripts/pr-unblock/fix-ci-dispatch.mjs b/.github/scripts/pr-unblock/fix-ci-dispatch.mjs
+index 03d9504cb10..82a7465a423 100644
+--- a/.github/scripts/pr-unblock/fix-ci-dispatch.mjs
++++ b/.github/scripts/pr-unblock/fix-ci-dispatch.mjs
+@@ -423,7 +423,6 @@ export async function dispatchCiFixes({
+     if (!pullRequests.pageInfo.hasNextPage) {
+       break;
+     }
+-    // 20 pages is 1,000 open pull requests; a repeated cursor ends it too.
+     if (page === MAX_PAGES || pullRequests.pageInfo.endCursor === after) {
+       log(`::warning::fix-ci listing stopped after page ${page}; later pull requests wait for a later run`);
+       break;
+diff --git a/.github/scripts/pr-unblock/limit-stop.mjs b/.github/scripts/pr-unblock/limit-stop.mjs
+index aff8be3ef57..f3dd5e8838a 100644
+--- a/.github/scripts/pr-unblock/limit-stop.mjs
++++ b/.github/scripts/pr-unblock/limit-stop.mjs
+@@ -13,7 +13,6 @@
+ // writes into output.text from the run job's report-lane-outcome output. Its
+ // lane and activity must name the run itself. A failed run with no such record
+ // is no limit stop.
+-
+ // `limits` is pr-pipeline.yaml's resolved limits leaf. When a limit stop names
+ // no `resets.at` time, it is taken to reset `fallback-reset` hours after the run
+ // ended: the shortest plan limit is a five-hour session window
+diff --git a/.github/scripts/pr-unblock/sync-shared-copies.test.sh b/.github/scripts/pr-unblock/sync-shared-copies.test.sh
+index 4614539cb5a..5aac88f5ae7 100755
+--- a/.github/scripts/pr-unblock/sync-shared-copies.test.sh
++++ b/.github/scripts/pr-unblock/sync-shared-copies.test.sh
+@@ -1,7 +1,5 @@
+ #!/usr/bin/env bash
+ # test-scope: scripts/lib/*
+-# Tests for sync-shared-copies.sh on fixture repositories that carry this
+-# repository's real scripts/sync-shared-copies.sh and scripts/lib.
+ # shellcheck disable=SC2310  # run chains its steps with &&, so its status is the first failure's
+ set -euo pipefail
+ 
+diff --git a/.github/scripts/pr-unblock/thread-scope.mjs b/.github/scripts/pr-unblock/thread-scope.mjs
+index 5958f831c8f..a3b91a32e3a 100644
+--- a/.github/scripts/pr-unblock/thread-scope.mjs
++++ b/.github/scripts/pr-unblock/thread-scope.mjs
+@@ -6,7 +6,6 @@
+ // other file. It also holds the Lane-Thread trailer that binds a fix commit
+ // to the kept threads it fixes: apply-patch.mjs writes it, publish-feedback.mjs
+ // reads it.
+-
+ // A review thread's GraphQL node id, as the select job keeps it.
+ export const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
+ // A pr-verify note the select job read from an earlier FAIL's verdict artifact
+diff --git a/.github/typos-local.toml b/.github/typos-local.toml
+deleted file mode 100644
+index b8efa53b86f..00000000000
+--- a/.github/typos-local.toml
++++ /dev/null
+@@ -1,3 +0,0 @@
+-[type.dependabot-fragment]
+-extend-glob = ["dependabot-[0-9]*-*.md"]
+-check-filename = false
+diff --git a/.github/workflows/maintenance-measure-skill-edit-pass.yml b/.github/workflows/maintenance-measure-skill-edit-pass.yml
+index 0a5512d5ed4..2de70db4053 100644
+--- a/.github/workflows/maintenance-measure-skill-edit-pass.yml
++++ b/.github/workflows/maintenance-measure-skill-edit-pass.yml
+@@ -118,7 +118,7 @@ jobs:
+     runs-on: ubuntu-24.04
+     timeout-minutes: 5
+     permissions:
+-      actions: read # list this repository's credit-stop markers
++      actions: read
+     outputs:
+       next-leg: ${{ steps.credit.outputs.next-leg }}
+       next-reason: ${{ steps.credit.outputs.next-reason }}
+diff --git a/.github/workflows/pr-test-platforms.yml b/.github/workflows/pr-test-platforms.yml
+index 7e733e4405b..5df05247c7b 100644
+--- a/.github/workflows/pr-test-platforms.yml
++++ b/.github/workflows/pr-test-platforms.yml
+@@ -45,10 +45,7 @@ name: PR Test Platforms
+ # lane is not one.
+ 
+ on:
+-  # A dispatch runs every Windows step.
+   workflow_dispatch:
+-  # Every Windows step, at pr-require-checks.yml's whole-tree hours: the net for a Windows
+-  # suite a change reaches through something the selector does not see.
+   schedule:
+     - cron: '17 9,16 * * *'
+   pull_request:
+diff --git a/.gitleaks.toml b/.gitleaks.toml
+deleted file mode 100644
+index 24bc17ac836..00000000000
+--- a/.gitleaks.toml
++++ /dev/null
+@@ -1,10 +0,0 @@
+-minVersion = "v8.25.0"
+-
+-[extend]
+-useDefault = true
+-
+-[[rules]]
+-id = "github-app-installation-token"
+-description = "GitHub App installation token, classic and stateless (ghs_<appid>_<jwt>) formats"
+-regex = '''\bghs_[A-Za-z0-9._-]{36,}'''
+-keywords = ["ghs_"]
+diff --git a/.shellcheckrc b/.shellcheckrc
+deleted file mode 100644
+index 30156dd120a..00000000000
+--- a/.shellcheckrc
++++ /dev/null
+@@ -1,12 +0,0 @@
+-shell=bash
+-external-sources=true
+-source-path=SCRIPTDIR
+-
+-enable=add-default-case
+-enable=avoid-negated-conditions
+-enable=avoid-nullary-conditions
+-enable=check-set-e-suppressed
+-enable=check-unassigned-uppercase
+-enable=deprecate-which
+-enable=require-double-brackets
+-enable=useless-use-of-cat
+diff --git a/docs/conventions/implementation.yaml b/docs/conventions/implementation.yaml
+new file mode 100644
+index 00000000000..3fe3726ac39
+--- /dev/null
++++ b/docs/conventions/implementation.yaml
+@@ -0,0 +1,3 @@
++# yaml-language-server: $schema=../../plugins/implementation/schemas/implementation.schema.json
++
++verification: standard
+diff --git a/docs/conventions/source-control.yaml b/docs/conventions/source-control.yaml
+index 82a21951d50..207c0f32de3 100644
+--- a/docs/conventions/source-control.yaml
++++ b/docs/conventions/source-control.yaml
+@@ -13,6 +13,9 @@ pr_body_required_sections:
+   - Fix
+   - Verification
+   - Related
++pr_body_loosened_checks_heading: Loosened checks
++pr_body_loosened_checks_record_pattern: 'https://github\.com/melodic-software/architecture/blob/[^/[:space:]]+/docs/owner-decisions\.md#L[0-9]+'
++pr_body_loosened_checks_verbatim_marker: 'verbatim:'
+ babysit_loop_stop_mode: standing
+ babysit_loop_tier: worker
+ babysit_loop_merge: c2-mechanical
+diff --git a/docs/review/lane-output.md b/docs/review/lane-output.md
+new file mode 100644
+index 00000000000..8dfb9b45002
+--- /dev/null
++++ b/docs/review/lane-output.md
+@@ -0,0 +1,5 @@
++# Lane output
++
++- A change to the code a lane posts through (a PR comment, a check run, a step summary or the live
++  step log) brings that surface to the lane output format:
++  [lane-output-format](../contracts/loop-lane/lane-output-format.md).
+diff --git a/lib/docs-cache.test.sh b/lib/docs-cache.test.sh
+index 61ac7345712..c2096faf924 100755
+--- a/lib/docs-cache.test.sh
++++ b/lib/docs-cache.test.sh
+@@ -1049,8 +1049,6 @@ got="$(
+ )"
+ assert_eq "bash32: dc_utc and dc_lower match the Bash 4 forms they replace" \
+   '1970-01-01T00:00:00Z 2000-02-29T00:00:00Z 2024-02-29T23:59:59Z 2100-02-28T23:59:59Z 200109090146.40 https://docs.test/a-z_09/é' "$got"
+-# A server-sent header line is unbounded: 100 KB of upper case takes well under
+-# a second when dc_lower is linear, and close to a minute when it is quadratic.
+ got="$(
+   # shellcheck source=docs-cache.sh
+   . "$SCRIPT"
+diff --git a/lib/hook-test-sink.test.sh b/lib/hook-test-sink.test.sh
+index 070cba9aa91..bbaf493853d 100755
+--- a/lib/hook-test-sink.test.sh
++++ b/lib/hook-test-sink.test.sh
+@@ -52,8 +52,6 @@ emit_with_sink() {
+   EMIT_RC=$(<"$rc_file")
+ }
+ 
+-# Upper bound for a wait of one to five 20ms polls. Generous on purpose: a
+-# single process spawn has been measured at 3.2 s on a loaded host.
+ BOUND_MS=5000
+ 
+ # shellcheck disable=SC2016  # $1 expands in the child shell, not here
+diff --git a/lib/hook-utils-shfmt.test.sh b/lib/hook-utils-shfmt.test.sh
+index bdc7b328185..adecc61346e 100755
+--- a/lib/hook-utils-shfmt.test.sh
++++ b/lib/hook-utils-shfmt.test.sh
+@@ -429,7 +429,6 @@ hit_print() { printf '%s\n' "$*"; }
+   form refused $'!(bash <<A\necho HIT >&2\nA\n)'
+   form refused $'cat <<E2; !(x)#\n$(cat <<E1; !(x)#\n$(echo HIT >&2\n)\nE1\n)\nE2'
+   form refused $'!(x)#\'\ncat <<B\n$(echo HIT >&2)\nB\n\' ; cat <<C\nc\nC'
+-  # case patterns.
+   form handled 'echo $(case x in a|esac) :;; esac)#; echo HIT >&2'
+   form handled 'echo $(case x in esac)#; echo HIT >&2'
+   form handled 'echo $(case x in (a) :;; esac)#; echo HIT >&2'
+diff --git a/lib/installed.test.sh b/lib/installed.test.sh
+index 9a77873f96b..16af6b76a08 100755
+--- a/lib/installed.test.sh
++++ b/lib/installed.test.sh
+@@ -1,4 +1,3 @@
+ #!/usr/bin/env bash
+-# Owns installed.test.mjs; run-plugin-tests.sh discovers only .test.sh files.
+ set -euo pipefail
+ exec node --test "$(dirname "${BASH_SOURCE[0]}")/installed.test.mjs"
+diff --git a/lib/media-render/media-render.test.sh b/lib/media-render/media-render.test.sh
+index 44628546457..b8bb6726c0b 100755
+--- a/lib/media-render/media-render.test.sh
++++ b/lib/media-render/media-render.test.sh
+@@ -12,6 +12,5 @@ if ! command -v python3 >/dev/null 2>&1; then
+   exit 0
+ fi
+ 
+-# lib/redact.py sits one level up here; in a plugin, media_scan.py's copy sits beside its redact.py copy.
+ export PYTHONPATH="..${PYTHONPATH:+:$PYTHONPATH}"
+ exec python3 -B -m unittest discover -s . -p 'test_media_*.py' -q
+diff --git a/lib/mermaid-gate.test.sh b/lib/mermaid-gate.test.sh
+index 38cf7661afe..89ef15a19df 100755
+--- a/lib/mermaid-gate.test.sh
++++ b/lib/mermaid-gate.test.sh
+@@ -1,4 +1,3 @@
+ #!/usr/bin/env bash
+-# Owns mermaid-gate.test.mjs; run-plugin-tests.sh discovers only .test.sh files.
+ set -euo pipefail
+ exec node --test "$(dirname "${BASH_SOURCE[0]}")/mermaid-gate.test.mjs"
+diff --git a/lib/pr-verify-run.jq b/lib/pr-verify-run.jq
+new file mode 100644
+index 00000000000..9a629cc9ff0
+--- /dev/null
++++ b/lib/pr-verify-run.jq
+@@ -0,0 +1,3 @@
++.status == "completed" and .conclusion == "success"
++  and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == $def
++  and .repository.full_name == $repo and .head_repository.full_name == $repo
+diff --git a/lib/publish-gate.test.sh b/lib/publish-gate.test.sh
+index 88b48feed91..9e7cc8e08d1 100755
+--- a/lib/publish-gate.test.sh
++++ b/lib/publish-gate.test.sh
+@@ -1,4 +1,3 @@
+ #!/usr/bin/env bash
+-# Owns publish-gate.test.mjs; run-plugin-tests.sh discovers only .test.sh files.
+ set -euo pipefail
+ exec node --test "$(dirname "${BASH_SOURCE[0]}")/publish-gate.test.mjs"
+diff --git a/lib/redact.py b/lib/redact.py
+index 8e8db94676f..a36707426a8 100644
+--- a/lib/redact.py
++++ b/lib/redact.py
+@@ -76,6 +76,7 @@ def _url_credential(match: re.Match[str]) -> str:
+ # its label after every other pass, so the label's "token" cannot wake generic-api-key.
+ _PRE_PASSES = (
+     (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
++    (re.compile(r"sk-ant-oat02-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
+     (re.compile(r"ghs_[A-Za-z0-9._-]{36,}"), "github-app-token"),
+ )
+ _PASSES = (
+diff --git a/lib/rewrite-guard.test.sh b/lib/rewrite-guard.test.sh
+index 2eb9f1d5308..d9caa669e53 100755
+--- a/lib/rewrite-guard.test.sh
++++ b/lib/rewrite-guard.test.sh
+@@ -217,10 +217,6 @@ else
+   fail "disclose emitted on an unchanged file: $out"
+ fi
+ 
+-# --- an empty <file> takes against the file begin was given ------------------
+-# The spelling hook::finish uses. The two halves of one guard cannot disagree
+-# about which file was snapshotted, which is what a hook that formats a
+-# normalized path spelling and takes on the original did.
+ hook::rewrite_guard_begin "$target"
+ printf 'remembered\n' >"$target"
+ hook::rewrite_take_disclosure "" "msg-remembered"
+diff --git a/lib/ui-feedback/relocate-note.test.sh b/lib/ui-feedback/relocate-note.test.sh
+index e609f295a3a..e7e80292902 100755
+--- a/lib/ui-feedback/relocate-note.test.sh
++++ b/lib/ui-feedback/relocate-note.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Owns relocate-note.test.mjs; run-plugin-tests.sh discovers only .test.sh files.
+ # test-scope: lib/ui-feedback/relocate-note.mjs lib/ui-feedback/note-model.mjs lib/ui-feedback/note.schema.json
+ set -euo pipefail
+ exec node --test "$(dirname "${BASH_SOURCE[0]}")/relocate-note.test.mjs"
+diff --git a/lib/view-builder-sample/template.html b/lib/view-builder-sample/template.html
+index 877d342cbfe..7fe745d64de 100644
+--- a/lib/view-builder-sample/template.html
++++ b/lib/view-builder-sample/template.html
+@@ -5,7 +5,6 @@
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <title>Finding Triage Sample</title>
+ <style>
+-/* Layout: one reading column; a filter bar; findings as rows with a pick box on the left. */
+ :root {
+   --bg: #f4f6f8;
+   --surface: #ffffff;
+diff --git a/package.json b/package.json
+index db2321f84fe..3f542af1e15 100644
+--- a/package.json
++++ b/package.json
+@@ -8,7 +8,7 @@
+     "node": ">=24"
+   },
+   "devDependencies": {
+-    "@anthropic-ai/claude-code": "2.1.331",
++    "@anthropic-ai/claude-code": "2.1.332",
+     "@biomejs/biome": "2.6.8",
+     "@playwright/cli": "0.1.25",
+     "@playwright/mcp": "0.0.86",
+@@ -23,6 +23,6 @@
+     "glob": "14.0.3"
+   },
+   "allowScripts": {
+-    "@anthropic-ai/claude-code@2.1.331": true
++    "@anthropic-ai/claude-code@2.1.332": true
+   }
+ }
+diff --git a/plugins/actionlint/.claude-plugin/plugin.json b/plugins/actionlint/.claude-plugin/plugin.json
+index 824a064a943..dcb5ea16ec8 100644
+--- a/plugins/actionlint/.claude-plugin/plugin.json
++++ b/plugins/actionlint/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "2.2.6",
++  "version": "2.3.0",
+   "license": "MIT",
+   "keywords": [
+     "actionlint",
+diff --git a/plugins/ai-briefing/skills/generate/output/build/assemble-html.js b/plugins/ai-briefing/skills/generate/output/build/assemble-html.js
+index 03807c1e882..48d2e1b86ef 100644
+--- a/plugins/ai-briefing/skills/generate/output/build/assemble-html.js
++++ b/plugins/ai-briefing/skills/generate/output/build/assemble-html.js
+@@ -22,7 +22,6 @@ function loadEmbeddedAssets(buildDir) {
+       const raw = fsSync.readFileSync(path.resolve(buildDir, logoPath), "utf-8");
+       providerLogoSvg[slug] = raw.replace(/<title>[^<]*<\/title>/, "");
+     } catch {
+-      /* missing logo — render text-only header */
+     }
+   }
+ 
+diff --git a/plugins/ai-slop/.claude-plugin/plugin.json b/plugins/ai-slop/.claude-plugin/plugin.json
+index 1f20ef7a61b..bd503e33678 100644
+--- a/plugins/ai-slop/.claude-plugin/plugin.json
++++ b/plugins/ai-slop/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.21.5",
++  "version": "0.21.6",
+   "license": "MIT",
+   "keywords": [
+     "ai-slop",
+diff --git a/plugins/ai-slop/CHANGELOG.md b/plugins/ai-slop/CHANGELOG.md
+index 34ec5ca2d93..f8744fdef41 100644
+--- a/plugins/ai-slop/CHANGELOG.md
++++ b/plugins/ai-slop/CHANGELOG.md
+@@ -1,5 +1,11 @@
+ # Changelog
+ 
++## [0.21.6] - 2026-11-25
++
++### Changed
++
++- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
++
+ ## [0.21.5] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/animation/scripts/test_produce.py b/plugins/animation/scripts/test_produce.py
+index 3c9e74e5d0c..b6710aef920 100644
+--- a/plugins/animation/scripts/test_produce.py
++++ b/plugins/animation/scripts/test_produce.py
+@@ -1,4 +1,3 @@
+-"""produce.py: boards, the approval digest, and shots.json as the cut list."""
+ import json
+ import subprocess
+ import sys
+@@ -15,7 +14,6 @@ def run(args):
+ 
+ 
+ def fill(prod):
+-    """Boards that pass, and two shot modules."""
+     (prod / 'brief.md').write_text(
+         '# Brief\n\nSubject: a harbor at dusk\nLength: 2s\nAudience: the user\n'
+         'Packs: woodcut-ink\nDelivery: mp4\n', encoding='utf-8')
+diff --git a/plugins/architecture/.claude-plugin/plugin.json b/plugins/architecture/.claude-plugin/plugin.json
+index be3062dfa49..62051e4983a 100644
+--- a/plugins/architecture/.claude-plugin/plugin.json
++++ b/plugins/architecture/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "6.0.9",
++  "version": "6.0.10",
+   "userConfig": {
+     "medium": {
+       "type": "string",
+diff --git a/plugins/architecture/CHANGELOG.md b/plugins/architecture/CHANGELOG.md
+index 87a932f447f..20f2dfc652d 100644
+--- a/plugins/architecture/CHANGELOG.md
++++ b/plugins/architecture/CHANGELOG.md
+@@ -3,6 +3,12 @@
+ All notable changes to the `architecture` plugin are documented here. Format follows
+ [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+ 
++## [6.0.10] - 2026-11-24
++
++### Changed
++
++- `/architecture:improve` names four successors in its Next section; the boundaries-lens codify route stays in its routing table.
++
+ ## [6.0.9] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/attribution/.claude-plugin/plugin.json b/plugins/attribution/.claude-plugin/plugin.json
+index 54202ae459e..08f2342ebaa 100644
+--- a/plugins/attribution/.claude-plugin/plugin.json
++++ b/plugins/attribution/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.22.7",
++  "version": "0.22.8",
+   "userConfig": {
+     "budgets_searches_per_candidate": {
+       "type": "number",
+diff --git a/plugins/attribution/CHANGELOG.md b/plugins/attribution/CHANGELOG.md
+index cc564b78541..f43dcf635ff 100644
+--- a/plugins/attribution/CHANGELOG.md
++++ b/plugins/attribution/CHANGELOG.md
+@@ -1,5 +1,11 @@
+ # Changelog
+ 
++## [0.22.8] - 2026-11-25
++
++### Changed
++
++- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
++
+ ## [0.22.7] - 2026-11-24
+ 
+ ### Fixed
+diff --git a/plugins/bash-format/.claude-plugin/plugin.json b/plugins/bash-format/.claude-plugin/plugin.json
+index 1506e3480c8..758ea0f760f 100644
+--- a/plugins/bash-format/.claude-plugin/plugin.json
++++ b/plugins/bash-format/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "3.1.3",
++  "version": "3.2.0",
+   "license": "MIT",
+   "keywords": [
+     "bash",
+diff --git a/plugins/bugs/.claude-plugin/plugin.json b/plugins/bugs/.claude-plugin/plugin.json
+index 92764a4a3af..0117051c96a 100644
+--- a/plugins/bugs/.claude-plugin/plugin.json
++++ b/plugins/bugs/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.26.3",
++  "version": "0.26.4",
+   "license": "MIT",
+   "keywords": [
+     "bug",
+diff --git a/plugins/bugs/CHANGELOG.md b/plugins/bugs/CHANGELOG.md
+index 70f19e55eae..42f57d7a406 100644
+--- a/plugins/bugs/CHANGELOG.md
++++ b/plugins/bugs/CHANGELOG.md
+@@ -3,6 +3,12 @@
+ All notable changes to the `bugs` plugin are documented here. Format follows
+ [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+ 
++## [0.26.4] - 2026-11-25
++
++### Changed
++
++- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
++
+ ## [0.26.3] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/code-metrics/scripts/collectors/mypy-report.py b/plugins/code-metrics/scripts/collectors/mypy-report.py
+index a4b0a87fe3c..1dc29c2e7e8 100755
+--- a/plugins/code-metrics/scripts/collectors/mypy-report.py
++++ b/plugins/code-metrics/scripts/collectors/mypy-report.py
+@@ -205,7 +205,6 @@ def _crawl_dir(directory: str, base: str) -> str | None:
+ 
+ 
+ def _cwd_base() -> str:
+-    """The working directory as `module_name` takes its base."""
+     return os.path.normcase(os.path.abspath(os.getcwd()))
+ 
+ 
+diff --git a/plugins/code-metrics/scripts/collectors/test_scc.py b/plugins/code-metrics/scripts/collectors/test_scc.py
+index 5ebd9361978..eaa38e60515 100755
+--- a/plugins/code-metrics/scripts/collectors/test_scc.py
++++ b/plugins/code-metrics/scripts/collectors/test_scc.py
+@@ -31,8 +31,6 @@
+ def make_stub(
+     directory: Path, capture: Path = CAPTURE, calls_log: Path | None = None
+ ) -> None:
+-    """A `scc` stub replaying `capture`; with `calls_log` it also appends the
+-    number of arguments it received, one line per call."""
+     log = f'printf \'%s\\n\' "$#" >>"{calls_log}"\n' if calls_log is not None else ""
+     write_stub(
+         directory / "scc",
+diff --git a/plugins/code-metrics/scripts/parsers/lcov.py b/plugins/code-metrics/scripts/parsers/lcov.py
+index d10781e5f9b..e0aefc728a9 100755
+--- a/plugins/code-metrics/scripts/parsers/lcov.py
++++ b/plugins/code-metrics/scripts/parsers/lcov.py
+@@ -57,7 +57,6 @@
+ 
+ 
+ def _declare(key: tuple, order: list[tuple], declared: dict[str, list[tuple]]) -> None:
+-    """Record a function identity the first time the section names it."""
+     if key not in order:
+         order.append(key)
+         declared.setdefault(key[0], []).append(key)
+diff --git a/plugins/code-metrics/scripts/parsers/test_go_cover.py b/plugins/code-metrics/scripts/parsers/test_go_cover.py
+index caf435fddb9..f534605025f 100755
+--- a/plugins/code-metrics/scripts/parsers/test_go_cover.py
++++ b/plugins/code-metrics/scripts/parsers/test_go_cover.py
+@@ -63,7 +63,6 @@ def parsed(*args: str) -> dict:
+ 
+ 
+ def totals(document: dict, path: str) -> dict:
+-    """A file's `total` and `hit`, read without the block table beside them."""
+     statements = document[path]["statements"]
+     return {"total": statements["total"], "hit": statements["hit"]}
+ 
+diff --git a/plugins/code-tidying/.claude-plugin/plugin.json b/plugins/code-tidying/.claude-plugin/plugin.json
+index 741c4ae2b34..fbcc702e9b7 100644
+--- a/plugins/code-tidying/.claude-plugin/plugin.json
++++ b/plugins/code-tidying/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.59.4",
++  "version": "0.59.6",
+   "license": "MIT",
+   "keywords": [
+     "tidy",
+diff --git a/plugins/corrections/.claude-plugin/plugin.json b/plugins/corrections/.claude-plugin/plugin.json
+index 2f8360411ca..e46f0052467 100644
+--- a/plugins/corrections/.claude-plugin/plugin.json
++++ b/plugins/corrections/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "1.10.4",
++  "version": "1.10.6",
+   "license": "MIT",
+   "keywords": [
+     "corrections",
+diff --git a/plugins/discovery/.claude-plugin/plugin.json b/plugins/discovery/.claude-plugin/plugin.json
+index b405be2f603..e8cb2922af1 100644
+--- a/plugins/discovery/.claude-plugin/plugin.json
++++ b/plugins/discovery/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "2.2.19",
++  "version": "2.2.20",
+   "license": "MIT",
+   "keywords": [
+     "discovery",
+diff --git a/plugins/discovery/CHANGELOG.md b/plugins/discovery/CHANGELOG.md
+index 7fc7d52f42b..1d8c8d7354f 100644
+--- a/plugins/discovery/CHANGELOG.md
++++ b/plugins/discovery/CHANGELOG.md
+@@ -1,5 +1,11 @@
+ # Changelog: discovery plugin
+ 
++## [2.2.20] - 2026-11-25
++
++### Changed
++
++- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
++
+ ## [2.2.19] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/disk-hygiene/skills/setup/scripts/kill_switch_probe.py b/plugins/disk-hygiene/skills/setup/scripts/kill_switch_probe.py
+index 29012407de7..269ac826a15 100755
+--- a/plugins/disk-hygiene/skills/setup/scripts/kill_switch_probe.py
++++ b/plugins/disk-hygiene/skills/setup/scripts/kill_switch_probe.py
+@@ -53,7 +53,6 @@
+ 
+ 
+ def report(settings_path: Path) -> dict[str, object]:
+-    """The kill-switch report plus the guard's launch disclosure."""
+     return {
+         **probe(settings_path),
+         **destructive_guard.launch_disclosure(str(_PLUGIN_ROOT)),
+diff --git a/plugins/docs-hygiene/.claude-plugin/plugin.json b/plugins/docs-hygiene/.claude-plugin/plugin.json
+index 6f36fcd31d8..1954d20e832 100644
+--- a/plugins/docs-hygiene/.claude-plugin/plugin.json
++++ b/plugins/docs-hygiene/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "4.4.2",
++  "version": "4.4.4",
+   "license": "MIT",
+   "keywords": [
+     "documentation",
+diff --git a/plugins/evals/.claude-plugin/plugin.json b/plugins/evals/.claude-plugin/plugin.json
+index 4469c8e8821..3599aa988cb 100644
+--- a/plugins/evals/.claude-plugin/plugin.json
++++ b/plugins/evals/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.26.1",
++  "version": "0.27.1",
+   "license": "MIT",
+   "userConfig": {
+     "max_cost_usd": {
+diff --git a/plugins/evals/scripts/redact.py b/plugins/evals/scripts/redact.py
+index 1b55484b713..c269db3fc83 100644
+--- a/plugins/evals/scripts/redact.py
++++ b/plugins/evals/scripts/redact.py
+@@ -78,6 +78,7 @@ def _url_credential(match: re.Match[str]) -> str:
+ # its label after every other pass, so the label's "token" cannot wake generic-api-key.
+ _PRE_PASSES = (
+     (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
++    (re.compile(r"sk-ant-oat02-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
+     (re.compile(r"ghs_[A-Za-z0-9._-]{36,}"), "github-app-token"),
+ )
+ _PASSES = (
+diff --git a/plugins/evals/skills/plugin-eval/reference/select.md b/plugins/evals/skills/plugin-eval/reference/select.md
+index 0b778cbaec8..ea2fb0a0549 100644
+--- a/plugins/evals/skills/plugin-eval/reference/select.md
++++ b/plugins/evals/skills/plugin-eval/reference/select.md
+@@ -8,6 +8,9 @@ text runs nothing, and a case,
+ grader, prompt, fixture or scaffold change runs its own case and the cases that call it. Where the
+ repository records its own eval run policy, that policy decides what each line obliges.
+ 
++An edit inside a SKILL.md `## Next` section runs nothing: that section names successors for the
++person and changes no tool call.
++
+ ## Run it
+ 
+ ```bash
+diff --git a/plugins/evals/skills/plugin-eval/scripts/test_docker_links.py b/plugins/evals/skills/plugin-eval/scripts/test_docker_links.py
+index ad6d913481b..e6aab10ed66 100755
+--- a/plugins/evals/skills/plugin-eval/scripts/test_docker_links.py
++++ b/plugins/evals/skills/plugin-eval/scripts/test_docker_links.py
+@@ -25,8 +25,6 @@
+ HERE = Path(__file__).resolve().parent
+ SCRIPT = HERE / "docker-links.py"
+ 
+-# The child each wrapped run executes: list the store's links the way the
+-# preflight does, into a file the test reads afterwards.
+ LIST_LINKS = 'find "$HOME/.docker" -mindepth 1 -type l > "$HOME/links-during-run"'
+ 
+ 
+diff --git a/plugins/explainer-video/.claude-plugin/plugin.json b/plugins/explainer-video/.claude-plugin/plugin.json
+index 26bee53c45f..a836232b60b 100644
+--- a/plugins/explainer-video/.claude-plugin/plugin.json
++++ b/plugins/explainer-video/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "2.5.13",
++  "version": "2.5.14",
+   "license": "MIT",
+   "keywords": [
+     "explainer",
+diff --git a/plugins/explainer-video/scripts/redact.py b/plugins/explainer-video/scripts/redact.py
+index 1b55484b713..c269db3fc83 100644
+--- a/plugins/explainer-video/scripts/redact.py
++++ b/plugins/explainer-video/scripts/redact.py
+@@ -78,6 +78,7 @@ def _url_credential(match: re.Match[str]) -> str:
+ # its label after every other pass, so the label's "token" cannot wake generic-api-key.
+ _PRE_PASSES = (
+     (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
++    (re.compile(r"sk-ant-oat02-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
+     (re.compile(r"ghs_[A-Za-z0-9._-]{36,}"), "github-app-token"),
+ )
+ _PASSES = (
+diff --git a/plugins/external-agents/.claude-plugin/plugin.json b/plugins/external-agents/.claude-plugin/plugin.json
+index 907f254a4d6..86242dcc7db 100644
+--- a/plugins/external-agents/.claude-plugin/plugin.json
++++ b/plugins/external-agents/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.8.0",
++  "version": "0.8.1",
+   "license": "MIT",
+   "keywords": [
+     "codex",
+diff --git a/plugins/fleet/.claude-plugin/plugin.json b/plugins/fleet/.claude-plugin/plugin.json
+index 891c7224c0c..0f2083dea1a 100644
+--- a/plugins/fleet/.claude-plugin/plugin.json
++++ b/plugins/fleet/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.5.2",
++  "version": "0.5.3",
+   "license": "MIT",
+   "userConfig": {
+     "converge_docs_url": {
+diff --git a/plugins/fleet/CHANGELOG.md b/plugins/fleet/CHANGELOG.md
+index 7d8b6ce64ce..48106a8b940 100644
+--- a/plugins/fleet/CHANGELOG.md
++++ b/plugins/fleet/CHANGELOG.md
+@@ -3,6 +3,12 @@
+ All notable changes to the `fleet` plugin are documented here. Format follows
+ [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+ 
++## [0.5.3] - 2026-11-25
++
++### Fixed
++
++- `fleet:reach` warns that Git Bash rewrites a POSIX path such as `/tmp/x` in a `wsl.exe` argument to a Windows path, and says to write it with a leading `//`.
++
+ ## [0.5.2] - 2026-11-24
+ 
+ ### Fixed
+diff --git a/plugins/go-format/.claude-plugin/plugin.json b/plugins/go-format/.claude-plugin/plugin.json
+index b2b17d75c47..4fdb22b77ee 100644
+--- a/plugins/go-format/.claude-plugin/plugin.json
++++ b/plugins/go-format/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "2.3.2",
++  "version": "2.3.4",
+   "license": "MIT",
+   "keywords": [
+     "go",
+diff --git a/plugins/guardrails/hooks/block-github-post-content.sh b/plugins/guardrails/hooks/block-github-post-content.sh
+index c6d6c4e0d82..bcf4dcf40f3 100755
+--- a/plugins/guardrails/hooks/block-github-post-content.sh
++++ b/plugins/guardrails/hooks/block-github-post-content.sh
+@@ -69,7 +69,6 @@
+ 
+ set -uo pipefail
+ 
+-# Kill switch FIRST, above every source (scripts/check-killswitch-hoist.sh).
+ [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_GITHUB_POST_CONTENT_ENABLED:-true}" == "true" ]] || exit 0
+ 
+ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
+diff --git a/plugins/guardrails/hooks/block-no-verify.sh b/plugins/guardrails/hooks/block-no-verify.sh
+index 2547e625c08..eb01c473df3 100755
+--- a/plugins/guardrails/hooks/block-no-verify.sh
++++ b/plugins/guardrails/hooks/block-no-verify.sh
+@@ -49,8 +49,6 @@
+ 
+ set -uo pipefail
+ 
+-# Kill switch FIRST, above every source (scripts/check-killswitch-hoist.sh): a
+-# disabled guard must not pay to parse hook-utils.sh before finding out it is off.
+ [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
+ 
+ # `dirname` without the fork a command substitution costs on every fire (a
+diff --git a/plugins/guardrails/hooks/fixtures/reviews-page2.json b/plugins/guardrails/hooks/fixtures/reviews-page2.json
+new file mode 100644
+index 00000000000..63a1ce1ab27
+--- /dev/null
++++ b/plugins/guardrails/hooks/fixtures/reviews-page2.json
+@@ -0,0 +1 @@
++[{"commit_id":"4fe7ff9099da4f362a257619d411ec0624bb9865","id":6045207305,"state":"COMMENTED","submitted_at":"2026-11-24T18:40:14Z","user":{"login":"kyle-sexton","type":"User"}},{"commit_id":"4fe7ff9099da4f362a257619d411ec0624bb9865","id":6045209102,"state":"COMMENTED","submitted_at":"2026-11-24T18:40:22Z","user":{"login":"kyle-sexton","type":"User"}}]
+diff --git a/plugins/guardrails/hooks/git-hooks-notice.test.sh b/plugins/guardrails/hooks/git-hooks-notice.test.sh
+index c438fa2c601..9742e76bdf4 100755
+--- a/plugins/guardrails/hooks/git-hooks-notice.test.sh
++++ b/plugins/guardrails/hooks/git-hooks-notice.test.sh
+@@ -29,7 +29,7 @@ args=("$ROOT/lib/prerequisites.mjs" probe "$ROOT")
+ REPO="$WORK/repo"
+ git init -q -b main "$REPO"
+ n=0
+-run_row() { # -> the probe's stdout
++run_row() {
+   n=$((n + 1))
+   ((${#args[@]})) || return 0
+   printf '{"session_id":"s%d"}' "$n" |
+diff --git a/plugins/guardrails/hooks/pr-verify-run.jq b/plugins/guardrails/hooks/pr-verify-run.jq
+new file mode 100644
+index 00000000000..21665a82d13
+--- /dev/null
++++ b/plugins/guardrails/hooks/pr-verify-run.jq
+@@ -0,0 +1,5 @@
++# GENERATED from lib/pr-verify-run.jq by scripts/sync-shared-copies.sh. Do not edit this copy:
++# edit the canonical source, then rerun the script.
++.status == "completed" and .conclusion == "success"
++  and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == $def
++  and .repository.full_name == $repo and .head_repository.full_name == $repo
+diff --git a/plugins/harness-config/.claude-plugin/plugin.json b/plugins/harness-config/.claude-plugin/plugin.json
+index 276381ade48..4ebebf841f1 100644
+--- a/plugins/harness-config/.claude-plugin/plugin.json
++++ b/plugins/harness-config/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "5.10.3",
++  "version": "5.10.4",
+   "license": "MIT",
+   "userConfig": {
+     "time_units": {
+diff --git a/plugins/harness-config/lib/check-retirements.test.sh b/plugins/harness-config/lib/check-retirements.test.sh
+index 182727d77da..b5afc10c5b9 100755
+--- a/plugins/harness-config/lib/check-retirements.test.sh
++++ b/plugins/harness-config/lib/check-retirements.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# The copies in carrying plugins are byte-identical and registered in
+-# scripts/cross-plugin-source-registry.txt, so this suite covers all of them.
+ set -uo pipefail
+ 
+ # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+diff --git a/plugins/harness-config/lib/persist-report.sh b/plugins/harness-config/lib/persist-report.sh
+index 521440ce355..20a1136ef0f 100755
+--- a/plugins/harness-config/lib/persist-report.sh
++++ b/plugins/harness-config/lib/persist-report.sh
+@@ -162,7 +162,6 @@ if [[ -z "$STATE_KEY" ]]; then
+   die "state-key.sh produced no state key"
+ fi
+ 
+-# Read the body before creating anything, so an empty report writes nothing.
+ STAGED_INPUT=$(mktemp "${TMPDIR:-/tmp}/persist-report.XXXXXX") || fail_write "cannot stage the report"
+ if [[ "$REPORT" == "-" ]]; then
+   cat >"$STAGED_INPUT" || fail_write "cannot read the report from stdin"
+diff --git a/plugins/harness-config/lib/state-key.test.sh b/plugins/harness-config/lib/state-key.test.sh
+index 45dde472eef..6b858a1e548 100755
+--- a/plugins/harness-config/lib/state-key.test.sh
++++ b/plugins/harness-config/lib/state-key.test.sh
+@@ -1,7 +1,4 @@
+ #!/usr/bin/env bash
+-# Every plugin copy is generated from the canonical lib/state-key.sh, registered in
+-# scripts/shared-copies.txt and pinned by scripts/sync-shared-copies.sh --check, so
+-# this suite covers them all.
+ set -uo pipefail
+ 
+ # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+diff --git a/plugins/harness-config/skills/audit-automation-gaps/scripts/findings-state.sh b/plugins/harness-config/skills/audit-automation-gaps/scripts/findings-state.sh
+index 7728668c9b5..27fe7a96608 100755
+--- a/plugins/harness-config/skills/audit-automation-gaps/scripts/findings-state.sh
++++ b/plugins/harness-config/skills/audit-automation-gaps/scripts/findings-state.sh
+@@ -128,8 +128,6 @@ TMP_ENVELOPE=""
+ TMP_LATEST=""
+ RESERVED_TARGET=""
+ 
+-# "Was the flag given?" is tracked apart from its value, so `--run-id ""` is
+-# rejected rather than treated as omitted (which would serve the newest run).
+ ARG_PLUGIN_DATA=""
+ ARG_ROOT=""
+ ARG_RUN_ID=""
+diff --git a/plugins/harness-config/skills/audit-pass/scripts/run-state.test.sh b/plugins/harness-config/skills/audit-pass/scripts/run-state.test.sh
+index 383db605649..17b5e6e3a18 100755
+--- a/plugins/harness-config/skills/audit-pass/scripts/run-state.test.sh
++++ b/plugins/harness-config/skills/audit-pass/scripts/run-state.test.sh
+@@ -20,8 +20,6 @@ assert_file() {
+   if [[ -f "$2" ]]; then pass "$1"; else fail "$1" "no such file: $2"; fi
+ }
+ 
+-# Every invocation runs with CLAUDE_PLUGIN_ROOT pinned, so a copy of the script
+-# placed outside the plugin tree still resolves lib/state-key.sh.
+ run() {
+   CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SCRIPT" "$@"
+ }
+diff --git a/plugins/harness-ops/.claude-plugin/plugin.json b/plugins/harness-ops/.claude-plugin/plugin.json
+index 7ab0bbdcc45..5ddb4e234ae 100644
+--- a/plugins/harness-ops/.claude-plugin/plugin.json
++++ b/plugins/harness-ops/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "10.7.0",
++  "version": "10.8.1",
+   "license": "MIT",
+   "keywords": [
+     "claude-code",
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/auto-compact-summary-without-hook-text/settings.json b/plugins/harness-ops/skills/behavior-probes/cases/hooks/auto-compact-summary-without-hook-text/settings.json
+new file mode 100644
+index 00000000000..412fa973a10
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/auto-compact-summary-without-hook-text/settings.json
+@@ -0,0 +1,11 @@
++{
++  "hooks": {
++    "PostCompact": [
++      {
++        "hooks": [
++          { "type": "command", "command": "{ cat; echo; } >> \"${PROBE_WORKDIR}/.probe-hooks.jsonl\"" }
++        ]
++      }
++    ]
++  }
++}
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/fixed-loop-listed-across-compact/settings.json b/plugins/harness-ops/skills/behavior-probes/cases/hooks/fixed-loop-listed-across-compact/settings.json
+new file mode 100644
+index 00000000000..412fa973a10
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/fixed-loop-listed-across-compact/settings.json
+@@ -0,0 +1,11 @@
++{
++  "hooks": {
++    "PostCompact": [
++      {
++        "hooks": [
++          { "type": "command", "command": "{ cat; echo; } >> \"${PROBE_WORKDIR}/.probe-hooks.jsonl\"" }
++        ]
++      }
++    ]
++  }
++}
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/handoff-goal-reaches-prompt-hook/prompt.md b/plugins/harness-ops/skills/behavior-probes/cases/hooks/handoff-goal-reaches-prompt-hook/prompt.md
+new file mode 100644
+index 00000000000..989d7aff083
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/handoff-goal-reaches-prompt-hook/prompt.md
+@@ -0,0 +1 @@
++/goal you have replied with the exact word PINEAPPLE
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/handoff-goal-reaches-prompt-hook/settings.json b/plugins/harness-ops/skills/behavior-probes/cases/hooks/handoff-goal-reaches-prompt-hook/settings.json
+new file mode 100644
+index 00000000000..4258bf28f7b
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/handoff-goal-reaches-prompt-hook/settings.json
+@@ -0,0 +1,11 @@
++{
++  "hooks": {
++    "UserPromptSubmit": [
++      {
++        "hooks": [
++          { "type": "command", "command": "{ cat; echo; } >> \"${PROBE_WORKDIR}/.probe-hooks.jsonl\"" }
++        ]
++      }
++    ]
++  }
++}
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/manual-compact-focus-without-hook-text/settings.json b/plugins/harness-ops/skills/behavior-probes/cases/hooks/manual-compact-focus-without-hook-text/settings.json
+new file mode 100644
+index 00000000000..412fa973a10
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/manual-compact-focus-without-hook-text/settings.json
+@@ -0,0 +1,11 @@
++{
++  "hooks": {
++    "PostCompact": [
++      {
++        "hooks": [
++          { "type": "command", "command": "{ cat; echo; } >> \"${PROBE_WORKDIR}/.probe-hooks.jsonl\"" }
++        ]
++      }
++    ]
++  }
++}
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/no-tool-reply-ends-goal-reprompts/prompt.md b/plugins/harness-ops/skills/behavior-probes/cases/hooks/no-tool-reply-ends-goal-reprompts/prompt.md
+new file mode 100644
+index 00000000000..3647c8bd5ee
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/no-tool-reply-ends-goal-reprompts/prompt.md
+@@ -0,0 +1 @@
++/goal the user has sent a later message containing the word PINEAPPLE
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/no-tool-reply-ends-goal-reprompts/settings.json b/plugins/harness-ops/skills/behavior-probes/cases/hooks/no-tool-reply-ends-goal-reprompts/settings.json
+new file mode 100644
+index 00000000000..0967ef424bc
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/no-tool-reply-ends-goal-reprompts/settings.json
+@@ -0,0 +1 @@
++{}
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/precompact-steers-auto-compact/prompt.md b/plugins/harness-ops/skills/behavior-probes/cases/hooks/precompact-steers-auto-compact/prompt.md
+new file mode 100644
+index 00000000000..af9be0438c7
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/precompact-steers-auto-compact/prompt.md
+@@ -0,0 +1 @@
++Read the file filler.txt with the Read tool in seven chunks, one call at a time and never in parallel: offset 1, 601, 1201, 1801, 2401, 3001 and 3601, each with limit 600. Do not summarize what you read. After the last chunk, reply with only the word DONE.
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/prompt-context-on-goal/prompt.md b/plugins/harness-ops/skills/behavior-probes/cases/hooks/prompt-context-on-goal/prompt.md
+new file mode 100644
+index 00000000000..ad13895811e
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/prompt-context-on-goal/prompt.md
+@@ -0,0 +1 @@
++/goal you have replied with only the codeword given in this turn's context
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/prompt-hook-context-reaches-plain-turn/prompt.md b/plugins/harness-ops/skills/behavior-probes/cases/hooks/prompt-hook-context-reaches-plain-turn/prompt.md
+new file mode 100644
+index 00000000000..3087f9b6313
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/prompt-hook-context-reaches-plain-turn/prompt.md
+@@ -0,0 +1 @@
++Reply with only the codeword for this turn, nothing else.
+diff --git a/plugins/harness-ops/skills/behavior-probes/cases/hooks/self-paced-wakeup-listed/settings.json b/plugins/harness-ops/skills/behavior-probes/cases/hooks/self-paced-wakeup-listed/settings.json
+new file mode 100644
+index 00000000000..412fa973a10
+--- /dev/null
++++ b/plugins/harness-ops/skills/behavior-probes/cases/hooks/self-paced-wakeup-listed/settings.json
+@@ -0,0 +1,11 @@
++{
++  "hooks": {
++    "PostCompact": [
++      {
++        "hooks": [
++          { "type": "command", "command": "{ cat; echo; } >> \"${PROBE_WORKDIR}/.probe-hooks.jsonl\"" }
++        ]
++      }
++    ]
++  }
++}
+diff --git a/plugins/harness-ops/skills/control-claude-code/driver/driver.test.mjs b/plugins/harness-ops/skills/control-claude-code/driver/driver.test.mjs
+index fd2416fac1e..dc41d543585 100644
+--- a/plugins/harness-ops/skills/control-claude-code/driver/driver.test.mjs
++++ b/plugins/harness-ops/skills/control-claude-code/driver/driver.test.mjs
+@@ -420,7 +420,6 @@ async function withPath(bin, fn) {
+   }
+ }
+ 
+-// An engine whose binding loads only when a process is run, as the real one does.
+ const RUNS = `let ran = false;
+ export const TuiTest = { ephemeral: () => ({
+   run: async () => { ran = true; },
+diff --git a/plugins/harness-ops/skills/prerequisites/scripts/check-prerequisites.mjs b/plugins/harness-ops/skills/prerequisites/scripts/check-prerequisites.mjs
+index d374527d5e8..ec42cca5e92 100755
+--- a/plugins/harness-ops/skills/prerequisites/scripts/check-prerequisites.mjs
++++ b/plugins/harness-ops/skills/prerequisites/scripts/check-prerequisites.mjs
+@@ -73,7 +73,6 @@ function claudeListing(env, platform) {
+   return r.stdout ?? "";
+ }
+ 
+-// The managed settings files, or none on a platform with no documented managed path.
+ function managedFiles() {
+   try {
+     return managedSettingsFiles();
+diff --git a/plugins/implementation/.claude-plugin/plugin.json b/plugins/implementation/.claude-plugin/plugin.json
+index ff1a9614b9e..40a12309781 100644
+--- a/plugins/implementation/.claude-plugin/plugin.json
++++ b/plugins/implementation/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.48.4",
++  "version": "0.48.5",
+   "license": "MIT",
+   "keywords": [
+     "implementation",
+diff --git a/plugins/implementation/CHANGELOG.md b/plugins/implementation/CHANGELOG.md
+index d2452c292fe..7aaf7cdf1af 100644
+--- a/plugins/implementation/CHANGELOG.md
++++ b/plugins/implementation/CHANGELOG.md
+@@ -3,6 +3,12 @@
+ All notable changes to the `implementation` plugin are documented here. Format follows
+ [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+ 
++## [0.48.5] - 2026-11-25
++
++### Changed
++
++- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
++
+ ## [0.48.4] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/improvement/.claude-plugin/plugin.json b/plugins/improvement/.claude-plugin/plugin.json
+index d5f2c03429b..c19170c8b41 100644
+--- a/plugins/improvement/.claude-plugin/plugin.json
++++ b/plugins/improvement/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.9.4",
++  "version": "0.10.0",
+   "license": "MIT",
+   "keywords": [
+     "improvement",
+diff --git a/plugins/instruction-placement/scripts/render-index.sh b/plugins/instruction-placement/scripts/render-index.sh
+index fde3ee5bbc8..8ddb9f2b947 100755
+--- a/plugins/instruction-placement/scripts/render-index.sh
++++ b/plugins/instruction-placement/scripts/render-index.sh
+@@ -57,7 +57,6 @@
+ set -uo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+-# The git-hook installer copies this script and discover.sh flat into one directory.
+ discover="$SCRIPT_DIR/lib/discover.sh"
+ [[ -f "$discover" ]] || discover="$SCRIPT_DIR/discover.sh"
+ # shellcheck source=./lib/discover.sh
+diff --git a/plugins/javascript-format/.claude-plugin/plugin.json b/plugins/javascript-format/.claude-plugin/plugin.json
+index 92a467279a1..ebc971a75c1 100644
+--- a/plugins/javascript-format/.claude-plugin/plugin.json
++++ b/plugins/javascript-format/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "3.3.3",
++  "version": "3.3.5",
+   "license": "MIT",
+   "keywords": [
+     "biome",
+diff --git a/plugins/knowledge/.claude-plugin/plugin.json b/plugins/knowledge/.claude-plugin/plugin.json
+index 0640f35d469..1838ed35d4f 100644
+--- a/plugins/knowledge/.claude-plugin/plugin.json
++++ b/plugins/knowledge/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "3.5.7",
++  "version": "3.5.10",
+   "license": "MIT",
+   "keywords": [
+     "knowledge",
+diff --git a/plugins/knowledge/skills/course-digest/extraction/cli-entry.test.js b/plugins/knowledge/skills/course-digest/extraction/cli-entry.test.js
+index d641ef26601..5de12a2ed4b 100644
+--- a/plugins/knowledge/skills/course-digest/extraction/cli-entry.test.js
++++ b/plugins/knowledge/skills/course-digest/extraction/cli-entry.test.js
+@@ -134,7 +134,6 @@ describe("course-dir CLIs", () => {
+         timeout: 20000,
+       });
+     } finally {
+-      // Drop the link before afterEach's recursive rm, so no cleaner can follow it into source.
+       unlinkSync(link);
+     }
+     expect(result.status).toBe(1);
+diff --git a/plugins/knowledge/skills/course-digest/extraction/lib/browser.js b/plugins/knowledge/skills/course-digest/extraction/lib/browser.js
+index f1b329eb902..c2d8b22da27 100644
+--- a/plugins/knowledge/skills/course-digest/extraction/lib/browser.js
++++ b/plugins/knowledge/skills/course-digest/extraction/lib/browser.js
+@@ -1,8 +1,3 @@
+-/**
+- * Shared browser infrastructure for course-extraction scripts: browser
+- * launch, cookie injection, and auth age checking.
+- */
+-
+ import { existsSync, statSync } from "node:fs";
+ 
+ import { writeStdout } from "@melodic/video-digestion/shared/terminal";
+diff --git a/plugins/knowledge/skills/course-digest/extraction/lib/types.js b/plugins/knowledge/skills/course-digest/extraction/lib/types.js
+index 38855a68ba2..01103503a82 100644
+--- a/plugins/knowledge/skills/course-digest/extraction/lib/types.js
++++ b/plugins/knowledge/skills/course-digest/extraction/lib/types.js
+@@ -1,8 +1,3 @@
+-/**
+- * Shapes shared across the extraction scripts: a platform's `platformConfig`
+- * entry and the parsed course.json.
+- */
+-
+ /**
+  * @typedef {Object} PlatformConfig
+  * @property {string} [videoPlayerSelector]
+diff --git a/plugins/knowledge/skills/course-digest/extraction/vitest.config.ts b/plugins/knowledge/skills/course-digest/extraction/vitest.config.ts
+index c1807fd3684..77a73cf2edc 100644
+--- a/plugins/knowledge/skills/course-digest/extraction/vitest.config.ts
++++ b/plugins/knowledge/skills/course-digest/extraction/vitest.config.ts
+@@ -1,6 +1,5 @@
+ import { defineConfig } from "vitest/config";
+ 
+-// Self-contained plugin config — no reach-out to a repo-root base under cache isolation.
+ export default defineConfig({
+   test: {},
+ });
+diff --git a/plugins/knowledge/skills/docpage-digest/scripts/gate_harness.py b/plugins/knowledge/skills/docpage-digest/scripts/gate_harness.py
+index e262eebbf56..6a9673dcb54 100644
+--- a/plugins/knowledge/skills/docpage-digest/scripts/gate_harness.py
++++ b/plugins/knowledge/skills/docpage-digest/scripts/gate_harness.py
+@@ -19,8 +19,6 @@
+ 
+ HERE = os.path.dirname(os.path.abspath(__file__))
+ 
+-# KEEP's trailing space is load-bearing: the hook strips it from a bare code span
+-# and a fence must preserve it. Quoted so the file has no trailing whitespace.
+ KEEP = "keep me "
+ 
+ 
+diff --git a/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-retry-policy.js b/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-retry-policy.js
+index 5ff7aef6453..12e12d2b235 100644
+--- a/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-retry-policy.js
++++ b/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-retry-policy.js
+@@ -1,7 +1,3 @@
+-/**
+- * Retry policy for yt-dlp acquisition — HTTP 429 and transient failures.
+- */
+-
+ export const DEFAULT_MAX_ACQUIRE_ATTEMPTS = 5;
+ export const DEFAULT_BACKOFF_BASE_MS = 2000;
+ export const DEFAULT_BACKOFF_MAX_MS = 60_000;
+diff --git a/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-throttle.js b/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-throttle.js
+index 2e5202a9b5c..fbf9b778277 100644
+--- a/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-throttle.js
++++ b/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-throttle.js
+@@ -1,7 +1,3 @@
+-/**
+- * Process-wide throttle for concurrent yt-dlp acquisition runs.
+- */
+-
+ import { randomUUID } from "node:crypto";
+ import fs from "node:fs/promises";
+ import os from "node:os";
+diff --git a/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-with-retry.js b/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-with-retry.js
+index b5aa1a3d984..b389e93abc4 100644
+--- a/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-with-retry.js
++++ b/plugins/knowledge/skills/video-digest/extraction/acquisition/acquire-with-retry.js
+@@ -1,7 +1,3 @@
+-/**
+- * yt-dlp spawn wrapper with exponential backoff on rate-limit errors.
+- */
+-
+ import {
+   computeAcquireBackoffMs,
+   DEFAULT_MAX_ACQUIRE_ATTEMPTS,
+diff --git a/plugins/knowledge/skills/video-digest/extraction/acquisition/build-yt-dlp-args.js b/plugins/knowledge/skills/video-digest/extraction/acquisition/build-yt-dlp-args.js
+index ccd447a2668..f02d3eaa173 100644
+--- a/plugins/knowledge/skills/video-digest/extraction/acquisition/build-yt-dlp-args.js
++++ b/plugins/knowledge/skills/video-digest/extraction/acquisition/build-yt-dlp-args.js
+@@ -1,7 +1,3 @@
+-/**
+- * yt-dlp CLI argument construction for media acquisition.
+- */
+-
+ import { resolveEnvWithLegacy } from "../lib/env-compat.js";
+ 
+ // `en-orig` (the original speech track) first: yt-dlp writes tracks in this
+diff --git a/plugins/knowledge/skills/video-digest/extraction/acquisition/video-metadata.js b/plugins/knowledge/skills/video-digest/extraction/acquisition/video-metadata.js
+index 495a42cefdf..b3bf2bd2679 100644
+--- a/plugins/knowledge/skills/video-digest/extraction/acquisition/video-metadata.js
++++ b/plugins/knowledge/skills/video-digest/extraction/acquisition/video-metadata.js
+@@ -1,7 +1,3 @@
+-/**
+- * VideoMetadata domain model parsed from yt-dlp info JSON.
+- */
+-
+ /**
+  * @typedef {Object} VideoChapter
+  * @property {number} startSec
+diff --git a/plugins/knowledge/skills/video-digest/extraction/harvesting/analyze-harvested-repos.js b/plugins/knowledge/skills/video-digest/extraction/harvesting/analyze-harvested-repos.js
+index 5202d9fe4c8..ff0ad837f2d 100644
+--- a/plugins/knowledge/skills/video-digest/extraction/harvesting/analyze-harvested-repos.js
++++ b/plugins/knowledge/skills/video-digest/extraction/harvesting/analyze-harvested-repos.js
+@@ -1,7 +1,3 @@
+-/**
+- * Shallow-clone GitHub URLs from source/harvested-links.json and write structure analysis.
+- */
+-
+ import fs from "node:fs/promises";
+ import os from "node:os";
+ import path from "node:path";
+diff --git a/plugins/knowledge/skills/video-digest/extraction/vitest.config.ts b/plugins/knowledge/skills/video-digest/extraction/vitest.config.ts
+index c1807fd3684..77a73cf2edc 100644
+--- a/plugins/knowledge/skills/video-digest/extraction/vitest.config.ts
++++ b/plugins/knowledge/skills/video-digest/extraction/vitest.config.ts
+@@ -1,6 +1,5 @@
+ import { defineConfig } from "vitest/config";
+ 
+-// Self-contained plugin config — no reach-out to a repo-root base under cache isolation.
+ export default defineConfig({
+   test: {},
+ });
+diff --git a/plugins/knowledge/vendor/node-launcher/run.test.js b/plugins/knowledge/vendor/node-launcher/run.test.js
+index 683a27ad973..3588f94ff0b 100644
+--- a/plugins/knowledge/vendor/node-launcher/run.test.js
++++ b/plugins/knowledge/vendor/node-launcher/run.test.js
+@@ -18,7 +18,6 @@ function sandbox() {
+   return dir;
+ }
+ 
+-/** A stderr double and a spawn double that records its call. */
+ function doubles(status = 0) {
+   const io = { errors: "", calls: [] };
+   io.stderr = { write: (text) => (io.errors += text) };
+diff --git a/plugins/knowledge/vendor/video-digestion/frames/contact-sheet.js b/plugins/knowledge/vendor/video-digestion/frames/contact-sheet.js
+index 7733e9c7f25..1adf59cbf6e 100644
+--- a/plugins/knowledge/vendor/video-digestion/frames/contact-sheet.js
++++ b/plugins/knowledge/vendor/video-digestion/frames/contact-sheet.js
+@@ -1,10 +1,3 @@
+-/**
+- * Contact-sheet generation via ImageMagick montage.
+- *
+- * Composites frame thumbnails into a labeled grid for vision triage.
+- * Defaults: 4×4 tile on 1280×720 canvas per RESEARCH lane 3.
+- */
+-
+ import { spawnSync } from "node:child_process";
+ import { existsSync, statSync } from "node:fs";
+ 
+diff --git a/plugins/knowledge/vendor/video-digestion/media/ffprobe-duration.js b/plugins/knowledge/vendor/video-digestion/media/ffprobe-duration.js
+index 574bb158d24..3762125047e 100644
+--- a/plugins/knowledge/vendor/video-digestion/media/ffprobe-duration.js
++++ b/plugins/knowledge/vendor/video-digestion/media/ffprobe-duration.js
+@@ -1,7 +1,3 @@
+-/**
+- * Probe video duration via ffprobe.
+- */
+-
+ import { spawnAsync } from "../shared/process.js";
+ 
+ /**
+diff --git a/plugins/knowledge/vendor/video-digestion/shared/main-module.test.js b/plugins/knowledge/vendor/video-digestion/shared/main-module.test.js
+index ee676f78085..3686553424f 100644
+--- a/plugins/knowledge/vendor/video-digestion/shared/main-module.test.js
++++ b/plugins/knowledge/vendor/video-digestion/shared/main-module.test.js
+@@ -21,7 +21,6 @@ function scratch(prefix) {
+   return dir;
+ }
+ 
+-/** A directory holding probe.mjs (prints isMainModule for itself) and runner.mjs (imports the probe). */
+ function fixture() {
+   const dir = scratch("main-module-");
+   writeFileSync(
+diff --git a/plugins/knowledge/vendor/video-digestion/shared/progress.js b/plugins/knowledge/vendor/video-digestion/shared/progress.js
+index 4ac9f71e180..4508ec1311e 100644
+--- a/plugins/knowledge/vendor/video-digestion/shared/progress.js
++++ b/plugins/knowledge/vendor/video-digestion/shared/progress.js
+@@ -1,10 +1,3 @@
+-/**
+- * Progress tracker for long-running video-digestion pipeline runs.
+- *
+- * Provides per-item progress lines with elapsed time and ETA,
+- * plus a structured run report for post-run diagnostics.
+- */
+-
+ import { writeStdout } from "./terminal.js";
+ 
+ /** @type {ProgressLogger} */
+diff --git a/plugins/knowledge/vendor/video-digestion/shared/terminal.js b/plugins/knowledge/vendor/video-digestion/shared/terminal.js
+index 605ca2a38fc..78dc9ef7603 100644
+--- a/plugins/knowledge/vendor/video-digestion/shared/terminal.js
++++ b/plugins/knowledge/vendor/video-digestion/shared/terminal.js
+@@ -1,7 +1,3 @@
+-/**
+- * Terminal output helpers — process.stdout/stderr instead of console.*
+- */
+-
+ /** @param {unknown[]} args */
+ function formatArgs(args) {
+   return args
+diff --git a/plugins/knowledge/vendor/video-digestion/transcript/manual-caption-clean.js b/plugins/knowledge/vendor/video-digestion/transcript/manual-caption-clean.js
+index d11adaeabba..cf24282f1cb 100644
+--- a/plugins/knowledge/vendor/video-digestion/transcript/manual-caption-clean.js
++++ b/plugins/knowledge/vendor/video-digestion/transcript/manual-caption-clean.js
+@@ -1,7 +1,3 @@
+-/**
+- * YouTube manual-caption cleaning — progressive merge + rolling duplicate collapse.
+- */
+-
+ import {
+   mergeProgressiveCaptionCues,
+   shouldCleanProgressiveCaptions,
+diff --git a/plugins/knowledge/vendor/video-digestion/transcript/progressive-cue-merge.js b/plugins/knowledge/vendor/video-digestion/transcript/progressive-cue-merge.js
+index f2bccd67bd7..f860f5f95bb 100644
+--- a/plugins/knowledge/vendor/video-digestion/transcript/progressive-cue-merge.js
++++ b/plugins/knowledge/vendor/video-digestion/transcript/progressive-cue-merge.js
+@@ -1,7 +1,3 @@
+-/**
+- * Progressive / rolling caption cue merge — shared by auto and manual YouTube VTT.
+- */
+-
+ import { parseVttSegment } from "./vtt-parser.js";
+ 
+ /** @typedef {import('./vtt-parser.js').VttCue} VttCue */
+diff --git a/plugins/knowledge/vendor/video-digestion/transcript/vtt-parser.js b/plugins/knowledge/vendor/video-digestion/transcript/vtt-parser.js
+index 65bdc090408..47efdbc4d65 100644
+--- a/plugins/knowledge/vendor/video-digestion/transcript/vtt-parser.js
++++ b/plugins/knowledge/vendor/video-digestion/transcript/vtt-parser.js
+@@ -163,7 +163,6 @@ export function deduplicateCues(cues) {
+   const unique = [];
+ 
+   for (const cue of cues) {
+-    // Round to 0.1s to handle floating-point drift across segments
+     const roundedStart = Math.round(cue.startSec * 10) / 10;
+     const normalizedText = cue.text
+       .toLowerCase()
+diff --git a/plugins/markdown-format/.claude-plugin/plugin.json b/plugins/markdown-format/.claude-plugin/plugin.json
+index 555b045e9f7..d3dcab0f044 100644
+--- a/plugins/markdown-format/.claude-plugin/plugin.json
++++ b/plugins/markdown-format/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "2.3.2",
++  "version": "2.4.0",
+   "license": "MIT",
+   "keywords": [
+     "markdown",
+diff --git a/plugins/mutation-testing/.claude-plugin/plugin.json b/plugins/mutation-testing/.claude-plugin/plugin.json
+index 7e5983dd95f..9f74eb4bcf7 100644
+--- a/plugins/mutation-testing/.claude-plugin/plugin.json
++++ b/plugins/mutation-testing/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.23.3",
++  "version": "0.23.5",
+   "license": "MIT",
+   "keywords": [
+     "mutation-testing",
+diff --git a/plugins/overengineering/.claude-plugin/plugin.json b/plugins/overengineering/.claude-plugin/plugin.json
+index 79478f29ae3..a73b695e412 100644
+--- a/plugins/overengineering/.claude-plugin/plugin.json
++++ b/plugins/overengineering/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.13.4",
++  "version": "0.13.5",
+   "license": "MIT",
+   "keywords": [
+     "overengineering",
+diff --git a/plugins/overengineering/CHANGELOG.md b/plugins/overengineering/CHANGELOG.md
+index 3cd9a38eb6b..721a62fc7b6 100644
+--- a/plugins/overengineering/CHANGELOG.md
++++ b/plugins/overengineering/CHANGELOG.md
+@@ -3,6 +3,12 @@
+ All notable changes to the `overengineering` plugin are documented here. Format follows
+ [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+ 
++## [0.13.5] - 2026-11-25
++
++### Changed
++
++- `/overengineering:justify` planned mode resolves the standards index through the org layer too, when the repository names a `standards_repository`.
++
+ ## [0.13.4] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/performance/scripts/discriminate.test.sh b/plugins/performance/scripts/discriminate.test.sh
+index b9233bf2802..815d06ad7c3 100755
+--- a/plugins/performance/scripts/discriminate.test.sh
++++ b/plugins/performance/scripts/discriminate.test.sh
+@@ -54,9 +54,6 @@ trap 'rm -rf "$WORK"' EXIT
+ 
+ run_discriminate() { capture "$HARNESS_PYTHON" "$DISCRIMINATE" "$@"; }
+ 
+-# Single-quoted in Python so the anchor embeds into a JSON config verbatim. A
+-# double quote here would need JSON escaping, and getting that wrong is a
+-# fixture bug that reads as a harness bug.
+ FIX_LINE="value = value.removesuffix('-suffix')"
+ 
+ write_subject() {
+diff --git a/plugins/pixel-art/scripts/backends.py b/plugins/pixel-art/scripts/backends.py
+index 3cef5d78507..ba7a36692d0 100755
+--- a/plugins/pixel-art/scripts/backends.py
++++ b/plugins/pixel-art/scripts/backends.py
+@@ -186,7 +186,6 @@ def fallback(reason):
+ 
+ 
+ def ingest_png(image_path, palette_value, out_dir, width, height, scale, base_dir):
+-    """Snap one generated PNG into the artifact contract. Used for MCP images."""
+     palette = palette_mod.resolve_palette(palette_value, base_dir)
+     _w, _h, rows = palette_mod.read_png(image_path)
+     frame = image_pipeline.frame_from_rgba(rows, palette, width, height, dither=False)
+diff --git a/plugins/pixel-art/scripts/backends.test.sh b/plugins/pixel-art/scripts/backends.test.sh
+index 66f46064cf5..7ae04209990 100755
+--- a/plugins/pixel-art/scripts/backends.test.sh
++++ b/plugins/pixel-art/scripts/backends.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Runs every pixel-art test suite (test_*.py).
+ # test-scope: plugins/pixel-art/examples/* plugins/pixel-art/palettes/*
+ # test-scope: plugins/pixel-art/scripts/test_*.py plugins/pixel-art/scripts/gallery.py
+ # test-scope: plugins/pixel-art/scripts/*.py
+diff --git a/plugins/pixel-art/scripts/render.py b/plugins/pixel-art/scripts/render.py
+index 1908a4a23bc..0265309b7c8 100755
+--- a/plugins/pixel-art/scripts/render.py
++++ b/plugins/pixel-art/scripts/render.py
+@@ -232,7 +232,6 @@ def sheet_pixels(s):
+ 
+ 
+ def snap_image(source, palette_value, out_path, dither=False, emit_frames=False, base_dir=None):
+-    """Read a PNG, snap it, and write either a PNG or a one-frame spec JSON."""
+     _width, _height, rows = palette_mod.read_png(source)
+     base = pathlib.Path(base_dir) if base_dir is not None else pathlib.Path.cwd()
+     resolved = palette_mod.resolve_palette(palette_value, base)
+diff --git a/plugins/pixel-art/scripts/test_capture.py b/plugins/pixel-art/scripts/test_capture.py
+index 2f83f40ce0d..bd12fbac6e4 100644
+--- a/plugins/pixel-art/scripts/test_capture.py
++++ b/plugins/pixel-art/scripts/test_capture.py
+@@ -1,4 +1,3 @@
+-"""capture.py: unreviewed exit, and the campfire scene's timeline when a browser exists."""
+ import base64
+ import io
+ import json
+diff --git a/plugins/planning/.claude-plugin/plugin.json b/plugins/planning/.claude-plugin/plugin.json
+index a70d56db891..b185f23dada 100644
+--- a/plugins/planning/.claude-plugin/plugin.json
++++ b/plugins/planning/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "planning",
+-  "version": "5.15.5",
++  "version": "5.18.0",
+   "userConfig": {
+     "surface": {
+       "type": "string",
+diff --git a/plugins/planning/evals/interview-quality-bar-asked-bookmark-sync/graders/no-recommendation.md b/plugins/planning/evals/interview-quality-bar-asked-bookmark-sync/graders/no-recommendation.md
+new file mode 100644
+index 00000000000..e7c6842ee17
+--- /dev/null
++++ b/plugins/planning/evals/interview-quality-bar-asked-bookmark-sync/graders/no-recommendation.md
+@@ -0,0 +1,8 @@
++---
++type: regex
++pattern: '(?:^|\n)[^\n]{0,6}(?:\*\*)?My recommendation(?:\*\*)?:'
++flags: i
++match: not_contains
++target: last_message
++arm: both
++---
+diff --git a/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/case.yaml b/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/case.yaml
+new file mode 100644
+index 00000000000..a20a89856ad
+--- /dev/null
++++ b/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/case.yaml
+@@ -0,0 +1,4 @@
++schema_version: "1.1"
++name: interview-quality-bar-recommended-shipped-plugin
++context:
++  scaffold_script: scaffold.sh
+diff --git a/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/graders/flips-if-line.md b/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/graders/flips-if-line.md
+new file mode 100644
+index 00000000000..bf63a7f327c
+--- /dev/null
++++ b/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/graders/flips-if-line.md
+@@ -0,0 +1,6 @@
++---
++type: regex
++pattern: '(?:^|\n)[^\n]{0,6}(?:\*\*)?Flips if(?:\*\*)?:[^\S\n]*\S'
++target: last_message
++arm: both
++---
+diff --git a/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/graders/has-recommendation.md b/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/graders/has-recommendation.md
+new file mode 100644
+index 00000000000..7eaab0bdc25
+--- /dev/null
++++ b/plugins/planning/evals/interview-quality-bar-recommended-shipped-plugin/graders/has-recommendation.md
+@@ -0,0 +1,8 @@
++---
++type: regex
++pattern: '(?:^|\n)[^\n]{0,6}(?:\*\*)?My recommendation(?:\*\*)?:[^\S\n]*\S'
++flags: i
++match: contains
++target: last_message
++arm: both
++---
+diff --git a/plugins/planning/surface/interview_server.py b/plugins/planning/surface/interview_server.py
+index 94a801cfc18..a88b3fc7e55 100644
+--- a/plugins/planning/surface/interview_server.py
++++ b/plugins/planning/surface/interview_server.py
+@@ -108,8 +108,6 @@ def runtime_path(rel):
+ RETIRED_FILE = Path(".claude") / "interview-surface.json"
+ RETIRED_SEEN = ".retired-notices.json"
+ 
+-# Settings, lowest layer first: plugin default, team file, personal file, user file, the data
+-# dir's settings.json. No userConfig option carries these keys, so that layer is empty.
+ DEFAULT_SETTINGS = {
+     "port": 0,
+     "openBrowser": True,
+diff --git a/plugins/planning/surface/watch.test.sh b/plugins/planning/surface/watch.test.sh
+index bfa476301bd..d03365c9be5 100755
+--- a/plugins/planning/surface/watch.test.sh
++++ b/plugins/planning/surface/watch.test.sh
+@@ -46,7 +46,7 @@ cleanup() {
+ trap cleanup EXIT
+ 
+ # Run a command in the background with a deadline; returns its exit code, or 124 on timeout.
+-bounded() { # seconds out err cmd...
++bounded() {
+   local end=$((SECONDS + $1)) out=$2 err=$3 pid
+   shift 3
+   "$@" >"$out" 2>"$err" &
+diff --git a/plugins/planning/tests/decision-levels.test.sh b/plugins/planning/tests/decision-levels.test.sh
+index 697ed6f3f98..f3852150d85 100755
+--- a/plugins/planning/tests/decision-levels.test.sh
++++ b/plugins/planning/tests/decision-levels.test.sh
+@@ -1,8 +1,5 @@
+ #!/usr/bin/env bash
+ # test-scope: plugins/planning/skills/*/SKILL.md
+-# Tripwire contract test: each planning stage names the one level it decides
+-# (behavior, interfaces and contracts, files and symbols). This test fails
+-# loudly if a prose edit drops, duplicates or swaps one of those lines.
+ set -uo pipefail
+ 
+ PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+diff --git a/plugins/playbooks/.claude-plugin/plugin.json b/plugins/playbooks/.claude-plugin/plugin.json
+index 53f76a92019..b79171a8baf 100644
+--- a/plugins/playbooks/.claude-plugin/plugin.json
++++ b/plugins/playbooks/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.36.15",
++  "version": "0.36.16",
+   "license": "MIT",
+   "repository": "https://github.com/melodic-software/claude-code-plugins",
+   "userConfig": {
+diff --git a/plugins/playbooks/CHANGELOG.md b/plugins/playbooks/CHANGELOG.md
+index c5b8e70e811..aaaeb4329c2 100644
+--- a/plugins/playbooks/CHANGELOG.md
++++ b/plugins/playbooks/CHANGELOG.md
+@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
+ `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
+ only after that version increases.
+ 
++## [0.36.16] - 2026-11-25
++
++### Changed
++
++- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
++
+ ## [0.36.15] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/plugin-diagnostics/hooks/prerequisites-fleet.test.sh b/plugins/plugin-diagnostics/hooks/prerequisites-fleet.test.sh
+index 68046386903..37497f40031 100755
+--- a/plugins/plugin-diagnostics/hooks/prerequisites-fleet.test.sh
++++ b/plugins/plugin-diagnostics/hooks/prerequisites-fleet.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Owns prerequisites-fleet.test.mjs; run-plugin-tests.sh discovers only .test.sh files.
+ # test-scope: plugins/plugin-diagnostics/.claude-plugin/plugin.json
+ set -euo pipefail
+ exec node --test "$(dirname "${BASH_SOURCE[0]}")/prerequisites-fleet.test.mjs"
+diff --git a/plugins/plugin-quality/.claude-plugin/plugin.json b/plugins/plugin-quality/.claude-plugin/plugin.json
+index 22d6e236ebd..7d9a17ee6fd 100644
+--- a/plugins/plugin-quality/.claude-plugin/plugin.json
++++ b/plugins/plugin-quality/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.22.7",
++  "version": "1.0.0",
+   "license": "MIT",
+   "keywords": [
+     "plugin-audit",
+diff --git a/plugins/powershell-format/.claude-plugin/plugin.json b/plugins/powershell-format/.claude-plugin/plugin.json
+index d9784c50f4e..4da7e5f3a8a 100644
+--- a/plugins/powershell-format/.claude-plugin/plugin.json
++++ b/plugins/powershell-format/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "2.3.3",
++  "version": "2.3.5",
+   "license": "MIT",
+   "keywords": [
+     "powershell",
+diff --git a/plugins/prototype/.claude-plugin/plugin.json b/plugins/prototype/.claude-plugin/plugin.json
+index 83be9f28246..713bbe886eb 100644
+--- a/plugins/prototype/.claude-plugin/plugin.json
++++ b/plugins/prototype/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.47.6",
++  "version": "0.47.7",
+   "license": "MIT",
+   "keywords": [
+     "prototype",
+diff --git a/plugins/prototype/CHANGELOG.md b/plugins/prototype/CHANGELOG.md
+index 593fe99a59f..0630d1f5313 100644
+--- a/plugins/prototype/CHANGELOG.md
++++ b/plugins/prototype/CHANGELOG.md
+@@ -3,6 +3,12 @@
+ All notable changes to the `prototype` plugin are documented here. Format follows
+ [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+ 
++## [0.47.7] - 2026-11-25
++
++### Changed
++
++- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
++
+ ## [0.47.6] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/python-format/.claude-plugin/plugin.json b/plugins/python-format/.claude-plugin/plugin.json
+index ae4f97ccbb7..bc1ae0c01b2 100644
+--- a/plugins/python-format/.claude-plugin/plugin.json
++++ b/plugins/python-format/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "3.3.3",
++  "version": "3.3.5",
+   "license": "MIT",
+   "keywords": [
+     "ruff",
+diff --git a/plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh b/plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh
+index 6922a806441..f800dfc55ce 100755
+--- a/plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh
++++ b/plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh
+@@ -65,8 +65,7 @@ else
+   fail "a subdirectory of a checkout resolves the checkout top" "$out"
+ fi
+ 
+-# Ancestor rung: parents of a non-repo cwd.
+-mkfleet() { # dir count
++mkfleet() {
+   local i
+   for ((i = 1; i <= $2; i++)); do git -C "$1" init -q -b main "$1/r$i"; done
+ }
+diff --git a/plugins/repo-fleet-hygiene/skills/setup/scripts/setup-config.test.sh b/plugins/repo-fleet-hygiene/skills/setup/scripts/setup-config.test.sh
+index 56b81eefe7d..fb9681eb87f 100755
+--- a/plugins/repo-fleet-hygiene/skills/setup/scripts/setup-config.test.sh
++++ b/plugins/repo-fleet-hygiene/skills/setup/scripts/setup-config.test.sh
+@@ -44,7 +44,6 @@ else
+   fail "unrelated entries and comments survive" "$(cat "$CONF")"
+ fi
+ 
+-# invalid input exits 2 and leaves the file byte-identical
+ before="$(cat "$CONF")"
+ bad_ok=1
+ backslash=$'\\'
+diff --git a/plugins/repo-hygiene/skills/clean/scripts/lib/cleanup-paths.test.sh b/plugins/repo-hygiene/skills/clean/scripts/lib/cleanup-paths.test.sh
+index ec16b74d723..5a2ad0a226a 100755
+--- a/plugins/repo-hygiene/skills/clean/scripts/lib/cleanup-paths.test.sh
++++ b/plugins/repo-hygiene/skills/clean/scripts/lib/cleanup-paths.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Drift contract test: cleanup-paths.sh arrays match reference/cleanup-config.md bullets.
+ set -uo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/plugins/retro-audio/scripts/audio.test.sh b/plugins/retro-audio/scripts/audio.test.sh
+index d50169eacc1..067f8b60df5 100755
+--- a/plugins/retro-audio/scripts/audio.test.sh
++++ b/plugins/retro-audio/scripts/audio.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Contract tests for retro-audio WAV rendering.
+ # test-scope: plugins/retro-audio/examples/*
+ # test-scope: plugins/retro-audio/scripts/*.py
+ set -uo pipefail
+diff --git a/plugins/review/.claude-plugin/plugin.json b/plugins/review/.claude-plugin/plugin.json
+index 7484a75966d..97691efce08 100644
+--- a/plugins/review/.claude-plugin/plugin.json
++++ b/plugins/review/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "10.11.1",
++  "version": "10.12.0",
+   "license": "MIT",
+   "keywords": [
+     "review",
+diff --git a/plugins/session-flow/evals/cb-dirty-tree-blocks-launch/samples/export-size-from-moved-section.json b/plugins/session-flow/evals/cb-dirty-tree-blocks-launch/samples/export-size-from-moved-section.json
+index bb0e4f0ea94..5622935fabf 100644
+--- a/plugins/session-flow/evals/cb-dirty-tree-blocks-launch/samples/export-size-from-moved-section.json
++++ b/plugins/session-flow/evals/cb-dirty-tree-blocks-launch/samples/export-size-from-moved-section.json
+@@ -20,7 +20,7 @@
+     },
+     {
+       "answer": "The last handoff noted nothing about memory.",
+-      "why": "read only the hot file"
++      "why": "read only the handoff file"
+     }
+   ]
+ }
+diff --git a/plugins/session-flow/evals/ho-urgent-handoff/samples/handoff-file.json b/plugins/session-flow/evals/ho-urgent-handoff/samples/handoff-file.json
+new file mode 100644
+index 00000000000..1ee705a28a6
+--- /dev/null
++++ b/plugins/session-flow/evals/ho-urgent-handoff/samples/handoff-file.json
+@@ -0,0 +1,9 @@
++{
++  "pass": [
++    {"answer": [".work/handoffs/20301101T120000Z-handoff-color-index.md"]}
++  ],
++  "fail": [
++    {"answer": []},
++    {"answer": [".work/handoffs/20301101T120000Z-handoff-color-index.slots.json"]}
++  ]
++}
+diff --git a/plugins/session-flow/evals/ho-urgent-handoff/scaffold.sh b/plugins/session-flow/evals/ho-urgent-handoff/scaffold.sh
+new file mode 100755
+index 00000000000..940fb879df0
+--- /dev/null
++++ b/plugins/session-flow/evals/ho-urgent-handoff/scaffold.sh
+@@ -0,0 +1,5 @@
++#!/usr/bin/env bash
++set -eu
++
++git init -q
++printf 'Blue\n' >index.txt
+diff --git a/plugins/session-flow/prerequisites.json b/plugins/session-flow/prerequisites.json
+index bf21a94d148..dbab5b4b439 100644
+--- a/plugins/session-flow/prerequisites.json
++++ b/plugins/session-flow/prerequisites.json
+@@ -22,7 +22,7 @@
+       "kind": "cli",
+       "need": "required",
+       "for": [
+-        "hook:observer-arm.sh",
++        "hook:observer-catchup.sh",
+         "skill:retro"
+       ],
+       "detect": {
+diff --git a/plugins/session-flow/scripts/redact.py b/plugins/session-flow/scripts/redact.py
+index 1b55484b713..c269db3fc83 100644
+--- a/plugins/session-flow/scripts/redact.py
++++ b/plugins/session-flow/scripts/redact.py
+@@ -78,6 +78,7 @@ def _url_credential(match: re.Match[str]) -> str:
+ # its label after every other pass, so the label's "token" cannot wake generic-api-key.
+ _PRE_PASSES = (
+     (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
++    (re.compile(r"sk-ant-oat02-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
+     (re.compile(r"ghs_[A-Za-z0-9._-]{36,}"), "github-app-token"),
+ )
+ _PASSES = (
+diff --git a/plugins/session-flow/skills/audit-sessions/scripts/tests/test_transcript_reader.py b/plugins/session-flow/skills/audit-sessions/scripts/tests/test_transcript_reader.py
+index 24154471cfe..6f665307ef2 100644
+--- a/plugins/session-flow/skills/audit-sessions/scripts/tests/test_transcript_reader.py
++++ b/plugins/session-flow/skills/audit-sessions/scripts/tests/test_transcript_reader.py
+@@ -17,7 +17,6 @@
+ 
+ READER = FIXTURES / "reader"
+ 
+-# The record types type-inventory §1 names, in the fixture's order.
+ KNOWN_TYPES = [
+     "user",
+     "assistant",
+diff --git a/plugins/session-flow/skills/handoff/evals/ho-chain-close-lists-reminders/samples/lists-reminder.json b/plugins/session-flow/skills/handoff/evals/ho-chain-close-lists-reminders/samples/lists-reminder.json
+new file mode 100644
+index 00000000000..ab07d826554
+--- /dev/null
++++ b/plugins/session-flow/skills/handoff/evals/ho-chain-close-lists-reminders/samples/lists-reminder.json
+@@ -0,0 +1,15 @@
++{
++  "pass": [
++    {
++      "answer": "[M1] at close: deleted the local branch scratch/latency-probe; retired 'raised at chain close'."
++    }
++  ],
++  "fail": [
++    {
++      "answer": ""
++    },
++    {
++      "answer": "Closed the chain."
++    }
++  ]
++}
+diff --git a/plugins/session-flow/skills/handoff/evals/ho-fork-launch-command/scaffold.sh b/plugins/session-flow/skills/handoff/evals/ho-fork-launch-command/scaffold.sh
+new file mode 100755
+index 00000000000..20495824ee0
+--- /dev/null
++++ b/plugins/session-flow/skills/handoff/evals/ho-fork-launch-command/scaffold.sh
+@@ -0,0 +1,7 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++git -C "$PWD" init -q -b main
++mkdir -p .work
++printf '*\n' > .work/.gitignore
++printf '# Guide\n\n[Setup](setup.md)\n' > guide.md
+diff --git a/plugins/session-flow/skills/keep-going/scripts/check-child-input-wait.test.sh b/plugins/session-flow/skills/keep-going/scripts/check-child-input-wait.test.sh
+index 1e9abfc4948..7bd71f8eb1e 100755
+--- a/plugins/session-flow/skills/keep-going/scripts/check-child-input-wait.test.sh
++++ b/plugins/session-flow/skills/keep-going/scripts/check-child-input-wait.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# CI wrapper: run-plugin-tests.sh only discovers *.test.sh.
+ set -euo pipefail
+ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ exec python3 "$SELF_DIR/check-child-input-wait.test.py"
+diff --git a/plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.test.sh b/plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.test.sh
+index 631ab126093..b5d138c2472 100755
+--- a/plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.test.sh
++++ b/plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# CI wrapper: run-plugin-tests.sh only discovers *.test.sh.
+ set -euo pipefail
+ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ exec python3 "$SELF_DIR/check-usage-limit-reset.test.py"
+diff --git a/plugins/session-flow/skills/keep-going/scripts/measure-stop-gap.test.sh b/plugins/session-flow/skills/keep-going/scripts/measure-stop-gap.test.sh
+index 82ec2777e92..aec34fbd16f 100755
+--- a/plugins/session-flow/skills/keep-going/scripts/measure-stop-gap.test.sh
++++ b/plugins/session-flow/skills/keep-going/scripts/measure-stop-gap.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# CI wrapper: run-plugin-tests.sh only discovers *.test.sh.
+ set -euo pipefail
+ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ exec python3 "$SELF_DIR/measure-stop-gap.test.py"
+diff --git a/plugins/session-flow/tsconfig.json b/plugins/session-flow/tsconfig.json
+new file mode 100644
+index 00000000000..170d2b655a9
+--- /dev/null
++++ b/plugins/session-flow/tsconfig.json
+@@ -0,0 +1 @@
++{ "extends": "./.claude-plugin/types/tsconfig.json" }
+diff --git a/plugins/source-control/.claude-plugin/plugin.json b/plugins/source-control/.claude-plugin/plugin.json
+index 49d661e72fa..9c65e893497 100644
+--- a/plugins/source-control/.claude-plugin/plugin.json
++++ b/plugins/source-control/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "13.18.0",
++  "version": "13.21.1",
+   "license": "MIT",
+   "keywords": [
+     "git",
+diff --git a/plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py b/plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py
+index 5bc127731d5..9580783ac45 100755
+--- a/plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py
++++ b/plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py
+@@ -130,7 +130,6 @@ def _split_list(lines: list[str]) -> frozenset[str]:
+ 
+ 
+ def _yaml_writes(text: str, key: str) -> bool:
+-    """Whether the YAML writes `key` at the top level, whatever its value."""
+     return re.search(rf"^{key}[ \t]*:", text, re.M) is not None
+ 
+ 
+diff --git a/plugins/source-control/skills/babysit-prs/scripts/prune_babysit_worktrees.py b/plugins/source-control/skills/babysit-prs/scripts/prune_babysit_worktrees.py
+index 3d229dd4acc..6e8ddd247e3 100755
+--- a/plugins/source-control/skills/babysit-prs/scripts/prune_babysit_worktrees.py
++++ b/plugins/source-control/skills/babysit-prs/scripts/prune_babysit_worktrees.py
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env python3
+-"""Prune clean ephemeral worktrees created by the babysit-prs skill."""
+ 
+ from __future__ import annotations
+ 
+diff --git a/plugins/source-control/skills/babysit-prs/scripts/tests/__init__.py b/plugins/source-control/skills/babysit-prs/scripts/tests/__init__.py
+index 62b091ee9a0..aed75e7a652 100644
+--- a/plugins/source-control/skills/babysit-prs/scripts/tests/__init__.py
++++ b/plugins/source-control/skills/babysit-prs/scripts/tests/__init__.py
+@@ -4,6 +4,7 @@
+ import sys
+ 
+ os.environ["BABYSIT_VERIFY_LEGACY_FAILS"] = ""
++os.environ["GH_HOST"] = "github.test"
+ 
+ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+ import babysit_merge_settings as _settings  # noqa: E402
+diff --git a/plugins/source-control/skills/pull-request/scripts/check-ready-holds.test.sh b/plugins/source-control/skills/pull-request/scripts/check-ready-holds.test.sh
+index 314d78340ac..248c743a0de 100755
+--- a/plugins/source-control/skills/pull-request/scripts/check-ready-holds.test.sh
++++ b/plugins/source-control/skills/pull-request/scripts/check-ready-holds.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Regression tests for check-ready-holds.sh, black-box with a stubbed `gh` on PATH.
+ # test-scope: plugins/source-control/.claude-plugin/plugin.json
+ 
+ set -uo pipefail
+diff --git a/plugins/source-control/skills/pull-request/scripts/reassess-comment.test.sh b/plugins/source-control/skills/pull-request/scripts/reassess-comment.test.sh
+index b58814c1966..70483f88c5c 100755
+--- a/plugins/source-control/skills/pull-request/scripts/reassess-comment.test.sh
++++ b/plugins/source-control/skills/pull-request/scripts/reassess-comment.test.sh
+@@ -1,7 +1,5 @@
+ #!/usr/bin/env bash
+ # test-scope: plugins/source-control/.claude-plugin/plugin.json
+-# Regression tests for reassess-comment.sh, including that no output reads as a
+-# member's veto under the merge gate's own pattern.
+ 
+ set -uo pipefail
+ 
+diff --git a/plugins/source-control/skills/worktree/fixtures/worktree-create-hook-probe.sh b/plugins/source-control/skills/worktree/fixtures/worktree-create-hook-probe.sh
+index ffdff1184c2..fed8fcc2461 100755
+--- a/plugins/source-control/skills/worktree/fixtures/worktree-create-hook-probe.sh
++++ b/plugins/source-control/skills/worktree/fixtures/worktree-create-hook-probe.sh
+@@ -41,7 +41,6 @@ mkrepo() {
+   printf '%s' "$repo"
+ }
+ 
+-# Write a hook script and the settings file that registers it.
+ mkhook() {
+   local name="$1" body="$2"
+   printf '#!/usr/bin/env bash\n%s\n' "$body" >"$WORKDIR/$name.sh"
+diff --git a/plugins/speech/.claude-plugin/plugin.json b/plugins/speech/.claude-plugin/plugin.json
+index 3840d65c18e..e9c904c8a8b 100644
+--- a/plugins/speech/.claude-plugin/plugin.json
++++ b/plugins/speech/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "1.2.14",
++  "version": "1.2.15",
+   "license": "MIT",
+   "keywords": [
+     "speech",
+diff --git a/plugins/speech/scripts/redact.py b/plugins/speech/scripts/redact.py
+index 1b55484b713..c269db3fc83 100644
+--- a/plugins/speech/scripts/redact.py
++++ b/plugins/speech/scripts/redact.py
+@@ -78,6 +78,7 @@ def _url_credential(match: re.Match[str]) -> str:
+ # its label after every other pass, so the label's "token" cannot wake generic-api-key.
+ _PRE_PASSES = (
+     (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
++    (re.compile(r"sk-ant-oat02-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
+     (re.compile(r"ghs_[A-Za-z0-9._-]{36,}"), "github-app-token"),
+ )
+ _PASSES = (
+diff --git a/plugins/spelling/.claude-plugin/plugin.json b/plugins/spelling/.claude-plugin/plugin.json
+index b1b3cac3b69..ca7f58eb8f3 100644
+--- a/plugins/spelling/.claude-plugin/plugin.json
++++ b/plugins/spelling/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "3.3.3",
++  "version": "3.4.0",
+   "license": "MIT",
+   "keywords": [
+     "typos",
+diff --git a/plugins/sql-server/src/main.mjs b/plugins/sql-server/src/main.mjs
+index 5b0396c050c..ef8fcf6bbae 100644
+--- a/plugins/sql-server/src/main.mjs
++++ b/plugins/sql-server/src/main.mjs
+@@ -1,5 +1,3 @@
+-// Starts one registration's stdio server: bind the registration, build its
+-// executor, serve until stdin ends. Returns the process exit code.
+ import { readFileSync } from 'node:fs';
+ import { ConfigError, loadConfig } from './config.mjs';
+ import { createTediousExecutor } from './executor.mjs';
+diff --git a/plugins/sql-server/src/schema-validate.mjs b/plugins/sql-server/src/schema-validate.mjs
+index 0cbea4482ed..639e3cea43a 100644
+--- a/plugins/sql-server/src/schema-validate.mjs
++++ b/plugins/sql-server/src/schema-validate.mjs
+@@ -1,6 +1,3 @@
+-// A JSON Schema (draft 2020-12) validator for the keyword subset the plugin's
+-// own schemas use. A schema holding any other keyword is refused at compile
+-// time, so the schema cannot grow a rule this code would silently skip.
+ const ANNOTATIONS = new Set(['$schema', '$id', 'title', 'description']);
+ const KEYWORDS = new Set([
+   'type',
+diff --git a/plugins/testing/.claude-plugin/plugin.json b/plugins/testing/.claude-plugin/plugin.json
+index c74e8f3ef36..6fbf229e17c 100644
+--- a/plugins/testing/.claude-plugin/plugin.json
++++ b/plugins/testing/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "6.0.0",
++  "version": "6.0.2",
+   "license": "MIT",
+   "keywords": ["testing", "tdd", "test-plan", "e2e", "diagnose", "coverage", "skill", "test"],
+   "metadata": {
+diff --git a/plugins/testing/scripts/resolve-config.test.sh b/plugins/testing/scripts/resolve-config.test.sh
+index 48f2ced8b58..a2dbce01496 100755
+--- a/plugins/testing/scripts/resolve-config.test.sh
++++ b/plugins/testing/scripts/resolve-config.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Tests for resolve-config.sh: layer order, list concatenation, scalar
+-# override, validation exits, hook coverage, and the one path-glob matcher.
+ # test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
+ # shellcheck disable=SC2016 # fence lines in fixtures are literal text
+ set -uo pipefail
+diff --git a/plugins/testing/tests/fix-until-green.test.sh b/plugins/testing/tests/fix-until-green.test.sh
+index a0c51b25abf..7163fd2baab 100755
+--- a/plugins/testing/tests/fix-until-green.test.sh
++++ b/plugins/testing/tests/fix-until-green.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Testing wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
+-# this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
+ set -uo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/plugins/themes/hooks/bedroom/card.test.tsx b/plugins/themes/hooks/bedroom/card.test.tsx
+index e36cfbb9637..8a0d547e743 100644
+--- a/plugins/themes/hooks/bedroom/card.test.tsx
++++ b/plugins/themes/hooks/bedroom/card.test.tsx
+@@ -9,7 +9,6 @@ import { bedroomSvg } from './scene.ts'
+ import { DEFAULT_STATE, type State } from './scene/lib.ts'
+ 
+ const SWITCHES = ['tv', 'tape', 'console', 'pc', 'light', 'lamp', 'lava'] as const
+-/** How long a changed room shows alone before the shader starts over it (SETTLE_MS in register.tsx). */
+ const SETTLE_MS = 7000
+ const STATUS = 'on: tv, pc. off: tape, console, light, lamp, lava. posters: plain. dim: 0'
+ 
+diff --git a/plugins/toolchain/.claude-plugin/plugin.json b/plugins/toolchain/.claude-plugin/plugin.json
+index 2be56adece0..54d0a73862c 100644
+--- a/plugins/toolchain/.claude-plugin/plugin.json
++++ b/plugins/toolchain/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "3.2.4",
++  "version": "3.3.0",
+   "license": "MIT",
+   "keywords": [
+     "toolchain",
+diff --git a/plugins/toolchain/skills/check/scripts/lane-record.test.sh b/plugins/toolchain/skills/check/scripts/lane-record.test.sh
+new file mode 100755
+index 00000000000..4b22be252fd
+--- /dev/null
++++ b/plugins/toolchain/skills/check/scripts/lane-record.test.sh
+@@ -0,0 +1,17 @@
++#!/usr/bin/env bash
++set -uo pipefail
++
++SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++SUITE="$SELF_DIR/lane-record.test.mjs"
++
++if ! command -v node >/dev/null 2>&1; then
++  echo "SKIP: node not installed" >&2
++  exit 0
++fi
++
++if [[ ! -f "$SUITE" ]]; then
++  echo "FAIL: missing suite $SUITE" >&2
++  exit 1
++fi
++
++node "$SUITE"
+diff --git a/plugins/user-experience/tests/detect.test.sh b/plugins/user-experience/tests/detect.test.sh
+index 1dda7ed164c..b34b45f4398 100755
+--- a/plugins/user-experience/tests/detect.test.sh
++++ b/plugins/user-experience/tests/detect.test.sh
+@@ -1,7 +1,5 @@
+ #!/usr/bin/env bash
+ # test-scope: plugins/user-experience/tests/fixtures/*
+-# Discovery wrapper for the user-experience detect suite: scripts/run-plugin-tests.sh
+-# finds plugins/**/*.test.sh, so this runs detect.test.mjs. SKIPs (exit 0) without Node.
+ set -uo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/plugins/user-experience/tests/team-policy.test.sh b/plugins/user-experience/tests/team-policy.test.sh
+index 88f2b891a3d..17c68878083 100755
+--- a/plugins/user-experience/tests/team-policy.test.sh
++++ b/plugins/user-experience/tests/team-policy.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Discovery wrapper for the user-experience team-row admission rules: scripts/run-plugin-tests.sh
+-# finds plugins/**/*.test.sh, so this runs team-policy.test.mjs. SKIPs (exit 0) without Node.
+ set -uo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/plugins/user-interface/tests/defaults.test.sh b/plugins/user-interface/tests/defaults.test.sh
+index 46df4eac32d..713aa5be3a6 100755
+--- a/plugins/user-interface/tests/defaults.test.sh
++++ b/plugins/user-interface/tests/defaults.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
+-# this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
+ # test-scope: plugins/user-interface/.claude-plugin/plugin.json
+ set -uo pipefail
+ 
+diff --git a/plugins/user-interface/tests/focus-path.test.sh b/plugins/user-interface/tests/focus-path.test.sh
+index 40ddca32336..531a088097a 100755
+--- a/plugins/user-interface/tests/focus-path.test.sh
++++ b/plugins/user-interface/tests/focus-path.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
+-# this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
+ set -uo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/plugins/verification/.claude-plugin/plugin.json b/plugins/verification/.claude-plugin/plugin.json
+index 515c4f90c34..ae596a1d2fb 100644
+--- a/plugins/verification/.claude-plugin/plugin.json
++++ b/plugins/verification/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "0.30.3",
++  "version": "0.30.4",
+   "license": "MIT",
+   "keywords": [
+     "verification",
+diff --git a/plugins/verification/CHANGELOG.md b/plugins/verification/CHANGELOG.md
+index 7b2511fa2fc..6c2dded18b9 100644
+--- a/plugins/verification/CHANGELOG.md
++++ b/plugins/verification/CHANGELOG.md
+@@ -3,6 +3,12 @@
+ All notable changes to the `verification` plugin are documented here. Format follows
+ [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
+ 
++## [0.30.4] - 2026-11-25
++
++### Changed
++
++- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
++
+ ## [0.30.3] - 2026-11-24
+ 
+ ### Changed
+diff --git a/plugins/visualization/.claude-plugin/plugin.json b/plugins/visualization/.claude-plugin/plugin.json
+index 96e3981628d..55db5f7315a 100644
+--- a/plugins/visualization/.claude-plugin/plugin.json
++++ b/plugins/visualization/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "1.4.6",
++  "version": "1.5.0",
+   "license": "MIT",
+   "keywords": [
+     "visualize",
+diff --git a/plugins/work-items/.claude-plugin/plugin.json b/plugins/work-items/.claude-plugin/plugin.json
+index f442dca809d..20d748cbe6d 100644
+--- a/plugins/work-items/.claude-plugin/plugin.json
++++ b/plugins/work-items/.claude-plugin/plugin.json
+@@ -5,7 +5,7 @@
+     "name": "Melodic Software",
+     "email": "info@melodicsoftware.com"
+   },
+-  "version": "15.15.1",
++  "version": "15.16.0",
+   "license": "MIT",
+   "keywords": [
+     "work-items",
+diff --git a/plugins/work-items/evals/tr-unknown-token-stops/samples/no-verdict-file.json b/plugins/work-items/evals/tr-unknown-token-stops/samples/no-verdict-file.json
+new file mode 100644
+index 00000000000..1ce577aa7e5
+--- /dev/null
++++ b/plugins/work-items/evals/tr-unknown-token-stops/samples/no-verdict-file.json
+@@ -0,0 +1,18 @@
++{
++  "pass": [
++    {
++      "answer": [],
++      "why": "nothing created"
++    },
++    {
++      "answer": [".work/triage/notes.md"],
++      "why": "a scratch note, not a verdict"
++    }
++  ],
++  "fail": [
++    {
++      "answer": [".lane/scratch/triage-verdict.json"],
++      "why": "wrote a verdict"
++    }
++  ]
++}
+diff --git a/plugins/work-items/evals/tr-unknown-token-stops/scaffold.sh b/plugins/work-items/evals/tr-unknown-token-stops/scaffold.sh
+new file mode 100755
+index 00000000000..00f3c087c56
+--- /dev/null
++++ b/plugins/work-items/evals/tr-unknown-token-stops/scaffold.sh
+@@ -0,0 +1,9 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++git init -q -b main
++git config user.name eval
++git config user.email eval@example.invalid
++printf '# app\n' > README.md
++git add README.md
++git commit -q -m "chore: scaffold"
+diff --git a/plugins/work-items/skills/triage/scripts/check-ci-verdict.test.sh b/plugins/work-items/skills/triage/scripts/check-ci-verdict.test.sh
+new file mode 100755
+index 00000000000..79f74335b27
+--- /dev/null
++++ b/plugins/work-items/skills/triage/scripts/check-ci-verdict.test.sh
+@@ -0,0 +1,11 @@
++#!/usr/bin/env bash
++set -uo pipefail
++
++SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++
++if ! command -v node >/dev/null 2>&1; then
++  echo "SKIP: node not installed" >&2
++  exit 0
++fi
++
++node --test "$SELF_DIR/check-ci-verdict.test.mjs"
+diff --git a/plugins/work-items/skills/work/scripts/preflight.sh b/plugins/work-items/skills/work/scripts/preflight.sh
+index 9c851e09b4e..50cd28a3202 100755
+--- a/plugins/work-items/skills/work/scripts/preflight.sh
++++ b/plugins/work-items/skills/work/scripts/preflight.sh
+@@ -330,7 +330,6 @@ detect_layout() {
+     root_n="$NORM_OUT"
+     norm_path "$home"
+     home_n="$NORM_OUT"
+-    # Physical paths too: a symlinked HOME names the same directory.
+     root_p="$(cd -P -- "$main_root" 2>/dev/null && pwd -P)"
+     home_p="$(cd -P -- "$home" 2>/dev/null && pwd -P)"
+     if [[ "$root_n" == "$home_n" || (-n "$root_p" && "$root_p" == "$home_p") ]]; then
+diff --git a/plugins/work-items/tools/work-item-tracker/adapters/github/create-item.sh b/plugins/work-items/tools/work-item-tracker/adapters/github/create-item.sh
+index 56bd28339ae..748e709aee0 100755
+--- a/plugins/work-items/tools/work-item-tracker/adapters/github/create-item.sh
++++ b/plugins/work-items/tools/work-item-tracker/adapters/github/create-item.sh
+@@ -125,7 +125,6 @@ if ((native)); then
+   for label in ${label_list[@]+"${label_list[@]}"}; do
+     args+=(--label "$label")
+   done
+-  # The sibling dedupe above validated --parent and set parent_url.
+   [[ -z "$parent" ]] || args+=(--parent "$parent_url")
+ 
+   if [[ -n "$blocked_by" ]]; then
+diff --git a/plugins/work-items/tools/work-item-tracker/adapters/github/label-provenance.test.sh b/plugins/work-items/tools/work-item-tracker/adapters/github/label-provenance.test.sh
+index 4f9c3794415..b6dc6cdccce 100755
+--- a/plugins/work-items/tools/work-item-tracker/adapters/github/label-provenance.test.sh
++++ b/plugins/work-items/tools/work-item-tracker/adapters/github/label-provenance.test.sh
+@@ -100,7 +100,6 @@ ev() {
+ }
+ 
+ OUT="" RC=0
+-# run <timeline-json> <args...>
+ run() {
+   local timeline="$1"
+   shift
+diff --git a/plugins/work-items/tools/work-item-tracker/adapters/local-markdown/capabilities.sh b/plugins/work-items/tools/work-item-tracker/adapters/local-markdown/capabilities.sh
+index 4a172db0844..13895e5ef70 100755
+--- a/plugins/work-items/tools/work-item-tracker/adapters/local-markdown/capabilities.sh
++++ b/plugins/work-items/tools/work-item-tracker/adapters/local-markdown/capabilities.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# capabilities — emit the adapter manifest (CONTRACT.md "Capabilities manifest").
+ set -uo pipefail
+ # shellcheck source=common.sh
+ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+diff --git a/plugins/work-items/tools/work-item-tracker/conformance/bindings/github.sh b/plugins/work-items/tools/work-item-tracker/conformance/bindings/github.sh
+index 5bc364dfdcb..fa9a56ae7b7 100644
+--- a/plugins/work-items/tools/work-item-tracker/conformance/bindings/github.sh
++++ b/plugins/work-items/tools/work-item-tracker/conformance/bindings/github.sh
+@@ -4,7 +4,6 @@
+ 
+ CB_BINDING_TMP=""
+ 
+-# Close every open issue in the sandbox so each run starts clean.
+ _cb_close_all_open() {
+   local numbers n
+   numbers="$(gh issue list -R "$CB_REPO" --state open --limit 200 --json number --jq '.[].number' | tr -d '\r')"
+diff --git a/plugins/work-items/tools/work-item-tracker/conformance/e2e-probe.sh b/plugins/work-items/tools/work-item-tracker/conformance/e2e-probe.sh
+index 9b927795d4e..1167fbd2aa4 100755
+--- a/plugins/work-items/tools/work-item-tracker/conformance/e2e-probe.sh
++++ b/plugins/work-items/tools/work-item-tracker/conformance/e2e-probe.sh
+@@ -34,7 +34,6 @@ while [[ $# -gt 0 ]]; do
+   esac
+ done
+ 
+-# Required target — guarded after arg-parsing so usage errors still exit 2.
+ REPO="${WIT_CONFORMANCE_GITHUB_REPO:?set WIT_CONFORMANCE_GITHUB_REPO to a throwaway sandbox repo (owner/name); never a coordination repo}"
+ 
+ BINDING_TMP="$(mktemp)"
+diff --git a/plugins/work-items/tools/work-item-tracker/lib/frontier.sh b/plugins/work-items/tools/work-item-tracker/lib/frontier.sh
+index bdcc9f84362..40972342631 100755
+--- a/plugins/work-items/tools/work-item-tracker/lib/frontier.sh
++++ b/plugins/work-items/tools/work-item-tracker/lib/frontier.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Core-side frontier derivation (CONTRACT.md "Verbs (core public surface)") over an
+-# adapter envelope; provider search syntax never reaches this layer. Sourced.
+ 
+ [[ -n "${_WIT_FRONTIER_LOADED:-}" ]] && return 0
+ readonly _WIT_FRONTIER_LOADED=1
+diff --git a/plugins/work-items/tools/work-item-tracker/lib/gh-version.test.sh b/plugins/work-items/tools/work-item-tracker/lib/gh-version.test.sh
+index 940385a6cd5..6238e876c7e 100755
+--- a/plugins/work-items/tools/work-item-tracker/lib/gh-version.test.sh
++++ b/plugins/work-items/tools/work-item-tracker/lib/gh-version.test.sh
+@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/gh-version.sh"
+ source "$SCRIPT_DIR/../tests/lib.sh"
+ 
+ STUB_BIN="$(mktemp -d)"
+-NOGH="$(mktemp -d)" # left empty: the "gh absent from PATH" case
++NOGH="$(mktemp -d)"
+ trap 'rm -rf "$STUB_BIN" "$NOGH"' EXIT
+ 
+ cat >"$STUB_BIN/gh" <<'EOF'
+diff --git a/plugins/work-items/tools/work-item-tracker/lib/json.sh b/plugins/work-items/tools/work-item-tracker/lib/json.sh
+index f995c7a0a44..84453f3553c 100755
+--- a/plugins/work-items/tools/work-item-tracker/lib/json.sh
++++ b/plugins/work-items/tools/work-item-tracker/lib/json.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# JSON emission helpers (CONTRACT.md "JSON output contract"). Sourced.
+ 
+ [[ -n "${_WIT_JSON_LOADED:-}" ]] && return 0
+ readonly _WIT_JSON_LOADED=1
+diff --git a/plugins/work-items/tools/work-item-tracker/lib/verb-cli.sh b/plugins/work-items/tools/work-item-tracker/lib/verb-cli.sh
+index c2b7fb1ce63..c441883c4ec 100644
+--- a/plugins/work-items/tools/work-item-tracker/lib/verb-cli.sh
++++ b/plugins/work-items/tools/work-item-tracker/lib/verb-cli.sh
+@@ -1,5 +1,4 @@
+ # shellcheck shell=bash
+-# Verb CLI helpers every adapter verb script uses for --help and usage errors. Sourced.
+ 
+ [[ -n "${_WIT_VERB_CLI_LOADED:-}" ]] && return 0
+ readonly _WIT_VERB_CLI_LOADED=1
+diff --git a/plugins/work-items/tools/work-item-tracker/lib/verb-test-helpers.sh b/plugins/work-items/tools/work-item-tracker/lib/verb-test-helpers.sh
+index e21bbc70d44..919544538e8 100644
+--- a/plugins/work-items/tools/work-item-tracker/lib/verb-test-helpers.sh
++++ b/plugins/work-items/tools/work-item-tracker/lib/verb-test-helpers.sh
+@@ -1,6 +1,4 @@
+ # shellcheck shell=bash
+-# Shared assertions for adapter verb *.test.sh files. Sourced, never run
+-# directly (runner ignores non-*.test.sh).
+ set -uo pipefail
+ 
+ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../tests/lib.sh"
+diff --git a/plugins/work-items/tools/work-item-tracker/seeds/gitea/change-link.sh b/plugins/work-items/tools/work-item-tracker/seeds/gitea/change-link.sh
+index 55605cb09f6..12c629c60b5 100755
+--- a/plugins/work-items/tools/work-item-tracker/seeds/gitea/change-link.sh
++++ b/plugins/work-items/tools/work-item-tracker/seeds/gitea/change-link.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# change-link — CONTRACT.md "Change links". Offline: Gitea's closing-keyword text for an
+-# item, and the issue number a branch name carries.
+ set -uo pipefail
+ # shellcheck source=common.sh
+ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+diff --git a/plugins/work-items/tools/work-item-tracker/seeds/jira/capabilities.sh b/plugins/work-items/tools/work-item-tracker/seeds/jira/capabilities.sh
+index dce112305bd..6bc8458e255 100755
+--- a/plugins/work-items/tools/work-item-tracker/seeds/jira/capabilities.sh
++++ b/plugins/work-items/tools/work-item-tracker/seeds/jira/capabilities.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# capabilities — emit the adapter manifest (CONTRACT.md "Capabilities manifest").
+ set -uo pipefail
+ # shellcheck source=common.sh
+ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+diff --git a/plugins/work-items/tools/work-item-tracker/seeds/linear/add-sub-item.test.sh b/plugins/work-items/tools/work-item-tracker/seeds/linear/add-sub-item.test.sh
+index 6323ad2bb57..861209b847c 100755
+--- a/plugins/work-items/tools/work-item-tracker/seeds/linear/add-sub-item.test.sh
++++ b/plugins/work-items/tools/work-item-tracker/seeds/linear/add-sub-item.test.sh
+@@ -1,6 +1,5 @@
+ #!/usr/bin/env bash
+ # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
+-# add-sub-item: offline contract tests.
+ set -uo pipefail
+ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/add-sub-item.sh"
+ D="$(dirname "$S")"
+diff --git a/plugins/work-items/tools/work-item-tracker/seeds/linear/change-link.test.sh b/plugins/work-items/tools/work-item-tracker/seeds/linear/change-link.test.sh
+index 2f6efedf476..7aac2eefe8c 100755
+--- a/plugins/work-items/tools/work-item-tracker/seeds/linear/change-link.test.sh
++++ b/plugins/work-items/tools/work-item-tracker/seeds/linear/change-link.test.sh
+@@ -1,6 +1,5 @@
+ #!/usr/bin/env bash
+ # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
+-# change-link: offline; the mock transport must never be called.
+ set -uo pipefail
+ S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/change-link.sh"
+ D="$(dirname "$S")"
+diff --git a/scripts/check-artifact-retention.mjs b/scripts/check-artifact-retention.mjs
+index b55cbf443d7..c72b911f3fa 100644
+--- a/scripts/check-artifact-retention.mjs
++++ b/scripts/check-artifact-retention.mjs
+@@ -88,7 +88,6 @@ function scanOf(step) {
+   return null;
+ }
+ 
+-// Every upload step: { file, line, job, name, retention, path, condition, scans }.
+ const steps = [];
+ const isolatedJobs = new Set();
+ function collect(file, lineCounter, stepSeqs) {
+diff --git a/scripts/check-changelog-parity.sh b/scripts/check-changelog-parity.sh
+index ceba2952618..0db066ad698 100755
+--- a/scripts/check-changelog-parity.sh
++++ b/scripts/check-changelog-parity.sh
+@@ -156,8 +156,6 @@ mode="$GE_MODE"
+ declare -A no_op_bump
+ no_op_rows=()
+ if [[ -f "$NO_OP_BUMPS" ]]; then
+-  # `inline`: entries are literal names, never regexes (scripts/lib/read-list.sh
+-  # owns the two comment families and why they must stay distinct).
+   read_list::into no_op_rows "$NO_OP_BUMPS" --comments inline || exit 2
+   for row in ${no_op_rows[@]+"${no_op_rows[@]}"}; do
+     no_op_bump["$row"]=1
+diff --git a/scripts/check-code-metrics-config-reference.test.sh b/scripts/check-code-metrics-config-reference.test.sh
+index 7bb433c1f05..c9c0d2b246f 100755
+--- a/scripts/check-code-metrics-config-reference.test.sh
++++ b/scripts/check-code-metrics-config-reference.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Cross-platform contract wrapper for the code-metrics config reference gate's
+-# test suite.
+ set -euo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/scripts/check-code-metrics-skill-prose.test.sh b/scripts/check-code-metrics-skill-prose.test.sh
+index af5bc00e283..f0874b2599e 100755
+--- a/scripts/check-code-metrics-skill-prose.test.sh
++++ b/scripts/check-code-metrics-skill-prose.test.sh
+@@ -1,6 +1,5 @@
+ #!/usr/bin/env bash
+ # test-scope: plugins/code-metrics/skills/*/SKILL.md # check-code-metrics-skill-prose.py reads each skill it checks
+-# Cross-platform contract wrapper for the code-metrics skill-prose default gate.
+ set -euo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/scripts/check-declared-prerequisites.test.mjs b/scripts/check-declared-prerequisites.test.mjs
+index 7f6cee6d738..a090eac9b4a 100644
+--- a/scripts/check-declared-prerequisites.test.mjs
++++ b/scripts/check-declared-prerequisites.test.mjs
+@@ -76,7 +76,6 @@ const jqEntry = {
+   check: "/alpha:check",
+ };
+ 
+-// repo({ plugins: { name: { manifest, files } }, shared, baseline }) -> root
+ function repo({ plugins, shared = [], baseline = [] }) {
+   const root = path.join(work, `repo${++n}`);
+   mkdirSync(path.join(root, "scripts"), { recursive: true });
+diff --git a/scripts/check-detector-findings-crosswalk.sh b/scripts/check-detector-findings-crosswalk.sh
+index 6d822dfa93d..e4dd1983b84 100755
+--- a/scripts/check-detector-findings-crosswalk.sh
++++ b/scripts/check-detector-findings-crosswalk.sh
+@@ -25,8 +25,6 @@ set -euo pipefail
+ 
+ cd "$(dirname "${BASH_SOURCE[0]}")/.."
+ 
+-# The contract moved from docs/conventions/, which keeps a stub; the old path is
+-# read only when the new one is absent.
+ default_doc=docs/contracts/detector-findings/README.md
+ [[ -f "$default_doc" ]] || default_doc=docs/conventions/detector-findings/README.md
+ doc="${CROSSWALK_DOC:-$default_doc}"
+diff --git a/scripts/check-docs-naming.sh b/scripts/check-docs-naming.sh
+index 217e26980d4..a9b0d41b16f 100755
+--- a/scripts/check-docs-naming.sh
++++ b/scripts/check-docs-naming.sh
+@@ -109,8 +109,6 @@ while IFS= read -r -d '' path; do
+   paths+=("$path")
+ done < <(git ls-files -z -- docs/ ':(icase)*.md')
+ 
+-# One pass for the basename rule. The regex only sees what no exemption in the
+-# header skipped.
+ for path in ${paths+"${paths[@]}"}; do
+   base="${path##*/}"
+   if [[ "$path" == docs/* ]]; then
+diff --git a/scripts/check-line-citations.test.sh b/scripts/check-line-citations.test.sh
+index 443cb81a55a..821bdec7b44 100755
+--- a/scripts/check-line-citations.test.sh
++++ b/scripts/check-line-citations.test.sh
+@@ -3,7 +3,6 @@ set -euo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ 
+-# The Python floor has one origin: MIN_PYTHON in the gate itself.
+ # shellcheck source=lib/python-probe.sh
+ . "$SCRIPT_DIR/lib/python-probe.sh"
+ 
+diff --git a/scripts/check-manifest-duplicate-keys.test.sh b/scripts/check-manifest-duplicate-keys.test.sh
+index 501fa0e0f9f..fbf950f3b81 100755
+--- a/scripts/check-manifest-duplicate-keys.test.sh
++++ b/scripts/check-manifest-duplicate-keys.test.sh
+@@ -3,7 +3,6 @@ set -euo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ 
+-# The Python floor lives in the detector's MIN_PYTHON; the probe parses it there.
+ # shellcheck source=lib/python-probe.sh
+ . "$SCRIPT_DIR/lib/python-probe.sh"
+ 
+diff --git a/scripts/check-next-graph.test.sh b/scripts/check-next-graph.test.sh
+index ddca7e29318..8117b1b0bbe 100755
+--- a/scripts/check-next-graph.test.sh
++++ b/scripts/check-next-graph.test.sh
+@@ -3,7 +3,6 @@ set -euo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ 
+-# The Python floor has one origin: MIN_PYTHON in the gate itself.
+ # shellcheck source=lib/python-probe.sh
+ . "$SCRIPT_DIR/lib/python-probe.sh"
+ 
+diff --git a/scripts/check-org-repo-tokens.sh b/scripts/check-org-repo-tokens.sh
+index f66536ffa60..37ee4fbf0cd 100755
+--- a/scripts/check-org-repo-tokens.sh
++++ b/scripts/check-org-repo-tokens.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Rule: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#design-boundary
+ set -uo pipefail
+ 
+ ORG=melodic-software
+diff --git a/scripts/check-orphaned-fixtures.sh b/scripts/check-orphaned-fixtures.sh
+index 570861d300c..99e5eb768d7 100755
+--- a/scripts/check-orphaned-fixtures.sh
++++ b/scripts/check-orphaned-fixtures.sh
+@@ -56,10 +56,6 @@ discover | --check) ;;
+   ;;
+ esac
+ 
+-# Active baseline entries. `inline`: each entry is one exact fixture path, never
+-# a regex, so a `#` anywhere on the line is a comment (scripts/lib/read-list.sh
+-# owns the two comment families and why they must stay distinct). Matched by
+-# full-string equality below.
+ entries=()
+ if [[ -f "$BASELINE" ]]; then
+   read_list::into entries "$BASELINE" --comments inline || exit 2
+diff --git a/scripts/check-pipefail-grep-q.test.sh b/scripts/check-pipefail-grep-q.test.sh
+index fd3c827d488..6e2de0351bb 100755
+--- a/scripts/check-pipefail-grep-q.test.sh
++++ b/scripts/check-pipefail-grep-q.test.sh
+@@ -277,7 +277,6 @@ cat <<DOC
+ echo "$x" | grep -q foo
+ DOC
+ EOF
+-# The fixture's leading tabs come from printf's \t, so this file stays space-indented.
+ # shellcheck disable=SC2016  # literal fixture source; nothing here should expand
+ expect_clean "a quoted, tab-stripped heredoc body" < <(printf 'cat <<-%sDOC%s\n\techo "$x" | grep -q foo\n\tDOC\n' "'" "'")
+ expect_clean "a here-string" <<'EOF'
+diff --git a/scripts/check-publisher-token-alignment.test.sh b/scripts/check-publisher-token-alignment.test.sh
+index 0e716f45ac6..733da6a7aa5 100755
+--- a/scripts/check-publisher-token-alignment.test.sh
++++ b/scripts/check-publisher-token-alignment.test.sh
+@@ -12,7 +12,6 @@ PUBLISHER_TOKEN='@melodic-software/[a-z-]+'
+ write_org() { printf '# org tokens\nfleet-id %s\n' "$1" >"$TMP/org.txt"; }
+ write_port() { printf '# --- ACTIVE ---\n%s\n# --- STAGED ---\n# staged\n' "$1" >"$TMP/port.txt"; }
+ 
+-# run <expected-exit> <name>: run the script against the fixtures in $TMP.
+ run() {
+   local expected="$1" name="$2" status
+   LAST_OUTPUT="$(
+diff --git a/scripts/check-queue-front-matter.sh b/scripts/check-queue-front-matter.sh
+index e5bbaaeb139..4014cbc21c8 100755
+--- a/scripts/check-queue-front-matter.sh
++++ b/scripts/check-queue-front-matter.sh
+@@ -49,7 +49,6 @@ extract_front_matter() {
+   ' "$1"
+ }
+ 
+-# fm_value <front_matter> <key>
+ fm_value() {
+   awk -v key="$2" '
+     $1 == key ":" {
+diff --git a/scripts/check-queue-front-matter.test.sh b/scripts/check-queue-front-matter.test.sh
+index adcd97b8c6e..162cbf3af18 100755
+--- a/scripts/check-queue-front-matter.test.sh
++++ b/scripts/check-queue-front-matter.test.sh
+@@ -13,7 +13,7 @@ SCRIPT="$SELF_DIR/check-queue-front-matter.sh"
+ # declaring the out-var here is what tells it (SC2154) the name is written.
+ q=""
+ 
+-new_queue() { # <out-var>
++new_queue() {
+   fixture_tree::build "$1" --label queue
+ }
+ 
+diff --git a/scripts/check-shell-portability.test.sh b/scripts/check-shell-portability.test.sh
+index 125e3f7607a..5b00bc4daf6 100755
+--- a/scripts/check-shell-portability.test.sh
++++ b/scripts/check-shell-portability.test.sh
+@@ -32,9 +32,6 @@ REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
+ 
+ # shellcheck source=lib/test-harness.sh
+ . "$SELF_DIR/lib/test-harness.sh"
+-# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
+-# without those, the copy dies on a missing source at line 1 and every assertion
+-# below turns into the same opaque failure.
+ # shellcheck source=lib/fixture-tree.sh
+ . "$SELF_DIR/lib/fixture-tree.sh"
+ 
+diff --git a/scripts/check-silent-skips.sh b/scripts/check-silent-skips.sh
+index 1f2c73bb9bc..1db3974cf83 100755
+--- a/scripts/check-silent-skips.sh
++++ b/scripts/check-silent-skips.sh
+@@ -161,9 +161,6 @@ scan_hook() {
+   ' "$@"
+ }
+ 
+-# Shape 3: a self-test that scores a skip as PASS. Message must start with
+-# "skip " / 'skip ' (space-delimited) so descriptions like
+-# `ok "skip-named-helper ... fails"` are not flagged.
+ scan_test_skip_pass() {
+   awk "$AWK_SITE_LIB"'
+     function is_skip_ok(l) {
+diff --git a/scripts/ci-broker-pin.test.sh b/scripts/ci-broker-pin.test.sh
+index d67ebbc74b6..6ecef3700f0 100755
+--- a/scripts/ci-broker-pin.test.sh
++++ b/scripts/ci-broker-pin.test.sh
+@@ -65,7 +65,6 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
+ RC=.github/actions/resolve-config
+ LINE='Broker deploy: melodic-software/azure-iac#44'
+ 
+-# files <path>... : a pulls/<n>/files page with one entry per path.
+ files() {
+   local p out='['
+   for p in "$@"; do out+="{\"filename\":\"$p\",\"status\":\"modified\"},"; done
+diff --git a/scripts/ci-follow-ups-marker.test.sh b/scripts/ci-follow-ups-marker.test.sh
+index 9e92e69007f..9e526e8c630 100755
+--- a/scripts/ci-follow-ups-marker.test.sh
++++ b/scripts/ci-follow-ups-marker.test.sh
+@@ -45,9 +45,6 @@ else
+   fail "step is not inside ci-status before the aggregate (lines: $order)"
+ fi
+ 
+-# expect <label> <want-rc> <PR_BODY> [want-out] [unwanted-out]
+-# BLOCKING is the FAIL_ON_UNMARKED_FOLLOW_UPS value, the step's 'false' unless
+-# a case sets it. The step summary is kept in $SUMMARY.
+ BLOCKING=false
+ SUMMARY="$TMP_ROOT/summary.md"
+ expect() {
+diff --git a/scripts/eval-leg-scripts.test.sh b/scripts/eval-leg-scripts.test.sh
+index 01e0034fb47..b00ee2ef10d 100755
+--- a/scripts/eval-leg-scripts.test.sh
++++ b/scripts/eval-leg-scripts.test.sh
+@@ -21,7 +21,6 @@ chmod +x "$T/stub/curl"
+ S="$ROOT/.github/scripts"
+ P="PATH=$PATH"
+ 
+-# expect <name> <exit> <last output line> <env...> -- <script> [args...]
+ expect() {
+   local name=$1 want_rc=$2 want=$3 envs=()
+   shift 3
+diff --git a/scripts/gitleaks-vendor-copies.test.sh b/scripts/gitleaks-vendor-copies.test.sh
+index 4f277fbc1ed..bcb1e698acd 100755
+--- a/scripts/gitleaks-vendor-copies.test.sh
++++ b/scripts/gitleaks-vendor-copies.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# The gitleaks rules each carrier vendors match the session-flow copy vendor_gitleaks_rules.py writes, byte for
+-# byte. The check lives here because no plugin may cite another's private files.
+ # test-scope: plugins/session-flow/vendor/gitleaks/* plugins/corrections/tools/findings-buffer/vendor/gitleaks/* plugins/explainer-video/vendor/gitleaks/* plugins/evals/vendor/gitleaks/*
+ set -uo pipefail
+ 
+diff --git a/scripts/js-complexity-share.test.sh b/scripts/js-complexity-share.test.sh
+index 73d2ed5d087..4c414ad85e0 100755
+--- a/scripts/js-complexity-share.test.sh
++++ b/scripts/js-complexity-share.test.sh
+@@ -1,6 +1,4 @@
+ #!/usr/bin/env bash
+-# Cross-platform contract wrapper for the js-complexity-share counter's test
+-# suite.
+ set -euo pipefail
+ 
+ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+diff --git a/scripts/lane-transcripts/pull.test.mjs b/scripts/lane-transcripts/pull.test.mjs
+index f372e466633..9a956c654d2 100644
+--- a/scripts/lane-transcripts/pull.test.mjs
++++ b/scripts/lane-transcripts/pull.test.mjs
+@@ -209,7 +209,7 @@ test("every read runner call's activity, with each leg and fix-ci's rung up, is
+       calls += 1;
+     });
+   }
+-  assert.equal(calls, 21, "the read runner's callers");
++  assert.equal(calls, 24, "the read runner's callers");
+ });
+ 
+ test("every ci-workflows reusable called with the transcript key, and the lane it is called with, is in the puller's list", () => {
+diff --git a/scripts/lib/hook-configs.sh b/scripts/lib/hook-configs.sh
+index cb7731a9d70..87b567e5b01 100755
+--- a/scripts/lib/hook-configs.sh
++++ b/scripts/lib/hook-configs.sh
+@@ -83,7 +83,6 @@ HOOK_CONFIGS_JQ_DEFS='
+     | map(flat) | join("\u001f");
+ '
+ 
+-# Hook files: every hook row under the whole document.
+ # shellcheck disable=SC2016  # jq source, never shell-expanded
+ HOOK_CONFIGS_JQ_FILE="${HOOK_CONFIGS_JQ_DEFS}"'input_filename as $file | hook_rows($file; .; "")'
+ 
+diff --git a/scripts/lib/marker-block.mjs b/scripts/lib/marker-block.mjs
+index d953aeb37d2..ac7d9281b46 100644
+--- a/scripts/lib/marker-block.mjs
++++ b/scripts/lib/marker-block.mjs
+@@ -43,8 +43,6 @@ export function markerForms(name, instruction) {
+   ];
+ }
+ 
+-// Per form, the standalone marker lines in content: { starts, ends }, each a
+-// list of { at, text } with `at` the offset where the marker text begins.
+ function scanMarkers(content, forms) {
+   const found = forms.map(() => ({ starts: [], ends: [] }));
+   let at = 0;
+diff --git a/scripts/lib/test-harness.sh b/scripts/lib/test-harness.sh
+index 2b83a878cf8..b09779d6fc0 100755
+--- a/scripts/lib/test-harness.sh
++++ b/scripts/lib/test-harness.sh
+@@ -31,8 +31,6 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+   exit 2
+ fi
+ 
+-# A second source (direct or transitive) must not zero recorded results: that
+-# is the same false-green this file exists to abolish. The functions stay.
+ if [[ -n "${TEST_HARNESS_SOURCED:-}" ]]; then
+   return 0
+ fi
+diff --git a/scripts/lint-shell-filter.test.sh b/scripts/lint-shell-filter.test.sh
+index df8a520fc17..ee5613496a3 100755
+--- a/scripts/lint-shell-filter.test.sh
++++ b/scripts/lint-shell-filter.test.sh
+@@ -31,7 +31,6 @@ mkdir -p "$repo"
+ git_test_config "$repo" init -q
+ cp "$TMP_ROOT/patterns" "$repo/.gitignore"
+ 
+-# matches <path>: the group matches a change to <path>.
+ matches() { git_test_config "$repo" check-ignore --no-index -q -- "$1"; }
+ 
+ for p in \
+diff --git a/scripts/plugin-validate-report.test.sh b/scripts/plugin-validate-report.test.sh
+index 0f357d236f6..baef0010a48 100755
+--- a/scripts/plugin-validate-report.test.sh
++++ b/scripts/plugin-validate-report.test.sh
+@@ -1,5 +1,4 @@
+ #!/usr/bin/env bash
+-# Contract for scripts/plugin-validate-report.mjs. No claude binary required.
+ set -uo pipefail
+ 
+ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+diff --git a/scripts/run-covering-tests.test.sh b/scripts/run-covering-tests.test.sh
+index 2fe5f016e35..06f92bbe527 100755
+--- a/scripts/run-covering-tests.test.sh
++++ b/scripts/run-covering-tests.test.sh
+@@ -21,9 +21,6 @@ check() {
+   fi
+ }
+ 
+-# The selection stub prints the suites in $SUITES when it selects in the
+-# current directory; the runner stub fails a suite whose name holds "red",
+-# exiting 3.
+ cat >"$work/select" <<'EOF'
+ [[ $1 == src.sh && $AFFECTED_TESTS_ROOT == "$PWD" ]] || exit 1
+ printf '%s\n' $SUITES
+diff --git a/scripts/run-test-file.sh b/scripts/run-test-file.sh
+index 569ddf55d18..daed076a725 100755
+--- a/scripts/run-test-file.sh
++++ b/scripts/run-test-file.sh
+@@ -75,8 +75,6 @@ case ${1##*/} in
+       dir=${dir%/*}
+     done
+     cd -- "$dir" || exit 2
+-    # A lane checkout installs no plugin package, so install its lockfile
+-    # once, with no install scripts, as scripts/setup-env.sh does at the root.
+     if [[ ! -d node_modules && -f package-lock.json ]]; then
+       npm ci --ignore-scripts --no-audit --no-fund >&2 || exit
+     fi
+diff --git a/scripts/setup-env.sh b/scripts/setup-env.sh
+index efe8d0cbdfb..62f920aa654 100755
+--- a/scripts/setup-env.sh
++++ b/scripts/setup-env.sh
+@@ -69,7 +69,6 @@ if [[ "$node_only" = 1 ]]; then
+   exit 0
+ fi
+ 
+-# Python.
+ want=$(tr -d '[:space:]' <.python-version)
+ venv=${SETUP_ENV_VENV:-$root/.work/venv}
+ bin=$venv/bin
+diff --git a/scripts/setup-env.test.sh b/scripts/setup-env.test.sh
+index 584c305e059..45887740791 100755
+--- a/scripts/setup-env.test.sh
++++ b/scripts/setup-env.test.sh
+@@ -1,5 +1,3 @@
+ #!/usr/bin/env bash
+-# Discovery wrapper: scripts/run-plugin-tests.sh finds scripts/**/*.test.sh, so this
+-# hands off to the Node suite.
+ set -euo pipefail
+ exec node --test "$(dirname "${BASH_SOURCE[0]}")/setup-env.test.mjs"
+diff --git a/scripts/test_skill_stack_fences.py b/scripts/test_skill_stack_fences.py
+index c721a6e2f73..a069c1faa58 100755
+--- a/scripts/test_skill_stack_fences.py
++++ b/scripts/test_skill_stack_fences.py
+@@ -1,10 +1,4 @@
+ #!/usr/bin/env python3
+-"""Tests for skill-stack-fences.py, the counter behind the skill-stack-fences ratchet.
+-
+-Each case builds a throwaway git repository and runs the counter at its command
+-line, so every expected value below comes from the fixture and the rules in the
+-counter's docstring, not from running the counter.
+-"""
+ 
+ from __future__ import annotations
+ 
+diff --git a/scripts/test_vendor_gitleaks_rules.py b/scripts/test_vendor_gitleaks_rules.py
+index 56ce6ff1a9a..1d2f1bff312 100644
+--- a/scripts/test_vendor_gitleaks_rules.py
++++ b/scripts/test_vendor_gitleaks_rules.py
+@@ -1,8 +1,3 @@
+-"""Tests for vendor_gitleaks_rules.py over the offline fixture gitleaks-sample.toml.
+-
+-Every expected regex below is the fixture pattern rewritten by hand to Python `re` syntax.
+-"""
+-
+ from __future__ import annotations
+ 
+ import json
+diff --git a/scripts/time-gates.sh b/scripts/time-gates.sh
+index 558c397d710..6a9ffe398a8 100755
+--- a/scripts/time-gates.sh
++++ b/scripts/time-gates.sh
+@@ -103,7 +103,6 @@ now_us() {
+ }
+ 
+ : >"$timings_file" || exit 2
+-# time_gate <gate> <command...>: runs the command and appends the gate's row.
+ time_gate() {
+   local gate="$1" rc=0 start us
+   shift
+diff --git a/scripts/upstream-drift-vendored-report.sh b/scripts/upstream-drift-vendored-report.sh
+index e0350f382d6..25365d4c97b 100755
+--- a/scripts/upstream-drift-vendored-report.sh
++++ b/scripts/upstream-drift-vendored-report.sh
+@@ -115,7 +115,6 @@ if [[ -n "$TABLE" ]]; then
+ fi
+ ((${#ROWS[@]} > 0)) || die "the table has no rows"
+ 
+-# The whole table is checked before any row runs.
+ for row in "${ROWS[@]}"; do
+   IFS='|' read -r id path _ <<<"$row"
+   [[ "$id" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "malformed row id: $row"
+diff --git a/scripts/validate-plugins.test.sh b/scripts/validate-plugins.test.sh
+index d019646df1a..4bcb92bd63e 100755
+--- a/scripts/validate-plugins.test.sh
++++ b/scripts/validate-plugins.test.sh
+@@ -1,8 +1,4 @@
+ #!/usr/bin/env bash
+-# Self-test for scripts/validate-plugins.sh's argument contract. The validation
+-# passes themselves need node and the claude CLI and run in CI's manifest step;
+-# what is pinned here is that a plugin list the script cannot honor is refused
+-# before anything runs, rather than narrowing the per-plugin pass to nothing.
+ set -uo pipefail
+ 
+ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

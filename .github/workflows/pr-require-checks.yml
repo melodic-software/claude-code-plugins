@@ -1690,7 +1690,7 @@ jobs:
           # history.
           # The chart corpus graph files: TLC writes them with no final newline
           # and the corpus tests compare them byte for byte.
-          exclude: (^|/)plugins/review/evals/revert-[^/]+/fixtures/|(^|/)plugins/formal-verification/skills/chart/scripts/test/corpus/[^/]+/graph\.dot$
+          exclude: (^|/)plugins/review/evals/revert-[^/]+/fixtures/|(^|/)plugins/formal-verification/skills/chart/scripts/test/corpus/[^/]+/graph\.dot$|(^|/)\.github/scripts/pr-merge/fixtures/compare\.diff$
 
       - name: Lint workflows
         id: actionlint

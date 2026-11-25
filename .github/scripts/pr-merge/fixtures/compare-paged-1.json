@@ -1,1 +1,2017 @@
-{"status":"ahead","ahead_by":150,"behind_by":0,"total_commits":150,"merge_base_commit":{"sha":"f9c1cdef0be239947b97d476b5fe488f537e3577"},"commits":[{"sha":"0f5a9cab9bad5c72012e995e96488881253686eb","parents":[{"sha":"f9c1cdef0be239947b97d476b5fe488f537e3577"}]},{"sha":"0c1bda8345331d0d6082b6e80b5dc0a67fb6a733","parents":[{"sha":"0f5a9cab9bad5c72012e995e96488881253686eb"}]},{"sha":"68d146b6c9af7759b2fa56e951f96c066e9c5a53","parents":[{"sha":"0c1bda8345331d0d6082b6e80b5dc0a67fb6a733"}]},{"sha":"fbf75ddd939c937e7bc1a812ebd42ea54ab8408f","parents":[{"sha":"68d146b6c9af7759b2fa56e951f96c066e9c5a53"}]},{"sha":"381055ebd08ee3acaa69723374d7dedd1c2cc617","parents":[{"sha":"fbf75ddd939c937e7bc1a812ebd42ea54ab8408f"}]},{"sha":"2f2fb64d8718d388e3c5249d3cdafc7d1bbf54b8","parents":[{"sha":"381055ebd08ee3acaa69723374d7dedd1c2cc617"}]},{"sha":"3b46e0b4c7114baf8ab464aa38e9de718d433068","parents":[{"sha":"2f2fb64d8718d388e3c5249d3cdafc7d1bbf54b8"}]},{"sha":"aaeda1e7c2632f6b04f157198920e6b1f6677216","parents":[{"sha":"3b46e0b4c7114baf8ab464aa38e9de718d433068"}]},{"sha":"e64069880197afc6ff7f1cb4d4f00ac174670d10","parents":[{"sha":"aaeda1e7c2632f6b04f157198920e6b1f6677216"}]},{"sha":"f4c64fb675206e053b160e51ca484e9926c18fc0","parents":[{"sha":"e64069880197afc6ff7f1cb4d4f00ac174670d10"}]},{"sha":"80a1f02d730085dcd4d1512272d59f946059f809","parents":[{"sha":"f4c64fb675206e053b160e51ca484e9926c18fc0"}]},{"sha":"e0440b03e3553ae4f211c46c9025f14bc597ded1","parents":[{"sha":"80a1f02d730085dcd4d1512272d59f946059f809"}]},{"sha":"210d3728fc333f91fdc63731d1277aa263b72a04","parents":[{"sha":"e0440b03e3553ae4f211c46c9025f14bc597ded1"}]},{"sha":"2d7db221b6373d883ae0eb0b62e9ed9d1b54dbae","parents":[{"sha":"210d3728fc333f91fdc63731d1277aa263b72a04"}]},{"sha":"6e2ebad80e23eeb7f934f1f0940a3de4870ede15","parents":[{"sha":"2d7db221b6373d883ae0eb0b62e9ed9d1b54dbae"}]},{"sha":"72beeccf11c76942eec454d562a870772f8b615e","parents":[{"sha":"6e2ebad80e23eeb7f934f1f0940a3de4870ede15"}]},{"sha":"e7b0fcd0f2e41d93087d61b189aaaae182f68bf9","parents":[{"sha":"72beeccf11c76942eec454d562a870772f8b615e"}]},{"sha":"87af454041e0804065c568b2e8cdf15dd265d95f","parents":[{"sha":"e7b0fcd0f2e41d93087d61b189aaaae182f68bf9"}]},{"sha":"f251d21bc67c6640ff5eac07475d0b23046d4940","parents":[{"sha":"87af454041e0804065c568b2e8cdf15dd265d95f"}]},{"sha":"9ec289b37df7601ba4bb1f1d433362a9c8a077af","parents":[{"sha":"f251d21bc67c6640ff5eac07475d0b23046d4940"}]},{"sha":"e5e637334c93ceae49e3a56f18c1b45675cbb79d","parents":[{"sha":"9ec289b37df7601ba4bb1f1d433362a9c8a077af"}]},{"sha":"f707f271dff309ce57d20649e6c444d977d5f8ad","parents":[{"sha":"e5e637334c93ceae49e3a56f18c1b45675cbb79d"}]},{"sha":"c99677674cb8854d3484a54b41ab139b94a2383e","parents":[{"sha":"f707f271dff309ce57d20649e6c444d977d5f8ad"}]},{"sha":"329852bb502c0df7963f358f9a5ff14e58f88121","parents":[{"sha":"c99677674cb8854d3484a54b41ab139b94a2383e"}]},{"sha":"d6b505f5b6be1f344ab5d5254b02efc9bd365e38","parents":[{"sha":"329852bb502c0df7963f358f9a5ff14e58f88121"}]},{"sha":"0cbc93f045eb48e373acf62d4b0d2bbf3fc3db95","parents":[{"sha":"d6b505f5b6be1f344ab5d5254b02efc9bd365e38"}]},{"sha":"8de1c21b77698639a51f5619adde05c2a2bce4e4","parents":[{"sha":"0cbc93f045eb48e373acf62d4b0d2bbf3fc3db95"}]},{"sha":"956fca18a76a4251eb27ec0df3f8ce020170e256","parents":[{"sha":"8de1c21b77698639a51f5619adde05c2a2bce4e4"}]},{"sha":"104cd47e90035d0fe3fb03ca308c598adfe439d0","parents":[{"sha":"956fca18a76a4251eb27ec0df3f8ce020170e256"}]},{"sha":"fe0df07637d06704ad276419ad0e0b03c29d1360","parents":[{"sha":"104cd47e90035d0fe3fb03ca308c598adfe439d0"}]},{"sha":"a9f7c2faee29d152272abfceedd02e34b03915ae","parents":[{"sha":"fe0df07637d06704ad276419ad0e0b03c29d1360"}]},{"sha":"92fb10e1ecf712ad9e948058ede7ce6a02923a07","parents":[{"sha":"a9f7c2faee29d152272abfceedd02e34b03915ae"}]},{"sha":"afe73b2fa483c2f0bab9d6480755b18ce59fdbfc","parents":[{"sha":"92fb10e1ecf712ad9e948058ede7ce6a02923a07"}]},{"sha":"532f9557fac77a0de562844052c2de02c0f95927","parents":[{"sha":"afe73b2fa483c2f0bab9d6480755b18ce59fdbfc"}]},{"sha":"d538008a63182eb9eff55a3d1638d813356477ab","parents":[{"sha":"532f9557fac77a0de562844052c2de02c0f95927"}]},{"sha":"3b64ccd42db2df15fd7f818d5ec895528637c49e","parents":[{"sha":"d538008a63182eb9eff55a3d1638d813356477ab"}]},{"sha":"6a40f497a70c305669a89245322aa25c347f9e6b","parents":[{"sha":"3b64ccd42db2df15fd7f818d5ec895528637c49e"}]},{"sha":"3b28ecc333302471eb7e30fb35e73d2c16123f5d","parents":[{"sha":"6a40f497a70c305669a89245322aa25c347f9e6b"}]},{"sha":"347bbf69e64aa0bfa25fdab538b36b7d4ffedfaf","parents":[{"sha":"3b28ecc333302471eb7e30fb35e73d2c16123f5d"}]},{"sha":"d9169cda0ff3a66a898d972675d70f92ef3c2e83","parents":[{"sha":"347bbf69e64aa0bfa25fdab538b36b7d4ffedfaf"}]},{"sha":"c497a8dfdd0c4b3472ef4a13feb7ccb014bd5f87","parents":[{"sha":"d9169cda0ff3a66a898d972675d70f92ef3c2e83"}]},{"sha":"9df11d1a7d3c09345e8c91f4361dd1c3d77ccf4e","parents":[{"sha":"c497a8dfdd0c4b3472ef4a13feb7ccb014bd5f87"}]},{"sha":"1cb14ea5edb59a2e985b3afb04d4d553f5c981e6","parents":[{"sha":"9df11d1a7d3c09345e8c91f4361dd1c3d77ccf4e"}]},{"sha":"ceff6bcfa11617f09cfa362dec72e0f44d02be77","parents":[{"sha":"1cb14ea5edb59a2e985b3afb04d4d553f5c981e6"}]},{"sha":"368dc36bcad6f996154e781ceb4b16bdfac62f9a","parents":[{"sha":"ceff6bcfa11617f09cfa362dec72e0f44d02be77"}]},{"sha":"f75a4b63af2598521e252ace9ecde21260758c1e","parents":[{"sha":"368dc36bcad6f996154e781ceb4b16bdfac62f9a"}]},{"sha":"85193922a1f5ccef45c90193015bdd66af33b98c","parents":[{"sha":"f75a4b63af2598521e252ace9ecde21260758c1e"}]},{"sha":"e71ff5d43345af0df07cdc69538f8bc99ea091b7","parents":[{"sha":"85193922a1f5ccef45c90193015bdd66af33b98c"}]},{"sha":"b28b500919474a98dff653d8bcf639d1bd10c72a","parents":[{"sha":"e71ff5d43345af0df07cdc69538f8bc99ea091b7"}]},{"sha":"d5969b50fe3ac963ed300bc9b2f56796ee530744","parents":[{"sha":"b28b500919474a98dff653d8bcf639d1bd10c72a"}]},{"sha":"5bafef5707feb531a9423b46a11c039a4e088f97","parents":[{"sha":"d5969b50fe3ac963ed300bc9b2f56796ee530744"}]},{"sha":"61c19ba1c918a5ac06f8247bb8690c03e7a7a7ea","parents":[{"sha":"5bafef5707feb531a9423b46a11c039a4e088f97"}]},{"sha":"54276e07dfe8061cb7aa535e9d0bdf1072d3718e","parents":[{"sha":"61c19ba1c918a5ac06f8247bb8690c03e7a7a7ea"}]},{"sha":"9c82c3595a287155a84a17bd21fa5410a241ebe4","parents":[{"sha":"54276e07dfe8061cb7aa535e9d0bdf1072d3718e"}]},{"sha":"138a6cdd0956a79285a004ad7dcea6dbdb7ec743","parents":[{"sha":"9c82c3595a287155a84a17bd21fa5410a241ebe4"}]},{"sha":"5082d2af888cef9bd2f9066c01d45c1861a0113e","parents":[{"sha":"138a6cdd0956a79285a004ad7dcea6dbdb7ec743"}]},{"sha":"8864a5aac312966c72a7b593db3fbd8e67878ca4","parents":[{"sha":"5082d2af888cef9bd2f9066c01d45c1861a0113e"}]},{"sha":"c634f43c55c3aa6245904e1beb14fa0c0127b14f","parents":[{"sha":"8864a5aac312966c72a7b593db3fbd8e67878ca4"}]},{"sha":"0215befed9155e34d13fe6883293b31594cfa16d","parents":[{"sha":"c634f43c55c3aa6245904e1beb14fa0c0127b14f"}]},{"sha":"aac921da82cb706f02fc025c83ddd4f687b6e862","parents":[{"sha":"0215befed9155e34d13fe6883293b31594cfa16d"}]},{"sha":"c53d6eeb883e885ce79df88d73fe6461d2a574c8","parents":[{"sha":"aac921da82cb706f02fc025c83ddd4f687b6e862"}]},{"sha":"5f5c9aca3959f9e617f032057eb661aba6962536","parents":[{"sha":"c53d6eeb883e885ce79df88d73fe6461d2a574c8"}]},{"sha":"73e3b2ad45af5d8eca2d95b46b99021c12e25e21","parents":[{"sha":"5f5c9aca3959f9e617f032057eb661aba6962536"}]},{"sha":"2ba0dcc32a27dde4612de51bfd8fed94809c241f","parents":[{"sha":"73e3b2ad45af5d8eca2d95b46b99021c12e25e21"}]},{"sha":"85a29e76e3f3538b267e629789b06ac299c65fb4","parents":[{"sha":"2ba0dcc32a27dde4612de51bfd8fed94809c241f"}]},{"sha":"c4ec3b3eafaf4c14602ea7f585d4aacbd88ba86e","parents":[{"sha":"85a29e76e3f3538b267e629789b06ac299c65fb4"}]},{"sha":"279536f79c759d5781de1af7290b41f34476cfd2","parents":[{"sha":"c4ec3b3eafaf4c14602ea7f585d4aacbd88ba86e"}]},{"sha":"aec90348f1aff9d5b452cfd07eab462dbf46e00d","parents":[{"sha":"279536f79c759d5781de1af7290b41f34476cfd2"}]},{"sha":"81b9670e8ca6518fbdd88f56217cb69da9703279","parents":[{"sha":"aec90348f1aff9d5b452cfd07eab462dbf46e00d"}]},{"sha":"8eb2e2b7d71b62e607def16558c2f8d8ec4925d2","parents":[{"sha":"81b9670e8ca6518fbdd88f56217cb69da9703279"}]},{"sha":"a38ef6a4fdaf90e61f141fe03b650c45da4f61ee","parents":[{"sha":"8eb2e2b7d71b62e607def16558c2f8d8ec4925d2"}]},{"sha":"8e9e389d45aab72144edb5bf56524e1cc379862e","parents":[{"sha":"a38ef6a4fdaf90e61f141fe03b650c45da4f61ee"}]},{"sha":"8215f2c47f38b9aec9cbbad2518cc09388bd2fc8","parents":[{"sha":"8e9e389d45aab72144edb5bf56524e1cc379862e"}]},{"sha":"538d12ec204a84c5ce966660cf19f6212d332c2f","parents":[{"sha":"8215f2c47f38b9aec9cbbad2518cc09388bd2fc8"}]},{"sha":"8b1fffa9c1b39c20331b519a12a9a6d0e7d9ed0b","parents":[{"sha":"538d12ec204a84c5ce966660cf19f6212d332c2f"}]},{"sha":"db795c002dd2aeab25d1eed5de0e6f4f7dd12b19","parents":[{"sha":"8b1fffa9c1b39c20331b519a12a9a6d0e7d9ed0b"}]},{"sha":"3ce84cdf0732dff14c8386e8fa9d6f16f30ced40","parents":[{"sha":"db795c002dd2aeab25d1eed5de0e6f4f7dd12b19"}]},{"sha":"c0571d801193a0c356c5d7bc7dfa5c68896a4916","parents":[{"sha":"3ce84cdf0732dff14c8386e8fa9d6f16f30ced40"}]},{"sha":"a7732814dc8b4da126aef8a9f293c03e39ebd5b6","parents":[{"sha":"c0571d801193a0c356c5d7bc7dfa5c68896a4916"}]},{"sha":"d9124449d67765eb8e1cffe095be52b5b2662bfe","parents":[{"sha":"a7732814dc8b4da126aef8a9f293c03e39ebd5b6"}]},{"sha":"951f789d2f14301cbd2ffac32d4f1f1c5905205e","parents":[{"sha":"d9124449d67765eb8e1cffe095be52b5b2662bfe"}]},{"sha":"71ca4220de6907fd69980f0abf08834f19e6db6a","parents":[{"sha":"951f789d2f14301cbd2ffac32d4f1f1c5905205e"}]},{"sha":"2c3523f7d0804f5ff5c8f079804cfc83b3dc8d2a","parents":[{"sha":"71ca4220de6907fd69980f0abf08834f19e6db6a"}]},{"sha":"db1d885f13c9de6a4a855728c8a71d0a72132860","parents":[{"sha":"2c3523f7d0804f5ff5c8f079804cfc83b3dc8d2a"}]},{"sha":"45dff38c8827e7d6de181b2506dd10d679594374","parents":[{"sha":"db1d885f13c9de6a4a855728c8a71d0a72132860"}]},{"sha":"af23c07bfa53b4712a3f0d2ed548bf21ac015432","parents":[{"sha":"45dff38c8827e7d6de181b2506dd10d679594374"}]},{"sha":"2d680354af99f2b8eb8dca9f4d807a4e5a28930c","parents":[{"sha":"af23c07bfa53b4712a3f0d2ed548bf21ac015432"}]},{"sha":"870574b2801f0e12efe60b7415920cd5a151ad2d","parents":[{"sha":"2d680354af99f2b8eb8dca9f4d807a4e5a28930c"}]},{"sha":"ed984c01d147e2482b2e6e02aec84fc270dd4a59","parents":[{"sha":"870574b2801f0e12efe60b7415920cd5a151ad2d"}]},{"sha":"f96b4951d0a3c0daf77538147ec317e15a6c111a","parents":[{"sha":"ed984c01d147e2482b2e6e02aec84fc270dd4a59"}]},{"sha":"53eb9834365feee5d050019ef0d254e3359629b9","parents":[{"sha":"f96b4951d0a3c0daf77538147ec317e15a6c111a"}]},{"sha":"cf36002d0c51d611305c7bcc95f44dd429741433","parents":[{"sha":"53eb9834365feee5d050019ef0d254e3359629b9"}]},{"sha":"6a9236daa208c89849d7950b2733d92375e3e05d","parents":[{"sha":"cf36002d0c51d611305c7bcc95f44dd429741433"}]},{"sha":"a26fd5e73537bd5187cc15ced964c8ed380ebd3d","parents":[{"sha":"6a9236daa208c89849d7950b2733d92375e3e05d"}]},{"sha":"19a73ac20f6fe08f70033f20b19a567df1836163","parents":[{"sha":"a26fd5e73537bd5187cc15ced964c8ed380ebd3d"}]},{"sha":"0d01c216f71b27fef09c7c7860a72aa03f77b030","parents":[{"sha":"19a73ac20f6fe08f70033f20b19a567df1836163"}]},{"sha":"a67858ad52cb31824a292709fea181789d0a11d7","parents":[{"sha":"0d01c216f71b27fef09c7c7860a72aa03f77b030"}]},{"sha":"86f27812dfbc8d1d6f86ed8e36835af0a2972343","parents":[{"sha":"a67858ad52cb31824a292709fea181789d0a11d7"}]},{"sha":"7f8e8c538c57754c948940d667d739dfe9f4bd3e","parents":[{"sha":"86f27812dfbc8d1d6f86ed8e36835af0a2972343"}]},{"sha":"37bd28ec1c10319d06559d2cc0126b384ede39ec","parents":[{"sha":"7f8e8c538c57754c948940d667d739dfe9f4bd3e"}]}],"files":[{"filename":".changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md","status":"added"},{"filename":".changes/animation/chore-comment-sweep-rem-2-f9744b5a.md","status":"added"},{"filename":".changes/architecture/chore-comment-sweep-rem-2-9012180e.md","status":"added"},{"filename":".changes/attribution/chore-comment-sweep-rem-2-65c82d01.md","status":"added"},{"filename":".changes/bugs/chore-comment-sweep-rem-2-2b87c239.md","status":"added"},{"filename":".changes/code-tidying/chore-comment-sweep-rem-2-6e84a012.md","status":"added"},{"filename":".changes/codebase-health/chore-comment-sweep-rem-2-c7c04d01.md","status":"added"},{"filename":".changes/debugging/chore-comment-sweep-rem-2-465744a9.md","status":"added"},{"filename":".changes/developer-experience/chore-comment-sweep-rem-2-f089a679.md","status":"added"},{"filename":".changes/discipline/chore-comment-sweep-rem-2-744732a6.md","status":"added"},{"filename":".changes/discovery/chore-comment-sweep-rem-2-4090b524.md","status":"added"},{"filename":".changes/docs-hygiene/chore-comment-sweep-rem-2-94179e6b.md","status":"added"},{"filename":".changes/docs-naming/chore-comment-sweep-rem-2-3c3f8b0e.md","status":"added"},{"filename":".changes/education/chore-comment-sweep-rem-2-4b226f8d.md","status":"added"},{"filename":".changes/event-storming/chore-comment-sweep-rem-2-9f7d4a96.md","status":"added"},{"filename":".changes/explainer-video/chore-comment-sweep-rem-2-a3102366.md","status":"added"},{"filename":".changes/formal-verification/chore-comment-sweep-rem-2-146265e6.md","status":"added"},{"filename":".changes/guardrails/chore-comment-sweep-rem-2-56e6a597.md","status":"added"},{"filename":".changes/harness-config/chore-comment-sweep-rem-2-67b9473b.md","status":"added"},{"filename":".changes/harness-memory/chore-comment-sweep-rem-2-4a1824b1.md","status":"added"},{"filename":".changes/harness-ops/chore-comment-sweep-rem-2-56a7220d.md","status":"added"},{"filename":".changes/implementation/chore-comment-sweep-rem-2-831c0696.md","status":"added"},{"filename":".changes/knowledge/chore-comment-sweep-rem-2-61214d58.md","status":"added"},{"filename":".changes/knowledge/fix-video-digest-preflight-quote-5d2a9c41.md","status":"added"},{"filename":".changes/multi-agent/chore-comment-sweep-rem-2-07d15360.md","status":"added"},{"filename":".changes/mutation-testing/chore-comment-sweep-rem-2-0138a988.md","status":"added"},{"filename":".changes/pixel-art/chore-comment-sweep-rem-2-82177a3b.md","status":"added"},{"filename":".changes/planning/chore-comment-sweep-rem-2-3622c08f.md","status":"added"},{"filename":".changes/planning/fix-18801-test-load-5f637628.md","status":"added"},{"filename":".changes/playbooks/chore-comment-sweep-rem-2-3818b461.md","status":"added"},{"filename":".changes/playwright/chore-comment-sweep-rem-2-878207b6.md","status":"added"},{"filename":".changes/plugin-quality/chore-comment-sweep-rem-2-e902a9c2.md","status":"added"},{"filename":".changes/pr-pipeline/feat-18859-intake-lane-move-5a80c24d.md","status":"added"},{"filename":".changes/pr-pipeline/perf-c2-conditional-reads-370f7578.md","status":"added"},{"filename":".changes/pr-pipeline/perf-c3-trusted-text-handoff-4b7e19c2.md","status":"added"},{"filename":".changes/pr-pipeline/refactor-review-lane-status-jobs-c7a91e3d.md","status":"added"},{"filename":".changes/prototype/chore-comment-sweep-rem-2-c61f90c4.md","status":"added"},{"filename":".changes/review/chore-comment-sweep-rem-2-6e565b17.md","status":"added"},{"filename":".changes/session-flow/chore-comment-sweep-rem-2-273307c7.md","status":"added"},{"filename":".changes/skill-quality/chore-comment-sweep-rem-2-6576744c.md","status":"added"},{"filename":".changes/songwriting/chore-comment-sweep-rem-2-773f0158.md","status":"added"},{"filename":".changes/source-control/chore-comment-sweep-rem-2-f1f84c0e.md","status":"added"},{"filename":".changes/source-control/feat-18859-intake-lane-move-4b03d45f.md","status":"added"},{"filename":".changes/source-control/perf-c4-base-tip-ls-remote-86d90c81.md","status":"added"},{"filename":".changes/source-control/perf-verify-evidence-pass-out-5c1e7a93.md","status":"added"},{"filename":".changes/testing/chore-comment-sweep-rem-2-e7154a39.md","status":"added"},{"filename":".changes/user-interface/chore-comment-sweep-v060-a9938050.md","status":"removed"},{"filename":".changes/verification/chore-comment-sweep-rem-2-0f67f69e.md","status":"added"},{"filename":".changes/visualization/chore-comment-sweep-rem-2-25d9d2b8.md","status":"added"},{"filename":".changes/visualization/chore-comment-sweep-v060-9a4b8552.md","status":"removed"},{"filename":".changes/wizard/chore-comment-sweep-rem-2-463f5c1e.md","status":"added"},{"filename":".changes/wizard/chore-comment-sweep-v060-33505039.md","status":"removed"},{"filename":".changes/work-items/chore-comment-sweep-rem-2-1b538069.md","status":"added"},{"filename":".changes/work-items/chore-comment-sweep-v060-c50c133f.md","status":"removed"},{"filename":".changes/work-items/chore-comment-sweep-v064-165c3f3d.md","status":"removed"},{"filename":".changes/work-items/feat-18859-intake-lane-move-64b9d611.md","status":"added"},{"filename":".changes/writing/chore-comment-sweep-rem-2-6601a90e.md","status":"added"},{"filename":".claude/skills/formal-claim-protocol/model/ClaimProtocol.tla","status":"modified"},{"filename":".editorconfig-checker.json","status":"removed"},{"filename":".github/CODEOWNERS","status":"modified"},{"filename":".github/actionlint.yaml","status":"removed"},{"filename":".github/actions/check-born-triaged/README.md","status":"modified"},{"filename":".github/actions/check-kill-switch/check-kill-switch.test.mjs","status":"modified"},{"filename":".github/actions/check-trusted-base/action.yml","status":"modified"},{"filename":".github/actions/check-trusted-trigger/README.md","status":"modified"},{"filename":".github/actions/check-trusted-trigger/action.yml","status":"modified"},{"filename":".github/actions/check-trusted-trigger/check-trusted-trigger.mjs","status":"modified"},{"filename":".github/actions/check-trusted-trigger/check-trusted-trigger.test.mjs","status":"modified"},{"filename":".github/actions/check-trusted-trigger/close-trust.mjs","status":"modified"},{"filename":".github/actions/check-wip-cap/check-wip-cap.test.mjs","status":"modified"},{"filename":".github/actions/collect-base-activity/action.yml","status":"modified"},{"filename":".github/actions/collect-base-activity/collect-base-activity.test.mjs","status":"modified"},{"filename":".github/actions/log-api-budget/count-requests.test.mjs","status":"modified"},{"filename":".github/actions/request-lane-token/README.md","status":"modified"},{"filename":".github/actions/request-lane-token/action.yml","status":"modified"},{"filename":".github/actions/request-lane-token/request-lane-token.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/README.md","status":"modified"},{"filename":".github/actions/resolve-config/action.yml","status":"modified"},{"filename":".github/actions/resolve-config/api-budget-coverage.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/broker-vendoring.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/callers.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/dimensions.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/dispatch-limits.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/feedback-dispatch.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/fixtures/broker-vendored-lists.json","status":"modified"},{"filename":".github/actions/resolve-config/fixtures/invalid-applied-by-apply-issue-patch-prepare.yaml","status":"modified"},{"filename":".github/actions/resolve-config/fixtures/invalid-applied-by-apply-patch-prepare.yaml","status":"modified"},{"filename":".github/actions/resolve-config/fixtures/invalid-applied-by-missing-needs.yaml","status":"modified"},{"filename":".github/actions/resolve-config/fixtures/invalid-applied-by-not-script.yaml","status":"modified"},{"filename":".github/actions/resolve-config/fixtures/invalid-applied-by-outside-lane.yaml","status":"modified"},{"filename":".github/actions/resolve-config/issue-status.mjs","status":"modified"},{"filename":".github/actions/resolve-config/issue-status.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/lane-grants.json","status":"modified"},{"filename":".github/actions/resolve-config/lane-grants.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/lane-ids.test.mjs","status":"added"},{"filename":".github/actions/resolve-config/lane-rules.json","status":"modified"},{"filename":".github/actions/resolve-config/live-config.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/models.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/read-status.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/resolve-config.mjs","status":"modified"},{"filename":".github/actions/resolve-config/resolve-config.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/resolve.test.mjs","status":"modified"},{"filename":".github/actions/resolve-config/write-status.test.mjs","status":"modified"},{"filename":".github/actions/select-trusted-text/README.md","status":"modified"},{"filename":".github/actions/select-trusted-text/action.yml","status":"modified"},{"filename":".github/actions/select-trusted-text/fixtures/pr-reads-captured.jsonl","status":"added"},{"filename":".github/actions/select-trusted-text/select-trusted-text.mjs","status":"modified"},{"filename":".github/actions/select-trusted-text/select-trusted-text.test.mjs","status":"modified"},{"filename":".github/artifact-retention.json","status":"modified"},{"filename":".github/dependabot.yml","status":"modified"},{"filename":".github/lane-funding.json","status":"modified"},{"filename":".github/lane-registry.json","status":"modified"},{"filename":".github/recurring-schedule.json","status":"modified"},{"filename":".github/scripts/apply-patch/apply-patch.mjs","status":"modified"},{"filename":".github/scripts/apply-patch/apply-patch.test.mjs","status":"modified"},{"filename":".github/scripts/apply-patch/predicates.mjs","status":"modified"},{"filename":".github/scripts/apply-patch/protected-paths.test.mjs","status":"modified"},{"filename":".github/scripts/intake-reenter/reenter.mjs","status":"modified"},{"filename":".github/scripts/intake-reenter/reenter.test.mjs","status":"modified"},{"filename":".github/scripts/intake-triage/admit.mjs","status":"modified"},{"filename":".github/scripts/intake-triage/admit.test.mjs","status":"modified"},{"filename":".github/scripts/intake-triage/apply-verdict.test.mjs","status":"modified"},{"filename":".github/scripts/intake-triage/ci-verdict-contract.test.mjs","status":"added"},{"filename":".github/scripts/intake-triage/edges.mjs","status":"modified"},{"filename":".github/scripts/intake-triage/fixtures/intake-issue/closed-issues-page-1.json","status":"added"},{"filename":".github/scripts/intake-triage/fixtures/intake-issue/comments.json","status":"added"},{"filename":".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json","status":"added"},{"filename":".github/scripts/intake-triage/fixtures/intake-issue/issue.json","status":"added"},{"filename":".github/scripts/intake-triage/fixtures/intake-issue/open-issues-page-1.json","status":"added"},{"filename":".github/scripts/intake-triage/post-triage.mjs","status":"added"},{"filename":".github/scripts/intake-triage/post-triage.test.mjs","status":"added"},{"filename":".github/scripts/intake-triage/reentry-eval/build-suite.test.mjs","status":"modified"},{"filename":".github/scripts/intake-triage/refine.mjs","status":"modified"},{"filename":".github/scripts/intake-triage/write-intake-issue.mjs","status":"added"},{"filename":".github/scripts/intake-triage/write-intake-issue.test.mjs","status":"added"},{"filename":".github/scripts/lib/admission-record.test.mjs","status":"modified"},{"filename":".github/scripts/lib/done-evidence.mjs","status":"modified"},{"filename":".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json","status":"renamed","previous_filename":".github/standards/github-actions-conventions/vocabulary.json"},{"filename":".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json","status":"renamed","previous_filename":".github/standards/github-actions-conventions/vocabulary.schema.json"},{"filename":".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json","status":"renamed","previous_filename":".github/standards/trusted-actors/trusted-actors.json"},{"filename":".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json","status":"renamed","previous_filename":".github/standards/trusted-actors/trusted-actors.schema.json"},{"filename":".github/scripts/lib/github-client.mjs","status":"modified"},{"filename":".github/scripts/lib/handoff-evidence.test.mjs","status":"modified"},{"filename":".github/scripts/lib/lane-level-value.mjs","status":"modified"},{"filename":".github/scripts/lib/lane-level.mjs","status":"modified"},{"filename":".github/scripts/lib/lane-outcome.mjs","status":"modified"},{"filename":".github/scripts/lib/lane-registry.mjs","status":"modified"},{"filename":".github/scripts/lib/lane-registry.test.mjs","status":"modified"},{"filename":".github/scripts/lib/trusted-actors.fixtures.mjs","status":"modified"},{"filename":".github/scripts/lib/trusted-actors.mjs","status":"modified"},{"filename":".github/scripts/lib/trusted-actors.test.mjs","status":"modified"},{"filename":".github/scripts/maintenance-audit-lane-runs/collect.mjs","status":"modified"},{"filename":".github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs","status":"modified"},{"filename":".github/scripts/maintenance-audit-lane-runs/triage-sweep.test.mjs","status":"modified"},{"filename":".github/scripts/maintenance-audit-lane-runs/workflow.test.mjs","status":"modified"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/fixtures/annotations-138935451625.json","status":"added"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/fixtures/annotations-138942439395.json","status":"added"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/fixtures/jobs-45533783420.json","status":"added"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/fixtures/jobs-45535944989.json","status":"added"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs","status":"modified"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/infra-failure.test.mjs","status":"modified"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs","status":"modified"},{"filename":".github/scripts/maintenance-reconcile-lost-runs/reconcile.test.mjs","status":"modified"},{"filename":".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs","status":"modified"},{"filename":".github/scripts/merge-base/context.test.sh","status":"modified"},{"filename":".github/scripts/merge-base/prepare.test.sh","status":"modified"},{"filename":".github/scripts/merge-base/tree-entries.test.sh","status":"modified"},{"filename":".github/scripts/plugin-eval/compare-arms.sh","status":"modified"},{"filename":".github/scripts/plugin-eval/compare-arms.test.mjs","status":"modified"},{"filename":".github/scripts/plugin-eval/hill-climb-workflow.test.mjs","status":"modified"},{"filename":".github/scripts/plugin-eval/select-plugins.mjs","status":"modified"},{"filename":".github/scripts/plugin-eval/select-plugins.test.mjs","status":"modified"},{"filename":".github/scripts/plugin-eval/workflow.test.mjs","status":"modified"},{"filename":".github/scripts/post-merge-demotion-alert/report.mjs","status":"modified"},{"filename":".github/scripts/post-merge-demotion-alert/workflow.test.mjs","status":"modified"},{"filename":".github/scripts/post-merge-test-mutation/report.test.mjs","status":"modified"},{"filename":".github/scripts/pr-merge-risk/workflow.test.mjs","status":"modified"},{"filename":".github/scripts/pr-merge/clear-escalations.mjs","status":"modified"},{"filename":".github/scripts/pr-merge/enable-auto-merge.mjs","status":"modified"},{"filename":".github/scripts/pr-merge/main-tip-carry.test.mjs","status":"modified"},{"filename":".github/scripts/pr-merge/merge-holds.mjs","status":"modified"},{"filename":".github/scripts/pr-merge/merge-holds.test.mjs","status":"modified"},{"filename":".github/scripts/pr-merge/merge-job.test.mjs","status":"modified"},{"filename":".github/scripts/pr-refine/plan-passes.test.mjs","status":"modified"},{"filename":".github/scripts/pr-refine/write-pass-plan.test.mjs","status":"modified"},{"filename":".github/scripts/pr-review-main/criteria.txt","status":"modified"},{"filename":".github/scripts/pr-review-main/prompt.md","status":"modified"},{"filename":".github/scripts/pr-review-main/trusted-text.test.mjs","status":"modified"},{"filename":".github/scripts/pr-review-main/workflow.test.mjs","status":"modified"},{"filename":".github/scripts/pr-review-main/write-diff.py","status":"modified"},{"filename":".github/scripts/pr-review-main/write-verdict.mjs","status":"modified"},{"filename":".github/scripts/pr-review-main/write-verdict.test.mjs","status":"modified"},{"filename":".github/scripts/pr-review/wait-refine.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/address-feedback.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/address-feedback.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/apply-dependency-verdict.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/apply-dependency-verdict.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/declare-test-scope.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/declare-test-scope.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/dependency-classify.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/dependency-classify.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/dependency-dispatch.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/dependency-dispatch.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/dispatch.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/dispatch.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/fix-ci-context.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/fix-ci-dispatch.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/fix-ci-dispatch.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/fixtures/pr-18807-body.txt","status":"added"},{"filename":".github/scripts/pr-unblock/limit-stop.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/publish-feedback.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/publish-feedback.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/report-escalation.sh","status":"modified"},{"filename":".github/scripts/pr-unblock/request-budget.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/review-dependency.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/review-dependency.test.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/sync-shared-copies.test.sh","status":"modified"},{"filename":".github/scripts/pr-unblock/thread-scope.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/verify-notes.mjs","status":"modified"},{"filename":".github/scripts/pr-unblock/workflow-gates.test.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/fixtures/workflow-run-rerun.json","status":"added"},{"filename":".github/scripts/pr-verify/probe/parity.test.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/probe/replay.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/probe/replay.test.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/prompt.md","status":"modified"},{"filename":".github/scripts/pr-verify/resolve-pr.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/resolve-pr.test.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/upstream-jobs.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/upstream-jobs.test.mjs","status":"modified"},{"filename":".github/scripts/pr-verify/workflow.test.mjs","status":"modified"},{"filename":".github/scripts/release-publish-plugins/decide-rebuild.sh","status":"modified"},{"filename":".github/scripts/release-publish-plugins/decide-rebuild.test.sh","status":"modified"},{"filename":".github/scripts/security-outside-actor/flag.test.mjs","status":"modified"},{"filename":".github/scripts/upstream-apply-changelog/upstream-apply-changelog.test.mjs","status":"modified"},{"filename":".github/scripts/work-resolve-issue/check-blockers.mjs","status":"modified"},{"filename":".github/scripts/work-resolve-issue/check-blockers.test.mjs","status":"modified"},{"filename":".github/scripts/work-resolve-issue/limits.mjs","status":"modified"},{"filename":".github/scripts/work-resolve-issue/report-outcome.test.mjs","status":"modified"},{"filename":".github/scripts/work-resolve-issue/stop-routes.mjs","status":"modified"},{"filename":".github/scripts/work-resolve-issue/write-issue.mjs","status":"modified"},{"filename":".github/scripts/work-resolve-issue/write-issue.test.mjs","status":"modified"},{"filename":".github/scripts/work-unblock/label-unblocked.mjs","status":"modified"},{"filename":".github/scripts/work-unblock/label-unblocked.test.mjs","status":"modified"},{"filename":".github/scripts/work-unblock/publish-lane-level.mjs","status":"modified"},{"filename":".github/scripts/work-unblock/sweep-gap.mjs","status":"modified"},{"filename":".github/scripts/work-unblock/verdict-carry.mjs","status":"modified"},{"filename":".github/standards/dependabot-policy/policy.json","status":"removed"},{"filename":".github/standards/pyright/pyrightconfig.json","status":"removed"},{"filename":".github/typos-local.toml","status":"removed"},{"filename":".github/workflows/intake-label-outside-actor-activity.yml","status":"modified"},{"filename":".github/workflows/intake-reenter.yml","status":"modified"},{"filename":".github/workflows/intake-triage.yml","status":"modified"},{"filename":".github/workflows/maintenance-audit-lane-runs.yml","status":"modified"},{"filename":".github/workflows/maintenance-audit-test-selection.yml","status":"modified"},{"filename":".github/workflows/maintenance-delete-stale-branches.yml","status":"modified"},{"filename":".github/workflows/maintenance-file-dead-links.yml","status":"modified"},{"filename":".github/workflows/maintenance-file-recurring-issues.yml","status":"modified"},{"filename":".github/workflows/maintenance-measure-skill-edit-pass.yml","status":"modified"},{"filename":".github/workflows/maintenance-measure-skill-edit.yml","status":"modified"},{"filename":".github/workflows/maintenance-monitor-signals.yml","status":"modified"},{"filename":".github/workflows/maintenance-reconcile-lost-runs.yml","status":"modified"},{"filename":".github/workflows/maintenance-tidy-code-upkeep.yml","status":"modified"},{"filename":".github/workflows/post-merge-detect-silent-revert.yml","status":"modified"},{"filename":".github/workflows/post-merge-file-demotion-issues.yml","status":"modified"},{"filename":".github/workflows/post-merge-test-mutation.yml","status":"modified"},{"filename":".github/workflows/pr-check-managed-files-hosted.yml","status":"modified"},{"filename":".github/workflows/pr-dispatch-feedback.yml","status":"modified"},{"filename":".github/workflows/pr-merge.yml","status":"modified"},{"filename":".github/workflows/pr-rate-merge-risk.yml","status":"modified"},{"filename":".github/workflows/pr-refine.yml","status":"modified"},{"filename":".github/workflows/pr-require-checks.yml","status":"modified"},{"filename":".github/workflows/pr-review-hosted.yml","status":"modified"},{"filename":".github/workflows/pr-review-main.yml","status":"modified"},{"filename":".github/workflows/pr-review-security-hosted.yml","status":"modified"},{"filename":".github/workflows/pr-run-activity-read.yml","status":"modified"},{"filename":".github/workflows/pr-run-activity-write.yml","status":"modified"},{"filename":".github/workflows/pr-run-plugin-evals.yml","status":"modified"},{"filename":".github/workflows/pr-test-platforms.yml","status":"modified"},{"filename":".github/workflows/pr-unblock-dispatch.yml","status":"modified"},{"filename":".github/workflows/pr-unblock.yml","status":"modified"},{"filename":".github/workflows/pr-verify.yml","status":"modified"},{"filename":".github/workflows/release-generate-dependabot-changelog-fragments.yml","status":"modified"},{"filename":".github/workflows/upstream-apply-changelog.yml","status":"modified"},{"filename":".github/workflows/work-resolve-issue.yml","status":"modified"},{"filename":".github/workflows/work-unblock.yml","status":"modified"},{"filename":".gitleaks.toml","status":"removed"},{"filename":".markdownlint-cli2.jsonc","status":"removed"},{"filename":".shellcheckrc","status":"removed"},{"filename":"AGENTS.md","status":"modified"},{"filename":"README.md","status":"modified"},{"filename":"REVIEW.md","status":"removed"},{"filename":"_typos.toml","status":"modified"},{"filename":"docs/adr/0063-keep-the-cant-fail-scanner-in-bash-and-awk-with-yaml-subset-adapters.md","status":"modified"},{"filename":"docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md","status":"modified"},{"filename":"docs/adr/0071-start-pr-unblock-from-a-push-to-main-dispatcher-checked-at-the-gate-and-the-broker.md","status":"modified"},{"filename":"docs/adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md","status":"modified"},{"filename":"docs/adr/0084-ship-handoff-shape-3-on-measured-size-and-leave-accuracy-to-the-resume-eval.md","status":"modified"},{"filename":"docs/adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md","status":"modified"},{"filename":"docs/adr/0091-bound-the-handoff-core-by-relevance-and-amend-late-events.md","status":"modified"},{"filename":"docs/adr/0115-write-handoff-shape-4-with-binding-sections-first-and-a-tool-owned-byte-budget.md","status":"modified"}]}
+{
+  "status": "ahead",
+  "ahead_by": 150,
+  "behind_by": 0,
+  "total_commits": 150,
+  "merge_base_commit": {
+    "sha": "f9c1cdef0be239947b97d476b5fe488f537e3577"
+  },
+  "commits": [
+    {
+      "sha": "0f5a9cab9bad5c72012e995e96488881253686eb",
+      "parents": [
+        {
+          "sha": "f9c1cdef0be239947b97d476b5fe488f537e3577"
+        }
+      ]
+    },
+    {
+      "sha": "0c1bda8345331d0d6082b6e80b5dc0a67fb6a733",
+      "parents": [
+        {
+          "sha": "0f5a9cab9bad5c72012e995e96488881253686eb"
+        }
+      ]
+    },
+    {
+      "sha": "68d146b6c9af7759b2fa56e951f96c066e9c5a53",
+      "parents": [
+        {
+          "sha": "0c1bda8345331d0d6082b6e80b5dc0a67fb6a733"
+        }
+      ]
+    },
+    {
+      "sha": "fbf75ddd939c937e7bc1a812ebd42ea54ab8408f",
+      "parents": [
+        {
+          "sha": "68d146b6c9af7759b2fa56e951f96c066e9c5a53"
+        }
+      ]
+    },
+    {
+      "sha": "381055ebd08ee3acaa69723374d7dedd1c2cc617",
+      "parents": [
+        {
+          "sha": "fbf75ddd939c937e7bc1a812ebd42ea54ab8408f"
+        }
+      ]
+    },
+    {
+      "sha": "2f2fb64d8718d388e3c5249d3cdafc7d1bbf54b8",
+      "parents": [
+        {
+          "sha": "381055ebd08ee3acaa69723374d7dedd1c2cc617"
+        }
+      ]
+    },
+    {
+      "sha": "3b46e0b4c7114baf8ab464aa38e9de718d433068",
+      "parents": [
+        {
+          "sha": "2f2fb64d8718d388e3c5249d3cdafc7d1bbf54b8"
+        }
+      ]
+    },
+    {
+      "sha": "aaeda1e7c2632f6b04f157198920e6b1f6677216",
+      "parents": [
+        {
+          "sha": "3b46e0b4c7114baf8ab464aa38e9de718d433068"
+        }
+      ]
+    },
+    {
+      "sha": "e64069880197afc6ff7f1cb4d4f00ac174670d10",
+      "parents": [
+        {
+          "sha": "aaeda1e7c2632f6b04f157198920e6b1f6677216"
+        }
+      ]
+    },
+    {
+      "sha": "f4c64fb675206e053b160e51ca484e9926c18fc0",
+      "parents": [
+        {
+          "sha": "e64069880197afc6ff7f1cb4d4f00ac174670d10"
+        }
+      ]
+    },
+    {
+      "sha": "80a1f02d730085dcd4d1512272d59f946059f809",
+      "parents": [
+        {
+          "sha": "f4c64fb675206e053b160e51ca484e9926c18fc0"
+        }
+      ]
+    },
+    {
+      "sha": "e0440b03e3553ae4f211c46c9025f14bc597ded1",
+      "parents": [
+        {
+          "sha": "80a1f02d730085dcd4d1512272d59f946059f809"
+        }
+      ]
+    },
+    {
+      "sha": "210d3728fc333f91fdc63731d1277aa263b72a04",
+      "parents": [
+        {
+          "sha": "e0440b03e3553ae4f211c46c9025f14bc597ded1"
+        }
+      ]
+    },
+    {
+      "sha": "2d7db221b6373d883ae0eb0b62e9ed9d1b54dbae",
+      "parents": [
+        {
+          "sha": "210d3728fc333f91fdc63731d1277aa263b72a04"
+        }
+      ]
+    },
+    {
+      "sha": "6e2ebad80e23eeb7f934f1f0940a3de4870ede15",
+      "parents": [
+        {
+          "sha": "2d7db221b6373d883ae0eb0b62e9ed9d1b54dbae"
+        }
+      ]
+    },
+    {
+      "sha": "72beeccf11c76942eec454d562a870772f8b615e",
+      "parents": [
+        {
+          "sha": "6e2ebad80e23eeb7f934f1f0940a3de4870ede15"
+        }
+      ]
+    },
+    {
+      "sha": "e7b0fcd0f2e41d93087d61b189aaaae182f68bf9",
+      "parents": [
+        {
+          "sha": "72beeccf11c76942eec454d562a870772f8b615e"
+        }
+      ]
+    },
+    {
+      "sha": "87af454041e0804065c568b2e8cdf15dd265d95f",
+      "parents": [
+        {
+          "sha": "e7b0fcd0f2e41d93087d61b189aaaae182f68bf9"
+        }
+      ]
+    },
+    {
+      "sha": "f251d21bc67c6640ff5eac07475d0b23046d4940",
+      "parents": [
+        {
+          "sha": "87af454041e0804065c568b2e8cdf15dd265d95f"
+        }
+      ]
+    },
+    {
+      "sha": "9ec289b37df7601ba4bb1f1d433362a9c8a077af",
+      "parents": [
+        {
+          "sha": "f251d21bc67c6640ff5eac07475d0b23046d4940"
+        }
+      ]
+    },
+    {
+      "sha": "e5e637334c93ceae49e3a56f18c1b45675cbb79d",
+      "parents": [
+        {
+          "sha": "9ec289b37df7601ba4bb1f1d433362a9c8a077af"
+        }
+      ]
+    },
+    {
+      "sha": "f707f271dff309ce57d20649e6c444d977d5f8ad",
+      "parents": [
+        {
+          "sha": "e5e637334c93ceae49e3a56f18c1b45675cbb79d"
+        }
+      ]
+    },
+    {
+      "sha": "c99677674cb8854d3484a54b41ab139b94a2383e",
+      "parents": [
+        {
+          "sha": "f707f271dff309ce57d20649e6c444d977d5f8ad"
+        }
+      ]
+    },
+    {
+      "sha": "329852bb502c0df7963f358f9a5ff14e58f88121",
+      "parents": [
+        {
+          "sha": "c99677674cb8854d3484a54b41ab139b94a2383e"
+        }
+      ]
+    },
+    {
+      "sha": "d6b505f5b6be1f344ab5d5254b02efc9bd365e38",
+      "parents": [
+        {
+          "sha": "329852bb502c0df7963f358f9a5ff14e58f88121"
+        }
+      ]
+    },
+    {
+      "sha": "0cbc93f045eb48e373acf62d4b0d2bbf3fc3db95",
+      "parents": [
+        {
+          "sha": "d6b505f5b6be1f344ab5d5254b02efc9bd365e38"
+        }
+      ]
+    },
+    {
+      "sha": "8de1c21b77698639a51f5619adde05c2a2bce4e4",
+      "parents": [
+        {
+          "sha": "0cbc93f045eb48e373acf62d4b0d2bbf3fc3db95"
+        }
+      ]
+    },
+    {
+      "sha": "956fca18a76a4251eb27ec0df3f8ce020170e256",
+      "parents": [
+        {
+          "sha": "8de1c21b77698639a51f5619adde05c2a2bce4e4"
+        }
+      ]
+    },
+    {
+      "sha": "104cd47e90035d0fe3fb03ca308c598adfe439d0",
+      "parents": [
+        {
+          "sha": "956fca18a76a4251eb27ec0df3f8ce020170e256"
+        }
+      ]
+    },
+    {
+      "sha": "fe0df07637d06704ad276419ad0e0b03c29d1360",
+      "parents": [
+        {
+          "sha": "104cd47e90035d0fe3fb03ca308c598adfe439d0"
+        }
+      ]
+    },
+    {
+      "sha": "a9f7c2faee29d152272abfceedd02e34b03915ae",
+      "parents": [
+        {
+          "sha": "fe0df07637d06704ad276419ad0e0b03c29d1360"
+        }
+      ]
+    },
+    {
+      "sha": "92fb10e1ecf712ad9e948058ede7ce6a02923a07",
+      "parents": [
+        {
+          "sha": "a9f7c2faee29d152272abfceedd02e34b03915ae"
+        }
+      ]
+    },
+    {
+      "sha": "afe73b2fa483c2f0bab9d6480755b18ce59fdbfc",
+      "parents": [
+        {
+          "sha": "92fb10e1ecf712ad9e948058ede7ce6a02923a07"
+        }
+      ]
+    },
+    {
+      "sha": "532f9557fac77a0de562844052c2de02c0f95927",
+      "parents": [
+        {
+          "sha": "afe73b2fa483c2f0bab9d6480755b18ce59fdbfc"
+        }
+      ]
+    },
+    {
+      "sha": "d538008a63182eb9eff55a3d1638d813356477ab",
+      "parents": [
+        {
+          "sha": "532f9557fac77a0de562844052c2de02c0f95927"
+        }
+      ]
+    },
+    {
+      "sha": "3b64ccd42db2df15fd7f818d5ec895528637c49e",
+      "parents": [
+        {
+          "sha": "d538008a63182eb9eff55a3d1638d813356477ab"
+        }
+      ]
+    },
+    {
+      "sha": "6a40f497a70c305669a89245322aa25c347f9e6b",
+      "parents": [
+        {
+          "sha": "3b64ccd42db2df15fd7f818d5ec895528637c49e"
+        }
+      ]
+    },
+    {
+      "sha": "3b28ecc333302471eb7e30fb35e73d2c16123f5d",
+      "parents": [
+        {
+          "sha": "6a40f497a70c305669a89245322aa25c347f9e6b"
+        }
+      ]
+    },
+    {
+      "sha": "347bbf69e64aa0bfa25fdab538b36b7d4ffedfaf",
+      "parents": [
+        {
+          "sha": "3b28ecc333302471eb7e30fb35e73d2c16123f5d"
+        }
+      ]
+    },
+    {
+      "sha": "d9169cda0ff3a66a898d972675d70f92ef3c2e83",
+      "parents": [
+        {
+          "sha": "347bbf69e64aa0bfa25fdab538b36b7d4ffedfaf"
+        }
+      ]
+    },
+    {
+      "sha": "c497a8dfdd0c4b3472ef4a13feb7ccb014bd5f87",
+      "parents": [
+        {
+          "sha": "d9169cda0ff3a66a898d972675d70f92ef3c2e83"
+        }
+      ]
+    },
+    {
+      "sha": "9df11d1a7d3c09345e8c91f4361dd1c3d77ccf4e",
+      "parents": [
+        {
+          "sha": "c497a8dfdd0c4b3472ef4a13feb7ccb014bd5f87"
+        }
+      ]
+    },
+    {
+      "sha": "1cb14ea5edb59a2e985b3afb04d4d553f5c981e6",
+      "parents": [
+        {
+          "sha": "9df11d1a7d3c09345e8c91f4361dd1c3d77ccf4e"
+        }
+      ]
+    },
+    {
+      "sha": "ceff6bcfa11617f09cfa362dec72e0f44d02be77",
+      "parents": [
+        {
+          "sha": "1cb14ea5edb59a2e985b3afb04d4d553f5c981e6"
+        }
+      ]
+    },
+    {
+      "sha": "368dc36bcad6f996154e781ceb4b16bdfac62f9a",
+      "parents": [
+        {
+          "sha": "ceff6bcfa11617f09cfa362dec72e0f44d02be77"
+        }
+      ]
+    },
+    {
+      "sha": "f75a4b63af2598521e252ace9ecde21260758c1e",
+      "parents": [
+        {
+          "sha": "368dc36bcad6f996154e781ceb4b16bdfac62f9a"
+        }
+      ]
+    },
+    {
+      "sha": "85193922a1f5ccef45c90193015bdd66af33b98c",
+      "parents": [
+        {
+          "sha": "f75a4b63af2598521e252ace9ecde21260758c1e"
+        }
+      ]
+    },
+    {
+      "sha": "e71ff5d43345af0df07cdc69538f8bc99ea091b7",
+      "parents": [
+        {
+          "sha": "85193922a1f5ccef45c90193015bdd66af33b98c"
+        }
+      ]
+    },
+    {
+      "sha": "b28b500919474a98dff653d8bcf639d1bd10c72a",
+      "parents": [
+        {
+          "sha": "e71ff5d43345af0df07cdc69538f8bc99ea091b7"
+        }
+      ]
+    },
+    {
+      "sha": "d5969b50fe3ac963ed300bc9b2f56796ee530744",
+      "parents": [
+        {
+          "sha": "b28b500919474a98dff653d8bcf639d1bd10c72a"
+        }
+      ]
+    },
+    {
+      "sha": "5bafef5707feb531a9423b46a11c039a4e088f97",
+      "parents": [
+        {
+          "sha": "d5969b50fe3ac963ed300bc9b2f56796ee530744"
+        }
+      ]
+    },
+    {
+      "sha": "61c19ba1c918a5ac06f8247bb8690c03e7a7a7ea",
+      "parents": [
+        {
+          "sha": "5bafef5707feb531a9423b46a11c039a4e088f97"
+        }
+      ]
+    },
+    {
+      "sha": "54276e07dfe8061cb7aa535e9d0bdf1072d3718e",
+      "parents": [
+        {
+          "sha": "61c19ba1c918a5ac06f8247bb8690c03e7a7a7ea"
+        }
+      ]
+    },
+    {
+      "sha": "9c82c3595a287155a84a17bd21fa5410a241ebe4",
+      "parents": [
+        {
+          "sha": "54276e07dfe8061cb7aa535e9d0bdf1072d3718e"
+        }
+      ]
+    },
+    {
+      "sha": "138a6cdd0956a79285a004ad7dcea6dbdb7ec743",
+      "parents": [
+        {
+          "sha": "9c82c3595a287155a84a17bd21fa5410a241ebe4"
+        }
+      ]
+    },
+    {
+      "sha": "5082d2af888cef9bd2f9066c01d45c1861a0113e",
+      "parents": [
+        {
+          "sha": "138a6cdd0956a79285a004ad7dcea6dbdb7ec743"
+        }
+      ]
+    },
+    {
+      "sha": "8864a5aac312966c72a7b593db3fbd8e67878ca4",
+      "parents": [
+        {
+          "sha": "5082d2af888cef9bd2f9066c01d45c1861a0113e"
+        }
+      ]
+    },
+    {
+      "sha": "c634f43c55c3aa6245904e1beb14fa0c0127b14f",
+      "parents": [
+        {
+          "sha": "8864a5aac312966c72a7b593db3fbd8e67878ca4"
+        }
+      ]
+    },
+    {
+      "sha": "0215befed9155e34d13fe6883293b31594cfa16d",
+      "parents": [
+        {
+          "sha": "c634f43c55c3aa6245904e1beb14fa0c0127b14f"
+        }
+      ]
+    },
+    {
+      "sha": "aac921da82cb706f02fc025c83ddd4f687b6e862",
+      "parents": [
+        {
+          "sha": "0215befed9155e34d13fe6883293b31594cfa16d"
+        }
+      ]
+    },
+    {
+      "sha": "c53d6eeb883e885ce79df88d73fe6461d2a574c8",
+      "parents": [
+        {
+          "sha": "aac921da82cb706f02fc025c83ddd4f687b6e862"
+        }
+      ]
+    },
+    {
+      "sha": "5f5c9aca3959f9e617f032057eb661aba6962536",
+      "parents": [
+        {
+          "sha": "c53d6eeb883e885ce79df88d73fe6461d2a574c8"
+        }
+      ]
+    },
+    {
+      "sha": "73e3b2ad45af5d8eca2d95b46b99021c12e25e21",
+      "parents": [
+        {
+          "sha": "5f5c9aca3959f9e617f032057eb661aba6962536"
+        }
+      ]
+    },
+    {
+      "sha": "2ba0dcc32a27dde4612de51bfd8fed94809c241f",
+      "parents": [
+        {
+          "sha": "73e3b2ad45af5d8eca2d95b46b99021c12e25e21"
+        }
+      ]
+    },
+    {
+      "sha": "85a29e76e3f3538b267e629789b06ac299c65fb4",
+      "parents": [
+        {
+          "sha": "2ba0dcc32a27dde4612de51bfd8fed94809c241f"
+        }
+      ]
+    },
+    {
+      "sha": "c4ec3b3eafaf4c14602ea7f585d4aacbd88ba86e",
+      "parents": [
+        {
+          "sha": "85a29e76e3f3538b267e629789b06ac299c65fb4"
+        }
+      ]
+    },
+    {
+      "sha": "279536f79c759d5781de1af7290b41f34476cfd2",
+      "parents": [
+        {
+          "sha": "c4ec3b3eafaf4c14602ea7f585d4aacbd88ba86e"
+        }
+      ]
+    },
+    {
+      "sha": "aec90348f1aff9d5b452cfd07eab462dbf46e00d",
+      "parents": [
+        {
+          "sha": "279536f79c759d5781de1af7290b41f34476cfd2"
+        }
+      ]
+    },
+    {
+      "sha": "81b9670e8ca6518fbdd88f56217cb69da9703279",
+      "parents": [
+        {
+          "sha": "aec90348f1aff9d5b452cfd07eab462dbf46e00d"
+        }
+      ]
+    },
+    {
+      "sha": "8eb2e2b7d71b62e607def16558c2f8d8ec4925d2",
+      "parents": [
+        {
+          "sha": "81b9670e8ca6518fbdd88f56217cb69da9703279"
+        }
+      ]
+    },
+    {
+      "sha": "a38ef6a4fdaf90e61f141fe03b650c45da4f61ee",
+      "parents": [
+        {
+          "sha": "8eb2e2b7d71b62e607def16558c2f8d8ec4925d2"
+        }
+      ]
+    },
+    {
+      "sha": "8e9e389d45aab72144edb5bf56524e1cc379862e",
+      "parents": [
+        {
+          "sha": "a38ef6a4fdaf90e61f141fe03b650c45da4f61ee"
+        }
+      ]
+    },
+    {
+      "sha": "8215f2c47f38b9aec9cbbad2518cc09388bd2fc8",
+      "parents": [
+        {
+          "sha": "8e9e389d45aab72144edb5bf56524e1cc379862e"
+        }
+      ]
+    },
+    {
+      "sha": "538d12ec204a84c5ce966660cf19f6212d332c2f",
+      "parents": [
+        {
+          "sha": "8215f2c47f38b9aec9cbbad2518cc09388bd2fc8"
+        }
+      ]
+    },
+    {
+      "sha": "8b1fffa9c1b39c20331b519a12a9a6d0e7d9ed0b",
+      "parents": [
+        {
+          "sha": "538d12ec204a84c5ce966660cf19f6212d332c2f"
+        }
+      ]
+    },
+    {
+      "sha": "db795c002dd2aeab25d1eed5de0e6f4f7dd12b19",
+      "parents": [
+        {
+          "sha": "8b1fffa9c1b39c20331b519a12a9a6d0e7d9ed0b"
+        }
+      ]
+    },
+    {
+      "sha": "3ce84cdf0732dff14c8386e8fa9d6f16f30ced40",
+      "parents": [
+        {
+          "sha": "db795c002dd2aeab25d1eed5de0e6f4f7dd12b19"
+        }
+      ]
+    },
+    {
+      "sha": "c0571d801193a0c356c5d7bc7dfa5c68896a4916",
+      "parents": [
+        {
+          "sha": "3ce84cdf0732dff14c8386e8fa9d6f16f30ced40"
+        }
+      ]
+    },
+    {
+      "sha": "a7732814dc8b4da126aef8a9f293c03e39ebd5b6",
+      "parents": [
+        {
+          "sha": "c0571d801193a0c356c5d7bc7dfa5c68896a4916"
+        }
+      ]
+    },
+    {
+      "sha": "d9124449d67765eb8e1cffe095be52b5b2662bfe",
+      "parents": [
+        {
+          "sha": "a7732814dc8b4da126aef8a9f293c03e39ebd5b6"
+        }
+      ]
+    },
+    {
+      "sha": "951f789d2f14301cbd2ffac32d4f1f1c5905205e",
+      "parents": [
+        {
+          "sha": "d9124449d67765eb8e1cffe095be52b5b2662bfe"
+        }
+      ]
+    },
+    {
+      "sha": "71ca4220de6907fd69980f0abf08834f19e6db6a",
+      "parents": [
+        {
+          "sha": "951f789d2f14301cbd2ffac32d4f1f1c5905205e"
+        }
+      ]
+    },
+    {
+      "sha": "2c3523f7d0804f5ff5c8f079804cfc83b3dc8d2a",
+      "parents": [
+        {
+          "sha": "71ca4220de6907fd69980f0abf08834f19e6db6a"
+        }
+      ]
+    },
+    {
+      "sha": "db1d885f13c9de6a4a855728c8a71d0a72132860",
+      "parents": [
+        {
+          "sha": "2c3523f7d0804f5ff5c8f079804cfc83b3dc8d2a"
+        }
+      ]
+    },
+    {
+      "sha": "45dff38c8827e7d6de181b2506dd10d679594374",
+      "parents": [
+        {
+          "sha": "db1d885f13c9de6a4a855728c8a71d0a72132860"
+        }
+      ]
+    },
+    {
+      "sha": "af23c07bfa53b4712a3f0d2ed548bf21ac015432",
+      "parents": [
+        {
+          "sha": "45dff38c8827e7d6de181b2506dd10d679594374"
+        }
+      ]
+    },
+    {
+      "sha": "2d680354af99f2b8eb8dca9f4d807a4e5a28930c",
+      "parents": [
+        {
+          "sha": "af23c07bfa53b4712a3f0d2ed548bf21ac015432"
+        }
+      ]
+    },
+    {
+      "sha": "870574b2801f0e12efe60b7415920cd5a151ad2d",
+      "parents": [
+        {
+          "sha": "2d680354af99f2b8eb8dca9f4d807a4e5a28930c"
+        }
+      ]
+    },
+    {
+      "sha": "ed984c01d147e2482b2e6e02aec84fc270dd4a59",
+      "parents": [
+        {
+          "sha": "870574b2801f0e12efe60b7415920cd5a151ad2d"
+        }
+      ]
+    },
+    {
+      "sha": "f96b4951d0a3c0daf77538147ec317e15a6c111a",
+      "parents": [
+        {
+          "sha": "ed984c01d147e2482b2e6e02aec84fc270dd4a59"
+        }
+      ]
+    },
+    {
+      "sha": "53eb9834365feee5d050019ef0d254e3359629b9",
+      "parents": [
+        {
+          "sha": "f96b4951d0a3c0daf77538147ec317e15a6c111a"
+        }
+      ]
+    },
+    {
+      "sha": "cf36002d0c51d611305c7bcc95f44dd429741433",
+      "parents": [
+        {
+          "sha": "53eb9834365feee5d050019ef0d254e3359629b9"
+        }
+      ]
+    },
+    {
+      "sha": "6a9236daa208c89849d7950b2733d92375e3e05d",
+      "parents": [
+        {
+          "sha": "cf36002d0c51d611305c7bcc95f44dd429741433"
+        }
+      ]
+    },
+    {
+      "sha": "a26fd5e73537bd5187cc15ced964c8ed380ebd3d",
+      "parents": [
+        {
+          "sha": "6a9236daa208c89849d7950b2733d92375e3e05d"
+        }
+      ]
+    },
+    {
+      "sha": "19a73ac20f6fe08f70033f20b19a567df1836163",
+      "parents": [
+        {
+          "sha": "a26fd5e73537bd5187cc15ced964c8ed380ebd3d"
+        }
+      ]
+    },
+    {
+      "sha": "0d01c216f71b27fef09c7c7860a72aa03f77b030",
+      "parents": [
+        {
+          "sha": "19a73ac20f6fe08f70033f20b19a567df1836163"
+        }
+      ]
+    },
+    {
+      "sha": "a67858ad52cb31824a292709fea181789d0a11d7",
+      "parents": [
+        {
+          "sha": "0d01c216f71b27fef09c7c7860a72aa03f77b030"
+        }
+      ]
+    },
+    {
+      "sha": "86f27812dfbc8d1d6f86ed8e36835af0a2972343",
+      "parents": [
+        {
+          "sha": "a67858ad52cb31824a292709fea181789d0a11d7"
+        }
+      ]
+    },
+    {
+      "sha": "7f8e8c538c57754c948940d667d739dfe9f4bd3e",
+      "parents": [
+        {
+          "sha": "86f27812dfbc8d1d6f86ed8e36835af0a2972343"
+        }
+      ]
+    },
+    {
+      "sha": "37bd28ec1c10319d06559d2cc0126b384ede39ec",
+      "parents": [
+        {
+          "sha": "7f8e8c538c57754c948940d667d739dfe9f4bd3e"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "filename": ".changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/animation/chore-comment-sweep-rem-2-f9744b5a.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/architecture/chore-comment-sweep-rem-2-9012180e.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/attribution/chore-comment-sweep-rem-2-65c82d01.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/bugs/chore-comment-sweep-rem-2-2b87c239.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/code-tidying/chore-comment-sweep-rem-2-6e84a012.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/codebase-health/chore-comment-sweep-rem-2-c7c04d01.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/debugging/chore-comment-sweep-rem-2-465744a9.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/developer-experience/chore-comment-sweep-rem-2-f089a679.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/discipline/chore-comment-sweep-rem-2-744732a6.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/discovery/chore-comment-sweep-rem-2-4090b524.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/docs-hygiene/chore-comment-sweep-rem-2-94179e6b.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/docs-naming/chore-comment-sweep-rem-2-3c3f8b0e.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/education/chore-comment-sweep-rem-2-4b226f8d.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/event-storming/chore-comment-sweep-rem-2-9f7d4a96.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/explainer-video/chore-comment-sweep-rem-2-a3102366.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/formal-verification/chore-comment-sweep-rem-2-146265e6.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/guardrails/chore-comment-sweep-rem-2-56e6a597.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/harness-config/chore-comment-sweep-rem-2-67b9473b.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/harness-memory/chore-comment-sweep-rem-2-4a1824b1.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/harness-ops/chore-comment-sweep-rem-2-56a7220d.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/implementation/chore-comment-sweep-rem-2-831c0696.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/knowledge/chore-comment-sweep-rem-2-61214d58.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/knowledge/fix-video-digest-preflight-quote-5d2a9c41.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/multi-agent/chore-comment-sweep-rem-2-07d15360.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/mutation-testing/chore-comment-sweep-rem-2-0138a988.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/pixel-art/chore-comment-sweep-rem-2-82177a3b.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/planning/chore-comment-sweep-rem-2-3622c08f.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/planning/fix-18801-test-load-5f637628.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/playbooks/chore-comment-sweep-rem-2-3818b461.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/playwright/chore-comment-sweep-rem-2-878207b6.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/plugin-quality/chore-comment-sweep-rem-2-e902a9c2.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/pr-pipeline/feat-18859-intake-lane-move-5a80c24d.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/pr-pipeline/perf-c2-conditional-reads-370f7578.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/pr-pipeline/perf-c3-trusted-text-handoff-4b7e19c2.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/pr-pipeline/refactor-review-lane-status-jobs-c7a91e3d.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/prototype/chore-comment-sweep-rem-2-c61f90c4.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/review/chore-comment-sweep-rem-2-6e565b17.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/session-flow/chore-comment-sweep-rem-2-273307c7.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/skill-quality/chore-comment-sweep-rem-2-6576744c.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/songwriting/chore-comment-sweep-rem-2-773f0158.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/source-control/chore-comment-sweep-rem-2-f1f84c0e.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/source-control/feat-18859-intake-lane-move-4b03d45f.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/source-control/perf-c4-base-tip-ls-remote-86d90c81.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/source-control/perf-verify-evidence-pass-out-5c1e7a93.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/testing/chore-comment-sweep-rem-2-e7154a39.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/user-interface/chore-comment-sweep-v060-a9938050.md",
+      "status": "removed"
+    },
+    {
+      "filename": ".changes/verification/chore-comment-sweep-rem-2-0f67f69e.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/visualization/chore-comment-sweep-rem-2-25d9d2b8.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/visualization/chore-comment-sweep-v060-9a4b8552.md",
+      "status": "removed"
+    },
+    {
+      "filename": ".changes/wizard/chore-comment-sweep-rem-2-463f5c1e.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/wizard/chore-comment-sweep-v060-33505039.md",
+      "status": "removed"
+    },
+    {
+      "filename": ".changes/work-items/chore-comment-sweep-rem-2-1b538069.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/work-items/chore-comment-sweep-v060-c50c133f.md",
+      "status": "removed"
+    },
+    {
+      "filename": ".changes/work-items/chore-comment-sweep-v064-165c3f3d.md",
+      "status": "removed"
+    },
+    {
+      "filename": ".changes/work-items/feat-18859-intake-lane-move-64b9d611.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/writing/chore-comment-sweep-rem-2-6601a90e.md",
+      "status": "added"
+    },
+    {
+      "filename": ".claude/skills/formal-claim-protocol/model/ClaimProtocol.tla",
+      "status": "modified"
+    },
+    {
+      "filename": ".editorconfig-checker.json",
+      "status": "removed"
+    },
+    {
+      "filename": ".github/CODEOWNERS",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actionlint.yaml",
+      "status": "removed"
+    },
+    {
+      "filename": ".github/actions/check-born-triaged/README.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-kill-switch/check-kill-switch.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-trusted-base/action.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-trusted-trigger/README.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-trusted-trigger/action.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-trusted-trigger/check-trusted-trigger.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-trusted-trigger/close-trust.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/check-wip-cap/check-wip-cap.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/collect-base-activity/action.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/collect-base-activity/collect-base-activity.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/log-api-budget/count-requests.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/request-lane-token/README.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/request-lane-token/action.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/request-lane-token/request-lane-token.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/README.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/action.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/api-budget-coverage.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/broker-vendoring.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/callers.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/dimensions.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/dispatch-limits.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/feedback-dispatch.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/fixtures/broker-vendored-lists.json",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/fixtures/invalid-applied-by-apply-issue-patch-prepare.yaml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/fixtures/invalid-applied-by-apply-patch-prepare.yaml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/fixtures/invalid-applied-by-missing-needs.yaml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/fixtures/invalid-applied-by-not-script.yaml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/fixtures/invalid-applied-by-outside-lane.yaml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/issue-status.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/issue-status.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/lane-grants.json",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/lane-grants.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/lane-ids.test.mjs",
+      "status": "added"
+    },
+    {
+      "filename": ".github/actions/resolve-config/lane-rules.json",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/live-config.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/models.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/read-status.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/resolve-config.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/resolve-config.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/resolve.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/resolve-config/write-status.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/select-trusted-text/README.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/select-trusted-text/action.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/select-trusted-text/fixtures/pr-reads-captured.jsonl",
+      "status": "added"
+    },
+    {
+      "filename": ".github/actions/select-trusted-text/select-trusted-text.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/actions/select-trusted-text/select-trusted-text.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/artifact-retention.json",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/dependabot.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/lane-funding.json",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/lane-registry.json",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/recurring-schedule.json",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/apply-patch/apply-patch.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/apply-patch/apply-patch.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/apply-patch/predicates.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/apply-patch/protected-paths.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-reenter/reenter.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-reenter/reenter.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/admit.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/admit.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/apply-verdict.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/ci-verdict-contract.test.mjs",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/edges.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/fixtures/intake-issue/closed-issues-page-1.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/fixtures/intake-issue/comments.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/fixtures/intake-issue/issue.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/fixtures/intake-issue/open-issues-page-1.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/post-triage.mjs",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/post-triage.test.mjs",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/reentry-eval/build-suite.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/refine.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/write-intake-issue.mjs",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/intake-triage/write-intake-issue.test.mjs",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/lib/admission-record.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/done-evidence.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json",
+      "status": "renamed",
+      "previous_filename": ".github/standards/github-actions-conventions/vocabulary.json"
+    },
+    {
+      "filename": ".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json",
+      "status": "renamed",
+      "previous_filename": ".github/standards/github-actions-conventions/vocabulary.schema.json"
+    },
+    {
+      "filename": ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json",
+      "status": "renamed",
+      "previous_filename": ".github/standards/trusted-actors/trusted-actors.json"
+    },
+    {
+      "filename": ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json",
+      "status": "renamed",
+      "previous_filename": ".github/standards/trusted-actors/trusted-actors.schema.json"
+    },
+    {
+      "filename": ".github/scripts/lib/github-client.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/handoff-evidence.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/lane-level-value.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/lane-level.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/lane-outcome.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/lane-registry.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/lane-registry.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/trusted-actors.fixtures.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/trusted-actors.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/trusted-actors.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-audit-lane-runs/collect.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-audit-lane-runs/triage-sweep.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-audit-lane-runs/workflow.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/fixtures/annotations-138935451625.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/fixtures/annotations-138942439395.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/fixtures/jobs-45533783420.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/fixtures/jobs-45535944989.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-reconcile-lost-runs/reconcile.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/merge-base/context.test.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/merge-base/prepare.test.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/merge-base/tree-entries.test.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/plugin-eval/compare-arms.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/plugin-eval/compare-arms.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/plugin-eval/hill-climb-workflow.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/plugin-eval/select-plugins.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/plugin-eval/select-plugins.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/plugin-eval/workflow.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/post-merge-demotion-alert/report.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/post-merge-demotion-alert/workflow.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/post-merge-test-mutation/report.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-merge-risk/workflow.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-merge/clear-escalations.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-merge/enable-auto-merge.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-merge/main-tip-carry.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-merge/merge-holds.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-merge/merge-holds.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-merge/merge-job.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-refine/plan-passes.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-refine/write-pass-plan.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review-main/criteria.txt",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review-main/prompt.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review-main/trusted-text.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review-main/workflow.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review-main/write-diff.py",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review-main/write-verdict.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review-main/write-verdict.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-review/wait-refine.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/address-feedback.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/address-feedback.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/apply-dependency-verdict.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/apply-dependency-verdict.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/declare-test-scope.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/declare-test-scope.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/dependency-classify.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/dependency-classify.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/dependency-dispatch.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/dependency-dispatch.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/dispatch.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/dispatch.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/fix-ci-context.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/fix-ci-dispatch.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/fix-ci-dispatch.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/fixtures/pr-18807-body.txt",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/limit-stop.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/publish-feedback.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/publish-feedback.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/report-escalation.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/request-budget.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/review-dependency.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/review-dependency.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/sync-shared-copies.test.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/thread-scope.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/verify-notes.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-unblock/workflow-gates.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/fixtures/workflow-run-rerun.json",
+      "status": "added"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/probe/parity.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/probe/replay.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/probe/replay.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/prompt.md",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/resolve-pr.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/resolve-pr.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/upstream-jobs.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/upstream-jobs.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/pr-verify/workflow.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/release-publish-plugins/decide-rebuild.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/release-publish-plugins/decide-rebuild.test.sh",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/security-outside-actor/flag.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/upstream-apply-changelog/upstream-apply-changelog.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-resolve-issue/check-blockers.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-resolve-issue/check-blockers.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-resolve-issue/limits.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-resolve-issue/report-outcome.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-resolve-issue/stop-routes.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-resolve-issue/write-issue.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-resolve-issue/write-issue.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-unblock/label-unblocked.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-unblock/label-unblocked.test.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-unblock/publish-lane-level.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-unblock/sweep-gap.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/work-unblock/verdict-carry.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/standards/dependabot-policy/policy.json",
+      "status": "removed"
+    },
+    {
+      "filename": ".github/standards/pyright/pyrightconfig.json",
+      "status": "removed"
+    },
+    {
+      "filename": ".github/typos-local.toml",
+      "status": "removed"
+    },
+    {
+      "filename": ".github/workflows/intake-label-outside-actor-activity.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/intake-reenter.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/intake-triage.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-audit-lane-runs.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-audit-test-selection.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-delete-stale-branches.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-file-dead-links.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-file-recurring-issues.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-measure-skill-edit-pass.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-measure-skill-edit.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-monitor-signals.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-reconcile-lost-runs.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/maintenance-tidy-code-upkeep.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/post-merge-detect-silent-revert.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/post-merge-file-demotion-issues.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/post-merge-test-mutation.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-check-managed-files-hosted.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-dispatch-feedback.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-merge.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-rate-merge-risk.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-refine.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-require-checks.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-review-hosted.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-review-main.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-review-security-hosted.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-run-activity-read.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-run-activity-write.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-run-plugin-evals.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-test-platforms.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-unblock-dispatch.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-unblock.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/pr-verify.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/release-generate-dependabot-changelog-fragments.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/upstream-apply-changelog.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/work-resolve-issue.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/workflows/work-unblock.yml",
+      "status": "modified"
+    },
+    {
+      "filename": ".gitleaks.toml",
+      "status": "removed"
+    },
+    {
+      "filename": ".markdownlint-cli2.jsonc",
+      "status": "removed"
+    },
+    {
+      "filename": ".shellcheckrc",
+      "status": "removed"
+    },
+    {
+      "filename": "AGENTS.md",
+      "status": "modified"
+    },
+    {
+      "filename": "README.md",
+      "status": "modified"
+    },
+    {
+      "filename": "REVIEW.md",
+      "status": "removed"
+    },
+    {
+      "filename": "_typos.toml",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0063-keep-the-cant-fail-scanner-in-bash-and-awk-with-yaml-subset-adapters.md",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0071-start-pr-unblock-from-a-push-to-main-dispatcher-checked-at-the-gate-and-the-broker.md",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0084-ship-handoff-shape-3-on-measured-size-and-leave-accuracy-to-the-resume-eval.md",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0091-bound-the-handoff-core-by-relevance-and-amend-late-events.md",
+      "status": "modified"
+    },
+    {
+      "filename": "docs/adr/0115-write-handoff-shape-4-with-binding-sections-first-and-a-tool-owned-byte-budget.md",
+      "status": "modified"
+    }
+  ]
+}
