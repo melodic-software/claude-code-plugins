@@ -1757,3 +1757,63 @@ test("a member naming the do-not-merge label is no veto; saying not to merge is"
     assert.deepEqual(holdsModule.vetoers(said(body)), ["kyle-sexton"], body);
   }
 });
+
+test("authorSkip judges an author as resolve-pr.mjs and ci-status's queue author checks did", () => {
+  const OWNERS = [153232337, 337859524];
+  const LANE_ID = "melodic-automation-lanes[bot]";
+  const LANE = { id: 337595936, login: LANE_ID, type: "Bot" };
+  const LANE_SPELLED = { id: 337595936, login: "Melodic-Automation-Lanes", type: "Bot" };
+  const LANE_NAMED_USER = { id: 1, login: "melodic-automation-lanes", type: "User" };
+  const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };
+  const OWNER_LOGIN_OTHER_ID = { id: 153232338, login: "kyle-sexton", type: "User" };
+  const LISTED_BOT = { id: 337859524, login: "melodic-release[bot]", type: "Bot" };
+  const LISTED_ORG = { id: 153232337, login: "kyle-sexton", type: "Organization" };
+  const HUMAN = { id: 2, login: "someone", type: "User" };
+  const DEPENDABOT = { id: 49699333, login: "dependabot[bot]", type: "Bot" };
+  const RENOVATE_APP = { id: 3, login: "app/renovate", type: "Bot" };
+  const DEPENDABOT_USER = { id: 5, login: "dependabot", type: "User" };
+  const LISTED_DEPENDABOT = { id: 153232337, login: "dependabot[bot]", type: "Bot" };
+  const NO_LOGIN_BOT = { id: 6, login: null, type: "Bot" };
+  const rows = [
+    [LANE, "lane", LANE_ID, null],
+    [LANE, "lane-or-owner", LANE_ID, null],
+    [LANE, "any", LANE_ID, null],
+    [LANE_SPELLED, "lane", LANE_ID, null],
+    [LANE_SPELLED, "lane-or-owner", LANE_ID, null],
+    [LANE_NAMED_USER, "lane", LANE_ID, "author-not-lane"],
+    [LANE_NAMED_USER, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [LANE_NAMED_USER, "any", LANE_ID, null],
+    [OWNER, "lane", LANE_ID, "author-not-lane"],
+    [OWNER, "lane-or-owner", LANE_ID, null],
+    [OWNER, "any", LANE_ID, null],
+    [OWNER_LOGIN_OTHER_ID, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [LISTED_BOT, "lane", LANE_ID, "author-not-lane"],
+    [LISTED_BOT, "lane-or-owner", LANE_ID, null],
+    [LISTED_ORG, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [LISTED_ORG, "any", LANE_ID, null],
+    [HUMAN, "lane", LANE_ID, "author-not-lane"],
+    [HUMAN, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [HUMAN, "any", LANE_ID, null],
+    [DEPENDABOT, "any", LANE_ID, "dependency-manager"],
+    [RENOVATE_APP, "lane-or-owner", LANE_ID, "dependency-manager"],
+    [DEPENDABOT_USER, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [DEPENDABOT_USER, "any", LANE_ID, null],
+    [LISTED_DEPENDABOT, "lane-or-owner", LANE_ID, "dependency-manager"],
+    [NO_LOGIN_BOT, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [NO_LOGIN_BOT, "any", LANE_ID, null],
+    [LANE, "everyone", LANE_ID, "verify-authors-invalid"],
+    [OWNER, "everyone", LANE_ID, "verify-authors-invalid"],
+    [LANE, "- lane", LANE_ID, "verify-authors-invalid"],
+    [OWNER, "", LANE_ID, "verify-authors-invalid"],
+    [LANE, "Lane", LANE_ID, "verify-authors-invalid"],
+    [LANE, "lane", "", "author-not-lane"],
+    [LANE, "lane", " Melodic-Automation-Lanes ", null],
+    [LANE, "lane", "melodic-release[bot]", "author-not-lane"],
+    [NO_LOGIN_BOT, "lane", "", "author-not-lane"],
+    [LISTED_BOT, "lane", "melodic-release[bot]", null],
+  ];
+  for (const [user, mode, identity, want] of rows) {
+    assert.equal(holdsModule.authorSkip(user, mode, identity, OWNERS), want, JSON.stringify({ user, mode, identity }));
+  }
+  assert.equal(holdsModule.authorSkip(OWNER, "lane-or-owner", LANE_ID, []), "author-not-lane-or-owner", "an empty list");
+});
