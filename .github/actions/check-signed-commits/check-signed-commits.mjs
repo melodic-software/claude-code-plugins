@@ -14,6 +14,9 @@ export { SIGNED_COMMITS_HOLD };
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+const COMPARE_PAGE = 100;
+const MAX_COMPARED_COMMITS = 10_000;
 
 // The comparison `sinceSha...headSha` when `sinceSha` is a well-formed SHA
 // GitHub knows as an ancestor of the head; otherwise null. `complete` is false
@@ -23,23 +26,35 @@ async function compareSince(github, base, sinceSha, headSha) {
   if (!SHA.test(sinceSha ?? "")) {
     return null;
   }
-  let comparison;
-  try {
-    comparison = await github("GET", `${base}/compare/${sinceSha}...${headSha}`);
-  } catch (error) {
-    if (error?.status === 404) {
-      return null;
+  const commits = new Map();
+  let total;
+  for (let page = 1; page <= MAX_COMPARED_COMMITS / COMPARE_PAGE; page += 1) {
+    let comparison;
+    try {
+      comparison = await github("GET", `${base}/compare/${sinceSha}...${headSha}?per_page=${COMPARE_PAGE}&page=${page}`);
+    } catch (error) {
+      if (page === 1 && error?.status === 404) {
+        return null;
+      }
+      throw error;
     }
-    throw error;
+    if (page === 1) {
+      if (comparison.status !== "ahead" && comparison.status !== "identical") {
+        return null;
+      }
+      total = comparison.total_commits;
+    }
+    if (!Array.isArray(comparison.commits) || !Number.isInteger(total) || total > MAX_COMPARED_COMMITS) {
+      break;
+    }
+    for (const commit of comparison.commits) {
+      commits.set(commit?.sha, commit);
+    }
+    if (commits.size >= total || comparison.commits.length < COMPARE_PAGE) {
+      break;
+    }
   }
-  if (comparison.status !== "ahead" && comparison.status !== "identical") {
-    return null;
-  }
-  if (!Array.isArray(comparison.commits)) {
-    return { commits: [], complete: false };
-  }
-  const { commits, total_commits: total } = comparison;
-  return { commits, complete: Number.isInteger(total) && total <= commits.length };
+  return { commits: [...commits.values()], complete: Number.isInteger(total) && total <= MAX_COMPARED_COMMITS && total <= commits.size };
 }
 
 // The lane's commits and whether they could all be read. A complete comparison
