@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 selected (or nothing to do); 1 an unmapped changed file, or a failing
-# and in code alike: prose that cites a file is not a dependency on it. A
-# `# shellcheck source=` directive and a JSDoc type import (`@import`,
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

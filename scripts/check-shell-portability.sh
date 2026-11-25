@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-#      `realpath ... || readlink -f ...`;
-#   2. a per-site recorded exemption `portability-ok: <reason>` on the hit line
-# `grep -P` only to explain the portable branch below them, and scanning
-# comments would flag documentation, not code. A `portability-ok:` marker is
-# statically unambiguous marker word inside the matched extent.
-# `portability-ok: <reason>` is the one-line escape for a diagnostic
-# Exit 0 = clean (or nothing in scope); 1 = one or more violations; 2 = usage /
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

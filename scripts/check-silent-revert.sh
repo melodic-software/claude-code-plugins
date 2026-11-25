@@ -897,7 +897,6 @@ verify_restoration() {
   local fires markers
   fires="$(mktemp)" || die "mktemp failed"
   markers="$(mktemp)" || die "mktemp failed"
-  # shared with anything.
   # shellcheck disable=SC2064  # expand the paths now, while they are in scope.
   trap "rm -f '$fires' '$markers'" EXIT
   parse_incidents_file "$fires" "$markers"

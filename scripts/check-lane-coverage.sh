@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 covered; 1 a coverage defect; 2 usage, missing file, or unrecognized
 set -uo pipefail
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
