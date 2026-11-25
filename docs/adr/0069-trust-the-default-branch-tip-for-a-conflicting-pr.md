@@ -32,10 +32,10 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
 2. That one SHA is the `base-sha` output, the source of config, actions and trusted actors, and
    the merge's second parent
    ([ADR 0068](0068-push-a-lane-merge-as-an-api-made-two-parent-commit-signed-by-the-app.md)).
-   Basis: [`pr-run-activity-write.yml:102,206-217,409`](../../.github/workflows/pr-run-activity-write.yml).
+   Basis: [`pr-run-activity-write.yml:278,502-508`](../../.github/workflows/pr-run-activity-write.yml).
 3. Both pr-unblock jobs pass `trusted-base: default-tip`; no other caller passes the input, so
    every other lane keeps the `pr-base` default. Basis:
-   [`pr-unblock.yml:27`](../../.github/workflows/pr-unblock.yml); `pr-run-activity.md:61`.
+   [`pr-unblock.yml`](../../.github/workflows/pr-unblock.yml); `pr-run-activity.md:61`.
 
 ## Alternatives considered
 

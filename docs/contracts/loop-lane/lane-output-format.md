@@ -114,7 +114,7 @@ GitHub limits: [workflow commands, adding a job summary](https://docs.github.com
 
 - One line per decision or result, not per call made.
 - Command output, API responses and long listings go inside `::group::<title>` and `::endgroup::`,
-  the title stating the result, as `.github/workflows/pr-merge.yml:199` does
+  the title stating the result, as `.github/workflows/pr-merge.yml:194` does
   (`post-merge check: exit <code>`).
 - An error or warning a person must act on is one `::error::` or `::warning::` line, so it also
   shows as an annotation. One per distinct problem, never one per retry.

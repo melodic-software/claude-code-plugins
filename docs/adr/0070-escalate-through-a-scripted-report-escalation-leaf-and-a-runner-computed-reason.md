@@ -27,19 +27,19 @@ point 4).
    runs it as its own job after `resolve-conflicts`, only when that job set a reason and was not
    cancelled. Basis: [`pr-pipeline.yaml:33-39`](../conventions/pr-pipeline.yaml);
    [`activity-rules.json:5-8`](../../.github/actions/resolve-config/activity-rules.json);
-   [`pr-unblock.yml:7-27`](../../.github/workflows/pr-unblock.yml).
+   [`pr-unblock.yml:4594`](../../.github/workflows/pr-unblock.yml).
 2. **The reason comes from runner steps only.** The write runner's `escalation-reason` output is
    one of `protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`, set
    by `prepare.sh` before any model turn or by `post.sh` after it, never from model text. The
    skill escalates by leaving the conflict unresolved. The caller passes the value as the
    escalation job's `escalation-reason` input, which the runner's first step checks against that
    enum, and hands the script as `ESCALATION_REASON`. Basis:
-   [`pr-run-activity-write.yml:64-69,112,137-157`](../../.github/workflows/pr-run-activity-write.yml).
+   [`pr-run-activity-write.yml:68,244,288,389-421,1116`](../../.github/workflows/pr-run-activity-write.yml).
 3. **The script writes nothing from the model.** It reads only the trusted base and the API,
    adds the label before the comment, keys the comment's resume marker to the gated head SHA,
    tries the comment three times, and writes nothing when the label and a lanes-bot marker for the
    same head are already there. Basis:
-   [`report-escalation.sh:1`](../../.github/scripts/pr-unblock/report-escalation.sh).
+   [`report-escalation.sh`](../../.github/scripts/pr-unblock/report-escalation.sh).
 
 ## Alternatives considered
 
@@ -55,7 +55,7 @@ point 4).
 
 ## Consequences
 
-- Each escalation costs a second job and a second mint. Basis: `pr-unblock.yml:7-27`; ADR 0058
+- Each escalation costs a second job and a second mint. Basis: `pr-unblock.yml:4594`; ADR 0058
   point 3.
 - A forged reason can only cause an escalation, which is the fail-safe direction. Basis:
   judgment, from point 2: the input passes only the enum, and every value escalates.

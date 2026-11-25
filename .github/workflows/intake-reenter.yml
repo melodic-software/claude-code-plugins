@@ -1,7 +1,7 @@
 name: Intake Reenter
 
 on:
-  # Runs from the default branch only; the header says what reaches the script.
+  # Runs from the default branch only; only event ids, the removed label, action and sender id reach the script.
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
   issues:

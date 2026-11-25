@@ -165,10 +165,10 @@ jobs:
     needs: [check-kill-switch, wait-for-refine]
     if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true' && needs.wait-for-refine.outputs.proceed != 'false' }}
     permissions:
-      actions: read          # the reusable's check-key-credit job reads this
-      checks: read           # the reusable's status job reads its earlier
+      actions: read
+      checks: read
       contents: read
-      pull-requests: write   # the review, its inline comments and the lane's
+      pull-requests: write
     uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main
     with:
       lane: security

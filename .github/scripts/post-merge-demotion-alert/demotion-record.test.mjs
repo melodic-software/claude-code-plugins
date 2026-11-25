@@ -72,9 +72,10 @@ test("each bash record regex matches a vector line exactly when it is a record o
 });
 
 test("handoff.bash sends no issue to intake triage that it could not lock first", () => {
-  const script = '. "$1"; gh() { case "$*" in *"/lock"*) return 1 ;; esac; echo "$*"; }; GITHUB_REPOSITORY=o/r; send_to_intake 5; echo "rc=$? missed=$intake_missed"';
+  const script = '. "$1"; gh() { echo "$*" >&2; case "$*" in *"/lock"*) return 1 ;; esac; }; GITHUB_REPOSITORY=o/r; send_to_intake 5; echo "rc=$? missed=$intake_missed"';
   const run = spawnSync("bash", ["-c", script, "_", HANDOFF], { encoding: "utf8" });
-  assert.doesNotMatch(run.stdout, /dispatches/);
+  assert.match(run.stderr, /\/lock/);
+  assert.doesNotMatch(run.stderr, /dispatches/);
   assert.match(run.stdout, /rc=1 missed=#5 could not be locked/);
 });
 

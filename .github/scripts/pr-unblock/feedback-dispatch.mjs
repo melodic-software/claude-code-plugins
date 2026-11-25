@@ -1122,7 +1122,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     listCompletedRuns: async (path, head, event = "pull_request") =>
       workflowRuns(path, new URLSearchParams({ head_sha: head, event, status: "completed", per_page: "10" })),
     listRecentRuns: async (path, since) => workflowRuns(path, new URLSearchParams({ created: `>=${since}`, per_page: "100" })),
-    // A filtered run listing returns at most 1,000 runs; split the range.
+    // A filtered run listing returns at most 1,000 runs; past that this throws.
     // https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
     async listFinishedRunsSince(workflow, since) {
       const query = new URLSearchParams({ event: "workflow_dispatch", status: "completed", created: `>=${since}`, per_page: "100" });

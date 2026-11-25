@@ -41,7 +41,7 @@ from any workflow in the repository holding `actions: write`.
    once, from its own config and gate. Basis:
    [`pr-unblock-dispatch.yml:3-54`](../../.github/workflows/pr-unblock-dispatch.yml);
    [`dispatch.mjs:25-36,91-279`](../../.github/scripts/pr-unblock/dispatch.mjs). The retry count and
-   delay and the cap of 3 are judgment, as `dispatch.mjs:32-34` says.
+   delay and the cap of 3 (`dispatch.mjs:32-34`) are judgment.
 2. **The lane runs on `workflow_dispatch` only**, from the dispatcher or a listed human. Basis:
    [`pr-unblock.yml`](../../.github/workflows/pr-unblock.yml).
 3. **The gate checks the dispatcher run.** A `workflow_dispatch` sent by `github-actions[bot]`
@@ -74,7 +74,7 @@ from any workflow in the repository holding `actions: write`.
   Basis: judgment, under the same owner confirmation.
 - **Require the dispatcher run to still be running.** Replaced by the window: a dispatched run
   that waited in the per-PR queue would fail it, while the window still binds the dispatched run
-  to one dispatcher run. Basis: `pr-unblock.yml:3-4` (job-level queue); check-trusted-trigger
+  to one dispatcher run. Basis: `pr-unblock.yml:398-400` (job-level queue); check-trusted-trigger
   README, window paragraph.
 - **The reconciler dispatches the dispatcher, or the dispatcher starts on `workflow_run`.**
   Rejected for the schedule in point 1: either sends a dispatcher run the gate and the broker

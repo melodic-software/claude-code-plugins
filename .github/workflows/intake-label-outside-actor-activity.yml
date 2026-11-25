@@ -3,6 +3,7 @@ name: Intake Label Outside Actor Activity
 on:
   issues:
     types: [opened, edited, reopened, unlabeled]
+  # Runs from the default branch; checks out main only and passes no event text to a shell.
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created, edited]
   pull_request_review:

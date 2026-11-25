@@ -125,8 +125,10 @@ adds.
    grants and trusted actors central, a consumer's main supplies the broker only its caller file.
 6. **No lane can edit the central grant file or the trusted-actor list.** Both paths join a new
    class in `UNIVERSAL_REFUSE` and the `patch-rules.schema.json` enum, so `checkPatchRules` fails any
-   row that omits it. This repository's change alone; per `patch-rules.mjs:1-3` it needs no broker
-   pin. A person's pull request can still change them.
+   row that omits it. This repository's change alone: `checkPatchRules` lives in `patch-rules.mjs`,
+   outside `resolve.mjs`, which the broker fetches at a pinned commit and which never checks patch
+   rules, so a change to the refusal set needs no broker pin. A person's pull request can still
+   change them.
 7. **The broker change is one-time.** azure-iac accepts the ci-workflows reusable at an allowed SHA,
    reads grants, lane rules and trusted actors from this repository's main by repository id, and
    replaces `UNBLOCK_REPOSITORY_IDS`, `INTAKE_REPOSITORY_IDS` and `SELF_JOB_CALLERS`
