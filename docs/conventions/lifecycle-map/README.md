@@ -7,11 +7,13 @@ in [the PR pipeline contract](../pr-pipeline/README.md) and `docs/conventions/pr
 this map only places the tasks.
 
 This map is a point-in-time snapshot, written by hand. **As of**: 2026-11-25, every
-`.github/workflows/*.yml` file has a row, named in its Task cell or its Shape cell. No check
-compares the map with that directory, so a workflow added, renamed or removed since then may be
-missing or out of date here. **Recheck trigger**: a pull request that adds, renames or removes a
-file in `.github/workflows/`, or changes a workflow's triggers, jobs or outputs; update the rows
-and the as-of date in the same pull request.
+`.github/workflows/*.yml` file has a row, named in its Task cell or its Shape cell, and every
+plugin in `.claude-plugin/marketplace.json` is listed under [Plugins](#plugins). No check
+compares the map with that directory or that file, so a workflow or plugin added, renamed or
+removed since then may be missing or out of date here. **Recheck trigger**: a pull request that
+adds, renames or removes a file in `.github/workflows/` or a plugin, changes a workflow's
+triggers, jobs or outputs, or changes which plugin skills or scripts a workflow runs; update the
+rows and the as-of date in the same pull request.
 
 ## Columns
 
@@ -132,6 +134,71 @@ and the as-of date in the same pull request.
 | Report changed areas for tidying | step in `maintenance-tidy-code-upkeep.yml` | observability | no | push to main | the pushed range | job summary |
 | Tidy code by area | step in `maintenance-tidy-code-upkeep.yml` | git host | yes | schedule, daily; `workflow_dispatch` | settings; open tidy PRs; sweep records | one tidy branch and PR per area |
 | Measure a skill edit (`maintenance-measure-skill-edit.yml`) | own run | git host | yes | `workflow_dispatch` by a listed human | plugin and skill names; the skill's eval suite | draft PR when the edit scores better than the merged skill |
+
+## Plugins
+
+A plugin is on the map when a task above uses it to do the task's work: the task loads one of
+its skills into a model run, or runs or reads one of its scripts or data files. A plugin whose
+own tests, lint, evals or checks of its own files run in Required CI, Windows and macOS tests or
+Plugin evals is the subject of that task, not part of it, so that alone does not place it.
+
+### On the map
+
+Resolve an issue, Address review feedback and Fix failing CI also run `scripts/check-affected.sh`
+on their own change, which runs the `bash-format`, `code-metrics`, `code-tidying` and
+`guardrails` checks named for Required CI below.
+
+| Plugin | Tasks that use it, and how |
+|---|---|
+| `ai-slop` | Fix docs loads `ai-slop:audit fix`; Resolve an issue loads it as a tidy pass; Required CI runs its `detect.sh` through the em-dash gate |
+| `bash-format` | Required CI runs its `lint-full.sh` |
+| `code-metrics` | Required CI runs its `audit-size.sh --check` |
+| `code-tidying` | Tidy code by area loads `code-tidying:tidy` and runs its upkeep scripts; Resolve an issue loads `code-tidying:tidy-diff`; Required CI runs its `comment-lint.sh` |
+| `context7` | File upstream drift runs its `lookup` skill's `update.sh` drift check |
+| `discovery` | Resolve an issue loads it for web reads |
+| `docs-hygiene` | Resolve an issue loads `write-for-agents` and `write-for-humans` as tidy passes |
+| `dometrain` | File upstream drift runs its `update` skill's `update.sh --check` |
+| `evals` | Plugin evals, One skill-edit eval pass and Measure a skill edit run its case validator and scoring scripts; Required CI runs its `validate-cases.py` |
+| `firecrawl` | File upstream drift runs its `update` skill's `update.sh --check` |
+| `formal-verification` | Required CI runs its `check.mjs` |
+| `guardrails` | Required CI runs its `reference-verify.sh` |
+| `harness-ops` | Apply a Claude Code release loads `harness-ops:changelog` and runs its changelog status and inventory scripts |
+| `implementation` | Apply a Claude Code release loads it; the changelog skill's CI mode runs `/implementation:implement` |
+| `instruction-placement` | Required CI runs its `render-index.sh check` on `AGENTS.md` |
+| `knowledge` | Resolve an issue loads it for page digests |
+| `multi-agent` | The model profiles of Resolve an issue, Resolve merge conflicts, Address review feedback, Fix failing CI, Fix docs, Tidy code by area, Measure a skill edit and Apply a Claude Code release resolve through its role map, `reference/defaults.yaml` |
+| `mutation-testing` | Mutation test the change loads `mutation-testing:audit` |
+| `performance` | Required CI runs its `ratchet.py check` |
+| `planning` | Apply a Claude Code release loads it and runs `/planning:plan --unattended`; Resolve an issue and Fix failing CI may run its `repin-digests.sh` |
+| `playbooks` | File upstream drift runs the `boris` and `skill-authoring` skills' `update.sh --check` |
+| `playwright` | File upstream drift runs its `playwright` skill's `update.sh --check` |
+| `rate-limits` | Required CI's loop-lane floor drift check reads its `reference/reader-contract.md` as the source the copies in other plugins must match |
+| `review` | Code review and Security review load `review:code-review` and `review:security-review`; Review from main reads those skills' files as its criteria; Rate merge risk loads `review:merge-risk` |
+| `session-flow` | Required CI's `check-next-graph.py` reads its `workflow` skill's `context/steps.md` as the stage ladder every plugin's `## Next` graph must follow |
+| `skill-quality` | Required CI runs its `check-skill.sh`, `check-evals-quality.sh`, `measure-invocation.sh` and `check-listing-budget.sh`; Resolve an issue runs `check-skill.sh` through its changed-skills check and may run `check-evals-quality.sh` |
+| `source-control` | Resolve merge conflicts, Address review feedback, Review a dependency update and Fix failing CI load `source-control:pull-request`; `pr-merge.yml`, `post-merge-file-demotion-issues.yml`, `pr-review-main.yml`, `pr-unblock-dispatch.yml`, `pr-dispatch-feedback.yml` and Required CI's `ci-status` job run its `babysit-prs` scripts; Run a lane read activity and Run a lane write activity run its `resolve-version-bump-conflict.sh` |
+| `testing` | Required CI runs its `cant-fail-scan.sh`; Resolve an issue may run it |
+| `user-interface` | File upstream drift runs its `check-good-css-drift.sh --check` |
+| `verification` | Apply a Claude Code release loads it and runs `/verification:confirm --unattended` |
+| `work-items` | Resolve an issue loads `work-items:work`; the admission checks in `intake-triage.yml` and `work-unblock.yml` read its `charge-words.json`; Run a lane read activity and Run a lane write activity run its tracker script |
+
+### Not an automated task
+
+No task above uses these plugins to do its work. CI may still run their own tests or checks;
+otherwise they run only in a person's own Claude Code session:
+
+`actionlint`, `adhd`, `ai-briefing`, `animation`, `app-control`, `architecture`, `attribution`,
+`autonomy`, `bugs`, `codebase-health`, `computer-use`, `context-budget`, `context-usage`,
+`corrections`, `coupling`, `debugging`, `desktop-notification`, `developer-experience`,
+`discipline`, `disk-hygiene`, `display-redaction`, `docs-naming`, `domain-driven-design`,
+`education`, `eol-normalizer`, `event-storming`, `explainer-video`, `external-agents`, `fleet`,
+`gaming`, `github`, `go-format`, `harness-config`, `harness-memory`, `improvement`,
+`javascript-format`, `kindle-dedrm`, `machine-health`, `markdown-format`, `mcp-tools`, `miro`,
+`naming`, `overengineering`, `pixel-art`, `playgrounds`, `plugin-diagnostics`,
+`plugin-profiles`, `plugin-quality`, `powershell-format`, `prototype`, `python-format`,
+`repo-fleet-hygiene`, `repo-hygiene`, `retro-audio`, `session-telemetry`, `songwriting`,
+`speech`, `spelling`, `sql-server`, `tdd`, `themes`, `toolchain`, `user-experience`,
+`visualization`, `wizard`, `writing`, `x`.
 
 ## Simplify pass on every pull request
 
