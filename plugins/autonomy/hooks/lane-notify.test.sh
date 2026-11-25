@@ -86,9 +86,10 @@ mkdir -p "$LINUX_SHIM"
 NS_LOG="$WORK/notify-send.log"
 printf '#!/usr/bin/env bash\necho Linux\n' >"$LINUX_SHIM/uname"
 {
-  printf '#!/usr/bin/env bash\n'
-  # shellcheck disable=SC2016  # $@/$a must stay literal in the emitted stub
-  printf 'for a in "$@"; do printf "ARG=[%%s]\\n" "$a"; done >%q\n' "$NS_LOG"
+  printf '#!/usr/bin/env bash\nlog=%q\n' "$NS_LOG"
+  cat <<'EOF'
+for a in "$@"; do printf 'ARG=[%s]\n' "$a"; done >"$log"
+EOF
 } >"$LINUX_SHIM/notify-send"
 chmod +x "$LINUX_SHIM/uname" "$LINUX_SHIM/notify-send"
 : >"$NS_LOG"
