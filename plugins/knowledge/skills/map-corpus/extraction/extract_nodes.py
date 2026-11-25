@@ -311,7 +311,7 @@ EXTENSION_FORMATS = {
     ".htm": "html",
     ".txt": "opaque",
     ".json": "opaque",
-    ".pdf": None,  # extract from source.txt, never the binary
+    ".pdf": None,
 }
 
 
