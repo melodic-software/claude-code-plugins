@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# The fixture gate rows hold literal `${{ steps.<id>.outcome }}` text, never shell expansions.
 # shellcheck disable=SC2016
 set -uo pipefail
 
