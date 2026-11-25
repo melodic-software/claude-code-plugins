@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# read-review-comments.sh — The `review-comments` read: the review comments of a
-# repository's last merged pull requests, or of one chosen pull request, as JSON
-# lines.
-#
-#   read-review-comments.sh --prs <n> [--repo <owner>/<repo>]
-#   read-review-comments.sh --pr <number> [--repo <owner>/<repo>]
-#   read-review-comments.sh --help
-#
-# <n> is 2-200 (a lesson needs two PRs). --pr reads that one PR, open, closed or
-# merged. Without --repo, the repository of the current directory. The last <n>
-# merged PRs, by merge time, are picked from the merged PRs updated most
-# recently, read until no unread PR can be among them.
-# Read-only: nothing is written outside one temporary directory, removed on
-# exit. Exit 0 printed, 2 usage error, gh or jq missing, or a failed or
-# unauthenticated gh call (nothing on stdout).
 
 # portability-scope: the GitHub implementation of the review-comments read; every read is a gh call.
 set -uo pipefail
@@ -69,11 +54,6 @@ fi
 owner="${repo%%/*}"
 name="${repo#*/}"
 
-# No list or search sort is by merge time, so read merged PRs most recently
-# updated first (a merge updates a PR, so updatedAt >= mergedAt) and widen the
-# read until it is complete: every PR not yet read was updated, so merged,
-# before the n-th newest merge read so far. Search returns at most 1000 results
-# (https://docs.github.com/en/rest/search/search#about-search).
 if [[ -n "$pr_one" ]]; then
   gh api "repos/$repo/pulls/$pr_one" >"$tmp/one.json" 2>/dev/null || die "reading PR #$pr_one failed"
   jq '[{number, author: {login: .user.login?}, mergedAt: .merged_at}]' "$tmp/one.json" >"$tmp/prs.json" ||
@@ -159,7 +139,6 @@ for ((i = 0; i < count; i++)); do
   ((size > LIMIT_BYTES)) && break
 done
 
-# ${#row} counts bytes under the C locale.
 LC_ALL=C
 out="$tmp/out.jsonl"
 : >"$out"

@@ -29,17 +29,6 @@ from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
-# FIXTURE ISOLATION (#2840). An exported ABSOLUTE GIT_DIR overrides repository
-# discovery, so `git -C <fixture> config user.email` writes the CALLER's
-# .git/config and leaves the fixture with no .git — silently re-authoring the
-# caller's next commit. Cleared once at import, mirroring the variable list in
-# scripts/test-git-helpers.sh; scripts/check-fixture-git-isolation.sh keeps it
-# true. This suite is doubly exposed: it also builds a LINKED WORKTREE, whose
-# config writes land in the main clone's SHARED config.
-# GIT_CONFIG is in the list and is a DISTINCT leak path rather than another
-# spelling of the discovery one: it replaces the file the `git config`
-# subcommand reads and writes, so an identity write follows it regardless of
-# `-C`, of GIT_DIR, and of the working directory.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -84,8 +73,6 @@ def make_repo(tmp: pathlib.Path) -> pathlib.Path:
     git("init", "-q", str(main))
     git("-C", str(main), "config", "user.email", "t@t")
     git("-C", str(main), "config", "user.name", "t")
-    # Repo-local only: machines with commit.gpgsign=true globally have no key for
-    # the fixture identity and every setup commit errors out (#2358).
     git("-C", str(main), "config", "commit.gpgsign", "false")
     git("-C", str(main), "commit", "-q", "--allow-empty", "-m", "init")
     return main
@@ -134,9 +121,6 @@ class RepoPathResolvesFromGitMetadata(unittest.TestCase):
         self.assertEqual(resolved, main.resolve())
 
     def test_bare_hub_worktree_resolves_to_the_bare_repo_itself(self) -> None:
-        # A bare-clone hub has no working tree, so `--git-common-dir` is the bare
-        # repo directory (name != ".git"); the else-branch must return it as-is,
-        # not its parent, or `git -C <parent> worktree remove` would fail.
         with scratch_dir() as tmp:
             bare = make_bare_hub(tmp)
             wt = add_worktree(bare, tmp / "root", "owner__repo__pr-1")
@@ -161,9 +145,6 @@ class RemoveWorktreeIsHermetic(unittest.TestCase):
         self.assertNotIn(str(wt), listed)
 
     def test_refuses_to_remove_a_worktree_outside_the_babysit_root(self) -> None:
-        # The path-containment guard must fire for a real worktree that lives
-        # outside the caller's declared root -- resolution succeeding never
-        # licenses removal beyond the sandbox.
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             actual_root = tmp / "root"
@@ -190,14 +171,6 @@ class RemoveWorktreeIsHermetic(unittest.TestCase):
         self.assertEqual(info, {"residual_directory": False})
 
     def test_reports_a_residual_directory_when_cleanup_stays_blocked(self) -> None:
-        # Simulates #816's Windows file-lock scenario: `git worktree remove`
-        # succeeds (its administrative record is dropped) but the directory
-        # itself refuses to delete. Real `git worktree remove` already clears
-        # the directory in this hermetic test environment, so the post-removal
-        # cleanup step is forced to report failure directly -- the same
-        # `attempt_directory_removal` retry/report contract is exercised on
-        # its own in `AttemptDirectoryRemovalTests` against a real lock
-        # simulation (a patched `shutil.rmtree` failure).
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
@@ -249,12 +222,6 @@ class OrphanedEntryDetectionTests(unittest.TestCase):
     def test_a_directory_answered_by_an_ancestor_checkout_is_an_orphan(
         self,
     ) -> None:
-        # `git -C <path>` runs as if git had started in that directory, so
-        # ordinary upward discovery answers from an ancestor checkout when the
-        # worktree root sits inside one -- `git status` succeeds while saying
-        # nothing about this directory. Detecting only `fatal: not a git
-        # repository` would skip the orphan: an open PR would be retained as
-        # keep_open and a closed one would error in `git worktree remove`.
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             orphan = main / "root" / "owner__repo__pr-3"
@@ -346,9 +313,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             root = tmp / "root"
             wt = add_worktree(main, root, "owner__repo__pr-7")
             worktree = prune.Worktree(path=wt, owner="owner", repo="repo", number=7)
-            # #816's shape: the administrative record survives, the checkout's
-            # own contents do not. The pointer is left intact -- it is the only
-            # thing still naming the owning repository.
             for child in wt.iterdir():
                 if child.name != ".git":
                     child.unlink()
@@ -374,9 +338,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertTrue(wt.exists())
 
     def test_recovers_a_bare_hubs_repository_from_the_pointer(self) -> None:
-        # A bare hub's record sits at `<hub>.git/worktrees/<name>`, which has no
-        # `.git`-named ancestor -- the repository has to come from the
-        # `worktrees/` segment or a bare-hub orphan is never prunable.
         with scratch_dir() as tmp:
             bare = make_bare_hub(tmp)
             wt = add_worktree(bare, tmp / "root", "owner__repo__pr-6")
@@ -454,10 +415,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertEqual(prune.registered_repo_from_gitdir_pointer(wt), owner_repo)
 
     def test_a_raising_existence_probe_does_not_escape_the_restoration(self) -> None:
-        # `Path.exists()` re-raises an OSError outside the ignored not-found
-        # family, so a permission denial on the very directory the restoration
-        # exists to rescue must not escape the `finally` -- an exception thrown
-        # there replaces the original one AND leaves the pointer deleted.
         with scratch_dir() as tmp:
             root, wt, pointer, owner_repo = self._orphan_with_pointer(tmp)
 
@@ -489,10 +446,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertTrue(wt.is_dir())
 
     def test_a_locked_record_is_not_reported_as_pruned(self) -> None:
-        # A locked record is deliberately kept: `git worktree prune` kept it
-        # while exiting 0, and `git worktree remove` refuses it with a nonzero
-        # exit. Neither exit status is the answer -- the verdict must come from
-        # re-reading `worktree list`.
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
@@ -506,11 +459,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             git("-C", str(main), "worktree", "unlock", str(wt))
 
     def test_clearing_one_record_leaves_an_unrelated_stale_one_alone(self) -> None:
-        # The scoping guarantee. `git worktree prune` takes no path and drops
-        # every prunable record in the repository, so a scoped `--pr` cleanup
-        # would also discard the registration of an unrelated worktree whose
-        # directory is only temporarily unavailable. Removal must name its one
-        # target; this fails against a repo-wide prune.
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
@@ -528,10 +476,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertIn(bystander.name, listed)
 
     def test_clearing_a_bare_hubs_record_is_targeted_too(self) -> None:
-        # `repo_path` and `registered_repo_from_gitdir_pointer` both support a
-        # bare hub, whose common directory is `hub.git` rather than a `.git`.
-        # The removal has to behave identically there or every bare-hub
-        # self-heal would silently report `failed`.
         with scratch_dir() as tmp:
             bare = make_bare_hub(tmp)
             root = tmp / "root"
@@ -549,9 +493,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             self.assertIn(bystander.name, listed)
 
     def test_an_already_absent_record_reads_as_pruned(self) -> None:
-        # `git worktree remove` exits nonzero for a path it does not know, but
-        # "no record survives" is the desired end state -- the verdict comes
-        # from re-reading `worktree list`, never from that exit status.
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             never_registered = tmp / "root" / "owner__repo__pr-15"
@@ -562,9 +503,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             )
 
     def test_a_surviving_directory_is_never_handed_to_git_to_delete(self) -> None:
-        # Unlike `prune`, `remove` deletes a worktree's contents. The caller
-        # only reaches here once the directory is gone; enforcing that here
-        # keeps a future caller from turning this into a content-deleting path.
         with scratch_dir() as tmp:
             main = make_repo(tmp)
             root = tmp / "root"
@@ -581,9 +519,6 @@ class StaleWorktreeRegistrationTests(unittest.TestCase):
             )
 
     def test_a_corrupted_pointer_is_an_orphan_not_an_error(self) -> None:
-        # `fatal: invalid gitfile format` is a different message from the
-        # missing-repository one, and a malformed pointer is one of the states
-        # this self-heal exists to clear -- so it must not re-raise.
         with scratch_dir() as tmp:
             wt = tmp / "owner__repo__pr-8"
             wt.mkdir()
@@ -689,10 +624,6 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             self.assertFalse(orphan_dir.exists())
 
     def test_never_deletes_content_from_a_non_empty_orphan_directory(self) -> None:
-        # An orphan's `.git` pointer could be corrupted or gone while real,
-        # uncommitted work still sits in the directory -- unlike
-        # `remove_worktree`'s post-removal cleanup, this path was never
-        # confirmed safe to discard by git, so it must never force-delete.
         with scratch_dir() as tmp:
             root, orphan_dir, worktree = self._orphan(tmp, 11)
             stray_file = orphan_dir / "uncommitted-work.txt"
@@ -708,10 +639,6 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             self.assertEqual(stray_file.read_text(encoding="utf-8"), "do not delete me")
 
     def test_refuses_to_remove_an_orphan_directory_outside_root(self) -> None:
-        # Defense in depth, matching `remove_worktree`'s own containment
-        # guard -- structurally unreachable through `main` (iter_worktrees
-        # only ever yields direct children of root) but a direct caller must
-        # not be able to walk this off-root regardless.
         with scratch_dir() as tmp:
             root, outside_dir, worktree = self._orphan(tmp, 12, parent="elsewhere")
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)

@@ -1,31 +1,4 @@
 #!/usr/bin/env bash
-# Read which audit `/source-control:pull-request prep` runs for each change
-# class, from the `prep_audits` list in docs/conventions/source-control.yaml as
-# the base branch holds it. Each item is a mapping
-# `{class: <name>, enabled: true|false, skill: /<plugin>:<skill>}`, `skill`
-# optional; a class the list does not name runs its default audit. Parsing is
-# lib/yaml-subset.awk's; the reader is at least as strict as
-# schemas/source-control.schema.json.
-#
-# Usage:
-#   read-prep-audits.sh --base <b> --default-branch <d> -
-#       the file's text on stdin, as `git show <remote>/<d>:<path>` prints it
-#
-# --base is the branch the pull request will target and --default-branch the
-# repository's default branch. The list is honored only when the two match: any
-# other base is a branch the author may have pushed unreviewed. There is no
-# file-path form: the head branch must not choose its own audits.
-#
-# Output, tab-separated. First a source line:
-#   source  default                 no file, no prep_audits key, or an empty list
-#   source  config                  the list was read
-#   source  fail-closed  <reason>   the list cannot be trusted
-# Then one line per class, in this order: markdown renames skills rules tests.
-#   <class>  default                its built-in audit
-#   <class>  off                    no audit
-#   <class>  replace  <skill>       the named skill in place of the built-in one
-# Under default and fail-closed every class is `default`.
-#
 # Exit 0, or 2 for a usage error.
 set -uo pipefail
 
@@ -35,7 +8,6 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)/base-file.sh"
 CLASSES=(markdown renames skills rules tests)
 REPLACEABLE=" markdown renames skills rules "
 SKILL_RE='^/[a-z0-9]+(-[a-z0-9]+)*(:[a-z0-9]+(-[a-z0-9]+)*)?$'
-# Fresh arrays, so nothing inherited from the environment reads as a setting.
 unset AUDIT ITEM
 declare -A AUDIT=() ITEM=()
 
@@ -53,7 +25,6 @@ emit() {
   exit 0
 }
 
-# The reason can quote the file, so control characters become spaces.
 fail_closed() {
   AUDIT=()
   emit "fail-closed"$'\t'"${1//[[:cntrl:]]/ }"

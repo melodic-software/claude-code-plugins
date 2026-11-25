@@ -113,16 +113,12 @@ def write_gh_shim(directory: pathlib.Path, sentinel: pathlib.Path) -> None:
     """
     posix = directory / "gh"
     posix.write_text(
-        # as_posix(), because `shutil.which` hands back a backslash path under
-        # Git Bash on Windows and a shebang is read by the kernel, not a shell.
         f'#!{pathlib.Path(BASH).as_posix()}\nprintf called > "{sentinel.as_posix()}"\nexit 127\n',
         encoding="utf-8",
         newline="\n",
     )
     posix.chmod(0o755)
     if os.name == "nt":
-        # Windows resolves a bare `gh` through PATHEXT, never the extensionless
-        # file above, so the shim needs a .cmd sibling to be reachable at all.
         (directory / "gh.cmd").write_text(
             f'@echo off\r\n(echo called) > "{sentinel}"\r\nexit /b 127\r\n',
             encoding="utf-8",
@@ -415,14 +411,6 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
                 )
 
     def test_the_probe_separates_the_two_parsers(self) -> None:
-        # Guards the guard. The probe reads an exit code, and a CLI can exit 2
-        # for reasons of its own -- several here have a required mutually
-        # exclusive group that errors before any unrecognized argument is
-        # reported, so the message is not a reliable discriminator and the code
-        # is. What makes the code sufficient is that `--help` short-circuits
-        # parsing: an abbreviation that resolves exits 0 before required-argument
-        # validation ever runs. Asserted against argparse itself rather than
-        # assumed, because the whole gate rests on it.
         strict = argparse.ArgumentParser(prog="probe", allow_abbrev=False)
         strict.add_argument("--required-thing", required=True)
         with self.assertRaises(SystemExit) as refused:
@@ -431,7 +419,6 @@ class NoParserResolvesAnAbbreviation(unittest.TestCase):
 
         lenient = argparse.ArgumentParser(prog="probe")
         lenient.add_argument("--required-thing", required=True)
-        # The resolved `--help` prints to stdout; keep it out of the test log.
         with (
             contextlib.redirect_stdout(io.StringIO()),
             self.assertRaises(SystemExit) as resolved,
@@ -571,11 +558,6 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         usage = proc.stdout.split("usage:", 1)[1].split("\n\n", 1)[0]
         flags = set(LONG_OPTION.findall(usage))
         self.assertTrue(flags, f"{cli} usage block parsed to no long options")
-        # `--help` never appears in usage -- argparse renders the pair as `-h`.
-        # Its evidence is this call: the invocation above IS `--help` and it
-        # exited 0, which is a stronger proof of acceptance than the usage text
-        # gives for any other flag. Omitting it would reject the reachability
-        # canary, whose whole point is an argument-shape-only invocation.
         return flags | {"--help"}
 
     def test_prose_only_flags_are_not_read_as_accepted(self) -> None:
@@ -679,7 +661,6 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
 
 class GeneratedDocIsCurrent(unittest.TestCase):
     def test_reference_doc_matches_the_tables(self) -> None:
-        # splitlines(), not bytes: the checkout's line endings are not the claim.
         expected = contract.render_markdown().splitlines()
         actual = contract.GENERATED_DOC.read_text(encoding="utf-8").splitlines()
         self.assertEqual(
@@ -710,22 +691,14 @@ class SetupReachabilityCanaryContract(unittest.TestCase):
             'bash "${CLAUDE_PLUGIN_ROOT}/scripts/source-control-babysit-merge" --help',
             setup,
         )
-        # Both commands are canaries: an allow rule or classifier decision
-        # covering the wrapper says nothing about the readiness gate, and the
-        # gate is the path the lane's own verdict travels.
         self.assertIn(
             'bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help',
             setup,
         )
         self.assertIn("denial on either is a FAILED prerequisite", setup)
-        # A pass is asymmetric with a denial: the classifier decides per call, so
-        # a permitted --help cannot certify the production shapes. The skill must
-        # keep saying so, and must keep naming the mechanism that covers the gap.
         self.assertIn("A pass is reachability, not a guarantee", setup)
         self.assertIn("READINESS_UNPROVEN", setup)
         self.assertIn("quote that stdout verbatim", setup)
-        # The dropped scope-enumeration clause must not creep back: managed
-        # settings are not locally readable, so it had no executable path.
         self.assertNotIn("not a project's `.claude/` settings", setup)
         self.assertIn("claude auto-mode config", setup)
 

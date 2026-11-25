@@ -57,8 +57,6 @@ CONVERT_SKEW = timedelta(minutes=1)
 SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
 JOB_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 MAX_RUNNING_JOBS = 35
-# The share of each rate-limit bucket that must be left: 1,500 of 5,000, 300
-# of GITHUB_TOKEN's 1,000 outside GitHub Enterprise Cloud.
 MIN_SHARE = 0.3
 READY_TRIES = 3
 RECOVER_HOURS = 24
@@ -178,7 +176,6 @@ def request(
         return lines, None
     if len(lines) >= MAX_TOGGLES:
         return lines, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
-    # The timeline, not the comment the lane token can edit, holds the count.
     toggled = lane_toggles(node_id, identity)
     if toggled is None:
         return lines, {"toggled": False, "skipped": "toggle-cap:unread"}

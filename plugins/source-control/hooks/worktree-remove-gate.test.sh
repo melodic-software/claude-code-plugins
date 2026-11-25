@@ -20,11 +20,6 @@ mkdir -p "$STUB_DIR"
 STATE="$TEST_TMPDIR/state.json"
 LOG="$TEST_TMPDIR/calls.log"
 
-# The measured CLI contract, as in reap-project-plugin-records.test.sh: `plugin
-# list --json` reports every record whatever the cwd; `plugin uninstall` removes
-# only a record whose projectPath is the cwd. STUB_UNINSTALL_FAIL=1 makes every
-# uninstall fail, so the record survives the reap. STUB_REWRITE_SETTINGS=1 makes
-# a project-scope uninstall rewrite the cwd's .claude/settings.json.
 cat >"$STUB_DIR/claude" <<'STUB'
 #!/usr/bin/env bash
 set -uo pipefail
@@ -296,6 +291,23 @@ assert_exit "a path already gone exits 0" 0 "$RC"
 
 run_hook "$(payload "relative/path")"
 assert_exit "a relative path refuses" 1 "$RC"
+
+WT_LINKED="$(mkwt linked)"
+ln -s "$TEST_TMPDIR/wt-linked" "$TEST_TMPDIR/link-to-wt"
+LINK_NATIVE="$(native_of "$TEST_TMPDIR")/link-to-wt"
+seed "$WT_LINKED"
+run_hook "$(payload "$LINK_NATIVE")"
+assert_exit "a symlink to a worktree refuses" 1 "$RC"
+assert_contains "the refusal names the symlink" "$ERR" "is a symlink"
+assert_eq "the link's target worktree stays" "present" "$(on_disk "$TEST_TMPDIR/wt-linked/.git")"
+assert_contains "git still lists the link's target" "$(git -C "$REPO" worktree list)" "wt-linked"
+assert_eq "nothing is reaped through a symlink" "2" "$(records_for "$WT_LINKED")"
+
+printf 'keep\n' >"$TEST_TMPDIR/a-file"
+run_hook "$(payload "$(native_of "$TEST_TMPDIR")/a-file")"
+assert_exit "a regular file refuses" 1 "$RC"
+assert_contains "the refusal names a non-directory" "$ERR" "not a directory"
+assert_eq "the file stays" "present" "$(on_disk "$TEST_TMPDIR/a-file")"
 
 run_hook '{"session_id":"s1","hook_event_name":"WorktreeRemove"}'
 assert_exit "a payload with no worktree_path refuses" 1 "$RC"

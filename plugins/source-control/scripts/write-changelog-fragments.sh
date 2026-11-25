@@ -1,51 +1,4 @@
 #!/usr/bin/env bash
-# write-changelog-fragments.sh — write the changelog fragment for each plugin a
-# change touches, in a repository that releases plugins from fragments: it has
-# scripts/fragment-plugins.txt and scripts/new-changelog-fragment.sh. Anywhere
-# else, and for a plugin the list does not name, it writes nothing, and the
-# per-pull-request version bump plus CHANGELOG entry still applies.
-#
-#   write-changelog-fragments.sh [--base <ref>] [--level major|minor|patch|none] < message
-#
-# The message on stdin is a commit message (subject, blank line, body) or a pull
-# request title. Touched plugins are the plugins/<name>/ paths (and the
-# docs/contracts/<name>/ or docs/conventions/<name>/ paths of a listed
-# convention) in the index
-# (git diff --cached), or with --base the paths changed on the branch
-# (git diff <ref>...HEAD).
-#
-# Bump level, from the Conventional Commits subject unless --level names one:
-#   `!` before the colon, or a BREAKING CHANGE footer   major (minor at 0.x)
-#   feat                                                minor
-#   fix, perf                                           patch
-#   build, chore, ci, docs, refactor, style, test       none
-# A breaking change to a plugin at 0.x (its plugin.json version, or for a
-# convention its newest CHANGELOG.md version heading) is minor, and its entry
-# leads with **Breaking:** (item 4 of
-# https://semver.org/#semantic-versioning-specification-semver); release 1.0.0
-# deliberately with --level major.
-# When a listed plugin is touched, any other subject is refused (exit 2) until
-# --level names the level.
-#
-# Body: the subject description as one list item under `### Added` (feat),
-# `### Fixed` (fix) or `### Changed` (everything else), with the message body
-# indented beneath it and the trailer paragraph dropped except a BREAKING CHANGE
-# footer, kept as a **Breaking:** line. A `none` fragment gets one line saying
-# why no release is needed.
-#
-# One fragment per plugin per branch. The branch's own fragment is one this
-# branch added: since the merge base with --base or the default branch, or
-# staged or untracked. Without --base, a later releasing commit appends its
-# entry to that fragment (once; a rerun finds it there) under its existing
-# heading for the section, adding the heading only when absent, and raises its
-# bump to the higher level, never lowers it; with --base, a plugin that already
-# has a branch fragment is left alone, so a pull request only fills the gaps its
-# commits left. While a merge is in progress (MERGE_HEAD exists) nothing is
-# written: the index then holds fragments the merge brought in from elsewhere.
-#
-# Prints each fragment path it wrote, one per line; stage them with the commit.
-# Exit: 0 done (including nothing to do); 2 usage, a refused subject, or a
-# failure.
 set -uo pipefail
 
 self="${0##*/}"
@@ -153,9 +106,6 @@ fix) section=Fixed ;;
 *) section=Changed ;;
 esac
 
-# The message body after the subject, minus a final paragraph of trailers,
-# indented two spaces so it continues the list item and no line of it can read
-# as a heading. A BREAKING CHANGE footer is kept, as a **Breaking:** line.
 body="$(awk '
   !started { if ($0 ~ /[^[:space:]]/) started = 1; next }
   { line[++n] = $0 }
@@ -222,14 +172,9 @@ added="$(
 
 rank() { case "$1" in major) echo 3 ;; minor) echo 2 ;; patch) echo 1 ;; *) echo 0 ;; esac }
 bump_of() { awk '{ sub(/\r$/, "") } NR > 1 && $0 == "---" { exit } sub(/^bump:[ \t]*/, "") { sub(/[ \t]+$/, ""); print; exit }' "$1"; }
-# Rewrite the bump line in place; no `sed -i`, whose syntax differs between GNU
-# and BSD.
 set_bump() {
   awk -v b="$2" '!done && /^bump:/ { print "bump: " b; done = 1; next } 1' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
 }
-# Add ENTRY under the "### <section>" heading $2 of fragment $1, at the end of
-# that section; create the heading at the end of the file only when it is absent,
-# so a fragment never carries the same heading twice (markdownlint MD024).
 add_entry() {
   ENTRY="$entry" awk -v head="### $2" '
     { sub(/\r$/, ""); line[++n] = $0 }
@@ -252,16 +197,12 @@ add_entry() {
     }' "$1" >"$1.tmp" && mv "$1.tmp" "$1"
 }
 
-# True when fragment $1 holds $entry, as whole lines, under its "### <section>"
-# heading $2: the same text under another heading or inside a body line is not it.
 has_entry() {
   local sec
   sec="$(awk -v head="### $2" '{ sub(/\r$/, "") } $0 == head { on = 1; next } on && /^#+[ \t]/ { on = 0 } on' "$1")"
   [[ $'\n'"$sec"$'\n' == *$'\n'"$entry"$'\n'* ]]
 }
 
-# During a merge the index holds fragments the merge brought in from other
-# branches; they are not this branch's to edit, and no fragment is written.
 [[ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ]] || exit 0
 
 for plugin in "${plugins[@]}"; do

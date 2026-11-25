@@ -1,61 +1,10 @@
 #!/usr/bin/env bash
-# PreToolUse hook: block an MCP-created or MCP-updated PR whose BODY carries a
-# negated closing reference.
-#
-# WHY IT EXISTS — cloud/remote sessions create PRs through the GitHub MCP
-# server (`mcp__github__create_pull_request` /
-# `mcp__github__update_pull_request`, or the `mcp__plugin_<plugin>_github__`
-# form of a plugin-bundled server), because `gh pr create` there is absent or
-# refused by the cloud GitHub proxy (docs/cloud-sessions.md, "GitHub MCP tools
-# vs the gh CLI"). That is a surface the sibling
-# pr-body-linkage-gate.sh Bash hook never sees. This hook is that sibling's
-# MCP-surface counterpart: same validator semantics, same scope guards, on the
-# payload shape the MCP tools deliver. Where the Bash sibling must tokenize a
-# command line to even find the body, here the body arrives as a plain JSON
-# field — so the extraction caveats (heredocs, dynamic values, directory
-# changes) don't exist on this surface, and the fail-open set is much smaller.
-#
-# WHAT IT ENFORCES — no negated closing reference (`does not close #N`)
-# anywhere in the body, which GitHub's negation-blind parser would still close
-# on merge, judged as the PR-body contract step judges it in CI (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/pr-body-convention/README.md), after stripping HTML comments and
-# masking Markdown code. The rest of that contract (a closing line
-# and non-empty `## Summary`, `## Fix`, `## Verification` and `## Related`
-# sections) is advisory in CI, so a body missing any of it is allowed.
-#
-# SCOPE GUARDS —
-#   - enforcement is keyed to the repository's OWN policy: the gate runs only
-#     when one of the repo's `.github/workflows/*.yml` / `*.yaml` files matches `linkage_gate_uses_pattern` (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/reference/config-resolution.md#yaml-keys-docsconventionssource-controlyaml); unset gates no repo, so a consumer
-#     without the step is never gated. This is deliberately NOT the
-#     `pr_body_required_sections` seam (docs/contracts/pr-body-convention/),
-#     whose portable default excludes `Related` on purpose;
-#   - a call targeting a DIFFERENT repository (tool_input owner/repo not
-#     matching the repo's origin remote) is out of scope and allowed —
-#     this repo's policy is not another repo's;
-#   - `update_pull_request` with no `body` field changes nothing the CI gate
-#     re-validates, and is allowed.
-#
-# FAIL-OPEN ON EXTRACTION, FAIL-CLOSED ON A DETERMINABLE BAD BODY — unreadable
-# stdin, missing jq, or an undeterminable target repo allow (policy gate, not a
-# security guard). A body carrying a negated closer blocks. A
-# `create_pull_request` with NO body field is judged as an empty body, which
-# carries none, and allows.
-#
-# LOCALE — matching runs under LC_ALL=C and the JavaScript-`\s`-only Unicode
-# whitespace characters are normalized to plain spaces first, so the verdict
-# does not depend on the ambient locale. See the sibling's LOCALE note for the
-# full rationale.
-#
-# Kill switch: pr_linkage_mcp_gate_enabled userConfig option.
-#
-# BLOCKING: exits 2 naming each negated closer plus the `Refs: #N` line to use.
 
 set -uo pipefail
 
 export LC_ALL=C
 
 [[ "${CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED:-true}" == "true" ]] || exit 0
-# Parameter expansion, not `dirname`: a command substitution forks, which is a
-# process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
@@ -68,20 +17,6 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require jq "PreToolUse" "source-control" "$INPUT"
 
-# Every payload field this gate reads, in ONE jq process, fenced by
-# pr-linkage-spawn-budget.test.sh. `has("body")` comes back "true"/"false", or
-# "" when `.tool_input` is missing, which allows.
-#
-# The batch CR-strips every value, and a CR alone between a negation and its
-# closing keyword is a word break: stripping it glues the two into one word that
-# is no closer, turning a BLOCK into an ALLOW. So the batch also reports whether
-# the raw body holds a CR, and a block below re-reads such a body losslessly.
-# `tostring` keeps that probe total over every JSON type, since one erroring
-# filter fails the whole batch.
-#
-# A batch that still fails (a `tool_input` or payload root that is not an
-# object) falls back to one jq read per field rather than allowing, so a batch
-# failure cannot turn a BLOCK into an ALLOW.
 read_fields_singly() {
   local f v
   HOOK_JQ_FIELDS=()
@@ -115,10 +50,6 @@ chomp() {
 }
 for v in TOOL HOOK_CWD T_OWNER T_REPO BODY; do chomp "$v"; done
 
-# A GitHub server bundled by a plugin names its tools
-# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>; the
-# hooks.json matcher admits both shapes, so this list must too, or the hook
-# would fire only to skip the call.
 IS_UPDATE=0
 case "$TOOL" in
 mcp__github__create_pull_request | mcp__plugin_*_github__create_pull_request) ;;
@@ -135,15 +66,6 @@ GATE_FILE=""
 linkage::gate_file_to GATE_FILE "$REPO_ROOT" "pr-linkage-mcp-gate"
 [[ -n "$GATE_FILE" ]] || exit 0
 
-# Out-of-scope guard: only judge PRs aimed at THIS repository. The origin URL's
-# separators are normalized so https, ssh (`git@host:owner/repo`), and proxied
-# forms all end in `/owner/repo`; comparison is case-insensitive because GitHub
-# routing is. When the match cannot be ESTABLISHED — no origin remote, or a
-# payload missing owner/repo — the target is undeterminable and the call is
-# allowed: imposing this checkout's policy on a repository it was never proven
-# to be is the worse failure (see FAIL-OPEN above).
-# The redirect sits on the group, not inside the substitution: bash execs git in
-# the substitution's subshell only when git carries no redirection of its own.
 { ORIGIN=$(hook::git_untrusted -C "$REPO_ROOT" remote get-url origin) || ORIGIN=""; } 2>/dev/null
 [[ -n "$ORIGIN" && -n "$T_OWNER" && -n "$T_REPO" ]] || exit 0
 norm="${ORIGIN%/}"
@@ -157,10 +79,6 @@ if [[ "$BODY_HAS_CR" == "true" ]]; then
   BODY=$(printf '%s' "$INPUT" | jq -r '.tool_input.body // ""' 2>/dev/null)
 fi
 
-# emit_tel <outcome> [status] — status defaults to the outcome; pass an
-# explicit documented status (ok|error|skipped|blocked) when the domain
-# outcome is not itself a documented envelope status (an unknown status is
-# mapped to error by the reference sink; the domain detail rides data.outcome).
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0

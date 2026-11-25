@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fact-record tests. Assertion helpers are local.
 # test-scope: plugins/source-control/scripts/*.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_COMMON_DIR
@@ -36,9 +35,6 @@ git -C "$TEST_TMPDIR/repo" worktree lock --reason "$helper_reason" "$TEST_TMPDIR
 por="$TEST_TMPDIR/list.z"
 git -C "$TEST_TMPDIR/repo" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
-# Porcelain paths are git's own spelling of the fixture dir: C:/... on Windows
-# Git Bash, symlinks resolved elsewhere. Build that spelling without the parser
-# under test, not the /tmp/... spelling mktemp returned.
 GIT_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)"
 if command -v cygpath >/dev/null 2>&1; then GIT_TMPDIR="$(cygpath -m "$GIT_TMPDIR")"; fi
 assert_eq "main checkout path is git's spelling of the fixture" "${WT_FACT_PATH[0]}" "$GIT_TMPDIR/repo"
@@ -67,7 +63,6 @@ else
   pass "foreign session is not the owner"
 fi
 
-# `-z` emits the lock reason raw: quotes and backslash sequences are text, not escapes.
 quoted_reason='"quoted reason"'
 backslash_reason='a\nb\\c'
 git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/quoted" -b quoted

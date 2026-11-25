@@ -1,49 +1,8 @@
 # shellcheck shell=bash
-# Shared pr-issue-linkage BODY VALIDATOR. Sourced (not executed) — the single
-# in-repo transcription of the upstream CI pr-issue-linkage
-# validator's semantics (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/pr-body-convention/README.md), consumed by every hook that judges a PR body against
-# that check:
-#   - pr-body-linkage-gate.sh   (Bash surface: `gh pr create` / `gh pr edit`)
-#   - pr-linkage-mcp-gate.sh    (MCP surface: GitHub MCP create/update PR)
-#   - the marketplace repo's checked-in .claude/hooks/pr-linkage-mcp-gate.sh,
-#     which sources this file from its own checkout
-# A drift fix against the upstream validator lands here once and reaches every
-# surface atomically; per-surface extraction, scope guards, and block messages
-# stay in the consuming hooks.
-#
-# CONTRACT — callers pin `export LC_ALL=C` BEFORE sourcing: the character
-# classes below are locale-dependent and the whole point of the
-# UNICODE_SPACES normalization is a locale-independent verdict. See the LOCALE
-# note in either consuming hook.
-#
-# PROCESS BUDGET — every `_to` helper writes into a caller-named variable
-# instead of onto stdout, and lines are split in-shell: GNU Bash forks a
-# subshell for `$(f)` even when `f` is pure builtins, and another for
-# `< <(printf …)`, and on Windows Git Bash each fork is a process.
-# pr-linkage-spawn-budget.test.sh fences it. The `local __plv_dest="$1"` shape
-# follows hook-utils.sh's out-variable convention (no namerefs, Bash 3.2-safe).
-#
-# TRAILING-NEWLINE CONTRACT — a `_to` helper strips trailing newlines from its
-# result, as `$(f)` would; `linkage::chomp_to` is that strip, spelled once.
-# `section_content_to` needs none, because trimming already removes trailing
-# whitespace.
-#
-# DEST-NAME CONTRACT — `printf -v "$dest"` writes the helper's OWN local when
-# <dest> happens to name one (bash resolves the name in the callee's scope), so
-# the caller silently gets nothing back. Every caller here is `linkage::scan_body`
-# in this same file, and its destinations (`_plv_`-prefixed, or the LINKAGE_BODY
-# global) match no helper local; the differential test asserts that no `_to` helper declares
-# a local matching a destination name, so a future rename cannot reintroduce the
-# shadow quietly.
 
 [[ -n "${_PR_LINKAGE_VALIDATOR_LOADED:-}" ]] && return 0
 readonly _PR_LINKAGE_VALIDATOR_LOADED=1
 
-# Every character JavaScript's `\s` matches beyond the six ASCII ones, as its
-# literal UTF-8 bytes. Spelled as bytes rather than `\uXXXX` because bash
-# renders `\u` through the ambient charmap, which is the very dependency the
-# LOCALE note removes. NBSP in particular arrives routinely in text pasted from
-# an issue title.
 UNICODE_SPACES=(
   $'\xc2\xa0' $'\xe1\x9a\x80'
   $'\xe2\x80\x80' $'\xe2\x80\x81' $'\xe2\x80\x82' $'\xe2\x80\x83'
@@ -53,11 +12,6 @@ UNICODE_SPACES=(
   $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf'
 )
 
-# Trailing newlines removed, exactly as command substitution removed them, in one
-# step: stripping them one at a time copied the string per newline, so ~65,000
-# trailing newlines ran past the hooks.json timeout. The pattern starts at a
-# non-newline, so one try scans one newline run; an all-newline text has no
-# such start and is the second pattern's.
 linkage::chomp_to() {
   local __plv_dest="$1" __plv_s="$2"
   if [[ "$__plv_s" =~ $_PLV_CHOMP_TAIL_ERE ]]; then
@@ -70,28 +24,9 @@ linkage::chomp_to() {
 _PLV_CHOMP_TAIL_ERE=$'[^\n]\n+$'
 _PLV_ALL_NEWLINES_ERE=$'^\n+$'
 
-# `readarray` splits in C without a fork; `${rest#*$'\n'}` copies every
-# surviving byte each line, so 16k two-character lines exceeded the 15s
-# hooks.json timeout, and a per-char offset walk is linear in copies but still
-# too many bash iterations.
-#
-# A here-string feeds `readarray` with no fork and no file this process must
-# remove, but a here-string of >=64KiB deadlocks on bash builds that write it
-# to a pipe in-process (see hardcoded-path-patterns.sh). Text shorter than
-# _PR_LINKAGE_HERESTRING_MAX characters stays under 64000 bytes even at four
-# bytes a character, so it takes the here-string. Longer text goes through a
-# scratch file removed right after the read: one `rm` per call, and only for
-# bodies far larger than any compliant PR body.
-# umask 077 at load so the scratch body is never world-readable in TMPDIR;
-# capturing umask to restore it would be a command substitution, which is a fork.
 umask 077
 _PR_LINKAGE_HERESTRING_MAX=16000
 
-# Split <text> into the LINKAGE_LINES array, element-for-element as
-# `while IFS= read -r line || [[ -n "$line" ]]; … done < <(printf '%s\n' "$text")`
-# did: `printf '%s\n'` terminates the last line, so the element count is always
-# one more than the number of newlines in <text>, and an empty <text> yields one
-# empty element. No process substitution, so no fork.
 linkage::split_lines() {
   if ((${#1} < _PR_LINKAGE_HERESTRING_MAX)); then
     readarray -t LINKAGE_LINES <<<"$1"
@@ -103,15 +38,6 @@ linkage::split_lines() {
   rm -f "$__plv_file"
 }
 
-# Remove HTML comments the way the validator does — every terminated `<!-- … -->`
-# span, then an unterminated `<!--` taking everything after it. Both strips are
-# one left-to-right pass with a carried in-comment state, which produces exactly
-# that result: once a `<!--` has no `-->`, the state never clears again.
-# GitHub's own closing-keyword parser and its Markdown renderer both ignore
-# commented-out text, so an unedited PR template — whose instructional prose
-# names the very markers this gate looks for — must not pass vacuously.
-# Unicode-space normalization rides along on the same pass; the delimiters are
-# ASCII, so neither step can disturb the other.
 strip_html_comments_to() {
   local __plv_dest="$1" body="$2" line rest kept out="" in_comment=0 sp i=0
   for sp in "${UNICODE_SPACES[@]}"; do body="${body//"$sp"/ }"; done
@@ -144,12 +70,6 @@ strip_html_comments_to() {
   linkage::chomp_to "$__plv_dest" "$out"
 }
 
-# Leading and trailing whitespace removed, in time linear in the length of
-# <text>. The `${s%"${s##*[![:space:]]}"}` spelling it replaced re-scanned the
-# string at each candidate cut, so 20,000 trailing blanks ran past the hooks.json
-# timeout, and a timed-out PreToolUse hook does not block. The trailing regex
-# starts each try at a non-blank, so one try scans one blank run; the shorter
-# `[[:space:]]+$` starts inside every run and is quadratic on an interior one.
 trim_to() {
   local __plv_dest="$1" s="$2"
   [[ "$s" =~ ^[[:space:]]+ ]] && s="${s:${#BASH_REMATCH[0]}}"
@@ -157,47 +77,14 @@ trim_to() {
   printf -v "$__plv_dest" '%s' "$s"
 }
 
-# The check-contract analyzer's linkage patterns (`scan_line` and the `no-issue`
-# test in ci-workflows .github/actions/pr-require-checks/check-contract/run.sh),
-# transcribed to POSIX ERE and matched against lower-cased text in place of
-# `tolower`. The closing
-# keyword and the non-closing marker are matched one line at a time, as CI
-# does; the no-issue phrase is matched over the whole body, wrapped in newlines
-# so the explicit non-word boundary also holds at either end.
 CLOSING_ERE='(close[sd]?|fix(es|ed)?|resolve[sd]?)[[:blank:]]*:?[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+'
 NON_CLOSING_ERE='^ {0,3}(refs|relates[[:blank:]]+to):[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[[:blank:]]*$'
 NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
-# A tracker's link line, which `/work-items:track link` prints from the bound
-# adapter (work-items CONTRACT.md "Change links"): a linking keyword, then an
-# issue key (`Closes ENG-123`, `Refs SW2-12`) or a qualified item id
-# (`Refs: local-markdown:<namespace>#<n>`), alone on its line. Matched against
-# the original-case line, so a key stays upper-case and `fixes utf-8` is not
-# one; the keyword is checked lower-cased against TRACKER_KEYWORD_ERE. The
-# second keyword word is spelled `to` rather than any word: POSIX
-# leftmost-longest submatching would otherwise read `Closes ENG-123` as the
-# keyword `Closes EN` and the key `G-123`. The qualified-id branch names the
-# work-items providers, so a URL (`Refs: https://host/page#1`) is not an id.
-# Known accept: an upper-case acronym alone after a keyword (`Fixes UTF-8`)
-# reads as an issue key, since without the tracker binding nothing tells it
-# from `ENG-8`. This
-# goes beyond the CI analyzer, which knows only GitHub's `#N`; there the body
-# contract is advisory, and blocking an adapter's own link would leave a
-# non-GitHub tracker no way to open a pull request through this gate.
 TRACKER_LINK_ERE='^ {0,3}([A-Za-z]+([[:blank:]]+[Tt][Oo])?)([[:blank:]]*:[[:blank:]]*|[[:blank:]]+)([A-Z][A-Z0-9_]*-[0-9]+|(local-markdown|github|gitea|jira|linear):[^[:space:]#/][^[:space:]#]*#[0-9]+)[[:blank:]]*$'
 TRACKER_KEYWORD_ERE='^(close[sd]?|fix(es|ed)?|resolve[sd]?|refs|relates[[:blank:]]+to)$'
 _PLV_WORD_ERE="[A-Za-z][A-Za-z']*"
 _PLV_DELIM_TAIL_ERE='[.!?;,][^.!?;,]*$'
 
-# CI's `negation_trigger`: the first disclaimer word among the last five words
-# between the previous `.!?;,` and the keyword, into <dest>; empty when there is
-# none. A typographic apostrophe (U+2019) counts as a straight one, and "not
-# only" is affirmative.
-#
-# Linear in the length of <text>: the tail is cut at the last delimiter by a
-# regex that starts only at a delimiter (the longest-prefix glob this replaced
-# re-scanned), every other character becomes a blank so one unquoted split
-# yields the candidate words, and the last five are collected from the end. The
-# per-word suffix copy it replaced took 8.5 s on 20,000 words.
 negation_trigger_to() {
   local __plv_dest="$1" tail="$2" lower n i tok IFS=' '
   local -a toks=() words=()
@@ -225,12 +112,6 @@ negation_trigger_to() {
   done
 }
 
-# Scan the masked body for linkage. Returns 0 when it carries an un-negated
-# closing keyword, a non-closing `Refs:` / `Relates to:` marker on its own line,
-# a tracker link line, or a no-issue opt-out. Fills LINKAGE_NEGATED with one `"<text>" (trigger
-# "<word>")` entry per distinct negated closing reference, in first-seen order.
-# A negated closer never counts as linkage, and CI fails it even when valid
-# linkage exists elsewhere, because GitHub's parser still closes the issue.
 LINKAGE_NEGATED=()
 scan_linkage() {
   local line lower chunk m pre start len off before after text _plv_trigger i found=1
@@ -293,20 +174,10 @@ section_content_to() {
   trim_to "$__plv_dest" "$out"
 }
 
-# Mask fenced blocks, indented code, and inline spans the way the pinned
-# ci-workflows reusable does before it searches for headings or keywords:
-# a `## Fix` that exists only inside a fenced template, a four-space sample,
-# or an inline span is not a real section. Fence close follows CommonMark
-# (same delimiter character, at least as long, info string empty on close;
-# a backtick fence's opener rejects an info string that itself contains a
-# backtick). Masked lines become empty so line structure — and therefore
-# heading-level section bounds — stays intact.
 mask_markdown_code_to() {
   local __plv_dest="$1" body="$2" line rest rendered fence_char="" fence_len=0 in_fence=0
   local marker_run marker_rest f nf ticks j r nruns ticks_text out="" li=0 IFS
   local -a fields runs_before runs_len closer last
-  # The backtick split below must not glob the line's own `*`, `?` or `[`.
-  # Saved and restored by hand: `local -` needs Bash 4.4.
   local had_noglob=0
   [[ $- == *f* ]] && had_noglob=1
   set -f
@@ -339,7 +210,6 @@ mask_markdown_code_to() {
         continue
       fi
     fi
-    # A glob, not `=~ ^(\ {4}|\t)`: in a bash regex `\t` is a literal `t`.
     if [[ "$rest" == "    "* || "$rest" == $'\t'* ]]; then
       out+=$'\n'
       continue
@@ -364,12 +234,6 @@ mask_markdown_code_to() {
       done
       runs_len+=("$ticks")
     done
-    # CommonMark: leftmost opener consumes through the next same-length
-    # run; everything between is content (nested pairs, the escaped-tick
-    # idiom, leftover pending of another length). Openers are taken in
-    # order and a pair absorbs every run between, so the closer of run r is
-    # the next run of the same length, found for all runs in one backward
-    # pass (a per-opener forward rescan is O(L^1.5) on distinct lengths).
     nruns=${#runs_len[@]}
     closer=()
     last=()
@@ -395,10 +259,6 @@ mask_markdown_code_to() {
   linkage::chomp_to "$__plv_dest" "$out"
 }
 
-# Append one LINKAGE_PROBLEMS line per <heading> that is missing or empty in
-# <body>, which must already be comment-stripped and code-masked. Shared by
-# linkage::problems and the pull-request skill's pre-create check, which passes
-# its own configured headings; the blocking hooks do not call it.
 linkage::section_problems() {
   local _plv_content="" _plv_masked="$1" heading
   shift
@@ -412,16 +272,8 @@ linkage::section_problems() {
   done
 }
 
-# The four contract sections of standards' pr-convention-policy
-# (components/pr-convention-policy/policy.json, body.requiredSections). The
-# standards check-pr-convention-copies lockstep parses this declaration, so it
-# stays one line of bare words.
 REQUIRED_SECTIONS=(Summary Fix Verification Related)
 
-# Shared core of both verdicts: strip comments and mask Markdown code into
-# LINKAGE_BODY (CI does both before any heading or keyword scan), and reset
-# LINKAGE_PROBLEMS to the negated-closing-reference line, if any. Returns 0
-# when the body carries linkage, 1 otherwise.
 LINKAGE_BODY=""
 LINKAGE_PROBLEMS=()
 linkage::scan_body() {
@@ -438,10 +290,6 @@ linkage::scan_body() {
   return "$_plv_linked"
 }
 
-# Contract verdict: every REQUIRED_SECTIONS section, a negated closing
-# reference, and missing linkage, one LINKAGE_PROBLEMS line per problem.
-# Returns 0 when the body meets the whole contract. The standards lockstep
-# replays its policy matrix through this function by name.
 linkage::problems() {
   local _plv_linked=0
   # shellcheck disable=SC2310  # the exit IS the verdict: linkage present or not
@@ -452,20 +300,12 @@ linkage::problems() {
   ((${#LINKAGE_PROBLEMS[@]} == 0))
 }
 
-# Blocking verdict the hooks act on: a negated closing reference only, since
-# GitHub's parser still closes the issue on merge. CI reports a missing section
-# or closing line as advisory, so neither blocks. Returns 0 when the body
-# passes (LINKAGE_PROBLEMS empty). The consuming hook owns what a failure DOES:
-# block message, telemetry, exit code.
 linkage::blocking_problems() {
   # shellcheck disable=SC2310  # only LINKAGE_NEGATED decides; missing linkage is advisory
   linkage::scan_body "$1" || :
   ((${#LINKAGE_PROBLEMS[@]} == 0))
 }
 
-# linkage::block_message <gate-path>: the PreToolUse block text for the current
-# LINKAGE_PROBLEMS, to stderr. One printer for both gates so the text cannot
-# drift between the Bash and MCP surfaces.
 linkage::block_message() {
   local p
   echo "BLOCKED: PR body fails the repository's PR-body contract step in $1." >&2

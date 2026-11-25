@@ -4,8 +4,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fetch-failed-logs.sh"
-# POSIX path for stub PATH entries (Git Bash PATH lookup fails on Windows-form
-# paths like C:/Users/<user>/...). Production script accepts either form via env vars.
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -14,17 +12,6 @@ source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
 command -v unzip >/dev/null 2>&1 || skip_suite "unzip not installed"
 command -v zip >/dev/null 2>&1 || skip_suite "zip not installed"
-
-# ---- Build fixture ZIP ------------------------------------------------------
-#
-# Layout mirrors REAL GitHub Actions logs ZIP layout (verified 2026-05-08
-# against example-org/example-repo run 25505236665):
-#   TOP-LEVEL: <step-num>_<job-name>.txt      consolidated step log (errors here)
-#   PER-JOB:   <job-name>/system.txt           agent metadata only
-# Filenames may contain SPACES + special chars (matrix expansions encoded with
-# underscores). Keep the fixture on this real layout: a synthetic
-# <jobN>/01_step.txt shape exists in no real ZIP, so a fixture built that way
-# goes green while the production walk misses real errors.
 
 FIXTURE_BUILD="$TEST_TMPDIR/fixture-build"
 mkdir -p "$FIXTURE_BUILD/build/" "$FIXTURE_BUILD/shell _ Bash (tests)/"
@@ -200,16 +187,6 @@ else
 fi
 assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
-# ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------
-#
-# These hit the REAL GitHub API against a known-failed run in this repo.
-# Skipped by default to keep unit tests fast + offline. Run with:
-#   INTEGRATION=1 bash fetch-failed-logs.test.sh
-#
-# Point INTEGRATION_REPO + INTEGRATION_RUN_ID at a repo/run you can read
-# (the run should contain ##[error] markers).
-# Case: another plugin's SessionStart hook can export its own data dir into
-# every Bash call as CLAUDE_PLUGIN_DATA; the default scratch must not land there.
 FOREIGN="$TEST_TMPDIR/codex-openai-codex"
 OWN="$TEST_TMPDIR/source-control-melodic-software"
 mkdir -p "$TEST_TMPDIR/mktemp-root"

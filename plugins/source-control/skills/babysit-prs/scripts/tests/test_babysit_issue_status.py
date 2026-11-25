@@ -131,7 +131,6 @@ def setter(actor_id: int, login: str, kind: str = "Bot") -> dict[str, Any]:
 
 
 WORK_STATUS = {"fullDatabaseId": str(FIELD)}
-# A Work status POST's answer with the field at confirmed (pr-pipeline.yaml).
 CONFIRMED_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 86380002}}]
 AGENT_READY_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 84879220}}]
 
@@ -896,8 +895,6 @@ class TheCappedClose(unittest.TestCase):
         self.assertNotIn("attempt=", world.body(1).splitlines()[0])
 
     def test_a_restart_clears_then_sets_the_field_with_no_label_write(self) -> None:
-        # write-status.mjs restart: DELETE the field value, then POST
-        # agent-ready (option 84879220 in pr-pipeline.yaml).
         world = World()
         world.field_rows = AGENT_READY_ROWS
         result = self.run_close(world, lambda *a: "agent-ready")
@@ -1014,8 +1011,6 @@ class TheCappedClose(unittest.TestCase):
         self.assertEqual(world.writes, [])
 
     def test_a_parked_rerun_is_done_as_statusLabels_reads_it(self) -> None:
-        # read-status.mjs statusLabels: the field decides; a stale queue-state
-        # label gives way to it.
         parked = (
             f"<!-- verify-capped-close pr={CAPPED_PR} heads= attempt=1 of=1 parked -->"
         )
@@ -1158,8 +1153,6 @@ class TheDemotionRecord(CheckCase):
         )
 
     def test_a_failed_or_mismatched_write_errors_with_no_label(self) -> None:
-        # As post-merge-file-demotion-issues.yml: the field write that did not land
-        # is an error, and no status label stands in for it.
         for name, field_answer in (
             ("failed", 502),
             (

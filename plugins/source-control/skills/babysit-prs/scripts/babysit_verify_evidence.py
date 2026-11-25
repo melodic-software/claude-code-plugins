@@ -348,58 +348,28 @@ from babysit_gh import (
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
-# The checks workflow pr-verify judges, and its ci-status step that runs only
-# on a draft's event (resolve-pr.mjs `DRAFT_STEP`, `_draft_judged`).
 CHECKS_WORKFLOW = "pr-require-checks.yml"
 DRAFT_STEP = "Note a draft"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
-# `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
-# A FAIL's index artifacts (write-verdict.mjs failIndexNames), one per tie:
-# `pr-<n>`, `sha-<head>`, `ref-<head-ref digest>`, `issue-<i>`.
 INDEX_PREFIX = "pr-verify-index-"
 LEGACY_FAILS_FILE = "verify-legacy-fails.json"
 LEGACY_FAILS_ENV = "BABYSIT_VERIFY_LEGACY_FAILS"
 LEGACY_FAILS_VERSION = 1
-# The verifier runs one judgment's index reads may lead to, more refusing,
-# and the names past which it reads the whole listing instead: each costs
-# a read, and a whole listing was about 135 pages on 2026-11-02.
 INDEX_RUNS_CAP = 120
 INDEX_NAMES_CAP = 100
-# One line per judgment on stderr: the exact-name reads it made.
 INDEX_READS_PREFIX = "babysit-index-reads"
-# Most exact-name reads answer empty. One read per job of a name nothing
-# uploads gives the empty answer's ETag, kept beside `listing_path`; each
-# first page then sends it as If-None-Match, and GitHub answers an unchanged
-# (empty) name with a 304 that does not count against the primary limit.
-# The ETag follows the body across names, as observed on 2026-11-10 (owner
-# token); GitHub documents ETags per resource, not across names. A seed that
-# fails, or whose body is not exactly empty, is no seed: every read is a 200.
-#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>,
-#   "Use conditional requests".
-#   As-of: 2026-11-10.
-#   Recheck trigger: a name read that sent the seed answers 304 while it holds
-#   an artifact, or no 304 reaches the job's api-budget notice.
 EMPTY_ETAG_SUFFIX = ".empty-etag"
 EMPTY_ETAG_SEED_NAME = "babysit-empty-etag-seed"
 EMPTY_NAMED = {"total_count": 0, "artifacts": []}
 ETAG_RE = re.compile(r'(W/)?"[!#-~]{1,200}"')
 NOT_MODIFIED_RE = re.compile(r"^gh: HTTP 304$", re.MULTILINE)
-# A file holding the pull request's REST record as the caller read it
-# (`merge_policy.cached_pull_request`).
 PULL_ENV = "BABYSIT_VERIFY_PULL"
-# The head-ref map's version and its keys' shape, an artifact id
-# (head-ref-map.mjs writes both).
 HEAD_REFS_VERSION = 1
 ARTIFACT_ID_RE = re.compile(r"[1-9][0-9]{0,15}")
-# A verdict's name, then optionally the head-ref digest, then, for a FAIL
-# only, optionally `-i` and the numbers of the issues the verdict records,
-# ascending, each once, joined by dots (`NAMED_ISSUES_MAX` at most), so one
-# verdict has one name. write-verdict.mjs writes the issues after the readers
-# accept them. `verdict_name` applies the order; NAME_RE alone does not.
 NAMED_ISSUES_MAX = 10
 NAME_RE = re.compile(
     r"pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-"
@@ -407,11 +377,6 @@ NAME_RE = re.compile(
     r"(?:-([0-9a-f]{16}))?"
     rf"(?:-i([1-9][0-9]{{0,9}}(?:\.[1-9][0-9]{{0,9}}){{0,{NAMED_ISSUES_MAX - 1}}}))?"
 )
-# The head-ref digest in a verdict's name: the first HEAD_REF_DIGEST_HEX hex
-# digits of the SHA-256 of the head branch's UTF-8 bytes. write-verdict.mjs
-# `headRefDigest` is its twin, and tests/test_verify_rules_sync.py compares
-# them. Equal branches always give equal digests, so a collision can only tie
-# a FAIL to a branch it did not judge: it holds, never clears.
 HEAD_REF_DIGEST_HEX = 16
 
 
@@ -420,13 +385,7 @@ def named_issues(match: re.Match[str]) -> frozenset[int]:
     return frozenset(int(n) for n in match[5].split(".")) if match[5] else frozenset()
 
 
-# The longest name the grammar allows: `pr-verify-` (10), a 10-digit number
-# and `-` (11), the SHA (40), `-fail` (5), `-` and the digest (17), `-i` (2),
-# then 10 issues of 10 digits and 9 dots (109).
 NAME_MAX = 10 + 11 + 40 + 5 + 17 + 2 + NAMED_ISSUES_MAX * 10 + NAMED_ISSUES_MAX - 1
-# What starts like a FAIL's name, with any digits for the number (leading
-# zeros and more than 10 included); one that is not a verdict name is held
-# (`Reader._evidence`), never skipped.
 FAIL_PREFIX_RE = re.compile(r"pr-verify-([0-9]+)-([0-9a-f]{40})-fail")
 
 
@@ -442,96 +401,30 @@ def verdict_name(name: str) -> re.Match[str] | None:
 
 
 PASSES = ("pass", "pass-notes")
-# The lead of a FAIL note on the pull request body, and only of such a note
-# (pr-verify prompt.md, spec-prompt.md and chunk-note.md say so word for word).
 BODY_NOTE = "PR body"
-# write-verdict.mjs NOTES_MAX: a record holding this many notes may have lost
-# the rest, a file note among them.
 NOTES_MAX = 30
-# Artifacts last at most 90 days in this repository (the retention maximum,
-# and the repository's setting), so a verdict on an older pull request may be
-# gone. 80 leaves ten days of margin (judgment).
 TOO_OLD_DAYS = 80
-# `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
 LISTING_WAITS = (2.0, 4.0)
-# The listing's pages share one timeout (babysit_gh._run_pages), so it grows
-# with the artifact count, not gh's per-call default: 7,522 artifacts took 76
-# pages at 0.7 to 1 s a page on 2026-10-27, past that default's 60 s.
 LISTING_PAGE_SECONDS = 1.0
-# The pages a top-up reads at most: LISTING_OVERLAP's 2 h at the 255 uploads
-# an hour seen 2026-10-27, plus one (judgment on that data).
 LISTING_TOP_UP_PAGES = 7
 LISTING_TIMEOUT_SECONDS = 300.0
-# A caller that kills the reader after a limit of its own (enable-auto-merge.mjs
-# 4 min, verify-cap.mjs 2 min) names it here in seconds, and itself in
-# `CALLER_ENV`: every listing timeout is then at most what is left of it less
-# `DEADLINE_MARGIN_SECONDS`, kept for the reads after the listing and the
-# report, and a whole listing that cannot fit refuses before paging, naming the
-# pages, the budget and the caller, rather than being killed with no reason.
 DEADLINE_ENV = "BABYSIT_VERIFY_DEADLINE_SECONDS"
 CALLER_ENV = "BABYSIT_VERIFY_CALLER"
 DEADLINE_MARGIN_SECONDS = 15.0
-# The start of a `verify:unreadable` detail when the listing does not fit in
-# what the caller's limit leaves, before paging or after the limit runs out:
-# pr-unblock verify-cap.mjs skips the round on it, for that run only, as on
-# `SIBLING_UNREADABLE`, and no `FAILED_LISTING_SUFFIX` note is written.
 DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit"
-# The least a whole listing's timeout takes, gh's per-call default it
-# replaced, unless the cap or a caller's limit leaves less.
 LISTING_TIMEOUT_FLOOR = 60.0
 LISTING_PAGES_CAP = (
     int(LISTING_TIMEOUT_SECONDS / LISTING_PAGE_SECONDS) - LISTING_TOP_UP_PAGES
 )
 LISTING_MAX_AGE = run_cache.MAX_AGE
-# The incremental listing (`Reader._incremental`). The listing comes newest id
-# first, but a lower id can be created after a higher one: across 6,835
-# artifacts listed on 2026-10-27 (created 2026-10-16 to 10-27) the largest lead
-# of a lower id's created_at over a higher id's was 58m49s, and each day's
-# largest was 34 to 59 minutes. Paging stops past the base's highest id only
-# at an artifact created `LISTING_OVERLAP` before the base was read, twice that
-# lead (judgment on that data).
 LISTING_OVERLAP = timedelta(hours=2)
-# The oldest base an incremental listing starts from. Scheduled pr-merge runs
-# come four times an hour (pr-merge.yml `cron`), and rotation.mjs asks at most
-# 10 trusted runs (`MAX_RUNS`), about 2.5 hours of them. At the most uploads seen in an hour on 2026-10-27 (255), a base this
-# old and the overlap page at most about 1,300 artifacts, 13 pages, against 69
-# for the whole listing that day (judgment on that data).
 LISTING_CARRY_MAX_AGE = timedelta(hours=3)
 LISTING_PAGE_SIZE = 100
-# How far ahead of its `expires_at` GitHub may already have deleted a listed
-# artifact. On 2026-11-01 a carried listing held 234 artifacts, all expiring
-# 09:20 to 09:55Z, that three later listings lacked; the 60 of them read by id
-# at 09:37Z each answered 404. A listing at 08:55Z already lacked ones
-# expiring up to 59 minutes later, not in expiry order (an 09:13Z listing
-# still held 8 of them). The 2026-10-27 counts in this module's docstring
-# showed none. The cause is unverified; recheck on a `babysit-listing-miss`
-# line whose `listed` exceeds `total_count`. Twice the largest lead seen
-# (judgment on that data).
 EARLY_DELETION_LEAD = timedelta(hours=2)
-# The most pages `Reader._near_expiry` reads for one listing's incremental
-# reads, and again for its whole listings' top-ups (`_complete_listing` resets
-# both caps); past it an over-count stands and goes to the one
-# whole listing, and an exact count fails the listing. On the 2026-11-01
-# carry behind #11903's refusal it read 12 pages; twice that (judgment on
-# that data), at `LISTING_PAGE_SECONDS` a page, stays well inside
-# verify-cap.mjs's 120 s limit and a fifth of that day's 133-page whole
-# listing.
 NEAR_EXPIRY_PAGE_CAP = 24
-# The most artifacts `Reader._near_expiry` reads by id for one listing's
-# incremental reads, and again for its top-ups: each id its pages did not show is
-# dropped only on a 404 or an expired record. It drops at most the listing's
-# surplus over the live count, which was 31 to 34 in the three over-counts
-# behind #11903's refusal; the largest (judgment on that data). Past it an
-# over-count stands and an exact count fails the listing. Both caps reset
-# with each listing the Reader reads, as after `refresh()`, and again before
-# its whole listings; pr-require-checks.yml's cold_cost counts them twice.
 NEAR_EXPIRY_ID_READ_CAP = 34
-# The `cause` a `LISTING_MISS_PREFIX` line names when the caps above alone
-# leave an exact count unsettled: refused, but not noted for the job.
 NEAR_EXPIRY_CAP_CAUSE = "near-expiry-cap"
-# The `cause` when the listing's deadline runs out after its near-expiry reads
-# began, which `listing_timeout` does not size for: refused, but not noted.
 NEAR_EXPIRY_DEADLINE_CAUSE = "near-expiry-deadline"
 INCREMENTAL_WAITS = (15.0, 30.0)
 INCREMENTAL_READS = 1 + len(INCREMENTAL_WAITS)
@@ -543,11 +436,7 @@ def no_incremental_waits() -> bool:
     return os.environ.get(NO_INCREMENTAL_WAITS_ENV) == "1"
 
 
-# The prefix of the stderr line `Reader._incremental` prints for each read
-# that missed the live count, like babysit_gh's `babysit-gh-calls`.
 LISTING_MISS_PREFIX = "babysit-listing-miss"
-# The stderr line `Reader._late_pass` prints when its name reads find a pass
-# the saved listing lacked: how many, and whether the judgment then allows.
 LATE_PASS_PREFIX = "babysit-late-pass"
 
 
@@ -561,20 +450,7 @@ class _CountMissed:
 
 
 COUNT_MISSED = _CountMissed()
-# More than the live count: the base holds artifacts GitHub no longer counts.
-# A whole listing only adds ids to the union, so another cannot cure it: on
-# 2026-11-01 08:00-09:00Z GitHub's count dropped artifacts up to an hour before
-# the `expires_at` it listed, and every whole listing's top-up held 1 to 25
-# more than the count (ci-status run 41287360293).
 COUNT_OVER = _CountMissed()
-# Beside `LISTING_ENV`'s file, a listing from the API that failed in this job
-# after it began a whole listing, with its reason, unless it failed for want of
-# a caller's time (`DEADLINE_UNREADABLE`) or on a 5xx or network error that
-# outlasted its waits (`_Transient`), either of which a later Reader may not
-# meet: the job's later Readers, in this process or another, refuse
-# on it without paging again (pr-merge's merge job built one Reader per
-# candidate, each paging three whole listings, 825 to 1,015 calls a run on
-# 2026-11-01).
 FAILED_LISTING_SUFFIX = ".failed"
 OVERCOUNT_FALLBACK_SUFFIX = ".overcount-fallback"
 
@@ -592,16 +468,7 @@ def _overcount_refusal(outcome: str) -> str:
     return refusal
 
 
-# The whole listings `Reader._complete_listing` reads before it refuses. Of
-# three whole listings read on 2026-10-27, two skipped live artifacts at page
-# boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
-# other whole listing: a second read restores a skip, a third is margin
-# (judgment on that data). The reads and their top-ups share one
-# `LISTING_TIMEOUT_SECONDS`, as one read did: what does not fit refuses.
 LISTING_READS = 3
-# How gh reports a request that never got an HTTP response: its own
-# "error connecting to <host>" for a failed lookup, else Go's net/http error,
-# or Go's JSON decoder error for a page body cut short.
 NETWORK_ERRORS = (
     "error connecting to",
     "connection reset by peer",
@@ -611,7 +478,6 @@ NETWORK_ERRORS = (
     "unexpected eof",
     "unexpected end of json input",
 )
-# A page body cut short while gh exits 0, as babysit_gh._run_pages reports it.
 PAGE_NOT_JSON = re.compile(r"\bpage \d+ is not json$")
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
@@ -622,52 +488,24 @@ QUEUE_READS = "verify:queue-reads"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
-# `evidence --lane-link`: the pull request's issue link is not one the
-# pr-merge lane takes (`Reader.link_refusal`), so no verdict is read.
 INELIGIBLE = "verify:ineligible"
-# A verdict's `intent` when its pull request closed no issue in this
-# repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
-# The refusals only a person clears (when a person is needed:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
-# with trust holds kept): an untrusted spec (provenance). Every other refusal
-# holds for the lanes: it still refuses the merge, with no label. The one
-# list the merge gate and enable-auto-merge.mjs (`needsHuman`) read;
-# clear-escalations.mjs LANE_CAUSES.verdict shares nothing with it
-# (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
 VERIFY_FINAL = (REPEATED_FAIL,)
-# `capped_close`'s reasons: a `VERIFY_FINAL` refusal, or review rounds the
-# pr-unblock lane stopped as not converging (escalation-routes.json), whose
-# lane-stopped comment (report-escalation.sh) opens with the marker below.
 CLOSE_VERIFY = "verify"
 NOT_CONVERGING = "feedback-not-converging"
 CLOSE_REASONS = (CLOSE_VERIFY, NOT_CONVERGING)
 LANE_STOPPED_FEEDBACK = "<!-- pr-unblock:lane-stopped activity=address-feedback -->"
-# `_elsewhere`'s refusal detail when a FAIL run of another pull request for
-# the same issue cannot be read: pr-unblock verify-cap.mjs reads it as the
-# cap, failing closed.
 SIBLING_UNREADABLE = "a FAIL run of a pull request for the same issue"
-# The lanes App's capped-close record (`capped_close`): first line of the
-# comment on the closed pull request and on its issue. On the issue it names
-# the fresh attempt it started, or ` parked` when `merge.verify-cap-attempts`
-# were spent. `_elsewhere` counts no FAIL uploaded before the newest one on
-# each issue it is for (`_attempt_floor`); label-unblocked.mjs skips its
-# closed-PR hand-off for it; write-issue.mjs passes it to the next attempt as
-# data.
 CAPPED_CLOSE_RE = re.compile(
     r"<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=((?:[0-9a-f]{40},)*(?:[0-9a-f]{40})?)"
     r"(?: attempt=([0-9]+) of=([0-9]+)( parked)?)? -->"
 )
 STANDING = (FAIL, REPEATED_FAIL)
-# An issue's comments, a page of up to 100 with the cursor to the next.
 COMMENT_FIELDS = (
     "totalCount pageInfo{hasNextPage endCursor} nodes{databaseId createdAt "
     "updatedAt lastEditedAt body author{...actor} editor{...actor}}"
 )
-# The most comment pages one issue's read takes (resolve-pr.mjs
-# COMMENT_PAGES, the same value): every trusted comment is spec, so none may
-# be skipped, and past the cap the read refuses and says so.
 COMMENT_PAGES = 10
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
@@ -692,8 +530,6 @@ REFS_QUERY = (
     f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{ISSUE_FIELDS}}}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# A size split's sub-issue, its native parent and the parent's comments, as
-# resolve-pr.mjs PARENT_QUERY reads them: one read per sub-issue judged.
 SPLIT_CHILD_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
@@ -706,9 +542,6 @@ COMMENT_PAGE_QUERY = (
     f"issue(number:$n){{number comments(first:100,after:$after){{{COMMENT_FIELDS}}}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# The pull request's body edits and its issue connect and disconnect events,
-# the ways its linked issues change at one head, read whole in one query
-# (`_relinked_by_people`); resolve-pr.mjs RELINK_QUERY is the same text.
 RELINK_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){userContentEdits(first:100){totalCount "
@@ -719,21 +552,13 @@ RELINK_QUERY = (
     f"{ACTOR_FRAGMENT}"
 )
 ADMISSION_RULES_PATH = ".github/actions/resolve-config/admission-rules.json"
-# The recurring schedule `recurring_row` reads (resolve-pr.mjs recurringSpec).
 RECURRING_SCHEDULE_PATH = ".github/recurring-schedule.json"
-# The issue fields `recurring_row`, `drift_issue` and `main_red_incident` read
-# (resolve-pr.mjs recurringSpec, driftSpec and mainRedIncident), one read per
-# issue.
 ACTIONS_ISSUE_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "issue(number:$n){title body lastEditedAt author{...actor} editor{...actor}}}}"
     f"{ACTOR_FRAGMENT}"
 )
-# github-actions[bot], which maintenance-file-recurring-issues.yml,
-# maintenance-file-upstream-drift-issues.yml and maintenance-monitor-signals.yml
-# file as.
 ACTIONS_BOT_ID = 41898282
-# file-due.mjs SCHEDULE_MARKER.
 SCHEDULE_MARKER_RE = re.compile(r"^<!-- recurring-schedule id=(\S+) -->\r?$", re.M)
 DRIFT_TITLE_RE = re.compile(r"Upstream drift: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
 VENDORED_REPORT_PATH = "scripts/upstream-drift-vendored-report.sh"
@@ -741,30 +566,22 @@ VENDORED_ROW_RE = re.compile(
     r'\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\|plugins/([A-Za-z0-9][A-Za-z0-9_.-]*)/[^|"]*\|[^|"]*(\|files-only)?"\s*'
 )
 VENDORED_ROW_ID_RE = re.compile(r'\s*"([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\|')
-# resolve-pr.mjs MAIN_RED_TITLE and MAIN_RED_KEY: maintenance-monitor-signals
-# issues.mjs FILING["1 main red"] title and its marker line for that key.
 MAIN_RED_TITLE = "Restore the failing required checks on main"
 MAIN_RED_MARKER_RE = re.compile(
     r"<!-- factory-monitor key=incident:main-red fp=[0-9a-f]{16} -->"
 )
-# resolve-pr.mjs PIN_PREFIX and PIN_MARKER: check-upstream-drift.sh's git pin
-# marker (MARKER_PREFIX, STRICT_RE).
 PIN_PREFIX = "**Last audited upstream state:**"
 PIN_MARKER_RE = re.compile(
     r"\*\*Last audited upstream state:\*\* `([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@[0-9a-f]{40}`"
 )
-# A docs/upstream page path, as resolve-pr.mjs upstreamPages lists them.
 UPSTREAM_PAGE_RE = re.compile(r"docs/upstream/(?:[^/]+/)*[^/]+\.md")
-# resolve-pr.mjs COMPARE_FILES_CAP: GitHub's compare lists at most this many.
 COMPARE_FILES_CAP = 300
-# admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
 REFINE_MARKER = "<!-- intake-triage refinement -->"
 SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->"
 SPLIT_PART_RE = re.compile(r"Part ([1-9][0-9]?) of ([1-9][0-9]?) of #")
 SPLIT_SOURCE_RE = re.compile(
     r"<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->"
 )
-# What JavaScript's trimStart strips: WhiteSpace and LineTerminator.
 JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
@@ -1468,8 +1285,6 @@ def split_child_body(
     if part is None:
         return None
     tag = SPLIT_SOURCE_RE.fullmatch(rows[2]) if len(rows) > 2 else None
-    # admit.mjs reads the id as a Number and writes it back into the header,
-    # so only an id a double holds exactly can match.
     source = (
         (int(tag[1]), tag[2]) if tag and int(float(tag[1])) == int(tag[1]) else None
     )
@@ -1481,8 +1296,6 @@ def split_child_body(
         return None
     refinement: list[str] = []
     if source is not None:
-        # admit.mjs countedRefinement: the newest refinement, never an older
-        # one, only while unedited and on a parent body a listed human wrote.
         newest = next(
             (
                 c
@@ -1508,7 +1321,6 @@ def split_child_body(
         ):
             return None
         refinement = task_lines(newest)
-    # admit.mjs trustedTaskLines, then the refinement's task-list lines.
     exact = {
         line for item in (parent, *nodes) if written(item) for line in task_lines(item)
     }
@@ -1529,8 +1341,6 @@ def split_child_body(
     return body if lines and all(line in allowed for line in lines) else None
 
 
-# admit.mjs SCOPE_PREFIX and scopeTarget: a target-subset split's last child
-# line, and whether `name` can be one of its targets over the task lines.
 SCOPE_PREFIX = "Scope: "
 SCOPE_BANNED = re.compile(r"[,<>`@#\r\n]")
 
@@ -1558,18 +1368,9 @@ def scope_target(name: str, texts: set[str]) -> bool:
 UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
-# What earlier pr-merge runs read, copied into this run's cache by
-# .github/scripts/pr-merge/carry-run-cache.mjs from the last trusted runs'
-# pr-merge-run-cache and pr-merge-verify-run-cache artifacts. Each is still
-# used only where it counts a FAIL; any other answer is read from GitHub (the
-# module docstring's "Carried reads", which names the listing's exception).
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
-# Untied FAIL records a gate process of the run could not read, by artifact
-# id, so later candidates refuse on them without downloading again
-# (`Reader._head_ref`). Only a refusal is shared: a read that might succeed is
-# never made to allow. carry-run-cache.mjs drops the section.
 UNREAD_RECORD_SECTION = "unreadable-fail-head-ref"
 RUN_FIELDS = (
     "id",
@@ -1584,7 +1385,6 @@ RUN_FIELDS = (
     "run_attempt",
     "run_started_at",
 )
-# `_origin` and carry-run-cache.mjs read only these objects' `full_name`.
 REPOSITORY_FIELDS = ("repository", "head_repository")
 
 
@@ -1822,8 +1622,6 @@ def change_digest(diff: str) -> str | None:
         elif line.startswith("@@"):
             in_hunk = True
         elif in_hunk:
-            # A blank line, added or removed, changes nothing a re-roll
-            # could not add for free.
             if line[:1] in ("-", "+") and (content := "".join(line[1:].split())):
                 lines.append(line[0] + content)
         elif line.startswith("rename from "):
@@ -1928,9 +1726,6 @@ class Reader:
     repo: str
     branch: str
     now: datetime | None = None
-    # The token for the Actions reads (artifact listing, run records,
-    # download) and the run heads' compares: pr-merge.yml passes the job's GITHUB_TOKEN, which holds
-    # `actions: read`, while the lane token it runs gh with holds none.
     actions_token: str | None = field(
         default_factory=lambda: os.environ.get(TOKEN_ENV) or None
     )
@@ -2361,7 +2156,6 @@ class Reader:
             page += 1
         if server_now is None:
             return None
-        # A short page ends the listing: no id is left below it.
         lowest = min(fresh) if reached else 0
         kept = [
             a
@@ -2380,9 +2174,6 @@ class Reader:
             for a in kept
         )
         if over or near:
-            # GitHub can delete an artifact before its expires_at: read again
-            # the pages around the kept entries near expiry. An exact count
-            # can hide one there standing in for a FAIL the pages skipped.
             self._over_counted |= over
             reread = self._near_expiry(
                 listing, len(fresh), len(listing) - total, server_now, deadline
@@ -2410,21 +2201,9 @@ class Reader:
             return None
         if len(listing) == total:
             return listing
-        # Fewer than the live count: the pages skipped an artifact. More: the
-        # base holds one GitHub no longer lists below the pages read.
         self._print_miss(miss)
         if len(listing) > total:
             return COUNT_OVER
-        # Short once the pages near expiry were read: they dropped only ids
-        # GitHub answered gone, so the fresh pages skipped an artifact at a
-        # page boundary (#10486), which a read after a wait can restore, as
-        # for any short count. It is read again only while the caps left
-        # cover another read like this one, and a caller's limit still fits
-        # that read, the longest wait and one whole listing (only the read
-        # and the wait when no whole listing fits it, since falling back to
-        # one could only refuse); else a whole listing. A top-up's exact
-        # count left short goes to another whole listing, which can restore a
-        # skip outside those pages.
         if stage == "incremental" and (over or near):
             pages = self._near_expiry_reads - spent[0]
             ids = self._artifact_reads - spent[1]
@@ -2844,7 +2623,6 @@ class Reader:
         try:
             return json.loads(proc.stdout) if proc.stdout.strip() else None
         except ValueError as exc:
-            # A body cut short while gh exits 0.
             raise _CutShort(f"{label}: {exc}") from exc
 
     def _contains(
@@ -2899,10 +2677,6 @@ class Reader:
         origin: bool | None = None
         unread: dict[str, _Unreadable] = {}
         if shared and not cached:
-            # A carried record counts the FAIL when it shows origin; any
-            # other answer from it could turn the FAIL away, so the run is
-            # read instead ("Carried reads" in the module docstring, which
-            # also states the listing's exception and its guard).
             carried = run_cache.get(CARRIED_RUN_SECTION, key, None)
             if is_json_object(carried):
                 try:
@@ -2983,8 +2757,6 @@ class Reader:
                 self._mapped = load_head_refs(self.head_refs_path, self.repo)
             if artifact_id in self._mapped:
                 return self._mapped[artifact_id]
-            # A carried head ref ties the FAIL to this PR; one naming another
-            # ref could untie it, so the record is read instead.
             carried = run_cache.get(CARRIED_RECORD_SECTION, key, None)
             if (
                 head_ref
@@ -3044,9 +2816,6 @@ class Reader:
             except _Unreadable:
                 raise
             except Exception as exc:
-                # Any failure to fetch, unpack or parse it (a timeout, a bad
-                # zip, a corrupt deflate stream's zlib.error, bad JSON) is an
-                # unreadable record, which `_head_ref` shares for the run.
                 raise _Unreadable(f"artifact {name}: {exc}") from exc
             if not is_json_object(record):
                 raise _Unreadable(f"artifact {name}: not an object")
@@ -4095,8 +3864,6 @@ class Reader:
         for sha, artifacts in sorted(self.fail_artifacts[number].items()):
             for run_id, name, artifact_id in artifacts:
                 entry: dict[str, Any] = {"head": sha, "run": run_id}
-                # Only a run of verified origin has its record read: any
-                # other could carry anyone's text.
                 if self._run_state(run_id, shared=True) not in (ORIGIN, COUNTED):
                     entry["unreadable"] = "run origin not verified"
                     found.append(entry)
@@ -4325,9 +4092,6 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
         unreadable: str | None = None
-        # A pass at the head whose run did not read: it may be the pass that
-        # allows, so with no counted one the head is unreadable, not missing
-        # (https://github.com/melodic-software/claude-code-plugins/issues/17377).
         unread_pass: str | None = None
         failed_by_pr: dict[int, set[str]] = {}
         unread_prs: dict[int, list[Any]] = {}
@@ -4344,8 +4108,6 @@ class Reader:
                 continue
             if not match:
                 if (off := FAIL_PREFIX_RE.match(name)) is not None:
-                    # Compared as text: the digits are unbounded, and a string
-                    # past Python's int-conversion limit would raise.
                     digits = off[1].lstrip("0")
                     hold, unread = self._off_grammar(
                         item, name, digits == str(number) or off[2] in commits
@@ -4359,8 +4121,6 @@ class Reader:
             pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")
             if not isinstance(run_id, int) or isinstance(run_id, bool):
-                # The API always names the uploading run; without one the
-                # artifact has no run record to authenticate it.
                 ignored += 1
                 continue
             tied = pr_n == number or sha in commits
@@ -5144,7 +4904,6 @@ class Reader:
             is_json_array(edits.get("nodes"))
             and edits.get("totalCount") == len(edits["nodes"])
             and is_json_array(events.get("nodes"))
-            # totalCount counts every timeline item; filteredCount the kinds asked.
             and events.get("filteredCount") == len(events["nodes"])
         ):
             return False
@@ -5187,8 +4946,6 @@ class Reader:
         if not is_json_array(recorded):
             raise _Unreadable(f"artifact {name} records no linked issues")
         issues = {json_object(i).get("number"): json_object(i) for i in recorded}
-        # An edit after the judgment started is a spec the model never
-        # read. An unparsable time refuses (PostMergeReadError).
         started = postmerge._time(self._started.get(run_id))
         if set(live) != set(issues) or any(
             (edited := node.get("lastEditedAt")) is not None
@@ -5592,8 +5349,6 @@ def _settle_reason(
     )
 
 
-# GitHub refuses a comment body over 65536 characters; the findings are cut
-# to leave room for the framing (judgment).
 FINDINGS_MAX = 60000
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 AGENT_READY = "agent-ready"
@@ -5975,7 +5730,6 @@ def capped_close(
         if found is not None and found[0][3] is not None:
             prior, since = found
             attempt, parked = (int(prior[3]), int(prior[4])), bool(prior[5])
-            # The field's say as read-status.mjs statusLabels gives it.
             names = {
                 label.lower()
                 for label in merge_policy.status_label_names(
@@ -6119,8 +5873,6 @@ def capped_close(
         if issue_status is not None:
             if parked:
                 continue
-            # write-status.mjs restart: clear the field, then set it to
-            # agent-ready, so GitHub sends the field_added that starts a run.
             _gh_write(
                 merge_policy.issue_status_clear(repo, issue, issue_status.field_id),
                 f"#{issue} Work status clear",
@@ -6217,7 +5969,6 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
 
 
 LEGACY_CHECKPOINT_VERSION = 2
-# The pages the build's whole listing may read (about 135 on 2026-11-02).
 LISTING_FAILS_PAGES_CAP = 600
 CUTOVER_MARGIN = timedelta(hours=1)
 RUN_WINDOW_MINIMUM = timedelta(minutes=1)
@@ -6231,12 +5982,6 @@ RUN_FIELDS_KEPT = (
     "created_at",
     "updated_at",
 )
-# A run can be re-run up to 30 days after its first run
-# (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs,
-# "Re-running workflows and jobs", read 2026-11-02; recheck when that limit
-# changes), keeping its `created_at`: so the runs created this long before
-# `--since` are listed too, and each one updated since is read. A day over
-# the limit covers its boundary.
 RERUN_LOOKBACK = timedelta(days=31)
 RUNNING_STATUSES = ("queued", "in_progress", "waiting", "requested", "pending")
 RATE_LIMIT_SIGNS = (
@@ -6506,9 +6251,6 @@ class _PerRunBuild:
                 if not _is_id(run.get("id"), run.get("id")):
                     raise _Unreadable(f"a verifier run created {created} has no id")
                 found[run["id"]] = _kept_run(run)
-            # Read on while the page is full, never stopping at the count a
-            # page claims, which can be low; the totals check below fails a
-            # count the runs do not equal.
             if (
                 len(runs) < LISTING_PAGE_SIZE
                 or page >= RUN_SEARCH_CAP // LISTING_PAGE_SIZE
@@ -6704,8 +6446,6 @@ class _PerRunBuild:
         self.load()
         windows, runs = self.state["windows"], self.state["runs"]
         self._running_check()
-        # Runs created up to `lookback` before `since` and updated since: a
-        # re-run keeps its creation time. Each window holds its count.
         early = self.state["lookbackWindows"]
         for start, end in _windows(self.since - self.lookback, self.since):
             key = _stamp(start)
@@ -6724,9 +6464,6 @@ class _PerRunBuild:
                 self.save()
             for record in windows[key]:
                 self._read_run(record)
-        # The listing's FAILs: a run created before `since` (a re-run keeps
-        # its creation time, and a judgment can upload hours after it) is
-        # read here, so the file is the union of the windows and the listing.
         self._running_check()
         listed = self.state.get("listed")
         if not is_json_array(listed) or any("created_at" not in i for i in listed):
@@ -6946,8 +6683,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd = sub.add_parser("evidence", allow_abbrev=False)
     cmd.add_argument("--repo", required=True)
     cmd.add_argument("--branch", default="main")
-    # Required: the base's config names the lanes App (agent_identity), so a
-    # read without it takes every lanes App spec as untrusted.
     cmd.add_argument("--base-sha", required=True)
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("--lane-reviews", action="store_true")
@@ -6986,8 +6721,6 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     legacy.add_argument("--cutover", default=None)
     legacy.add_argument("--out", required=True)
     legacy.add_argument("--checkpoint", required=True)
-    # The owner token's 5,000 an hour is shared by every session: about one
-    # call each 2 s, at most 1,800 a reset window, none under 2,000 left.
     legacy.add_argument("--calls-per-second", type=float, default=0.5)
     legacy.add_argument("--window-cap", type=int, default=1800)
     legacy.add_argument("--min-remaining", type=int, default=2000)

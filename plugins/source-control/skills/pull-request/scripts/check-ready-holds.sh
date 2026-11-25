@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# check-ready-holds.sh — Refuse the ready flip for a held or superseded pull request.
-#
-# The `ready` action runs this before it touches the branch. A pull request is
-# held when it carries the do-not-merge label (any case), its body says "do not
-# merge" or "don't merge", or its title carries a WIP marker: WIP leading the title
-# or its type prefix (WIP:, wip(scope):, feat: WIP ...), or a [WIP] or (WIP) tag
-# anywhere. A WIP mid-sentence, such as "the WIP cap", holds nothing. A body line
-# starting "Hold:" holds the merge only, so it does not hold the flip, nor does
-# a do-not-merge label whose only stated reason is an eval hold
-# (https://github.com/melodic-software/claude-code-plugins/issues/17887). It is
-# superseded when an issue it closes is already closed. With --unattended (no
-# person drives the run: a lane, a loop, a dispatched worker), a body line
-# starting "Draft:" (any case, after optional spaces or a quote marker), such as
-# create's "Draft: requested early look" or "Draft: multi-session container",
-# also holds the flip: a person chose that draft, so only a person flips it.
-#
-# Usage:
-#   check-ready-holds.sh <pr> [--repo <owner/repo>] [--unattended]
-#
 # Exit codes:
 #   0  no hold: the flip may go on
 #   1  invalid argument
@@ -35,7 +16,22 @@ STANDARDS_TRUSTED_ACTORS="components/trusted-actors/trusted-actors.json"
 PARSER="$SCRIPT_DIR/../../../lib/parse-concern-value.sh"
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+check-ready-holds.sh: refuse the ready flip for a held or superseded pull request.
+
+Usage:
+  check-ready-holds.sh <pr> [--repo <owner/repo>] [--unattended]
+
+  --repo        the pull request's repository
+  --unattended  also hold on a body line starting "Draft:"
+
+Exit codes:
+  0  no hold: the flip may go on
+  1  invalid argument
+  2  a gh call failed; the flip stops, since no hold was ruled out
+  3  held or superseded: one reason per line on stdout
+  5  prerequisite missing (gh, jq)
+EOF
   exit 0
 }
 
@@ -181,12 +177,6 @@ eval_only_hold() {
   return 1
 }
 
-# The body pattern is the do-not-merge alternative of babysit-prs'
-# BODY_MERGE_HOLD_RE (babysit_merge.py); its `Hold:` line alternative holds the
-# merge only, so it is left out here, and a "do not merge" on a Hold: line (any
-# case, after optional spaces or a quote marker) is not read as a flip hold. The
-# hyphenated label name is not matched, so a body that only names the label
-# holds nothing.
 reasons=$(jq -r --argjson unattended "$UNATTENDED" '
   (if $unattended then (.body // "" | [scan("(?mi)^[ \\t>]*Draft:[ \\t]*[^\\r\\n]*")] | first // empty | "draft: a person asked for this draft (\(gsub("[[:cntrl:]]"; ""))); only a person flips it") else empty end),
   (.body // "" | gsub("(?mi)^[ \\t>]*Hold:[^\\r\\n]*"; "") | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
@@ -209,7 +199,6 @@ refs=${refs//$'\r'/}
 
 while IFS=$'\t' read -r host path num; do
   [[ -n "$num" ]] || continue
-  # REST, not GraphQL: some sandboxed sessions are refused GraphQL.
   state=$(gh api --hostname "$host" "repos/$path/issues/$num" --jq .state | tr -d '\r') ||
     die 2 "cannot read the state of $path#$num"
   [[ "$state" == closed ]] && reasons+="${reasons:+$'\n'}superseded: it closes $path#$num, which is already closed"

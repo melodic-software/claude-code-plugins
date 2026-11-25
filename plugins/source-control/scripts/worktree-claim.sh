@@ -1,66 +1,4 @@
 #!/usr/bin/env bash
-# worktree-claim.sh — claim check for linked worktrees (#2882).
-#
-# worktree-create.sh already arms `git worktree lock` on the trees it creates.
-# A plain `git worktree add` does not, so concurrent sessions can reach into
-# those trees with no claim to read. This script is the route that notices and
-# (when asked) locks non-helper worktrees, and the gate a session runs before
-# writing in one.
-#
-# git worktree lock prevents remove/move/prune. It does NOT block concurrent
-# writes. The value of the reason string is as a claim other agents can read
-# (git-worktree(1) "lock" / "LIST OUTPUT FORMAT" porcelain `locked [reason]`).
-#
-# Verbs:
-#   report [--repo-dir DIR] [--root DIR]
-#     List each linked worktree as CLAIMED <path> <reason> or UNCLAIMED <path>.
-#     Exit 1 when any linked worktree lacks a lock reason; 0 when every linked
-#     worktree carries one (or none exist). With --root, a further summary line
-#     counts the UNCLAIMED worktrees that lie outside that worktree root.
-#   claim <path> [--repo-dir DIR] [--session-id ID]
-#     Lock this unlocked linked worktree with a session-distinct reason.
-#     Refuses to rewrite an existing reason (helper-created trees keep theirs).
-#   claim --all-unclaimed [--repo-dir DIR] [--session-id ID]
-#     Lock every currently unlocked linked worktree. An explicit repair
-#     verb — the PostToolUse hook claims only the parsed add target so
-#     two concurrent adds cannot steal each other's trees.
-#   check-enter <path> [--repo-dir DIR] [--session-id ID]
-#     Before writing: surface a foreign live claim and stop; report unclaimed;
-#     allow only when the reason names this session.
-#   release <path> [--repo-dir DIR] [--session-id ID]
-#     Inverse of claim: unlock a linked worktree whose reason names this
-#     session. An unlocked tree is a no-op; a foreign or reasonless lock is
-#     never removed (reason printed).
-#   handover <path> --session-id OLD --to NEW [--repo-dir DIR]
-#     Move this session's claim to the session that resumes the work (a
-#     handoff then /clear starts a new session id). Re-locks only when the
-#     reason names OLD, the proof release uses, and writes NEW's reason through
-#     worktree_lock_reason, keeping the creator script it named. Both ids are
-#     explicit: the environment is never read for OLD.
-#   stale <path> [--repo-dir DIR] [--idle-minutes N]
-#     Read-only. Exit 0 only when the lock is provably stale: a linked worktree
-#     whose reason reads `lane active on <host> session <sid> since`, <host> is
-#     this host, no running Claude Code process holds <sid>, and no
-#     ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/<sid>.jsonl changed within N
-#     minutes (default 120; a missing transcript is idle). A process holds <sid>
-#     when a ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sessions/*.json entry names it
-#     and that entry's pid is running with the entry's procStart. Dead and
-#     pid-reused entries do not count. A missing, unreadable or malformed
-#     registry, or a host where an entry's start time cannot be read, is not
-#     provable. It does not look at PR or landed state; the caller requires that
-#     separately.
-#   stale --batch --repo-dir DIR [--idle-minutes N]
-#     The same verdict for each NUL-delimited path on stdin, from one worktree
-#     list parse, one registry read and one transcript scan. Prints one
-#     `exit<TAB>path<TAB>note` row per path, in input order, where exit and note
-#     are what single-path
-#     `stale` would return and print for it (a tab or newline in the note reads
-#     as a space). A path holding a tab or newline is usage (exit 2) and no row
-#     is printed. --repo-dir is required: no single path locates the repository.
-#
-# Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
-# closed with exit 5 and a message naming the floor and the installed version.
-#
 # Exit codes:
 #   0  report: no unclaimed linked worktrees
 #      stale: provably stale (one evidence line printed)
@@ -84,24 +22,10 @@
 #      carries no reason at all
 #   5  environment: not a git repository, or path is not a registered worktree
 #      handover: git could not re-lock (the old reason is restored when it can be)
-#
-# Session identity (claim / check-enter / release):
-#   1. --session-id
-#   2. CLAUDE_CODE_SESSION_ID, the id Claude Code exports to Bash, when set and
-#      not the unexpanded `${CLAUDE_CODE_SESSION_ID}` token
-#   3. CLAUDE_SESSION_ID, under the same rule
-#   4. claim only: a generated host+pid+random token so two concurrent
-#      invocations on one host still produce different reasons
-#   check-enter without a session id cannot prove ownership: any lock reason
-#   is treated as foreign. release without one exits 2. handover reads only
-#   --session-id and --to, never the environment.
 set -uo pipefail
 
 PROG=${0##*/}
 
-# Lexical path collapse, shared inside this plugin with the worktree gates and
-# the creation helper. Sourced for worktree_path_normalize alone: the file
-# defines functions only and pulls in no library of its own.
 SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$SCRIPT_DIR" == "${BASH_SOURCE[0]}" ]] && SCRIPT_DIR=.
 # shellcheck source=../hooks/worktree-path-lib.sh
@@ -146,32 +70,18 @@ git_unlocated() {
   )
 }
 
-# Lexical collapse of `.` / `..` / `//`, plus trailing-slash trim. Pure
-# string work so a not-yet-existing path still compares to porcelain. The
-# collapse itself is worktree-path-lib.sh's, shared with the worktree gates and
-# the creation helper; this script's own two additions stay here: a trailing CR
-# is dropped (git porcelain read on an MSYS/Cygwin shell carries CRLF), and a
-# relative path that collapses away answers `.` rather than the empty string.
 normalize_path() {
   local collapsed
   collapsed=$(worktree_path_normalize "${1%$'\r'}")
   printf '%s' "${collapsed:-.}"
 }
 
-# Make <path> absolute against <base> (default PWD), collapse `.`/`..`,
-# and when the path exists resolve symlinks via `pwd -P` so a relative
-# `check-enter .` or a `/tmp` vs `/private/tmp` spelling still matches
-# porcelain (git-worktree(1) accepts relative or absolute).
 canonicalize_path() {
   local out
   canonicalize_path_to out "$@"
   printf '%s' "$out"
 }
 
-# canonicalize_path_to <var> <path> [base]: canonicalize_path into <var>
-# without forking in the common case (an already-clean path to an existing
-# directory), which parse_worktrees hits once per registered worktree. Siblings
-# under one non-symlink parent share a single `cd -P` through CANON_PARENT.
 CANON_PARENT=""
 CANON_PARENT_PHYS=""
 canonicalize_path_to() {
@@ -211,8 +121,6 @@ canonicalize_path_to() {
   printf -v "$__var" '%s' "$p"
 }
 
-# Resolve --session-id, else CLAUDE_CODE_SESSION_ID, else CLAUDE_SESSION_ID.
-# Echoes empty when none is usable.
 resolve_session_id() {
   local sid="${1:-}" name
   if [[ -n "$sid" ]]; then
@@ -221,7 +129,6 @@ resolve_session_id() {
   fi
   for name in CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID; do
     sid="${!name:-}"
-    # The unexpanded `${NAME}` token is not an id.
     if [[ -n "$sid" && "$sid" != "\${$name}" ]]; then
       printf '%s' "$sid"
       return 0
@@ -229,15 +136,10 @@ resolve_session_id() {
   done
 }
 
-# Reject a session id that would break the reason-string match or the lock
-# file. Empty is allowed here (caller decides whether to generate).
 valid_session_id() {
   [[ "$1" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]
 }
 
-# parse_worktrees <repo>
-# Fills WT_PATHS / WT_REASONS / WT_IS_LINKED from the shared fact record.
-# Linked means "not the main worktree and not bare".
 parse_worktrees() {
   local repo="$1" porcelain i canon
   WT_PATHS=()
@@ -266,9 +168,6 @@ parse_worktrees() {
   done
 }
 
-# Index of the longest worktree-path prefix of <target> into WT_INDEX; fails
-# when none matches. <target> must already be canonicalized (absolute, `.`/`..`
-# collapsed, symlinks resolved). Set, not printed, so a caller needs no subshell.
 find_worktree_index() {
   local target="$1" i best=-1 best_len=0
   for i in "${!WT_PATHS[@]}"; do
@@ -400,8 +299,6 @@ esac
 [[ -n "$root_dir" && "$cmd" != report ]] && die_usage '--root applies to report only'
 [[ "$cmd" == report && -n "$path" ]] && die_usage 'report takes no path'
 
-# Resolve relative / `.` / symlink spellings before matching porcelain.
-# A `check-enter .` from inside a linked worktree must see that tree's claim.
 if [[ -n "$path" ]]; then
   path="$(canonicalize_path "$path")"
 fi
@@ -447,8 +344,6 @@ do_report() {
   ((unclaimed == 0)) || return "$EX_UNCLAIMED_REPORT"
 }
 
-# Index of the linked worktree holding $path into WT_INDEX. Otherwise the
-# refusal is printed and its exit code returned; <action> names the verb in it.
 linked_index() {
   if ! find_worktree_index "$path"; then
     printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
@@ -460,8 +355,6 @@ linked_index() {
   fi
 }
 
-# worktree_git <lock|unlock> [args...] <path>: run it against the repository,
-# naming the verb and path when git fails.
 worktree_git() {
   git_unlocated -C "$repo_dir" worktree "$@" >&2 && return 0
   printf '%s: git worktree %s failed for %s\n' "$PROG" "$1" "${!#}" >&2
@@ -589,11 +482,6 @@ do_handover() {
   printf '%s\n' "$new_reason"
 }
 
-# scan_transcripts <name> [-quit]: on its first call only, list each
-# <projects>/*/<name> changed within the idle window into TRANSCRIPTS, one per
-# line with a newline on each side, so a session's lookup is one string match.
-# A batch passes `*.jsonl` to cover every session at once; a single path passes
-# its own <sid>.jsonl and -quit. TRANSCRIPT_SCAN records ok, unreadable or failed.
 TRANSCRIPT_SCAN=""
 TRANSCRIPTS=""
 scan_transcripts() {
@@ -610,11 +498,6 @@ scan_transcripts() {
   fi
 }
 
-# load_session_registry: on its first call only, read every <config>/sessions/*.json
-# into REGISTRY_ROWS as sessionId<TAB>pid<TAB>procStart lines. REGISTRY_SCAN records
-# ok, unreadable or malformed. One malformed entry spoils the whole read, because
-# it might be the one holding the session asked about. The <pid>.key files beside
-# the entries hold credentials and never match this glob.
 REGISTRY_SCAN=""
 REGISTRY_ROWS=""
 load_session_registry() {
@@ -648,7 +531,6 @@ load_session_registry() {
   while IFS= read -r row; do
     [[ -z "$row" ]] || count=$((count + 1))
   done <<<"$rows"
-  # jq emits nothing for a zero-byte file and exits 0.
   if ((count != ${#entries[@]})); then
     REGISTRY_SCAN=malformed
     return 0
@@ -657,10 +539,6 @@ load_session_registry() {
   REGISTRY_ROWS="$rows"
 }
 
-# proc_start_time <pid>: field 22 of /proc/<pid>/stat into PROC_START, the clock
-# ticks since boot that a registry procStart records. Returns 1 when the process
-# is gone, 2 when this host cannot tell: macOS has no /proc, and Git Bash's /proc
-# lists only its own pids, not the Windows pids a registry entry holds.
 HOST_KERNEL=""
 proc_start_time() {
   local stat
@@ -669,15 +547,11 @@ proc_start_time() {
   [[ "$HOST_KERNEL" == Linux && -r /proc/self/stat ]] || return 2
   [[ -d "/proc/$1" ]] || return 1
   IFS= read -r stat 2>/dev/null <"/proc/$1/stat" || return 2
-  # The command name (field 2) may itself hold spaces and parentheses.
   read -r -a fields <<<"${stat##*) }"
   PROC_START="${fields[19]:-}"
   [[ "$PROC_START" =~ ^[0-9]+$ ]] || return 2
 }
 
-# session_is_free <sid>: 0 when no running Claude Code process holds <sid>,
-# including an entry that is dead or whose pid now belongs to another process.
-# Otherwise 1, with the reason in STALE_NOTE.
 session_is_free() {
   local entry_sid entry_pid entry_start rc
   load_session_registry
@@ -712,12 +586,6 @@ session_is_free() {
   return 0
 }
 
-# stale_verdict <canonical-path>: the stale verdict into STALE_NOTE, returned as
-# the exit code `stale` documents. Forks only for the host name, the kernel name,
-# the registry read and the transcript scan, each once per run, so --batch pays
-# nothing more per path.
-# ponytail: liveness is provable only from this host's registry and transcripts;
-# a lock from another host, or without a session id, stays "not provable".
 THIS_HOST=""
 stale_verdict() {
   local idx reason host sid hit
@@ -731,7 +599,6 @@ stale_verdict() {
     STALE_NOTE="not provable: ${WT_PATHS[idx]} is not a linked worktree with a lock reason"
     return "$EX_UNCLAIMED_REPORT"
   fi
-  # Called for the BASH_REMATCH it sets, not its output, so no subshell runs.
   if ! worktree_reason_lane "$reason" >/dev/null; then
     STALE_NOTE="not provable: the lock reason names no session: $reason"
     return "$EX_UNCLAIMED_REPORT"

@@ -80,7 +80,6 @@ class LaneRecordCase(unittest.TestCase):
         self.path = pathlib.Path(tmp.name) / "lane-records.json"
 
         def run_command(command: list[str], **kwargs: Any) -> Any:
-            # The fake answers without headers, so the `-i` the guard adds is dropped.
             args = [a for i, a in enumerate(command[1:]) if (i, a) != (1, "-i")]
             return self.gh(args, timeout_seconds=kwargs.get("timeout_seconds"))
 

@@ -1,37 +1,4 @@
 #!/usr/bin/env bash
-# Spawn-budget regression tests for the three worktree hooks (#3510).
-#
-# WHY strace AND NOT xtrace OR A PATH SHIM. The cost these gates were paying is
-# a FORK THAT NEVER EXECS: a command substitution whose body carries a
-# redirection of its own forks the substitution subshell and then forks AGAIN to
-# run the command, where the same redirection hoisted onto a group holding one
-# command lets bash exec in the substitution's own subshell. `set -x` sees the
-# command either way and a PATH shim only ever sees the exec, so both are blind
-# to the entire subject. `strace -f -e trace=clone,clone3,fork,vfork,execve`
-# counts the creation itself, which is the number that maps to the Windows
-# process-creation tax in #3508.
-#
-# WHAT IS ASSERTED — an UPPER BOUND, not an equality. A later change that
-# removes more work (hook-utils.sh gaining a `_to` reader, say) must not fail
-# this suite; a reverted change must. Each ceiling below is the measured count
-# with every change in place, and reverting ANY ONE of the seven changes this
-# suite guards raises at least one ceiling's case by 1 or more: a restored
-# `| tr -d '\r'` stage costs exactly 1 creation and 1 execve per field, every
-# other revert costs 2 or more. The mutation check is recorded in the PR, not
-# re-run here.
-#
-# WHAT THE CEILINGS CANNOT SEE. The payload field reads are
-# `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes: never a
-# here-string, which bash fills itself and which deadlocks at the pipe capacity
-# on Git Bash (#1587), a hook-timeout stall that on a containment gate is also
-# a fail-open. That feed costs 3 creations per field where a here-string costs
-# 1, so a here-string regression would LOWER these counts and pass every
-# ceiling. The last cases below grep the gates for it instead.
-#
-# The counts include hook-utils.sh's own share (the buffer_stdin substitution
-# and hook::json_complete's `printf | jq -e .`), which these hooks cannot reach:
-# the library is generated into 21 plugin copies by scripts/sync-shared-copies.sh
-# and is out of scope for an in-file perf change.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,9 +11,6 @@ source "$SCRIPT_DIR/../scripts/test-helpers.sh"
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 command -v jq >/dev/null 2>&1 || skip_suite "jq not available (the hooks fail open without it)"
 command -v strace >/dev/null 2>&1 || skip_suite "strace not available (Linux-only; the gates' behavior suites carry the portable coverage)"
-# ptrace is commonly restricted inside containers and on hardened hosts. A
-# strace that cannot attach reports nothing, which would silently pass every
-# ceiling — so probe once and skip the suite rather than assert on empty output.
 if ! strace -f -qq -e trace=execve -o /dev/null /bin/true >/dev/null 2>&1; then
   skip_suite "strace cannot ptrace here (container seccomp or /proc/sys/kernel/yama/ptrace_scope)"
 fi
@@ -80,7 +44,6 @@ measure() {
   printf '%s' "$payload" |
     strace -f -qq -e trace=clone,clone3,fork,vfork,execve -o "$trace" \
       bash "$hook" >/dev/null 2>/dev/null
-  # CLONE_THREAD clones are threads (shfmt is Go), not processes.
   CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$trace" | grep -vc CLONE_THREAD)
   EXECVES=$(($(grep -cE 'execve\(' "$trace") - 1))
   rm -f "$trace"
@@ -141,11 +104,6 @@ assert_exact "claim, parsed add target" "$CLAIM" \
 assert_budget "create, payload with no .name" "$CREATE" \
   "$(jq -n --arg cwd "$REPO" '{session_id:"budget",cwd:$cwd,hook_event_name:"WorktreeCreate",name:""}')" 13 4
 
-# ── no here-string carries a payload ────────────────────────────────────────
-# The regression the ceilings cannot see (header): the whole buffered payload
-# fed to a reader by `<<<`. The two names are what the gates buffer stdin into;
-# a here-string on anything else (a path segment handed to `read -a`) is not
-# the hazard, since bash never fills a pipe for a builtin.
 HERESTRING_PAYLOAD='<<<[[:space:]]*"?\$\{?(INPUT|payload)\}?'
 for gate in "$CONTAIN" "$CLAIM" "$CREATE"; do
   if grep -nE "$HERESTRING_PAYLOAD" "$gate" >/dev/null; then

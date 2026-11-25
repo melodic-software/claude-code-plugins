@@ -628,8 +628,6 @@ class Settle(SettledCase):
         self.assertEqual(len(self.comment_posts()), 1)
 
     def test_settle_from_marks_only_merges_the_anchor_passed(self) -> None:
-        # #7336: a marker on a merge the anchor has not passed would hold the
-        # anchor for good, since a settled-only merge never moves it.
         self.lane_dispatch()
         report = self.settled_check(now=SOON).report()
         merged_at = datetime.fromisoformat(report["autoMerges"][0]["mergedAt"])

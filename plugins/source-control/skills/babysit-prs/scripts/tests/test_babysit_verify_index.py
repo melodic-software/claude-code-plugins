@@ -317,7 +317,6 @@ class Conditional:
     a name holding artifacts answers its 200 and another ETag."""
 
     def __init__(self, *, unasked: bool = False):
-        # `unasked`: a 304 even to a read that sent no If-None-Match.
         self.unasked = unasked
         self.not_modified = 0
 
@@ -606,8 +605,6 @@ class PerRunLegacyFails(unittest.TestCase):
     def test_a_fail_of_a_run_from_before_since_is_added_through_the_listing(
         self,
     ) -> None:
-        # A re-run keeps its creation time, so no window holds run 8; its
-        # FAIL uploaded after `--since`, so the listing adds it.
         fake = RunsGitHub()
         fake.other_runs[8] = run(8, created_at="2026-10-13T23:00:00Z")
         fake.artifacts[8] = uploaded(

@@ -1,65 +1,4 @@
 #!/usr/bin/env bash
-# telemetry-upsert.sh — maintain this babysit-loop instance's ONE sentinel-identified
-# telemetry comment on the lane's tracking issue, and confirm the write landed.
-#
-# Usage:
-#   telemetry-upsert.sh --repo OWNER/REPO --issue N --instance ID --body-file PATH --body-dir DIR [--app-slug SLUG]
-#   telemetry-upsert.sh --repo OWNER/REPO --issue N --instance ID --read [--body-dir DIR] [--app-slug SLUG]
-#
-#   --read          print this identity's canonical comment body (empty when it has
-#                   none) and write nothing; the re-anchor read of the state block.
-#   --app-slug SLUG the GitHub App whose installation token gh runs under; its
-#                   writes land as SLUG[bot]. Empty, or a literal unsubstituted
-#                   ${user_config.…} placeholder, counts as absent.
-#
-# Only comments written by this script's own write identity count, whoever else
-# posts the public sentinel. The identity is the `gh api user` login when that call
-# reports a User; when it fails (an App installation token cannot call it) or
-# reports a Bot, it is SLUG[bot] from --app-slug, else the reported Bot login with
-# its [bot] suffix. Unresolved: exit 5, nothing read or written.
-#
-#   --instance ID   lane instance id, ^[a-z0-9][a-z0-9-]{0,31}$. Empty, or a literal
-#                   unsubstituted ${user_config.…} placeholder, falls back to a random
-#                   `lane-<hex>` id made once and kept in DIR/lane-instance, so it is
-#                   stable across restarts without publishing the hostname in the
-#                   public marker; the fallback is logged and passes the same check.
-#   --body-file PATH  this cycle's telemetry (report + state block). The script
-#                   writes the sentinel line above it; a file that already opens with
-#                   this instance's sentinel is sent as-is.
-#   --body-dir DIR  directory the body file must resolve under (default: an
-#                   inherited CLAUDE_PLUGIN_DATA). Either counts only when its last
-#                   path segment names source-control, and never when it is /, the
-#                   home dir, or an ancestor of it. SECURITY: lane prompts drive this script,
-#                   and an unconstrained path would let a prompt-injected
-#                   `--body-file ~/.ssh/id_rsa` be posted as a public comment. A
-#                   symlink leaf or a path resolving outside DIR is refused before any
-#                   read; the body is then scanned with scanLeak and withheld whole on
-#                   any hit, naming the rule and never the match.
-#
-# Steps: pre-write body gate; write identity; paginated lookup of that identity's
-# comments opening with the sentinel;
-# POST when none exists, then re-list; PATCH the lowest id (canonical); read the
-# comment back and byte-compare it with the body sent (CR and trailing newlines
-# stripped from both sides, nothing else); only then tombstone duplicate sentinel
-# comments, so an unconfirmed cycle never retires a racing session's comment.
-#
-# Exit codes (every non-zero exit means this cycle's telemetry is NOT confirmed;
-# the caller records the lane as UNREPORTED and carries that to the next cycle):
-#   0  written and the read-back matches the body sent byte for byte
-#   3  invalid input, a body file outside the safe body dir or a symlink, or a
-#      body that failed the pre-write gate or the leak scan, or a lane instance
-#      findMachine matches (a hostname the public marker would publish) — nothing
-#      written
-#   4  gh or node not found — nothing written
-#   5  a gh call failed before anything verifiable landed: the write identity or
-#      the lookup (nothing written), the POST, or the PATCH (the comment holds an
-#      earlier body), or the POST landed under another login (a wrong
-#      --app-slug; that comment is deleted); under --read, the identity,
-#      lookup, or read failed
-#   6  the write was sent but is unconfirmed: the created comment was not re-found,
-#      the read-back failed, or what was stored differs from what was sent
-# A failed duplicate tombstone after a verified write is reported on stderr only;
-# the next cycle retries it.
 
 set -uo pipefail
 unset CDPATH
@@ -101,10 +40,6 @@ type -P gh >/dev/null 2>&1 || die 4 "gh not found; nothing written"
 [[ -z "$APP_SLUG" || "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
   die 3 "--app-slug must be a GitHub App slug (got '$APP_SLUG'); nothing written"
 
-# telemetry-body-gate.sh (a generated copy of lib/telemetry-body-gate.sh) holds
-# the rule every lane telemetry upsert shares. The safe body dir must be this
-# plugin's data dir (its last segment names source-control; never /, the home
-# dir or an ancestor of it); --read needs it only for the instance fallback.
 # shellcheck source=telemetry-body-gate.sh
 . "${BASH_SOURCE[0]%/*}/telemetry-body-gate.sh"
 SAFE_OK=""
@@ -125,9 +60,6 @@ tbg_check_instance "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs" "$INSTAN
 
 SENT="<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@$INSTANCE -->"
 
-# The write identity: whose comments this instance may adopt, edit, or tombstone.
-# A User login is the identity; a failed call or a Bot means an App token, whose
-# writes land as <slug>[bot]. Validated before it enters a jq program.
 resolve_identity() {
   local who
   if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null)" && [[ "$who" == *" User" ]]; then

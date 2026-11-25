@@ -179,8 +179,6 @@ class LooseBaseHoldsABehindCleanHead(BaseFreshnessHarness):
         self.assertEqual(len(self.compare_calls), 1)
 
     def test_auto_merge_is_not_armed_over_a_behind_head(self) -> None:
-        # Only a running required check holds the merge, which `--auto` may arm
-        # over; on a loose base GitHub would then merge the behind head itself.
         result = self._evaluate(
             LOOSE,
             BEHIND,
@@ -229,9 +227,6 @@ class StrictRequiredChecksFold(unittest.TestCase):
         self.assertFalse(summary["requireUpToDate"])
 
     def test_a_strict_rule_needs_a_required_check_of_its_own(self) -> None:
-        # GitHub: the strict setting "will not take effect unless at least one
-        # status check is enabled" (https://docs.github.com/en/rest/repos/rules).
-        # Another rule's check does not count for it.
         strict_without_checks = {
             "type": "required_status_checks",
             "parameters": {

@@ -289,12 +289,9 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         answer = json.loads(proc.stdout)
         self.assertEqual(answer["hex"], ve.HEAD_REF_DIGEST_HEX)
         self.assertEqual(answer["digests"], [ve.head_ref_digest(r) for r in refs])
-        # The first 16 hex digits of `printf %s feat/x | sha256sum`.
         self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
 
     def test_a_checks_runs_draft_state_is_read_the_same(self) -> None:
-        # Only a listed conclusion of the draft step decides; the jobs API can
-        # list a finished job's steps empty or cut short.
         cases = {
             "the draft step ran": gate.DRAFT_JOBS,
             "the draft step skipped": gate.READY_JOBS,
@@ -340,9 +337,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 self.assertEqual(got, want)
 
     def test_a_fail_judged_from_a_draft_run_is_dropped_the_same(self) -> None:
-        # #11832's checks runs at the head (gate.draft_race), then each change
-        # the gate suite's keeps-the-FAIL test makes; `jobs` None is a read
-        # that fails, `runs` None a listing that fails.
         base = {
             "runs": [
                 {"id": gate.READY_CHECKS, "created_at": "2026-11-01T04:26:33Z"},
@@ -696,9 +690,6 @@ class TheGateBindsThePassToTheSpecKindTheWriterRecords(unittest.TestCase):
 
 QUEUE_CHECK = RESOLVER.parents[1] / "pr-merge/merge-holds.mjs"
 REQUIRE_CHECKS = RESOLVER.parents[2] / "workflows/pr-require-checks.yml"
-# The fields the queue check reads differ from the gate's `_origin` only in
-# its compare that main holds the run's head SHA, which the queue check skips
-# (main's ruleset forbids the force push that could drop it).
 HEAD_ONLY = {"head_sha"}
 
 

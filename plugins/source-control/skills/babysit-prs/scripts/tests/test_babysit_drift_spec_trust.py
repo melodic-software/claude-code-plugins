@@ -183,8 +183,6 @@ class FakeGitHub:
         for a in args:
             if a.startswith(f"repos/{REPO}/contents/{ve.ADMISSION_RULES_PATH}?"):
                 return ok({})
-            # A look-alike falls through to the recurring rule, whose schedule
-            # names no row.
             if a.startswith(f"repos/{REPO}/contents/{ve.RECURRING_SCHEDULE_PATH}?"):
                 return ok({"items": []})
             if a.startswith(f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?"):

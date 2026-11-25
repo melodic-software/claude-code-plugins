@@ -30,9 +30,6 @@ from typing import Any
 from unittest import mock
 from urllib.parse import unquote
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -139,7 +136,6 @@ class Answers(list):
     """REST answers given one per call, in order; the last repeats."""
 
 
-# A REST answer where gh never reports a status: run_command's timeout.
 TIMEOUT = object()
 
 
@@ -422,8 +418,6 @@ class ReadConfigAt(unittest.TestCase):
             (with_cap("0"), 1, True),
             (with_cap("-3"), 1, True),
             (with_cap("three"), 1, True),
-            # Present but empty or not a scalar: the shared reader prints
-            # nothing for these, as for an absent key.
             (with_cap("''"), 1, True),
             (with_cap("[]"), 1, True),
             (with_cap("[3]"), 1, True),
@@ -473,8 +467,6 @@ class ReadConfigAt(unittest.TestCase):
                 )
 
     def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
-        # The shared reader's subset rejects any flow mapping, empty or not,
-        # so the whole config is unread and the lane is off.
         for value in ("{}", "{a: 1}"):
             with self.subTest(value=value):
                 config_fake(
@@ -825,7 +817,6 @@ class IsHuman(unittest.TestCase):
         self.assertFalse(self.human(None))
 
     def test_the_configured_identity_as_a_user_is_not(self) -> None:
-        # A machine-user identity is a `User` with write; it must still fail.
         identity_table = permissions({"agent-lanes": "admin", "machine-user": "write"})
         for identity, actor in (
             (IDENTITY, user("agent-lanes")),
@@ -926,9 +917,6 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
 
     def by_author(variables: dict[str, str]) -> dict[str, Any]:
         nodes = []
-        # Shape per GitHub's GraphQL createdBy filter, which matches the [bot]
-        # login: probed, "github-actions[bot]" returned this repository's issues
-        # and "github-actions" and "app/github-actions" returned none.
         if variables["a"] == IDENTITY:
             nodes = [
                 {
@@ -1019,7 +1007,6 @@ class ReadDemotion(unittest.TestCase):
         self.assertTrue(read_demotion().active)
 
     def test_closed_by_a_pull_request_reference_is_off(self) -> None:
-        # A merged PR's "Closes #N" sets `closer`; its actor is the human who merged.
         demotion_fake(
             self,
             timelineItems={
@@ -1039,7 +1026,6 @@ class ReadDemotion(unittest.TestCase):
         self.assertIn(f"more than {policy.ISSUES_PAGE_LIMIT} pages", result.reason)
 
     def test_marker_beyond_a_truncated_edit_history_is_off(self) -> None:
-        # Only the newest 100 revisions are read; the marker may sit in an older one.
         edit = {"editedAt": "2026-10-12T11:00:00Z", "deletedAt": None}
         edit |= {"editor": bot("agent-lanes"), "diff": "scrubbed"}
         demotion_fake(
@@ -1083,8 +1069,6 @@ class ReadDemotion(unittest.TestCase):
         self.assertTrue(result.active)
 
     def test_role_label_removed_is_still_off(self) -> None:
-        # Records are found by author and marker: neither query reads labels,
-        # so a record with its role label removed is still found and held.
         gh = demotion_fake(
             self,
             timelineItems={"nodes": [{"actor": bot("agent-lanes"), "closer": None}]},
@@ -1097,8 +1081,6 @@ class ReadDemotion(unittest.TestCase):
             self.assertNotIn("labels", query)
 
     def test_only_the_earliest_revision_at_creation_is_the_original(self) -> None:
-        # A second identity revision stamped at createdAt is an edit, not the
-        # original body, even when a human edited after it.
         edits = {
             "totalCount": 3,
             "nodes": [
@@ -1169,8 +1151,6 @@ class ReadDemotion(unittest.TestCase):
                 self.assertTrue(read_demotion().active)
 
     def test_a_human_edit_keeps_it_clear(self) -> None:
-        # GitHub lists the original body as an edit by the author once anyone
-        # edits it (probed on #6202); that entry alone is not a non-human edit.
         edits = {
             "totalCount": 2,
             "nodes": [
@@ -1686,8 +1666,6 @@ class AutoClearOnGreen(unittest.TestCase):
         )
 
     def test_other_events_never_take_the_listing(self) -> None:
-        # Each listing names its event, so pull_request runs (a fork's main
-        # included) are never read and cannot crowd out a qualifying run.
         gh = self.fake()
         self.assertFalse(read_demotion().active)
         listings = [c[1] for c in gh.calls if c[1].startswith(GREEN_RUNS_PATH)]
@@ -1830,8 +1808,6 @@ class RecordLift(unittest.TestCase):
         self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
 
     def test_only_a_trusted_reference_made_before_the_merge_lifts(self) -> None:
-        # Anyone can mention the record in a comment on a merged pull request,
-        # which makes a reference too; that must not lift any record.
         green = {
             "conclusion": "success", "event": "push", "head_sha": FIX_MERGE,
             "head_branch": "main", "head_repository": {"full_name": REPO},
@@ -2074,8 +2050,6 @@ class RecordLift(unittest.TestCase):
                 self.assertEqual(not read_demotion().active, lifts)
 
     def test_a_final_newline_is_no_restored_blank_line(self) -> None:
-        # A deleted blank line is back only when the file holds a blank line,
-        # not because its text ends with a newline.
         body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"")])
         for name, at_tip, lifts in (
             ("only a final newline", "a\n", False),
@@ -2687,7 +2661,6 @@ def eligibility_fake(
     linked = {
         "number": ISSUE,
         "lastEditedAt": None,
-        # A write-access human wrote it, so it is vouched for (`_vouch_refusal`).
         "author": user(OPERATOR),
         "repository": {"nameWithOwner": REPO},
         "labels": {"totalCount": 1, "nodes": [{"name": "work-class: mechanical"}]},
@@ -2705,8 +2678,6 @@ def eligibility_fake(
     } | (pr or {})
     gh = GhFake().install(case)
     gh.graphql["PolicyEligibility"] = {"repository": {"pullRequest": pull}}
-    # REST issue timeline `labeled` event: `actor` is a REST user object
-    # (`login`, `type`), the field label-provenance.sh reads as `.actor.login`.
     gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
         {
             "event": "labeled",
@@ -2859,13 +2830,10 @@ class IssueVouch(unittest.TestCase):
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:title-edited-after-label"
         )
-        # A rename before the label is what the labeler read: it vouches.
         gh.rest[self.TIMELINE][-1]["created_at"] = "2026-10-11T08:00:00Z"
         self.assertTrue(eligibility().eligible)
 
     def test_a_retitle_with_no_recorded_actor_is_refused(self) -> None:
-        # A title edit leaves `lastEditedAt` empty, and a `renamed` event
-        # with no actor is not shown to be a person's.
         gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
         gh.rest[self.TIMELINE] = [
             {
@@ -2900,7 +2868,6 @@ class IssueVouch(unittest.TestCase):
         ]
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        # A label applied before the retitle did not see it.
         gh.rest[self.TIMELINE][1]["created_at"] = "2026-10-11T09:00:00Z"
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
@@ -2994,8 +2961,6 @@ class IssueVouch(unittest.TestCase):
         )
 
     def test_a_human_issue_retitled_by_a_non_human_is_refused(self) -> None:
-        # A title edit leaves the body history alone, so the author path reads
-        # the `renamed` events too: only a human in person may retitle.
         gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
         rename = {
             "event": "renamed",
@@ -3017,8 +2982,6 @@ class IssueVouch(unittest.TestCase):
         self.assertTrue(result.eligible, result.reason)
 
     def test_a_human_relabel_after_a_lane_rewrite_vouches(self) -> None:
-        # Either vouch suffices: a human who re-applies the admission label in
-        # person after the lane's edit vouches for the edited body.
         gh = self.edited_issue(bot("agent-lanes"))
         issue = gh.graphql["PolicyEligibility"]["repository"]["pullRequest"][
             "closingIssuesReferences"
@@ -3034,8 +2997,6 @@ class IssueVouch(unittest.TestCase):
         ]
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        # A label applied before the rewrite did not see it: the author
-        # path's reason stands.
         gh.rest[self.TIMELINE][0]["created_at"] = "2026-10-11T09:00:00Z"
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
@@ -3112,7 +3073,6 @@ class Eligibility(unittest.TestCase):
                 self.assertEqual(result.reason, "untrusted-provenance")
 
     def test_unreadable_issue_labels_hold(self) -> None:
-        # The trust hold cannot be ruled out, so it fails closed.
         eligibility_fake(
             self, issue={"labels": {"totalCount": 101, "nodes": [{"name": "a"}]}}
         )
@@ -3155,8 +3115,6 @@ class Eligibility(unittest.TestCase):
         self.assertEqual(eligibility().reason, "opt-in-label:labeler-not-human")
 
     def test_the_enqueue_recheck_reads_the_opt_in_again(self) -> None:
-        # #7339 comment 2: a removal, or a removal and a bot re-add, between
-        # the eligibility read and the enqueue must refuse the enqueue.
         def recheck() -> str | None:
             return policy.recheck_opt_in(
                 REPO, 7, agent_identity=IDENTITY, permission=HUMANS
@@ -3428,7 +3386,6 @@ class ChangedFiles(unittest.TestCase):
 
 class LaneWritable(unittest.TestCase):
     def test_a_writable_ancestor_directory_is_lane_writable(self) -> None:
-        # #7339 item 1: renaming a writable grandparent replaces the file.
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -3450,7 +3407,6 @@ class LaneWritable(unittest.TestCase):
                 self.assertFalse(policy._lane_writable(target))
 
 
-# The checker's evaluation block (check-security-binding.mjs evaluation mode).
 EVALUATION = (
     "Effective promotion state (evaluation mode):\n"
     "- C2-auto-merge: bound promoted -> effective promoted\n"
@@ -3688,7 +3644,6 @@ class ReadPromotion(unittest.TestCase):
         return result, seen
 
     def test_every_worktree_is_a_root_the_resolver_refuses(self) -> None:
-        # #7339 item 1: without the roots a surface in a sibling worktree passed.
         roots = ["/w/main", "/w/sibling"]
         _, seen = self.run_resolver(worktrees=lambda c: roots)
         argv = seen[0]
@@ -3754,9 +3709,6 @@ class ReadPromotion(unittest.TestCase):
         self.assertTrue(result.promoted("C3"))
 
     def test_the_age_bound_checks_only_its_settings_file(self) -> None:
-        # The bound is a number of hours, never judged as a local path; a
-        # settings file holding it that the lane can write lets the lane make
-        # old evidence count, so it refuses.
         bound_file = "/etc/claude-code/managed-settings.d/30-age.json"
         payload = {
             "failClosedReason": None,
@@ -3816,9 +3768,6 @@ class ReadPromotion(unittest.TestCase):
             self.assertFalse(result.promoted(other))
 
     def test_each_rung_needs_its_own_cells(self) -> None:
-        # promotion-evidence-resolution.md "Promotable cells and rung
-        # mapping": C2 needs C2-auto-merge; C3 also needs C3-auto-merge and
-        # its prerequisite C3-ai-review-blocking.
         cells = self.CELLS | {"C3-ai-review-blocking": {"effective": "unpromoted"}}
         options = {
             o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
@@ -3934,8 +3883,6 @@ class EntryHold(unittest.TestCase):
         return policy.entry_hold(REPO, 5, IDENTITY, authority=policy.PR_MERGE)
 
     def test_the_lane_keeps_an_entry_a_member_only_mentions_blocking_in(self) -> None:
-        # enable-auto-merge arms on the veto rule, so any wider hold here
-        # dequeues and re-arms the entry every run (#11519).
         self.member_says("A team that wants blocking sets `enforce`.")
         self.assertIsNone(self.lane_hold())
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
@@ -3953,7 +3900,6 @@ class EntryHold(unittest.TestCase):
         self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
 
     def test_a_strangers_blocking_text_is_no_hold(self) -> None:
-        # #7339 item 4: this repository is public, so anyone can comment.
         gh = self.fake()
         for kind, association in (
             ("issues/5/comments", "NONE"),
@@ -4015,8 +3961,6 @@ class EntryHold(unittest.TestCase):
         return policy.entry_hold(REPO, 5, IDENTITY, permission=HUMANS)
 
     def test_a_revoked_opt_in_restored_by_a_non_human_is_a_hold(self) -> None:
-        # The claude-security-review finding on #7335: presence alone let a bot
-        # silently restore a consent the human had withdrawn.
         for name, actor, via_app, hold in (
             (
                 "a bot",
@@ -4041,8 +3985,6 @@ class EntryHold(unittest.TestCase):
                 self.assertEqual(self.relabeled(actor, via_app), hold)
 
     def test_a_removal_the_timeline_shows_beats_the_label_snapshot(self) -> None:
-        # The labels were read before a human removed the label; the timeline,
-        # read after, already shows the removal (local review of ed841af72).
         gh = self.fake(
             labels={"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
         )
@@ -4333,8 +4275,6 @@ class InFlight(unittest.TestCase):
         self.assertEqual(len(reads), 3)
 
     def test_a_gate_floor_past_a_long_verified_history_reads_clear(self) -> None:
-        # #7336: the lane gate's anchored floor (`PostMergeGate.floor`) ends
-        # the walk that the policy floor runs past the read bound.
         gh = queue_fake(self, [], [])
         human = merged(2, user(OPERATOR), user(OPERATOR))
         older = merged(1, bot("agent-lanes"), None, "2026-09-01T09:00:00Z")
@@ -4358,8 +4298,6 @@ class InFlight(unittest.TestCase):
         self.assertEqual(gate.floor_from(anchor + policy.timedelta(days=1)).day, 2)
 
     def test_a_merge_that_jumped_to_page_one_mid_read_is_counted(self) -> None:
-        # An unverified auto-merge on a later page updated during the walk
-        # moves to page 1 behind the cursor; the re-read of page 1 finds it.
         gh = queue_fake(self, [], [])
         human = merged(2, user(OPERATOR), user(OPERATOR))
         jumped = merged(1, bot("agent-lanes"), None, "2026-10-01T09:00:00Z")
@@ -4384,9 +4322,6 @@ class InFlight(unittest.TestCase):
         self.assertEqual(result.reason, "unverified-auto-merge:#1")
 
     def test_a_merge_before_the_floor_updated_after_it_is_not_judged(self) -> None:
-        # Codex P1 on #7335: a comment on an old bot-queued merge moves its
-        # updatedAt past the floor, but it merged before the path was enabled,
-        # so the post-merge verdict never judges it and in_flight must not.
         old = merged(2, bot("agent-lanes"), None, "2025-12-01T09:00:00Z")
         old["updatedAt"] = "2026-10-12T09:00:00Z"
         queue_fake(self, [], [old])
@@ -4688,11 +4623,6 @@ class Assess(unittest.TestCase):
     def test_a_base_other_than_the_default_branch_refuses_before_any_write(
         self,
     ) -> None:
-        # Codex P1 on #7335: the post-merge check, its dispatch and the
-        # scheduled full run all judge the default branch, so a merge into any
-        # other base would go unjudged. The refusal comes after the kill
-        # switch with the identity accepted, so the identity's queued entries
-        # can still be held or dequeued (local review of ed841af72).
         for name, answer, reason in (
             ("another branch", {"default_branch": "main"}, "base-not-default:trunk"),
             ("unreadable", 502, "default-branch-unreadable"),
@@ -4807,7 +4737,6 @@ class Assess(unittest.TestCase):
                 "nodes": [{"name": name} for name in labels],
             },
         }
-        # A person applied each label (REST timeline `labeled` events).
         gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
             {
                 "event": "labeled",
@@ -4935,13 +4864,6 @@ class Assess(unittest.TestCase):
         self.assertEqual(held.reason, "promotion-unqualified:C2")
 
     def test_after_a_demotion_the_rung_waits_for_re_ratified_evidence(self) -> None:
-        # The resolver, given --window-start, adds a gate-failure per cell at
-        # the demotion (resolve-promotion-evidence.test.mjs "--window-start
-        # hands the checker a copy with one gate-failure per cell"), so its
-        # cells read unpromoted until a promotion newer than that exists. Here
-        # the resolver's answer is canned on each side of that ratification;
-        # the gate must pass the window start through read_promotion's argv
-        # and refuse until the cells read promoted.
         self.readable()
         self.all_clear()
         created = policy.datetime.fromisoformat("2026-10-11T07:00:00Z")
@@ -5331,7 +5253,6 @@ class LocalEnabledSince(unittest.TestCase):
         )
 
     def test_a_partial_clone_falls_back_to_the_api(self) -> None:
-        # Its older blobs are not local, and the read never lazy-fetches.
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
         base = self.pipeline(PIPELINE + "# edit\n", "2026-10-11T00:00:00Z")
         self.git(self.clone, "config", "uploadpack.allowFilter", "true")
@@ -5369,7 +5290,6 @@ class LocalEnabledSince(unittest.TestCase):
         return middle, whole
 
     def test_a_graft_file_does_not_cut_the_history(self) -> None:
-        # Grafted parentless, the middle commit would end the walk there.
         middle, whole = self.cut_history()
         (self.clone / ".git" / "info").mkdir(exist_ok=True)
         (self.clone / ".git" / "info" / "grafts").write_text(f"{middle}\n")
@@ -5392,8 +5312,6 @@ class LocalEnabledSince(unittest.TestCase):
         self.assertEqual(gh.calls, [])
 
     def test_a_symlinked_config_reads_the_api_as_before(self) -> None:
-        # The contents API follows an in-repository symlink to a file; the
-        # clone read hands such a path to it rather than refusing it.
         self.commit("docs/source-control.yaml", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
         (self.clone / TEAM_YAML).parent.mkdir(parents=True, exist_ok=True)
         (self.clone / TEAM_YAML).symlink_to("../source-control.yaml")
@@ -5530,7 +5448,6 @@ LANE_DENIED = (
     "plugins/*/skills/**",
     "plugins/*/agents/**",
 )
-# resolve-issue's `labels-absent` in docs/conventions/pr-pipeline.yaml.
 ISSUE_HOLDS = (
     "needs-human",
     "needs-owner-decision",
@@ -5720,7 +5637,6 @@ class LaneEligibility(unittest.TestCase):
         self.assertFalse(any(self.COMMENTS in c for c in calls))
 
     def test_a_class_label_on_the_issue_or_the_pr_is_ignored(self) -> None:
-        # The admitted issues still carrying these labels (#5981, #6821).
         for labels in (
             ["work-class: scoped"],
             ["Work-Class: Structural"],
@@ -5744,9 +5660,6 @@ class LaneEligibility(unittest.TestCase):
                 self.assertEqual(result.reason, "untrusted-provenance")
 
     def test_the_label_match_agrees_with_the_queue_step(self) -> None:
-        # The shared table scripts/ci-hold-merge-group.test.sh runs through the
-        # merge-queue step's jq `ascii_downcase`: an ASCII-only match, so a
-        # letter that folds to an ASCII one ("ſ", "ﬆ") holds in neither.
         table = json.loads(
             (pathlib.Path(__file__).parent / "fixtures/untrusted-labels.json").read_text(
                 encoding="utf-8"
@@ -5789,7 +5702,6 @@ class LaneEligibility(unittest.TestCase):
         self.assertTrue(str(self.eligibility().reason).startswith("unreadable: "))
 
     def test_a_pr_the_lanes_app_did_not_open_is_ineligible(self) -> None:
-        # Anyone with write access could name an issue in `Closes #N`.
         for author in (user(OPERATOR), bot("other-app")):
             with self.subTest(author["login"]):
                 self.fake(author=author)
@@ -5840,7 +5752,6 @@ class LaneEligibility(unittest.TestCase):
             "plugins/foo/hooks/hooks.json",
             "plugins/foo/.claude-plugin/plugin.json",
             "scripts/check-convention-yaml.sh",
-            # The wrapper pr-merge.yml runs under the lane token (#7476 review).
             "plugins/source-control/scripts/source-control-babysit-merge",
         ):
             with self.subTest(path):
@@ -5925,7 +5836,6 @@ class LaneEligibility(unittest.TestCase):
         self.assertEqual(recheck(None), "closing-issue-changed:None>41")
 
     def test_each_configured_hold_on_the_issue_refuses_at_both_reads(self) -> None:
-        # #7783: a hold added to the issue after admission stops the merge.
         for label in ISSUE_HOLDS:
             with self.subTest(label=label):
                 self.fake(labels=["agent-ready", label.upper()])
@@ -6322,7 +6232,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(self.refusal(owner_pr(user=user)), "author-not-owner")
 
     def test_the_owner_login_with_another_id_is_not_adopted(self) -> None:
-        # Login text is never the match: only the account id is.
         for login in (OWNER_LOGIN, OWNER_LOGIN.upper()):
             with self.subTest(login=login):
                 spoof = {
@@ -6353,7 +6262,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(self.refusal(activity=FRESH), "updated-fresh")
 
     def test_the_raw_update_time_decides_nothing(self) -> None:
-        # Any commenter moves `updated_at` (#9136): only `activity` counts.
         self.assertIsNone(self.refusal(owner_pr(updated_at=FRESH)))
 
     def test_a_recent_head_commit_is_not_adopted(self) -> None:
@@ -6440,8 +6348,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         for body in ("Closes #41\n\nHold: waiting on the owner", "  hold: x"):
             with self.subTest(body=body):
                 self.assertEqual(self.refusal(owner_pr(body=body)), "hold-body")
-
-    # --- While the lane's own queue entry is pending ------------------------
 
     def test_a_fresh_update_keeps_adoption_while_the_lane_entry_is_queued(self) -> None:
         self.assertIsNone(self.refusal(activity=FRESH, queued_at_head=lambda: True))
@@ -6575,8 +6481,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     )
         self.assertFalse(policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, ""))
 
-    # --- After the lane's own whole-review toggle --------------------------
-
     RECORDED = datetime(2026, 10, 11, 13, tzinfo=UTC)
 
     def reasons(self, head: str = HEAD, author: str = IDENTITY) -> dict[str, Any]:
@@ -6641,9 +6545,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(self.toggled(comments), "updated-fresh")
 
     def test_a_record_with_no_lane_conversion_after_it_does_not_excuse(self) -> None:
-        # A person with write access can edit the record's time past their
-        # own "wait"; the lane's conversion to draft has a server time an
-        # edit cannot move, so a record it does not follow excuses nothing.
         late = self.RECORDED + policy.whole_review.CONVERT_WINDOW + timedelta(minutes=1)
         for label, converted in (
             ("no conversion read", None),
@@ -6713,8 +6614,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertIsNone(
             self.refusal(activity=FRESH, committed=FRESH, idle_hours=1)
         )
-
-    # --- In the lane's eligibility ------------------------------------------
 
     def eligibility(self, pr: dict[str, Any], **kwargs: Any) -> Any:
         args: dict[str, Any] = {
@@ -6792,17 +6691,12 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 )
 
     def test_only_a_script_written_apps_body_is_its_intent(self) -> None:
-        # A model-written App body (claude[bot]) would grade the diff against
-        # the spec the same run wrote: it needs a closing issue. The release
-        # App's script-written body does not (adoption.spec-from-body-apps).
         release = {
             "login": "melodic-release[bot]",
             "id": 337859524,
             "type": "Bot",
         }
         claude = {"login": "claude[bot]", "id": 209825114, "type": "Bot"}
-        # A GitHub User the trusted list marks kind bot: a model writes its
-        # bodies, so being a User does not make it a person.
         cursoragent = {"login": "cursoragent", "id": 199161495, "type": "User"}
         ids = (OWNER_ID, release["id"], claude["id"], cursoragent["id"])
         for author, reason in (
@@ -6873,8 +6767,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(result.adoption, "idle-owner:24h")
         result = self.eligibility(pr, toggled_at_head=lambda: False)
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
-
-    # --- Idleness counts trusted activity only (#9136) ----------------------
 
     OWNER = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"}
     STRANGER = {"login": "stranger", "id": 99, "type": "User"}
@@ -6976,7 +6868,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         comment = self.commented(self.STRANGER, FRESH)
         comment["body"] = "Looks fine; the do-not-merge label is gone."
         comment["author_association"] = "MEMBER"
-        # A bot's text is not read: review lanes quote the hold phrase.
         bot = {"login": "github-actions[bot]", "id": 41898282, "type": "Bot"}
         quoted = self.commented(bot, FRESH)
         quoted["body"] = 'a collaborator comments "do not merge, this leaks X"'
@@ -7022,8 +6913,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
     def test_a_fresh_push_of_an_old_commit_is_not_adopted(self) -> None:
-        # A commit's dates are its pusher's: the push counts when GitHub saw
-        # the head arrive, and an unreadable arrival is not idle.
         self.owner_fake(pushed=FRESH)
         result = self.eligibility(owner_pr())
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
@@ -7041,7 +6930,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "event": "line-commented",
             "comments": [{"user": self.STRANGER, "created_at": FRESH}],
         }
-        # A mention names the person mentioned, not the account that acted.
         mention = {"event": "mentioned", "actor": self.OWNER, "created_at": FRESH}
         commit = {"event": "committed", "committer": {"date": FRESH}}
         for label, args, kwargs, expected in (
@@ -7058,10 +6946,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(self.activity(*args, **kwargs), expected)
         with self.assertRaises(policy.PolicyReadError):
             self.activity(created_at=None)
-
-    # --- After a person's enqueue left the queue on failed checks ----------
-    # Owner decision Q-REQ (a): that person's enqueue of this head stands in
-    # for the idle wait; every other rule still applies.
 
     def ejected(self, **changes: Any) -> dict[str, Any]:
         enqueue = {
@@ -7093,7 +6977,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         app = {"__typename": "Bot", "databaseId": 337595936}
         for label, enqueue, humans in (
             ("an App actor", {"actor": app}, (OWNER_ID,)),
-            # GitHub types the lanes App's enqueuer a User: only the id counts.
             (
                 "an App enqueuer typed User",
                 {"enqueuer": {"login": "agent-lanes[bot]", "databaseId": 337595936}},
@@ -7117,9 +7000,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertFalse(self.requeued(ejected, human_ids=humans))
 
     def test_a_head_pushed_after_the_enqueue_does_not_requeue(self) -> None:
-        # The server's newest check suite on the head, never a commit date: a
-        # backdated commit fast-forwarded after the removal, or a head staged
-        # before, reset away and pushed back, has a suite after the enqueue.
         self.assertFalse(self.requeued(self.ejected(), head_last_seen=lambda: NOW_ISH))
         self.assertTrue(self.requeued(self.ejected(), head_last_seen=lambda: FRESH))
 
@@ -7320,7 +7200,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertIsNone(result.adoption)
 
     def test_a_wait_comment_after_the_removal_keeps_the_idle_rule(self) -> None:
-        # AGENTS.md: a person's comment asking to wait stops the merge.
         wait = {
             "user": {"login": OWNER_LOGIN, "type": "User"},
             "body": "hold on, looking at the flake",
@@ -7402,8 +7281,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             REPO, 7, pr=owner_pr(), denied_paths=(), agent_identity=IDENTITY
         )
         self.assertEqual(result.reason, "not-lane-authored")
-
-    # --- The setting ---------------------------------------------------------
 
     def test_idle_hours_default_to_24_and_read_the_setting(self) -> None:
         for text, expected, noted in (
@@ -7658,7 +7535,6 @@ class ForeignPaths(unittest.TestCase):
     def test_a_commit_is_the_authors_own_only_when_committed_and_verified(
         self,
     ) -> None:
-        # The author id is the git author email, which anyone can set.
         x = {"x": [{"filename": ".github/x.yml"}]}
         forged = self.commit("x", OWNER_ID, self.LANES)
         self.assertEqual(self.paths([forged], x), frozenset({".github/x.yml"}))
@@ -7667,8 +7543,6 @@ class ForeignPaths(unittest.TestCase):
         self.assertEqual(self.paths([self.commit("x", OWNER_ID)], x), frozenset())
 
     def test_a_trusted_apps_own_verified_commits_score_nothing(self) -> None:
-        # An App commits through the API, so GitHub's web-flow commits it:
-        # author and signature alone, the weaker case.
         app = owner_pr(
             user={
                 "login": "melodic-release[bot]",
@@ -7678,7 +7552,6 @@ class ForeignPaths(unittest.TestCase):
         )
         own = self.commit("r1", 337859524, self.WEB_FLOW)
         unsigned = self.commit("r2", 337859524, self.WEB_FLOW, verified=False)
-        # S&C: an App's commit someone else committed is not its own.
         other = self.commit("r3", 337859524, self.LANES)
         r3 = {"r3": [{"filename": "scripts/x.sh"}]}
         self.assertEqual(self.paths([other], r3, app), frozenset({"scripts/x.sh"}))
@@ -7689,8 +7562,6 @@ class ForeignPaths(unittest.TestCase):
         )
 
     def test_s_and_c_forged_merged_and_parentless_commits_score(self) -> None:
-        # S&C review of #9107: an owner-email commit the lanes App committed,
-        # a lanes App merge adding a PR file, and a parentless commit.
         changed = (".github/workflows/x.yml", "plugins/x/hooks/evil.sh")
         workflow = {"w": [{"filename": ".github/workflows/x.yml"}]}
         evil = {"m": [{"filename": "plugins/x/hooks/evil.sh"}]}
@@ -7737,8 +7608,6 @@ class ForeignPaths(unittest.TestCase):
         )
         own = changed - {
             ".github/workflows/pr-merge.yml",
-            # A workflow holding a secret is a gate path, and so are Claude
-            # Code settings and the agent instructions.
             ".github/workflows/release-publish-plugins.yml",
             ".claude/settings.json",
             "AGENTS.md",
@@ -7747,7 +7616,6 @@ class ForeignPaths(unittest.TestCase):
             "CODEOWNERS",
             "docs/CODEOWNERS",
             ".gitmodules",
-            # adjudicate-feedback.mjs reads the linked issues' spec through it.
             ".github/scripts/pr-verify/resolve-pr.mjs",
         }
         for user in (
@@ -7767,8 +7635,6 @@ class ForeignPaths(unittest.TestCase):
             self.assertEqual(policy.own_paths(REPO, owner_pr(), changed, floor=REPO_FLOOR), frozenset())
 
     def test_a_model_app_owns_only_its_script_lines(self) -> None:
-        # Owner decision Q14 (c): plugins/*/scripts/, less the never-exempt
-        # paths. Top-level scripts/ runs in credentialed jobs on main (S&C).
         changed = frozenset(
             {
                 "scripts/release-plugins.sh",
@@ -7836,7 +7702,6 @@ class AuthorReviewedPaths(unittest.TestCase):
         for user in (
             self.LANES,
             {"login": "claude[bot]", "id": 209825114, "type": "Bot"},
-            # An App's id on the human list is still not a person.
             {"login": "x[bot]", "id": OWNER_ID, "type": "Bot"},
         ):
             with self.subTest(user=user["login"]):
@@ -7852,9 +7717,6 @@ class AuthorReviewedPaths(unittest.TestCase):
         self.assertEqual(self.reviewed(verified=False), frozenset())
 
     def test_token_scope_paths_are_never_lifted(self) -> None:
-        # Owner decision 2026-10-28: what the token broker loads to scope a
-        # lane token waits for a person even on a trusted person's own pull
-        # request with a pr-verify pass.
         token_scope = {
             ".github/actions/resolve-config/resolve.mjs",
             ".github/actions/resolve-config/effect-grants.json",
@@ -7958,8 +7820,6 @@ class LaneAssess(unittest.TestCase):
             LANE_PIPELINE + "adoption:\n  idle-hours: 48\n"
         )
         policy._TRUSTED_IDS.clear()
-        # Read at the default branch head's SHA, never the PR's base ref
-        # (owner decision Q22): a stacked PR's base is its author's.
         gh.rest[f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref={SHA}"] = (
             file_payload(
                 json.dumps(
@@ -7968,7 +7828,6 @@ class LaneAssess(unittest.TestCase):
                         "actors": [
                             {"id": 5, "login": "a", "kind": "human"},
                             {"id": 77, "login": "b[bot]", "kind": "bot"},
-                            # S&C E: never adopted, the lanes App and Dependabot.
                             {"id": 9, "login": IDENTITY, "kind": "bot"},
                             {"id": 49699333, "login": "dependabot[bot]", "kind": "bot"},
                         ],
@@ -8006,7 +7865,6 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(result.details["eligibility"]["adoption"], "idle-owner:24h")
 
     def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:
-        # The variable's own rule: unset (empty in `vars`) is no cap.
         gh = self.unreadable_variables()
         self.lane_clear()
         result = self.lane_assess(post_merge=lambda floor, who: gate())
@@ -8049,8 +7907,6 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(result.reason, "rung-off:rungCap")
 
     def test_the_lane_takes_the_kill_switch_from_the_workflow(self) -> None:
-        # Owner decision 2026-10-14: the lane token cannot read Actions
-        # variables, so the workflow's own kill-switch check is passed in.
         gh = self.readable()
         gh.rest[f"repos/{REPO}/actions/variables?per_page=1"] = 403
         gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = 403
@@ -8091,7 +7947,6 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(result.reason, "kill-switch:repo-switch-not-false")
 
     def test_the_lane_counts_only_its_own_merges_in_flight(self) -> None:
-        # #7481: another App's merge on main is not the lane's.
         self.readable()
         self.lane_clear()
         self.lane_assess(post_merge=lambda floor, who: gate())
@@ -9621,9 +9476,6 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
     def test_a_rerun_in_an_older_verified_merges_window_reads_it_again(
         self,
     ) -> None:
-        # `_judge` judges a verified merge's runs created from its `mergedAt`,
-        # and a re-run keeps its `created_at`: the listing reaches back to the
-        # earliest merge in the answer, not the earliest unverified one.
         now = policy.datetime.now(policy.UTC)
         stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
         report = {
@@ -9653,7 +9505,6 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
         }
 
         def read(args: list[str], label: str) -> dict[str, Any]:
-            # The API's `created=>=` filter.
             floor = unquote(args[1].split("created=")[1].split("&")[0])
             runs = [r for r in [rerun] if r["created_at"] >= floor[2:]]
             return {"total_count": len(runs), "workflow_runs": runs}
@@ -10718,7 +10569,6 @@ class DependabotEligibility(unittest.TestCase):
                 result = self.pinned_patch(comments=[self.marker()], pin=pin)
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, refused)
-        # The lanes App's commit pushed by anyone else still refuses.
         result = self.pinned_patch(
             comments=[self.marker()], pushes=self.FOREIGN_PUSH
         )
@@ -10726,7 +10576,6 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.reason, "pushed-by:maintainer")
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
-        # Unreadable is not "touches nothing": the .github/ boundary must hold.
         fix = dependabot_commit(
             name="agent-lanes[bot]",
             email="1+agent-lanes[bot]@users.noreply.github.com",
@@ -10760,7 +10609,6 @@ class DependabotEligibility(unittest.TestCase):
     ]
 
     def test_bad_provenance_refuses_even_with_a_merge_verdict(self) -> None:
-        # A commit's author is text; the pusher is who it is.
         self.fake(pushes=self.FOREIGN_PUSH)
         self.assertEqual(self.eligibility().reason, "pushed-by:maintainer")
         self.fake(pushes=self.FOREIGN_PUSH, comments=[self.marker()])
@@ -11046,8 +10894,6 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.dependabot.tier, "review")
 
     def test_the_ci_status_run_that_started_last_decides(self) -> None:
-        # `filter=latest` keeps the latest run of each check suite, so a
-        # re-triggered workflow leaves an older red run beside a newer one.
         red = {"status": "completed", "conclusion": "failure"}
         green = {"status": "completed", "conclusion": "success"}
         running = {"status": "in_progress", "conclusion": None}
@@ -11583,7 +11429,6 @@ class FileContents(unittest.TestCase):
         self.assertEqual(len(calls), 2)
 
     def test_the_trusted_actor_list_is_read_on_both_sides(self) -> None:
-        # The trust-gate hold compares its base and head entries.
         path = ".github/standards/trusted-actors/trusted-actors.json"
         texts = {(path, "b" * 40): "old", (path, "c" * 40): "new"}
         out, _ = self.read([self.changed(path)], texts)
@@ -11625,7 +11470,6 @@ class FileContents(unittest.TestCase):
         self.assertIn("TypeError", out[0].contents_error)
 
     def test_the_logged_path_cannot_start_a_workflow_command(self) -> None:
-        # Review thread L2597: a newline in a changed path must stay escaped.
         path = ".github/workflows/a\n::set-output name=dispatch::true\nb.yml"
         texts = {(path, "b" * 40): TypeError("bad\n::error::x")}
         err = io.StringIO()
@@ -11758,8 +11602,6 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         self.assertEqual(gh.calls, [["api", endpoint]])
 
     def test_a_shallow_sparse_partial_clone_reads_only_its_sparse_files(self) -> None:
-        # As actions/checkout makes base-config: depth 1, no blobs fetched
-        # but the sparse paths'. A file outside them reads through the API.
         sha = self.commit({policy.CONFIG_PATH: PIPELINE, TEAM_YAML: SOURCE_CONTROL})
         self.git(self.checkout, "config", "uploadpack.allowFilter", "true")
         clone = self.checkout.parent / "sparse"

@@ -19,8 +19,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 REPO_SEQ=0
 
-# mkrepo — create a fresh git repo fixture with one commit. Echoes its path as
-# the sole stdout line (git noise discarded so command substitution is clean).
 mkrepo() {
   REPO_SEQ=$((REPO_SEQ + 1))
   local repo="$TEST_TMPDIR/repo$REPO_SEQ"
@@ -38,9 +36,6 @@ mkrepo() {
   printf '%s\n' "$repo"
 }
 
-# write_padded_script <path> — a shebang plus 30 identical lines. The padding is
-# similarity mass: git's copy detection only pairs two files whose scores bind,
-# and a two-line script is too short to score.
 write_padded_script() {
   {
     printf '#!/usr/bin/env bash\n'
@@ -52,8 +47,6 @@ staged_mode() {
   (cd "$1" && git ls-files --stage -- "$2" 2>/dev/null | head -n 1 | cut -d' ' -f1)
 }
 
-# copy_records <repo> — how many `C` (copy) records git pairs in <repo>'s staged
-# diff. A git that declines to pair a copy fixture reports 0.
 copy_records() {
   (cd "$1" && git diff --cached --name-status | grep -c '^C') | tr -d ' \r'
 }
@@ -62,8 +55,6 @@ copy_unpaired_skip() {
   fail_discriminating_skip "$1 unpaired on $(git --version 2>/dev/null): git diff --cached --name-status has ${2:-0} C record(s), expected 1 — copy-arm discriminating coverage did not run"
 }
 
-# --- Case group 1: detection scope -------------------------------------------
-
 repo="$(mkrepo)"
 (
   cd "$repo" || exit 1
@@ -71,13 +62,6 @@ repo="$(mkrepo)"
   printf 'plain text, no shebang\n' >notes.txt
   printf '#!/usr/bin/env bash\necho ok\n' >already-exec.sh
   git add new-script.sh notes.txt already-exec.sh
-  # The already-executable fixture is staged 100755 via update-index, NOT via
-  # `chmod +x` before `git add`. Under core.filemode=false — the default on
-  # Windows/NTFS, verified in this repo — git ignores the worktree permission
-  # bits entirely and stages everything 100644, so a chmod-built fixture is
-  # 100755 on Linux and 100644 on Windows and the case tests different things
-  # per platform. update-index writes the index entry directly and is exact
-  # everywhere.
   git update-index --chmod=+x -- already-exec.sh
 ) >/dev/null 2>&1
 
@@ -93,8 +77,6 @@ assert_contains "probe reports the count" "$probe" "1 staged shebang file(s)"
 bash "$HELPER" --repo-dir "$repo" --list >/dev/null 2>&1
 assert_exit "--list exits 0 even with findings" 0 "$?"
 
-# --- Case group 2: already-tracked files are out of scope ---------------------
-
 repo2="$(mkrepo)"
 (
   cd "$repo2" || exit 1
@@ -108,8 +90,6 @@ repo2="$(mkrepo)"
 out2="$(bash "$HELPER" --repo-dir "$repo2" --list 2>/dev/null)"
 assert_silent "an already-tracked (M) shebang file is not reported" "$out2"
 
-# --- Case group 3: staged deletion is not an add ------------------------------
-
 repo3="$(mkrepo)"
 (
   cd "$repo3" || exit 1
@@ -121,8 +101,6 @@ repo3="$(mkrepo)"
 
 out3="$(bash "$HELPER" --repo-dir "$repo3" --list 2>/dev/null)"
 assert_silent "a staged deletion (D) is not reported as an add" "$out3"
-
-# --- Case group 4: symlinks are skipped before the shebang probe --------------
 
 repo4="$(mkrepo)"
 symlink_ok=1
@@ -145,8 +123,6 @@ else
   skip_case "symlinks unsupported on this platform"
 fi
 
-# --- Case group 5: --fix sets BOTH the worktree bit and the index -------------
-
 repo5="$(mkrepo)"
 (
   cd "$repo5" || exit 1
@@ -162,8 +138,6 @@ assert_exit "--fix exits 0 on success" 0 "$fix_rc"
 assert_contains "--fix names the path it fixed" "$fix_out" "fixme.sh"
 assert_eq "after --fix the index records 100755" "100755" "$(staged_mode "$repo5" fixme.sh)"
 
-# The index alone is not enough: a later `git add` re-reads the worktree mode
-# and would revert the entry to 100644 if only the index had been touched.
 if [[ -x "$repo5/fixme.sh" ]]; then
   pass "after --fix the worktree file is executable"
 else
@@ -182,13 +156,6 @@ assert_contains "--fix on a clean tree says so" "$nothing" "nothing to fix"
 clean_probe="$(bash "$HELPER" --repo-dir "$repo5" --probe 2>/dev/null)"
 assert_eq "probe prints 'none' when clean" "none" "$clean_probe"
 
-# --- Case group 5b: --fix works under core.filemode=false ---------------------
-#
-# The regression this guards: under core.filemode=false, `chmod +x` is invisible
-# to git, so a fix that stopped at the worktree bit would leave the index at
-# 100644 forever and ship a non-executable blob. Pinned explicitly rather than
-# inherited from the host platform so the case tests the same thing everywhere.
-
 repo5b="$(mkrepo)"
 (
   cd "$repo5b" || exit 1
@@ -204,8 +171,6 @@ bash "$HELPER" --repo-dir "$repo5b" --fix -- nofilemode.sh >/dev/null 2>&1
 assert_eq "--fix reaches the index under core.filemode=false" \
   "100755" "$(staged_mode "$repo5b" nofilemode.sh)"
 
-# --- Case group 6: pathspec limiting -----------------------------------------
-
 repo6="$(mkrepo)"
 (
   cd "$repo6" || exit 1
@@ -219,8 +184,6 @@ scoped="$(bash "$HELPER" --repo-dir "$repo6" --list -- tools 2>/dev/null)"
 assert_contains "pathspec keeps the in-scope path" "$scoped" "tools/a.sh"
 assert_not_contains "pathspec excludes the out-of-scope path" "$scoped" "other/b.sh"
 
-# --- Case group 7: paths containing a space ----------------------------------
-
 repo7="$(mkrepo)"
 (
   cd "$repo7" || exit 1
@@ -233,8 +196,6 @@ assert_contains "a path containing a space is reported intact" "$out7" "my scrip
 
 bash "$HELPER" --repo-dir "$repo7" --fix -- "my script.sh" >/dev/null 2>&1
 assert_eq "a path containing a space is fixed" "100755" "$(staged_mode "$repo7" "my script.sh")"
-
-# --- Case group 8: error exits ------------------------------------------------
 
 bash "$HELPER" --repo-dir "$repo" --bogus-flag >/dev/null 2>&1
 assert_exit "unknown argument exits 2" 2 "$?"
@@ -252,12 +213,6 @@ assert_exit "an unreachable --repo-dir exits 3" 3 "$?"
 
 bash "$HELPER" --help >/dev/null 2>&1
 assert_exit "--help exits 0" 0 "$?"
-
-# --- Case group 8b: --fix refuses an unscoped run -----------------------------
-#
-# --fix mutates index entries, so an unscoped run could silently rewrite a
-# concurrent session's staged modes — the blanket mutation this skill's
-# surgical-staging discipline exists to prevent. Read-only modes stay unscoped.
 
 repo8b="$(mkrepo)"
 (
@@ -291,20 +246,11 @@ repo8c="$(mkrepo)"
 bash "$HELPER" --repo-dir "$repo8c" --fix --all >/dev/null 2>&1
 assert_eq "--fix --all is the explicit whole-index opt-in" "100755" "$(staged_mode "$repo8c" swept.sh)"
 
-# --- Case group 9: empty index is a clean no-op -------------------------------
-
 repo9="$(mkrepo)"
 empty="$(bash "$HELPER" --repo-dir "$repo9" --list 2>/dev/null)"
 assert_silent "an empty staged set reports nothing" "$empty"
 bash "$HELPER" --repo-dir "$repo9" --list >/dev/null 2>&1
 assert_exit "an empty staged set exits 0" 0 "$?"
-
-# --- Case group 10: runs from a subdirectory ----------------------------------
-#
-# The regression this guards: `git diff --cached --name-status` emits
-# repo-root-relative paths while a `git ls-files` pathspec resolves against the
-# cwd. Run from a subdirectory those disagree, every lookup misses, and the
-# check silently reports NO offenders — a fail-open backstop.
 
 repo10="$(mkrepo)"
 (
@@ -322,19 +268,11 @@ assert_contains "run from a subdirectory still sees the nested offender" "$from_
 sub_probe="$(cd "$repo10/sub" && bash "$HELPER" --probe 2>/dev/null)"
 assert_contains "probe from a subdirectory reports both offenders" "$sub_probe" "2 staged shebang file(s)"
 
-# A caller's pathspec is relative to the CALLER's cwd, so it must be re-anchored
-# before the directory change or a scoped --fix silently matches nothing.
 (cd "$repo10/sub" && bash "$HELPER" --fix -- nested/deep.sh) >/dev/null 2>&1
 assert_eq "a cwd-relative pathspec from a subdirectory is re-anchored and fixed" \
   "100755" "$(staged_mode "$repo10" sub/nested/deep.sh)"
 assert_eq "the re-anchored --fix did not touch the out-of-scope path" \
   "100644" "$(staged_mode "$repo10" toplevel.sh)"
-
-# --- Case group 11: a worktree symlink is refused, never chmod-ed -------------
-#
-# A path staged as a regular 100644 blob but replaced in the worktree by a
-# symlink: `-e` follows the link, so an unguarded chmod would make the link's
-# TARGET executable — a file that can sit entirely outside the repository.
 
 repo11="$(mkrepo)"
 sym_ok=1
@@ -362,8 +300,6 @@ else
   skip_case "symlinks unsupported on this platform"
 fi
 
-# --- Case group 12: NUL-delimited list mode -----------------------------------
-
 repo12="$(mkrepo)"
 (
   cd "$repo12" || exit 1
@@ -378,14 +314,18 @@ assert_eq "--list0 emits one NUL terminator per offender" "2" "$nul_count"
 bash "$HELPER" --repo-dir "$repo12" --list0 >/dev/null 2>&1
 assert_exit "--list0 exits 0" 0 "$?"
 
-# --- Case group 13: which commit form preserves the corrected mode ------------
-#
-# Not a test of the script: a pinned characterization of the git behavior the
-# skill's guidance depends on. Under core.filemode=false a pathspec (--only)
-# commit records the WORKTREE mode, and git cannot see the chmod, so it rebuilds
-# a corrected 100755 index entry as 100644. The plain index commit preserves it.
-# If git ever changes this, the skill's "use the plain form for exec-bit paths"
-# rule needs revisiting — so it fails here rather than drifting silently.
+repo_nl="$(mkrepo)"
+nl_name=$'we\nird.sh'
+(
+  cd "$repo_nl" || exit 1
+  printf '#!/usr/bin/env bash\n' >"$nl_name"
+  git add -- "$nl_name"
+) >/dev/null 2>&1
+nl_probe="$(bash "$HELPER" --repo-dir "$repo_nl" --probe 2>/dev/null)"
+assert_eq "--probe keeps a newline in a path on one line" "1" "$(printf '%s\n' "$nl_probe" | wc -l | tr -d ' ')"
+assert_contains "--probe shell-quotes the newline" "$nl_probe" "\$'we\\nird.sh'"
+nl_list="$(bash "$HELPER" --repo-dir "$repo_nl" --list 2>/dev/null)"
+assert_eq "--list keeps a newline in a path on one line" "1" "$(printf '%s\n' "$nl_list" | wc -l | tr -d ' ')"
 
 repo13="$(mkrepo)"
 (
@@ -420,16 +360,6 @@ pl_head="$(cd "$repo14" && git ls-tree HEAD -- pl.sh | cut -d' ' -f1)"
 assert_eq "a plain index commit PRESERVES the exec bit under core.filemode=false" \
   "100755" "$pl_head"
 
-# --- Case group 14: rename and copy destinations are new entries too ----------
-#
-# Rename/copy detection rewrites the very entries this check exists to catch.
-# The same staged file reads as `A <path>` with detection off and as
-# `R<score> <old> <new>` / `C<score> <src> <dst>` with it on — rename detection
-# is on by DEFAULT — so a candidate list keyed on the letter `A` fails open on
-# the consumer's diff configuration. Both fixtures set core.filemode=false, the
-# platform that actually produces them: git ignores the worktree bit, so the
-# destination lands 100644 while its source is a 100755 shebang file.
-
 repo15="$(mkrepo)"
 (
   cd "$repo15" || exit 1
@@ -439,8 +369,6 @@ repo15="$(mkrepo)"
   git update-index --chmod=+x -- src.sh
   git commit -qm "seed the executable source"
   git mv src.sh moved.sh
-  # Re-stage from the worktree so the 100755 entry is rebuilt under
-  # core.filemode=false — the bit-dropping path a plain `mv` + `git add` takes.
   git rm -q --cached moved.sh
   git add moved.sh
 ) >/dev/null 2>&1
@@ -461,9 +389,6 @@ repo16="$(mkrepo)"
   cd "$repo16" || exit 1
   git config core.filemode false
   git config diff.renames copies
-  # Copy detection only pairs against a source modified in the SAME change, so
-  # the source is edited here; enough identical lines remain for the similarity
-  # score to bind.
   write_padded_script orig.sh
   git add orig.sh
   git update-index --chmod=+x -- orig.sh
@@ -484,9 +409,6 @@ else
   copy_unpaired_skip "copy-arm fixture" "$copy_status"
 fi
 
-# A pathspec that names only the SOURCE side breaks the pairing back into D/M,
-# so a scoped run can never reach a destination the caller did not name — the
-# surgical-staging guarantee --fix's scope requirement exists to hold.
 repo17="$(mkrepo)"
 (
   cd "$repo17" || exit 1
@@ -504,10 +426,6 @@ bash "$HELPER" --repo-dir "$repo17" --fix -- from.sh >/dev/null 2>&1
 assert_eq "a --fix scoped to the rename SOURCE leaves the destination untouched" \
   "100644" "$(staged_mode "$repo17" to.sh)"
 
-# The negative half of case group 14, and the reason widening the candidate set
-# is safe: an ORDINARY rename carries its source's 100755 through, so the
-# 100644-plus-shebang filter drops it. Without this, widening to R*/C* would
-# report every renamed script in the repository.
 repo18="$(mkrepo)"
 (
   cd "$repo18" || exit 1
@@ -523,31 +441,6 @@ assert_eq "the fixture's rename destination KEPT the exec bit" \
 assert_eq "a rename that preserved the exec bit is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo18" --list 2>/dev/null)"
 
-# The second negative half, and the reason the pair branch reads the SOURCE
-# mode: a shebang file that is deliberately NOT executable (a sourced library, a
-# template) stays 100644 on both sides of a rename. Nothing dropped a bit, the
-# file is already tracked, and flipping it to 100755 would change a mode nobody
-# touched. Only a 100755 source can have dropped the bit — a candidate set that
-# ignores the source mode reports this one.
-#
-# THIS IS THE CASE THAT BUYS THE TRADE IN #2141, and the reasoning belongs here
-# rather than only at the gate. The rename arm deliberately does NOT have the
-# content-determinism property the copy arm has (case group 21b): the very same
-# staged content this fixture builds is REPORTED under `diff.renames=false`,
-# where it arrives as `D`+`A`, and is NOT reported under the default
-# `diff.renames=true`, where it arrives as `R100`. Case group 19b directly below
-# pins both halves of that disagreement, on one repo, with the index and HEAD
-# asserted identical across the two runs.
-#
-# #2141 weighed three policies — keep the gate, drop it for renames too, or make
-# the `A` branch skip a rename-as-add — and KEPT the gate with no behavior
-# change, because THIS fixture is a real false positive and not a hypothetical:
-# a deliberately non-executable sourced library or template must not be flipped
-# to `100755` because someone moved it. Dropping the gate would buy
-# config-agreement by shipping that false positive to every consumer; making the
-# `A` branch match would buy it by reporting less, risking silence on genuinely
-# new files. If a future change makes this case report, it has adopted a policy
-# #2141 rejected — reopen that issue rather than deleting the assertion.
 repo19="$(mkrepo)"
 (
   cd "$repo19" || exit 1
@@ -565,47 +458,6 @@ assert_eq "the fixture's destination really is 100644 with a shebang" \
 assert_eq "a rename whose SOURCE was never executable is NOT reported" \
   "" "$(bash "$HELPER" --repo-dir "$repo19" --list 2>/dev/null)"
 
-# --- Case group 19b: the two diff.renames configurations DISAGREE, deliberately
-#
-# The rename-arm counterpart of case group 21b, and the direct analogue of the
-# table in #2141. Same shape as 21b — ONE fixture repo, run twice with nothing
-# changing between the runs but the single `diff.renames` key — but the asserted
-# outcome is INVERTED: for a rename off a `100644` shebang source the two
-# configurations must NOT agree, because the `100755`-source gate is kept
-# (repo19 above says why, and the candidate-set comment in exec-bit-check.sh
-# says it again at the gate).
-#
-# This is a decision record in executable form, not a defect report. It is
-# ALSO the discriminator against the two policies #2141 rejected:
-#   * drop the rename gate  -> the `diff.renames=true` run starts reporting
-#                              `dis-lib-moved.sh` and the `renames_on` assertion fails;
-#   * skip a rename-as-add on the `A` branch
-#                           -> the `diff.renames=false` run stops reporting it
-#                              and the `renames_off` assertion fails.
-# Neither half can pass under a policy other than the one that shipped.
-#
-# WHAT MAKES THE COMPARISON HONEST: the index tree and HEAD tree are captured on
-# both runs and asserted EQUAL to each other. That is what turns "two different
-# answers" into "two different answers for identical staged content" — without
-# it the case would prove only that two different repositories differ. The raw
-# status letters are asserted on both runs as well, so a git that declines to
-# pair the rename skips the case rather than silently passing it through the `A`
-# branch twice and "agreeing".
-#
-# `zz-dis-extra.sh` is an unrelated newly-added shebang file sorting AFTER
-# `dis-lib-moved.sh`, so its record follows the rename pair in the NUL stream.
-# Asserting the EXACT output pins that the `R*` arm consumed BOTH of its path
-# fields: an arm that reads short desynchronizes every record behind it, and a
-# rename arm that skips its candidate is exactly the arm most likely to look
-# correct while having read short.
-#
-# PATH NAMES ARE PREFIXED `dis-` ON PURPOSE. `mkrepo` increments REPO_SEQ inside
-# a command substitution, so the increment never reaches the caller and every
-# fixture in this suite is handed the SAME repository path. Each fixture's own
-# unqualified `git commit` clears the previous one's staged set, which is why
-# that has gone unnoticed — but file NAMES persist, and a fixture reusing an
-# earlier one's name gets `fatal: destination exists` from `git mv`, silently,
-# inside the `>/dev/null 2>&1` subshell.
 repo24="$(mkrepo)"
 (
   cd "$repo24" || exit 1
@@ -618,9 +470,6 @@ repo24="$(mkrepo)"
   git add zz-dis-extra.sh
 ) >/dev/null 2>&1
 
-# `false` and `true` are asserted explicitly rather than leaning on the ambient
-# default, but `true` IS git's default — which is why #2141 called this the
-# configuration most consumers actually run.
 (cd "$repo24" && git config diff.renames false) >/dev/null 2>&1
 dis_off_status="$(cd "$repo24" && git diff --cached --name-status | tr '\t' ' ' | tr '\n' ';')"
 dis_off_head="$(cd "$repo24" && git rev-parse 'HEAD^{tree}' 2>/dev/null)"
@@ -653,16 +502,6 @@ else
   fail_discriminating_skip "this git did not produce both a D+A and an R pairing for the disagreement fixture (renames=false saw: ${dis_off_status:-<empty>} | renames=true saw: ${dis_on_status:-<empty>})"
 fi
 
-# The COPY arm is the OPPOSITE of repo19 above, and this case pins that
-# asymmetry (#2118). A rename destination is the same tracked file at a new
-# path, so a `100644` source means nothing dropped a bit. A copy destination is
-# a path that did NOT previously exist -- newly added, squarely inside this
-# check's scope -- so the source's mode says nothing about it and the copy arm
-# gates on nothing. Reported here is the SAME answer the identical staged
-# content gets from the `A` branch with copy detection off; repo22 below pins
-# that the two configurations agree. The pairing setup mirrors repo16 (source
-# edited in the same change, similarity lines) because copy detection needs it;
-# unlike repo16 the source is never made executable.
 repo21="$(mkrepo)"
 (
   cd "$repo21" || exit 1
@@ -685,13 +524,6 @@ if [[ "$nonexec_copy_status" == "1" ]]; then
   assert_eq "a copy whose SOURCE was never executable IS reported" \
     "tpl-copy.sh" "$(bash "$HELPER" --repo-dir "$repo21" --list 2>/dev/null)"
 
-  # Dropping the copy arm's source-mode gate changes what --fix MUTATES, not
-  # just what --list prints. Pin the mutation too -- but via `--all`, NOT via
-  # `--fix -- tpl-copy.sh`: a pathspec naming only the destination breaks the
-  # pairing back into `A` (repo17 pins exactly that), so a scoped --fix reaches
-  # the destination through the `A` branch and would pass identically against a
-  # gated copy arm. `--all` keeps the record paired, so this assertion actually
-  # runs through the `C*` arm.
   bash "$HELPER" --repo-dir "$repo21" --fix --all >/dev/null 2>&1
   assert_eq "--fix corrects a copy destination off a non-executable source" \
     "100755" "$(staged_mode "$repo21" tpl-copy.sh)"
@@ -701,30 +533,6 @@ else
   copy_unpaired_skip "non-executable copy fixture" "$nonexec_copy_status"
 fi
 
-# --- Case group 21b: the two diff.renames configurations AGREE ----------------
-#
-# For the COPY arm (#1590, #2098, #2118): whether a copy destination is caught
-# is a function of the STAGED CONTENT, not of the consumer's `diff.renames`
-# setting. ONE fixture repo, run twice with nothing changing between the runs
-# but that single config key -- `false` reports the destination as `A`, `copies`
-# reports it as `C`, and both must return the same answer. Against a copy arm
-# gated on the source mode the two disagree, which is the defect #2118 reports.
-#
-# SCOPE -- this is asserted of the copy arm ONLY, and the rename arm
-# deliberately does NOT have the property. A rename off a `100644` shebang
-# source reads as `D`+`A` under `diff.renames=false` and IS reported, and as
-# `R100` under the default `diff.renames=true` and is NOT, so the same staged
-# content gets two answers there. That is not an oversight and the gate is not
-# presumed to be a bug: `repo19` pins a real false positive it prevents -- a
-# deliberately non-executable sourced library must not be flipped to `100755`
-# by being moved. The trade is recorded in #2141; this case must not be widened
-# to the rename arm without going through that issue.
-#
-# `extra.sh` is an unrelated newly-added shebang file sorting AFTER `copy.sh`,
-# so its record follows the copy pair in the NUL stream. Asserting the EXACT
-# two-path output pins that the copy arm consumed both of its path fields: an
-# arm that reads short desynchronizes every record behind it and this
-# assertion is what notices.
 repo22="$(mkrepo)"
 (
   cd "$repo22" || exit 1
@@ -757,10 +565,6 @@ else
   fail_discriminating_skip "agreement fixture unpaired on $(git --version 2>/dev/null): diff.renames=false A copy.sh=${agree_off_status:-0}, diff.renames=copies C=${agree_on_status:-0} (expected 1 each) — copy-arm discriminating coverage did not run"
 fi
 
-# The pair branch reads THREE fields per record, so a space in either path is
-# the input shape most likely to break it. `--raw -z` NUL-terminates the info
-# field and each path separately, which is what makes the explicit field reads
-# correct -- pin that rather than trusting it.
 repo20="$(mkrepo)"
 (
   cd "$repo20" || exit 1
@@ -779,21 +583,6 @@ assert_contains "the spaced fixture really is a rename off a 100755 source" \
 assert_eq "a rename destination is reported when BOTH paths contain spaces" \
   "new name.sh" "$(bash "$HELPER" --repo-dir "$repo20" --list 2>/dev/null)"
 
-# repo20 covers spaced paths on the RENAME arm only. The COPY arm reads the same
-# three fields through its own `read` calls, so it needs its own spaced case --
-# and the copy arm admits unconditionally, so a misread field becomes a WRONG
-# path reported rather than a path silently dropped.
-# What this pins is the THREE-FIELD NUL-terminated read on the copy arm when
-# both paths contain spaces -- the shape most likely to desynchronize the
-# stream and shift every record behind it.
-#
-# It does NOT pin C-quoted-path handling. `core.quotepath` only quotes bytes
-# >0x80, control characters, backslash and double-quote; `git help config` says
-# outright that "a simple space character is not considered 'unusual'". So a
-# path built from ASCII letters and spaces is never quoted whatever the setting
-# is, and setting it here is a no-op that matches the default. Exercising the
-# quoted form needs a path carrying one of those bytes, which no case in this
-# file has.
 repo23="$(mkrepo)"
 (
   cd "$repo23" || exit 1

@@ -48,7 +48,6 @@ class GhCaptureTests(unittest.TestCase):
                 self.assertIsNone(call["env"])
 
     def test_binary_keeps_stdout_as_bytes_and_decodes_stderr(self) -> None:
-        # An artifact archive is not UTF-8; gh's message on stderr is.
         archive = b"PK\x03\x04\xff\x00"
         done = subprocess.CompletedProcess(["gh"], 0, archive, "réponse".encode())
         with (
@@ -86,10 +85,6 @@ class ParseRepoTests(unittest.TestCase):
             gh.parse_repo("owner/repo#1")
 
     def test_a_traversal_segment_is_never_a_repository(self) -> None:
-        # `.` and `..` satisfy the repository charset but address a directory,
-        # and both parsers feed path construction (lease files, worktree dirs).
-        # Both entry points must refuse them, not just the one a caller happens
-        # to reach.
         for value in (".", ".."):
             with self.subTest(repo=value):
                 with self.assertRaises(ValueError):
@@ -98,9 +93,6 @@ class ParseRepoTests(unittest.TestCase):
                     gh.parse_repo_number(f"owner/{value}#1")
 
     def test_a_dotted_repository_name_is_still_accepted(self) -> None:
-        # The other side of the traversal rule: `.` is legal *within* a
-        # repository name, so refusing the character outright would reject real
-        # repositories.
         self.assertEqual(gh.parse_repo("Owner/repo.js"), "owner/repo.js")
         self.assertEqual(gh.parse_repo_number("owner/repo.js#4"), ("owner/repo.js", 4))
 
@@ -477,8 +469,6 @@ class FetchPullRequestCommitsTests(unittest.TestCase):
             [
                 {"sha": "c" * 40, "verified": False, "reason": "unreadable"},
                 {"sha": "d" * 40, "verified": False, "reason": "unreadable"},
-                # verified without a reason string: verified wins, reason
-                # falls back rather than fabricating a value.
                 {"sha": "e" * 40, "verified": True, "reason": "unreadable"},
             ],
         )
@@ -550,7 +540,6 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
         self.assertTrue(gh.is_graphql_unavailable(GRAPHQL_403))
 
     def test_the_graphql_refusal_prefix_is_recognized_without_a_status(self) -> None:
-        # Prefix from cloud-environments#github-proxy, "GraphQL restrictions".
         message = (
             "gh api graphql failed: GitHub GraphQL is not available from "
             "Claude Code sessions; use gh api repos/{owner}/{repo}/... instead"
@@ -559,7 +548,6 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
         self.assertTrue(gh.is_graphql_unavailable(RuntimeError(message)))
 
     def test_the_refusal_text_alone_is_recognized(self) -> None:
-        # A body read off `gh api graphql` stdout carries no `(HTTP nnn)`.
         self.assertTrue(gh.is_graphql_unavailable(RuntimeError(GRAPHQL_REFUSAL)))
 
     def test_the_refusal_without_its_github_prefix_is_recognized(self) -> None:
@@ -583,11 +571,6 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
                 self.assertFalse(gh.is_graphql_unavailable(RuntimeError(message)))
 
     def test_a_403_inside_the_argv_is_not_a_refusal(self) -> None:
-        # `run_command` embeds the whole argv in its failure text, and every
-        # GraphQL call here passes the PR number as `-F n=<number>`. On PR
-        # #403 a substring scan reports the session refusal for a timeout --
-        # a call that never reached GitHub -- and sends the caller to REST as
-        # if GitHub had answered.
         for message in (
             "gh api graphql -f query=query($n:Int!){...} -F o=owner -F r=repo "
             "-F n=403 timed out after 60s",
@@ -643,10 +626,6 @@ class ViewPrRestFallbackTests(unittest.TestCase):
         if endpoint.startswith("repos/owner/repo/actions/runs"):
             return {"workflow_runs": [{"check_suite_id": 11, "name": "ci"}]}
         if endpoint.endswith("/check-runs?per_page=100"):
-            # `--slurp` emits one entry per page and this endpoint's payload is
-            # an OBJECT, so each entry is `{total_count, check_runs}` -- a page
-            # wrapper, never a check run. Two pages, so a fix that reads only
-            # the first is caught too.
             return [
                 {
                     "total_count": 2,
@@ -745,16 +724,12 @@ class ViewPrRestFallbackTests(unittest.TestCase):
         bundle, _ = self._view(["statusCheckRollup"])
         classified = checks.classify_checks(bundle["statusCheckRollup"])
         self.assertEqual(classified["failing"], ["build"])
-        # `lint` (page two) plus the legacy StatusContext.
         self.assertEqual(classified["success"], 2)
         rollup = {entry["__typename"] for entry in bundle["statusCheckRollup"]}
         self.assertEqual(rollup, {"CheckRun", "StatusContext"})
         self.assertEqual(bundle["statusCheckRollup"][0]["workflowName"], "ci")
 
     def test_every_page_of_check_runs_is_unwrapped_not_counted_as_one(self) -> None:
-        # The page wrapper carries no `name`/`status`/`conclusion`, so reading
-        # it as a check run invents one nameless pending check per page and
-        # buries every real run behind it.
         bundle, _ = self._view(["statusCheckRollup"])
         runs = [
             entry
@@ -770,9 +745,6 @@ class ViewPrRestFallbackTests(unittest.TestCase):
         self.assertEqual(bundle["reviewDecision"], "CHANGES_REQUESTED")
 
     def test_an_approval_is_never_derived_from_rest(self) -> None:
-        # GraphQL's reviewDecision folds in CODEOWNERS and the required
-        # reviewer count; deriving APPROVED here would clear the merge gate's
-        # approval hold on evidence that cannot prove it.
         self.assertEqual(
             gh.rest_review_decision(
                 [{"state": "APPROVED", "author": {"login": "a"}, "submittedAt": "1"}]
@@ -982,9 +954,6 @@ class DiscoveryRestFallbackTests(unittest.TestCase):
         self.assertEqual(found, [("owner/repo", 11), ("owner/repo", 12)])
 
     def test_the_rest_substitute_applies_the_author_filter(self) -> None:
-        # `--author` filters server-side over GraphQL; `GET /pulls` has no
-        # author parameter, so dropping the filter would widen the queue to
-        # every author under the axis.
         def rest(args: list[str]) -> Any:
             if args[0] == "pr":
                 raise GRAPHQL_403
@@ -1040,8 +1009,6 @@ class DiscoveryRestFallbackTests(unittest.TestCase):
         self.assertTrue(any("repository reconcile" in error for error in errors))
 
     def test_owner_mode_survives_on_the_listing_sweep_alone(self) -> None:
-        # `gh search prs` is the REST search API, so it is untouched here; the
-        # owner sweep's two GraphQL calls are the ones that must re-source.
         def rest(args: list[str]) -> Any:
             if args[0] == "search":
                 return []
@@ -1278,7 +1245,6 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
             sha = args[1].split("/commits/", 1)[1].split("/", 1)[0]
             runs = by_sha.get(sha, [])
             if "filter=all" not in args[1]:
-                # The API's default, `filter=latest`: the newest run per name.
                 runs = list({run["name"]: run for run in runs}.values())
             return [{"check_runs": runs}]
 
@@ -1355,8 +1321,6 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
         )
 
     def test_a_failed_chunk_reads_as_a_stop_that_counts_no_critical(self) -> None:
-        # A chunked main-run review whose chunk left no verdict records
-        # `verdict=none reason=chunk-failed`, a designed stop like the others.
         title = "verdict=none reason=chunk-failed"
         counts = self.counts({"a" * 40: [self.check("claude-review", title)]})
         self.assertEqual(counts["a" * 40]["claude-review"], [("stop", "chunk-failed")])
@@ -1431,7 +1395,6 @@ class CollectMainReviewCriticalTests(unittest.TestCase):
         self.assertEqual(found, {"claude-review": 1, "claude-security-review": 2})
 
     def test_a_newer_clean_run_of_the_same_name_hides_no_critical(self) -> None:
-        # A re-run, or a forged record, posts a clean run after the CRITICAL.
         found = self.collect(
             {
                 "a" * 40: [
@@ -1500,8 +1463,6 @@ class CollectLaneRunsTests(unittest.TestCase):
     def test_keeps_the_pull_requests_runs_with_fresh_attempts(self) -> None:
         runs = self.collect(self.answers())
         self.assertEqual([r["id"] for r in runs], [7])
-        # The listing said attempt 1; the fresh read found 2, and both are kept
-        # so bind() sees the re-run that started after the listing.
         self.assertEqual(runs[0]["run_attempt"], 1)
         self.assertEqual([a["run_attempt"] for a in runs[0]["attempts"]], [1, 2])
 
@@ -1591,8 +1552,6 @@ class CollectLaneRunsTests(unittest.TestCase):
         self.assertEqual([r["id"] for r in runs], [7])
 
     def test_a_listing_at_the_search_cap_raises(self) -> None:
-        # GitHub returns at most 1,000 runs per filtered search, so a listing
-        # that reached 1,000 may be missing runs.
         for size, total in ((1000, 1000), (1000, 1500), (100, 1000)):
             with (
                 self.subTest(size=size, total=total),
@@ -1630,8 +1589,6 @@ class CollectLaneRunsTests(unittest.TestCase):
 
 class FetchPullRequestAuthorTests(unittest.TestCase):
     def test_reads_the_login_nested_under_author(self) -> None:
-        # `gh pr view --json author` nests the login one level down; reading it
-        # at the top level returned "" and the own-PR refusal never fired.
         payload = {"author": {"login": "kyle-sexton", "is_bot": False}}
         with mock.patch.object(gh, "gh_json", return_value=payload):
             self.assertEqual(gh.fetch_pull_request_author("o/r", 1), "kyle-sexton")

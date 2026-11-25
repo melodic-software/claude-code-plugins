@@ -121,9 +121,6 @@ class FakeGitHub:
         self.fail = False
         self.rules_fail = False
         self.default_fail = False
-        # Each branch's tip, as `git/ref/heads/<branch>` answers it; a branch
-        # absent here answers 404, and a value that is not a SHA is served as
-        # it stands.
         self.tips: dict[str, Any] = {b: TIPS[b] for b in TIPS}
         self.calls: list[tuple[list[str], Any]] = []
 
@@ -328,7 +325,6 @@ class AFailedReadRefuses(unittest.TestCase):
             judge(fake, linked(self.case["child"]), LANES_LOGIN)
 
     def test_unreadable_comments(self) -> None:
-        # More comments than the first 100 the query reads.
         fake = self.fake()
         fake.issue["parent"]["comments"]["totalCount"] = 101
         self.assertFalse(judge(fake, linked(self.case["child"]), LANES_LOGIN))
@@ -512,8 +508,6 @@ class OneReadPerChild(unittest.TestCase):
 
 class ScopeTargetTest(unittest.TestCase):
     def test_a_lone_surrogate_counts_as_one_code_unit(self) -> None:
-        # JavaScript strings hold lone surrogates; scopeTarget counts each as
-        # one UTF-16 code unit, so scope_target must not raise on one.
         self.assertTrue(ve.scope_target("\ud800a", {"x \ud800a"}))
         self.assertFalse(ve.scope_target("\ud800", {"x \ud800"}))
 

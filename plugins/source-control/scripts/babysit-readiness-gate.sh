@@ -1,97 +1,4 @@
 #!/usr/bin/env bash
-# babysit-readiness-gate.sh — deterministic readiness pre-gate for babysit.
-#
-# Converts the three weakest tier-9 babysit steps into a tier-5 mechanical
-# block (per the 2026-05-28 audit, AUDIT.md, findings R1+R5+R6 — one mechanism):
-#
-#   R1 finding decomposition  — every source finding must be individually
-#                               classified, not batch-glossed (review-discipline.md §2)
-#   R5 addressed/unaddressed  — findings present but unclassified = unaddressed
-#   R6 checklist completeness — the iteration checklist (babysit-prs loop.md
-#                               §5.5) has no unticked box
-#
-# Why a gate, not prose: the 2026-05-28 audit (AUDIT.md) proved the advisory
-# "MANDATORY subagent dispatch for >=3 findings" rule produced ZERO of its
-# mandated per-finding tables across multi-finding PRs — one audit classified
-# 16 findings of ~32.
-# Prose "MANDATORY" is a word; this gate counts rows, not intentions, and
-# refuses to let readiness be declared while the counts don't add up.
-#
-# DETECTION (aggregate, schema-grounded on fetch-all-pr-comments.sh output,
-# which carries {id,type,author,body,...} but NOT reply-thread links):
-#   findings   = OCCURRENCES of a severity marker (CRITICAL|IMPORTANT|SUGGESTION,
-#                or codex P1/P2/P3 per review-discipline.md §2) across all NON-self
-#                comments — counted per match, not per line, so N findings on one
-#                line each count (else a multi-finding line under-counts and the
-#                gate false-passes)
-#   classified = TABLE ROWS (`|`-prefixed lines) carrying a CELL that OPENS with
-#                a classification token (VALID|INCORRECT|UNCERTAIN), across all
-#                SELF replies, one per line, so prose repetition never inflates
-#                the count. Matched CASE-INSENSITIVELY so a natural-language
-#                disposition like "Valid (defer)" still counts, not only the
-#                mandated all-caps token (#619). An annotation after the token
-#                must be introduced by punctuation, which is what admits the
-#                documented "VALID: fixing" / "VALID (fix now)" forms while
-#                refusing table prose ("| CI check | result is valid |",
-#                "| Valid cache entries are rejected |"). "INVALID", "valid2"
-#                and "VALID_TOKEN" do not count as "VALID". Capped at findings
-#                so a surplus of rows cannot mask an unclassified finding (the
-#                Python path refines this to a per-surface credit — see below).
-#   BLOCK when findings > 0 AND classified < findings (under-decomposed /
-#   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
-#
-# This is a PURE PREDICATE — detection only, no GitHub writes. The skill runs
-# it before completing an iteration / scheduling the next wake.
-#
-# NOT a merge-readiness check. This gate is blind to branch rules, review
-# decision, unresolved threads, required checks, and head match. Only the merge
-# gate (babysit_merge.py, via the source-control-babysit-merge wrapper) reports
-# whether the PR may be merged -- GitHub's own mergeability AND the plugin's own
-# policy holds (dependency-manager author, unprotected base, autopilot tier).
-# A passing classification verdict is never evidence of that. The token is not
-# spelled at the start of a line here: this header is the --help output, and a
-# caller's ^READINESS_ grep would read documentation as a malformed verdict.
-# See skills/babysit-prs/reference/safety.md "Two Gates, One Merge-Ready Authority".
-#
-# Usage:
-#   babysit-readiness-gate.sh <pr>
-#   babysit-readiness-gate.sh <pr> --repo owner/repo     # target repo (not cwd)
-#   babysit-readiness-gate.sh <pr> --comments-json <file>   # skip network (tests/reuse)
-#   babysit-readiness-gate.sh <pr> --checklist <file>       # also gate R6
-#   babysit-readiness-gate.sh <pr> --self 'login,login2'    # self authors, full override
-#                              (else `gh api user` login)
-#   babysit-readiness-gate.sh <pr> --extra-self 'bot1,bot2' # extra self authors added to the
-#                              `gh api user` login — the invoking skill wires the
-#                              babysit_self_logins userConfig option here
-#   babysit-readiness-gate.sh --help
-#
-# Repo resolution (live comment fetch): pass `--repo owner/repo` when the invoking
-#   session's cwd is not a checkout of the PR's repository (#1086). When omitted,
-#   owner/repo is auto-derived from the current directory via `gh repo view`.
-#   `FETCH_COMMENTS_OWNER` and `FETCH_COMMENTS_REPO` remain supported as env
-#   overrides and are set from `--repo` when provided.
-#
-# Stdout (machine-readable — EXACTLY ONE verdict line on EVERY check run,
-# including every failure path, so an absent verdict line can only mean the gate
-# never ran). `--help` is NOT a check run: it prints this header and exits 0
-# carrying no verdict, so never parse a help run for one:
-#   READINESS_OK findings=<n> classified=<n> checklist=<clean|n/a>
-#   READINESS_BLOCKED reason=<under-decomposed|checklist-incomplete> findings=<n> classified=<n> unticked=<n>
-#   READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n|unknown>
-#
-# The READINESS_UNPROVEN token is the fail-closed third verdict, and the reason
-# every path emits one: a stderr-only failure path shows a caller that greps
-# stdout for a verdict NOTHING, which is indistinguishable from a run that was
-# never attempted — the exact confusion that lets a blocked gate be reported as
-# readiness (#787). UNPROVEN means readiness was NOT proven; it never licenses
-# substituting live `gh` state (mergeStateStatus, the check rollup) for the
-# gate's verdict. See skills/babysit-prs/reference/safety.md "Lane-Script
-# Reachability".
-#
-# Every header line describing a verdict stays indented or mid-sentence: an
-# unindented `READINESS_*` here would leave `--help` output matching a caller's
-# `^READINESS_` verdict grep.
-#
 # Exit codes:
 #   0  ready (decomposition satisfied + checklist clean/absent)
 #   1  blocked (READINESS_BLOCKED names the reason)
@@ -110,15 +17,6 @@
 #      (READINESS_UNPROVEN reason=prereq-missing|fetch-failed|comments-unreadable|checklist-unreadable)
 
 set -uo pipefail
-# Matches the `export PYTHONUTF8=1` convention the scripts/ babysit wrappers already
-# apply before invoking babysit_python (source-control-babysit-merge,
-# source-control-babysit-resolve-thread). This gate is the third babysit_python
-# caller and the one that parses fetch-all-pr-comments.sh-shaped JSON (via
-# babysit_findings.py --comments-json), which commonly carries non-ASCII bytes
-# (bot badges, reaction emoji) from bot review comments — PEP 540 UTF-8 mode
-# keeps the interpreter's default I/O encoding independent of the Windows ANSI
-# code page (cp1252) for any code path that does not pin encoding="utf-8"
-# itself (#597).
 export PYTHONUTF8=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -131,15 +29,34 @@ EXTRA_SELF_CSV=""
 REPO_SLUG=""
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
-    "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+babysit-readiness-gate.sh: block readiness while a PR's review findings outnumber its classified rows.
+
+Usage:
+  babysit-readiness-gate.sh <pr> [options]
+
+  --repo <owner/repo>      the PR's repository (default: the current directory's)
+  --comments-json <file>   read comments from this file, no network
+  --checklist <file>       also block on an unticked "- [ ]" box
+  --self <logins>          self authors, comma-separated (default: the `gh api user` login)
+  --extra-self <logins>    self authors added to the `gh api user` login
+  FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO override the repository; --repo sets both.
+
+Stdout, one verdict line on every check run (--help prints none):
+  READINESS_OK findings=<n> classified=<n> checklist=<clean|n/a>
+  READINESS_BLOCKED reason=<reason> findings=<n> classified=<n> unticked=<n>
+  READINESS_UNPROVEN reason=<reason> pr=<n|unknown>
+
+Exit codes:
+  0  ready
+  1  blocked
+  3  invalid argument, or the self identity could not be resolved
+  4  prerequisite missing, the comment fetch failed or is not a JSON array,
+     or the checklist could not be read
+EOF
   exit 0
 }
 
-# Emit the fail-closed third verdict on stdout, then exit with the code the
-# caller already documents. Every non-verdict exit routes through here so the
-# machine-readable stream never goes silent: silence is reserved for "the gate
-# never ran at all", which is the only state this script cannot report itself.
 unproven() { # unproven <reason> <exit-code>
   printf 'READINESS_UNPROVEN reason=%s pr=%s\n' "$1" "${PR_NUMBER:-unknown}"
   exit "$2"
@@ -172,12 +89,6 @@ while (($# > 0)); do
     ;;
   *)
     if [[ -z "$PR_NUMBER" ]]; then
-      # Digits only, and validated HERE rather than at first use. Every verdict
-      # line interpolates this value as `pr=%s`, so a value carrying a newline
-      # would emit additional lines into the machine-readable output — breaking
-      # the exactly-one-verdict contract and letting a caller be handed a forged
-      # `READINESS_OK` ahead of the real verdict. A PR reference is a number;
-      # anything else never reaches a verdict line at all.
       if [[ ! "$1" =~ ^[0-9]+$ ]]; then
         printf 'babysit-readiness-gate: <pr> must be a number, got %q\n' "$1" >&2
         unproven bad-args 3
@@ -218,12 +129,6 @@ if [[ -n "$COMMENTS_JSON" ]]; then
     printf 'babysit-readiness-gate: --comments-json file not found: %s\n' "$COMMENTS_JSON" >&2
     unproven bad-args 3
   fi
-  # The read status is part of the payload's validity, not a detail below it.
-  # `cat` can emit a syntactically valid PREFIX and then fail — a truncating I/O
-  # error mid-file — and the shape check downstream would then validate that
-  # prefix and accept it: a snapshot whose readable head happens to be `[]`
-  # would pass as an empty array while the real `[P1]` findings sat in the part
-  # that never arrived. A partial read is unreadable, not empty.
   COMMENTS="$(cat "$COMMENTS_JSON")" || {
     printf 'babysit-readiness-gate: could not read --comments-json file: %s\n' "$COMMENTS_JSON" >&2
     unproven comments-unreadable 4
@@ -241,32 +146,6 @@ else
   }
 fi
 
-# The counters below consume this payload as a JSON ARRAY (`.[]`) and read
-# `.author` and `.body` off every element. Anything else — a truncated or
-# hand-edited snapshot, a scalar, an object, an error document a fetch returned
-# with exit 0 — would reach them unchecked: jq fails, the counts stay 0, and
-# the gate prints `READINESS_OK findings=0`. That is a ready verdict derived
-# from data the gate never read, which is exactly the fail-open this script
-# exists to close. Validated once here, on the RESOLVED payload, so the snapshot
-# path and the live-fetch path are both covered.
-#
-# The container check alone is not enough. `[null]` and `[{}]` are arrays, so
-# they passed it, and the counters' own `.body // ""` then coalesced the missing
-# field to an empty string — the same false-ready verdict, reached through a
-# well-formed container holding elements the gate cannot read. `.body` is
-# required as a STRING because that is how the counters consume it: it is
-# grepped for severity markers, and a non-string there is unreadable, not empty.
-#
-# `.author` is required to be a string OR null. GitHub returns a null author for
-# a comment whose account was deleted, and `fetch-all-pr-comments.sh` passes that
-# through, so a string-only rule would reject an otherwise valid live snapshot
-# and leave the PR permanently UNPROVEN — fail-closed against the wrong thing.
-# Null is well-defined for both counters: the self list is matched by identity,
-# and a null author is in it for no self login, so the comment counts as a
-# non-self finding source exactly as an unrecognized login would. An ABSENT
-# `author` key is still malformed, which `has("author")` is what separates: jq
-# reports both a null value and a missing key as type "null", and only one of
-# them is a shape GitHub produces.
 printf '%s' "$COMMENTS" | jq -e '
   type == "array"
   and all(.[];
@@ -290,68 +169,15 @@ else
   personal_login="$(gh api user --jq .login 2>/dev/null | tr -d '\r')"
   [[ -n "$personal_login" ]] && SELF_LOGINS+=("$personal_login")
 fi
-# Reaching here means neither --self nor --extra-self was supplied AND the
-# supported `gh api user` default failed (expired auth, an unreachable API, or
-# an offline replay of a saved snapshot). The ARGUMENTS were valid, so the reason
-# names the identity lookup, not bad-args; the exit code stays 3 for callers keyed on it.
 if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
   printf 'babysit-readiness-gate: cannot resolve self identity: the gh api user lookup returned no login (pass --self or --extra-self)\n' >&2
   unproven identity-unresolved 3
 fi
 SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -nR '[inputs]')"
 
-# Matches BOTH reviewer severity vocabularies, counting ONE marker per finding,
-# PORTABLY. BSD grep on macOS does NOT support the `\b` word-boundary escape (it
-# matches a literal "b"); POSIX `-w` whole-word matching works on GNU + BSD
-# (codex r3327816802). claude uses the words CRITICAL|IMPORTANT|SUGGESTION,
-# matched whole-word so "INVALID" is not a finding and the lowercase
-# priority:p0-critical .. p3-low labels some repos use do not false-count. codex
-# uses a P0|P1|P2|P3 shields.io badge (per review-discipline.md §2): keyed on the
-# shield-URL segment `/badge/P{N}-`, which appears exactly once per finding (the
-# alt-text `![PN Badge]` carries the token a second time, so a bare `P[0-3]` would  # spellchecker:disable-line
-# double-count), is the rigid badge-template structure, and is unambiguous —
-# `/badge/P0-` never matches a lowercase priority:p0-critical label, so a codex P0
-# finding is counted (r3327701794). Words and badges are counted separately and
-# summed because `-w` cannot bound the badge URL (its match starts right after a
-# word char in `shields.io/badge/...`).
 SEVERITY_WORDS_RE='CRITICAL|IMPORTANT|SUGGESTION'
 SEVERITY_BADGE_RE='/badge/P[0-3]-'
-# Plain bracketed P-severity markers ([P0] .. [P3]) — a common reviewer format
-# with neither a severity word nor a shields badge. The badge alt text is
-# `![PN Badge]` (space before the closing bracket), so this pattern cannot  # spellchecker:disable-line
-# double-count a badge finding. Bounded to P0-P3 (the documented reviewer
-# range, matching SEVERITY_BADGE_RE) so incidental [P4]+ text cannot inflate
-# the finding count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE='\[P[0-3]\]'
-# A markdown table cell that OPENS with a disposition token — not one that
-# merely contains a disposition word somewhere in its prose. The cell is `|`,
-# non-word decoration, the token, then either the end of the cell or a
-# PUNCTUATED annotation. Matched case-insensitively (classify_rows lowercases
-# its subject, so the tokens are spelled lowercase here): a worker's
-# classification-table reply that writes a natural-language disposition like
-# "Valid (defer)" instead of the mandated all-caps VALID must still count, or
-# the gate reports a false READINESS_BLOCKED even though the finding genuinely
-# was classified (#619).
-#
-# The annotation must be introduced by PUNCTUATION — a dash, colon, or opening
-# bracket — never by a bare space. That is the discriminator between the
-# dispositions reference/review-discipline.md documents and prose that happens
-# to start with a disposition word:
-#   documented   `VALID: fixing`  `VALID (defer)`  `VALID (fix now)`
-#   prose        `Valid cache entries are rejected`
-# Matching anywhere in the row instead would also credit `| CI check | result is
-# valid |`, and either miss lets an unclassified finding past the
-# under-decomposition gate.
-#
-# The decoration before the token excludes word characters, not just letters, so
-# `2valid` cannot open a cell; the character required after the token is
-# likewise non-word, so `valid2` and `VALID_TOKEN` do not satisfy it. Every
-# class excludes `|`, so no run crosses a cell boundary. Together those keep
-# "invalid"/"INVALID" from false-matching "valid"/"VALID".
-#
-# `babysit_classify.py` carries the same pattern as `_CLASSIFY_CELL`; the
-# convergence fixtures at the bottom of babysit-readiness-gate.test.sh pin the
-# two to the same counts.
 CLASSIFY_CELL_RE='[|][^a-z0-9_|]*(valid|incorrect|uncertain)([ \t]*[^a-z0-9_ \t|][^|]*)?[ \t]*([|]|$)'
 CLASSIFY_ROW_RE="^[[:space:]]*[|].*${CLASSIFY_CELL_RE}"
 
@@ -365,18 +191,6 @@ classify_rows() {
   '
 }
 
-# Findings are counted across ALL comment bodies, not just non-self ones: in an
-# interactive babysit run SELF_JSON includes the authenticated gh user, and a
-# maintainer can author a SOURCE finding (a severity / badge), not only a
-# classification reply. Counting findings over every body keeps those self
-# findings visible (codex r3327878326). A classification reply carries a
-# VALID/INCORRECT/UNCERTAIN token, NOT a severity/badge, so it never inflates the
-# finding count; classifications are still counted only from self bodies.
-# Neither extraction suppresses jq's stderr, and both route a non-zero status
-# through the fail-closed verdict: a swallowed jq failure looks exactly like a
-# comment set with no bodies (findings=0, READINESS_OK). The array-shape check above rejects
-# the common malformed payloads; these guards catch what survives it (an array
-# whose elements are not comment objects).
 bodies_unreadable() {
   printf 'babysit-readiness-gate: could not read comment bodies (source: %s)\n' \
     "${COMMENTS_JSON:-live fetch}" >&2
@@ -389,32 +203,10 @@ bodies_where() {
 non_self_bodies="$(bodies_where '| not')" || bodies_unreadable
 self_bodies="$(bodies_where '')" || bodies_unreadable
 
-# Self classification-table rows are EXCLUDED from the finding corpus: a
-# reply row like `| 1 | CRITICAL: null deref | VALID | ... |` repeats the
-# source severity word, which would otherwise mint a phantom finding
-# (findings=2 classified=1 → permanently blocked) — codex r3564159124.
-# Non-table self content (a maintainer authoring a genuine source finding)
-# still counts. The whole-cell rule keeps e.g. an "INVALID" cell countable.
-# Case-insensitive to match the classified count below: a lowercase/
-# natural-language classification row must be excluded here too, or it leaks
-# into the finding corpus and re-counts its own embedded severity word (#619).
 self_source_bodies="$(printf '%s\n' "$self_bodies" | classify_rows strip)"
 all_bodies="$non_self_bodies
 $self_source_bodies"
 
-# FINDINGS: grep -o ... | grep -c . counts OCCURRENCES (one match per output
-# line), not input lines — a single line with two markers must count as two
-# findings, or the gate under-counts and false-passes (the very R1
-# decomposition gap it gates). `-w` = POSIX whole-word (portable to BSD grep);
-# the badge URL is counted with a plain `-o` grep (no `-w`) and summed in.
-#
-# CLASSIFICATIONS: counted as TABLE ROWS (markdown `|`-prefixed lines carrying
-# a token), one per line — NOT free occurrences. A prose reply repeating
-# "VALID" in its evidence sentence must not count twice, or the gate
-# false-passes while findings lack per-finding rows (codex r3564093178). The
-# per-finding classification TABLE is the mandated reply format
-# (review-discipline.md §2), so non-table prose classifications intentionally
-# do not count.
 sev_words=$(printf '%s\n' "$all_bodies" | grep -owE "$SEVERITY_WORDS_RE" | grep -c . || true)
 sev_badges=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_BADGE_RE" | grep -c . || true)
 sev_plain=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_PLAIN_RE" | grep -c . || true)
@@ -426,31 +218,8 @@ classified=${classified//[^0-9]/}
 findings=$((${sev_words:-0} + ${sev_badges:-0} + ${sev_plain:-0}))
 classified=${classified:-0}
 
-# Cap classified at findings: a surplus of classification rows cannot offset
-# findings that do not exist. This is the coarse, thread-state-free analogue of
-# the Python counter's per-surface credit (#642) — the bash degrade has no
-# reply-thread links, so it cannot bucket thread vs PR-level, but capping still
-# stops an over-count of rows from masking an unclassified finding, and keeps
-# the degrade count convergent with the Python `min(classified, findings)` on
-# thread-state-free input.
 ((classified > findings)) && classified="$findings"
 
-# The bash counts above are the Python-free safe-tier degrade (reference/loop.md
-# is that path, and it runs this gate). When a Python 3.11+ interpreter is
-# present, re-count via the shared babysit_classify module instead: it owns the
-# severity vocabulary as ONE source of truth rather than a second bash copy that
-# can drift from the snapshot classifier (the divergence class #534 exists to
-# close), and it discounts a severity marker carried in a resolved or outdated
-# thread, so a lifetime badge cannot inflate the count into a false
-# READINESS_BLOCKED (#465). It also credits classifications per surface — a
-# PR-level (non-thread) row cannot offset a finding raised fresh in an open
-# review thread — closing a fail-open the thread-blind bash degrade cannot see
-# (#642). A convergence test pins the two counts together on thread-state-free
-# input; if the Python counter cannot run (no interpreter, or a transient live
-# fetch failure) the bash degrade counts above stand.
-# BABYSIT_READINESS_BASH_ONLY=1 forces the degrade even when Python is present --
-# the operator escape that exercises (and, in the gate's own tests, pins) the
-# Python-free path deterministically.
 PY_SCRIPTS="$SCRIPT_DIR/../skills/babysit-prs/scripts"
 if [[ "${BABYSIT_READINESS_BASH_ONLY:-}" != 1 && -f "$PY_SCRIPTS/babysit-python.sh" ]]; then
   # shellcheck source=../skills/babysit-prs/scripts/babysit-python.sh
@@ -479,10 +248,6 @@ if [[ -n "$CHECKLIST" ]]; then
     printf 'babysit-readiness-gate: --checklist file not found: %s\n' "$CHECKLIST" >&2
     unproven bad-args 3
   fi
-  # grep exits 1 for "no match" -- a clean checklist -- and 2 for a read
-  # failure. `|| true` collapsed both to an empty count that normalized to
-  # zero, so an unreadable checklist read as `checklist=clean`: a fail-open in
-  # the merge gate. Only the no-match status may be swallowed.
   grep_status=0
   unticked=$(grep -cE '^[[:space:]]*-[[:space:]]\[[[:space:]]\]' "$CHECKLIST") || grep_status=$?
   if ((grep_status > 1)); then
