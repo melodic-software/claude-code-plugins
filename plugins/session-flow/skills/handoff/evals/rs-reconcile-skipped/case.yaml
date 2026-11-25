@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: rs-reconcile-skipped
+description: 'Resume with no off-thread work recorded: Environment to re-establish reads ''- Off-thread work: none recorded.'', so the session runs no reconcile and goes straight to writing docs/INDEX.md. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [resume, reconcile, must-not, handoff]
+plugins: ["../../../.."]
+expected_outcome: 'The session writes docs/INDEX.md listing docs/setup.md and docs/usage.md and never invokes /session-flow:reconcile.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Read @.work/handoffs/20261124T100000Z-handoff-docs-index.md, confirm its Original goal still governs the remaining next steps, raise its due Reminders, then continue them and re-establish its Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.\nPrior session: 5d0c2a7e-91b4-4f3e-8a26-7c1e9b4d0f53.\nHandoff origin: ssh://git@github.com/example/repo .work/handoffs/20261124T100000Z-handoff-docs-index.md\nNext:\nWrite docs/INDEX.md"
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: no-reconcile
+    type: tool_used
+    tool: Skill
+    input_match: 'session-flow:reconcile'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: writes-index
+    type: tool_used
+    tool: Write
+    input_match: 'docs/INDEX\.md'
+    min: 1
+    arm: with-only

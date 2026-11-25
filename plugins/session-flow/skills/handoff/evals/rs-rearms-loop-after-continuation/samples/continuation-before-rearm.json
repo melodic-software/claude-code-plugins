@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/QUEUE.md",
+            "content": "queue: 3 items\n"
+          }
+        },
+        {
+          "tool": "CronList",
+          "input": {}
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "loop",
+            "args": "10m Check inbox/ once and append its file count to QUEUE.md; do not schedule anything."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "loop",
+            "args": "10m Check inbox/ once and append its file count to QUEUE.md; do not schedule anything."
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/QUEUE.md",
+            "content": "queue: 3 items\n"
+          }
+        }
+      ],
+      "why": "re-arms before the continuation"
+    }
+  ]
+}

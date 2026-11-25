@@ -243,6 +243,12 @@
       "description": "Records a typed /goal, a resumed handoff file and a step-away task file in this session's focus file, and prints that file before each compaction so the summary keeps them. On by default. Your own value wins over docs/conventions/session-flow.yaml.",
       "default": true
     },
+    "resume_context_enabled": {
+      "type": "boolean",
+      "title": "Resume-context hook",
+      "description": "When a pasted resume prompt starts with its handoff directive, adds the resume procedure to that turn once per session: raise due reminders, reconcile recorded off-thread work, re-arm loops, cron tasks and monitors. On by default. Your own value wins over docs/conventions/session-flow.yaml.",
+      "default": true
+    },
     "away_orchestrate": {
       "type": "boolean",
       "title": "Away orchestrator posture",

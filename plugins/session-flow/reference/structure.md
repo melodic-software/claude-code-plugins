@@ -226,6 +226,9 @@ entry leaves to meet the size cap.
   unattended close never retires a user or `at close` entry: the closing file keeps it, and the
   run's final report lists it under **Needs you**. `validate` warns, without failing, on a closed
   file that still holds open reminders.
+- **At resume.** The resume-context hook injects [`resume.md`](resume.md), which carries the due
+  check and the first-reply listing; with the hook off, the directive's clause "raise its due
+  Reminders" asks for the same.
 - **Sessions that never hand off.** A `/goal` or `/loop` session raises due reminders at resume and
   records each one it settles in its task list or reply; the next `fill` retires them. It never
   edits the predecessor's files.
@@ -472,6 +475,27 @@ headlines and the resuming session runs it before any write in the worktree. A c
 carries no headlines, so the entry here is its only record. Carry forward a predecessor's entry
 whose lock still names the older session id, since this session never took that claim over. No
 such lock: say none is held.
+
+**Recurring work and off-thread work.** One entry per item still running, so the resumed session
+re-arms it without the user re-pasting a command
+([resume procedure](resume.md), which the resume-context hook injects):
+
+- `- [loop] every <interval|self-paced> · since <UTC ISO> · prompt (<L> lines):`, then the loop's
+  prompt verbatim on exactly the next `<L>` indented lines (`lines` never inflects);
+- `- [cron] <expression> · recurring|once · since <UTC ISO> · prompt (<L> lines):`, then the
+  prompt the same way;
+- `- [monitor] <description> · since <UTC ISO> · command: \`<cmd>\``;
+- `- [off-thread] <kind> <name>: <state read this turn> · kept because <why>` for each subagent,
+  background command, peer session or lane still open, or the single line
+  `- Off-thread work: none recorded.`, which lets the resumed session skip reconcile.
+
+Enumerate the loops as the engine doc's "Loop-aware re-arm" bullet says (every surviving launch,
+none stopped or past the recurring-task expiry). The redaction pass covers these entries; prefer an
+environment-variable reference to a secret in a command. A command or prompt that lost text to
+redaction ends with `· restore: manual (held a secret; re-create from <source>)`, and the resumed
+session never re-arms it. `validate` fails an entry holding `<REDACTED` without that ending, and
+warns on a `[loop]` or `[cron]` entry whose `<L>` does not match its indented lines. These entries
+replace the below-rail `Re-arm <i> of <n>` block on the full path.
 
 **Plugin changes.** `/clear` is not a plugin reload: a plugin installed, updated, enabled or
 disabled during this session reaches the resuming session only after the user types

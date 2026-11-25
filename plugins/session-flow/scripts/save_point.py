@@ -399,9 +399,24 @@ MD_GOAL_COPY_LINE = (
 GOAL_CONDITION_MAX = 4000
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
 DIRECTIVE_TAIL = (
-    "confirm its Original goal still governs the remaining next steps, then continue "
-    "them. For the next save-point invoke /session-flow:handoff via the Skill tool; "
-    "never write a handoff file free-hand."
+    "confirm its Original goal still governs the remaining next steps, raise its due "
+    "Reminders, then continue them and re-establish its Environment last. For the next "
+    "save-point invoke /session-flow:handoff via the Skill tool; never write a handoff "
+    "file free-hand."
+)
+RECURRING_RE = re.compile(r"^- \[(loop|cron|monitor|off-thread)\] ")
+LOOP_COUNT_RE = re.compile(r"prompt \((\d+) lines\):$")
+RESTORE_MANUAL = "restore: manual"
+REDACTED_MARK = "<REDACTED"
+RECURRING_SHAPE = (
+    "one entry per recurring item: '- [loop] every <interval|self-paced> · since <UTC ISO> · "
+    "prompt (<L> lines):' or '- [cron] <expression> · recurring|once · since <UTC ISO> · "
+    "prompt (<L> lines):' with the prompt verbatim on the next <L> indented lines, "
+    "'- [monitor] <description> · since <UTC ISO> · command: `<cmd>`', and "
+    "'- [off-thread] <kind> <name>: <state read this turn> · kept because <why>' or the single "
+    "line '- Off-thread work: none recorded.'; a command or prompt that lost text to redaction "
+    "ends with '· restore: manual (held a secret; re-create from <source>)'; prefer an "
+    "environment-variable reference to a secret in a command"
 )
 STANDING_THEN = " then @"
 STANDING_PAGED = " in pages with the Read tool's offset and limit (over one Read page)"
@@ -1684,6 +1699,37 @@ def _check_reminders(doc: Doc, f: Findings) -> None:
         )
 
 
+def _recurring_entries(lines: list[str]) -> list[list[str]]:
+    """Each `[loop]`, `[cron]`, `[monitor]` or `[off-thread]` entry with its indented body."""
+    entries: list[list[str]] = []
+    current: list[str] | None = None
+    for line in lines:
+        if RECURRING_RE.match(line):
+            current = [line]
+            entries.append(current)
+        elif current is not None and line.startswith((" ", "\t")) and line.strip():
+            current.append(line)
+        else:
+            current = None
+    return entries
+
+
+def _check_recurring(doc: Doc, f: Findings) -> None:
+    for entry in _recurring_entries(doc.section("Environment to re-establish") or []):
+        head = entry[0]
+        text = "\n".join(entry)
+        if REDACTED_MARK in text and RESTORE_MANUAL not in text:
+            f.fail(
+                f"Environment to re-establish: {head[:60]!r} lost text to redaction and must end with '· {RESTORE_MANUAL} (held a secret; re-create from <source>)', so the resumed session never re-arms it"
+            )
+        if head.startswith(("- [loop] ", "- [cron] ")):
+            count = LOOP_COUNT_RE.search(head)
+            if count is None or int(count.group(1)) != len(entry) - 1:
+                f.warn(
+                    f"Environment to re-establish: {head[:60]!r} needs 'prompt (<L> lines):' with the prompt on exactly the next <L> indented lines"
+                )
+
+
 def _carries(pred: Doc | None, spec: IdSpec) -> bool:
     if spec == RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
         return False
@@ -2373,6 +2419,7 @@ def _validate_shape3(
                 seen.add(n)
     _check_decision_fields(doc, f)
     _check_reminders(doc, f)
+    _check_recurring(doc, f)
 
     _check_github_claims(doc, f)
     if hop is None or start is None or not root:
@@ -4190,7 +4237,7 @@ def _resume_prompt(
         f"{REOPEN_PREFIX}`claude --resume {session_id}{settings}`.",
         _fill(
             "below-rail",
-            "optional: the /goal and /loop re-arm notes save-point.md prescribes below the bottom rail; delete this line when none applies",
+            "optional: the /goal and plugin-reload notes save-point.md prescribes below the bottom rail; recurring /loop, cron and monitor items go under Environment to re-establish, never here; delete this line when none applies",
         ),
     ]
 
@@ -4652,7 +4699,7 @@ def build_skeleton_3(
         (
             "Environment to re-establish",
             "environment",
-            "branch and worktree, services, env vars, background tasks and the live task list with literal recreate calls, or a line that there is nothing to recreate",
+            f"branch and worktree, services, env vars, background tasks and the live task list with literal recreate calls, or a line that there is nothing to recreate; {RECURRING_SHAPE}",
         ),
         (
             "Decisions in force",

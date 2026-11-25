@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Due now: [M1], overdue since Jan 5, 9:00 AM EST. Run `gh release create v1.4.0 --notes-file CHANGELOG.md`.\n1 reminder not yet due (next: [M2] at Jan 1, 2099)."
+    },
+    {
+      "answer": "Reminder [M1] is overdue; please run:\n\n    gh release create v1.4.0 --notes-file CHANGELOG.md\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Appended the CHANGELOG line. Nothing else is pending.",
+      "why": "drops the due reminder"
+    },
+    {
+      "answer": "Remember to create the v1.4.0 release.",
+      "why": "no exact command"
+    }
+  ]
+}

@@ -463,6 +463,13 @@ Where the panel sits in the response belongs to the citing skill, which owns its
      and list the pending decisions. A criterion met only by this session's say-so, or one that
      still needs a command run, keeps the region.
 
+  **A flagged goal is re-drafted at resume, never armed by the model.** When check 1 fires on the
+  full path, also make the first remaining action `Re-draft the carried /goal condition: <reason>`.
+  The resumed session drafts a new condition with `/planning:draft-goal-condition` (if enabled;
+  otherwise it states the reason and a suggested rewording), offers it once in its first reply and
+  goes on with the work. If the user neither takes nor rejects it, the carried goal stands; the
+  next handoff runs the check again and flags it again only if it still fails.
+
   Record for the evaluator claim: basis
   <https://code.claude.com/docs/en/goal#evaluation-model-and-cost> ("It
   does not call tools, so it can only judge what Claude has already surfaced in the
@@ -491,7 +498,15 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   below the bottom rail, ahead of any `/loop` re-arm block: "a plugin changed this session
   (`<plugin> <version>`): after `/clear`, type `/reload-plugins`, then paste the block above."
   Prompt-only, which has no Environment section, names the plugin and version in that note alone.
-- **Loop-aware re-arm:** running under `/loop` means this session's own
+- **Where recurring items go.** On the full path, each surviving loop, cron task and monitor is an
+  entry under the handoff file's `Environment to re-establish`
+  ([structure.md](structure.md#environment-to-re-establish)), and the resumed session lists its
+  scheduled tasks and re-arms what is missing itself ([`resume.md`](resume.md)). The below-rail
+  `Re-arm <i> of <n>` block described next is retired for new files; `find-handoff` keeps reading
+  it from older ones. The rules below still decide which loops count as surviving, and their
+  list-first step is the one `resume.md` runs. Prompt-only, which has no file, carries the same
+  entries as one `Re-arm:` bullet between the rails, each entry in the Environment entry shape.
+- **Loop-aware re-arm (older files and prompt-only):** running under `/loop` means this session's own
   `/loop [<interval>] <prompt>` launch turns earlier in the conversation with no later stop (`Esc`, a
   `ScheduleWakeup` call carrying `stop: true`, or, for a fixed-interval loop, a turn in which Claude
   cancelled it, since `Esc` does not stop one), not "infer from conversation" prose. A subsequent
@@ -602,13 +617,13 @@ Type `/goal ` (with a trailing space), then paste everything between the dashed 
 
 ──────────────────────────────────────────────────────────
 Every call site of OrderReader uses the retry policy and the project's test command exits 0 with the cancellation edge cases covered.
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, raise its due Reminders, then continue them and re-establish its Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
 ──────────────────────────────────────────────────────────
 
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, then continue them. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md, confirm its Original goal still governs the remaining next steps, raise its due Reminders, then continue them and re-establish its Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.
 Prior session: <UUID>.
 Handoff origin: <remote URL, userinfo stripped> <repo-relative path>
 Next:
@@ -646,9 +661,14 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   `find-handoff` rung 1 recover the prompt from the file alone and `continue-in-background` launch
   from it. Python absent: emit the section by hand from the file, still verbatim.
 - **The directive is fixed text.** `Read @<absolute path>, confirm its Original goal still governs
-  the remaining next steps, then continue them. For the next save-point invoke
-  /session-flow:handoff via the Skill tool; never write a handoff file free-hand.` The second
-  sentence is the successor's license to write handoffs: through the skill only. The
+  the remaining next steps, raise its due Reminders, then continue them and re-establish its
+  Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never
+  write a handoff file free-hand.` The second sentence is the successor's license to write
+  handoffs: through the skill only. The "raise its due Reminders" and "re-establish its
+  Environment last" clauses are the fallback for a session the resume-context hook does not reach
+  (the setting off, or an older plugin); with the hook on, the procedure it injects,
+  [`resume.md`](resume.md), says how. `validate` checks only the license clause, so an older
+  file's shorter directive still passes. The
   "then execute /<skill>" swap the prompt-only rule below allows is expressed on the full path by
   the `Then:` line instead, so the directive never changes shape.
 - **`Handoff origin:` has one form:** `Handoff origin: <remote URL, userinfo stripped> <repo-relative path>`,
@@ -673,8 +693,9 @@ are untouched: prompt-only writes no file, so nothing here has a file to validat
   followed by `claude --resume <UUID>` in a code span and a period, the alternative to
   `/clear`-and-paste when the producing session is still worth reopening. A session in a plugin
   profile adds `--settings "<file>"` after the UUID inside the code span, since a resumed session does not
-  keep `--settings`. The no-goal-found note
-  and the `/loop` re-arm notes the rules above prescribe follow it, unchanged in shape; it is
+  keep `--settings`. The no-goal-found and plugin-reload notes
+  the rules above prescribe follow it, unchanged in shape (a file older than the Environment
+  entries also carries its `/loop` re-arm block here); it is
   outside the copy regions and outside the detection contract.
 
 ### The directive path is rooted, and that is the whole point

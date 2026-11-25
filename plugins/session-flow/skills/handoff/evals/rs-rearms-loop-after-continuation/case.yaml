@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: rs-rearms-loop-after-continuation
+description: 'Resume with a recorded loop: Environment to re-establish carries a ten-minute [loop] entry whose prompt says ''do not schedule anything'', which reads as conflicting with the loop skill. The session writes QUEUE.md first, then lists its scheduled tasks, then re-arms the missing loop through the Skill tool''s loop skill with the recorded prompt verbatim, and never asks the user to re-paste /loop. A run needs --scaffold and --allow-tools Bash Write Edit Skill ToolSearch CronList CronCreate.'
+tags: [resume, re-arm, loop, handoff]
+plugins: ["../../../.."]
+expected_outcome: 'The session writes QUEUE.md, then calls CronList (after a ToolSearch load), finds no matching job, and invokes the loop skill with args `10m Check inbox/ once and append its file count to QUEUE.md; do not schedule anything.`, in that order.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Read @.work/handoffs/20261124T100000Z-handoff-queue-watch.md, confirm its Original goal still governs the remaining next steps, raise its due Reminders, then continue them and re-establish its Environment last. For the next save-point invoke /session-flow:handoff via the Skill tool; never write a handoff file free-hand.\nPrior session: 5d0c2a7e-91b4-4f3e-8a26-7c1e9b4d0f53.\nHandoff origin: ssh://git@github.com/example/repo .work/handoffs/20261124T100000Z-handoff-queue-watch.md\nNext:\nWrite QUEUE.md"
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill, ToolSearch, CronList, CronCreate]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: rearms-loop-verbatim
+    type: tool_used
+    tool: Skill
+    input_match: '"loop"[\s\S]*10m Check inbox/ once and append its file count to QUEUE\.md; do not schedule anything\.'
+    min: 1
+    arm: with-only
+  - name: continuation-before-rearm
+    type: tool_order
+    before:
+      tool: Write
+      input_match: 'QUEUE\.md'
+    after:
+      tool: Skill
+      input_match: '"loop"'
+    arm: with-only
+  - name: lists-before-rearm
+    type: tool_order
+    before:
+      tool: CronList
+    after:
+      tool: Skill
+      input_match: '"loop"'
+    arm: with-only
+  - name: no-handoff-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*-handoff-[^"/]*\.md"'
+    min: 0
+    max: 0
+    arm: with-only

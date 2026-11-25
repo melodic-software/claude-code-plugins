@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "Suggested /goal condition: every parser test passes at commit 4be1c9a, shown by the test output in this conversation. Type `/goal ` and paste it if you want it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Wrote NOTES.md.",
+      "why": "no redraft offered"
+    }
+  ]
+}

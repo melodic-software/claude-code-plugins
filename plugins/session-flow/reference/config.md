@@ -22,6 +22,7 @@ session) and `retro_offer` (`offer` or `off`, default `offer`: under `off`,
 | `recall_doc_paths` | comma-separated git pathspecs | `*.md` | `/session-flow:recall` (Steps 2 and 5, the postmortem search) | repository file over user option over default |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` | `/session-flow:orchestrate` (imperative 3), `/session-flow:workflow pre-pr` (step 2) and `/session-flow:retro` session mode (the `retro_lenses: 1` pass), through `lib/read-verification.sh` | repository file only, read from the default branch; no user option; a skill entry beats the plugin value ([verification level](../../../docs/contracts/verification-level/README.md)) |
 | `compact_focus_enabled` | an unquoted `true` or `false` | `true` | `scripts/focus.py`: the compact-focus hook (PreCompact, and UserPromptSubmit on a typed `/goal`) and every `focus.py set` | user option over repository file over default ([hook enablement](../../../docs/contracts/hook-enablement/README.md#the-per-hook-setting)) |
+| `resume_context_enabled` | an unquoted `true` or `false` | `true` | `scripts/resume_hook.py`: the resume-context hook (UserPromptSubmit on a pasted resume directive) | user option over repository file over default ([hook enablement](../../../docs/contracts/hook-enablement/README.md#the-per-hook-setting)) |
 | `away_night_start` | `HH:MM`, machine local time | `21:00` | `/session-flow:step-away` (`bed` launch; the night window runs from here to the next report-by time) | launch words over user option over default |
 | `away_report_by_workday` | `HH:MM`, machine local time | `09:00` | `/session-flow:step-away` (report-by time when the report day is not a day off) | launch words over user option over default |
 | `away_report_by_day_off` | `HH:MM`, machine local time | `10:00` | `/session-flow:step-away` (report-by time when the report day is a day off) | launch words over user option over default |
@@ -67,6 +68,16 @@ script resolves the key itself on every fire: the user's own value (`CLAUDE_PLUG
 or `--enabled` from a skill, where a rendered `true` counts as unset), when set, wins; otherwise the repository file decides, under the root
 rule below; otherwise `true`. An invalid value in either layer is named on stderr and dropped.
 
+`resume_context_enabled` turns the resume-context hook on or off. When a pasted resume prompt's
+first line (or a `/goal` paste's last line) is the `Read @<handoff file>` directive and the file
+exists, `scripts/resume_hook.py` adds [`resume.md`](resume.md) to that turn once per session:
+raise due reminders, re-draft a flagged goal, read rate limits, reconcile recorded off-thread work,
+continue, then re-arm recurring work. Its cost is one Python start on a prompt that holds
+`-handoff-`; any other prompt stops in the node launcher. Off, the resumed session relies on the
+directive's own clause to raise reminders and re-establish the Environment. The script resolves
+the key as `compact_focus_enabled` does, from `CLAUDE_PLUGIN_OPTION_RESUME_CONTEXT_ENABLED`, and
+records the resumed handoff in the focus file only while `compact_focus_enabled` is on.
+
 `resume` keeps a worker across related units, as imperative 4 of the orchestration brief says.
 `respawn` gives each new unit (a fix round, a follow-up, a retry, the next queue item) a fresh
 worker whose brief consolidates the original brief, every later directive, the prior worker's
@@ -106,8 +117,8 @@ unset, so the result is `worktree`. An invalid repository value is named and dro
 resolves its default, `worktree`, not the user's value. The report line names the layer whose value
 won, for example `transcript_scope: repo (user option; docs/conventions/session-flow.yaml says all)`.
 
-**`compact_focus_enabled` is the other exception.** A user option the user set wins over the
-repository file, so a repository never turns the hook back on for a user who turned it off; the
+**`compact_focus_enabled` and `resume_context_enabled` are the other exception.** A user option the user set wins over the
+repository file, so a repository never turns a hook back on for a user who turned it off; the
 repository file decides only while the user option is unset.
 
 **Root rule.** The repository file is read only when the working directory's git root is neither

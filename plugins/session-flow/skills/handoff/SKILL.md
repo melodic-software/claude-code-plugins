@@ -285,6 +285,12 @@ shows as `retired [M<n>]: <reason>`, and a wrong call is undone from the archive
 `at close` entries retire `raised at chain close`; one that has not fired is done now, handed to a
 new local session, or filed as an issue only when it cannot fire within the chain.
 
+**At resume.** The resumed session raises due reminders in its first reply, re-drafts a flagged
+goal, reconciles only recorded off-thread work and re-arms recurring work last, by
+[`${CLAUDE_PLUGIN_ROOT}/reference/resume.md`](${CLAUDE_PLUGIN_ROOT}/reference/resume.md). The
+resume-context hook (`resume_context_enabled`, on by default) adds that file to the turn the pasted
+directive starts, once per session; with it off, the directive's own clauses ask for the same.
+
 ## Post-write enforcement checklist
 
 Tick each item in the response so the user can verify the exit shape. Missing any tick = handoff
@@ -296,7 +302,7 @@ is what the operator actually reads (engine doc, "Emit the position panel"), so 
 checklist is this skill's own audit trail and follows it; and the rails prompt closes the response
 (on the tracker short form, its two lines stand in for the rails prompt and close it instead).
 The rails resume prompt, the copy instruction, each region's dashed rails, and every below-the-rails
-`/loop` re-arm note, is the final text of the response, with nothing after it. This order exists
+note, is the final text of the response, with nothing after it. This order exists
 because the rails prompt is the deliverable the operator copies, and under heavy context a turn
 that ends on anything else can run out of room before the rails prompt appears: the save-point
 file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
@@ -411,10 +417,14 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   same `Read @` directive line; a condition tying proof to this conversation warned about above
   the region's instruction line, its text unchanged, and a goal met at recorded commits or files
   with only the user's decisions left given no region and a below-rail note listing the decisions
-  (engine doc, "Check the condition before emitting the region"); a below-the-rails note
-  re-arming every surviving loop, one
-  `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine
-  doc, "Emit the copy/paste resume prompt")
+  (engine doc, "Check the condition before emitting the region"); no below-the-rails `/loop`
+  re-arm block: surviving loops live under Environment to re-establish (next box)
+- [ ] Recurring and off-thread work recorded under Environment to re-establish, one `[loop]`,
+  `[cron]`, `[monitor]` or `[off-thread]` entry per item in the structure doc's shape ("Recurring
+  work and off-thread work"), or `- Off-thread work: none recorded.`; a redacted command or prompt
+  ends `restore: manual`. The resumed session re-arms and reconciles from these entries through
+  [`${CLAUDE_PLUGIN_ROOT}/reference/resume.md`](${CLAUDE_PLUGIN_ROOT}/reference/resume.md), which
+  the resume-context hook injects; nobody re-pastes a `/loop`
 - [ ] **Execution stops here** (for a forked side task, only the side task), the rails prompt and
   its below-rail notes follow these ticks as the response's final text ("Output order is fixed")
 
@@ -451,9 +461,9 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - [ ] Copy instruction above each region's rails; a goal region under its own `Type /goal`
   instruction line when a goal applies, ordered by what the user asked for (engine doc, the Goal
   region bullet under "Emit the copy/paste resume prompt"), with the conversation-bound warning
-  and the met-goal omission applied as on the full path; a below-the-rails note covering every
-  surviving loop that has the resumed session list its scheduled tasks first and re-arm only the
-  loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message; the `/reload-plugins` note when a plugin changed (engine doc, "Emit the copy/paste resume prompt")
+  and the met-goal omission applied as on the full path; surviving loops, cron tasks and monitors
+  as one `Re-arm:` bullet between the rails in the Environment entry shape (engine doc, "Where
+  recurring items go"); the `/reload-plugins` note when a plugin changed (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
