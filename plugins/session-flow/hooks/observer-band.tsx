@@ -18,7 +18,7 @@ export type AskedActions = { helpful: () => unknown; notRelevant: () => unknown;
 export const askedRow = (ui: Elements, icon: string, act: AskedActions) => {
   const { Box, Button, Text } = ui
   return (
-    <Box marginTop={1} marginBottom={1} gap={2}>
+    <Box gap={2}>
       <Text dimColor>
         <Text color="warning">{icon} </Text>
         observer · Dismissed.
@@ -35,7 +35,7 @@ export const askedRow = (ui: Elements, icon: string, act: AskedActions) => {
 export const band = (ui: Elements, icon: string, f: Finding, source: string, isOpen: boolean, cost: string, act: BandActions) => {
   const { Box, Button, Text } = ui
   return (
-    <Box flexDirection="column" marginTop={1} marginBottom={1}>
+    <Box flexDirection="column">
       <Text wrap="truncate">
         <Text color="warning">{icon} </Text>
         <Text dimColor>observer · </Text>
