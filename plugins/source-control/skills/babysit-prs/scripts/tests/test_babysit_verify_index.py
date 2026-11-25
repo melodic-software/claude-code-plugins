@@ -400,14 +400,82 @@ class PassOut(IndexFixture):
         zips = [c for c in fake.calls if c[-1].endswith("/zip")]
         self.assertEqual([c[-1].split("/")[-2] for c in zips], ["20", "10"])
 
-    def test_a_record_that_does_not_download_is_none(self) -> None:
+    UNAVAILABLE = "gh: Service Unavailable (HTTP 503)\n"
+
+    def pass_out_failing(self, stderr: str | None) -> tuple[IndexGitHub, Any]:
         later = "2026-10-20T00:00:00Z"
         notes = artifact(named(HEAD, "pass-notes"), 2)
         fake = self.passing(notes, runs={2: run(2, run_started_at=later)})
         fake.records[named(HEAD, "pass-notes")] = record()
-        del fake.records[named(HEAD, "pass")]
-        self.assertIsNone(self.cli(fake, "--pass-out", str(self.out))["refusal"])
+
+        def failing(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
+            if stderr is not None and args[-1].endswith("/10/zip"):
+                return subprocess.CompletedProcess(args, 1, b"", stderr)
+            return fake(args, **kwargs)
+
+        return fake, failing
+
+    def pass_out(self, gh: Any) -> tuple[list[float], str]:
+        errors = io.StringIO()
+        with (
+            mock.patch.object(ve, "_listing_sleep") as sleep,
+            contextlib.redirect_stderr(errors),
+        ):
+            self.assertIsNone(self.cli(gh, "--pass-out", str(self.out))["refusal"])
         self.assertIsNone(json.loads(self.out.read_text())["record"])
+        return [c.args[0] for c in sleep.call_args_list], errors.getvalue()
+
+    def test_a_record_that_keeps_failing_on_a_5xx_is_none(self) -> None:
+        slept, errors = self.pass_out(self.pass_out_failing(self.UNAVAILABLE)[1])
+        self.assertEqual(slept, list(ve.PASS_RECORD_WAITS))
+        self.assertEqual(errors.count("pass-out: "), len(ve.PASS_RECORD_WAITS) + 1)
+        self.assertIn("(HTTP 503)", errors)
+
+    def test_a_rate_limited_or_missing_record_is_read_once(self) -> None:
+        for stderr in (
+            "gh: API rate limit exceeded (HTTP 403)\n",
+            "gh: Not Found (HTTP 404)\n",
+        ):
+            slept, errors = self.pass_out(self.pass_out_failing(stderr)[1])
+            self.assertEqual(slept, [], stderr)
+            self.assertEqual(errors.count("pass-out: "), 1, stderr)
+            self.assertIn(stderr.strip(), errors)
+
+    def test_a_record_that_is_not_an_object_is_read_once(self) -> None:
+        fake, gh = self.pass_out_failing(None)
+        fake.records[named(HEAD, "pass")] = []  # type: ignore[assignment]
+        slept, errors = self.pass_out(gh)
+        self.assertEqual(slept, [])
+        self.assertIn("not an object", errors)
+
+    def test_no_wait_runs_past_the_callers_limit(self) -> None:
+        limit = ve._elapsed() + ve.DEADLINE_MARGIN_SECONDS + 1
+        with mock.patch.dict(ve.os.environ, {ve.DEADLINE_ENV: str(limit)}):
+            slept, errors = self.pass_out(self.pass_out_failing(self.UNAVAILABLE)[1])
+        self.assertEqual(slept, [])
+        self.assertEqual(errors.count("pass-out: "), 1)
+
+    def test_a_record_download_that_fails_once_is_read_again(self) -> None:
+        later = "2026-10-20T00:00:00Z"
+        notes = artifact(named(HEAD, "pass-notes"), 2)
+        fake = self.passing(notes, runs={2: run(2, run_started_at=later)})
+        fake.records[named(HEAD, "pass-notes")] = record(summary="notes")
+        failed: list[str] = []
+
+        def flaky(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
+            if args[-1].endswith("/10/zip") and not failed:
+                failed.append(args[-1])
+                return subprocess.CompletedProcess(args, 1, b"", "gh: Service Unavailable (HTTP 503)\n")
+            return fake(args, **kwargs)
+
+        with (
+            mock.patch.object(ve, "_listing_sleep") as sleep,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertIsNone(self.cli(flaky, "--pass-out", str(self.out))["refusal"])
+        self.assertEqual(failed, [f"repos/{REPO}/actions/artifacts/10/zip"])
+        self.assertEqual(json.loads(self.out.read_text())["record"], record())
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [ve.PASS_RECORD_WAITS[0]])
 
 
 SEED_ETAG = 'W/"e909a084392d174b"'

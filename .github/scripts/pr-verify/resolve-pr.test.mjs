@@ -26,6 +26,7 @@ import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { CARRY_MAX, carryMain, closing, CONTRACT_LINE, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, linkedIssues, main, packReads, ratedBy, RELINK_QUERY, resolvePull, SIBLINGS_MAX, siblingNumbers, specChanged, takeReads, upstreamPages, vendoredRows } from "./resolve-pr.mjs";
 import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
+import { PR_READS, takePrReads } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
@@ -64,17 +65,35 @@ const LANE = "melodic-automation-lanes[bot]";
 const JUDGED_AT = "2026-10-21T00:00:00Z";
 const PR_OPENED = "2026-10-20T00:00:00Z";
 
+const CAPTURED_RUN = JSON.parse(readFileSync(fileURLToPath(new URL("./fixtures/workflow-run-rerun.json", import.meta.url)), "utf8"));
+const JUDGED_FIELDS = ["id", "run_attempt", "path", "event", "status", "conclusion", "head_sha", "repository", "head_repository"];
 const upstream = (overrides = {}) => ({
+  ...Object.fromEntries(JUDGED_FIELDS.map((field) => [field, CAPTURED_RUN[field]])),
   id: RUN,
-  path: ".github/workflows/pr-require-checks.yml",
-  event: "pull_request",
-  status: "completed",
+  run_attempt: 1,
   conclusion: "success",
   head_sha: HEAD,
-  repository: { full_name: REPO },
-  head_repository: { full_name: REPO },
+  repository: { ...CAPTURED_RUN.repository, full_name: REPO },
+  head_repository: { ...CAPTURED_RUN.head_repository, full_name: REPO },
   ...overrides,
 });
+
+test("the captured re-run attempt carries every field the resolver judges", () => {
+  assert.deepEqual(JUDGED_FIELDS.filter((field) => CAPTURED_RUN[field] === undefined), []);
+  assert.equal(CAPTURED_RUN.run_attempt, 2);
+  assert.equal(CAPTURED_RUN.path, ".github/workflows/pr-require-checks.yml");
+  assert.equal(CAPTURED_RUN.event, "pull_request");
+  assert.equal(CAPTURED_RUN.status, "completed");
+  assert.match(CAPTURED_RUN.head_sha, /^[0-9a-f]{40}$/);
+  assert.equal(CAPTURED_RUN.repository.full_name, "melodic-software/claude-code-plugins");
+  assert.equal(CAPTURED_RUN.head_repository.full_name, "melodic-software/claude-code-plugins");
+  assert.ok(Number.isSafeInteger(CAPTURED_RUN.id));
+});
+const eventFile = (run = upstream()) => {
+  const file = path.join(tempDir("pr-verify-event-"), "event.json");
+  writeFileSync(file, JSON.stringify({ workflow_run: run }));
+  return file;
+};
 
 // The first 16 hex digits of `printf %s <ref> | sha256sum`, for feat/x and feat/other.
 const REF_DIGEST = "79b4cc554b80dca6";
@@ -144,8 +163,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       if (page === undefined) throw new Error("POST /graphql failed with status 502");
       return { data: { repository: { issue: { number, comments: page } } } };
     }
-    if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
-    if (apiPath === `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100` && jobs) return jobs;
+    if (apiPath === `/repos/${REPO}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100` && jobs) return jobs;
     const jobsOfRun = /\/actions\/runs\/(\d+)\/jobs\?filter=latest&per_page=100$/.exec(apiPath);
     if (jobsOfRun && jobsOf[jobsOfRun[1]]) return jobsOf[jobsOfRun[1]];
     if (apiPath === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
@@ -220,7 +238,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
 }
 
 const resolve = (setup, options = {}) =>
-  resolvePull({ github: fake(setup), repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...options });
+  resolvePull({ github: fake(setup), repository: REPO, upstreamRun: setup?.run ?? upstream(), humans: HUMANS, laneIdentity: LANE, ...options });
 const reason = async (setup, options) => (await resolve(setup, options)).reason;
 const HUMAN_PR = pull({ user: { id: 100, login: "maintainer", type: "User" } });
 
@@ -871,7 +889,7 @@ test("main with the real GitHub helper reads a Refs typo as no linked issue", as
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: REPO,
     GITHUB_OUTPUT: path.join(dir, "out"),
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(),
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     TRUSTED_ACTORS_PATH: actors,
@@ -889,7 +907,7 @@ test("main with the real GitHub helper reads a Refs typo as no linked issue", as
 });
 
 // retry-after latches the rate guard, so main gets a latch of its own.
-test("a refused upstream-run read's annotation carries the status, the rate-limit headers and the body prefix", async () => {
+test("a refused read's annotation carries the status, the rate-limit headers and the body prefix", async () => {
   const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
   writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
@@ -898,7 +916,7 @@ test("a refused upstream-run read's annotation carries the status, the rate-limi
     GITHUB_API_URL: "https://api.example.test",
     GITHUB_REPOSITORY: REPO,
     GITHUB_OUTPUT: path.join(dir, "out"),
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(),
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     TRUSTED_ACTORS_PATH: actors,
@@ -906,11 +924,12 @@ test("a refused upstream-run read's annotation carries the status, the rate-limi
   };
   const body = JSON.stringify({ message: "Bad credentials", documentation_url: "https://docs.github.com/rest", pad: "x".repeat(300) });
   const headers = { "x-ratelimit-remaining": "4321", "x-ratelimit-reset": "1760767020", "x-ratelimit-resource": "core", "retry-after": "120" };
-  const fetchImpl = async () => new Response(body, { status: 403, headers });
+  const fetchImpl = async (url) =>
+    new URL(url).pathname === `/repos/${REPO}/commits/${HEAD}/pulls` ? new Response(JSON.stringify([pull()]), { status: 200 }) : new Response(body, { status: 403, headers });
   const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, stopFile: null, limits: () => ({}) });
   const error = await main(env, { fetchImpl, latch }).then(() => assert.fail("main resolved"), (thrown) => thrown);
   const annotation = failureAnnotation(error);
-  assert.match(annotation, new RegExp(`^::error::pr-verify could not resolve the pull request: GET /repos/${REPO}/actions/runs/${RUN} failed with status 403 \\[`));
+  assert.match(annotation, new RegExp(`^::error::pr-verify could not resolve the pull request: GET /repos/${REPO}/actions/artifacts\\?name=\\S+ failed with status 403 \\[`));
   for (const field of ["status=403", "x-ratelimit-remaining=4321", "x-ratelimit-reset=1760767020", "x-ratelimit-resource=core", "retry-after=120", `body=${JSON.stringify(body.slice(0, 200))}`]) {
     assert.ok(annotation.includes(field), `${field} in ${annotation}`);
   }
@@ -964,7 +983,7 @@ test("a 200 whose completeness check fails holds the resolver green with the hel
   };
   for (const [name, { github: wrap, ...setup }] of Object.entries(cases)) {
     const github = wrap ? wrap(fake(setup)) : fake(setup);
-    const error = await thrown(resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE }));
+    const error = await thrown(resolvePull({ github, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE }));
     assertHeld(closing(error), `${name}: ${error.message}`);
   }
 });
@@ -972,7 +991,7 @@ test("a 200 whose completeness check fails holds the resolver green with the hel
 test("a real defect still fails the resolver red", async () => {
   // A malformed run id, a GraphQL error other than NOT_FOUND and the page cap
   // are not a short answer, so a retry would meet them again.
-  const malformed = await thrown(resolvePull({ github: fake(), repository: REPO, upstreamRunId: "1;x" }));
+  const malformed = await thrown(resolvePull({ github: fake(), repository: REPO, upstreamRun: upstream({ id: "1;x" }) }));
   assert.equal(malformed.message, "the upstream run id is not a run id");
   const graphqlError = await thrown(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer: { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "INTERNAL" }] } } } }));
   assert.equal(graphqlError.message, "#41: the Refs issue could not be read");
@@ -1015,7 +1034,7 @@ test("an answer past what the query reads stays red", async () => {
     } },
   };
   for (const [name, { github: wrap = identity, ...setup }] of Object.entries(cases)) {
-    const error = await thrown(resolvePull({ github: wrap(fake(setup)), repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE }));
+    const error = await thrown(resolvePull({ github: wrap(fake(setup)), repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE }));
     assert.match(error.message, /could not be read/, `${name}: ${error.message}`);
     assertRed(closing(error), error);
   }
@@ -1039,7 +1058,7 @@ test("run as the step, a resolver that gets no answer from GitHub exits 0 with t
     GITHUB_API_URL: "http://127.0.0.1:9",
     GITHUB_REPOSITORY: REPO,
     GITHUB_OUTPUT: output,
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(),
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     TRUSTED_ACTORS_PATH: actors,
@@ -1066,8 +1085,10 @@ test("a run that is not a passing pr-require-checks pull_request run of this rep
     { status: "in_progress", conclusion: null },
     { repository: { full_name: "someone/fork" } },
     { head_repository: { full_name: "someone/fork" } },
-    { id: RUN + 1 },
     { head_sha: "nothex" },
+    ...["run_attempt", "path", "event", "status", "conclusion", "repository", "head_repository", "head_sha"].map((field) => ({ [field]: undefined })),
+    { run_attempt: 0 },
+    { run_attempt: "1" },
   ]) {
     assert.equal(await reason({ run: upstream(overrides) }), "not-a-passing-run", JSON.stringify(overrides));
   }
@@ -1269,7 +1290,7 @@ test("main reads the ci-status log through the redirect, without the token, and 
     GITHUB_TOKEN: "t0ken",
     GITHUB_REPOSITORY: REPO,
     GITHUB_OUTPUT: path.join(dir, "out"),
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(upstream({ conclusion: "failure" })),
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     TRUSTED_ACTORS_PATH: path.join(dir, "actors.json"),
@@ -1502,7 +1523,7 @@ test("main judges every trusted-actors.json account under lane-or-owner, a Bot i
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: REPO,
     GITHUB_OUTPUT: output,
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(),
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     TRUSTED_ACTORS_PATH: actors,
@@ -1631,7 +1652,7 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
     paths.push(apiPath);
     return github(method, apiPath, body);
   };
-  await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  await resolvePull({ github: recording, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
   const lookups = paths.filter((apiPath) => apiPath.includes("/actions/artifacts"));
   assert.deepEqual(lookups.sort(), [
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail&per_page=100&page=1`,
@@ -1658,7 +1679,7 @@ test("the resolver looks up exactly the names write-verdict writes", async () =>
     paths.push(apiPath);
     return github(method, apiPath, body);
   };
-  await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  await resolvePull({ github: recording, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
   const looked = paths
     .filter((apiPath) => apiPath.includes("/actions/artifacts"))
     .map((apiPath) => new URL(apiPath, "https://api.github.com").searchParams.get("name"));
@@ -1687,7 +1708,7 @@ async function specReads(setup) {
     if (apiPath === "/graphql" && body.query.includes("closingIssuesReferences")) reads += 1;
     return github(method, apiPath, body);
   };
-  const { reason } = await resolvePull({ github: counting, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  const { reason } = await resolvePull({ github: counting, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
   return [reason, reads];
 }
 
@@ -1778,7 +1799,7 @@ test("a FAIL named without issues stands while the PR links no issue a FAIL name
       if (apiPath === "/graphql" && body.query === RELINK_QUERY) queries.push(apiPath);
       return github(method, apiPath, body);
     };
-    const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+    const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "already-judged", String(issues.length));
     assert.deepEqual(queries, [], "no relink read");
   }
@@ -1797,11 +1818,11 @@ test("a spec answer missing a relink field keeps the FAIL, as a failed relink re
   assert.equal(await reason(relinked(relink)), "relinked");
   for (const field of ["userContentEdits", "links"]) {
     const github = without(fake(relinked(relink)), field);
-    const { reason: got } = await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+    const { reason: got } = await resolvePull({ github, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "already-judged", field);
   }
   const github = without(fake(committed({ relink: relinkAnswer() })), "links");
-  assert.equal((await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE })).relinkSinceHead, true);
+  assert.equal((await resolvePull({ github, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE })).relinkSinceHead, true);
 });
 
 test("when the spec read fails beside a FAIL, the relink rules read RELINK_QUERY as before", async () => {
@@ -1817,7 +1838,7 @@ test("when the spec read fails beside a FAIL, the relink rules read RELINK_QUERY
     }
     return github(method, apiPath, body);
   };
-  const { reason: got } = await resolvePull({ github: flaky, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  const { reason: got } = await resolvePull({ github: flaky, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
   assert.equal(got, "body-edited");
   assert.deepEqual(queries, ["spec", "relink", "spec"]);
 });
@@ -1827,14 +1848,14 @@ test("a spec answer missing the renames stops the run, as a failed rename read d
   const opts = { verifyAuthors: "lane-or-owner", ownerIds: [100] };
   assert.equal(await reason(owner, opts), "ok");
   const github = without(fake(owner), "renames");
-  await assert.rejects(resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts }), /timelineItems could not be read/);
+  await assert.rejects(resolvePull({ github, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE, ...opts }), /timelineItems could not be read/);
   const lane = [];
   const recording = fake({ issues: [] });
   const asked = async (method, apiPath, body) => {
     if (apiPath === "/graphql") lane.push(body.query.includes("RENAMED_TITLE_EVENT"));
     return recording(method, apiPath, body);
   };
-  await resolvePull({ github: asked, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  await resolvePull({ github: asked, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
   assert.ok(lane.length > 0 && !lane.some(Boolean), "no renames for a lanes App pull request");
 });
 
@@ -1855,7 +1876,7 @@ test("renames past the spec answer's first page are read whole through titleRena
     }
     return github(method, apiPath, body);
   };
-  const result = await resolvePull({ github: paged, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts });
+  const result = await resolvePull({ github: paged, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE, ...opts });
   assert.deepEqual(reads, [null]);
   assert.equal(result.specKind, "none");
 });
@@ -1971,7 +1992,7 @@ test("a verdict named with a head-ref digest is not looked up, since write-verdi
       paths.push(apiPath);
       return github(method, apiPath, body);
     };
-    const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+    const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "ok", name);
     assert.ok(!paths.some((apiPath) => apiPath.includes(encodeURIComponent(name))), name);
   }
@@ -2002,7 +2023,7 @@ test("a failed artifact lookup throws instead of judging again", async () => {
     return github(method, apiPath, body);
   };
   await assert.rejects(
-    resolvePull({ github: failing, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE }),
+    resolvePull({ github: failing, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE }),
     /rate limit/,
   );
 });
@@ -2045,7 +2066,7 @@ test("a verdict that would not count does not stop a new judgment", async () => 
 });
 
 test("a malformed run id throws", async () => {
-  await assert.rejects(resolvePull({ github: fake(), repository: REPO, upstreamRunId: "1;x" }));
+  await assert.rejects(resolvePull({ github: fake(), repository: REPO, upstreamRun: upstream({ id: "1;x" }) }));
 });
 
 test("the spec text keeps only what trusted humans wrote and last edited", async () => {
@@ -2299,7 +2320,7 @@ test("main identifies the lanes App by merge.agent-identity's id on the trusted 
   const issue = { ...ISSUE, comments: { totalCount: 1, nodes: [{ databaseId: 1, createdAt: "2026-10-11T00:00:00Z", updatedAt: "2026-10-11T00:00:00Z", body, author: lanes, lastEditedAt: null, editor: null }] } };
   const run = async (identity) => {
     const files = { out: path.join(dir, `out-${identity}`), spec: path.join(dir, "spec.json"), text: path.join(dir, `text-${identity}.json`) };
-    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: files.out, UPSTREAM_RUN_ID: String(RUN), SPEC_FILE: files.spec, SPEC_TEXT_FILE: files.text, TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: identity };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: files.out, GITHUB_EVENT_PATH: eventFile(), SPEC_FILE: files.spec, SPEC_TEXT_FILE: files.text, TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: identity };
     const log = console.log;
     console.log = () => {};
     try {
@@ -2366,7 +2387,7 @@ test("main reads the list's last change at STANDARDS_SHA from the standards comm
   const standardsSha = "5".repeat(40);
   const run = async (changed) => {
     const out = path.join(dir, `out-${changed}`);
-    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: out, UPSTREAM_RUN_ID: String(RUN), SPEC_FILE: path.join(dir, "spec.json"), SPEC_TEXT_FILE: path.join(dir, "text.json"), TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: LANE, STANDARDS_SHA: standardsSha };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: out, GITHUB_EVENT_PATH: eventFile(), SPEC_FILE: path.join(dir, "spec.json"), SPEC_TEXT_FILE: path.join(dir, "text.json"), TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: LANE, STANDARDS_SHA: standardsSha };
     const reads = [];
     const base = fake({ artifacts: [artifact(`pr-verify-41-${HEAD}-pass`, 77)], runs: { 77: verifyRun(77, { run_started_at: "2026-10-20T00:00:00Z" }) } });
     const github = async (method, apiPath, body) => {
@@ -2448,7 +2469,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
       GITHUB_TOKEN: "t",
       GITHUB_REPOSITORY: REPO,
       GITHUB_OUTPUT: output,
-      UPSTREAM_RUN_ID: String(RUN),
+      GITHUB_EVENT_PATH: eventFile(),
       SPEC_FILE: spec,
       SPEC_TEXT_FILE: specText,
       TRUSTED_ACTORS_PATH: actors,
@@ -2474,7 +2495,7 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: REPO,
     GITHUB_OUTPUT: path.join(dir, "out"),
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(),
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     TRUSTED_ACTORS_PATH: actors,
@@ -2500,6 +2521,79 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   assert.equal(keptJobs(skipped, RUN), null);
 });
 
+const TEXT_PULL = { node_id: "PR_kw41", title: "feat: x", body: "the REST body" };
+const OWN_FAIL = { artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } };
+const SPEC_EDIT = { lastEditedAt: "2026-10-20T01:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
+
+const keptReads = async (setup, options = {}) => {
+  const kept = [];
+  const result = await resolve(setup, { ...options, keepReads: (reads) => kept.push(reads) });
+  return { result, kept };
+};
+
+test("a judgment hands on the REST pull's title, and the body with its edit stamp from the one spec answer", async () => {
+  const { kept } = await keptReads({ pulls: [pull(TEXT_PULL)], body: "the spec answer's body", edit: SPEC_EDIT });
+  assert.deepEqual(kept, [
+    {
+      v: 1,
+      pr: 41,
+      pull: {
+        number: 41,
+        node_id: "PR_kw41",
+        title: "feat: x",
+        body: "the spec answer's body",
+        last_edited_at: SPEC_EDIT.lastEditedAt,
+        user: { id: 337595936, login: LANE, type: "Bot" },
+        head: { sha: HEAD },
+        base: { sha: BASE },
+      },
+      closing: { nodes: [{ number: 7, repository: { nameWithOwner: REPO } }], pageInfo: { hasNextPage: false, endCursor: null } },
+    },
+  ]);
+  assert.deepEqual(takePrReads(JSON.stringify(kept[0]), "41", HEAD).closing, kept[0].closing);
+  assert.throws(() => takePrReads(JSON.stringify(kept[0]), "41", BASE), /malformed/);
+});
+
+test("a person's pull request hands on the title renames its spec read folded in", async () => {
+  const renamer = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const { kept } = await keptReads({ pulls: [{ ...HUMAN_PR, ...TEXT_PULL }], renames: [renamer] }, { verifyAuthors: "lane-or-owner", ownerIds: [100] });
+  assert.deepEqual(kept[0].renames, { nodes: [{ __typename: "RenamedTitleEvent", actor: renamer }], pageInfo: { hasNextPage: false, endCursor: null } });
+});
+
+test("a GraphQL commit pulls read hands on no pull, and a skip hands on nothing", async () => {
+  const { kept } = await keptReads({ restFails: true, associated: [GRAPHQL_PULL] });
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].pull, null);
+  const skipped = await keptReads({ pulls: [pull(TEXT_PULL)], ...OWN_FAIL });
+  assert.equal(skipped.result.reason, "already-judged");
+  assert.deepEqual(skipped.kept, []);
+});
+
+test("main writes the handed-on reads to RUNNER_TEMP only when it proceeds", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = (temp) => ({
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(temp, "out"),
+    GITHUB_EVENT_PATH: eventFile(),
+    SPEC_FILE: path.join(temp, "spec.json"),
+    SPEC_TEXT_FILE: path.join(temp, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    RUNNER_TEMP: temp,
+  });
+  const judged = tempDir("pr-verify-temp-");
+  await main(env(judged), { github: fake({ pulls: [pull(TEXT_PULL)], body: "Closes #7" }) });
+  assert.equal(takePrReads(readFileSync(path.join(judged, PR_READS), "utf8"), "41", HEAD).pull.body, "Closes #7");
+  const skipped = tempDir("pr-verify-temp-");
+  await main(env(skipped), { github: fake({ pulls: [pull(TEXT_PULL)], ...OWN_FAIL }) });
+  assert.match(readFileSync(path.join(skipped, "out"), "utf8"), /reason=already-judged/);
+  assert.throws(() => readFileSync(path.join(skipped, PR_READS)), { code: "ENOENT" });
+});
+
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
   const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
@@ -2513,7 +2607,7 @@ test("main reports a human's PR as skipped in the log and the step summary", asy
       GITHUB_REPOSITORY: REPO,
       GITHUB_OUTPUT: output,
       GITHUB_STEP_SUMMARY: summary,
-      UPSTREAM_RUN_ID: String(RUN),
+      GITHUB_EVENT_PATH: eventFile(),
       SPEC_FILE: path.join(dir, "spec.json"),
       SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
       TRUSTED_ACTORS_PATH: actors,
@@ -2538,7 +2632,7 @@ test("main reports an invalid verify-authors value in the step summary", async (
       GITHUB_REPOSITORY: REPO,
       GITHUB_OUTPUT: path.join(dir, "out"),
       GITHUB_STEP_SUMMARY: summary,
-      UPSTREAM_RUN_ID: String(RUN),
+      GITHUB_EVENT_PATH: eventFile(),
       SPEC_FILE: path.join(dir, "spec.json"),
       SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
       TRUSTED_ACTORS_PATH: actors,
@@ -2573,7 +2667,7 @@ const withParent = (setup, parent) => {
 };
 const TASK_LIST = loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname)["task-list"];
 const resolveChild = (child, parent, options = { laneAppId: VECTORS.app_id }) =>
-  resolvePull({ github: withParent({ issues: [child] }, parent), repository: REPO, upstreamRunId: String(RUN), humans: new Set(VECTORS.humans), laneIdentity: LANE, taskList: TASK_LIST, ...options });
+  resolvePull({ github: withParent({ issues: [child] }, parent), repository: REPO, upstreamRun: upstream(), humans: new Set(VECTORS.humans), laneIdentity: LANE, taskList: TASK_LIST, ...options });
 const specBody = async (...args) => (await resolveChild(...args)).specText.map(({ number, body }) => [number, body]);
 
 for (const vector of VECTORS.cases) {
@@ -2722,7 +2816,7 @@ test("a split child whose parent cannot be read whole stops the run", async () =
   const github = fake({ issues: [childNode(vector)] });
   const unread = async (method, apiPath, body) => (apiPath === "/graphql" && body.query.includes("parent {") ? { data: null } : github(method, apiPath, body));
   await assert.rejects(
-    resolvePull({ github: unread, repository: REPO, upstreamRunId: String(RUN), humans: new Set(VECTORS.humans), laneIdentity: LANE, taskList: TASK_LIST, laneAppId: VECTORS.app_id }),
+    resolvePull({ github: unread, repository: REPO, upstreamRun: upstream(), humans: new Set(VECTORS.humans), laneIdentity: LANE, taskList: TASK_LIST, laneAppId: VECTORS.app_id }),
     { message: "#8: the split parent could not be read" },
   );
 });
@@ -2747,23 +2841,23 @@ async function calls(setup, options = {}) {
       paths.push(`log ${id}`);
       return options.readLog(id);
     });
-  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...options, readLog });
+  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRun: setup.run ?? upstream(), humans: HUMANS, laneIdentity: LANE, ...options, readLog });
   return { reason, paths };
 }
 
 test("each path through the resolver makes a pinned number of API calls", async () => {
   const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
   const cases = [
-    ["an unjudged head", {}, "ok", 8],
-    ["an unjudged head with its commit time", committed(), "ok", 8],
-    ["a FAIL named without issues: run, commit pulls, the FAIL name, its run and compare, the head's checks runs, the spec", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 7],
-    ["a FAIL named without issues, no issue linked: the spec's relink fields serve only the body-edit rule", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 7],
-    ["a FAIL named with the PR's issues: run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare, the head's checks runs", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 10],
-    ["a pass with the spec unchanged: run, commit pulls, three names, the pass's run and compare, the spec", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 8],
-    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 10],
+    ["an unjudged head", {}, "ok", 7],
+    ["an unjudged head with its commit time", committed(), "ok", 7],
+    ["a FAIL named without issues: commit pulls, the FAIL name, its run and compare, the head's checks runs, the spec", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 6],
+    ["a FAIL named without issues, no issue linked: the spec's relink fields serve only the body-edit rule", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 6],
+    ["a FAIL named with the PR's issues: commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare, the head's checks runs", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 9],
+    ["a pass with the spec unchanged: commit pulls, three names, the pass's run and compare, the spec", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 7],
+    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 9],
   ];
   const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
-  const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100`;
+  const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/attempts/1/jobs?per_page=100`;
   for (const [label, setup, expected, count] of cases) {
     const { reason: got, paths } = await calls({ issues: [edited], ...setup });
     assert.equal(got, expected, label);
@@ -2774,24 +2868,30 @@ test("each path through the resolver makes a pinned number of API calls", async 
   assert.equal((await calls({ issues: [edited], jobs: DRAFT_JOBS, ...counted(`pr-verify-41-${HEAD}-fail`) })).reason, "already-judged", "a draft-started run at a judged head skips as already-judged");
   const heldRun = await calls({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }, { readLog: async (id) => (id === 9001 ? logOf(PATH_HOLD) : "") });
   assert.equal(heldRun.reason, "ok");
-  assert.equal(heldRun.paths.length, 9, heldRun.paths.join("\n"));
+  assert.equal(heldRun.paths.length, 8, heldRun.paths.join("\n"));
   const own = await calls({ pulls: [HUMAN_PR], issues: [] }, { verifyAuthors: "lane-or-owner", ownerIds: [100] });
   assert.equal(own.reason, "ok");
-  assert.equal(own.paths.length, 7, own.paths.join("\n"));
+  assert.equal(own.paths.length, 6, own.paths.join("\n"));
+});
+
+test("a re-run attempt's payload reads that attempt's jobs and never the run itself", async () => {
+  const { reason: got, paths } = await calls({ run: upstream({ run_attempt: 2 }) });
+  assert.equal(got, "ok");
+  assert.deepEqual(paths.filter((p) => p.startsWith(`/repos/${REPO}/actions/runs/${RUN}`)), [`/repos/${REPO}/actions/runs/${RUN}/attempts/2/jobs?per_page=100`]);
 });
 
 test("a failed run whose jobs are not a hold's skips on the run and its jobs alone, never reading the commit's pull requests", async () => {
   const readLog = async (id) => (id === 9001 ? logOf(PATH_HOLD) : "");
   const failedLane = heldJobs(ciJob(), [{ id: 9002, name: "Lint Repo", conclusion: "failure" }]);
-  const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100`;
+  const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/attempts/1/jobs?per_page=100`;
   for (const [label, pulls] of [["a lane PR", [pull()]], ["a draft", [pull({ draft: true })]], ["another author's", [HUMAN_PR]]]) {
     const { reason: got, paths } = await calls({ run: upstream({ conclusion: "failure" }), jobs: failedLane, pulls }, { readLog });
     assert.equal(got, "not-a-passing-run", label);
-    assert.deepEqual(paths, [`/repos/${REPO}/actions/runs/${RUN}`, jobsPath], label);
+    assert.deepEqual(paths, [jobsPath], label);
   }
   const unread = await calls({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() });
   assert.equal(unread.reason, "not-a-passing-run");
-  assert.deepEqual(unread.paths, [`/repos/${REPO}/actions/runs/${RUN}`]);
+  assert.deepEqual(unread.paths, []);
 });
 
 test("FAIL names first and a pass decided before the issue-named lookups give the same reasons as the old order", async () => {
@@ -2902,7 +3002,7 @@ test("main takes the carried reads with no API read, and reads again when they d
     GITHUB_REPOSITORY: REPO,
     GITHUB_RUN_ATTEMPT: "1",
     GITHUB_OUTPUT: path.join(dir, "out"),
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(),
     SPEC_FILE: path.join(dir, "spec.json"),
     SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
     CONTEXT_FILE: path.join(dir, "context.json"),
@@ -3010,7 +3110,7 @@ function overHttp(setup, { etags = true, answer } = {}) {
   return { github: createGitHub({ token: "t", fetchImpl, latch, log: () => {}, sleep: async () => {} }), listings, paths };
 }
 const resolveOverHttp = (http, options = {}) =>
-  resolvePull({ github: http.github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...options });
+  resolvePull({ github: http.github, repository: REPO, upstreamRun: upstream(), humans: HUMANS, laneIdentity: LANE, ...options });
 const FAIL_NAME = `pr-verify-41-${HEAD}-fail`;
 const PASS_NAME = `pr-verify-41-${HEAD}-pass`;
 const NOTES_NAME = `pr-verify-41-${HEAD}-pass-notes`;
@@ -3110,7 +3210,7 @@ test("with no ETag on the empty listing, every name is read as before", async ()
   await resolvePull({
     github: async (method, apiPath, body) => (plain.push(apiPath), github(method, apiPath, body)),
     repository: REPO,
-    upstreamRunId: String(RUN),
+    upstreamRun: upstream(),
     humans: HUMANS,
     laneIdentity: LANE,
   });

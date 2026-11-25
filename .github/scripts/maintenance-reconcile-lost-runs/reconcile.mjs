@@ -1387,7 +1387,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       continue;
     }
     try {
-      if ((await judgeSpec(checks.id)).reason === "spec-changed") {
+      if ((await judgeSpec(checks)).reason === "spec-changed") {
         if (!belowCap(checks)) {
           say(atCap(pull, checks, "its spec changed after the pass"));
           continue;
@@ -1401,7 +1401,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const specPrs = new Set(ready.flat().filter((item) => item.kind === "spec").map((item) => item.pr));
   for (const { pull, checks } of tooOld.filter(({ pull }) => !specPrs.has(pull.number))) {
     try {
-      if ((await judgeSpec(checks.id)).reason === "ok") {
+      if ((await judgeSpec(checks)).reason === "ok") {
         ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
       }
     } catch (error) {
@@ -1927,12 +1927,12 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       laneApp = env.LANE_IDENTITY ? trusted.logins.get(env.LANE_IDENTITY.toLowerCase()) : undefined;
       // The Refs read needs GraphQL errors back to tell a typo from a failure.
       const readRefs = injected ? github : createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, keepGraphQLErrors: true });
-      judgeSpec = (upstreamRunId) =>
+      judgeSpec = (upstreamRun) =>
         resolvePull({
           github: call,
           readRefs,
           repository: repo,
-          upstreamRunId,
+          upstreamRun,
           humans: trusted.humans,
           verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
           laneIdentity: env.LANE_IDENTITY,

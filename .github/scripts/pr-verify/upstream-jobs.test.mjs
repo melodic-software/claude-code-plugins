@@ -1,9 +1,9 @@
 // Expected values come from docs/conventions/pr-pipeline/README.md ("Verifier
 // verdict", upstream-jobs.json): each judging job writes the jobs of the
-// pr-require-checks run it was started by, each with its name, conclusion
+// pr-require-checks attempt it was started by, each with its name, conclusion
 // and job page (the API's html_url), and a list read short writes nothing. The
 // list endpoint pages at most 100 jobs and reports total_count
-// (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run).
+// (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt).
 // Which Node suites run in test-bash comes from scripts/plan-test-lanes.sh's
 // rule: a *.test.js, .mjs or .cjs with a sibling <stem>.test.sh runs only
 // through that wrapper, where <stem> drops the last `.test.` and what follows.
@@ -19,6 +19,12 @@ const REPO = "melodic-software/claude-code-plugins";
 const RUN = 4242;
 const jobUrl = (n) => `https://github.com/${REPO}/actions/runs/${RUN}/job/${n}`;
 const job = (n, conclusion = "success") => ({ id: n, name: `job-${n}`, conclusion, html_url: jobUrl(n), steps: [{ name: "x" }] });
+const UPSTREAM = { id: RUN, run_attempt: 2 };
+const eventFile = (dir, run = UPSTREAM) => {
+  const file = path.join(dir, "event.json");
+  writeFileSync(file, JSON.stringify({ workflow_run: run }));
+  return file;
+};
 
 // A GitHub that serves `all` in pages of 100 and records each path.
 const paged = (all, total = all.length) => {
@@ -32,11 +38,11 @@ const paged = (all, total = all.length) => {
   return { github, paths };
 };
 
-test("every page of the run's latest jobs is read, keeping only each name, conclusion and job page", async () => {
+test("every page of the payload attempt's jobs is read, keeping only each name, conclusion and job page", async () => {
   const all = [...Array.from({ length: 100 }, (_, i) => job(i + 1)), job(101, "skipped"), { id: 102, name: "ci-status", conclusion: null }];
   const { github, paths } = paged(all);
-  const listed = await upstreamJobs(github, REPO, RUN);
-  assert.deepEqual(paths, [1, 2].map((page) => `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100&page=${page}`));
+  const listed = await upstreamJobs(github, REPO, UPSTREAM);
+  assert.deepEqual(paths, [1, 2].map((page) => `/repos/${REPO}/actions/runs/${RUN}/attempts/2/jobs?per_page=100&page=${page}`));
   assert.equal(listed.run_id, RUN);
   assert.equal(listed.jobs.length, 102);
   assert.deepEqual(listed.jobs.at(0), { name: "job-1", conclusion: "success", url: jobUrl(1) });
@@ -46,13 +52,16 @@ test("every page of the run's latest jobs is read, keeping only each name, concl
   ]);
 });
 
-test("a list read short of its total_count, or with no job list, throws", async () => {
-  await assert.rejects(upstreamJobs(paged([job(1)], 2).github, REPO, RUN), /lists 2 jobs but 1 were read/);
+test("a list read short of its total_count, with no job list, or for a payload run with no attempt, throws", async () => {
+  await assert.rejects(upstreamJobs(paged([job(1)], 2).github, REPO, UPSTREAM), /lists 2 jobs but 1 were read/);
   await assert.rejects(
-    upstreamJobs(async () => ({ message: "Not Found" }), REPO, RUN),
+    upstreamJobs(async () => ({ message: "Not Found" }), REPO, UPSTREAM),
     /answered no job list/,
   );
-  await assert.rejects(upstreamJobs(paged([]).github, REPO, "12; rm"), /not a run id/);
+  await assert.rejects(upstreamJobs(paged([]).github, REPO, { id: "12; rm", run_attempt: 1 }), /not a run id/);
+  for (const run_attempt of [undefined, 0, "2"]) {
+    await assert.rejects(upstreamJobs(paged([]).github, REPO, { id: RUN, run_attempt }), /names no attempt/, String(run_attempt));
+  }
 });
 
 test("a Node suite with a sibling .test.sh at the head is listed with its wrapper, and no other path is", () => {
@@ -88,7 +97,7 @@ test("main writes the list to JOBS_FILE, and writes nothing when the read fails"
   const env = {
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: REPO,
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(dir),
     JOBS_FILE: path.join(dir, "upstream-jobs.json"),
     HEAD_PATHS_FILE: headPaths,
   };
@@ -108,6 +117,12 @@ test("main writes the list to JOBS_FILE, and writes nothing when the read fails"
   const noTree = { ...env, JOBS_FILE: path.join(dir, "no-tree.json"), HEAD_PATHS_FILE: "" };
   await assert.rejects(main(noTree, { github: paged([job(1)]).github }), /HEAD_PATHS_FILE is not set/);
   assert.equal(existsSync(noTree.JOBS_FILE), false);
+  const noEvent = { ...env, JOBS_FILE: path.join(dir, "no-event.json"), GITHUB_EVENT_PATH: "" };
+  await assert.rejects(main(noEvent, { github: paged([job(1)]).github }), /GITHUB_EVENT_PATH is not set/);
+  const noRun = { ...env, JOBS_FILE: path.join(dir, "no-run.json"), GITHUB_EVENT_PATH: path.join(dir, "push.json") };
+  writeFileSync(noRun.GITHUB_EVENT_PATH, JSON.stringify({ ref: "refs/heads/main" }));
+  await assert.rejects(main(noRun, { github: paged([job(1)]).github }), /holds no workflow_run/);
+  for (const file of [noEvent.JOBS_FILE, noRun.JOBS_FILE]) assert.equal(existsSync(file), false);
 });
 
 test("main takes the resolver's kept jobs with no read, and reads when they are missing, for another run or malformed", async (t) => {
@@ -119,7 +134,7 @@ test("main takes the resolver's kept jobs with no read, and reads when they are 
   const env = {
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: REPO,
-    UPSTREAM_RUN_ID: String(RUN),
+    GITHUB_EVENT_PATH: eventFile(dir),
     JOBS_FILE: path.join(dir, "upstream-jobs.json"),
     HEAD_PATHS_FILE: headPaths,
     RUNNER_TEMP: temp,
@@ -137,7 +152,7 @@ test("main takes the resolver's kept jobs with no read, and reads when they are 
     return { paths, jobs: JSON.parse(readFileSync(env.JOBS_FILE, "utf8")).jobs };
   };
   assert.deepEqual(await run(`${JSON.stringify(shapeJobs(RUN, kept))}\n`), { paths: [], jobs: [{ name: "job-3", conclusion: "skipped", url: jobUrl(3) }] });
-  const read = { paths: [`/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100&page=1`], jobs: shapeJobs(RUN, live).jobs };
+  const read = { paths: [`/repos/${REPO}/actions/runs/${RUN}/attempts/2/jobs?per_page=100&page=1`], jobs: shapeJobs(RUN, live).jobs };
   for (const [label, content] of [
     ["no file", undefined],
     ["another run's jobs", JSON.stringify(shapeJobs(RUN + 1, kept))],
