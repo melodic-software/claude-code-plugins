@@ -146,10 +146,125 @@ of every lane. `lint-shell` skips when the change touches none of its inputs
 directories, skill and agent markdown, its gates and their baselines).
 
 A suite that scans a directory never names the file that changed, so it
-declares what it reads in a `test-scope:` header comment, and the selector's rule R8
-selects it for any changed file matching the glob. The rules, and the
-`--replay` mode that shows a selector change's effect on recent main commits,
-are in the header of `scripts/affected-tests.sh`.
+declares what it reads in a `test-scope:` header comment, and the selector's rule
+[R8](#selection-rules) selects it for any changed file matching the glob.
+`scripts/affected-tests.sh --help` lists the flags, including `--replay`, which
+shows a selector change's effect on recent main commits.
+
+### Selection rules
+
+`scripts/affected-tests.sh` selects a suite when the changed file is code the
+suite runs or loads, or data the suite (or code it runs) reads. Each rule finds
+that relation from text and paths, and says no when the text does not show it.
+"Names" is defined under [Matching](#matching), [Ambiguous names](#ambiguous-names)
+and [Comments](#comments) below.
+
+- **R1 self.** A changed suite selects itself, in any ecosystem.
+- **R2 co-located.** `<dir>/<stem>.<ext>` selects the sibling suites covering
+  it under each ecosystem's naming: `<stem>.test.sh`, `<stem>.test.js`,
+  `<stem>.test.mjs`, `<stem>.Tests.ps1`, `<dir>/test_<stem>.py` and
+  `<dir>/tests/test_<stem>.py`, the Python forms also with `-` folded to `_`.
+  Every match is taken. pytest loads a `conftest.py`, and Python an
+  `__init__.py`, with no mention, so either selects every `test_*.py` at or
+  below its directory.
+- **R3 same language.** A file in the changed file's language that names it is
+  a dependent, and R1, R2 and R3 apply to it in turn, with no depth cap; this
+  carries a library change out to what sources it. A Python `import`/`from`
+  line names `<stem>.py` for each dotted component equal to the stem, and a
+  name after `from m import` names `name.py` only when `m`'s package directory
+  holds it. The module must sit under the importer's plugin or lib root
+  (`plugins/<p>/`, `lib/<l>/`, `.github/scripts/<x>/`); an importer outside
+  every root reaches the whole tree. An ambiguous stem resolves only to the
+  module of its name in the nearest directory, from the importer up to that
+  root, that holds one.
+- **R4 other language.** A file in another language counts only where the
+  naming line runs or loads the file: an interpreter or process API on the line
+  (`bash`, `sh`, `python3`, `node`, `pwsh`, `source`, `subprocess`, `spawn*`,
+  `exec*`, ...), or a path to the file rather than its bare name. A chain takes
+  at most one such transition. A data file (any extension that is not code)
+  reaches code of every language that names it, and that first step spends no
+  transition.
+- **R5 shared lib.** The `src` of a `scripts/sync-*.sh` selects every path in
+  that script's published `copy` list, then R2, R3 and R4 on each copy. The
+  copy set is derived from `--print-manifest` on every run, since the manifests
+  are what CI's sync lanes enforce.
+- **R6 sync script.** A changed `scripts/sync-*.sh` selects its own co-located
+  test plus everything its published `src` selects.
+- **R7 path class.** A path under `plugins/autonomy/reference/` selects the
+  plugin-contract validator's suite, which bans vendor names across that
+  directory without naming any file in it.
+- **R8 declared scope.** A suite that enumerates a directory of the live tree
+  (a `grep -r`, a `find`, a glob) or builds a path from parts declares what it
+  reads in its leading comment block, before any code or docstring, in lines of
+  `# test-scope: plugins/github/* scripts/x.sh` (`// test-scope:` in `.test.js`
+  and `.test.mjs` suites). A changed file matching a glob selects the suite and
+  counts as mapped. The globs use the dialect of
+  `scripts/affected-tests-no-suite.txt`: matched against the repo-relative
+  path, `*` crosses `/`, and a `#` after them starts a comment. A glob matching
+  no file fails the run that changes its suite.
+- **R9 wrapper.** A selected `<stem>.test.js` or `<stem>.test.mjs` whose
+  directory holds `<stem>.test.sh` selects that wrapper too, since CI runs such
+  a suite only through its wrapper. Applied after every other rule, before
+  `--shard`.
+- **R10 package scope.** Node reads a `package.json` for every bare import in
+  its package scope
+  ([resolution algorithm](https://nodejs.org/api/esm.html#resolution-algorithm-specification)),
+  so a changed `<dir>/package.json` seeds the walk with each non-test `.js`,
+  `.mjs` or `.cjs` file under `<dir>`, short of `node_modules/` and any nested
+  `package.json`, that imports or requires a dependency the manifest declares at
+  the diff base or now; R2, R3 and R4 then apply to each. Needs `jq`.
+
+#### Matching
+
+One file names another when the other's basename stands in a line as a whole
+path token: bounded on both sides by a character outside `[A-Za-z0-9_.-]`. `/`
+is outside that class, so a path-qualified mention names the file. A trailing
+run of `.` is sentence punctuation and is dropped, and so is a leading run of
+`-`, `+`, `=`, `?` or `.`, so `${TARGET:-<name>}` and `...<name>` name
+`<name>`. A basename buried inside a longer token (`handoff-paths.json` against
+`paths.js`) is not a mention: a substring match there would be false coverage, a
+file nothing covers coming back mapped. A basename with a character outside the
+class keeps the substring test rather than losing its coverage.
+
+`plugin.json`, `marketplace.json`, `hooks.json`, `settings.json`,
+`package.json`, `package-lock.json`, `CHANGELOG.md` and `LICENSE` select no
+suite through a mention: a suite that reads one reads its name or version, and
+the manifest, changelog and catalog gates own those files. Only R1, R2, R8 and,
+for `package.json`, R10 reach a suite from them; anything else is on the
+no-suite list.
+
+#### Ambiguous names
+
+A basename two or more files carry, and the structural docs (`README.md`,
+`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `index.md`), name a specific file only
+when the mention resolves to it. Any mention from the file's own directory
+resolves. A bare name resolves from a directory above the file when no other
+file of that name sits below that directory (`FIXTURES / "questions.json"`),
+and never otherwise. A path resolves when it ends in the shortest suffix of the
+file's path, two components or more, that no other file of that name ends in,
+or in the file's path relative to a directory below the repository root that
+holds both files, when that relative path has a directory in it
+(`$SCRIPT_DIR/lib/x.sh` from a script beside `lib/`,
+`$PLUGIN_DIR/skills/interview/SKILL.md` from inside the plugin). A path that
+spells only the name (`$SKILL_DIR/SKILL.md`) or is relative to the root alone
+(`$ROOT/.github/workflows/pr-require-checks.yml`) does not resolve: tests build
+the same path under a temporary directory as often as they read the real file,
+so a suite that reads such a file declares it (R8). R5's shared-library copies
+are the exception and keep the plain rule: they share a basename on purpose and
+change together with their source.
+
+#### Comments
+
+A line that is only a comment (`#` in shell, Python and PowerShell; `//`, `/*`
+or a `*` continuation in Node) names nothing, in suites and in code alike. A
+`# shellcheck source=` directive and a JSDoc type import (`@import`,
+`import('...')`) are read by tools and still count. A trailing comment on a
+shell, Python or PowerShell code line (a `#` outside quotes after a blank)
+names nothing either, but a trailing comment on a Node line, or on a Python
+`import`/`from` line, still counts: `import transcript_reader  #
+scripts/transcript_reader.py` is how a module import names its file. A shell
+output redirect's target (`>file`, `>>"$dir/file"`) names nothing: a suite that
+seeds a fixture writes that name and reads nothing.
 
 ## Contract-only `ci-status`
 
