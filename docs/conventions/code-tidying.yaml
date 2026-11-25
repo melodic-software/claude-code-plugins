@@ -10,3 +10,8 @@ comment_lint_allow:
   - '^#[[:space:]]*test-scope:'
   - '^//[[:space:]]*test-scope:'
   - '^#[[:space:]]*fixture-isolation-scope:'
+  - '^#[[:space:]]*spellchecker:'
+  - '^//[[:space:]]*spellchecker:'
+  - '^#[[:space:]]*discriminating-skip-required:'
+  - '^#[[:space:]]*slow-shape-ok:'
+  - '^#[[:space:]]*portability-ok:'
