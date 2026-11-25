@@ -220,6 +220,30 @@ the pr-merge sweep holds is not, and the issue's first step is to split it.
   hour. The issue's n=5 premise no longer holds over 7 days. Changes 2, 3 and 5 reach 61; with
   change 1, 41. Re-measure this band over 14 days before judging any change on it.
 
+## Observed after the window
+
+Single pull requests on 2026-11-25 (UTC), after the window closed. They are not in any median
+above; each points at where a stage's time went on the day it was read.
+
+- **Runner queue inside CI.** On
+  [#19125](https://github.com/melodic-software/claude-code-plugins/pull/19125) and
+  [#19122](https://github.com/melodic-software/claude-code-plugins/pull/19122), flipped ready at
+  18:53, the first CI jobs (Select Tests, Mark Lanes) started about 19:02. On #19122 the review
+  jobs sat queued 19:04 to 19:14, and Publish Review 19:16 to 19:26.
+- **The review wait ran out.** `ci-status` waits 480 seconds for the review lanes. On #19122 and
+  on [#19137](https://github.com/melodic-software/claude-code-plugins/pull/19137) (this file's pull
+  request) it failed `CI Status` while the reviews were still running. On #19122,
+  pr-dispatch-feedback had not re-run it 9 minutes after both reviews passed (19:27), and it was
+  re-run by hand at about 19:36. That time falls in the CI stage, or in gate wait when the head was
+  already green once.
+- **Wait For Refine** held both review lanes on #19125 for over 40 minutes.
+- **pr-verify's PASS artifact lands before its run ends.** The artifact exists while the run's
+  Wake PR Merge job is still queued (run
+  [45688012082](https://github.com/melodic-software/claude-code-plugins/actions/runs/45688012082)),
+  and the merge guard refused for about 20 minutes after it existed. That time falls in gate wait.
+- **Queue depth.** #19122 entered the merge queue at position 10 at 20:03, with GitHub's estimate of
+  1,556 seconds to merge, against the window's 9-to-12-minute queue median.
+
 ## Limits
 
 - **Stage and what-if figures come from the sample**, which over-represents large pull requests by
