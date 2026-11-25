@@ -549,7 +549,8 @@ The skills adapt to the consuming repo rather than imposing structure:
 (see `reference/observer.md` for full semantics); **audit-sessions** has five `audit_sessions_*`
 keys (store retention, excerpt length, the short-turn word limit, and the two drift-check bounds);
 `cloud_route` and `retro_offer` set whether the workflow's continuation advice offers a cloud
-session and whether its wrap-up offers a retro; the six `away_*` keys set `/session-flow:step-away`'s
+session and whether its wrap-up offers a retro, and `implementation_route` where it sends work
+after decompose; the six `away_*` keys set `/session-flow:step-away`'s
 night start, report-by times, days off, watched folders and orchestrator posture; nine more keys tune single skills, and
 "Option details" explains `worker_continuation`, `wip_commit`, `retro_lenses` and
 `transcript_scope`. Every key is in the options reference below. The observer keys:
@@ -631,6 +632,14 @@ findings before anything is scored; it applies to short sessions too. It resolve
 is valid; any other value, `2` included, is named and its layer dropped. `/session-flow:setup
 apply retro_lenses=3` writes it.
 
+**`implementation_route`.** Read by `/session-flow:workflow` when the position reaches decompose.
+`local` (default) continues into implement in this session. `factory` names each item decompose
+published as handed to the repository's unattended factory lanes and recommends no local implement
+stage; an item that needs a local dependency (marked session-owned, or naming something only a
+local machine reaches) stays local and is named as such. It resolves like `worker_continuation`,
+from the same `docs/conventions/session-flow.yaml`. `/session-flow:setup apply
+implementation_route=factory` writes it.
+
 **`transcript_scope`.** Read by `/session-flow:find-handoff` and `/session-flow:recall` for their transcript scans. `worktree`
 (default) scans this worktree's sessions, then the repository's other worktrees, and asks before
 reading any other project's transcripts; `repo` starts with every worktree; `all` reaches every
@@ -672,6 +681,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `lane_transcript_sink` | directory | *(none)* | The private directory holding pulled CI lane transcripts and their metrics.jsonl, read by /session-flow:retro ci-runs and /session-flow:audit-sessions pr. Unset: ci-runs needs --sink and audit-sessions pr skips CI legs; there is no default location. A --sink given on the command line wins. |
 | `cloud_route` | string | `"offer"` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 | `retro_offer` | string | `"offer"` | Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask. |
+| `implementation_route` | string | `"local"` | Where /session-flow:workflow sends work after decompose. local (default) continues into implement here; factory hands published items to the repository's unattended factory lanes, keeping local only items that need a local dependency. docs/conventions/session-flow.yaml wins. |
 | `recommend_skills_exclude` | string | `"none"` | Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped. |
 | `orient_catch_up_word_cap` | number<br>*min 150* | `250` | Most words /session-flow:orient catch-up may use for what happened, visuals excluded; default 250, minimum 150. Every action item is listed in full whatever the cap. The reply opens with what needs you, then what happened, then each decision. |
 | `away_night_start` | string | `"21:00"` | Local time of day, HH:MM, when /session-flow:step-away bed treats the night as starting; default 21:00. The night window runs from this time to the next report-by time. A time named in the launch words wins. |

@@ -13,8 +13,6 @@ git -C "$TEST_TMPDIR" init -q
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
 SKIPPED=0
-# A case whose git path form this host cannot pin is neither a pass nor a failure.
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
@@ -425,7 +423,6 @@ GITREPO="$TEST_TMPDIR/gitrepo"
 mkdir -p "$GITREPO"
 git -C "$GITREPO" init -q
 printf 'ignored.txt\n' >"$GITREPO/.gitignore"
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_git_rewrites_worktree_path; then
   skip "gitignored file → exit 0 (consumer seam)" \
     "git --show-toplevel spelling diverges from the bash fixture path"
@@ -474,7 +471,6 @@ HOMEREPO="$TEST_TMPDIR/homerepo"
 mkdir -p "$HOMEREPO/Desktop"
 git -C "$HOMEREPO" init -q
 HOMEREPO_TL="$(git -C "$HOMEREPO" rev-parse --show-toplevel)"
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_git_rewrites_worktree_path; then
   skip "F1: home-is-checkout, project = subdir of home → exit 0" \
     "git --show-toplevel spelling diverges from the bash fixture path"

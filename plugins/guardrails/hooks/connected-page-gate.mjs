@@ -61,7 +61,6 @@ process.stdin.on('end', () => {
       },
     }));
   } catch {
-    // fail-open
   }
   process.exit(0);
 });

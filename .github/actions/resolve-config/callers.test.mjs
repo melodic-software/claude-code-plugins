@@ -146,14 +146,13 @@ for (const [file, job, lane, laneSwitch] of [
     }
   });
 
-  test(`${file}: the review waits on the kill switch and Refine jobs and skips a draft`, () => {
+  test(`${file}: the review waits only on the kill switch, never for Refine, and skips a draft`, () => {
     const review = jobs[job];
-    assert.deepEqual(review.needs, ["check-kill-switch", "wait-for-refine"]);
-    for (const gate of review.needs) assert.equal(typeof jobs[gate]?.steps?.length, "number", `${gate} is a job with steps`);
+    assert.deepEqual(review.needs, ["check-kill-switch"]);
+    assert.deepEqual(Object.keys(jobs).sort(), ["check-kill-switch", job].sort(), "no job runs before the review but the kill switch");
     const context = {
       "github.event.pull_request.draft": false,
       "needs.check-kill-switch.outputs.proceed": "true",
-      "needs.wait-for-refine.outputs.proceed": "true",
     };
     assert.equal(evaluate(review.if, context), true, "a ready PR is reviewed");
     assert.equal(evaluate(review.if, { ...context, "github.event.pull_request.draft": true }), false, "a draft is not reviewed");
@@ -176,7 +175,6 @@ for (const [file, job, lane, laneSwitch] of [
       const context = {
         "github.event.pull_request.draft": false,
         "needs.check-kill-switch.outputs.proceed": proceed,
-        "needs.wait-for-refine.outputs.proceed": "true",
       };
       assert.equal(evaluate(review.if, context), proceed === "true", `proceed=${JSON.stringify(proceed)}`);
     }
@@ -197,53 +195,6 @@ for (const [file, job, lane, laneSwitch] of [
     assert.equal(proceeds("true", "true"), "false");
     assert.equal(proceeds("false", "false"), "false");
     assert.equal(proceeds("", "false"), "false", "an unreadable lanes switch stops the review");
-  });
-
-  test(`${file}: the review waits for this head's Refine and skips only a head that moved`, () => {
-    const review = jobs[job];
-    const wait = jobs["wait-for-refine"];
-    assert.match(review.if, / && needs\.wait-for-refine\.outputs\.proceed != 'false' \}\}$/);
-    for (const [proceed, reviewed] of [["true", true], ["", true], ["false", false]]) {
-      const context = {
-        "github.event.pull_request.draft": false,
-        "needs.check-kill-switch.outputs.proceed": "true",
-        "needs.wait-for-refine.outputs.proceed": proceed,
-      };
-      assert.equal(evaluate(review.if, context), reviewed, `wait-for-refine proceed=${JSON.stringify(proceed)}`);
-    }
-    assert.deepEqual(wait.needs, ["check-kill-switch"]);
-    for (const [draft, kill, waits] of [[false, "true", true], [false, "false", false], [false, "", false], [true, "true", false]]) {
-      const context = { "github.event.pull_request.draft": draft, "needs.check-kill-switch.outputs.proceed": kill };
-      assert.equal(evaluate(wait.if, context), waits, `draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
-      assert.equal(evaluate(review.if, { ...context, "needs.wait-for-refine.outputs.proceed": "" }), waits, `review, wait-for-refine skipped: draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
-    }
-    assert.deepEqual(wait.permissions, { actions: "read", contents: "read", "pull-requests": "read" });
-    assert.deepEqual(stepSecrets(wait), [], "the wait job reads no secret");
-    assert.equal(wait.outputs.proceed, "${{ steps.wait.outputs.proceed }}");
-    const step = wait.steps.find((s) => s.id === "wait");
-    assert.equal(step.run, "node .base/.github/scripts/pr-review/wait-refine.mjs", "no expression reaches the shell");
-    assert.equal(step["continue-on-error"], true);
-    assert.equal(step["timeout-minutes"], 45);
-    assert.equal(wait["timeout-minutes"], 50, "the step times out before the job");
-    assert.deepEqual(step.env, {
-      GITHUB_TOKEN: "${{ github.token }}",
-      PR_NUMBER: "${{ github.event.pull_request.number }}",
-      HEAD_SHA: "${{ github.event.pull_request.head.sha }}",
-      PR_BASE_REF: "${{ github.event.pull_request.base.ref }}",
-      PR_HEAD_REPO: "${{ github.event.pull_request.head.repo.full_name }}",
-      API_BUDGET_HOLD: "1",
-    });
-    const checkout = wait.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
-    assertMainTip(wait.steps, checkout);
-    assert.equal(checkout.with.path, ".base");
-    assert.equal(checkout.with["persist-credentials"], false);
-    const sparse = checkout.with["sparse-checkout"].trim().split("\n");
-    for (const path of importClosure(".github/scripts/pr-review/wait-refine.mjs")) {
-      assert.ok(
-        sparse.some((entry) => (entry.endsWith("/") ? `/${path}`.startsWith(entry) : `/${path}` === entry)),
-        `the sparse checkout lacks ${path}`,
-      );
-    }
   });
 }
 
@@ -3388,8 +3339,6 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-refine.yml select-passes: Check the human-gated hold",
     "pr-refine.yml select-passes: List the PR's changed files",
     "pr-refine.yml select-passes: Read the PR's head SHA",
-    "pr-review-hosted.yml wait-for-refine: Wait for this head's refine run",
-    "pr-review-security-hosted.yml wait-for-refine: Wait for this head's refine run",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
@@ -6670,18 +6619,16 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   }
   const slot = select.steps.find((s) => s.id === "slot");
   assert.deepEqual([slot.with.lane, slot.with.activity, slot.with["prepare-supported"], slot.with["applied-by-supported"]], ["pr-unblock", "address-feedback", "true", "patch feedback-replies"]);
-  const starts = (activity, sender = "1", stale = "") =>
+  const starts = (activity, sender = "1") =>
     evaluate(select.if, {
       "inputs.pr-number": "7",
       "inputs.activity": activity,
       "format('{0}', github.event.sender.id)": sender,
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
-      "needs.check-dispatcher-current.outputs.stale": stale,
     });
   assert.equal(starts("address-feedback"), true);
   assert.equal(starts("fix-ci"), false);
   assert.equal(starts("address-feedback", "2"), false, "the lanes App's own dispatch");
-  assert.equal(starts("address-feedback", "1", "true"), false, "a dispatcher on an older copy of its file");
   const proceed = (upload, applies, decided, resolveOnly = "") =>
     evaluate(select.outputs.proceed, {
       "steps.upload.outcome": upload,
