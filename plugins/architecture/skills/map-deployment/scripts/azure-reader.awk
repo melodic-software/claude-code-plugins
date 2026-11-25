@@ -1,28 +1,3 @@
-# Bicep and ARM template reader for collect-deployment.sh. Prepend
-# redact-connection.awk and deployment-diff.awk. Arguments are repo-relative
-# .bicep, .bicepparam, and ARM .json paths (templates and deploymentParameters
-# files) prefixed with "./". Set tool (bicep or arm: which roots this run draws),
-# places, params, nodes, envs, diffs and flag to output files.
-#
-# One tokenizer reads Bicep and JSON into flat rows of path, kind, value. Kinds:
-# s a string (a Bicep string may hold ${} interpolations, an ARM string may be a
-# [ ] expression), l a number, bool or null, x an identifier or property access,
-# u anything else. Only a parameter reference is resolved; every function, var,
-# operator and conditional is recorded as unresolved:<text>, never evaluated.
-#
-# A root is a template that no module names, or one a parameters file names.
-# Its environments come from its .bicepparam files (the using target) and its
-# JSON parameters files (<name>.parameters.<env>.json beside <name>.bicep or
-# <name>.json, or parameters.<env>.json beside the directory's only template),
-# else the directory name (default at the repository root). A parameter
-# resolves from a module call argument, then the environment's parameters file,
-# then its default. A registry or template-spec module, a module file that is
-# not tracked, a nested Microsoft.Resources/deployments resource, a using or
-# extends this reader does not follow, and an unpaired parameters file each
-# refuse the record by file name; a module source is never printed. A child
-# resource nested in its parent is read with its full type (Microsoft.Web/sites/slots)
-# and is listed as unmapped, never dropped. A slot with a DOCKER| image, nested in its
-# site or naming it as its Bicep parent, is the container <site>/<slot> on the site's plan.
 
 function trim(s) { gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s); return s }
 function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
@@ -32,7 +7,6 @@ function tp(f) { return f ~ /\.json$/ ? "arm" : "bicep" }
 function fail(reason) { print reason > flag; failed = 1; exit 0 }
 function tok(t, v) { NT++; T[NT] = t; V[NT] = v }
 
-# Tokens: s string, n identifier or number, p punctuation, nl newline.
 function tokenize(s,    L, i, c, c2, j, out, depth, ch, nx, m) {
   NT = 0
   L = length(s)
@@ -131,7 +105,6 @@ function is_p(k, v) { return T[k] == "p" && V[k] == v }
 function opener(k) { return T[k] == "p" && (V[k] == "{" || V[k] == "[" || V[k] == "(") }
 function closer(k) { return T[k] == "p" && (V[k] == "}" || V[k] == "]" || V[k] == ")") }
 
-# Skip one balanced ( ), [ ] or { } group starting at P.
 function skip_group(    d) {
   d = 0
   while (T[P] != "EOF") {
@@ -142,7 +115,6 @@ function skip_group(    d) {
   bad = 1
 }
 
-# Skip to the newline that ends a statement at depth 0.
 function skip_statement(    d) {
   d = 0
   while (T[P] != "EOF") {
@@ -170,7 +142,6 @@ function parse_object(prefix, endp,    key) {
   }
 }
 
-# A value runs to a newline, comma, or unmatched closer at depth 0.
 function parse_value(path,    E, d, first, k, raw, t, n) {
   d = 0; first = 0; E = P
   while (T[E] != "EOF") {
@@ -192,7 +163,6 @@ function parse_value(path,    E, d, first, k, raw, t, n) {
   k = P + 1
   while (T[k] == "nl") k++
   if (first == E - 1 && is_p(P, "[") && T[k] == "n" && V[k] == "for") {
-    # A loop is read once: its body is item [0].
     d = 0
     for (P = k; T[P] != "EOF"; P++) {
       if (opener(P)) d++
@@ -229,7 +199,6 @@ function parse_value(path,    E, d, first, k, raw, t, n) {
   P = E
 }
 
-# resource <sym> '<type>@<version>' [existing] = { } | if (...) { } | [for ...: { }]
 function parse_resource(prefix,    sym, type, pre, outer, n) {
   sym = V[P + 1]
   if (T[P + 2] != "s") { bad = 1; return }
@@ -246,7 +215,6 @@ function parse_resource(prefix,    sym, type, pre, outer, n) {
   RES[FILE_, n] = pre; RTYPE[FILE_, pre] = type; RSYM[FILE_, pre] = sym
 }
 
-# The = body of a resource or module. Returns the row prefix of its body.
 function parse_decl(path) {
   if (!is_p(P, "=")) { bad = 1; return "" }
   P++
@@ -333,7 +301,6 @@ function field(f, path) {
   FK = ""; FV = ""
   return 0
 }
-# Array items pre[0]., pre[1]., ... in order.
 function items(f, pre, out,    n) {
   n = 0
   while (1) {
@@ -349,7 +316,6 @@ function has_under(f, pre,    k, r) {
 
 function unresolved(raw) { RES_OK = 0; return "unresolved:" raw }
 
-# A parameters-file value is a literal; anything computed stays unresolved.
 function literal(f, kind, v) {
   RES_OK = 1
   if (kind == "l") return v
@@ -357,7 +323,6 @@ function literal(f, kind, v) {
   return unresolved(kind == "s" ? "'" v "'" : v)
 }
 
-# Resolve one value in scope sc. Sets RES_OK and RES_SEC.
 function resolve(sc, kind, v, depth,    f, out, rest, p, q, inner, r, ok, sec, e) {
   RES_SEC = 0
   RES_OK = 1
@@ -425,7 +390,6 @@ function get(sc, path, dflt) {
   if (!field(S_file[sc], path)) { RES_OK = 1; RES_SEC = 0; return dflt }
   return resolve(sc, FK, FV, 0)
 }
-# get() for a field printed as is: a value from a secure parameter prints as [redacted].
 function show(sc, path, dflt,    v) {
   v = get(sc, path, dflt)
   return RES_SEC ? "[redacted]" : v
@@ -434,8 +398,6 @@ function show(sc, path, dflt,    v) {
 function node(sc, id, type, name, ev) {
   printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"%s\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
     jesc(id), jesc(S_env[sc]), tool, jesc(name), jesc(type), jesc(ev) >> nodes
-  # An ARM resource is addressed by its array position, which differs between
-  # templates, so it is matched by its type and its order among nodes of that type.
   if (id ~ /resources\[[0-9]+\]/) id = S_env[sc] "/" type "#" (++cmp_ord[S_env[sc], type])
   note_compute(S_env[sc], id, type)
 }
@@ -461,7 +423,6 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
   if (ports != "") portjoin[e SUBSEP c] = ports
 }
 
-# One env entry: a secret reference or secure value is a redacted parameter.
 function env_entry(sc, c, g, secret_key, ev,    f, k, v) {
   f = S_file[sc]
   k = show(sc, g "name", "")
@@ -475,8 +436,6 @@ function env_entry(sc, c, g, secret_key, ev,    f, k, v) {
   param(sc, c, k, v, RES_SEC, ev)
 }
 
-# The compute node id a reference names: a Bicep <sym>.id, or an ARM
-# resourceId('<type>', <name>) whose name matches a declared resource.
 function compute_ref(sc, path, type,    f, v, e, lt, nm) {
   f = S_file[sc]
   if (!field(f, path)) return ""
@@ -497,8 +456,6 @@ function compute_ref(sc, path, type,    f, v, e, lt, nm) {
   return ((sc SUBSEP type SUBSEP "name" SUBSEP nm) in CID) ? CID[sc, type, "name", nm] : ""
 }
 
-# A containers list that is an expression, empty, or absent places one container
-# named for the resource, its image unresolved.
 function unread_containers(sc, rp, path, reps, ports, cl,    f, img, gs) {
   f = S_file[sc]
   if (items(f, rp path, gs) > 0) return 0
@@ -508,8 +465,6 @@ function unread_containers(sc, rp, path, reps, ports, cl,    f, img, gs) {
   return 1
 }
 
-# The full type of the ARM resource whose rows start at pre. A nested child carries
-# one type segment (slots), so its parent's full type leads it (Microsoft.Web/sites/slots).
 function arm_type(f, pre,    par, t) {
   t = RV[ROW[f, pre "type"]]
   par = pre
@@ -571,8 +526,6 @@ function map_scope(sc,    f, i, rp, lt, id, n, k, gs, eg, cp, c, reps, ports, cl
   }
 }
 
-# A site or slot whose fx version reads DOCKER| is container c on the plan the
-# resource at plan names; any other is listed.
 function web_container(sc, rp, c, plan,    f, fx, raw, img, cl, m, j, eg) {
   f = S_file[sc]
   fx = "properties.siteConfig.linuxFxVersion"
@@ -589,8 +542,6 @@ function web_container(sc, rp, c, plan,    f, fx, raw, img, cl, m, j, eg) {
   for (j = 1; j <= m; j++) env_entry(sc, c, eg[j], "", f)
 }
 
-# The rows prefix of the site a slot belongs to: the resource it is nested in, or
-# the one its Bicep parent property names. "" when neither is a declared site.
 function slot_site(f, rp,    p, k) {
   p = rp
   if (f ~ /\.json$/) sub(/resources(\[[0-9]+\]|\.[^.\[]+)\.$/, "", p)
@@ -624,7 +575,6 @@ function add_env(e, ev) {
   else if (index(", " env_ev[e] ", ", ", " ev ", ") == 0) env_ev[e] = env_ev[e] ", " ev
 }
 
-# A relative path joined to a directory, or "" when it climbs out of the repository.
 function join(d, rel,    t, nseg, seg, j, out, depth) {
   t = (d == "." ? rel : d "/" rel)
   nseg = split(t, seg, "/"); out = ""; depth = 0
@@ -654,8 +604,6 @@ END {
       else if (tolower(FV) ~ /deploymentparameters/) is_pjson[f] = 1
     }
     if (!is_tpl[f]) continue
-    # ARM declarations: resources (an array, or an object under languageVersion 2.0) and
-    # parameters, secure when typed securestring or secureobject.
     for (k = 1; k <= FN[f]; k++) {
       r = FR[f, k]
       if (f ~ /\.json$/ && RP[r] ~ /^resources(\[[0-9]+\]|\.[^.\[]+)(\.resources(\[[0-9]+\]|\.[^.\[]+))*\.type$/ && RK[r] == "s") {
@@ -672,7 +620,6 @@ END {
         if (tolower(RV[r]) ~ /^secure(string|object)$/) SEC[f, name] = 1
       }
     }
-    # A module is a local Bicep or ARM file; a registry or template-spec source is unread.
     for (k = 1; k <= MN[f]; k++) {
       m = MOD[f, k]
       t = (MSRC[f, m] ~ /^(br|ts)[:\/]/) ? "" : join(dirof(f), MSRC[f, m])
@@ -685,7 +632,6 @@ END {
     f = files[i]
     for (k = 1; k <= MN[f]; k++) if (!is_tpl[MTARGET[f, MOD[f, k]]]) fail("bicep-module-unread:" f ":module." MOD[f, k])
   }
-  # Pair each parameters file with its template.
   for (i = 1; i <= nfiles; i++) {
     f = files[i]
     if (f ~ /\.bicepparam$/) {

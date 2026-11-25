@@ -1,10 +1,3 @@
-# prune-filter.awk — route OTEL store lines by age (kept / dropped / surgery).
-# Invoked via: awk -v cutoff=... -v body_cutoff=... -v dst=... -v ddst=... -v sdst=... -v tf=... -f prune-filter.awk <src>
-#
-#   older than the structure cutoff          -> ddst (whole-line drop; compacts to cold)
-#   else body-class AND older than body cutoff -> sdst (jq strips api_*_body records)
-#   else                                     -> dst, verbatim
-# Prints "kept=<n> dropped=<n> total=<n> surgery=<n> body_dropped=<n> would_compact=<n>".
 
 function is_body(line) {
   return index(line, "\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_request_body\"}") \
