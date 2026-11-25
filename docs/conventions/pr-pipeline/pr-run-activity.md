@@ -2184,7 +2184,11 @@ file the compare does not list, and a compare that cannot be read stay red.
 
 The read file's `check-broker` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
 replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
-`{"lane": "<lane>", "activity": "<activity>"}`; any other body field is a 400. The broker runs the
+`{"lane": "<lane>", "activity": "<activity>"}`. A check from `intake-triage.yml`, which the broker
+admits only on `workflow_dispatch` from `refs/heads/main`, also carries `"issue_number": <n>`, the
+dispatched issue as a JSON integer; `request-lane-token` sends it from that caller alone, and the
+broker answers 400 to an intake check without it and to any other caller's check with it, and to
+any other body field. The broker runs the
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
 the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
@@ -2192,8 +2196,11 @@ the job's workflow, and mints and reserves nothing, so re-running all jobs asks 
 [above](#the-check-broker-job). Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
-a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a
-`github-actions[bot]` dispatch is allowed here and judged by the run job's trigger gate (step 3).
+a `workflow_run` read lane still runs after a bot push. Other callers' checks test no actor, so a
+`github-actions[bot]` dispatch is allowed there and judged by the run job's trigger gate (step 3).
+An intake check runs the actor gate: a `github-actions[bot]` dispatch must name an open issue whose
+author is a listed human or the lanes App, any other actor must be a listed human, and only a
+listed human may re-run it.
 The endpoint is served from
 `melodic-software/azure-iac`; a read lane fails red until it is deployed.
 
@@ -2578,6 +2585,42 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   never reported posts `error`; one it reported `skipped` posts nothing. No step is skipped on a
   `pipeline/*` success, and no required check names one, but a `failure` or `error` status
   counts as a failing check, so it holds the pr-merge gate (fail closed). Descriptions are fixed text.
+
+### Verdict mode
+
+`issue-verdict: true`, with `issue-number`, runs an intake activity whose `applied-by` names
+`triage-verdict`. Its one caller is [`intake-triage.yml`](../../../.github/workflows/intake-triage.yml),
+whose `triage-issue` runs `/work-items:triage --issue <n> --ci` in three calls, one credential each
+([Two calls on one credential each](#two-calls-on-one-credential-each)). It differs from issue mode
+here:
+
+- **Run sources.** Verdict mode runs only on a `workflow_dispatch` naming the issue: the run
+  job's assert step refuses an `issues` event, so no read check is sent on one. On `issues: opened`,
+  the caller's `dispatch-triage` job, with no model and `actions: write` alone, runs
+  `check-trusted-trigger` with `require-pr: false`, `require-kind: human`, `issue-author: true` and
+  `bot-sender-ids` set to `github-actions[bot]` (41898282) and the lanes App, so the sender must be
+  the issue's author and a listed human or one of those bots, then dispatches the workflow with
+  `issue-number`. The dispatched run's trigger gate admits a listed human or those bot senders, and
+  a re-run needs a listed human; its check carries `issue_number`, and the broker re-checks the
+  issue ([The check endpoint](#the-check-endpoint)). `check-trusted-base` takes `no-pr` and trusts
+  the default branch tip.
+- **No lease and no prior work.** check-broker claims no lease, and the run job skips the stale
+  workflow-file check and the earlier-work check; the report job, which only ends a lease in issue
+  mode, does not run.
+- **The read tools.** `collect-base-activity` keeps the read skill set (Read, Glob, Grep, Skill)
+  and adds no rule. It writes the skill's own `schemas/ci-verdict.schema.json` to
+  `$RUNNER_TEMP/lane-verdict-schema` with `size`, `complexity` and `uncertainty` narrowed to the
+  base's `models.issue-dimensions.fields` option keys, and the launcher's `json-schema-file` names it.
+- **The issue file.** `write-intake-issue.mjs` writes `issue.json` with the job's read-only token:
+  title, body and labels as written, the comments of a listed human or a bot sender less the lane's
+  own marker comment, the newest 200 open issues and the latest 100 merged pull requests; it narrows
+  the schema's `type` to the repository's enabled Issue Types, or drops it.
+- **The verdict.** The last result's `structured_output` takes the structured-output carry slot
+  (`dependency-verdict.json`). The scan job refuses a verdict-mode run that carries a patch, replies
+  or an outcome, and uploads the verdict as `triage-verdict-<issue>-<attempt>`; its
+  `triage-verdict-attempt` and `triage-verdict-sha256` outputs, the scan job's, name it. The caller's
+  `post-triage` job checks the file against that SHA-256, `check-ci-verdict.mjs` and
+  `set-dimensions.sh --dry-run` before it writes anything.
 
 ## Runs that post no check
 

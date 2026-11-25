@@ -120,6 +120,8 @@ async function gate({
   sleep = fakeSleep(),
   attemptTimeoutMs,
   faultReason,
+  botSenderIds,
+  issueAuthor,
 }) {
   const outputPath = writeJson("output", "");
   const ownRoute = `GET /repos/${REPOSITORY}/actions/runs/${runId}`;
@@ -168,6 +170,8 @@ async function gate({
       ...(ciStatusRerunWorkflow === undefined ? {} : { CI_STATUS_RERUN_WORKFLOW: ciStatusRerunWorkflow }),
       ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
       ...(faultReason === undefined ? {} : { FAULT_REASON: faultReason }),
+      ...(botSenderIds === undefined ? {} : { BOT_SENDER_IDS: botSenderIds }),
+      ...(issueAuthor === undefined ? {} : { ISSUE_AUTHOR: issueAuthor }),
     },
     github: withOwnRun,
     sleep,
@@ -1507,6 +1511,52 @@ for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
     assert.deepEqual(outputs, STOPPED("no-pr"));
   });
 }
+
+const intake = (rest) => actorOnly({ requireKind: "human", botSenderIds: "41898282,337595936", issueAuthor: "true", ...rest });
+const opened = (sender, author = sender, action = "opened") => ({ action, sender, issue: { number: 7, user: author }, repository: { full_name: REPOSITORY } });
+
+test("intake: an issue a listed human opened proceeds", async () => {
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(KYLE) })).outputs, ACTORS_OK);
+});
+
+test("intake: an issue the lanes App opened proceeds as a named bot sender", async () => {
+  const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(app), triggeringActor: app.login, rerunner: app })).outputs, ACTORS_OK);
+});
+
+test("intake: a dispatch from github-actions[bot] proceeds as a named bot sender, and only a listed human re-runs it", async () => {
+  const event = { sender: ACTIONS_BOT, repository: { full_name: REPOSITORY } };
+  const bot = { triggeringActor: "github-actions[bot]", rerunner: ACTIONS_BOT };
+  assert.deepEqual((await intake({ event, ...bot })).outputs, ACTORS_OK);
+  assert.deepEqual((await intake({ event, ...bot, runAttempt: "2" })).outputs, STOPPED("untrusted-rerunner"));
+  assert.deepEqual((await intake({ event, runAttempt: "2" })).outputs, ACTORS_OK);
+});
+
+test("intake: a listed bot that is not a named bot sender stops", async () => {
+  const dependabot = { login: "dependabot[bot]", id: 49699333, type: "Bot" };
+  assert.deepEqual((await intake({ event: { sender: dependabot, repository: { full_name: REPOSITORY } } })).outputs, STOPPED("untrusted-actor"));
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(dependabot) })).outputs, STOPPED("untrusted-actor"));
+});
+
+test("intake: a user whose id matches a bot sender id is not admitted as that bot", async () => {
+  const lookalike = { login: "lookalike", id: 41898282, type: "User" };
+  assert.deepEqual((await intake({ event: { sender: lookalike, repository: { full_name: REPOSITORY } } })).outputs, STOPPED("untrusted-actor"));
+});
+
+test("intake: an issue opened by someone else, or reopened or edited, stops", async () => {
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(KYLE, STRANGER) })).outputs, STOPPED("untrusted-actor"));
+  for (const action of ["reopened", "edited", "labeled"]) {
+    assert.deepEqual((await intake({ eventName: "issues", event: opened(KYLE, KYLE, action) })).outputs, STOPPED("untrusted-actor"), action);
+  }
+});
+
+test("intake: an issue an unlisted person opened stops", async () => {
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(STRANGER) })).outputs, STOPPED("untrusted-actor"));
+});
+
+test("intake: a malformed bot sender list stops with list-unreadable", async () => {
+  assert.deepEqual((await intake({ botSenderIds: "41898282,abc" })).outputs, STOPPED("list-unreadable"));
+});
 
 // An issues event: the sender is the account that applied the label.
 test("actor-only: an issues label from a listed human proceeds without a PR", async () => {
