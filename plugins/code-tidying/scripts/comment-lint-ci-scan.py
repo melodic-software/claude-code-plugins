@@ -172,7 +172,7 @@ def targets(runner: str, lines: list[str]) -> list[tuple[str, str]]:
     return out
 
 
-def reachers(runner: str, lines: list[str], target: str) -> tuple[set[str], str | None]:
+def targets_reaching(runner: str, lines: list[str], target: str) -> tuple[set[str], str | None]:
     defs = targets(runner, lines)
     names = {target}
     grew = True
@@ -222,7 +222,7 @@ def scan(root: Path) -> dict:
                 record["target"] = target_at(runner, text.splitlines(), line)
                 record["reached_by"] = []
                 if record["target"]:
-                    names, default = reachers(runner, text.splitlines(), record["target"])
+                    names, default = targets_reaching(runner, text.splitlines(), record["target"])
                     record["reached_by"] = [
                         ci
                         for ci in ci_files
