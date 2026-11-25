@@ -164,7 +164,7 @@ instead of a page, except for a diagram that will be committed (Step 2). A canva
 for a page, so a resolved medium with no page (`page` false) draws none, and one that keeps delivery
 on the machine (`publishes` false) uses a local server only, as under `deny` below. The surface facts behind
 this rule, and the optional servers a person can install, are in
-[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server).
+[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server). Collaborative canvas mode, revising one live canvas with the person: [`context/collaborative-canvas.md`](context/collaborative-canvas.md).
 
 Before drawing on a canvas, resolve `hosted_canvas` (`allow` or `deny`) from three layers: the
 option `${user_config.hosted_canvas}` (empty, or still an unsubstituted placeholder, is unset);
@@ -254,26 +254,6 @@ it in this order:
    `<root>/docs/diagrams/<name>.excalidraw`. Never stage
    or commit it; the person decides. Report its absolute path and that it opens in an Excalidraw
    editor (the catalog names one).
-
-**Collaborative canvas mode.** The person and the agent draw and revise one live canvas over
-several turns, then the agent writes the final text diagram. Run it when the person asks for it,
-directly or by accepting a calling skill's offer, and never under `--unattended`: nobody is there
-to revise with. It draws only where the `excalidraw` or `tldraw` target would: such a server
-connected, a surface that renders it, and `hosted_canvas` allowing it, under the canvas rule above.
-Use the server `diagram_target` names when it is one of the two; otherwise the one connected canvas
-server, asking which when both are. When none qualifies, say in one line what is missing and use
-`auto`.
-
-1. **Open.** Draw the first version through the connected server's own tools, from what the
-   conversation holds.
-2. **Revise.** Each turn, read the canvas's current state through the server before changing it,
-   so the person's own edits on the canvas survive, then apply only the change the person directs.
-   When the server returns no canvas state, say so once, revise from your last drawn version, and
-   ask the person to describe any edit they made by hand.
-3. **Close.** When the person calls the canvas done, write the final text diagram from its last
-   state: a Mermaid fence through the mermaid gate below, or the fenced form a calling skill asked
-   for, which that skill writes into its own document. That text is the lasting record. Never save,
-   export or link the canvas from the repository.
 
 **Code-shape sketches take these same layers** (under auto they build no page, per
 layer 3; an argument or resolved medium is honored for them as for any form), with
