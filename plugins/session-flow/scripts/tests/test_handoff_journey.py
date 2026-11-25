@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/*
 """Contract tests for reading a chain's journey: retro gets
 every hop's Direction changes, This session and Observations from a shape-4 chain
 whose sections moved to archive files, and a finished chain shrunk by `clean --apply`
