@@ -363,8 +363,6 @@ case "$MODE" in
     printf 'shared: absent\n'
   fi
 
-  # Moved-aside prune sets waiting for an archiver; retention deletes them after
-  # 24 h, so an older one means the detached command never finished.
   pending_total=0
   pending_old=0
   if ((ROOT_VALID)) && [[ -d "$ABS_ROOT/prune-pending" ]]; then
@@ -382,14 +380,6 @@ case "$MODE" in
     printf 'prune-pending: %s dir(s), %s older than 24 h%s\n' "$pending_total" "$pending_old" "$pending_warn"
   fi
 
-  # Two tiers share the root. The telemetry sink writes envelope rows for the
-  # audit hooks whenever it is wired, so they exist while the event-log switch
-  # is off; naming them apart keeps "off" beside a populated sessions/ from
-  # reading as a contradiction. The count is observed, never a toggle.
-  # Per-session files mix the sink's envelope rows (`source: "envelope"`) with
-  # the event log's, so those are matched by marker; every line of the shared
-  # hook-events.jsonl is a sink envelope in the legacy shape (an audit hook whose
-  # payload carried no session id), so that file and its rotated .1 count whole.
   envelope="none"
   envelope_rows=0
   if ((ROOT_VALID)) && [[ -d "$ABS_ROOT/sessions" ]]; then

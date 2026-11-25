@@ -91,9 +91,6 @@ class TestInstallResolution(unittest.TestCase):
             )
 
     def test_a_lookalike_prefix_is_not_this_plugins_data_dir(self) -> None:
-        # startswith("harness-ops") accepts harness-opsx-foo and would return
-        # it as CLAUDE_PLUGIN_DATA. The last segment must equal harness-ops or
-        # start with harness-ops-.
         env = {"CLAUDE_PLUGIN_DATA": "/x/harness-opsx-foo", "CLAUDE_CONFIG_DIR": "/cfg"}
         with (
             mock.patch.dict(os.environ, env),
@@ -830,7 +827,6 @@ class TestFlowQuery(unittest.TestCase):
                 'Function("var y=0;y\\n-->`\\nArray.prototype.includes=f\\n//`")();',
                 ["function-constructor"],
             ),
-            # A write of the global `Function` the folded calls trust.
             ("Function=g;", ["global-write", "function-constructor"]),
             ("globalThis.Function=g;", ["write"]),
             ('Reflect.set(globalThis,"Function",g);', ["argument"]),
@@ -842,12 +838,10 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],
             ),
-            # The `constructor` read is a sink of its own beside the global `Function`.
             (
                 "Function.prototype.constructor(s)();",
                 ["function-constructor", "function-constructor"],
             ),
-            # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
             (
                 "Function.prototype[k](s)();",
                 ["function-constructor", "unknown-load", "function-constructor"],
@@ -866,7 +860,6 @@ class TestFlowQuery(unittest.TestCase):
             ("function g(o){arguments[0]=P;o.includes=f}g({});", ["write"]),
             ("{function g(o){o.includes=f}}g(P);", ["write"]),
             ('var{__defineGetter__:g}=Object;g.call(P,"x",f);', ["definer-escape"]),
-            # A destructured reflective read hands out a definer to call.
             ('var{get:g}=Reflect;g(P,"__defineGetter__").call(P,k,f);', ["definer-escape"]),
             (
                 'var{getOwnPropertyDescriptor:d}=Object;d(P,"__defineGetter__").value.call(P,k,f);',
@@ -968,7 +961,6 @@ class TestFlowQuery(unittest.TestCase):
         `constructor` read whose value is only tested, compared by identity
         or named stays clear."""
         for src, kinds in (
-            # A computed read on the swapped object is an unknown load too.
             (
                 'var o={};Object.setPrototypeOf(o,module);o[k]("/a.js");',
                 ["function-constructor", "unknown-load"],
@@ -988,8 +980,6 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor", "function-constructor"],
             ),
             ('f["constructor"](s)();', ["function-constructor"]),
-            # A key the scan cannot know (a parameter, a `for in` key) may
-            # spell `constructor`; such a read is a load it cannot name too.
             (
                 "function get(o,k){return o[k]}",
                 ["function-constructor", "unknown-load"],
@@ -1039,8 +1029,6 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor"],
             ),
             ("e[`${s}uire`];", ["unknown-load"]),
-            # A key that cannot spell `constructor` may still spell `eval`,
-            # `Function`, a vm runner or a getter definer.
             ('globalThis[`ev${"al"}`](s);', ["indirect-eval"]),
             (
                 'const J=(e,n)=>e[n];J(globalThis,"Function")(s)();',

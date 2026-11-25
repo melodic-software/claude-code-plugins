@@ -406,10 +406,6 @@ resolve_repo() {
 resolve_config() {
   if [[ -z "$CONFIG" ]]; then
     CONFIG="${HARNESS_OPS_LANES_CONFIG:-$REPO/.work/lanes/lanes.json}"
-    # Same default-only fallback lane-launcher.sh applies (see its header): a
-    # checkout that predates the `lanes/` concern home keeps working, loudly.
-    # This consumer runs unattended on an OS schedule, so a hard failure here
-    # would silently stop honoring restart requests until someone read a log.
     if [[ -z "${HARNESS_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/.work/lanes.json" ]]; then
       warn "reading the pre-move lane config at $REPO/.work/lanes.json"
       warn "  move it (and the lane prompt files) to $REPO/.work/lanes/ — this fallback is temporary"
@@ -869,19 +865,6 @@ attempts_in_window() {
   }
 }
 
-# Ledgered decisions. The routine ticks (`no-request`, `no-state`,
-# `skipped-running`, `breaker-open`, `no-telemetry`, `would-restart`) are the
-# overwhelming majority on a 15-minute schedule — ledgering them would add ~190
-# rows/day forever to a file the breaker re-slurps once per lane per tick. Only
-# the incidents are durable; the full per-tick picture is the report and the
-# telemetry comment. `restarted` and `failed` are load-bearing: together they ARE
-# the breaker's memory, since the breaker bounds attempts rather than successes.
-#
-# Deliberately filter-on-write rather than prune-on-write: the breaker's verdict
-# is a function of the ledger, so a bug in a rewrite-the-whole-file pruner erases
-# the record that a lane already burned its budget — the same fail-open the
-# corrupt-ledger guard above exists to prevent. Append-only keeps every write a
-# single atomic O_APPEND line, and incidents alone are self-limiting.
 ledger_decision() {
   case "$1" in
   restarted | failed | error | api-error) return 0 ;;
@@ -907,10 +890,6 @@ ledger_writable() {
 append_ledger() {
   local row="$1" ledger dir
   ((DRY_RUN)) && return 0
-  # `check` is documented read-only, and the Verify step in
-  # context/restart-consumer.md distinguishes a real `run` from a `check`-only
-  # schedule by whether anything was written — a ledger row from a `check` would
-  # satisfy that check on the exact failure it exists to catch.
   [[ "$ACTION" == "run" ]] || return 0
   ledger="$(ledger_path)"
   dir="$(dirname "$ledger")"
