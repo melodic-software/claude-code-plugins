@@ -26,6 +26,11 @@
       "default": false,
       "description": "Whether /session-flow:handoff makes one local chore(wip): commit of tracked changes when the user asks in this session to pause. Never pushed, never on the default branch, detached HEAD, during a merge, rebase, cherry-pick or revert, or over a partially staged path, and never with commit hooks skipped. A quoted \"true\" is a string, not a boolean, so it is invalid."
     },
+    "compact_focus_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the compact-focus hook records a typed /goal, a resumed handoff file and a step-away task file in the session's focus file and prints it before each compaction. Unlike the other keys, a user option the user set wins over this value; this file decides only while the user option is unset. A quoted \"false\" is a string, not a boolean, so it is invalid."
+    },
     "transcript_scope": {
       "enum": ["worktree", "repo", "all"],
       "default": "worktree",

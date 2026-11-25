@@ -682,6 +682,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `away_report_by_day_off` | string | `"10:00"` | Local time of day, HH:MM, by which /session-flow:step-away has its return report ready on a day off; default 10:00. A time named in the launch words wins. |
 | `away_days_off` | string | `"Sat,Sun"` | Comma-separated three-letter weekday names /session-flow:step-away treats as days off when it picks the report-by time; default Sat,Sun. |
 | `away_watched_folders` | string | *(none)* | Comma-separated folders /session-flow:step-away scans for files written while you are away; empty (default) scans the home folder. Dot folders and git work trees are skipped. |
+| `compact_focus_enabled` | boolean | `true` | Records a typed /goal, a resumed handoff file and a step-away task file in this session's focus file, and prints that file before each compaction so the summary keeps them. On by default. Your own value wins over docs/conventions/session-flow.yaml. |
 | `away_orchestrate` | boolean | `false` | When on, /session-flow:step-away runs every absence as an orchestrator: the main session delegates work and keeps only briefs, verdicts and state in its context, so it rides compaction through a long run. Off by default. Words in the launch line can turn it on or off for one run. |
 
 ### How to set these

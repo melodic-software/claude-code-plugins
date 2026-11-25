@@ -1,5 +1,5 @@
 {
-  "description": "Arms the session observer at session start, and while a /session-flow:step-away absence is active refuses permission prompts and declines MCP questions, recording each in the away report, holds the turn's end while the away work is unfinished, and notes the absence on each prompt.",
+  "description": "Arms the session observer at session start; while a /session-flow:step-away absence is active refuses permission prompts and declines MCP questions, recording each in the away report, holds the turn's end while the away work is unfinished, and notes the absence on each prompt; records a typed /goal in the session's focus file and prints that file before each compaction so the summary keeps it.",
   "hooks": {
     "SessionStart": [
       {
@@ -75,6 +75,42 @@
               "UserPromptSubmit"
             ],
             "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "COMPACT_FOCUS_ENABLED",
+              "--skip-unless-stdin-contains",
+              "/goal",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-focus-hook.sh",
+              "UserPromptSubmit"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "COMPACT_FOCUS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-focus-hook.sh",
+              "PreCompact"
+            ],
+            "timeout": 10
           }
         ]
       }

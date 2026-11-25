@@ -230,6 +230,12 @@
       "description": "Comma-separated folders /session-flow:step-away scans for files written while you are away; empty (default) scans the home folder. Dot folders and git work trees are skipped.",
       "default": ""
     },
+    "compact_focus_enabled": {
+      "type": "boolean",
+      "title": "Compact-focus hook",
+      "description": "Records a typed /goal, a resumed handoff file and a step-away task file in this session's focus file, and prints that file before each compaction so the summary keeps them. On by default. Your own value wins over docs/conventions/session-flow.yaml.",
+      "default": true
+    },
     "away_orchestrate": {
       "type": "boolean",
       "title": "Away orchestrator posture",
