@@ -75,7 +75,7 @@ import {
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { listChangedAt } from "../lib/trusted-actors.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
-import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { PR_READS, prReads, titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { specSource } from "./spec-source.mjs";
 import { baselineOnly, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
@@ -1097,7 +1097,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRun: run, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRun: run, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, keepReads, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(run?.id))) {
     throw new Error("the upstream run id is not a run id");
@@ -1247,6 +1247,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (!(await notDraftRun())) {
     return skip("draft-run");
   }
+  keepReads?.(prReads(pull.number, pull, specPull));
   return {
     proceed: true,
     reason: reopened ?? (passes.length > 0 ? "spec-changed" : "ok"),
@@ -1436,6 +1437,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     return response.text();
   };
   let jobs;
+  let reads;
   const client = github ?? api(false);
   const result = await resolvePull({
     github: client,
@@ -1455,6 +1457,9 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     keepJobs: (list) => {
       jobs = list;
     },
+    keepReads: (kept) => {
+      reads = kept;
+    },
     rated: ratedBy(env),
     trustedListChangedAt: env.STANDARDS_SHA ? () => listChangedAt(client, env.STANDARDS_SHA) : undefined,
   });
@@ -1467,6 +1472,9 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     const keptFile = jobs !== undefined && keptJobsPath(env);
     if (keptFile) {
       writeFileSync(keptFile, `${JSON.stringify(shapeJobs(upstreamRun.id, jobs))}\n`);
+    }
+    if (reads && env.RUNNER_TEMP) {
+      writeFileSync(path.join(env.RUNNER_TEMP, PR_READS), `${JSON.stringify(reads)}\n`);
     }
   }
   const lines = [

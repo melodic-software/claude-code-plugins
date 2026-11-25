@@ -2,7 +2,7 @@
 // comments, reviews, review comments, and the issues it closes with their
 // comments, keeping only items whose own author is on the trusted-actor list.
 // Dropped items are counted and never written or logged.
-import { rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -119,7 +119,68 @@ function createTrustCheck(github, ids) {
   };
 }
 
-export async function buildTrustedContext({ github, repository, prNumber, ids }) {
+export const PR_READS = "pr-verify-pr-reads.json";
+const SHA = /^[0-9a-f]{40}$/;
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+
+export function prReads(number, pull, spec) {
+  const refs = spec?.closingIssuesReferences;
+  if (!Array.isArray(refs?.nodes) || refs.totalCount !== refs.nodes.length) {
+    return null;
+  }
+  const text = typeof pull?.node_id === "string" && typeof pull.title === "string";
+  return {
+    v: 1,
+    pr: number,
+    pull: text
+      ? {
+          number: pull.number,
+          node_id: pull.node_id,
+          title: pull.title,
+          body: pull.body ?? null,
+          user: pull.user ?? null,
+          head: { sha: pull.head?.sha },
+          base: { sha: pull.base?.sha },
+        }
+      : null,
+    closing: {
+      nodes: refs.nodes.map((node) => ({ number: node?.number, repository: { nameWithOwner: node?.repository?.nameWithOwner } })),
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+    ...(Array.isArray(spec.renames?.nodes) && isObject(spec.renames.pageInfo) && { renames: spec.renames }),
+  };
+}
+
+export function takePrReads(text, prNumber) {
+  const reads = JSON.parse(text);
+  const number = Number(prNumber);
+  const pull = reads?.pull;
+  const validPull =
+    pull === null ||
+    (isObject(pull) &&
+      pull.number === number &&
+      typeof pull.node_id === "string" &&
+      pull.node_id !== "" &&
+      typeof pull.title === "string" &&
+      (pull.body === null || typeof pull.body === "string") &&
+      (pull.user === null || isObject(pull.user)) &&
+      SHA.test(pull.head?.sha ?? "") &&
+      SHA.test(pull.base?.sha ?? ""));
+  const renames = reads?.renames;
+  if (
+    reads?.v !== 1 ||
+    reads.pr !== number ||
+    !validPull ||
+    !Array.isArray(reads.closing?.nodes) ||
+    reads.closing.pageInfo?.hasNextPage !== false ||
+    (renames !== undefined && (!Array.isArray(renames?.nodes) || !isObject(renames.pageInfo)))
+  ) {
+    throw new Error("the handed-on reads are malformed");
+  }
+  return { pull, closing: reads.closing, renames };
+}
+
+export async function buildTrustedContext({ github, repository, prNumber, ids, reads }) {
   const trusted = createTrustCheck(github, ids);
   const dropped = {
     pr: 0,
@@ -151,7 +212,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   }
 
   const base = `/repos/${repository}`;
-  const pull = await github("GET", `${base}/pulls/${prNumber}`);
+  const pull = reads?.pull ?? (await github("GET", `${base}/pulls/${prNumber}`));
   const prTrusted = await trusted(pull);
   if (!prTrusted) {
     dropped.pr += 1;
@@ -160,7 +221,9 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   await keep("review", await paginate(github, `${base}/pulls/${prNumber}/reviews`));
   await keep("review-comment", await paginate(github, `${base}/pulls/${prNumber}/comments`));
 
-  const firstPages = await prPage(github, prTrusted ? CLOSING_AND_RENAMES : CLOSING_ISSUES, repository, prNumber, null);
+  const firstPages = reads
+    ? { data: { repository: { pullRequest: { closingIssuesReferences: reads.closing, ...(reads.renames && { timelineItems: reads.renames }) } } } }
+    : await prPage(github, prTrusted ? CLOSING_AND_RENAMES : CLOSING_ISSUES, repository, prNumber, null);
   const references = await prConnection(github, CLOSING_ISSUES, "closingIssuesReferences", repository, prNumber, firstPages);
   for (const reference of references) {
     if (reference?.repository?.nameWithOwner !== repository) {
@@ -187,7 +250,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   // everyone who renamed it.
   let titleKept = prKept;
   if (prKept) {
-    const renamers = await titleRenamers(github, repository, prNumber, firstPages);
+    const renamers = await titleRenamers(github, repository, prNumber, reads && !reads.renames ? undefined : firstPages);
     titleKept = renamers.every((actor) => isListed(ids, { id: actor?.databaseId }));
     if (!titleKept) {
       dropped["edited-by-untrusted"] += 1;
@@ -304,11 +367,13 @@ export async function main({ env = process.env, github, log = console.log } = {}
       throw new Error("pr-number or repository is malformed");
     }
     const ids = loadTrustedActors(trustedListPath(env, env.TRUSTED_ACTORS_PATH));
+    const reads = env.READS_PATH ? takePrReads(readFileSync(env.READS_PATH, "utf8"), env.PR_NUMBER) : undefined;
     const context = await buildTrustedContext({
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
       repository: env.REPOSITORY,
       prNumber: env.PR_NUMBER,
       ids,
+      reads,
     });
     writeFileSync(outputPath, `${JSON.stringify(context, null, 2)}\n`);
     const total = Object.values(context.dropped).reduce((sum, count) => sum + count, 0);
@@ -321,6 +386,10 @@ export async function main({ env = process.env, github, log = console.log } = {}
     const detail = error?.name === "GitHubError" ? error.message : (error?.name ?? "error");
     log(`select-trusted-text: failed (${detail}); no context written`);
     return 1;
+  } finally {
+    if (env.READS_PATH) {
+      rmSync(env.READS_PATH, { force: true });
+    }
   }
 }
 

@@ -1,12 +1,12 @@
 // test-scope: .github/actions/check-trusted-trigger/fixtures/trusted-actors.json
 import assert from "node:assert/strict";
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../scripts/lib/github-client.mjs";
-import { isDecisionComment, main } from "./select-trusted-text.mjs";
+import { isDecisionComment, main, prReads, takePrReads } from "./select-trusted-text.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -544,4 +544,125 @@ test("a Decision recorded comment from the agent App's bot, or posted through an
   assert.equal(isDecisionComment(decision(AGENT, VIA_AGENT), humans), false);
   assert.equal(isDecisionComment(decision(AGENT, null), humans), false);
   assert.equal(isDecisionComment(decision(OWNER, VIA_AGENT), humans), false);
+});
+
+const specNode = (api, { renames = true } = {}) => {
+  const refs = api.closingIssues.data.repository.pullRequest.closingIssuesReferences;
+  return {
+    closingIssuesReferences: { totalCount: refs.nodes.length, nodes: refs.nodes },
+    ...(renames && { renames: { nodes: api.renames, pageInfo: { hasNextPage: false, endCursor: null } } }),
+  };
+};
+
+async function handed(api, reads) {
+  const readsPath = path.join(dir, "pr-reads.json");
+  if (reads !== undefined) {
+    writeFileSync(readsPath, typeof reads === "string" ? reads : JSON.stringify(reads));
+  }
+  const outputPath = path.join(dir, "trusted-context.json");
+  const github = fakeGitHub(routesFrom(api));
+  const code = await main({
+    env: { PR_NUMBER: "42", REPOSITORY, TRUSTED_ACTORS_PATH: LIST, OUTPUT_PATH: outputPath, READS_PATH: readsPath },
+    github,
+    log: () => {},
+  });
+  let context;
+  try {
+    context = JSON.parse(readFileSync(outputPath, "utf8"));
+  } catch {
+    context = undefined;
+  }
+  return { code, context, github, left: existsSync(readsPath) };
+}
+
+const PULL_READ = `GET /repos/${REPOSITORY}/pulls/42`;
+
+test("handed-on reads give the context a full read gives, without the pull and closing reads", async () => {
+  const api = load();
+  const full = await filter(api);
+  const { code, context, github, left } = await handed(api, prReads(42, api.pull, specNode(api)));
+  assert.equal(code, 0);
+  assert.deepEqual(context, full.context);
+  assert.ok(!github.calls.includes(PULL_READ));
+  assert.deepEqual(connectionReads(github), []);
+  assert.equal(left, false);
+});
+
+test("with no renames handed on, the renames are read on their own; with no pull, the pull is", async () => {
+  const api = load();
+  const full = await filter(api);
+  const noRenames = await handed(api, prReads(42, api.pull, specNode(api, { renames: false })));
+  assert.deepEqual(noRenames.context, full.context);
+  const [read] = connectionReads(noRenames.github);
+  assert.match(read.query, /RENAMED_TITLE_EVENT/);
+  assert.doesNotMatch(read.query, /closingIssuesReferences/);
+  const noPull = await handed(api, prReads(42, { ...api.pull, node_id: undefined }, specNode(api)));
+  assert.deepEqual(noPull.context, full.context);
+  assert.ok(noPull.github.calls.includes(PULL_READ));
+});
+
+test("every trust rule holds on handed-on reads as on a full read", async () => {
+  const stranger = { login: "stranger", id: 9999001, type: "User" };
+  for (const [label, change] of [
+    ["an unlisted PR author", (api) => { api.pull.user = stranger; }],
+    ["an unlisted body editor", (api) => { api.edits.N4200 = { lastEditedAt: "2026-10-04T12:00:00Z", editor: { __typename: "User", databaseId: 9999001 } }; }],
+    ["an unlisted renamer", (api) => { api.renames = [rename({ __typename: "User", databaseId: 9999001 })]; }],
+    ["a rename with no actor", (api) => { api.renames = [rename(null)]; }],
+    ["an App whose bot is unlisted", (api) => { delete api.users["claude[bot]"]; }],
+  ]) {
+    const api = load();
+    change(api);
+    const full = await filter(api);
+    const { context } = await handed(api, prReads(42, api.pull, specNode(api)));
+    assert.deepEqual(context, full.context, label);
+    assert.notDeepEqual(context.dropped, load().dropped, label);
+  }
+});
+
+test("missing or malformed handed-on reads write nothing and exit non-zero", async () => {
+  const api = load();
+  const good = prReads(42, api.pull, specNode(api));
+  for (const [label, reads] of [
+    ["missing", undefined],
+    ["not JSON", "{"],
+    ["another version", { ...good, v: 2 }],
+    ["another pull request", { ...good, pr: 43 }],
+    ["a pull of another number", { ...good, pull: { ...good.pull, number: 43 } }],
+    ["a pull with no node id", { ...good, pull: { ...good.pull, node_id: "" } }],
+    ["a pull at a short head", { ...good, pull: { ...good.pull, head: { sha: "abc" } } }],
+    ["references cut short", { ...good, closing: { ...good.closing, pageInfo: { hasNextPage: true, endCursor: "c" } } }],
+    ["no reference list", { ...good, closing: {} }],
+    ["renames with no node list", { ...good, renames: { pageInfo: {} } }],
+  ]) {
+    const { code, context, left } = await handed(api, reads);
+    assert.equal(code, 1, label);
+    assert.equal(context, undefined, label);
+    assert.equal(left, false, label);
+  }
+});
+
+test("prReads refuses a spec node whose reference count is not its node count", () => {
+  const api = load();
+  const node = specNode(api);
+  assert.equal(prReads(42, api.pull, { ...node, closingIssuesReferences: { ...node.closingIssuesReferences, totalCount: 3 } }), null);
+  assert.equal(prReads(42, api.pull, null), null);
+});
+
+const CAPTURED = Object.fromEntries(
+  readFileSync(path.join(HERE, "fixtures", "pr-reads-captured.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line))
+    .map(({ step, answer }) => [step, answer]),
+);
+
+test("captured answers hand on the pull GET /pulls/{n} reads, and renames only where the query asked", () => {
+  for (const [number, renamed] of [[19082, true], [19055, false]]) {
+    const spec = CAPTURED[`spec-${number}`].data.repository.pullRequest;
+    const reads = takePrReads(JSON.stringify(prReads(number, CAPTURED[`commit-pulls-${number}`], spec)), String(number));
+    const { number: n, node_id, title, body, user, head, base } = CAPTURED[`pull-${number}`];
+    assert.deepEqual(reads.pull, { number: n, node_id, title, body, user, head, base });
+    assert.deepEqual(reads.closing.nodes, spec.closingIssuesReferences.nodes);
+    assert.equal(reads.renames !== undefined, renamed);
+  }
 });

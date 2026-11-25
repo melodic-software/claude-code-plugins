@@ -14,6 +14,7 @@ the App token is minted.
 | `repository` | `${{ github.repository }}` | owner/name of the PR's repository |
 | `standards-path` | empty | A standards checkout (`download-standards`' `path`), made before head code ran. The list is read only from its `components/trusted-actors/trusted-actors.json`: unset, or without the list, the action fails closed |
 | `output-path` | required | Where the `TrustedContext` JSON file is written |
+| `reads-path` | empty | pr-verify's resolver's reads of the pull request (`PR_READS`, written by `resolve-pr.mjs`), taken instead of reading the pull request and the first pages of its closing references and title renames again. Every filter still runs on them. Set, a missing or malformed file fails the action with nothing written; the file is deleted either way |
 | `github-token` | required | The lane's App token, or the job's `GITHUB_TOKEN` for a `read` activity |
 
 ## What it reads and keeps
