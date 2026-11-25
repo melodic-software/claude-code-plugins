@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { commitPulls as readCommitPulls, createGitHub, GitHubError } from "../../scripts/lib/github-client.mjs";
+import { commitPulls as readCommitPulls, createGitHub, GitHubError, readStore } from "../../scripts/lib/github-client.mjs";
 import { appCloseKind, isTrustedClose } from "./close-trust.mjs";
 import { loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
 import { main as recordMain } from "./reconciler-record.mjs";
@@ -338,7 +338,7 @@ test("workflow_dispatch: an unlisted dispatcher stops with untrusted-actor", asy
   );
 });
 
-const commitPulls = `GET /repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls`;
+const commitPulls = `GET /repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls?per_page=100&page=1`;
 
 test("workflow_run: empty pull_requests still resolves a same-repo PR by fetching", async () => {
   const github = fakeGitHub({ [commitPulls]: [fixture("api-pull-42.json")] });
@@ -2033,6 +2033,103 @@ test("createGitHub opted into keepGraphQLErrors returns the answer with its erro
   const fetchImpl = async () => new Response(JSON.stringify(answer), { status: 200 });
   const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, keepGraphQLErrors: true });
   assert.deepEqual(await github("POST", "/graphql", { query: "{}" }), answer);
+});
+
+function conditional(answers) {
+  const sent = [];
+  const fetchImpl = async (url, init) => {
+    const ifNoneMatch = init.headers["If-None-Match"];
+    sent.push(`${init.method} ${url.slice("https://api.example".length)} ${init.headers.Authorization} ${ifNoneMatch ?? "-"}`);
+    const { etag = null, body = "{}", status = 200, headers = {} } = answers.shift();
+    const all = { ...headers, ...(etag === null ? {} : { etag }) };
+    return status === 304 || (etag !== null && ifNoneMatch === etag)
+      ? new Response(null, { status: 304, headers: all })
+      : new Response(body, { status, headers: { "content-type": "application/json", ...all } });
+  };
+  const latch = { guard: (f) => f, waitOut: async () => {}, waits: () => false };
+  const options = { token: "t", apiUrl: "https://api.example", fetchImpl, latch, sleep: async () => {}, random: () => 0, log: () => {} };
+  return { sent, options };
+}
+const RUN_PATH = "/repos/o/r/actions/runs/7";
+
+test("createGitHub sends a repeated GET with the kept ETag, and a 304 returns the kept body with the 304's rate-limit headers", async () => {
+  const gh = conditional([
+    { etag: '"e1"', body: '{"id":7}', headers: { "x-ratelimit-remaining": "10" } },
+    { etag: '"e1"', headers: { "x-ratelimit-remaining": "9" } },
+  ]);
+  const seen = [];
+  const github = createGitHub({ ...gh.options, onResponse: (response) => seen.push(response.headers.get("x-ratelimit-remaining")) });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.deepEqual(gh.sent, [`GET ${RUN_PATH} Bearer t -`, `GET ${RUN_PATH} Bearer t "e1"`]);
+  assert.deepEqual(seen, ["10", "9"]);
+});
+
+test("createGitHub returns a changed answer to a conditional GET and keeps it for the next one", async () => {
+  const gh = conditional([{ etag: '"e1"', body: '{"id":1}' }, { etag: '"e2"', body: '{"id":2}' }, { etag: '"e2"' }]);
+  const github = createGitHub(gh.options);
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 1 });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 2 });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 2 });
+  assert.deepEqual(gh.sent.map((line) => line.split(" ").at(-1)), ["-", '"e1"', '"e2"']);
+});
+
+test("createGitHub fails closed: a 304 with no kept answer throws, as does any error to a conditional GET", async () => {
+  const noEtag = conditional([{ body: '{"id":7}' }, { status: 304 }]);
+  const github = createGitHub(noEtag.options);
+  await github("GET", RUN_PATH);
+  await assert.rejects(github("GET", RUN_PATH), (error) => error instanceof GitHubError && error.status === 304);
+  assert.equal(noEtag.sent[1].split(" ").at(-1), "-");
+  for (const status of [404, 403, 500]) {
+    const gh = conditional([{ etag: '"e1"', body: '{"id":7}' }, { status }, { status }, { status }]);
+    const client = createGitHub(gh.options);
+    await client("GET", RUN_PATH);
+    await assert.rejects(client("GET", RUN_PATH), (error) => error instanceof GitHubError && error.status === status, String(status));
+  }
+});
+
+test("createGitHub keeps no body it could not parse, so the next read is unconditional", async () => {
+  const broken = { etag: '"e1"', body: '{"id":' };
+  const gh = conditional([broken, broken, broken, { etag: '"e1"', body: '{"id":7}' }]);
+  const github = createGitHub(gh.options);
+  await assert.rejects(github("GET", RUN_PATH), SyntaxError);
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.equal(gh.sent[3].split(" ").at(-1), "-");
+});
+
+test("createGitHub passes a GET with its own If-None-Match through, and never sends a POST conditionally", async () => {
+  const gh = conditional([{ etag: '"e1"', body: "[]" }, { status: 304 }, { body: '{"data":{}}' }, { body: '{"data":{}}' }]);
+  const github = createGitHub(gh.options);
+  await github("GET", RUN_PATH);
+  await assert.rejects(github("GET", RUN_PATH, undefined, { "If-None-Match": '"x"' }), (error) => error.status === 304);
+  await github("POST", "/graphql", { query: "{}" });
+  await github("POST", "/graphql", { query: "{}" });
+  assert.deepEqual(gh.sent.slice(1).map((line) => line.split(" ").at(-1)), ['"x"', "-", "-"]);
+});
+
+test("a GITHUB_READ_STORE directory carries kept answers to a later client on the same token only", async () => {
+  const dir = path.join(tempDir("read-store-"), "reads");
+  const first = conditional([{ etag: '"e1"', body: '{"id":7}' }]);
+  await createGitHub({ ...first.options, store: readStore(dir) })("GET", RUN_PATH);
+  const later = conditional([{ etag: '"e1"' }]);
+  assert.deepEqual(await createGitHub({ ...later.options, store: readStore(dir) })("GET", RUN_PATH), { id: 7 });
+  assert.deepEqual(later.sent, [`GET ${RUN_PATH} Bearer t "e1"`]);
+  const other = conditional([{ etag: '"e1"', body: '{"id":8}' }]);
+  assert.deepEqual(await createGitHub({ ...other.options, token: "u", store: readStore(dir) })("GET", RUN_PATH), { id: 8 });
+  assert.deepEqual(other.sent, [`GET ${RUN_PATH} Bearer u -`]);
+});
+
+test("a GITHUB_READ_STORE file that cannot be read, or names another URL, counts as absent", async () => {
+  for (const spoil of [() => "{not json", (text) => text.replace("/runs/7", "/runs/8")]) {
+    const dir = tempDir("read-store-");
+    const first = conditional([{ etag: '"e1"', body: '{"id":7}' }]);
+    await createGitHub({ ...first.options, store: readStore(dir) })("GET", RUN_PATH);
+    const [file] = readdirSync(dir).map((name) => path.join(dir, name));
+    writeFileSync(file, spoil(readFileSync(file, "utf8")));
+    const later = conditional([{ etag: '"e1"', body: '{"id":7}' }]);
+    await createGitHub({ ...later.options, store: readStore(dir) })("GET", RUN_PATH);
+    assert.deepEqual(later.sent, [`GET ${RUN_PATH} Bearer t -`]);
+  }
 });
 
 // A GET that GitHub answers 5xx, or that never gets an answer, is sent at most

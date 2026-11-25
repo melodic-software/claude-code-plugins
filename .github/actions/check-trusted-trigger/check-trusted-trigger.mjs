@@ -3,7 +3,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { commitPulls, createGitHub, ETAG, GitHubError, graphQLReader, isFault } from "../../scripts/lib/github-client.mjs";
+import { commitPulls, createGitHub, GitHubError, graphQLReader, isFault } from "../../scripts/lib/github-client.mjs";
 import { loadTrustedList, trustedListPath } from "../../scripts/lib/trusted-actors.mjs";
 
 export { loadTrustedList };
@@ -167,7 +167,7 @@ async function resolveRunPull(github, repository, run, attemptTimeoutMs) {
     pulls = await commitPulls({
       repository,
       sha: run.head_sha,
-      readRest: () => github("GET", `/repos/${repository}/commits/${run.head_sha}/pulls`),
+      readRest: () => github("GET", `/repos/${repository}/commits/${run.head_sha}/pulls?per_page=100&page=1`),
       readGraphQL: graphQLReader(github),
       timeoutMs: attemptTimeoutMs,
     });
@@ -532,30 +532,7 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
     throw new Stop(refuse);
   }
   const isListedHuman = listedHuman(list, deniedIds);
-  // Each listing page's ETag and the body it came with. The re-read sends the
-  // ETag (If-None-Match), and a 304, which GitHub does not count against the
-  // rate limit, gives back that body, judged again as it was (outage posture
-  // element 6). A page that came with no ETag is read again unconditionally.
-  const pagesSeen = new Map();
-  const readListing = async (apiPath) => {
-    const cached = pagesSeen.get(apiPath);
-    let body;
-    try {
-      body = await (cached ? github("GET", apiPath, undefined, { "If-None-Match": cached.etag }) : github("GET", apiPath));
-    } catch (error) {
-      if (cached && error instanceof GitHubError && error.status === 304) {
-        return cached.body;
-      }
-      throw new Stop(refuse, isFault(error));
-    }
-    if (!isPlainObject(body)) {
-      throw new Stop(refuse);
-    }
-    if (typeof body[ETAG] === "string") {
-      pagesSeen.set(apiPath, { etag: body[ETAG], body });
-    }
-    return body;
-  };
+  const readListing = (apiPath) => readOrRefuse(github, apiPath, refuse);
   // Anyone's run can upload an artifact of this name, so each candidate's run
   // is read and judged, at most RECORD_MAX_CANDIDATES of them per record name;
   // one that cannot be read does not vouch. A name past its cap returns null:
