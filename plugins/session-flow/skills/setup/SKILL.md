@@ -1,5 +1,5 @@
 ---
-description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine, and write the repository's docs/conventions/session-flow.yaml after confirmation. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', 'set worker_continuation for this repo', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Actions: check (read-only, default), apply (writes docs/conventions/session-flow.yaml only). Installs nothing. Re-runnable."
+description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine, and write the repository's docs/conventions/session-flow.yaml after confirmation. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', 'set worker_continuation for this repo', the observer isn't running, or the observer hook reported a missing prerequisite. Actions: check (read-only, default), apply (writes docs/conventions/session-flow.yaml only). Installs nothing. Re-runnable."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 ## Purpose
 
-Two kinds of configuration. The **detached observer** (see
+Two kinds of configuration. The **session observer** (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
 runtime prerequisites (Node.js, Python 3.10+, `jq`) and native `userConfig` tunables; setup reports
 both and writes neither (writing `pluginConfigs` is what the setup contract forbids). The plugin
@@ -22,46 +22,44 @@ Re-running either reads the current state again.
 
 ## `check` (read-only)
 
-The hook and launcher are the single source of truth for what they require and how they degrade:
-`${CLAUDE_PLUGIN_ROOT}/hooks/observer-arm.sh`, `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/arm_observer.py`,
-and `observer.py` beside it.
+The observer's files are the single source of truth for what they require and how they degrade:
+the module `${CLAUDE_PLUGIN_ROOT}/hooks/register.tsx`, the catch-up hook
+`${CLAUDE_PLUGIN_ROOT}/hooks/observer-catchup.sh`, its launcher
+`${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/arm_observer.py`, and `observer.py` beside it.
 
 **Read it first.** Probe what it actually does, don't recite this file. Then run each probe via
 Bash and report a PASS/FAIL/INFO table with one remediation line per FAIL. Do not modify anything.
 
-When the observer is disabled (`observer_enabled` off AND no `arm` invocation in use), every
+When the observer is disabled (`observer_enabled` off), every
 prerequisite absence downgrades from FAIL to INFO, the hook exits through its opt-in gate before
 touching anything, so a deliberately disabled plugin is not broken. Report the probes informationally
 and note that re-enabling restores the FAIL semantics.
 
 1. **Node.js on PATH**, every hook row runs through `node ${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs`.
-   Probe `node --version` through Bash. FAIL if absent: the hook does not launch, so the observer
-   never arms. Remediation: install Node.js on PATH (<https://nodejs.org/en/download>).
-2. **Python 3.10+**, the launcher and tailer are stdlib-only Python 3.10+. Probe the same interpreter
+   Probe `node --version` through Bash. FAIL if absent: the catch-up hook does not launch. Remediation: install Node.js on PATH (<https://nodejs.org/en/download>).
+2. **Python 3.10+**, the catch-up launcher and `observer.py` are stdlib-only Python 3.10+. Probe the same interpreter
    detection the hook uses (`python3` then `python`, requiring `sys.version_info >= (3, 10)`). FAIL if
-   none qualifies: without it the hook silently skips arming. Remediation: install Python 3.10+ on PATH.
+   none qualifies: without it the hook silently skips the catch-up. Remediation: install Python 3.10+ on PATH.
 3. **`jq`**, the SessionStart hook parses its stdin (`session_id`, `transcript_path`, `source`,
-   `agent_type`) with `jq`. FAIL (auto-arm path only) if absent: the hook exits early and never arms.
-   The manual `arm` action resolves inputs without `jq`, so absence is INFO for that path. Remediation:
+   `agent_type`) with `jq`. FAIL if absent: the hook exits early and no catch-up runs. Remediation:
    install `jq` (<https://jqlang.org/download/>).
-4. **`claude` CLI on PATH**, the autonomous analysis leg invokes `claude -p`. INFO if absent: the
-   observer still distills and retains observations under its plugin work dir; the analysis run is
-   skipped and nothing is written to the ledger.
+4. **`claude` CLI on PATH**, the catch-up analysis invokes `claude -p`. INFO if absent: the catch-up
+   distills and keeps observations under its plugin work dir but writes no ledger; live checks are
+   unaffected.
 5. **Observer config**. Report the effective value of each native key (an unexpanded `${user_config.…}`
    token or empty means the default): `${user_config.observer_enabled}` (default off),
-   `${user_config.observer_analysis_enabled}` (default on), `${user_config.observer_analysis_model}`
+   `${user_config.observer_step_check}` (default on), `${user_config.observer_turn_end_check}`
+   (default off), `${user_config.observer_analysis_enabled}` (default on), `${user_config.observer_analysis_model}`
    and `${user_config.observer_analysis_effort}` (defaults: read each key's `default` from
    `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` `userConfig`, never from memory),
    `${user_config.observer_analysis_bare}` (default off), `${user_config.observer_min_lines}`
-   (default from plugin.json, as above), `${user_config.observer_idle_seconds}` (default 900), `${user_config.observer_poll_seconds}`
-   (default 5), `${user_config.observer_max_seconds}` (default
-   86400). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (what bare
+   (default from plugin.json, as above), `${user_config.observer_idle_seconds}` (default 900). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (what bare
    mode does with OAuth credentials:
    <https://code.claude.com/docs/en/headless#start-faster-with-bare-mode>);
    `observer_idle_seconds` below the machine's longest expected
-   single turn risks firing analysis on a partial transcript.
+   single turn risks a catch-up of a session still running in another terminal.
 6. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
-   rather than parsing settings files. The SessionStart hook only auto-arms when `observer_enabled` is on.
+   rather than parsing settings files. The module and the SessionStart hook do nothing unless `observer_enabled` is on.
 7. **Repository settings.** Run `node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from
    the project root. INFO when `docs/conventions/session-flow.yaml` is absent (every key comes from
    `userConfig` or its default); PASS with each key's value when the file validates; WARN, never

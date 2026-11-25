@@ -7,6 +7,9 @@
   },
   "version": "9.25.1",
   "license": "MIT",
+  "engines": {
+    "claude-code": ">=2.1.331"
+  },
   "keywords": [
     "workflow",
     "handoff",
@@ -39,26 +42,38 @@
   "userConfig": {
     "observer_enabled": {
       "type": "boolean",
-      "title": "Observer auto-arm at session start",
-      "description": "Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way.",
+      "title": "Session observer",
+      "description": "Watches interactive sessions for process mistakes: live checks write findings to the running-retro ledger and show them above the prompt, and each session start analyzes ended sessions that got none. Off by default. See reference/observer.md.",
+      "default": false
+    },
+    "observer_step_check": {
+      "type": "boolean",
+      "title": "Observer live check every 6th step",
+      "description": "While the observer is on, runs a live check on every 6th model step of a long turn: a no-tools fork of the main conversation that reports at most one process fault. On by default. Each check bills the session's account; its usage is recorded.",
+      "default": true
+    },
+    "observer_turn_end_check": {
+      "type": "boolean",
+      "title": "Observer live check at turn end",
+      "description": "While the observer is on, also runs a live check at the end of each turn that ran tools, which is most turns of a working session. Off by default until its cost on a working session is measured; see reference/observer.md.",
       "default": false
     },
     "observer_analysis_enabled": {
       "type": "boolean",
-      "title": "Observer post-session analysis",
-      "description": "When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection.",
+      "title": "Observer catch-up analysis",
+      "description": "At session start, runs the headless running-retro analysis for ended sessions that got no live checks and writes its findings to their ledger. On by default. Off, no catch-up runs; the live checks are unaffected.",
       "default": true
     },
     "observer_analysis_model": {
       "type": "string",
       "title": "Observer analysis model",
-      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost.",
+      "description": "Model ID for the headless catch-up analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost.",
       "default": "claude-opus-5-5"
     },
     "observer_analysis_effort": {
       "type": "string",
       "title": "Observer analysis effort",
-      "description": "Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md.",
+      "description": "Effort level passed as --effort to the headless catch-up analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md.",
       "default": "medium"
     },
     "observer_analysis_bare": {
@@ -70,28 +85,15 @@
     "observer_min_lines": {
       "type": "number",
       "title": "Observer minimum session size (lines)",
-      "description": "Transcript lines a session needs before its first post-session analysis; default 300. A shorter session, such as an automated sweep, is skipped and the skip recorded in the observer's status file. A follow-up to an analyzed session is always analyzed. 0 analyzes every session.",
+      "description": "Transcript lines an ended session needs before its first catch-up analysis; default 300. A shorter session, such as an automated sweep, is skipped and the skip recorded in the observer's status file. A follow-up to an analyzed session is always analyzed. 0 analyzes every session.",
       "default": 300,
       "min": 0
     },
     "observer_idle_seconds": {
       "type": "number",
-      "title": "Observer idle end threshold (seconds)",
-      "description": "How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript.",
+      "title": "Observer ended-session threshold (seconds)",
+      "description": "How long a transcript must go unchanged before the catch-up treats its session as ended; default 900. Keep it above the longest single turn, or a session still mid-turn in another terminal is analyzed early.",
       "default": 900
-    },
-    "observer_poll_seconds": {
-      "type": "number",
-      "title": "Observer poll interval (seconds)",
-      "description": "How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over.",
-      "default": 5,
-      "min": 1
-    },
-    "observer_max_seconds": {
-      "type": "number",
-      "title": "Observer lifetime cap (seconds)",
-      "description": "Absolute cap on observer lifetime; default 86400 (24 hours). Reaching it exits without running analysis: it is a safety valve, not an end signal. The idle threshold is the intended terminator.",
-      "default": 86400
     },
     "audit_sessions_retention_days": {
       "type": "number",
@@ -136,7 +138,10 @@
       "title": "Worker continuation",
       "description": "How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins.",
       "default": "resume",
-      "options": ["resume", "respawn"]
+      "options": [
+        "resume",
+        "respawn"
+      ]
     },
     "wip_commit": {
       "type": "boolean",
@@ -172,7 +177,10 @@
       "title": "Retro review lenses",
       "description": "How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins.",
       "default": "1",
-      "options": ["1", "3"]
+      "options": [
+        "1",
+        "3"
+      ]
     },
     "lane_transcript_sink": {
       "type": "directory",
@@ -184,21 +192,32 @@
       "title": "Cloud session suggestion",
       "description": "Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask.",
       "default": "offer",
-      "options": ["off", "offer"]
+      "options": [
+        "off",
+        "offer"
+      ]
     },
     "retro_offer": {
       "type": "string",
       "title": "Retro offer",
       "description": "Whether /session-flow:workflow's end-of-session wrap-up offers a retrospective. offer (default) suggests /session-flow:retro for substantive sessions; off never offers one. Offer only: nothing runs a retro unless you ask.",
       "default": "offer",
-      "options": ["off", "offer"]
+      "options": [
+        "off",
+        "offer"
+      ]
     },
     "recommend_skills_exclude": {
       "type": "string",
       "title": "Recommend-skills exclusions",
       "description": "Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped.",
       "default": "none",
-      "options": ["none", "disabled", "not-installed", "disabled,not-installed"]
+      "options": [
+        "none",
+        "disabled",
+        "not-installed",
+        "disabled,not-installed"
+      ]
     },
     "orient_catch_up_word_cap": {
       "type": "number",
