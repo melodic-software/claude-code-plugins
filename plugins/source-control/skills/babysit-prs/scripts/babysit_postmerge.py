@@ -273,11 +273,7 @@ FULL_RUN_EVENTS = {SIGNAL_SCHEDULE: "schedule", SIGNAL_DISPATCH: "workflow_dispa
 
 GREEN, FLAKE, RED, RERUN, PENDING = "green", "flake", "red", "rerun", "pending"
 SETTLED = "settled"
-# The newer passed runs `_Context.superseded` reads ancestry for, per red run;
-# past them the run is not settled and waits for its re-run as before.
 SETTLE_COMPARE_CAP = 5
-# The compare reads `_Context.superseded` may spend in one check, over every
-# red run; once spent, a run is not settled and waits for its re-run.
 SETTLE_COMPARE_BUDGET = 20
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
@@ -2049,8 +2045,6 @@ class _Context:
                 "jobs",
             )
             jobs = [j for j in listed if j.get("conclusion") in FAILED_CONCLUSIONS]
-            # The ci-status alias repeats CI Status's conclusion: the two are
-            # one check, CI Status.
             if any(j.get("name") == policy.GATE_CHECK for j in jobs):
                 jobs = [j for j in jobs if j.get("name") != policy.GATE_ALIAS]
             self.passed_jobs[key] = frozenset(

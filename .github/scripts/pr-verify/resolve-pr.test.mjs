@@ -61,9 +61,7 @@ const LINKED = {
 };
 const HUMANS = new Set([100]);
 const LANE = "melodic-automation-lanes[bot]";
-// A verify run's start, after every edit the fixtures below make.
 const JUDGED_AT = "2026-10-21T00:00:00Z";
-// When the pull request was opened: after every fixture comment but those a test posts later.
 const PR_OPENED = "2026-10-20T00:00:00Z";
 
 const upstream = (overrides = {}) => ({
@@ -150,7 +148,6 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100` && jobs) return jobs;
     const jobsOfRun = /\/actions\/runs\/(\d+)\/jobs\?filter=latest&per_page=100$/.exec(apiPath);
     if (jobsOfRun && jobsOf[jobsOfRun[1]]) return jobsOf[jobsOfRun[1]];
-    // The head's pr-require-checks pull_request runs; with none given the read fails.
     if (apiPath === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
       if (upstreamRuns === undefined) throw new Error(`GET ${apiPath} failed with status 502`);
       return { total_count: upstreamTotal ?? upstreamRuns.length, workflow_runs: upstreamRuns };
@@ -190,9 +187,6 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       if (relink === undefined) throw new Error("POST /graphql failed with status 502");
       return relink;
     }
-    // The spec read, which carries the relink fields and, when asked, the
-    // renames: each as its own query answers it, absent when that answer
-    // has none (a failed relink read gives none).
     if (apiPath === "/graphql") {
       const relinked = relink?.data?.repository?.pullRequest;
       const renamed = body.query.includes("RENAMED_TITLE_EVENT") ? renameAnswer()?.data?.repository?.pullRequest?.timelineItems : undefined;
@@ -241,7 +235,6 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
     linkedIssues: [LINKED],
     specKind: "closes",
     specText: [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }],
-    // The fixture's run names no head commit time, so a relink cannot be ruled out.
     relinkSinceHead: true,
   });
 });
@@ -275,8 +268,6 @@ test("a linked issue in another repository is left out", async () => {
   assert.deepEqual((await resolve({ issues: [foreign] })).linkedIssues, []);
 });
 
-// Owner decision 2026-10-23: a PR that closes no issue reads the one issue a
-// plain `Refs: #<n>` line names as its spec, as babysit_merge_policy does.
 const REFS_ISSUE = { __typename: "Issue", ...ISSUE };
 
 test("a PR that closes no issue is judged against the one issue its Refs line names", async () => {
@@ -296,7 +287,6 @@ test("a closing issue wins over a Refs line, which is then never read", async ()
 });
 
 test("a hidden, ambiguous or non-issue Refs line names no spec", async () => {
-  // The kind each link gives the verifier: closes, refs, none, or the PR's own text.
   assert.equal((await resolve({ body: "Refs: #8" })).specKind, "closes");
   assert.equal((await resolve({ issues: [] })).specKind, "none");
   for (const [prBody, refs] of [
@@ -346,7 +336,6 @@ const ROW = {
 const SCHEDULE = { items: [{ ...ROW, id: "other", title: "Something else" }, ROW] };
 const MARKER = "<!-- recurring-schedule id=weekly-x -->";
 const filed = (body, author = ACTIONS_BOT) => ({ ...ISSUE, author, body });
-// The text file-due.mjs files for ROW, written out by hand.
 const ROW_SPEC = [
   "# Run the weekly X audit",
   "",
@@ -459,7 +448,6 @@ test("a drift issue the workflow filed is the spec of its own upstream's re-audi
   const resolved = await resolve({ issues: [drift()], changed: PAGE_ONLY }, { upstreamPages: PAGES });
   assert.deepEqual(resolved.specText, [{ number: 7, spec_kind: "closes", source: "upstream-drift", body: DRIFT_SPEC, comments: [] }]);
   assert.ok(!resolved.specText[0].body.includes("Ignore the page"), "no upstream-controlled row reaches the spec");
-  // The workflow replaces the body in place each week, as the same bot.
   const rewritten = await resolve({ issues: [drift({ lastEditedAt: "2026-11-09T00:00:00Z", editor: ACTIONS_BOT })], changed: PAGE_ONLY }, { upstreamPages: PAGES });
   assert.equal(rewritten.specText[0].body, DRIFT_SPEC);
   const rated = await resolve({ issues: [drift()], changed: PAGE_ONLY }, { upstreamPages: PAGES, rated: async () => false });
@@ -729,7 +717,6 @@ test("a main-red incident the monitoring lane filed is the fixed spec of a fix t
   assert.ok(!refs.specText[0].body.includes("Ignore the spec"), "no run output from the issue reaches the spec");
   const closes = await resolve({ issues: [incident()] });
   assert.deepEqual(closes.specText, [{ number: 7, spec_kind: "closes", source: "main-red-incident", body: INCIDENT_SPEC, comments: [] }]);
-  // The lane rewrites the body in place when the findings change, as the same bot.
   const rewritten = await resolve({ issues: [incident({ lastEditedAt: "2026-11-17T00:00:00Z", editor: ACTIONS_BOT })] });
   assert.equal(rewritten.specText[0].body, INCIDENT_SPEC);
 });
@@ -828,7 +815,6 @@ test("a sibling that did not merge here, or whose body does not name the issue, 
     ["no body", sibling(12917, { body: null })],
     ["an issue", { __typename: "Issue" }],
     ["another number", sibling(12918)],
-    // Judged against the issue it closed, never as a slice of this one.
     ["closing an issue", sibling(12917, { closingIssuesReferences: { totalCount: 1 } })],
     ["edited after the merge by someone else", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: OUTSIDER })],
     ["edited before the merge by someone else", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: OUTSIDER })],
@@ -843,8 +829,6 @@ test("a sibling that did not merge here, or whose body does not name the issue, 
     const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } }, { laneAppId: LANES_APP.databaseId });
     assert.deepEqual(resolved.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }], label);
   }
-  // A sibling the lanes App wrote, or a body a trusted person or the lanes App
-  // before the merge edited last, still counts.
   for (const [label, node] of [
     ["written by the lanes App", sibling(12917, { author: LANES_APP })],
     ["edited before the merge by the lanes App", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: LANES_APP })],
@@ -853,10 +837,8 @@ test("a sibling that did not merge here, or whose body does not name the issue, 
     const resolved = await resolve({ body: "Siblings: #12917", refs: { 12917: node } }, { laneAppId: LANES_APP.databaseId });
     assert.deepEqual(resolved.specText[0].credited_siblings, [{ number: 12917, body: node.body }], label);
   }
-  // With no lanes App id known, nothing it wrote counts.
   const unknown = await resolve({ body: "Siblings: #12917", refs: { 12917: sibling(12917, { author: LANES_APP }) } });
   assert.equal(Object.hasOwn(unknown.specText[0], "credited_siblings"), false);
-  // A number that names nothing credits nothing; any other failed read stops the run.
   assert.equal(Object.hasOwn((await resolve({ body: "Siblings: #99999" })).specText[0], "credited_siblings"), false);
   const answer = { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "RATE_LIMITED", path: ["repository", "issueOrPullRequest"] }] };
   await assert.rejects(resolve({ body: "Siblings: #12917", refs: { 12917: { answer } } }), /sibling #12917 could not be read/);
@@ -870,12 +852,10 @@ test("only a plain visible Siblings line of a closing pull request is read", asy
     assert.equal(Object.hasOwn(resolved.specText[0], "credited_siblings"), false, prBody);
     assert.deepEqual(queries, [], prBody);
   }
-  // Over the cap names none.
   const many = Array.from({ length: SIBLINGS_MAX + 1 }, (_, i) => `#${100 + i}`).join(", ");
   assert.deepEqual(siblingNumbers(`Siblings: ${many}`), []);
   assert.deepEqual(siblingNumbers("Siblings: #1,#2\nsiblings: #3"), []);
   assert.deepEqual(siblingNumbers("Siblings: #1,#2\nSiblings: #2, #3"), [1, 2, 3]);
-  // A Refs pull request delivers a slice, and its Siblings line is never read.
   const queries = [];
   const resolved = await resolve({ issues: [], body: "Refs: #7\nSiblings: #12917", refs: { 7: REFS_ISSUE, 12917: sibling(12917) }, queries });
   assert.deepEqual([resolved.specText, queries], [[{ number: 7, spec_kind: "refs", body: "the spec", comments: [] }], [7]]);
@@ -966,7 +946,6 @@ test("a GitHub fault holds the resolver green with a held notice; a 404, a 403 o
 const thrown = (promise) => promise.then(() => assert.fail("resolved"), (error) => error);
 
 test("a 200 whose completeness check fails holds the resolver green with the held notice", async () => {
-  // A short page: fewer nodes than a count the page could hold.
   const cutComments = { ...ISSUE, comments: { totalCount: 3, nodes: [] } };
   const cases = {
     "closing issues shorter than their count": { issues: [ISSUE], github: (base) => async (method, apiPath, body) => {
@@ -1005,8 +984,6 @@ test("a real defect still fails the resolver red", async () => {
 });
 
 test("a whole job list that every re-read returns the same way stays red", async () => {
-  // No ci-status job, two of them, or the draft step listed with a conclusion
-  // that is neither success nor skipped: a re-read returns it unchanged.
   const cases = {
     "no ci-status job": [{ id: 9001, name: "lint", conclusion: "success", steps: [] }],
     "two ci-status jobs": [9001, 9002].map((id) => ({ id, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: "skipped" }] })),
@@ -1042,7 +1019,6 @@ test("an answer past what the query reads stays red", async () => {
     assert.match(error.message, /could not be read/, `${name}: ${error.message}`);
     assertRed(closing(error), error);
   }
-  // Past the page cap the message names the cap, not an unread list.
   const over = await thrown(resolve({ issues: [{ ...ISSUE, comments: { totalCount: 1001, nodes: [] } }] }));
   assert.equal(over.message, "#7: the issue has 1001 comments, more than the 1000 (10 pages) this read takes");
   assertRed(closing(over), over);
@@ -1124,7 +1100,6 @@ const CI_STEPS = [
   ["Fail on the contract or draft policy", "skipped"],
   ["Complete job", "success"],
 ];
-/** The steps before the report-ci-status composite, when ci-status ran check-contract as a step of its own. */
 const OLD_CONTRACT_STEP = "Check the pull-request contract";
 const OLD_CI_STEPS = [
   ["Set up job", "success"],
@@ -1190,7 +1165,6 @@ test("a run that failed on anything but a hold an approval lifts starts nothing"
       : await held(log, setup);
     assert.equal(got, "not-a-passing-run", name);
   }
-  // With no log reader a failed run is never judged.
   assert.equal(await reason({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }), "not-a-passing-run");
 });
 
@@ -1409,13 +1383,11 @@ test("verify-authors lane-or-owner judges the owner account's PRs and the lane's
   // Matched by account id, never login.
   const spoof = pull({ user: { id: OWNER_ID + 1, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [spoof] }, opts), "author-not-lane-or-owner", "owner login, other id");
-  // A listed App (the release App) is judged too (owner decision 2026-10-22).
   const app = pull({ user: { id: OWNER_ID, login: "melodic-release[bot]", type: "Bot" } });
   assert.equal(await reason({ pulls: [app] }, opts), "ok", "a listed Bot");
   const org = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Organization" } });
   assert.equal(await reason({ pulls: [org] }, opts), "author-not-lane-or-owner", "another account type");
   assert.equal(await reason({ pulls: [HUMAN_PR] }, opts), "author-not-lane-or-owner", "another human");
-  // A draft stays unjudged.
   assert.equal(await reason({ pulls: [{ ...owner, draft: true }] }, opts), "draft", "owner draft");
 });
 
@@ -1474,7 +1446,6 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
     const result = await resolve({ pulls: [pr], issues: [], edit }, opts);
     assert.deepEqual(result.specText, expected, JSON.stringify(edit));
   }
-  // A closing issue here keeps it the spec.
   const result = await resolve({ pulls: [own({ id: OWNER_ID, login: "kyle-sexton", type: "User" })] }, opts);
   assert.deepEqual(result.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
@@ -1512,7 +1483,6 @@ test("a PR whose title another actor renamed last is not its own spec", async ()
   }
   // A rename read with no timeline stops the run rather than trusting the title.
   await assert.rejects(resolve({ pulls: [owner], issues: [], renames: { data: { repository: { pullRequest: null } } } }, opts), /timelineItems could not be read/);
-  // A PR with a closing issue, or one whose body is not its intent, never reads its renames.
   for (const setup of [{ pulls: [owner] }, { pulls: [pull({ title: "t", body: "b" })], issues: [] }]) {
     const result = await resolve({ ...setup, renames: { data: null } }, opts);
     assert.equal(result.proceed, true, JSON.stringify(setup.pulls[0].user));
@@ -1562,7 +1532,6 @@ test("a counted verdict at the head from a completed run stops a new judgment", 
     "another PR's fail": [artifact(`pr-verify-99-${HEAD}-fail`, 77), verifyRun(77)],
     "a fail from a run that failed later": [artifact(`pr-verify-41-${HEAD}-fail`, 77), verifyRun(77, { conclusion: "failure" })],
   };
-  // The commit's pull requests name the other numbers a FAIL at the head can carry.
   const pulls = [pull(), pull({ number: 99, state: "closed" })];
   for (const [label, [item, record]] of Object.entries(cases)) {
     assert.equal(await reason({ pulls, artifacts: [item], runs: { 77: record } }), "already-judged", label);
@@ -1674,10 +1643,6 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
 });
 
 test("the resolver looks up exactly the names write-verdict writes", async () => {
-  // Every verdict that can stand at this head, named by the writer itself: this
-  // PR's pass and pass-notes, its FAIL with and without the issue it closes,
-  // and PR 99's FAIL, whose issues this run never reads. A writer that moves
-  // to new names (a head-ref digest) fails here until the resolver looks them up.
   const other = { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } };
   const pulls = [pull(), pull({ number: 99, state: "closed", head: other })];
   const written = [
@@ -1698,7 +1663,6 @@ test("the resolver looks up exactly the names write-verdict writes", async () =>
     .filter((apiPath) => apiPath.includes("/actions/artifacts"))
     .map((apiPath) => new URL(apiPath, "https://api.github.com").searchParams.get("name"));
   assert.deepEqual(looked.sort(), [...new Set(written)].sort());
-  // Each written name, once at the head, stops a new judgment.
   for (const name of written) {
     assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
   }
@@ -1711,13 +1675,11 @@ test("a FAIL named with this pull request's issues stops a new judgment", async 
   for (const name of [`pr-verify-41-${HEAD}-fail-i7`]) {
     assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
   }
-  // A suffix naming other issues is another judgment.
   for (const name of [`pr-verify-41-${HEAD}-fail-i8`, `pr-verify-41-${HEAD}-fail-i7.8`]) {
     assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "ok", name);
   }
 });
 
-// The reason, and how many times the linked-issues query ran.
 async function specReads(setup) {
   const github = fake(setup);
   let reads = 0;
@@ -1730,8 +1692,6 @@ async function specReads(setup) {
 }
 
 test("a FAIL named without issues, and a pass, each skip after one linked-issues read", async () => {
-  // A pass is weighed against the spec's last change, which that read gives;
-  // a FAIL named without issues against whether the PR now links issues.
   for (const [verdict, reads] of [["fail", 1], ["pass", 1]]) {
     const name = `pr-verify-41-${HEAD}-${verdict}`;
     assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", reads], name);
@@ -1751,7 +1711,6 @@ test("a head whose only verdict is a FAIL named with issues skips after one link
 const FAILED_AT = "2026-10-20T06:00:00Z";
 const PERSON = { __typename: "User", login: "maintainer", databaseId: 100 };
 const LANES_APP = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
-// The original text's entry, stamped before the FAIL, by the App that opened the PR.
 const ORIGINAL = { editedAt: "2026-10-19T00:00:00Z", editor: LANES_APP };
 const relinkAnswer = ({ edits = [], events = [], editsTotal = edits.length + 1, eventsFiltered = events.length } = {}) => ({
   data: {
@@ -1803,7 +1762,6 @@ test("a relink that cannot be read whole keeps the FAIL", async () => {
     ["edits cut short", relinked(cut)],
     ["events cut short", relinked(filtered)],
     ["an event with no time", relinked(timeless)],
-    // Only the original text, before the FAIL: no visible cause for the link.
     ["nothing since the FAIL", relinked(relinkAnswer())],
     ["a FAIL run with no creation time", relinked(relinkAnswer(), { runs: { 77: verifyRun(77, { created_at: null }) } })],
   ]) {
@@ -1812,7 +1770,6 @@ test("a relink that cannot be read whole keeps the FAIL", async () => {
 });
 
 test("a FAIL named without issues stands while the PR links no issue a FAIL name carries", async () => {
-  // None, or more than a name carries: the set the FAIL recorded may be this one.
   const eleven = Array.from({ length: 11 }, (_, i) => ({ ...ISSUE, number: i + 1 }));
   for (const issues of [[], eleven]) {
     const queries = [];
@@ -1823,13 +1780,10 @@ test("a FAIL named without issues stands while the PR links no issue a FAIL name
     };
     const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "already-judged", String(issues.length));
-    // The body-edit rule, which finds no edit since the FAIL, weighs the
-    // relink fields the spec read carries: no relink read of its own.
     assert.deepEqual(queries, [], "no relink read");
   }
 });
 
-// The spec answer with `drop` taken out of its pull request.
 const without = (github, ...drop) => async (method, apiPath, body) => {
   const answer = await github(method, apiPath, body);
   if (apiPath !== "/graphql" || !body.query.includes("closingIssuesReferences")) return answer;
@@ -1839,7 +1793,6 @@ const without = (github, ...drop) => async (method, apiPath, body) => {
 };
 
 test("a spec answer missing a relink field keeps the FAIL, as a failed relink read does", async () => {
-  // The paired case: the same answer whole re-opens the head.
   const relink = relinkAnswer({ edits: [{ editedAt: "2026-10-20T07:00:00Z", editor: PERSON }], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
   assert.equal(await reason(relinked(relink)), "relinked");
   for (const field of ["userContentEdits", "links"]) {
@@ -1847,7 +1800,6 @@ test("a spec answer missing a relink field keeps the FAIL, as a failed relink re
     const { reason: got } = await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "already-judged", field);
   }
-  // And a judgment reports a relink since the head it cannot rule out.
   const github = without(fake(committed({ relink: relinkAnswer() })), "links");
   assert.equal((await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE })).relinkSinceHead, true);
 });
@@ -1876,7 +1828,6 @@ test("a spec answer missing the renames stops the run, as a failed rename read d
   assert.equal(await reason(owner, opts), "ok");
   const github = without(fake(owner), "renames");
   await assert.rejects(resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts }), /timelineItems could not be read/);
-  // A lanes App pull request's spec read asks for no renames.
   const lane = [];
   const recording = fake({ issues: [] });
   const asked = async (method, apiPath, body) => {
@@ -1905,19 +1856,14 @@ test("renames past the spec answer's first page are read whole through titleRena
     return github(method, apiPath, body);
   };
   const result = await resolvePull({ github: paged, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts });
-  // The whole list ends with an outsider's rename, so the title is not intent.
   assert.deepEqual(reads, [null]);
   assert.equal(result.specKind, "none");
 });
 
-// The head commit, after ORIGINAL and before FAILED_AT.
 const COMMITTED_AT = "2026-10-19T12:00:00Z";
 const committed = (overrides = {}) => ({ run: upstream({ head_commit: { id: HEAD, timestamp: COMMITTED_AT } }), ...overrides });
 
 test("a judgment after an edit or link change since the head commit reports a relink, so its pass keeps a FAIL's retention", async () => {
-  // This PR's FAIL at the head, named with an issue it no longer links, so
-  // the head is judged again with reason ok, and the gate may find its pass
-  // superseding the FAIL (babysit_verify_evidence `_superseded`).
   const fail = { artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i5`, 77)], runs: { 77: verifyRun(77, { created_at: FAILED_AT }) } };
   const linked = await resolve(committed({ ...fail, relink: relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] }) }));
   assert.equal(linked.reason, "ok");
@@ -1932,7 +1878,6 @@ test("a judgment after an edit or link change since the head commit reports a re
 });
 
 test("a judgment with no edit or link change since the head commit reports none", async () => {
-  // Only the original text, stamped before the head commit.
   const resolved = await resolve(committed({ relink: relinkAnswer() }));
   assert.equal(resolved.proceed, true);
   assert.equal(resolved.relinkSinceHead, false);
@@ -1955,10 +1900,6 @@ test("after a trusted relink, another PR's FAIL or one named with the new issues
   }
 });
 
-// A body fix: this PR's FAIL at the head, named with the issue it still links
-// (or plainly, when it links none), and a person edited the body since. The
-// rule is the owner's: a trusted person's body edit after a FAIL is judged at
-// the same head, never a bot's.
 const BODY_EDIT = { editedAt: "2026-10-20T07:00:00Z", editor: PERSON };
 const bodyFixed = (relink, overrides = {}) => ({
   artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)],
@@ -1975,13 +1916,11 @@ test("a FAIL is judged again at the same head after only a trusted person edited
     const resolved = await resolve(setup);
     assert.equal(resolved.proceed, true, label);
     assert.equal(resolved.reason, "body-edited", label);
-    // Its pass may supersede the FAIL, so it keeps a FAIL's retention.
     assert.equal(resolved.relinkSinceHead, true, label);
   }
 });
 
 test("a bot's or another actor's act, a connect alone, or an unreadable edit history keeps the FAIL", async () => {
-  // The paired case: the same window with only a person's edit re-opens.
   assert.equal(await reason(bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }))), "body-edited");
   const outsider = { __typename: "User", login: "outsider", databaseId: 999 };
   for (const [label, relink] of [
@@ -1999,7 +1938,6 @@ test("a bot's or another actor's act, a connect alone, or an unreadable edit his
 });
 
 test("the window opens at this PR's last FAIL at the head, so a judgment after the edit is not repeated", async () => {
-  // The edit was judged by the second FAIL, created after it.
   const setup = bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }));
   setup.artifacts.push(artifact(`pr-verify-41-${HEAD}-fail-i7`, 78));
   setup.runs[78] = verifyRun(78, { created_at: "2026-10-20T09:00:00Z" });
@@ -2013,7 +1951,6 @@ test("an unjudged head reads its linked issues once", async () => {
 });
 
 test("a pull request closing more issues than a FAIL's name carries is still judged", async () => {
-  // No FAIL is named with eleven issues or an 11-digit one, so none is looked up.
   for (const numbers of [Array.from({ length: 11 }, (_, i) => i + 1), [10000000000]]) {
     const issues = numbers.map((number) => ({ ...ISSUE, number }));
     assert.equal(await reason({ issues }), "ok", JSON.stringify(numbers));
@@ -2021,8 +1958,6 @@ test("a pull request closing more issues than a FAIL's name carries is still jud
 });
 
 test("a verdict named with a head-ref digest is not looked up, since write-verdict writes none", async () => {
-  // write-verdict.mjs artifactName writes no digest, so no such name can stand
-  // at a head; the change that moves the writer to digests adds the lookups.
   const pulls = [pull(), pull({ number: 99, state: "closed", head: { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } } })];
   for (const name of [
     `pr-verify-41-${HEAD}-pass-${REF_DIGEST}`,
@@ -2075,7 +2010,6 @@ test("a failed artifact lookup throws instead of judging again", async () => {
 test("a run still going, or a run that uploaded nothing, does not stop a new judgment", async () => {
   const going = verifyRun(77, { status: "in_progress", conclusion: null });
   assert.equal(await reason({ artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 77)], runs: { 77: going } }), "ok");
-  // A failed run with no artifact leaves nothing in the listing.
   assert.equal(await reason({ artifacts: [], runs: { 77: verifyRun(77, { conclusion: "failure" }) } }), "ok");
 });
 
@@ -2211,7 +2145,6 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
   for (const body of [`${MARKER.toUpperCase()}\nx`, ` ${MARKER}\nx`, `<!-- intake-triage refinements -->\nx`, `note\n${MARKER}`, "<!-- intake-triage admission -->\nx"]) {
     assert.deepEqual(await comments(on([comment(body, lanes)])), [], `marker mismatch: ${JSON.stringify(body)}`);
   }
-  // pr-verify counts only a refinement posted before the pull request opened.
   const late = comment(`${MARKER}\nposted after the pull request opened`, lanes, { createdAt: "2026-10-20T00:00:01Z", updatedAt: "2026-10-20T00:00:01Z" });
   assert.deepEqual(await comments(on([refinement, late])), [], "a refinement posted after the pull request opened");
   assert.deepEqual(await comments(on([late])), [], "the only refinement, posted after the pull request opened");
@@ -2265,7 +2198,6 @@ test("the done-when items intake's split refinement lists as checks a person run
   assert.equal(untrusted.body, null, "a body the lanes App last edited stays untrusted");
   assert.equal(untrusted.person_checks, undefined);
 
-  // A split row anywhere but the App's counted refinement names nothing.
   const forged = `${REFINE_MARKER}\n${bodyVersion(body)}\n${splitItemsLine([2])}`;
   const human = { ...split(), body: forged, author: { __typename: "User", login: "maintainer", databaseId: 100 } };
   for (const [why, nodes, overrides] of [
@@ -2275,8 +2207,6 @@ test("the done-when items intake's split refinement lists as checks a person run
     assert.equal((await entry(nodes, overrides)).person_checks, undefined, why);
   }
 
-  // A listed human's edit since the split: the body is trusted, the record
-  // names another body, so the refinement's prose split excuses nothing.
   const stale = await entry([split()], { body: `${body}\n- [ ] Added since.`, lastEditedAt: "2026-10-16T00:00:00Z", editor: ISSUE.author });
   assert.equal(stale.body, `${body}\n- [ ] Added since.`);
   assert.equal(stale.person_checks, undefined);
@@ -2397,12 +2327,9 @@ test("a pass judged before the spec last changed is judged again at the same hea
     assert.equal(await reason({ ...passed("2026-10-20T23:59:59Z"), issues: [issue] }), "spec-changed", `${label} after the pass`);
     assert.equal(await reason({ ...passed("2026-10-21T00:00:01Z"), issues: [issue] }), "already-judged", `${label} before the pass`);
   }
-  // A comment the spec leaves out changes nothing.
   const bot = { ...commented.comments.nodes[0], author: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } };
   assert.equal(await reason({ ...passed("2026-10-20T23:59:59Z"), issues: [{ ...ISSUE, comments: { totalCount: 1, nodes: [bot] } }] }), "already-judged");
-  // A pass whose start cannot be read is judged again.
   assert.equal(await reason(passed(undefined)), "spec-changed");
-  // One pass after the change is enough; a FAIL at the head still stops it.
   const both = {
     issues: [edited],
     artifacts: [artifact(name, 77), artifact(name, 78)],
@@ -2502,7 +2429,6 @@ test("an issue with more comments than one page resolves with every page's spec 
   assert.equal(resolved.reason, "ok");
   assert.deepEqual(resolved.linkedIssues, [{ ...LINKED, spec_comments: [{ id: 1, updated_at: "2026-10-01T00:00:00Z" }, { id: 144, updated_at: "2026-10-01T00:00:00Z" }] }]);
   assert.deepEqual(resolved.specText.map(({ comments }) => comments), [["first-page criterion", "second-page criterion"]]);
-  // A next page that never comes, or one GitHub fails, stops the read.
   const stalled = { 7: { c100: { totalCount: 144, pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } };
   const held = await thrown(resolve({ issues: [busy], commentPages: stalled }));
   assert.equal(held.message, "#7: the issue's comments could not be read");
@@ -2556,12 +2482,10 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
     RUNNER_TEMP: temp,
   };
   const kept = path.join(temp, KEPT_JOBS);
-  // A judged head's jobs, as upstream-jobs.mjs would have read them.
   const jobs = heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === HOLD_STEP ? "success" : c]), "success"));
   await main(env, { github: fake({ jobs }) });
   assert.deepEqual(JSON.parse(readFileSync(kept, "utf8")), shapeJobs(RUN, jobs.jobs));
   assert.deepEqual(keptJobs(env, RUN), shapeJobs(RUN, jobs.jobs));
-  // Each kept job carries its html_url as url, and keptJobs reads it back.
   const jobPage = `https://github.com/${REPO}/actions/runs/${RUN}/job/9002`;
   const linked = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
   const withUrl = { ...jobs, jobs: jobs.jobs.map((job) => (job.id === 9002 ? { ...job, html_url: jobPage } : job)) };
@@ -2570,7 +2494,6 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   assert.deepEqual(keptLinked.find((job) => job.name === "Lint Repo"), { name: "Lint Repo", conclusion: "success", url: jobPage });
   assert.equal(keptLinked.find((job) => job.name === "ci-status").url, null);
   assert.deepEqual(keptJobs(linked, RUN).jobs.find((job) => job.name === "Lint Repo"), { name: "Lint Repo", conclusion: "success", url: jobPage });
-  // A head already judged, after its jobs were read, leaves no file.
   const skipped = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
   await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
   assert.match(readFileSync(skipped.GITHUB_OUTPUT, "utf8"), /reason=already-judged/);
@@ -2627,10 +2550,6 @@ test("main reports an invalid verify-authors value in the step summary", async (
   assert.equal(readFileSync(summary, "utf8"), "skipped: verify-authors value is invalid\n");
 });
 
-// Owner Q93 with the coordinator's Q9 extension: the unedited body of a
-// sub-issue the lanes App filed in a size split, holding only lines of its
-// native parent a listed human filed, is spec text; any other App body is not.
-// The cases are shared with admit.test.mjs (split-child.vectors.json).
 const VECTORS = JSON.parse(readFileSync(new URL("../intake-triage/split-child.vectors.json", import.meta.url), "utf8"));
 const actorOf = (actor) => (actor ? { __typename: actor.type, login: actor.type === "Bot" ? "some-app" : "someone", databaseId: actor.id } : null);
 const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
@@ -2785,8 +2704,6 @@ test("a lanes App filing is spec once intake-triage's ready verdict names it as 
   }
 });
 
-// A trusted target-subset part carries its Scope line's targets as `scope`,
-// which narrows its criteria; any other entry carries none.
 test("a trusted target-subset child's spec entry carries its scope", async () => {
   const scoped = VECTORS.cases.find((item) => item.name === "a target-subset child with one Scope line of verbatim targets");
   const plain = VECTORS.cases.find((item) => item.name === "the trusted child");
@@ -2817,10 +2734,6 @@ test("with no task-list marker, even the trusted split child is not spec", async
   }
 });
 
-// Every API call resolvePull makes, for the call-count pins below. The counts
-// follow the lookup order: FAIL names first, since a counted FAIL alone
-// decides already-judged, then this PR's passes; a pass whose spec is
-// unchanged decides already-judged before the issue-named FAIL lookups.
 async function calls(setup, options = {}) {
   const github = fake(setup);
   const paths = [];
@@ -2828,7 +2741,6 @@ async function calls(setup, options = {}) {
     paths.push(apiPath === "/graphql" ? `graphql ${body.query.includes("closingIssuesReferences") ? "spec" : "other"}` : apiPath);
     return github(method, apiPath, body);
   };
-  // A job log read is an API call too (main's readLog).
   const readLog =
     options.readLog &&
     (async (id) => {
@@ -2841,20 +2753,13 @@ async function calls(setup, options = {}) {
 
 test("each path through the resolver makes a pinned number of API calls", async () => {
   const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
-  // The spec read carries the relink fields, and for a pull request whose
-  // body may be its spec the title renames, so neither is a read of its own;
-  // heldOnly and draftRun share one read of the run's jobs.
   const cases = [
-    // run, commit pulls, the run's jobs, three names without issues, the spec, the FAIL name with issues.
     ["an unjudged head", {}, "ok", 8],
-    // As above; the head commit's time is weighed against the relink fields
-    // the spec read carries (9 calls when the relink was a read of its own).
     ["an unjudged head with its commit time", committed(), "ok", 8],
     ["a FAIL named without issues: run, commit pulls, the FAIL name, its run and compare, the head's checks runs, the spec", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 7],
     ["a FAIL named without issues, no issue linked: the spec's relink fields serve only the body-edit rule", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 7],
     ["a FAIL named with the PR's issues: run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare, the head's checks runs", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 10],
     ["a pass with the spec unchanged: run, commit pulls, three names, the pass's run and compare, the spec", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 8],
-    // As above, then the FAIL name with issues.
     ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 10],
   ];
   const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
@@ -2867,15 +2772,9 @@ test("each path through the resolver makes a pinned number of API calls", async 
   }
   assert.equal((await calls({ issues: [edited], jobs: DRAFT_JOBS })).reason, "draft-run", "a draft-started run at an unjudged head skips as draft-run");
   assert.equal((await calls({ issues: [edited], jobs: DRAFT_JOBS, ...counted(`pr-verify-41-${HEAD}-fail`) })).reason, "already-judged", "a draft-started run at a judged head skips as already-judged");
-  // A run red only on a hold: run, commit pulls, the run's jobs once for
-  // heldOnly and draftRun, ci-status's log, three names, the spec, the -i7
-  // name (10 when draftRun read the jobs again).
   const heldRun = await calls({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }, { readLog: async (id) => (id === 9001 ? logOf(PATH_HOLD) : "") });
   assert.equal(heldRun.reason, "ok");
   assert.equal(heldRun.paths.length, 9, heldRun.paths.join("\n"));
-  // A trusted person's pull request that links no issue, its body the spec:
-  // run, commit pulls, the run's jobs, three names, the spec with the
-  // renames (8 when the renames were a read of their own).
   const own = await calls({ pulls: [HUMAN_PR], issues: [] }, { verifyAuthors: "lane-or-owner", ownerIds: [100] });
   assert.equal(own.reason, "ok");
   assert.equal(own.paths.length, 7, own.paths.join("\n"));
@@ -2885,22 +2784,17 @@ test("a failed run whose jobs are not a hold's skips on the run and its jobs alo
   const readLog = async (id) => (id === 9001 ? logOf(PATH_HOLD) : "");
   const failedLane = heldJobs(ciJob(), [{ id: 9002, name: "Lint Repo", conclusion: "failure" }]);
   const jobsPath = `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100`;
-  // Accepted precedence: such a run of a draft or another author's pull
-  // request skips as not-a-passing-run, which no pull request read decides.
   for (const [label, pulls] of [["a lane PR", [pull()]], ["a draft", [pull({ draft: true })]], ["another author's", [HUMAN_PR]]]) {
     const { reason: got, paths } = await calls({ run: upstream({ conclusion: "failure" }), jobs: failedLane, pulls }, { readLog });
     assert.equal(got, "not-a-passing-run", label);
     assert.deepEqual(paths, [`/repos/${REPO}/actions/runs/${RUN}`, jobsPath], label);
   }
-  // With no log reader a failed run is never judged, and nothing past the run is read.
   const unread = await calls({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() });
   assert.equal(unread.reason, "not-a-passing-run");
   assert.deepEqual(unread.paths, [`/repos/${REPO}/actions/runs/${RUN}`]);
 });
 
 test("FAIL names first and a pass decided before the issue-named lookups give the same reasons as the old order", async () => {
-  // The old order looked up this PR's passes, then the FAILs, and always the
-  // issue-named FAILs before weighing a pass; each combination resolves the same.
   const fail = (name, id) => [artifact(name, id), verifyRun(id)];
   const pass = (id, start) => [artifact(`pr-verify-41-${HEAD}-pass`, id), verifyRun(id, { run_started_at: start })];
   const verdicts = {
@@ -2926,8 +2820,6 @@ test("FAIL names first and a pass decided before the issue-named lookups give th
   }
 });
 
-// pr-verify.yml's check-intent hands its reads to check-intent-subscription
-// (resolve-pr.mjs packReads, takeReads), so a handoff does not repeat them.
 const CARRY = {
   attempt: "1",
   prNumber: 41,
@@ -2939,7 +2831,6 @@ const CARRY = {
   specText: [{ number: 7, body: "spec" }],
   context: { pr: { number: 41 }, items: [], dropped: {} },
 };
-// A client that fails the test on any read.
 const noReads = () => async (method, apiPath) => assert.fail(`no read on the carried path: ${method} ${apiPath}`);
 
 test("the carried reads round-trip for the same run attempt and nothing else", () => {
@@ -2947,7 +2838,6 @@ test("the carried reads round-trip for the same run attempt and nothing else", (
   assert.ok(packed.length > 0 && packed.length <= CARRY_MAX);
   const { attempt, ...rest } = CARRY;
   assert.deepEqual(takeReads(packed, "1"), rest);
-  // relink-since-head survives as written, both ways.
   assert.equal(takeReads(packReads({ ...CARRY, relinkSinceHead: "true" }), "1").relinkSinceHead, "true");
   // A re-run of the subscription job alone is a new attempt: it reads again.
   assert.equal(takeReads(packed, "2"), null);
@@ -2968,7 +2858,6 @@ test("the carried reads round-trip for the same run attempt and nothing else", (
   }
   assert.equal(takeReads("not base64 json", "1"), null);
   assert.equal(takeReads("", "1"), null);
-  // Too large to hand on: empty, so the subscription job reads again.
   assert.equal(packReads({ ...CARRY, context: { pad: "x".repeat(CARRY_MAX) } }), "");
   // The taker caps size too, whoever wrote the bundle.
   assert.equal(takeReads("A".repeat(CARRY_MAX + 1), "1"), null);
@@ -2998,7 +2887,6 @@ test("carry hands on the base-side files, and nothing when one is missing", (t) 
   carryMain(env);
   const reads = /^reads=(.+)$/m.exec(readFileSync(env.GITHUB_OUTPUT, "utf8"))[1];
   assert.equal(takeReads(reads, "1").context.pr.number, 41);
-  // With no relink-since-head output, nothing is handed on.
   writeFileSync(env.GITHUB_OUTPUT, "");
   carryMain({ ...env, RELINK_SINCE_HEAD: "" });
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^reads=\n$/, "no relink-since-head");
@@ -3030,7 +2918,6 @@ test("main takes the carried reads with no API read, and reads again when they d
   assert.deepEqual(JSON.parse(readFileSync(env.SPEC_FILE, "utf8")), CARRY.linkedIssues);
   assert.deepEqual(JSON.parse(readFileSync(env.SPEC_TEXT_FILE, "utf8")), CARRY.specText);
   assert.deepEqual(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")), CARRY.context);
-  // Another attempt's reads, or none: the full resolver runs on its reads.
   for (const carried of [packReads({ ...CARRY, attempt: "2" }), "garbage"]) {
     writeFileSync(env.GITHUB_OUTPUT, "");
     await main({ ...env, CARRIED: carried }, { github: fake() });
@@ -3040,10 +2927,6 @@ test("main takes the carried reads with no API read, and reads again when they d
   }
 });
 
-// pr-rate-merge-risk.yml reads the same pull request through resolvePull with
-// `rated` (ratedBy): its own artifact for the head, from a run of its own
-// origin, skips the head; a verdict of pr-verify's never does, and the
-// closing issues are read as for a judgment.
 const RATED_ENV = { RATED_WORKFLOW_PATH: ".github/workflows/pr-rate-merge-risk.yml", RATED_ARTIFACT_PREFIX: "pr-merge-risk" };
 const rateRun = (id, overrides = {}) => verifyRun(id, { path: RATED_ENV.RATED_WORKFLOW_PATH, ...overrides });
 
@@ -3148,7 +3031,6 @@ test("after an empty listing that carries an ETag, pass names send it and a 304 
 });
 
 test("no FAIL name is ever listed with If-None-Match", async () => {
-  // An already-judged head: a counted pass.
   const pass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } });
   assert.equal((await resolveOverHttp(pass)).reason, "already-judged");
   assert.deepEqual(pass.listings, [
@@ -3156,19 +3038,15 @@ test("no FAIL name is ever listed with If-None-Match", async () => {
     { name: PASS_NAME, page: 1, sent: EMPTY_TAG, status: 200 },
     { name: NOTES_NAME, page: 1, sent: EMPTY_TAG, status: 304 },
   ]);
-  // Another pull request's FAIL at the head, read after the empty own FAIL.
   const other = overHttp({ pulls: [pull(), pull({ number: 99, state: "closed", head: OTHER_HEAD })], artifacts: [artifact(OTHER_FAIL_NAME, 78)], runs: { 78: verifyRun(78) } });
   assert.equal((await resolveOverHttp(other)).reason, "already-judged");
   assert.deepEqual(other.listings, [
     { name: FAIL_NAME, page: 1, sent: null, status: 200 },
     { name: OTHER_FAIL_NAME, page: 1, sent: null, status: 200 },
   ]);
-  // This pull request's own FAIL, which no relink lifts.
   const own = overHttp({ artifacts: [artifact(FAIL_NAME, 79)], runs: { 79: verifyRun(79) } });
   assert.equal((await resolveOverHttp(own)).reason, "already-judged");
   assert.deepEqual(own.listings, [{ name: FAIL_NAME, page: 1, sent: null, status: 200 }]);
-  // The same own FAIL after only trusted people linked an issue: the names after
-  // it (afterOwn) are read too, and every FAIL among them goes unconditional.
   const relink = relinkAnswer({ edits: [{ editedAt: "2026-10-20T07:00:00Z", editor: PERSON }], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
   const relinkedHead = overHttp(relinked(relink, { pulls: [pull(), pull({ number: 99, state: "closed", head: OTHER_HEAD })] }));
   assert.equal((await resolveOverHttp(relinkedHead)).reason, "relinked");
@@ -3186,8 +3064,6 @@ test("a pass name that holds an artifact answers 200 under the ETag and its run 
   assert.equal((await resolveOverHttp(pass)).reason, "already-judged");
   assert.ok(pass.paths.includes(`/repos/${REPO}/actions/runs/77`), pass.paths.join("\n"));
   assert.ok(pass.paths.includes(`/repos/${REPO}/compare/${MAIN}...main`), pass.paths.join("\n"));
-  // More than one page: page 1 sends the ETag, later pages read as before, and
-  // the one unexpired artifact on page 2 still counts.
   const many = [...Array.from({ length: 100 }, () => artifact(PASS_NAME, 77, true)), artifact(PASS_NAME, 78)];
   const paged = overHttp({ artifacts: many, runs: { 78: verifyRun(78) } });
   assert.equal((await resolveOverHttp(paged)).reason, "already-judged");
@@ -3200,27 +3076,22 @@ test("a pass name that holds an artifact answers 200 under the ETag and its run 
 
 test("a server that answers 304 to every conditional read hides no FAIL, only a pass, which is judged again", async () => {
   const lie = { answer: (listing) => (listing.sent !== null ? new Response(null, { status: 304 }) : undefined) };
-  // A recorded FAIL with this pull request's issues, and one under another pull request: each still stops the judgment.
   const ownIssues = overHttp({ artifacts: [artifact(FAIL_I7_NAME, 78)], runs: { 78: verifyRun(78) } }, lie);
   assert.equal((await resolveOverHttp(ownIssues)).reason, "already-judged");
   const other = overHttp({ pulls: [pull(), pull({ number: 99, state: "closed", head: OTHER_HEAD })], artifacts: [artifact(OTHER_FAIL_NAME, 78)], runs: { 78: verifyRun(78) } }, lie);
   assert.equal((await resolveOverHttp(other)).reason, "already-judged");
-  // A hidden pass costs one more judgment: the head proceeds and the pass's run is never read.
   const pass = overHttp({ artifacts: [artifact(PASS_NAME, 77)], runs: { 77: verifyRun(77) } }, lie);
   assert.equal((await resolveOverHttp(pass)).reason, "ok");
   assert.ok(!pass.paths.includes(`/repos/${REPO}/actions/runs/77`), pass.paths.join("\n"));
 });
 
 test("only an empty listing's ETag is sent, and a 304 to a read that sent none throws", async () => {
-  // A first listing that is not empty (an expired FAIL) gives no ETag to send:
-  // the pass name is read unconditionally, and only its empty answer's ETag is sent after.
   const expired = overHttp({ artifacts: [artifact(FAIL_NAME, 77, true)], runs: { 77: verifyRun(77) } });
   assert.equal((await resolveOverHttp(expired)).reason, "ok");
   assert.deepEqual(
     expired.listings.map(({ sent }) => sent),
     [null, null, EMPTY_TAG, null],
   );
-  // A 304 to a read that sent no ETag is a failed read.
   const unasked = overHttp({}, { answer: (listing) => (listing.sent === null ? new Response(null, { status: 304 }) : undefined) });
   await assert.rejects(resolveOverHttp(unasked), (error) => error instanceof GitHubError && error.status === 304);
 });
@@ -3234,7 +3105,6 @@ test("with no ETag on the empty listing, every name is read as before", async ()
     { name: NOTES_NAME, page: 1, sent: null, status: 200 },
     { name: FAIL_I7_NAME, page: 1, sent: null, status: 200 },
   ]);
-  // The same reads, in the same order, as the plain fake makes them.
   const plain = [];
   const github = fake({});
   await resolvePull({

@@ -88,9 +88,6 @@ export function levelVariableWriter({ github, repo, name }) {
   };
 }
 
-// The lane token's client. The step's API_BUDGET_TOKEN is github-token, for
-// the job token's reads and artifact download, so this client's readings are
-// pinned to lanes-app.
 export const laneClient = (env, fetchImpl) =>
   createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch: budgetLatch("lanes-app"), ...(fetchImpl ? { fetchImpl } : {}) });
 
@@ -120,9 +117,6 @@ export function publisherFor(settings, { github, repo }) {
   return github ? livePublisher(levelVariableWriter({ github, repo, name: settings.variable })) : noTokenPublisher();
 }
 
-// { waiting, running } from the issue lane's unfinished runs (every status
-// label-unblocked counts as in flight, one count each), which past the
-// applied level wait for a slot; null when a count fails.
 export async function demandOf({ actions, repo, applied }) {
   try {
     let active = 0;
@@ -143,7 +137,6 @@ export async function demandOf({ actions, repo, applied }) {
 const scheduledSweep = (repo) => (run) =>
   run?.path === WORKFLOW_PATH && run.event === "schedule" && run.head_branch === "main" && run.head_repository?.full_name === repo;
 
-// The last scheduled run's decision state, or null.
 export async function previousState({ repo, runId, actions, download }) {
   try {
     const found = await newestTrustedArtifact({ repo, runId: String(runId), actions, name: STATE_ARTIFACT, workflow: WORKFLOW_PATH, trusted: scheduledSweep(repo), event: "schedule" });
@@ -271,7 +264,6 @@ const allowedVariable = (env) => {
   return LEVEL_VARIABLE.test(name ?? "") ? name : null;
 };
 
-// True once the listing is in VARIABLES_STATE.
 export async function snapshot({ env = process.env, github } = {}) {
   try {
     github ??= laneClient(env);
@@ -285,8 +277,6 @@ export async function snapshot({ env = process.env, github } = {}) {
   }
 }
 
-// True only when both listings read whole and nothing changed but the level
-// variable.
 export async function check({ env = process.env, github } = {}) {
   let before;
   let after;

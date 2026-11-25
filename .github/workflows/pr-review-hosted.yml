@@ -109,11 +109,6 @@ jobs:
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/defer-config.json"
 
-      # A first attempt defers (cause defer) while the GITHUB_TOKEN window is
-      # projected to run short before the review ends; the stop below names
-      # the reset, and the lost-run reconciler re-runs the run once after it
-      # (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
-      # A re-run attempt never defers.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -124,8 +119,6 @@ jobs:
           defer-job: review
           resolved-config: ${{ runner.temp }}/defer-config.json
 
-      # Skips the run while Actions or npm installs list an outage, with a
-      # logged reason; fails open (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -200,7 +193,6 @@ jobs:
           ref: ${{ steps.tip.outputs.sha }}
           path: .base
           persist-credentials: false
-          # wait-refine.mjs and the modules it imports.
           sparse-checkout: |
             /.github/actions/check-kill-switch/
             /.github/actions/check-trusted-trigger/
@@ -241,10 +233,6 @@ jobs:
   pr-review:
     name: PR Review
     needs: [check-kill-switch, wait-for-refine]
-    # A draft is work in progress and does not spend a review; the
-    # ready_for_review trigger above is what delivers one when it is ready.
-    # Only wait-for-refine's proceed=false (the head moved while it waited) skips
-    # the review.
     if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.check-kill-switch.outputs.proceed == 'true' && needs.wait-for-refine.outputs.proceed != 'false' }}
     # The model jobs narrow this to contents: read and pull-requests: read;
     # only the reusable's status job (the claude-review-status check) writes.
@@ -265,8 +253,6 @@ jobs:
       # The key's credit window every model lane reads (callers.test.mjs
       # KEY_CREDIT_WINDOW); empty runs the reusable's 1-hour default.
       key-credit-window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
-      # The time the key was last replaced: a credit stop before it no longer
-      # holds the key off.
       key-credit-reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
       # Bot senders this lane reviews, by numeric user id: the
       # automation-lanes App, so a commit it pushes to a pull request is
@@ -279,13 +265,8 @@ jobs:
       # bot ids in allowed-bot-sender-ids above also mark issues those bots
       # wrote as trusted closing-issue context.
       allowed-author-ids: '153232337'
-      # Empty, as pr-review.yml's default was: the code lane reviews every
-      # change, documentation included.
       docs-only-paths: ''
-      # Copies scripts/sync-shared-copies.sh generates, read at the merge base:
-      # identical changes to copies of one source are read once, hooks included.
       generated-copies: scripts/shared-copies.txt
-      # Generated data files counted as read, read at the merge base.
       generated-data: scripts/review-generated-data.txt
       media-paths: scripts/review-media-paths.txt
       binary-allowlist: scripts/review-binary-allowlist.txt

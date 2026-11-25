@@ -36,21 +36,14 @@ export const LIMIT_DEFAULTS = Object.freeze({
 });
 const ZERO_ALLOWED = new Set(["turn-cap-restarts", "stop-retries", "sweep-gap-minutes"]);
 
-// Every leaf, each set integer within its range over its default.
 export const resolveLimits = (limits) =>
   overDefaults(LIMIT_DEFAULTS, limits, (set, key) => Number.isInteger(set) && set >= (ZERO_ALLOWED.has(key) ? 0 : 1));
 
-// The limits in resolve-config's output file, the admission leaves included;
-// the defaults when it is absent or unreadable.
 export function readLimits(path) {
   const limits = readConfig(path)?.limits;
   return { ...resolveLimits(limits), ...resolveAdmission(limits), "stranded-backoff-hours": resolveStrandedBackoff(limits?.["stranded-backoff-hours"]) };
 }
 
-// The `limits.stranded-backoff-hours` leaf: per cause work-unblock's sweep
-// re-fires a stranded issue for, the base hours of its backoff, doubled once
-// per re-fire already counted and held at STRANDED_BACKOFF_MAX; kill-switch's
-// hours are a flat wait that never doubles.
 export const STRANDED_BACKOFF_MAX = 24;
 export const STRANDED_BACKOFF_DEFAULTS = Object.freeze({
   "no-run": 3,
@@ -60,17 +53,12 @@ export const STRANDED_BACKOFF_DEFAULTS = Object.freeze({
   "kill-switch": 3,
 });
 
-// Every cause, each set whole number of hours from 1 to STRANDED_BACKOFF_MAX
-// over its default.
 export const resolveStrandedBackoff = (hours) =>
   overDefaults(STRANDED_BACKOFF_DEFAULTS, hours, (set) => Number.isInteger(set) && set >= 1 && set <= STRANDED_BACKOFF_MAX);
 
 const finite = (value) => typeof value === "number" && Number.isFinite(value);
 const positive = (value) => finite(value) && value > 0;
 
-// The two `limits` leaves that pace new issue-lane admissions (check-wip-cap's
-// queued cap). They are fractions, so resolveLimits, which keeps whole
-// numbers only, leaves them out.
 export const ADMISSION_DEFAULTS = Object.freeze({
   "admission-factor": 0.8,
   "admission-min-per-hour": 1,
@@ -80,13 +68,8 @@ const ADMISSION_VALID = {
   "admission-min-per-hour": (value) => finite(value) && value >= 0 && value <= 100,
 };
 
-// Both admission leaves, each valid set value over its default.
 export const resolveAdmission = (limits) => overDefaults(ADMISSION_DEFAULTS, limits, (set, key) => ADMISSION_VALID[key](set));
 
-// The `wip` leaf of pr-pipeline.yaml: the issue lane's WIP cap derived from
-// the lane merge rate, the opened-to-merged ratio, the held-PR buffer and its age
-// alarm, and the date from which the lane pauses over the WIP cap. resolve-config
-// passes the leaf through as set; this is the one copy of its defaults.
 export const WIP_DEFAULTS = Object.freeze({
   "target-lead-time-hours": 2,
   "min-cap": 1,
@@ -107,18 +90,12 @@ const WIP_VALID = {
   "pause-from": (value) => value === "" || (typeof value === "string" && Number.isFinite(Date.parse(value))),
 };
 
-// Every wip leaf, each valid set value over its default.
 export const resolveWip = (wip) => overDefaults(WIP_DEFAULTS, wip, (set, key) => WIP_VALID[key](set));
 
-// The wip leaf in resolve-config's output file; the defaults when it is absent
-// or unreadable.
 export function readWip(path) {
   return resolveWip(readConfig(path)?.wip);
 }
 
-// When a limit stop at `from` may restart: its stated reset (else the
-// fallback), held between the clamp's bounds after the stop, so a reset in the
-// past cannot start a tight restart loop and one far off cannot park the work.
 export const clampReset = (resets, from, limits = LIMIT_DEFAULTS) =>
   Math.min(
     Math.max(resets ?? from + limits["fallback-reset"] * HOUR_MS, from + limits["reset-clamp-min"] * HOUR_MS),
