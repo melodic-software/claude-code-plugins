@@ -4923,6 +4923,21 @@ jobs:
             [ -n "${STANDARDS_DIR:-}" ] || return 1
             printf '%s\n' "$STANDARDS_DIR/components/trusted-actors/trusted-actors.json"
           }
+          # verify_judged <verify-authors> <agent-identity> prints whether
+          # pr-verify judges the author of the pull request on stdin, by the
+          # hold config's merge-holds.mjs authorSkip, and fails when it cannot.
+          verify_judged() {
+            local list
+            list=$(trusted_list) || return 1
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [authors, identity, list, module] = process.argv.slice(1);
+              const { authorSkip } = await import(pathToFileURL(module).href);
+              const ids = JSON.parse(readFileSync(list, "utf8")).actors.map((actor) => actor.id);
+              console.log(authorSkip(JSON.parse(readFileSync(0, "utf8")).user, authors, identity, ids) === null);' \
+              "$1" "$2" "$list" "${BASE_CONFIG:-}/.github/scripts/pr-merge/merge-holds.mjs"
+          }
           # trusted_humans sets actors to the trusted-actor list (trusted_list)
           # and humans to its `human` entries' numeric ids, space-separated, or
           # names why it cannot and fails.
@@ -4999,7 +5014,7 @@ jobs:
           # The api-budget gh wrapper too: every `gh api` of a sourcing step,
           # gh_read's included, leaves its rate-limit reading for the notices
           # the job's last step writes.
-          { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget trusted_list trusted_humans lane_holds; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
+          { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget trusted_list verify_judged trusted_humans lane_holds; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
 
       # THE RUNNER TAIL OF EACH MERGE-GROUP JOB: seconds from a job's last step
       # to its completion, the part of its timeout no step can shorten (see the
@@ -6382,25 +6397,10 @@ jobs:
             exit 0
           fi
           echo "lanes=false" >>"$GITHUB_OUTPUT"
-          # Whether pr-verify judges the author: resolve-pr.mjs resolvePull's
-          # dependency-manager skip, then its merge.verify-authors test, word for
-          # word as the lanes-hold step runs it.
-          # shellcheck disable=SC2016 # jq, not shell
           if [ ! -d "${BASE_CONFIG:-}" ] ||
             ! authors=$(yq -er '.merge."verify-authors" // "lane"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
             ! identity=$(yq -er '.merge."agent-identity" // ""' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
-            ! judged=$(jq -r --arg authors "$authors" --arg identity "$identity" --slurpfile list "$(trusted_list)" '
-              def key: tostring | gsub("^\\s+|\\s+$"; "") | ascii_downcase | sub("\\[bot\\]$"; "");
-              .user as $user
-              | ($user.type == "Bot" and ($user.login // "" | tostring | ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; "")
-                  | IN("dependabot", "dependabot-preview", "renovate", "renovate-bot"))) as $manager
-              | (($identity | key) != "" and $user.type == "Bot" and ($user.login // "" | key) == ($identity | key)) as $lane
-              | (($user.type == "User" or $user.type == "Bot") and any($list[0].actors[]; .id == $user.id)) as $owner
-              | if $manager then false
-                elif $authors == "any" then true
-                elif $authors == "lane-or-owner" then $lane or $owner
-                elif $authors == "lane" then $lane
-                else false end' <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
+            ! judged=$(verify_judged "$authors" "$identity" <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
             echo "#$pr is not the lanes App's, and whether pr-verify judges its author is not read here; the verdict-read steps run."
             exit 0
           fi
@@ -6708,25 +6708,9 @@ jobs:
           if ! jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
             lanes=false
             judged=false
-            # In the queue, whether pr-verify judges the author: resolve-pr.mjs
-            # resolvePull's dependency-manager skip, then its
-            # merge.verify-authors test, word for word as the author step runs
-            # it. A config that does not read fails closed.
             if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-              # shellcheck disable=SC2016 # jq, not shell
               if ! authors=$(yq -er '.merge."verify-authors" // "lane"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
-                ! judged=$(jq -r --arg authors "$authors" --arg identity "$identity" --slurpfile list "$(trusted_list)" '
-                  def key: tostring | gsub("^\\s+|\\s+$"; "") | ascii_downcase | sub("\\[bot\\]$"; "");
-                  .user as $user
-                  | ($user.type == "Bot" and ($user.login // "" | tostring | ascii_downcase | sub("^app/"; "") | sub("\\[bot\\]$"; "")
-                      | IN("dependabot", "dependabot-preview", "renovate", "renovate-bot"))) as $manager
-                  | (($identity | key) != "" and $user.type == "Bot" and ($user.login // "" | key) == ($identity | key)) as $lane
-                  | (($user.type == "User" or $user.type == "Bot") and any($list[0].actors[]; .id == $user.id)) as $owner
-                  | if $manager then false
-                    elif $authors == "any" then true
-                    elif $authors == "lane-or-owner" then $lane or $owner
-                    elif $authors == "lane" then $lane
-                    else false end' <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
+                ! judged=$(verify_judged "$authors" "$identity" <<<"$pull") || [[ ! $judged =~ ^(true|false)$ ]]; then
                 echo "::error::cannot read whether pr-verify judges the author of #$pr from merge.verify-authors in the hold config and the standards checkout's trusted-actor list; re-run this run."
                 exit 1
               fi
