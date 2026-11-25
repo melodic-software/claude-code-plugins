@@ -297,6 +297,12 @@ kitTest('parseReply reads none, a finding, and rejects malformed or overlong rep
   expect(parseReply('no labels here')).toEqual({ kind: 'unparsable' })
 })
 
+kitTest('parseReply stays linear on a long run of asterisks', async () => {
+  const started = Date.now()
+  expect(parseReply(`${'*'.repeat(5000)}x\n${'*'.repeat(5000)}`)).toEqual({ kind: 'unparsable' })
+  expect(Date.now() - started).toBeLessThan(1000)
+})
+
 kitTest('checksToSkipAfterIgnored: free for two ignores, then doubles to a cap of 16', async () => {
   expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(checksToSkipAfterIgnored)).toEqual([0, 0, 0, 1, 2, 4, 8, 16, 16])
 })

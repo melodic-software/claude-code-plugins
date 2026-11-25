@@ -54,7 +54,7 @@ const clean = (text: string) =>
   text.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
 
 const field = (lines: readonly string[], label: string) => {
-  const re = new RegExp(`^(?:[-*>\\s]|\\*\\*)*${label}\\s*:\\s*(?:\\*\\*)?\\s*(.*)$`, 'i')
+  const re = new RegExp(`^[-*>\\s]*${label}\\s*:\\s*(?:\\*\\*)?\\s*(.*)$`, 'i')
   for (const line of lines) {
     const m = re.exec(line)
     if (m) return (m[1] ?? '').trim().replace(/^["'`]|["'`]$/g, '').trim()

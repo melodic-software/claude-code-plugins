@@ -9,6 +9,10 @@ bump: major
 - At each interactive session start, a SessionStart hook analyzes up to two ended sessions that got no live checks, such as headless lanes, with the existing headless analysis.
 - The plugin now declares `engines["claude-code"]` `>=2.1.331`.
 
+### Changed
+
+- If you already turned `observer_enabled` on, this update starts the live step checks in your interactive sessions, which use your session's model usage. Set `observer_step_check` off to keep only the catch-up.
+
 ### Removed
 
 - The detached transcript tailer that polled each session for up to 24 hours, with `observer_poll_seconds` and `observer_max_seconds`. `observer_idle_seconds` now sets how long a transcript must be unchanged before the catch-up treats its session as ended.
