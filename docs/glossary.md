@@ -482,8 +482,9 @@ a direct conflict they win over personal standards
 **personal standards**
 
 The standards one person keeps for themselves: `~/.claude/standards/` for every project, and
-gitignored `*.local.md` files for one repository. They may add to or tighten team standards, never
-override them ([standards contract](contracts/standards/README.md#layers-and-precedence)).
+gitignored `*.local.md` files under the standards directory for one repository. They may add to or
+tighten team standards; on a direct conflict the team standard wins
+([standards contract](contracts/standards/README.md#layers-and-precedence)).
 
 Avoid: your additions
 
