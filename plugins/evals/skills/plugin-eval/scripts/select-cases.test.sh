@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/evals/skills/plugin-eval/scripts/select_test_helpers.py .github/scripts/plugin-eval/select-plugins.mjs
+# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/skills/plugin-eval/scripts/no_run_text.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/evals/skills/plugin-eval/scripts/select_test_helpers.py .github/scripts/plugin-eval/select-plugins.mjs
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
