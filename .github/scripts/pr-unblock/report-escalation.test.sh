@@ -152,7 +152,12 @@ writes() { grep -cE '^(POST|PATCH)' "$STUB/requests" || true; }
 first_body() { sed '/^=====$/q' "$STUB/bodies" | grep -v '^=====$'; }
 visible() { first_body | sed '/^<details>$/,$d' | grep -v '^<!-- .* -->$'; }
 collapsed() { first_body | sed -n '/^<details>$/,/^<\/details>$/p'; }
-within_limits() { (($(visible | wc -l) <= 15 && $(visible | wc -c) <= 1500)) && echo yes || echo "no: $(visible | wc -l) lines, $(visible | wc -c) characters"; }
+within_limits() {
+  local lines chars
+  lines=$(visible | wc -l)
+  chars=$(visible | wc -c)
+  if ((lines <= 15 && chars <= 1500)); then echo yes; else echo "no: $lines lines, $chars characters"; fi
+}
 why_of() { jq -r --arg r "$1" '.[$r].why' "$ROUTES"; }
 comment() { printf '[{"id":%s,"body":%s,"user":{"login":"%s","type":"%s"}}]' "${4:-1}" "$(jq -Rs . <<<"$1")" "$2" "$3"; }
 bot_marker() { comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$1 -->"$'\nbody\n\n- Reason: `'"${2:-feedback-question-design}"'`' 'melodic-automation-lanes[bot]' Bot; }
@@ -621,7 +626,8 @@ check "question, captured answer for pull request 19095: the collapsed block lis
 - `.github/scripts/pr-unblock/report-escalation.test.sh:606`: https://github.com/melodic-software/claude-code-plugins/pull/19095#discussion_r4698916323' \
   "$(collapsed | grep '^- ')"
 check "question: the collapsed block closes the comment" '</details>' "$(first_body | grep -v '^$' | tail -n 1)"
-check "question: no thread link in the visible part" 0 "$(visible | grep -c discussion_r || true)"
+shown=$(visible)
+check "question: no thread link in the visible part" 0 "$(grep -c discussion_r <<<"$shown" || true)"
 check "question: within 15 visible lines and 1,500 characters" yes "$(within_limits)"
 check "question: label then comment" "$LABEL_THEN_COMMENT" "$(grep '^POST' "$STUB/requests")"
 
@@ -629,7 +635,8 @@ setup '[]' '[]'
 touch "$STUB/fail_graphql"
 run feedback-question-intent
 check "question, threads unreadable: still escalates" 0 "$RC"
-check "question, threads unreadable: says so in the collapsed block" 1 "$(collapsed | grep -c 'could not be read' || true)"
+folded=$(collapsed)
+check "question, threads unreadable: says so in the collapsed block" 1 "$(grep -c 'could not be read' <<<"$folded" || true)"
 
 ROUND='<!-- pr-unblock:address-feedback-round -->'
 rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')
