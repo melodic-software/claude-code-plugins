@@ -375,11 +375,15 @@ export function laterRuns(env) {
   if (!env.CHUNK_OUTCOMES) return [];
   requireEnv(env, ["CHUNKS_DIR"]);
   const outcomes = env.CHUNK_OUTCOMES.split(",");
-  const classes = String(env.CHUNK_CLASSES ?? "").split(",");
+  let classes = null;
+  try {
+    classes = JSON.parse(env.CHUNK_CLASSES ?? "");
+  } catch {}
+  const classed = Array.isArray(classes) && classes.length === outcomes.length && classes.every((name) => typeof name === "string");
   return outcomes.map((outcome, i) => {
     const dir = path.join(env.CHUNKS_DIR, `chunk-${i + 2}`);
     const ran = outcome === "success" || outcome === "failure";
-    const scanStop = outcome === "failure" && classes.length === outcomes.length && classes[i] === "";
+    const scanStop = outcome === "failure" && classed && classes[i] === "";
     const execution = path.join(dir, "execution.json");
     return { outcome: ran ? outcome : "", execution: (outcome === "success" || scanStop) && existsSync(execution) ? execution : "", log: ran ? path.join(dir, "log.jsonl") : "" };
   });

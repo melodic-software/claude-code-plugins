@@ -1204,7 +1204,7 @@ function laterChunks(count, outputOf, outcomeOf = () => "success", classOf = () 
       JUDGE_OUTCOMES: "success\n",
       CHUNKS_DIR: path.join(dir, "chunks"),
       CHUNK_OUTCOMES: Array.from({ length: count - 1 }, (_, i) => outcomeOf(i + 2)).join(","),
-      CHUNK_CLASSES: Array.from({ length: count - 1 }, (_, i) => classOf(i + 2)).join(","),
+      CHUNK_CLASSES: JSON.stringify(Array.from({ length: count - 1 }, (_, i) => classOf(i + 2))),
       RESULTS_DIR: path.join(dir, "results"),
       PART_BYTES: "15000",
       SPEC_TEXT_FILE: write("spec-text.json", '[{"body": "deliver x"}]\n'),
@@ -1275,10 +1275,12 @@ test("a later chunk that failed with a lane class, or with no class list, left n
     ["credit-stop", (k) => (k === 3 ? "credit-stop" : ""), undefined],
     ["no class list", () => "", "CHUNK_CLASSES"],
     ["a short class list", () => "", "short"],
+    ["a comma list", () => "", "comma list"],
   ]) {
     const { env } = laterChunks(4, () => CHUNK_PASS, failedThird, classOf);
     if (drop === "CHUNK_CLASSES") delete env.CHUNK_CLASSES;
-    if (drop === "short") env.CHUNK_CLASSES = ",";
+    if (drop === "short") env.CHUNK_CLASSES = '["", ""]';
+    if (drop === "comma list") env.CHUNK_CLASSES = ",,";
     checkLaterChunks(env);
     assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "fail=false\n", label);
     assert.throws(() => writeChunkResults(env), /chunk 3 of 4: the chunk left no run/, label);
@@ -1287,6 +1289,19 @@ test("a later chunk that failed with a lane class, or with no class list, left n
   const scanStop = laterChunks(4, () => CHUNK_PASS, failedThird);
   checkLaterChunks(scanStop.env);
   assert.equal(readFileSync(scanStop.env.GITHUB_OUTPUT, "utf8"), "fail=true\n", "the credential scan stop still counts");
+  const failedSecond = (k) => (k === 2 ? "failure" : "success");
+  for (const [label, value] of [["unset", undefined], ["empty", ""]]) {
+    const lone = laterChunks(2, () => CHUNK_PASS, failedSecond);
+    if (value === undefined) delete lone.env.CHUNK_CLASSES;
+    else lone.env.CHUNK_CLASSES = value;
+    checkLaterChunks(lone.env);
+    assert.equal(readFileSync(lone.env.GITHUB_OUTPUT, "utf8"), "fail=false\n", `one later chunk, class list ${label}`);
+    assert.throws(() => writeChunkResults(lone.env), /chunk 2 of 2: the chunk left no run/, label);
+  }
+  const loneStop = laterChunks(2, () => CHUNK_PASS, failedSecond);
+  assert.equal(loneStop.env.CHUNK_CLASSES, '[""]');
+  checkLaterChunks(loneStop.env);
+  assert.equal(readFileSync(loneStop.env.GITHUB_OUTPUT, "utf8"), "fail=true\n", "one later chunk with an empty class is a scan stop");
 });
 
 test("laterRuns names the files of each later chunk that ran, and checkKeyLeg needs every one of their logs", () => {
