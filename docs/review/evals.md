@@ -36,10 +36,16 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - Except a routing-only `description` or `when_to_use` edit, which runs nothing: with its routing
   clauses removed (a `Not for <case>: /plugin:skill`, `Skip when ... /plugin:skill` or
   `prefer /plugin:skill` clause, added, removed or reworded), every skill token treated as one
-  (`plugin:skill` to `/plugin:skill`, or a renamed skill), and each term swapped for the word
-  [`docs/glossary.md`](../glossary.md) "Rejected terms" already decided, the old and new text are
-  equal. `select` lists the skill under `no-run-exempt:` with that reason (owner, 2026-11-25,
-  Q2212).
+  (`plugin:skill` to `/plugin:skill`, or a renamed skill), and decided-term swaps (next rule)
+  removed, the old and new text are equal. `select` lists the skill under `no-run-exempt:` with
+  that reason (owner, 2026-11-25, Q2212).
+- A decided-term swap runs nothing, wherever `select` looks: a change in which every hunk only
+  swaps a term for the word [`docs/glossary.md`](../glossary.md) "Rejected terms" decided (or that
+  word's last word, so `--lane` becomes `--area` for **focus area**), in either number, is not a
+  cut. That holds for a skill body, reference or agent hunk, a frontmatter value such as
+  `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
+  fixture or sample, and a renamed file whose path and content differ only by such swaps. A hunk
+  with any other change keeps the rules above (owner, 2026-11-25, Q2212).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that

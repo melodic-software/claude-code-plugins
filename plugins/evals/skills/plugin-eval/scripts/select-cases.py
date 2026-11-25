@@ -475,6 +475,16 @@ def select_cases(repo_root, diff_base, merge_base):
     modified_dispatchers = []
     skill_or_agent_plugins = set()
 
+    swap_only_paths = set()
+
+    def swap_only(code, rel_path):
+        return rel_path in swap_only_paths or (
+            code == "M"
+            and select_mapping.is_swap_only_file_change(
+                repo_root, merge_base, rel_path, rel_path
+            )
+        )
+
     expanded = []
     for code, path_a, path_b in entries:
         if code == "R" and path_b is not None:
@@ -497,12 +507,26 @@ def select_cases(repo_root, diff_base, merge_base):
                     changed_agents[old_agent] = "cut"
                     skill_or_agent_plugins.add(old_agent[0])
                 continue
+            if select_mapping.is_swap_only_file_change(repo_root, merge_base, path_a, path_b):
+                swap_only_paths.add(path_b)
+                expanded.append(("M", path_b))
+                continue
             expanded.append(("D", path_a))
             expanded.append(("A", path_b))
         elif code == "C" and path_b is not None:
             expanded.append(("A", path_b))
         else:
             expanded.append((code, path_a))
+
+    for old_path, new_path in select_mapping.swap_rename_pairs(
+        repo_root,
+        merge_base,
+        [p for c, p in expanded if c == "D" and p.startswith("plugins/")],
+        [p for c, p in expanded if c == "A" and p.startswith("plugins/")],
+    ):
+        expanded.remove(("D", old_path))
+        expanded[expanded.index(("A", new_path))] = ("M", new_path)
+        swap_only_paths.add(new_path)
 
     for code, rel_path in expanded:
         parts = rel_path.split("/")
@@ -513,7 +537,8 @@ def select_cases(repo_root, diff_base, merge_base):
         ed_name = eval_dirs.get(plugin, "evals")
 
         if select_mapping._is_plugin_wide(rel_in_plugin):
-            plugin_wide[plugin].add(rel_path)
+            if not swap_only(code, rel_path):
+                plugin_wide[plugin].add(rel_path)
             continue
 
         if parts[2] == "skills" and len(parts) >= 4:
@@ -603,7 +628,7 @@ def select_cases(repo_root, diff_base, merge_base):
                     break
             if owning_case is not None:
                 inner = rel_path[len(owning_case.rel_dir) + 1 :]
-                if inner.startswith("samples/"):
+                if inner.startswith("samples/") or swap_only(code, rel_path):
                     no_run_cases[plugin].add(owning_case)
                 elif (
                     inner in ("case.yaml", "prompt.md")
@@ -632,8 +657,9 @@ def select_cases(repo_root, diff_base, merge_base):
                     eval_abs, target_abs, suite_cases, ref_cache=fixture_ref_cache
                 )
                 if cited_cases:
+                    target = no_run_cases if swap_only(code, rel_path) else run_cases
                     for case in cited_cases:
-                        run_cases[plugin].add(case)
+                        target[plugin].add(case)
                 elif os.path.exists(target_abs):
                     unmapped[plugin].add(rel_path)
             continue

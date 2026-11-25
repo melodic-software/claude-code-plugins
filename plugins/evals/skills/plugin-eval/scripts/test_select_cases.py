@@ -695,6 +695,59 @@ class SelectCasesTest(unittest.TestCase):
         self.assertEqual("control-no-fire one-basic one-trigger opt-case", block.get("cases"))
         self.assertEqual("20", block["agent-runs"])
 
+    def _base_with_lane_text(self):
+        self._write_glossary()
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        text = path.read_text(encoding="utf-8").replace(
+            'alpha items."\n', 'alpha items."\nargument-hint: "[--lane <lane>]"\n'
+        )
+        path.write_text(
+            text.replace(
+                "Follow these steps carefully.\n",
+                "Follow these steps carefully.\nHunt one rotated lane at a time.\n",
+            ),
+            encoding="utf-8",
+        )
+        _write(self.repo, "plugins/alpha/evals/one-basic/prompt.md", "/alpha:one check this lane\n")
+        _commit_all(self.repo, "add lane wording")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        return path
+
+    def test_decided_term_swap_in_body_hunk_is_no_run(self):
+        path = self._base_with_lane_text()
+        block = self._edit_and_select(path, "rotated lane at", "rotated focus area at")
+        self.assertNotIn("cases", block, "a body hunk that only swaps a decided term runs nothing")
+        self.assertEqual("control-no-fire one-basic one-trigger", block.get("affected-no-run"))
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_decided_term_flag_rename_in_argument_hint_is_no_run(self):
+        path = self._base_with_lane_text()
+        block = self._edit_and_select(path, "[--lane <lane>]", "[--area <area>]")
+        self.assertNotIn(
+            "cases", block, "--lane to --area takes the last word of the decided focus area"
+        )
+        self.assertEqual("control-no-fire one-basic one-trigger", block.get("affected-no-run"))
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_decided_term_swap_in_eval_prompt_is_no_run(self):
+        self._base_with_lane_text()
+        prompt = self.repo / "plugins/alpha/evals/one-basic/prompt.md"
+        block = self._edit_and_select(prompt, "this lane", "this focus area")
+        self.assertNotIn("cases", block, "a prompt that only swaps a decided term runs nothing")
+        self.assertEqual("one-basic", block.get("affected-no-run"))
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_hunk_with_a_swap_and_another_change_still_runs(self):
+        path = self._base_with_lane_text()
+        block = self._edit_and_select(
+            path, "Hunt one rotated lane at a time.", "Hunt two rotated focus areas at a time."
+        )
+        self.assertEqual(
+            "control-no-fire one-basic one-trigger",
+            block.get("cases"),
+            "one to two is a real change beside the swap, so the hunk is a cut",
+        )
+
     def test_exempt_skill_is_listed_in_json(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         path.write_text(

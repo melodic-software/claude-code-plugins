@@ -10,6 +10,7 @@ import collections
 import difflib
 import functools
 import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -91,7 +92,7 @@ HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
 SKILL_TOKEN_RE = re.compile(r"(?<![\w/:.-])/?[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?![\w-])")
 ROUTING_CLAUSE_RE = re.compile(r"^(?:not for|skip)\b|\bprefer\b", re.IGNORECASE)
 CLAUSE_SPLIT_RE = re.compile(r"(?<=[.;])\s+")
-WORD_RE = re.compile(r"\w[\w-]*|[^\w\s]")
+SWAP_TOKEN_RE = re.compile(r"[A-Za-z]+|[0-9]+|[^\sA-Za-z0-9]")
 GLOSSARY_PATHS = ("docs/glossary.md", "GLOSSARY.md")
 MAX_DECIDED_TERM_WORDS = 3
 
@@ -226,12 +227,17 @@ def _is_routing_heading_rename(old_lines, new_lines):
 
 
 def _diff_has_cut_hunks(
-    diff_text, skip_old_lines_upto=0, skip_old_ranges=(), allow_heading_renames=False
+    diff_text,
+    skip_old_lines_upto=0,
+    skip_old_ranges=(),
+    allow_heading_renames=False,
+    pairs=(),
 ):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
     its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion. A hunk
     whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut,
-    nor, with `allow_heading_renames`, one that only renames routing headings."""
+    nor one that only swaps glossary-decided terms (`pairs`), nor, with `allow_heading_renames`,
+    one that only renames routing headings."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
@@ -251,10 +257,12 @@ def _diff_has_cut_hunks(
         elif hunks and line.startswith("+") and not line.startswith("+++"):
             hunks[-1][2].append(line[1:].split())
             hunks[-1][4].append(line[1:])
-    if allow_heading_renames:
-        for hunk in hunks:
-            if hunk[0] and _is_routing_heading_rename(hunk[3], hunk[4]):
-                hunk[0] = False
+    for hunk in hunks:
+        if hunk[0] and (
+            (allow_heading_renames and _is_routing_heading_rename(hunk[3], hunk[4]))
+            or is_term_swap_only("\n".join(hunk[3]), "\n".join(hunk[4]), pairs)
+        ):
+            hunk[0] = False
 
     def is_cut(old, new_lines):
         """Old words must survive in order; a flip word inserted into a line that keeps old words
@@ -302,6 +310,7 @@ def diff_has_cut(
         skip_old_lines_upto=skip_old_lines_upto,
         skip_old_ranges=skip_old_ranges,
         allow_heading_renames=allow_heading_renames,
+        pairs=decided_term_pairs(repo_root),
     )
 
 
@@ -316,7 +325,7 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     )
     if done.returncode != 0:
         return True
-    return _diff_has_cut_hunks(done.stdout)
+    return _diff_has_cut_hunks(done.stdout, pairs=decided_term_pairs(repo_root))
 
 
 def _no_run_section_lines(text):
@@ -410,7 +419,7 @@ def _is_subsequence(old_tokens, new_tokens):
 
 
 def _term_words(text):
-    return tuple(word.lower() for word in re.findall(r"\w[\w-]*", text))
+    return tuple(word.lower() for word in SWAP_TOKEN_RE.findall(re.sub(r"[`*\"']", "", text)))
 
 
 def _parse_rejected_terms(text):
@@ -463,26 +472,35 @@ def _routing_free_tokens(text):
         for clause in CLAUSE_SPLIT_RE.split(text.strip())
         if not (SKILL_TOKEN_RE.search(clause) and ROUTING_CLAUSE_RE.search(clause))
     ]
-    return WORD_RE.findall(SKILL_TOKEN_RE.sub(" SKILL_TOKEN ", " ".join(kept)))
+    return _swap_tokens(SKILL_TOKEN_RE.sub(" SKILLTOKEN ", " ".join(kept)))
 
 
 def _plural(words):
     return words[:-1] + (words[-1] + "s",)
 
 
+def _swap_forms(rejected, decided):
+    """Old and new word forms one swap may take: the decided term, or its last word alone (as a
+    `--lane` flag becomes `--area` for `focus area`), either side singular or plural."""
+    news = [decided] + ([decided[-1:]] if len(decided) > 1 else [])
+    for old in (rejected, _plural(rejected)):
+        for new in news:
+            yield old, new
+            yield old, _plural(new)
+
+
 def _is_term_swap(old_chunk, new_chunk, new_tokens, at, pairs):
     """The old words are a rejected term and the new ones its decided term, or the rejected term
-    was dropped beside the decided one already there (`concern lane` to `concern`)."""
-    old_words = tuple(word.lower() for word in old_chunk)
-    new_words = tuple(word.lower() for word in new_chunk)
+    was dropped beside the decided one already there (`concern lane` to `concern`). A hyphen
+    joining the term to a neighbor may go with it (`named-lane` to `named focus area`)."""
+    old_words = tuple(word.lower() for word in old_chunk if word != "-")
+    new_words = tuple(word.lower() for word in new_chunk if word != "-")
+    if new_words:
+        return _is_swap_run(old_words, new_words, pairs)
     lowered = [word.lower() for word in new_tokens]
     for rejected, decided in pairs:
-        for old_form, new_form in ((rejected, decided), (_plural(rejected), _plural(decided))):
-            if old_words != old_form:
-                continue
-            if new_words == new_form:
-                return True
-            if not new_words and new_form in (
+        for old_form, new_form in _swap_forms(rejected, decided):
+            if old_words == old_form and new_form in (
                 tuple(lowered[max(0, at - len(new_form)) : at]),
                 tuple(lowered[at : at + len(new_form)]),
             ):
@@ -490,16 +508,81 @@ def _is_term_swap(old_chunk, new_chunk, new_tokens, at, pairs):
     return False
 
 
-def is_routing_only_change(old, new, pairs):
-    """True when, with routing clauses and decided-term swaps removed, the two texts are equal."""
-    old_tokens = _routing_free_tokens(old)
-    new_tokens = _routing_free_tokens(new)
+def _is_swap_run(old_words, new_words, pairs):
+    """The old words become the new ones by one or more swaps in a row, words shared by both
+    sides kept (the diff joins adjacent swaps into one change)."""
+    if not old_words or not new_words:
+        return not old_words and not new_words
+    if old_words[0] == new_words[0] and _is_swap_run(old_words[1:], new_words[1:], pairs):
+        return True
+    for rejected, decided in pairs:
+        for old_form, new_form in _swap_forms(rejected, decided):
+            if (
+                old_words[: len(old_form)] == old_form
+                and new_words[: len(new_form)] == new_form
+                and _is_swap_run(old_words[len(old_form) :], new_words[len(new_form) :], pairs)
+            ):
+                return True
+    return False
+
+
+def _differs_only_by_swaps(old_tokens, new_tokens, pairs):
     matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens, autojunk=False)
     return all(
         tag == "equal"
         or _is_term_swap(old_tokens[i1:i2], new_tokens[j1:j2], new_tokens, j1, pairs)
         for tag, i1, i2, j1, j2 in matcher.get_opcodes()
     )
+
+
+def is_term_swap_only(old, new, pairs):
+    """True when the texts differ and every difference swaps a glossary-rejected term for its
+    decided one."""
+    return bool(pairs) and old != new and _differs_only_by_swaps(
+        _swap_tokens(old), _swap_tokens(new), pairs
+    )
+
+
+def _swap_tokens(text):
+    """Words and punctuation, with JSON string escapes (`\\n`, `\\"`) read as separators so the
+    word after one stays whole."""
+    return SWAP_TOKEN_RE.findall(re.sub(r'\\[ntr"]', " ", text))
+
+
+def swap_rename_pairs(repo_root, merge_base, deleted, added):
+    """(deleted, added) path pairs git did not pair as a rename whose path and content differ only
+    by decided-term swaps."""
+    pairs = []
+    unused = list(added)
+    for old_path in deleted:
+        for new_path in unused:
+            if is_swap_only_file_change(repo_root, merge_base, old_path, new_path):
+                pairs.append((old_path, new_path))
+                unused.remove(new_path)
+                break
+    return pairs
+
+
+def is_routing_only_change(old, new, pairs):
+    """True when, with routing clauses and decided-term swaps removed, the two texts are equal."""
+    return _differs_only_by_swaps(_routing_free_tokens(old), _routing_free_tokens(new), pairs)
+
+
+def is_swap_only_file_change(repo_root, merge_base, old_path, new_path):
+    """True when `old_path` at merge_base and `new_path` at HEAD differ, in path and content,
+    only by decided-term swaps."""
+    pairs = decided_term_pairs(repo_root)
+    if old_path != new_path and not is_term_swap_only(old_path, new_path, pairs):
+        return False
+    old_text = git_show(repo_root, merge_base, old_path)
+    new_text = git_show(repo_root, "HEAD", new_path)
+    if old_text is None or new_text is None:
+        return False
+    return old_text == new_text or is_term_swap_only(old_text, new_text, pairs)
+
+
+def _value_text(value):
+    return value if isinstance(value, str) else json.dumps(value, sort_keys=True)
 
 
 def _classify_description_change(base_fm, head_fm, pairs=()):
@@ -530,13 +613,18 @@ def _classify_description_change(base_fm, head_fm, pairs=()):
     return status
 
 
-def _classify_other_frontmatter(base_fm, head_fm):
+def _classify_other_frontmatter(base_fm, head_fm, pairs=()):
+    """An added key, or a value changed only by decided-term swaps, is additive."""
     base_other = {k: v for k, v in base_fm.items() if k not in DESCRIPTION_KEYS}
     head_other = {k: v for k, v in head_fm.items() if k not in DESCRIPTION_KEYS}
     if base_other == head_other:
         return None
     for key, old_val in base_other.items():
-        if key not in head_other or head_other[key] != old_val:
+        new_val = head_other.get(key)
+        if new_val != old_val and (
+            new_val is None
+            or not is_term_swap_only(_value_text(old_val), _value_text(new_val), pairs)
+        ):
             return "cut"
     return "additive"
 
@@ -559,10 +647,9 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
     base_fm = _parse_frontmatter_loose(base_fm_raw)
     head_fm = _parse_frontmatter_loose(head_fm_raw)
 
-    desc_class = _classify_description_change(
-        base_fm, head_fm, decided_term_pairs(repo_root)
-    )
-    other_fm_class = _classify_other_frontmatter(base_fm, head_fm)
+    pairs = decided_term_pairs(repo_root)
+    desc_class = _classify_description_change(base_fm, head_fm, pairs)
+    other_fm_class = _classify_other_frontmatter(base_fm, head_fm, pairs)
 
     body_class = None
     if base_body != head_body:
