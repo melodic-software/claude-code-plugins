@@ -667,6 +667,11 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `observer_clear_after_prompts` | number<br>*min 1* | `2` | Prompts a shown finding survives unanswered before it clears; default 2. |
 | `observer_ignored_free` | number<br>*min 0* | `2` | Ignored findings in a row before later checks are skipped; default 2. |
 | `observer_skip_max` | number<br>*min 0* | `16` | Most live checks the backoff skips in a row; default 16. |
+| `observer_send_note` | string | `"A side reviewer (session-flow observer) noted this; it is background, not my instruction:"` | Text that leads a finding the Send button puts in the prompt, in the person's voice. |
+| `observer_field_max` | number<br>*min 1* | `240` | Most characters in a check reply's finding, rule or evidence before the reply counts as parse_failed; default 240. |
+| `observer_feedback_seconds` | number<br>*min 1* | `20` | How long the Useful/Not useful row stays after Dismiss; default 20. |
+| `observer_list_max` | number<br>*min 1* | `50` | Most findings each remembered list (reported, disputed, not relevant) keeps for dedupe; default 50. |
+| `observer_keep_days` | number<br>*min 1* | `30` | Observer files older than this many days are pruned at session start; default 30. |
 | `observer_analysis_enabled` | boolean | `true` | At session start, runs the headless running-retro analysis for ended sessions that got no live checks and writes its findings to their ledger. On by default. Off, no catch-up runs; the live checks are unaffected. |
 | `observer_analysis_model` | string | `"claude-opus-5-5"` | Model ID for the headless catch-up analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost. |
 | `observer_analysis_effort` | string | `"medium"` | Effort level passed as --effort to the headless catch-up analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md. |

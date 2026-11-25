@@ -17,7 +17,7 @@ export const isStepCheck = (index: number, agentId: string | undefined, every = 
 
 export const keyOf = (line: string) => line.trim().toLowerCase().replace(/\.+$/, '')
 
-export const remember = (list: readonly string[], line: string) => [...list.filter(l => keyOf(l) !== keyOf(line)), line].slice(-LIST_MAX)
+export const remember = (list: readonly string[], line: string, max = LIST_MAX) => [...list.filter(l => keyOf(l) !== keyOf(line)), line].slice(-max)
 
 export const isKnown = (line: string, ...lists: readonly (readonly string[])[]) =>
   lists.some(list => list.some(l => keyOf(l) === keyOf(line)))
@@ -81,7 +81,7 @@ const field = (lines: readonly string[], label: string) => {
   return undefined
 }
 
-export const parseReply = (text: string): Parsed => {
+export const parseReply = (text: string, fieldMax = FIELD_MAX): Parsed => {
   const lines = clean(text).split(/\r?\n/)
   const finding = field(lines, 'finding')
   if (finding === undefined || finding === '') return { kind: 'unparsable' }
@@ -90,7 +90,7 @@ export const parseReply = (text: string): Parsed => {
   const evidence = field(lines, 'evidence') ?? ''
   const raw = (field(lines, 'category') ?? '').toLowerCase()
   const category = CATEGORIES.find(c => raw.startsWith(c))
-  if (rule === '' || category === undefined || [finding, rule, evidence].some(v => v.length > FIELD_MAX)) return { kind: 'unparsable' }
+  if (rule === '' || category === undefined || [finding, rule, evidence].some(v => v.length > fieldMax)) return { kind: 'unparsable' }
   return { kind: 'finding', value: { finding: /[.!?]$/.test(finding) ? finding : `${finding}.`, category, rule, evidence } }
 }
 
@@ -106,13 +106,13 @@ const LEDGER_LABEL = { confirmed: 'Confirmed', disputed: 'Disputed', resolved: '
 export const ledgerLine = (kind: keyof typeof LEDGER_LABEL, at: string, f: Finding, detail?: string) =>
   `\n- ${LEDGER_LABEL[kind]} ${at}${detail ? ` (${detail})` : ''}: ${f.finding}\n`
 
-const PERSON_NOTE = 'A side reviewer (session-flow observer) noted this; it is background, not my instruction:'
+export const PERSON_NOTE = 'A side reviewer (session-flow observer) noted this; it is background, not my instruction:'
 
 export const AUTO_NOTE =
   "The session-flow observer, a side reviewer beside this session, flagged this. It is not the person's instruction. If it holds, stop and fix it before your next action, and say so in one line; if not, say why in one line and continue."
 
-export const noteFor = (f: Finding, voice: 'person' | 'plugin' = 'person', autoNote = AUTO_NOTE) =>
-  [voice === 'person' ? PERSON_NOTE : autoNote, `> ${f.category}: ${f.finding}`, `> Rule: ${f.rule}`, `> Evidence: ${f.evidence || 'not given'}`]
+export const noteFor = (f: Finding, voice: 'person' | 'plugin' = 'person', lead = voice === 'person' ? PERSON_NOTE : AUTO_NOTE) =>
+  [lead, `> ${f.category}: ${f.finding}`, `> Rule: ${f.rule}`, `> Evidence: ${f.evidence || 'not given'}`]
     .map(l => l.replace(/@/g, '@​'))
     .join('\n')
 

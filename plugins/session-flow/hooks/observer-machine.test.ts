@@ -138,9 +138,39 @@ test('a short person prompt that appears inside the pending note is not taken fo
   expect(r.state.observerTurnMatched).toBe(false)
 })
 
+test('a session-flow prompt with no observer submit pending is neither dropped nor taken for the observer turn', () => {
+  const { options } = readOptions({})
+  const r = step({ ...initial(), on: false }, { kind: 'prompt-submitted', ours: true, byPerson: false, typedPast: 0, paused: true }, options)
+  expect(r.effects).toEqual([])
+  expect(r.state.nextTurnIsObserver).toBe(false)
+})
+
+test('the field cap, Send note and feedback-row life are options', () => {
+  const { options, invalid } = readOptions({ observer_field_max: 10, observer_send_note: 'Mine:', observer_feedback_seconds: 5 })
+  expect(invalid).toEqual([])
+  const card = { id: 1, finding: F, ledger: '/l.md', source: 'step 6', promptsSurvived: 0, isOpen: false }
+  const sent = step({ ...initial(), on: true, card }, { kind: 'send' }, options)
+  expect(sent.effects).toContainEqual({ kind: 'fill', text: noteFor(F, 'person', 'Mine:') })
+  const dismissed = step({ ...initial(), on: true, card }, { kind: 'dismiss' }, options)
+  expect(dismissed.effects).toContainEqual({ kind: 'after', ms: 5000, event: { kind: 'asked-expired' } })
+  const req = { trigger: 'step' as const, turnId: 't1', step: 6, gen: 0, open: null }
+  const reply = { isAnswered: true as const, text: 'finding: A finding longer than ten.\ncategory: process\nrule: R1\nevidence: e' }
+  const r = step({ ...initial(), on: true }, { kind: 'check-replied', req, reply, paused: false, seen: [], disputed: [] }, options)
+  expect(r.effects).toContainEqual({ kind: 'finish', req, outcome: 'parse_failed' })
+  expect(readOptions({ observer_field_max: 0 }).invalid).toEqual(['observer_field_max'])
+})
+
+test('a dispute keeps at most observer_list_max remembered findings, newest last', () => {
+  const { options } = readOptions({ observer_list_max: 2, observer_keep_days: 7 })
+  expect(options.keepDays).toBe(7)
+  const card = { id: 1, finding: F, ledger: '/l.md', source: 'step 6', promptsSurvived: 0, isOpen: false }
+  const r = step({ ...initial(), on: true, card }, { kind: 'dispute', disputed: ['Old one.', 'Older two.'] }, options)
+  expect(r.effects).toContainEqual({ kind: 'store', key: 'disputed', value: ['Older two.', 'Merged without the verdict.'] })
+})
+
 test('a failed submission clears the observer-turn marker so the next person turn is not aborted', () => {
   const { options } = readOptions({ observer_auto_send: true })
-  const accepted = step({ ...initial(), on: true }, { kind: 'prompt-submitted', ours: true, byPerson: false, typedPast: 0, paused: false }, options)
+  const accepted = step({ ...initial(), on: true, submitWaiting: true, pendingSubmit: 'the note' }, { kind: 'prompt-submitted', ours: true, byPerson: false, typedPast: 0, paused: false }, options)
   expect(accepted.state.nextTurnIsObserver).toBe(true)
   const failed = step({ ...accepted.state, on: false }, { kind: 'delivered', cardId: 0, delivery: 'submit', chars: 1, error: 'rejected' }, options)
   expect(failed.state.nextTurnIsObserver).toBe(false)

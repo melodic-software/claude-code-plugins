@@ -30,10 +30,10 @@ request, has no tools and writes nothing to the transcript. The prompt asks for 
 four categories (`process`, `decision`, `verification`, `instruction`), each tied to a rule or owner
 decision the session's own instructions or conversation state, and defaults to `finding: none`. The
 reply is labeled lines, parsed leniently; a reply with no rule, an unknown category or a field over
-240 characters counts as `parse_failed`.
+`observer_field_max` (240) characters counts as `parse_failed`.
 
 **Stale and repeated replies.** A reply that arrives after the next turn started, or after the
-session ended, is dropped as `stale`. Findings already reported (the last 50, across sessions) and
+session ended, is dropped as `stale`. Findings already reported (the last `observer_list_max`, default 50, across sessions) and
 findings the person disputed are listed in the prompt and dropped again in code (`deduped`), matched
 case-insensitively without a trailing period.
 
@@ -58,7 +58,7 @@ built-in side agent's band uses `1` to `4` and `0`, and a hotkey two plugins sha
 Nothing reaches the main conversation unless the person sends it or auto-send is on. After Dismiss, one row offers
 the built-in side agent's answers on our hotkeys: `5` That was helpful, `6` Not relevant, `7`
 Couldn't understand, `8` Turn off checks (live checks stop for this session only; `/observer off`
-pauses every session) and `9` Close. It clears itself after 20 seconds; the answer goes to the usage
+pauses every session) and `9` Close. It clears itself after `observer_feedback_seconds` (20); the answer goes to the usage
 file, so `/observer` can show how often findings were worth showing. Not relevant also adds the
 finding to a stored list the next checks are told not to report, nor faults like it; Couldn't
 understand makes every later check ask for plain words. Nothing is sent outside the machine.
@@ -104,7 +104,7 @@ how a day's cost is read, and its presence tells the catch-up this session had l
 
 **Storage and retention.** One usage file per session and per machine, each with one writer, so no
 lock is needed; an agent reads them with `jq` or a line search, no index required. Session start
-deletes every observer file in that folder not written for 30 days: the usage files and the
+deletes every observer file in that folder not written for `observer_keep_days` (30) days: the usage files and the
 catch-up's `observations-*`, `status-*`, `observer-*.log` and `observer-*.lock` files. The catch-up
 only considers transcripts changed in the last 3 days, so a deleted marker never makes it analyze an
 old session again. Each machine (a Windows host and its WSL, for one) keeps its own data
@@ -274,6 +274,11 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | `observer_clear_after_prompts` | `2` | Prompts a shown finding survives unanswered. |
 | `observer_ignored_free` | `2` | Ignored findings before the backoff starts skipping checks. |
 | `observer_skip_max` | `16` | Most checks the backoff skips in a row. |
+| `observer_send_note` | the person-voice note | Text that leads a finding the Send button puts in the prompt. |
+| `observer_field_max` | `240` | Most characters in a reply's finding, rule or evidence before it counts as `parse_failed`. |
+| `observer_feedback_seconds` | `20` | How long the Useful/Not useful row stays after Dismiss. |
+| `observer_list_max` | `50` | Most findings each remembered list (reported, disputed, not relevant) keeps. |
+| `observer_keep_days` | `30` | Observer files older than this are pruned at session start. |
 | `observer_analysis_enabled` | `true` | Run the catch-up. Off, ended sessions are not analyzed; live checks are unaffected. |
 | `observer_analysis_model` | plugin.json | Catch-up analysis model (a cost lever; see "Model and effort"). |
 | `observer_analysis_effort` | plugin.json | Catch-up analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |

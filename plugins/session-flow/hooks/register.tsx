@@ -46,11 +46,10 @@ const mainCheckout = async ($: EngineInterface, dir: string) => {
   return /[\\/]\.git$/.test(common) ? common.replace(/[\\/]\.git$/, '') : dir
 }
 
-const KEEP_DAYS = 30
 const PRUNE =
   "const fs=require('fs'),path=require('path'),[d,cut]=process.argv.slice(1);for(const n of fs.readdirSync(d)){const p=path.join(d,n);if(/^(live-.*\\.jsonl|observations-.*\\.ndjson|status-.*\\.json|observer-.*\\.(log|lock))$/.test(n)&&fs.statSync(p).mtimeMs<Number(cut))fs.rmSync(p,{force:true})}"
 const prune = async ($: EngineInterface, now: number) => {
-  if (await $.fs.exists(st.dataDir)) await $.process.run(['node', '-e', PRUNE, st.dataDir, String(now - KEEP_DAYS * DAY_MS)], { timeoutMs: 10_000 }).catch(() => undefined)
+  if (await $.fs.exists(st.dataDir)) await $.process.run(['node', '-e', PRUNE, st.dataDir, String(now - opts.keepDays * DAY_MS)], { timeoutMs: 10_000 }).catch(() => undefined)
 }
 
 const iso = async ($: EngineInterface) => new Date(await $.clock.now()).toISOString()
@@ -114,7 +113,7 @@ const accept = async ($: EngineInterface, req: CheckRequest, finding: Finding) =
   const redact = (t: string) => $.session.redact(t)
   const f = { ...finding, finding: await redact(finding.finding), rule: await redact(finding.rule), evidence: await redact(finding.evidence) }
   const ledger = await writeFinding($, await iso($), req.trigger, req.turnId, req.step, f)
-  await $.store.set('seen', remember(await list($, 'seen'), f.finding))
+  await $.store.set('seen', remember(await list($, 'seen'), f.finding, opts.listMax))
   return run($, { kind: 'finding-accepted', req, finding: f, ledger })
 }
 

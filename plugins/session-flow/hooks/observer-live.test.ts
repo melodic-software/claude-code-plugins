@@ -704,10 +704,10 @@ test('/observer off stops an observer turn not yet run', AUTO_IDLE, async ($, on
   await start($)
   await idleFinding($, w, 't1')
   await $.command.run({ command: 'observer', args: 'off' })
-  await $.turn.start({ turnId: 't2', text: w.submits[0] })
-  expect(w.aborts).toEqual(['t2'])
   const r = await $.prompt.submit({ text: 'note', wait: false, origin: { kind: 'plugin', name: 'session-flow' } })
   expect(r).toMatchObject({ drop: 'observer off' })
+  await $.turn.start({ turnId: 't2', text: w.submits[0] })
+  expect(w.aborts).toEqual(['t2'])
 })
 
 test('a person turn is never taken for an observer turn', AUTO_IDLE, async ($, on) => {

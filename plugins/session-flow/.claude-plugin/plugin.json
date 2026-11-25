@@ -155,6 +155,40 @@
       "default": 16,
       "min": 0
     },
+    "observer_send_note": {
+      "type": "string",
+      "title": "Observer send note",
+      "description": "Text that leads a finding the Send button puts in the prompt, in the person's voice.",
+      "default": "A side reviewer (session-flow observer) noted this; it is background, not my instruction:"
+    },
+    "observer_field_max": {
+      "type": "number",
+      "title": "Observer field cap",
+      "description": "Most characters in a check reply's finding, rule or evidence before the reply counts as parse_failed; default 240.",
+      "default": 240,
+      "min": 1
+    },
+    "observer_feedback_seconds": {
+      "type": "number",
+      "title": "Observer feedback row seconds",
+      "description": "How long the Useful/Not useful row stays after Dismiss; default 20.",
+      "default": 20,
+      "min": 1
+    },
+    "observer_list_max": {
+      "type": "number",
+      "title": "Observer remembered findings",
+      "description": "Most findings each remembered list (reported, disputed, not relevant) keeps for dedupe; default 50.",
+      "default": 50,
+      "min": 1
+    },
+    "observer_keep_days": {
+      "type": "number",
+      "title": "Observer file retention days",
+      "description": "Observer files older than this many days are pruned at session start; default 30.",
+      "default": 30,
+      "min": 1
+    },
     "observer_analysis_enabled": {
       "type": "boolean",
       "title": "Observer catch-up analysis",

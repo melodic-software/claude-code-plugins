@@ -2,7 +2,10 @@ import {
   AUTO_NOTE,
   CHECK_EVERY,
   CLEAR_AFTER_PROMPTS,
+  FIELD_MAX,
   GUIDANCE_MAX,
+  LIST_MAX,
+  PERSON_NOTE,
   SKIP_MAX,
   TYPED_PAST_FREE,
   type Finding,
@@ -16,8 +19,6 @@ import {
   remember,
 } from './observer-live.ts'
 
-export const ASKED_MS = 20_000
-
 export type Options = {
   stepCheck: boolean
   turnEndCheck: boolean
@@ -27,6 +28,11 @@ export type Options = {
   skipMax: number
   autoSend: boolean
   autoNote: string
+  sendNote: string
+  fieldMax: number
+  askedMs: number
+  listMax: number
+  keepDays: number
   guidance: string
   guidanceMax: number
   checkPrompt: string
@@ -68,6 +74,11 @@ export const readOptions = (raw: Readonly<Record<string, unknown>>): { options: 
     skipMax: int('observer_skip_max', SKIP_MAX, 0),
     autoSend: bool('observer_auto_send', false),
     autoNote: text('observer_auto_note', AUTO_NOTE),
+    sendNote: text('observer_send_note', PERSON_NOTE),
+    fieldMax: int('observer_field_max', FIELD_MAX, 1),
+    askedMs: int('observer_feedback_seconds', 20, 1) * 1000,
+    listMax: int('observer_list_max', LIST_MAX, 1),
+    keepDays: int('observer_keep_days', 30, 1),
     guidance: text('observer_guidance', ''),
     guidanceMax: int('observer_guidance_max', GUIDANCE_MAX, 0),
     checkPrompt: text('observer_check_prompt', ''),
@@ -190,7 +201,7 @@ const answered = (s: State, answer: string, toast?: string): Result => ({
   ],
 })
 
-const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>): Result => {
+const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Options): Result => {
   const finish = (state: State, outcome: string, before: Effect[] = []): Result => ({ state, effects: [...before, { kind: 'finish', req: e.req, outcome }] })
   if (!e.reply.isAnswered) {
     const reason = e.reply.reason
@@ -198,7 +209,7 @@ const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>): Result
   }
   if (e.paused) return finish(s, 'paused')
   const { text } = e.reply
-  const parsed = parseReply(text)
+  const parsed = parseReply(text, o.fieldMax)
   const isCurrent = !s.ended && s.gen === e.req.gen
   const open = e.req.open
   let state = s
@@ -248,7 +259,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
     case 'gate-replied': {
       const times = s.refused[e.command] ?? 0
       const row = { trigger: 'gate', latencyMs: e.latencyMs, usage: e.usage, ...(times > 0 ? { repeat: true } : {}) }
-      const parsed = e.reply.isAnswered ? parseReply(e.reply.text) : undefined
+      const parsed = e.reply.isAnswered ? parseReply(e.reply.text, o.fieldMax) : undefined
       if (parsed?.kind === 'finding' && times < o.gateRefusals)
         return {
           state: { ...s, refused: { ...s.refused, [e.command]: times + 1 } },
@@ -279,7 +290,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
       if (e.skip > 0) return { state: s, effects: [{ kind: 'store', key: 'skip', value: e.skip - 1 }] }
       return { state: { ...s, inFlight: true }, effects: [{ kind: 'fork', req: { trigger: e.trigger, turnId: e.turnId, step: e.step, gen: s.gen, open: s.card } }] }
     case 'check-replied':
-      return replied(s, e)
+      return replied(s, e, o)
     case 'finding-accepted': {
       if (e.ledger === undefined) return { state: s, effects: [{ kind: 'finish', req: e.req, outcome: 'unsafe_memory_root' }] }
       const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source: e.req.trigger === 'turn-end' ? 'turn end' : `${e.req.trigger} ${e.req.step}`, promptsSurvived: 0, isOpen: false }
@@ -309,7 +320,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
     case 'check-finished':
       return none({ ...s, inFlight: false })
     case 'prompt-submitted': {
-      if (e.ours) return !s.on || e.paused ? { state: { ...s, submitWaiting: false }, effects: [{ kind: 'drop', reason: 'observer off' }] } : none({ ...s, nextTurnIsObserver: true, pendingSubmit: null })
+      if (e.ours && s.submitWaiting) return !s.on || e.paused ? { state: { ...s, submitWaiting: false }, effects: [{ kind: 'drop', reason: 'observer off' }] } : none({ ...s, nextTurnIsObserver: true, pendingSubmit: null })
       const card = s.card
       if (card === null || !e.byPerson) return none()
       const survived = { ...card, promptsSurvived: card.promptsSurvived + 1 }
@@ -340,20 +351,20 @@ export const step = (s: State, e: Event, o: Options): Result => {
     case 'send': {
       if (s.card === null) return none()
       const r = answered(s, 'sent')
-      return { state: r.state, effects: [{ kind: 'fill', text: noteFor(s.card.finding) }, ...r.effects] }
+      return { state: r.state, effects: [{ kind: 'fill', text: noteFor(s.card.finding, 'person', o.sendNote) }, ...r.effects] }
     }
     case 'dispute': {
       if (s.card === null) return none()
       const { finding, ledger } = s.card
       const r = answered(s, 'disputed', 'observer: disputed; it will not be reported again')
-      return { state: r.state, effects: [{ kind: 'store', key: 'disputed', value: remember(e.disputed, finding.finding) }, { kind: 'ledger', path: ledger, line: 'disputed', finding }, ...r.effects] }
+      return { state: r.state, effects: [{ kind: 'store', key: 'disputed', value: remember(e.disputed, finding.finding, o.listMax) }, { kind: 'ledger', path: ledger, line: 'disputed', finding }, ...r.effects] }
     }
     case 'why':
       return s.card === null ? none() : { state: { ...s, card: { ...s.card, isOpen: !s.card.isOpen } }, effects: [{ kind: 'invalidate' }] }
     case 'dismiss': {
       if (s.card === null) return none()
       const r = answered({ ...s, dismissed: s.card.finding }, 'dismissed')
-      return { state: { ...r.state, asked: true }, effects: [...r.effects, { kind: 'after', ms: ASKED_MS, event: { kind: 'asked-expired' } }, { kind: 'invalidate' }] }
+      return { state: { ...r.state, asked: true }, effects: [...r.effects, { kind: 'after', ms: o.askedMs, event: { kind: 'asked-expired' } }, { kind: 'invalidate' }] }
     }
     case 'asked-expired':
       return { state: { ...s, asked: false }, effects: [{ kind: 'invalidate' }] }
@@ -364,7 +375,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
         state = { ...state, on: false }
         effects.push({ kind: 'toast', text: 'observer: live checks off for this session (/observer on resumes; /observer off pauses every session)' })
       }
-      if (e.answer === 'not_relevant' && s.dismissed !== null) effects.push({ kind: 'store', key: 'notRelevant', value: remember(e.notRelevant, s.dismissed.finding) })
+      if (e.answer === 'not_relevant' && s.dismissed !== null) effects.push({ kind: 'store', key: 'notRelevant', value: remember(e.notRelevant, s.dismissed.finding, o.listMax) })
       if (e.answer === 'unclear') effects.push({ kind: 'store', key: 'unclear', value: e.unclear + 1 })
       effects.push({ kind: 'record', row: { answer: e.answer } }, { kind: 'invalidate' })
       return { state, effects }
