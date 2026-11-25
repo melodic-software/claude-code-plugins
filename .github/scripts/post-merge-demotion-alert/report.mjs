@@ -145,8 +145,6 @@ const unreportedReds = (runs, green, runId, markers) =>
         .map((r) => ({ url: r.html_url, sha: r.head_sha }))
     : [];
 
-// An early return's result: its summary, after noting `unreported` on the log.
-// With no log yet there is nothing to note on, so the summary names the runs.
 async function noteUnreported(call, repo, { log, run, unreported, summary }) {
   if (unreported.length === 0) return { posted: false, summary };
   if (!log) {

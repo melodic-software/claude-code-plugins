@@ -10,8 +10,8 @@
 copy plugins/review/skills/{skill} review/skills/{skill}
 copy plugins/review/reference review/reference
 copy plugins/review/skills/quality-gate/context/loosened-check.md review/skills/quality-gate/context/loosened-check.md
-copy REVIEW.md standards/REVIEW.md
-copy docs/standards standards/standards
+copy-if-present REVIEW.md standards/REVIEW.md
+copy-if-present docs/standards standards/standards
 copy-if-present docs/review standards/review
 copy-if-present .claude/rules standards/rules
 read .github/scripts/pr-review-main

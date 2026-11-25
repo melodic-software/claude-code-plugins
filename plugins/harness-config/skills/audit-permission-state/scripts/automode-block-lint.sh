@@ -92,8 +92,6 @@ esac
 
 note() { printf 'BLOCK-NOTE: %s\n' "$1"; }
 
-# end_lane <status> <note>: the lane read nothing, so it says why and ends with
-# an all-zero summary carrying that status.
 end_lane() {
   note "$2"
   echo "automode summary findings=0 sections=0 status=$1"
@@ -125,7 +123,6 @@ trap 'rm -rf "$tmp"' EXIT
 # Exit status is never trusted (measured: critique returned 0 producing nothing),
 # so each capture is judged by whether it yielded usable content.
 capture() {
-  # capture <outfile> <fixture-or-empty> <subcommand>
   local out="$1" fixture="$2" sub="$3"
   if [[ -n "$fixture" ]]; then
     [[ -r "$fixture" ]] || return 1
@@ -391,10 +388,6 @@ PYEOF
 # measured across three consecutive runs on one unchanged config, the output was
 # truncated mid-sentence twice and empty once, exiting 0 every time.
 crit="$tmp/critique.txt"
-# The entry-diff sibling prices its spawn before making it; this one did not,
-# and an unpriced spawn is exactly the surprise the opt-in flag exists to avoid.
-# Printed before the capture call so it is true whether or not a fixture short-
-# circuits the run.
 if [[ -z "${AUTOMODE_CRITIQUE_FIXTURE:-}" ]]; then
   cat >&2 <<'EOF'
 CRITIQUE COST NOTICE — nothing has been spawned yet.

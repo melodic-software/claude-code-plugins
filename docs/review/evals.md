@@ -17,7 +17,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   action files, or an agent body, including a verbatim move into a file that loads on demand.
   Added text is not a cut, except a word that flips an existing instruction (`not`, `never`, `no`,
   `only`, `except`, `unless` and their contractions) inserted into it; script changes are covered
-  by tests (Q5, Q48).
+  by tests (Q5, Q48). An edit inside a skill's `## Next` section is not a cut: it names successors
+  for the person and changes no tool call (owner, 2026-11-24, after #18922).
 - **Suite run** (`mode: suite`), **label run** (the `eval: run` label, advisory, posts no record),
   **compare run** (`mode: compare`, posts the eval-pair record on a PASS): the three modes of
   [`pr-run-plugin-evals.yml`](../../.github/workflows/pr-run-plugin-evals.yml) (Q62).

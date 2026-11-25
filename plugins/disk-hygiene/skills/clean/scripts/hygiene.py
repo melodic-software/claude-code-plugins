@@ -296,7 +296,6 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def catalog_paths() -> tuple[Path, Path]:
-    """``catalog.json`` and ``CATALOG.md`` under the authorized data root."""
     data_root = Path(DATA_ROOT_OVERRIDE or "")
     return (
         state_output_path(data_root / "catalog.json"),
@@ -322,11 +321,6 @@ def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
 
 
 def catalog_target_is_positional(snapshot: dict[str, Any]) -> bool:
-    """True for a root-children scan or a scan of the user home directory.
-
-    Only there does "no protection and no hint" mark a loose root-level entry
-    as out of place.
-    """
     if snapshot.get("root_children_mode"):
         return True
     home = user_home()
@@ -339,7 +333,6 @@ def catalog_target_is_positional(snapshot: dict[str, Any]) -> bool:
 
 
 def write_text_atomic(path: Path, text: str) -> None:
-    """Replace ``path`` whole or leave it as it was."""
     temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
     try:
         temporary.write_text(text, encoding="utf-8")
@@ -478,7 +471,6 @@ _ABSOLUTE_GLOB = re.compile(r"^(?:[A-Za-z]:[\\/]|/|\\\\)")
 
 
 def protection_glob_pattern(entry: Any) -> str | None:
-    """The glob string from a protection entry, or None when the shape is unusable."""
     if isinstance(entry, str) and entry:
         return entry
     if isinstance(entry, dict):
@@ -504,7 +496,6 @@ def protection_glob_entry(entry: Any) -> dict[str, str] | None:
 
 
 def merge_protection_matches(matches: Iterable[dict[str, str]]) -> list[dict[str, str]]:
-    """Matched protection entries, deduplicated and sorted by glob then reason."""
     unique = {(match["glob"], match.get("reason", "")): match for match in matches}
     return [unique[key] for key in sorted(unique)]
 
@@ -512,12 +503,6 @@ def merge_protection_matches(matches: Iterable[dict[str, str]]) -> list[dict[str
 def protection_matches_field(
     matches: Iterable[dict[str, str]],
 ) -> dict[str, list[dict[str, str]]]:
-    """The optional ``protection_matches`` sibling field, empty when nothing matched.
-
-    Every lane that reports the ``consumer-protected-path`` blocker spreads this
-    into the record it already emits, so a record with no consumer match keeps
-    exactly the shape it had before.
-    """
     merged = merge_protection_matches(matches)
     return {"protection_matches": merged} if merged else {}
 
@@ -805,7 +790,6 @@ def os_drive_markers(
 
 
 def is_volume_root(path: Path) -> bool:
-    """True for a filesystem or drive root — a path that is its own parent."""
     return path.parent == path
 
 
@@ -1205,7 +1189,6 @@ def baseline_protected_name_globs() -> tuple[str, ...]:
 
 @functools.lru_cache(maxsize=1)
 def baseline_disk_image_name_globs() -> tuple[str, ...]:
-    """Bundled disk-image name patterns, read from the baseline like the protected globs."""
     return tuple(baseline_policy()["disk_image_name_globs"])
 
 
@@ -1270,7 +1253,6 @@ def load_policy(
 
 
 def load_overlay(path: Path) -> dict[str, Any]:
-    """A policy file: YAML for the convention-home layers, JSON otherwise."""
     if path.suffix.casefold() not in (".yaml", ".yml"):
         return load_json(path)
     try:
@@ -1363,12 +1345,6 @@ MAX_EMPTY_DIRECTORY_PATHS = 200
 def validate_rules(
     rules: Any, hints: list[dict[str, Any]], overlay_path: Path
 ) -> list[dict[str, Any]]:
-    """Validate an overlay's `rules` and normalize each `match` to `hint_ids`.
-
-    A rule matches on hint id or on a hint class, which resolves to the ids of
-    the merged hints carrying it. A rule naming an id or a class that no merged
-    hint carries is rejected so a typo cannot silently preselect nothing.
-    """
     hint_ids = {hint["id"] for hint in hints}
     if not isinstance(rules, list):
         raise HygieneError(f"rules must be an array: {overlay_path}")
@@ -1448,7 +1424,6 @@ def validate_rules(
 
 
 def entry_age_ns(entry: dict[str, Any], key: str) -> int:
-    """An entry's timestamp on one basis; a snapshot without it falls back to mtime."""
     return entry.get(key, entry["mtime_ns"])
 
 
@@ -1457,12 +1432,6 @@ def rule_age_facts(
     unknown_paths: Iterable[str],
     basis: str = "mtime",
 ) -> tuple[dict[str, int], set[str]]:
-    """Newest descendant timestamp per directory, and every path with a coverage gap.
-
-    An ancestor of an unknown path is itself unknown: the walk never saw what
-    changed beneath it. Not-walked entries count as unknown alongside
-    `unknown_paths`.
-    """
     newest: dict[str, int] = {}
     incomplete: set[str] = set()
     key = f"{basis}_ns"
@@ -1710,11 +1679,6 @@ def matching_hints(
 
 
 def allocated_size_from_stat(info: os.stat_result) -> int | None:
-    """Cheap on-disk allocation when the platform exposes it; else unknown.
-
-    Returns null rather than inventing a figure. A missing allocated size is
-    itself a size signal ("we do not know") and must not collapse to zero.
-    """
     blocks = getattr(info, "st_blocks", None)
     if blocks is None:
         return None
@@ -1791,7 +1755,6 @@ def metadata(
 
 
 def entry_logical_file_bytes(entry: dict[str, Any]) -> int:
-    """Snapshot-recorded logical bytes for a non-directory entry; 0 if unknown."""
     if entry.get("kind") == "directory":
         return 0
     size = entry.get("logical_size")
@@ -1813,7 +1776,6 @@ def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
 
 
 def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
-    """Sum of per-entry reclaimable local bytes across an inventory."""
     return sum(
         value
         for entry in entries
@@ -1831,16 +1793,6 @@ def entry_is_empty_directory(
     parents_with_children: set[str] | None = None,
     unknown_paths: set[str] | None = None,
 ) -> bool:
-    """True when a walked directory has no inventoried descendants.
-
-    Truncated (`not-walked`) directories are unknown, not empty — their
-    `logical_size` is null. A walked parent whose only children were cut off by
-    `--max-depth` can still show `logical_size` 0; requiring no snapshot
-    descendants keeps that case out of the empty-directory tidiness count so
-    zero-byte residue stays visible without mislabeling uninventoried trees.
-    Directories whose scandir failed (or that appear in ``unknown_paths``) are
-    likewise unknown: a coverage gap is not empty residue.
-    """
     if entry.get("kind") != "directory":
         return False
     qualifiers = entry.get("size_qualifiers") or []
@@ -1870,20 +1822,10 @@ def entry_is_empty_directory(
 
 
 def child_rollup_name(relative: str) -> str:
-    """The immediate-child segment a snapshot-relative path belongs to."""
     return relative.split("/", 1)[0]
 
 
 def child_rollup_bytes(entry: dict[str, Any]) -> int:
-    """The bytes one immediate child contributes to the target's walked total.
-
-    Mirrors ``scan_tree``'s own accumulation exactly: a walked directory's
-    ``logical_size`` is already its recursive subtotal, a file contributes its
-    recorded logical size, and a link or special entry contributes nothing
-    because the walk never traverses one. Keeping the two rules identical is
-    what makes the roll-up sum to ``target_logical_bytes`` when every immediate
-    child was walked.
-    """
     if entry.get("kind") == "directory":
         size = entry.get("logical_size")
         return int(size) if isinstance(size, int) else 0
@@ -1893,7 +1835,6 @@ def child_rollup_bytes(entry: dict[str, Any]) -> int:
 
 
 def empty_child_rollup_bucket() -> dict[str, Any]:
-    """The per-child accumulator, in one place so its shape cannot drift."""
     return {
         "self": None,
         "descendants": 0,
@@ -1955,11 +1896,6 @@ def children_rollup(
 def accumulate_child_rollup(
     totals: dict[str, dict[str, Any]], entry: dict[str, Any]
 ) -> None:
-    """Fold one inventory record into its immediate child's accumulator.
-
-    Keeps only the child's own kind and logical size, never the record, so a
-    caller that feeds records one at a time need not retain them.
-    """
     relative = entry.get("path")
     if not isinstance(relative, str) or not relative or relative == ".":
         return
@@ -2024,11 +1960,6 @@ def child_rollup_rows(
 
 
 def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
-    """Return every inventory path that has at least one inventoried descendant.
-
-    Built in one linear pass over ``paths`` so empty-directory counting stays
-    O(entries) rather than O(directories × entries).
-    """
     parents: set[str] = set()
     for path in paths:
         if not isinstance(path, str):
@@ -2045,11 +1976,6 @@ def empty_directory_paths(
     *,
     error_paths: Iterable[str] | None = None,
 ) -> list[str]:
-    """Sorted paths of walked empty directories in a snapshot inventory.
-
-    ``error_paths`` are scan-error relatives that must not count as empty even
-    when they were recorded with ``logical_size`` 0 and no descendants.
-    """
     by_path = {
         entry["path"]: entry
         for entry in entries
@@ -2077,7 +2003,6 @@ def empty_directory_count(
 
 
 def empty_file_count(entries: list[dict[str, Any]]) -> int:
-    """Count inventoried regular files whose recorded logical size is 0."""
     return sum(
         1
         for entry in entries
@@ -2356,7 +2281,6 @@ def large_scan_reasons(target: Path) -> list[str]:
 
 
 def top_level_entry_count(target: Path) -> tuple[int | None, str | None]:
-    """Count immediate children only — a cheap probe that never recurses."""
     try:
         with os.scandir(target) as iterator:
             return sum(1 for _ in iterator), None
@@ -2390,7 +2314,6 @@ def directory_has_child(directory: Path) -> bool:
 def volume_root_os_owned_names(
     platform_key: str | None = None,
 ) -> set[str]:
-    """Basenames the volume-root guard treats as OS-owned at a drive/FS root."""
     current = platform_key or os_key()
     if current == "windows":
         names: Iterable[str] = (
@@ -2415,7 +2338,6 @@ def volume_root_os_owned_file_name_matches(
     name: str,
     platform_key: str | None = None,
 ) -> bool:
-    """Whether a volume-root FILE basename is OS-owned on this platform."""
     current = platform_key or os_key()
     folded = name.casefold()
     if current == "windows":
@@ -2428,12 +2350,10 @@ def volume_root_os_owned_file_name_matches(
 
 
 def volume_root_home_container_name(platform_key: str | None = None) -> str:
-    """The volume-root directory that holds user homes on this platform."""
     return "home" if (platform_key or os_key()) == "linux" else "Users"
 
 
 def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
-    """Additive listing facts for an admitted or skipped root child."""
     if info is None:
         return {}
     if stat.S_ISDIR(info.st_mode):
@@ -2455,7 +2375,6 @@ def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
 def root_children_skipped_reason_counts(
     skipped: list[dict[str, Any]],
 ) -> dict[str, int]:
-    """Stdout grouping of withheld root children, reason → count."""
     counts = Counter(
         reason
         for item in skipped
@@ -2465,7 +2384,6 @@ def root_children_skipped_reason_counts(
 
 
 def withheld_home_container_note(skipped: list[dict[str, Any]]) -> str:
-    """Sentence naming the current user's home when its container is withheld."""
     names = {
         item["name"].casefold()
         for item in skipped
@@ -2631,7 +2549,6 @@ def normalize_root_child_selection(
     skipped: list[dict[str, Any]] | None = None,
     case_sensitive: bool | None = None,
 ) -> list[str]:
-    """Map a human selection onto admitted basenames; reject anything else."""
     if not selected:
         raise HygieneError(
             "--root-children requires an explicit --root-child selection; "
@@ -2916,11 +2833,6 @@ def scan_tree(
 
 
 def bytecode_module_names(directory: Path) -> list[str] | None:
-    """Module names a ``__pycache__`` holds bytecode for, from one scandir.
-
-    ``None`` means the directory could not be listed, which is not the same as
-    holding no bytecode.
-    """
     try:
         with os.scandir(directory) as iterator:
             names = [entry.name for entry in iterator]
@@ -3116,14 +3028,6 @@ def entry_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def subtree_names(relative: str, names: Iterable[str]) -> set[str]:
-    """The snapshot paths that ARE ``relative`` or sit beneath it.
-
-    One containment rule for every lane that asks "what did the scan record for
-    this candidate" — the preview's and handoff-verify's expected-path sets and
-    the apply lane's removal list — so the three cannot disagree about a
-    candidate's extent. Prefix matching is on the "/"-terminated name, so a
-    sibling like ``cache-old`` is never read as a child of ``cache``.
-    """
     return {
         name for name in names if name == relative or name.startswith(relative + "/")
     }
@@ -3132,12 +3036,6 @@ def subtree_names(relative: str, names: Iterable[str]) -> set[str]:
 def overlaps_accepted_path(
     candidate: PurePosixPath, accepted: list[PurePosixPath]
 ) -> bool:
-    """Whether ``candidate`` is, contains, or sits under an already-accepted path.
-
-    One overlap rule for the two lanes that build an approved set (plan
-    candidates and handoff paths), so neither can admit a pair the other would
-    reject.
-    """
     return any(
         candidate == prior or candidate in prior.parents or prior in candidate.parents
         for prior in accepted
@@ -3145,13 +3043,6 @@ def overlaps_accepted_path(
 
 
 def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
-    """Whether ``relative`` is, contains, or lives under a truncated scan path.
-
-    Either direction disqualifies: a truncated ancestor means this path's own
-    subtree was never inventoried, and a truncated descendant means part of it
-    was not. Shared by preview and handoff-verify, which must agree on which
-    candidates the snapshot cannot speak for.
-    """
     return any(
         name == relative
         or name.startswith(relative + "/")
@@ -3161,13 +3052,6 @@ def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
 
 
 def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[dict[str, str]]:
-    """Consumer protection entries a snapshot's policy recorded.
-
-    Read from the snapshot rather than from live policy on purpose: an approved
-    snapshot must stay previewable under the protections it was scanned with.
-    Each entry is ``{glob}`` or ``{glob, reason}``; other shapes are dropped so
-    the validation lanes cannot differ on a hand-edited policy block.
-    """
     entries = (
         protection_glob_entry(entry)
         for entry in snapshot.get("policy", {}).get(
@@ -3301,13 +3185,6 @@ def inline_plan(
     paths: list[str],
     entries: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any], Path]:
-    """Build the plan a ``preview --tier --path`` call names, and its fixed path.
-
-    Its candidates are all unmanaged, with fixed prose: the audit report carries
-    the evidence, as it does for a manual-handoff list. The caller names no
-    output, so the plan lands only beside the snapshot, under a name of the
-    engine's own.
-    """
     if tier is None or not paths:
         raise HygieneError("preview needs --tier and --path together, without --plan")
     approved = validate_handoff_paths(
@@ -3476,7 +3353,6 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
 
 
 def same_object_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
-    """Compare stable object identity without mutable directory size/timestamps."""
     return all(
         (
             stat.S_ISDIR(info.st_mode) and entry.get("kind") == "directory",
@@ -3488,7 +3364,6 @@ def same_object_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
 
 
 def same_open_object(left: os.stat_result, right: os.stat_result) -> bool:
-    """Compare stable identity fields for two observations of one object."""
     return all(
         (
             left.st_dev == right.st_dev,
@@ -3499,7 +3374,6 @@ def same_open_object(left: os.stat_result, right: os.stat_result) -> bool:
 
 
 def same_removal_identity(path: Path, entry: dict[str, Any]) -> bool:
-    """Allow expected directory metadata churn while preserving object identity."""
     return same_identity(path, entry)
 
 
@@ -3517,7 +3391,6 @@ def marker_exists(path: Path, errors: list[str]) -> bool:
 def discover_current_repositories(
     target: Path, candidate: Path
 ) -> tuple[list[Path], list[str]]:
-    """Rediscover enclosing and nested repository markers from live state."""
     marker_roots: set[Path] = set()
     errors: list[str] = []
     current = candidate if candidate.is_dir() else candidate.parent
@@ -4021,7 +3894,6 @@ PLATFORM_BLOCKER = "execution-platform-unsupported"
 
 
 def execution_blockers() -> list[str]:
-    """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
         return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
@@ -4092,12 +3964,6 @@ def handle_state(path: Path) -> tuple[str, str | None]:
 
 
 def handle_state_contest_reason(state: str, detail: str | None) -> str | None:
-    """The contested reason a non-clear handle probe carries, or None when clear.
-
-    Shared by the two read-only verdict lanes (approved paths and emptied
-    containers) so an open handle, a denial, and an unverifiable probe cannot
-    be worded differently depending on which one observed it.
-    """
     if state == "clear":
         return None
     if state == "needs_elevation":
@@ -4376,22 +4242,6 @@ def removal_sort_key(relative: str) -> tuple[int, str]:
 def emptied_container_order(
     settled: Iterable[str], entries: dict[str, dict[str, Any]]
 ) -> list[str]:
-    """Inventoried directories the settled removals leave empty, deepest first.
-
-    ``settled`` is the set of paths that are being removed (or are already
-    gone). A snapshot directory qualifies when it is not itself part of that
-    removal, the scan actually walked it, and every one of its inventoried
-    immediate children is either removed or itself qualifies — the cascade.
-
-    Decision is one pass over the inventory in decreasing depth. Every parent is
-    strictly shallower than its children, so the pass reaches a container only
-    after each of its children has already been decided; no fixed-point loop is
-    involved and none needs a bound, which is what makes a cascade of any depth
-    resolve in a single round.
-
-    This names containers. It never removes one: the ordering is the part shared
-    with the apply lane, the mutation is not.
-    """
     removed: set[str] = set()
     for relative in settled:
         removed |= subtree_names(relative, entries)
@@ -4415,7 +4265,6 @@ def emptied_container_order(
 
 
 def lstat_failure_verdict(relative: str, exc: OSError) -> dict[str, Any]:
-    """The verdict for a path whose ``lstat`` raised ``exc``."""
     if isinstance(exc, FileNotFoundError):
         return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
     reason = (
@@ -4435,14 +4284,6 @@ def verify_emptied_container(
     globs: list[dict[str, str]],
     truncated_paths: set[str],
 ) -> dict[str, Any]:
-    """Verdict for one container the approved removals would empty, read-only.
-
-    The categorical checks only. The VCS-evidence exception deliberately has no
-    counterpart here: ``validate_vcs_evidence`` admits repositories at or under
-    an approved path, and a container is always a strict ancestor of one, so
-    evidence never covers the container itself and tracked content keeps it
-    contested.
-    """
     path = target.joinpath(*PurePosixPath(relative).parts)
     drifted: set[str] = set()
     contested: set[str] = set()
@@ -4494,7 +4335,6 @@ def verify_emptied_container(
 
 
 def failed_vcs_evidence(blocker: str, **extra: str) -> dict[str, Any]:
-    """A failed VCS-evidence result: every gate failed, for one ``blocker``."""
     return {
         "status": "failed",
         "gates": {name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES},
@@ -4508,14 +4348,6 @@ def handoff_verify(
     approved: list[str],
     vcs_evidence: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Re-run per-path revalidation for the manual handoff lane, read-only.
-
-    Deterministically reruns the engine's identity/reparse/protection/VCS/
-    handle checks against live state for each approved path and emits a
-    verdict — never a deletion. Platform execution blockers deliberately do
-    not apply: this subcommand exists exactly for the platforms where the
-    engine's own apply lane is unsupported.
-    """
     target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
     exact_names = baseline_protected_names() | set(
@@ -4738,12 +4570,6 @@ def handoff_verify(
 
 
 def handoff_verify_blocks(result: dict[str, Any]) -> bool:
-    """True when any approved path's verdict means "do not proceed".
-
-    `gone` is the terminal state verify-one-delete-one drives each approved path
-    to, so from the second round on at least one path reads `gone` while every
-    verdict is correct. Only `drifted` and `contested` block.
-    """
     return any(item["verdict"] not in {"clear", "gone"} for item in result["verdicts"])
 
 
@@ -4911,7 +4737,6 @@ def anchored_remove(
 def protected_skip(
     path: str, detail: str, matches: Iterable[dict[str, str]] = ()
 ) -> dict[str, Any]:
-    """A ``protected`` skip record, with ``protection_matches`` when any matched."""
     return {
         "path": path,
         "outcome": "protected",
@@ -4921,7 +4746,6 @@ def protected_skip(
 
 
 def handle_state_skip(relative: str, path: Path) -> dict[str, str] | None:
-    """The skip record for a path whose handle state is not ``clear``, or None."""
     state, detail = handle_state(path)
     if state == "clear":
         return None
@@ -4932,7 +4756,6 @@ def handle_state_skip(relative: str, path: Path) -> dict[str, str] | None:
 
 
 def removal_failure_skip(relative: str, exc: HygieneError | OSError) -> dict[str, str]:
-    """The skip record for an ``anchored_remove`` call that raised ``exc``."""
     if isinstance(exc, HygieneError):
         outcome = "changed-or-link"
     elif isinstance(exc, PermissionError):
@@ -4945,7 +4768,6 @@ def removal_failure_skip(relative: str, exc: HygieneError | OSError) -> dict[str
 def apply_nothing_removed_report(
     plan: dict[str, Any], target: Path, skipped: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """An apply report for a run that removed nothing and skipped every candidate."""
     return {
         "status": "completed-with-skips",
         "tier": plan["tier"],
@@ -5132,7 +4954,6 @@ def process_alive(pid: int) -> bool:
 
 
 def sweep_orphaned_inventory_partials(directory: Path) -> None:
-    """Delete inventory partials whose writer PID is gone; legacy names stay."""
     for path in directory.iterdir():
         match = INVENTORY_PARTIAL.fullmatch(path.name)
         if match and not process_alive(int(match.group(1))):
@@ -5143,7 +4964,6 @@ def sweep_orphaned_inventory_partials(directory: Path) -> None:
 
 
 def prune_inventory_reports(directory: Path) -> None:
-    """Keep the newest completed reports, each a ``.jsonl`` with its ``.json``."""
     stems = sorted(
         (
             path.stem
@@ -5891,13 +5711,6 @@ _PARSER_VALUE_TYPES = {"int": int}
 
 
 def _add_flag(command: argparse._ActionsContainer, flag: engine_grammar.Flag) -> None:
-    """Declare one grammar flag on a subparser.
-
-    A valueless flag is always ``store_true`` here even when the grammar marks
-    it required: that requirement is the guard's (it admits only the executing
-    ``apply`` form), while the engine keeps its own diagnostic for the flag's
-    absence rather than an argparse usage error.
-    """
     options: dict[str, Any] = {}
     if flag.help is not None:
         options["help"] = flag.help

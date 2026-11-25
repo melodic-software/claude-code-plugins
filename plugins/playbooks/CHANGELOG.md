@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.16] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [0.36.15] - 2026-11-24
 
 ### Changed

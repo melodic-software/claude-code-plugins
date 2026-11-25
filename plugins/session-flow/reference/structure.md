@@ -225,7 +225,8 @@ hard-won facts. Those read as "old" while being the most expensive to rediscover
 provenance" rule governs every body section here (and, per that rule, prompt-only's inline bullets
 too): plain statement only for what this session itself verified, an explicit
 `UNVERIFIED (<source>)` marker on anything inherited. The met/unmet marks in Completion criteria
-carry the same rule.
+carry the same rule, and every claim about code or state is dated (that rule's "Write history, not
+the present").
 
 ### Cumulative sections and provenance tags
 
@@ -572,8 +573,8 @@ was observed: a file, a command's output, an error string.
 This is the section that beats compaction. Write it long.
 
 ```markdown
-- The hook fires twice per Write on Windows, once with a normalized path and once raw — observed in
-  `.claude/observability/hooks.jsonl` across 40 events.
+- 2026-11-24, as of owner/repo@a1b2c3d: the hook fires twice per Write on Windows, once with a
+  normalized path and once raw — observed in `.claude/observability/hooks.jsonl` across 40 events.
 ```
 
 ### Remaining actions, in order
@@ -885,13 +886,13 @@ interpreter there is no `fill` either, so the hand-written file needs no slots J
 | 5 | Open questions | `- [Q<n>] …`, each with its options, a recommendation and what it unblocks; copied off disk each hop; an answered one leaves only as a retire listing |
 | 6 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …`; copied off disk each hop, a changed one rewritten in place under its id; a retired one leaves only as a retire listing |
 | 7 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)`; copied off disk each hop; a promoted one leaves only as a retire listing |
-| 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on; copied off disk each hop; a settled one leaves only as a retire listing |
+| 8 | Decisions in force | `- [D<n>] …`, the decisions the remaining actions depend on, a claim about code or state in one dated; copied off disk each hop; a settled one leaves only as a retire listing |
 | 9 | Pending commands | every command waiting on the user, verbatim |
 | 10 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
 | 11 | This session | the `did: … · left: …` line and its `Re-scan: …` line |
 | 12 | Review before you continue | what to read before the next action: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state; every `- Retired entries:` line the predecessor holds, carried forward verbatim, plus one per archive file and retire heading this hop used (a role chain holds them in its retired-entries index and one line naming it) |
 | 13 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, a remaining action that serves no recorded goal or detour flagged `DRIFT`; copied off disk each hop with the predecessor's `- Folded:` line kept verbatim; a superseded line leaves only as a retire listing |
-| 14 | Observations | session-wide observations, summarized |
+| 14 | Observations | session-wide observations, summarized, each claim dated |
 | 15 | Suggested skills | which skills to invoke for the remaining work |
 | 16 | Prior sessions | the predecessor's newest rows, then one row describing the predecessor, the table holding at most `PRIOR_ROWS_KEPT` rows (`save_point.py`) |
 | 17 | Resume prompt | the rails block; always last |

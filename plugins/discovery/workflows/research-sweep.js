@@ -86,13 +86,6 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
   ? Math.min(16, Math.max(1, input.maxConcurrent))
   : 4
 
-// Role variants as /multi-agent:route emits them. `single` serves a stage that
-// runs one agent; `fanout` a stage that runs several. The fallback names opus
-// for every fan-out because the session model is unknown here, and a frontier
-// session must never fan out on its own model. Fetchers, searchers and readers
-// take the worker role at its own `medium`; the pointer, as-of date and recheck
-// trigger for that default are in the multi-agent plugin's
-// reference/defaults.yaml (roles.worker).
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
@@ -174,9 +167,6 @@ const APPLIES_TO_RULE =
 const DATED =
   ' Dates are YYYY, YYYY-MM or YYYY-MM-DD as the page states them, or "undated".' + APPLIES_TO_RULE
 
-// The applies_to grammar of check-source-applicability.py (APPLIES_TO and
-// applies_to()), which criterion 13 parses. The schema pattern states it to the
-// agent; appliesToOk() enforces it, since a schema pattern may go unchecked.
 const VERSION_INDEPENDENT = 'version-independent'
 const RANGE = '(.+?)\\s+(\\d+(?:\\.\\d+)*)(?:\\s*-\\s*(\\d+(?:\\.\\d+)*)|(\\+))?'
 const APPLIES_TO = new RegExp('^' + RANGE + '$')

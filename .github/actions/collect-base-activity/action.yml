@@ -154,8 +154,6 @@ runs:
             exit 1
             ;;
         esac
-        # The script runs as $SCRIPT_DIR/$SCRIPT, beside everything it loads
-        # at its repository path.
         mkdir -p "$SCRIPT_DIR"
         node "$GITHUB_ACTION_PATH/stage-closure.mjs" "$BASE_PATH" "$SCRIPT" "$SCRIPT_DIR"
         echo "script-path=$SCRIPT_DIR/$SCRIPT" >>"$GITHUB_OUTPUT"
@@ -209,19 +207,13 @@ runs:
           done
           mkdir -p "$dir/bin"
           cp -R "$BASE_PATH/scripts" "$dir/"
-          # check-affected.sh lints with the configs beside its copy, and
-          # run-ruff.sh reads its version pin there.
           for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
             [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$dir/$(dirname "$config")" && cp "$BASE_PATH/$config" "$dir/$config"; }
           done
-          # check-changed-skills.sh --merge-base runs the skill checker from
-          # this copy, which sources and reads files beside itself.
           if [ -d "$BASE_PATH/plugins/skill-quality/scripts" ]; then
             mkdir -p "$dir/plugins/skill-quality"
             cp -R "$BASE_PATH/plugins/skill-quality/scripts" "$dir/plugins/skill-quality/"
           fi
-          # check-affected.sh runs the comment-lint hook from this copy, which
-          # sources and reads files across these three directories.
           if [ -d "$BASE_PATH/plugins/code-tidying/git-hooks" ]; then
             mkdir -p "$dir/plugins/code-tidying"
             for part in git-hooks lib scripts; do
@@ -242,9 +234,6 @@ runs:
                 'unset GH_TOKEN GITHUB_TOKEN' \
                 'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
                 'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
-              # An issue lane's patch lands through the issue row, whose
-              # script-exec-bit makes each new or changed script executable,
-              # so the checks judge the tree with that bit.
               if [ "$edits" = patch ] && [ -n "${ISSUE_NUMBER:-}" ]; then
                 echo 'export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1'
               fi
@@ -290,9 +279,6 @@ runs:
             fi
             verifier=bin/$(basename "$script" .sh)
             [ ! -e "$dir/$verifier" ] || fail "two verify-scripts share a file name"
-            # An issue lane's checkout is detached, so new-changelog-fragment
-            # names the fragment after the lane branch shape, from the run's
-            # own ids: <lane>/issue-<n>-<run id>-<attempt>.
             fragment_branch=""
             if [ "$script" = scripts/new-changelog-fragment.sh ] && [ -n "${ISSUE_NUMBER:-}" ]; then
               [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && ${RUN_ID:-} =~ ^[1-9][0-9]*$ && ${RUN_ATTEMPT:-} =~ ^[1-9][0-9]*$ ]] ||
@@ -381,14 +367,11 @@ runs:
               denied+=("Bash($scripts/user-scope.sh *)" "Bash(\"$scripts/user-scope.sh\" *)")
               ;;
             code-tidying:tidy-diff)
-              # The token proof each comment deletion carries.
               scripts=$lane/plugins/code-tidying/skills/tidy-diff/scripts
               allowed+=("Bash($scripts/change-shape.sh *)" "Bash(\"$scripts/change-shape.sh\" *)")
               ;;
           esac
         }
-        # web-access with a list of hosts: each one, held to a host name.
-        # Sets web_domains.
         read_web_domains() {
           local list domain host='^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
           list=$(jq -r '.selected["web-access"].domains
@@ -441,9 +424,6 @@ runs:
         plugins="${SKILL%%:*}@$marketplace"
         disallowed=""
         system_prompt=""
-        # A read skill that hands on a patch edits like a write skill, but
-        # commits nothing: the runner collects its change. ci-context keeps
-        # its own tool set.
         edits=$EFFECT
         if [ "$EFFECT" = read ] && [ "$PREPARE" != ci-context ] &&
           jq -e '.selected["applied-by"].patch // empty' "$RESOLVED" >/dev/null; then
@@ -451,8 +431,6 @@ runs:
         fi
         mapfile -t checks < <(jq -r '(.selected.checks // []) + (.selected["self-checks"] // []) | .[]' "$RESOLVED")
         mapfile -t verify < <(jq -r '.selected["verify-scripts"] // [] | .[]' "$RESOLVED")
-        # tidy stages on the launcher only, where an issue lane's patch skill
-        # with no prepare mode runs; anywhere else it would do nothing.
         tidy=false
         if jq -e '.selected.tidy != null' "$RESOLVED" >/dev/null; then
           { [ "$LAUNCHER" = run-claude-cli ] && [ "$edits" = patch ] && [ -z "$PREPARE" ] && [ -n "${ISSUE_NUMBER:-}" ]; } ||
@@ -707,12 +685,6 @@ runs:
               retry=$(jq -r '.retry.brief // empty' "$FEEDBACK_DIR/threads.json")
               [ -z "$retry" ] || preamble="$preamble $retry"
             fi
-            # tidy: an issue lane's skill tidies its own change before its
-            # last check run, with the entry skill and its passes and no other
-            # skill. Each one's plugin loads read-only beside the skill's own,
-            # and each script a tidy skill runs gets its rules. The preamble
-            # names the cutoffs and the turn budget from the base config; the
-            # skill measures its change against them.
             if [ "$tidy" = true ]; then
               mapfile -t tidy_skills < <(jq -r '.selected.tidy | [.entry] + .passes | .[]' "$RESOLVED")
               ((${#tidy_skills[@]})) || fail "tidy: the resolved config names no tidy skill"
@@ -890,7 +862,6 @@ runs:
                 system_prompt="$system_prompt This run may read web pages: read each external source through /discovery:read-docs, /discovery:research --unattended, /knowledge:docpage-digest or /knowledge:map-corpus."
               fi
             fi
-            # The checks run from a base copy outside the working directory.
             if ((${#checks[@]})); then
               stage_checks "$CHECKS_DIR" "$CHECKS_DIR"
               for wrapper in "${check_wrappers[@]}"; do
@@ -900,8 +871,6 @@ runs:
               chmod -R a-w "$CHECKS_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
               system_prompt="$system_prompt $check_prompt"
-              # The checks read the working tree, so a run that commits runs
-              # them first and commits after, or its fixes stay uncommitted.
               if [ "$CAN_COMMIT" = true ]; then
                 system_prompt="$system_prompt Run the checks before you commit: run them, fix, run them again, then commit your changes and the fixes."
               fi

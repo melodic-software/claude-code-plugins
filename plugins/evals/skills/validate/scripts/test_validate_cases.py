@@ -155,8 +155,6 @@ class ValidatorTestCase(unittest.TestCase):
             0, result.returncode, "expected exit 0\n" + result.stdout + result.stderr
         )
         self.assertNotIn("FAIL", result.stdout)
-        # A sample set that could not be graded is a WARN, which would otherwise
-        # let a broken mirror read as a clean pass.
         self.assertNotIn("samples not checked", result.stdout)
 
 
@@ -418,8 +416,6 @@ class UnparsedFixture(ValidatorTestCase):
         self.assert_fail(result, "not parsed (unsupported escape)")
 
     def test_indented_nested_sequence_fails_closed(self):
-        # The compact `- - x` spelling is already rejected; the indented one is
-        # the same construct and must fail the same way.
         self.case(
             "unparsed-nested-sequence",
             case_yaml="""\
@@ -898,8 +894,6 @@ class CleanFixture(ValidatorTestCase):
         self.assertNotIn("https", result.stdout)
 
     def test_grader_list_item_may_carry_a_block_mapping(self):
-        # Three mapping levels: the document, the grader item, and target. The
-        # graders sequence is not a level, so this is inside the subset.
         self.case(
             "block-target",
             case_yaml="""\
@@ -1017,8 +1011,6 @@ class WarnTier(ValidatorTestCase):
         self.assertIn("judge grader", result.stdout)
 
     def test_a_sibling_write_case_does_not_silence_a_read_only_case(self):
-        # Each case runs in its own throwaway workspace, so the write tool one
-        # case asks for cannot make another case's file_exists satisfiable.
         self.case(
             "writes",
             prompt="""\
@@ -1505,7 +1497,6 @@ class SampleAnswers(ValidatorTestCase):
                 "g": REGEX_GRADER,
             },
         )
-        # Samples a regex would sort the other way: a judge's are not graded.
         self.samples("c", "judge", passing=[""], failing=["conftest.py"])
         result = self.validate()
         self.assertEqual(0, result.returncode, result.stdout)
@@ -1800,7 +1791,6 @@ def probe_stub(output, status=0, stderr=""):
     return body + "exit %d\n" % status
 
 
-# Probe output for one grader over a must-pass then a must-fail sample.
 SORTED = '[{"answers":[{"found":true,"count":1},{"found":false,"count":0}]}]'
 NO_MATCH = '[{"answers":[{"found":false,"count":0},{"found":false,"count":0}]}]'
 
@@ -1874,8 +1864,6 @@ class BunEngine(ValidatorTestCase):
 
 
 def history_records(*links):
-    """One user/assistant record per (uuid, parentUuid) pair; a pair member
-    of Ellipsis leaves that key out of the record."""
     records = []
     for number, (uuid, parent) in enumerate(links, start=1):
         record = {"type": "user" if number % 2 else "assistant"}
@@ -2123,7 +2111,6 @@ class PilotSuite(unittest.TestCase):
             "the live fixture must validate clean\n" + result.stdout + result.stderr,
         )
         self.assertNotIn("FAIL", result.stdout)
-        # Every deterministic grader in the pilot suite carries checked samples.
         self.assertNotIn("no sample answers", result.stdout)
         self.assertNotIn("samples not checked", result.stdout)
 

@@ -610,8 +610,6 @@ test("a verify run whose judge step lists success but whose verdict write was sk
   assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
 });
 
-// A judgment that finished may hold a FAIL its run then failed to write or
-// upload; a re-run would judge the head a second time.
 test("a verify run whose verdict write started is held with its reason, not re-run, even when the upload failed", async () => {
   const [job] = verifyJob("success");
   const steps = job.steps.flatMap((s) =>

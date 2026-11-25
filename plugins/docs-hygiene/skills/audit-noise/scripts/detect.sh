@@ -84,9 +84,6 @@ LIMIT=$((10#$LIMIT))
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 
-# Resolve relative CLI / paths-file targets against the caller's cwd BEFORE any
-# cd into the repo root, or relative targets given from another working
-# directory are silently skipped.
 resolve_existing_path() {
   local raw="$1"
   [[ "$raw" == /* ]] || raw="$PWD/$raw"
@@ -136,8 +133,6 @@ if [[ -n "$repo_root" ]]; then
   cd "$repo_root" 2>/dev/null || true
 fi
 
-# Expand directory targets to the .md files inside them (recursive), so
-# `detect.sh <dir>` batch-audits instead of silently skipping non-files.
 EXPANDED=()
 for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   if [[ -d "$target" ]]; then
@@ -168,8 +163,6 @@ fi
 # nonexistent targets.
 mapfile -d '' -t SORTED < <(printf '%s\0' "${TARGETS[@]}" | LC_ALL=C sort -uz)
 
-# Chunk affordance: slice the sorted list so a parent can fan out without a
-# per-file shell loop (hook-bypass-safe single process per chunk).
 if [[ "$LIMIT" -gt 0 ]]; then
   SORTED=("${SORTED[@]:OFFSET:LIMIT}")
 elif [[ "$OFFSET" -gt 0 ]]; then
@@ -222,14 +215,9 @@ audit_noise_print_findings() {
 audit_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
-  # CHANGELOG.md entries are exempt per SKILL.md hard rules — skip by basename
-  # so a changelog in a target list never emits findings.
   [[ "${file##*/}" == "CHANGELOG.md" ]] && return 0
   files_audited=$((files_audited + 1))
 
-  # History notes in a SKILL.md belong to /skill-quality:check and in an
-  # agents/*.md to /harness-config:audit-instructions, so ticket-pr-residue
-  # stands down on both and the owner reports them.
   local owner_routed=0 file_dir="/."
   [[ "$file" == */* ]] && file_dir="/${file%/*}"
   if [[ "${file##*/}" == "SKILL.md" || "$file_dir" == */agents ]]; then
@@ -249,12 +237,6 @@ audit_file() {
   local is_heading=0
   # Held in a variable so the unquoted `)` in `[.)]` is not parsed as bash syntax.
   local list_item_re='^[[:space:]]*([-*+]|[0-9]+[.)])[[:space:]]'
-  # Negation is paragraph-scoped: accumulate soft-wrapped lines, then classify.
-  # Other shapes stay line-scoped. Attribution is the first physical line of
-  # the triggering sentence — that is where the cue opens, so the fix action
-  # lands on the instruction's start rather than its wrap continuation.
-  # Offsets are tracked on the UNWRAPPED join so inline backticks cannot shift
-  # attribution onto an earlier line.
   local neg_unwrapped=""
   local -a neg_line_nums=() neg_line_texts=() neg_offsets=()
 
@@ -307,7 +289,6 @@ audit_file() {
     line_num=$((line_num + 1))
     is_heading=0
 
-    # YAML frontmatter, exempt per SKILL.md, opens with --- on line 1.
     if [[ $line_num -eq 1 && "$line" == '---' ]]; then
       flush_negation
       in_frontmatter=1
@@ -350,9 +331,6 @@ audit_file() {
       continue
     fi
 
-    # Any ATX heading level toggles section exemption: an ##-only toggle would
-    # let an exempt ## Sources followed by an H1 stay exempt to EOF, and would
-    # never recognize ### Sources.
     if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then
       # Capture before flushing, for the same reason as the fence branch above.
       heading_text="${BASH_REMATCH[2]}"
@@ -368,9 +346,6 @@ audit_file() {
       # blank line (unreachable in MD022-clean markdown; robustness only).
       in_ignored_para=0
     fi
-    # Opt-out markers: require a well-formed HTML comment line. Prose that
-    # merely mentions the marker name must not act as a live marker. Order
-    # matters: -line first.
     if audit_noise_is_ignore_line_marker "$line"; then
       flush_negation
       skip_next=1
@@ -390,9 +365,6 @@ audit_file() {
       skip_next=0
       continue
     fi
-    # Hot path: nameref APIs only — no per-line command substitutions.
-    # Shape helpers unwrap/strip inline code internally (ghost-ref vs others).
-    # Negation is classified after paragraph accumulation, not here.
     if audit_noise_detect_shapes_into shapes "$line" "skip-negation"; then
       audit_noise_trim_excerpt "$line" excerpt
       for shape in "${shapes[@]}"; do
@@ -406,15 +378,9 @@ audit_file() {
     if [[ -z "${line//[[:space:]]/}" ]]; then
       continue
     fi
-    # A new list item is its own block, not a soft-wrap continuation of the
-    # previous item. Flush first so `- Do not use markdown` / `- Prefer HTML.`
-    # cannot pair across items.
     if [[ "$line" =~ $list_item_re ]] && [[ ${#neg_line_nums[@]} -gt 0 ]]; then
       flush_negation
     fi
-    # Accumulate this physical line into the negation paragraph. Offsets are
-    # taken on the unwrapped join so a backticked earlier line cannot pull
-    # attribution forward. A heading is its own paragraph.
     trimmed="${line#"${line%%[![:space:]]*}"}"
     audit_noise_unwrap_backticks "$trimmed" uwrapped
     if [[ -n "$neg_unwrapped" ]]; then

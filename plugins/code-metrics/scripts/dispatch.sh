@@ -112,17 +112,10 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --no-collapse)
-    # Leave every copy's rows in the document. The coverage skill joins its
-    # artifacts against the complexity rows and collapses the joined document
-    # itself, so collapsing here would drop the copies before their coverage
-    # was ever looked up. The registries are still validated.
     NO_COLLAPSE=1
     shift
     ;;
   --no-anchor)
-    # Leave measured paths cwd-relative. The coverage and duplication skills
-    # join or merge those paths against cwd-relative inputs of their own, so
-    # they anchor the finished document once, after that.
     NO_ANCHOR=1
     shift
     ;;
@@ -204,11 +197,6 @@ count_lines() {
 }
 
 capped_line() {
-  # capped_line <file> <characters>
-  #
-  # What a tool wrote on stderr, as the single capped line a run row's reason
-  # is: the table has one row per lane and measure, and a collector that
-  # printed a stack trace must not take the report over with it.
   tr '\n' ' ' <"$1" | cut -c1-"$2"
 }
 
@@ -222,7 +210,6 @@ progress() {
   return 0
 }
 
-# ---- configuration -----------------------------------------------------------
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
   cm_resolve_config "$CONFIG" "$LADDER" ||
@@ -237,7 +224,6 @@ fi
 # and exclusions silently dropped, which is the failure the refusal exists to
 # prevent.
 resolver_format() {
-  # resolver_format <format> <output file>
   if ! "${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format "$1" >"$2"; then
     die_usage "the configuration could not be read as $1 (see the message above)"
   fi
@@ -250,10 +236,6 @@ for line in "${config_detect_args[@]}"; do
   case "${line%% *}" in
   --lane-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
   --disable-lane) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
-  # `scope.default` and `scope.base` apply only when the command line gave
-  # no --all, path, or --base of its own. An explicit --base counts against
-  # the default too: a base ref is meaningful only in change mode, so naming
-  # one asks for a diff, and widening to the tree would discard it silently.
   --scope-default)
     if [[ "$MODE_SET" -eq 0 && "$BASE_SET" -eq 0 && "${line#* }" == "all" ]]; then MODE="all"; fi
     ;;
@@ -276,7 +258,6 @@ mapfile -t EXCLUDE_GLOBS <"$WORK/excludes"
 source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
 cm_registry_paths "$CONFIG" >/dev/null || exit 2
 
-# ---- scope -------------------------------------------------------------------
 in_git="$(git rev-parse --is-inside-work-tree 2>/dev/null || true)"
 
 inside_repo() {
@@ -310,8 +291,6 @@ git_listing() {
 }
 
 list_tracked_under() {
-  # Tracked plus untracked-but-not-ignored files under a path, or a plain
-  # walk outside git. Directories only; files are appended by the caller.
   if inside_repo "$1"; then
     git -c core.quotePath=false ls-files --cached --others --exclude-standard -- "$1"
   else
@@ -433,9 +412,6 @@ change)
   else
     BASE_SHA="$(git rev-parse --verify --quiet "$BASE" 2>/dev/null || true)"
     [[ -n "$BASE_SHA" ]] || die_usage "base ref not found: $BASE"
-    # The change is measured from the merge-base, for a named ref exactly as
-    # for the default branch. Diffing a branch tip that has moved on since
-    # HEAD diverged would report that branch's own commits as this change's.
     base_merge="$(git merge-base HEAD "$BASE_SHA" 2>/dev/null || true)"
     [[ -n "$base_merge" ]] || die_usage "no merge-base between HEAD and $BASE"
     BASE_SHA="$base_merge"
@@ -449,28 +425,18 @@ change)
   ;;
 esac
 
-# Normalize: forward slashes, drop `./`, dedupe, keep existing regular files
-# that are not binary. One process over the list rather than a shell loop
-# with two subprocesses per file, which was most of a whole-tree run's time.
 SCOPED="$WORK/scoped"
 if ! "${PY[@]}" "$SCOPE_FILTER" --paths-from "$FILES_LIST" >"$SCOPED"; then
   die_usage "the scope listing could not be filtered (see the message above)"
 fi
-# scope.exclude: drop every file a configured glob matches, counting them, and
-# counting per pattern so the report can say which exclusion did what.
 EXCLUDED=0
 EXCLUSION_ROWS=()
 if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
   : >"$WORK/excluded-rootrel"
-  # Matched against root-relative paths, then mapped back, so an exclusion a
-  # team wrote once covers the same files whatever directory the audit runs in.
   to_root_relative <"$SCOPED" >"$WORK/scoped-rootrel"
   paste "$WORK/scoped-rootrel" "$SCOPED" >"$WORK/scope-map"
   for pattern in "${EXCLUDE_GLOBS[@]}"; do
     [[ -n "$pattern" ]] || continue
-    # An exclusion the matcher cannot use is a configuration error, not an
-    # exclusion that matched nothing: continuing would measure the very files
-    # the consumer asked to leave out and still exit 0.
     if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$WORK/scoped-rootrel" >"$WORK/excluded-hits"; then
       die_usage "scope.exclude: the glob $pattern could not be used (see the message above)"
     fi
@@ -497,7 +463,6 @@ if [[ "${CODE_METRICS_PROGRESS:-}" == "1" || ("${CODE_METRICS_PROGRESS:-}" != "0
 fi
 progress "$SKILL: $FILE_COUNT file(s) in scope ($MODE), $EXCLUDED excluded"
 
-# ---- lanes -------------------------------------------------------------------
 LANES_TSV="$WORK/lanes"
 if [[ "$FILE_COUNT" -gt 0 ]]; then
   # The scope travels as a file, not as an argument vector: a whole repository
@@ -513,7 +478,6 @@ if [[ "$PRINT_SCOPE" -eq 1 ]]; then
   exit 0
 fi
 
-# ---- ladder ------------------------------------------------------------------
 ladder_tools() {
   # Print the ordered tool list for a lane/measure; `*` rows apply when the
   # measure has no explicit row. Each line: tool<TAB>note.
@@ -531,10 +495,6 @@ ladder_tools() {
 }
 
 lane_shipped() {
-  # Whether the bundled ladder names the lane at all. A lane the consumer
-  # listed beside the bundled ones has no rows: each of its measures is
-  # reported as having no shipped collector, and its files keep their line
-  # count through the `other` lane's file_lines rungs.
   awk -F'\t' -v l="$1" '!/^#/ && $1 == l { found = 1; exit } END { exit !found }' "$LADDER"
 }
 
@@ -568,8 +528,6 @@ mapfile -t LANES < <(cut -f1 "$LANES_TSV" | awk 'NF && !seen[$0]++' | sort)
 
 SLOT=0
 if [[ "$FILE_COUNT" -eq 0 || ${#LANES[@]} -eq 0 ]]; then
-  # An empty change scope is the one a reader most often wonders about, so
-  # the reason says why it is empty and what widens it.
   reason='no measurable files in scope'
   if [[ "$FILE_COUNT" -gt 0 ]]; then
     reason="no measurable files in scope: the $FILE_COUNT file(s) in scope belong to no lane"
@@ -674,8 +632,6 @@ for lane in "${LANES[@]}"; do
         reasons+="${reasons:+; }$tool: adapter not shipped"
         continue
       fi
-      # A failed probe's stderr is the specific reason (a binary present but a
-      # dependency it needs absent); "not found" is the fallback wording.
       probe_err="$WORK/probe.$lane.$measure.$tool"
       if ! version="$("${PY[@]}" "$adapter" probe 2>"$probe_err")"; then
         hint="$("${PY[@]}" "$adapter" install_hint 2>/dev/null || true)"
@@ -735,7 +691,6 @@ for ((i = 0; i < SLOT; i++)); do
   [[ -f "$WORK/run.$i" ]] && cat "$WORK/run.$i" >>"$RUN"
 done
 
-# ---- assemble ----------------------------------------------------------------
 SCOPE_JSON="$WORK/scope.json"
 base_json=null
 [[ -n "$BASE_SHA" ]] && base_json="$(json_str "${BASE_SHA:0:12}")"
@@ -754,8 +709,6 @@ printf '{"mode": %s, "base": %s, "files": %s, "unclassified": %s, "excluded": %s
   "$(json_str "$MODE")" "$base_json" "$FILE_COUNT" "$((FILE_COUNT - CLASSIFIED))" "$EXCLUDED" "$exclusions_json" >"$SCOPE_JSON"
 
 THRESHOLDS="$WORK/thresholds.json"
-# The ladder's `halstead` measure reports several values; the reference is on
-# difficulty, which is the threshold entry's name.
 threshold_measures=""
 for measure in "${MEASURE_LIST[@]}"; do
   case "$measure" in
@@ -771,14 +724,9 @@ done
 
 FINAL="$WORK/assembled.json"
 if [[ "$NO_COLLAPSE" -eq 0 ]]; then
-  # Rows for a file the registry names collapse to one row per function with
-  # a replica count, and the summary is recomputed from what survived so the
-  # over-reference count stops counting one function once per copy.
   cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/collapsed.json" || exit 2
   FINAL="$WORK/collapsed.json"
 fi
-# Anchoring follows the collapse: the registries name root-relative files and
-# the collapse rebases the cwd-relative scope onto them itself.
 [[ "$NO_ANCHOR" -eq 1 ]] || cm_anchor_document "$FINAL" || exit 2
 cat "$FINAL"
 

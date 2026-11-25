@@ -40,9 +40,6 @@ set -uo pipefail
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
 # The hook's own directory is derived with parameter expansion rather than
@@ -74,14 +71,8 @@ hook::require jq "PostToolUse" guardrails "$INPUT"
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
 case "$FILE" in
-# A CHANGELOG is an append-only historical record, and this oracle selects
-# precisely for removed paths — precisely what such a record documents. Mirrors
-# skill-reference-verify's exclusion for the same reason.
 */CHANGELOG.md | CHANGELOG.md) exit 0 ;;
 *.md) ;;
-# Code files are out of scope: a path literal in a script resolves against the
-# runtime CWD, not the repo root, so a repo-root existence test is the wrong
-# oracle there.
 *) exit 0 ;;
 esac
 
@@ -137,9 +128,6 @@ REPO_ROOT=""
 hook::repo_root_to REPO_ROOT "$FILE_DIR"
 [[ -d "$REPO_ROOT" ]] || exit 0
 
-# Inline-code spans, backticks stripped. Prose is deliberately NOT scanned: an
-# unquoted `a/b` in a sentence is as likely to be a ratio, a date, or an
-# either/or as a path.
 emit_tokens() {
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
   printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null |
@@ -282,8 +270,6 @@ spv_tokens() {
   fi
 }
 
-# Tracked-file list, read at most once per run and reused by root-basename
-# ambiguity and moved-file hint enrichment.
 TRACKED_FILES=""
 TRACKED_BUILT=0
 ensure_tracked_files() {
@@ -383,38 +369,25 @@ normalize_candidate() {
   # admitting one needs a discriminator against command spans, tracked in #1452.
   [[ "$t" =~ [[:space:]] ]] && return 0
 
-  # Strip a trailing line/range citation suffix — this repo cites
-  # `docs/migration-playbook.md:576-580` and `SKILL.md:24` pervasively.
   t="${t%%:[0-9]*}"
 
-  # Strip a trailing markdown-anchor fragment.
   t="${t%%#*}"
 
-  # Strip surrounding and trailing prose punctuation.
   t="${t#[\'\"\(]}"
   t="${t%[\'\"\),;.]}"
 
-  # Leading ./ is the same path.
   t="${t#./}"
 
   local is_root=0
   [[ "$t" == */* ]] || is_root=1
 
-  # Reject anything that is not a literal repo-relative path.
   case "$t" in
-  # URLs, protocol-relative, mail, and anchors.
   *://* | //* | mailto:* | \#*) return 0 ;;
-  # Absolute POSIX and Windows paths — hardcoded-path-check owns those.
   /* | [A-Za-z]:[/\\]*) return 0 ;;
-  # Home-relative.
   '~'*) return 0 ;;
-  # A repo-root-relative citation has nothing to ascend from.
   ../* | */../*) return 0 ;;
-  # Glob, brace, or placeholder metacharacters — a pattern, not an assertion.
   *'*'* | *'?'* | *'['* | *']'* | *'{'* | *'}'* | *'<'* | *'>'* | *'$'* | *'('* | *')'* | *'|'* | *'!'*) return 0 ;;
-  # Ellipsis stand-ins.
   *...*) return 0 ;;
-  # Vendor and build trees are not tracked; their absence proves nothing.
   node_modules/* | */node_modules/* | .git/* | */.git/*) return 0 ;;
   *) ;;
   esac
@@ -479,10 +452,6 @@ spv_fixed_hits() {
 reconstruct_partial_edit() {
   RECON_OUT=()
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
-  # The token filter reads the hunk with any COMPLETE code span removed first. A
-  # complete span is already handled by the direct scan, and leaving it in would
-  # contribute its own path segments as tokens — `docs` then passes every citation
-  # under that directory. What remains is the genuinely bare edited text.
   local residue plain=0
   spv_plain "$SCAN_CONTENT" && plain=1
   # Minimum token length is two characters. A single-character token carries no
@@ -499,10 +468,6 @@ reconstruct_partial_edit() {
     mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' 2>/dev/null | sort -u)
   fi
   ((${#toks[@]})) || return 0
-  # Lines are located by the hunk's own lines, never by its tokens. Every line of
-  # new_string is on disk verbatim, so it matches the line the edit landed in; a
-  # token, being shorter, also matches lines the edit never touched — a bare `docs`
-  # in unrelated prose pulls in every citation under docs/.
   local -a anchors=()
   if ((plain)); then
     hook::_c_locale spv__nonblank "$SCAN_CONTENT"
@@ -538,11 +503,6 @@ reconstruct_partial_edit() {
       hits=(${SPV_HITS[@]+"${SPV_HITS[@]}"})
     fi
     ((${#hits[@]})) || continue
-    # replace_all is the one case where repetition is expected rather than
-    # ambiguous: every occurrence is a place THIS call edited, so all of them are
-    # in scope and uniqueness must not be required. Accepted narrowing — a line
-    # that independently contained new_string and was never touched is kept too,
-    # since nothing in the payload distinguishes it from an edited one.
     if [[ "$REPLACE_ALL" == "true" ]]; then
       for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
       continue
@@ -584,10 +544,6 @@ reconstruct_partial_edit() {
     normalize_candidate "$raw"
     cand=$NORM_CAND
     [[ -n "$cand" ]] || continue
-    # SUBSTRING match against the CANDIDATE, not the raw span: an Edit can replace
-    # part of a segment (`gone` -> `real` turns `docs/gone.md` into `docs/real.md`),
-    # so the hunk token is a substring of the path rather than the whole of it, and
-    # the anchor must appear in the thing actually reported.
     for seg in "${toks[@]}"; do
       if [[ "$cand" == *"$seg"* ]]; then
         RECON_OUT+=("$cand")
@@ -659,9 +615,6 @@ SPV_CACHE_LOOKUP=${SPV_CACHE_LOOKUP%$'\n'}
 SHALLOW=0
 WALK_FAILED=0
 
-# The deleted-path set, built at most once and only after some candidate has
-# already failed the working-tree existence test — the overwhelmingly common
-# quiet path never pays for the history walk.
 build_deleted_set() {
   ((DELETED_BUILT)) && return 0
   DELETED_BUILT=1
@@ -740,8 +693,6 @@ build_deleted_set() {
   done
 
   if [[ -n "$cache" ]]; then
-    # Built in memory and written by one printf, sentinel last: a temp file plus
-    # mv would add a process to every cold write.
     local body=$head_sha$'\n'ok$'\n'
     if ((${#DELETED[@]} > 0)); then
       for p in "${!DELETED[@]}"; do
@@ -752,10 +703,6 @@ build_deleted_set() {
   fi
 }
 
-# "Did you mean" enrichment, only once a finding exists. A basename match is far
-# too weak to trigger on — `README.md` and `SKILL.md` match hundreds of paths —
-# but once history has established the path was removed, a UNIQUE surviving
-# basename is very likely where it went.
 moved_hint() {
   local -a matches=()
   tracked_basename_matches "${1##*/}" || return 1
@@ -769,18 +716,12 @@ ABSENT=0
 
 spv_tokens
 RAW_TOKENS=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
-# Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
-# hunk can both carry a complete code span and change a substring inside another,
-# so gating on an empty scan would miss the partial half. Duplicates are harmless
-# — CHECKED dedupes below.
 if [[ "$TOOL" == "Edit" ]]; then
   reconstruct_partial_edit
   if ((${#RECON_OUT[@]})); then
     RAW_TOKENS+=("${RECON_OUT[@]}")
   fi
 fi
-# Warm before the candidate loop, and only when there is something to adjudicate.
-# `git ls-files` lists the whole index; a write that cites no token must not pay it.
 ((${#RAW_TOKENS[@]})) && ensure_tracked_files
 
 for raw in "${RAW_TOKENS[@]}"; do
@@ -802,8 +743,6 @@ done
 ((${#ABSENT_CANDS[@]})) && build_deleted_set "${ABSENT_CANDS[@]}"
 
 for cand in ${ABSENT_CANDS[@]+"${ABSENT_CANDS[@]}"}; do
-  # PROVENANCE GATE: adjudicate only a path this repository demonstrably once
-  # had. Anything else is somebody else's tree, an example, or a plan.
   [[ -n "${DELETED[$cand]:-}" ]] || continue
 
   # Deleted once, tracked again now. Under a sparse checkout such a path is absent
@@ -851,11 +790,6 @@ emit_tel() {
   data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \
     '{tool:"",file:$file,findings:$findings}' 2>/dev/null) ||
     data='{"tool":"","file":"","findings":[]}'
-  # $1 is the envelope status, defaulting to a completed check. The degradation
-  # branches pass `skipped`: they run when the deleted-path oracle was unavailable,
-  # and reporting `ok` there would make a sink read an un-run check as a healthy
-  # one — the truncated-history failure looking exactly like a clean scan is the
-  # thing this guard already refuses to do on the user-visible path.
   hook::emit_telemetry "stale-path-verify" "PostToolUse" "${1:-ok}" "$start" "$data" "$REPO_ROOT"
 }
 
@@ -878,8 +812,6 @@ if ((WALK_FAILED)) && ((ABSENT)); then
 fi
 
 if ((${#MISSING[@]} > 0)); then
-  # The file as the model names it: repo-relative when it sits under the root
-  # spelled the same way, else as given.
   show_file="$FILE"
   [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
   lines=""

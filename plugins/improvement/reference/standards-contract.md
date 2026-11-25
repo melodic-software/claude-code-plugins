@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.1.6
+standards-contract: 1.2.0
 ---
 
 <!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -27,10 +27,11 @@ relative markdown links; neighboring files are named in backticks instead.
 
 ## Layers and precedence
 
-Three layers, discovered independently, applied additively:
+Four layers, discovered independently, applied additively:
 
 | Layer | Location | Git | Scope |
 |---|---|---|---|
+| Org | the team layer of the repository `standards_repository` names, at its `main` (see Org layer) | committed in that repository | every repository that names it |
 | User-global | `~/.claude/standards/` | untracked (user's machine) | personal, all projects |
 | Team | `<standards_dir>/` (default `docs/standards/`) | committed, team-shared | the repository |
 | Personal override | `<standards_dir>/*.local.md` | gitignored | personal, this repository |
@@ -40,6 +41,11 @@ and personal override) may ADD new standards or TIGHTEN team ones; on a direct
 conflict, the team-tracked layer wins. When a personal-layer rule
 materially shapes a skill's output, the skill names the contributing layer
 (provenance), so reviewers can tell a team standard from a personal one.
+
+**Org below team:** the org layer is the base. The team layer adds to it, and
+a team file whose name equals an org row's file name replaces that org file
+for this repository (a partial override). The team layer holds only the
+repository's own additions and overrides, never a copy of the org layer.
 
 The team layer deliberately lives outside `.claude/`: writes under
 `.claude/` are permission-guarded, while reads and writes of ordinary
@@ -170,6 +176,58 @@ of working the way out from the code each time.
   settings; skills never treat the prompt (or a denial) as an error:
   a denied user-global read just means that layer contributes nothing.
 
+## Org layer
+
+The base standards an organization shares, read where they live instead of
+copied into each repository.
+
+- **Opt-in:** the repository's tracked `docs/conventions/source-control.yaml`
+  names the organization's standards repository as
+  `standards_repository: <owner>/<repo>`, the key the source-control plugin
+  already reads. No key, or a value that is not an `<owner>/<repo>` pair, means
+  no org layer; nothing else changes.
+- **Location:** the org layer is that repository's own team layer, resolved
+  at its root by rungs 1 to 3 of the ladder below (its
+  `.claude/standards.yaml`, else `docs/standards/`, and the index there).
+  Its rows' `File` values resolve against that repository, under the same
+  lookup order as any index.
+- **Reading it:** the consuming plugins bundle `scripts/org-standards.sh`.
+  `org-standards.sh dir` prints the org checkout: `STANDARDS_DIR` when set (a
+  CI job's checkout of the standards repository), else a shallow clone of
+  its `main` cached under the user cache directory and refreshed when older
+  than an hour (`ORG_STANDARDS_TTL` seconds). `org-standards.sh index` prints
+  the org index (exit 5 when the org repository has none). Exit 3 means no
+  org layer; exit 4 means it could not be read this run (a failed refresh
+  keeps the cached copy, with a notice). `--root DIR` names the repository
+  (default: the git top level). A skill
+  without the script, or without a shell, reads the same files with
+  `gh api repos/<owner>/<repo>/contents/<path>?ref=main`.
+- **Unavailable:** a skill that cannot read the org layer says so in its
+  output and continues with the other layers; it never treats the miss as
+  an error.
+
+## Review criteria: `REVIEW.md`
+
+The review criteria in effect are composed from the org repository's root
+`REVIEW.md` (the base) and the reviewed repository's root `REVIEW.md` (its
+additions), in that order:
+
+- **Default:** no repository `REVIEW.md`, so the org criteria alone.
+- **Extend:** a repository `REVIEW.md` is appended after the org criteria;
+  its criteria add to them, and on a direct conflict the repository's wins.
+  A byte-identical copy of the org file adds nothing.
+- **Complete override:** a repository `REVIEW.md` whose first non-blank line
+  is exactly `<!-- review-base: replace -->` is the whole criteria; the org
+  file is not read.
+- **No org layer:** the repository `REVIEW.md` alone, as before.
+
+`org-standards.sh review` prints the composed criteria. A review that runs
+without a shell (a CI lane) is handed the composed file by the job that
+starts it, and reads that file in place of `REVIEW.md`. A citation in the
+composed criteria shaped `<path>.md#<heading>` resolves against the
+repository the line came from: the org checkout for the org part, the
+reviewed repository for its additions.
+
 ## Concern file: `.claude/standards.yaml`
 
 ```yaml
@@ -214,6 +272,12 @@ and all repo-relative paths resolve against it.
 
 No silent writes, ever: every rung that could persist state does so only
 by explicit offer and acceptance.
+
+**Org layer (every rung):** whatever the team rungs above yield,
+resolution ALSO reads the org layer when the repository opts in (see Org
+layer): match task context against the org index's `Applies when` clues and
+load the matched files, except a file the team layer replaces. An absent or
+unreadable org layer contributes nothing.
 
 **Personal layers (every rung):** whatever the team rungs above yield,
 resolution ALSO discovers the personal layers (glob-discover

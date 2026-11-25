@@ -219,16 +219,15 @@
     },
     {
       "id": 17,
-      "name": "arm-starts-observer-and-records-armed-state",
+      "name": "arm-is-not-an-action",
       "prompt": "Start of a new session. Run /plugin-quality:audit arm.",
-      "expected_output": "The audit invokes /session-flow:running-retro arm, and when the launcher reports the observer armed writes an armed-state file in the plugin data dir beside evidence/ with armed_at, session_id and the launcher's result. It audits nothing. If the file already exists it reports that and stops; if session-flow is absent it says the observer cannot be armed and stops.",
+      "expected_output": "arm is not an argument of this audit. The audit says the session-flow observer needs no arming: it runs by itself when session-flow's observer_enabled option is on. It launches nothing, writes nothing, audits nothing, and stops.",
       "files": [],
       "expectations": [
-        "Invokes /session-flow:running-retro arm rather than building its own observer",
-        "Records the armed state (armed_at, session_id, launcher result) in the plugin data dir, outside the evidence packet tree",
-        "Does not audit any component or start the pipeline",
-        "Does not launch a second observer when an armed-state file already exists for the session",
-        "Writes nothing when the launcher reports it did not arm, and relays the launcher's message"
+        "Says the session-flow observer needs no arming and runs by itself when observer_enabled is on",
+        "Does not invoke /session-flow:running-retro or launch any observer or background process",
+        "Writes no armed-state or other file",
+        "Does not audit any component or start the pipeline"
       ]
     },
     {

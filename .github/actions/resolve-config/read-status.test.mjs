@@ -184,7 +184,6 @@ test("reader state throws StatusReadError as labels does", async () => {
   await assert.rejects(() => reader({ 7: { state: "ready" } }, { limit: 0 }).labels.state(7), (error) => unreadable(error) && /limit of 0 field reads/.test(error.message));
 });
 
-// statusEvents: field events (fieldEvents' shape) as REST label events.
 const FIELD = String(STATUS_CONFIG["field-id"]);
 const PERSON = { actorId: HUMAN_ID, actorLogin: "person", actorType: "User" };
 const APP = { actorId: 337595936, actorLogin: "melodic-automation-lanes", actorType: "Bot" };
@@ -193,7 +192,6 @@ const label = (event, name, actor, created_at, id = null) => ({ id, event, label
 const personActor = { id: HUMAN_ID, login: "person", type: "User" };
 const appActor = { id: 337595936, login: "melodic-automation-lanes[bot]", type: "Bot" };
 
-// `github` answering the REST event list of number 7 with `rest`.
 function restEvents(rest, calls = []) {
   return async (method, path) => {
     calls.push(`${method} ${path}`);

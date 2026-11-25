@@ -52,7 +52,6 @@ updates:
       github-actions:
         patterns:
           - "*"
-  # Biome and Claude Code are executable CI dependencies locked at the root.
   - package-ecosystem: npm
     directory: /
     labels:
@@ -69,7 +68,6 @@ updates:
       default-days: 3
       exclude:
         - "@anthropic-ai/claude-code"
-    # Batch minor + patch bumps into one reviewed PR; majors stay individual.
     groups:
       npm-minor-patch:
         patterns:
@@ -192,8 +190,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The resolve-config composite action's ajv and yaml, installed from its lockfile by the
-  # lanes that run it.
   - package-ecosystem: npm
     directory: /.github/actions/resolve-config
     labels:
@@ -210,8 +206,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The knowledge course-digest and video-digest extraction packages (playwright, mdast, and
-  # their TypeScript and vitest tooling), each locked in its own directory.
   - package-ecosystem: npm
     directory: /plugins/knowledge/skills/course-digest/extraction
     labels:
@@ -244,7 +238,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The ai-briefing generate skill's output build (playwright, pptxgenjs, unified, zod).
   - package-ecosystem: npm
     directory: /plugins/ai-briefing/skills/generate/output/build
     labels:
@@ -261,7 +254,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The testing ui-defects eval harness (@axe-core/playwright).
   - package-ecosystem: npm
     directory: /plugins/testing/evals/ui-defects/harness
     labels:
@@ -358,7 +350,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-  # The speech plugin's hash-locked Python packages (numpy, onnxruntime), installed the same way.
   - package-ecosystem: pip
     directory: /plugins/speech
     labels:
