@@ -72,18 +72,18 @@ the parts the evidence decides.
    six-digit hex value, a font family only from a closed character set, an SVG logo only after the
    SVG allowlist check, and an embedded logo or font file only as a file the resolver reads, checks
    by its magic bytes against the allowed media types, and base64-encodes itself. A value that fails is reported and ignored without dropping another layer's
-   value, as `medium` is (`docs/contracts/rendered-views/README.md:915`).
+   value, as `medium` is (`docs/contracts/rendered-views/README.md:918`).
 5. **The setting lives in the convention home, with `userConfig` as the per-user value** (Q2). The
    key is `branding` in the rendered-views team file `docs/conventions/rendered-views.yaml` and its
    personal override `docs/conventions/rendered-views.local.yaml`, the scopes `medium` already uses
-   (`docs/contracts/rendered-views/README.md:892-897`). Each view-lane plugin also takes a per-user
+   (`docs/contracts/rendered-views/README.md:895-900`). Each view-lane plugin also takes a per-user
    value through its `userConfig`, as it does for `medium`. Precedence is plain ADR 0075 order,
    personal override, then team, then `userConfig`, then the shipped default, so the convention home
    wins on conflict. `branding` does not take the publish trust walk `medium` takes
-   (`docs/contracts/rendered-views/README.md:900-913`): it changes how a page looks, never whether it
+   (`docs/contracts/rendered-views/README.md:903-916`): it changes how a page looks, never whether it
    leaves the machine. A lane that reads the team file from a named commit (`--team-ref`,
-   `docs/contracts/rendered-views/README.md:917-919`) reads `branding` from that commit too. The one
-   resolver, `lib/view-settings.mjs` (`docs/contracts/rendered-views/README.md:889`), resolves it.
+   `docs/contracts/rendered-views/README.md:920-922`) reads `branding` from that commit too. The one
+   resolver, `lib/view-settings.mjs` (`docs/contracts/rendered-views/README.md:892`), resolves it.
 6. **One token layer, copied per plugin** (Q3). The token layer is one canonical file,
    `lib/html-tokens.css`: the shipped values for every role and stack in both schemes, and the
    rules that apply them. `lib/html-chrome.html` takes its values from it instead of carrying its
