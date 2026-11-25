@@ -199,6 +199,7 @@ otherwise they run only in a person's own Claude Code session:
 `repo-fleet-hygiene`, `repo-hygiene`, `retro-audio`, `session-telemetry`, `songwriting`,
 `speech`, `spelling`, `sql-server`, `tdd`, `themes`, `toolchain`, `user-experience`,
 `visualization`, `wizard`, `writing`, `x`.
+
 ## Simplify pass on every pull request
 
 **Built separately**: this map records only where the pass runs. The in-run half below exists
