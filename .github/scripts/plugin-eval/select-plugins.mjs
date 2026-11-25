@@ -454,7 +454,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const inRepo = values.repo && values.base && values.head;
   const read = inRepo ? gitReader(values.repo, { base: values.base, head: values.head }) : undefined;
   const tree = inRepo ? gitTree(values.repo, values.head) : undefined;
-  const paths = readFileSync(0, "utf8").split("\n").filter(Boolean);
+  const paths = readFileSync(0, "utf8").split(/\r?\n/).filter(Boolean);
   const selected = selectPlugins(paths);
   const refused = [...refusals(paths, selected, read), ...linkRefusals(selected, tree), ...caseLoadRefusals(paths, selected, tree, read)];
   if (refused.length) {
