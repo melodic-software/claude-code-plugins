@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [10.2.0] - 2026-11-25
+
+### Added
+
+- `/session-flow:step-away` now writes its orchestrator posture to the session's focus file, next
+  to the task file. Automatic compaction during an absence keeps both in the summary. `away.py
+  start` prints a `posture=` line, and `focus.py set --posture orchestrator|off` writes or removes
+  the new Posture section. The return step clears both. An absence works the same with
+  `compact_focus_enabled` off: the focus write is skipped and no file is created.
+
 ## [10.1.1] - 2026-11-25
 
 ### Fixed
