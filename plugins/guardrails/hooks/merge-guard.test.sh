@@ -750,7 +750,7 @@ quiet "gh pr -R repo view is not a merge" 'gh pr -R acme/widgets view 42'
 
 SHORT="$TEST_TMPDIR/short-budget"
 mkdir -p "$SHORT"
-ln -sf "$HOOK_DIR/abort-boundary.sh" "$HOOK_DIR/hook-utils.sh" "$HOOK_DIR/merge-hold-labels.json" "$HOOK" "$SHORT/"
+ln -sf "$HOOK_DIR/abort-boundary.sh" "$HOOK_DIR/hook-utils.sh" "$HOOK_DIR/merge-hold-labels.json" "$HOOK_DIR/pr-verify-run.jq" "$HOOK" "$SHORT/"
 sed 's/^MG_BUDGET_S=35$/MG_BUDGET_S=2/' "$HOOK_DIR/merge-readiness.sh" >"$SHORT/merge-readiness.sh"
 assert_eq "the short-budget copy rewrote the budget line" "1" \
   "$(grep -c '^MG_BUDGET_S=2$' "$SHORT/merge-readiness.sh")"

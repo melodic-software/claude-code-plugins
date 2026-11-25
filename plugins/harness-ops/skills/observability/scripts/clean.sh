@@ -159,8 +159,6 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 
 OBS_DIR="${REPO_ROOT}/.claude/observability"
-# The retired shared-file location (harness-ops-r001): pruned while a consumer
-# still carries it, so the old rows keep aging out until setup migrates them.
 HOOK_LOG="${OBS_DIR}/hook-events.jsonl"
 # The hook log root sits under the main checkout when REPO_ROOT is a linked
 # worktree: the anchor the hooks write under (session-log-lib.sh).
@@ -298,8 +296,6 @@ prune_file "$HOOK_LOG" "ts"
 # `clean` sweeps the stale ones whether or not the hooks still run.
 log "clean: hook log root $HOOK_ROOT"
 prune_file "$HOOK_ROOT/hook-events.jsonl" "ts"
-# The sink rotates the live file into .1 under the live file's lock, so pruning
-# .1 takes that same lock.
 prune_file "$HOOK_ROOT/hook-events.jsonl.1" "ts" "" "$HOOK_ROOT/hook-events.jsonl.lock"
 if [[ -d "$HOOK_ROOT/sessions" ]]; then
   mapfile -t OLD_SESSIONS < <(

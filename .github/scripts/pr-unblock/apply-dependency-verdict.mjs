@@ -197,7 +197,6 @@ export function validateRun(run, pr) {
   return { ...validateContext(context, pr), output: validateVerdict(output) };
 }
 
-// The tree entry for `path` at `sha`, or undefined.
 async function entryAt(api, sha, path) {
   const dir = path.slice(0, Math.max(path.lastIndexOf("/"), 0));
   const name = path.slice(dir ? dir.length + 1 : 0);
@@ -253,7 +252,6 @@ async function baseCdnPaths(api, baseSha) {
   }
 }
 
-// The base's dependabot.yml pairs, or null when it does not read.
 async function basePairs(api, baseSha) {
   try {
     return SHA.test(String(baseSha)) ? parseConfig(await api.getText(CONFIG_PATH, baseSha)) : null;
@@ -276,7 +274,6 @@ function roundBody({ head, verdict, run, reasons = [], evidence = [] }) {
 
 const ignoreLine = (pr, head) => `<!-- pr-unblock:dependency-ignore pr=${pr} head=${head} -->`;
 
-// The ignore-entry issue the lanes App already filed for this PR and head.
 async function findIgnoreIssue(api, { pr, head, appId }) {
   const issues = await api.listIssues("state=all&labels=dependencies");
   return issues.find(
@@ -329,8 +326,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     await api.createIssueComment(pr, roundBody({ head: (run ?? context)?.head_sha ?? pull.head.sha, verdict, run: runKey, ...output }));
   };
   if (pull.state !== "open") {
-    // A close this job started and did not finish resumes: the PR is closed
-    // at the reviewed head and the lane's issue or marker is already there.
     const resumable =
       run?.output.verdict === "close" &&
       pull.head.sha === run.head_sha &&
@@ -358,8 +353,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     return { escalationReason: "dependency-invalid", skipReason: "" };
   }
   const { verdict, reasons, evidence } = run.output;
-  // Posts the round marker as `marker`, with the verdict's reasons and
-  // evidence, and ends the round on `escalationReason`.
   const end = async (marker, escalationReason) => {
     await record(marker, { reasons, evidence });
     return { escalationReason, skipReason: "" };
@@ -410,7 +403,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     return { escalationReason: "", skipReason: "superseded-sha" };
   }
   if (verdict === "merge") {
-    // The content rule could not run, so no merge marker is posted on it.
     const pairs = await basePairs(api, baseSha);
     if (run.config_unreadable || pairs === null) {
       return end("escalate", "dependency-config-unreadable");
@@ -457,8 +449,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       log(`#${pr}: a commit is not Dependabot's or a lane fix, or not its pusher's own (${refusal}); a person decides`);
       return end("escalate", "dependency-fix-refused");
     }
-    // A review-only dependency merges only on a verdict that quotes each
-    // matched entry's control verbatim in an evidence entry.
     const uncited = run.controls.filter((control) => !evidence.some((item) => item.includes(control)));
     if (uncited.length) {
       log(`#${pr}: the merge verdict's evidence does not quote ${uncited.length} review-only control(s)`);
@@ -471,9 +461,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     if (run.security || isSecurityUpdate({ labels, body: pull.body ?? "" })) {
       return end("escalate", "dependency-security-close");
     }
-    // Each step is safe to repeat, so a re-run after a partial failure
-    // resumes: the issue is looked up by its marker before it is filed, the
-    // round marker is posted once per model run, and only an open PR closes.
     const existing = await findIgnoreIssue(api, { pr, head: run.head_sha, appId });
     const issue = existing ?? (await api.createIssue(ignoreIssue({ pr, head: run.head_sha, title: pull.title ?? "", reasons })));
     log(`#${pr}: ${existing ? "found" : "filed"} #${issue.number} for the ignore entry`);
@@ -491,8 +478,6 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
   return end("escalate", escalateReason(run.output.owner_reason));
 }
 
-// A regular file of at most LIMITS.bytes whose SHA-256 is `sha256`, parsed;
-// null when it is absent.
 function readChecked(path, sha256, who) {
   let stat;
   try {
@@ -557,7 +542,6 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   }
   if (context !== null) {
     try {
-      // No attempt: the scan uploaded no verdict, so none is read.
       const output = attempt ? readChecked(join(env.DEPENDENCY_VERDICT_DIR, "dependency-verdict.json"), env.DEPENDENCY_VERDICT_SHA256, "the scan job") : null;
       if (output === null) {
         missing = true;
@@ -592,8 +576,6 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   });
   if (escalationReason) {
     writeFileSync(env.ESCALATION_REASON_FILE, `${escalationReason}\n`);
-    // lane-stopped for a reason routed to a failing status, which
-    // dependency-dispatch.mjs releases for a same-head retry.
     writeFileSync(env.SKIP_REASON_FILE, `${stopSkip(escalationReason)}\n`);
   } else if (skipReason) {
     writeFileSync(env.SKIP_REASON_FILE, `${skipReason}\n`);

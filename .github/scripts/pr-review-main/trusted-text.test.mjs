@@ -36,8 +36,6 @@ const CONTEXT = `${JSON.stringify({ pr: { number: PR, head_sha: HEAD, base_sha: 
 
 const secondsAgo = (seconds) => Math.floor(Date.now() / 1000) - seconds;
 
-// A main checkout with one commit, the shared read's context.json and its
-// sha256 taken here with node's crypto, and the leg's matching values.
 function harness() {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-shared-"));
   const base = path.join(dir, ".base");
@@ -99,7 +97,6 @@ test("a leg takes the shared read only when its hash, main commit, PR, head and 
       assert.equal(own.taken, null, reason);
       assert.match(own.stdout, new RegExp(`^the shared trusted PR text is not used \\(${reason}\\); this leg reads its own$`, "m"), reason);
     }
-    // A 20-minute limit: a read 19 minutes old is taken, 21 minutes old is not.
     assert.equal(h.run({ SHARED_READ_AT: String(secondsAgo(19 * 60)) }).out, "shared=true\n", "a read inside the age limit is taken");
     const stale = h.run({ SHARED_READ_AT: String(secondsAgo(21 * 60)) });
     assert.equal(stale.out, "", "a stale read is not taken");
@@ -117,7 +114,6 @@ test("a leg takes the shared read only when its hash, main commit, PR, head and 
         assert.match(own.stdout, new RegExp(`\\(${reason}\\); this leg reads its own$`, "m"), reason);
       }
     }
-    // A hash over a file naming another PR still leaves the leg its own read.
     const other = CONTEXT.replace(`"number": ${PR}`, '"number": 8');
     writeFileSync(h.shared, other);
     const named = h.run({ SHARED_SHA256: createHash("sha256").update(other).digest("hex") });
@@ -157,7 +153,6 @@ test("each leg reads its own text unless the shared read was taken, from the col
     })) {
       assert.equal(envOf(take, key), value, `${job}: ${key}`);
     }
-    // The age limit is set once, for the whole workflow.
     assert.equal(envOf(take, "SHARED_TEXT_MAX_AGE_MINUTES"), undefined, job);
     assert.match(text, /^env:\n(?: {2}#.*\n)* {2}SHARED_TEXT_MAX_AGE_MINUTES: "[1-9][0-9]*"$/m);
     assert.equal(envOf(download, "path"), "${{ runner.temp }}/pr-review-main-shared-text", job);
@@ -169,7 +164,6 @@ test("each leg reads its own text unless the shared read was taken, from the col
       assert.ok(admits(ifOf(take), context), `${job}: take runs`);
     }
     assert.ok(!admits(select, { steps: { ...reviewed.steps, shared: { outputs: { shared: "true" } } } }), `${job}: no own read once taken`);
-    // A failed or missing shared read downloads nothing.
     const downloads = (outputs, attempt = "1") => admits(ifOf(download), { ...reviewed, github: { run_attempt: attempt }, needs: { [TEXT]: { outputs } } });
     assert.ok(downloads({ sha256: "f".repeat(64), "run-attempt": "1" }), job);
     assert.ok(!downloads({ sha256: "", "run-attempt": "1" }), job);
@@ -212,7 +206,6 @@ test("the collect-trusted-text job never fails the run, and runs only where this
   }
   assert.ok(!runs({ ...triggered, result: "failure" }));
   assert.ok(!runs(triggered, { ...upstreamRun, ref: "refs/heads/x" }));
-  // The read runs only under the legs' kill switch and upstream status.
   const report = step(TEXT, "Report the kill switch");
   const script = /^ {8}run: \|\n((?: {10}.*\n)+)/m.exec(`${report}\n`)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-text-switch-"));

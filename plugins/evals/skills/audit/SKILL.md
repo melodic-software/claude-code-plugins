@@ -27,7 +27,10 @@ through the plugin's shared `case_skills.py` rule, so its answer matches `/evals
 
 - skills with no case;
 - skills with no deterministic triggering case (no case with a `tool_used` Skill grader that
-  needs the skill to fire);
+  needs the skill to fire). A triggering grader has to pin that one skill;
+- skills covered only by a multi-skill grader: their only triggering grader also accepts another
+  skill, such as `(?:a|b)`, so a run that fires the other skill passes it. These skills are not
+  repeated on the line above;
 - judged graders (`llm`, `baseline`) with no labeled `samples/<grader>.json`, which cannot have
   been calibrated, and the PASS and FAIL label counts of those that have one;
 - skills whose only cases are a legacy `skills/<skill>/evals/evals.json`;

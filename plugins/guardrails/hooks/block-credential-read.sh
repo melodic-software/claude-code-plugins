@@ -82,12 +82,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Only the DISABLED arm is hoisted;
-# a value that is neither `true` nor `false` keeps the guard on and says so
-# through hook::emit_channels, which needs the library, so that arm runs below.
-# scripts/check-killswitch-hoist.sh knows this shape.
-# Unset means the plugin.json default, which is false (off).
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED:-false}" == "false" ]] && exit 0
 
 _HOOK_SELF="${BASH_SOURCE[0]%/*}"
@@ -109,7 +103,6 @@ hook::buffer_stdin_to INPUT || {
   ((rc == 2)) && exit 2
   exit 0
 }
-# A value other than true (an exact false exited above) keeps the guard on.
 [[ "$_bcr_enabled" == true ]] ||
   guard::bad_switch_notice block_credential_read_enabled "$_bcr_enabled" "$INPUT"
 
@@ -122,8 +115,6 @@ guard::payload_verdict "$jq_rc" || exit $(($? == 3 ? 0 : 2))
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 
-# Past this length the command is not parsed (the dispatcher's own ceiling is the
-# same number). A long command that reads a credential is not an accident.
 MAX_COMMAND_LEN=16384
 ((${#COMMAND} > MAX_COMMAND_LEN)) && exit 0
 
@@ -133,11 +124,8 @@ MAX_COMMAND_LEN=16384
 # a leaked nocasematch would change the guards sourced after this one.
 SUBJECT="${COMMAND,,}"
 
-# Cheap pre-filter: every shape below names one of these words, so a command
-# that names none leaves without paying for the matcher.
 [[ "$SUBJECT" =~ credential|token|secret|password|passwd|api_?key|access_key|private_key|printenv|_netrc|\.netrc|docker|env|\.ssh ]] || exit 0
 
-# Is a family token in the block_credential_read_allow userConfig comma list?
 allowed() {
   local list=",${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ALLOW:-},"
   [[ "$list" == *,"$1",* ]]
@@ -159,14 +147,11 @@ match_shapes() {
   local lead stmt
   # Leading inline assignments (`TERM=xterm gh auth token`) run the command that follows.
   local assign="(([a-z_][a-z0-9_]*=([^[:space:]${sq}${dq}]*|${sq}[^${sq}]*${sq}|${dq}[^${dq}]*${dq})${sp}+)*)"
-  # End of a word: whitespace, a separator, a closing paren or quote, or end of string.
   local end="([[:space:];&|)\`${sq}${dq}]|\$)"
   # A command word may carry a directory prefix (/usr/bin/gh, C:\tools\gh).
   local pre="([^[:space:];&|\`(){}${sq}${dq}]*[/\\\\])?"
   local arg="[^;&|]"
-  # A token-shaped variable name.
   local tokvar='[a-z0-9_*?]*(token|secret|password|passwd|api_key|apikey|access_key|private_key|credential)[a-z0-9_*?]*'
-  # A path whose last part is a credential file.
   local dir="([^[:space:];&|${sq}${dq}]*[/\\\\])?"
   local jsonfile="(\\.credentials\\.json|\\.docker[/\\\\]config\\.json)"
   local keyfile="(\\.ssh[/\\\\]id_[a-z0-9_]+|\\.aws[/\\\\]credentials)"
@@ -192,7 +177,6 @@ match_shapes() {
   while [[ "$s" =~ \$\{[a-z0-9_]+:\+[^}]*\} ]]; do
     s="${s/"${BASH_REMATCH[0]}"/}"
   done
-  # Templates carry no secret.
   s="${s//.env.example/.x}"
   s="${s//.env.sample/.x}"
   s="${s//.env.template/.x}"
@@ -258,9 +242,6 @@ interpreter_reads() {
   local re_int="${lead}${pre}(python[0-9.]*|py|node|nodejs|deno|bun|ruby|perl|php)(\\.exe)?(${sp}|\$)"
   local path="(\\.git-credentials|\\.netrc|_netrc|\\.env(\\.[a-z0-9_-]+)?|\\.credentials\\.json|\\.docker[/\\\\]config\\.json|\\.ssh[/\\\\]id_[a-z0-9_]+|\\.aws[/\\\\]credentials)([^a-z0-9_.-]|\$)"
   local verb='(open|read|dotenv|file_get_contents|slurp|cat|source)'
-  # The file name sits in a string literal on the verb's line, as code names a
-  # path: right after the opening quote, or after a separator inside it. Prose
-  # that mentions `Read(.env)` holds no quote between the two.
   local lit="[${sq}${dq}]([^${sq}${dq}${nl}]*[^a-z0-9_${sq}${dq}${nl}])?"
   local re_read="${verb}[^${nl}]*${lit}${path}|${lit}${path}[^${nl}]*${verb}"
   local re_hd="<<-?${sp}*[${sq}${dq}]?([a-z0-9_]+)"

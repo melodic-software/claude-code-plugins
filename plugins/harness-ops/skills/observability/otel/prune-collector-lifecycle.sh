@@ -209,7 +209,6 @@ cleanup() {
       if ((original_rc == 0)); then original_rc=1; fi
     fi
   fi
-  # The probe reads the stamp as proof of a completed run, so write it only after a clean restart.
   if ((original_rc == 0)) && [[ -n "$STAMP_DIR" ]]; then stamp_last_prune "$STAMP_DIR"; fi
   if [[ "$OWN_SENTINEL" == true && -n "$SENTINEL" && -d "$SENTINEL" ]]; then
     release_sentinel

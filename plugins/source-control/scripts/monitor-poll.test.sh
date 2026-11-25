@@ -26,7 +26,9 @@ unset GH_REPO
 
 PLUGIN="$TEST_TMPDIR/plugin"
 mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
-cp -p "$SRC" "$SCRIPT_DIR/../skills/pull-request/scripts/target-repo.sh" "$PLUGIN/skills/pull-request/scripts/"
+cp -p "$SRC" "$SCRIPT_DIR/../skills/pull-request/scripts/target-repo.sh" \
+  "$SCRIPT_DIR/../skills/pull-request/scripts/pr-verify-run.jq" "$PLUGIN/skills/pull-request/scripts/"
+export MP_FIXTURES="$SCRIPT_DIR/fixtures/monitor-poll"
 cp -p "$SCRIPT_DIR/../lib/github-remote.sh" "$PLUGIN/lib/"
 POLL="$PLUGIN/skills/pull-request/scripts/monitor-poll.sh"
 
@@ -67,7 +69,38 @@ case "$args" in
     n=$(($(cat "$FX/poll" 2>/dev/null || echo 0) + 1))
     echo "$n" >"$FX/poll"
     if [ "$n" -ge "$(cat "$FX/merged_at")" ]; then state=closed merged=true; else state=open merged=false; fi
-    reply "{\"state\":\"$state\",\"merged\":$merged,\"head\":{\"sha\":\"sha1\"}}" ;;
+    # head.<n>: the head SHA from that poll on (the newest such file at or below n); sha1 without one.
+    sha=sha1
+    for f in "$FX"/head.*; do [ -e "$f" ] && [ "${f##*.}" -le "$n" ] && sha=$(cat "$f"); done
+    reply "{\"state\":\"$state\",\"merged\":$merged,\"head\":{\"sha\":\"$sha\",\"ref\":\"feature\"},\"base\":{\"ref\":\"main\",\"repo\":{\"default_branch\":\"main\",\"full_name\":\"owner/repo\"}}}" ;;
+  *"/contents/.github/workflows/pr-verify.yml"*)
+    # no-verify: the base branch has no pr-verify workflow.
+    if [ -e "$FX/no-verify" ]; then
+      echo "$(cat "$FX/poll") 404 ${args##* }" >>"$FX/calls"
+      printf 'HTTP/2.0 404 Not Found\r\n\r\n{"message":"Not Found"}\n'
+      echo "gh: Not Found (HTTP 404)" >&2
+      exit 1
+    fi
+    reply '{"path":".github/workflows/pr-verify.yml"}' ;;
+  *"/actions/artifacts?name="*)
+    # art/<name>: "<from poll> [<run id>]", the artifact by that exact name from that poll on,
+    # shaped from the captured listing fixtures/monitor-poll/artifacts-pass-notes.json.
+    name=${args##*name=} name=${name%%&*}
+    live=0 run=5
+    if [ -e "$FX/art/$name" ]; then
+      read -r from run <"$FX/art/$name"
+      run=${run:-5}
+      [ "$(cat "$FX/poll")" -ge "$from" ] && live=1
+    fi
+    reply "$(jq -c --arg n "$name" --argjson r "$run" --argjson live "$live" \
+      'if $live == 1 then .artifacts[0] |= (.name = $n | .workflow_run.id = $r) else .total_count = 0 | .artifacts = [] end' \
+      "$MP_FIXTURES/artifacts-pass-notes.json")" ;;
+  *"/actions/runs/"[0-9]*)
+    # The captured pr-verify run fixtures/monitor-poll/run-pr-verify.json, moved to this repository;
+    # run.<id>, when present, is a jq edit that forges one field.
+    id=${args##*/}
+    reply "$(jq -c --argjson id "$id" "(.id = \$id | .repository.full_name = \"owner/repo\" | .head_repository.full_name = \"owner/repo\") | $(cat "$FX/run.$id" 2>/dev/null || echo .)" \
+      "$MP_FIXTURES/run-pr-verify.json")" ;;
   *"/actions/runs"*)
     n=$(cat "$FX/poll")
     [ "$(cat "$FX/fault.$n" 2>/dev/null)" = actions ] && { echo "boom: transient" >&2; exit 1; }
@@ -263,6 +296,157 @@ out6="$(run_poll "$FX6")"
 rc6=$?
 assert_eq "comment-read rate limit: exit status" "2" "$rc6"
 assert_contains "comment-read rate limit: names the error" "$out6" "RATE-LIMITED — watch stopped: API rate limit exceeded"
+
+H1=$(printf 'a%.0s' $(seq 40))
+H2=$(printf 'b%.0s' $(seq 40))
+DIGEST=$(printf '%s' feature | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-16)
+verdict_fx() {
+  local fx="$TEST_TMPDIR/$1" n
+  mkdir -p "$fx/art"
+  for n in 1 2 3 4 5; do runs_json a >"$fx/checks.$n"; done
+  echo "$H1" >"$fx/head.1"
+  echo 5 >"$fx/merged_at"
+  printf '%s' "$fx"
+}
+
+FXV=$(verdict_fx fxv-pass)
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_eq "verdict at the head: the pass is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+assert_contains "verdict at the head: the watch completes" "$outv" "PR #7 MERGED — watch complete"
+
+FXV=$(verdict_fx fxv-digest)
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass-notes-$DIGEST"
+outv="$(run_poll "$FXV")"
+assert_eq "verdict named with the head-ref digest: the pass-notes is printed once" "1" \
+  "$(grep -c "^PR-VERIFY pass-notes $H1\$" <<<"$outv")"
+
+FXV=$(verdict_fx fxv-fail)
+echo 2 >"$FXV/art/pr-verify-index-pr-7"
+echo 2 >"$FXV/art/pr-verify-index-sha-$H1"
+outv="$(run_poll "$FXV")"
+assert_eq "FAIL at the head: printed once, from its index artifacts" "1" "$(grep -c "^PR-VERIFY fail $H1 — " <<<"$outv")"
+assert_contains "FAIL at the head: the line points at the label and the fail-note threads" "$outv" \
+  "label pr-verify-failed; its notes are the review threads that open with <!-- pr-verify:fail-note -->"
+
+FXV=$(verdict_fx fxv-fail-other-run)
+echo "2 5" >"$FXV/art/pr-verify-index-pr-7"
+echo "2 6" >"$FXV/art/pr-verify-index-sha-$H1"
+outv="$(run_poll "$FXV")"
+assert_not_contains "index artifacts from two different runs: no FAIL is printed" "$outv" "PR-VERIFY"
+
+FXV=$(verdict_fx fxv-older-head)
+echo "$H2" >"$FXV/head.2"
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+echo 2 >"$FXV/art/pr-verify-index-pr-7"
+echo 2 >"$FXV/art/pr-verify-index-sha-$H1"
+outv="$(run_poll "$FXV")"
+assert_not_contains "verdicts at an older head: nothing is printed" "$outv" "PR-VERIFY"
+assert_contains "verdicts at an older head: the watch completes" "$outv" "PR #7 MERGED — watch complete"
+
+FXV=$(verdict_fx fxv-none)
+outv="$(run_poll "$FXV")"
+assert_not_contains "no verdict artifact: nothing is printed" "$outv" "PR-VERIFY"
+assert_contains "no verdict artifact: verdict reads ran by exact name" "$(cat "$FXV/calls")" \
+  "actions/artifacts?name=pr-verify-7-$H1-pass&per_page=100"
+
+FXV=$(verdict_fx fxv-first-poll)
+echo 1 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_not_contains "a verdict already there at the first poll is recorded, not printed" "$outv" "PR-VERIFY"
+
+FXV=$(verdict_fx fxv-off)
+touch "$FXV/no-verify"
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_not_contains "base branch without the pr-verify workflow: no verdict is printed" "$outv" "PR-VERIFY"
+assert_eq "base branch without the pr-verify workflow: its file is read once" "1" \
+  "$(grep -c 'pr-verify.yml' "$FXV/calls")"
+assert_not_contains "base branch without the pr-verify workflow: no artifact is read" "$(cat "$FXV/calls")" "actions/artifacts"
+
+FXV=$(verdict_fx fxv-pending)
+for n in 1 2; do runs_json a | sed 's/"completed","conclusion":"success"/"in_progress","conclusion":null/' >"$FXV/checks.$n"; done
+echo 4 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_contains "first poll: the record-only verdict read runs though a check run is pending" \
+  "$(awk '$1 == 1' "$FXV/calls")" "actions/artifacts"
+assert_eq "a check run still pending after the first poll: no verdict read" "" "$(awk '$1 == 2 && /actions\/artifacts/' "$FXV/calls")"
+assert_contains "every check run finished: the verdict reads start" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
+assert_eq "every check run finished: a verdict landing later is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+
+FXV=$(verdict_fx fxv-pending-at-arming)
+echo 6 >"$FXV/merged_at"
+for n in 1 2 3; do runs_json a | sed 's/"completed","conclusion":"success"/"in_progress","conclusion":null/' >"$FXV/checks.$n"; done
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_eq "no baseline, a check run pending through poll 3, a verdict at poll 2: printed exactly once" "1" \
+  "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+
+FXV=$(verdict_fx fxv-pass-then-fail)
+echo 6 >"$FXV/merged_at"
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+echo 4 >"$FXV/art/pr-verify-index-pr-7"
+echo 4 >"$FXV/art/pr-verify-index-sha-$H1"
+outv="$(run_poll "$FXV")"
+assert_contains "a pass recorded for the head: its reads go on" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
+assert_eq "a pass then a fail at one head: the pass is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+assert_eq "a pass then a fail at one head: the fail is printed once" "1" "$(grep -c "^PR-VERIFY fail $H1 — " <<<"$outv")"
+
+FXV=$(verdict_fx fxv-new-head)
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+echo "$H2" >"$FXV/head.4"
+outv="$(run_poll "$FXV")"
+assert_contains "a new head: the verdict reads name it" "$(awk '$1 == 4' "$FXV/calls")" "pr-verify-7-$H2-pass"
+
+for forge in '.status = "in_progress"' '.conclusion = "failure"' '.path = ".github/workflows/forged.yml"' \
+  '.event = "pull_request"' '.repository.full_name = "fork/repo"' '.head_repository.full_name = "fork/repo"' \
+  '.head_branch = "feature"'; do
+  FXV=$(verdict_fx "fxv-forged-$(cksum <<<"$forge" | cut -d' ' -f1)")
+  echo "2 9" >"$FXV/art/pr-verify-7-$H1-pass"
+  echo "2 9" >"$FXV/art/pr-verify-index-pr-7"
+  echo "2 9" >"$FXV/art/pr-verify-index-sha-$H1"
+  echo "$forge" >"$FXV/run.9"
+  outv="$(run_poll "$FXV")"
+  assert_not_contains "artifacts from a run with $forge: nothing is printed" "$outv" "PR-VERIFY"
+  assert_contains "artifacts from a run with $forge: the run was read" "$(cat "$FXV/calls")" "actions/runs/9"
+done
+
+FXV=$(verdict_fx fxv-fail-then-pass)
+echo 6 >"$FXV/merged_at"
+echo 2 >"$FXV/art/pr-verify-index-pr-7"
+echo 2 >"$FXV/art/pr-verify-index-sha-$H1"
+echo 4 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV")"
+assert_contains "a fail recorded for the head: its reads go on" "$(awk '$1 == 3' "$FXV/calls")" "actions/artifacts"
+assert_eq "a fail then a pass at one head: the fail is printed once" "1" "$(grep -c "^PR-VERIFY fail $H1 — " <<<"$outv")"
+assert_eq "a fail then a pass at one head: the pass is printed once" "1" "$(grep -c "^PR-VERIFY pass $H1\$" <<<"$outv")"
+
+FXV=$(verdict_fx fxv-rearm)
+echo 1 >"$FXV/art/pr-verify-7-$H1-pass"
+run_poll "$FXV" --snapshot "$FXV/snap" >/dev/null
+assert_contains "snapshot: holds the verdict at the head" "$(cat "$FXV/snap")" "PR-VERIFY pass $H1"
+echo "$H2" >"$FXV/head.3"
+echo 3 >"$FXV/art/pr-verify-index-pr-7"
+echo 3 >"$FXV/art/pr-verify-index-sha-$H2"
+outv="$(run_poll "$FXV" --baseline "$FXV/snap")"
+assert_not_contains "re-armed from the snapshot: the verdict it holds is not printed again" "$outv" "PR-VERIFY pass"
+assert_eq "re-armed from the snapshot: a verdict at a new head is printed once" "1" "$(grep -c "^PR-VERIFY fail $H2 — " <<<"$outv")"
+assert_not_contains "re-armed from the snapshot: the verdict line is not taken for a check" "$outv" "BASELINE-UNREADABLE"
+
+FXV=$(verdict_fx fxv-once)
+echo 9 >"$FXV/merged_at"
+echo 2 >"$FXV/art/pr-verify-7-$H1-pass"
+outv="$(run_poll "$FXV" --once)"
+assert_eq "--once: a new verdict ends the poll" "2" "$(cat "$FXV/poll")"
+
+FXV=$(verdict_fx fxv-verdict-mode)
+echo 1 >"$FXV/art/pr-verify-7-$H1-pass"
+assert_eq "--verdict: prints the verdict at the head" "PR-VERIFY pass $H1" "$(run_poll "$FXV" --verdict)"
+FXV=$(verdict_fx fxv-verdict-none)
+assert_eq "--verdict: names no verdict at the head" "PR-VERIFY none $H1" "$(run_poll "$FXV" --verdict)"
+FXV=$(verdict_fx fxv-verdict-off)
+touch "$FXV/no-verify"
+assert_contains "--verdict: says the base branch runs no pr-verify" "$(run_poll "$FXV" --verdict)" "PR-VERIFY off"
 
 # --- the script runs no rm and makes no temp file: an auto-mode session's
 # safety check denied a Monitor command that ran rm:

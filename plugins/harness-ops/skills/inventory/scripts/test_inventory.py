@@ -40,8 +40,6 @@ class TestBraceMap(unittest.TestCase):
         self.assertEqual(len(bm.pairs), 1)
 
     def test_ignores_braces_inside_regex(self) -> None:
-        # A regex literal containing an unbalanced brace would desync a naive
-        # counter and misattribute every object after it.
         bm = inv.build_brace_map("x={a:/[{]/g}")
         self.assertEqual(len(bm.pairs), 1)
 
@@ -68,7 +66,6 @@ class TestBraceMap(unittest.TestCase):
         self.assertEqual(len(bm.pairs), 2)
 
     def test_division_is_not_a_regex(self) -> None:
-        # `a/b` followed by `{` must not swallow the object as a regex body.
         bm = inv.build_brace_map("y=a/b;x={c:1}")
         self.assertEqual(len(bm.pairs), 1)
 
@@ -110,9 +107,6 @@ class TestBraceMap(unittest.TestCase):
 
 
 class TestCommandExtraction(unittest.TestCase):
-    # Two command literals packed flush together, as the real bundle packs
-    # them. A fixed-width text window around the first would capture the
-    # second's description; brace depth is what keeps them apart.
     ADJACENT = (
         'var a={type:"local-jsx",name:"artifacts",aliases:[],'
         'description:"Browse your published and shared artifacts",isEnabled:()=>Z9()},'
@@ -236,8 +230,6 @@ class TestBundledSkills(unittest.TestCase):
         self.assertIsNone(inv.discover_registrar("var x=1;", "registerBundledSkill"))
 
     def test_constant_names_resolve(self) -> None:
-        # The failure this guards: a literal-only scan silently drops roughly a
-        # third of the bundled skills, including code-review and dataviz.
         skills, notes = inv.extract_bundled_skills(
             self.BUNDLE, inv.build_brace_map(self.BUNDLE)
         )
@@ -257,9 +249,6 @@ class TestBundledSkills(unittest.TestCase):
 
 class TestIntegrity(unittest.TestCase):
     def _src(self, extra: str = "") -> str:
-        # The version literal has to repeat: detect_cli_version deliberately
-        # ignores a version mentioned only once, since that is a dependency's
-        # version rather than the build's.
         return (
             "pt(Q,{registerBundledSkill:()=>xu});"
             + f'"{inv.VALIDATED_AGAINST}";' * 30
@@ -454,8 +443,8 @@ class TestReadBundleRegionRule(unittest.TestCase):
     """
 
     MARKER = b"// @bun @bytecode @bun-cjs\n"
-    BIG = b'x={type:"local",name:"help",description:"d"};' * 30_000  # > 1 MB
-    GAP = bytes(range(0x80, 0x100)) * 8  # non-printable bytes
+    BIG = b'x={type:"local",name:"help",description:"d"};' * 30_000
+    GAP = bytes(range(0x80, 0x100)) * 8
     DOCTOR = b'eo({name:"doctor",aliases:["checkup"],menuDescription:"Health-check"});'
     CONST = b'var kYe="simplify";' + b"a" * 300
 
@@ -625,8 +614,6 @@ class TestNameLocality(unittest.TestCase):
         return inv.extract_bundled_skills(src, inv.build_brace_map(src))
 
     def test_nearest_preceding_binding_wins_over_a_farther_one(self) -> None:
-        # The phantom this guards: `oO="ehrpd"` in an unrelated module far
-        # ahead must not shadow `oO="artifact-design"` bound closer in.
         src = (
             self.HEAD
             + 'var oO="ehrpd";'
@@ -651,8 +638,6 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(notes["unresolved_dynamic_names"], ["e"])
 
     def test_a_short_identifier_bound_nearby_resolves(self) -> None:
-        # The design canvas registration: `var r="design"` a few KB ahead of
-        # `eo({name:r,...})` inside the same module.
         src = (
             self.HEAD
             + 'var r="design";'
@@ -867,7 +852,6 @@ class TestContainerAndVersion(unittest.TestCase):
         self.assertEqual(inv.detect_container(b"nope"), "unknown")
 
     def test_version_needs_repetition(self) -> None:
-        # One mention is a dependency's version, not the build's.
         self.assertIsNone(inv.detect_cli_version('"9.9.9"'))
         self.assertEqual(inv.detect_cli_version('"2.1.228"' * 30), "2.1.228")
 
@@ -1334,7 +1318,6 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertIs(agents["general-purpose"]["gated"], False)
         for name in ("statusline-setup", "Explore", "Plan", "claude-code-guide"):
             self.assertEqual(agents[name]["roster"], "conditional", name)
-        # Pushed through `{CLAUDE_AGENT:s}`, the name a later export gives it.
         self.assertEqual(agents["claude"]["roster"], "conditional")
         self.assertEqual(agents["workflow-subagent"]["roster"], "absent")
         self.assertIsNone(agents["workflow-subagent"]["model_invocable"])
@@ -1490,17 +1473,12 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertNotIn("unresolved_names", notes)
 
     def test_pascal_case_binding_wins_over_a_nearer_snake_case_one(self) -> None:
-        # `k1` is rebound to a snake_case string nearer the definition, as
-        # unrelated code rebinds minified names; a snake_case value is taken
-        # only when no PascalCase binding precedes (`m1`).
         tools = self._extract()[0]
         self.assertIn("SendUserFile", tools)
         self.assertIn("memory_read", tools)
         self.assertNotIn("system_assigned_identity", tools)
 
     def test_a_snake_case_rebinding_the_definition_reads_is_not_skipped(self) -> None:
-        # The definition reads the nearer rebinding, so the PascalCase
-        # binding behind it is not its name: unresolved, never guessed.
         src = TOOL_SRC.replace(
             "$t({name:k1,", 'k1="system_assigned_identity";$t({name:k1,'
         )
@@ -2890,7 +2868,6 @@ def _plugin_modules(**swap: str) -> list[str]:
         'var ge=()=>Z_({name:ZYe,description:"Security default",'
         "enabledFromTrustedSettingsOnly:!0,enabledFromPolicyOnly:!0,"
         "hooksModule:VU(1,m,()=>m())});export{ge as registerPlugin};",
-        # The name constant sits more than 4 KiB ahead of the registration.
         "agents": 'import{Z_}from"/$bunfs/root/chunk-r.js";var W=!0;'
         'var B=()=>lo("tengu_agents_md_mod",W);var K="cc-plugin-agents-md";'
         'var H="AGENTS.md as project instructions";var pad="'
@@ -3764,8 +3741,6 @@ class TestInstructionFiles(unittest.TestCase):
         self.assertEqual(got, [dict(zip(self.FIELDS, row)) for row in self.EXPECTED])
 
     def test_an_ignored_tree_is_not_listed(self) -> None:
-        # A fresh clone has no node_modules/, so listing its files would make
-        # a cloud-versus-local comparison report a false difference.
         self.write(
             self.repo,
             {

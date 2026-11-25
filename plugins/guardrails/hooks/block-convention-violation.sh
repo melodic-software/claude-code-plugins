@@ -61,11 +61,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED:-true}" == "true" ]] || exit 0
 
 # The hook's own directory is derived with parameter expansion rather than
@@ -163,8 +158,6 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 
 SUBJECT_ERE=""
 TITLE_ERE=""
-# A key's diagnostic when its resolution failed (see the header); empty when it
-# resolved or is simply untracked.
 SUBJECT_DIAG=""
 TITLE_DIAG=""
 CONV_LOADED=0
@@ -205,8 +198,6 @@ ensure_convention_patterns() {
           conv_end="END"
           break
         fi
-        # Recorded set must be the current set, in order: an entry written by a
-        # release with another dependency list reads as a miss.
         [[ "$conv_line" == "DEP "[01]" "* && "${conv_line:6}" == "${CONV_DEPS[conv_i]:-}" ]] || {
           conv_fresh=0
           break
@@ -230,8 +221,6 @@ ensure_convention_patterns() {
   fi
 
   if ((CONV_HIT == 0)) && [[ -f "$RESOLVER" ]]; then
-    # Existence is sampled BEFORE the resolver forks, so the entry records the
-    # dependency set the answer was resolved against.
     conv_dep_lines=""
     for conv_dep in "${CONV_DEPS[@]}"; do
       conv_exists=0
@@ -280,12 +269,7 @@ ensure_convention_patterns() {
       esac
     done
     [[ "$conv_errf" == /dev/null ]] || rm -f "$conv_errf" 2>/dev/null
-    # Fail open per key, stated: a key the resolver cannot answer is not
-    # enforced, while a key that resolved still is. The answer is not cached, so
-    # a fixed config is read on the next call; the notice is emitted where the
-    # failed key would have been checked (conv_failure_notice).
     [[ -z "$SUBJECT_DIAG" && -z "$TITLE_DIAG" ]] || return 0
-    # Write through a temp name and rename, so a reader never sees a half file.
     if [[ -n "$CONV_CACHE" ]] && mkdir -p "${CONV_CACHE%/*}" 2>/dev/null; then
       if printf '%s\n%s\n%s\n%sEND\n' "$REPO_ROOT" "$SUBJECT_ERE" "$TITLE_ERE" "$conv_dep_lines" \
         >"$CONV_CACHE.$$" 2>/dev/null; then
@@ -300,8 +284,6 @@ ensure_convention_patterns() {
 # conv_failure_notice <check> <checked thing> <diagnostic>: tell both readers,
 # once per session (agent for the model), that a check did not run.
 conv_failure_notice() {
-  # One latch key per check: a shared key lets whichever check fails first hide
-  # the other's skip for the rest of the session.
   if hook::notice_once "guardrails-convention-resolver-$1" "$INPUT"; then
     hook::emit_skip_notice PreToolUse "guardrails block-convention-violation: the $1 convention check did not run, so this $2 was not checked. The convention resolver reported \"$3\". This notice does not repeat this session."
   fi
@@ -501,7 +483,6 @@ check_segment() {
         *) ;;
         esac
       done
-      # The skip is reported only once a title was actually left unchecked.
       if [[ -n "$t" && -n "$TITLE_DIAG" ]]; then
         conv_failure_notice "PR-title" "PR title" "$TITLE_DIAG"
       elif [[ -n "$t" ]] && ! [[ "$t" =~ $TITLE_ERE ]]; then
@@ -623,9 +604,6 @@ check_segment() {
   else
     subj=$(first_heredoc_subject "$COMMAND")
   fi
-  # No extractable message body (non-heredoc stdin producer): content unknown,
-  # skip — form is the mechanic gate's concern, and guessing here would block
-  # compliant subjects it cannot see.
   [[ -n "$subj" ]] || return 0
 
   [[ "$subj" =~ $SUBJECT_ERE ]] || block_subject "$subj"

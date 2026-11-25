@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [12.11.0] - 2026-11-25
+
+### Changed
+
+- `limits.sweep-gap-minutes` is 5 instead of 15, so the work-unblock sweep a finished work-resolve-issue run starts fills the freed slot at once unless a full sweep finished in the last 5 minutes. Against the 15-minute schedule, 15 skipped 12 of 21 such sweeps; a full sweep now spends at most 109 lanes App calls, not the 800 the old value was sized on. The README's basis for both sweep limits states the measurement; `restarts-per-run` stays 10, since it never deferred a restart in 69 full sweeps.
+
+## [12.10.2] - 2026-11-24
+
+### Changed
+
+- The synced copies `.github/standards/trusted-actors/` and `.github/standards/github-actions-conventions/` are gone: standards no longer syncs them (melodic-software/standards#1127), and every reader takes both lists from the standards checkout. `resolve-config` without `standards-path` (`STANDARDS_DIR`) now loads no vocabulary, so it rejects the config instead of reading the base copy; `pr-verify`'s probe replay needs `STANDARDS_DIR`. Tests read a captured standards checkout under `.github/scripts/lib/fixtures/standards/`.
+- ci-status no longer holds a lanes App pull request that widens `.github/standards/trusted-actors/trusted-actors.json`, and the review callers' `hold-paths` drop `.github/standards/trusted-actors/**`: the list lives in melodic-software/standards, whose `CODEOWNERS` owns `components/trusted-actors/`.
+
 ## [12.10.1] - 2026-11-24
 
 ### Fixed
