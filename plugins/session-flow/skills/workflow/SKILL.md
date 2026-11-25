@@ -165,7 +165,9 @@ never stops on it. Report one line, for example
   such, with the dependency: one the tracker marks as owned by a local session (the work-items
   session-owned role label, if enabled), or one whose body names something only a local machine
   reaches, such as the owner's own hosts, devices or credentials. That item continues from
-  implement in a local session. An item published as needing a human keeps that gate. The
+  implement in a local session. The lanes read labels, not body text, so an item kept local only
+  for what its body names gets the session-owned label through the tracker before anything else,
+  and the recommendation names that as its first step; until then the factory can still pick it up. An item published as needing a human keeps that gate. The
   session's own next step is then the retrospective, or the next task's first stage. A plan that
   skipped decompose has published nothing, so its route is unchanged.
 

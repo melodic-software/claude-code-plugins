@@ -19,6 +19,6 @@ graders:
     arm: with-only
   - name: names-103-local
     type: regex
-    pattern: '^(?![^\n]*\b(?:not|never|no)\b[^\n]{0,20}\blocal)[^\n]*#103\b[^\n]*\blocal(?:ly)?\b'
+    pattern: '#103\b(?![^\n]*?\b(?:not|never|no)\b[^\n]{0,10}\blocal)[^\n]*?\blocal(?:ly)?\b'
     flags: 'mi'
     arm: with-only

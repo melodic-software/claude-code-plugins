@@ -3,6 +3,10 @@
     {
       "answer": "Next stage: implement #101, then #102.",
       "why": "names implement"
+    },
+    {
+      "answer": "No implementation_route set, so local: next stage is implement #101.",
+      "why": "implementation_route is not the word implement"
     }
   ],
   "fail": [

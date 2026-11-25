@@ -19,6 +19,6 @@ graders:
     arm: with-only
   - name: names-implement
     type: regex
-    pattern: '^(?![^\n]*\b(?:not|never|no|skip)\b[^\n]{0,20}\bimplement)[^\n]*\bimplement\b'
+    pattern: '^(?![^\n]*\b(?:not|never|no|skip)\b[^\n]{0,20}\bimplement\b)[^\n]*\bimplement\b'
     flags: 'mi'
     arm: with-only

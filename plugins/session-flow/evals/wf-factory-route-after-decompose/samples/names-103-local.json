@@ -3,6 +3,10 @@
     {
       "answer": "#101 and #102 go to the factory.\n#103 stays local: it needs the on-premises reporting host.",
       "why": "the host-bound item is named as local"
+    },
+    {
+      "answer": "#101 and #102 are handed to the factory, which owns implement through ship; no local implement stage. #103 stays local: it needs the on-premises reporting host.",
+      "why": "a negation before #103 on the same line does not count"
     }
   ],
   "fail": [
