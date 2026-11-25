@@ -205,10 +205,10 @@ writes the save-point. Every other handoff commits nothing.
 
 **When it applies.** Only when the turn that started this handoff is the user's own message in
 this session asking to pause the work (a `/session-flow:handoff` the user typed counts). These
-never commit, whatever the setting: a handoff another skill invokes (for example
-`/session-flow:keep-going` handing back at a usage limit), a handoff a hook or a context
-measurement suggested, a phase-boundary handoff (the phase's own commit belongs to the
-implementing skill), and a run whose brief gives `orchestrator` commit authority. For those,
+never commit, whatever the setting: the [urgent path](#urgent-path), a handoff another skill
+invokes (for example `/session-flow:keep-going` handing back at a usage limit), a handoff a hook
+or a context measurement suggested, a phase-boundary handoff (the phase's own commit belongs to
+the implementing skill), and a run whose brief gives `orchestrator` commit authority. For those,
 report `wip_commit: not applied (<reason>)` and go on.
 
 **Resolve the setting** once, lowest layer first, as

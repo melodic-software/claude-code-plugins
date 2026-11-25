@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: rs-goal-redraft-offered
-description: 'Resume with a flagged goal: the first remaining action is ''Re-draft the carried /goal condition'', because the carried condition ties its proof to the earlier conversation. The session offers a reworded condition tied to the recorded commit, never claims to arm it, and goes on to write NOTES.md. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'The relative Read directive exercises the fallback clause. The first remaining action is to re-draft a goal that depends on the earlier conversation. The session offers a condition tied to the recorded commit, leaves arming it to the user, and writes NOTES.md. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [resume, goal, handoff]
 plugins: ["../../../.."]
 expected_outcome: 'The reply offers a re-drafted condition that names commit 4be1c9a (or an evidence file) instead of ''output you produced in this conversation'', leaves arming to the user, and the session writes NOTES.md.'

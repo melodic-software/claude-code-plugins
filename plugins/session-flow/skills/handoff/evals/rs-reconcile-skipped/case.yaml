@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: rs-reconcile-skipped
-description: 'Resume with no off-thread work recorded: Environment to re-establish reads ''- Off-thread work: none recorded.'', so the session runs no reconcile and goes straight to writing docs/INDEX.md. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'The relative Read directive exercises the fallback clause. Environment to re-establish records no off-thread work, so the session skips reconcile and writes docs/INDEX.md. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [resume, reconcile, must-not, handoff]
 plugins: ["../../../.."]
 expected_outcome: 'The session writes docs/INDEX.md listing docs/setup.md and docs/usage.md and never invokes /session-flow:reconcile.'

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [".work/handoffs/20301101T120000Z-handoff-color-index.md"]}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": [".work/handoffs/20301101T120000Z-handoff-color-index.slots.json"]}
+  ]
+}

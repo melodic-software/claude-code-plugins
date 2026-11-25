@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: rs-raises-due-reminder
-description: 'Resume with a due reminder: the handoff''s Reminders hold a user entry whose time has passed (publish the 1.4.0 release) and one due in 2099 (delete an old release). The first reply raises the due entry with its exact command and withholds the not-yet-due command. The directive''s ''raise its due Reminders'' clause carries the rule here, since a static prompt cannot hold the absolute path the resume-context hook anchors on. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'The relative Read directive exercises the fallback clause to raise due Reminders. The first reply gives the exact command to publish the overdue 1.4.0 release and withholds the command to delete an old release in 2099. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [resume, reminders, handoff]
 plugins: ["../../../.."]
 expected_outcome: 'The reply names [M1] as due (overdue since 2026-01-05) with the command `gh release create v1.4.0 --notes-file CHANGELOG.md` verbatim, says one reminder is not yet due without printing its command, appends the CHANGELOG line, and never edits the handoff file.'

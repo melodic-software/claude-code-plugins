@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: rs-redacted-entry-not-rearmed
-description: 'Resume with a redacted monitor: the [monitor] entry''s command lost its token to redaction and ends ''restore: manual''. The session writes STATUS.md and never starts the monitor; it tells the user the monitor needs re-creating by hand. A run needs --scaffold and --allow-tools Bash Write Edit Monitor.'
+description: 'The relative Read directive exercises the fallback clause. The monitor command has a redacted token and ends in ''restore: manual''. The session writes STATUS.md, leaves the monitor stopped, and tells the user to re-create it by hand. A run needs --scaffold and --allow-tools Bash Write Edit Monitor.'
 tags: [resume, re-arm, redaction, must-not, handoff]
 plugins: ["../../../.."]
 expected_outcome: 'The session writes STATUS.md, starts no Monitor and no background deployctl command, and its reply says the staging deploy log monitor must be re-created manually from the team vault token.'
