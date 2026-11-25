@@ -832,6 +832,27 @@ class SelectCasesTest(unittest.TestCase):
         block = self._edit_and_select(config, "  # Heading the model reads\n", "")
         self.assertEqual("control-no-fire one-basic one-trigger", block.get("cases"))
 
+    def _assert_string_line_runs(self, rel, base_text, line):
+        path = self.repo / rel
+        _write(self.repo, rel, base_text)
+        _commit_all(self.repo, "seed a multi-line string")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(path, line, "")
+        self.assertEqual("control-no-fire one-basic one-trigger", block.get("cases"))
+
+    def test_comment_shaped_line_in_a_toml_string_still_runs(self):
+        self._assert_string_line_runs(
+            "plugins/alpha/skills/one/config.toml",
+            'prompt = """\n# Heading the model reads\nbody\n"""\n',
+            "# Heading the model reads\n",
+        )
+
+    def test_powershell_here_string_lines_are_content(self):
+        import no_run_text
+
+        text = '# Seeds it.\n$text = @"\n# Heading the model reads\nbody\n"@\n'
+        self.assertEqual(("hash", frozenset({3, 4, 5})), no_run_text.comment_style("a.ps1", text))
+
     def test_markdown_html_comment_deletion_still_runs(self):
         self._base_with_comments()
         details = self.repo / "plugins/alpha/skills/one/reference/details.md"

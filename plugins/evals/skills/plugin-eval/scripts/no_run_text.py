@@ -31,12 +31,13 @@ ROUTING_TAIL_RE = re.compile(
 )
 HEREDOC_RE = re.compile(r"(?<!<)<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 BLOCK_SCALAR_RE = re.compile(r"^(\s*)\S[^#]*:[ \t]*[|>][-+0-9]*[ \t]*(?:#.*)?$")
-STRING_QUOTES = {".py": ('"""', "'''"), ".cs": ('"""',), ".go": ("`",)}
+HERE_STRING_RE = re.compile(r"@([\"'])\s*$")
+STRING_QUOTES = {".py": ('"""', "'''"), ".toml": ('"""', "'''"), ".cs": ('"""',), ".go": ("`",)}
 STRING_QUOTES.update(dict.fromkeys([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"], ("`",)))
 CLAUSE_SPLIT_RE = re.compile(r"(?<=[.;])\s+")
 SWAP_TOKEN_RE = re.compile(r"[A-Za-z]+|[0-9]+|\s+|\\.|[^\sA-Za-z0-9]")
 HASH_COMMENT_EXTS = frozenset(
-    [".yaml", ".yml", ".sh", ".bash", ".zsh", ".py", ".toml", ".rb", ".pl", ".ps1", ".psm1"]
+    [".yaml", ".yml", ".sh", ".bash", ".zsh", ".py", ".toml", ".ps1", ".psm1"]
 )
 SLASH_COMMENT_EXTS = frozenset(
     [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsonc", ".go", ".cs"]
@@ -176,8 +177,8 @@ def is_routing_only_change(old, new, pairs):
 
 
 def _string_block_lines(ext, text):
-    """1-based numbers of the lines `text` holds inside a shell heredoc, a YAML block scalar or a
-    multi-line string, where a comment-shaped line is content."""
+    """1-based numbers of the lines `text` holds inside a shell heredoc, a PowerShell here-string,
+    a YAML block scalar or a multi-line string, where a comment-shaped line is content."""
     inside = set()
     closer = None
     quotes = STRING_QUOTES.get(ext, ())
@@ -189,13 +190,21 @@ def _string_block_lines(ext, text):
             closer = None
         elif closer is not None:
             inside.add(number)
-            done = line.strip() == closer if closer[0].isalpha() else line.count(closer) % 2
+            if closer.endswith("@"):
+                done = line.startswith(closer)
+            elif closer[0].isalpha() or closer[0] == "_":
+                done = line.strip() == closer
+            else:
+                done = line.count(closer) % 2
             closer = None if done else closer
             continue
         heredoc = HEREDOC_RE.search(line) if ext in (".sh", ".bash", ".zsh") else None
         scalar = BLOCK_SCALAR_RE.match(line) if ext in (".yaml", ".yml") else None
+        here = HERE_STRING_RE.search(line) if ext in (".ps1", ".psm1") else None
         if heredoc:
             closer = heredoc.group(2)
+        elif here:
+            closer = here.group(1) + "@"
         elif scalar:
             closer = len(scalar.group(1))
         else:
