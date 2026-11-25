@@ -25,6 +25,7 @@ GRAMMARS = (
     "tree_sitter_python",
     "tree_sitter_javascript",
     "tree_sitter_bash",
+    "tree_sitter_yaml",
 )
 MISSING = [m for m in GRAMMARS if importlib.util.find_spec(m) is None]
 if MISSING:
@@ -53,6 +54,19 @@ JS_BASE = (
 JS_STRIPPED = "export function hi(name) {\n  return `hi ${name}`;\n}\n"
 SH_BASE = '#!/usr/bin/env bash\n# count the files\nn=$(ls | wc -l)\necho "$n"\n'
 SH_STRIPPED = '#!/usr/bin/env bash\nn=$(ls | wc -l)\necho "$n"\n'
+WORKFLOW = (
+    "on: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n"
+    "      - uses: actions/checkout@v4{}\n"
+)
+ZIZMOR = "  # zizmor: ignore[unpinned-uses]"
+ESLINT_BLOCK = (
+    "/* eslint-disable\n   no-alert,\n   no-console,\n   no-debugger */\nalert(1);\n"
+)
+GATE_FILES = (
+    ".github/scripts/diff-chunking/comment_only.py",
+    "plugins/code-tidying/scripts/change-shape.py",
+    "plugins/code-tidying/git-hooks/comment-lint.py",
+)
 
 CASES = {
     "comment.py": (PY_BASE, PY_STRIPPED, True),
@@ -115,6 +129,32 @@ CASES = {
     "notes.md": ("# Title\n\n<!-- a comment -->\nText.\n", "# Title\n\nText.\n", False),
     "script.ps1": ("# say it\nWrite-Output 1\n", "Write-Output 1\n", False),
     "unchanged.py": (PY_BASE, PY_BASE, False),
+    "one-of-two-notes.py": (
+        "# note\nx = 1\n# note\ny = 2\n",
+        "# note\nx = 1\ny = 2\n",
+        True,
+    ),
+    "added-comment.py": (PY_STRIPPED, PY_BASE, False),
+    "edited-comment.js": (JS_BASE, JS_BASE.replace("say hello", "say goodbye"), False),
+    "eslint-rule-config.js": (
+        "eval(x);\n",
+        "/* eslint no-eval: off */\neval(x);\n",
+        False,
+    ),
+    "zizmor-added.yml": (WORKFLOW.format(""), WORKFLOW.format(ZIZMOR), False),
+    "zizmor-removed.yml": (WORKFLOW.format(ZIZMOR), WORKFLOW.format(""), False),
+    "fmt-skip.py": ("x = [1,2]  # fmt: skip\n", "x = [1,2]\n", False),
+    "block-directive-line.js": (
+        ESLINT_BLOCK,
+        ESLINT_BLOCK.replace("   no-console,\n", ""),
+        False,
+    ),
+    "inside-block-directive.js": (
+        "/* eslint-disable\n   no-alert,\n   no-console */ /* note */\nalert(1);\n",
+        "/* eslint-disable\n   no-alert,\n   no-console */\nalert(1);\n",
+        False,
+    ),
+    **{path: (PY_BASE, PY_STRIPPED, False) for path in GATE_FILES},
 }
 RENAMED_FROM, RENAMED_TO = "old-name.py", "new-name.py"
 MODE_CHANGED = "mode.sh"
@@ -139,6 +179,7 @@ def commit_tree(
         if content is None:
             target.unlink(missing_ok=True)
             continue
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content)
     for path, executable in modes.items():
         (repo / path).chmod(0o755 if executable else 0o644)
@@ -204,6 +245,7 @@ def test_prints_only_qualifying_paths_in_input_order(outcome):
         "comment.js",
         "comment.sh",
         "docstring.py",
+        "one-of-two-notes.py",
         EXECUTABLE,
     ]
 
