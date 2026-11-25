@@ -132,7 +132,7 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
       if (listing === undefined) {
         throw new GitHubError(404, `${method} ${path}`);
       }
-      return Object.entries(listing).map(([name, blob]) => ({ name, sha: blob, type: "file" }));
+      return structuredClone(listing);
     }
     if ((match = /\/contents\/(.+)$/.exec(route))) {
       assert.equal(new URL(path, "https://x").searchParams.get("ref"), MAIN_TIP);
@@ -305,18 +305,20 @@ test("a head that changes a file the broker compares is not re-fired: the refusa
   }
 });
 
+const LISTING = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8"));
+const relisted = (changes = {}) => LISTING.workflows.flatMap((entry) => (!(entry.name in changes) ? [entry] : changes[entry.name] === null ? [] : [{ ...entry, sha: changes[entry.name] }]));
+
 test("a PR past the compare API's 300-file list is judged by the broker's files at its merge base and head", async () => {
   const many = Array.from({ length: 300 }, (_, index) => `docs/${index}.md`);
   const base = sha(3);
-  const at = (blob) => Object.fromEntries(FILES.map((file) => [file.slice(".github/workflows/".length), blob]));
-  const same = refusedWorld([pr(9)], { changed: { [sha(9)]: many }, mergeBase: base, workflows: { [base]: at(BLOB), [sha(9)]: at(BLOB) } });
+  const same = refusedWorld([pr(9)], { changed: { [sha(9)]: many }, mergeBase: base, workflows: { [base]: relisted(), [sha(9)]: relisted({ "pr-merge.yml": NEW_BLOB }) } });
   assert.equal(await main({ env, github: same.github, actions: same.actions, now: NOW }), 0);
   assert.equal(pushes(same.calls).length, 1, "300 files that leave every broker file unchanged re-fire");
   for (const [why, options] of Object.entries({
-    "a broker file changed": { mergeBase: base, workflows: { [base]: at(BLOB), [sha(9)]: { ...at(BLOB), "pr-unblock.yml": NEW_BLOB } } },
-    "a broker file removed": { mergeBase: base, workflows: { [base]: at(BLOB), [sha(9)]: Object.fromEntries(Object.entries(at(BLOB)).slice(1)) } },
-    "no merge base": { workflows: { [base]: at(BLOB), [sha(9)]: at(BLOB) } },
-    "an unreadable listing": { mergeBase: base, workflows: { [base]: at(BLOB) } },
+    "a broker file changed": { mergeBase: base, workflows: { [base]: relisted(), [sha(9)]: relisted({ "pr-unblock.yml": NEW_BLOB }) } },
+    "a broker file removed": { mergeBase: base, workflows: { [base]: relisted(), [sha(9)]: relisted({ "pr-dispatch-feedback.yml": null }) } },
+    "no merge base": { workflows: { [base]: relisted(), [sha(9)]: relisted() } },
+    "an unreadable listing": { mergeBase: base, workflows: { [base]: relisted() } },
   })) {
     const w = refusedWorld([pr(9)], { changed: { [sha(9)]: many }, ...options });
     await main({ env, github: w.github, actions: w.actions, now: NOW });

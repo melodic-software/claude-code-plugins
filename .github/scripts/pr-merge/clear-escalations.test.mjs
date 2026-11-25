@@ -90,7 +90,7 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       if (!(dotRef in dotGithub)) {
         throw new Error(`GET ${path} failed with status 404`);
       }
-      return Object.entries(dotGithub[dotRef]).map(([name, sha]) => ({ name, sha, type: "dir" }));
+      return structuredClone(dotGithub[dotRef]);
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7/files`) {
       return path.endsWith("page=1") ? pullFiles : [];
@@ -1591,11 +1591,12 @@ test("a workflow-staged keep line names main's SHA and the first workflow file i
 test("past the compare API's 300-file list, workflow-staged reads .github/workflows' tree at main's merge base and tip", async () => {
   const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
   const BASE = "3".repeat(40);
-  const tree = (sha) => ({ workflows: sha, scripts: "9".repeat(40) });
-  const same = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: tree("7".repeat(40)), [MAIN]: tree("7".repeat(40)) } });
+  const listing = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8")).dotGithub;
+  const tree = (changes) => listing.map((entry) => (entry.name in changes ? { ...entry, sha: changes[entry.name] } : entry));
+  const same = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ scripts: "9".repeat(40) }) } });
   await run(same);
   assert.equal(same.writes().at(-1)?.method, "DELETE", "an unchanged workflows tree takes the label off");
-  const moved = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: tree("7".repeat(40)), [MAIN]: tree("8".repeat(40)) } });
+  const moved = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ workflows: "8".repeat(40) }) } });
   const kept = await run(moved);
   assert.ok(kept.logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes .github/workflows`), kept.logs.join("\n"));
   assert.ok(!moved.writes().some((write) => write.method === "DELETE"), "a changed workflows tree keeps the label");
