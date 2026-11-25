@@ -503,6 +503,7 @@ function outputsFor({ lane, selected }) {
     "actions-variables": selected.grant["actions-variables"] ?? "",
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
+    ...(selected["applied-by"]?.["triage-verdict"] === undefined ? {} : { "applied-by-triage-verdict": selected["applied-by"]["triage-verdict"] }),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
     ...(selected.kind === "skill" ? { "permission-mode": selected["permission-mode"] ?? "dontAsk" } : {}),
     ...(selected.kind === "script" ? { checkout: selected.checkout ?? "head" } : {}),

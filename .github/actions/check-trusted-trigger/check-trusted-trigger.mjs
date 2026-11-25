@@ -702,9 +702,12 @@ async function checkAppLabel({ github, repository, event, list, deniedIds, lanes
   return { ...stopped("ok"), proceed: "true" };
 }
 
-async function evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, appField, runId, runAttempt }) {
+async function evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, appField, botSenderIds = new Set(), issueAuthor = false, runId, runAttempt }) {
   if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
+  }
+  if (eventName === "issues" && issueAuthor && (event.action !== "opened" || !Number.isInteger(event.sender?.id) || event.sender.id !== event.issue?.user?.id)) {
+    throw new Stop("untrusted-actor");
   }
   if (
     eventName === "issues" &&
@@ -720,11 +723,13 @@ async function evaluateActors({ github, repository, eventName, event, list, deni
     if (Number.isInteger(event.sender?.id) && deniedIds.has(event.sender.id)) {
       throw new Stop("bot-actor");
     }
-    if (!isListed(pool, event.sender)) {
+    if (!isListed(pool, event.sender) && !(event.sender?.type === "Bot" && isListed(botSenderIds, event.sender))) {
       throw new Stop("untrusted-actor");
     }
   }
-  await checkRerunner({ github, repository, runId, runAttempt, pool, deniedIds });
+  const first = String(runAttempt) === "1" && eventName !== "push";
+  const rerunPool = first && botSenderIds.has(event.sender?.id) ? new Set([...pool, event.sender.id]) : pool;
+  await checkRerunner({ github, repository, runId, runAttempt, pool: rerunPool, deniedIds });
   return { ...stopped("ok"), proceed: "true" };
 }
 
@@ -748,6 +753,8 @@ export async function evaluateTrigger({
   requireKind = "",
   appLabel = "",
   appField = null,
+  botSenderIds = new Set(),
+  issueAuthor = false,
   runId = "",
   runAttempt = "",
   reconcilerWorkflow = "",
@@ -762,7 +769,7 @@ export async function evaluateTrigger({
     throw new Stop("no-pr");
   }
   if (requirePr === "false") {
-    return evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, appField, runId, runAttempt });
+    return evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, appField, botSenderIds, issueAuthor, runId, runAttempt });
   }
   if (requirePr !== "true") {
     throw new Stop("no-pr");
@@ -916,9 +923,11 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
   try {
     let list;
     let deniedIds;
+    let botSenderIds;
     try {
       list = loadTrustedList(trustedListPath(env, env.TRUSTED_ACTORS_PATH));
       deniedIds = parseDeniedIds(env.DENIED_ACTOR_IDS);
+      botSenderIds = parseDeniedIds(env.BOT_SENDER_IDS ?? "");
     } catch {
       throw new Stop("list-unreadable");
     }
@@ -951,6 +960,8 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
         ENV_ID.test(env.APP_FIELD_ID ?? "") && ENV_ID.test(env.APP_FIELD_OPTION ?? "")
           ? { id: env.APP_FIELD_ID, option: env.APP_FIELD_OPTION }
           : null,
+      botSenderIds,
+      issueAuthor: env.ISSUE_AUTHOR === "true",
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
       runAttempt: env.GITHUB_RUN_ATTEMPT ?? "",

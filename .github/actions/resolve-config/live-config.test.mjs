@@ -758,7 +758,7 @@ test("live config: fix-docs with a write effect is refused", () => {
   );
 });
 
-test("live config: only fix-docs, resolve-conflicts, address-feedback, review-dependency, fix-ci and resolve-issue set applied-by, each to its own appliers", () => {
+test("live config: only fix-docs, resolve-conflicts, address-feedback, review-dependency, fix-ci, resolve-issue and triage-issue set applied-by, each to its own appliers", () => {
   const { activities } = parse(FILES.config);
   assert.deepEqual(
     Object.entries(activities)
@@ -771,9 +771,11 @@ test("live config: only fix-docs, resolve-conflicts, address-feedback, review-de
       ["review-dependency", { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" }],
       ["fix-ci", { patch: "apply-patch" }],
       ["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }],
+      ["triage-issue", { "triage-verdict": "post-triage" }],
     ],
   );
   assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).effect, "read");
+  assert.equal(selected("intake-triage", "triage-issue", ISSUE).effect, "read");
 });
 
 test("live config: the shipped patch rules pass against the live activities", () => {

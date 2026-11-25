@@ -7,13 +7,29 @@ external-agents run codex --use <task|investigate> --prompt-file <file> [--mode 
 ```
 
 - **Decide the extra directories before the run.** A write run is fenced to the worktree by
-  Codex's `workspace-write` sandbox. List every directory outside the worktree the task will
-  write, and pass each one with its own `--add-dir <absolute path>`; pass none when the worktree is
+  Codex's `workspace-write` sandbox. List every directory the task will write outside the
+  worktree and outside the temp directories (which the sandbox already allows), and pass each one
+  with its own `--add-dir <absolute path>`; pass none when the worktree and temp directories are
   enough. Pass exactly those, never a parent folder to be safe. Name the same directories in the
   prompt, and tell Codex to write nowhere else.
 - `--add-dir` takes a new write run: on a read-only run, a review, a resumed thread, a relative
   path or a directory that does not exist, the command refuses with exit `2` and starts nothing.
   `external-agents status <job>` prints the run's `fence:` and `add_dirs:`.
+- **Staging and commits are the caller's.** Codex's `workspace-write` sandbox keeps `.git` under
+  each writable root read-only, and when `.git` is a pointer file, as in a linked worktree, the
+  Git directory it points to as well
+  ([Agent approvals & security](https://learn.chatgpt.com/docs/agent-approvals-security.md)). So
+  `git add` and `git commit` fail inside a write run. The page does not say that an `--add-dir`
+  on that Git directory overrides the protection, so pass none. Tell Codex in the prompt to edit
+  files and leave staging and committing to you. After the run, check its edits, then stage and
+  commit them yourself.
+- **Point tool caches at a temp directory.** The sandbox also allows writes to `$TMPDIR` and
+  `/tmp` unless the user's Codex config sets `sandbox_workspace_write.exclude_tmpdir_env_var` or
+  `exclude_slash_tmp` ([Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference.md)),
+  so a temp directory needs no `--add-dir`. uv's default cache is
+  `$XDG_CACHE_HOME/uv` or `$HOME/.cache/uv` (`%LOCALAPPDATA%\uv\cache` on Windows), outside the
+  sandbox. A task that runs `uv` or `uvx` should say in the prompt to set `UV_CACHE_DIR` to a
+  directory under the temp directory ([uv: Caching](https://docs.astral.sh/uv/concepts/cache/)).
 - **Pick the use from the request.** `task` when Codex should change files; `investigate` when it
   should only read and answer. The use's configured mode (`codex.uses.<use>.mode`, bundled values
   in the plugin's `defaults.json`) is both the default and the ceiling. Pass `--mode read-only` to

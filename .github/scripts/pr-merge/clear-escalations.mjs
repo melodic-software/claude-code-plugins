@@ -235,26 +235,10 @@ async function checksHeld(read, repo, head) {
   return null;
 }
 
+const STATUS_JOBS = new Map(REVIEW_LANES);
 export const LANE_RECORDS = Object.freeze([
-  {
-    file: "pr-review-hosted.yml",
-    lane: "claude-review",
-    jobs: ["PR Review / review-status", "pr-review / review-status", "PR Review / Status", "pr-review / Status", "PR Review / Publish Review", "pr-review / Publish Review"],
-    whole: false,
-  },
-  {
-    file: "pr-review-security-hosted.yml",
-    lane: "claude-security-review",
-    jobs: [
-      "PR Review Security / review-status",
-      "pr-review-security / review-status",
-      "PR Review Security / Status",
-      "pr-review-security / Status",
-      "PR Review Security / Publish Review",
-      "pr-review-security / Publish Review",
-    ],
-    whole: true,
-  },
+  { file: "pr-review-hosted.yml", lane: "claude-review", jobs: STATUS_JOBS.get("pr-review-hosted.yml"), whole: false },
+  { file: "pr-review-security-hosted.yml", lane: "claude-security-review", jobs: STATUS_JOBS.get("pr-review-security-hosted.yml"), whole: true },
 ]);
 const RECORD_TITLE = "claude-lane-review-complete";
 const REVIEW_RECORD =
