@@ -145,6 +145,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "block-pr-poller.sh"
             ],
