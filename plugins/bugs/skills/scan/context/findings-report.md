@@ -147,8 +147,9 @@ When there are none, write `None.`
 
 The last section of every persisted **rotation-mode** report, meaning a bare invocation or `--area`,
 the two modes that advance rotation. It is also rung 2 of the cursor ladder. Keep the key names and
-the fenced-YAML shape stable: a later run parses this, not the prose. A key, once shipped, never
-changes meaning; new keys are only ever added.
+the fenced-YAML shape stable: a later run parses this, not the prose. A key, once shipped, keeps its
+meaning. Renaming or removing one is a breaking (`major`) change: older cursors stop matching,
+and rotation restarts from the date floor.
 
 ````markdown
 ## Scan cursor

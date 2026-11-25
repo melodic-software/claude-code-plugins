@@ -219,7 +219,9 @@
         {"match": "--lane\\b", "near": "\\bbugs:scan\\b"},
         {"match": "\\bconcern lanes?\\b", "near": "\\b(?:audit|interface|motion)\\b"}
       ],
-      "allow": []
+      "allow": [
+        {"path": ".changes/**", "reason": "a changelog fragment names the retired path it migrates from, like CHANGELOG history"}
+      ]
     }
   ]
 }

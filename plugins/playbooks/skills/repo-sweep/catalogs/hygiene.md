@@ -80,8 +80,8 @@ leaves the changes staged for the step commit. Glob scope runs through tidy's `<
 
 Claim: tidy takes one focus area per call, its catalog is the union of `.claude/tidy-areas/*.md` and its
 bundled focus areas, `self-update` is maintainer-only, and `in-place` is a flag on every invocation.
-Basis: `code-tidying` 0.23.20 `skills/tidy/SKILL.md` (argument-hint, Action Router `<glob>...`,
-`in-place`, and `self-update` rows). As of: 2026-09-29. Recheck: tidy accepts several focus areas in one
+Basis: `code-tidying` 1.0.0 `skills/tidy/SKILL.md` (argument-hint, Action Router `<glob>...`,
+`in-place`, and `self-update` rows). As of: 2026-11-25. Recheck: tidy accepts several focus areas in one
 call, changes where it reads focus areas from, or renames `in-place`; prefer the focus area list tidy's own
 `help` prints over this note when they differ.
 
