@@ -1,5 +1,20 @@
 # Changelog for the standards convention
 
+## 1.3.0 - 2026-11-25
+
+Additive. A fifth layer, personal subscriptions: the user-global index's frontmatter may list
+`standards_repositories` (`repo`, `topics`, `ref`, `only_in`, `except_in`, in block style) and
+`trusted_owners`, both read from that index only. A trusted owner's repository is read live from
+its `main`; any other must be pinned to a full commit SHA reachable from one of its branches or
+tags, else it is refused. Subscribed layers add or tighten only, below the user-global layer's own
+files and below every team-tracked standard; a repository that is also the org layer is read once,
+there. Subscriptions add no `REVIEW.md`. `org-standards.sh subscriptions` prints each subscribed
+layer with its checkout and its (topic-filtered) index, reports malformed entries, refusals and
+index drift, and prints the index diff when a pin moves; `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
+skips them for a session. A user index that uses the list declares 1.3.0. An index at 1.2.0 is
+older than the bundled contract, so setup offers the guided migration, which changes nothing but
+the version.
+
 ## 1.2.0 - 2026-11-24
 
 Additive. A fourth layer, the org layer: the team layer of the repository a consumer's

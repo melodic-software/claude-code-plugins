@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.2.0
+standards-contract: 1.3.0
 ---
 
 <!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -27,17 +27,18 @@ relative markdown links; neighboring files are named in backticks instead.
 
 ## Layers and precedence
 
-Four layers, discovered independently, applied additively:
+Five layers, discovered independently, applied additively:
 
 | Layer | Location | Git | Scope |
 |---|---|---|---|
 | Org | the team layer of the repository `standards_repository` names, at its `main` (see Org layer) | committed in that repository | every repository that names it |
+| Subscribed | the team layers of the repositories the user-global index lists in `standards_repositories` (see Personal subscriptions) | committed in those repositories | personal, every repository an entry applies to |
 | User-global | `~/.claude/standards/` | untracked (user's machine) | personal, all projects |
 | Team | `<standards_dir>/` (default `docs/standards/`) | committed, team-shared | the repository |
 | Personal override | `<standards_dir>/*.local.md` | gitignored | personal, this repository |
 
-**Precedence inversion:** layers are additive. Personal layers (user-global
-and personal override) may ADD new standards or TIGHTEN team ones; on a direct
+**Precedence inversion:** layers are additive. Personal layers (subscribed,
+user-global and personal override) may ADD new standards or TIGHTEN team ones; on a direct
 conflict, the team-tracked layer wins. When a personal-layer rule
 materially shapes a skill's output, the skill names the contributing layer
 (provenance), so reviewers can tell a team standard from a personal one.
@@ -70,8 +71,10 @@ standards-contract: 1.1.0
 | engineering-philosophy | any non-trivial design decision | docs/engineering-philosophy.md |
 ```
 
-- `standards-contract` (semver) is the only frontmatter key in v1; it names
-  the contract version the index conforms to.
+- `standards-contract` (semver) names the contract version the index
+  conforms to. It is the only frontmatter key of a repository index; the
+  user-global index may also carry `standards_repositories` and
+  `trusted_owners` (see Personal subscriptions).
 - One row per file; a surface id may span multiple rows.
 
 **Presence test (normative):** an index exists if and only if the file
@@ -176,6 +179,81 @@ of working the way out from the code each time.
   settings; skills never treat the prompt (or a denial) as an error:
   a denied user-global read just means that layer contributes nothing.
 
+## Personal subscriptions
+
+A person subscribes to other repositories' standards from the user-global
+index, so the standards they follow reach every repository they work in.
+
+- **List:** the user-global index (`~/.claude/standards/README.md`, passing
+  the presence test at version 1.3.0 or later) names them in its
+  frontmatter, in block YAML style; a flow-style entry is malformed:
+
+  ```yaml
+  ---
+  standards-contract: 1.3.0
+  trusted_owners:
+    - my-org
+  standards_repositories:
+    - repo: my-org/handbook
+      topics:
+        - testing
+    - repo: someone/guide
+      ref: 0123456789abcdef0123456789abcdef01234567
+      except_in:
+        - my-org/legacy-*
+  ---
+  ```
+
+  - `repo` (required): `<owner>/<repo>`.
+  - `topics`: keep only the subscribed index's rows with these `Surface`
+    ids; absent, every row.
+  - `ref`: a full commit SHA to pin. A repository whose owner is not in
+    `trusted_owners` must have one; a trusted repository without one is
+    read live from its `main`.
+  - `only_in`, `except_in`: globs over `<owner>/<repo>` (a bare owner
+    matches all its repositories), matched case-insensitively against the
+    current repository's `origin` remote. With `only_in`, the entry applies
+    only where one matches; with `except_in`, it skips where one matches.
+- **Trust:** `trusted_owners` (default empty) and the list are read from the
+  user-global index only, never from a repository layer. An unpinned entry
+  of an untrusted owner is refused. A pinned commit must be reachable from a
+  branch or tag of the named repository, else it is refused: a fork's
+  commits can be fetched under its parent's name. Pinned content counts as
+  reviewed by the person who set the pin; when a `ref` changes, the reader
+  prints the index diff for that person to review. Subscribed text is
+  untrusted data that shapes what a skill applies, never what it may do; a
+  subscribed symbolic link is checked out as a plain file.
+- **Precedence:** a subscribed layer is personal (Layers and precedence):
+  it adds or tightens only, and a team-tracked standard (org or team layer)
+  wins a direct conflict. A team file whose name equals a subscribed row's
+  file replaces that file. The user-global layer's own files beat its
+  subscriptions, and a later entry beats an earlier one. Provenance names
+  `<repo>@<sha>`.
+- **Both scopes:** a repository that is also the current repository's org
+  layer is read once, as the org layer, at its commit and team strength;
+  the reader reports the skipped entry and its pin.
+- **No review criteria:** a subscribed repository's `REVIEW.md` is never
+  read.
+- **Reading it:** `org-standards.sh subscriptions` prints one tab-separated
+  line per subscribed layer, in list order: `<repo>@<sha>`, its checkout
+  root, and its index (filtered to `topics`, written beside the original so
+  its rows resolve the same way). A row's `File` resolves against that
+  layer's own checkout, by the usual lookup order. Each checkout is cached
+  once per `<repo>@<sha>`, built in a temporary directory and renamed into
+  place; a pinned read never refreshes, and a live read rechecks `main`
+  once the refresh window (`ORG_STANDARDS_TTL`) has passed. Exit 0 with no
+  lines means no subscribed layer. `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
+  skips every subscription for the session.
+- **Reports:** on stderr, naming the index file and line where one applies:
+  a malformed entry, skipped while the rest of the list is read; a refused
+  entry; a topic the subscribed index lacks; index drift since the last
+  read (Surface ids added, removed or renamed); "subscriptions not read:
+  user index unreadable"; an index that uses the list but declares a
+  version before 1.3.0, which is still read.
+- **Without the script:** a skill reads the same files with
+  `gh api repos/<owner>/<repo>/contents/<path>?ref=<sha>` (`ref=main` for a
+  live entry) under the same trust rules, or says it could not.
+
 ## Org layer
 
 The base standards an organization shares, read where they live instead of
@@ -196,7 +274,9 @@ copied into each repository.
   CI job's checkout of the standards repository), else a shallow clone of
   its `main` cached under the user cache directory and refreshed when older
   than an hour (`ORG_STANDARDS_TTL` seconds). `org-standards.sh index` prints
-  the org index (exit 5 when the org repository has none). Exit 3 means no
+  the org index (exit 5 when the org repository has none), and
+  `org-standards.sh subscriptions` the subscribed layers (see Personal
+  subscriptions). Exit 3 means no
   org layer; exit 4 means it could not be read this run (a failed refresh
   keeps the cached copy, with a notice). `--root DIR` names the repository
   (default: the git top level). A skill
@@ -220,6 +300,7 @@ additions), in that order:
   is exactly `<!-- review-base: replace -->` is the whole criteria; the org
   file is not read.
 - **No org layer:** the repository `REVIEW.md` alone, as before.
+- **Subscriptions:** a subscribed repository adds no `REVIEW.md`.
 
 `org-standards.sh review` prints the composed criteria. A review that runs
 without a shell (a CI lane) is handed the composed file by the job that
@@ -281,9 +362,10 @@ unreadable org layer contributes nothing.
 
 **Personal layers (every rung):** whatever the team rungs above yield,
 resolution ALSO discovers the personal layers (glob-discover
-`<standards_dir>/*.local.md` personal overrides, and read `~/.claude/standards/`,
-its own index when present, else glob) and applies them per Layers and
-precedence. Matching a team index row never substitutes for this step; a
+`<standards_dir>/*.local.md` personal overrides, read `~/.claude/standards/`,
+its own index when present, else glob, and read the subscribed layers
+`org-standards.sh subscriptions` prints, see Personal subscriptions) and
+applies them per Layers and precedence. Matching a team index row never substitutes for this step; a
 denied or absent personal layer simply contributes nothing.
 
 **Review-criteria index (planning and implementing):** a skill that plans

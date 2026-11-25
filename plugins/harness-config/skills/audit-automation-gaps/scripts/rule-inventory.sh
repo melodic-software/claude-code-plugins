@@ -37,7 +37,9 @@ Sources, one adapter each:
               review: the organization's with the repository's appended),
               CODING_STANDARDS.md, the review-criteria
               index docs/review/README.md and the docs/review/ files it links,
-              an automated-review each
+              an automated-review each; the subscribed standards layers
+              (scripts/org-standards.sh subscriptions) are the user's, not the
+              repository's, and are named as "present, not counted"
   instruction statements of every tracked CLAUDE.md and AGENTS.md and of
               .claude/rules/*.md, an instruction each
   skills      every other .claude/skills/*/SKILL.md, a skill each
@@ -326,6 +328,9 @@ case $? in
 3) [[ ! -s "$work/review.err" ]] || note "review: the REVIEW.md in effect did not resolve ($(head -n 1 "$work/review.err"))" ;;
 *) note "review: the REVIEW.md in effect did not resolve ($(head -n 1 "$work/review.err"))" ;;
 esac
+while IFS=$'\t' read -r layer _; do
+  [[ -z "$layer" ]] || note "review: the personal standards subscription $layer is present, not counted: it is the user's, not this repository's"
+done < <(bash "$plugin_root/scripts/org-standards.sh" subscriptions --root "$root" 2>/dev/null || true)
 review_files="CODING_STANDARDS.md"
 idx=docs/review/README.md
 if [[ -r "$idx" ]]; then

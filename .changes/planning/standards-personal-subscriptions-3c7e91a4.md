@@ -1,0 +1,7 @@
+---
+bump: minor
+---
+
+### Added
+
+- Standards resolution reads personal subscriptions, standards contract 1.3.0: the repositories the user-global index lists in `standards_repositories`, each a personal layer beneath the user's own standards files and every team-tracked one. `scripts/org-standards.sh subscriptions` prints each layer with its checkout and its topic-filtered index; an untrusted owner's repository must be pinned to a commit one of its branches or tags reaches.
