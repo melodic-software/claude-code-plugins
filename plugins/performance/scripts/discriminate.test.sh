@@ -54,9 +54,6 @@ trap 'rm -rf "$WORK"' EXIT
 
 run_discriminate() { capture "$HARNESS_PYTHON" "$DISCRIMINATE" "$@"; }
 
-# Single-quoted in Python so the anchor embeds into a JSON config verbatim. A
-# double quote here would need JSON escaping, and getting that wrong is a
-# fixture bug that reads as a harness bug.
 FIX_LINE="value = value.removesuffix('-suffix')"
 
 write_subject() {
