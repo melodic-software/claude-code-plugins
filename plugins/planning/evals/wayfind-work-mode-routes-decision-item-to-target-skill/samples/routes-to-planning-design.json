@@ -11,6 +11,10 @@
     {
       "answer": "Rather than deciding the boundaries inline, route to **`/planning:design`**.",
       "why": "negation sits in an earlier clause"
+    },
+    {
+      "answer": "Claim: `/work-items:track start 145` (assignee set, lease comment posted).\nDecision: route #145 to /planning:design, since it is a design-typed item; I am not settling the aggregate boundaries here.",
+      "why": "right: a Decision label that routes the item to /planning:design"
     }
   ],
   "fail": [
