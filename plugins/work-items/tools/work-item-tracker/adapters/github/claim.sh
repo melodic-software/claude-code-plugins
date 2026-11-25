@@ -153,8 +153,6 @@ winner_id="$WIT_WINNER_ID"
 winner_holder=""
 [[ -z "$WIT_WINNER_JSON" ]] || winner_holder="$(jq -r '.holder // empty' <<<"$WIT_WINNER_JSON")"
 
-# Earliest LIVE lease wins. No live lease at all (e.g. ttl 0) → our claim stands;
-# expiry is reclaim's concern.
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
