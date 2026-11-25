@@ -19,7 +19,8 @@ glossary's "Rejected terms" table decided (`docs/glossary.md`, else `GLOSSARY.md
 last word (`--lane` to `--area` for `focus area`), singular or plural, leaving old and new
 byte-identical once each swap is replaced, or deletes lines a comment fills in a code, YAML or
 shell file (`#`, `//`, `/* */`, with no code before or after it; never markdown, whose HTML
-comments a model can read). A hunk with any other change keeps the rules above.
+comments a model can read, nor a file whose base opens a heredoc, YAML block scalar, or
+triple-quoted or backtick string). A hunk with any other change keeps the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
 removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),

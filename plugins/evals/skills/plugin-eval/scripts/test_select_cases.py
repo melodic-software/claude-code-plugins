@@ -695,6 +695,20 @@ class SelectCasesTest(unittest.TestCase):
         self.assertEqual("control-no-fire one-basic one-trigger opt-case", block.get("cases"))
         self.assertEqual("20", block["agent-runs"])
 
+    def test_trigger_rewording_in_a_prefer_sentence_is_cut(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                'alpha items."', 'alpha items, and prefer /beta:runner for sweeps."'
+            ),
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "add a prefer clause")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(path, "checking alpha items,", "deploying services,")
+        self.assertNotIn("no-run-exempt", block, "the Use when trigger was rewritten")
+        self.assertEqual("control-no-fire one-basic one-trigger opt-case", block.get("cases"))
+
     def _base_with_lane_text(self):
         self._write_glossary()
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
@@ -785,6 +799,17 @@ class SelectCasesTest(unittest.TestCase):
         self.assertNotIn("cases", block, "a scaffold header comment deletion runs nothing")
         self.assertEqual("one-basic", block.get("affected-no-run"))
         self.assertEqual("0", block["agent-runs"])
+
+    def test_comment_shaped_line_in_a_heredoc_still_runs(self):
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        scaffold.write_text(
+            scaffold.read_text(encoding="utf-8") + "cat > status.md <<'MD'\n# Project status\nMD\n",
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "seed a heredoc")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(scaffold, "# Project status\n", "")
+        self.assertEqual("one-basic", block.get("cases"), "a heredoc line is fixture content")
 
     def test_markdown_html_comment_deletion_still_runs(self):
         self._base_with_comments()

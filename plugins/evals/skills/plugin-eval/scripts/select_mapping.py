@@ -259,13 +259,14 @@ def diff_has_cut(
     )
     if done.returncode != 0:
         return True
+    base = git_show(repo_root, resolve_merge_base(repo_root, diff_base), rel_path) or ""
     return _diff_has_cut_hunks(
         done.stdout,
         skip_old_lines_upto=skip_old_lines_upto,
         skip_old_ranges=skip_old_ranges,
         allow_heading_renames=allow_heading_renames,
         pairs=decided_term_pairs(repo_root),
-        comment_style=no_run_text.comment_style(rel_path),
+        comment_style=no_run_text.comment_style(rel_path, base),
     )
 
 
@@ -280,10 +281,11 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     )
     if done.returncode != 0:
         return True
+    base = git_show(repo_root, merge_base, old_path) or ""
     return _diff_has_cut_hunks(
         done.stdout,
         pairs=decided_term_pairs(repo_root),
-        comment_style=no_run_text.comment_style(new_path),
+        comment_style=no_run_text.comment_style(new_path, base),
     )
 
 
@@ -396,7 +398,7 @@ def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
     if done.returncode != 0:
         return False
     hunks = no_run_text._raw_hunks(done.stdout)
-    style = no_run_text.comment_style(new_path)
+    style = no_run_text.comment_style(new_path, git_show(repo_root, merge_base, old_path) or "")
     return hunks is not None and all(
         no_run_text._hunk_is_no_run(old, new, pairs, style) for old, new in hunks
     )

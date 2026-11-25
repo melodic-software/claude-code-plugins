@@ -45,7 +45,9 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   either number, so that old and new are byte-identical once each swap is replaced, or only
   deletes lines a comment fills in a code, YAML or shell file (`#` for YAML, shell and Python,
   `//` and `/* */` for JS and TS; code before or after the comment disqualifies the line, and
-  markdown is excluded because an HTML comment can carry instructions a model reads).
+  markdown is excluded because an HTML comment can carry instructions a model reads; so is a
+  file whose base opens a heredoc, YAML block scalar, or triple-quoted or backtick string,
+  where a comment-shaped line can be content).
   That holds for a skill body, reference or agent hunk, a frontmatter value such as
   `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
   fixture or sample, and a renamed file whose path and content differ only by such changes. A

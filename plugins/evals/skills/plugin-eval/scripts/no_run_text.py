@@ -26,7 +26,15 @@ HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*$")
 
 HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 SKILL_TOKEN_RE = re.compile(r"(?<![\w/:.-])/?[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?![\w-])")
-ROUTING_CLAUSE_RE = re.compile(r"^(?:not for|skip)\b|\bprefer\b", re.IGNORECASE)
+ROUTING_TAIL_RE = re.compile(
+    r"(?:^|,\s*)(?:(?:and|or|but)\s+)?(?:not for|skip|prefer)\b.*$", re.IGNORECASE
+)
+STRING_BLOCK_RES = {
+    "hash": re.compile(
+        r"<<-?\s*['\"]?[A-Za-z_]|:[ \t]*[|>][-+0-9]*[ \t]*(?:#.*)?$|\"\"\"|'''", re.M
+    ),
+    "slash": re.compile(r"`|\"\"\""),
+}
 CLAUSE_SPLIT_RE = re.compile(r"(?<=[.;])\s+")
 SWAP_TOKEN_RE = re.compile(r"[A-Za-z]+|[0-9]+|\s+|\\.|[^\sA-Za-z0-9]")
 HASH_COMMENT_EXTS = frozenset(
@@ -79,14 +87,17 @@ def _parse_rejected_terms(text):
 
 
 def _routing_free_tokens(text):
-    """Description tokens with each routing clause (`Not for ...`, `Skip ...` or `prefer ...`
-    naming a `plugin:skill`) dropped, the clause-ending `.` or `;` with it, and every skill token,
-    slash or not, made one placeholder."""
-    kept = [
-        clause.rstrip(".;")
-        for clause in CLAUSE_SPLIT_RE.split(text.strip())
-        if not (SKILL_TOKEN_RE.search(clause) and ROUTING_CLAUSE_RE.search(clause))
-    ]
+    """Description tokens with each routing tail (`Not for ...`, `Skip ...` or `prefer ...` at a
+    clause start or after a comma, naming a `plugin:skill`) cut to the clause end, the
+    clause-ending `.` or `;` with it, and every skill token, slash or not, made one placeholder."""
+    kept = []
+    for clause in CLAUSE_SPLIT_RE.split(text.strip()):
+        clause = clause.rstrip(".;")
+        tail = ROUTING_TAIL_RE.search(clause)
+        if tail and SKILL_TOKEN_RE.search(tail.group()):
+            clause = clause[: tail.start()].rstrip()
+        if clause:
+            kept.append(clause)
     return SWAP_TOKEN_RE.findall(SKILL_TOKEN_RE.sub(" SKILLTOKEN ", " ".join(kept)))
 
 
@@ -158,15 +169,15 @@ def is_routing_only_change(old, new, pairs):
     return _differs_only_by_swaps(_routing_free_tokens(old), _routing_free_tokens(new), pairs)
 
 
-def comment_style(path):
+def comment_style(path, text=""):
     """`hash` or `slash` for a code, YAML or shell file; None for markdown and any other type,
-    whose comments a model may read as instructions."""
+    whose comments a model may read as instructions, and for a file whose `text` opens a heredoc,
+    block scalar or multi-line string, where a comment-shaped line can be content."""
     ext = os.path.splitext(path)[1].lower()
-    if ext in HASH_COMMENT_EXTS:
-        return "hash"
-    if ext in SLASH_COMMENT_EXTS:
-        return "slash"
-    return None
+    style = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
+    if style and STRING_BLOCK_RES[style].search(text):
+        return None
+    return style
 
 
 def _comment_line_mask(lines, style):
