@@ -79,9 +79,6 @@ chmod +x "$TMP/bin/gh"
 tg() { git -C "$R" -c user.name=t -c user.email=t@t.t -c commit.gpgsign=false "$@"; }
 commit() { tg commit -q --allow-empty -m "$1"; }
 
-# new_fixture <behind>: origin with main and release/plugins one commit apart;
-# with behind=yes main gains a commit after the release head was cut. R is the
-# clone, left on main.
 new_fixture() {
   local origin="$TMP/origin.$RANDOM$RANDOM"
   git init -q --bare -b main "$origin"
@@ -103,8 +100,6 @@ new_fixture() {
   MAIN_SHA=$(tg rev-parse main)
 }
 
-# run_decide [env assignments...]: sets RC, OUT (stdout) and GHOUT (the
-# GITHUB_OUTPUT lines).
 run_decide() {
   : >"$TMP/ghout"
   : >"$TMP/gh.log"
@@ -116,7 +111,6 @@ run_decide() {
   GHOUT=$(cat "$TMP/ghout")
 }
 val() { sed -n "s/^$1=//p" <<<"$GHOUT"; }
-# pr_json <mergeable> [label]: one open release pull request.
 pr_json() { printf '[{"id":"PR_n","number":7,"headRefOid":"%s","mergeable":"%s","isCrossRepository":false,"labels":[%s]}]' "$HEAD_SHA" "$1" "${2:+{\"name\":\"$2\"\}}"; }
 
 echo '# no open release pull request'
@@ -238,7 +232,6 @@ check 'current, no label: not held' '' "$(val held)"
 FAKE_PRS="$(pr_json MERGEABLE needs-issue-linkage)" run_decide GATE_RC=0
 check 'current, other label: not held' '' "$(val held)"
 
-# run <started_at|null> <conclusion> [app id]: one completed ci-status run.
 run() { printf '{"started_at":%s,"status":"completed","conclusion":"%s","app":{"id":%s}}' "$1" "$2" "${3:-15368}"; }
 t1='"2026-10-18T01:00:00Z"' t2='"2026-10-18T02:00:00Z"'
 
@@ -263,7 +256,6 @@ new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS="[$(run "$t1" failure),$(run "$t2" success)]"
 check 'later success: no rebuild' false "$(val rebuild)"
 
-# ci_status <runs>: what ci-status.sh, which the queue step also reads, prints.
 ci_status() { env PATH="$TMP/bin:$PATH" GH_LOG=/dev/null HEAD_SHA="$HEAD_SHA" GITHUB_REPOSITORY=o/r FAKE_RUNS="$1" bash "$SCRIPT_DIR/ci-status.sh" "$HEAD_SHA"; }
 echo '# ci-status.sh'
 check 'ci-status: no run is pending' pending "$(ci_status '[]')"
@@ -274,7 +266,6 @@ check 'ci-status: a tied cancel and failure is failure' failure "$(ci_status "[$
 check 'ci-status: a tied failure and cancel is failure' failure "$(ci_status "[$(run "$t1" failure),$(run "$t1" cancelled)]")"
 check 'ci-status: a lone cancel is cancelled' cancelled "$(ci_status "[$(run "$t1" cancelled)]")"
 
-# named <name> <started_at> <conclusion>: one completed GitHub Actions run of check <name>.
 named() { printf '{"name":"%s","started_at":%s,"status":"completed","conclusion":"%s","app":{"id":15368}}' "$1" "$2" "$3"; }
 check 'ci-status: CI Status decides, not an older ci-status' success "$(ci_status "[$(named 'CI Status' "$t1" success),$(named ci-status "$t2" failure)]")"
 check 'ci-status: a red CI Status is failure' failure "$(ci_status "[$(named 'CI Status' "$t1" failure),$(named ci-status "$t1" failure)]")"
@@ -356,7 +347,6 @@ new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0
 check 'push current: no rebuild, not deferred' 'false ' "$(val rebuild) $(val deferred)"
 
-# lane <status> [app id]: one check run of a lane, not ci-status.
 lane() { printf '{"name":"test-bash","started_at":"2026-10-18T01:00:00Z","status":"%s","conclusion":%s,"app":{"id":%s}}' "$1" "$([[ $1 == completed ]] && echo '"success"' || echo null)" "${2:-15368}"; }
 red="$(run "$t1" failure)"
 
@@ -414,8 +404,6 @@ check 'dispatch stale: rebuild' true "$(val rebuild)"
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=1 FAKE_RUNS="[$(run "$t1" success),$(lane in_progress)]"
 check 'dispatch stale+lane running: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
 
-# queue-ahead.sh, which the merge job runs before it queues the release: R gets
-# a release commit changing two files, and FAKE_QUEUE is the GraphQL response.
 new_fixture no
 tg checkout -q -b release-files
 mkdir -p "$R/plugins/a/.claude-plugin"
@@ -425,13 +413,11 @@ tg add -A
 commit 'release a'
 REL_SHA=$(tg rev-parse HEAD)
 tg checkout -q main
-# entry <number> <total files> <path>...: one queued pull request.
 entry() {
   local n=$1 total=$2
   shift 2
   jq -nc --argjson n "$n" --argjson total "$total" '{pullRequest: {number: $n, files: {totalCount: $total, nodes: ($ARGS.positional | map({path: .}))}}}' --args "$@"
 }
-# queue <total entries> <entry>...: a response holding main's merge queue.
 queue() {
   local total=$1
   shift

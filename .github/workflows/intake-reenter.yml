@@ -97,27 +97,22 @@ jobs:
                       && github.event.issue_field.id == 48484079
                       && github.event.sender.type == 'User'))))
     runs-on: ubuntu-24.04
-    # 3 minutes for a slow resolve-config install plus 5 for the rest, so a slow
-    # install cannot cut the re-entry off between its label removal and add.
     timeout-minutes: 9
     permissions:
-      contents: read # check out main
-      issues: write # read the issue and comments; edit its labels and Work status field; post and delete a release's claim comment
-      actions: write # dispatch intake-triage.yml
+      contents: read
+      issues: write
+      actions: write
     # Every comment on a parked issue and every removal above starts a
     # run, so runs wait in line (`queue: max`): the default keeps one waiting run and cancels it when a
     # later comment arrives, which would drop an answer behind a chat reply.
     concurrency:
       group: intake-reenter-${{ github.event.issue.number }}
       queue: max
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
@@ -147,7 +142,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Report the kill switch
@@ -158,9 +152,6 @@ jobs:
           WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or labeled"
 
-      # reenter.mjs reads an issue's Work status field through resolve-config.mjs,
-      # whose packages only the resolve-config action installs; this job does
-      # not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 3
         # A failed install fails the run: the Work status read fails closed.

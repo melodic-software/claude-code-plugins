@@ -145,7 +145,6 @@ const DOT_SEGMENT = /(^|\/)\.\.?(\/|:)/;
 // issue's scope, answered with no fix (run.json's may_follow_up threads only).
 export const FOLLOW_UP = "follow-up";
 const DISPOSITIONS = ["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer", FOLLOW_UP];
-// The dispositions after which a lanes App PR's thread is resolved.
 const RESOLVING = new Set(["VALID", FOLLOW_UP]);
 // A pr-verify note from an earlier FAIL's verdict artifact (run.json's
 // verify_notes) is fixed, or already addressed by the diff.
@@ -208,8 +207,6 @@ export function withFollowUp(body, bullet, link) {
   return rows.join(eol);
 }
 
-// Records a follow-up advisory (its root review comment) in the PR body
-// before its thread is answered, so resolving the thread loses nothing.
 async function recordFollowUp(api, pr, comment) {
   const link = comment?.html_url;
   if (typeof link !== "string" || !link.startsWith("https://github.com/")) {
@@ -295,10 +292,6 @@ export function refreshedBody(body, sections, offered = []) {
   return { body: result };
 }
 
-// After a round whose fix landed, the body sections the model job recorded,
-// put in place on the body as it reads now while the PR head is still
-// `headSha`. Returns the round marker's line when the refresh is dropped,
-// else null; a refused or failed refresh changes no other outcome.
 async function refreshBody({ api, pr, headMoved, body, log }) {
   if (body?.record == null) {
     return null;
@@ -354,10 +347,8 @@ function check(condition, why) {
 
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 
-// An evidence entry (`path:line`) as [path, line].
 const citation = (ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))];
 
-// The check runs a ci snapshot may cite: a github-actions job page.
 const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
 // A job's name, display (`Test Bash (3)`) or id (`test-bash (3)`).
 const CI_RUN_NAME = /^[A-Za-z0-9_.-]+(?: [A-Za-z0-9_.-]+)*( \([0-9]{1,3}\))?$/;
@@ -756,10 +747,6 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   return landed;
 }
 
-// Resolves a VALID thread only while it holds exactly the model's view plus
-// this reply, so a comment posted meanwhile is not resolved unread, and only
-// while the PR head is still the gated one. One retry covers a transient read
-// or resolve failure; false means the thread or the head changed.
 async function resolveAfterReply(api, id, expected, headMoved) {
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -767,7 +754,6 @@ async function resolveAfterReply(api, id, expected, headMoved) {
       if (!sameIds(after.commentIds, expected) || (await headMoved())) {
         return false;
       }
-      // A resolve that took effect before its answer was lost.
       if (after.isResolved === true && attempt > 1) {
         return true;
       }
@@ -795,12 +781,6 @@ export const modelRunLine = (modelRun) => `<!-- pr-unblock:address-feedback-mode
 // nothing.
 export const PASS_ONLY_SKIP = "pass-only";
 
-// A pass-only round: the select job listed the fail-note threads a pr-verify
-// pass at its head left stale, and no model ran. Each one still open and still
-// stale (staleVerifyNotes, at the head too when run.json's superseded_head
-// names it) is resolved while the PR head is the passing one;
-// a failed resolve is logged, the rest are tried, and the job then fails so
-// a re-run tries again. Nothing is posted and no round is counted.
 async function resolveStaleNotes({ api, pr, headSha, headRef, run, log, summary }) {
   const headMoved = async () => run.head_sha !== headSha || (await api.readBranch(headRef)) !== headSha;
   const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha, { supersededHead: run.superseded_head }));
@@ -834,8 +814,6 @@ async function resolveStaleNotes({ api, pr, headSha, headRef, run, log, summary 
   return { escalationReason: "", skipReason: PASS_ONLY_SKIP, posted: [] };
 }
 
-// run.json when it is a pass-only round's, else null; any other run.json,
-// readable or not, is judged by postReplies.
 function staleRunOf(readArtifact) {
   try {
     const run = parseRun(readArtifact().runText);
@@ -874,18 +852,13 @@ export async function publish(args) {
   }
   const bodyNote =
     result === null ? null : await refreshBody({ api, pr, headMoved: async () => (await api.readBranch(args.headRef)) !== headSha, body: result.body, log });
-  // The round counts whatever happened above, so the cap holds. A marker
-  // that cannot be posted still leaves the replies' outcome to a person.
   try {
     const comments = await api.listIssueComments(pr);
-    // With no model run named, the marker is always posted: counting a round
-    // twice hands the PR to a person sooner; skipping one would not.
     const runLine = modelRun ? modelRunLine(modelRun) : null;
     if (runLine && comments.some((comment) => isRoundMarker(comment, appId) && String(comment.body).split("\n").includes(runLine))) {
       log(`the round of model run ${modelRun} is already recorded`);
     } else {
       const rounds = countRounds(comments, appId) + 1;
-      // The max counts the fresh fixer's round past the cap (address-feedback.mjs).
       const round = roundLine(rounds, maxRounds + FRESH_FIXER_ROUNDS);
       await api.createIssueComment(
         pr,
@@ -947,13 +920,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     try {
       const { runText, repliesText } = readArtifact();
       run = parseRun(runText);
-      // No replies.jsonl. The run job decides that, so it is a skip only
-      // when the scan refused nothing, named no upload, handed on no patch,
-      // and the PR head is still the one the select job read: the model call
-      // never ran. The round still counts. A refused scan uploads nothing
-      // whatever the model did; named replies that did not arrive are a
-      // failed download; a moved head is a push nothing replied to; a patch
-      // with no replies is an artifact the model job left half-written.
       if (repliesText === null) {
         if (scanRefused !== "" || repliesExpected) {
           log(`no reply is posted: ${scanRefused ? `the scan refused the model call's ${scanRefused}` : "the replies the scan uploaded did not arrive"}`);
@@ -981,10 +947,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       log(`no reply is posted: ${error instanceof Invalid ? error.message : "the artifact is missing"}`);
       return { escalationReason: "feedback-invalid", posted: [] };
     }
-    // Every kept thread needs its disposition: one left out would stay open
-    // with no reply, and the head's check run stops another dispatch. The
-    // round marker names each one left out, for the escalation.
-    // What refreshBody needs once the round's outcome is known.
     const body = (fixed) => ({ record: bodyRecord, offered: run.body_sections, fixed });
     const asks = new Map((run.pr_comments ?? []).map((item) => [item.id, item]));
     const answers = replies.filter((reply) => asks.has(reply.thread));
@@ -1006,9 +968,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       log(`no reply is posted: ${replies.length + answers.length} of ${run.threads.length + asks.size} kept threads and comments have a disposition; none for ${undisposed.map((thread) => thread.id).join(", ")}`);
       return { escalationReason: "feedback-incomplete", posted: [], undisposed };
     }
-    // The threads are judged on the heads the select job kept them on: the
-    // review lane re-marks its one marker on this round's fix push. A run.json
-    // from before the select job recorded them reads the markers now.
     const heads = run.reviewed_heads && new Set(run.reviewed_heads);
     const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads, log });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
@@ -1057,10 +1016,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     for (const reply of replies) {
       const ids = shown.get(reply.thread).comment_ids;
       const fresh = now.get(reply.thread);
-      // Once a reply posts, no later round selects the thread again until a
-      // trusted person answers a reply that left it open: any failure in this
-      // loop stops the posting, and it or a VALID thread left open hands the
-      // PR to a person instead of stranding a thread.
       try {
         const reread = fresh && (await api.readThread(reply.thread));
         if (
@@ -1136,7 +1091,6 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
   }
 }
 
-// Whether `text` hashes to `recorded`, a SHA-256 an earlier job passed out.
 const matchesSha256 = (text, recorded) => /^[0-9a-f]{64}$/.test(recorded ?? "") && createHash("sha256").update(text).digest("hex") === recorded;
 
 export async function main(env, { api, actions, log = (line) => console.log(line) } = {}) {
@@ -1159,8 +1113,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   if (!SHA.test(env.HEAD_SHA)) {
     throw new Error("HEAD_SHA is not a commit id");
   }
-  // An empty attempt is a model run that uploaded no replies: it names no
-  // run, so its marker is always posted.
   const attempt = env.MODEL_RUN_ATTEMPT ?? "";
   if (attempt !== "" && !/^[1-9][0-9]{0,4}$/.test(attempt)) {
     throw new Error("MODEL_RUN_ATTEMPT is not a run attempt");
@@ -1210,9 +1162,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     }
     return text;
   };
-  // The adjudicator's verdicts (adjudicate-feedback.mjs collect), when its
-  // job uploaded them; anything else reads as none, which escalates every
-  // INCORRECT thread as feedback-unadjudicated.
   const readAdjudication = () => {
     const path = join(env.ADJUDICATION_DIR ?? "", "verdicts.json");
     if (!env.ADJUDICATION_DIR || !existsSync(path) || !lstatSync(path).isFile() || lstatSync(path).size > LIMITS.bytes) {
@@ -1250,7 +1199,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     readAdjudication,
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),
     log,
-    // A pass-only round's resolved-thread count, for the run's summary page.
     summary: (line) => env.GITHUB_STEP_SUMMARY && appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`),
   });
   if (escalationReason) {

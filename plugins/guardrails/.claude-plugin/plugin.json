@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "23 toggleable guards. Blocks: secrets, machine paths, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, PR body format, drive-root /tmp, MSYS_NO_PATHCONV, cd && git, foreground waits, unsafe rm -r, expanding commit -m, off-convention titles, local-only Artifacts; opt-in, credential reads, main-checkout edits. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill refs, removed paths.",
+  "description": "24 toggleable guards. Blocks: secrets, machine paths, hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, PR body format, drive-root /tmp, MSYS_NO_PATHCONV, cd && git, foreground waits, PR polls, unsafe rm -r, expanding commit -m, off-convention titles, loopback Artifacts; opt-in, credential reads, main-checkout edits. Asks: settings writes. Warns: Workflow fan-out, bare gh pr create. Git hooks: commits, secrets, paths, CLI flags, skill and path refs.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -171,6 +171,12 @@
       "title": "Block-foreground-wait script runners",
       "description": "Comma-separated command words that pass the arguments after -- to the script they run, so block-foreground-wait still finds a --watch there (npm test -- --watch). Any other command stops the scan at --. Empty stops every scan at --.",
       "default": "npm,pnpm,yarn,bun,npx"
+    },
+    "block_pr_poller_enabled": {
+      "type": "boolean",
+      "title": "Block-pr-poller guard",
+      "description": "Denies a Monitor or background Bash command that loops, sleeps and polls a pull request with gh pr view, checks or status, or gh api, with the reason to use /source-control:pull-request monitor or gh event listen. The monitor skill's monitor-poll.sh passes. On by default.",
+      "default": true
     },
     "block_root_delete_target_enabled": {
       "type": "boolean",

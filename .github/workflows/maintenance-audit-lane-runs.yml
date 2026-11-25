@@ -47,7 +47,6 @@ on:
 
 permissions: {}
 
-# The hourly pass has its own group, so it never waits behind the daily audit.
 concurrency:
   group: maintenance-audit-lane-runs-${{ github.event.schedule == '17 * * * *' && 'triage' || 'audit' }}
   cancel-in-progress: false
@@ -63,17 +62,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # list runs, jobs and job logs
-      checks: read # read annotations and check runs
-      contents: read # check out main
-      issues: read # list open issues for coverage
-      pull-requests: read # list open pull requests
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
     outputs:
       units: ${{ steps.collect.outputs.units }}
       next-leg: ${{ steps.credit.outputs.next-leg }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -99,7 +96,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Report the kill switch
@@ -143,8 +139,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -184,7 +178,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The key leg, one per unit, on the automations role's API key.
   assess-units:
     name: Assess Units
     needs: collect
@@ -195,15 +188,13 @@ jobs:
     timeout-minutes: 30
     cache-mode: read
     permissions:
-      actions: read # download the units artifact
-      contents: read # check out main
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
         unit: ${{ fromJson(needs.collect.outputs.units) }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     outputs:
@@ -249,8 +240,6 @@ jobs:
           name: lane-sweep-units
           path: ${{ github.workspace }}/.lane-sweep-data
 
-      # The sweep's model, effort and turns: the triage profile, through the
-      # triage-issue run route of the main config's models block.
       - name: Resolve the model
         id: models
         if: steps.unit.outcome == 'success'
@@ -368,8 +357,6 @@ jobs:
           leg-timeout-minutes: "20"
           otel-receiver: "true"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
@@ -399,10 +386,6 @@ jobs:
           esac
           node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs check-leg
 
-      # The leg this unit goes to next, from this job's credential decision
-      # and a clean handoff (select-model-credential). No if:, as the record
-      # step after it has none: it names a leg only when every step before it
-      # passed.
       - name: Pick the next leg
         id: next
         continue-on-error: true
@@ -518,8 +501,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # download the handoff markers
-      contents: read # check out main
+      actions: read
+      contents: read
     outputs:
       matrix: ${{ steps.route.outputs.matrix || steps.route-skipped.outputs.matrix }}
       count: ${{ steps.route.outputs.count || steps.route-skipped.outputs.count }}
@@ -561,8 +544,6 @@ jobs:
           HANDOFF_DIR: ${{ runner.temp }}/lane-sweep-handoffs
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs route
 
-      # The credit gate skipped the key: every collected unit goes to the
-      # subscription leg as a credit-stop handoff.
       - name: Route every unit past the skipped key
         id: route-skipped
         if: steps.kill.outputs.proceed == 'true' && needs.collect.outputs.next-leg == 'subscription'
@@ -620,14 +601,12 @@ jobs:
     timeout-minutes: 30
     cache-mode: read
     permissions:
-      actions: read # download the units artifact
-      contents: read # check out main
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.collect-key-handoffs.outputs.matrix) }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     outputs:
@@ -673,8 +652,6 @@ jobs:
           name: lane-sweep-units
           path: ${{ github.workspace }}/.lane-sweep-data
 
-      # The sweep's model, effort and turns: the triage profile, through the
-      # triage-issue run route of the main config's models block.
       - name: Resolve the model
         id: models
         if: steps.unit.outcome == 'success'
@@ -797,8 +774,6 @@ jobs:
           leg-timeout-minutes: "20"
           otel-receiver: "true"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
@@ -825,10 +800,6 @@ jobs:
           node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs check-leg
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); assess-units-fallback judges on the fallback token"
 
-      # The leg this unit goes to next, from this job's credential decision
-      # and a clean handoff (select-model-credential). No if:, as the record
-      # step after it has none: it names a leg only when every step before it
-      # passed.
       - name: Pick the next leg
         id: next
         continue-on-error: true
@@ -935,7 +906,6 @@ jobs:
           echo "::error::the judgment left no findings for this unit"
           exit 1
 
-  # The units the subscription leg handed on, as assess-units-fallback's matrix.
   collect-subscription-handoffs:
     name: Collect Subscription Handoffs
     needs: assess-units-subscription
@@ -943,8 +913,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # download the handoff markers
-      contents: read # check out main
+      actions: read
+      contents: read
     outputs:
       matrix: ${{ steps.route.outputs.matrix }}
       count: ${{ steps.route.outputs.count }}
@@ -986,11 +956,6 @@ jobs:
           HANDOFF_DIR: ${{ runner.temp }}/lane-sweep-handoffs
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs route
 
-  # The fallback leg, the central fallback subscription, one per unit the
-  # subscription leg handed on, on a new VM. Its steps repeat the
-  # subscription leg's but for the credential, the leg check and the
-  # fallback reason. It is the last leg and never hands off: an empty
-  # subscription token fails the subscription leg instead.
   assess-units-fallback:
     name: Assess Units Fallback
     needs: collect-subscription-handoffs
@@ -999,14 +964,12 @@ jobs:
     timeout-minutes: 30
     cache-mode: read
     permissions:
-      actions: read # download the units artifact
-      contents: read # check out main
+      actions: read
+      contents: read
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.collect-subscription-handoffs.outputs.matrix) }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     outputs:
@@ -1052,8 +1015,6 @@ jobs:
           name: lane-sweep-units
           path: ${{ github.workspace }}/.lane-sweep-data
 
-      # The sweep's model, effort and turns: the triage profile, through the
-      # triage-issue run route of the main config's models block.
       - name: Resolve the model
         id: models
         if: steps.unit.outcome == 'success'
@@ -1172,8 +1133,6 @@ jobs:
           leg-timeout-minutes: "20"
           otel-receiver: "true"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.judge.outputs.execution-file != ''
         continue-on-error: true
@@ -1252,20 +1211,18 @@ jobs:
   file:
     name: File
     needs: [collect, assess-units, assess-units-subscription, assess-units-fallback]
-    # A failed leg loses its own unit's findings only.
     if: ${{ !cancelled() && needs.collect.result == 'success' && needs.collect.outputs.units != '[]' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # download the findings artifacts
-      contents: read # check out main for the claim check
-      issues: write # file, rewrite and comment on the digest issue
+      actions: read
+      contents: read
+      issues: write
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
@@ -1308,9 +1265,6 @@ jobs:
           pattern: findings-*
           path: ${{ runner.temp }}/lane-sweep-findings
 
-      # The Work status writer (write-status.mjs) reads models.issue-status
-      # through resolve-config.mjs, whose packages only the resolve-config
-      # action installs; this job does not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 5
         if: steps.download.outcome == 'success'
@@ -1356,15 +1310,14 @@ jobs:
       group: maintenance-audit-lane-runs-triage-sweep
       cancel-in-progress: false
     permissions:
-      actions: write # dispatch intake-triage.yml and read its runs
-      contents: read # check out main
-      issues: write # write the state comment and file the needs-triage issue
+      actions: write
+      contents: read
+      issues: write
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
@@ -1389,12 +1342,8 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
-      # The Work status writer (write-status.mjs) reads models.issue-status
-      # through resolve-config.mjs, whose packages only the resolve-config
-      # action installs; this job does not run it.
       - name: Install resolve-config's packages
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'

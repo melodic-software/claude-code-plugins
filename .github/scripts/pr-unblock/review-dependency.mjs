@@ -50,13 +50,10 @@ const ROUND_LINE = /^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40})
 // (docs.github.com/en/rest/pulls/pulls#list-pull-requests-files, as of
 // 2026-10-15; recheck when that section changes its limit).
 export const FILES_CAP = 3000;
-// Lockfile patches run long; the model reads the rest from the checkout.
-// Judgment, sized to keep the context file well inside one model turn.
 const PATCH_CAP = 20_000;
 const PATCHES_TOTAL_CAP = 300_000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
-// The first line of each comment the lanes App posted.
 const appFirstLines = (issueComments, appId) => issueComments.filter((comment) => comment.user?.id === appId).map((comment) => firstLine(comment.body));
 const labelNames = (pull) => (pull.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
 
@@ -265,7 +262,6 @@ export async function select({
   if (pull.user?.id !== dependabotId || pull.user?.login !== DEPENDABOT_LOGIN) {
     return { decision: "skip", skipReason: "not-applicable" };
   }
-  // The head moved since the gate: the next dispatcher run reviews the new one.
   if (pull.head?.sha !== headSha) {
     return { decision: "skip", skipReason: "superseded-sha" };
   }
@@ -286,9 +282,6 @@ export async function select({
   if (classification.tier !== "review") {
     return { decision: "skip", skipReason: "not-applicable", classification };
   }
-  // A stale install-script pin is moved before any model turn: the push job
-  // lands it, and the new head is reviewed. A pin it cannot move goes to the
-  // model with the rest.
   let pinError = "";
   try {
     const pin = await pinMove(api, files, headSha);
@@ -318,7 +311,6 @@ export async function select({
     return { decision: "skip", skipReason: GATE_HOLD_SKIP, gateHold: true, classification, pinError, relockError, cdnError };
   }
   const comments = await api.listIssueComments(pr);
-  // One commit's check runs at a time: element 6's serial reads.
   const checkRuns = [];
   for (const commit of commits) {
     checkRuns.push(await api.listCheckRuns(commit.sha, MODEL_CHECK));
@@ -415,9 +407,7 @@ export function contextRun({ pr, headSha, classification, file, config, startedA
     config_unreadable: (classification?.reasons ?? []).includes("dependabot-config-unreadable"),
     files_truncated: file?.files_truncated === true,
     started_at: startedAt,
-    // Each matched review-only entry's control, which a merge verdict must quote.
     controls: reviewControls(classification),
-    // The base config's [ecosystem, directory] pairs; an unreadable config is [].
     config: config ?? [],
   };
 }
@@ -441,8 +431,6 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     "DEPENDABOT_CONFIG",
     ...(env.STANDARDS_DIR ? [] : ["TRUSTED_ACTORS", "DEPENDABOT_POLICY"]),
   ]);
-  // Before any model turn and before the upload: no lanes App fix commit of
-  // this round is older.
   const startedAt = utcSeconds(now());
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   if (!SHA.test(env.HEAD_SHA)) {

@@ -80,8 +80,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: read # list this repository's artifacts for the done marker and the cap
-      contents: read # check out main and list the changelog branches
+      actions: read
+      contents: read
     outputs:
       proceed: ${{ steps.gate.outputs.proceed }}
       release: ${{ steps.gate.outputs.release }}
@@ -115,7 +115,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Report the kill switch
@@ -154,8 +153,6 @@ jobs:
           RELEASE_INPUT: ${{ inputs.release }}
           STATUS_FILE: ${{ runner.temp }}/changelog-status.txt
         run: |
-          # The unread releases. The replay cap bounds a replayed range, and a run
-          # here takes one release, so the caps are raised to keep the list printed.
           if [ "$EVENT_NAME" = schedule ]; then
             bash plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --ledger docs/upstream/claude-code.md \
               --cap-releases 1000 --cap-items 1000000 >"$STATUS_FILE"
@@ -202,8 +199,6 @@ jobs:
           echo "::notice::$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
-      # The skipped key leg's lane record: outcome skip, class credit-stop,
-      # handed off, so leg counts before and after the gate compare.
       - name: Report the skipped key leg
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -236,14 +231,12 @@ jobs:
   apply-changelog:
     name: Apply Changelog
     needs: select-release
-    # The first attempt only: a re-run never runs the model again. A key the
-    # credit gate skipped runs nothing here; apply-changelog-subscription runs it.
     if: needs.select-release.outputs.proceed == 'true' && needs.select-release.outputs.next-leg != 'subscription' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
     permissions:
-      contents: read # check out main with history, to branch from it
+      contents: read
     # No global or system git config applies to any step: one the model
     # writes during its leg would otherwise reach the checkout after it
     # (which copies the global config into its temporary HOME) and every
@@ -316,8 +309,6 @@ jobs:
           credential-set: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY != '' }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # The plugins the skill and its stage skills load, copied out of main
-      # before the root checkout replaces .base.
       - name: Stage the base plugins
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
@@ -340,7 +331,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # The skill branches from here. Nothing after this step runs from .base.
       - name: Check out main with history
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: actions/checkout@v7
@@ -533,8 +523,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -625,7 +613,7 @@ jobs:
     timeout-minutes: 90
     cache-mode: read
     permissions:
-      contents: read # check out main with history, to branch from it
+      contents: read
     # No global or system git config applies to any step: one the model
     # writes during its leg would otherwise reach the checkout after it
     # (which copies the global config into its temporary HOME) and every
@@ -698,8 +686,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.apply-changelog.outputs.next-reason || needs.select-release.outputs.next-reason }}
 
-      # The plugins the skill and its stage skills load, copied out of main
-      # before the root checkout replaces .base.
       - name: Stage the base plugins
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
@@ -722,7 +708,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # The skill branches from here. Nothing after this step runs from .base.
       - name: Check out main with history
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: actions/checkout@v7
@@ -872,8 +857,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -946,9 +929,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The fallback leg: the same steps on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
-  # alone, after the subscription leg handed off. It is the last leg and
-  # never hands off.
   apply-changelog-fallback:
     name: Apply Changelog Fallback
     needs: [select-release, apply-changelog-subscription]
@@ -961,7 +941,7 @@ jobs:
     timeout-minutes: 90
     cache-mode: read
     permissions:
-      contents: read # check out main with history, to branch from it
+      contents: read
     # No global or system git config applies to any step: one the model
     # writes during its leg would otherwise reach the checkout after it
     # (which copies the global config into its temporary HOME) and every
@@ -1031,8 +1011,6 @@ jobs:
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ needs.apply-changelog-subscription.outputs.next-reason }}
 
-      # The plugins the skill and its stage skills load, copied out of main
-      # before the root checkout replaces .base.
       - name: Stage the base plugins
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         env:
@@ -1055,7 +1033,6 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      # The skill branches from here. Nothing after this step runs from .base.
       - name: Check out main with history
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
         uses: actions/checkout@v7
@@ -1192,8 +1169,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The leg's lane-outcome record: its credential, outcome, handoff,
-      # fallback reason and durationMs, one record per leg.
       - name: Record the leg
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -1266,7 +1241,7 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out main
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -1411,8 +1386,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The probe leg's lane-outcome record: its credential, outcome, handoff
-      # and durationMs.
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
@@ -1493,8 +1466,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The scrub probe on the subscription token, after the key probe handed off,
-  # found its key empty, or was skipped by the credit gate.
   verify-env-scrub-subscription:
     name: Verify Env Scrub Subscription
     needs: [select-release, verify-env-scrub]
@@ -1505,7 +1476,7 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out main
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -1652,8 +1623,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The probe leg's lane-outcome record: its credential, outcome, handoff
-      # and durationMs.
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
@@ -1734,8 +1703,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The scrub probe on the fallback token, after the subscription probe handed
-  # off or found its token empty. The last leg: it never hands off.
   verify-env-scrub-fallback:
     name: Verify Env Scrub Fallback
     needs: [select-release, verify-env-scrub-subscription]
@@ -1746,7 +1713,7 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out main
+      contents: read
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@v7
@@ -1888,8 +1855,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # The probe leg's lane-outcome record: its credential, outcome, handoff
-      # and durationMs.
       - name: Record the probe leg
         if: always() && steps.probe.outcome != 'skipped'
         continue-on-error: true
@@ -2310,12 +2275,10 @@ jobs:
       name: pr-pipeline-scan-carrier
       deployment: false
     permissions:
-      contents: read # check out main
+      contents: read
     outputs:
       clean: ${{ steps.upload.outcome == 'success' }}
       branches: ${{ steps.check.outputs.branches }}
-      # Each planned branch's synthetic commit and tree, in plan order: push
-      # fetches that commit from the bundle and publishes that tree.
       synthetic: ${{ steps.check.outputs.synthetic }}
       # Push and publish download this artifact by id and check these
       # hashes before anything is minted.
@@ -2399,7 +2362,6 @@ jobs:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/scan-in/publish.txt
 
-      # The SHA-256 of each file uploaded below; no bundle, no bundle hash.
       - name: Hash the plan and the branches
         id: hash
         if: >-
@@ -2415,7 +2377,6 @@ jobs:
             echo "bundle=${sum%% *}" >>"$GITHUB_OUTPUT"
           fi
 
-      # The plan and the rebuilt bundle, scan-out's only files.
       - name: Upload the plan and the branches
         id: upload
         if: steps.hash.outcome == 'success'
@@ -2446,8 +2407,8 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out main
-      id-token: write # prove to the token broker which workflow this is
+      contents: read
+      id-token: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -2526,8 +2487,6 @@ jobs:
             fi
           done
 
-      # A kill switch turned on since the step above is a designed stop
-      # (pr-run-activity.md, The lane token broker).
       - name: Request the lane token
         id: lane-token
         if: steps.verify.outcome == 'success'
@@ -2593,8 +2552,8 @@ jobs:
     timeout-minutes: 15
     cache-mode: read
     permissions:
-      contents: read # check out main
-      id-token: write # prove to the token broker which workflow this is
+      contents: read
+      id-token: write
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -2711,8 +2670,6 @@ jobs:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
         run: bash .base/.github/scripts/lib/revoke-lane-token.sh
 
-      # The gate's done marker: a later run skips this release even when its
-      # plan made no branch or stopped on cap-exceeded or hold-path.
       - name: Upload the done marker
         if: steps.publish.outcome == 'success' && steps.publish.outputs.done == 'true'
         uses: actions/upload-artifact@v7

@@ -13,7 +13,6 @@
 // writes into output.text from the run job's report-lane-outcome output. Its
 // lane and activity must name the run itself. A failed run with no such record
 // is no limit stop.
-
 // `limits` is pr-pipeline.yaml's resolved limits leaf. When a limit stop names
 // no `resets.at` time, it is taken to reset `fallback-reset` hours after the run
 // ended: the shortest plan limit is a five-hour session window

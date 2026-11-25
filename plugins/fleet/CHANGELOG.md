@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.3] - 2026-11-25
+
+### Fixed
+
+- `fleet:reach` warns that Git Bash rewrites a POSIX path such as `/tmp/x` in a `wsl.exe` argument to a Windows path, and says to write it with a leading `//`.
+
 ## [0.5.2] - 2026-11-24
 
 ### Fixed

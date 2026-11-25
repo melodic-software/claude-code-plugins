@@ -216,6 +216,7 @@ and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/ma
 - `OBS_ANALYSIS` ← `${user_config.observer_analysis_enabled}` (default `true`), an operator who set it
   `false` to avoid autonomous spend must not get a `claude -p` run from a manual arm
 - `OBS_BARE` ← `${user_config.observer_analysis_bare}` (default `false`)
+- `OBS_MIN_LINES` ← `${user_config.observer_min_lines}`; leave empty for the plugin.json default
 - `DECLARED_MEMORY_DIR` ← a `memory_dir` the consuming repo documents in prose (its `CLAUDE.md` /
   rules). Retro's rung-2 inference; empty otherwise. Being in-session, the manual arm can honor this
   (and cross-session continuity below); the headless hook uses the `.work` default and cannot infer a
@@ -242,7 +243,7 @@ PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros"
   --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT"
   --previous-running-retro "${PREV_LEDGER:-}" --previous-session-id "${PREV_SID:-}"
-  --model "${OBS_MODEL:-}" --effort "${OBS_EFFORT:-}"
+  --model "${OBS_MODEL:-}" --effort "${OBS_EFFORT:-}" --min-lines "${OBS_MIN_LINES:-}"
   --idle-seconds "${OBS_IDLE:-900}" --max-seconds "${OBS_MAX:-86400}")
 [[ "${OBS_ANALYSIS:-true}" != "false" ]] && args+=(--analysis)
 [[ "${OBS_BARE:-false}" == "true" ]] && args+=(--bare)

@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "9.24.1",
+  "version": "9.24.2",
   "license": "MIT",
   "keywords": [
     "workflow",
@@ -66,6 +66,13 @@
       "title": "Bare mode for the analysis run",
       "description": "Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md.",
       "default": false
+    },
+    "observer_min_lines": {
+      "type": "number",
+      "title": "Observer minimum session size (lines)",
+      "description": "Transcript lines a session needs before its first post-session analysis; default 300. A shorter session, such as an automated sweep, is skipped and the skip recorded in the observer's status file. A follow-up to an analyzed session is always analyzed. 0 analyzes every session.",
+      "default": 300,
+      "min": 0
     },
     "observer_idle_seconds": {
       "type": "number",

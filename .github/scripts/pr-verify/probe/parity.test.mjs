@@ -1,6 +1,3 @@
-// The replay must judge the way pr-verify.yml does. These tests read the
-// workflow and fail when its judge step, prompt step or model route drift
-// from replay.mjs's JUDGE.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -13,8 +10,6 @@ import { CLI_VERSION, cliArgs, JUDGE, LEG_ENV, legEnv, MANAGED_SETTINGS, promptT
 
 const text = readFileSync(new URL("../../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const JOBS = ["check-intent", "check-intent-subscription", "check-intent-fallback"];
-// Each job's one credential input. fallback-ready only decides whether a
-// subscription leg may hand off (lane.cjs handoffReason), never the argv.
 const CREDENTIAL_INPUTS = {
   "check-intent": ["api-key"],
   "check-intent-subscription": ["subscription-token", "fallback-ready"],
@@ -31,7 +26,6 @@ const block10 = (block, key, style) =>
     .map((line) => line.trim())
     .filter(Boolean);
 const withKeys = (block) => [...block.split(/\n {8}with:\n/)[1].matchAll(/^ {10}([a-z-]+):/gm)].map((m) => m[1]);
-// A step's env, failing when any non-comment line is not a KEY: value pair.
 const envOf = (block) => {
   const body = /\n {8}env:\n((?: {10}.*\n)+)/.exec(block)?.[1] ?? "";
   const lines = body.split("\n").filter((line) => /^ {10}[^#\s]/.test(line));
@@ -74,7 +68,6 @@ for (const job of JOBS) {
     assert.equal(input(judge, "effort"), "${{ steps.models.outputs.effort }}");
     assert.equal(input(judge, "max-turns"), "${{ steps.models.outputs.max-turns }}");
     assert.deepEqual(envOf(judge), JUDGE.stepEnv);
-    // The judge reads the files the prompt step writes.
     const written = envOf(step(job, "Write the prompt and schema"));
     assert.equal(input(judge, "prompt-file"), `${written.PROMPT_STEM}-1.md`);
     assert.equal(input(judge, "json-schema-file"), written.SCHEMA_FILE);

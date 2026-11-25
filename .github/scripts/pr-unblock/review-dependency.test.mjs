@@ -7,8 +7,6 @@ import { test } from "node:test";
 import { ciStatusOf, countRounds, gateHoldOnly, main, newestRound, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-// No registry reads in tests: the provenance gate finds nothing unless a test
-// passes its own, and the policy lists nothing unless a test passes its own.
 const select = (args) => selectLive({ provenance: async () => [], policy: { autoMerge: { reviewOnly: [] } }, ...args });
 
 const HEAD = "a".repeat(40);
@@ -534,8 +532,6 @@ test("main writes the outputs, the context file and the run fields, with the sec
   const out = readFileSync(env.GITHUB_OUTPUT, "utf8");
   assert.equal(out, "proceed=true\nskip-reason=\nescalation-reason=\n");
   assert.equal(JSON.parse(readFileSync(env.DEPENDENCY_FILE, "utf8")).pr, 7);
-  // The verdict job's run fields, one JSON line: the security label, no
-  // config file (the main test points at none), the time to the second.
   assert.equal(
     readFileSync(env.CONTEXT_RUN_FILE, "utf8"),
     `${JSON.stringify({
@@ -605,7 +601,6 @@ test("main writes no context or run file when the select skips", async () => {
   assert.ok(!lines.some((line) => /security/i.test(line)), "a gate hold names no security risk");
 });
 
-// main over a readable base config and policy, with the registry stubbed.
 async function mainWith({ title, policy = POLICY, provenance = async () => [] }) {
   const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
@@ -645,7 +640,6 @@ test("main warns of a classifier gap when only a parse failure sends a pull requ
   assert.match(unparsed.warnings[0], /classifier gap: #7 .*unparsed-updates/);
   const unread = await mainWith({ title: "bump y from 1.4.0 to 1.5.0", provenance: async () => ["provenance-unreadable:y"] });
   assert.match(unread.warnings.join("\n"), /classifier gap: #7 .*provenance-unreadable:y/);
-  // A real risk beside the gap, or a skip, is no classifier gap.
   assert.deepEqual((await mainWith({ title: "bump x from 1.4.0 to 2.0.0", policy: { autoMerge: { reviewOnly: [] } } })).warnings, []);
   assert.deepEqual((await mainWith({ title: "bump y from 1.4.0 to 1.5.0" })).warnings, []);
   assert.deepEqual((await mainWith({ title: "bump y from 1.4.0 to 1.5.0", provenance: async () => ["provenance-changed:y"] })).warnings, []);
@@ -667,8 +661,6 @@ test("select sends an otherwise auto bump whose provenance changed to review", a
   assert.deepEqual(result.file.classification.reasons, ["provenance-changed:y"]);
 });
 
-// The install-script pin: a review-tier pull request whose head lags its
-// lockfile gets the pin patch before any model turn.
 const CLI = "@anthropic-ai/claude-code";
 const PIN_FILES = [{ filename: "package-lock.json", status: "modified", additions: 1, deletions: 1, patch: "" }];
 const pinTexts = (pin) => ({
