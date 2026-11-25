@@ -1252,7 +1252,7 @@ limits:
   # in-flight check count it among runs that name no issue. 60 is judgment:
   # well past a hosted runner's pickup.
   stale-queued-minutes: 60
-  sweep-gap-minutes: 15
+  sweep-gap-minutes: 5
   # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
   # issue, per cause, doubled once per re-fire already made and held at 24
   # (the schema's description says where each cause's doubling starts). The
@@ -1383,7 +1383,7 @@ post-merge:
       enqueuers: [kyle-sexton]
 
 # PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an
-# account on .github/standards/trusted-actors/trusted-actors.json opened (by
+# account on the standards trusted-actor list opened (by
 # id, a person or an App), with no hold label and no `Hold:` body line, and,
 # for a person's PR, whose activity and head commit are both idle-hours old
 # (pr-merge counts only trusted-actor activity and pushes; fix-ci, the last

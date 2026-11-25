@@ -22,6 +22,7 @@ import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { loads, stage as stageClosure } from "./stage-closure.mjs";
+import { STANDARDS_FIXTURE } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -320,7 +321,7 @@ test("a staged declare-test-scope reads the base config through resolve-config's
   const script = ".github/scripts/pr-unblock/declare-test-scope.mjs";
   stageClosure(REPO_ROOT, script, dest);
   const { testScopeFromBase } = await import(pathToFileURL(path.join(dest, script)).href);
-  assert.equal(typeof (await testScopeFromBase(REPO_ROOT)).apply, "boolean");
+  assert.equal(typeof (await testScopeFromBase(REPO_ROOT, STANDARDS_FIXTURE)).apply, "boolean");
 });
 
 // #8595: the lanes run the latest CLI, so the comment above shell_denied

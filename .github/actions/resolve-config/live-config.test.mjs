@@ -18,6 +18,7 @@ import { checkPatchRules } from "./patch-rules.mjs";
 import { statusBotSetters } from "./issue-status.mjs";
 import { configFromBase, ownedBranchesFromBase, postMergeFromBase, refineDispatchActivitiesFromBase, testScopeFromBase } from "./resolve-config.mjs";
 import { laneSlots, resolve, resolveGrant, resolveLimits, slotTargets } from "./resolve.mjs";
+import { STANDARDS_FIXTURE } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -31,12 +32,12 @@ const FILES = {
   config: read(`../../../${CONFIG_PATH}`),
   schema: json("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"),
   vocabulary: json(
-    "../../standards/github-actions-conventions/vocabulary.json",
+    "../../scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json",
   ),
   laneRules: json("./lane-rules.json"),
   effectGrants: json("./effect-grants.json"),
   activityRules: json("./activity-rules.json"),
-  trustedActors: json("../../standards/trusted-actors/trusted-actors.json"),
+  trustedActors: json("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"),
 };
 const FACTS = {
   event: "dispatch",
@@ -679,7 +680,7 @@ test("live config: fix-docs applies to a Markdown change and waits on do-not-mer
   );
 });
 
-const PLAN_CONFIG = configFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
+const PLAN_CONFIG = configFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE });
 
 // The issue's rule (#13717): a changelog fragment alone does not qualify.
 test("live config: fix-docs skips a PR whose only Markdown is a changelog fragment, and the planner agrees", () => {
@@ -837,18 +838,18 @@ test("live config: pr-merge's re-fire step skips the release branch release-publ
 });
 
 test("live config: fix-ci reads the owned branches, the release branch among them, from the base", () => {
-  const branches = ownedBranchesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
+  const branches = ownedBranchesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE });
   assert.ok(branches.includes("release/plugins"), JSON.stringify(branches));
 });
 
 test("live config: the refine job dispatches no configured activity", () => {
-  assert.deepEqual(refineDispatchActivitiesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) }), []);
+  assert.deepEqual(refineDispatchActivitiesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE }), []);
 });
 
 // The canary pass records owner-login agent merges on their own path, record
 // only (owner decision Q1 (a) on #7531; README.md, "Merge paths").
 test("live config: post-merge records the owner login's agent merges on the owner-agent path, record only", () => {
-  const { paths, agentIdentity } = postMergeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
+  const { paths, agentIdentity } = postMergeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE });
   assert.deepEqual(paths, { "owner-agent": { mode: "record", enqueuers: ["kyle-sexton"] } });
   assert.equal(agentIdentity, "melodic-automation-lanes[bot]");
 });
@@ -894,7 +895,7 @@ test("the live pr-pipeline.yaml stays inside the merge lane's YAML subset", () =
 });
 
 test("live config: test-scope.apply is off, so fix-test-scope uploads its patch and apply-test-scope never runs", () => {
-  assert.deepEqual(testScopeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) }), { apply: false });
+  assert.deepEqual(testScopeFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE }), { apply: false });
   const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
   assert.equal(grant("fix-test-scope").effect, "read");
   assert.deepEqual(grant("apply-test-scope"), { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } });

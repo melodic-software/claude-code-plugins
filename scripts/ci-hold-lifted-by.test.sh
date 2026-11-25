@@ -99,8 +99,7 @@ expect() {
   local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config" standards="$TMP_ROOT/stub-standards"
   : >"$TMP_ROOT/log"
   rm -rf "$config" "$standards" "$TMP_ROOT/pr-reads"
-  mkdir -p "$config/.github/standards/trusted-actors" "$standards/components/trusted-actors"
-  printf '%s\n' "$ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  mkdir -p "$config" "$standards/components/trusted-actors"
   printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$standards/components/trusted-actors/trusted-actors.json"
   if [[ -z "${STUB_NO_PREDICATE:-}" ]]; then
     mkdir -p "$config/.github/scripts/pr-merge"

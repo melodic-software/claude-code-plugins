@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
-export const trustedActorsPath = (base) => `${base || ".base"}/${TRUSTED_ACTORS_PATH}`;
-export const SAME_TREE_LIST = new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url);
 export const STANDARDS_REPOSITORY = "melodic-software/standards";
 export const STANDARDS_LIST_PATH = "components/trusted-actors/trusted-actors.json";
 export function trustedListPath(env, given) {

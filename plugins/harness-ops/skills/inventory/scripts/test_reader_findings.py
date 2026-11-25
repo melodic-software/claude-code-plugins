@@ -33,7 +33,6 @@ import parser_reader as pr
 from test_inventory import AGENT_SRC, _tool
 from test_parser_reader import _require_live
 
-# AGENT_SRC binds xt="Edit", yt="Agent".
 PROBE = (
     'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
     'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
@@ -330,7 +329,6 @@ class TestOpenFindings(unittest.TestCase):
             + ';pY.includes("x")',
             # A compound assignment on an alias coerces the array first.
             'var a=pY;Array.prototype.toString=function(){this.push("B");return""};a+=""',
-            # A template-literal key names the method as a string does.
             "Object.defineProperty(Array.prototype,`includes`,{value:"
             + patch
             + '});pY.includes("x")',

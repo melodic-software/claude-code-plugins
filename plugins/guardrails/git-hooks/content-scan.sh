@@ -32,8 +32,6 @@
 # (EXEMPT_LIST) exempts path findings only. The message says how to fix the
 # content; the scan never suggests skipping it.
 
-# The pattern libraries: beside an installed copy (entry assets), or in the
-# plugin's lib/ when run from the plugin itself.
 secret_lib="$here/secret-patterns.sh"
 [[ -f "$secret_lib" ]] || secret_lib="$here/../lib/secret-detection/secret-patterns.sh"
 path_lib="$here/hardcoded-path-patterns.sh"
@@ -44,8 +42,6 @@ path_lib="$here/hardcoded-path-patterns.sh"
 . "$path_lib" || return 1
 
 MAX_BYTES=1048576
-# Where scan_tool records a failure: nowhere until content_scan_init, since
-# checks_init runs wrapped tools before CHECKS_TMP exists.
 scan_error=/dev/null
 # A merge's parents past the first, which each entry sets: a file one of them
 # holds with the same mode and blob brings nothing the merge itself adds.
@@ -130,8 +126,6 @@ content_scan_init() {
     row="${row%%$'\t'*}"
     [[ -n "$row" && "$row" != '#'* ]] && repo_exempt+=("$row")
   done < <(git show "refs/remotes/origin/HEAD:$EXEMPT_LIST" 2>/dev/null)
-  # The repository path itself is a finding, unless the checkout sits at,
-  # above or below the home directory, where every home path would match it.
   scan_root="$PWD"
   local home="${HOME:-${USERPROFILE:-}}"
   home="${home%/}"
@@ -250,11 +244,6 @@ retyped_ranges() {
 
 content_scan() {
   local result=$1 i f s src sink text packed meta rest p
-  # The files to judge: paths[i] names one and, outside --worktree, keeps[i]
-  # is its object id in the change. The modes and object ids come from one raw
-  # diff, which lists every staged path (from_other_parent skips the ones
-  # another parent holds), and the sizes from one batch query, so each file
-  # costs one git process, the one that reads it out.
   paths=()
   keeps=()
   rm -rf "$CHECKS_TMP/scan"
@@ -306,9 +295,6 @@ content_scan() {
     done
   fi
 
-  # names[i], texts[i], sinks[i] and order[i]: each file the scans read, its
-  # text, where its findings go and its index in paths; $CHECKS_TMP/scan/<i>
-  # holds the same text for a grep that reads every file in one process.
   local out="$CHECKS_TMP/findings" whole="$CHECKS_TMP/findings-whole" scanned=0
   : >"$out"
   : >"$whole"
@@ -392,8 +378,6 @@ content_scan() {
     secrets::scan_text "${texts[i]}" | secret_findings "${names[i]}" "${order[i]}" >>"${sinks[i]}"
   done
 
-  # hpp::prefilter clears most files with no process. Of the rest, ASCII text
-  # goes to hpp_sweep and other text is judged file by file.
   pool=()
   for ((i = 0; i < scanned; i++)); do
     path_exempt "${names[i]}" && continue

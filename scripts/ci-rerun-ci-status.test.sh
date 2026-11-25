@@ -117,20 +117,20 @@ for want in 'id: kill' 'continue-on-error: true' 'uses: ./.base/.github/actions/
   if [[ "$kill_step" == *"$want"* ]]; then ok "the kill-switch step carries $want"; else fail "the kill-switch step lacks $want"; fi
 done
 if [[ "$job" == *"- name: Check the kill switch"*"- name: Find the ci-status to re-run"* ]]; then ok "the switch is read before the find step"; else fail "the kill-switch step is not before the find step"; fi
-list_step="$(step_of 'Check out the trusted-actors list')"
+scripts_step="$(step_of 'Check out the re-run scripts')"
 tip_step="$(awk -v name="      - name: Resolve main's tip" '$0 == name { on = 1; print; next } on && /^      - / { exit } on { print }' <<<"$job")"
 for want in 'id: tip' 'continue-on-error: true' 'branch: main' 'actions/resolve-branch-tip@'; do
   if [[ "$tip_step" == *"$want"* ]]; then ok "the tip step carries '$want'"; else fail "the tip step lacks '$want'"; fi
 done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in 'continue-on-error: true' 'uses: actions/checkout@' "if: steps.tip.outputs.sha != ''" 'ref: ${{ steps.tip.outputs.sha }}' 'path: .base' 'persist-credentials: false' \
-  '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' '/.github/actions/check-trusted-trigger/' \
+  '/.github/actions/log-api-budget/' '/.github/actions/check-trusted-trigger/' \
   '/.github/actions/check-kill-switch/' "/${FIND_SCRIPT%/*}/" '/lib/publish-gate.mjs' \
   '/.node-version' 'sparse-checkout-cone-mode: false'; do
-  if [[ "$list_step" == *"$want"* ]]; then ok "the list checkout carries '$want'"; else fail "the list checkout lacks '$want'"; fi
+  if [[ "$scripts_step" == *"$want"* ]]; then ok "the scripts checkout carries '$want'"; else fail "the scripts checkout lacks '$want'"; fi
 done
 order="$(grep -nE '^      - name: ' <<<"$job" | cut -d: -f3- | paste -sd'|')"
-if [[ "$order" == " Resolve main's tip| Check out the trusted-actors list| Download standards| Set up Node| Check the kill switch| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end" ]]; then
+if [[ "$order" == " Resolve main's tip| Check out the re-run scripts| Download standards| Set up Node| Check the kill switch| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end" ]]; then
   ok "the job reads the switch, finds, scans, records, re-runs, then logs the API budget"
 else
   fail "step order: '$order'"

@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "9.23.0",
+  "version": "9.24.1",
   "license": "MIT",
   "keywords": [
     "workflow",
@@ -229,6 +229,12 @@
       "title": "Away watched folders",
       "description": "Comma-separated folders /session-flow:step-away scans for files written while you are away; empty (default) scans the home folder. Dot folders and git work trees are skipped.",
       "default": ""
+    },
+    "away_orchestrate": {
+      "type": "boolean",
+      "title": "Away orchestrator posture",
+      "description": "When on, /session-flow:step-away runs every absence as an orchestrator: the main session delegates work and keeps only briefs, verdicts and state in its context, so it rides compaction through a long run. Off by default. Words in the launch line can turn it on or off for one run.",
+      "default": false
     }
   }
 }

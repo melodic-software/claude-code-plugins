@@ -52,7 +52,7 @@ import { parseArgs } from "node:util";
 
 import { loadTrustedList } from "../../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { buildTrustedContext } from "../../../actions/select-trusted-text/select-trusted-text.mjs";
-import { TRUSTED_ACTORS_PATH, trustedListPath } from "../../lib/trusted-actors.mjs";
+import { trustedListPath } from "../../lib/trusted-actors.mjs";
 import { renderPrompt } from "../render-prompt.mjs";
 import { resolvePull } from "../resolve-pr.mjs";
 import { jobsFile, upstreamJobs } from "../upstream-jobs.mjs";
@@ -762,7 +762,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const pipelineFile = path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml");
   const pipeline = {
-    trustedActorsPath: process.env.STANDARDS_DIR ? trustedListPath(process.env) : path.join(REPO_ROOT, TRUSTED_ACTORS_PATH),
+    trustedActorsPath: trustedListPath(process.env),
     verifyAuthors: sh("yq", ['.merge."verify-authors" // "lane"', pipelineFile]),
     laneIdentity: sh("yq", ['.merge."agent-identity" // ""', pipelineFile]),
     baselineFile: sh("yq", ['.merge."baseline-file" // ""', pipelineFile]),

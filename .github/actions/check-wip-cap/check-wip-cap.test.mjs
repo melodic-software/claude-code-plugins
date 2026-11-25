@@ -654,9 +654,7 @@ test("reads that fail never cap or pause on their own", async () => {
 const CONFIG = "docs/conventions/pr-pipeline.yaml";
 const BASE_FILES = [
   "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
-  ".github/standards/github-actions-conventions/vocabulary.json",
   ".github/CODEOWNERS",
-  ".github/standards/trusted-actors/trusted-actors.json",
 ];
 async function runMain(answers, extraEnv = {}, config) {
   const dir = tempDir("check-wip-cap-");

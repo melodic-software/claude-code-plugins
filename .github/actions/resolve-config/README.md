@@ -23,11 +23,10 @@ effort, turn budget) and the App token grant. The config's contract is the
 | `applied-by-supported` | empty | The `applied-by` keys this runner hands on, comma- or space-separated; `pr-run-activity-read.yml` passes `patch` |
 | `github-token` | `${{ github.token }}` | Read-only; used only when a predicate needs the PR's labels, draft state, mergeability or changed files |
 
-It reads, all under `base-path`: the config, `docs/conventions/pr-pipeline/pr-pipeline.schema.json`
-and `.github/standards/github-actions-conventions/vocabulary.json`. With `standards-path` set, it
-reads the vocabulary and the trusted-actor list from `components/github-actions-conventions/` and
-`components/trusted-actors/` under that checkout instead; a path there that resolves outside it is
-an error, as under `base-path`. The lane rules
+It reads the config and `docs/conventions/pr-pipeline/pr-pipeline.schema.json` under `base-path`,
+and the vocabulary and the trusted-actor list from `components/github-actions-conventions/` and
+`components/trusted-actors/` under `standards-path`; a path that resolves outside its checkout is
+an error. Without `standards-path` the vocabulary is missing, so it rejects the config. The lane rules
 ([`lane-rules.json`](lane-rules.json)), per-leaf rules ([`activity-rules.json`](activity-rules.json))
 effect grants ([`effect-grants.json`](effect-grants.json)) and patch rules
 ([`patch-rules.json`](patch-rules.json), validated by
@@ -228,9 +227,10 @@ decides no `applies-when` predicate, so it takes no facts. `applies-when` is not
 control: it decides whether a slot runs, never what its token may do. Like `resolve()`, it throws
 a `Rejection` whose `code` names the failure. `files.activityRules` is required: a caller that
 passes none is rejected with `activity-rules`. The broker passes only the files its
-`binding.mjs` lists, so a file `loadConfig` comes to need must join that list, and the
-`test_files` list of azure-iac's `scripts/deploy/fetch-resolve-config.sh`, in an azure-iac change
-deployed before this one merges. The broker loads `resolve.mjs` and the sibling modules it imports
+`binding.mjs` reads (`TRUST_FILES` from the caller's main, the vocabulary and trusted-actors list
+from standards main), so a file `loadConfig` comes to need must join that list, and the files
+azure-iac's `src/lanes-token-broker/test/helpers.mjs` serves, in an azure-iac change deployed
+before this one merges. The broker loads `resolve.mjs` and the sibling modules it imports
 from this repository's `main`, whichever repository calls, beside its own `ajv` and `yaml`;
 [`broker-vendoring.test.mjs`](broker-vendoring.test.mjs) checks the lists, the import walk and the
 packages against a copy of the broker's.

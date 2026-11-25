@@ -762,7 +762,7 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
-      - name: Check out the trusted-actors list
+      - name: Check out the re-run scripts
         if: steps.tip.outputs.sha != ''
         continue-on-error: true
         uses: actions/checkout@v7
@@ -771,7 +771,6 @@ jobs:
           path: .base
           persist-credentials: false
           sparse-checkout: |
-            /.github/standards/trusted-actors/
             /.github/actions/log-api-budget/
             /.github/actions/check-trusted-trigger/
             /.github/scripts/lib/github-client.mjs

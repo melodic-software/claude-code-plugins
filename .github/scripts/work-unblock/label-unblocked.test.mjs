@@ -6,7 +6,7 @@
 // read from the API when the run starts, never from the event payload. The
 // kill switch and a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -52,9 +52,12 @@ import { parseReason } from "../lib/stop-reason.mjs";
 import { mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { DISAGREEMENT_WAIT_MS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { FIELD_API, statusWriter } from "../../actions/resolve-config/write-status.mjs";
+import { standardsAt } from "../lib/trusted-actors.fixtures.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
+const STANDARDS = standardsAt(tempDir("label-unblocked-standards-"));
+copyFileSync(TRUSTED, STANDARDS.list);
 const API = "https://api.github.com";
 const REPO = "melodic-software/claude-code-plugins";
 const OWNER = { id: 153232337, login: "kyle-sexton" };
@@ -5883,7 +5886,7 @@ test("a person's hold set after the sweep read the App's needs-human stops the R
     }
     return answer;
   };
-  const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, github, repository: REPO });
+  const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED, STANDARDS_DIR: STANDARDS.dir }, github, repository: REPO });
   assert.equal(await sweep({ github, actions: github, writer, statusOf: fake.statusOf, now: Date.parse(FIELD_AT(3)) }), 0);
   assert.deepEqual(writes(fake.calls), [`POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: refsMergedComment(7805) })}`], "no field write and agent-ready stays");
 });
@@ -5910,7 +5913,7 @@ test("a person's hold set after the read of a ready issue stops its admission at
       }
       return names;
     }, fake.statusOf);
-    const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, github, repository: REPO });
+    const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED, STANDARDS_DIR: STANDARDS.dir }, github, repository: REPO });
     assert.equal(await main({ env: envFor(), github, writer, statusOf, admission: admissionFor() }), 0);
     return writes(fake.calls);
   };
@@ -5937,7 +5940,7 @@ test("a limit-stopped issue's restart through the Work status writer clears the 
       }
       return fake.github(method, path, body, ...rest);
     };
-    const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, github, repository: REPO });
+    const writer = await statusWriter({ env: { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED, STANDARDS_DIR: STANDARDS.dir }, github, repository: REPO });
     assert.equal(await sweep({ github, writer }), 0, state);
     return writes(fake.calls);
   };
@@ -6760,7 +6763,7 @@ test("fieldListing carries a mid-write issue's hold to readmitReady, which leave
     });
     return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
   };
-  const byStatus = fieldListing({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED }, withFields(listed, fields), REPO);
+  const byStatus = fieldListing({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED, STANDARDS_DIR: STANDARDS.dir }, withFields(listed, fields), REPO);
   const { github, calls } = readyWorld({ items: [readyIssue(26), readyIssue(27)] });
   let done = false;
   const run = sweep({ github, byStatus, admission: admissionFor() }, PAUSING).finally(() => {
@@ -7315,7 +7318,7 @@ test("fieldListing lists every state once a sweep and answers each caller's stat
     }));
     return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
   };
-  const env = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED };
+  const env = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED, STANDARDS_DIR: STANDARDS.dir };
   const byStatus = fieldListing(env, github, REPO);
   const numbers = (found) => found.map((item) => item.number);
   assert.deepEqual(numbers(await byStatus(["deferred"])), [41]);
@@ -7358,7 +7361,7 @@ test("fieldListing: an unreadable Work status on an issue in another state never
       },
     },
   });
-  const env = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED };
+  const env = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), TRUSTED_ACTORS_PATH: TRUSTED, STANDARDS_DIR: STANDARDS.dir };
   const byStatus = fieldListing(env, github, REPO);
   assert.deepEqual((await byStatus(["agent-ready"])).map((item) => item.number), [40]);
   assert.deepEqual((await byStatus(["deferred"])).map((item) => item.number), [41]);

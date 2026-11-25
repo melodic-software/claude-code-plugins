@@ -29,7 +29,7 @@ const EXAMPLE = read(
   "../../../docs/conventions/pr-pipeline/examples/claude-code-plugins.yaml",
 );
 const LIVE_VOCABULARY = new URL(
-  "../../standards/github-actions-conventions/vocabulary.json",
+  "../../scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json",
   import.meta.url,
 );
 const VOCABULARY = JSON.parse(fixture("vocabulary.json"));
@@ -1795,11 +1795,7 @@ test("the README example validates and resolves for each of its lanes", () => {
   assert.equal(results["pr-merge / merge"].grant.contents, "write");
 });
 
-test("integration: the README example resolves against the synced standards vocabulary", {
-  skip: existsSync(LIVE_VOCABULARY)
-    ? false
-    : "the synced .github/standards/github-actions-conventions/vocabulary.json is absent until the standards sync lands",
-}, () => {
+test("integration: the README example resolves against the captured standards vocabulary", () => {
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );

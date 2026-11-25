@@ -109,7 +109,7 @@
     {
       "id": "tier-precedence",
       "retired": "tier for a precedence level of the config cascade",
-      "replacement": "scope (ADR 0075's word)",
+      "replacement": "layer (ADR 0075 and the config-cascade contract)",
       "rules": [
         {"match": "\\btiers?\\b", "near": "\\b(precedence|cascade|outranks?|overrides?)\\b"},
         {"match": "\\b(user|project|team|repo|repository|local|managed|personal|enterprise)[- ]tiers?\\b"}

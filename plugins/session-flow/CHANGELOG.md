@@ -1,5 +1,19 @@
 # Changelog: session-flow plugin
 
+## [9.24.1] - 2026-11-25
+
+### Fixed
+
+- `save_point.py fill` and `amend` check American spelling with one `typos` run per call instead of one per slot, so a shape-4 `fill` takes about a quarter of the time.
+- `hop_chain.py --budget` generates its chains through `save_point.main` in-process instead of a new interpreter per call, which brings the `hop_chain.test.sh` suite from about 100 s to under 20 s with the same checks.
+
+## [9.24.0] - 2026-11-24
+
+### Added
+
+- `step-away` can run an absence as an orchestrator: with the new `away_orchestrate` option on, or launch words that ask for it, the main session arms `/session-flow:orchestrate`, delegates work and keeps only briefs, verdicts and state in its own context, so it lasts through compaction. Model, effort and outside vendors come from `/multi-agent:route` when that plugin is on; delegated work follows the away rules. The Stop and UserPromptSubmit notes name the posture so it returns after compaction.
+- `step-away` reads the context zone before arming and, when it is heavy, offers a fresh session in the launch question.
+
 ## [9.23.0] - 2026-11-24
 
 ### Changed

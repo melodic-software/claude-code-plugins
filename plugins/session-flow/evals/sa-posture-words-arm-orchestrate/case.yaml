@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: sa-posture-words-arm-orchestrate
+description: 'Step-away orchestrator posture (AC2, AC5): the word "delegate" sets the posture for this run, so the start command carries --setting away_orchestrate=true (AC5), and the run invokes /session-flow:orchestrate (AC2). Whether the edit then runs inline or in a subagent is the orchestrate skill''s call, so neither is graded. A run needs --scaffold and --allow-tools Bash Write Edit Agent.'
+tags: [step-away, orchestrator-posture]
+plugins: ["../.."]
+expected_outcome: 'The run passes --setting away_orchestrate=true to away.py start, and calls the session-flow:orchestrate skill.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:step-away delegate'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill, Agent]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: start-sets-posture
+    type: tool_used
+    tool: Bash
+    input_match: 'away\.py(?:\\")?[ \t]+start\b(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]--setting[ \t]+(?:''|\\")?away_orchestrate=true\b'
+    min: 1
+    arm: both
+  - name: orchestrate-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:session-flow:)?orchestrate"'
+    min: 1
+    arm: both

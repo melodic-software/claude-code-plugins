@@ -115,7 +115,7 @@ rerun_case "a re-run draft run whose pull request is still a draft stays a draft
 rerun_case "an unreadable pull request counts as ready" true '' fail
 rerun_case "an answer with no draft field counts as ready" true '{"number":18358}'
 
-ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
+ACTORS="$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"
 want_ids="$(jq -r '[.actors[] | select(.login == "dependabot[bot]" or .id == 337859524 or .login == "melodic-standards-sync[bot]") | .id] | sort | join(" ")' "$ACTORS")"
 got_ids="$(sed -nE "s/^exempt_author_ids='([0-9 ]+)'$/\1/p" "$TMP_ROOT/body.sh" | tr ' ' '\n' | sort -n | paste -sd' ')"
 if [[ -n "$got_ids" && "$got_ids" == "$want_ids" ]]; then
@@ -145,7 +145,7 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
   first_paths="${first_paths-$paths}"
-  if [[ "$paths" == "$first_paths" && $'\n'"$paths"$'\n' == *$'\n.github/standards/trusted-actors/**\n'* &&
+  if [[ "$paths" == "$first_paths" &&
     $'\n'"$paths"$'\n' == *$'\nplugins/review/skills/security-review/**\nplugins/review/evals/security-review-*/**\n' ]]; then
     ok "$file names the same hold-paths as pr-review-hosted.yml, ending with the security review's own files"
   else
@@ -745,7 +745,7 @@ if grep -qxF 'api repos/o/r/pulls/77/files?per_page=100 --paginate --jq .[] | [.
 else
   fail "unexpected file read: '$(sort -u "$TMP_ROOT/log")'"
 fi
-for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
+for changed in .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
   .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
   .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/diff_risk.py \
   .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS' \
@@ -783,9 +783,8 @@ STUB_FILES_FAIL=1 STUB_CHANGED=4 SHARED_FILES="$(files README.md)" \
   AUTHOR_ID=49699333 expect "a reused list shorter than the change fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
-mkdir -p "$TMP_ROOT/base-config/.github/standards/trusted-actors" "$TMP_ROOT/standards/components/trusted-actors"
-printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' |
-  tee "$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
+mkdir -p "$TMP_ROOT/base-config" "$TMP_ROOT/standards/components/trusted-actors"
+printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
 review() { jq -cn --argjson id "$1" --arg st "$2" --arg sha "${3:-$HEAD}" \
   '{user: {id: $id, login: "u\($id)"}, state: $st, commit_id: $sha}'; }
 reviews() { local IFS=,; printf '[%s]\n' "$*"; }
@@ -851,7 +850,6 @@ else
   fail "could not list the tags of a throwaway repository with git ls-remote"
 fi
 mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
-cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
 printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
 WF=.github/workflows/pr-review-hosted.yml
 CCA_OLD="anthropics/claude-code-action@$SHA_OLD # v1.0.265"

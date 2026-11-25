@@ -14,7 +14,7 @@ import { followUpBullet, main, publish, refreshedBody, renderReply, takeBodyReco
 import { stage } from "../../actions/collect-base-activity/stage-closure.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-// Ids from .github/standards/trusted-actors/trusted-actors.json and the
+// Ids from https://github.com/melodic-software/standards/blob/main/components/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
 const APP = 337595936;
 const REVIEWER = 209825114;

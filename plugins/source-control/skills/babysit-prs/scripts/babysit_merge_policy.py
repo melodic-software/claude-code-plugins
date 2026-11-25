@@ -5150,6 +5150,32 @@ def standards_file(repo: str, path: str) -> str | None:
     return _STANDARDS_TEXT[key]
 
 
+def standards_list_changed_at(repo: str) -> str | None:
+    """The committer time of the newest commit touching the trusted list in
+    the standards repository `repo` at `standards_sha`, or None when none
+    does (resolve-pr.mjs `listChangedAt`). Raises `PolicyReadError` on a
+    failed or malformed read."""
+    owner, name = _split_repo(repo)
+    sha = standards_sha(repo)
+    status, payload = _get(
+        f"repos/{owner}/{name}/commits?path={STANDARDS_TRUSTED_ACTORS}&sha={sha}&per_page=1"
+    )
+    if status != 200 or not isinstance(payload, list):
+        raise PolicyReadError(
+            f"the {repo} commits touching the trusted list could not be read"
+        )
+    if not payload:
+        return None
+    at = json_object(
+        json_object(json_object(payload[0]).get("commit")).get("committer")
+    ).get("date")
+    if not isinstance(at, str) or not at:
+        raise PolicyReadError(
+            f"the newest {repo} commit touching the trusted list has no time"
+        )
+    return at
+
+
 def synced_file(
     owner: str,
     name: str,

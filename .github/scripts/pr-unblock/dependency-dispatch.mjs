@@ -35,8 +35,6 @@ export const DEFAULTS = Object.freeze({
   base: "main",
   workflow: "pr-unblock.yml",
   checkName: "pr-unblock / review-dependency",
-  // The verdict job's check: its no-model-turn skip releases the round's
-  // review-dependency check runs.
   verdictCheckName: "pr-unblock / apply-dependency-verdict",
   // The GitHub Actions app, as in dispatch.mjs.
   appId: 15368,
@@ -157,7 +155,6 @@ export async function dispatchDependencyReviews({
     try {
       const ci = await gateCheckRuns((name) => api.listCheckRuns({ sha: node.headRefOid, checkName: name, appId }));
       const ciStatus = ciStatusOf(ci);
-      // The same reads the model job's select step classifies from.
       tier = RED.has(ciStatus) ? "review" : (
         await classifyPull({
           pull: {
@@ -220,11 +217,6 @@ export async function dispatchDependencyReviews({
           }
         }
       }
-      // Until a verdict check started after the newest review-dependency
-      // check, a no-model-turn verdict may still release the head, so it is
-      // not recorded yet; a newest check that is a select job skip no verdict
-      // job follows records at once. A limit stop never records the head, or
-      // its reset could not release it. An unreadable start records nothing.
       const newestCheck = Math.max(...existing.map(startOf));
       const last = existing.find((run) => startOf(run) === newestCheck);
       const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title);
@@ -232,7 +224,6 @@ export async function dispatchDependencyReviews({
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
-      // A read that fails, whatever GitHub answered, holds the PR for a later run.
       log(`::warning::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
       continue;
     }

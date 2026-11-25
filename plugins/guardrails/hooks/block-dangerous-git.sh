@@ -77,11 +77,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh before finding out it is off. Inlined rather than read through
-# hook::is_enabled because the library IS the cost the hoist avoids;
-# scripts/check-killswitch-hoist.sh pins this line to that helper's semantics
-# and fails a guard that sources anything ahead of it.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ENABLED:-true}" == "true" ]] || exit 0
 
 # The hook's own directory is derived with parameter expansion rather than
@@ -795,8 +790,6 @@ is_exclude_pathspec() {
 # legitimate command measured spends single digits.
 HOOK_ALIAS_WORK_MAX=128
 
-# The work budget bounds time, not stack, so the walk's nesting depth has its own
-# cap, sized to the process's stack (guard::alias_depth_max).
 guard::alias_depth_max
 
 # Call as: alias_reexpand_admit <kind> <state-word>... — returns 1 when this
@@ -938,17 +931,6 @@ check_segment() {
         HOOK_ALIAS_SEEN=()
         saved_inherited=(${HOOK_GIT_INHERITED_LOCATING_OPTS[@]+"${HOOK_GIT_INHERITED_LOCATING_OPTS[@]}"})
         git_inherited_locating_opts_from_words "$gi" "$sub_idx" "${w[@]}"
-        # `:2` skips the base's own `-C <dir>` pair, which
-        # collect_git_locating_opts ALWAYS leads with. The composition supplies
-        # that same value from its HOOK_EFFECTIVE_BASE default, so passing it
-        # again would apply the base twice. The offset therefore encodes an
-        # invariant of collect_git_locating_opts, not of this call: if that
-        # function ever grows a second leading synthetic pair, or stops leading
-        # with the base, this line breaks silently and the wrapper dirs are
-        # read starting one pair too late.
-        #
-        # The scratch variable keeps the composition reading the CURRENT base as
-        # its default while it builds the new one.
         hook::git_effective_dir_to composed_base ${git_locating_opts[@]+"${git_locating_opts[@]:2}"}
         HOOK_EFFECTIVE_BASE="$composed_base"
         alias_reexpand_admit shell "$reparse" &&
@@ -1025,9 +1007,6 @@ check_segment() {
           _lease_oid_width_unknown=0
           lease_seen=""
         fi
-        # Consume the word here. Falling through would let
-        # `--no-force-with-lease` re-match below as the positive option and
-        # undo the clear that just happened.
         ((k++))
         continue
         ;;

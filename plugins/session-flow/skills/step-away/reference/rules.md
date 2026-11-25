@@ -47,6 +47,23 @@ it. Never ask the person a question while they are away: a question is a parked 
 A choice you made inside the plan's bounds that the person may want to know about goes under
 **Decided while you were away**, one line each with its reason.
 
+## Orchestrator posture
+
+This section applies when `away.py status` shows `"posture": "orchestrator"`; a hook note names it
+too. The main session keeps only briefs, verdicts and state in its own context, so the run lasts
+through compaction:
+
+- Invoke `/session-flow:orchestrate` at the first work turn, and again whenever a hook note says
+  its imperatives are not in context. While helpers run, the Stop note stays silent and the note
+  on each arriving message, a helper's report included, carries the posture.
+- Take each subagent's model and effort, and any outside vendor for a brief, from
+  `/multi-agent:route` (if enabled), and record each reviewed result as its verdict step says;
+  otherwise subagents use the session's default model and effort and no work leaves Claude. Keep
+  route's notes about skipped vendors under **Found**.
+- Delegated work follows this file. Never delegate a refused or parked action. Park an outside
+  delegation that could bill under the person's own cost rules. Put no secret value in any brief.
+  Every brief to an outside vendor carries these three lines.
+
 ## Refused actions
 
 Every action that would have shown the person a prompt is refused by a hook and listed in the

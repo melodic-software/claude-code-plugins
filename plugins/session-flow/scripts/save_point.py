@@ -3039,10 +3039,15 @@ def _retire_shape_ok(retire: object) -> bool:
     )
 
 
-def _american(value: str, path: Path, where: str) -> str:
-    fixed, applied = dialect.americanize(value, path.parent)
-    for typo, correction in applied:
-        print(f"NOTE: {where}: {typo!r} written as {correction!r} (American spelling)", file=sys.stderr)
+def _american(items: list[tuple[str, str]], path: Path) -> list[str]:
+    """Each `(value, where)` value in American spelling, through one `typos` run."""
+    fixed = []
+    for (_, where), (value, applied) in zip(
+        items, dialect.americanize_all([value for value, _ in items], path.parent), strict=True
+    ):
+        for typo, correction in applied:
+            print(f"NOTE: {where}: {typo!r} written as {correction!r} (American spelling)", file=sys.stderr)
+        fixed.append(value)
     return fixed
 
 
@@ -3198,11 +3203,16 @@ def cmd_fill(args: argparse.Namespace) -> int:
             )
         closing = index
 
-    for key in values:
-        if key not in VERBATIM_SLOTS:
-            values[key] = _american(values[key], path, f"slot {key!r}")
-    for item in retire or []:
-        item["reason"] = _american(item["reason"], path, "retire reason")
+    keys = [key for key in values if key not in VERBATIM_SLOTS]
+    fixed = _american(
+        [(values[key], f"slot {key!r}") for key in keys]
+        + [(item["reason"], "retire reason") for item in retire or []],
+        path,
+    )
+    for key, value in zip(keys, fixed):
+        values[key] = value
+    for item, value in zip(retire or [], fixed[len(keys) :], strict=True):
+        item["reason"] = value
 
     marker = handoff_fit.over_budget_marker(path)
     overruns = handoff_fit.slot_overruns(values) if shape in HOP_FILE_SHAPES else []
@@ -3563,16 +3573,20 @@ def cmd_amend(args: argparse.Namespace) -> int:
     ]
     if any(FILL_MARK in value for value in values):
         return _die(1, f"a value carries the literal {FILL_MARK!r}; rewrite it without")
-    for title in sections:
-        if title not in VERBATIM_SECTIONS:
-            sections[title] = _american(sections[title], path, f"section {title!r}")
-    for title in append:
-        if title not in VERBATIM_SECTIONS:
-            append[title] = [_american(line, path, f"section {title!r}") for line in append[title]]
-    if next_lines:
-        next_lines = [_american(line, path, "next") for line in next_lines]
-    for item in retire:
-        item["reason"] = _american(item["reason"], path, "retire reason")
+    targets = [
+        *((sections, t, f"section {t!r}") for t in sections if t not in VERBATIM_SECTIONS),
+        *(
+            (lines, j, f"section {t!r}")
+            for t, lines in append.items()
+            if t not in VERBATIM_SECTIONS
+            for j in range(len(lines))
+        ),
+        *((next_lines, j, "next") for j in range(len(next_lines or []))),
+        *((item, "reason", "retire reason") for item in retire),
+    ]
+    fixed = _american([(box[key], where) for box, key, where in targets], path)
+    for (box, key, _), value in zip(targets, fixed, strict=True):
+        box[key] = value
     for title in sections:
         if title in S3.carried:
             return _die(

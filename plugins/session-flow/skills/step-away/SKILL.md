@@ -45,6 +45,12 @@ state has silent hooks: prompts would wait all night and no report would exist.
    - Words that name an absence you cannot place on the clock ("for a while", "later"): ask now,
      one question with the choices, before `start`. This is the last question the person gets
      until they are back.
+   - Words that turn delegation on or off for this run ("delegate", "orchestrate", "no
+     delegation"): the orchestrator posture for this run, `true` or `false`, passed in step 3.
+   - Read the context zone from the `mcp__context-usage__status` tool. When it reads `heavy` and
+     the words did not ask for a fresh session, offer a fresh session (step 6) or arming here, in
+     the same one question when the absence also needs one. When the tool is absent, ask nothing
+     and say in step 4 that the zone check was skipped.
 2. **Write the task file.** A checklist, one `- [ ] item` per piece of work in scope, taken from
    the approved plan, agent-ready items or the task in the conversation (rules.md "What counts as a
    plan"). Put it at `<launch checkout>/.work/away/tasks-<session id first 8>.md` when
@@ -56,8 +62,11 @@ state has silent hooks: prompts would wait all night and no report would exist.
 3. **Start.** Run, with the kind from step 1:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" start --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --kind <kind> [--until <ISO>] [--scope "<scope words>"] --task-file <task file> --setting 'away_night_start=${user_config.away_night_start}' --setting 'away_report_by_workday=${user_config.away_report_by_workday}' --setting 'away_report_by_day_off=${user_config.away_report_by_day_off}' --setting 'away_days_off=${user_config.away_days_off}' --setting 'away_watched_folders=${user_config.away_watched_folders}'
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/away.py" start --session ${CLAUDE_SESSION_ID} --data-root "${CLAUDE_PLUGIN_DATA}" --kind <kind> [--until <ISO>] [--scope "<scope words>"] --task-file <task file> --setting 'away_night_start=${user_config.away_night_start}' --setting 'away_report_by_workday=${user_config.away_report_by_workday}' --setting 'away_report_by_day_off=${user_config.away_report_by_day_off}' --setting 'away_days_off=${user_config.away_days_off}' --setting 'away_watched_folders=${user_config.away_watched_folders}' --setting 'away_orchestrate=${user_config.away_orchestrate}'
    ```
+
+   When the words set the posture for this run (step 1), pass `--setting away_orchestrate=true`
+   or `false` in place of the option's token.
 
    Keep the settings in single quotes; the script treats an unexpanded `${user_config.…}` token as
    unset. Before running it, check each filled-in value: one that holds a single quote is an
@@ -72,9 +81,9 @@ state has silent hooks: prompts would wait all night and no report would exist.
 4. **End the launch turn with one message to the person**, doing no work in scope this turn: the
    Stop hook blocks the turn's end while task items are open and brings the run straight back to
    work, so this message is the last thing they read before leaving. It holds: the report path; the report-by time, or "until you are
-   back"; every `warning=` line `start` printed, each in full; the context zone word from the
-   `mcp__context-usage__status` tool, with a warning when the tool reports the zone as heavy (when
-   the tool is absent, one line says the zone check was skipped); and that the first turn's end may add one more warning,
+   back"; every `warning=` line `start` printed, each in full; the context zone word read in step
+   1, with a warning when it is heavy (when the tool is absent, one line says the zone check was
+   skipped); when the posture is on, one line saying so; and that the first turn's end may add one more warning,
    that the permission mode is not auto. Never hand off later because of the context level: the
    run continues in this session through compaction unless the person asked for a fresh session.
 5. **Propose the goal line** in that same message, for the person to submit before leaving, filled
@@ -93,15 +102,17 @@ state has silent hooks: prompts would wait all night and no report would exist.
       for this session's id. It needs the ignored `.work/` path, since `start` cannot run first;
       without one, offer to arm this session instead. Above the checklist, write a header line:
       this session runs in away mode; read `<rules>` before the first item, `<rules>` being the
-      absolute path `${CLAUDE_PLUGIN_ROOT}/skills/step-away/reference/rules.md` resolves to. No
-      hook gives the background session the rules or the report path, so this line does.
+      absolute path `${CLAUDE_PLUGIN_ROOT}/skills/step-away/reference/rules.md` resolves to. When
+      the posture is on, the same line says the orchestrator posture is on. No hook gives the
+      background session the rules or the report path, so this line does.
    2. Invoke `/session-flow:continue-in-background` through the Skill tool with the scope words
       and `done when every item in <task file> is ticked done or, when unticked, has the word
       "parked" in its text`, a done condition stated in the invocation, which its gate's case 1
       arms as the goal with no draft or confirmation. It hands back the background session's
       full `sessionId`.
    3. Run step 3's `start` at once with `--session <that sessionId>` in place of
-      `${CLAUDE_SESSION_ID}`, then `status` for that id, failures handled as step 3 says. Append
+      `${CLAUDE_SESSION_ID}`, its `away_orchestrate` setting included, then `status` for that id,
+      failures handled as step 3 says. Append
       the report path `start` prints to the task file's header line.
    4. End with step 4's message, naming the background session and `claude attach <short id>`,
       and saying that what it did between its launch and `start` is outside the report.

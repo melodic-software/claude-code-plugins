@@ -221,6 +221,115 @@ mcp_verdict "$(mcp_issue issue_write "" acme create)"
 assert_eq "MCP issue_write create with an empty body" "2 2" "$RCS"
 assert_contains "MCP issue_write create with an empty body names a heading" "$OUT_D" 'Missing a "### Steps to reproduce" heading'
 
+LFIX="$HOOK_DIR/fixtures/loosened-checks"
+LBIN="$TEST_TMPDIR/loosebin"
+LISSUES="$TEST_TMPDIR/looseissues"
+GH_CALLS="$TEST_TMPDIR/gh-calls"
+mkdir -p "$LBIN" "$LISSUES"
+cat >"$LBIN/gh" <<'FAKE'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GH_CALLS"
+[[ "${1-}" == api && "${2-}" =~ ^repos/[^/]+/[^/]+/issues/([0-9]+)$ ]] || exit 3
+f="$LISSUES/${BASH_REMATCH[1]}.txt"
+[[ -f "$f" ]] || {
+  echo "gh: Not Found (HTTP 404)" >&2
+  exit 1
+}
+cat "$f"
+FAKE
+chmod +x "$LBIN/gh"
+export GH_CALLS LISSUES
+cp "$LFIX/issue-18843.txt" "$LISSUES/18843.txt"
+cp "$LFIX/issue-18909.txt" "$LISSUES/18909.txt"
+grep -v 'Owner, verbatim' "$LFIX/issue-18909.txt" >"$LISSUES/9002.txt"
+sed -n 1p "$LFIX/pr-18795-at-fail.txt" >"$LISSUES/9001.txt"
+printf '%s\n' 'Owner, verbatim: "$(touch $PWNED)" ${x[$(touch $PWNED)]} $((1 + $(touch $PWNED)))' >"$LISSUES/9003.txt"
+
+LKEYS=$'pr_body_loosened_checks_heading: Loosened checks\npr_body_loosened_checks_record_pattern: \'https://github\\.com/melodic-software/architecture/blob/[^/[:space:]]+/docs/owner-decisions\\.md#L[0-9]+\'\npr_body_loosened_checks_verbatim_marker: \'verbatim:\''
+LOOSE=$(mkrepo loose "$LKEYS")
+LOOSEOFF=$(mkrepo looseoff "$LKEYS"$'\npr_body_format_gate: false')
+LOOSEPART=$(mkrepo loosepart 'pr_body_loosened_checks_heading: Loosened checks')
+for f in "$LFIX"/pr-*.txt; do
+  cp "$f" "$LOOSE/"
+  cp "$f" "$LOOSEOFF/"
+  cp "$f" "$NONE/"
+  cp "$f" "$LOOSEPART/"
+done
+{
+  cat "$LFIX/pr-18908.txt"
+  printf '\n## Loosened checks\n\n- The pre-push 3 s budget moves from the test suite to the hook budget gate; the owner decision is on #18909.\n'
+} >"$LOOSE/pr-18908-loosened.txt"
+printf '%s\n' 'Closes #9001' '' '## Summary' 'x' '' '## Loosened checks' '' '- A check.' >"$LOOSE/arch-pr-link.txt"
+printf '%s\n' 'Closes #9002' '' '## Summary' 'x' '' '## Loosened checks' '' '- A check.' >"$LOOSE/no-verbatim.txt"
+printf '%s\n' 'Refs: #4040' '' '## Summary' 'x' '' '## Loosened checks' '' '- A check.' >"$LOOSE/unreadable.txt"
+printf '%s\n' 'Closes #9001' '' '## Summary' 'x' '' '## Loosened checks' '' '## Related' 'x' >"$LOOSE/empty-section.txt"
+printf '%s\n' 'Closes #9003' '' '## Loosened checks' '' '- A check.' >"$LOOSE/hostile-issue.txt"
+printf '%s\n' 'Closes #9002' 'Refs: #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/closes-and-refs.txt"
+printf '%s\n' 'Relates to: #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/relates-to.txt"
+printf '%s\n' 'Refs: #18909' 'Refs: #9002' '' '## Loosened checks' '' '- A check.' >"$LOOSE/two-refs.txt"
+printf '%s\n' 'See refs: #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/midline-refs.txt"
+printf '%s\n' 'Closes #9001' 'Closes #9002' 'Closes #9003' 'Closes #18909' '' '## Loosened checks' '' '- A check.' >"$LOOSE/four-closes.txt"
+
+OLDPATH="$PATH"
+PATH="$LBIN:$PATH"
+calls() { [[ -f "$GH_CALLS" ]] && wc -l <"$GH_CALLS" | tr -d ' ' || echo 0; }
+
+: >"$GH_CALLS"
+deny "Loosened checks, #18797 as it stood at its pr-verify fail (no linked issue)" "gh pr create --title t --body-file pr-18797-at-fail.txt" "$LOOSE" 'the body links no issue'
+assert_contains "the no-issue refusal says the decision goes on the issue's body" "$OUT_D" "its body, not this PR body, must hold a line link to the decision record"
+deny "Loosened checks, #18795 as it stood at its pr-verify fail (an architecture PR link, no linked issue)" "gh pr create --title t --body-file pr-18795-at-fail.txt" "$LOOSE" 'the body links no issue'
+assert_eq "no issue is read when the body links none" "0" "$(calls)"
+pass "Loosened checks, #18797 as merged, linking #18843" "gh pr create --title t --body-file pr-18797.txt" "$LOOSE"
+: >"$GH_CALLS"
+pass "#18908, which has no Loosened checks section" "gh pr create --title t --body-file pr-18908.txt" "$LOOSE"
+assert_eq "no issue is read when the section is absent" "0" "$(calls)"
+pass "#18908 with a Loosened checks section, linking #18909" "gh pr create --title t --body-file pr-18908-loosened.txt" "$LOOSE"
+assert_contains "the linked issue is read with one gh api call" "$(cat "$GH_CALLS")" "api repos/acme/loose/issues/18909 --jq"
+deny "an issue holding an architecture PR link, not a line link" "gh pr edit 5 --body-file arch-pr-link.txt" "$LOOSE" 'Issue acme/loose#9001 does not authorize the "## Loosened checks" section: its body lacks a line link to the owner-decisions record'
+assert_contains "the line-link refusal says it goes on the issue's body" "$OUT_D" "Add it to the issue's body, not the PR body."
+deny "an issue with the line link but no verbatim quote" "gh pr create --title t --body-file no-verbatim.txt" "$LOOSE" "its body lacks the owner's words after \`verbatim:\` in double quotes"
+pass "an unreadable issue fails open" "gh pr create --title t --body-file unreadable.txt" "$LOOSE"
+assert_contains "an unreadable issue is named on stderr" "$OUT_D" "could not read issue acme/loose#4040"
+: >"$GH_CALLS"
+pass "an empty Loosened checks section" "gh pr create --title t --body-file empty-section.txt" "$LOOSE"
+assert_eq "no issue is read for an empty section" "0" "$(calls)"
+pass "the gate off" "gh pr create --title t --body-file pr-18797-at-fail.txt" "$LOOSEOFF"
+pass "a repository that declares no Loosened checks keys" "gh pr create --title t --body-file pr-18797-at-fail.txt" "$NONE"
+pass "a heading without a record pattern or marker" "gh pr create --title t --body-file pr-18797-at-fail.txt" "$LOOSEPART"
+assert_contains "a partial declaration is named" "$OUT_D" "without both pr_body_loosened_checks_record_pattern and pr_body_loosened_checks_verbatim_marker"
+pass "-R naming another repository reads no issue" "gh pr create -R other/repo --title t --body-file pr-18797-at-fail.txt" "$LOOSE"
+deny "an issue body holding shell text is read as data" "gh pr create --title t --body-file hostile-issue.txt" "$LOOSE" 'Issue acme/loose#9003 does not authorize'
+if [[ -e "$PWNED" ]]; then bad "shell text in an issue body ran"; else ok "shell text in an issue body runs nothing (direct, dispatched)"; fi
+deny "a Refs: line beside a closing keyword is not read" "gh pr create --title t --body-file closes-and-refs.txt" "$LOOSE" 'Issue acme/loose#9002 does not authorize'
+assert_absent "only the closing issue is reported" "$OUT_D" "18909"
+deny "Relates to: links no issue" "gh pr create --title t --body-file relates-to.txt" "$LOOSE" 'the body links no issue'
+deny "two Refs: lines link no issue" "gh pr create --title t --body-file two-refs.txt" "$LOOSE" 'the body links no issue'
+deny "a refs: not in the first column links no issue" "gh pr create --title t --body-file midline-refs.txt" "$LOOSE" 'the body links no issue'
+pass "four closing issues, the authorizing one not read" "gh pr create --title t --body-file four-closes.txt" "$LOOSE"
+assert_contains "the unread issues are named on stderr" "$OUT_D" "the other 1 were not read"
+mcp_loose() {
+  jq -n --rawfile b "$LFIX/$1" --arg d "$LOOSE" '{tool_name:"mcp__plugin_github_github__create_pull_request",cwd:$d,tool_input:{owner:"acme",repo:"loose",title:"t",body:$b,head:"h",base:"main"}}'
+}
+mcp_verdict "$(mcp_loose pr-18797-at-fail.txt)"
+assert_eq "MCP create_pull_request, #18797 as it stood at its fail" "2 2" "$RCS"
+mcp_verdict "$(mcp_loose pr-18797.txt)"
+assert_eq "MCP create_pull_request, #18797 as merged" "0 0" "$RCS"
+if grep -nE '(^|[^a-z_])eval([^a-z_]|$)' "$HOOK"; then bad "the hook calls eval"; else ok "the hook calls no eval"; fi
+
+lt() {
+  local p t0 t1
+  p=$(payload "gh pr create --title t --body-file $1" "$LOOSE")
+  t0=${EPOCHREALTIME/./}
+  for _ in 1 2 3 4 5 6 7 8 9 10; do bash "$HOOK" <<<"$p" >/dev/null 2>&1; done
+  t1=${EPOCHREALTIME/./}
+  printf '%s' $(((t1 - t0) / 10000))
+}
+ms_without=$(lt pr-18908.txt)
+ms_with=$(lt pr-18908-loosened.txt)
+printf 'block-body-format-violation: %s ms per guarded post without a Loosened checks section, %s ms with one and a stubbed issue read (mean of 10 each)\n' "$ms_without" "$ms_with"
+if ((ms_with < 1000)); then ok "a post with a Loosened checks section runs under 1 s ($ms_with ms)"; else bad "a post with a Loosened checks section took $ms_with ms"; fi
+PATH="$OLDPATH"
+
 P=$(payload "gh pr create --title t --body-file good.md" "$FULL")
 t0=${EPOCHREALTIME/./}
 for _ in 1 2 3 4 5 6 7 8 9 10; do bash "$HOOK" <<<"$P" >/dev/null 2>&1; done

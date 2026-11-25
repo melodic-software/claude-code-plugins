@@ -23,14 +23,14 @@ const read = (relative) => readFileSync(join(ROOT, relative), "utf8");
 const json = (relative) => JSON.parse(read(relative));
 const CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
-const VOCABULARY_PATH = ".github/standards/github-actions-conventions/vocabulary.json";
+const VOCABULARY_PATH = ".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json";
 const OWN = {
   schema: json(SCHEMA_PATH),
   laneRules: json(".github/actions/resolve-config/lane-rules.json"),
   effectGrants: json(".github/actions/resolve-config/effect-grants.json"),
   activityRules: json(".github/actions/resolve-config/activity-rules.json"),
 };
-const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+const TRUSTED_ACTORS_PATH = ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json";
 const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
 const LIVE = {
   ...OWN,
@@ -835,7 +835,7 @@ function readOutputs(path) {
 
 function routeEnv(extra = {}) {
   const base = mkdtempSync(join(scratch, "base-"));
-  for (const relative of [CONFIG_PATH, SCHEMA_PATH, VOCABULARY_PATH, TRUSTED_ACTORS_PATH, ROLE_MAP_PATH]) {
+  for (const relative of [CONFIG_PATH, SCHEMA_PATH, ROLE_MAP_PATH]) {
     mkdirSync(dirname(join(base, relative)), { recursive: true });
     writeFileSync(join(base, relative), read(relative));
   }
@@ -1026,12 +1026,10 @@ test("main on an issue reads its trusted Work status as its status label", async
   assert.equal(held.outputs["skip-reason"], "awaiting-human");
 });
 
-test("main with no standards checkout trusts no Work status setter: the base's trusted-actor copy is never read", async () => {
-  assert.ok(json(TRUSTED_ACTORS_PATH).actors.some((actor) => actor.id === LISTED), "the base's copy lists the setter");
+test("main with no standards checkout fails red: neither list is read from the base", async () => {
   const status = { ...fieldEvent("IssueFieldAddedEvent", 48484079, LISTED), value: "agent-ready" };
-  const { code, outputs } = await mainOnIssue([status], "false", [...FIELD_ROWS, fieldRow(48484079, 84879220)], [], { STANDARDS_DIR: "" });
-  assert.equal(code, 0);
-  assert.deepEqual([outputs.applies, outputs["skip-reason"]], ["false", "not-applicable"]);
+  const { code } = await mainOnIssue([status], "false", [...FIELD_ROWS, fieldRow(48484079, 84879220)], [], { STANDARDS_DIR: "" });
+  assert.equal(code, 1);
 });
 
 // The field's REST value and its newest event disagreeing is usually a read

@@ -49,8 +49,6 @@
 
 set -uo pipefail
 
-# Kill switch FIRST, above every source (scripts/check-killswitch-hoist.sh): a
-# disabled guard must not pay to parse hook-utils.sh before finding out it is off.
 [[ "${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
 # `dirname` without the fork a command substitution costs on every fire (a

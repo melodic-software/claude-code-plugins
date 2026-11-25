@@ -8,6 +8,7 @@ import { OPTION, STATUS_CONFIG, TRUSTED_ACTORS, withFields } from "../../actions
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
 import { ACTIONS_BOT_ID, LABEL, main, markerFor, NEEDS_HUMAN, readEvent } from "./flag.mjs";
+import { standardsAt } from "../lib/trusted-actors.fixtures.mjs";
 
 const OUTSIDER = { id: 777, login: "stranger", type: "User" };
 const LISTED = { id: 153232337, login: "kyle-sexton", type: "User" };
@@ -49,6 +50,7 @@ function run(eventName, payload, { comments, list = "valid", github, base = ROOT
   const dir = mkdtempSync(path.join(tmpdir(), "outside-actor-"));
   const eventPath = path.join(dir, "event.json");
   writeFileSync(eventPath, JSON.stringify(payload));
+  const standards = standardsAt(path.join(dir, "standards"));
   const listPath = path.join(dir, "trusted-actors.json");
   if (list === "valid") {
     writeFileSync(
@@ -67,7 +69,7 @@ function run(eventName, payload, { comments, list = "valid", github, base = ROOT
   const fake = github ?? fakeGitHub(comments);
   const lines = [];
   return main({
-    env: { GITHUB_REPOSITORY: REPO, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, TRUSTED_ACTORS_PATH: listPath, BASE_PATH: base },
+    env: { GITHUB_REPOSITORY: REPO, GITHUB_EVENT_NAME: eventName, GITHUB_EVENT_PATH: eventPath, TRUSTED_ACTORS_PATH: listPath, BASE_PATH: base, STANDARDS_DIR: standards.dir },
     github: fake.github,
     log: (line) => lines.push(line),
   })

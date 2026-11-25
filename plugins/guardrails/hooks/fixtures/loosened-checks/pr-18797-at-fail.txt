@@ -1,0 +1,37 @@
+No related issue: implements an owner decision recorded in the org's architecture repository, not a filed issue.
+
+Owner decision: [row L400 of docs/owner-decisions.md](https://github.com/melodic-software/architecture/blob/9f537d7104e9d8023c5636f5a4b252ec2686bf1c/docs/owner-decisions.md#L400) (2026-11-24T14:04:50Z, typed in the github-optimization loop session; extends [row L371](https://github.com/melodic-software/architecture/blob/9f537d7104e9d8023c5636f5a4b252ec2686bf1c/docs/owner-decisions.md#L371), [melodic-software/architecture#208](https://github.com/melodic-software/architecture/pull/208)). Question: eval holds when a cut's compare run cannot start because the org API key is off or compare mode refuses the PR. Recommendation shown: "(a) Merge first by default, run the eval later, and revert on a bad result." Owner, verbatim: "/session-flow:go-with-recommendations". Decision: (a).
+
+## Summary
+
+An eval-held pull request whose compare run cannot start now merges first. The compare run records why it cannot start, and pr-merge's release step reads that record back from the run and removes the do-not-merge label that held it for the eval. After merge, the affected cases run on the default branch, and a FAIL reverts the PR, through the follow-up `docs/review/evals.md` already prescribes for PRs that merge before their run.
+
+## Fix
+
+- **The compare run records the cause.** In `.github/workflows/pr-run-plugin-evals.yml`, `Compare Prepare` now runs whatever `CLAUDE_EVALS_DISABLED` says. It holds no model credential. Its dispatcher, kill-switch, input, head and author checks run first. Only then does a new `Check the evals switch` step write `cannot-start=evals-disabled` when the switch is not exactly `false`. In the same way, `Build the arm patches` writes `cannot-start=compare-refused` when `compare-arms.sh` exits 3. Either way, no arm builds or runs. A new `compare-cannot-start` job, named `Compare Cannot Start: <cause>` from that output, succeeds only for those two causes. `compare-before` and `compare-after` also check the switch themselves.
+- **`compare-arms.sh` separates refusal from error.** Exit 3 now means the PR was refused: a plugin path the arms do not carry, a `select-plugins.mjs` refusal (read from its refusal message, so a crash stays exit 1), or arms that do not differ. Exit 1 still covers bad input and a wrong target (no changed path under the plugin).
+- **`release-eval-hold.mjs` reads the record back.** Each release run lists the compare workflow's dispatched runs once. For a held PR with no record at its head, the newest run whose name names that PR and head is checked. Whatever its status, it must pass `runVouches` (completed successful first attempt of a `workflow_dispatch` on the default branch, same repository). Its jobs must show exactly one successful `Compare Cannot Start: <cause>` job with a listed cause, and no successful `Compare Record`. Its commit must be on the default-branch tip. A newer run that started, failed or is still going outranks an older one that could not start. A missing record alone still returns `no-record`. Other hold reasons (including `eval-split`), a body hold and a member veto still keep the hold, and a VALID record at the head still wins.
+- **The release comment carries the obligation.** It starts with `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run id> -->`, links the run, and states that the PR merges first, its affected cases run on the default branch after, and a FAIL reverts it.
+- **Docs.** `docs/review/evals.md` (Where and on what, The master switch) and the loop-lane contract's Cross-lane PR hold now describe the new release reason. The loop-lane CHANGELOG has a 20.4.0 entry.
+
+## Verification
+
+- `node --test --test-concurrency=4 .github/scripts/pr-merge/release-eval-hold.test.mjs`: 48/48 pass. New cases cover `cannotStartCause` (each cause; failed, skipped or in-progress job; an off-list cause; two such jobs; a successful record job; a truncated jobs page). They also cover `decide` (release at head; keep on another head, an unknown cause, other reasons, a body hold or a veto; a record wins) and `main` (release with comment and label removal, no second comment, one run list per run, a newer started, failed or running run, a re-run, another branch or repository, a commit off the default branch, an unread tip or list).
+- `node --test --test-concurrency=4 .github/scripts/plugin-eval/workflow.test.mjs`: 18/18 pass. A new test runs the switch and arms step scripts, evaluates the step and job `if`s, and pins the cannot-start job name to `CANNOT_START_JOB`.
+- `node --test --test-concurrency=4 .github/scripts/plugin-eval/compare-arms.test.mjs`: 8/8 pass. Refusals now exit 3; a wrong target still exits 1.
+- `credential-legs.test.mjs` 7/7 and `scripts/sync-credential-legs.test.mjs` 11/11 pass. `actionlint` is clean on the workflow. `scripts/check-affected.sh`: 20 passed, 4 skipped.
+- `scripts/selection-audit.sh trace --strict` on all three suites: no gap.
+
+## Related
+
+- Row L371's mechanism is the session-run follow-up in `docs/review/evals.md`: the merging session, or the next session taking up the PR's follow-up, dispatches the scoped suite run and reverts on a FAIL. This PR reuses it. Nothing dispatches the post-merge run automatically, because `run-eval` refuses any dispatcher that is not a listed human, and an automated dispatcher would loosen that control.
+- #18783 added the merge-first rule to `docs/review/evals.md`. This PR adds the mechanism behind it.
+
+## Loosened checks
+
+- **Eval hold release.** pr-merge's `release-eval-hold.mjs` now lifts a `reason=eval` hold without a no-loss eval-pair record when the PR's newest compare run at its head records that it cannot start (`evals-disabled` or `compare-refused`). That is the owner's decision in row L400 (linked above). The record is read from the run itself, under the same trust checks as a compare record, so a missing record alone never lifts the hold.
+- **Reading of "org API key off".** Only the org switch counts: `evals-disabled` is recorded when `CLAUDE_EVALS_DISABLED` is not exactly `false`. An empty `MAINTENANCE_CLAUDE_API_KEY` or a key stopped for credit records no cause, so the hold stays. This is the narrower reading of row L400's wording.
+- **`Compare Prepare` and `CLAUDE_EVALS_DISABLED`.** `Compare Prepare` now runs while the switch is on, so it can record `evals-disabled`. It holds no model credential, and the arm jobs, which hold the credential, still require the switch to read `false`. While the switch is on, the owed post-merge runs also wait until it flips.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+

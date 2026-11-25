@@ -22,6 +22,7 @@ from pathlib import Path
 TYPOS_TIMEOUT_SECONDS = 10
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 BLOCKQUOTE_RE = re.compile(r"^\s*>")
+DIRECTIVE_RE = re.compile("spellchecker:", re.IGNORECASE)
 QUOTED_RE = re.compile(
     r"(?P<ticks>`+)[^\n]*?(?P=ticks)|\"[^\"\n]*\"|“[^”\n]*”|(?<!\w)'[^'\n]*'(?!\w)|‘[^’\n]*’|[^\s\"“”`]*[/\\][^\s\"“”`]*|\S+\.\w{1,6}\b"
     r"|\w*_\w*|\w*[a-z][A-Z]\w*|(?<!\S)-\S+"
@@ -85,17 +86,51 @@ def americanize(
 ) -> tuple[str, list[tuple[str, str]]]:
     """`text` with each single-correction typos finding applied outside quoted spans and outside
     the spans `keep` matches."""
-    if not text.strip():
-        return text, []
-    lines = text.split("\n")
-    unkept = keep.sub(_blank, text).split("\n") if keep else lines
-    findings = _findings("\n".join(_masked_lines(unkept)), cwd)
-    if not findings:
-        return text, []
-    encoded = [line.encode("utf-8") for line in lines]
+    return americanize_all([text], cwd, keep)[0]
+
+
+def americanize_all(
+    texts: list[str], cwd: Path | None = None, keep: re.Pattern[str] | None = None
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """`americanize` over each text, in input order. Texts without a `spellchecker:` directive
+    share one `typos` run: each is masked on its own and occupies its own run of lines in the
+    joined input, so a finding maps back to exactly one text by its line number. A text that
+    carries a directive gets a run of its own, because typos config can match a directive across
+    lines (ignore-next-line, an off/on block) and would then reach into the next text."""
+    results: list[tuple[str, list[tuple[str, str]]]] = [(text, []) for text in texts]
+    live = [i for i, text in enumerate(texts) if text.strip()]
+    alone = [i for i in live if DIRECTIVE_RE.search(texts[i])]
+    shared = [i for i in live if i not in alone]
+    for group in [[i] for i in alone] + ([shared] if shared else []):
+        _check_together(texts, group, results, cwd, keep)
+    return results
+
+
+def _check_together(
+    texts: list[str],
+    group: list[int],
+    results: list[tuple[str, list[tuple[str, str]]]],
+    cwd: Path | None,
+    keep: re.Pattern[str] | None,
+) -> None:
+    spans: list[tuple[int, int, int]] = []
+    masked: list[str] = []
+    for i in group:
+        unkept = (keep.sub(_blank, texts[i]) if keep else texts[i]).split("\n")
+        spans.append((i, len(masked) + 1, len(unkept)))
+        masked += _masked_lines(unkept)
+    findings = _findings("\n".join(masked), cwd)
+    for i, first, count in spans:
+        mine = [f for f in findings if first <= f["line_num"] < first + count]
+        if mine:
+            results[i] = _apply(texts[i], mine, first - 1)
+
+
+def _apply(text: str, findings: list[dict], skip: int) -> tuple[str, list[tuple[str, str]]]:
+    encoded = [line.encode("utf-8") for line in text.split("\n")]
     applied: list[tuple[str, str]] = []
     for item in sorted(findings, key=lambda x: (x["line_num"], x["byte_offset"]), reverse=True):
-        index, offset = item["line_num"] - 1, item["byte_offset"]
+        index, offset = item["line_num"] - 1 - skip, item["byte_offset"]
         typo, fix = item["typo"], item["corrections"][0]
         word = typo.encode("utf-8")
         if not 0 <= index < len(encoded) or encoded[index][offset : offset + len(word)] != word:

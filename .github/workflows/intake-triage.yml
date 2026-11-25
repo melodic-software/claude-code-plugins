@@ -117,8 +117,6 @@ jobs:
             /.github/scripts/lib/lane-vocabulary.mjs
             /.github/scripts/lib/trusted-actors.mjs
             /.github/scripts/pr-merge/merge-holds.mjs
-            /.github/standards/github-actions-conventions/vocabulary.json
-            /.github/standards/trusted-actors/
             /.node-version
             /docs/conventions/pr-pipeline.yaml
             /docs/conventions/pr-pipeline/

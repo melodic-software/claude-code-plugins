@@ -35,7 +35,7 @@ test("other plugin files, and a skills directory outside plugins/<name>/, select
   );
 });
 
-test("any changed path of a selected plugin outside skills/, agents/, context/ and evals/ is refused; another plugin's is not", () => {
+test("any changed path of a selected plugin outside skills/, agents/, context/, evals/, reference/ and README.md is refused; another plugin's is not", () => {
   const paths = [
     "plugins/testing/evals/c/graders/g.md",
     "plugins/testing/hooks/hooks.json",
@@ -46,13 +46,30 @@ test("any changed path of a selected plugin outside skills/, agents/, context/ a
     "plugins/testing/bin/tool",
     "plugins/testing/commands/c.md",
     "plugins/testing/output-styles/s.md",
-    "plugins/testing/README.md",
+    "plugins/testing/docs/README.md",
     "plugins/review/hooks/hooks.json",
   ];
-  assert.deepEqual(
-    refusals(paths, selectPlugins(paths)).map((line) => line.split(":")[0]),
-    paths.slice(1, -1),
-  );
+  const out = refusals(paths, selectPlugins(paths));
+  assert.deepEqual(out.map((line) => line.split(":")[0]), paths.slice(1, -1));
+  assert.ok(out.every((line) => line.endsWith("outside skills/, agents/, context/, evals/, reference/ and README.md")), out.join("\n"));
+});
+
+test("reference/ markdown and the plugin README.md never select a plugin, and pass the skill markdown rules beside a suite change", () => {
+  assert.deepEqual(selectPlugins(["plugins/x/reference/a.md", "plugins/x/README.md"]), []);
+  const read = (text) => (side) => (side === "base" ? "Old.\n" : text);
+  for (const path of ["plugins/x/reference/a.md", "plugins/x/reference/deep/b.md", "plugins/x/README.md"]) {
+    assert.deepEqual(refusals([path], ["plugins/x"], read("New.\n")), [], path);
+    assert.deepEqual(refusals([path], ["plugins/x"], read("Run !`id` now.\n")), [`${path}: adds or changes a ! shell-preprocessing line`]);
+    assert.deepEqual(refusals([path], ["plugins/x"], read(SKILL("hooks:\n  SessionStart: []"))), [`${path}: changes frontmatter hooks`]);
+    assert.deepEqual(refusals([path], ["plugins/x"]), [`${path}: cannot be read to inspect`]);
+  }
+});
+
+test("a non-markdown file under reference/ is refused", () => {
+  const out = run("plugins/x/reference/run.sh\nplugins/x/reference/data.json\nplugins/x/evals/c/prompt.md\n");
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /reference\/run\.sh: not markdown/);
+  assert.match(out.stderr, /reference\/data\.json: not markdown/);
 });
 
 test("a script that an unchanged hook calls, changed beside an eval, is refused", () => {
@@ -333,7 +350,7 @@ test("the command lets a context/ markdown edit through and refuses one beside p
     for (const other of ["plugins/x/.claude-plugin/plugin.json", "plugins/x/probes/p.md"]) {
       const out = run(`plugins/x/context/rules.md\n${other}\n`, ["--repo", repo, "--base", base, "--head", head]);
       assert.equal(out.status, 1, other);
-      assert.ok(out.stderr.includes(`${other}: outside skills/, agents/, context/ and evals/`), out.stderr);
+      assert.ok(out.stderr.includes(`${other}: outside skills/, agents/, context/, evals/, reference/ and README.md`), out.stderr);
     }
   } finally {
     rmSync(repo, { recursive: true, force: true });

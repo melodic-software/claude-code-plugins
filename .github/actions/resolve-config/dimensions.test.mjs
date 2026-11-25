@@ -73,7 +73,7 @@ for (const [who, id] of [
 }
 
 test("a Size github-actions[bot] or a melodic- App set reads as unset", () => {
-  const live = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+  const live = JSON.parse(readFileSync(new URL("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
   for (const setter of [41898282, 288071998]) {
     assert.equal(issueDimensions(facts({ size: 27053567, setters: { 15462270: setter } }), CONFIG, live).size, "small", setter);
   }

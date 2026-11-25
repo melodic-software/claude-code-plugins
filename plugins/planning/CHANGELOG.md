@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.16.0] - 2026-11-24
+
+### Changed
+
+- `/planning:interview` round 1 recommends the quality bar when the survey cites evidence for
+  one, such as who runs the result, what data it touches, or whether it ships to users. The bar is
+  then a decision question with a recommendation, alternatives and a `Flips if:` line, beside the
+  intake questions. With no such evidence it stays an open discovery question. Either form stays
+  open until the user answers, and the bar is never settled by evidence. An unattended run
+  records it as a blocker reserved for the user in either form.
+- New eval `interview-quality-bar-recommended-shipped-plugin` covers the evidence branch, with a
+  deterministic `My recommendation:` grader and calibration samples for its judged grader, and
+  `interview-quality-bar-asked-bookmark-sync` now checks that the no-evidence branch carries no
+  recommendation.
+
 ## [5.15.5] - 2026-11-24
 
 ### Changed

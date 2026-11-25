@@ -123,11 +123,7 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
         hold_paths = re.compile(
             r"BEGIN hold-floor hold-paths.*?\n(.*?)\n\s*# END", re.S
         )
-        wanted = (
-            {g for g, _ in FLOOR.classes}
-            | {sync.TRUSTED_ACTORS}
-            | set(sync.SCRUTINY_ONLY)
-        )
+        wanted = {g for g, _ in FLOOR.classes} | set(sync.SCRUTINY_ONLY)
         for name in ("pr-review-hosted.yml", "pr-review-security-hosted.yml"):
             with self.subTest(name):
                 text = (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
@@ -152,11 +148,7 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
         quoted = re.search(r"hold_patterns=\((.*?)\)\n", patterns)[1]
         self.assertEqual(
             set(re.findall(r"'([^']+)'", quoted)),
-            {
-                p
-                for g in (sync.TRUSTED_ACTORS, *(g for g, _ in FLOOR.classes))
-                for p in sync.bash_patterns(g)
-            },
+            {p for g, _ in FLOOR.classes for p in sync.bash_patterns(g)},
         )
 
     def test_row_order_decides_nothing(self):

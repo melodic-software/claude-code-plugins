@@ -14,7 +14,7 @@ import { budgetedFetch } from "./request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
-// The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
+// The lanes App bot's user id (https://github.com/melodic-software/standards/blob/main/components/trusted-actors/trusted-actors.json).
 const LANES_APP = 337595936;
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a

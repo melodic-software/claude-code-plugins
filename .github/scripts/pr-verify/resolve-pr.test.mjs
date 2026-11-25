@@ -1106,8 +1106,6 @@ test("a run that is not a passing pr-require-checks pull_request run of this rep
 // `holds`' own text, so its wording cannot drift from this check unseen.
 const HOLD_FILES = ["plugins/x/scripts/risk.py"];
 const PATH_HOLD = holds("", [], HOLD_FILES, ["plugins/x/**"])[0];
-// actorsHold's shape: the list's changed path and why, in parentheses.
-const WIDENED = holds("", [], [], [], [], null, true, "it widens the trusted-actor list (.github/standards/trusted-actors/trusted-actors.json: adds a human)")[0];
 const COST = holds("", [], ["infra/main.tf"], [])[0];
 const BODY = holds("Hold: wait", [], [], [])[0];
 // A cost path whose name carries the lift clause, as an author can name a file.
@@ -1151,8 +1149,6 @@ const held = (log, setup = {}) =>
 test("a run that failed only on a hold an approval of the head lifts is judged", async () => {
   assert.ok(PATH_HOLD.includes("it changes plugins/x/scripts/risk.py, a hold path"));
   assert.equal(await held(logOf(PATH_HOLD)), "ok");
-  assert.equal(await held(logOf(WIDENED)), "ok");
-  assert.equal(await held(logOf(PATH_HOLD, WIDENED)), "ok");
   assert.equal(await held(logOf(OLD_WORDING)), "ok");
 });
 

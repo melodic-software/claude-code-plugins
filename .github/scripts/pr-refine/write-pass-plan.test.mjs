@@ -25,8 +25,8 @@ test("write-pass-plan reads the base config with the standards checkout STANDARD
     ["docs/conventions/pr-pipeline.yaml", "docs/conventions/pr-pipeline/pr-pipeline.schema.json", ".github/CODEOWNERS", "plugins/multi-agent/reference/defaults.yaml"].map((path) => [path, path]),
   );
   copyInto(standards, [
-    [".github/standards/github-actions-conventions/vocabulary.json", "components/github-actions-conventions/vocabulary.json"],
-    [".github/standards/trusted-actors/trusted-actors.json", "components/trusted-actors/trusted-actors.json"],
+    [".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json", "components/github-actions-conventions/vocabulary.json"],
+    [".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", "components/trusted-actors/trusted-actors.json"],
   ]);
   const paths = join(dir, "paths");
   writeFileSync(paths, "README.md\n");

@@ -220,7 +220,6 @@ export const MANIFESTS = Object.freeze({
 const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
 const ACTION = /^(.+\/)?action\.ya?ml$/;
 const USES_LINE = /^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$/;
-// A pinned `uses:` line: its indent and key, the action path, the full SHA.
 const PINNED_USES = /^[+-](\s*(?:-\s+)?uses:\s*)([^\s#@]+)@([0-9a-f]{40})(?:\s+#.*)?\s*$/;
 const TAGGED_USES = /^[+-](\s*(?:-\s+)?uses:\s*)([^\s#@]+)@(v\d+(?:\.\d+){0,2})(?:\s+#.*)?\s*$/;
 // https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L351
@@ -381,7 +380,6 @@ export const isDependabotSigned = (item) =>
 
 const PUSH_TYPES = Object.freeze(["push", "force_push", "branch_creation"]);
 
-// `sha` and its ancestors among the pull request's commits `bySha`.
 function ancestry(sha, bySha) {
   const found = new Set();
   const todo = [String(sha)];
@@ -395,8 +393,6 @@ function ancestry(sha, bySha) {
   return found;
 }
 
-// Whose push must bring a pull-request commit: Dependabot's or the lanes App's
-// (author id `appId`); null for any other commit.
 const commitPusher = (item, appId) => (isDependabotCommit(item) ? "dependabot" : Number.isInteger(appId) && item?.author?.id === appId ? "lane" : null);
 
 // Why the head branch's push history does not bind it to Dependabot, or null.
@@ -428,7 +424,6 @@ export function pushRefusal(activities, head, commits, appId) {
       return unattributed.size ? "push-history-incomplete" : null;
     }
   }
-  // No Dependabot branch creation or force push in reach: the history is cut.
   return "push-history-incomplete";
 }
 
@@ -797,9 +792,6 @@ export const POLICY_UNREADABLE = "dependabot-policy-unreadable";
 const BRANCH_ECOSYSTEMS = Object.freeze({ npm_and_yarn: "npm", github_actions: "github-actions" });
 const REVIEW_ONLY_KEYS = ["repository", "ecosystem", "directory", "dependency", "control"];
 
-// Whether a review-only entry covers a changed path: the path sits in the
-// entry's directory (glob-aware), or the entry is github-actions and the path
-// is a workflow or action file it covers, as the content rule reads them.
 function entryCovers(entry, path) {
   return inDirectory(path, entry.directory) || (entry.ecosystem === "github-actions" && actionsFile(path, [[entry.ecosystem, entry.directory]]));
 }
@@ -885,7 +877,6 @@ export function classify(pr) {
       reasons.push("sources-disagree");
     }
   }
-  // The policy copy at the base names this organization's own releases.
   const own = allOwn(updates, ownGlobs(pr.policy));
   if (own) {
     updates = updates.map((u) => (u.major && u.firstMajor === false ? { ...u, major: false } : u));
@@ -914,9 +905,6 @@ export function classify(pr) {
     const content = contentStep(pr);
     if (content) reasons.push(content);
   }
-  // The review-only step over `policy` (parsed policy.json; null or absent is
-  // unreadable) and `repository`, over the changed paths when the config
-  // reads and `files` is the whole listing, as the pr-merge lane reads them.
   const whole = Array.isArray(pr.files) && pr.config != null && pr.changedFiles === pr.files.length;
   const paths = whole ? pr.files.flatMap((f) => [f.filename, f.previous_filename].filter(Boolean).map(String)) : null;
   const listed = reviewOnly(pr.policy ?? null, pr.repository ?? "", pr.headRef, updates, paths);
