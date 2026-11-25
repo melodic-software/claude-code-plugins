@@ -1894,7 +1894,9 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
 
 _FIXTURES = ROOT / ".github/scripts/pr-merge/fixtures"
 _LISTED = json.loads((_FIXTURES / "compare-paged-1.json").read_text(encoding="utf-8"))
-_DIFF = (_FIXTURES / "compare.diff").read_text(encoding="utf-8")
+with (_FIXTURES / "compare.diff").open(encoding="utf-8", newline="") as _fixture:
+    _DIFF = _fixture.read()
+_CR = _DIFF.replace("+bump: patch\n", "+bump: patch\r\n", 1)
 _CUT = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-2])
 _MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
 _BINARY = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"
@@ -1902,6 +1904,7 @@ DIFF_CASES = {
     "the same diffs": [_DIFF, _DIFF],
     "one changed line": [_DIFF, _DIFF.replace("+bump: patch\n", "+bump: minor\n", 1)],
     "diffs missing a file the listing names": [_CUT, _CUT],
+    "diffs that differ by a trailing carriage return": [_DIFF, _CR],
     "a mode change more": [_DIFF, _DIFF + _MODE_ONLY],
     "a binary file in both": [_DIFF + _BINARY, _DIFF + _BINARY],
     "a quoted path": [_DIFF, _DIFF + 'diff --git "a/\\303\\251" "b/\\303\\251"\n'],
@@ -1969,3 +1972,23 @@ class TheDiffNetChangeIsTheGates(unittest.TestCase):
             json.loads(js.stdout),
         )
         self.assertEqual(json.loads(js.stdout), [True, False, False])
+
+    def test_the_diff_read_keeps_carriage_returns_as_the_js_gate_does(self) -> None:
+        answers = {"T...O": _DIFF.encode(), "T...H": _CR.encode()}
+
+        def gh(args: list[str], *, binary: bool = False, **_: Any) -> Any:
+            raw = answers[args[1].rsplit("/", 1)[1]]
+            universal_newlines = raw.decode().replace("\r\n", "\n").replace("\r", "\n")
+            out = raw if binary else universal_newlines
+            return subprocess.CompletedProcess(args, 0, out, b"" if binary else "")
+
+        with mock.patch.object(policy, "gh_capture", side_effect=gh):
+            diffs = policy._cap_diffs("o", "r", ["T...O", "T...H"], [_LISTED, _LISTED])
+        self.assertEqual(diffs, [_DIFF, _CR])
+        self.assertFalse(policy.same_net_change(_LISTED, _LISTED, diffs))
+        answers["T...H"] = b"\xff"
+        with (
+            mock.patch.object(policy, "gh_capture", side_effect=gh),
+            self.assertRaises(policy.PolicyReadError),
+        ):
+            policy._cap_diffs("o", "r", ["T...O", "T...H"], [_LISTED, _LISTED])

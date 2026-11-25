@@ -4542,12 +4542,15 @@ def _cap_diffs(
     for spec in specs:
         endpoint = f"repos/{owner}/{name}/compare/{spec}"
         try:
-            proc = gh_capture(["api", endpoint, "-H", "Accept: application/vnd.github.diff"])
+            proc = gh_capture(
+                ["api", endpoint, "-H", "Accept: application/vnd.github.diff"],
+                binary=True,
+            )
+            if proc.returncode != 0:
+                raise PolicyReadError(f"the diff of {spec} is unreadable")
+            texts.append(proc.stdout.decode("utf-8"))
         except (RuntimeError, ValueError, OSError) as exc:
             raise PolicyReadError(f"the diff of {spec}: {exc}") from exc
-        if proc.returncode != 0:
-            raise PolicyReadError(f"the diff of {spec} is unreadable")
-        texts.append(proc.stdout)
     return texts
 
 

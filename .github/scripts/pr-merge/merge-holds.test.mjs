@@ -1010,6 +1010,8 @@ test("wholeCompare pages the commits past the unpaged 250 and reads the files fr
   assert.equal(pages.length, 2, "the read stops at a page short of 100");
   await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => "not a diff", "/c/a...b"), /does not parse/);
   await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => cutShort(DIFF_TEXT, 2), "/c/a...b"), /names fewer files than its listing/);
+  assert.deepEqual(diffFiles(""), []);
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => "", "/c/a...b"), /names fewer files than its listing/, "an empty diff body");
   const small = { ...PAGE_TWO, total_commits: 50, files: [TF] };
   assert.deepEqual(await wholeCompare(async () => small, async () => assert.fail("a listing under 300 needs no diff"), "/c/a...b"), small);
 });

@@ -244,7 +244,7 @@ const withHeader = (headers, name, value) => {
 
 /**
  * Wraps a fetch so a GET of a URL whose answer `store` keeps, under the same
- * Authorization header, is sent with that answer's ETag as If-None-Match, and
+ * Authorization and Accept headers, is sent with that answer's ETag as If-None-Match, and
  * a 304 to it returns the kept body and headers as a 200, with the 304's
  * x-ratelimit-* headers. GitHub answers 304 only while the data has not
  * changed, and a 304 to an authorized request does not count against the
@@ -258,7 +258,7 @@ export function conditionalReads(send, store = readStore()) {
   return async function read(url, init = {}) {
     const key =
       (init.method ?? "GET") === "GET" && headerOf(init.headers, "if-none-match") === undefined
-        ? createHash("sha256").update(`${headerOf(init.headers, "authorization") ?? ""}\n${url}`).digest("hex")
+        ? createHash("sha256").update(`${headerOf(init.headers, "authorization") ?? ""}\n${headerOf(init.headers, "accept") ?? ""}\n${url}`).digest("hex")
         : null;
     const kept = key === null ? undefined : store.get(key, String(url));
     const response = await send(url, kept === undefined ? init : { ...init, headers: withHeader(init.headers, "If-None-Match", kept.etag) });
