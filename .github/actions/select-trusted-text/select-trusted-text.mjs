@@ -128,7 +128,11 @@ export function prReads(number, pull, spec) {
   if (!Array.isArray(refs?.nodes) || refs.totalCount !== refs.nodes.length) {
     return null;
   }
-  const text = typeof pull?.node_id === "string" && typeof pull.title === "string";
+  const text =
+    typeof pull?.node_id === "string" &&
+    typeof pull.title === "string" &&
+    (spec.body === null || typeof spec.body === "string") &&
+    (spec.lastEditedAt === null || typeof spec.lastEditedAt === "string");
   return {
     v: 1,
     pr: number,
@@ -137,7 +141,8 @@ export function prReads(number, pull, spec) {
           number: pull.number,
           node_id: pull.node_id,
           title: pull.title,
-          body: pull.body ?? null,
+          body: spec.body === "" ? null : spec.body,
+          last_edited_at: spec.lastEditedAt,
           user: pull.user ?? null,
           head: { sha: pull.head?.sha },
           base: { sha: pull.base?.sha },
@@ -151,7 +156,7 @@ export function prReads(number, pull, spec) {
   };
 }
 
-export function takePrReads(text, prNumber) {
+export function takePrReads(text, prNumber, headSha) {
   const reads = JSON.parse(text);
   const number = Number(prNumber);
   const pull = reads?.pull;
@@ -163,8 +168,10 @@ export function takePrReads(text, prNumber) {
       pull.node_id !== "" &&
       typeof pull.title === "string" &&
       (pull.body === null || typeof pull.body === "string") &&
+      (pull.last_edited_at === null || !Number.isNaN(Date.parse(pull.last_edited_at ?? ""))) &&
       (pull.user === null || isObject(pull.user)) &&
       SHA.test(pull.head?.sha ?? "") &&
+      pull.head.sha === headSha &&
       SHA.test(pull.base?.sha ?? ""));
   const renames = reads?.renames;
   if (
@@ -242,7 +249,8 @@ export async function buildTrustedContext({ github, repository, prNumber, ids, r
     ...(prTrusted ? [pull.node_id] : []),
     ...items.map((item) => item.nodeId),
   ]);
-  const prKept = prTrusted && editedByListed(pull.node_id);
+  const stampHeld = reads?.pull == null || editedByListed.lastEditedAt.get(pull.node_id) === reads.pull.last_edited_at;
+  const prKept = prTrusted && editedByListed(pull.node_id) && stampHeld;
   if (prTrusted && !prKept) {
     dropped["edited-by-untrusted"] += 1;
   }
@@ -367,7 +375,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
       throw new Error("pr-number or repository is malformed");
     }
     const ids = loadTrustedActors(trustedListPath(env, env.TRUSTED_ACTORS_PATH));
-    const reads = env.READS_PATH ? takePrReads(readFileSync(env.READS_PATH, "utf8"), env.PR_NUMBER) : undefined;
+    const reads = env.READS_PATH ? takePrReads(readFileSync(env.READS_PATH, "utf8"), env.PR_NUMBER, env.HEAD_SHA) : undefined;
     const context = await buildTrustedContext({
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
       repository: env.REPOSITORY,

@@ -34,6 +34,12 @@ inputs:
       it is deleted either way. Empty reads everything.
     required: false
     default: ""
+  head-sha:
+    description: >
+      The head SHA being judged. With reads-path set, a handed-on pull
+      request at any other head fails the action without writing.
+    required: false
+    default: ""
   github-token:
     description: >
       Token that can read the PR, its comments and reviews, and the issues it
@@ -52,5 +58,6 @@ runs:
         STANDARDS_DIR: ${{ inputs.standards-path }}
         OUTPUT_PATH: ${{ inputs.output-path }}
         READS_PATH: ${{ inputs.reads-path }}
+        HEAD_SHA: ${{ inputs.head-sha }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: node "$GITHUB_ACTION_PATH/select-trusted-text.mjs"

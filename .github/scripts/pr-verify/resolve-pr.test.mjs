@@ -2521,8 +2521,9 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   assert.equal(keptJobs(skipped, RUN), null);
 });
 
-const TEXT_PULL = { node_id: "PR_kw41", title: "feat: x", body: "Closes #7" };
+const TEXT_PULL = { node_id: "PR_kw41", title: "feat: x", body: "the REST body" };
 const OWN_FAIL = { artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } };
+const SPEC_EDIT = { lastEditedAt: "2026-10-20T01:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
 
 const keptReads = async (setup, options = {}) => {
   const kept = [];
@@ -2530,17 +2531,27 @@ const keptReads = async (setup, options = {}) => {
   return { result, kept };
 };
 
-test("a judgment hands select-trusted-text the REST pull and the spec read's closing references", async () => {
-  const { kept } = await keptReads({ pulls: [pull(TEXT_PULL)] });
+test("a judgment hands on the REST pull's title, and the body with its edit stamp from the one spec answer", async () => {
+  const { kept } = await keptReads({ pulls: [pull(TEXT_PULL)], body: "the spec answer's body", edit: SPEC_EDIT });
   assert.deepEqual(kept, [
     {
       v: 1,
       pr: 41,
-      pull: { number: 41, ...TEXT_PULL, user: { id: 337595936, login: LANE, type: "Bot" }, head: { sha: HEAD }, base: { sha: BASE } },
+      pull: {
+        number: 41,
+        node_id: "PR_kw41",
+        title: "feat: x",
+        body: "the spec answer's body",
+        last_edited_at: SPEC_EDIT.lastEditedAt,
+        user: { id: 337595936, login: LANE, type: "Bot" },
+        head: { sha: HEAD },
+        base: { sha: BASE },
+      },
       closing: { nodes: [{ number: 7, repository: { nameWithOwner: REPO } }], pageInfo: { hasNextPage: false, endCursor: null } },
     },
   ]);
-  assert.deepEqual(takePrReads(JSON.stringify(kept[0]), "41").closing, kept[0].closing);
+  assert.deepEqual(takePrReads(JSON.stringify(kept[0]), "41", HEAD).closing, kept[0].closing);
+  assert.throws(() => takePrReads(JSON.stringify(kept[0]), "41", BASE), /malformed/);
 });
 
 test("a person's pull request hands on the title renames its spec read folded in", async () => {
@@ -2575,8 +2586,8 @@ test("main writes the handed-on reads to RUNNER_TEMP only when it proceeds", asy
     RUNNER_TEMP: temp,
   });
   const judged = tempDir("pr-verify-temp-");
-  await main(env(judged), { github: fake({ pulls: [pull(TEXT_PULL)] }) });
-  assert.equal(takePrReads(readFileSync(path.join(judged, PR_READS), "utf8"), "41").pull.body, "Closes #7");
+  await main(env(judged), { github: fake({ pulls: [pull(TEXT_PULL)], body: "Closes #7" }) });
+  assert.equal(takePrReads(readFileSync(path.join(judged, PR_READS), "utf8"), "41", HEAD).pull.body, "Closes #7");
   const skipped = tempDir("pr-verify-temp-");
   await main(env(skipped), { github: fake({ pulls: [pull(TEXT_PULL)], ...OWN_FAIL }) });
   assert.match(readFileSync(path.join(skipped, "out"), "utf8"), /reason=already-judged/);

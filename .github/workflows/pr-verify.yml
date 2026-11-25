@@ -282,6 +282,7 @@ jobs:
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       # A blobless fetch of the two commits into its own repository outside
@@ -2283,6 +2284,7 @@ jobs:
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       - name: Write the diff
@@ -4073,6 +4075,7 @@ jobs:
           standards-path: ${{ steps.standards.outputs.path }}
           output-path: ${{ github.workspace }}/pr-verify-data/context.json
           reads-path: ${{ runner.temp }}/pr-verify-pr-reads.json
+          head-sha: ${{ steps.pr.outputs.head-sha }}
           github-token: ${{ github.token }}
 
       - name: Write the diff

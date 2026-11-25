@@ -549,12 +549,14 @@ test("a Decision recorded comment from the agent App's bot, or posted through an
 const specNode = (api, { renames = true } = {}) => {
   const refs = api.closingIssues.data.repository.pullRequest.closingIssuesReferences;
   return {
+    body: api.pull.body,
+    lastEditedAt: api.edits.N4200?.lastEditedAt ?? null,
     closingIssuesReferences: { totalCount: refs.nodes.length, nodes: refs.nodes },
     ...(renames && { renames: { nodes: api.renames, pageInfo: { hasNextPage: false, endCursor: null } } }),
   };
 };
 
-async function handed(api, reads) {
+async function handed(api, reads, headSha = api.pull.head.sha) {
   const readsPath = path.join(dir, "pr-reads.json");
   if (reads !== undefined) {
     writeFileSync(readsPath, typeof reads === "string" ? reads : JSON.stringify(reads));
@@ -562,7 +564,7 @@ async function handed(api, reads) {
   const outputPath = path.join(dir, "trusted-context.json");
   const github = fakeGitHub(routesFrom(api));
   const code = await main({
-    env: { PR_NUMBER: "42", REPOSITORY, TRUSTED_ACTORS_PATH: LIST, OUTPUT_PATH: outputPath, READS_PATH: readsPath },
+    env: { PR_NUMBER: "42", REPOSITORY, TRUSTED_ACTORS_PATH: LIST, OUTPUT_PATH: outputPath, READS_PATH: readsPath, HEAD_SHA: headSha },
     github,
     log: () => {},
   });
@@ -630,6 +632,8 @@ test("missing or malformed handed-on reads write nothing and exit non-zero", asy
     ["a pull of another number", { ...good, pull: { ...good.pull, number: 43 } }],
     ["a pull with no node id", { ...good, pull: { ...good.pull, node_id: "" } }],
     ["a pull at a short head", { ...good, pull: { ...good.pull, head: { sha: "abc" } } }],
+    ["a pull at another head", { ...good, pull: { ...good.pull, head: { sha: "3".repeat(40) } } }],
+    ["a pull with no edit stamp", { ...good, pull: { ...good.pull, last_edited_at: undefined } }],
     ["references cut short", { ...good, closing: { ...good.closing, pageInfo: { hasNextPage: true, endCursor: "c" } } }],
     ["no reference list", { ...good, closing: {} }],
     ["renames with no node list", { ...good, renames: { pageInfo: {} } }],
@@ -639,6 +643,44 @@ test("missing or malformed handed-on reads write nothing and exit non-zero", asy
     assert.equal(context, undefined, label);
     assert.equal(left, false, label);
   }
+});
+
+test("a handed-on pull with no head to bind to fails; a handed-on null pull needs none", async () => {
+  const api = load();
+  const bound = await handed(api, prReads(42, api.pull, specNode(api)), "");
+  assert.equal(bound.code, 1);
+  assert.equal(bound.context, undefined);
+  const fresh = await handed(api, prReads(42, { ...api.pull, node_id: undefined }, specNode(api)), "");
+  assert.equal(fresh.code, 0);
+  assert.ok(fresh.github.calls.includes(PULL_READ));
+});
+
+const LISTED_EDIT = { lastEditedAt: "2026-10-04T12:00:00Z", editor: { __typename: "User", databaseId: 153232337 } };
+
+test("a body edit between the hand-off and the editor read withholds the handed-on body and title", async () => {
+  for (const [label, stamp] of [
+    ["never edited at the hand-off", null],
+    ["edited earlier at the hand-off", "2026-10-04T11:00:00Z"],
+  ]) {
+    const api = load();
+    const reads = prReads(42, api.pull, { ...specNode(api), body: "CANARY-unlisted-before-hand-off", lastEditedAt: stamp });
+    api.edits.N4200 = LISTED_EDIT;
+    const { code, context } = await handed(api, reads);
+    assert.equal(code, 0, label);
+    assert.equal(context.pr.body, null, label);
+    assert.equal(context.pr.title, "", label);
+    assert.equal(context.dropped["edited-by-untrusted"], 1, label);
+    assert.doesNotMatch(JSON.stringify(context), /CANARY/, label);
+  }
+});
+
+test("a handed-on body whose edit stamp the editor read matches is kept", async () => {
+  const api = load();
+  api.edits.N4200 = LISTED_EDIT;
+  const { context } = await handed(api, prReads(42, api.pull, { ...specNode(api), body: "the body at the hand-off" }));
+  assert.equal(context.pr.body, "the body at the hand-off");
+  assert.equal(context.pr.title, api.pull.title);
+  assert.equal(context.dropped["edited-by-untrusted"], 0);
 });
 
 test("prReads refuses a spec node whose reference count is not its node count", () => {
@@ -659,9 +701,9 @@ const CAPTURED = Object.fromEntries(
 test("captured answers hand on the pull GET /pulls/{n} reads, and renames only where the query asked", () => {
   for (const [number, renamed] of [[19082, true], [19055, false]]) {
     const spec = CAPTURED[`spec-${number}`].data.repository.pullRequest;
-    const reads = takePrReads(JSON.stringify(prReads(number, CAPTURED[`commit-pulls-${number}`], spec)), String(number));
     const { number: n, node_id, title, body, user, head, base } = CAPTURED[`pull-${number}`];
-    assert.deepEqual(reads.pull, { number: n, node_id, title, body, user, head, base });
+    const reads = takePrReads(JSON.stringify(prReads(number, CAPTURED[`commit-pulls-${number}`], spec)), String(number), head.sha);
+    assert.deepEqual(reads.pull, { number: n, node_id, title, body, last_edited_at: spec.lastEditedAt, user, head, base });
     assert.deepEqual(reads.closing.nodes, spec.closingIssuesReferences.nodes);
     assert.equal(reads.renames !== undefined, renamed);
   }
