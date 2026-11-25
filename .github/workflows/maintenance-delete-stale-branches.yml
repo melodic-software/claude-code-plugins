@@ -56,9 +56,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: read # list branches, compare, read rules
-      issues: read # read linked issues
-      pull-requests: read # read each branch's pull requests
+      contents: read
+      issues: read
+      pull-requests: read
     outputs:
       planned: ${{ steps.plan.outputs.planned }}
       # The candidate list's artifact name, fixed by the attempt that planned
@@ -66,14 +66,11 @@ jobs:
       # the delete job still finds the list select-stale-branches uploaded.
       candidates: branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}
       standards-sha: ${{ steps.standards.outputs.sha }}
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Check out the run's main commit
@@ -98,7 +95,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Report the kill switch
@@ -109,8 +105,6 @@ jobs:
           WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or deleted"
 
-      # cleanup.mjs reads the branch-cleanup leaf through the base's
-      # resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'
@@ -163,8 +157,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
-      contents: write # re-read a branch tip, delete a branch ref
-      pull-requests: read # re-read a branch's open pull requests
+      contents: write
+      pull-requests: read
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -190,7 +184,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # Checked again: the switch may have flipped since the select-stale-branches job.
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -204,7 +197,6 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing deleted"
 
-      # The delete stage checks the list against the configured cap.
       - name: Install resolve-config's dependencies
         timeout-minutes: 5
         if: steps.kill.outputs.proceed == 'true'
@@ -234,8 +226,6 @@ jobs:
           : > "$LEDGER_PATH"
           node .base/.github/scripts/branch-cleanup/cleanup.mjs
 
-      # Uploaded after a failed step too, so every line written before a
-      # delete survives.
       - name: Upload the ledger
         if: always() && steps.kill.outputs.proceed == 'true'
         uses: actions/upload-artifact@v7

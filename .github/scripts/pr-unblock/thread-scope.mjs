@@ -6,7 +6,6 @@
 // other file. It also holds the Lane-Thread trailer that binds a fix commit
 // to the kept threads it fixes: apply-patch.mjs writes it, publish-feedback.mjs
 // reads it.
-
 // A review thread's GraphQL node id, as the select job keeps it.
 export const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
 // A pr-verify note the select job read from an earlier FAIL's verdict artifact

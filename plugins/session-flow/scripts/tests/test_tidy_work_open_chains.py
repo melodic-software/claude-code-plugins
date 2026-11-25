@@ -1,4 +1,4 @@
-"""Contract tests for tidy_work.py's open-chain rule: a handoff chain whose newest hot
+"""Contract tests for tidy_work.py's open-chain rule: a handoff chain whose newest handoff
 file is not closed keeps every file, whatever its age or PR state."""
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ HOP3_3 = "20260103T100000Z-handoff-three.md"
 
 
 def chain2(path: Path, chain: list[str], next_lines: str) -> None:
-    """A shape-2 hot file whose `chain:` lists the chain oldest first."""
+    """A shape-2 handoff file whose `chain:` lists the chain oldest first."""
     previous = f"previous_handoff: {chain[-2]}\n" if len(chain) > 1 else ""
     entries = "".join(f"  - {name}\n" for name in chain)
     write(

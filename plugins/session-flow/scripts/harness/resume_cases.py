@@ -747,7 +747,7 @@ def build_predecessor_chain(
 ) -> list[Path]:
     """Write the case's predecessor chain into `out_dir` (the run's repository) with
     `save_point` (an arm copy's script; this checkout's when None) for `arm` and return
-    the hop files, oldest first. Raises SystemExit when `new` or `validate` refuses a hop."""
+    the handoff file of each hop, oldest first. Raises SystemExit when `new` or `validate` refuses a hop."""
     token = _RESERVED.set(reserved_numbers(case_spec))
     try:
         return _build(case_spec, Path(out_dir), memory_dir, save_point, arm)

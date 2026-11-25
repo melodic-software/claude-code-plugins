@@ -45,11 +45,11 @@ now" matters, not just "what did we just say." The verification records
      `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" read <file> --section "<name>"`
      (Original goal, Resumption brief, Remaining actions, Decisions in force,
      Open questions, Environment to re-establish, Observations, and any other
-     the ask needs), never by position: a section moved to the hop file is
+     the ask needs), never by position: a section moved to the archive file is
      read from there; `<memory_dir>` resolves as
      [`save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md) "Where save-points live"
      says (`.work/` in a git work tree by default), never Claude Code's auto-memory directory;
-     a handoff opened with Read instead has each `- Moved:` pointer's hop file read too, before a section or result is reported absent;
+     a handoff opened with Read instead has each `- Moved:` pointer's archive file read too, before a section or result is reported absent;
    - the workflow checklist (`<memory_dir>/<slug>/`), the stage ledger;
    - running-retro ledgers (`<memory_dir>/running-retros/`), accumulated
      in-flight findings.
@@ -167,8 +167,8 @@ alone.
 - Read the chain with
   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" chain <newest file> --json`: each entry
   of `hops` is one session (hop, date, session id, and its `This session` line under `sections`,
-  read from the next hop's file when its own hot file is gone), newest first, and `links` gives
-  each hot file the walk reached with its status. That covers every handoff shape and needs no
+  read from the next hop's file when its own handoff file is gone), newest first, and `links` gives
+  each handoff file the walk reached with its status. That covers every handoff shape and needs no
   read by position.
 - Read the newest file's Prior sessions table with
   `save_point.py read <newest file> --section "Prior sessions"` for the transcript of each listed

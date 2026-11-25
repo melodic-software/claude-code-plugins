@@ -262,6 +262,11 @@ on-demand tasks FLEET.md lists.
   does, run `wsl.exe --help` on that machine, as
   [Basic commands: Help command](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#help-command)
   directs (the page has no section of its own for `--exec`).
+- **Write a POSIX path passed to `wsl.exe` from Git Bash with a leading `//`**, for example
+  `--exec test -s //tmp/x`.
+  - **Pointer**: for why, which arguments Git Bash converts and how to exclude one, fetch
+    [MSYS2 Filesystem Paths: Automatic Unix ⟶ Windows Path Conversion](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion)
+    live.
 - **Probe interop by absolute path.** `cmd.exe /c` prints nothing inside an sshd session and reads
   as "interop is broken" when it is not; run the `.exe` by absolute path.
 - **Parse the JSON, not the stream.** Treat stdout as able to carry lines that are not the JSON

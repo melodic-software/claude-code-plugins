@@ -73,6 +73,33 @@ Pushed commits with no pull request are PR-less, not a save-point.
 
 Avoid: checkpoint (for a save-point)
 
+**handoff file**
+
+The file in `handoffs/` that the resume prompt points at, holding only what the next session acts
+on, in every handoff shape.
+
+Avoid: hot file, resume file
+
+**archive file**
+
+The append-only file under `handoffs/archive/<chain>/` holding what one handoff moved out of the
+handoff file, read only through a pointer in it.
+
+Avoid: hop file
+
+**reminder**
+
+An item not yet started, carried across handoffs until its trigger (a time, a condition, or the
+chain's close) fires, then raised to whoever acts on it. Distinct from off-thread work, which is
+already running, and from a deferred item, which is an **admission** outcome.
+
+**focus file**
+
+`<plugin data>/focus/<session>.md`, the per-session text a `session-flow` PreCompact hook prints to
+steer compaction. "Focus" is Claude Code's word for `/compact` guidance
+([context window: when your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up));
+"focus file" is ours.
+
 **primary source**
 
 A record read directly from its origin, unmediated: the on-disk transcript, a live documentation

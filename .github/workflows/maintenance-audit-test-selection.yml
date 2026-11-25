@@ -65,20 +65,13 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.github/npm-fetch.npmrc
     steps:
       - name: Check out
         uses: actions/checkout@v7
         with:
           persist-credentials: false
-          # Full history, as test-bash fetches it: a suite that proves against an
-          # old commit fails in a shallow clone, and a failed suite reads less.
           fetch-depth: 0
-      # The suites read what they read only when their tools are present, so
-      # the toolchains match pr-require-checks.yml's test-bash and test-python lanes (Node,
-      # Python, ShellCheck, shfmt, the inventory parser packages, DuckDB); a suite that skips for a
-      # missing tool reads less and can hide a gap, never invent one.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
@@ -104,14 +97,11 @@ jobs:
         timeout-minutes: 5
         run: |
           npm ci
-          # The yaml package scripts/check-read-caller-keys.test.sh and
-          # scripts/check-artifact-retention.test.sh parse with.
           npm ci --prefix scripts/ci-deps
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
             --requirement plugins/animation/requirements.txt
           python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
-          # The animation render tests capture through the locked playwright's headless Chromium.
           node node_modules/playwright/cli.js install --only-shell chromium
       - name: Install DuckDB CLI
         env:
@@ -134,7 +124,6 @@ jobs:
         env:
           SHARD_INPUT: ${{ inputs.shard }}
           SUITES_INPUT: ${{ inputs.suites }}
-          # As in pr-require-checks.yml: these suites fail on a missing dependency instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
           INVENTORY_REQUIRE_ACORN: '1'
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
@@ -166,8 +155,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:

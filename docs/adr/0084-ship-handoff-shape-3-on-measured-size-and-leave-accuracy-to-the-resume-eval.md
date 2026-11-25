@@ -6,7 +6,7 @@
   [ADR 0091](0091-bound-the-handoff-core-by-relevance-and-amend-late-events.md)
 - Date: 2026-10-24
 - Related: [#9238](https://github.com/melodic-software/claude-code-plugins/issues/9238) (the
-  hot-file and archive redesign). The harness and its cases are described in
+  handoff-file and archive redesign). The harness and its cases are described in
   `plugins/session-flow/evals/resume-eval.md`; the shape-3 contract is in
   `plugins/session-flow/reference/structure.md`.
 
@@ -15,7 +15,7 @@
 Session-flow handoffs only grow. An audit of 274 handoff files and 2,253 transcripts measured a
 median growth of 6.4 to 7.0 KB per hop, and 0 of 108 lane hops shrank. Resumed sessions read only
 part of a large handoff (a median of 22% of files above 256 KB), then miss rules, follow
-superseded ones, or act on stale GitHub facts. Issue #9238 proposed a small hot file plus a
+superseded ones, or act on stale GitHub facts. Issue #9238 proposed a small handoff file plus a
 per-chain archive. The owner required that any change ship only as a measured improvement in
 continuation accuracy at fewer tokens, against both today's skills and running without them.
 
@@ -34,7 +34,7 @@ plugin eval cannot read a Codex session or a native `/compact`.
 2. **Seven synthetic cases** cover the four audited drift patterns (skipped rule, superseded
    rule, stale GitHub fact, restated preference) and three design properties (archive-only answer,
    first split hop from a large predecessor, a five-hop chain). No case holds a real transcript.
-3. **Ship shape 3 on its measured size.** `save_point.py new` writes a hot file in one fixed
+3. **Ship shape 3 on its measured size.** `save_point.py new` writes a handoff file in one fixed
    section order plus one immutable archive file per hop, holding every predecessor section
    verbatim. `validate` enforces the order, a byte cap and the lossless carry-over. Over the 17
    audited chains with three or more hops, the next hop's file falls from a median of 89,313 bytes
@@ -50,18 +50,18 @@ plugin eval cannot read a Codex session or a native `/compact`.
    `resume_eval.py`. The owner decided on 2026-10-24 to commit it anyway, because it is re-run
    by hand: on the re-run trigger under Consequences, and for the owner-approved accuracy check.
 6. **Leave the core's growth unbounded for now.** Original goal and Direction changes carry forward
-   verbatim and never move to the archive, so the hot file grows by one trail line per change of
-   direction. A hot file over the Read page cap (25,000 tokens' worth) fails `validate` whatever
+   verbatim and never move to the archive, so the handoff file grows by one trail line per change of
+   direction. A handoff file over the Read page cap (25,000 tokens' worth) fails `validate` whatever
    its core holds, so a long enough chain would fail with nothing the writer may move out. The
-   56-hop `hop_chain.py --budget` projection stays at 16.4 KB, under the 24.6 KB hot-file cap. The
+   56-hop `hop_chain.py --budget` projection stays at 16.4 KB, under the 24.6 KB handoff-file cap. The
    owner decided on 2026-10-24 to defer a bound, such as keeping only the last trail lines in the
-   hot file, to the pending accuracy runs.
+   handoff file, to the pending accuracy runs.
 
 ## Alternatives considered
 
 - **Hold shape 3 until the accuracy runs finish.** Rejected by the owner: the size gain is
   measured and the change is reversible, while the runs compete with the automation lanes for
-  usage. The cost is an open question: the audit shows the failure, not that a hot file fixes it
+  usage. The cost is an open question: the audit shows the failure, not that a handoff file fixes it
   without losing accuracy.
 - **Measure with bare plugin eval only.** Rejected for the decision: no reader sees the owner's
   instructions, and Codex and `/compact` cannot run in it. Bare plugin eval stays the regression
