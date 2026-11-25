@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [9.24.2] - 2026-11-25
+
+### Changed
+
+- Skill, reference and eval text call the file a resume reads the **handoff file** and the per-hop
+  file under `handoffs/archive/<chain>/` the **archive file**, the glossary's terms. Script output,
+  file paths and identifiers are unchanged.
+
 ## [9.24.1] - 2026-11-25
 
 ### Fixed
