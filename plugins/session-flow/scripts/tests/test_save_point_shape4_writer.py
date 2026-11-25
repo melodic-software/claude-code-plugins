@@ -135,19 +135,22 @@ def test_shape4_fill_writes_validates_and_prints_the_verdict_and_prompt(tmp_path
     assert validate(path).returncode == 0, out(validate(path))
 
 
-def test_shape4_bare_new_previous_continues_a_shape4_chain(tmp_path):
+def test_bare_new_previous_continues_a_shape4_chain_as_shape5(tmp_path):
     repo = make_repo(tmp_path)
     first = hop(repo, tmp_path)
     second = hop(repo, tmp_path, first, k=2, shape=None)
-    assert "handoff_shape: 4\n" in second.read_text(encoding="utf-8")
-    assert headings(second) == SHAPE4_SECTIONS
+    assert "handoff_shape: 5\n" in second.read_text(encoding="utf-8")
+    assert headings(second) == [
+        "Reminders" if title == "Pending commands" else title
+        for title in SHAPE4_SECTIONS
+    ]
     result = validate(second)
     assert result.returncode == 0, out(result)
 
 
-def test_bare_new_on_a_fresh_chain_writes_shape4(tmp_path):
+def test_bare_new_on_a_fresh_chain_writes_shape5(tmp_path):
     made = new(make_repo(tmp_path), tmp_path, None, k=1, shape=None)
-    assert "handoff_shape: 4\n" in Path(out(made).strip()).read_text(encoding="utf-8")
+    assert "handoff_shape: 5\n" in Path(out(made).strip()).read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("pred_shape", ["2", "3"])

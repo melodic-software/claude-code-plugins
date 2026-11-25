@@ -51,6 +51,7 @@ ID_FLOOR_KEYS = (
     ("R", "next_rule_id"),
     ("Q", "next_question_id"),
     ("D", "next_decision_id"),
+    ("M", "next_reminder_id"),
 )
 
 
@@ -125,6 +126,9 @@ class ShapeSpec:
 
 
 _RULES = dict(id_prefix="R", retire_heading="Retired rules")
+REMINDERS = SectionSpec(
+    "Reminders", binding=True, id_prefix="M", retire_heading="Retired reminders"
+)
 
 SHAPES: dict[int, ShapeSpec] = {
     2: ShapeSpec(
@@ -239,6 +243,13 @@ SHAPES: dict[int, ShapeSpec] = {
         fitted=True,
     ),
 }
+SHAPES[5] = replace(
+    SHAPES[4],
+    shape=5,
+    sections=tuple(
+        REMINDERS if s.name == "Pending commands" else s for s in SHAPES[4].sections
+    ),
+)
 HOP_FILE_SHAPES = tuple(shape for shape in SHAPES if shape >= 3)
 NEWEST_SHAPE = max(SHAPES)
 WRITABLE_SHAPES = tuple(sorted(SHAPES))

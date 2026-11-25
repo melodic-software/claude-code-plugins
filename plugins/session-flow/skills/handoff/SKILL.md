@@ -47,8 +47,9 @@ save-point engine, different delivery.
 
 - **`--unattended`**, anywhere in the arguments: the caller declares that nobody is present. Take it out of
   `$ARGUMENTS` before method detection; the rules below read what is left. It changes only the steps that would
-  ask the user: the `/export` step (dropped: an unattended run neither suggests nor runs a user-only built-in) and stuck dependent work
-  ("Settle in-flight work before writing"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
+  ask the user: the `/export` step (dropped: an unattended run neither suggests nor runs a user-only built-in), stuck dependent work
+  ("Settle in-flight work before writing"), and a closing handoff's reminders (never retire a `user` or `at close`
+  one; the final report lists each under **Needs you**, structure doc "Shape 5: Reminders"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
 - **Method** (`file` | `prompt`). Recognized only as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
@@ -234,7 +235,7 @@ in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps.
 
-On the full path the file is the shape `new` writes by default, shape 4: a handoff file plus its archive file, and a script owns every
+On the full path the file is the shape `new` writes by default, shape 5: a handoff file plus its archive file, and a script owns every
 deterministic field (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
 run the guards, run `save_point.py new` (the script is `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py`;
 call it by that path, never search for it) through the interpreter ladder with `-X utf8`, write one JSON object
@@ -255,10 +256,11 @@ launched on their behalf. A forked side task: a new session. When this session h
 
 ## Late events after emit
 
-After emit and until `/clear` or a successor `new`, check each task notification, Monitor event,
-peer message or subagent result against the handoff. When one changes a section (a criterion, a
-remaining action, Environment, an open question, `Next:`), fold it in with
-`save_point.py amend <file> --json <path>` (engine doc, `amend`); `amend --help` lists its keys.
+After emit and until `/clear` or a successor `new`, check each user message, advisor output, task
+notification, Monitor event, peer message or subagent result against the handoff. When one changes
+a section (a criterion, a remaining action, Environment, a reminder, an open question, `Next:`),
+fold it in with `save_point.py amend <file> --json <path>` without asking (engine doc, `amend`);
+`amend --help` lists its keys.
 Write the JSON beside the handoff as `<same stem>.amend.json`; the `.slots.json` stays the record
 of the fill.
 Never hand-edit the file and never re-run `new` to fold an event in. An event that changes nothing
@@ -272,6 +274,16 @@ Retiring an entry is a relevance call, made through the `retire` list of `fill` 
 binds stays. An amendment unit with any clause still binding stays whole, or that clause is first
 written as a rule `[R<n>]` and the unit retired with the reason `codified in [R<n>]`. A unit is
 never split.
+
+**Reminders.** Everything that affects a later session (a command the user runs once a condition
+holds, a timed reminder, a point to raise at chain close) goes under `## Reminders` without asking,
+in the entry shape and with the actor rules of the structure doc ("Shape 5: Reminders"): `agent`
+unless the agent cannot run or observe it. A done one is retired with its reason, never deleted.
+Retirement is automatic: it costs one `retire` entry in the JSON this turn already writes, each
+shows as `retired [M<n>]: <reason>`, and a wrong call is undone from the archive file's
+`## Retired reminders`. A closing handoff lists every open reminder in its closing turn first:
+`at close` entries retire `raised at chain close`; one that has not fired is done now, handed to a
+new local session, or filed as an issue only when it cannot fire within the chain.
 
 ## Post-write enforcement checklist
 

@@ -171,7 +171,7 @@ import dialect  # noqa: E402  (dialect.py beside this script)
 import handoff_fit  # noqa: E402  (handoff_fit.py beside this script)
 from handoff_fit import PURPOSE_PREFIX, REOPEN_PREFIX  # noqa: E402
 
-HANDOFF_SHAPE = 4
+HANDOFF_SHAPE = 5
 CHECKS = 3
 CONTENT_ONLY_DOWNGRADE_FROM = 2
 ID_REUSE_FROM = 3
@@ -179,7 +179,12 @@ UNVERIFIED_SETTLE_FROM = 3
 SLOT_SIZE_FROM = 3
 
 S3 = SHAPES[3]
+ID_SPECS = SHAPES[NEWEST_SHAPE].id_specs
 RULES = S3.id_spec("R")
+REMINDERS = SHAPES[NEWEST_SHAPE].id_spec("M")
+REMINDER_RE = re.compile(
+    r"^\[M\d+\] (?:user|agent|peer \S[^·]*?) · (?:at close|at \S+|when [^·]+?) · .+ · added h\d+(?: \d{4}-\d{2}-\d{2})?$"
+)
 RETIRED_RULES = RULES.retired_heading
 AMENDMENT_RE = re.compile(r"^(?:- )?\*\*Amended.*?:\*\*")
 TRAIL_TAG_RE = re.compile(r"^- \[(h\d+(?:-h?\d+)?)\]")
@@ -194,15 +199,16 @@ DECISION_TAG_SHAPE = (
     "'- [D<n>] [security|design] <decision> (<reason>) buys: <what it gains>; "
     "surface: <the surface exposed today, or none>; cost: <measured cost so far, or none yet>'"
 )
+REMINDER_SHAPE = "'- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <YYYY-MM-DD>', actor 'user', 'agent' or 'peer <session or lane>', trigger 'at <ISO-8601 time with UTC offset>', 'when <condition>' (optionally '; check `<read-only command>`') or 'at close', a command verbatim in one backtick span"
 CODIFIED_RE = re.compile(r"\bcodified in \[R(\d+)\]")
 POINTED_HEADINGS = (
-    *(spec.retired_heading for spec in S3.id_specs if spec is not RULES),
+    *(spec.retired_heading for spec in ID_SPECS if spec != RULES),
     *S3.retired_entry_sections.values(),
 )
 RETIRE_HEADINGS = (RETIRED_RULES, *POINTED_HEADINGS)
 HOP_NAME_RE = re.compile(r"\bh\d+-[0-9a-f]{8}\.md\b")
 RETIRE_REF_RE = re.compile(
-    r"^\[(?P<prefix>[RQD])(?P<n>\d+)\]$"
+    rf"^\[(?P<prefix>[{''.join(s.prefix for s in ID_SPECS)}])(?P<n>\d+)\]$"
     r"|^\[(?P<tag>h\d+(?:-h?\d+)?)\](?:#(?P<tag_ord>\d+))?$"
     r"|^amendment#(?P<ord>\d+)$"
 )
@@ -224,7 +230,7 @@ FRONTMATTER_KEYS_3 = (
     "archive",
     "archive_from",
     "standing_rules",
-    *(spec.floor_key for spec in S3.id_specs),
+    *(spec.floor_key for spec in ID_SPECS),
     "repo",
 )
 PRIOR_ROWS_KEPT = 3
@@ -1113,7 +1119,7 @@ def validate_doc(
         return f, 1
     if shape > NEWEST_SHAPE:
         f.fail(
-            f"handoff_shape {shape} is newer than this validator knows ({NEWEST_SHAPE}): read it, do not rewrite it"
+            f"handoff_shape {shape} is newer than this validator knows ({NEWEST_SHAPE}): read it, do not rewrite it; update session-flow to validate it"
         )
         return f, 3
 
@@ -1592,7 +1598,7 @@ def _next_id(pred: Doc | None, spec: IdSpec) -> int:
     if pred.shape in HOP_FILE_SHAPES:
         floor = _fm_int(pred, spec.floor_key)
         ids = [n for n, _, _ in _id_entries(pred, spec) if n is not None]
-    if floor is None and spec is not RULES:
+    if floor is None and spec != RULES:
         text = "\n".join(pred.lines)
         ids += [int(n) for n in re.findall(rf"\b{spec.prefix}(\d+)\b", text)]
     return max(floor or 1, max(ids, default=0) + 1)
@@ -1633,8 +1639,53 @@ def _folds(line: str, hop: int) -> bool:
     return newest is not None and hop - newest >= DIRECTION_HOPS_KEPT
 
 
+def _id_specs(shape: int | None) -> tuple[IdSpec, ...]:
+    """The id families a file of `shape` holds; shape 3's for a shape with none."""
+    spec = SHAPES.get(shape) if isinstance(shape, int) else None
+    return spec.id_specs if spec is not None and spec.id_specs else S3.id_specs
+
+
+def _family(prefix: str) -> IdSpec:
+    return next(spec for spec in ID_SPECS if spec.prefix == prefix)
+
+
+def _converted_commands(pred: Doc | None, hop: int, date: str) -> list[str]:
+    """A shape-4 predecessor's Pending commands as `user · when now` reminders,
+    `None.` lines left out, so no command drops when a chain moves to shape 5."""
+    if pred is None or REMINDERS in _id_specs(pred.shape):
+        return []
+    held = [
+        entry.text
+        for entry in parse_entries(pred.section("Pending commands") or [])
+        if not entry.exempt
+    ]
+    return [
+        f"- [M{n}] user · when now · {text} · added h{hop} {date[:10]}"
+        for n, text in enumerate(held, start=1)
+    ]
+
+
+def _check_reminders(doc: Doc, f: Findings) -> None:
+    if REMINDERS not in _id_specs(doc.shape):
+        return
+    open_ids: list[str] = []
+    for n, entry, _ in _id_entries(doc, REMINDERS):
+        if n is None:
+            continue
+        open_ids.append(f"[M{n}]")
+        if not REMINDER_RE.match(entry.text):
+            f.fail(
+                f"Reminders: [M{n}] is not {REMINDER_SHAPE}: {entry.text[:60]!r}"
+            )
+    span = _next_span(doc)
+    if open_ids and span is not None and doc.lines[span[0]] == NEXT_CLOSED:
+        f.warn(
+            f"Reminders: this handoff is closed ({NEXT_CLOSED}) but {', '.join(open_ids)} are not retired; raise each in the closing turn, then retire it 'raised at chain close', or on an unattended run list each user or 'at close' entry under Needs you"
+        )
+
+
 def _carries(pred: Doc | None, spec: IdSpec) -> bool:
-    if spec is RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
+    if spec == RULES or pred is None or pred.shape not in HOP_FILE_SHAPES:
         return False
     entries = _id_entries(pred, spec)
     return (
@@ -2296,15 +2347,18 @@ def _validate_shape3(
                 f"frontmatter: repo {fm['repo']!r} must equal the Handoff origin's first slot {slots[0]!r}"
             )
 
-    for spec in S3.id_specs:
+    for spec in _id_specs(doc.shape):
         seen: set[int] = set()
         required = (
-            spec is RULES
+            spec == RULES
             or previous is None
             or (
                 pred is not None
                 and pred.shape in HOP_FILE_SHAPES
-                and _fm_int(pred, spec.floor_key) is not None
+                and (
+                    _fm_int(pred, spec.floor_key) is not None
+                    or spec not in _id_specs(pred.shape)
+                )
             )
         )
         for n, entry, title in _id_entries(doc, spec):
@@ -2318,6 +2372,7 @@ def _validate_shape3(
             else:
                 seen.add(n)
     _check_decision_fields(doc, f)
+    _check_reminders(doc, f)
 
     _check_github_claims(doc, f)
     if hop is None or start is None or not root:
@@ -2436,10 +2491,10 @@ def _check_id_reuse(
     doc: Doc, f: Findings, pred: Doc | None, archived: str | None
 ) -> None:
     retired = read_chain(pred.path, strict=True).retired_ids() if pred else {}
-    for prefix, ids in retired_in(archived or "", S3).items():
+    for prefix, ids in retired_in(archived or "", SHAPES.get(doc.shape, S3)).items():
         for n, text in ids.items():
             retired.setdefault(prefix, {}).setdefault(n, text)
-    for spec in S3.id_specs:
+    for spec in _id_specs(doc.shape):
         spent = retired.get(spec.prefix, {})
         for n, entry, title in _id_entries(doc, spec):
             was = spent.get(n) if n is not None else None
@@ -2466,7 +2521,7 @@ def _check_carry_3(
         if archived is None:
             return
         hop = _fm_int(doc, "hop")
-        for spec in S3.id_specs:
+        for spec in _id_specs(doc.shape):
             own = {n: e for n, e, _ in _id_entries(doc, spec) if n is not None}
             retired = _retired_ids(archived, spec)
             marked = _carries(pred, spec)
@@ -2713,7 +2768,7 @@ def _readable_link(file: str):
     if link.status == "unsupported_shape":
         return None, _die(
             3,
-            f"handoff_shape {link.shape} is newer than this script knows ({NEWEST_SHAPE}): read the file itself: {_posix(path)}",
+            f"handoff_shape {link.shape} is newer than this script knows ({NEWEST_SHAPE}): read the file itself, or update session-flow: {_posix(path)}",
         )
     return link, 0
 
@@ -2875,7 +2930,7 @@ def _locate_ref(
     if moved is not None:
         doc = _aliased(doc, moved)
     if m["prefix"]:
-        spec = S3.id_spec(m["prefix"])
+        spec = _family(m["prefix"])
         for title in spec.sections:
             base = doc.section_start(title) + 1
             for entry in parse_entries(doc.section(title) or []):
@@ -3362,10 +3417,10 @@ def cmd_fill(args: argparse.Namespace) -> int:
 
 
 AMEND_KEYS = ("sections", "append", "retire", "next", "floors")
-FLOOR_KEYS = tuple(spec.floor_key for spec in S3.id_specs)
+FLOOR_KEYS = tuple(spec.floor_key for spec in ID_SPECS)
 AMENDED_HEADING = "Amended"
 _SNIPPET_RE = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
-_DIGITS_RE = re.compile(r"(\[[RQD]\d+\])|\d+")
+_DIGITS_RE = re.compile(rf"(\[[{''.join(s.prefix for s in ID_SPECS)}]\d+\])|\d+")
 
 
 def _fail_key(message: str) -> str:
@@ -3751,7 +3806,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
     for item in retire:
         m = RETIRE_REF_RE.match(item["ref"])
         if m and m["prefix"]:
-            key = S3.id_spec(m["prefix"]).floor_key
+            key = _family(m["prefix"]).floor_key
             raised[key] = max(raised.get(key, 0), int(m["n"]) + 1)
     current = _content_doc(hot)
     for key, n in raised.items():
@@ -3790,7 +3845,7 @@ def cmd_amend(args: argparse.Namespace) -> int:
                         1,
                         f"section {title!r}: the rewrite removes an entry added this hop; retire it in the same call: {unit[0][:60]!r}",
                     )
-        for spec in S3.id_specs:
+        for spec in ID_SPECS:
             if title not in spec.sections:
                 continue
             kept_ids = {n for n, _, _ in _id_entries(amended, spec) if n is not None}
@@ -4354,7 +4409,19 @@ def build_skeleton_3(
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
     carried = pred is not None and pred.shape in HOP_FILE_SHAPES
-    floors = {spec.floor_key: _next_id(pred, spec) for spec in S3.id_specs}
+    converted = (
+        _converted_commands(pred, hop, date) if REMINDERS in _id_specs(shape) else []
+    )
+    floors = {
+        spec.floor_key: (
+            len(converted) + 1
+            if pred is not None
+            and pred.shape in HOP_FILE_SHAPES
+            and spec not in _id_specs(pred.shape)
+            else _next_id(pred, spec)
+        )
+        for spec in _id_specs(shape)
+    }
     next_id = floors[RULES.floor_key]
     fm = [
         "---",
@@ -4500,21 +4567,26 @@ def build_skeleton_3(
 
     def id_body(title: str, name: str, instruction: str) -> list[str]:
         spec = next(
-            (s for s in S3.id_specs if s is not RULES and title in s.sections), None
+            (s for s in ID_SPECS if s != RULES and title in s.sections), None
         )
-        if spec is None or not _carries(pred, spec):
+        if spec == REMINDERS and converted:
+            carried_lines = converted
+        elif spec is None or not _carries(pred, spec):
             return [_fill(name, instruction)]
+        else:
+            carried_lines = _section_lines(pred, title)
         ref = f"[{spec.prefix}<n>]"
-        shape = {
+        entry_shape = {
             "Q": f"'- {ref} <question>' with its options, a recommendation and what it unblocks",
             "D": f"'- {ref} <decision> (<reason>)', a decision the remaining actions depend on; {DECISION_TAG_SHAPE}",
+            "M": f"{REMINDER_SHAPE}",
         }[spec.prefix]
         return [
-            *_section_lines(pred, title),
+            *carried_lines,
             "",
             _fill(
                 f"{name}-new",
-                f"optional: new entries below the carried ones, one per line, {shape}, new ids from {spec.prefix}{floors[spec.floor_key]}; a carried entry is copied off disk and keeps its text, or is rewritten in place under its id ending with '{REWRITE_MARK} h{hop}: <why>', its prior text staying in {hop_rel}; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '{ref}', 'reason': ...}}, which lists it in {hop_rel} under '## {spec.retired_heading}'; write 'None.' plus a reason here when that list empties the section; delete this line when nothing changes",
+                f"optional: new entries below the carried ones, one per line, {entry_shape}, new ids from {spec.prefix}{floors[spec.floor_key]}; a carried entry is copied off disk and keeps its text, or is rewritten in place under its id ending with '{REWRITE_MARK} h{hop}: <why>', its prior text staying in {hop_rel}; one that no longer bears on the work leaves only through the slots' 'retire' list as {{'ref': '{ref}', 'reason': ...}}, which lists it in {hop_rel} under '## {spec.retired_heading}'; write 'None.' plus a reason here when that list empties the section; delete this line when nothing changes",
             ),
         ]
 
@@ -4571,6 +4643,11 @@ def build_skeleton_3(
             "Pending commands",
             "commands",
             "every command waiting on the user, verbatim; 'None.' plus a reason when none waits",
+        ),
+        (
+            "Reminders",
+            "reminders",
+            f"one per line, {REMINDER_SHAPE}, new ids from M{floors.get(REMINDERS.floor_key, 1)}; every item that affects a later session: a user-run command gated on a condition, a timed reminder, a point to raise at chain close; one that is done leaves only through the slots' 'retire' list as {{'ref': '[M<n>]', 'reason': ...}}, which lists it in {hop_rel} under '## {REMINDERS.retired_heading}'; 'None.' plus a reason when nothing waits",
         ),
         (
             "Environment to re-establish",
@@ -4777,7 +4854,7 @@ def cmd_new(args: argparse.Namespace) -> int:
         if isinstance(pred.shape, int) and pred.shape > NEWEST_SHAPE:
             return _die(
                 1,
-                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it",
+                f"predecessor carries handoff_shape {pred.shape}, newer than this script knows ({NEWEST_SHAPE}): read it, do not build on it; update session-flow, then re-run",
             )
         if args.shape is None and pred.shape in HOP_FILE_SHAPES:
             args.shape = max(HANDOFF_SHAPE, pred.shape)
