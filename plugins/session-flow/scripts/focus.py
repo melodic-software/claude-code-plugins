@@ -129,10 +129,14 @@ def _boolean(value: str | None) -> bool | None:
 
 
 def _user_value(given: str | None, env: Mapping[str, str]) -> str | None:
-    value = given if given is not None else env.get(OPTION_ENV)
-    if value is None or value == "" or value.startswith("${"):
-        return None
-    return value
+    """The user layer, or None when unset. From a skill's `${user_config.<key>}`, the literal
+    placeholder and a value equal to the default `true` both count as unset, since a rendered
+    default cannot be told from no choice (reference/config.md, Resolution). Claude Code exports
+    `CLAUDE_PLUGIN_OPTION_<KEY>` only for an option the user set
+    (docs/contracts/hook-config-delivery/README.md, fact 3)."""
+    if given is not None:
+        return None if given in ("", "true") or given.startswith("${") else given
+    return env.get(OPTION_ENV) or None
 
 
 def _git_root(start: Path) -> Path | None:

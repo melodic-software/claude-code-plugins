@@ -3,6 +3,7 @@ set -uo pipefail
 
 EVENT="${1:-}"
 [[ -n "$EVENT" ]] || exit 0
+[[ "${CLAUDE_PLUGIN_OPTION_COMPACT_FOCUS_ENABLED:-}" != false ]] || exit 0
 DATA="${CLAUDE_PLUGIN_DATA:-}"
 if [[ "$EVENT" == PreCompact ]]; then
   case "${DATA##*/}" in
