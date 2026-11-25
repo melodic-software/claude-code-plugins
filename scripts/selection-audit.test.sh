@@ -260,6 +260,23 @@ EOF
   else
     fail "trace: budget without --strict exit $rc, want 0"
   fi
+
+  s="$TMP_ROOT/stale-repo"
+  git_repo "$s"
+  mkdir -p "$s/suites" "$s/data"
+  echo stale >"$s/data/stale.txt"
+  printf '%s\n' '#!/usr/bin/env bash' 'git status --porcelain >/dev/null' >"$s/suites/status.test.sh"
+  ci_fallback "$s" suites/status.test.sh
+  git -C "$s" add -A && git -C "$s" commit -qm base
+  find "$s" -path "$s/.git" -prune -o -type f -exec touch -d 2000-01-01 {} +
+  rc=0
+  (cd "$s" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+    bash "$AUDIT" trace --strict --out "$TMP_ROOT/out-stale" suites/status.test.sh) >/dev/null 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 ]] && ! grep -qF data/stale.txt "$TMP_ROOT/out-stale/edges.tsv"; then
+    ok "trace: a stale index is refreshed first, so git re-hashing tracked files is not counted as the suite's reads"
+  else
+    fail "trace: stale index exit $rc, edges [$(cat "$TMP_ROOT/out-stale/edges.tsv" 2>/dev/null)]"
+  fi
 fi
 
 r="$TMP_ROOT/replay-repo"
