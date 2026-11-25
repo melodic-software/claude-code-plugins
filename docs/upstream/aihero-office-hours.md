@@ -55,7 +55,7 @@ Disposition is `take`, `adapt`, `already have`, `reject` or `watch`, with the re
 
 | Idea | What it does | Disposition | Lands in |
 |---|---|---|---|
-| A scheduled run finds superseded ADRs | Checks decision records on a timer and proposes retirements | **adapt**: the ADR audit and the glossary audit become two presence-gated, report-only lanes of the weekly drift sweep; retiring stays a person's yes | [`drift-delta-sweep.md`](../../plugins/autonomy/reference/routines/drift-delta-sweep.md); not started, waits on the automation design |
+| A scheduled run finds superseded ADRs | Checks decision records on a timer and proposes retirements | **adapt**: the ADR audit and the glossary audit become two presence-gated, report-only checks in the weekly drift sweep; retiring stays a person's yes | [`drift-delta-sweep.md`](../../plugins/autonomy/reference/routines/drift-delta-sweep.md); not started, waits on the automation design |
 | A refactoring playbook the agent writes for its next run | Each run records what it learned in a file later runs read | **watch**: decided with lane memory; a recipe worth repeating becomes code (a helper, a lint rule) | none in this repository yet |
 
 ### Where the factory lives
