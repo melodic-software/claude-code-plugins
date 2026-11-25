@@ -143,10 +143,6 @@ out="$(bash "$P/skills/setup/scripts/setup.sh" check --root "$U" 2>&1)" || rc=$?
 assert_line "a detected language with no setup arm is named" "$out" '^rust +- +NONE +setup has no lint check for this language$'
 assert_eq "and it is no finding" 0 "$rc"
 
-# The instruction line names the file Claude Code loads here: AGENTS.md only
-# when no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md exists; CLAUDE.local.md
-# always loads, and the user file follows CLAUDE_CONFIG_DIR
-# (code.claude.com/docs/en/memory#agents-md).
 target() {
   local d="$T/instr-$1" f
   shift

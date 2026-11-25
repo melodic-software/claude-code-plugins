@@ -1,6 +1,4 @@
 # shellcheck shell=bash
-# GitHub conformance binding: on-demand, against a throwaway sandbox repo (never a
-# coordination repo) named by the required WIT_CONFORMANCE_GITHUB_REPO=owner/name.
 
 CB_BINDING_TMP=""
 

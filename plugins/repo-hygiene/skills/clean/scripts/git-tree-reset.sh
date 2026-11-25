@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# Working-tree realignment: fetch + reset --hard to upstream + clean -fdx,
-# preserving secrets / local config / runtime deps / skill data by default.
-#
-# Usage:
-#   git-tree-reset.sh [--dry-run] [--apply] [--force-default-branch]
-#                     [--include-deps] [--include-secrets] [--allow-unpushed]
-# Default: --dry-run
-#
-# Default-preserve (NOT removed unless opted in): secrets / local config
-# (.env*, *.local.json/.jsonc/.md, IDE + cloud-cred + codex config), runtime
-# deps (node_modules/.venv/vendor), skill data (.claude/skills/*/data/).
-#   --include-deps      also remove runtime deps (rebuildable via bootstrap)
-#   --include-secrets   also remove secrets / local config (UNRECOVERABLE)
-# Skill data is always preserved (no flag removes it).
-#
-# Safety: after clean, any tracked file deleted via reparse-point traversal
-# (Windows junction / Unix symlink into a tracked dir) is auto-restored from
-# the index — safe because reset --hard ran first. Unpushed local commits abort
-# the apply unless --allow-unpushed.
-#
 # Exit: 0 success; 1 not a git repo; 2 usage/validation error;
 #       3 blocked on default branch; 4 blocked on unpushed commits;
 #       5 reset --hard failed (apply aborted before clean);
@@ -120,16 +100,6 @@ if [[ -z "$UPSTREAM" ]]; then
 fi
 BRANCH_REMOTE="$(git config "branch.${CURRENT_BRANCH}.remote" 2>/dev/null | tr -d '\r' || true)"
 
-# Gate an unresolvable upstream before any destructive op. When the upstream is
-# configured (branch.<name>.remote + .merge) but its remote-tracking ref is
-# absent — e.g. a feature branch whose squash-merged PR left the remote branch
-# deleted and pruned — git rev-parse --abbrev-ref '@{u}' prints the LITERAL token
-# @{u} instead of a ref name, and the pipe above masks git's non-zero exit, so
-# the empty-guard passes and UPSTREAM=@{u}. Left unchecked, git reset --hard @{u}
-# would fail AFTER the guards. Verify @{u} names a real, resolvable ref (a
-# local-only upstream, branch.remote=".", still resolves to its local branch and
-# passes); if not, skip the repo with a clear reason before any label output
-# whose values (e.g. AheadCount) @{u} would silently corrupt.
 if ! git rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
   UNRESOLVED_MERGE="$(git config "branch.${CURRENT_BRANCH}.merge" 2>/dev/null | tr -d '\r' || true)"
   UNRESOLVED_MERGE_LABEL="${UNRESOLVED_MERGE#refs/heads/}"
@@ -137,10 +107,6 @@ if ! git rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
   exit_planned_none 6
 fi
 
-# Fetch the remote the current branch actually tracks, not a hardcoded origin —
-# a branch tracking a non-origin remote would otherwise reset to stale refs. A
-# local-only upstream (branch.<name>.remote = ".") has no remote to fetch; the
-# git-remote existence guard below skips the fetch in that case.
 UPSTREAM_REMOTE="${BRANCH_REMOTE:-origin}"
 
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT" "$UPSTREAM_REMOTE")"
@@ -184,8 +150,6 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   if [[ "$AHEAD_COUNT" -gt 0 ]]; then
     printf 'WARNING: HEAD is %s commit(s) ahead of %s — apply needs --allow-unpushed.\n' "$AHEAD_COUNT" "$UPSTREAM"
   fi
-  # Dry-run is inventory-only: never fetch (it would mutate .git remote-tracking
-  # refs and can prompt/fail on credentials before the user confirms anything).
   echo "--- clean preview (git clean -fdxn, default-preserve applied) ---"
   git clean -fdxn ${PRESERVE_ARGS[@]+"${PRESERVE_ARGS[@]}"} 2>/dev/null | head -200 || true
   exit 0
@@ -204,10 +168,6 @@ if [[ "$AHEAD_COUNT" -gt 0 && "$ALLOW_UNPUSHED" -eq 0 ]]; then
   printf 'AppliedClean: none\n'
   exit 4
 fi
-# Gate the destructive clean on a successful reset. Without -e, a failed
-# reset --hard would otherwise fall through to git clean -fdx, leaving the tree
-# cleaned but not reset (a partial destructive op). On failure: abort before
-# clean and the restore guard, report honestly, exit non-zero.
 if ! git reset --hard "$UPSTREAM"; then
   printf 'FAILED: git reset --hard %s exited non-zero — aborting apply; git clean skipped. Note: reset --hard is not atomic and may have partially modified tracked files.\n' "$UPSTREAM" >&2
   printf 'AppliedReset: failed\n'
@@ -216,31 +176,16 @@ if ! git reset --hard "$UPSTREAM"; then
 fi
 printf 'AppliedReset: git reset --hard %s\n' "$UPSTREAM"
 
-# Capture clean stderr AND its exit status. git clean returns non-zero when it
-# fails to remove any path; the expected, non-fatal case is a locked / in-use file
-# (surfaced below as Unremovable). CLEAN_RC must be read on the very next line —
-# before any other command runs — or $? is clobbered.
 CLEAN_STDERR="$(git clean -fdx ${PRESERVE_ARGS[@]+"${PRESERVE_ARGS[@]}"} 2>&1 >/dev/null)"
 CLEAN_RC=$?
 UNREMOVABLE="$(printf '%s\n' "$CLEAN_STDERR" | grep -c 'failed to remove' || true)"
 
-# Gate the AppliedClean success line on the real outcome. A non-zero exit whose
-# sole cause is locked/in-use files (every non-empty stderr line is a 'failed to
-# remove' warning) is NOT a failure: clean ran and removed everything it could,
-# and that is reported honestly as Unremovable — do not regress that into a hard
-# error. A non-zero exit with no stderr, or with any stderr line that is not a
-# tolerated locked-file warning, is a genuine clean failure; emit a distinct
-# failure line and a non-zero exit instead of a success line that misrepresents
-# the outcome.
 CLEAN_FAILED=0
 if [[ "$CLEAN_RC" -ne 0 ]] &&
   { [[ -z "$CLEAN_STDERR" ]] || LC_ALL=C grep -qv -e '^$' -e 'failed to remove' <<<"$CLEAN_STDERR"; }; then
   CLEAN_FAILED=1
 fi
 
-# Restore guard runs after clean unconditionally (data-loss guard): recover any
-# tracked file clean deleted via reparse-point traversal, even on the failure path
-# below — a clean that errored mid-run may still have deleted tracked files first.
 RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 
 if [[ "$CLEAN_FAILED" -eq 1 ]]; then
@@ -251,10 +196,6 @@ else
   printf 'AppliedClean: git clean -fdx%s\n' "$PRESERVE_SUFFIX"
 fi
 
-# The count lines and the restore-guard warning are the same on both paths: a
-# clean that errored mid-run may still have deleted tracked files (reparse-point
-# traversal) before failing, and the machine-readable RestoredTracked line alone
-# can be missed, so the human-visible warning is not reserved for success.
 printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
 printf 'Unremovable: %s\n' "${UNREMOVABLE:-0}"
 if [[ "${RESTORED:-0}" -gt 0 ]]; then

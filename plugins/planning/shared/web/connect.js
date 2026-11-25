@@ -28,7 +28,6 @@
     globalThis.crypto.getRandomValues(b);
     return Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
   }
-  // Letters that look like the Latin ones in "END SESSION DATA" (Cyrillic, Greek), folded only for matching.
   const LOOKS = { "А": "A", "а": "a", "Α": "A", "α": "a", "Е": "E", "е": "e", "Ε": "E", "ε": "e", "І": "I", "і": "i", "Ι": "I", "ι": "i",
     "О": "O", "о": "o", "Ο": "O", "ο": "o", "Ѕ": "S", "ѕ": "s", "Т": "T", "т": "t", "Τ": "T", "τ": "t", "Ν": "N", "Н": "N", "Δ": "D", "ԁ": "d" };
   const fold = s => s.replace(/./gu, c => LOOKS[c] || c);

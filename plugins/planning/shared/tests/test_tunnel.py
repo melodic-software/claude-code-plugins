@@ -259,7 +259,6 @@ class TestExit(TunnelCase):
         with mock.patch.object(detached, "command_line", return_value=None):
             self.assertIsNone(tunnel.alive(self.d))
             self.assertNotIn("processStart", tunnel.read(self.d))
-            # On Windows too: the image path alone never stands in for the command line.
             with mock.patch.object(detached, "WINDOWS", True), mock.patch.object(detached, "alive", return_value=True), mock.patch.object(detached, "started", return_value="1"):
                 self.assertIsNone(tunnel._legacy_start(rec))
         self.assertIsNotNone(tunnel.alive(self.d))

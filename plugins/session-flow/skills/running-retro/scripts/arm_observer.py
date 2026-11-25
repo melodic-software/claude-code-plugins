@@ -44,8 +44,6 @@ def spawn_detached(cmd: list[str], cwd: str) -> int:
         "stderr": subprocess.DEVNULL,
     }
     if os.name == "nt":
-        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW.
-        # No CREATE_BREAKAWAY_FROM_JOB: plain detach already escapes the job here.
         kwargs["creationflags"] = 0x00000008 | 0x00000200 | 0x08000000
     else:
         kwargs["start_new_session"] = True
@@ -111,7 +109,6 @@ def main() -> int:
         default=900.0,
         help="a transcript idle this long counts as ended",
     )
-    # Empty = observer.py reads the plugin.json userConfig default.
     p.add_argument("--model", default="")
     p.add_argument("--effort", default="")
     p.add_argument("--min-lines", default="")

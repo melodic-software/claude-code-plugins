@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Runs share.py (beside this script) with the first Python 3 that actually runs.
-#   bash share.sh [--dir DATA_DIR] <command> ...
-# Probes python3, then python. A zero-length file (the Windows Store alias stub) or a
-# candidate that cannot run a trivial program is skipped. Exits 2 when none runs.
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 for name in python3 python; do
   candidate=$(command -v "$name" 2>/dev/null) || continue

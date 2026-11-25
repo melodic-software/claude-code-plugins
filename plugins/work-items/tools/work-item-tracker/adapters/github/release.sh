@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# release <id> --lease-comment-id <n> [--holder <h>] — CONTRACT.md "Lease protocol". Ends the
-# caller's own live lease early by adding superseded_at in place, then unassigns the
-# holder unless another live lease of that holder remains. The PATCH routes through the
-# same writer that posted the lease comment (bot).
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -42,8 +38,6 @@ emit() {
       released: $released, reason: $reason}'
 }
 
-# The comment REST path is repo + comment id, not issue-scoped, so a stale or
-# cross-issue handle would otherwise supersede a different item's lease.
 wit_run_gh read api "repos/$owner/$repo/issues/comments/$lease_comment_id" \
   --jq '{body, issue: (.issue_url | capture("/issues/(?<n>[0-9]+)$") | .n)}'
 comment_issue="$(jq -r '.issue // empty' <<<"$WIT_GH_OUT")"
@@ -58,9 +52,6 @@ if [[ -z "$lease_json" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# Comment ids are public, so the handle alone would let any session end another
-# login's lease. Same-login sessions are told apart by the handle, as for renew-lease.
-# --holder stands in for the login where `gh api user` cannot run (an installation token).
 if [[ -n "$holder_override" ]]; then
   login="$holder_override"
 else

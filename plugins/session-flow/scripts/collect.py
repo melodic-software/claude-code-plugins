@@ -72,15 +72,8 @@ HEAD_BYTES = 4096
 IDLE_CUTOFF_S = 300
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
-# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
-# versions carry MultiEdit calls, and they must still count as edits.
-# Pointer: for where the permissions page names the legacy MultiEdit tool, see
-# https://code.claude.com/docs/en/permissions#read-and-edit
-# As of: 2026-10-13
-# Recheck trigger: that section stops naming MultiEdit, or moves.
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 AGENT_TOOLS = frozenset({"Agent", "Task"})
-# System subtypes seen on current versions; any other is counted in `unknown.system_subtypes`.
 SYSTEM_SUBTYPES = frozenset(
     {
         "agents_killed",
@@ -107,21 +100,14 @@ CORRECTION_RE = re.compile(
 CORRECTION_NEG = re.compile(r"never ?mind|stepped away|try again", re.I)
 FRUSTRATION_RE = re.compile(r"\b(wtf|god ?damn|damn|shit|crap|ffs|seriously|ugh)\b|!{2,}|\?{3,}", re.I)
 
-# Census: key paths to this depth; keys that are data (ids, paths, question text) fold to <*>.
 CENSUS_DEPTH = 3
 DYNAMIC_KEY = re.compile(r"^(toolu_|srvtoolu_|call_)|[/\\\s?:]|^[0-9a-f-]{16,}$|^\d+$")
 DATA_MAPS = frozenset({"trackedFileBackups", "answers", "wireToolInputs"})
-# A census value is kept only when it looks like an identifier; free text buckets as <other>.
 CENSUS_LABEL = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
 
-# Redaction is skipped, never preceded by a cut, for text longer than this: a cut can split a secret
-# and leave its head in the kept window, and the vendored patterns slow down on very long text.
 TEXT_CAP_FLOOR = 4096
 TOO_LONG = "<too-long>"
 SUPPRESSED = "<suppressed>"
-# `<session>.orphaned-<timestamp>-<suffix>.jsonl` is an earlier transcript Claude Code set aside, not
-# a second session. Pointer: https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically
-# (as of 2026-10-04; recheck when that table renames the set-aside transcript).
 ORPHANED = ".orphaned-"
 
 
@@ -398,7 +384,6 @@ class SessionScan:
             self.census[self.agent_call_bucket]["invariant:subagent_files_missing"] += 1
 
     def _tool_use(self, block: dict) -> None:
-        # Streaming can repeat a block in a later record; the id counts it once.
         tool_id = block.get("id")
         if isinstance(tool_id, str):
             if tool_id in self.tool_ids:
@@ -471,7 +456,6 @@ class SessionScan:
             infos = record.get("hookInfos")
             hooks = [h for h in infos if isinstance(h, dict)] if isinstance(infos, list) else []
             durations = [_number(h.get("durationMs")) for h in hooks]
-            # Matching hooks run in parallel, so the person waits for the slowest one.
             total, wait = sum(durations), max(durations, default=0)
             self.stop_hook_ms.append(total)
             self.stop_hook_wait_ms.append(wait)
@@ -666,7 +650,6 @@ class Scrubber:
         return dict(out)
 
     def paths(self, edits: Counter, cwd: str | None) -> dict:
-        # Paths are transcript text: none is stored while redaction fails closed, only the count.
         if self.redactor.fail_closed:
             return {SUPPRESSED: sum(edits.values())} if edits else {}
         relative: Counter = Counter()
@@ -710,8 +693,6 @@ def build_record(
     time_block = scan.time_block()
     scan.usage_regressions()
     scan.subagent_gap(len(subagents))
-    # Repo identity above used the raw cwd; every string below is stored, so each goes through scrub.
-    # The dict is built in order, so the closing redaction block sees every scrub call's count.
     return {
         "schema": RECORD_SCHEMA,
         "collector_version": version,
@@ -770,7 +751,6 @@ def build_record(
             "started_with_clear": scan.started_with_clear,
         },
         "link_keys": {
-            # Titles and agent names are typed text or drawn from it, so --excerpt-chars 0 stores none.
             "custom_title": scrub.excerpt(scan.custom_title) if excerpt_chars else None,
             "ai_title": scrub.excerpt(scan.ai_title) if excerpt_chars else None,
             "agent_name": scrub.excerpt(scan.agent_name) if excerpt_chars else None,

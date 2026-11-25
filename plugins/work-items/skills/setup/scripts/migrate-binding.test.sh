@@ -2,8 +2,6 @@
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR
-# The developer's global and system git config (a core.excludesFile among them)
-# must not decide whether a fixture's personal override path is ignored.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

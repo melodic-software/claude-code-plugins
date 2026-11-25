@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// Surface registry for /planning:interview: one SurfaceEntry per file in entries/, and
-// resolveSurface, which picks one. Adding a surface (or a shared-session variant) is adding an
-// entry file; the skill names no surface value and reads what the resolution hands it.
-//
-// SurfaceEntry (default export of each entries/*.mjs):
-//   id          registered value, matched against an argument and the settings
-//   reportName  the name the offer and notice lines show
-//   aliases     optional words that also ask for it (the `share` action, say)
-//   onRequest   optional; true keeps it out of the alternatives and the offer line, so only an
-//               argument or a setting picks it
-//   available(context) -> {ok, reason}   probes PATH only: no network, no process start
-//   start(session) -> handle             {read: [plugin-root-relative spokes], rules}; the
-//                                        spoke's own command starts any process
-//
-// Order: an argument (a surface the user asks for in the session), then planning's `surface`
-// userConfig, then the plugin.json default. Nothing about rendered-view mediums is read: medium
-// never moves the surface.
-//
-// CLI: node registry.mjs resolve [--surface <userConfig value>] [--argument <word>]
-//                                [--data-dir <plugin data>] [--unattended]
-//      prints the resolution as one JSON line; `list` prints the entries.
 import { accessSync, constants, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

@@ -9,8 +9,7 @@ source "$D/mock.sh"
 
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LONG_AGO="1999-01-01T00:00:00Z"
-# portability-ok: GNU-first rung of a ladder whose fallback echoes the same literal — the GNU
-# form round-trips its own input here, so the BSD path needs no `date` call at all
+# portability-ok: GNU-first rung of a ladder whose fallback echoes the same literal
 RECENT="$(date -u -d '1999-06-01T00:00:00Z' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo '1999-06-01T00:00:00Z')"
 HANDLE=1787227200500
 
@@ -121,9 +120,6 @@ assert_eq "and the item is NOT reclaimed" "false" "$(jq -r '.reclaimed' <<<"$(li
 UNASSIGNED="$(lin_bodies | jq -rs '[.[] | select(.query | test("issueUpdate"))] | length')"
 assert_eq "and the rival's assignment is untouched" "0" "$UNASSIGNED"
 
-# Activity on a LATER page must still count. Linear returns comments oldest-first, so on
-# a long-running item the comments that prove the holder is alive are the ones a
-# first-page-only read never sees — and reclaiming then releases a live lease.
 lin_reset
 lin_data 'commentUpdate' '{"commentUpdate":{"success":true}}'
 lin_data 'commentCreate' '{"commentCreate":{"success":true,"comment":{"id":"uuid-comment-note","createdAt":"2026-08-20T13:00:00.000Z"}}}'

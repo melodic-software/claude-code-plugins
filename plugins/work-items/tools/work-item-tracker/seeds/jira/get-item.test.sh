@@ -106,8 +106,6 @@ assert_eq "done-category → closed" "closed" "$(jq -r '.state' <<<"$OUT")"
 assert_eq "no assignee → empty array" "0" "$(jq -r '.assignees | length' <<<"$OUT")"
 assert_eq "no parent → null" "null" "$(jq -r '.parent_id' <<<"$OUT")"
 
-# An assignee object present but with a null accountId (a privacy-restricted user)
-# projects to an empty assignees array, not [null] — the frontier keys on emptiness.
 cat >"$JIRA_FIX/1.body" <<'JSON'
 {"key":"SW2-6","fields":{"summary":"Restricted","status":{"statusCategory":{"key":"new"}},"assignee":{"accountId":null},"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}
 JSON
@@ -126,8 +124,6 @@ else
   fail "malformed key made no HTTP call" "no curl call" "curl invoked"
 fi
 
-# A well-formed id for a project NOT in the binding's project_keys (binding declares
-# only SW2) must be refused before any fetch — reads are bounded to the declared scope.
 jira_run "$S" "jira:test.atlassian.net/OTHER#1"
 assert_eq "out-of-scope project id → usage (2)" "2" "$RC"
 if [[ ! -e "$JIRA_FIX/.counter" ]]; then

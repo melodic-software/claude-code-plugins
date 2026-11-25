@@ -4,8 +4,6 @@
 GITEA_FIX=""
 GITEA_MOCK=""
 
-# gitea_fixture_init — a temp dir holding the mock curl, a valid binding, and the
-# response table. Call once per test file; pair with a trap that removes GITEA_FIX.
 gitea_fixture_init() {
   GITEA_FIX="$(mktemp -d)"
   GITEA_MOCK="$GITEA_FIX/bin"
@@ -57,8 +55,6 @@ MOCK
   gitea_write_binding
 }
 
-# gitea_write_binding [<extra-config-json>] — a valid gitea binding, optionally merged
-# with extra keys for the case under test.
 gitea_write_binding() {
   jq -cn --argjson extra "${1:-{\}}" \
     '{schema_version:"1.0", provider:"gitea",
@@ -68,33 +64,21 @@ gitea_write_binding() {
     >"$GITEA_FIX/binding.json"
 }
 
-# gitea_seed <url-substring> <status> <body-json> — add a route. Seeded order is match
-# order, so seed the most specific substring first.
 gitea_seed() {
   printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "${4:-}" >>"$GITEA_FIX/routes"
 }
 
-# gitea_seed_total <url-substring> <status> <body-json> <x-total-count> — the same, plus
-# the X-Total-Count header gitea's issue-list and label-list handlers really send
-# (ctx.SetTotalCountHeader). Seeded separately because the dependency-list handler sends
-# none, and the adapter must behave differently in the two cases.
 gitea_seed_total() {
   gitea_seed "$1" "$2" "$3" "X-Total-Count: $4"
 }
 
-# gitea_reset_routes — drop every seeded route and the recorded request log.
 gitea_reset_routes() {
   : >"$GITEA_FIX/routes"
   : >"$GITEA_FIX/requests"
 }
 
-# gitea_requests — the recorded "<METHOD> <URL>" lines, one per request.
 gitea_requests() { cat "$GITEA_FIX/requests"; }
 
-# gitea_run <script> <args…> — run a verb against the fixture and ECHO its exit code,
-# so it reads as `rc="$(gitea_run ...)"`. That makes it a subshell, which is why the
-# captured streams go to FILES rather than to variables: an assignment here would not
-# survive back to the caller. Read them with gitea_out / gitea_err.
 gitea_run() {
   WORK_ITEM_TRACKER_BINDING="$GITEA_FIX/binding.json" \
     WIT_GITEA_CURL="$GITEA_MOCK/curl" \
@@ -103,17 +87,9 @@ gitea_run() {
   printf '%s' "$?"
 }
 
-# gitea_out / gitea_err — the streams the most recent gitea_run captured.
 gitea_out() { cat "$GITEA_FIX/stdout" 2>/dev/null; }
 gitea_err() { cat "$GITEA_FIX/stderr" 2>/dev/null; }
 
-# gitea_fixture_adapter <list_items_max>: a private copy of this adapter's verb scripts
-# under GITEA_FIX, in GITEA_FIX_ADAPTER, beside a capabilities.json that declares the given
-# paging ceiling. The verbs read their ceiling from the manifest next to them, so running
-# the copy's verb IS running under that ceiling: no override knob, and nothing in the
-# adapter knows it is under test. The copy's ../../lib does not exist, so run it as
-# `WIT_SEAM_LIB_DIR="$GITEA_SEAM_LIB" gitea_run "$GITEA_FIX_ADAPTER/<verb>.sh"`, the lib
-# the real adapter would have resolved for itself.
 GITEA_FIX_ADAPTER=""
 GITEA_SEAM_LIB=""
 gitea_fixture_adapter() {

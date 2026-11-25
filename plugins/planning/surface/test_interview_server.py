@@ -540,7 +540,6 @@ class TestEnsureRunning(ServerCase):
         p = ensure_running(self.dir, "--open", "--user-settings", str(settings))
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         deadline = time.monotonic() + 5
-        # write_text creates the file before it writes the URL, so wait for the text.
         opened = ""
         while not opened and time.monotonic() < deadline:
             opened = out.read_text(encoding="utf-8") if out.exists() else ""
@@ -961,9 +960,6 @@ class TestVisualFile(ServerCase):
             "TOKEN=transient\n", encoding="utf-8"
         )
         (d / "images" / ".hidden.png").write_bytes(cls.BYTES)
-        # Each would be served without the lexical guard: a same-drive drive-relative path joins
-        # inside the data dir on Windows (x.png), a colon name is a plain file elsewhere, and on
-        # NTFS ok.png:hid is an alternate data stream of ok.png.
         (d / "x.png").write_bytes(cls.BYTES)
         if os.name != "nt":
             (d / "C:x.png").write_bytes(cls.BYTES)
@@ -1084,7 +1080,6 @@ class TestVisualFile(ServerCase):
         self.assertEqual(self.fetch("dot")[0], 404)
 
     def test_hard_link_to_the_session_file_is_404(self):
-        # The link's name and resolved path both pass the runtime-path check; its link count does not.
         link = self.dir / "images" / "link.png"
         try:
             os.link(self.dir / ".interview-session.env", link)
@@ -3674,8 +3669,6 @@ class TestEnsureRunningSettings(unittest.TestCase):
         self.dir = self.tmp / "data"
         self.dir.mkdir()
         self.addCleanup(run_round, self.dir, "stop")
-        # BROWSER points webbrowser at a program that records the URL and exits 0, so the
-        # default-browser fall-through is observable and never opens a real browser.
         self.fallback = self.tmp / "fallback.txt"
         self.env = settings_env(
             CLAUDE_PROJECT_DIR=str(self.repo), BROWSER=str(self.fallback_program())
@@ -3809,7 +3802,6 @@ class TestEnsureRunningSettings(unittest.TestCase):
         self.assertNotIn("token", stderr)
 
     def fallback_opened(self):
-        # webbrowser waits for the program, so the URL is written before ensure-running returns.
         return (
             self.fallback.read_text(encoding="utf-8").strip()
             if self.fallback.exists()

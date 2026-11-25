@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# One part of the page alignment check, run by align-<part>.test.sh: align.js over the sizes its PARTS puts in
-# <part>, every view and theme at each. align.js seeds its own sessions through share.sh ensure-running on spare
-# ports (fake cloudflared), and refuses the run while a part has no wrapper or a size sits in two parts. Passes only
-# when align.js exits 0 and its last line is PASS n / n with n above 0. Locally a missing node, playwright-core or
-# Chromium skips green; under CI=true it fails.
-#   bash plugins/planning/shared/tests/align-run.sh <part>
-# Narrow a run with ALIGN_VIEWS (comma list of view names) and ALIGN_SIZES (comma list of WxH, e.g. 390x844).
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 part=${1:-}

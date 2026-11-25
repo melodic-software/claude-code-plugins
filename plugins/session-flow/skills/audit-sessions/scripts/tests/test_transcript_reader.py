@@ -57,7 +57,6 @@ def test_other_record_types_classify_as_unknown_and_are_counted():
     assert stats["records"] == 17
 
 
-# Record types newer Claude Code versions write: one synthetic record each in `current-types.jsonl`.
 USED_CURRENT_TYPES = ["ai-title"]
 IGNORED_CURRENT_TYPES = [
     "atis-latch",

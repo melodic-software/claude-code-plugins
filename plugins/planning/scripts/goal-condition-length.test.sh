@@ -45,8 +45,6 @@ expect_exit "missing --file -> 2" 2 "" --limit 5 --file "$TMP/nope.txt"
 out="$(printf 'abcdef' | bash "$SUT" --limit 5 2>/dev/null)"
 if [[ "$out" == "chars=6 limit=5 status=over" ]]; then pass "stdout reports chars/limit/status"; else fail "stdout wrong: '$out'"; fi
 
-# A multibyte char counts as one code point, not its byte length. Skipped when
-# perl is absent and `wc -m` would fall back to a byte count in a non-UTF-8 locale.
 if command -v perl >/dev/null 2>&1; then
   expect_exit "multibyte counts as 1 code point -> 0" 0 $'h\xc3\xa9llo' --limit 5
 else

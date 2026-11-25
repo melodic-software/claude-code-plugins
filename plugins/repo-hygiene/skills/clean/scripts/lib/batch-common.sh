@@ -1,29 +1,9 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034 # BATCH_ARG_ERROR is read by the sourcing scripts
-# Shared plumbing for the fleet (batch) clean orchestrator. Sourceable; not run
-# directly. Reuses clean_path_key / clean_skip_matches from clean-common.sh —
-# the separator-agnostic normalization + skip matching proven out by tree-batch.
-#
-# tree-batch (git-tree-reset-batch.sh) reads lines, matches the skip ledger and
-# emits per-repo records through this module, but its resolve-dedup loop is
-# inline: batch_resolve_repos additionally runs each input through
-# batch_normalize_input (backslash folding), which tree-batch's loop does not, so
-# adopting it there is a behavior change rather than a lift. Measured on the
-# distinguishing input — a real git repo whose directory name contains a literal
-# backslash: tree-batch's loop resolves it and resets it, batch_resolve_repos
-# folds the name to a path that does not exist and reports it blocked
-# `not-a-directory`. Dropping a repo the caller named is the defect class this
-# tier exists to close, so the loop stays inline.
 
 # shellcheck source=clean-common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/clean-common.sh"
 
-# batch_normalize_input <path> — echo a git-friendly path: backslashes to forward
-# slashes, strip a trailing CR, collapse trailing slashes. `ghq list -p` emits
-# `<drive>:\repos\...` — backslashes break `xargs` (escapes eaten) and bash `[[ -d ]]`;
-# git and `git check-ignore` want the `<drive>:/repos/...` drive-letter forward-slash
-# form (git rev-parse --show-toplevel already emits it, so a normalized input
-# compares equal to a resolved toplevel). Drive letter is preserved as-is.
 batch_normalize_input() {
   local v="${1%$'\r'}"
   v="${v//\\//}"
@@ -31,18 +11,6 @@ batch_normalize_input() {
   printf '%s' "$v"
 }
 
-# batch_read_lines_into <array-name> <file|-> — append non-empty CR-stripped
-# lines. Raw (unnormalized): repo paths are normalized at resolve time, skip
-# entries are normalized by clean_skip_matches, so neither is pre-mangled here.
-#
-# Exit status is a source-open verdict, not a record-read verdict. Bash `read`
-# returns nonzero at ordinary EOF (help read: "unless end-of-file is
-# encountered"); that is not evidence the containing file operation failed.
-#   0  the selected source was opened/accepted and consumed to ordinary EOF.
-#      Empty input, blank lines, a trailing blank line, and a final
-#      non-newline-terminated line are all success.
-#   1  a named source is missing, not a regular file, or cannot be opened/read.
-#      No input-content shape returns 1. For `-`, ordinary stdin EOF is success.
 batch_read_lines_into() {
   local -n _dest="$1"
   local src="$2" line
@@ -53,49 +21,28 @@ batch_read_lines_into() {
     done
     return 0
   fi
-  # Named source: reject missing/non-regular before open so a directory never
-  # blocks on `read`. Then open explicitly so a permission/open failure is
-  # retained (a `while ... done <"$src"` that never enters the body would
-  # otherwise look like success).
   [[ -f "$src" ]] || return 1
-  # Fixed fd 3: Bash `{fd}` only allocates from 10 upward, so `ulimit -n 10`
-  # makes that open fail even when the list file is readable.
+  # A {fd} redirection allocates a descriptor of 10 or higher, which ulimit -n 10 refuses, so fd 3 is fixed:
+  # https://www.gnu.org/software/bash/manual/html_node/Redirections.html
   exec 3<"$src" || return 1
   while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -n "$line" ]] && _dest+=("$line")
   done
   exec 3<&-
-  # Explicit success: do not let the last `[[ -n "$line" ]]` (false on a
-  # trailing blank, or on the EOF guard after a delimiter) become the result.
   return 0
 }
 
-# Skip-list ledger. BATCH_SKIP_INPUTS is filled by each orchestrator's --skip /
-# --skip-from parsing; BATCH_SKIP_HITS parallels it one slot per entry, so an
-# entry that protected nothing can be surfaced instead of failing silently (the
-# original fleet-reset data loss). BATCH_SKIP_MATCHED carries the last entry that
-# matched the most recent batch_skip_match call.
 BATCH_SKIP_INPUTS=()
 BATCH_SKIP_HITS=()
 BATCH_SKIP_MATCHED=""
 
-# batch_reset_skip_hits — size the hit ledger to the skip list, every slot 0.
-# Pre-filling is load-bearing, not cosmetic: under `set -u` a read of an array
-# element that was never assigned is an unbound-variable error, and
-# batch_report_unmatched_skips reads EVERY slot, including entries no repo ever
-# matched. Call once, after the skip list is fully parsed.
 batch_reset_skip_hits() {
   local s
   BATCH_SKIP_HITS=()
   for ((s = 0; s < ${#BATCH_SKIP_INPUTS[@]}; s++)); do BATCH_SKIP_HITS+=(0); done
 }
 
-# batch_skip_match <repo_key> — does any skip entry cover this repo? Sets
-# BATCH_SKIP_MATCHED to the matching entry (the LAST one, when several match) for
-# the caller's Reason line, and returns 0/1 so the caller can branch without
-# re-testing. Every matching entry is marked hit, not just the reported one: an
-# entry that did protect a repo must never be reported UnmatchedSkip.
 batch_skip_match() {
   local repo_key="$1" s
   BATCH_SKIP_MATCHED=""
@@ -108,8 +55,6 @@ batch_skip_match() {
   [[ -n "$BATCH_SKIP_MATCHED" ]]
 }
 
-# batch_report_unmatched_skips — print one `UnmatchedSkip: <entry>` line per skip
-# entry that matched no repo in this run.
 batch_report_unmatched_skips() {
   local s
   for ((s = 0; s < ${#BATCH_SKIP_INPUTS[@]}; s++)); do
@@ -119,8 +64,6 @@ batch_report_unmatched_skips() {
   done
 }
 
-# Resolve-and-dedup accumulators, populated by batch_resolve_repos (BATCH_DUPS and
-# BATCH_DUP_OF by batch_dedupe_clones). Reset per batch_resolve_repos call.
 BATCH_TOPS=()
 BATCH_KEYS=()
 BATCH_INVALID=()
@@ -128,11 +71,6 @@ BATCH_INVALID_REASONS=()
 BATCH_DUPS=()
 BATCH_DUP_OF=()
 
-# batch_resolve_repos <input>... — normalize each input, resolve to its canonical
-# git toplevel, dedup by clean_path_key. A non-directory or non-git input is
-# recorded in BATCH_INVALID / BATCH_INVALID_REASONS (surfaced as a blocked
-# outcome by the caller) rather than silently dropped. Populates BATCH_TOPS /
-# BATCH_KEYS with the surviving unique repos in first-seen order.
 batch_resolve_repos() {
   BATCH_TOPS=()
   BATCH_KEYS=()
@@ -165,11 +103,6 @@ batch_resolve_repos() {
   done
 }
 
-# batch_remote_key <repo> — echo the repo's origin URL reduced to `host/path`: no
-# scheme, no user@, host lowercased, no trailing `/` or `.git`, scp form
-# (`git@host:o/r`) folded into the URL form. On github.com the path is lowercased
-# too (owner and repo names are case-insensitive there); on any other host it keeps
-# its case. Empty when there is no origin.
 batch_remote_key() {
   local u scp=1 host rest
   u="$(git -C "$1" remote get-url origin 2>/dev/null | tr -d '\r')"
@@ -186,9 +119,6 @@ batch_remote_key() {
   printf '%s%s' "$host" "$rest"
 }
 
-# batch_is_skip_listed <repo_key> — does any skip entry cover this repo? Unlike
-# batch_skip_match it records no hit and sets no reason, so it is safe to call
-# before the hit ledger is sized.
 batch_is_skip_listed() {
   local s
   for ((s = 0; s < ${#BATCH_SKIP_INPUTS[@]}; s++)); do
@@ -197,14 +127,6 @@ batch_is_skip_listed() {
   return 1
 }
 
-# batch_dedupe_clones — drop from BATCH_TOPS / BATCH_KEYS every repo whose origin
-# (batch_remote_key) matches an earlier one, keeping the first; the dropped path
-# and the kept path go to BATCH_DUPS / BATCH_DUP_OF. Linked worktrees of one
-# repository share a git common dir and are not clones: they stay, and the
-# per-tier common-dir dedup handles them. A repo with no origin never dedupes. A
-# skip-listed repo takes no part: it is never the kept clone and never a duplicate,
-# so skipping one clone leaves its sibling to run. Call it after the skip list is
-# parsed.
 batch_dedupe_clones() {
   local i top rk kept_top common kept_common
   local -A first=()
@@ -237,7 +159,6 @@ batch_dedupe_clones() {
   BATCH_KEYS=("${keys[@]}")
 }
 
-# batch_emit_dups — one skipped block per duplicate clone.
 batch_emit_dups() {
   local i
   for ((i = 0; i < ${#BATCH_DUPS[@]}; i++)); do
@@ -246,9 +167,6 @@ batch_emit_dups() {
   return 0
 }
 
-# batch_discover_fleet <array-name> — append the repos this machine knows about:
-# every `ghq list -p` entry (when ghq resolves) and the chezmoi source repo (when
-# chezmoi resolves and its source path is inside a git work tree).
 batch_discover_fleet() {
   local -n _fleet="$1"
   local src
@@ -283,22 +201,14 @@ batch_discover_owner() {
   return 0
 }
 
-# Unique shared-object-store accumulators, populated by batch_add_gitdir.
 BATCH_GITDIR_KEYS=()
 BATCH_GITDIR_TOPS=()
 
-# batch_reset_gitdirs — clear the git-common-dir dedup set (call once per run).
 batch_reset_gitdirs() {
   BATCH_GITDIR_KEYS=()
   BATCH_GITDIR_TOPS=()
 }
 
-# batch_add_gitdir <repo_top> — resolve a repo's shared object store
-# (`--git-common-dir`) and record it once. Linked worktrees share the main
-# clone's objects, so git gc / prune must run once per unique common dir, not per
-# worktree. The FIRST worktree top that maps to a common dir is kept as the
-# representative to `cd` into (never the bare `.git` dir — prune/gc need a work
-# tree cwd). Return: 0 newly added, 2 duplicate (already recorded), 1 unresolved.
 batch_add_gitdir() {
   local top="$1" common key e
   common="$(git -C "$top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
@@ -316,7 +226,6 @@ batch_add_gitdir() {
   return 0
 }
 
-# batch_emit <repo> <outcome> <reason> — one per-repo record block.
 batch_emit() {
   printf 'Repo: %s\n' "$1"
   printf 'Outcome: %s\n' "$2"
@@ -324,18 +233,10 @@ batch_emit() {
   printf '%s\n' '---'
 }
 
-# Repo-selection surface for the audit scripts (git-branch-audit.sh,
-# git-stash-audit.sh): the --repo / --repos-from / --skip / --skip-from that
-# clean-batch.sh takes, without its gate, because an audit deletes nothing.
 BATCH_REPO_INPUTS=()
 BATCH_ARG_SHIFT=0
 BATCH_ARG_ERROR=""
 
-# batch_take_selection_arg <flag> [value...] — consume one selection flag and its
-# values from the caller's remaining args. Pass "$@" whole; on return 0 the caller
-# runs `shift "$BATCH_ARG_SHIFT"`. Returns 1 with BATCH_ARG_ERROR set on a missing
-# value or an unreadable list file. --repo takes every consecutive non-flag word,
-# so a shell glob arrives whole.
 batch_take_selection_arg() {
   local flag="$1"
   BATCH_ARG_SHIFT=1
@@ -376,14 +277,6 @@ batch_take_selection_arg() {
   esac
 }
 
-# batch_run_fleet <script> [child-arg...] — audit every repo batch_resolve_repos
-# left in BATCH_TOPS, one at a time, by running <script> (an absolute path, given
-# no selection flags) from inside the repo. An audited block is `Repo: <top>`, the
-# child's output, `---`. A skip-listed repo, a repo whose git common dir was
-# already audited (a linked worktree of an earlier repo), a duplicate clone the
-# caller dropped with batch_dedupe_clones, an unresolvable input, and a child that
-# exits nonzero each get a batch_emit block instead, and none of them stops the
-# fleet. Ends with `FleetSummary:` and returns 0.
 batch_run_fleet() {
   local script="$1" i top out rc audited=0 skipped=0 dup=0 failed=0 blocked=0
   shift

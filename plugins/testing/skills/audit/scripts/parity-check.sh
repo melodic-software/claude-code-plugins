@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# parity-check.sh: prove a scanner change preserves findings.
-#
-# Runs the scanner at a base ref (default: the merge base with origin/HEAD,
-# extracted with git archive into .work/) and the working-tree scanner over
-# the same roots, under every awk on PATH among gawk and mawk, and diffs their
-# output and exit codes. Roots: each evals/fixtures subdirectory, then this
-# repository's whole tree.
-#
-# Each run must examine more than 0 files (test files plus Playwright configs)
-# and exit 0 or 1, or the diff proves nothing. It also diffs the resolved
-# regex strings of both engines per language, because the fixtures do not
-# exercise every alternative of every regex.
-#
-# Usage: parity-check.sh [<base-ref>]
 # Exit: 0 parity holds; 1 a diff or a vacuous run; 2 setup failed.
 set -uo pipefail
 

@@ -41,7 +41,6 @@ HTML_ASSET_CSP = (
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
-# Sleeps past the one-write-a-second limit: time.sleep(WRITE_INTERVAL) can read as a hair under it on the throttle's time.time clock.
 PAST_WRITE = session.WRITE_INTERVAL + 0.05
 
 
@@ -355,7 +354,6 @@ class TestTunnelSwitch(ServerCase):
 
     def setUp(self):
         super().setUp()
-        # The probe goes to this server's guest port with the new hostname as Host, as Cloudflare's edge would send it.
         probe = {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{self.port}", "SHARED_PROBE_SECONDS": "2"}
         lease = {"SHARED_LEASE_ORIGIN": free_edge(), "SHARED_CF_API": CLOSED_ORIGIN}
         patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe, **lease})
@@ -839,9 +837,6 @@ class TestRawRequests(ServerCase):
         self.assertLess(took, 4.0)
 
     def test_a_body_refused_unread_is_no_reset_while_the_client_still_sends_it(self):
-        # A socket closed with request bytes unread, or that gets more after it closed, resets the connection (RFC 9293
-        # 3.6.1), and a client still sending its body then fails instead of reading the answer. Here the reset shows as
-        # the client's next send failing.
         size = session.BODY_MAX + 1
         with socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
             s.sendall(f"POST /api/join HTTP/1.1\r\nHost: 127.0.0.1:{self.port}\r\nContent-Type: application/json\r\nContent-Length: {size}\r\n\r\n".encode())
@@ -955,8 +950,6 @@ class TestBusy(unittest.TestCase):
         return s
 
     def test_the_503_is_no_reset_while_the_client_still_sends(self):
-        # A socket closed with its request unread resets the connection, and a Windows client then drops the 503 it
-        # already holds (WinError 10053). Here the reset shows as the client's next send failing.
         app = self.busy_app()
         s = self.refused(app)
         time.sleep(0.3)
@@ -2590,6 +2583,12 @@ class TestWatcherKey(ServerCase):
                 with self.subTest(path=path, header=next(iter(headers))):
                     self.assertEqual(self.post(path, body, headers)[0], 401)
         self.assertEqual(self.get("/api/mine/requests", self.key)[0], 200)
+
+    def test_the_watcher_key_beside_another_credential_is_refused_on_its_own_routes(self):
+        for other in (self.bo, self.owner):
+            with self.subTest(other=next(iter(other))):
+                self.assertEqual(self.get("/api/mine/requests", {**self.key, **other})[0], 401)
+                self.assertEqual(self.post("/api/mine/requests/claim", {"id": self.rid}, {**self.key, **other})[0], 401)
 
     def test_revoke_ends_the_watcher_key(self):
         self.assertEqual(self.post("/api/watcher/revoke", {}, self.ann)[0], 200)

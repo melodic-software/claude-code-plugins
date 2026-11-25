@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# tcfg_norm <path or glob>: set TCFG_NORM to it normalized.
 tcfg_norm() {
   local p="${1//\\//}"
   if [[ "$p" =~ ^([A-Za-z]):/(.*)$ ]]; then
@@ -9,7 +8,6 @@ tcfg_norm() {
   TCFG_NORM="$p"
 }
 
-# tcfg_glob_re <normalized glob>: set TCFG_RE to the anchored ERE it means.
 tcfg_glob_re() {
   local g="$1" re="" c i
   for ((i = 0; i < ${#g}; i++)); do
@@ -221,7 +219,6 @@ LOADER="$PLUGIN/../skills/audit/scripts/adapter-load.awk"
 PCV="$PLUGIN/parse-concern-value.sh"
 PLUGIN="$PLUGIN/.."
 
-# A warning can quote a layer's text: strip non-printing bytes, keeping \t and \n.
 warn() { printf 'resolve-config: warning: %s\n' "$1" | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2; }
 
 CONV_HOME=""
@@ -263,8 +260,6 @@ if [[ "$MODE" != write && -f "$USER_OLD" ]]; then
   warn "$USER_OLD is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to $NEW_LOC/testing.local.yaml"
 fi
 
-# under_link <file>: true when <file>, or a directory above it inside <root>,
-# is a symlink. A repository could point such a layer at any file.
 under_link() {
   local d="$1"
   [[ -n "$ROOT" ]] || return 1

@@ -1,11 +1,3 @@
-// Offer source for optional plugins (offerable.json): the one module that asks a marketplace
-// whether it still lists a plugin and when the plugin's source path last changed. Every lookup is
-// cached in plugin data for 24 hours, a failed one included, and any failure means no offer.
-//
-// Freshness, by the newest commit touching the plugin's source path: under 3 months a plain
-// offer, 3 to 6 months an offer with that date, older than 6 months no offer. A name the
-// catalog no longer lists (renamed or removed) gets no offer. An installed plugin is never
-// offered; an installed planner is returned so the caller can name it.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -20,7 +12,6 @@ export const loadOfferable = (file = OFFERABLE) => JSON.parse(readFileSync(file,
 
 export const installCommand = e => `claude plugin install ${e.name} --marketplace ${e.repo} --scope user`
 
-// A data dir still shown as its `${...}` token was never substituted: there is nowhere to cache.
 const usable = dir => typeof dir === 'string' && dir.trim() !== '' && !/^\$\{[\w.]+\}$/.test(dir.trim())
 
 export async function githubJson(path) {
@@ -36,8 +27,6 @@ export async function githubJson(path) {
   return JSON.parse(await res.text())
 }
 
-// Installed plugin names from `claude plugin list --json`; null when that cannot run, which
-// also means nothing can be installed from here.
 export function installedPlugins(
   list = () =>
     execFileSync('claude', ['plugin', 'list', '--json'], { encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] }),

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# get-item — Linear adapter. Scaffolded by /work-items:onboard-adapter; the mapping is
-# written against Linear's published GraphQL schema.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "JSON output contract",
-# "Exit codes". This verb is AUTHORITATIVE for parent_id.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# Compares two live verification passes, each a findings.json
-# (../schemas/findings.schema.json), and labels every finding id. No model
-# call: ids are matched exactly.
-#
-#   findings-compare.sh [--baseline <findings.json>] <findings.json>
-#
-# The positional file is the newer pass. Labels:
-#   NEW           the id is in the newer pass and not in the baseline
-#   PRE-EXISTING  the id is in both
-#   GONE          the id is only in the baseline, and the newer pass drove
-#                 (passed or failed) every entry point the baseline finding
-#                 lists, for its feature and part
-#   not checked   the id is only in the baseline, and at least one of its entry
-#                 points was not driven in the newer pass; not_driven names
-#                 each one and why
-# With no --baseline every finding in the newer pass is NEW.
-#
-# Prints one JSON object on stdout: builds (baseline, newer), counts per
-# label, and findings, each the finding's record plus `compare` (its label),
-# ordered NEW, PRE-EXISTING, GONE, not checked, then by severity (critical
-# first), then by id. A PRE-EXISTING record is the newer pass's; a GONE or
-# not checked record is the baseline's.
-#
-# Exit 0 on a comparison, 2 on a usage error, a missing jq, or a file that is
-# not a findings.json (unreadable, not JSON, a missing field, a duplicate id).
 set -uo pipefail
 
 usage() {
@@ -55,7 +30,6 @@ command -v jq >/dev/null 2>&1 || {
   exit 2
 }
 
-# check_file <path>: exit 2 unless the file holds the fields this script reads.
 check_file() {
   [[ -f "$1" && -r "$1" ]] || {
     echo "findings-compare.sh: cannot read $1" >&2

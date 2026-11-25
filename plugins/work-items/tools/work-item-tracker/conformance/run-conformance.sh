@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by sourced tests/lib.sh
-# Abstract conformance suite (CONTRACT.md "Conformance"), parameterized by a binding
-# under bindings/<name>.sh. Assertions go only through the core CLI; no mocks.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +13,6 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
-# usage_error — the one spelling of the usage line every arg-parsing failure exits on.
 usage_error() {
   echo "usage: run-conformance.sh --binding <name>" >&2
   exit 2
@@ -35,8 +32,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -n "$binding_name" ]] || usage_error
-# The name becomes a path segment: constrain it BEFORE interpolation, so
-# `--binding ../../x` cannot escape the searched roots and source an arbitrary file.
 if ! [[ "$binding_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
   echo "run-conformance: invalid binding name '$binding_name' (expected ^[a-z][a-z0-9-]*\$)" >&2
   exit 2
@@ -63,8 +58,6 @@ BINDING_FILE_SH="$(resolve_binding_file "$binding_name")"
   exit 2
 }
 
-# Binding provides: cb_setup (exports WORK_ITEM_TRACKER_BINDING; sets CB_REPO to an
-# explicit target or empty for CWD derivation; clean-at-start), cb_teardown.
 CB_REPO=""
 # shellcheck source=/dev/null
 source "$BINDING_FILE_SH"
@@ -79,8 +72,6 @@ repo_args=()
 
 WIT_OUT=""
 
-# wit_case <label> <expected-rc> <args…> — run the CLI, assert exit code and
-# CR-free stdout; output lands in WIT_OUT for shape assertions.
 wit_case() {
   local label="$1" expected_rc="$2" rc
   shift 2
@@ -113,9 +104,9 @@ RUN_TAG="conf-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
 wit_case "capabilities" 0 capabilities
 assert_schema_version "capabilities"
-# Checked on JSON type, not jq -r text: `null` is a valid adapter name, and jq -r
-# prints `null` for JSON null too.
 PROVIDER="$(wit_out '.provider')"
+# Checked on JSON type: jq -r prints null for a JSON null and for the string "null" alike:
+# https://jqlang.org/manual/
 if jq -e '.provider | type == "string" and length > 0' <<<"$WIT_OUT" >/dev/null; then
   pass "capabilities names a provider"
 else
@@ -128,10 +119,6 @@ wit_case "unknown verb → usage" 2 definitely-not-a-verb
 WIT_OUT="$(WORK_ITEM_TRACKER_BINDING="/nonexistent-$$.json" bash "$TRACKER" capabilities 2>/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
 
-# --- binding personal override (CONTRACT.md "Setup (binding file)") ---
-# Seam-level personal override behavior through the CLI; merge semantics are unit-tested in
-# lib/binding.test.sh. A non-allowlisted key exits 3; removing the personal override restores
-# the team view.
 OVERRIDE_PATH="$(wit_override_path "$WORK_ITEM_TRACKER_BINDING")"
 printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERRIDE_PATH"
 wit_case "allowlisted personal override key merges; verbs still dispatch" 0 capabilities
@@ -140,10 +127,6 @@ WIT_OUT="$(bash "$TRACKER" capabilities 2>/dev/null)"
 assert_eq "non-overridable personal override key → exit 3" "3" "$?"
 rm -f "$OVERRIDE_PATH"
 wit_case "personal override removal restores the team binding" 0 capabilities
-
-# --- contract-version handshake (CONTRACT.md "Contract-version handshake") ---
-# Skew is asserted against a synthetic shadow of the SAME provider via WIT_ADAPTERS_DIR:
-# major skew refuses (exit 3), a newer minor proceeds with a stderr notice.
 
 SKEW_ROOT="$(mktemp -d)"
 mkdir -p "$SKEW_ROOT/$PROVIDER"
@@ -176,10 +159,6 @@ verb_supported() {
 
 FAKE_ID="$PROVIDER:conformance/x#1"
 
-# --- unsupported verbs degrade explicitly (exit 6), never silently ---
-
-# wit_case_if_unsupported <verb> <args…>: assert the exit-6 gate for a verb declared
-# unsupported; a supported verb is exercised by its own section below.
 wit_case_if_unsupported() {
   verb_supported "$1" || wit_case "unsupported $1 → exit 6" 6 "$@"
 }

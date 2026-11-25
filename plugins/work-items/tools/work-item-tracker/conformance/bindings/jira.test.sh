@@ -23,8 +23,6 @@ assert_eq "consume-only binding leaves CB_REPO empty" "" "$CB_REPO"
 bash "$RUNNER" --binding jira >/dev/null 2>&1
 assert_eq "conformance --binding jira exit 0" "0" "$?"
 
-# Zero-network: a PATH shim makes gh + curl exit 1 and the suite must still pass
-# (no unshare -n on Git Bash).
 SHIM="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 write_blocking_network_shim "$SHIM"
 PATH="$SHIM:$PATH" bash "$RUNNER" --binding jira >/dev/null 2>&1

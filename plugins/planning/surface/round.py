@@ -167,7 +167,6 @@ DECISIONS = ("accept", "alt", "own", "defer", "hedged")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
-# The exit codes the module docstring lists. A bare sys.exit("message") is EXIT_REFUSED.
 EXIT_REFUSED = 1
 EXIT_MISSING_PREREQUISITE = 2
 EXIT_SERVER_DID_NOT_START = 5
@@ -222,7 +221,6 @@ ASKS_USER_LEAD = re.compile(r"^(?:say|choose)\b", re.IGNORECASE)
 CRITERION_LEAD = re.compile(
     r"^(?:[-*+]\s+|[0-9]+[.)]\s+)?(?:\[[ xX]\]\s*)?(?:AC[0-9]+\s*:\s*)?(?:\[[\w-]+\]\s*)?"
 )
-# The TLDR labels the --brief gate reads; a restated TLDR line above them must not wear one.
 GATE_LABEL = re.compile(r"^(?:Restatement|Page title):")
 TLDR_BULLETS = 5
 VISUAL_REF = re.compile(
@@ -2563,7 +2561,6 @@ def cmd_export(d, a):
         ledger = read_input(a.ledger, "ledger") if a.ledger else None
         text = exporters.export_brief(d, ledger)
         if a.into and Path(a.into).exists():
-            # newline="" both ways, so a CRLF file keeps its endings outside the Brief.
             plan = read_input(a.into, "plan", newline="")
             merged = exporters.merge_brief(plan, text, a.into)
             tmp = Path(f"{a.into}.tmp")
@@ -2700,7 +2697,6 @@ def capped_text(text, cap):
 
 def write_synced_ledger(d, ledger):
     path = Path(ledger)
-    # Read untranslated so a CRLF ledger keeps its line endings.
     text, notes = exporters.sync_ledger(
         d, read_input(path, "ledger", newline=""), ledger
     )
@@ -3260,7 +3256,6 @@ def cmd_lease(d, a):
     if a.takeover:
         cmd = ["bash", str(HERE / "watch.sh"), str(d)]
         if os.name == "posix":
-            # Replace this process so a stop signal reaches watch.sh itself, not an orphaning parent.
             os.execvp(cmd[0], cmd)
         rc = subprocess.call(cmd)
         sys.exit(128 - rc if rc < 0 else rc)  # a signal death reads as 128 + signal, not a wrapped status
@@ -3566,8 +3561,6 @@ def main(argv=None):
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_sync_ledger)
 
-    # No abbreviations here: the old `--proposes TEXT` and `--note TEXT` must not read TEXT as a
-    # file name.
     s = sub.add_parser(
         "supersede",
         help="set an answered register row of a ledger to superseded-by-plan (no data dir needed)",
@@ -3730,7 +3723,6 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    # A console code page such as cp1252 cannot print every op summary once the write lands.
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")

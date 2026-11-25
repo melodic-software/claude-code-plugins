@@ -80,10 +80,6 @@ assert_contains "rejection counts as failure" "$out" "Summary: removed=0 failed=
 assert_exit "escape apply exits non-zero" 1 "$rc"
 assert_file_exists "external victim preserved" "$TEST_TMPDIR/outside_victim/keep"
 
-# 2. Byte field as data — a non-numeric byte field must NOT reach Bash arithmetic
-#    (which evaluates array subscripts recursively). The payload would `touch` a
-#    sentinel if evaluated; the guard coerces it to 0, so the path still removes
-#    and the sentinel never appears.
 mkdir -p "$TEST_TMPDIR/r2/.ruff_cache"
 echo r >"$TEST_TMPDIR/r2/.ruff_cache/r"
 SENTINEL="$TEST_TMPDIR/injected"
@@ -162,9 +158,6 @@ out="$(run_r2 --dry-run --manifest "$MANI" 2>&1)"
 rc=$?
 assert_exit "rewriting a real manifest still works" 0 "$rc"
 
-# 9. A trailing `--manifest` with no value is a usage error, not an infinite loop
-#    (without set -e, `shift 2` on a single remaining arg is a silent no-op). The
-#    timeout fails the case loudly if the guard ever regresses into a hang.
 out="$(timeout 10 bash -c "cd '$TEST_TMPDIR/r2' && bash '$CLEAN' --apply --manifest" 2>&1)"
 rc=$?
 assert_exit "trailing --manifest is a usage error" 2 "$rc"
@@ -176,9 +169,6 @@ assert_contains "uncreatable manifest reported" "$out" "cannot create manifest"
 assert_exit "uncreatable manifest exits non-zero" 1 "$rc"
 assert_not_contains "no bogus plan emitted" "$out" "Summary: planned="
 
-# 11. A symlink/reparse point whose basename is a valid target is rejected — the
-#     enumerator uses `find -type d`/`-type f` and never emits a link, but Bash
-#     `[[ -d ]]` follows one. Skips where the FS cannot create a symlink.
 mkdir -p "$TEST_TMPDIR/r2/realcache"
 echo c >"$TEST_TMPDIR/r2/realcache/c"
 ln -s "$TEST_TMPDIR/r2/realcache" "$TEST_TMPDIR/r2/.turbo" 2>/dev/null || true
@@ -193,9 +183,6 @@ else
   skip_case "symlink dir target — symlinks not creatable here"
 fi
 
-# rm-failure accounting: a manifest entry rm cannot remove must count failed and
-# force a non-zero exit. Deterministic only where the FS enforces a write-denied
-# parent (real POSIX / Linux CI); Cygwin/MSYS ignores it, so probe and skip.
 mkdir -p "$TEST_TMPDIR/r2/.mypy_cache/inner"
 echo y >"$TEST_TMPDIR/r2/.mypy_cache/inner/y"
 chmod a-w "$TEST_TMPDIR/r2/.mypy_cache" 2>/dev/null || true
@@ -246,9 +233,6 @@ assert_contains "target removed" "$out" "Removed: .ruff_cache"
 assert_not_contains "inflated manifest byte field not trusted" "$out" "bytes=999999999"
 assert_exit "recompute apply exit 0" 0 "$rc"
 
-# 14. A path containing a tab/newline cannot be encoded in the tab-delimited
-#     manifest, so it is skipped with a warning, not mapped to a wrong path. Skips
-#     where the FS cannot create such a name (NTFS rejects some characters).
 if mkdir -p "$TEST_TMPDIR/r3/od$(printf '\t')d/__pycache__" 2>/dev/null; then
   echo p >"$TEST_TMPDIR/r3/od$(printf '\t')d/__pycache__/p"
   out="$(run_r3 --dry-run --manifest "$TEST_TMPDIR/r3.tab.manifest" 2>&1)"

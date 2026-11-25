@@ -1,6 +1,3 @@
-# Hand-rolled Bash test scripts: no per-case marker, so the whole file is one
-# test. Advisory: its findings never gate --check without
-# --strict. Schema and YAML subset: scripts/adapter-load.awk.
 id: bash-harness
 language: bash
 block_model: file
@@ -19,8 +16,6 @@ assertion:
 delegation:
   - '(^|[[:space:];&|])(source|\.)[[:space:]].*test-(helpers|harness)'
   - '(^|[[:space:];&|])(node|python3?|pytest|exec|pwsh)[[:space:]].*(test|spec)'
-  # exec hands the process, and its exit status, to the command it runs; an
-  # exec of only redirections or a file descriptor runs nothing.
   - '(^|[[:space:];&|])exec[[:space:]]+(bash|sh|node|python3?|pwsh|"?\$)[[:space:]"{A-Za-z_]'
   - '(^|\n|[;&|])[[:space:]]*(bash|sh|node|python3?|pwsh|"?\$[{]?[A-Za-z_][A-Za-z0-9_]*[}]?"?)([[:space:]][^;&|\n]*)?(\n|;)[[:space:]]*exit[[:space:]]+"?\$\?"?([[:space:];]|$)'
   - '(^|[[:space:];&|])"\$(PYTHON|PY)"[[:space:]]'

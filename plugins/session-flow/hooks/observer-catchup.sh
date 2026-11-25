@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# SessionStart catch-up hook for the running-retro post-session analysis.
-#
-# OPT-IN and zero-config-safe: it no-ops unless CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED
-# is "true", so installing session-flow does not change any consumer's behavior.
-# When enabled it fire-and-forgets arm_observer.py, which launches a detached
-# one-shot analysis for up to two ended sessions of this project that got no
-# live checks and no analysis yet. We treat SessionStart as unable to block, so
-# the launch is safe by construction. Always exits 0. Event semantics and the
-# stdin `source` and `agent_type` fields: https://code.claude.com/docs/en/hooks#sessionstart
-# and #sessionstart-input.
-#
-# Self-launch guard (never run from the analysis run itself, subagents, or
-# forked/background helpers):
-#   - CLAUDE_CODE_ENTRYPOINT must be "cli" (a real interactive session; the
-#     headless `-p` analysis run reports "sdk-cli");
-#   - SESSION_FLOW_OBSERVER_ANALYSIS must be unset (set by the analysis run);
-#   - stdin `agent_type` must be absent (present inside a subagent / --agent run);
-#   - stdin `source` must be startup or resume (skip clear / compact / fork).
-#
-# Config (consumer settings `env`, via userConfig; all optional):
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED           master opt-in (default false)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED  run the catch-up at all (default true)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (unset: plugin.json userConfig default)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT   analysis effort (unset: plugin.json userConfig default)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE     pass --bare (default false; see reference/observer.md)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_MIN_LINES         skip analysis below this many lines (unset: plugin.json userConfig default)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS      a transcript idle this long counts as ended (default 900)
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED:-false}" == "true" ]] || exit 0

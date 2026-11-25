@@ -90,8 +90,11 @@ bash adapters/linear/common.test.sh
 #    injected through WIT_LINEAR_CURL).
 for t in adapters/linear/*.test.sh; do bash "$t" || break; done
 
-# 3. The abstract conformance suite, through the core CLI only. Needs a throwaway
-#    target — see conformance/bindings/linear.sh for the variables it requires.
+# 3. The abstract conformance suite, through the core CLI only. It creates, claims and
+#    closes items, so it needs a throwaway target and has no default; never point it at
+#    a coordination instance. Set WIT_CONFORMANCE_LINEAR_HOST (throwaway Linear host),
+#    WIT_CONFORMANCE_LINEAR_SCOPE (<workspace>/<TEAMKEY>, e.g. acme/ENG) and
+#    WIT_LINEAR_API_KEY (credential for that instance); without them the binding refuses to run.
 bash tools/work-item-tracker/conformance/run-conformance.sh --binding linear
 ```
 
@@ -175,4 +178,4 @@ Facts this adapter was built without, each carrying a config override so the ada
 - **Live conformance has not been run.** No Linear workspace is reachable from the environment this adapter was built in. Every verb is covered offline by a mocked-transport suite, and `conformance/bindings/linear.sh` is written and refuses to run without an explicitly named throwaway workspace, but the abstract suite has never executed against Linear itself.
 - **Lease race arbitration is implemented but unraced.** Linear's `Issue.assignee` is a SINGLE field, not GitHub's assignee list, so the github protocol's step 2 (re-read assignees, back off if another login is present) cannot detect a race: the second writer overwrites the first and then sees only itself. This adapter therefore rests arbitration on the lease COMMENT ordering, which is durable and observable by both racers. That is a real mechanism rather than an emulated one, but it has not been exercised by two concurrent live sessions.
 - **The lease handle is a millisecond timestamp, not a provider id.** Linear comment ids are UUIDs, which are unordered, and the contract requires an ordered numeric `lease_comment_id`. The adapter follows the local-markdown precedent and embeds its own handle in the marker JSON, derived from the comment's `createdAt` epoch milliseconds. Ordering is therefore exact to the millisecond; two lease comments created in the same millisecond on one issue would tie, and the adapter breaks that tie on the comment UUID so arbitration stays deterministic. A live pass should confirm Linear's `createdAt` resolution.
-- **Workflow-state classification is defaulted, not observed.** `WorkflowState.type` is one of `triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`. The adapter treats `completed`, `canceled`, and `duplicate` as closed, and that set is overridable via `config.linear.done_state_types`, the same override key the jira adapter uses for the equivalent Jira fact, so the adapter is independent of it rather than betting on it. A blocker stops blocking only in `completed`, and only while `done_state_types` lists it; one in `canceled` or `duplicate` still blocks and counts in `blocked_by_wont_do_count` (CONTRACT.md "JSON output contract").
+- **Workflow-state classification is defaulted, not observed.** `WorkflowState.type` is one of `triage`, `backlog`, `unstarted`, `started`, `completed`, `canceled`, `duplicate`. The adapter treats `completed`, `canceled`, and `duplicate` as closed, and that set is overridable via `config.linear.done_state_types`, the same override key the jira adapter uses for the equivalent Jira fact, so a binding can replace the default without a code change. A blocker stops blocking only in `completed`, and only while `done_state_types` lists it; one in `canceled` or `duplicate` still blocks and counts in `blocked_by_wont_do_count` (CONTRACT.md "JSON output contract").

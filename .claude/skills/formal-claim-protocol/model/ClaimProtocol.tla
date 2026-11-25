@@ -44,7 +44,7 @@ LoginOf(c) == CASE c = "local" -> "human"
               []   OTHER       -> triageLogin
 
 \* gen = renewals so far; generations below expN have expired; near = the
-\* current generation is within the 300 s skew margin (lib/lease.sh:12) of
+\* current generation is within the 300 s skew margin (lib/lease.sh:7) of
 \* its expiry.
 LeaseRec == [by : Claimants, holder : Logins, run : BOOLEAN,
              sup : BOOLEAN, gen : 0..1, expN : 0..2, near : BOOLEAN]
@@ -66,7 +66,7 @@ NeedsNear(i) ==
     IN WithRenew /\ \/ ~renewed[c] /\ pc[c] \notin Final
                     \/ ctx[c] = "renew" /\ pc[c] \in RenewPre
 
-\* lib/lease.sh:128-136 wit_lease_is_live.
+\* lib/lease.sh:97-105 wit_lease_is_live.
 LiveNow(i) == ~leases[i].sup /\ leases[i].expN <= leases[i].gen
 \* A body read outside the margin of its expiry is judged before it expires
 \* when stalls are bounded.
@@ -83,12 +83,12 @@ ClockSnap == [i \in 1..Len(leases) |->
 ListSnap(c) == [i \in 1..Len(leases) |->
                   [sup |-> leases[i].sup, gen |-> leases[i].gen, near |-> FALSE,
                    exp |-> IF i \in DOMAIN snap[c] THEN snap[c][i].exp ELSE 0]]
-\* lib/lease.sh:44-58 wit_select_active_lease: the newest non-superseded lease.
+\* lib/lease.sh:30-44 wit_select_active_lease: the newest non-superseded lease.
 ActiveIn(s) == LET open == {i \in DOMAIN s : ~s[i].sup}
                IN IF open = {} THEN 0 ELSE Max(open)
 ActiveNow == ActiveIn(Snapshot)
 
-\* adapters/github/common.sh:543-552 _wit_login_holds_other on the list in
+\* adapters/github/common.sh:398-407 _wit_login_holds_other on the list in
 \* snap[c], judged at the clock read before the list. The code also counts a
 \* lease live at a later read (:549), which differs only for a renewed_at
 \* ahead of the reader's clock; the model has one clock.
@@ -199,7 +199,7 @@ ReadLeases(c) ==
 \* What each script does with the winner. Claim, claim.sh:158-162: another
 \* winner backs off. Renew, renew-lease.sh:61-75: another winner refuses;
 \* inside the margin (as sampled with the winner's clock) the lease must also
-\* be the newest non-superseded one. Release, release.sh:106-118: another
+\* be the newest non-superseded one. Release, release.sh:97-109: another
 \* winner refuses with exit 7 after superseding its own lease (RelSup).
 Decide(c, w) ==
     /\ win' = [win EXCEPT ![c] = w]
@@ -214,7 +214,7 @@ Decide(c, w) ==
                   THEN "renPatch" ELSE "held")
           []   OTHER -> (IF w = mine[c] THEN "relPatch" ELSE "relSup")]
 
-\* lib/lease.sh:68-86 wit_lease_winner with one clock sample: the earliest
+\* lib/lease.sh:48-66 wit_lease_winner with one clock sample: the earliest
 \* live lease; a run lease that is not ours costs a run-status read.
 Judge(c) ==
     LET S  == {i \in DOMAIN snap[c] : SnapLive(snap[c], i)}
@@ -458,7 +458,7 @@ Ren2Leases(c) ==
     /\ UNCHANGED <<ctx, leases, assignees, runDone, triageLogin, mine, live,
                    cand, win, bodyGen, renewed, nearSeen, after, backedOffDone>>
 
-\* :106-107 a newer live lease (lib/lease.sh:90-97 wit_newer_live_lease)
+\* :106-107 a newer live lease (lib/lease.sh:68-75 wit_newer_live_lease)
 \* makes it back off.
 Ren2Judge(c) ==
     /\ Alive(c) /\ pc[c] = "ren2Judge"

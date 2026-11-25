@@ -1,165 +1,4 @@
 #!/usr/bin/env bash
-# cant-fail-scan.sh — deterministic detector for tests that cannot fail.
-#
-# Three rules, v1 (ids are the qualified detector-findings form; the per-file
-# engine and its heuristics live in cant-fail-scan.awk next to this driver):
-#
-#   testing/audit/rule-zero-assertion        a runnable test body containing 0
-#                                            assertion tokens (threshold: 0).
-#   testing/audit/rule-recomputed-expectation an equality assertion whose actual
-#                                            and expected sides are the identical
-#                                            expression, i.e. the expected value
-#                                            is recomputed rather than stated
-#                                            (threshold: >= 1 such assertion).
-#                                            v1 detects the decidable core —
-#                                            textually identical sides — not
-#                                            every recomputation shape.
-#   testing/audit/rule-mock-only-oracle      a test constructing mocks whose
-#                                            every assertion is a mock-interaction
-#                                            assertion, with no assertion on a
-#                                            real collaborator (threshold: 100%).
-#                                            Interaction-style tests are the known
-#                                            benign case, so this rule is advisory
-#                                            in --check unless --strict.
-#
-# Eight more rules print and count. inert-assertion and conditional-assertion
-# gate --check as zero-assertion does; the other six are report-only and never
-# gate, --strict included:
-#
-#   testing/audit/rule-inert-assertion       an assertion statement that never
-#                                            evaluates: an async matcher nothing
-#                                            awaits, a Python tuple assert, a
-#                                            bare .Should(), a bats run whose
-#                                            result nothing checks (threshold:
-#                                            >= 1 such statement). Can't fail.
-#   testing/audit/rule-constant-restatement  a constant, or a local literal the
-#                                            test never passes to code, compared
-#                                            to a literal (threshold: >= 1).
-#                                            A change detector: it can fail.
-#   testing/audit/rule-source-text-read      a read of a tracked, non-test
-#                                            source file by a static path
-#                                            (threshold: >= 1). A change
-#                                            detector: it can fail.
-#   testing/audit/rule-conditional-assertion every assertion inside an if, a
-#                                            catch or a loop over a result,
-#                                            with no else and no length check,
-#                                            or in C# a bare return; before
-#                                            every assertion (threshold: 100%).
-#                                            Can't fail on the path that skips
-#                                            them.
-#   testing/audit/rule-recomputed-derived    an expected value built from the
-#                                            arguments of the call under test
-#                                            with an operator or an aggregate
-#                                            (threshold: >= 1). Property-test
-#                                            files and Playwright are exempt.
-#   testing/audit/rule-snapshot-only         every assertion is a snapshot
-#                                            call (threshold: 100%); never an
-#                                            image comparison.
-#   testing/audit/rule-weak-oracle           every assertion is a weak matcher
-#                                            (toBeDefined, is not None,
-#                                            Assert.NotNull) or an over-broad
-#                                            exception check (threshold: 100%).
-#   testing/audit/rule-throw-only-oracle     every assertion checks only that a
-#                                            value the test built with new
-#                                            exists or has its type, so only a
-#                                            throwing constructor fails the test
-#                                            (threshold: 100%). A smoke test: it
-#                                            can fail.
-#
-# Two runner-config rules find the same shape one level up, in the Playwright
-# config rather than in a test body (engine: runner-config-scan.awk, one config
-# per invocation, loaded beside the shared masker mask-js.awk):
-#
-#   testing/audit/rule-flaky-passes-suite    retries are configured and
-#                                            failOnFlakyTests is absent or
-#                                            literal false, so a test that fails
-#                                            and passes on a retry leaves the run
-#                                            green.
-#   testing/audit/rule-only-not-forbidden    forbidOnly is absent or literal
-#                                            false, so a committed test.only
-#                                            shrinks the suite to one passing
-#                                            test instead of failing the run.
-#
-# rule-flaky-passes-suite also reads the other runners' retry settings (engine:
-# retry-config-scan.awk): pytest-rerunfailures reruns in a pytest config with
-# --fail-on-flaky absent from addopts, a Vitest config's test retry, and a Jest
-# jest.retryTimes call; Vitest and Jest have no fail-on-flaky switch, so a
-# retry count above zero is the finding.
-#
-# All are advisory in --check unless --strict, which gates them together with
-# mock-only-oracle; there is no finer switch. A config file is not a test file:
-# config findings are reported wherever they are found, but the exit-2 rule for
-# 0 examined TEST files is unchanged, and a config-only tree neither gates nor
-# persists them.
-#
-# Ecosystems: whatever the adapters/*.yaml files claim by their files: globs
-# or by content (JS/TS, Python, C#, Bash, bats, Pester, Go). An adapter marked
-# advisory (bash-harness) never gates --check without --strict. For bash
-# *.test.sh this scan owns assertions only;
-# scripts/check-discriminating-test-skips.sh keeps the skip-vacating shape.
-#
-# Skipped tests (it.skip/x-prefixed/@skip/[Fact(Skip=…)]/[Ignore…]) are not
-# judged — a test that does not run is the skip gate's concern, not this
-# rule set's. A finding is exempted by an in-file annotation
-# `cant-fail-ok: <reason>` on the test's declaration line, the line above it,
-# or inside the body — the same recorded-decision shape as the incumbent
-# discriminating-skip-ok annotation. Exemptions are counted, never silent.
-#
-# Remediation posture is REPAIR, not pruning: every Action proposes an
-# assertion; none proposes deleting a test.
-#
-# Modes:
-#   (default)    human-readable findings + coverage denominator; exit 0 on a
-#                completed scan (advisory), 2 on an environment/scan gap
-#   --check      gate mode, fail closed: exit 1 when a gating rule fired
-#                (zero-assertion / recomputed-expectation /
-#                conditional-assertion / inert-assertion; --strict adds
-#                mock-only-oracle), exit 2 when the scan could not run, could
-#                not fully read its inputs (unreadable files, walk errors), or
-#                examined 0 test files (a wrong or empty root and a healthy
-#                suite must not share an exit code), exit 0 only for a fully
-#                read, finding-free scan that examined at least one test file
-#   --findings   emit a findings file conforming to the detector-findings
-#                contract on stdout (coverage block on stderr); the caller
-#                resolves the destination per the contract
-#   --count      integer finding count on stdout, coverage on stderr
-#   --strict     with --check: mock-only-oracle findings gate too
-#   --inventory <text>  (repeatable, needs --file) no rules: count test starts,
-#                assertion tokens and skip markers per line of each <text>, and
-#                list its equalities with a literal side, judged with the
-#                adapter and config of the --file path; the test-weaken hook
-#                compares the old and new side of an edit this way
-#   --blocks     with the default mode: also print `block <file>:<start>-<end>
-#                <ordinal> <name>` per examined test block (in --lines scope);
-#                the ordinal tells same-named blocks apart and is the block's
-#                identity with its name, since line numbers drift
-#   --brief      with the default mode: finding lines with no threshold or
-#                Action, then one `action [rule-<slug>] <text>` line per
-#                distinct Action; the form the hooks pass to the agent
-#   --help
-#
-# Scan-root resolution: $CANT_FAIL_SCAN_ROOT (sanctioned operator lever, not a
-# test-only seam), else the cwd's git toplevel, else $CLAUDE_PROJECT_DIR.
-# Never $PWD: an unresolved root refuses (exit 2) rather than sweeping an
-# unknown tree — a completed-looking scan of the wrong tree is
-# indistinguishable from a clean bill.
-#
-# A whole-tree scan runs the per-file engine on $CANT_FAIL_SCAN_JOBS files at a
-# time (default: every core), then folds the records in scan order, so the
-# output is the serial run's. 1 runs it serially; --file is always serial.
-#
-# Config: docs/conventions/testing.yaml, docs/conventions/testing.md (its config block) or .claude/testing.yaml, resolved against the root's git toplevel (else
-# $CLAUDE_PROJECT_DIR) by ../../../scripts/resolve-config.sh, turns adapters
-# off or on (a file whose adapter is off is not scanned, never handed to
-# another), excludes or includes paths, extends adapter lists, loads consumer
-# adapters and sets rule levels (off drops a finding, warn keeps it out of the
-# gate, error gates it).
-# With no layer file present the scan is exactly the shipped one.
-#
-# Every run reports a DENOMINATOR (coverage block): files enumerated and
-# examined per ecosystem, test blocks parsed, exemptions, and what could not
-# be read. "0 findings" over 0 examined files is a scan of nothing and is
-# never reported as a clean bill.
 set -uo pipefail
 
 usage() {
@@ -263,9 +102,6 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# dir_of <path>: dirname(1)'s answer, set in DIR_OF. A fork and exec cost tens
-# of milliseconds on Windows Git Bash, and a suite runs this script hundreds
-# of times.
 dir_of() {
   local p="$1"
   if [[ "$p" != *[!/]* ]]; then
@@ -285,9 +121,6 @@ dir_of() {
 dir_of "${BASH_SOURCE[0]}"
 SCRIPT_DIR="$(cd "$DIR_OF" && pwd)"
 AWK_PROG="$SCRIPT_DIR/cant-fail-scan.awk"
-# The JavaScript masker is shared by both engines and lives in mask-js.awk; awk
-# loads it as the first of two -f programs, so it is as load-bearing as the
-# engine itself and refuses the same way when missing.
 MASK_AWK="$SCRIPT_DIR/mask-js.awk"
 CONFIG_AWK="$SCRIPT_DIR/runner-config-scan.awk"
 RETRY_AWK="$SCRIPT_DIR/retry-config-scan.awk"
@@ -365,12 +198,6 @@ ADAPTER_TABLE="$SCRATCH/adapters"
 EXTEND_FILE=""
 ENGINE_DIR=""
 
-# Location values are REPO-relative, not scan-root-relative: the fix action
-# fences each remediation to Location, so a subdirectory scan root must not
-# shorten the path. git's own prefix avoids any path-format reconciliation
-# (drive-letter vs POSIX) a toplevel string comparison would need. Outside a
-# repository the prefix is empty and Location degrades to root-relative.
-# The same call yields the toplevel the config layers resolve against.
 TOP=""
 REPO_PREFIX=""
 {
@@ -550,8 +377,6 @@ content_files() {
   done
 }
 
-# ponytail: walks the whole root per run when include is set; walk each glob's
-# literal leading directory instead if that shows up in a large tree.
 include_files() {
   [[ ${#tc_include_re[@]} -gt 0 && -z "$FILE" ]] || return 0
   local f rel re
@@ -636,20 +461,11 @@ if [[ "$mode" == inventory ]]; then
   exit 0
 fi
 
-# Playwright runner configs: the same pruned walk, for the six filenames the
-# runner probes. Playwright never walks upward, so every directory holding any
-# of the six is its own Playwright root; within one directory only the first in
-# probe order is loaded, and the rest are counted as shadowed without being read.
 mapfile -t cfg_files < <(collect_files \
   -name 'playwright.config.ts' -o -name 'playwright.config.js' \
   -o -name 'playwright.config.mts' -o -name 'playwright.config.mjs' \
   -o -name 'playwright.config.cts' -o -name 'playwright.config.cjs')
 
-# pytest, Vitest and Jest retry settings (engine: retry-config-scan.awk). The
-# pytest and Vitest files are configs, picked one per directory below; a Jest
-# retryTimes call sits in any JS/TS file, so every one that names it is read,
-# minus paths.exclude. An edit-scoped run (--lines) reads none of them: a
-# file-level setting is no finding about the lines an edit wrote.
 PYTEST_NAMES=(pytest.toml .pytest.toml pytest.ini .pytest.ini pyproject.toml tox.ini setup.cfg)
 VITEST_EXTS=(ts mts cts js mjs cjs)
 rc_py_files=()
@@ -730,8 +546,6 @@ source_target() {
   [[ "$path" =~ $SOURCE_EXT_RE && "$path" != /* ]] || return 0
   [[ -n "$TOP" ]] || TOP="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$TOP" ]] || return 0
-  # Both sides of the prefix test come from pwd -P: git may spell the same
-  # directory another way (C:/... where Git Bash's pwd prints /c/...).
   top="$(cd "$TOP" 2>/dev/null && pwd -P)" || return 0
   for cand in "${file%/*}/$path" "$TOP/$path"; do
     [[ -f "$cand" ]] || continue
@@ -749,9 +563,6 @@ source_target() {
   done
 }
 
-# rule_override <slug> <1 when the finding gates --check by default>: apply
-# its rules.<slug> level from the testing config. off drops the finding
-# (return 1), warn keeps it out of the gate, error puts it in.
 tc_dropped=0
 tc_gate=0
 tc_ungate=0
@@ -794,7 +605,6 @@ scan_one() {
   fi
   examined=$((examined + 1))
   while IFS=$'\t' read -r kind slug line detail; do
-    # A source-read candidate: slug carries F or X, detail the static path.
     if [[ "$kind" == S ]]; then
       target="$(source_target "$file" "$detail")"
       [[ -n "$target" ]] || continue
@@ -929,9 +739,6 @@ for i in "${!scan_files[@]}"; do
   scan_one "${scan_files[$i]}" "$i"
 done
 
-# One config per directory, in Playwright's probe order. Everything else the
-# walk enumerated in that directory is shadowed: the runner would never load it,
-# so judging it would report a file the suite does not run.
 cfg_dirs=()
 declare -A cfg_seen=()
 for f in ${cfg_files[@]+"${cfg_files[@]}"}; do
@@ -994,10 +801,6 @@ scan_retry() {
   done < <(awk -v KIND="$kind" -v NAME="${file##*/}" -f "$MASK_AWK" -f "$RETRY_AWK" "$file" 2>>"$WALK_ERR")
 }
 
-# pytest: per directory, the first file in pytest's order that holds pytest's
-# section (pytest.toml and pytest.ini match even when empty); a file without
-# the section is no pytest config and is not counted. The rest that hold one
-# are shadowed: pytest never merges two config files.
 declare -A rc_seen=()
 for f in ${rc_py_files[@]+"${rc_py_files[@]}"}; do
   dir_of "$f"
@@ -1019,8 +822,6 @@ for f in ${rc_py_files[@]+"${rc_py_files[@]}"}; do
   done
   [[ -z "$picked" ]] || scan_retry pytest "$picked"
 done
-# Vitest: per directory, vitest.config.* before vite.config.*, each in Vitest's
-# extension order; the rest are shadowed.
 rc_seen=()
 for f in ${rc_vt_files[@]+"${rc_vt_files[@]}"}; do
   dir_of "$f"
@@ -1048,7 +849,6 @@ total=$((n_cf1 + n_cf2 + n_ca + n_ia + n_cf3 + cfg_findings + report_only))
 gating=$((n_cf1 + n_cf2 + n_ca + n_ia - n_adv))
 [[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings + n_adv))
 gating=$((gating + tc_gate - tc_ungate))
-# Lines with a field in awk's default sense: some byte other than space or tab.
 walk_errors=0
 while IFS= read -r err_line || [[ -n "$err_line" ]]; do
   [[ "$err_line" == *[!$' \t']* ]] && walk_errors=$((walk_errors + 1))
@@ -1116,7 +916,6 @@ action_of() {
     printf 'Exercise the code (render it, call it, run it) instead of reading its source text; a policy test over many files reads them through a glob or a directory walk.'
     ;;
   conditional-assertion:cs)
-    # xUnit v2 has no Assert.Skip, so the skip advice names both routes.
     printf 'Make every path assert: assert an expected error with the framework'"'"'s throws or rejects assertion instead of inside a catch, move the assertion out of the if, and assert the length of a result before looping over it, so an empty result fails. Where a return stands in for a skip, skip the test explicitly so the run does not report it as passed: Assert.Skip on xUnit v3, a skip package such as Xunit.SkippableFact on xUnit v2, Assert.Ignore on NUnit, Assert.Inconclusive on MSTest.'
     ;;
   conditional-assertion:*)
@@ -1131,12 +930,6 @@ action_of() {
   weak-oracle:*)
     printf 'Assert the value the code should produce (an exact value, or the exception type callers branch on) instead of only that a value exists or that something threw.'
     ;;
-  # pytest-rerunfailures added --fail-on-flaky in 15.0 and made it fire only
-  # when a rerun happened in 15.1 (CHANGES.rst, read 2026-10-06; recheck on a
-  # release that renames the option or adds an ini form). Vitest and Jest ship
-  # no such switch (vitest.dev/config/retry and the Jest object page, read
-  # 2026-10-06; recheck when either documents one), so their remedy is the
-  # retry count itself.
   flaky-passes-suite:config-pytest)
     printf 'Add --fail-on-flaky to addopts beside the reruns so a test that passes only on a rerun fails the run (pytest-rerunfailures 15.0 or later), or drop the reruns where the suite is meant to be deterministic. A deliberate flaky tolerance records that with a cant-fail-ok: annotation in the config.'
     ;;
@@ -1159,11 +952,6 @@ action_of() {
   mock-only-oracle:*)
     printf "Review whether the mock-interaction contract is the intended oracle; if not, assert on a real collaborator's output or state. A deliberate interaction-style test records that with a cant-fail-ok: annotation."
     ;;
-  # failOnFlakyTests as a config option shipped in Playwright 1.52, the
-  # --fail-on-flaky-tests CLI flag it mirrors in 1.45 (VR-2, verified against
-  # v1.63.0 as of 2026-09-11; recheck on a release note renaming or deprecating
-  # the option). The detector does not read the installed version, so the Action
-  # names the floor rather than assuming it.
   flaky-passes-suite:*)
     printf 'Set failOnFlakyTests: true in the Playwright config so a test that fails and passes on a retry fails the run (config option from Playwright 1.52; the --fail-on-flaky-tests CLI flag covers 1.45 and later), or set retries: 0 where the suite is meant to be deterministic. A deliberate flaky tolerance records that with a cant-fail-ok: annotation.'
     ;;
@@ -1302,9 +1090,6 @@ norm_path() {
   NP="${out[*]-}"
 }
 
-# wf_runs_elsewhere <workflow>: true when a step may run tests the dotnet parse
-# cannot see: a local action (`uses: ./`, not a reusable workflow, which is
-# parsed itself) or a command that starts a script.
 wf_runs_elsewhere() {
   local body local_uses cmds
   body="$(LC_ALL=C sed -E -e 's/\r$//' -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#.*$//' "$1" 2>/dev/null)"
@@ -1315,9 +1100,6 @@ wf_runs_elsewhere() {
   LC_ALL=C grep -qE '^(\./|\.\\|(bash|sh|pwsh|powershell)([[:space:]]+-[^[:space:]]+)*[[:space:]]+[^-[:space:]]|[^[:space:]]+\.(sh|ps1|cmd|bat)([[:space:]"'\'']|$))' <<<"$cmds"
 }
 
-# load_workflows: collect the targets of every `dotnet test` and `dotnet build`
-# in .github/workflows. A file that does not look like a workflow (no jobs: key,
-# a tab indent), a variable or a continued command leaves the answer unknown.
 load_workflows() {
   ((wf_loaded)) && return 0
   wf_loaded=1
@@ -1503,31 +1285,10 @@ ctx_text() {
 }
 
 esc_cell() {
-  # detector-findings cell-escaping rule: literal | becomes \| ; the engine
-  # already flattened tabs/newlines out of details.
   printf '%s' "${1//|/\\|}"
 }
 
 yaml_scalar() {
-  # Quote a frontmatter value only when the plain form would misparse. git
-  # accepts branch names starting with a YAML indicator ("@foo", "!foo",
-  # "#foo"); emitted bare, "#foo" reads as a comment and the rest as
-  # indicators, so the value the consumer compares is not the branch name.
-  # The consumer (review/fanout fix-pass-mode.md "Step 1") admits a findings
-  # file only on an EXACT branch match, so a misparse silently drops every
-  # finding for that branch — the hidden-findings shape reached through the
-  # frontmatter rather than through the scan.
-  #
-  # Conditional, not unconditional: an ordinary name stays a byte-identical
-  # plain scalar, so the wire format for the common path does not move.
-  # Predicate deliberately IDENTICAL to the two sibling awk producers
-  # (harness-config/audit-instructions/scripts/emit-findings.sh and
-  # ai-slop/audit/scripts/emit-findings.sh) — three producers answering one
-  # frontmatter contract must agree, or a consumer sees three shapes. The
-  # indicator set below is the same 19 characters as their awk character
-  # class, and the ": " / " #" / empty / trailing-blank tests mirror theirs.
-  # Space and tab only in the trailing test (NOT [:space:]), matching awk's
-  # /[ \t]$/.
   local s="$1" needs_quote=0
   case "${s:0:1}" in
   '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}' | '#' | '&' | '*' | '!' | '|' | '>' | '%' | '@' | '`' | '"' | "'")

@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/standards-ref-heads-main.json plugins/work-items/tools/work-item-tracker/adapters/github/fixtures/standards-trusted-actors.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: get-statuses against a gh stub. The plain answer's shape is the GraphQL
-# Issue.issueFieldValues read of one issue (melodic-software/claude-code-plugins,
-# 2026-11-05), with the alias the script names. The trusted answers take the shape of
-# babysit_merge_policy.py ISSUE_STATUS_QUERY (issueFieldValues plus the field timeline
-# events, actor databaseId and issueField fullDatabaseId); the trust list and model take
-# the shapes of .github/standards/trusted-actors/trusted-actors.json and the
-# models.issue-status block of docs/conventions/pr-pipeline.yaml. Every case pins its
-# binding through WORK_ITEM_TRACKER_BINDING.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

@@ -1,46 +1,4 @@
 #!/usr/bin/env bash
-# Pixel comparison for /testing:check-visual-parity, and the reader of its
-# pixel_tolerance setting.
-#
-# Usage:
-#   visual-compare.sh install [--deps-dir <base>] [--dry-run]
-#   visual-compare.sh config --repo <dir> [--user pixel_tolerance=<value>]
-#   visual-compare.sh manifest --dir <d> --browser <name and version> --viewport <W>x<H> --scale <n>
-#   visual-compare.sh compare --baseline <d> --after <d> --tolerance <n> [--reason <text>]
-#                             --diff-dir <d> [--deps-dir <base>] [--dry-run]
-#   visual-compare.sh --help
-#
-# install   Installs pixelmatch and pngjs from the committed lockfile with
-#           `npm ci --ignore-scripts --no-audit --no-fund` into
-#           <base>/visual-compare/<first 12 hex of the lockfile's sha256>/,
-#           through a sibling directory and a rename. The base is --deps-dir,
-#           else $CLAUDE_PLUGIN_DATA when its last segment names testing, else
-#           .work/testing in a marketplace checkout, else
-#           <config dir>/plugins/data/<plugin data id> (https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data).
-#           compare installs the same way on first use.
-# config    Prints `pixel_tolerance=<n> source=<layer> reason=<text>`. Layers:
-#           the team docs/conventions/testing.yaml read from origin's default
-#           branch (the working tree only when there is no origin),
-#           <repo>/docs/conventions/testing.local.yaml and the --user option.
-#           Old locations, read with a warning: ~/.claude/testing.yaml, and
-#           <repo>/.claude/testing.local.yaml when the new personal file is
-#           absent. The lowest valid value wins, so a personal layer can
-#           lower the team value and never raise it. An invalid layer is named
-#           on stderr and dropped; a config value never makes this exit 2.
-# manifest  Writes <d>/manifest.json: the sha256 of every PNG in <d>, the OS,
-#           browser, viewport, scale and `git rev-parse HEAD`. Refuses when the
-#           file exists, so a baseline is never rewritten.
-# compare   Checks every image against its manifest and the two manifests'
-#           host fields, then prints per image
-#           `differing=<n> tolerance=<t> verdict=<pass|fail> name=<image>`.
-#           Diff images go under --diff-dir only. A tolerance above 0 needs
-#           --reason.
-# --dry-run Prints the install directory and the npm ci line, and installs,
-#           writes and compares nothing.
-#
-# Exit: 0 done (compare: every image passed), 1 compare found a failing image,
-# 2 usage error, a missing or broken install (with one repair line on stderr),
-# or a manifest, hash or host mismatch.
 set -uo pipefail
 
 case "${BASH_SOURCE[0]}" in
@@ -97,10 +55,6 @@ lock_hash() {
   printf '%s' "$h"
 }
 
-# plugin_data_id: the data directory name Claude Code gives this plugin, its id
-# testing@<marketplace> (testing@inline outside <config>/plugins/cache/) with
-# characters outside A-Za-z0-9_- replaced by -:
-# https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data
 plugin_data_id() {
   local root market=inline m n v extra id
   root="$(cd "$SCRIPT_DIR/../../.." && pwd)" || root=""
@@ -143,7 +97,6 @@ resolve_base() {
   fi
 }
 
-# wq <path>: a Windows path, PowerShell-quoted.
 wq() {
   if command -v cygpath >/dev/null 2>&1; then psq "$(cygpath -w "$1")"; else psq "$1"; fi
 }
@@ -169,8 +122,6 @@ need_node() {
     err "node is not on PATH; install Node.js (https://nodejs.org/en/download) and rerun. Reinstalling the packages would not help."
 }
 
-# Every option reaches the .mjs as --name=value: its strict parseArgs refuses a
-# separate value that starts with '-', such as --reason "-3px shift".
 probe() { [[ -d "$1" ]] && node "$MJS" probe --deps="$1" >/dev/null 2>&1; }
 
 ensure_installed() {

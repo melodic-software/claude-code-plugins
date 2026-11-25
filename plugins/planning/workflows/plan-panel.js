@@ -72,9 +72,6 @@ function opts(variant) {
   return variant.model === 'inherit' ? { effort: variant.effort } : { model: variant.model, effort: variant.effort }
 }
 
-// One retry for a thrown dispatch, a null result is final, and an error naming
-// a cap or budget is rethrown without a retry. For agent()'s null and error
-// contract, see the bundled /workflow-authoring skill.
 async function agentRetry(prompt, o) {
   for (let attempt = 1; ; attempt++) {
     try {

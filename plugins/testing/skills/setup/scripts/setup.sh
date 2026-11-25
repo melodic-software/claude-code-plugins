@@ -102,7 +102,6 @@ flow() {
   for v in "$@"; do s+="${s:+, }$(q "$v")"; done
   printf '[%s]' "$s"
 }
-# plain_text <file>: the file without a leading BOM or trailing carriage returns.
 plain_text() { LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$1"; }
 strip_control_bytes() { LC_ALL=C tr -d '\000-\010\013-\037\177'; }
 
@@ -252,11 +251,9 @@ apply() {
     for e in "${olds[@]}"; do copy_old "$e"; done
     return
   fi
-  # Refuse a linked docs file before the loader reads it.
   for l in "$ROOT/${HOME_REL%%/*}" "$ROOT/$HOME_REL" "$docs" "$new"; do
     [[ ! -L "$l" ]] || die "refusing to read or write through a symlink: $l"
   done
-  # A flag value is one line: a newline would end the fenced block early.
   for e in ${inc[@]+"${inc[@]}"} ${exc[@]+"${exc[@]}"} ${ena[@]+"${ena[@]}"} ${dis[@]+"${dis[@]}"} ${dirs[@]+"${dirs[@]}"} ${ext[@]+"${ext[@]}"} ${rules[@]+"${rules[@]}"}; do
     [[ "$e" != *[$'\n\r']* ]] || die "a flag value holds a line break"
   done
@@ -276,7 +273,6 @@ apply() {
     fi
   fi
   d="${f%/*}"
-  # A committed symlink would turn the write into one on the file it names.
   for l in "$d" "$f"; do
     [[ ! -L "$l" ]] || die "refusing to write through a symlink: $l"
   done
@@ -325,13 +321,11 @@ apply() {
   fi
   mkdir -p "$d" || die "cannot create $d"
   [[ "$(cd "$d" && pwd -P)" == "$(cd "$ROOT" && pwd -P)"/* ]] || die "$d resolves outside $ROOT"
-  # Write beside the target and rename over it, so no write follows a link.
   if [[ -f "$f" ]]; then
     bak="$(mktemp "$d/.${f##*/}.XXXXXX")" || die "cannot create a temporary file in $d"
     cp -p "$f" "$bak" || die "cannot back up $f"
   fi
   tmp="$(mktemp "$d/.${f##*/}.XXXXXX")" || die "cannot create a temporary file in $d"
-  # mktemp creates the file 0600; give it the mode a plain write would.
   chmod "$(printf '%o' $((0666 & ~0$(umask))))" "$tmp"
   # shellcheck disable=SC2016 # the fence lines are literal text
   if [[ "$f" == "$docs" ]]; then
@@ -494,8 +488,6 @@ check() {
   done
 
   printf '\n== instruction ==\n'
-  # Claude Code reads AGENTS.md only when no CLAUDE.md, .claude/CLAUDE.md or
-  # CLAUDE.local.md exists, so name the file that loads.
   local file=AGENTS.md note=''
   if [[ -f "$ROOT/CLAUDE.md" ]]; then
     file=CLAUDE.md

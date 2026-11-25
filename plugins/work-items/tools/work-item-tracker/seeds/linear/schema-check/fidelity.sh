@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Prove the operation strings fed to validate.mjs are the adapter's own text, not a
-# paraphrase. Extracts each op from the SOURCE, whitespace-normalizes both sides, diffs.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 A="$(cd "$HERE/.." && pwd)"

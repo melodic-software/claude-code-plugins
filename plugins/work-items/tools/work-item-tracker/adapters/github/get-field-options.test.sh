@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: get-field-options against a gh stub. The org field listing is the trimmed recording
-# set-fields.test.sh uses (GET orgs/melodic-software/issue-fields, 2026-10-18).
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

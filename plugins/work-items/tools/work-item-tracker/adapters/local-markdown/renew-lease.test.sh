@@ -12,9 +12,6 @@ assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" "github:o/r#1" --lease-comment-id 1
 
-# End-to-end: ttl-0 claim is born expired; renew-lease must refuse it (exit 7)
-# rather than bumping renewed_at and reviving the dead handle. A live control
-# claim on a second item must still renew, and that renewal must reach the store.
 TRACKER="$(dirname "$S")/../../work-item-tracker.sh"
 # shellcheck source=common.sh
 source "$(dirname "$S")/common.sh"
@@ -30,10 +27,6 @@ EXPIRED_JSON="$(bash "$TRACKER" create-item --title "ttl-0 renew refuse")"
 LIVE_JSON="$(bash "$TRACKER" create-item --title "live renew control")"
 EXPIRED_ID="$(jq -r '.id' <<<"$EXPIRED_JSON")"
 LIVE_ID="$(jq -r '.id' <<<"$LIVE_JSON")"
-# Recover each item's on-disk path from its own reported url: the tracker resolves
-# the storage dir itself (and MSYS may translate it), so the outer $STORAGE is not
-# necessarily where the files land, and a wrong path would quietly reduce the
-# marker assertions below to comparing two empty greps.
 EXPIRED_FILE="$(jq -r '.url' <<<"$EXPIRED_JSON" | sed 's#^file://##')"
 LIVE_FILE="$(jq -r '.url' <<<"$LIVE_JSON" | sed 's#^file://##')"
 
@@ -88,12 +81,6 @@ assert_eq "renew-lease keeps the phase" "triage" "$(jq -r '.phase' <<<"$PHASE_LE
 assert_eq "the kept-phase lease carries the renewed_at it reported" \
   "$(jq -r '.renewed_at' <<<"$PHASE_OUT")" "$(jq -r '.renewed_at' <<<"$PHASE_LEASE")"
 
-# Remove the store the items actually landed in as well as the one this suite
-# asked for; on a host that translates the path they are not the same directory.
-# The guard is not optional: LIVE_FILE comes from the created item's reported
-# url, so any upstream failure leaves it empty or "null", and `dirname` of either
-# is ".". Unguarded, this line asks rm to delete the runner's working directory,
-# and only GNU rm's own refusal to remove "." stands in the way.
 rm -rf "$STORAGE"
 if [[ "$LIVE_FILE" == /* && -e "$LIVE_FILE" ]]; then
   rm -rf "$(dirname "$LIVE_FILE")"

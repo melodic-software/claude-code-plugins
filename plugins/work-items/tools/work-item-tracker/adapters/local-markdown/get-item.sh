@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# get-item <id> — CONTRACT.md "Verbs (core public surface)". Read-only. The ID's
-# owner/repo namespace is opaque here; the item file is addressed by number.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

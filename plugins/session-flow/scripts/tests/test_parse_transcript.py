@@ -724,8 +724,6 @@ def test_multi_session_subagent_per_session_tagging(tmp_path):
     _write_assistant_event(tmp_path, "sid-a")
     _write_assistant_event(tmp_path, "sid-b")
 
-    # Seed subagents per session — parse_subagents reads <agent>.meta.json files,
-    # mirroring ~/.claude/projects/<slug>/<sid>/subagents/<agent-id>.meta.json shape
     for sid in ("sid-a", "sid-b"):
         sub_dir = tmp_path / sid / "subagents"
         sub_dir.mkdir(parents=True, exist_ok=True)

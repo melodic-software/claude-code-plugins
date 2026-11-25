@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: label-provenance against a gh stub that applies the script's own --jq program to a
-# raw timeline payload and answers the permission endpoint from per-login fixture files shaped
-# like GitHub's response ({permission, role_name}). Expected verdicts come from the admission
-# rule: a labeler is trusted only with `admin` or `write` permission (maintain reads as write,
-# triage as read), the most recent application of a label decides, and any failed or empty read
-# refuses.
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -93,7 +85,6 @@ printf '%s\n' '{"permission":"read","role_name":"triage"}' >"$PERMS/triager-d.js
 printf '%s\n' '{"permission":"read","role_name":"read"}' >"$PERMS/reader-e.json"
 printf '%s\n' '{"role_name":"custom"}' >"$PERMS/blank-f.json"
 
-# ev <label> <actor> <created_at>: one timeline `labeled` event in GitHub's field shape.
 ev() {
   jq -nc --arg l "$1" --arg a "$2" --arg t "$3" \
     '{event: "labeled", label: {name: $l, color: "ededed"}, actor: {login: $a}, created_at: $t}'
@@ -110,7 +101,6 @@ run() {
     bash "$S" "$@" 2>/dev/null)"
   RC=$?
 }
-# edited <timestamp|null>: the GraphQL payload for an item whose body was last edited then.
 edited() {
   jq -nc --argjson t "$1" '{data: {repository: {issueOrPullRequest: {lastEditedAt: $t}}}}'
 }
@@ -150,7 +140,6 @@ TL="[$(ev "$AR" owner-a 2026-10-01T10:00:00Z),$(ev "$C1" maint-b 2026-10-01T10:0
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "admin + maintain labelers: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
 
-# --- the most recent application decides, by created_at, not array position ---
 TL="[$(ev "$C1" triager-d 2026-10-02T09:00:00Z),$(ev "$C1" dev-c 2026-10-01T09:00:00Z),$(ev "$AR" dev-c 2026-10-01T08:00:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "later triage re-application overrides an earlier write one" "false" "$(jq -r '.admitted' <<<"$OUT")"
@@ -184,8 +173,6 @@ TL="[$(ev "$AR" blank-f 2026-10-01T10:00:00Z)]"
 run "$TL" "$ID" --label "$AR"
 assert_eq "permission field absent: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
 
-# --- untrusted strings stay data ---
-# An actor login that is not a GitHub login never reaches the API path or a shell.
 MARK="$TMP_ROOT/pwned"
 TL="[$(ev "$AR" "x\$(touch $MARK)" 2026-10-01T10:00:00Z)]"
 run "$TL" "$ID" --label "$AR"
@@ -202,7 +189,6 @@ assert_eq "odd label name echoed verbatim" "$ODD" "$(jq -r '.labels[0].label' <<
 run "$TL" "$ID" --label "$AR" --label "$ODD"
 assert_eq "odd label beside a triage agent-ready: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
 assert_eq "odd label name: nothing executed" "absent" "$([[ -e "$MARK" ]] && echo present || echo absent)"
-# Same refusal under bash 5.1 compatibility.
 TL="[$(ev "$AR" maint-b 2026-10-01T10:00:00Z),$(ev "$C1" triager-d 2026-10-01T10:05:00Z)]"
 OUT="$(BASH_COMPAT=51 PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$PERMS" \
   GH_STUB_TIMELINE="$TL" bash "$S" "$ID" --label "$AR" --label "$C1" 2>/dev/null)"
@@ -218,7 +204,6 @@ assert_eq "two-page timeline: a later page-2 re-application decides agent-ready"
 assert_eq "two-page timeline: not admitted on the page-2 triage labeler" "false" "$(jq -r '.admitted' <<<"$OUT")"
 assert_contains "the timeline read asks for every page" "$(grep timeline "$LOG")" "--paginate"
 
-# --- body edited after admission: the admitted brief is no longer the one in the body ---
 TL="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z),$(ev "$C1" dev-c 2026-10-01T10:05:00Z)]"
 GRAPHQL="$(edited '"2026-10-01T11:00:00Z"')" run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "body edited after the latest label: exit 0" "0" "$RC"
@@ -229,17 +214,14 @@ assert_eq "body edited after the latest label: labels themselves still trusted" 
   "$(jq -r '[.labels[].trusted] | map(tostring) | join(" ")' <<<"$OUT")"
 GRAPHQL="$(edited '"2026-10-01T09:00:00Z"')" run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "body edited before both labels: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
-# An edit between the two applications was seen by the later trusted labeler.
 GRAPHQL="$(edited '"2026-10-01T10:02:00Z"')" run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "body edited between the two labels: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
-# A trusted re-application after the edit admits the edited body.
 TL2="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z),$(ev "$AR" maint-b 2026-10-01T12:00:00Z)]"
 GRAPHQL="$(edited '"2026-10-01T11:00:00Z"')" run "$TL2" "$ID" --label "$AR"
 assert_eq "trusted re-label after the edit: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
 assert_eq "label rows carry the event time" "2026-10-01T12:00:00Z" "$(jq -r '.labels[0].at' <<<"$OUT")"
 GRAPHQL="$(edited null)" run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "body never edited: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
-# A failed or empty edit-time read refuses.
 GRAPHQL_ERR="HTTP 403: Resource not accessible" run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "failed edit-time read: exit 0" "0" "$RC"
 assert_eq "failed edit-time read: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"

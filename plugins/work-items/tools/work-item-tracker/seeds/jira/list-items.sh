@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# list-items — adapter contract (CONTRACT.md "Adapter contract"). Raw candidates with
-# explicit pagination: pages POST /rest/api/3/search/jql via nextPageToken up to
-# limits.list_items_max (never a client default). JQL scope is the binding's
-# project_keys; --repo <site>/<PROJECTKEY> narrows to one project.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -37,12 +33,6 @@ esac
 
 wit_need_jira_config
 
-# Project scope: a --repo override (site/PROJECTKEY) narrows to one project after
-# validating its site against the bound site AND its key against the JQL-token
-# allowlist (a bad --repo key is a usage error, exit 2); otherwise scope is all
-# configured project_keys, already allowlist-validated by wit_need_jira_config. Every
-# value reaching the JQL builders below is therefore charset-checked first — the
-# builders assemble JQL by string concatenation, so this is what keeps it injection-safe.
 if [[ -n "$repo_override" ]]; then
   repo_site="${repo_override%%/*}"
   repo_project="${repo_override#*/}"
@@ -50,8 +40,6 @@ if [[ -n "$repo_override" ]]; then
     wit_usage_error "--repo must be <site>/<PROJECTKEY> with site matching config.jira.site '$WIT_JIRA_SITE'"
   [[ "$repo_project" =~ $WIT_JIRA_PROJECT_KEY_RE ]] ||
     wit_usage_error "--repo project key '$repo_project' is outside the allowed charset ($WIT_JIRA_PROJECT_KEY_RE)"
-  # --repo may only narrow WITHIN the declared scope, never widen to an undeclared
-  # project the token can see (config.jira.project_keys is the read boundary).
   wit_jira_project_in_scope "$repo_project" ||
     wit_usage_error "--repo project '$repo_project' is not in the binding's config.jira.project_keys (declared read scope)"
   projects_json="$(jq -cn --arg p "$repo_project" '[$p]')"
@@ -59,10 +47,6 @@ else
   projects_json="$WIT_JIRA_PROJECT_KEYS"
 fi
 
-# statusCategory scope mirrors the state cut in the normalizer: open == not a
-# done-category, closed == a done-category, all == unconstrained. The done keys are
-# the configurable done-key set (override seam), allowlist-validated at config load; JQL
-# matches them via `statusCategory in`.
 case "$state" in
 open) status_clause=" AND statusCategory not in ($(wit_jira_value_list "$WIT_JIRA_DONE_KEYS"))" ;;
 closed) status_clause=" AND statusCategory in ($(wit_jira_value_list "$WIT_JIRA_DONE_KEYS"))" ;;
@@ -70,11 +54,6 @@ all) status_clause="" ;;
 *) wit_usage_error "internal: unexpected --state '$state'" ;;
 esac
 projects_clause="project in ($(wit_jira_value_list "$projects_json"))"
-# The label narrows the search itself, so the ceiling counts labeled issues only. It is
-# caller text inside a quoted JQL literal, where only `"`, `\` and line breaks are
-# special, so a label holding a quote or backslash is refused rather than escaped. A
-# Jira label cannot hold whitespace, so a label with any carries no issue: the exact
-# answer is an empty, complete listing, with no request made.
 label_clause=""
 if [[ -n "$label" ]]; then
   [[ "$label" != *[\"\\]* ]] ||
@@ -118,7 +97,6 @@ while ((emitted < limit)); do
   [[ -z "$page_items" ]] || rows+="$page_items"$'\n'
   emitted=$((emitted + page_count))
   next_token="$(jq -r '.nextPageToken // ""' <<<"$WIT_JIRA_BODY")"
-  # Last page: isLast true, or no continuation token, or the API returned nothing.
   if [[ "$(jq -r '.isLast // false' <<<"$WIT_JIRA_BODY")" == "true" || -z "$next_token" || "$page_count" == "0" ]]; then
     truncated=false
     break

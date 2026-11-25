@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# list-items — Linear adapter. Returns RAW candidates in the {items:[…]} envelope.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "Adapter contract",
-# "JSON output contract", "Exit codes".
-#
 # shellcheck disable=SC2016  # single-quoted `$name` here is a GraphQL variable, not a shell one
 set -uo pipefail
 
@@ -44,8 +39,6 @@ esac
 
 wit_need_linear_config
 
-# --repo may only NARROW within the declared scope, never widen to an undeclared team.
-# Without it, every declared team is listed — the whole declared scope.
 if [[ -n "$REPO" ]]; then
   [[ "$REPO" =~ $WIT_LINEAR_SCOPE_RE ]] ||
     wit_usage_error "--repo must be <workspace>/<TEAMKEY>: $REPO"
@@ -56,11 +49,6 @@ else
   TEAMS="$(jq -c '[.[] | split("/")[1]]' <<<"$WIT_LINEAR_SCOPES")"
 fi
 
-# The state and label filters travel IN the query, so the ceiling below counts only
-# matching issues: a team with thousands of closed issues and a few open ones lists
-# complete. Both are built from the same done_state_types the normalizer reads, and the
-# state check after normalization stays as a guard. The filter is one VARIABLE, never
-# text spliced into the query.
 FILTER="$(jq -cn --argjson t "$TEAMS" --arg s "$STATE" --argjson dt "$WIT_LINEAR_DONE_TYPES" --arg l "$LABEL" '
   {team: {key: {in: $t}}}
   + (if $s == "open" then {state: {type: {nin: $dt}}} # spellchecker:disable-line
@@ -98,9 +86,6 @@ while :; do
       exit "$EX_INTERNAL"
     }
     [[ "$STATE" == all || "$(jq -r '.state' <<<"$ONE")" == "$STATE" ]] || continue
-    # Accumulator on stdin, one item in argv. The reverse puts an unboundedly growing array
-    # on jq's command line; past ARG_MAX the exec fails and the unchecked assignment would
-    # leave ITEMS empty — a large team silently listing as zero issues while exiting 0.
     ITEMS="$(jq -c --argjson one "$ONE" '. + [$one]' <<<"$ITEMS")" || {
       printf 'list-items.sh: could not accumulate a normalized issue — refusing to report a partial list as complete\n' >&2
       exit "$EX_INTERNAL"
@@ -116,9 +101,6 @@ while :; do
   [[ -n "$CURSOR" ]] || break
 done
 
-# ITEMS travels on STDIN, not argv: this is where the array is largest, so it is the likeliest
-# place to exceed ARG_MAX, and a failed exec here would otherwise emit nothing while the
-# caller read the empty output as "no items".
 jq -c --arg sv "$WIT_SCHEMA_VERSION" --argjson truncated "$TRUNCATED" \
   '{schema_version: $sv, items: ., truncated: $truncated}' <<<"$ITEMS" || {
   printf 'list-items.sh: could not emit the item envelope\n' >&2

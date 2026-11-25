@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GITHUB_ACTIONS
 
@@ -15,11 +13,6 @@ assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" --title x --type
 
-# --- create-item succeeds on a mocked gh 2.45 that serves REST only ---
-# GraphQL-backed calls (`issue create`, `issue view`, `repo view`) fail with the
-# sandbox's HTTP 403; `gh api` succeeds. Below 2.94 the create, the emit read and
-# the repo resolve must all take the REST path. Direct adapter invocation
-# (dispatcher gate is covered in work-item-tracker.test.sh).
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   PROJECT="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -189,7 +182,6 @@ EOF
   assert_eq "create-item --parent with a differently titled sibling creates a new issue" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
   rm -f "$DEDUPE_ERR"
 
-  # CLAUDE_CODE_REMOTE=true: the cloud proxy refuses GraphQL, so gh 2.94 takes REST.
   OUT="$(CLAUDE_CODE_REMOTE=true GH_STUB_VERSION=2.94.0 run_create --title t --labels a --repo o/r)"
   rc=$?
   assert_eq "create-item on gh 2.94 in a remote session → exit 0" "0" "$rc"
@@ -206,7 +198,6 @@ EOF
     "$(<"$STUB/err")" "unavailable in this Claude Code cloud session"
   assert_not_contains "create-item --parent in a remote session sends nothing" "$(<"$STUB/calls.log")" "POST"
 
-  # A native create the proxy refuses with its GraphQL 403 retries over REST.
   OUT="$(GH_STUB_REFUSE=1 GH_STUB_VERSION=2.94.0 run_create --title t --labels a --repo o/r)"
   rc=$?
   assert_eq "create-item on a refused gh 2.94 create falls back → exit 0" "0" "$rc"

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# The harness runs on this host and refuses a Windows figure that was not measured there.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

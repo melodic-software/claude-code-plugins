@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# renew-lease <id> --lease-comment-id <n> — CONTRACT.md "Lease protocol". Edits the
-# lease comment in place (renewed_at bump). The PATCH identity must match the comment
-# author, so it routes through the same writer that posted it (bot).
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -28,9 +25,6 @@ wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
 
 owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
 
-# The comment REST path is repo + comment id, not issue-scoped, so a stale or
-# cross-issue handle would otherwise renew a different item's lease and report
-# success for $id.
 wit_run_gh read api "repos/$owner/$repo/issues/comments/$lease_comment_id" \
   --jq '{body, issue: (.issue_url | capture("/issues/(?<n>[0-9]+)$") | .n)}'
 comment_issue="$(jq -r '.issue // empty' <<<"$WIT_GH_OUT")"
@@ -88,8 +82,6 @@ back_off() {
   exit "$EX_CONFLICT"
 }
 
-# A PATCH that GitHub applies but reports as failed (a timeout) may have revived the lease,
-# so near or past the old expiry it backs off as a late PATCH does below.
 (wit_patch_lease_comment "$owner" "$repo" "$lease_comment_id" "$renewed")
 patch_rc=$?
 if ((patch_rc != 0)); then

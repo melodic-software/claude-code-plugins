@@ -8,13 +8,6 @@
   const listen = (t, ev, fn, opt) => t.addEventListener(ev, fn, opt);
   const memory = () => { const m = {}; return { get: k => m[k], set: (k, v) => { if (v) m[k] = v; else delete m[k]; } }; };
 
-  // ---------- safe markdown: the one dialect both pages render, built from elements and text nodes only ----------
-  // Blocks: paragraphs (a blank line ends one, a line break stays one), "#" headings, "- " and "1." lists and "> "
-  // quotes. Inline: `code`, **bold**, *emphasis*, [text](url) and bare http(s) links, owner/repo#N, and, when the
-  // session names a repository, #N and repo-relative paths (a path links only with a commit too). A page passes:
-  //   repo()         {repo, commit} the session names, either one empty or absent when it names none;
-  //   text(p, s)     how it appends a plain run s to p (mentions, question ids), else as text;
-  //   heading        the level of a "#" heading (## one lower, down to h6), else every heading is a bold line.
   const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
   const SPAN = /(`[^`\n]+`|\*\*[^*\n]+?\*\*|(?<![^\s(\["'])\*[^*\s](?:[^*\n]*?[^*\s])?\*(?![*\w]))/;
   const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|\bhttps?:\/\/[^\s<>"']+/g;
@@ -87,13 +80,6 @@
     return f;
   }
 
-  // ---------- the composer kit: one rule set for every field people write in ----------
-  // send: Enter in a one-line field, Ctrl or Cmd + Enter in a multi-line one, with its hint shown beside it. Shift or
-  // Alt + Enter never sends, and neither does a key an input method is composing with (isComposing, or keyCode 229,
-  // which also marks the keys that open and close a composition: https://developer.mozilla.org/en-US/docs/Web/API/Element/keydown_event).
-  // The counter (one class) shows from counterFrom, by default the last quarter of the field's maxLength. Escape runs
-  // escape. mentions opens the page's @ picker; "claude" offers Claude first. draftKey() names whose unsent text the
-  // field holds now (a question's): each key keeps its own in the page's draft store.
   /** One page's kit. Its host gives:
    *  pane(t)        the element whose height bounds textarea t: it grows with its text up to 40% of it, then scrolls;
    *  grew(t)        what the page does once t has grown (keep it in view while typing);
@@ -164,17 +150,6 @@
     return { composer, grow, typing, paint, swap, store, sent, get: f => KIT.get(f), fields: KITS, boot: () => { booted = true; } };
   }
 
-  // ---------- the visual viewport ----------
-  // Pin the page to the visual viewport: an on-screen keyboard (iOS ignores interactive-widget) shrinks the page from
-  // the bottom instead of covering the focused field, and the page never pans. --vv-top and --vv-h are the visual
-  // viewport's offset and height; a page sizes its root from them. --kb is the keyboard's height: what it takes from
-  // the layout viewport, whose innerHeight a keyboard leaves alone while it shrinks the visual viewport
-  // (https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport). The pan iOS adds to reveal the field moves
-  // offsetTop, not the height, so it never counts against the keyboard. Pinch-zoomed, WebKit shrinks innerWidth and
-  // innerHeight with the visual viewport (https://bugs.webkit.org/show_bug.cgi?id=174362) where Chromium keeps them,
-  // but in both the full height for the visual viewport's width is vv.width * innerHeight / innerWidth; what the
-  // keyboard takes of it, times scale, is its height on screen, and a zoom alone takes nothing. A keyboard taller than
-  // 80px sets data-kb on the root element. Fires "core-viewport" on window once the page is refitted.
   const vv = window.visualViewport, docEl = document.documentElement;
   function fitViewport() {
     if (!vv || !window.innerWidth) return;

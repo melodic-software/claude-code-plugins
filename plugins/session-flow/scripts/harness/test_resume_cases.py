@@ -19,7 +19,6 @@ SAVE_POINT = Path(__file__).resolve().parents[1] / "save_point.py"
 CASE_DIRS = sorted(p.parent for p in EVALS.glob("re-*/resume-eval.json"))
 CASE_NAMES = [p.name for p in CASE_DIRS]
 
-# AUDIT.md Q1 (chain growth, sizes) and Q2 (Read refuses a file over 256 KB).
 READ_LIMIT = 256 * 1024
 MEDIAN_GROWTH = (6_400, 7_000)
 NEWEST_CHAIN_FILE = 370_324

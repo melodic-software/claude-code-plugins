@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# link-blocks <id> --blocked-by <id> — CONTRACT.md "Verbs (core public surface)".
-# Cross-repo edges supported (blocker URL form). Provider ceilings map to exit 7.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

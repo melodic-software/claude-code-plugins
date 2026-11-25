@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# reclaim — Linear adapter. Release an EXPIRED lease, idempotently.
-#
-# Run at session start, not on a schedule. The invariant that matters: a LIVE lease is
-# never the intended target. Everything below fails toward leaving a lease alone.
-#
-# Activity check: non-lease comments newer than the lease's renewed_at mean the holder
-# is still working, so the lease is RENEWED in place and reclaimed is false. Only a
-# silent expired lease is released.
-#
-# Ownership is revalidated immediately before the mutation, because the activity read
-# opens a window in which a concurrent claimer can renew or supersede. That narrows the
-# TOCTOU window; it does not close it — Linear's commentUpdate documents no compare-and-
-# set — so this is intent, not a guarantee, exactly as the contract says for GitHub.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md "Lease protocol", "Exit codes".
-#
 # shellcheck disable=SC2016  # single-quoted `$name` here is a GraphQL variable, not a shell one
 set -uo pipefail
 
@@ -71,9 +55,6 @@ revalidate() {
 }
 
 RENEWED_EPOCH="$(wit_linear_epoch "$RENEWED_AT")"
-# Paginating helper, not an inline first-page read: comments come back oldest-first,
-# so on a long-running item the activity that proves the holder is alive sits on the
-# LAST page. See wit_linear_activity_since in common.sh.
 if [[ -n "$RENEWED_EPOCH" ]] && wit_linear_activity_since "$ISSUE_UUID" "$RENEWED_EPOCH"; then
   revalidate || emit false "lease changed while checking activity"
   RENEWED="$(jq -c --arg t "$(wit_linear_now_iso)" '. + {renewed_at: $t}' <<<"$LEASE")"

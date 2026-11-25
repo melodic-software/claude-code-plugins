@@ -510,8 +510,6 @@ class Observer:
         try:
             memory_root.mkdir(parents=True, exist_ok=True)
             content = gi.read_text(encoding="utf-8") if gi.exists() else ""
-            # Verify a bare `*`/`**` line is present -- not merely that the file
-            # exists (a repo-created .gitignore may hold only comments/exceptions).
             if not any(ln.strip() in ("*", "**") for ln in content.splitlines()):
                 if content and not content.endswith("\n"):
                     content += "\n"
@@ -577,17 +575,8 @@ class Observer:
             checkpoint=checkpoint,
             session_id=self.session_id,
         )
-        # Grant read access to EXACTLY the two directories the prompt reads: the
-        # work dir (the observations file) and the checkpoint's own context dir.
-        # Not the whole plugin root, and not the session data dir (unused). The
-        # prompt goes via STDIN, never as a trailing positional -- `--add-dir` is
-        # variadic and would otherwise swallow the prompt as another directory.
         add_dirs = ["--add-dir", str(self.work_dir), "--add-dir", checkpoint_dir]
         cmd = [claude, "-p"]
-        # --bare drops auto-discovery (a cost lever) BUT couples to auth: on an
-        # OAuth-login install it makes the run report "Not logged in" and fail.
-        # Off by default so the run works everywhere; opt in only where auth is an
-        # env-var API key that survives --bare. See reference/observer.md.
         if self.bare:
             cmd.append("--bare")
         cmd += [
@@ -597,34 +586,20 @@ class Observer:
             self.effort,
             "--permission-mode",
             "dontAsk",
-            # Unattended print run: dontAsk already denies anything that would
-            # prompt. --permission-prompts none also tells the model not to
-            # retry, but only CLIs that know the flag get it.
             *permission_prompts_args(claude),
             "--output-format",
             "json",
-            # Genuinely Read-only over UNTRUSTED observations. --tools RESTRICTS the
-            # available tool set to Read; --allowedTools only auto-APPROVES and does
-            # not restrict, so on its own a Bash/WebFetch/MCP tool already allowed in
-            # the user's settings could be driven by a prompt-injection record in the
-            # transcript. --strict-mcp-config loads no MCP servers. --allowedTools +
-            # dontAsk keep the single Read from prompting or being denied.
             "--tools",
             "Read",
             "--allowedTools",
             "Read",
             "--strict-mcp-config",
-            # CLAUDE_CODE_EFFORT_LEVEL overrides --effort, and the child re-applies
-            # it from any settings file's `env`, replacing what it inherits. A
-            # --settings `env` outranks user, project and local settings, so pin
-            # the variable to the chosen effort there. See reference/observer.md.
             "--settings",
             json.dumps({"env": {"CLAUDE_CODE_EFFORT_LEVEL": self.effort}}),
             *add_dirs,
         ]
 
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
-        # An exported variable may outrank the --settings pin; drop it too.
         env.pop("CLAUDE_CODE_EFFORT_LEVEL", None)
         self.log(
             f"firing analysis: {self.model} at {self.effort} over {self.obs_path.name}"
@@ -633,16 +608,6 @@ class Observer:
         if os.name == "nt":
             run_kwargs["creationflags"] = CREATE_NO_WINDOW
         try:
-            # encoding="utf-8" is explicit because `claude -p --output-format
-            # json` always writes UTF-8, but Python's default text encoding for
-            # subprocess capture is the platform code page -- cp1252 on Windows --
-            # which corrupts non-ASCII output (mojibake) into the ledger.
-            # errors="replace" (rather than the default "strict") keeps a
-            # truncated/invalid byte sequence -- e.g. multi-byte UTF-8 split at
-            # a timeout boundary during decode -- from raising UnicodeDecodeError
-            # out of this try block, which is caught only for
-            # TimeoutExpired/OSError; an uncaught decode error would skip the
-            # designed "return False -> retain observations" fallback entirely.
             proc = subprocess.run(
                 cmd,
                 input=prompt,
@@ -658,8 +623,6 @@ class Observer:
             self.log(f"analysis run failed: {e}")
             return False
         self._record_usage(proc.stdout)
-        # `claude -p` reports auth/API failures inside its JSON body (is_error) with
-        # exit 0 sometimes and exit 1 others; inspect both.
         err = _result_error(proc.stdout) or _incomplete_reason(proc.stdout)
         if proc.returncode != 0 or err:
             self.log(
@@ -761,14 +724,6 @@ def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if os.name == "nt":
-        # tasklist's piped output follows the console output code page, which
-        # is not fixed -- it varies by locale/session and can even differ
-        # between shells in the same session (#1512). Neither a hardcoded
-        # "utf-8" (the #1483 fix) nor a hardcoded "oem" decodes correctly
-        # everywhere, so match the PID as raw ASCII bytes instead of decoding
-        # at all. A process *name* containing non-ASCII/mojibake text can
-        # never affect this match either way, since the predicate only looks
-        # for ASCII digits.
         out = subprocess.run(
             ["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True
         )
@@ -778,7 +733,6 @@ def _pid_alive(pid: int) -> bool:
     except ProcessLookupError:
         return False
     except PermissionError:
-        # Signal refused, but the process exists -- it is alive.
         return True
     except OSError:
         return False
@@ -816,14 +770,8 @@ def _extract_result(stdout: str) -> str:
     return str(data.get("result") or data.get("text") or "").strip()
 
 
-# Mechanical secret-shape patterns for the ledger-write redaction hop. Conservative
-# and shape-based (never the value) -- defense in depth over the -p run's semantic
-# pass, matching running-retro's "redact on the ledger write too" mandate.
 _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     (
-        # The body stops at the next BEGIN and at 16384 characters, so each
-        # header scans a bounded run; unbounded, a repeated header is
-        # quadratic. An 8192-bit RSA key is about 6.5 KB as PEM or OpenSSH.
         re.compile(
             r"-----BEGIN[^-]{1,64}PRIVATE KEY-----"
             r"(?:(?!-----BEGIN).){0,16384}?"
@@ -834,32 +782,18 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     ),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "<REDACTED: API key>"),
     (
-        # GitHub prefixes from
-        # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-        # and the ghs_ regex GitHub recommends for current and stateless installation tokens from
-        # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-        # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
-        # Alternation takes the first branch that matches, so ghs_ comes first:
-        # otherwise a JWT loses only its header. One greedy run of one class with
-        # nothing after it matches or fails within 36 characters, so it stays linear.
         re.compile(r"\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[A-Za-z0-9]{20,})"),
         "<REDACTED: GitHub token>",
     ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "<REDACTED: AWS key id>"),
     (
-        # The JWT header, URL scheme, and email local part and domain are
-        # bounded so each start position scans a bounded run; unbounded, a
-        # long run with no `.`, `://` or `@` is quadratic to scan. RFC 5321
-        # caps the local part at 64 octets and the domain at 255.
         re.compile(
             r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
         ),
         "<REDACTED: JWT>",
     ),
     (
-        # A header past the bound: the whole run, dots included, in one match.
-        # After the JWT rule, since a long payload segment also starts `eyJ`.
         re.compile(r"\beyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
         "<REDACTED: JWT>",
     ),

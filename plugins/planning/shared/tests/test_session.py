@@ -7021,7 +7021,6 @@ class TestAttachmentsEverywhere(UploadCase):
         self.s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
 
     def test_a_picture_on_a_question_that_no_record_carries_shows_under_it(self):
-        # offers from before #8420 that nothing carries: the strip's pictures
         pic, own, sent = (self.received_on_q1(p, n) for p, n in ((self.ann, "a.png"), (HOST, "h.png"), (self.ann, "c.png")))
         self.act("chat", self.ann, {"text": "Carried", "attachments": [sent]})
         self.loose(pic, own)
@@ -7052,7 +7051,6 @@ class TestAttachmentsEverywhere(UploadCase):
         self.assertEqual(self.refused("not-found", "upload_image", HOST, {"id": own}).http, 404)
 
     def test_the_chips_draft_only_remove_is_refused_once_a_post_carried_the_file(self):
-        # #8615: a stale page's chip x must not take a just-sent file off the post that carries it
         sent, kept = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
         self.act("answer", self.ann, {"qid": "Q1", "text": "See it.", "view": "focus", "attachments": [sent]})
         e = self.refused("wrong-status", "act_on_upload", self.ann, {"id": sent, "action": "remove", "draftOnly": True})
@@ -7367,8 +7365,6 @@ def zip_of(*entries):
 
 
 PNG_HEAD = b"\x89PNG\r\n\x1a\n"
-# A 1x1 GIF89a of two frames (red, then blue, half a second each) that loops: header, screen, two-color table,
-# NETSCAPE2.0 loop, then per frame a graphic control block and an image whose LZW data is clear, color, end.
 GIF = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00" + b"\xff\x00\x00\x00\x00\xff"
        + b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
        + b"".join(b"\x21\xf9\x04\x04\x32\x00\x00\x00" + b"\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00" + b"\x02\x02" + lzw + b"\x01\x00" for lzw in (b"\x44", b"\x4c"))

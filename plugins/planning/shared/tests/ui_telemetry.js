@@ -128,7 +128,6 @@ async function main() {
     const t1 = tokens(sums[0]?.message);
     const lat = (t1["lat:/api/pick"] || "").split(",").reduce((a, n) => a + Number(n), 0);
     ok("hiding sends one summary: both picks timed, one rollback, no repeat count", sums.length === 1 && lat === 2 && t1["rb:/api/pick"] === "1" && !Object.keys(t1).some(k => k.startsWith("rep:")), sums[0]?.message);
-    // A target is a component name, or "-" when web-vitals found no element for it (one removed before it measured).
     ok("  with INP and LCP named by component, never text", /^\d+:(pointer|keyboard):(?:[a-z][\w-]*|-)$/.test(t1.inp || "") && /^\d+:(?:[a-z][\w-]*|-)$/.test(t1.lcp || ""), `${t1.inp} ${t1.lcp}`);
     ok("  with taps counted by control: Help once, three on the answering control as one rage tap, one dead tap",
       t1["use:vf-keysbtn"] === "1" && t1["use:vf-telemetry-rage"] === "3" && t1["rage:vf-telemetry-rage"] === "1" && !("dead:vf-telemetry-rage" in t1)
@@ -240,7 +239,6 @@ async function main() {
     await stub.reload();
     await joinAs(stub, "Cy");
     ok("the stub web-vitals is loaded", await until(stub, () => !!window.stubInp && !!window.stubLcp));
-    // What web-vitals passes when the element is gone: INP's targetSelector as interactionTarget, LCP's `#id` as target.
     await stub.evaluate(() => {
       window.stubInp[0]({ value: 120, attribution: { interactionType: "pointer", interactionTarget: "div#cy-secret-inp>button.answer", targetSelector: "div#cy-secret-inp>button.answer" } });
       window.stubLcp[0]({ value: 900, attribution: { target: "#cy-secret-lcp", lcpEntry: { id: "cy-secret-lcp", element: null } } });

@@ -13,8 +13,6 @@ def load_hop_chain():
     spec = importlib.util.spec_from_file_location("hop_chain_under_test", HARNESS)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    # Registered before execution: `dataclasses` resolves a field annotation
-    # through `sys.modules[cls.__module__]`, which is absent otherwise.
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module

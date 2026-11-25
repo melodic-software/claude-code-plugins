@@ -39,23 +39,18 @@ EOF
     "$(jq -r '[.items[].created_at] | join(",")' <<<"$OUT")"
   assert_contains "createdAt is requested" "$(cat "$FIX/argv")" "url,createdAt"
 
-  # gh returns a milestone as an object or null; a row carries the title, the name a
-  # cordoned-milestones list holds.
   OUT="$(PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="$(jq -cn --argjson a "$(row 1)" --argjson b "$(row 2)" \
     '[$a + {milestone: {number: 1, title: "After zero", description: "d", dueOn: null}}, $b + {milestone: null}]')" \
     bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
   assert_eq "each row carries its milestone title, or null" '["After zero",null]' "$(jq -c '[.items[].milestone]' <<<"$OUT")"
   assert_contains "milestone is requested" "$(cat "$FIX/argv")" "createdAt,milestone"
 
-  # --label goes to gh, so GitHub filters before the ceiling counts.
   : >"$FIX/argv"
   PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="[$(row 1)]" \
     bash "$FIX/adapters/github/list-items.sh" --repo o/r --label "area: ci" >/dev/null
   assert_contains "--label reaches gh issue list" "$(cat "$FIX/argv")" "--label area: ci --limit 3"
   assert_usage_error "$S" --label
 
-  # A labeled read goes through GitHub search, which returns at most 1000 results, so
-  # 1000 labeled rows cannot prove the listing complete; 1000 unlabeled rows can.
   jq '.limits.list_items_max = 1000' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
   jq -cn '[range(1; 1001) | {number: ., title: "t", state: "OPEN", assignees: [], labels: [],
     issueType: null, blockedBy: {nodes: []}, url: "https://github.com/o/r/issues/\(.)"}]' >"$FIX/thousand.json"
@@ -66,9 +61,6 @@ EOF
     bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
   assert_eq "1000 unlabeled rows at a 1000 ceiling → truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 
-  # --- a session that refuses GraphQL (CLAUDE_CODE_REMOTE=true) reads REST ---
-  # The stub serves page N of the issues endpoint from page-N.json and an item's
-  # blockers from deps-<n>.json, and logs every call.
   REST="$FIX/rest"
   mkdir -p "$REST/bin"
   cat >"$REST/bin/gh" <<'EOF'
@@ -125,7 +117,6 @@ EOF
     "$(jq -c '.items[0] | {state, assignees, labels, type, url, created_at}' <<<"$OUT")"
   assert_eq "REST session: under the ceiling → truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 
-  # The label is a REST query parameter, so the 1000-result search cap does not apply.
   rest_list --label "area: ci" >/dev/null
   assert_contains "REST session: --label reaches the issues endpoint" "$(cat "$REST/argv")" "labels=area: ci"
 
@@ -134,8 +125,6 @@ EOF
   assert_eq "REST session: each row carries its milestone title, or null" '["After zero",null]' \
     "$(jq -c '[.items[].milestone]' <<<"$(rest_list)")"
 
-  # A full page fetches the next; one row past the ceiling marks the listing truncated.
-  # Each row carries a 2 KB body, so a page is past Linux's 128 KiB limit on one argument.
   jq '.limits.list_items_max = 150' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
   jq -cn '[range(1; 101) | {number: ., title: "t", state: "open", assignees: [], labels: [], body: ("x" * 2048),
     html_url: "u", created_at: "2026-03-01T10:00:00Z", issue_dependencies_summary: {total_blocked_by: 0}}]' >"$REST/page-1.json"

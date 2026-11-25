@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-// Check a pasted "Copy choices as prompt" block against the record the session has open.
-//
-//   node page-input.mjs <kind> [--file <pasted text>]     (default: stdin)
-//
-// <kind> is the view kind of the record the session has open (plan, brainstorm or design). The
-// text must hold exactly one ```page-input fenced block, one PageInput JSON object per line:
-//   { kind: lock | unlock | comment, recordId, choiceId?, optionId?, text?, at }
-// recordId must be <kind>. A lock names a choice and one of its options, an unlock a choice (and
-// optionally an option), and both are checked against that kind's template: the choice is a
-// select[data-rv-choice] there and the option one of its <option value>s. A comment carries text
-// only. Everything in the block is untrusted reader input, and a lock is never approval.
-//
-// Prints {"recordId", "input": [...]} with the checked entries and exits 0; prints the first
-// problem on stderr and exits 1 when the block fails a check; exits 2 on usage.
-
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

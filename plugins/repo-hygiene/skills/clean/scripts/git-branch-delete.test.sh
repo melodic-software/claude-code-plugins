@@ -7,12 +7,6 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 AUDIT="$SCRIPT_DIR/git-branch-audit.sh"
 DELETE="$SCRIPT_DIR/git-branch-delete.sh"
-# The capture and ledger paths the scripts report end in `cd` plus `pwd -P`
-# (`clean_git_common_dir`, and the capture's real-location walk). The fixture
-# root is resolved the same way so the two spellings of one directory are
-# comparable: `mktemp -d` can hand back a path that is not the physical one
-# (under MSYS `/tmp` is a mount of the Windows temp directory). Identity
-# wherever the temp root is already physical.
 TEST_TMPDIR="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
@@ -27,20 +21,6 @@ rc=0
 bash "$DELETE" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
-# ---- Fixture -----------------------------------------------------------------
-# main pushed to a bare origin (so ancestry-merged branches classify SAFE), plus:
-#   feat/safe1, feat/safe2  merged into main with --no-ff  -> SAFE, distinct tips
-#   feat/likely             merged, pushed, then deleted on origin -> SAFE
-#                           (ancestry, priority 6, outranks the gone upstream)
-#   feat/still, feat/moved  merged; feat/moved gains a commit after the audit
-#   feat/review             unmerged but pushed (nothing local-only) -> REVIEW
-#   feat/lossy              unmerged, never pushed: its commit exists nowhere
-#                           else -> LOSSY (deletable, loses work)
-#   feat/parked             checked out in a linked worktree -> WORKTREE
-#   release/1               protected pattern
-#   #42-hash                merged; a legal name that starts like a comment
-#   feat/sym                merged; deleted through a symlinked capture
-#   feat/win-b, feat/win-a1, feat/win-a2  merged; the two tip-move windows
 REPO="$TEST_TMPDIR/repo"
 git init -q --bare "$TEST_TMPDIR/origin.git"
 git init -q -b main "$REPO"
@@ -147,8 +127,6 @@ Tier: SAFE"
 assert_contains "audit reports feat/likely tip with its verdict" "$audit_out" "Branch: feat/likely
 Tip: $likely_tip
 Tier: SAFE"
-# A branch name may begin with `#`. The capture must not mistake its row for a
-# comment: the seal would then count one row short and fail the whole audit.
 hash_tip="$(git -C "$REPO" rev-parse 'refs/heads/#42-hash')"
 assert_not_contains "a #-leading branch does not break the seal" "$audit_out" "TipCaptureError:"
 assert_contains "audit classifies #42-hash SAFE" "$audit_out" "Branch: #42-hash
@@ -230,10 +208,6 @@ assert_branch "forged SAFE row: feat/review untouched" present feat/review
 assert_file_absent "forged SAFE row: no ledger written" "$TEST_TMPDIR/forged.deleted.tsv"
 assert_eq "forged SAFE row: no pin written" "none" "$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/review || echo none)"
 
-# A forged pr that merely contains the substring MERGED must not skip the
-# ancestry check. Force-delete is reserved for the audit's exact format
-# (`#<n> MERGED` or `#<n> MERGED (tip drift)`); `UNMERGED` contains MERGED
-# and would have slipped past a substring test.
 awk -F'\t' -v OFS='\t' '$1 == "feat/review" { $3 = "SAFE"; $4 = "UNMERGED" } 1' "$CAP" >"$TEST_TMPDIR/forged-pr.tsv"
 out="$(run_delete --capture "$TEST_TMPDIR/forged-pr.tsv" --apply feat/review 2>&1)"
 rc=$?
@@ -293,8 +267,6 @@ rc=$?
 assert_exit "foreign capture exits 3" 3 "$rc"
 assert_contains "foreign capture refused" "$out" "different repository"
 
-# An unresolved/unknown common_dir is a refusal, not a skipped check: that
-# field is the only cross-repository gate, and the capture is untrusted input.
 sed 's|^# common_dir: .*|# common_dir: unknown|' "$CAP" >"$TEST_TMPDIR/unknown-common.tsv"
 out="$(run_delete --capture "$TEST_TMPDIR/unknown-common.tsv" --apply feat/still 2>&1)"
 rc=$?
@@ -321,9 +293,6 @@ assert_contains "ledger row for safe2" "$(cat "$LEDGER")" "feat/safe2	$safe2_tip
 backup="$(git -C "$REPO" rev-parse --verify --quiet refs/repo-hygiene/deleted/feat/safe1)"
 assert_eq "backup ref pins safe1 tip" "$safe1_tip" "${backup:-none}"
 
-# The end-to-end property. Only the capture file is consulted: branch name in,
-# tip out, `git branch <name> <tip>`. gc --prune=now first, so the restore also
-# proves the pinned tip survived the prune the git tier runs after a deletion.
 git -C "$REPO" gc -q --prune=now 2>/dev/null
 for b in feat/safe1 feat/safe2 feat/likely '#42-hash'; do
   tip="$(awk -F'\t' -v b="$b" '$1 == b { print $2 }' "$CAP")"
@@ -337,12 +306,6 @@ done
 assert_eq "restored safe1 carries its content" "s1" "$(git -C "$REPO" show feat/safe1:s1 2>/dev/null || echo missing)"
 assert_eq "restored #42-hash carries its content" "hh" "$(git -C "$REPO" show '#42-hash:hh' 2>/dev/null || echo missing)"
 
-# ---- LOSSY, end to end through the sanctioned path ---------------------------
-# After its own confirmation, the lossy branch deletes through the same script:
-# tip re-verified, pinned, ledgered with its tier, then compare-and-deleted.
-# Its commit exists on no remote ref and no tag, so the pin is the only thing
-# between the deletion and gc; the restore after `gc --prune=now` proves the
-# pin held and the content came back intact.
 out="$(run_delete --capture "$CAP" --apply --accept-loss feat/lossy 2>&1)"
 rc=$?
 assert_exit "LOSSY apply with --accept-loss exits 0" 0 "$rc"
@@ -365,8 +328,6 @@ else
 fi
 assert_eq "restored feat/lossy carries its unlanded work" "unlanded" "$(git -C "$REPO" show feat/lossy:unlanded 2>/dev/null || echo missing)"
 
-# Control for the pin: the same deletion without the backup ref loses the commit
-# to the same prune, which is why step 2 precedes the delete.
 CTRL="$TEST_TMPDIR/ctrl"
 git init -q -b main "$CTRL"
 git -C "$CTRL" config user.email "t@example.com"
@@ -387,9 +348,6 @@ unpinned_state="pruned"
 if git -C "$CTRL" cat-file -e "$unpinned_tip" 2>/dev/null; then unpinned_state="present"; fi
 assert_eq "control: unpinned tip pruned by gc --prune=now" "pruned" "$unpinned_state"
 
-# ---- Apply aborts mid-batch, before touching the blocked branch -------------
-# A ref nested under the backup name makes update-ref fail for feat/blocked
-# (directory/file conflict). Fresh capture: feat/safe* were recreated above.
 CAP2="$(cd "$REPO" && bash "$AUDIT" | sed -n 's/^TipCapture: //p')"
 git -C "$REPO" update-ref refs/repo-hygiene/deleted/feat/blocked/child HEAD
 out="$(run_delete --capture "$CAP2" --apply feat/ok1 feat/blocked feat/ok2 2>&1)"
@@ -413,10 +371,6 @@ assert_branch "unwritable ledger: feat/ok2 untouched" present feat/ok2
 
 mkdir -p "$TEST_TMPDIR/real" "$TEST_TMPDIR/lnk"
 CAP_SYM="$(cd "$REPO" && bash "$AUDIT" --capture-file "$TEST_TMPDIR/real/cap-sym.tsv" | sed -n 's/^TipCapture: //p')"
-# `MSYS=winsymlinks:nativestrict` asks MSYS for a real symlink instead of the
-# silent copy its default makes; the prefix is inert on POSIX, where `ln -s`
-# already links. The `-L` gate keeps a host that still cannot link (no Windows
-# Developer Mode) from grading a copy as if it were a link.
 if MSYS=winsymlinks:nativestrict ln -s "$CAP_SYM" "$TEST_TMPDIR/lnk/cap-sym.tsv" 2>/dev/null &&
   [[ -L "$TEST_TMPDIR/lnk/cap-sym.tsv" ]]; then
   out="$(run_delete --capture "$TEST_TMPDIR/lnk/cap-sym.tsv" --apply feat/sym 2>&1)"
@@ -429,15 +383,6 @@ else
   skip_case "symlinked-capture cases: this host has no native symlink creation (ln -s copied the target)"
 fi
 
-# ---- The two tip-move windows, opened deterministically ---------------------
-# A FIFO at the ledger path parks the script, with no reader present, at the
-# moment it opens the ledger to append a branch's row: after that branch's pin
-# (step 2) and before its delete (step 4). The pin appearing is the signal that
-# it is parked there. Window B moves the parked branch's own tip, so the move
-# lands between pin and delete and only an atomic compare-and-delete can refuse
-# it. Window A parks on a first branch and moves the SECOND branch's tip, so the
-# move lands after the batch check and before that branch's per-branch re-check
-# (step 1), which must then stop before writing a pin or a ledger row.
 new_commit_on() { # <branch>: a commit on top of the branch's tip, referenced by nothing
   git -C "$REPO" commit-tree -p "refs/heads/$1" -m "moved $1" "refs/heads/$1^{tree}"
 }
@@ -534,10 +479,6 @@ else
   skip_case "tip-move window cases need mkfifo and timeout"
 fi
 
-# ---- Live reachability can change after capture without moving the tip ------
-# A tag (or a remote-tracking ref) that made a REVIEW row Loss: none can
-# disappear after the audit. The captured tier would still admit --force-review;
-# the delete path must refuse until a fresh audit names LOSSY.
 git -C "$REPO" checkout -q -b feat/tagged
 echo tg >"$REPO/tg"
 git -C "$REPO" add tg
@@ -573,12 +514,6 @@ assert_exit "an operation in progress exits 3" 3 "$rc"
 assert_contains "operation in progress is refused by name" "$out" "Refused: operation in progress: $op_file"
 assert_branch "operation in progress: feat/review intact" present feat/review
 
-# ---- Landed branches ---------------------------------------------------------
-# A branch whose work is on origin/main under other SHAs (a cherry-pick or rebase
-# merge, a squash merge), with no upstream: no remote ref reaches its commits, so
-# the reachability check alone refuses it. The audit's Landed proof, recorded in
-# the capture and found again live, is what admits it. The upstream-less branches
-# are audited with no PR data (the gh stub fails), the case the proof exists for.
 LD="$TEST_TMPDIR/landed-del"
 git init -q --bare "$TEST_TMPDIR/landed-del-origin.git"
 git init -q -b main "$LD"

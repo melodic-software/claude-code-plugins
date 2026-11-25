@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for destructive-guard.sh.
 # test-scope: plugins/repo-hygiene/skills/clean/SKILL.md
 set -uo pipefail
 
@@ -49,11 +48,6 @@ MARKER_SCRIPT="$SCRIPT_DIR/clean-run-marker.sh"
 help_out=$(bash "$SCRIPT" --help 2>&1)
 assert_exit "--help exits 0" 0 $?
 assert_contains "--help names the ack prefix" "$help_out" "CLEAN_GUARD_ACK"
-
-# --- 2.0 Precision: destructive text inside a quoted argument is inert -------------
-# These ran as blocks before argv matching: `gh issue comment --body '... git
-# branch -D ...'` is the production false positive (#7333). The live marker is
-# open, so only the parse decides.
 
 for cmd in \
   "gh issue comment 7333 --body 'cleanup ran git branch -D feature/x'" \
@@ -107,16 +101,10 @@ nested_cmds=(
   $'cat <<EOF | bash\ngit reset --hard\nEOF'
   $'cat <<EOF |\n$(date)\nrm -rf ~\nEOF\nbash'
   $'ssh h <<\'EOF\'\ngit reset --hard\nEOF'
-  # A here-doc opened in an earlier substitution, or in a body, is called back
-  # after the shell that reads its own here-doc as a script.
   $'X=$(true <<A\nx\nA\n) bash <<A\ngit reset --hard\nA'
   $'cat <<E\n$(cat <<F\nf\nF\n)\nE\nbash <<G\ngit reset --hard\nG'
-  # A body with no opener a callback counts (a redirect-only statement) and an
-  # opener with no body in the list (a joined body's or a pattern's second
-  # reading): every body is read as the shell's script, whatever the count says.
   $'<<A\nz\nA\nbash <<A\ngit reset --hard\nA\ncat <<A\nx\\\ny\nA'
   $'<<A\nz\nA\nbash <<A\ngit reset --hard\nA\necho @(cat <<B\nb\nB\n)'
-  # A here-doc inside a command-start `!(…)` only the extglob-off reading sees.
   $'!(bash <<A\ngit reset --hard\nA\n)'
   "git --git-dir /r/.git reset --hard"
   "git --work-tree /r stash drop"
@@ -363,13 +351,6 @@ done
 
 assert_exit "allows benign PowerShell tool call" 0 "$(guard_exit "Get-ChildItem -Recurse" PowerShell)"
 
-# --- 2c. PowerShell acknowledgement: a spelling PowerShell can actually run ------
-# `CLEAN_GUARD_ACK=1 <cmd>` is Bash syntax; pwsh rejects it ("term
-# 'CLEAN_GUARD_ACK=1' is not recognized"), so accepting it on the PowerShell
-# tool would assert an ack path that does not exist. The accepted spelling is
-# the `$env:` assignment as the FIRST statement, terminated by `;`. When pwsh is
-# on PATH, the spelling is executed for real to keep this case honest.
-
 # shellcheck disable=SC2016  # literal `$env:` is the PowerShell spelling
 ps_ack='$env:CLEAN_GUARD_ACK=1;'
 for cmd in \
@@ -387,10 +368,6 @@ if command -v pwsh >/dev/null 2>&1; then
   pwsh -NoProfile -NonInteractive -Command 'CLEAN_GUARD_ACK=1 Write-Output hi' >/dev/null 2>&1
   assert_exit "pwsh cannot execute the Bash ack spelling" 1 $?
 
-  # The stash selector needs quoting on the PowerShell lane. Bare `stash@{0}` is
-  # splatting syntax to pwsh, so git receives a mangled argument and drops
-  # nothing. The guard accepts either spelling (the ack prefix is identical),
-  # so only a live run tells them apart.
   PS_FIX="$(mktemp -d)"
   ps_git=(git -C "$PS_FIX" -c user.email=t@example.invalid -c user.name=t)
   if git init -q "$PS_FIX" 2>/dev/null &&
@@ -405,11 +382,6 @@ if command -v pwsh >/dev/null 2>&1; then
     make_stash two
     before="$(stash_count)"
 
-    # pwsh is a native process: it resolves the host's own path spelling, not
-    # the POSIX emulation layer's. Handing it the fixture path unconverted makes
-    # `git -C` fail on "cannot change to", which is not the quoting difference
-    # these two pairs exist to tell apart. `cygpath` is absent off Windows, so
-    # the fallback is the fixture path itself.
     PS_FIX_NATIVE="$(cygpath -m "$PS_FIX" 2>/dev/null || printf '%s' "$PS_FIX")"
 
     pwsh -NoProfile -NonInteractive -Command \
@@ -451,8 +423,6 @@ for cmd in \
   assert_exit "PowerShell ack does not bypass: $cmd" 2 "$(guard_exit "$cmd" PowerShell)"
 done
 
-# The PowerShell spelling is not an assignment in Bash (`$env` expands empty,
-# `:CLEAN_GUARD_ACK=1` is a failed command lookup, and the command still runs).
 assert_exit "PowerShell ack spelling is not an ack on the Bash tool" 2 "$(guard_exit "$ps_ack git stash drop" Bash)"
 assert_exit "Bash ack is not accepted inside a comment" 2 "$(guard_exit "git stash drop # CLEAN_GUARD_ACK=1" Bash)"
 assert_exit "Bash ack is not accepted after the command" 2 "$(guard_exit "git stash drop stash@{0}; CLEAN_GUARD_ACK=1" Bash)"
@@ -485,10 +455,6 @@ ungated_reason=$(jq -n '{tool_name:"Foo",tool_input:{command:"git clean -fdx"}}'
 assert_contains "ungated tool block reason names the guard" "$ungated_reason" "destructive guard"
 assert_contains "ungated tool block reason says there is no ack path" "$ungated_reason" "no acknowledgement path"
 assert_not_contains "ungated tool block reason offers no ack spelling" "$ungated_reason" "CLEAN_GUARD_ACK"
-
-# --- 2e. Apply scripts, forced worktree removal and branch deletion are in the net
-# Dry-run stays reachable, including `git push --delete --dry-run`. The ack
-# prefix still lifts any of these blocks after the confirmation gate.
 
 for cmd in \
   "bash /d/plugins/clean-batch.sh --tier all --apply --batch-plan /tmp/p" \
@@ -614,11 +580,6 @@ empty=$(
   echo $?
 )
 assert_exit "empty tool_input exits 0" 0 "$empty"
-
-# --- 8. Degraded mode without jq: fail-closed -------------------------------------
-# Sandbox PATH containing everything the guard needs except jq. Symlinking works
-# on Linux CI; on Windows/MSYS the linked bash cannot load its DLLs, so the
-# sandbox is verified functional first and the cases are skipped when it isn't.
 
 NOJQ_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_ROOT" "$NOJQ_DIR"' EXIT

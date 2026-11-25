@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# gen-hook-filters.sh: write hooks/hooks.json from the adapters' files: globs.
-#
-# The test-weaken (PreToolUse) hook starts only for paths an `if` row matches,
-# and those rows must list exactly the test-file globs the scanner claims, so
-# they are generated from one source: the union of every shipped adapter's
-# files: list, deduplicated and sorted. An `if` holds one rule and names one
-# tool, so each glob gets a Write row and an Edit row: an Edit(...) row does
-# not match a Write call (the `if` probe, below). A glob with no slash matches
-# the basename at any depth (gitignore syntax).
-# The `if` probe: https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#if-row-matching-and-hook-input-claude-code-21284-wsl2-2026-09-28
-# (as of 2026-09-28; recheck when a Claude Code release note changes how a
-# hook's `if` rule matches a tool call).
-#
-# No PostToolUse row: test-quality findings are report-only, so they come from
-# /testing:audit on demand, never per edit (docs/contracts/check-placement).
-#
-# Usage: gen-hook-filters.sh [--check]
-#   (no arg)  rewrite hooks/hooks.json
-#   --check   exit 1 when hooks/hooks.json differs from what would be written
 # Exit: 0 written or in sync; 1 drift; 2 setup failed.
 set -uo pipefail
 

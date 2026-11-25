@@ -50,7 +50,6 @@ SENDING = 16
 WAIT = 10.0
 CHUNK = 64 * 1024
 TEXT = "text/plain; charset=utf-8"
-# A fixed map, not mimetypes: on Windows mimetypes reads the registry, which can name .js text/plain and break a module.
 TYPES = {
     ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
     ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
@@ -181,7 +180,6 @@ class Handler(BaseHTTPRequestHandler):
     timeout = 30
 
     def __getattr__(self, name):
-        # BaseHTTPRequestHandler answers 501 to a method it has no do_X for; every method but GET and HEAD is 405 here.
         if name.startswith("do_"):
             return self.refuse
         raise AttributeError(name)

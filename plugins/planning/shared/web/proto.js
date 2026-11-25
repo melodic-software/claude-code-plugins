@@ -1,21 +1,8 @@
-// The prototype page (Q98), /proto/<qid>: one prototype question's variants, a switcher between them, an Annotate
-// toggle, and notes pinned to elements of a variant. Notes go to the server (/api/annotate), which shows them in the
-// question's Claude thread and hands them to Claude with the round. A variant that revises one on an earlier prototype
-// question (its `previous`) lists every version, and shows any of them side by side with it.
-// Identity, polling and actions come from core.js.
-// A variant is untrusted: an html one runs framed from /assets/ in a sandbox with no same origin, and only the pin
-// helper inside it (proto-pin.js) talks to this page, by postMessage; every message is checked here before use.
-// A variant shows its views (Core.viewsOf): an html snapshot, and one to four screenshots shown one under another, each
-// with its own pins; a note on screenshot k (k > 1) is pinned at "img:nth-of-type(k)", on the first at "img".
-// A live view is another origin's running server: never framed here, only linked to open in a new tab with no opener
-// and no referrer, and only once the owner approved it and it runs (the server sends a guest its url only then). Notes
-// on a live-only variant are on the whole variant.
 (() => {
   const Core = window.Core;
   const qid = (location.pathname.match(/^\/proto\/(Q[1-9][0-9]{0,5})$/) || [])[1] || "";
   const E = (tag, cls, text) => Core.el(tag, cls, text);
   const btn = (cls, text) => { const b = E("button", cls, text); b.type = "button"; return b; };
-  // The server's checks (session.py SELECTOR and _rect), repeated so a bad message from the frame never reaches it.
   const STEP = "[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}(?::nth-of-type\\([1-9][0-9]{0,3}\\))?";
   const SELECTOR = new RegExp(`^${STEP}(?: > ${STEP}){0,31}$`);
   const okRect = r => !!r && typeof r === "object" && ["x", "y", "w", "h"].every(k => typeof r[k] === "number" && Number.isFinite(r[k]) && r[k] >= 0)
@@ -176,8 +163,6 @@
       mainView.replaceChildren(E("p", "vp-left vp-live-only", LIVE_ONLY_TEXT));
     } else if (kind === "snapshot") {
       const f = frame = sandboxFrame("vp-frame", `Prototype variant ${v.label}`);
-      // The frame's window stays the same object when the variant navigates itself away, so a second load means the
-      // frame now shows some other page: drop it, and stop talking to it, before it can pass for the variant.
       let loads = 0;
       f.addEventListener("load", () => { if (++loads > 1 && frame === f) leftPage(v); });
       f.src = `/assets/${snapshot}?pin=1`;

@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for transcript_dirs.sh, the scope-to-directory map behind
-# /session-flow:find-handoff's transcript scan.
-#
-# Expected directory names come from the sessions docs rule (every UTF-16 code unit
-# that is not an ASCII letter or digit becomes `-`; a name past 200 characters keeps
-# its first 200 and gains a hash), written out by hand for each fixture path.
-# On Linux and macOS the fixture lives under /tmp so its own prefix is known:
-# `/tmp/<x>` encodes to `-tmp-<x>`, macOS's `/private/tmp/<x>` to
-# `-private-tmp-<x>`. On Git Bash, MSYS2 and Cygwin the temp dir's Windows form
-# (`cygpath -w`) is machine-specific, so that one prefix is encoded with the
-# same rule; every suffix below stays hand-written.
-# Self-contained; mutates only its own mktemp dir.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_CODE_PROJECT_DIR_NAME
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -32,8 +20,6 @@ trap 'rm -rf "$WORKROOT"' EXIT
 T="$(cd "$WORKROOT" && pwd -P)"
 if [[ "$WINHOST" -eq 1 ]]; then
   wT="$(cygpath -w "$T")"
-  # Per UTF-16 code unit, over UTF-8 bytes: continuation bytes vanish, a
-  # 4-byte lead is two units, any other non-[A-Za-z0-9] byte is one.
   base="$(
     LC_ALL=C
     wT="${wT//[$'\x80'-$'\xbf']/}"
@@ -49,16 +35,12 @@ else
     exit 0
     ;;
   esac
-  # The POSIX-form cases need the script's cygpath call to fail, so a stub that
-  # always exits 1 shadows any cygpath on PATH. The Windows-form case prepends
-  # its own stub ahead of this one.
   NOCYG="$T/nocyg"
   mkdir -p "$NOCYG"
   printf '#!/usr/bin/env bash\nexit 1\n' >"$NOCYG/cygpath"
   chmod +x "$NOCYG/cygpath"
   export PATH="$NOCYG:$PATH"
 fi
-# A recorded cwd is the session's own path: the Windows form on a Windows host.
 cwd_of() { if [[ "$WINHOST" -eq 1 ]]; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 
 fails=0
@@ -93,9 +75,6 @@ R1="$T/repo.main"
 R2="$T/wt-two"
 mkdir -p "$R1/sub" "$T/repo.main-v2" "$T/plain"
 git -C "$R1" init -q
-# The names below need git to report the fixture root as the shell sees it.
-# Git for Windows prints a drive form (C:/...), so on a Windows host the
-# comparison goes through `cygpath -u`.
 top="$(git -C "$R1" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 [[ "$WINHOST" -eq 1 && -n "$top" ]] && top="$(cygpath -u "$top")"
 if [[ "$top" != "$R1" ]]; then
@@ -158,7 +137,6 @@ assert_true 'outside a repository, worktree is the current directory' out_is "$E
 run_in "$T/plain" --scope repo
 assert_true 'outside a repository, repo equals worktree' out_is "$EPLAIN"
 
-# A long root: the stored name is its first 200 characters plus a hash.
 a100="$(printf 'a%.0s' {1..100})"
 b100="$(printf 'b%.0s' {1..100})"
 RL="$T/long/$a100/$b100"
@@ -173,7 +151,6 @@ run_in "$RL" --scope worktree
 assert_true 'a hash-truncated name whose cwd is the root is kept, a decoy is not' out_is "$ELONG"
 rm -rf "$ELONG" "$EDECOY"
 
-# CLAUDE_CONFIG_DIR moves the store; without it the store is under HOME.
 HSTORE="$HOME/.claude/projects"
 mkdir -p "$HSTORE/${base}-repo-main"
 run_in "$R1" --scope worktree
@@ -186,7 +163,6 @@ CLAUDE_CODE_PROJECT_DIR_NAME=pinned run_in "$R1" --scope worktree
 assert_true 'a pinned name without CLAUDE_CONFIG_DIR is ignored' out_is "$HSTORE/${base}-repo-main"
 export CLAUDE_CONFIG_DIR="$CFG"
 
-# A pinned project directory name, with CLAUDE_CONFIG_DIR set, is the one directory.
 mkdir -p "$S/pinned"
 for scope in worktree repo all; do
   CLAUDE_CODE_PROJECT_DIR_NAME=pinned run_in "$R1" --scope "$scope"
@@ -196,9 +172,6 @@ CLAUDE_CODE_PROJECT_DIR_NAME='bad/name' run_in "$R1" --scope worktree
 assert_true 'an invalid pinned name is ignored' sorted_out_is "$E1" "$E1SUB" "$E1ODD"
 rm -rf "$S/pinned"
 
-# Windows form, with git ending its lines in CRLF. On a Windows host the cases
-# above already ran through the native cygpath, so the names are the same ones;
-# elsewhere a stub cygpath maps /x/y to C:\x\y.
 STUB="$T/stub"
 mkdir -p "$STUB"
 REAL_GIT="$(command -v git)"
@@ -231,7 +204,6 @@ fi
 NOPY="$T/nopy"
 mkdir -p "$NOPY"
 BASH_BIN="$(command -v bash)"
-# Wrappers, not symlinks: MSYS copies a symlinked .exe away from the DLLs beside it.
 tools=(git tr sed)
 [[ "$WINHOST" -eq 1 ]] && tools+=(cygpath)
 for tool in "${tools[@]}"; do
@@ -245,8 +217,6 @@ assert_true 'without python only the exact-name match prints' out_is "$E1"
 assert_true 'without python stderr is one line' [ "$(wc -l <"$T/err")" -eq 1 ]
 assert_true 'that line is a gap line' [ "$(grep -c '^gap:' "$T/err")" -eq 1 ]
 
-# Non-ASCII roots. Claude Code replaces each UTF-16 code unit that is not an
-# ASCII letter or digit, so `é` is one `-` and an emoji (two code units) is two.
 for case in "José|Jos-" "a😀b|a--b"; do
   dir="$T/${case%%|*}"
   want="$S/${base}-${case#*|}"
@@ -256,7 +226,6 @@ for case in "José|Jos-" "a😀b|a--b"; do
   assert_true "a root named ${case%%|*} maps to ${base}-${case#*|}" out_is "$want"
 done
 
-# Usage.
 run_in "$R1" --scope wide
 assert_true 'an unknown scope exits 2' code_is 2
 run_in "$R1"

@@ -58,13 +58,10 @@ LOCK = ".shared-tunnel.lock"
 URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")  # api. is cloudflared's own endpoint, never a tunnel
 BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")  # the address line inside the "quick Tunnel has been created" box
 READY = re.compile(r"Registered tunnel connection")  # a named tunnel's first connection to Cloudflare
-# The id Cloudflare's connections list names this cloudflared by, logged before its first connection
-# (prepareTunnelConfig in cmd/cloudflared/tunnel/configuration.go, as of 2026-10-29; recheck when a release changes it).
 CONNECTOR = re.compile(r"Generated Connector ID: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
 HOSTNAME = re.compile(r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
 START_SECONDS = 30.0
 RETIRE_SECONDS = 600.0
-# cloudflared reads the first two; the last two are Cloudflare API tokens. No child of this plugin inherits any of them.
 TOKEN_ENV = ("TUNNEL_TOKEN", "TUNNEL_TOKEN_FILE", "CLOUDFLARE_API_TOKEN", "CF_API_TOKEN")
 EXE = "cloudflared.exe" if detached.WINDOWS else "cloudflared"
 MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
@@ -327,8 +324,6 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verif
             what = f"no connection for {hostname}" if hostname else "no trycloudflare.com address"
             raise TunnelDown(f"cloudflared printed {what} in time (log: {log})")
         raise TunnelDown(f"when cloudflared pid {proc.pid} started cannot be read, so it could not be told from a later program with its pid")
-    # The word alive() looks for: the program's name in its command line, or on Windows the stem of
-    # the executable the OS reports (python for the test fake).
     marker = Path((detached.describe(proc.pid) or exe) if detached.WINDOWS else exe).stem.lower()
     rec = {**(fields or {}), "pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
     if hostname:
@@ -490,15 +485,6 @@ def stop(data_dir):
         (d / RECORD).unlink(missing_ok=True)
         return stopped
 
-
-# -- live prototypes ----------------------------------------------------------------------------------------------
-# A live prototype the owner approved runs behind its own quick tunnel, never the session's: its trycloudflare.com host
-# is a site of its own (trycloudflare.com is on the Public Suffix List), apart from the interview page's origin and
-# the owner token in its storage. One record per entry, `<data_dir>/.shared-live/<id>.json` (0600, the folder 0700),
-# keyed by its path: the tunnel's fields as the session record holds them (pid, url, port, startedAt, marker,
-# processStart, adopted), the entry's `id`, and `server` {pid, marker, processStart, port} when the plugin started a
-# static server (liveserve.py) for it. Ending one stops both and keeps the record with `endedAt` and `reason`, so it
-# still says what ran. The session tunnel's own record and functions above are unchanged.
 
 LIVE_DIR = ".shared-live"
 

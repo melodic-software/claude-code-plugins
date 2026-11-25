@@ -1,80 +1,22 @@
 #!/usr/bin/env bash
-# Citation gate for a drafted PLAN.md (/planning:plan Step 4.7).
-#
-# A plan that cites `path:line` for a claim is only as good as the citation: a
-# path that was renamed, or a line number past the end of the file, sends the
-# implementing session to code that is not there. This gate resolves every
-# citation against one named commit, with no model involvement, and fails on any
-# that does not exist there.
-#
-#   citation        a path from the repository root, then `:` and one or more
-#                   comma-separated `<line>` or `<start>-<end>` items, as in
-#                   scripts/build.sh:12, src/app.ts:40-58 or src/app.ts:3,9-11;
-#                   each item is checked on its own. The path holds letters,
-#                   digits and any of `_ . / + -`, carries at least one letter,
-#                   and holds a `/` or a `.`, so a time (10:30) or a bare word
-#                   (Q1:2) is not one. A leading `./` is dropped. A match is not
-#                   a citation when it continues something larger: right after a
-#                   path character or one of `: ~ @ $ ] ) }` (a URL, a home path,
-#                   a package pin, a variable), or followed by more word text
-#                   (`:12:3`, `:1.2.3`, `:20-alpine`, `:12abc`). A dotted host
-#                   and port (db.internal:5432) still reads as a citation
-#   missing-path    the path is not in the commit's tree
-#   not-a-file      the path names a directory (or a submodule), not a file
-#   line-zero       a line number is 0
-#   past-end        a line number is past the file's last line at the commit
-#   reversed        a range's end line is before its start line
-#
-# Lines inside fenced code blocks are ignored: a fence holds tool output or an
-# example, whose `file:line` text is not the plan's own claim. A fence may open
-# inside a block quote or a list item, and closes only on the same character
-# with at least the opening length and no info string; a fence left open exits
-# 2, since it would hide every citation after it. A line carrying
-# <!-- citation-example --> is ignored too.
-#
-# A fence whose info string starts with `shape` anchors a code shape:
-# `shape <path>[#<symbol>][ L<n>]`. Only an outermost fence counts, so a shape
-# fence quoted inside a longer fence is not checked. The path is read like a
-# citation path; a file path needs `#<symbol>`, a token with no spaces that
-# `git grep -w -F -e <symbol>` finds in it at the commit, and a directory path
-# needs none (a symbol it carries is searched for in that directory).
-#   shape-missing-path    the path is not in the commit's tree
-#   shape-missing-symbol  a file path has no symbol, or the symbol is not found
-#   shape-past-end        L<n> is past the file's last line
-#   shape-not-a-file      L<n> on a directory, or the path names a submodule
-#   shape-malformed       no path, an empty `#`, a second word that is not L<n>,
-#                         or a control character in the info string
-#   shape-line            a warning, not a failure: line <n> lacks the symbol
-#
-# The commit the check ran at is printed as `commit=<full sha>`; the plan records
-# it on its `Citations checked at:` line, so a later reader knows which tree the
-# line numbers describe.
-#
 # Exit 0 = every citation and shape anchor resolves (a plan with neither passes)
 # Exit 1 = at least one citation or shape anchor does not resolve
 # Exit 2 = usage or environment error (missing file, not a git repository,
 #          a commit that does not resolve, an unterminated fence, ...)
-#
-# Usage:
-#   bash check-plan-citations.sh [--commit <rev>] [--repo <dir>] <PLAN.md>
-#   bash check-plan-citations.sh --help
-#
-#   --commit  the commit the citations are checked at (default HEAD)
-#   --repo    the repository the paths are relative to (default the current
-#             directory's repository)
-#
-# Output (stdout, greppable): one
-# `citation=<plan line>:<path>:<lines> status=fail reason=<reason>` line per
-# failing citation (a past-end reason adds ` last-line=<n>`), one
-# `shape=<plan line>:<info after shape> status=<fail|warn> reason=<reason>` line
-# per failing or warned shape anchor, a `shapes=<n> failed=<n> warned=<n>` line,
-# then a closing `citations=<n> failed=<n> commit=<sha> status=<ok|fail>` line,
-# whose status is fail when a citation or a shape anchor failed.
 
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Citation gate/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'TXT'
+Citation gate for a drafted PLAN.md: every path:line citation and shape anchor must resolve at one commit.
+
+Usage: bash check-plan-citations.sh [--commit <rev>] [--repo <dir>] <PLAN.md>
+  --commit  the commit the citations are checked at (default HEAD)
+  --repo    the repository the paths are relative to (default the current directory's)
+  --help    print this help
+
+Exit 0 every citation and shape anchor resolves; 1 one does not; 2 usage or environment error.
+TXT
 }
 
 die() {
@@ -118,10 +60,6 @@ done
 git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || die "not a git repository: $repo"
 commit="$(git -C "$repo" rev-parse --verify --quiet "$rev^{commit}")" || die "not a commit: $rev"
 
-# One citation per line: C TAB <plan line> TAB <path> TAB <start> TAB <end>.
-# One shape anchor per line, fields split by US (\037) so an empty one stays:
-# S US <plan line> US <ok|malformed> US <path> US <symbol> US <n> US <label>.
-# Exit 4 = a fence was still open at end of file.
 citations="$(
   LC_ALL=C awk '
     function shape_row(info,   words, n, hash, path, symbol, line, form) {
@@ -206,7 +144,6 @@ case $? in
 *) die "could not parse: $plan" ;;
 esac
 
-# One row per distinct path: P TAB <path> TAB <blob|missing|other> TAB <line count>.
 paths=""
 while IFS= read -r path; do
   [[ -n "$path" ]] || continue
@@ -274,9 +211,6 @@ while IFS=$'\037' read -r tag at form path symbol line label; do
       die "could not read $path at $commit"
     count="${read_out%% *}"
     text="${read_out#* }"
-    # Checked as digits before any arithmetic: bash evaluates an operand of
-    # `-gt` or `(( ))` as an expression, and an array subscript in one runs
-    # command substitutions.
     if [[ ! "$line" =~ ^[1-9][0-9]*$ ]]; then
       reason="shape-malformed"
     elif (( 10#$line > count )); then

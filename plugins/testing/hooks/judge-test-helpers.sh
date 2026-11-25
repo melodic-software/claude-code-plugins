@@ -1,7 +1,4 @@
 # shellcheck shell=bash
-# Fixtures for the judge calibration tests (metrics.test.sh): a throwaway
-# repository, the option gates, a stub judge behind TEST_JUDGE_CMD, and writers
-# for the per-file records judge-lib.sh reads.
 # No test calls a real model: a `claude` first on PATH fails loudly.
 # shellcheck disable=SC2034 # read by the sourcing test
 
@@ -23,17 +20,12 @@ finish() {
 }
 
 TMP="$(mktemp -d)"
-# Every cleanup below kills and deletes by $TMP, so it must be a real directory
-# under the temp root before anything else runs.
 SYS_TMP="${TMPDIR:-/tmp}"
 SYS_TMP="${SYS_TMP%/}"
 if [[ -z "$TMP" || ! -d "$TMP" || "$TMP" != "$SYS_TMP"/?* ]]; then
   echo "abort: mktemp gave '$TMP', not a directory under $SYS_TMP" >&2
   exit 1
 fi
-# tmp_kill <signal> <text>: signal every process whose command line holds
-# <text>, a path under $TMP; anything else, or no $TMP, signals nothing. Git
-# Bash ships no pkill, but its /proc carries each command line.
 tmp_kill() {
   [[ -n "$TMP" && -d "$TMP" && "$2" == "$TMP"/* ]] || return 0
   if command -v pkill >/dev/null; then
@@ -48,9 +40,6 @@ tmp_kill() {
   done < <(grep -lF -- "$2" /proc/[0-9]*/cmdline 2>/dev/null)
   return 0
 }
-# Only the suite's own shell cleans up: a forked child that gets a signal before
-# its exec still holds this trap. It ends every process still naming $TMP, then
-# deletes under a time bound and names what it left rather than spinning on it.
 trap '[[ "$BASHPID" == "$$" && -n "$TMP" && -d "$TMP" ]] && {
   jobs -p | xargs -r kill 2>/dev/null
   tmp_kill TERM "$TMP/"
@@ -72,8 +61,6 @@ EOF
 chmod +x "$TMP/bin/claude"
 export PATH="$TMP/bin:$PATH"
 export CLAUDE_PLUGIN_DATA="$TMP/data" CLAUDE_PROJECT_DIR="$REPO" HOME="$TMP/home"
-# The recorders skip files under the temp root. These fixtures live there, so
-# point the root at a directory that holds none of them (#6037).
 export TEST_SCAN_SKIP_ROOT="$TMP/judge-skip-root"
 export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
 export TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_CMD="$TMP/judge-stub.sh" STUB_DIR="$TMP/stub"
@@ -84,15 +71,6 @@ mkdir -p "$TDIR"
 sha256() { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi; }
 PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256 | cut -c1-16)"
 
-# The stub judge: logs its arguments (one file per call, NUL-separated), its
-# cwd and TEST_JUDGE_ACTIVE, then answers per STUB_MODE for every
-# `block <ordinal> <start>-<end> <name>` line of its prompt: FLAG (quoting the
-# block's first line, with a diff that edits it) when the name holds "flag",
-# else PASS. STUB_SLEEP delays the answer. STUB_MODE=denied answers UNKNOWN,
-# "the Read permission was denied", for a name holding "deny" and lists a
-# Read in the result's permission_denials; deniedtext gives the same answer
-# with no denial listed. renamed answers under a name no block has. For a FLAG, commentdiff proposes a diff that only adds
-# a // comment line, and realdiff one that changes the expected value.
 cat >"$TMP/judge-stub.sh" <<'EOF'
 #!/usr/bin/env bash
 n="$(date +%s)-$$-$RANDOM"
@@ -159,11 +137,6 @@ jq -cn --arg r "Here you go: $result" --argjson d "$denials" \
 EOF
 chmod +x "$TMP/judge-stub.sh"
 
-# Windows conditions on Linux: WIN_JQ is a directory holding a `jq` that acts
-# like the native Windows jq.exe (every LF it writes becomes CRLF unless it is
-# given -b), and win <cmd>... runs a command with that jq first on PATH, the
-# msys OSTYPE the hooks see under Git Bash, and no CLAUDE_PROJECT_DIR (so the
-# payload's backslash cwd is the project directory).
 WIN_JQ="$TMP/win-jq"
 mkdir -p "$WIN_JQ"
 cat >"$WIN_JQ/jq" <<EOF
@@ -179,14 +152,10 @@ EOF
 chmod +x "$WIN_JQ/jq"
 win() { env -u CLAUDE_PROJECT_DIR PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys "$@"; }
 
-# stub_calls: how many times the stub judge ran. stub_args <n>: the nth call's
-# arguments, one per line (1-based, in call order).
 stub_calls() { find "$STUB_DIR" -name 'call-*.args' | wc -l; }
 stub_args() { tr '\0' '\n' <"$(find "$STUB_DIR" -name 'call-*.args' | sort | sed -n "${1}p")"; }
 stub_reset() { rm -f "$STUB_DIR"/call-*; }
 
-# transcript <sid> <model>...: a main transcript whose assistant lines carry
-# those models, in order. subagent <sid> <agent> <model>: a subagent's.
 transcript() {
   local sid="$1" m
   shift
@@ -200,8 +169,6 @@ subagent() {
   jq -cn --arg m "$3" '{type: "assistant", message: {model: $m, content: []}}' >"$TDIR/$1/subagents/agent-$2.jsonl"
 }
 
-# record <sid> <id> <file> <blocks json|null> [agent] [lines json|null] [ok markers] [written_at]:
-# the session record test-scan writes for one write; CREATE=true marks it a create.
 record() {
   local d="$DATA/sessions/$PKEY/$1"
   mkdir -p "$d"
@@ -210,7 +177,6 @@ record() {
     '{file: $f, repo: $r, agent_id: (if $a == "" then null else $a end), create: $c, blocks: $b,
       lines: $l, ok_markers: $ok, written_at: $w}' >"$d/$2.json"
 }
-# blocks <name:ordinal:start:end>...: a blocks array.
 blocks() {
   local b out="[]" n o s e
   for b in "$@"; do
@@ -220,27 +186,18 @@ blocks() {
   printf '%s' "$out"
 }
 
-# payload <sid> <id> <file> [extra jq object]: a hook payload.
-# Git Bash rewrites a POSIX-looking argument to Windows form for a native jq, so
-# the paths are passed unconverted: the hooks key a project by the same
-# (cwd, transcript directory) spelling PKEY hashed.
 payload() {
   MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg s "$1" --arg u "$2" --arg f "$3" --arg t "$TDIR/$1.jsonl" --arg c "$REPO" --argjson x "${4:-{\}}" \
     '{hook_event_name: "PostToolUse", tool_name: "Edit", session_id: $s, tool_use_id: $u, transcript_path: $t,
       cwd: $c, tool_input: {file_path: $f}, stop_hook_active: false} + $x'
 }
 
-# verdict_files <sid>: the ledger files for a session. verdict_of <sid> <name>:
-# the ledger entry for that block name, compact.
 verdict_files() { find "$DATA/verdicts/$PKEY/$1" -name '*.json' 2>/dev/null; }
 verdict_of() {
   local f
   for f in $(verdict_files "$1"); do jq -c --arg n "$2" 'select(.name == $n)' "$f"; done
 }
 
-# js_file <path> <name>...: a Vitest file with one test per name, each three
-# lines (declaration, assertion, close) after a two-line header, so the kth
-# test spans lines 3k to 3k+2.
 js_file() {
   local p="$1" n
   shift

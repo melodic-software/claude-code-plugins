@@ -20,9 +20,6 @@
   const pairCode = hashParams.get("pair") || "";
   if (pairCode) unhash("pair");
   let adopt = hashParams.get("me") || "";
-  // The owner link carries the owner token in the fragment. This tab keeps it in sessionStorage and takes it out of
-  // the address bar, so a reload or Back in this tab finds it again; a page opened fresh without it is a guest's.
-  // A device the host signed in with a code keeps its own credential in localStorage ("ownerDevice") until signed out.
   const ownerToken = (() => {
     const tab = (() => { try { return window.sessionStorage; } catch { return null; } })();
     const fromHash = hashParams.get("owner") || "";
@@ -482,7 +479,6 @@
       return line.map((k, i) => { const { previous: _, ...x } = at.get(k); return { ...x, n: i + 1, current: i === line.length - 1 }; });
     },
 
-    // Each action rejects with {status, error, message, ...} from the server; errorText(e) words it.
     /** My one answer to a question, citing results; empty text clears it. Carries the view and device it was made on. */
     /** extra.attachments (C44), when given, replaces the upload ids the answer carries; left out, it keeps them. */
     answerCiting: (qid, text, cites, extra) => afterTyping(act("/api/answer", { qid, text, cites, ...(extra?.attachments ? { attachments: extra.attachments } : {}), ...where(), ...scopeOf(qid) })),
@@ -775,9 +771,6 @@
   }
   async function getJson(url) { return answered(await fetch(url, { headers: ident() })); }
 
-  // The owner following a link to another page of this session (pageLink): the token goes in the fragment of the
-  // address opened, never in the link, and a new tab gets no handle on this one. A plain click on a link within this
-  // page (a skip link, another version on this prototype page) is left alone.
   const SESSION_PAGE = /^\/(?:proto\/Q[1-9][0-9]{0,5})?$/;
   function followAsOwner(e) {
     if (!ownerToken || ownerDevice || e.defaultPrevented || e.button !== (e.type === "auxclick" ? 1 : 0)) return;
@@ -847,7 +840,6 @@
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
   let redeeming = false;
   async function redeemPair(code) {
-    // A browser that keeps no site data would lose the credential on the reload below, after the code was spent.
     if (!local) throw { error: "no-site-data" };
     redeeming = true;
     try {
@@ -871,12 +863,6 @@
     return true;
   }
 
-  // ---------- telemetry: what this page records so the host can fix problems (README "Logs") ----------
-  // Faults go to server.log under this person's pid the first time each fingerprint shows: script errors, unhandled
-  // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
-  // anomalies; a repeat is not sent. Action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
-  // for one summary, sent with no pid when the page hides; the server adds up its counts per batch. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
-  // names, the address or its fragment, text on the page, or a credential. There is no switch: it always runs.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
   const recentErrors = []; // the last few this page saw, which a problem report carries
   const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
@@ -993,7 +979,6 @@
       tel.vitals = true;
       tel.hasInp = !!(window.PerformanceEventTiming && "interactionId" in PerformanceEventTiming.prototype);
       tel.hasLcp = !!window.PerformanceObserver?.supportedEntryTypes?.includes("largest-contentful-paint");
-      // A target web-vitals did not get from componentOf (its INP targetSelector, its LCP `#id`) is sent as "-".
       const named = new Set(), target = el => { const c = componentOf(el); named.add(c); return c; };
       const only = t => named.has(t) ? t : "-";
       const opts = { generateTarget: target };
@@ -1339,8 +1324,6 @@
   function pumpBeat() {
     if (HB.busy || !HB.wanted || (!ownerToken && !secret) || Core.state.youWaiting) return;
     const visible = visibleNow(), change = HB.visible !== null && (visible !== HB.visible || away !== HB.away);
-    // A change beat skips the plain beat's gap, so it does not wait on that gap's timer either: in a hidden tab that
-    // timer may not run for a minute.
     if (HB.timer && !change) return;
     clearTimeout(HB.timer); HB.timer = 0;
     const due = (change ? HB.changeDone : HB.done) + GAP - Date.now();
@@ -1373,8 +1356,6 @@
   const focused = () => { if (visibleNow()) focusAt = Date.now(); beat(); };
   document.addEventListener("visibilitychange", focused);
   window.addEventListener("focus", focused);
-  // iOS freezes a background tab's timers: catch up at once when the page shows again (triage 24). The time from
-  // showing again to the first good poll is the reconnect gap.
   let hidden = !visibleNow();
   const catchUp = e => {
     if (!visibleNow()) { hidden = true; return; }

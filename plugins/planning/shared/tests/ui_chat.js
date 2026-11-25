@@ -1,17 +1,6 @@
 #!/usr/bin/env node
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
-// The iOS Safari keyboard, as WebKit implements it. The layout viewport and innerHeight stay; visualViewport's height
-// drops by the keyboard (https://www.bram.us/2021/09/13/prevent-items-from-being-hidden-underneath-the-virtual-keyboard-by-means-of-the-virtualkeyboard-api/).
-// On an iPhone a focused text field always forces a reveal (WKContentViewInteraction.mm passes requiresAccessoryView as
-// forceScroll), which centers the field in the height left above the keyboard, clamped to the document, over 0.25 s
-// (WKWebViewIOS.mm _zoomToFocusRect): that pan is visualViewport.offsetTop. visualViewport fires resize along the way
-// and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
-// offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
-// the last event; `pan` sets the pan outright. `tight` steps one frame apart, each resize landing after the page's
-// layout and before the scroll events that layout queued, as a busy phone (or a loaded CI runner running its 50 ms
-// timers back to back) delivers them. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the
-// default keyboard height.
 const KB = 336;
 const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null, tight = false } = {}) => page.evaluate(async ([up, kb, stale, setPan, tight]) => {
   const vv = window.visualViewport, ih = innerHeight, h0 = vv.height, top0 = vv.offsetTop, h1 = up ? ih - kb : ih;
@@ -174,9 +163,6 @@ async function main() {
     ok("390x844: closing the keyboard keeps the newest message in view", await newest("Arrived while scrolled up"), await where());
     await kia.context().close();
 
-    // ---------- dogfood: the chat scrolls by touch with an iOS keyboard, and the composer sits on the keyboard ----------
-    // iPhones with a home indicator have a 34 px bottom safe area (Apple's Human Interface Guidelines, Layout); the
-    // check sets it where Chromium can, so the sheet's bottom padding counts.
     for (let i = 0; i < 10; i++) await gus.evaluate(x => window.Core.chat(x), `Later ${i} ${"to give the chat more to scroll ".repeat(2)}`);
     const chatPhone = async (w, h, name) => {
       const p = await rec.open(A.localUrl, { context: { viewport: { width: w, height: h }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } });
@@ -207,7 +193,6 @@ async function main() {
       await scdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
       await atRest(sia);
       const st1 = await sia.evaluate(() => document.querySelector(".vf-mscroll").scrollTop);
-      // iOS keeps firing visualViewport scroll and resize while a page is touched; the list must stay where it was put.
       await sia.evaluate(async () => { for (let i = 0; i < 10; i++) { visualViewport.dispatchEvent(new Event("scroll")); visualViewport.dispatchEvent(new Event("resize")); await new Promise(r => setTimeout(r, 100)); } });
       const [st2, page] = await sia.evaluate(() => [document.querySelector(".vf-mscroll").scrollTop, document.scrollingElement.scrollTop + document.scrollingElement.scrollLeft]);
       if (!(st1 < st0 - 100)) stuck.push(`${what}: a 300 px drag moved the list from ${st0.toFixed(0)} to ${st1.toFixed(0)}`);
@@ -223,7 +208,6 @@ async function main() {
       for (const kb of [300, 350, 400, 450]) {
         await cp.locator(".vf-minput").tap();
         await keyboard(cp, true, { kb });
-        // iOS can also scroll a scrollable document to bring the field into view; the shell must not move.
         await cp.evaluate(() => new Promise(r => { window.scrollTo(0, 80); requestAnimationFrame(() => requestAnimationFrame(r)); }));
         shell.push(...(await docScroll(cp)).map(x => `${w}x${h}, keyboard ${kb} up: ${x}`));
         const g = await cp.evaluate(() => { const f = document.querySelector(".vf-mform").getBoundingClientRect(), vv = visualViewport; return [f.bottom, vv.offsetTop + vv.height, f.top]; });
@@ -254,10 +238,6 @@ async function main() {
     const raw = await owner.evaluate(() => { const t = [document.documentElement.textContent, ...[...document.querySelectorAll("*")].flatMap(e => [...e.attributes].map(a => a.value)), ...[...document.querySelectorAll("input, textarea")].map(e => e.value)].join("\n"); return (t.match(/<@[A-Za-z0-9_-]+>/) || [""])[0]; });
     ok("no raw mention token anywhere on the page, its attributes or its fields", raw === "", raw);
 
-    // ---------- the docked panel: from 1100 px wide it pushes the page over, narrower it covers the page as a modal ----------
-    // 1100 and 380 are the layout's own breakpoint and width; 48 and 44 px are the top bar's heights. WCAG 2.2 SC 1.4.10
-    // (https://www.w3.org/WAI/WCAG22/Understanding/reflow.html): at 320 CSS px wide nothing scrolls sideways; a word of
-    // 300 letters makes that check able to fail.
     await gus.evaluate(() => window.Core.chat(`Unbroken ${"x".repeat(300)}`));
     const dock = await rec.open(A.localUrl);
     await joinAs(dock, "Dee");

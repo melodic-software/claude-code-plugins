@@ -1,18 +1,10 @@
 #!/usr/bin/env bash
-# Copy an adapter seed (seeds/<provider>/) into the consuming repo's adapter directory,
-# the step /work-items:setup apply runs for a seeded provider. seeds/README.md has the
-# re-run table: an untouched copy fast-forwards, an edited one prints the diff and stops.
-#
-# Usage: seed-copy.sh <provider> [--root <repo-root>]
-# stdout: one status word (copied | up-to-date | fast-forwarded | edited), then the diff
-# when edited. Exit 0 = copy current, 1 = edited copy left as-is, 2 = usage or no seed.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/binding.sh
 source "$SCRIPT_DIR/lib/binding.sh"
 
-# WIT_SEEDS_DIR overrides the seed root, as WIT_ADAPTERS_DIR does the adapter root (tests).
 readonly SEEDS_DIR="${WIT_SEEDS_DIR:-$SCRIPT_DIR/seeds}"
 readonly HASH_FILE=".seed-hash"
 
@@ -78,7 +70,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -n "$provider" ]] || usage
-# The name becomes a path segment: constrain it before any path is built from it.
 [[ "$provider" =~ ^[a-z][a-z0-9-]*$ ]] || usage
 
 seed="$SEEDS_DIR/$provider"
@@ -99,7 +90,6 @@ mkdir -p "$(dirname "$dest")" || fail "cannot create $(dirname "$dest")"
 stage="$(mktemp -d "$(dirname "$dest")/.seed-$provider.XXXXXX")" && [[ -d "$stage" ]] ||
   fail "cannot create a staging directory beside $dest"
 trap 'rm -rf "$stage"' EXIT
-# mktemp -d makes the directory owner-only; the adapter directory it becomes is not.
 chmod 755 "$stage"
 stage_seed "$seed" "$stage" || fail "cannot stage the $provider seed"
 seed_hash="$(<"$stage/$HASH_FILE")"

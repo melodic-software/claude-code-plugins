@@ -1,53 +1,20 @@
 #!/usr/bin/env bash
-# Bare-code gate for a drafted /planning:interview round, run before the round is shown.
-#
-# A person reading a round has none of the session's legend. A ledger id
-# (Q14, C3, F2, S1) or a session-shorthand term shown with nothing beside it
-# makes them ask what it means before they can answer. This gate reads the
-# ledger for every code and term, then flags each one whose first use in a
-# question block carries no name.
-#
-#   code            a ledger row id (`- Q<N> |`, `- C<N> |`, `- F<N> |`,
-#                   `- S<N> |`), a `Q<N>` that opens a question in the round,
-#                   or a term in the ledger's `**Session shorthand:**` list
-#                   (`- <term>: <definition>`; matched case-insensitively,
-#                   with a plural `s` allowed)
-#   question block  the lines from one `Q<N>` question line (any leading
-#                   marker or markup, then `Q<N>` and `:`, `.` or `)`) to the
-#                   next; the lines before the first are a block too
-#   named           the use is followed by `:`, `(`, `,`, ` - ` or a dash and
-#                   a word that is not itself a code nor, after a comma, a
-#                   connective such as `so` or `and` (`C3: scoped change`,
-#                   `question Q14, retry budget`, `lane (one builder
-#                   session)`), or sits in parentheses after words
-#                   (`scoped change (C3)`). The `Q<N>` that opens a question
-#                   line is named by that question, whether `:`, `.` or `)`
-#                   follows it. `Checked against: C1, C3` is bare twice; each
-#                   later use in the same block is not checked
-#   scenario id     a scenario walk's `S<N>` qualified by its question
-#                   (`Q17.S1`) is not a ledger code and is skipped; a line
-#                   opened by a bare `S<N>:` whose `S<N>` is a sweep row is
-#                   bare, since a reader cannot tell the scenario from the row
-#
-# Lines inside fenced code blocks are ignored, in the ledger and the round; a
-# fence left open exits 2.
-#
 # Exit 0 = no bare code and no structure failure (a round with none passes)
 # Exit 1 = at least one bare code or structure failure
 # Exit 2 = usage error, a missing or unreadable file, or an unterminated fence
-#
-# Usage:
-#   bash check-round-codes.sh --ledger <interview-checklist.md> <round.md>
-#   bash check-round-codes.sh --help
-#
-# Output (stdout, greppable): one `bare=<round line>:<code>` line per bare
-# code, then a closing `codes=<n> bare=<n> status=<ok|fail>` line.
 
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Bare-code gate/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   cat <<'TXT'
+Bare-code gate for a drafted /planning:interview round: flags each ledger code or term first used with no name.
+
+Usage: bash check-round-codes.sh --ledger <interview-checklist.md> [--pacing round|single] <round.md>
+  --ledger  the interview ledger the codes and terms are read from
+  --pacing  the round's question pacing (default round)
+  --help    print this help
+
+Exit 0 no bare code and no structure failure; 1 at least one; 2 usage error, a missing or unreadable file, or an unterminated fence.
 
 `--pacing round|single` (default round) names the round's question pacing.
 

@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# plan_stress_test and the st-* eval suite that settles its default.
-#
-# Expected values come from the key contract in reference/config.md: each of the modes plan,
-# proposal and incumbent takes auto, reviewer, devils-advocate or both; and from the negative
-# control's rule in plugins/playbooks/skills/skill-authoring/reference/rewrite-a-plugin.md: the
-# degraded copy keeps its frontmatter and loses its procedure.
 # test-scope: plugins/planning/schemas/planning.schema.json
 # test-scope: plugins/planning/reference/config.md
 # test-scope: plugins/planning/skills/plan/SKILL.md

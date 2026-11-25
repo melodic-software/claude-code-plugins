@@ -1,17 +1,5 @@
 #!/usr/bin/env node
 
-// Checks an issue body against one type of the issue-body contract
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/reference/issue-body-contract.json).
-// A field counts as present under a heading at any of the contract's `headingLevels` (`##` from a
-// skill, `###` from an issue form), with text other than the contract's `emptyAnswer` before the
-// next heading at that level or shallower, deeper sub-sections included. HTML comments and fenced
-// code do not count.
-//
-// Usage: check-body.mjs --type <type> --body-file <path> [--contract <path>]
-// Prints one JSON object: {type, missing: [heading...], empty: [heading...], unknownType}.
-// Exit 0 when every required field is present and answered, 1 when one is not, 2 on usage error
-// or an unknown type.
-
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
@@ -36,7 +24,6 @@ function proseLines(body) {
   });
 }
 
-// Maps each normalized heading at an allowed level to the text under it, its sub-sections' text included.
 export function sections(body, levels) {
   const found = new Map();
   const open = [];

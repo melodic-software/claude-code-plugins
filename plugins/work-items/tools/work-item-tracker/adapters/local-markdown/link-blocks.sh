@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# link-blocks <id> --blocked-by <id> — CONTRACT.md "Verbs (core public surface)".
-# Appends a structured "Blocked by:" line; get-item/list-items resolve blocker state
-# by number. cross_repo_edges is unsupported (single-namespace store) — a blocker in
-# another namespace is recorded as a text pointer only, never a resolvable edge.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

@@ -1,67 +1,16 @@
 #!/usr/bin/env bash
-# Per-session hook event log: one JSON line per hook event, appended to
-# <root>/sessions/<session_id>.jsonl (root defaults to .observability/claude,
-# project-relative). The plugin's hooks module (register.ts) runs it through
-# exec-bash.mjs on every documented event the generated registry marks
-# observable (plugins/session-telemetry/hooks/hook-events.registry.json), with the
-# event's payload on stdin and the plugin's options as CLAUDE_PLUGIN_OPTION_*.
-#
-# DEFAULT OFF. With the option off the module hooks nothing, so this script
-# never starts. The read below is what a direct invocation pays: no library is
-# sourced and stdin is not read until it says so.
-#
-# This script sources session-log-lib.sh (a few functions, no process) and
-# NOT hook-utils.sh: a producer that fires on every event cannot afford the
-# 2,766-line library, which measured at more than the rest of the hook.
-# What it gives up is the
-# library's notice channel, so its quiet exits are data-driven (no session id,
-# a filtered category, an uncontained root) and never a missing prerequisite:
-# it needs no jq and no git.
-#
-# Every line is one hook event record in the key set session-log-lib.sh
-# documents and formats (slog_event_record_to): the spine, `category`,
-# `effort`, and whichever correlation keys the payload carries (prompt_id,
-# tool_use_id, agent_id, traceparent) plus, for events that carry a decision or
-# a change, a small payload (tool_name, file_path, reason), and the top-level
-# metadata keys session-log-lib.sh allowlists. Strings pass as the payload's
-# own JSON string bodies, re-emitted verbatim, so no escaping is re-derived
-# here; ids are constrained to file-name-safe characters because session_id
-# names the file.
-#
-# stdin is read in bounded slices the way hook::buffer_stdin does, without
-# sourcing it: a Win32 pipe delivers EOF late, so a read that waits for EOF
-# waits out its timeout on every event. Only the first 64 KB matter (every
-# spine key precedes tool_input in the payload), so the read stops at that cap,
-# at EOF, at a `}` tail after a quiet slice, or after one whole idle bound.
-#
-# Kill switch: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED (default false).
-# Category filter: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES.
-# Root: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR (default .observability/claude).
-# Content fields: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT (default false).
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED:-false}" == "true" ]] || exit 0
 
 start=${EPOCHREALTIME:-}
 
-# With content fields on, the 64 KB read cap and every length below count
-# bytes: under a UTF-8 locale `read -N` and `${#}` count characters, and a
-# multibyte prompt would pass the cap several times over. Off, rows carry no
-# content and the read is left as it was.
 content=false
 [[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT:-false}" == "true" ]] && content=true && LC_ALL=C
 
 # shellcheck source=session-log-lib.sh
 source "${BASH_SOURCE[0]%/*}/session-log-lib.sh"
 
-# --- bounded stdin read -------------------------------------------------------
-# The same rejection rules hook::resolve_read_timeout_to applies to this
-# variable, restated because this producer does not source the library. An
-# unusable value is a silent disable, not a tuning mistake: `read -t 0`
-# returns at once having consumed nothing, a fractional value is a usage error
-# on a Bash before 4.0 (integer-only -t), and a positive value under 10 µs
-# returns before the payload's bytes arrive. Each falls back to the default.
 idle="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}"
 if ! [[ "$idle" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$idle" =~ ^0+(\.0+)?$ ]] ||
   { [[ "$idle" == *.* ]] && ((BASH_VERSINFO[0] < 4)); }; then
@@ -71,9 +20,6 @@ elif [[ "$idle" =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
   frac="${BASH_REMATCH[3]:-}000000"
   ((10#$whole * 1000000 + 10#${frac:0:6} < 10)) && idle=2
 fi
-# Four slices per idle bound when this shell takes a fractional -t (Bash 4+),
-# so a stall is declared within a quarter-bound of the configured interval; one
-# whole-bound slice otherwise.
 slices=1
 slice="$idle"
 if ((BASH_VERSINFO[0] >= 4)); then
@@ -109,21 +55,9 @@ while :; do
   ((rc > 128)) || break
   if [[ -n "$chunk" ]]; then
     quiet=0
-    # A slice that timed out holding data is the late-EOF shape: the payload
-    # is here and the pipe is not closing. Stop early only when what we hold
-    # looks like the WHOLE payload: it ends in `}`, it carries the event name
-    # (the key every fire must have), and its braces balance. A writer that
-    # paused after a nested `}` (tool_input closed, tool_use_id still to come)
-    # fails the balance test and the loop keeps reading to the idle bound; a
-    # brace inside a string can only delay the stop, never force it early on
-    # its own.
     tail="${buf##*[![:space:]]}"
     body="${buf%"$tail"}"
     if [[ "$body" == *'}' && "$buf" == *'"hook_event_name"'* ]]; then
-      # The brace characters come from variables: a literal `}` inside the
-      # bracket class ends the `${...}` expansion early (bash parses the
-      # expansion's closing brace before the pattern), so `[^}]` written out
-      # is not the class it looks like.
       ob='{'
       cb='}'
       open="${body//[^$ob]/}"
@@ -174,12 +108,6 @@ lead=0
 [[ "$buf" =~ ^[[:space:]]*\{(($member,)*) ]] && top="${BASH_REMATCH[1]}" && lead=${#BASH_REMATCH[0]}
 [[ "$buf" =~ ((,$member)*)\}[[:space:]]*$ ]] && top+="${BASH_REMATCH[1]}"
 
-# effort (D33): an event in SLOG_EFFORT_NA_EVENTS never carries a level, so
-# `n/a`. Otherwise the payload's top-level effort.level, accepted when the
-# payload holds that one "effort" object; Claude Code sets a hook's
-# $CLAUDE_EFFORT from that same field, so the payload wins over a value the
-# hook merely inherited. $CLAUDE_EFFORT fills in only when the payload has no
-# effort object; else `unset`.
 effort="unset"
 levels=" low medium high xhigh max "
 if [[ " $SLOG_EFFORT_NA_EVENTS " == *" $event "* ]]; then
@@ -213,16 +141,6 @@ for key in $SLOG_EVENT_LOG_SCALARS; do
   [[ -n "$value" ]] && meta+=("$key" n "$value")
 done
 
-# --- content (session_event_log_content, default off) ----------------------------
-# The top-level content strings in SLOG_EVENT_LOG_CONTENT, recorded only when
-# the option is exactly true. `error` is tool
-# output on PostToolUseFailure; on StopFailure it is the metadata enum above.
-# A content string still open where the 64 KB read cap fell is the member right
-# after the leading scalar run: its captured prefix is cut back to whole JSON
-# escapes and whole UTF-8 characters and recorded with `<key>_truncated: true`.
-# Only that position is provably top-level in a cut buffer; a field the cap
-# fell inside after a nested value is not recorded. Any row whose payload hit
-# the cap carries `content_truncated: true`, so a dropped field is never silent.
 if [[ "$content" == true ]]; then
   open_key="" open_val=""
   if [[ "${buf:lead}" =~ ^[[:space:]]*\"([a-z_]+)\"[[:space:]]*:[[:space:]]*\"(.*)$ ]]; then
@@ -230,9 +148,6 @@ if [[ "$content" == true ]]; then
     open_val="${BASH_REMATCH[2]}"
     if [[ "$open_val" =~ ^(([^\"\\]|\\[^u]|\\u[0-9A-Fa-f]{4})*)\\?(u[0-9A-Fa-f]{0,3})?$ ]]; then
       open_val="${BASH_REMATCH[1]}"
-      # A UTF-8 lead byte whose continuation bytes were cut off, matched byte
-      # by byte under the byte locale set above (the regex has to sit in a
-      # variable: quoted text in `=~` is literal).
       cut_char=$'([\xc2-\xdf]|[\xe0-\xef][\x80-\xbf]?|[\xf0-\xf4][\x80-\xbf]{0,2})$'
       [[ "$open_val" =~ $cut_char ]] && open_val="${open_val:0:${#open_val}-${#BASH_REMATCH[1]}}"
     else
@@ -261,19 +176,10 @@ slog_root_to root "$project"
 slog_guard_ok "$root" "$project" || exit 0
 [[ -d "$root/sessions" ]] || mkdir -p "$root/sessions" 2>/dev/null || exit 0
 
-# --- the line -------------------------------------------------------------------
-# A file path is recorded repo-relative when it sits under the project, else
-# by its last segment, so the record does not say where else on the machine
-# the session read or wrote. The session's own location keys (cwd,
-# transcript_path, scratchpad_dir and the other allowlisted paths) are recorded
-# as the payload's raw absolute values.
 if [[ -n "$file_path" ]]; then
   if [[ "$file_path" == "$project/"* ]]; then
     file_path="${file_path#"$project"/}"
   else
-    # Last segment after either separator: a Windows path arrives with `\\`
-    # (JSON-escaped backslashes) and no `/` at all, and stripping on `/` alone
-    # would keep the whole path, username included.
     file_path="${file_path##*[/\\]}"
   fi
 fi

@@ -60,9 +60,6 @@ APPROVE_RE = re.compile(
 POLL_RE = re.compile(r"\bsleep\s+\d|\buntil\b.*\bdo\b|\bwhile\b.*\bdo\b|--watch\b|\bwatch\s", re.S)
 CI_WAIT_RE = re.compile(r"\bgh\s+(run\s+watch|pr\s+checks\b.*--watch)|\bglab\s+ci\s+status\b.*--live", re.S)
 CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
-# A git subcommand that can stop on a conflict, after any `-C <dir>`, `-c <key=value>`, `-p`, `--git-dir <path>`
-# or `--flag[=value]` global options. Each option text has exactly one parse, so a long option run
-# cannot backtrack exponentially.
 CONFLICT_COMMAND_RE = re.compile(
     r"\bgit(?:\.exe)?[\"']?"
     r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|[^\s\"'])\S*|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+"
@@ -70,17 +67,10 @@ CONFLICT_COMMAND_RE = re.compile(
     r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
 )
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
-# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
-# versions carry MultiEdit calls, and they must still count as file-tool calls.
-# Pointer: for where the permissions page names the legacy MultiEdit tool, see
-# https://code.claude.com/docs/en/permissions#read-and-edit
-# As of: 2026-10-13
-# Recheck trigger: that section stops naming MultiEdit, or moves.
 FILE_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit", "Read"})
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")
 GIT_ARG_FLAGS = frozenset({"-C", "-c"})
-# Event fields holding transcript or metadata text, scrubbed before storage; the rest are enums this module sets.
 SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type", "next_tool", "tool_use_id")
 
 
@@ -260,8 +250,6 @@ class FrictionScan:
                         denial["next_tool"] = name
                     self.next_calls[block["id"]] = self.awaiting_next
                     self.awaiting_next = []
-                # A Monitor command counts as polling only when it is itself a poll loop: a
-                # tail -f or another event wait is the wait the harness recommends.
                 command = tool_input.get("command") if name in SHELL_TOOLS or name == "Monitor" else None
                 if isinstance(command, str):
                     self.perf["ci_wait_calls"] += bool(CI_WAIT_RE.search(command))
@@ -333,7 +321,6 @@ class FrictionScan:
                 source=permission["source"], reason_type=permission["reason_type"],
             )
             if permission["cause"] == "hook":
-                # next_tool stays None when no call follows; next_ok stays None until that call's result.
                 event["next_tool"] = event["next_ok"] = None
                 self.awaiting_next.append(event)
         elif (

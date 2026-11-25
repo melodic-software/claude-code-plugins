@@ -10,9 +10,6 @@ wit_usage_error() {
   exit "$EX_USAGE"
 }
 
-# wit_help_if_requested <usage-text> <args…> — print usage + exit 0 when the first
-# arg is --help. Adapter verbs are dispatched by the core, but each is a standalone
-# entry script (skill-script contract) and answers --help directly.
 wit_help_if_requested() {
   local usage="$1"
   shift

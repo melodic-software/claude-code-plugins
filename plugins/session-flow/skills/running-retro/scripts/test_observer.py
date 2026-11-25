@@ -750,13 +750,7 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertIn('"err": true', self.prompt)
         self.assertIn("retry", self.prompt)
         self.assertIn("control-dependent", self.prompt)
-        # Tool-name equality alone is not a retry -- a failed Read of one file
-        # followed by a Read of another is two independent calls, and calling
-        # that control-dependent suppresses a genuine finding (#1485 review).
         self.assertIn("NOT evidence", self.prompt)
-        # ...but a corrected-argument retry (`git stats` -> `git status`) names
-        # no shared resource and repeats no argument, so requiring either would
-        # swing the rule too far the other way (#1485 review).
         self.assertIn("CORRECTION", self.prompt)
         self.assertIn("UNKNOWN, not independent", self.prompt)
 
@@ -792,10 +786,6 @@ def b64url(data):
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
-# A stateless installation token is ghs_ then a JWT of about 520 characters, with
-# no app id. The RS256 header encodes to exactly 36 alphanumerics, the length
-# gh[pousr]_ accepts; the kid header carries a '-' 16 characters in, before any
-# alphanumeric minimum is met. Payload and signature are fake.
 STATELESS_HEADERS = (
     b64url(b'{"alg":"RS256","typ":"JWT"}'),
     b64url(b'{"kid":"k?~>","alg":"RS256","typ":"JWT"}'),
@@ -815,8 +805,6 @@ class Redaction(unittest.TestCase):
         self.assertIn(
             "<REDACTED: GitHub token>", r("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345")
         )
-        # ghs_<APPID>_<JWT> installation token, about 520 characters; the
-        # segments spell FAKE.
         jwt = "eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsignatureNOTreal"
         self.assertEqual(
             "tok <REDACTED: GitHub token> z", r("tok ghs" + "_1234567_" + jwt + " z")
@@ -912,7 +900,6 @@ class Redaction(unittest.TestCase):
 
     def test_bounded_patterns_still_redact_realistic_secrets(self):
         r = observer._redact
-        # Header, payload and signature spell FAKE.
         jwt = "eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {jwt} x"))
         long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
@@ -1104,12 +1091,6 @@ def fake_tasklist(stdout: bytes, captured: dict | None = None):
 
 class PidAlive(unittest.TestCase):
     def test_tasklist_call_uses_no_fixed_decoder(self):
-        # #1512: tasklist's piped output follows the console output code page,
-        # which is not fixed -- it varies by locale/session and can even
-        # differ between shells in the same session, so neither a hardcoded
-        # "utf-8" (the earlier #1483 fix) nor a hardcoded "oem" decodes
-        # correctly everywhere. _pid_alive must not pass any encoding/text
-        # kwarg to subprocess.run and must match the PID against raw bytes.
         captured: dict = {}
         with fake_tasklist(b"12345 Console 1 10,000 K", captured):
             self.assertTrue(observer._pid_alive(12345))
@@ -1118,13 +1099,6 @@ class PidAlive(unittest.TestCase):
         self.assertNotIn("errors", captured)
 
     def test_tasklist_call_matches_pid_despite_undecodable_process_name(self):
-        # A cp437 console plus a process name containing characters undefined
-        # in cp1252 (e.g. \x81) defeats any fixed decoder: it raises
-        # UnicodeDecodeError inside subprocess's reader thread and leaves
-        # out.stdout as None (#1512), a crash class errors="replace" alone
-        # (#1496) does not cover. Raw-bytes matching sidesteps decoding
-        # entirely, so this mojibake name must not affect the ASCII-digit
-        # PID match.
         stdout = b"\r\nt\x81st\x82.exe" + b" " * 20 + b"12345 Console 1  10,000 K"
         with fake_tasklist(stdout):
             self.assertTrue(observer._pid_alive(12345))
@@ -1313,17 +1287,6 @@ class LedgerAndRetention(unittest.TestCase):
                 self.assertEqual(cmd[cmd.index("--tools") + 1], "Read")
 
     def test_analysis_subprocess_encoding_and_creationflags(self):
-        # #1472: the analysis subprocess.run must (a) always decode captured
-        # output as UTF-8 explicitly, with errors="replace" so a truncated
-        # byte sequence decodes rather than raising past the try block's
-        # TimeoutExpired/OSError handling -- claude -p writes UTF-8, but
-        # Python's default text encoding is the platform code page (cp1252 on
-        # Windows), which corrupted non-ASCII ledger entries into mojibake --
-        # and (b) on Windows only, pass CREATE_NO_WINDOW so the run doesn't
-        # flash a console window, matching arm_observer.py's spawn_detached
-        # windowless spawn. Runs on every platform: the encoding/errors
-        # assertions are unconditional, and the creationflags assertion
-        # branches on the real os.name rather than skipping off-Windows.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, analysis=True, session_id="enc")
@@ -1331,16 +1294,9 @@ class LedgerAndRetention(unittest.TestCase):
             captured: dict = {}
             with fake_analysis_run(captured):
                 self.assertTrue(ob._run_analysis())
-            # encoding="utf-8" and errors="replace" are unconditional --
-            # required on every platform, not just Windows (Linux/mac default
-            # UTF-8 already, but explicit beats implicit and keeps behavior
-            # identical everywhere).
             self.assertEqual(captured.get("encoding"), "utf-8")
             self.assertEqual(captured.get("errors"), "replace")
             if os.name == "nt":
-                # CREATE_NO_WINDOW only -- not DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP,
-                # which are for escaping the parent's process tree and unneeded for a
-                # waited (non-detached) child.
                 self.assertEqual(captured.get("creationflags"), 0x08000000)
             else:
                 self.assertNotIn("creationflags", captured)
@@ -1382,13 +1338,10 @@ class LedgerAndRetention(unittest.TestCase):
                     cmd[cmd.index("--model") + 1],
                     manifest["observer_analysis_model"]["default"],
                 )
-                # A settings-file `env` re-applies CLAUDE_CODE_EFFORT_LEVEL in the
-                # child and it overrides --effort; --settings outranks those files.
                 settings = json.loads(cmd[cmd.index("--settings") + 1])
                 self.assertEqual(
                     settings, {"env": {"CLAUDE_CODE_EFFORT_LEVEL": effort}}
                 )
-                # --settings must precede the variadic --add-dir block.
                 self.assertLess(cmd.index("--settings"), cmd.index("--add-dir"))
                 self.assertEqual(captured["env"]["SESSION_FLOW_OBSERVER_ANALYSIS"], "1")
 

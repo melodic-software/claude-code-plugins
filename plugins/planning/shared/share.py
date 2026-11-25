@@ -289,9 +289,6 @@ def lease_target(hostname):
     return http.client.HTTPSConnection(hostname, 443, timeout=LEASE_SECONDS, context=ssl.create_default_context())
 
 
-# Cloudflare's no-connector page, its tags stripped. A browser gets HTML holding <span>Error</span> <span>1033</span>;
-# a client like this one gets text/plain "error code: 1033" (both read from a stopped tunnel's hostname on 2026-10-29).
-# The words are matched apart from the markup, never a bare "1033".
 NO_CONNECTOR = re.compile(r"\berror(?: code)?:? 1033\b", re.IGNORECASE)
 
 
@@ -1068,7 +1065,6 @@ def parser():
 
 
 def main(argv=None):
-    # A Windows pipe takes the ANSI code page, which has no room for an emoji or an arrow in a name or a log line (#8239).
     for stream in (sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
             stream.reconfigure(encoding="utf-8", errors=stream.errors)  # encoding alone would reset errors to strict

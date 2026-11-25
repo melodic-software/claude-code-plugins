@@ -1,55 +1,5 @@
 #!/usr/bin/env bash
-# Reference telemetry sink for session-telemetry. Maps a hook-telemetry envelope (from
-# ANY producer, per docs/contracts/hook-telemetry) into one JSONL line under
-# the log root (.observability/claude by default, project-relative; the
-# session_event_log_dir option moves it).
-#
-# Both routes write ONE record shape — the hook event record session-log-lib.sh
-# documents and formats (slog_event_record_to), `source: "envelope"`. The
-# envelope's session id, read from the spine (`session_id`, which a
-# contract-1.1 producer carries when its payload held a well-formed one and
-# omits otherwise) and falling back to `data.session_id`, which the session-telemetry
-# audit hooks still send, decides the DESTINATION and nothing else:
-#   * present and well-formed: appended to sessions/<session_id>.jsonl, beside
-#     the per-session event log (session-event-log.sh). No lock: one file per
-#     session removes the shared write.
-#   * absent: appended to the shared hook-events.jsonl under the same root, the
-#     file the observability skill has always read, under its lock. The record
-#     is the same minus `session_id`, which these rows do not have. The file is
-#     size-capped: under that lock, a file over hook_events_max_bytes (default
-#     10 MiB) moves to hook-events.jsonl.1, replacing any older .1, before the
-#     append, so the pair stays near twice the cap. The cap applies whether or
-#     not the per-session event log is enabled.
-#
-# Field mapping: ts<-timestamp, hook_event_name<-hook_event, hook<-hook,
-# tool<-data.tool, subject<-data.subject, else data.file (the key
-# hook::data_json_to writes), changed<-data.changed (when a
-# producer sends one); status translates (ok->success) and exit_code derives
-# from status (error/blocked->2, else 0), since the skill keys errors on it.
-#
-# The root carries a self-ignoring .gitignore inside a checkout, healed on the
-# first write when absent (session-log-lib.sh); a guard an operator changed is
-# respected and the write refused.
-#
-# Wire it with the reserved value, which producers resolve to the launcher
-# refresh-sink-launcher.sh keeps in this plugin's data directory:
-#   "env": { "HOOK_TELEMETRY_SINK": "@session-telemetry" }
-#
-# Fire-and-forget: the producer execs this as a single command in a backgrounded
-# subshell with stdout+stderr → /dev/null, so it MUST never crash and never write
-# stdout. It reads one envelope on stdin and appends one event line.
-#
-# -e is intentionally omitted: this sink must never exit non-zero on a benign
-# non-zero (e.g. jq returning empty). nounset guards typos; pipefail surfaces
-# undetected pipe failures without aborting the process.
-
 set -uo pipefail
-# Hook directory by parameter expansion, never `dirname`. GNU Bash forks a
-# subshell for every command substitution even when the body is a builtin
-# (Command Substitution, Bash Reference Manual). On Windows Git Bash that
-# fork is a process. `${BASH_SOURCE[0]%/*}` equals dirname for every shape
-# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
-# no-op and dirname answers `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
@@ -61,11 +11,6 @@ INPUT=$(cat)
 [[ -n "$INPUT" ]] || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 
-# Single jq parse + required-key guard. Emit one mapped field per line (nothing
-# when a required envelope key is missing or the input is not valid JSON). One line
-# per field — read via mapfile — so an empty field (e.g. tool) is preserved as
-# an empty element rather than collapsed, which a tab-IFS `read` would do (tab is
-# an IFS whitespace char, so consecutive tabs merge).
 mapfile -t FIELDS < <(printf '%s' "$INPUT" | jq -r '
   if (.hook and .hook_event and (.duration_ms != null) and .status)
   then (.timestamp // ""), .hook_event, .hook, (.data.tool // ""),
@@ -85,13 +30,6 @@ STATUS="${FIELDS[6]}"
 SESSION_ID="${FIELDS[7]}"
 CHANGED="${FIELDS[8]}"
 
-# Translate the envelope status to the record shape the skill reads. Known
-# values pass through (ok → success); an unrecognized value is treated as a
-# catch-all error, never a hard fail (forward-compat rule).
-#
-# exit_code is derived from the SAME status in the same pass: the skill's
-# error/failed-then-fixed analysis keys on exit_code != 0. A clean/no-op run is 0;
-# error and blocked are non-clean (2).
 case "$STATUS" in
 ok) STATUS_OUT=success EXIT_CODE=0 ;;
 skipped) STATUS_OUT=skipped EXIT_CODE=0 ;;

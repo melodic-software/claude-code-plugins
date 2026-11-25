@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# The browser suites of one part: every ui_*.js beside this file that ui-parts.txt (one "<suite> <part>" per line)
-# puts in <part>, run by ui-<part>.test.sh. Before running any, it fails (exit 2) when a ui_*.js beside it is in no
-# part or in two, a row names no suite beside it, or a part has no ui-<part>.test.sh, so every suite runs in exactly
-# one wrapper. A part's suites run UI_JOBS at a time (default 2, or 6 under
-# CI where the runner's memory is the job's own), each into its own buffer printed
-# whole in suite order under `== <suite> <seconds>s`, then the 3 slowest. They start slowest first, by ui-timings.txt
-# (one "<suite> <seconds>" per line, from a full run's headers; a suite it does not list starts last), so the longest
-# is never the last to start. Each seeds its own session through share.sh ensure-running on spare ports (fake
-# cloudflared), prints SKIP and exits 0 without playwright-core and a Chromium, and exits non-zero on a failed check.
-# Under CI=true a missing node, playwright-core or Chromium fails this script instead of passing it.
-# A suite with timing windows (SERIAL: ui_snappy's millisecond limits, ui_telemetry's one-second dead-tap wait) runs
-# alone after the rest of its part, since parallel load slows it past those windows. Passes only when every suite of
-# the part exits 0. --check runs only the part check and exits 0 when it holds.
-#   bash plugins/planning/shared/tests/ui-run.sh <part>
-#   bash plugins/planning/shared/tests/ui-run.sh --check
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 part=${1:-}
@@ -68,8 +53,6 @@ max=${UI_JOBS:-$default_jobs}
 SERIAL=" ui_snappy.js ui_telemetry.js "
 out=$(mktemp -d)
 trap 'rm -rf "${out:?}"' EXIT
-# The suites' temp root, removed with $out: WebKit leaves its profile and Playwright its artifacts
-# folder in TMPDIR, and a suite that dies before its finish() leaves its shared-* folder.
 mkdir "$out/t"
 export TMPDIR="$out/t"
 run() {

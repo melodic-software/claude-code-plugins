@@ -1,5 +1,3 @@
-# Node's built-in runner (node:test) with node:assert. Inherits js-jest's files
-# and expect receivers. Schema and YAML subset: scripts/adapter-load.awk.
 id: js-node-test
 extends: js-jest
 detect:
@@ -7,7 +5,6 @@ detect:
     - '[''"]node:test[''"]'
 test_start:
   - '(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*(\.[[:space:]]*only)?[[:space:]]*\('
-# expectFailure inverts the oracle, so those tests are not judged either.
 test_skip:
   - '(^|[^A-Za-z0-9_$.])(it|test)[[:space:]]*\.[[:space:]]*(skip|todo|expectFailure)'
   - '(^|[^A-Za-z0-9_$])(skip|todo|expectFailure)[[:space:]]*:'
@@ -17,8 +14,6 @@ suite_skip:
   - '(^|[^A-Za-z0-9_$.])(describe|suite)[[:space:]]*\.[[:space:]]*(skip|todo)[[:space:]]*\('
   - '(^|[^A-Za-z0-9_$.])(describe|suite)[[:space:]]*\(.*(skip|todo)[[:space:]]*:'
 assertion:
-  # assert(), assert.x(), t.assert.x() and new Assert() all carry the name;
-  # the bare names are node:assert's functions imported by destructuring.
   calls:
     - '[Aa]ssert'
     - '(^|[^A-Za-z0-9_$.])(ok|equal|notEqual|strictEqual|notStrictEqual|deepEqual|notDeepEqual|deepStrictEqual|notDeepStrictEqual|partialDeepStrictEqual|throws|doesNotThrow|rejects|doesNotReject|match|doesNotMatch|fail|ifError)[[:space:]]*\('
@@ -28,7 +23,6 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
-  # assert.rejects and assert.doesNotReject return promises.
   async:
     - '(t[[:space:]]*\.[[:space:]]*)?(assert[[:space:]]*\.[[:space:]]*)?(rejects|doesNotReject)[[:space:]]*\('
   weak:

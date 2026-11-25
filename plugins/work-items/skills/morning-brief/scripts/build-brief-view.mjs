@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// Build the morning-brief status report page from the brief's own text on stdin.
-//
-//   morning-brief.sh ... | build-brief-view.mjs --out <file>   writes the page, prints its path
-//
-// The brief carries issue and pull-request titles (K2), so the page is built only from
-// templates/brief.html plus the lines as escaped JSON data: the interactive profile of the
-// shared builder. Sections are the brief's `== Title ==` headings, each collapsible, and
-// one box filters every line.
-// Exit 0 built, 1 the page fails its profile, 2 usage or environment.
-
 import { readFileSync, writeFileSync } from "node:fs";
 import { buildView, ViewBuildError } from "../../../lib/view-builder.mjs";
 

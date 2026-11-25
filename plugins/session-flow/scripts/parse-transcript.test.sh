@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
-# repo test-runner convention for optional toolchains.
 # test-scope: plugins/session-flow/scripts/parse_transcript.py
 # test-scope: plugins/session-flow/scripts/transcript_reader.py
 set -uo pipefail

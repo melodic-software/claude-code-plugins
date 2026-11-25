@@ -10,7 +10,6 @@ import { ENTRIES_DIR, loadEntries, resolveSurface } from '../surfaces/registry.m
 const here = dirname(fileURLToPath(import.meta.url))
 const REGISTRY = join(here, '..', 'surfaces', 'registry.mjs')
 const SKILL = join(here, '..', 'skills', 'interview', 'SKILL.md')
-// What an unset userConfig key looks like in skill content: the literal token (lane-page.md).
 const UNSET = '${user_config.surface}'
 const made = []
 const tmp = () => made[made.push(mkdtempSync(join(tmpdir(), 'surface-registry-'))) - 1]

@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154
-# Remove build artifacts for the clean build tier (includes caches when --include-caches).
-#
-# Default: --dry-run (writes a manifest of planned removals + reclaimable bytes).
-# --apply consumes the manifest (re-stat staleness guard) and mutates disk.
-# With --include-caches the caches tier shares this one manifest — a single
-# pruned walk per tier, no subprocess. Enumeration/manifest/apply engine lives
-# in lib/clean-common.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,12 +63,6 @@ REPO_ROOT="$(clean_repo_root)"
 [[ -n "$REPO_ROOT" ]] || die "not a git repository" 1
 cd "$REPO_ROOT" || exit 1
 
-# Allowed manifest classes for this tier's apply gate — must track INCLUDE_CACHES
-# whether apply resumes from a given manifest or walks first, never a fixed
-# "build caches": otherwise a build-only apply (no
-# --include-caches) would still accept `caches` lines from a caller-supplied or
-# stale manifest and remove cache targets, defeating clean_apply_manifest's
-# wrong-tier guard on this documented --manifest surface.
 ALLOWED_CLASSES="build"
 [[ "$INCLUDE_CACHES" -eq 1 ]] && ALLOWED_CLASSES="build caches"
 

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# The session-telemetry audit rows put the payload's session_id into their
-# envelope `data` (additive, docs/contracts/hook-telemetry rule 1) so the
-# reference sink can route the line into the per-session log. One suite for
-# all of them: each row is driven black-box with a minimal payload that
-# carries a session_id, and once without one, and the captured envelope is
-# read back. Seven rows are served by audit-event-emitter.sh, which dispatches
-# on hook_event_name, so every payload here carries that key as Claude Code
-# sends it; skill-usage-audit.sh keeps its own script.
 # test-scope: plugins/session-telemetry/hooks/*-audit.sh
 set -uo pipefail
 
@@ -23,8 +15,6 @@ mkdir -p "$PROJ/.claude/rules"
 DATA_DIR="$TEST_TMPDIR/data"
 mkdir -p "$DATA_DIR"
 
-# row <name> -> the payload members (without session_id) that make it emit,
-# hook_event_name included
 members() {
   case "$1" in
   api-error-audit) printf '"hook_event_name":"StopFailure","error":"rate_limit"' ;;
@@ -46,7 +36,6 @@ script_for() {
   esac
 }
 
-# drive <row> <payload> <capture-file>
 drive() {
   local sink
   : >"$3"

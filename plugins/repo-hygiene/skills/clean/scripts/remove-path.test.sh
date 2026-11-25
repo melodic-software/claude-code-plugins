@@ -110,9 +110,6 @@ run_remove "$ROOT/unpushed-repo" --root "$ROOT"
 assert_exit "unpushed repo blocked exits 4" 4 "$rc"
 assert_contains "unpushed repo blocked reason" "$out" "Blocked: unpushed"
 
-# A repo/global status.showUntrackedFiles=no must not hide untracked local data:
-# the dirty guard forces --untracked-files=all, so a fully pushed clone with an
-# untracked file still blocks (exit 3) instead of reading clean and being deleted.
 make_pushed_repo "$ROOT/hidden-untracked-repo" "$TEST_TMPDIR/hidden-untracked-remote.git"
 git_quiet -C "$ROOT/hidden-untracked-repo" config status.showUntrackedFiles no
 printf 'local\n' >"$ROOT/hidden-untracked-repo/untracked.txt"
@@ -142,9 +139,6 @@ assert_contains "linked worktree block reason" "$out" "Blocked: linked-worktrees
 run_remove_quiet "$ROOT/wt-repo-linked" --root "$ROOT"
 assert_exit "linked worktree target refused" 2 "$rc"
 
-# Reparse-point refusal — prefer a real Windows junction (creatable without
-# elevation and the exact traversal hazard); fall back to a POSIX symlink.
-# Whichever the platform can create MUST be refused — no silent skip.
 REPARSE_MADE=""
 if command -v cmd >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
   cmd //c "mklink /J $(cygpath -w "$ROOT/reparse-target") $(cygpath -w "$ROOT/pushed-repo")" >/dev/null 2>&1 && REPARSE_MADE=junction
@@ -172,17 +166,12 @@ run_remove "$ROOT/aws-repo" --root "$ROOT"
 assert_exit "ignored .aws credentials block exits 3" 3 "$rc"
 assert_contains "SSOT secret-class block reason" "$out" "Blocked: secrets"
 
-# Default root resolution (no --root): first chain link is `git config ghq.root`
-# from the (test-scoped) global config.
 FAKE_HOME="$TEST_TMPDIR/fake-home"
 mkdir -p "$FAKE_HOME" "$ROOT/default-root-dir"
 HOME="$FAKE_HOME" GIT_CONFIG_GLOBAL="$FAKE_HOME/.gitconfig" git config --global ghq.root "$ROOT"
 out="$(HOME="$FAKE_HOME" GIT_CONFIG_GLOBAL="$FAKE_HOME/.gitconfig" bash "$REMOVE" "$ROOT/default-root-dir")"
 rc=$?
 assert_exit "default ghq.root resolution exits 0" 0 "$rc"
-# The script resolves paths physically (pwd -P), so the reported Root is the
-# physical form of $ROOT — mirror that here so the assertion holds wherever the
-# tmpdir sits under a symlink (macOS /var -> /private/var, etc.).
 ROOT_PHYS="$(cd "$ROOT" && pwd -P)"
 ROOT_PHYS="${ROOT_PHYS//\\//}"
 assert_contains "default root resolved from git config" "$out" "Root: $ROOT_PHYS"
@@ -242,10 +231,6 @@ run_remove "$ROOT/pruned-repo" --root "$ROOT"
 assert_exit "pruned upstream ref blocks exits 4" 4 "$rc"
 assert_contains "pruned upstream unpushed reason" "$out" "Blocked: unpushed"
 
-# Symlinked intermediate component must not bypass physical containment: pwd -P
-# resolves it to the physical path outside the root, so the target is refused and
-# rm -rf never traverses the link. POSIX symlink only (Windows-junction pwd -P
-# resolution is platform-uncertain); skip where symlinks cannot be created.
 OUTSIDE="$TEST_TMPDIR/outside-root"
 mkdir -p "$OUTSIDE/victim"
 printf 'keep\n' >"$OUTSIDE/victim/.keep"

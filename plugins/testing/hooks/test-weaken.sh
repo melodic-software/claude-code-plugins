@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# PreToolUse hook: name what an Edit or Write takes away from a test file.
-#
-# ADVISORY by default: exits 0 with additionalContext and no
-# permissionDecision field at all, because an `allow` would skip the user's
-# permission prompt. Opt-in and path-scoped exactly as test-scan.sh is.
-#
-# Weakening, against the text the call replaces: fewer test blocks, fewer
-# assertion tokens, more skip markers (the adapter's test_skip, body_skip and
-# suite_skip), or an equality whose actual side stayed while its literal
-# expected side changed. cant-fail-scan.sh --inventory counts both sides with the file's own
-# adapter and config, so this hook holds no token list of its own. An Edit
-# compares old_string with new_string; a Write compares the file on disk with
-# content, and a Write that creates the file weakens nothing (hook::begin exits
-# on a path that does not exist yet). A side the lexer ends inside a string or
-# comment is not judged.
-#
-# With `rules: {test-weaken-block: error}` in the testing config, an added
-# skip or a removed test block is denied unless the new text carries more
-# `test-change: <reason>` markers than the old. The agent can write that
-# marker itself: it makes the reason visible to reviewers and proves nothing.
-# Removed assertions and changed literals never deny.
-#
-# Test seams: TEST_WEAKEN_SCANNER replaces the scanner, TEST_WEAKEN_TIMEOUT
-# (seconds, default 8, below the hooks.json timeout of 10) bounds it.
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED:-false}" == "true" ]] || exit 0
@@ -49,12 +24,6 @@ tool="${HOOK_JQ_FIELDS[0]}" call="${HOOK_JQ_FIELDS[1]}"
 
 testing::data_dir
 mkdir -p "$DATA/marks" 2>/dev/null
-# Two `if` rows can match one path; only the run that creates the marker
-# reports. The marker is keyed on tool_use_id. Both events carry that field
-# (https://code.claude.com/docs/en/hooks#pretooluse-input and
-# https://code.claude.com/docs/en/hooks#posttooluse-input); that one call's PreToolUse and PostToolUse
-# carry the same value is our observation, not a documented guarantee, so the
-# name stays apart from test-scan's call- marker (test-scan prunes both).
 if [[ -n "$call" ]] && ! (set -o noclobber && : >"$DATA/marks/weaken-$call") 2>/dev/null; then exit 0; fi
 
 work="$(mktemp -d)" || exit 0
@@ -84,10 +53,6 @@ if ((SCAN_RC != 0)); then
   hook::finish error findings array '[]'
 fi
 
-# Side 1 is the old text, side 2 the new. The first output line is
-# `block|advise <tab> <test-weaken-block level>`; nothing is printed when the
-# edit weakens nothing or a side is unjudged. A skip that replaces a test start
-# (it -> it.skip) counts once, as the skip.
 report="$(awk -F'\t' '
 function names(a, b, kind,    i, t, n) {
   for (i = 1; i <= KN[a, kind]; i++) {
@@ -136,7 +101,6 @@ body="${report#*$'\n'}"
 lead="testing: $FILE_BASE: this $tool weakens its tests:"$'\n'"$body"
 ((${#lead} < 9000)) || lead="${lead:0:8800}"$'\n'"(truncated)"
 
-# grep -c prints 0 and exits 1 on no match; the count is what matters.
 marker='test-change:[[:space:]]*[^[:space:]]'
 if [[ "$head" == block$'\t'error ]] && (($(grep -c "$marker" "$work/new") <= $(grep -c "$marker" "$old"))); then
   reason="$lead"$'\n'"Denied: rules.test-weaken-block is error. If the change is deliberate, retry the edit with a test-change: <reason> comment naming why the test goes; otherwise fix the code, not the test."

@@ -1,61 +1,5 @@
 #!/usr/bin/env bash
-# The clean git tier's ONLY sanctioned local-branch deletion path (§4.7).
-#
-# Deletion here is gated on a branch-tip capture produced by git-branch-audit.sh
-# (its `TipCapture: <path>` line). The script refuses to delete anything unless
-# every branch in the batch has a captured tip AND that tip still matches the
-# branch's current tip. It is a refusal, not a warning: an operator working
-# through eighty branches skims warnings, and a branch deleted without a
-# recorded tip has no reflog to come back from.
-#
-# Per branch, in this order, and only in --apply mode:
-#   1. re-verify the live tip against the captured tip (stale plan guard),
-#   2. pin the tip under refs/repo-hygiene/deleted/<branch> so gc cannot prune
-#      the commits out from under the recorded identifier,
-#   3. append the deletion to the capture's ledger (<capture>.deleted.tsv),
-#   4. only then delete, with `git update-ref -d refs/heads/<branch> <tip>`: an
-#      atomic compare-and-delete inside git's ref lock, which refuses when the
-#      tip is no longer <tip>. Step 1 closes the window between the batch check
-#      and the pin; step 4's condition closes the window between the pin and
-#      the delete. Neither window can remove a branch whose current tip nobody
-#      recorded.
-# Any failure in 1 to 3 aborts the batch BEFORE that branch is touched; branches
-# already deleted keep their backup ref and ledger row. A refusal in 4 leaves
-# the branch intact with its pin in place (recoverable, and noted in the
-# ledger). The batch-wide precondition check (capture present, every branch
-# captured, every tip unmoved, no protected/worktree/unforced-LOSSY/unforced-REVIEW branch, a
-# SAFE-by-ancestry tip actually merged, and no captured non-LOSSY row whose
-# commits now exist on no remote ref and no tag, unless it carries a landed proof
-# that holds now) runs before the first deletion, so a refused batch deletes
-# nothing at all.
-#
-# Tier gate. SAFE and LIKELY-SAFE need no flag. LOSSY (deletable, but its
-# commits exist on no remote ref and no tag, so the deletion loses them) needs
-# --accept-loss; REVIEW needs --force-review; PROTECTED and WORKTREE are never
-# deletable here. The two flags are separate on purpose: the audit surfaces the
-# LOSSY set as its own block, and the operator confirms it as its own decision,
-# so a batch that was confirmed only as "the safe ones" cannot carry a LOSSY
-# branch through on the same acknowledgement. Neither flag admits the other's
-# tier. The captured tier is not enough on its own: a prune or a deleted tag
-# can make a REVIEW-with-Loss-none or LIKELY-SAFE row lose work without moving
-# the local tip, so the delete path recomputes live remote/tag reachability and
-# refuses when that count is now positive and the capture is not already LOSSY
-# (OPEN and MERGED PR rows stay REVIEW, matching the audit's refinement). A
-# LIKELY-SAFE row whose capture records a landed proof (its work is on
-# origin/<default> under other SHAs, so no remote ref reaches its commits) passes
-# instead when clean_landed_proof, run again now, still finds the proof. Re-run
-# the audit for a capture that names the new acknowledgement.
-#
-# Usage:
-#   git-branch-delete.sh --capture PATH [--dry-run] [--accept-loss] [--force-review] BRANCH...
-#   git-branch-delete.sh --capture PATH --apply   [--accept-loss] [--force-review] BRANCH...
-#
-# Restore a deleted branch:  git branch <branch> <tip>
-#   (<tip> is in the capture, in the ledger, and under refs/repo-hygiene/deleted/<branch>)
-#
 # Exit: 0 planned (dry-run) or every branch deleted; 1 a deletion failed or the
-# batch aborted mid-way; 2 usage error; 3 refused (precondition unmet, nothing
-# deleted).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -181,10 +125,6 @@ if [[ $REFUSED -eq 0 ]]; then
   if [[ "$first" != "# repo-hygiene branch tip capture v1" ]]; then
     refuse "not a branch tip capture (bad header): $CAPTURE ($CAPTURE_HINT)"
   else
-    # A row is recognized by its shape (tab-separated, a commit id in column
-    # 2), never by its first character: `#` is legal at the start of a branch
-    # name, so a comment heuristic would read such a branch as metadata and
-    # refuse it as uncaptured.
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
       [[ -z "$line" ]] && continue
@@ -205,14 +145,6 @@ if [[ $REFUSED -eq 0 ]]; then
   fi
 fi
 
-# The capture must describe THIS repository. Compared by common git dir so an
-# audit run from a linked worktree and a deletion run from the main checkout
-# still agree; a capture from another repository is refused outright. An
-# unresolved common_dir (missing, empty, or the literal `unknown`) is a
-# refusal, not a skipped check: that field is the only cross-repository gate,
-# and the capture is untrusted input. git-branch-audit.sh already fails closed
-# when it cannot resolve one for the default location; delete does the same
-# with any capture that reaches it.
 COMMON_DIR="$(clean_git_common_dir "$REPO_ROOT")" || COMMON_DIR=""
 if [[ $REFUSED -eq 0 ]]; then
   if [[ -z "$CAP_COMMON" || "$CAP_COMMON" == "unknown" ]]; then
@@ -240,25 +172,10 @@ live_tip() {
   git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/heads/$1" 2>/dev/null | tr -d '\r'
 }
 
-# The audit's exact merged-PR spellings, as the capture records them. Both the
-# force-delete decision and the live-reachability re-check below gate on them,
-# so they are written once: a substring containing MERGED (a forged or edited
-# capture) must satisfy neither.
 PR_MERGED_RE='^#[0-9]+ MERGED( \(tip drift\))?$'
 PR_OPEN_RE='^#[0-9]+ OPEN$'
 LANDED_RE='^landed '
 
-# delete_mode <tier> <pr> -> safe or force. Mirrors §4.7: SAFE by ancestry is a
-# safe delete, admitted only when its tip is merged into MERGE_TARGET (the check
-# `git branch -d` would make); a PR-merged SAFE branch is squash-merged more
-# often than not, so that check would refuse it; LIKELY-SAFE (upstream gone) and
-# forced REVIEW are force deletes. The delete itself is the same atomic
-# compare-and-delete in every mode.
-#
-# Both tier and pr come from the capture TSV, which is untrusted input. A SAFE
-# row is a force delete only when pr matches the audit's exact merged-PR format
-# (`#<n> MERGED` or `#<n> MERGED (tip drift)`). A substring containing MERGED is
-# not enough: that would skip the ancestry check on a forged or edited capture.
 delete_mode() {
   if [[ "$1" == SAFE && ! "$2" =~ $PR_MERGED_RE ]]; then printf 'safe'; else printf 'force'; fi
 }
@@ -334,22 +251,12 @@ for branch in "${BRANCHES[@]}"; do
     ;;
   esac
 
-  # A SAFE-by-ancestry row whose tip is not actually merged (a forged or stale
-  # capture) is refused here, before the pin and the ledger row, instead of
-  # being discovered by the delete after both were written.
   if [[ "$(delete_mode "$tier" "${CAP_PR[$branch]}")" == safe ]] &&
     ! { [[ -n "$MERGE_TARGET" ]] && git -C "$REPO_ROOT" merge-base --is-ancestor "$tip" "$MERGE_TARGET" 2>/dev/null; }; then
     refuse "$branch (captured as SAFE by ancestry, but $tip is not merged into ${MERGE_TARGET#refs/remotes/}; the capture does not describe this branch; re-run git-branch-audit.sh)"
     continue
   fi
 
-  # A prune or a deleted tag can turn a captured REVIEW-with-Loss-none or
-  # LIKELY-SAFE row into LOSSY without moving the local tip. OPEN and MERGED PR
-  # rows stay REVIEW under a positive count, matching the audit. A LIKELY-SAFE row
-  # with a captured landed proof is the exception: its work sits on origin/<default>
-  # under other SHAs, so no remote ref reaches its commits by design, and the
-  # proof, run again live, stands in for that check. The captured text only says
-  # which check to run; it is never taken as the answer.
   if [[ "$tier" != "LOSSY" ]]; then
     live_lost=""
     if ! live_lost="$(clean_loss_count "$REPO_ROOT" "$branch")"; then
@@ -452,7 +359,6 @@ for branch in "${PLAN[@]}"; do
     break
   fi
 
-  # 2. Pin the tip so a later gc cannot prune the commits the record points at.
   if ! git -C "$REPO_ROOT" update-ref "$BACKUP_NS/$branch" "$tip" 2>/dev/null; then
     ABORTED="$branch (could not write backup ref $BACKUP_NS/$branch)"
     break
@@ -463,11 +369,6 @@ for branch in "${PLAN[@]}"; do
     break
   fi
 
-  # 4. Delete, conditioned on the tip. `update-ref -d <ref> <expected>` is a
-  #    compare-and-delete inside git's ref lock: a tip that moved after step 1
-  #    makes it refuse ("is at X but expected Y") instead of removing a branch
-  #    whose current tip is recorded nowhere. Step 1 alone cannot close that
-  #    window; this does.
   if err="$(git -C "$REPO_ROOT" update-ref -d "refs/heads/$branch" "$tip" 2>&1 >/dev/null)"; then
     printf 'Deleted: %s %s (was %s) restore: git branch %s %s\n' "$branch" "$tip" "$tier" "$branch" "$tip"
     DELETED=$((DELETED + 1))

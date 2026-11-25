@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the audit-sessions scripts — delegates to the pytest suite.
-#
-# SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
-# repo test-runner convention for optional toolchains. -p no:cacheprovider keeps
-# a .pytest_cache/README.md out of the plugin-wide markdownlint glob.
 # test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/*
 # test-scope: plugins/session-flow/skills/audit-sessions/scripts/*.py plugins/session-flow/skills/audit-sessions/reference/*.json plugins/session-flow/vendor/gitleaks/gitleaks-rules.json
 # test-scope: plugins/session-flow/scripts/collect.py plugins/session-flow/scripts/census.py plugins/session-flow/scripts/friction_scan.py plugins/session-flow/scripts/redact.py plugins/session-flow/reference/canaries.json

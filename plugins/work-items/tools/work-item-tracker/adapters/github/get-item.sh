@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# get-item <id> [--history] — CONTRACT.md "Verbs (core public surface)". Read-only.
-# --history adds state_history from the issue timeline's closed and reopened events: one
-# paginated REST read, made only when asked for.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

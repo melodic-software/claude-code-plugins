@@ -29,8 +29,6 @@ WIT_JIRA_PROJECT_KEYS='["SW2","ABC"]'
 assert_succeeds "in-scope project accepted" "in" "out" wit_jira_project_in_scope "SW2"
 assert_fails "out-of-scope project rejected" "out" "in" wit_jira_project_in_scope "OTHER"
 
-# HTTP-status → exit-code mapping is pure; run wit_jira_require_ok in a subshell so
-# its exit does not end this suite, and capture the code it exits with.
 check_map() {
   local label="$1" status="$2" want="$3"
   (

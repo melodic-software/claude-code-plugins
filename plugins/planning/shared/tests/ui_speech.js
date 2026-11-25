@@ -36,7 +36,6 @@ function stubSpeech(cfg) {
       end() { if (!this.ended) { this.ended = true; this.onend?.(); } }
       say(words) { this.onresult?.({ results: [Object.assign([{ transcript: words, confidence: 0.9 }], { isFinal: true })] }); this.end(); }
     }
-    // processLocally exists only where the browser offers on-device recognition; available() only records a call
     if (cfg.local) Rec.prototype.processLocally = false;
     Rec.available = () => { log.available = (log.available || 0) + 1; return Promise.resolve("available"); };
     window.SpeechRecognition = Rec;

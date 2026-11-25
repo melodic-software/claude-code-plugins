@@ -1,30 +1,16 @@
 # shellcheck shell=bash
-# Per-session run-open marker shared by clean-run-marker.sh (writes it) and
-# destructive-guard.sh (reads it). A marker file says "a mutating clean run is
-# open in this session"; the guard gates only while one is live. The marker holds
-# the epoch second of its last write, and the guard refreshes it on each call to
-# one of the skill's mutating scripts (dry-run included) and each acknowledged or
-# destructive call, so the idle timeout counts from the last run activity.
 
 [[ -n "${_CLEAN_RUN_MARKER_LOADED:-}" ]] && return 0
 readonly _CLEAN_RUN_MARKER_LOADED=1
 
 RUN_MARKER_IDLE_SECONDS=3600
 
-# run_marker_data_dir_ours <dir>: 0 when the last path segment of <dir> names
-# this plugin (repo-hygiene, or repo-hygiene-<marketplace>). Another plugin's
-# hook can export its own data dir under the CLAUDE_PLUGIN_DATA name, so an
-# inherited value is trusted only when it passes.
 run_marker_data_dir_ours() {
   local seg="${1%[/\\]}"
   seg="${seg##*[/\\]}"
   [[ "$seg" == repo-hygiene || "$seg" == repo-hygiene-* ]]
 }
 
-# run_marker_path_to <var> <data-dir> <session-id>
-# Writes the marker path into <var>. Returns 1, leaving <var> empty, when the
-# data directory is empty or still an unsubstituted ${...} reference, or the
-# session id holds anything but [A-Za-z0-9_-] (it becomes a file name).
 run_marker_path_to() {
   local -n __rm_out="$1"
   local data="$2" session="$3"
@@ -35,7 +21,6 @@ run_marker_path_to() {
   __rm_out="${data%/}/clean-run/${session}.open"
 }
 
-# run_marker_write <path>: create or refresh the marker with the current epoch second.
 run_marker_write() {
   local now
   printf -v now '%(%s)T' -1
@@ -43,9 +28,6 @@ run_marker_write() {
   printf '%s\n' "$now" >"$1"
 }
 
-# run_marker_state_to <var> <path>
-# Writes absent, live or stale. An unreadable or non-numeric marker is live: a
-# marker that cannot be aged keeps the guard armed rather than dropping it.
 run_marker_state_to() {
   local -n __rm_state="$1"
   local file="$2" stamp="" now

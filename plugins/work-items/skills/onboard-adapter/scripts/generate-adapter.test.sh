@@ -41,12 +41,6 @@ BASE_SPEC='{
   "deferrals": []
 }'
 
-# gen <spec-json> [extra-args…] — write the spec to a temp file, run the generator
-# into a FRESH out-root, and echo its exit code. A fresh root per case keeps
-# no-clobber behavior from leaking between cases.
-#
-# gen runs in a $(…) subshell, so it hands the root back through a file: read it with
-# last_root, never a variable gen appears to set.
 gen() {
   local spec="$1"
   shift
@@ -109,8 +103,6 @@ for f in capabilities.json capabilities.sh capabilities.test.sh common.sh common
   create-item.sh get-item.sh list-items.sh change-link.sh; do
   assert_file "generated $f" "$A/$f"
 done
-# #2950 requires the conformance binding be generated alongside the adapter — without
-# it the generated adapter cannot be conformance-verified at all.
 assert_file "generated the conformance binding" "$B/acmetracker.sh"
 
 for f in claim.sh renew-lease.sh release.sh reclaim.sh link-blocks.sh add-sub-item.sh list-sub-items.sh; do
@@ -197,26 +189,19 @@ fi
 assert_eq "wrong spec_version → exit 3" "3" "$(gen "$(with '.spec_version = "2.0"')")"
 assert_eq "missing display_name → exit 3" "3" "$(gen "$(with 'del(.display_name)')")"
 
-# One case per context display_name reaches literally: an apostrophe in a single-quoted
-# printf, `$(…)` in a double-quoted ${VAR:?…}, a newline ending a `#` line.
 assert_eq "display_name with an apostrophe → exit 3" "3" \
   "$(gen "$(with '.display_name = "Bobs'\'' Tracker"')")"
-# shellcheck disable=SC2016  # the payload must reach the generator UNEXPANDED — an
-# expanded $(id) would test the guard against this shell's output instead of against
-# the command-substitution syntax, which is the whole point of the case.
+# shellcheck disable=SC2016  # the payload must reach the generator UNEXPANDED
 assert_eq "display_name with command substitution → exit 3" "3" \
   "$(gen "$(with '.display_name = "X$(id)"')")"
 assert_eq "display_name with a newline → exit 3" "3" \
   "$(gen "$(with '.display_name = "Acme\nTracker"')")"
-# shellcheck disable=SC2016  # same reason as the case above: the backticks are the
-# payload under test and must arrive at the generator as literal text.
+# shellcheck disable=SC2016  # same reason as the case above
 assert_eq "display_name with a backtick → exit 3" "3" \
   "$(gen "$(with '.display_name = "Acme `id`"')")"
 assert_eq "a slashed display_name still generates" "0" \
   "$(gen "$(with '.display_name = "Gitea/Forgejo"')")"
 
-# The provider name becomes a directory, a path segment, a function-name fragment and
-# a jq key, so it is constrained once at the door.
 for bad in '"Acme"' '"1acme"' '"acme_tracker"' '"../escape"' '"acme/tracker"' '""'; do
   assert_eq "provider $bad refused → exit 3" "3" "$(gen "$(with ".provider = $bad")")"
 done
@@ -231,15 +216,11 @@ for scheme in bearer token basic raw; do
   assert_eq "auth_scheme $scheme accepted" "0" "$(gen "$(with ".api.auth_scheme = \"$scheme\"")")"
 done
 
-# An unanchored scope pattern would accept a conforming PREFIX of a hostile value —
-# exactly the hole the guard exists to close, so it is refused rather than repaired.
 assert_eq "unanchored scope_pattern → exit 3" "3" "$(gen "$(with '.api.scope_pattern = "[a-z]+"')")"
 assert_eq "half-anchored scope_pattern → exit 3" "3" "$(gen "$(with '.api.scope_pattern = "^[a-z]+"')")"
 anchor_err="$(gen_err "$(with '.api.scope_pattern = "[a-z]+"')")"
 assert_contains "unanchored pattern names the risk" "$anchor_err" "conforming prefix"
 
-# quote_safe() is scope_pattern's only guard and must ABORT the run, not one $(render)
-# subshell. The exit code and the empty-tree assertion are two halves of one case.
 assert_eq "single-quoted scope_pattern → exit 3" "3" \
   "$(gen "$(with '.api.scope_pattern = "^[A-Za-z0-9'\''][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"')")"
 if [[ -d "$(last_root)/tools/work-item-tracker/adapters/acmetracker" ]]; then
@@ -251,20 +232,15 @@ fi
 assert_eq "sample_scope violating its own pattern → exit 3" "3" \
   "$(gen "$(with '.api.sample_scope = "no-slash-here"')")"
 
-# sample_scope has its OWN charset because scope_pattern can permit anything (`^.*$`).
-# Each case pins one escape route from the double-quoted argument it lands in.
 SCOPE_ANY='.api.scope_pattern = "^.*$"'
 assert_eq "sample_scope with a double quote → exit 3" "3" \
   "$(gen "$(with "$SCOPE_ANY | .api.sample_scope = \"acme/web\\\"x\" | .api.sample_id = \"acmetracker:acme/webapp#12\"")")"
-# shellcheck disable=SC2016  # the payload must reach the generator UNEXPANDED — an
-# expanded $(id) would test the guard against this shell's output instead of against
-# the command-substitution syntax, which is the whole point of the case.
+# shellcheck disable=SC2016  # the payload must reach the generator UNEXPANDED
 assert_eq "sample_scope with command substitution → exit 3" "3" \
   "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/webapp\"; $(id); echo \"x" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
 assert_eq "sample_scope with a newline → exit 3" "3" \
   "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/webapp\nid" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
 # shellcheck disable=SC2016  # same reason: the backticks are the payload under test
-# and must arrive at the generator as literal text.
 assert_eq "sample_scope with a backtick → exit 3" "3" \
   "$(gen "$(with "$SCOPE_ANY"' | .api.sample_scope = "acme/`id`" | .api.sample_id = "acmetracker:acme/webapp#12"')")"
 assert_eq "sample_scope with a single quote → exit 3" "3" \
@@ -361,9 +337,6 @@ assert_eq "consume-only (no list-items, zero ceiling) is coherent" "0" \
 assert_eq "link-blocks=true with zero dependency ceiling → exit 3" "3" \
   "$(gen "$(with '.verbs["link-blocks"] = true')")"
 
-# gen_adapter <label> <spec>: generate <spec> and set GEN_ADAPTER to the generated
-# adapter directory, or record a generation FAIL and clear GEN_ADAPTER. Written into a
-# variable rather than echoed so `fail` stays in the caller's shell, where FAILED lives.
 gen_adapter() {
   local rc
   GEN_ADAPTER=""
@@ -421,8 +394,6 @@ for v in create-item get-item claim renew-lease release reclaim link-blocks add-
 done
 
 SC_RC="$(bash "$SCRIPT_DIR/../../../../../lib/org-standards.sh" dir --root "$SCRIPT_DIR/../../../../.." 2>/dev/null)/.shellcheckrc"
-# ShellCheck before 0.10.0 rejects `--rcfile` with exit 3 (bad syntax, not issues found),
-# so probe whether THIS binary accepts the flag rather than trusting the exit status.
 if ! command -v shellcheck >/dev/null 2>&1; then
   printf 'SKIP: shellcheck not available — generated-shell lint case not run\n' >&2
 elif [[ ! -f "$SC_RC" && -n "${CI:-}${STANDARDS_DIR:-}" ]]; then
@@ -437,19 +408,12 @@ else
 fi
 
 if command -v shfmt >/dev/null 2>&1; then
-  # -i 2 matches the repo's .editorconfig for [*.{sh,bash}]; passed explicitly
-  # because the generated tree under a temp root has no .editorconfig of its own.
   shfmt -d -i 2 "$FULL_A"/*.sh "$FULL_B" >/dev/null 2>&1
   assert_eq "generated shell is shfmt-clean" "0" "$?"
 else
   printf 'SKIP: shfmt not available — generated-shell format case not run\n' >&2
 fi
 
-# An unmapped scaffold exits 1, never 6, which would launder unfinished work as a
-# provider limitation.
-#
-# These cases call verbs directly, so they export WIT_SEAM_LIB_DIR as the dispatcher
-# would; a generated adapter has no ../../lib to fall back to.
 verb() {
   WIT_SEAM_LIB_DIR="$SEAM/lib" bash "$@" >/dev/null 2>&1
 }
@@ -471,16 +435,12 @@ assert_eq "claim scaffold rejects --ttl-minutes above 59 → exit 2" "2" "$?"
 assert_contains "claim scaffold documents --ttl-minutes" "$(cat "$FULL_A/claim.sh")" "[--ttl-minutes <n>]"
 assert_contains "release scaffold documents its usage" "$(cat "$FULL_A/release.sh")" "<id> --lease-comment-id <n>"
 
-# Without the export and without a vendored seam, a verb fails as a SETUP error (3)
-# naming the fix — not as a sourcing crash or a malformed record.
 bash "$FULL_A/get-item.sh" "acmetracker:acme/webapp#1" >/dev/null 2>&1
 assert_eq "no seam lib reachable → config exit 3" "3" "$?"
 seam_err="$(bash "$FULL_A/get-item.sh" "acmetracker:acme/webapp#1" 2>&1 >/dev/null)"
 assert_contains "missing seam lib names the remedy" "$seam_err" "WIT_SEAM_LIB_DIR"
 
 ADAPTER_VERB_LIST="$(sed -n '/^readonly ADAPTER_VERBS=(/,/^)/p' "$S" | sed '1d;$d' | tr -s ' ' '\n' | sed '/^$/d' | sort)"
-# The dispatcher's first `case "$verb" in` arm is the public verb set minus list-frontier
-# (core-derived) and list-items (each in an arm of its own).
 DISPATCH_VERB_LIST="$({
   awk '/case "\$verb" in/ { getline; print; exit }' "$SEAM/work-item-tracker.sh" | sed 's/).*//' | tr -d ' ' | tr '|' '\n'
   echo list-items

@@ -30,10 +30,6 @@ rc="$(lin_run "$S" "linear:acme/ENG#12" --blocked-by "linear:acme/OPS#4")"
 assert_eq "out-of-scope blocker → exit 2" "2" "$rc"
 assert_contains "the refusal names the blocker's team" "$(lin_err)" "acme/OPS"
 
-# --- happy path: direction ---
-# Linear documents IssueRelation.issue as "the source issue whose relationship is being
-# described" and relatedIssue as the target. So `blocks` from the BLOCKER to the BLOCKED
-# item is the edge this verb writes.
 lin_reset
 lin_data 'issueRelationCreate' '{"issueRelationCreate":{"success":true}}'
 lin_seed_issue 12 started

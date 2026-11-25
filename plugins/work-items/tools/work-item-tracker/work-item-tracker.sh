@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Core dispatcher for the work-item tracker seam. Contract: CONTRACT.md (verbs, JSON
-# shapes, exit codes).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,8 +83,6 @@ check_gh_present() {
     fail_config "prerequisite missing: gh (GitHub CLI) — see CONTRACT.md Prerequisites"
 }
 
-# check_gh_version [feature]: the flag or verb that needs 2.94, named in the exit-3
-# message; the default covers verbs with no user-facing flag.
 check_gh_version() {
   check_gh_present
   local feature="${1:-native sub-issue/dependency flags}"
@@ -99,11 +95,6 @@ check_gh_version() {
   fail_config "gh >= ${WIT_GH_NATIVE_SURFACE_MAJOR}.${WIT_GH_NATIVE_SURFACE_MINOR} required for ${feature} (found: ${raw:-unknown})"
 }
 
-# wit_detect_status_storage <adapter-dir> <manifest> [--repo <o>/<r>]: CONTRACT.md
-# "Verbs", status-storage. Sets WIT_STATUS_STORAGE (`field` or `labels`) and
-# WIT_STATUS_REASON and returns 0; when the provider did not answer, returns 1 with
-# the adapter's exit code in WIT_STATUS_RC and its stderr in WIT_STATUS_ERR, so each
-# caller chooses whether that fails it.
 wit_detect_status_storage() {
   local adapter_dir="$1" manifest="$2" fields_out fields_rc errfile refused
   shift 2
@@ -117,8 +108,6 @@ wit_detect_status_storage() {
   fields_rc=$?
   WIT_STATUS_ERR="$(<"$errfile")"
   rm -f "$errfile"
-  # GitHub answers a rate limit with 403 too, which the adapter maps to exit 4; only
-  # a refusal of the read itself means status is not in a field.
   refused="false"
   case "$fields_rc" in
   "$EX_NOT_FOUND") refused="true" ;;
@@ -143,13 +132,6 @@ wit_detect_status_storage() {
   return 0
 }
 
-# wit_attach_statuses <adapter-dir> <manifest> [--repo <o>/<r>]: stdin a list envelope,
-# stdout the same envelope whose frontier candidates (open, unblocked, unassigned) carry
-# `status`, their Work status value or null, when the tracker stores status in that
-# field (CONTRACT.md "Verbs", list-frontier). A failed status-storage or get-statuses
-# read prints one stderr line and returns the adapter's code with nothing on stdout; a
-# malformed answer returns 1. `labels` storage and an adapter without get-statuses pass
-# the envelope through.
 wit_attach_statuses() {
   local adapter_dir="$1" manifest="$2" envelope ids out errfile i n id statuses='{}' chunk=() rc
   shift 2
@@ -252,8 +234,6 @@ main() {
   *) fail_usage ;;
   esac
 
-  # Gate only paths that pass gh 2.94 native flags or read its fields, so plain creates
-  # work on older gh. list-items stays gated: silent blockedBy zeros would unblock items.
   if [[ "$WIT_PROVIDER" == "github" ]]; then
     case "$adapter_verb" in
     create-item)
@@ -280,7 +260,6 @@ main() {
       check_gh_version "--parent"
       ;;
     list-items)
-      # A GraphQL-refusing session reads blockers over REST (adapter README "List items").
       if wit_gh_session_refuses_graphql; then
         check_gh_present
       else

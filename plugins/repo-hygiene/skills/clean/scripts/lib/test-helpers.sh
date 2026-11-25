@@ -1,16 +1,8 @@
 # shellcheck shell=bash
-# Self-contained assertion helpers for the repo-hygiene clean tests.
-# Duplicated across plugins by design: docs/contracts/shell-test-helpers/README.md.
-#
-# Each test file owns its own FAILED / CASE_NUM counters and exits non-zero at
-# the end: `[[ $FAILED -eq 0 ]] || exit 1`.
 
 [[ -n "${_CLEAN_TEST_HELPERS_LOADED:-}" ]] && return 0
 readonly _CLEAN_TEST_HELPERS_LOADED=1
 
-# Strip inherited git-hook context so a fixture `git init` in these tests
-# resolves to the mktemp fixture, never the real repo (a git-hook chain exports
-# GIT_DIR / GIT_INDEX_FILE etc.).
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -34,12 +26,10 @@ _fail_with() {
   FAILED=$((FAILED + 1))
 }
 
-# skip_case <reason> — print SKIP marker without exiting or bumping CASE_NUM.
 skip_case() {
   printf 'SKIP: %s\n' "$1" >&2
 }
 
-# assert_exit <label> <expected_code> <actual_code>
 assert_exit() {
   if [[ "$3" == "$2" ]]; then
     pass "$1"
@@ -48,7 +38,6 @@ assert_exit() {
   fi
 }
 
-# assert_contains <label> <haystack> <needle> — substring presence.
 assert_contains() {
   local detail
   if [[ "$2" == *"$3"* ]]; then
@@ -59,7 +48,6 @@ assert_contains() {
   fi
 }
 
-# assert_not_contains <label> <haystack> <needle> — substring absence.
 assert_not_contains() {
   local detail
   if [[ "$2" != *"$3"* ]]; then
@@ -70,7 +58,6 @@ assert_not_contains() {
   fi
 }
 
-# assert_file_exists <label> <path>
 assert_file_exists() {
   if [[ -f "$2" ]]; then
     pass "$1"
@@ -79,7 +66,6 @@ assert_file_exists() {
   fi
 }
 
-# assert_file_absent <label> <path>
 assert_file_absent() {
   if [[ ! -f "$2" ]]; then
     pass "$1"

@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# Measure the four hook-log rows #3757 names.
-#
-# Prints a capture for the host it is actually running on. A Linux run is
-# labeled host: linux. It does not write a Windows Git Bash figure. Paste a
-# capture whose first host line is `windows-git-bash` into
-# reference/hook-log-budget.md to replace `windows-git-bash: unmeasured`.
-#
-# Every hook run goes through the launcher, `node exec-bash.mjs --require-true
-# SESSION_EVENT_LOG_ENABLED session-event-log.sh`: disabled, node and the closed
-# gate; enabled, node, then bash, then the script. The hooks module (register.ts)
-# runs `node exec-bash.mjs session-event-log.sh` only while the log is on, so the
-# enabled figures are its per-event cost, and the disabled figures describe the
-# settings rows it replaced: with the log off it starts no process.
-#
-#   measure-hook-log-budget.sh [--samples N] [--record <file>]
-#   measure-hook-log-budget.sh --check-doc <file>
-#
-# Exit: 0 capture or a doc that still owes Windows or carries a stamped
-# Windows capture; 1 the doc claims a Windows figure without that stamp;
-# 2 usage.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -178,9 +158,6 @@ run_row() {
     node "$LAUNCHER" --require-true SESSION_EVENT_LOG_ENABLED "$HOOK" <"$1"
 }
 
-# The bash the launcher spawns: on Windows that is Git\bin\bash.exe, a wrapper that starts
-# Git\usr\bin\bash.exe, not the `bash` on PATH. S is timed on the launcher's bash so it is the
-# unit the hook rows pay; the PATH bash is timed once beside it for comparison.
 launcher_bash="$(cd "$SCRIPT_DIR" && node --input-type=module -e '
 import { statSync } from "node:fs";
 const { resolveBash } = await import("./exec-bash.mjs");

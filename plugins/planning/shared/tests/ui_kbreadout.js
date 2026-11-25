@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// The keyboard readout on a touch phone, against `share.sh ensure-running` with the fake cloudflared: with the
-// Propose sheet open, the keyboard coming up logs one `kind=layout` client entry to server.log carrying the viewport,
-// the app's --kb, --vv-top and --vv-h, data-kb, the sheet's box and computed bottom styles, the safe-area inset and
-// the screen height; the keyboard going down and up again in the same open logs nothing more, and the next open logs
-// once again. No text the person typed reaches the log.
-//   node plugins/planning/shared/tests/ui_kbreadout.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// The keyboard is a stand-in visualViewport, installed before the page's scripts, whose height shrinks by 344 px (a
-// phone keyboard) and fires resize, as WebKit does. Expected field names come from the coordinator's brief for
-// item E, never from the page.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 

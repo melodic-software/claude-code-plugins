@@ -1,34 +1,7 @@
 # shellcheck shell=bash
-# The test judge's run, ledger and validation pieces, kept for the judge
-# calibration harness (skills/audit/evals/judge-calibration/metrics.sh) and
-# the judge pass's shape and comment-only checks
-# (skills/audit/scripts/judge-check.sh); no hook runs them. Source after
-# scanner-run.sh, with HOOK_DIR, DATA, PKEY, SID (the run) and TPATH (a
-# transcript path) set.
-#
-# State under $DATA:
-#   sessions/<pkey>/<sid>/<tool_use_id>.json  a record of each file to judge
-#   verdicts/<pkey>/<sid>/<key-hash>.json     the ledger, written by rename
-#   verdicts/<pkey>/<sid>/blob-<blob id>      a test file as a judge run read it
-#   verdicts/<pkey>/<sid>/unusable-<t>-<pid>.txt  a run's output with no usable result
-#   relayed/<pkey>/<sid>/<key-hash>           shown to the user (mirrors the ledger)
-#   locks/<key-hash>, slots/<n>               "pid host start", noclobber
-#   pending/<pkey>/<sid>/<id>                 a background job: "pid host start", then the file
-#   attempts/<key-hash>                       one line per failed attempt
-#   runs/<pkey>/<sid>/<id>                    one file per judge run (the session cap)
-#   successors/<pkey>/<sid>                   start time of a /clear or fork successor
-#
-# A key is file::name::ordinal::sha of the block's current text, re-derived by
-# running the scanner's --blocks on the file as it is now, so a verdict stays
-# valid when lines shift and goes stale when the text changes.
-#
-# Test seams: TEST_JUDGE_CMD replaces `claude`, TEST_JUDGE_RUN_TIMEOUT (seconds,
-# default 150) the per-run hang guard, TEST_SCAN_SCANNER the scanner,
 # TEST_JUDGE_REUSE=0 turns verdict reuse off (judge::reuse).
 # shellcheck disable=SC2034,SC2154 # globals shared with the sourcing hook
 
-# judge::num <var> <value> <default>: set var to the value when it is a plain
-# number, else to the default, so no setting is evaluated as shell arithmetic.
 judge::num() {
   if [[ "$2" =~ ^[0-9]{1,6}$ ]]; then printf -v "$1" '%d' "$((10#$2))"; else printf -v "$1" '%d' "$3"; fi
 }
@@ -42,16 +15,11 @@ JUDGE_SLOTS=3
 JUDGE_HOST="${HOSTNAME:-localhost}"
 JUDGE_LOG="$DATA/test-judge.log"
 JUDGE_RULE=testing/judge/rule-restated-expectation
-# Git Bash: a pid from another process tree cannot be probed, so markers go
-# stale by age only.
 case "${OSTYPE:-}" in msys* | cygwin*) JUDGE_AGE_ONLY=1 ;; *) JUDGE_AGE_ONLY=0 ;; esac
 SCANNER="${TEST_SCAN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
 
-# Under Git Bash and Cygwin one file can be named C:\x (a payload), C:/x (git)
-# or /c/x (MSYS), on a file system that ignores case.
 case "${TESTING_OSTYPE:-${OSTYPE:-}}" in msys* | cygwin*) JUDGE_WIN=1 ;; *) JUDGE_WIN=0 ;; esac
 
-# judge::same_path <a> <b>: true when the two paths name one file.
 judge::same_path() {
   local a="$1" b="$2"
   if ((JUDGE_WIN)); then
@@ -63,17 +31,6 @@ judge::same_path() {
   [[ "$a" == "$b" ]]
 }
 
-# judge::read_rule <var> <dir>: set var to the Read allow rule for everything
-# under the directory. A rule path is absolute only with a leading `//`; one
-# `/` anchors at the primary working directory for a CLI flag, and on Windows
-# C:\a is matched as /c/a, so the rule is Read(//c/a/**). A Read rule also
-# covers Grep and Glob; path rules for those two are never consulted. The
-# rule is a gitignore pattern, so each \ * ? [ ] in the path is escaped with
-# a backslash and the rule names that one directory, as the rules Claude Code
-# writes itself are escaped.
-# https://code.claude.com/docs/en/permissions#read-and-edit,
-# https://git-scm.com/docs/gitignore#_pattern_format and
-# https://code.claude.com/docs/en/tools-reference.
 judge::read_rule() {
   local p="$2" q="" c i
   if ((JUDGE_WIN)); then
@@ -90,15 +47,6 @@ judge::read_rule() {
   printf -v "$1" 'Read(/%s/**)' "$q"
 }
 
-# judge::file_repo <file>: set FREPO to the git toplevel of the file's own
-# directory, never the hook's: a recorded repository can be the hook's
-# working directory's when the recorder misread a Windows path. Under Git Bash
-# a payload path may use backslashes, so the directory is taken at either
-# separator; a path with no separator has no directory to resolve, and is
-# never read as the working directory. FREPO_OUT is the toplevel when git
-# names one that does not hold the directory (core.worktree set elsewhere);
-# FREPO is then empty, as it is for a file in no repository. Cached per file
-# for the process.
 declare -gA JUDGE_FREPO=() JUDGE_FREPO_OUT=()
 judge::file_repo() {
   local f="$1" d="" c top pd pt cands=("$1")
@@ -133,8 +81,6 @@ judge::log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$JUDGE_LOG" 2>/dev/
 judge::now() { NOW="${EPOCHSECONDS:-$(date +%s)}"; }
 judge::sha() { if command -v sha256sum >/dev/null; then sha256sum -- "$@"; else shasum -a 256 -- "$@"; fi; }
 
-# judge::records_json <file>...: one JSON array of the state records, each with
-# .sid (the session directory it sits in); a malformed file is skipped.
 judge::records_json() {
   local f
   jq -cn '[inputs | objects | . + {sid: (input_filename | split("/") | .[-2])}]' "$@" 2>/dev/null && return
@@ -143,7 +89,6 @@ judge::records_json() {
   done | jq -cs .
 }
 
-# judge::last_write <sid>: print the epoch of the session's last recorded write.
 judge::last_write() {
   local d="$DATA/sessions/$PKEY/$1" last='[.[] | objects | .written_at? | strings | fromdate?] | max'
   compgen -G "$d/*.json" >/dev/null || return 1
@@ -151,9 +96,6 @@ judge::last_write() {
     judge::records_json "$d"/*.json | jq -e "$last" 2>/dev/null
 }
 
-# judge::session_set: set SESSIONS to this session plus, for a /clear or fork
-# successor, every other session under the project key whose last write falls
-# within the hour before the successor started.
 judge::session_set() {
   local m="$DATA/successors/$PKEY/$SID" t="" d s last
   SESSIONS=("$SID")
@@ -167,19 +109,6 @@ judge::session_set() {
   done
 }
 
-# judge::load: set INFOS to one compact JSON object per file the session set's
-# records name: the file, its repository, whether any record says "whole file"
-# (blocks:null), the block names and ordinals the writes created or changed,
-# the first recorded cant-fail-ok: count (0 when that write created the file),
-# the changed lines (the hint for a whole-file bash harness), the writers
-# (session and agent ids) and the last writer's session (the owner of its
-# verdicts).
-# IFILES holds each info's file path, the same index. One jq reads every
-# record; only when a malformed record fails it does each file get its own.
-# JUDGE_AGENT_SKIP, space-separated agent ids, drops every file a subagent
-# still running wrote (the parent's Stop), the parent's own
-# records of it too: a key is a block's current text, so judging the parent's
-# record would relay the subagent's latest version at the parent.
 judge::load() {
   # shellcheck disable=SC2016 # $skip and $a are jq variables
   local s f files=() out i fa group='map(select(.file | type == "string"))
@@ -209,10 +138,6 @@ judge::load() {
   done
 }
 
-# judge::drop <file>: remove every record in the session set that names the
-# file exactly, while the file is still missing: a write that brings it back
-# records it again. One jq reads every record; only when a malformed record
-# fails it does each record get its own.
 judge::drop() {
   # shellcheck disable=SC2016 # $f is a jq variable
   local s r recs=() hits q='objects | select(.file == $f) | input_filename'
@@ -229,15 +154,6 @@ judge::drop() {
   done <<<"$hits"
 }
 
-# judge::derive <info>: set KEYS to one line per in-doubt block of the file as
-# it is now, "<key-hash> <ordinal> <start>-<end> <name>", and HINT to the
-# changed-line hint for a whole-file key. A block is in doubt when a write
-# created or changed it, when a write's blocks are unknown (all blocks), or
-# when it holds or sits under a cant-fail-ok: marker and the file's count rose
-# above the first recorded one (a created file starts from 0). A file the
-# scanner cannot list, or whose lexer lost sync, is one whole-file key. A
-# missing file is skipped, and logged once: judge::drop removes its records,
-# so no later Stop derives it again.
 judge::derive() {
   local file whole base_ok names lines tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
   local root cfg cfgs=() key="" h cache c=()
@@ -256,7 +172,6 @@ judge::derive() {
     "$root/docs/conventions/testing.local.yaml" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
     [[ -f "$cfg" ]] && cfgs+=("$cfg")
   done
-  # sha256sum prefixes a line with \ when the file name holds a backslash.
   while read -r h _; do
     h="${h#\\}"
     key+="${h:0:16}"
@@ -321,8 +236,6 @@ judge::derive() {
   fi
 }
 
-# judge::verdict <key-hash>: set VERDICT to the key's ledger file in the
-# session set and VOWNER to the session it sits under; false when there is none.
 judge::verdict() {
   local s
   VERDICT="" VOWNER=""
@@ -335,22 +248,18 @@ judge::verdict() {
   return 1
 }
 
-# judge::relayed <key-hash>: true when any session in the set relayed it.
 judge::relayed() {
   local s
   for s in "${SESSIONS[@]}"; do [[ -e "$DATA/relayed/$PKEY/$s/$1" ]] && return 0; done
   return 1
 }
 
-# judge::mark <path> [pid]: create a marker exclusively, holding "pid host start".
 judge::mark() {
   local pid="${2:-$BASHPID}"
   judge::now
   (set -o noclobber && printf '%s %s %s\n' "$pid" "$JUDGE_HOST" "$NOW" >"$1") 2>/dev/null
 }
 
-# judge::stale <path> <seconds>: true when the marker is missing, older than
-# the limit, or held by a dead process on this host.
 judge::stale() {
   local pid="" host="" start=""
   [[ -e "$1" ]] || return 0
@@ -365,23 +274,17 @@ judge::stale() {
   return 1
 }
 
-# judge::fail <key-hash> <why>: record one failed attempt.
 judge::fail() {
   mkdir -p "$DATA/attempts"
   printf '%s\n' "$2" >>"$DATA/attempts/$1"
   judge::log "attempt failed: $1: $2"
 }
-# judge::spent <key-hash>: true after 2 failed attempts ("judge not run").
 judge::spent() {
   local a=()
   [[ -f "$DATA/attempts/$1" ]] && mapfile -t a <"$DATA/attempts/$1"
   ((${#a[@]} >= 2))
 }
 
-# judge::lock <key-hash>: take the key's lock. A stale one is broken and
-# counted as one failed attempt.
-# ponytail: two processes breaking one stale lock at once can both take it; the
-# verdict re-check after locking catches most of that.
 judge::lock() {
   local l="$DATA/locks/$1"
   mkdir -p "$DATA/locks"
@@ -392,8 +295,6 @@ judge::lock() {
   judge::mark "$l"
 }
 
-# judge::wait_lock <key-hash>: wait while a live holder keeps the key's lock,
-# until it is released or goes stale (at most JUDGE_STALE seconds).
 judge::wait_lock() {
   local l="$DATA/locks/$1" until
   judge::now
@@ -405,8 +306,6 @@ judge::wait_lock() {
   done
 }
 
-# judge::slot <deadline>: take one of the machine's judge slots, waiting until
-# the deadline; sets SLOT.
 judge::slot() {
   local i s
   SLOT=""
@@ -425,8 +324,6 @@ judge::slot() {
   done
 }
 
-# judge::busy <file> <key-hash>: true while a live background job owns the
-# file or a live lock holds the key.
 judge::busy() {
   local s p f
   for s in "${SESSIONS[@]}"; do
@@ -440,14 +337,6 @@ judge::busy() {
   [[ -e "$DATA/locks/$2" ]] && ! judge::stale "$DATA/locks/$2" "$JUDGE_STALE"
 }
 
-# judge::reserve_run: reserve one judge run for the session and set RUNRES to
-# its marker, or fail when the optional CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS
-# limit is reached (a test seam; metrics.sh unsets it). Under a limit the
-# marker is runs/<pkey>/<sid>/<n>, the first free n from 1 to the limit,
-# created exclusively, so jobs that reach the check together cannot all take
-# the last run. A reservation is kept when the judge starts and released
-# (judge::release_run) when it does not; a job killed in between keeps it,
-# which errs toward spending less.
 judge::reserve_run() {
   local cap="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS:-}" d="$DATA/runs/$PKEY/$SID" n
   RUNRES=""
@@ -474,27 +363,16 @@ judge::class() {
   esac
 }
 
-# judge::transcript_class <jsonl>: the class of the last assistant model in
-# the transcript's last 400 lines, skipping <synthetic> lines.
 judge::transcript_class() {
   [[ -f "$1" ]] || return 0
   judge::class "$(tail -n 400 "$1" | jq -Rr 'fromjson? | select(.type? == "assistant")
     | .message.model? | strings | select(. != "<synthetic>")' 2>/dev/null | tail -n 1)"
 }
 
-# judge::pick <writers json>: set MODEL to a judge class that differs from
-# every writer class (the main session's always counts; each writing session's
-# transcript and subagent transcript add theirs), and EFFORT; false when none
-# remains. Walks the configured model, the fallback, then opus and sonnet, as
-# /testing:audit's judge pass does. haiku is never a fallback, configured or
-# walked to: its calibration arms flipped a third of their verdicts across runs
-# (calibration.md, Haiku). It stays a valid configured model only so the
-# calibration sweep can measure it.
 judge::pick() {
   local tdir="${TPATH%[/\\]*}" writers=" " sid agent c m fb
   writers+="$(judge::transcript_class "$TPATH") "
   while IFS= read -r sid && IFS= read -r agent; do
-    # Ids become path parts, so only the shape session and agent ids have.
     [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || continue
     writers+="$(judge::transcript_class "$tdir/$sid.jsonl") "
     [[ "$agent" =~ ^[A-Za-z0-9_-]+$ ]] && writers+="$(judge::transcript_class "$tdir/$sid/subagents/agent-$agent.jsonl") "
@@ -515,19 +393,6 @@ judge::pick() {
   return 1
 }
 
-# judge::harvest <raw> [reason reason-kind]: split a finished run's output (or,
-# with a reason, UNKNOWN for every key) into one ledger file per key, each
-# written to a temp file and renamed. Every UNKNOWN records its reason_kind and
-# origin, the verdict it started as: UNKNOWN when the judge said so, "" when no
-# verdict came back. The run's sidecar <raw>.keys names the keys. False
-# when the output holds no usable result; a key the output leaves out gets no
-# verdict. A run whose result lists permission_denials (the authoritative
-# record of denied tool calls,
-# https://code.claude.com/docs/en/agent-sdk/typescript) and that gives no key a
-# FLAG or PASS is a malfunction: it gives no verdict, and JUDGE_MUTED is 1. A
-# denial names a tool call, never a block, and one run judges every block of
-# the file, so a run with any FLAG or PASS keeps its UNKNOWN verdicts too.
-# Any later reader may harvest a raw file whose writer died.
 judge::harvest() {
   local raw="$1" dir="${1%/*}" kh json
   JUDGE_MUTED=0
@@ -571,9 +436,6 @@ judge::harvest() {
   done <<<"$out"
 }
 
-# judge::harvest_orphans: harvest the raw output of every run in the session
-# set whose parent died before splitting it (a raw file still being written
-# does not parse and is left alone).
 judge::harvest_orphans() {
   local s r
   for s in "${SESSIONS[@]}"; do
@@ -585,20 +447,6 @@ judge::harvest_orphans() {
   done
 }
 
-# judge::reuse <file> <repo> <ledger dir> <keys>: give each key whose block
-# body is identical to one the session set already judged PASS that verdict,
-# and set KEYS_LEFT to the keys still to judge. The reuse key is the sha256 of
-# the body with the test's name taken out of its declaration line and each
-# line's whitespace runs collapsed to one space and trimmed (so "a b" and "ab"
-# stay apart), the judge model and effort, the judge prompt
-# file's hash, the repository and every line of the file outside the block
-# (imports, helpers, constants): the same body in the same surroundings under
-# the same judge. A FLAG
-# is never reused (its diff edits its own file), and a whole-file key has no
-# reuse key. RKEYS gets "<key-hash> <reuse key>" per key, for the ledger. A
-# reused verdict records reused_from, the block it was judged for.
-# TEST_JUDGE_REUSE=0 (a test seam) turns the lookup off, and with it the Stop
-# hook's in-run grouping; the keys are still recorded.
 judge::reuse() {
   local file="$1" repo="$2" dir="$3" kh o r s e name rk src d f files=()
   local -A have=()
@@ -628,9 +476,6 @@ judge::reuse() {
   done <<<"$4"
 }
 
-# judge::rkey <file> <ordinal> <start-end> <name> <repo>: set RK to the
-# block's reuse key (judge::reuse) under MODEL and EFFORT, or "" for a
-# whole-file key or a block the file no longer holds.
 judge::rkey() {
   local file="$1" o="$2" r="$3" name="$4" repo="$5" s e line body="" named=0 text=() words=()
   RK=""
@@ -657,14 +502,6 @@ judge::rkey() {
   RK="${RK#\\}" && RK="${RK:0:32}"
 }
 
-# judge::copy_verdict <source verdict> <ledger dir> <key-hash> <file> <repo>
-# <ordinal> <start-end> <name> [source key-hash]: write the source verdict as
-# the key's, for that block, with reused_from naming the block it was judged
-# for (its key-hash defaults to the source file's name). A FLAG's diff edits
-# the source's file, so the copy carries none. Only a FLAG whose diff already
-# passed validation is copied (the Stop hook copies the validated verdict),
-# so validation keeps a reused FLAG without a diff a FLAG, and the findings
-# file points at the source's diff.
 judge::copy_verdict() {
   local src="$1" dir="$2" kh="$3" s="${7%-*}" e="${7#*-}"
   jq -c --arg f "$4" --arg r "$5" --arg n "$8" --argjson o "$6" --argjson s "$s" --argjson e "$e" \
@@ -676,11 +513,6 @@ judge::copy_verdict() {
   return 1
 }
 
-# judge::keep_unusable <raw> <file>: keep a run's output that gave no usable
-# result beside the ledger, as unusable-<epoch>-<pid>.txt (stdout, then
-# stderr), and log where, with the start of the judge's result text (or of the
-# output when it is not JSON) and of its stderr on one line, so the failure
-# can be told apart: no JSON object, or verdicts under names no block has.
 judge::keep_unusable() {
   local raw="$1" kept out err
   judge::now
@@ -704,11 +536,6 @@ judge::section1() {
   awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f' "$HOOK_DIR/../skills/test-value/SKILL.md" 2>/dev/null
 }
 
-# judge::run <info> <keys> <seconds> <hint> <run reservation>: one judge run
-# over the file's keys (the caller holds their locks and a slot), writing
-# verdicts under the ledger of the file's last writer, so a successor that
-# adopts that session finds them and their relay markers. A key left without
-# a verdict gets a failed attempt.
 judge::run() {
   local info="$1" keys="$2" t="$3" hint="$4" res="${5:-}" dir file repo owner writers n budget raw sys prompt rc kh here
   local rule denied blob kind
@@ -718,9 +545,6 @@ judge::run() {
   }
   file="${FIELDS[0]}" repo="${FIELDS[1]}" owner="${FIELDS[2]}" writers="${FIELDS[3]}"
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
-  # The judge's reads are scoped to the repository that holds the file; a
-  # test file in none is not judged rather than given its directory as the
-  # scope.
   judge::file_repo "$file"
   [[ -z "$repo" || "$repo" == "$FREPO" ]] || judge::log "repository: $file is in ${FREPO:-no repository}, not the recorded $repo"
   repo="$FREPO"
@@ -780,18 +604,12 @@ judge::run() {
   if [[ "$sys" != *"## 1. "* ]]; then
     rc="the judge prompt or test-value section 1 is missing"
   else
-    # The hang guard is the process-group watchdog, not coreutils timeout.
     here="$PWD"
     cd "$repo" || {
       judge::release_run "$res"
       return 0
     }
     res=""
-    # The repository is the run's working directory, where reads need no
-    # rule; the absolute rule states the same scope. Not --add-dir: that
-    # would repeat the working directory, and an added directory also loads
-    # some of its own .claude/ configuration
-    # (https://code.claude.com/docs/en/permissions#additional-directories-grant-file-access-not-configuration).
     judge::read_rule rule "$repo"
     testing::run_bounded "$t" "$raw" "$raw.err" env TEST_JUDGE_ACTIVE=1 "${TEST_JUDGE_CMD:-claude}" -p --model "$MODEL" \
       --system-prompt "$sys" --tools Read,Grep,Glob --allowedTools "$rule" \
@@ -825,10 +643,6 @@ judge::run() {
   judge::release_run "$res"
 }
 
-# judge::quoted_in_repo <repo> <quote>...: true when every quote is verbatim
-# in a file of the repository, the judge's read scope: git grep over its
-# tracked and untracked (not ignored) files. One process per quote, and only
-# for quotes the test file does not hold; with no repository, none passes.
 judge::quoted_in_repo() {
   local dir="$1" q
   shift
@@ -838,19 +652,11 @@ judge::quoted_in_repo() {
   done
 }
 
-# judge::relay_reset: empty the relay set judge::validate fills.
 judge::relay_reset() {
   RELAY="" RELAY_REPOS=() RELAY_N=0 RELAY_F=0 RELAY_P=0 RELAY_U=0 RELAY_UF=0
 }
 judge::relay_reset
 
-# judge::comment_only <file> <diff>: true when every line the diff adds or
-# removes is blank or a comment in the file's language, by the comment syntax
-# of the scanner adapters' languages: // and /* */ for JS and TS, C# and Go;
-# # (and <# #> for PowerShell) for bash, Python and PowerShell. A file of any
-# other language is never comment-only. Lines before a hunk's @@ are headers.
-# When unsure it says code: a false comment-only hides a real repair, a false
-# code only lets the FLAG through.
 judge::comment_only() {
   local style line body rest hunk=0 open=0 comment new
   case "${1,,}" in
@@ -920,10 +726,6 @@ judge::comment_only() {
   return 0
 }
 
-# judge::grounded <repo> <snapshot> <quote>...: set GROUND to "" when every
-# quote is in a file of the repository, else to "stale" when each one that is
-# not was in the snapshot of the test file the judge read (the file changed
-# since), else to "ungrounded" (a quote was made up).
 judge::grounded() {
   local repo="$1" snap="$2" q
   shift 2
@@ -939,17 +741,6 @@ judge::grounded() {
   done
 }
 
-# judge::validate <verdict file> [test file]: add the verdict, as it may be
-# relayed, to RELAY (one compact JSON line each), its repository to
-# RELAY_REPOS and its verdict to the counts. A quote that is not in the
-# current file, a FLAG with no diff, or a diff that fails `git apply --check`
-# or touches another file makes it UNKNOWN, with the reason, its reason_kind
-# and its origin, the verdict it started as. RELAY_UF counts the UNKNOWN
-# verdicts that started as a FLAG: the only UNKNOWN verdicts an attended Stop
-# is blocked for. A
-# quote the judge-time snapshot holds but the file no longer does is stale,
-# not made up. One jq reads the fields and runs the quote check; git runs
-# only for a FLAG, and jq again only to rewrite a verdict that failed.
 judge::validate() {
   local v="$1" file="${2:-}" json="" repo verdict ev diff why="" kind="" origin blob reused snap="" p n=0 known=0 text=(--arg text "")
   IFS= read -r -d '' json <"$v"
@@ -959,11 +750,6 @@ judge::validate() {
     file="${FIELDS[0]}"
   fi
   [[ -f "$file" ]] && text=(--rawfile text "$file")
-  # The quotes, trimmed, that the test file does not hold follow the fixed
-  # fields; each must then be in a file of the repository the judge could
-  # read (an implementation line is a FLAG's best evidence), else it was
-  # made up. Every field drops NUL, the separator, so no model-written
-  # string can shift the fields after it.
   FIELDS=()
   while IFS= read -r -d '' p; do FIELDS+=("$p"); done < <(jq -j "${text[@]}" '
     def s: tostring | gsub("\u0000"; "");
@@ -996,8 +782,6 @@ judge::validate() {
   elif [[ "$verdict" == FLAG && -z "$repo" ]]; then
     why="no repository to check the proposed diff against" kind=diff-no-repository
   elif [[ "$verdict" == FLAG ]]; then
-    # --check with --numstat -z: whether it applies and which files it
-    # touches (paths unquoted), in one call that writes nothing.
     while IFS= read -r -d '' p; do
       [[ "$p" == ok ]] && n=1 && continue
       p="${p#*$'\t'}" && p="${p#*$'\t'}"
@@ -1042,13 +826,6 @@ judge::slug() {
   SLUG="${s:-detached}"
 }
 
-# judge::findings_dir <repo> <branch>: set FDIR to the findings
-# directory the detector-findings contract resolves for a headless producer:
-# <repo>/.work/reviews/<branch-slug>/, with the memory root's self-ignoring
-# .gitignore. The directory must resolve physically (symbolic links followed)
-# strictly inside the checkout, before and after it is created, and the
-# .gitignore is created exclusively, never through an existing link. No
-# branch, or a check that fails: the plugin data directory.
 judge::findings_dir() {
   local repo="$1" branch="$2" mem target
   FDIR="$DATA/findings"
@@ -1056,8 +833,6 @@ judge::findings_dir() {
     mem="$repo/.work"
     judge::slug "$branch"
     target="$mem/reviews/$SLUG"
-    # Both the memory root (where the .gitignore goes) and the findings
-    # directory are checked, before mkdir and again after it.
     if judge::inside "$repo" "$mem" && judge::inside "$repo" "$target" &&
       { [[ -d "$target" ]] || mkdir -p "$target"; } &&
       judge::inside "$repo" "$mem" && judge::inside "$repo" "$target" && judge::self_ignore "$mem"; then
@@ -1066,10 +841,6 @@ judge::findings_dir() {
   fi
 }
 
-# judge::inside <repo> <path>: true when the path resolves physically strictly
-# inside the repository, or, while it does not exist yet, when its nearest
-# existing ancestor resolves to the repository or inside it. A dangling link
-# on the way counts as existing and fails to resolve.
 judge::inside() {
   local top r p="$2"
   while [[ ! -e "$p" && ! -L "$p" && "$p" == */* ]]; do p="${p%/*}"; done
@@ -1077,8 +848,6 @@ judge::inside() {
   [[ "$r" == "$top/"?* ]] || [[ "$p" != "$2" && "$r" == "$top" ]]
 }
 
-# judge::phys <var> <dir>: set var to the directory's physical path (every
-# link resolved), with cd -P in this shell rather than a subshell.
 judge::phys() {
   local here="$PWD" rc=0
   cd -P -- "$2" 2>/dev/null || return 1
@@ -1087,10 +856,6 @@ judge::phys() {
   return "$rc"
 }
 
-# judge::excl <file> <text>: write the text to a new file. Any name that
-# already exists, as a file, a link (dangling or not), a FIFO or anything
-# else, is refused before the open: noclobber adds O_EXCL only when the name
-# is absent, and opens an existing non-regular name as it is.
 judge::excl() {
   [[ -e "$1" || -L "$1" ]] && return 1
   local rc
@@ -1101,20 +866,12 @@ judge::excl() {
   return "$rc"
 }
 
-# judge::self_ignore <memory root>: make sure the root holds a .gitignore of
-# its own: a regular file already there, or a new one. A link (dangling or
-# not), a FIFO or any other kind of name there is refused, never written.
 judge::self_ignore() {
   [[ -L "$1/.gitignore" ]] && return 1
   [[ -f "$1/.gitignore" ]] && return 0
   judge::excl "$1/.gitignore" '*'
 }
 
-# judge::findings <validated verdict lines>: write one findings file per
-# repository in the detector-findings shape (FLAG rows under ## Findings; every
-# verdict, its quoted evidence and proposed diff under ## Verdicts) and set
-# FINDINGS to their paths, comma-separated, and FINDINGS_SHOWN to the same
-# paths with each one under the project directory made relative to it.
 judge::findings() {
   local all="$RELAY" repo dir ts path i branch content tmp p base="${CLAUDE_PROJECT_DIR:-${pcwd:-}}"
   FINDINGS="" FINDINGS_SHOWN=""
@@ -1123,9 +880,6 @@ judge::findings() {
     branch=""
     [[ -z "$repo" || ! -d "$repo" ]] || branch="$(git -C "$repo" branch --show-current 2>/dev/null)"
     judge::findings_dir "$repo" "$branch"
-    # Judge text is data: every field is capped and kept on one line, so it
-    # cannot open a heading, a table row or a fence of its own, and the diff's
-    # fence is one backtick longer than any run of backticks inside it.
     content="$(jq -rs --arg win "$JUDGE_WIN" --arg repo "$repo" --arg branch "$branch" --arg rule "$JUDGE_RULE" '
       def cap($n): tostring | if length > $n then .[:$n] + " [cut at \($n) characters]" else . end;
       def esc: tostring | gsub("\\|"; "\\|") | gsub("[\r\n]+"; " ") | cap(500);
@@ -1165,11 +919,6 @@ judge::findings() {
             "\nThis test has the same body as \(.reused_from | rel | esc) \(.reused_from | tname | esc), judged in the same run; the proposed diff is under that test'"'"'s verdict and edits that file only.\n"
           else "" end)] | join(""))
       ' <<<"$all" 2>/dev/null)" || continue
-    # The content goes to a new temp file in the checked directory, which is
-    # checked again, and then takes the first free name with mv -n: a name
-    # already taken, by anything, moves to the next suffix, and a directory
-    # that fails a check or refuses every name falls back to the plugin data
-    # directory. A local process racing these steps is an accepted residual.
     path=""
     for dir in "$FDIR" "$DATA/findings"; do
       [[ -d "$dir" ]] || mkdir -p "$dir" || continue
@@ -1198,8 +947,6 @@ judge::findings() {
   done
 }
 
-# judge::mark_relayed <owner sid>/<key-hash>...: record the keys as relayed,
-# with one mkdir for every directory.
 judge::mark_relayed() {
   local m dirs=()
   for m in "$@"; do dirs+=("$DATA/relayed/$PKEY/${m%/*}"); done
@@ -1207,8 +954,6 @@ judge::mark_relayed() {
   for m in "$@"; do : >"$DATA/relayed/$PKEY/$m"; done
 }
 
-# judge::counts: set COUNTS to "N tests (F FLAG, P PASS, U UNKNOWN)" from the
-# counts judge::validate keeps.
 judge::counts() {
   local s=s
   ((RELAY_N == 1)) && s=""

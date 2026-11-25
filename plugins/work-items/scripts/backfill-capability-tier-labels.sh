@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# One-shot #1716 migration: label open items still carrying a legacy frontier-tier body
-# stamp. Setup apply runs it because triage never re-triages already-triaged items.
-#
-# check exits 0 always. apply exits 1 when the label is unprovisioned or gh is missing,
-# 2 when interactive confirmation is declined.
-
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,8 +75,6 @@ list_open_items_without_label_json() {
 collect_candidates() {
   local items body number
   items="$(list_open_items_without_label_json)"
-  # One jq pass emitting NUL-separated number/body pairs, not two jq forks per item.
-  # A NUL inside a body is dropped, as command substitution would, so pairs stay aligned.
   jq -j '.[] | "\(.number)\u0000\(.body // "" | split("\u0000") | join(""))\u0000"' <<<"$items" |
     while IFS= read -r -d '' number && IFS= read -r -d '' body; do
       # shellcheck disable=SC2310  # regex probe; false means "no legacy stamp", not a fault

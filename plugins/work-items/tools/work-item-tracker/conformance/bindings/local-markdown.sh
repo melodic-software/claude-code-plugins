@@ -1,6 +1,4 @@
 # shellcheck shell=bash
-# local-markdown conformance binding: a fresh temp storage dir per run, fully offline.
-# CB_REPO stays at the runner's empty default: a single-namespace store takes no --repo.
 
 CB_BINDING_TMP=""
 CB_STORAGE_TMP=""

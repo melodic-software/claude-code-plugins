@@ -1,19 +1,11 @@
 #!/usr/bin/env bash
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/lib/resolve-convention-home.sh
-# Black-box test for setup-apply.mjs, the writer behind /session-flow:setup apply.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-# Expected values come from the key contract in reference/config.md:
-# worker_continuation takes resume or respawn, and the file is
-# docs/conventions/session-flow.yaml at the repository root.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# settings <file>: the file without the record the writer keeps beside the
-# settings, for cases about the settings; the record has its own case below.
 settings() {
   awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
 }
@@ -136,7 +128,6 @@ run "$repo" --check
 assert_true '--check on an unknown key exits 1' code_is 1
 assert_true '--check names the unknown key once' [ "$(grep -c 'key stray is not in the schema' <<<"$OUT")" -eq 1 ]
 assert_true '--check keeps the valid key beside an unknown one' out_has 'worker_continuation: resume'
-# SKILL.md step 7 reads these lines as a PASS/WARN table.
 assert_true '--check prefixes the problem with WARN' [ "$(grep -c '^WARN docs/conventions/session-flow.yaml: key stray is not in the schema$' <<<"$OUT")" -eq 1 ]
 assert_true '--check prefixes each key with PASS' [ "$(grep -c '^PASS worker_continuation: resume$' <<<"$OUT")" -eq 1 ]
 run "$repo" --yes worker_continuation=respawn
@@ -161,11 +152,6 @@ run "$repo" worker_continuation=respawn worker_continuation=respawn
 assert_true 'a key given twice with the same value is refused' code_is 1
 assert_true 'a key given twice writes nothing' [ ! -e "$repo/docs" ]
 
-# Write-path races, driven by a preload in the script's own process.
-# swap-docs: docs/ becomes a symlink to an outside directory right after this
-# run creates it. No directory may be created through it.
-# pre-tmp: a file already sits at this run's temp-file name. The exclusive open
-# fails, and that file, which this run did not create, must survive.
 PRELOAD="$WORKROOT/preload.mjs"
 cat >"$PRELOAD" <<'JS'
 import fs, { mkdirSync, writeFileSync } from "node:fs";
@@ -329,11 +315,6 @@ run "$repo" --check
 assert_true '--check flags implementation_route: cloud' code_is 1
 assert_true '--check names implementation_route' out_has 'implementation_route'
 
-# recall_doc_paths and recall_report_kinds are comma-separated strings. A value
-# YAML would not read back as plain (a leading *, a colon) is written
-# double-quoted. recall_doc_paths entries go inside single quotes in recall's
-# git grep, so no entry holds a quote, starts with / or holds ..; neither key
-# takes an empty entry.
 for pair in 'recall_doc_paths=*.md|recall_doc_paths: "*.md"' \
   'recall_report_kinds=type: bug|recall_report_kinds: "type: bug"'; do
   arg="${pair%%|*}" line="${pair#*|}" key="${arg%%=*}" value="${arg#*=}"

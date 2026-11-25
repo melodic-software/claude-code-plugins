@@ -37,8 +37,6 @@ assert_eq "assignees are logins" "kyle" "$(jq -r '.assignees[0]' <<<"$(gitea_out
 assert_eq "labels are names" "type: fix" "$(jq -r '.labels[0]' <<<"$(gitea_out)")"
 assert_eq "url" "https://git.example.invalid/acme/webapp/issues/12" "$(jq -r '.url' <<<"$(gitea_out)")"
 assert_eq "created_at is created_at shifted to UTC" "2026-03-01T10:30:00Z" "$(jq -r '.created_at' <<<"$(gitea_out)")"
-# Gitea has no issue-type registry and no parent field, so these are structurally null
-# for this provider — not "unmapped".
 assert_eq "type is null (gitea has no type axis)" "null" "$(jq -r '.type' <<<"$(gitea_out)")"
 assert_eq "parent_id is null (gitea has no sub-item link)" "null" "$(jq -r '.parent_id' <<<"$(gitea_out)")"
 assert_eq "body is not carried through the seam" "null" "$(jq -r '.body' <<<"$(gitea_out)")"
@@ -58,8 +56,6 @@ assert_eq "blocked issue → exit 0" "0" "$rc"
 assert_eq "blocked_by_count counts only open blockers" "2" "$(jq -r '.blocked_by_count' <<<"$(gitea_out)")"
 assert_eq "blocked_by_wont_do_count is 0 (unsupported)" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$(gitea_out)")"
 
-# A repo with the dependencies unit disabled answers 404 on that endpoint while the
-# issue itself exists. That must read as "no visible edges", never as a missing ITEM.
 gitea_reset_routes
 gitea_seed "/dependencies" 404 '{"message":"issue dependencies are not enabled"}'
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'deps disabled')"
@@ -74,8 +70,6 @@ rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "unauthorized dependencies read → exit 4, not the count's absence" "4" "$rc"
 assert_eq "and no item is emitted" "" "$(gitea_out)"
 
-# 8 in particular has to survive: work-loop routes "seam exit 8 → backoff-and-retry", so
-# a 5xx that collapses to 1 never triggers the backoff it was raised for.
 gitea_reset_routes
 gitea_seed "/dependencies" 503 '{"message":"down"}'
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'issue ok, deps down')"
@@ -97,9 +91,6 @@ gitea_seed "/issues/12" 503 '{"message":"down"}'
 rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "server error → exit 8" "8" "$rc"
 
-# --- the credential never reaches argv, on a real verb path ---
-# common.test.sh proves this for the transport helper; this proves the verb actually
-# uses that helper rather than building its own request.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'x')"

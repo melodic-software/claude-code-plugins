@@ -196,9 +196,8 @@ given, and one disposal venue does not exist.
   form, at `plugins/testing/skills/write/context/write.md:78` ("expected values are independently
   sourced … never recomputed the same way the code under test computes them"). No change.
   **Correction to an overstatement made while drafting this lane: the coverage is prose-only, not
-  executable.** `testing/audit`'s `cant-fail-scan.sh` concedes in its own header that
-  `rule-recomputed-expectation` "detects the decidable core — textually identical sides — not
-  every recomputation shape," and a validator ran it over three canonical tautological tests for
+  executable.** `testing/audit`'s SKILL.md concedes that `recomputed-expectation` "v1 is the
+  decidable core: textually identical actual/expected on one line", and a validator ran it over three canonical tautological tests for
   zero findings; the canonical Khorikov shape (compute `expected` with the production algorithm,
   then assert) does not fire. **The review code-lens criterion that closes the executable gap is
   landed** in `plugins/review/agents/code-reviewer.md`'s Code quality checklist (`review` 0.24.0):

@@ -16,9 +16,6 @@ assert_usage_error "$S" --title "t" --repo
 gitea_fixture_init
 trap 'rm -rf "$GITEA_FIX"' EXIT
 
-# --parent asks for a link Gitea's Issue has no field for, and the manifest declares
-# sub_items=false. Accepting it silently would report a created item whose stated
-# parent does not exist.
 rc="$(gitea_run "$S" --title "t" --parent "gitea:acme/webapp#1")"
 assert_eq "--parent → exit 2" "2" "$rc"
 assert_contains "and says why" "$(gitea_err)" "sub_items=false"
@@ -41,8 +38,6 @@ assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(gitea_out)")"
 assert_contains "posted to the issues endpoint" "$(gitea_requests)" \
   "POST https://git.example.invalid/api/v1/repos/acme/webapp/issues"
 
-# Gitea's CreateIssueOption takes `labels: []int64`, not names — a real divergence from
-# GitHub's API. Passing names through would be accepted-looking and simply not apply.
 gitea_reset_routes
 gitea_seed "/labels" 200 "$(jq -cn '[{id:3,name:"type: fix"},{id:9,name:"priority: high"}]')"
 gitea_seed "/dependencies" 200 '[]'
@@ -63,7 +58,6 @@ else
   pass "no issue is created when a label is unknown"
 fi
 
-# Gitea has no issue-type registry, so the normalized `type` is structurally null.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'typed')"
@@ -97,14 +91,12 @@ assert_contains "the issue really was posted" "$(gitea_requests)" \
 assert_contains "stderr names the created item" "$(gitea_err)" "gitea:acme/webapp#12"
 assert_contains "and says it was created" "$(gitea_err)" "WAS CREATED"
 assert_eq "no item object is emitted" "" "$(gitea_out)"
-# Feeding jq an empty --argjson was how this failed before: raw jq usage text on stderr.
 if [[ "$(gitea_err)" == *"jq --help"* ]]; then
   fail "no raw jq usage text leaks to stderr" "no jq usage text" "jq --help text present"
 else
   pass "no raw jq usage text leaks to stderr"
 fi
 
-# work-loop routes "seam exit 8 → backoff-and-retry", so a 5xx must stay an 8 here too.
 gitea_reset_routes
 gitea_seed "/dependencies" 503 '{"message":"down"}'
 gitea_seed "/issues" 201 "$(gitea_issue_json 12 open 'created, deps down')"
@@ -117,14 +109,11 @@ gitea_seed "/issues" 403 '{"message":"no write access"}'
 rc="$(gitea_run "$S" --title "t")"
 assert_eq "forbidden → exit 4" "4" "$rc"
 
-# 423 is Gitea's archived-repository response on write paths.
 gitea_reset_routes
 gitea_seed "/issues" 423 '{"message":"repo is archived"}'
 rc="$(gitea_run "$S" --title "t")"
 assert_eq "archived repo → exit 7" "7" "$rc"
 
-# `GetLabelsByRepoID` backs /repos/{o}/{r}/labels with `WHERE repo_id = ?`, so an org label
-# never appears there, yet `NewIssueWithIndex` accepts any label whose OrgID == repo.OwnerID.
 gitea_reset_routes
 gitea_seed_total "/repos/acme/webapp/labels" 200 '[{"id":1,"name":"type: fix"}]' 1
 gitea_seed_total "/orgs/acme/labels" 200 '[{"id":9,"name":"priority: high"}]' 1
@@ -137,8 +126,6 @@ assert_eq "the count is satisfied on page 1 → exit 0" "0" "$rc"
 assert_eq "and exactly one org-label request was made" "1" \
   "$(grep -c '/orgs/acme/labels' <<<"$(gitea_requests)")"
 
-# A user-owned repo has no organization: /orgs/<user>/labels answers 404, which is not an
-# error — there are simply no org labels to merge. A repo label must still resolve.
 gitea_reset_routes
 gitea_seed_total "/repos/acme/webapp/labels" 200 '[{"id":1,"name":"type: fix"}]' 1
 gitea_seed "/orgs/acme/labels" 404 '{"message":"user redirect does not exist"}'
@@ -153,10 +140,6 @@ rc="$(gitea_run "$S" --title "t" --labels "nonexistent")"
 assert_eq "a label in neither scope → exit 5" "5" "$rc"
 assert_contains "and it is named" "$(gitea_err)" "nonexistent"
 
-# Stock gitea sets X-Total-Count here, but an instance or proxy that strips it leaves the
-# short-page heuristic as the only end-of-list signal. With page_size 2 a full 2-row page
-# must be followed by another request, and the 1-row page must end the walk: a label that
-# exists only on page 2 has to resolve, and page 3 must never be asked for.
 gitea_write_binding '{"page_size":2}'
 gitea_reset_routes
 gitea_seed "/orgs/acme/labels" 404 '{"message":"user redirect does not exist"}'
@@ -175,10 +158,6 @@ else
 fi
 gitea_write_binding
 
-# A non-array 200 (proxy error page, auth redirect body) must fail closed with
-# an explicit adapter error, not be treated as an empty or garbage label set
-# (#3439). jq length of an object is its key count, which would otherwise look
-# like a one-item page. The type gate stops the walk before that arm.
 gitea_reset_routes
 gitea_seed "/labels?page=1" 200 '{"message":"not a list"}'
 gitea_seed "/labels?page=2" 200 "$(jq -cn '[{id:3,name:"type: fix"}]')"

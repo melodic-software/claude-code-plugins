@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# change-link — CONTRACT.md "Change links". Offline. A local store has no forge
-# integration, so merging a change closes nothing (closes: null); the link is a plain
-# reference to the qualified id.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

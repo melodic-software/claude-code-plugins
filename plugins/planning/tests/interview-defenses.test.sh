@@ -1,99 +1,5 @@
 #!/usr/bin/env bash
-# Regression gate for the two BEHAVIORAL defenses that license `planning:interview`'s
-# synthesize-directly paths, from the course lane 4 audit in
-# docs/upstream/aihero-course.md "Lane 4: plan mode / asset rush":
-#
-#   Case A — STOP-on-gap. `lock` asks at most its one problem question, so the only thing standing between it and a
-#            Brief that fudges an unknown is the rule that a gap surfacing mid-synthesis
-#            HALTS the run.
-#   Case B — the auto-guard. `auto`'s synthesize-directly path may close facts and
-#            unambiguous conventional defaults ONLY; a decision genuinely the user's is
-#            asked, or — unattended, and only on the CALLER's declaration — recorded
-#            `blocked` with arbiter USER-RESERVED. It is never captured as an assumption.
-#
-# The lane-4 audit graded both defenses as holding. They are prose rules with no runner
-# behind them: the marketplace has no model-graded eval runner (docs/migration-playbook.md,
-# "Method source" — grading is a human judgment pass until the deferred runner lands), so
-# the eval cases in skills/interview/evals/evals.json are a rubric, not a gate. This suite
-# is the gate: it pins the eval cases that grade each defense AND the load-bearing rule text
-# in the skill body those cases grade against, so a prose edit that weakens either defense —
-# or a case edit that stops grading it — fails here instead of passing review as a wording
-# change.
-#
-# It is a contract tripwire, not a semantic proof, and it gates in three layers because
-# each outer layer catches an attack the inner one is blind to.
-#
-#   1. Phrase pins (`pin`, `pin_once`, `within`) anchor on a phrase carrying the rule's
-#      MEANING — the halt, the prohibition, the arbiter tag — never on incidental wording,
-#      and several are structural (the rule must sit inside the step that owns it). They
-#      catch DELETION and REWORDING, and they are the layer that names WHICH clause went.
-#
-#   2. Whole-line pins (`pin_exact`) hold a byte-exact copy of the eleven lines that state
-#      the two rules outright. Those are not the only defense lines the suite pins —
-#      supporting ones (the in-round no-silent-resolve rule, the register bindings) carry a
-#      phrase pin instead and are covered by layer 3 through the section they sit in,
-#      never by a byte-exact copy of their own. Phrase
-#      pins are blind to a clause NEUTRALIZED IN PLACE: appending "**Exception:** … the
-#      guard is satisfied by recording the residue under `### Captured assumptions`" to the
-#      auto-guard, or "a gap counts as real only when it blocks writing the Brief at all"
-#      to the `lock` routing line, inverts both defenses while leaving every pinned phrase
-#      intact. Whole-line equality catches any SAME-LINE edit.
-#
-#   3. Digests (`pin_section`, `pin_case_digest`, `pin_case_set`, `pin_file`,
-#      `pin_frontmatter`) hash whole regions. Whole-line pins are blind to anything ADDED
-#      BESIDE a pinned line rather than to it.
-#      Digests cover nineteen sections (two of them audit-answers Step 1 and Step 4), the
-#      whole YAML frontmatter, the eight cases that speak to these rules, the case roster, the
-#      four fixtures, context/assumption-sweep.md, context/coverage-prompt.md and
-#      context/ears.md. Inside those regions, an
-#      insertion, deletion, or reordering fails. EVERY line this suite phrase-pins as a
-#      defense, and every loop.md TWIN of a byte-pinned SKILL.md line, now sits inside a
-#      digested region — that is the invariant to preserve when adding a pin: a phrase pin
-#      whose line has no enclosing digest is append-invertible, and so is an unpinned twin.
-#
-# WHAT IS STILL NOT GATED, so nobody reads more into a green run than is there:
-#   - Prose OUTSIDE the digested regions. Among them — not an exhaustive list — SKILL.md's
-#     Purpose, Emit-checklist, Step 5, session-config and composition sections, the
-#     undigested parts of `context/loop.md`, `context/gotchas.md`,
-#     `templates/checklist.md`, and the plugin README. The digested set covers the rules'
-#     own homes, every line the suite phrase-pins, and every placement a weakening has
-#     actually been demonstrated to reach for. It is not a proof about the whole corpus,
-#     and the distance a qualifier needs is not large — one of the demonstrated escapes was
-#     a single paragraph abutting a digest boundary.
-#   - An in-place rewrite of an eval case in this file other than the eight digested ones.
-#     Nothing here judges whether such a rewrite bears on these rules; the eight are the
-#     ones read as bearing on them today, not a closed set.
-#   - Anything semantic. This gate proves the RULE TEXT and the CASE INPUTS are intact. It
-#     cannot prove the skill OBEYS them — only a model-graded runner could, and the
-#     marketplace has none (docs/migration-playbook.md, "Method source").
-# Read this suite as raising the cost of a silent weakening, never as proving one
-# impossible.
-#
-# Rewording, extending, or qualifying a pinned line is EXPECTED to fail, including a typo
-# fix, and so is any edit inside a digested region. That is the contract for a load-bearing
-# behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
-# then update the skill body and this suite in one change. Any session, a lane included, may
-# re-pin a digest after that re-read: scripts/repin-digests.sh rewrites the sha256 literal of
-# each pin it names from the files alone, running no test (the issue lane's path), and
-# tests/repin.sh does the same and then runs this suite. The commit records the old and new
-# digest and why the defense still holds, so the PR review judges the change against the text
-# it guards.
-#
-# Relationship to the older cases. evals.json ships three narrative cases over the same two
-# defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
-# and `unattended-run-emits-named-blockers-not-assumptions` (13). They are kept, not
-# superseded: they state each rule in the abstract with no fixtures, which is the cheap
-# surface a reader scans. Cases 15 and 16 are the fixture-backed regression pair — a
-# planted, genuinely-open decision and a resolved-but-one context. Coverage of the rules is
-# deliberately doubled, and all five are digested — a sibling advertised as kept coverage
-# that has been rewritten to say the opposite is worse than no sibling at all. Cases 1, 8,
-# and 12 are digested for the same reason one step removed: they rest on the fact-vs-
-# decision line the auto-guard draws, or on the no-silent-resolution rule, so a rewrite of
-# one licenses the capture for any grader reading the file.
-#
-# shellcheck disable=SC2016  # single quotes are deliberate throughout: every pin_exact argument is
-# a VERBATIM copy of a markdown line from the skill body, dense with backticks and inline code. Any
-# expansion at all would corrupt the pin and silently weaken the gate it enforces.
+# shellcheck disable=SC2016  # single quotes are deliberate throughout
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -165,9 +71,6 @@ pin_exact() {
   fi
 }
 
-# The digest computations (section_digest, frontmatter_digest, case_digest, case_set_digest,
-# file_digest) live in scripts/lib/pin-digests.sh, which scripts/repin-digests.sh also sources,
-# so a re-pin computes each digest exactly as the pins below grade it.
 # shellcheck source=../scripts/lib/pin-digests.sh
 if ! source "$PLUGIN_DIR/scripts/lib/pin-digests.sh"; then
   echo "FAIL: cannot load $PLUGIN_DIR/scripts/lib/pin-digests.sh" >&2
@@ -314,54 +217,10 @@ done
 declares_both_fixtures A "$CASE_A"
 declares_both_fixtures B "$CASE_B"
 
-# --- whole-section and whole-case digests (the outermost layer) ------------
-#
-# Update procedure when one of these fires: read `git diff` for the named section or case,
-# confirm in words that neither defense was weakened, qualified, or contradicted by the
-# change, then re-pin the digest below IN THE SAME COMMIT (tests/repin.sh, or scripts/repin-digests.sh where no test may run), with old -> new
-# and that reason in the commit message.
-#
-# The boundary tests below MUST match `section_digest`'s — whole-line equality, not a
-# prefix match. They agree on today's content and diverge in exactly the crafted-heading
-# scenario the pin defends against, so a prefix-matching recompute would produce a value
-# the function never yields.
-#
-#   frontmatter: awk 'NR==1 && $0=="---"{i=1;next} i && $0=="---"{exit} i{print}' <file> | sha256sum
-#   section:     awk -v h_open='<open>' -v h_close='<close>' \
-#                  '$0==h_open{i=1;next} $0==h_close{i=0} i{print}' <file> | sha256sum
-#   case:        jq -S -c '.evals[] | select(.name == "<name>")' <evals.json> | sha256sum
-#   roster:      jq -r '.evals[] | "\(.id):\(.name)"' <evals.json> | sort | sha256sum
-#   fixture:     sha256sum <fixture>
-#
-# On a BSD userland substitute `shasum -a 256` for `sha256sum`, as `sha256_stdin` does.
-
-# Both defenses are body prose, each covered by its own section digest below; no
-# frontmatter key states or qualifies either. `argument-hint` is the slot list
-# `[me|lock|scope|restate|share|product] [topic]`, with the invocation examples in the body's `Arguments.` line.
-# Adds idea-shaped trigger phrases
-# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
-# #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
-# #12663: workflow-stage renamed contract -> interview only; every other key byte-identical, no qualifier added, so the auto-guard and lock STOP-on-gap defenses hold
-# Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
-# #14879: the description now opens with the vague-build case (a build request that names no problem, users or scope); every other key byte-identical, no qualifier added to auto or lock, so the auto-guard and lock STOP-on-gap defenses hold
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
   "66f4633a977b9e9855874b98d242b7cc45a2205588f616cb8867cf5d518b97da"
 
-# The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
-# confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
-# compaction's re-attach still reaches (#5332; reattach-slice.test.sh holds it there). It is a
-# twin of the full rules in Step 1.5, the Action Router, Step 3 and Step 4, so it is digested
-# and each line is pinned once inside it: an unpinned twin could be inverted while the
-# originals stand.
-# The `lock` gate line now says `lock` confirms the problem with one question; it adds a
-# question and keeps the halt, so neither the confirmation nor STOP-on-gap is loosened.
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# The Gates block gains early twins of the Step 3 confirmation gate and the Step 4 --brief cross-check (#9864); each restates a halt its full rule holds (the --brief twin names the brief=unconfirmed exit and its fresh-Confirm clear, as Step 4 does), and the three earlier gate lines are byte-identical
-# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
-# #12660: the Gates twin of the Brief cross-check says to re-read the lane spoke after a compaction, so the twin still reaches the spoke's flag; it adds a read and changes no halt
-# Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
-# Gates and Step 4: one added sentence each says an unattended run that exits without the lock (the D2 Stopped: exit or the Q13 release/in-use Blocked: exit, per loop.md Unattended path) also skips the --brief cross-check, so the run reaches its last line instead of halting on an expected not-settled-yet Finish line. Every attended run and every locking run still cross-checks and halts on a non-zero exit.
 pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
   "## Gates" \
@@ -377,81 +236,6 @@ for gate_line in \
   within "Gates holds: $gate_line" "$SKILL" "$gate_line" "## Gates" "## Action Router"
 done
 
-# The Stance section houses the partial-round rule ("NEVER silently resolve an unanswered
-# question to its recommendation — the auto-guard applies inside rounds too"), and the
-# register section houses the two lines binding a surfaced gap and an unattended blocker
-# into the register. Both were phrase-pinned only, so an appended `**Exception:**` on
-# either inverted it at FAIL=0. Their sections are digested, which covers the lines and any
-# paragraph placed beside them.
-#
-# The digest also covers the `Commits you to:` template block, the bundle paragraph
-# (every part of a bundled recommendation is its own row; on the page, its own `commits`
-# entry), the hedged paragraph (a hedged reply resolves only the headline), and the
-# sentence naming both question-surface rules. The first three narrow what an answer or an
-# accept-shorthand resolves; the surface sentence only names where a round is asked. None
-# qualifies the no-silent-resolve rule or any other defense here. The out-of-band check
-# also covers `superseded-by-plan` rows, which it restates and never resolves. The emoji
-# paragraph now defaults the anchors off and lets a user instruction against emoji win over
-# the option; it changes presentation only and weakens no defense. The recommendation-basis
-# rules add a `Basis:` line per recommendation, make grounding mandatory for a consequential
-# recommendation, and restrict convention-only recommending to non-consequential questions.
-# Each adds a requirement on the recommendation; none resolves a row or relaxes a defense. A
-# withheld question drops its recommendation but is still asked and registered, so it too
-# resolves nothing. The three recommendation-basis links point at the plugin-shipped
-# context file instead of an org URL; a link target changes no rule.
-# The `Source:` block and the sentence that alternatives exclude the recommendation shape how a question is shown; neither resolves a row.
-# The quality-bar paragraph adds a round-1 question and depth scaling; deferred prototype concerns are named in the reply, so it resolves nothing silently.
-# The yes-accepts-recommendation rule words a negative recommendation as "Should X stay out of
-# this change?" so "Q<N> yes" and "accept all" mean the recommended answer. It changes how a
-# question is phrased, not what resolves it: an unanswered question still resolves nothing.
-# The surface sentence now names the lane table instead of the two "Question surface" rules; it only names where a round is asked.
-# The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
-# it changes how the option is read, not what any round resolves.
-# Idea-stage routing, brainstorm handoff, problem first, withheld why question
-# The existing-control paragraph adds a check before presenting a mechanism option; it resolves no question and leaves the no-silent-resolve rule unchanged.
-# AC<n> ids prefix the EARS-section criteria and examples; the no-silent-resolve line is byte-identical
-# The coverage-prompt note says an unanswered page prompt is reported under Captured assumptions, and Captured assumptions drops confirmed commitments; both narrow that section, and the STOP-on-gap, auto-guard and no-silent-resolve lines are byte-identical
-# Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve rule byte-identical. The template's example bullets fold to one each and the resolver paragraph is rewrapped, to stay under the 500-line cap
-# The lane-table config line and the emoji fallback now name the declared default an unexpanded user_config token takes (#9886); they change how a setting is read, not what any round resolves, and the no-silent-resolve and lock defenses are byte-identical
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Recommendations now carry a Flips if: line after Inference: (#11190); the only change in each section is that line and its mentions (removing them reproduces the old digest), it resolves no row, and the no-silent-resolve and constraint-ledger defenses are byte-identical
-# The Recommended answers paragraph adds that the Flips if: line counts toward the basis prose 3-sentence budget (surface.md R12), from review feedback on #11190; it caps recommendation prose, resolves no row, and the no-silent-resolve line is byte-identical
-# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
-# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
-# The round-close sentence words the closing probe "something else", never "anything else" (#11191); it changes how the probe is phrased, resolves no row, and the no-silent-resolve line is byte-identical
-# Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
-# Review fixes on the #7475 question shape: the terminology matrix is the interview's first item and is not repeated at the top of a round, a user-stated claim cites its round, the page puts facts in context, and Withheld replaces five parts; each adds or clarifies a requirement, resolves no row, and the no-silent-resolve rule is unchanged
-# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Restate after any out-of-band return (#8466 review): the full restate also fires when a return releases a held question with no row moved, and when the message also processes a same-turn reply; case 44 adds the release-only path; each widens when the restate is required, resolves no row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Restate bound restored (#11913 review): the out-of-band full restate applies before the user's next separate reply, keeping the same-turn and released-question clauses, so a later reply gets the ordinary drift check; it narrows no requirement the round needs, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
-# Merge of main with the #11857 rounds change: both sides kept (main's out-of-band full restate, this branch's topic groups, index, Held, Origin, single pacing and discussing); the drift check now keeps an unaddressed row's status, so a discussing row stays discussing, and a discussing row goes back to open before a page import; neither resolves a row, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Review round on the rounds change: the out-of-band check and its full restate now cover discussing rows (restated as under discussion, never read as an answer), and discussing is limited to the terminal lane, the page keeping the row open; each widens what is checked or restated, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
-# #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
-# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
-# #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
-# #12502 replacement: answer_audit_rounds drops its userConfig layer (a manifest key outside the inert set), so the audit-offer paragraph names no user_config token; the pointer still asks nothing, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
-# #12658: the lane table gives way to the surface registry (surfaces/registry.mjs resolve), the share row passes share as its argument, and the Stance surface sentence names the resolution; each changes how the surface is picked, resolves no row, and the lock row, STOP-on-gap and no-silent-resolve defenses are byte-identical
-# emoji paragraph and the Question lanes declared-default line flip the emoji default to on (#6233); presentation only, they resolve no row, and the no-silent-resolve and lock defenses are byte-identical
-# Phase 3 of #14733: Unattended path gains one paragraph after the ladder (a stop at the instance-question and Finish-line steps only for a contradicted recorded Intent or Vision or a critical security issue, else the default Finish line), and Stance gains one intake line pointing at problem-framing.md's instance question and unknown-field candidates; rungs 1-5, the rung-3 blocker, the auto-guard and no-silent-resolve lines are byte-identical, and the stop writes a blocked USER-RESERVED row rather than resolving one
-# Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
-# Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
-# Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
-# Owner decisions Q70, Q72, Q74, Q75: the question template folds the Inference line into the recommendation reason and shows Checked against and Flips if only when they carry something; "grilling" wording becomes interview wording; a domain_docs setting (auto, ask, off) gates the glossary and ADR writes; a scenario comparison is offered when candidates compete. None of these resolves a row or touches the no-silent-resolve rule, the constraint-ledger rows or their re-check, which are byte-identical
-# Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
-# Re-audit: the wayfind pointer says map of decision items instead of decision map (wayfind's own vocabulary rule); the no-silent-resolve rule is untouched.
-# Stance gains only a scenario-walk bullet among the domain-aware behaviors, which offers scenarios and never resolves a question on its own; Step 3 gains a closing summary placed before the recap, and the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
-# A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
-# The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
-# edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
-# The added Later: header line names topics of rounds not yet ready; it takes no Q<N> and no register row, asks nothing and resolves nothing, so the in-round no-silent-resolve rule is untouched
-# the edit only adds that the terminology question never stands in for another question's inline definitions, in round 1 too; no sentence of the no-silent-resolve rule changed
-# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
-# merge of main (#17872 prescribed-solution Stance line) with this PR: against main the section differs only by "at most one contradiction pass"; the no-silent-resolve rule is byte-identical
-# the edit adds the recommendation gain-and-cost sentence to the question template and to "Alternatives carry their tradeoffs"; no-silent-resolve is unchanged
-# only the quality-bar title rule and the discovery-only shape of the rethink question changed; the no-silent-resolve and auto-guard text is untouched
-# Only optional-plugin guards changed in the Stance section; the in-round no-silent-resolve rule and both defenses are unchanged.
-# Round 1 asks the quality bar as a decision question when the survey cites evidence for one, else as a discovery question; either form stays open until the user answers and is never settled by evidence, so no row resolves silently and the no-silent-resolve and auto-guard text is byte-identical.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
@@ -462,45 +246,6 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
   "## The interview loop" \
   "### Step 1. Survey before you ask" \
   "c84a3506c3410b64938b898238a53f502e5e411522ea61e7444f3ad382a21860"
-# The page-parts paragraph states which decisions carry parts (accept and own keep unticked
-# parts as Brief risks; an alternative withdraws them, as the terminal rule does; a defer's
-# open row covers them) and names `confirm-commitments` for parts confirmed in the terminal.
-# Parts still never become rows the gate grades, so no binding or gate is loosened. The gate
-# commands name the script through `<plugin-root>`, which SKILL.md defines; the same script
-# runs with the same flags.
-# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
-# The exit-1 line also names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt.
-# The no-question line drops `lock` from the runs that ask nothing: `lock` asks its problem
-# question, so it always writes a register the gate grades; an unattended pre-confirmed item
-# writes that row `answered` citing the label (problem-framing.md "Pre-confirmed").
-# gate reads only the Restatement stamp (#9912); no defense weakened
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Re-pinned for #11039: an own answer now withdraws a replaced recommendation's parts like an alternative; an accepted or hedged row with an unticked part still exports open, so the register gate still holds it.
-# Adds the read-back of an answer that departs from the recommendation, or arrives dictated or unclear (#11187); its row stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
-# Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
-# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Restate after any out-of-band return (#8466 review): the full restate also fires when a return releases a held question with no row moved, and when the message also processes a same-turn reply; case 44 adds the release-only path; each widens when the restate is required, resolves no row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Restate bound restored (#11913 review): the out-of-band full restate applies before the user's next separate reply, keeping the same-turn and released-question clauses, so a later reply gets the ordinary drift check; it narrows no requirement the round needs, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
-# Merge of main with the #11857 rounds change: both sides kept (main's out-of-band full restate, this branch's topic groups, index, Held, Origin, single pacing and discussing); the drift check now keeps an unaddressed row's status, so a discussing row stays discussing, and a discussing row goes back to open before a page import; neither resolves a row, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Review round on the rounds change: the out-of-band check and its full restate now cover discussing rows (restated as under discussion, never read as an answer), and discussing is limited to the terminal lane, the page keeping the row open; each widens what is checked or restated, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
-# #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
-# #5769 review: a stale=<n> row is named as any status, as check-open-questions.sh counts it; no halt is removed or qualified
-# R-D pointer (#12103): the read-back paragraph's closing sentence now says the rule holds in every lane and R-D adds only the page's display and confirmation; the read-back row still stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
-# Merge of main with #12103: both edits to the register section kept (main's stale=<n> halt and Re-check, this branch's read-back closing sentence); re-pinned over the merged text, no halt removed or qualified
-# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
-# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
-# Phase 3 of #14733: the register section encloses Unattended path, whose only change is one paragraph after the ladder (a stop at the instance-question and Finish-line steps only for a contradicted recorded Intent or Vision or a critical security issue, else the default Finish line); it adds a blocked USER-RESERVED row and resolves none, and the gap, blocker and gate lines are byte-identical
-# Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
-# Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
-# Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
-# A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
-# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
-# Row-shape bookkeeping (https://github.com/melodic-software/claude-code-plugins/issues/17279) only adds row-shape guidance to the register section and a note that sweep S<N> ids restart per sweep; ask-time writes, the gate, the unattended ladder and the sweep's scope, item shape and dispositions are unchanged
-# Only the restated claim that a session cannot detect a non-interactive run was cut from the Unattended path (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the write-at-ask-time rule, both drift checks, every unattended ladder rung and the gate before locking are unchanged.
-# Merge of main: the section now holds both the branch row-shape guidance (#17279) and main cut of the undetectable-run claim (#16937); write-at-ask-time, the gate and the unattended ladder are unchanged
-# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
-# The PR adds one Unattended-path paragraph making an open quality-bar row blocked and USER-RESERVED even when recommended, never auto-resolved; gaps and blockers still bind to the gate, and no pinned line or rung changed.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
@@ -511,54 +256,22 @@ pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate
   "## Step 3. Recognize the stop condition" \
   "## Step 4. Section guidance for the Brief" \
   "98a128e1cbeb6173043630fc660aa334972843da965623aeb598f650ca9b3037"
-# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
-# The Problem, Work size and general-session entries point at context/problem-framing.md; they add Brief fields and touch no arbiter rule.
-# AC<n> ids prefix the criteria guidance and EARS examples; USER-RESERVED lines unchanged
-# The coverage-prompt note says an unanswered page prompt is reported under Captured assumptions, and Captured assumptions drops confirmed commitments; both narrow that section, and the STOP-on-gap, auto-guard and no-silent-resolve lines are byte-identical
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
   "## Step 4. Section guidance for the Brief" \
   "## Brief" \
   "0455c59b5d60e559d5da68d9cb6a77afaa41faf0a324c2ef97ec1df73dd425e5"
 
-# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
-# The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.
-# The start-fresh note is the Brief's only history and its published PR-body or issue copy carries it; it touches no assumption, gap or Brief rule.
-# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
-# #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as governing the two rules below)" \
   "$SKILL" \
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
   "0c42ce895e27712457fe1cfafdd734e9d6e22fde8e239fcfd124b8923b3fc83b"
-# The "memory slice is not a durable home" paragraph names where content that outlives the
-# branch goes and touches no assumption or Brief rule.
-# The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
-# and tells the caller to stop and ask on a `Blocked:` or `USER-RESERVED` line. That carries the
-# never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
-# The Brief cross-check also passes `--procedure`, which only adds a check on the Brief's
-# template headings; it retires no row and relaxes no rule.
-# The cross-check names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt and retires no row.
-# The start-fresh line names the scope-change note as the Brief's only history; it touches no assumption, gap or Brief rule.
-# The `me`-mode persistence line routes a pause through /session-flow:workflow; it touches no assumption, gap or Brief rule.
-# The cross-check and section schema name nine headings, Problem and Work size added; the gate requires more and retires no row.
-# gate reads only the Restatement stamp (#9912); no defense weakened
-# Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
-# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
-# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
-# Gates and Step 4: one added sentence each says an unattended run that exits without the lock (the D2 Stopped: exit or the Q13 release/in-use Blocked: exit, per loop.md Unattended path) also skips the --brief cross-check, so the run reaches its last line instead of halting on an expected not-settled-yet Finish line. Every attended run and every locking run still cross-checks and halts on a non-zero exit.
-# Only the /session-flow:workflow gate clause changed from 'if installed' to 'if enabled' (seam-phrasing gate, #16430); no defense sentence in either section changed
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
   "78ad563aa030fde8d01483f8bd0ffd0fffad22a36873596c2253532b07328549"
-# The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
-# question and leaves the auto-guard, unattended and `lock` lines byte-identical.
-# Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -569,17 +282,6 @@ pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\`
   "## Step 1.5. Auto-detect: gap analysis without asking" \
   "## Step 2. Drive the decision tree" \
   "5a65d20ba8f7988d3eba22ff8deaebcde7c7783d6f8730369b9c42ba97b3d4f3"
-# The problem-confirmation paragraph puts the unattended confirmation under rung 3 as a
-# `blocked` USER-RESERVED row; a pre-confirmed item writes that row `answered` citing the label, so the register still gates. Rungs 3-5 are byte-identical.
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
-# Phase 3 of #14733: Unattended path gains one paragraph after the ladder (a stop at the instance-question and Finish-line steps only for a contradicted recorded Intent or Vision or a critical security issue, else the default Finish line), and Stance gains one intake line pointing at problem-framing.md's instance question and unknown-field candidates; rungs 1-5, the rung-3 blocker, the auto-guard and no-silent-resolve lines are byte-identical, and the stop writes a blocked USER-RESERVED row rather than resolving one
-# Phase 3 of #14733 eval fix: the Stance intake line also says an unattended run, lock included, still writes the Brief and ends on the Stopped line only for a contradicted recorded Intent or Vision or a critical security issue, and the Unattended path paragraph limits not settled yet to an item naming a release or in-use outcome; both narrow when a run stops, resolve no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
-# Phase 3 of #14733 retry: the Stance intake line drops its unattended sentence, and the Unattended path stop paragraph now exits the way rung 3 records a blocker (a blocked USER-RESERVED row, Finish line not settled yet, no Step 4 lock or gate) with the Stopped line limited to the two stop classes, so every other blocker keeps rung 3 and its own last line; it resolves no row, and rungs 1-5, the lock STOP line, the auto-guard and no-silent-resolve lines are byte-identical
-# Gates: one added sentence routes an unattended stop at the instance question or Finish line to loop.md Unattended path; the lock STOP-on-gap halt is unchanged for every other gap. Unattended path and register: an unattended release or in-use item now exits like the stop path (blocked USER-RESERVED row, no lock or gate, Blocked: last line, owner Q13); rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical and nothing is resolved silently.
-# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
-# Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
-# Unattended path gains one paragraph: the quality bar takes rung 3 in either form, so a bar recommended from survey evidence is a blocked USER-RESERVED row, never auto-resolved; it resolves no row, and rungs 1-5, the auto-guard and no-silent-resolve lines are byte-identical.
 pin_section "loop.md Unattended path section is unchanged (the ladder lives here)" \
   "$LOOP" \
   "### Unattended path" \
@@ -589,192 +291,46 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
   "127e69330697737f80e82556cfc7e67492203979a16616fac732992c3654f490"
-# The page paragraph now opens with the configured surface value in bold and says a `page`
-# value starts the page before the first round, with no round asked inline. It only names
-# where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
-# It also says a decision the session records in the ledger is mirrored with the same op as a
-# terminal answer. That is a page-sync rule, not a change to what `lock` may resolve.
-# The `scope` row no longer carries a tracker link; the `lock` row is byte-identical.
-# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
-# The page paragraph writes the register's `open` rows with `round.sh sync-ledger` in the same step as `add-round`, and a forced wrap-up reports what it skipped; the `lock` row is unchanged.
-# The substitution record cites the live manifest-reference page in place of the retired plugins-reference page and moves its as-of date; the `lock` row is unchanged.
-# The opt-in AskUserQuestion paragraph bounds a card round by one call's question limit, cited to the live Agent SDK page, in place of a hard-coded count; the `lock` row is unchanged.
-# The page-lane text moved to context/lane-page.md, a lane table was added, and the router gained the `share [<topic>]` row; the `lock` row is byte-identical.
-# The `lock` row now confirms the one-line problem with one question before synthesis; its STOP-on-gap clause is unchanged.
-# The lane-table config line and the emoji fallback now name the declared default an unexpanded user_config token takes (#9886); they change how a setting is read, not what any round resolves, and the no-silent-resolve and lock defenses are byte-identical
-# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
-# The product row's When-to-use cell says product is reached by its argument or by an idea-test phrase, and a grill me about a task stays auto; the lock row and STOP-on-gap are byte-identical
-# The empty-argument line says auto never picks product, and the product row says only the product action reaches it, selected by its idea phrases; the lock row and STOP-on-gap are byte-identical
-# #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
-# #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
-# #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
-# #12658: the lane table gives way to the surface registry (surfaces/registry.mjs resolve), its offer line opens the round-1 message, and the share row passes share as its argument; each changes how the surface is picked, resolves no row, and the lock row and STOP-on-gap are byte-identical
-# #12660: the Question lanes paragraph passes --data-dir and, on a caller-declared unattended run, --unattended to the surface resolver, and its one line may name an installed optional planner or offer an optional plugin (on a yes it installs at user scope and points to /reload-plugins; never required); the share row no longer names a page; each changes what the surface line says, resolves no row, and the lock row and STOP-on-gap are byte-identical
-# emoji paragraph and the Question lanes declared-default line flip the emoji default to on (#6233); presentation only, they resolve no row, and the no-silent-resolve and lock defenses are byte-identical
-# Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
-# Review fix: the surface-word row now matches only a surface marked onRequest in the registry list, so an alias such as browser no longer reroutes a topic; it still only resolves a surface and runs `auto`, and the `lock` row and its STOP-on-gap reading are untouched
-# Owner decision: the surface-word row resolves a request made in words with the surface id, since the document surface keeps no prior-name argument word; the row still only resolves a surface and runs `auto`, and the `lock` row and its STOP-on-gap reading are untouched
-# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
   "0834710ccd7fc6f929fc206bab2abfdb1e65312b3d909704c8ccfd794593b83c"
-# Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
-# requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
-# names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
-# The `--brief` note names `brief=unconfirmed`, another exit-1 halt, and the fresh-Confirm rule; the gate and the `lock` exemption are unchanged.
-# The `lock` exemption became one registered problem question, and the no-question carve-out no
-# longer names `lock`; both bring `lock` under the gate and keep STOP-on-gap. The carve-out
-# says `lock` always writes its problem row, so its register always gates.
-# gate reads only the Restatement stamp (#9912); no defense weakened
-# The recap paragraph names the command that writes the recap and requires pasting its output
-# verbatim, with `--changed` after the first confirmation (#6136); the recap stays sourced
-# from the register on disk, and the gate, the procedure check and its halt are unchanged.
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Step 3 gains the active closing request (confirm or name Q<N>, never yes/no) and the no-Bash restatement-with-gap rule (#11188); the confirmation gate still requires explicit confirmation and a non-zero procedure check still halts
-# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
-# The confirmation restate lists only answers changed since their read-back when every answer was accepted or read back (#11189), using a saved recap and the generated --changed recap; it resolves no row, and the confirmation-gate exemption and procedure check are unchanged
-# Step 3 gains the page-surface exception that #11583 Observed requires ("The restate must go out over exit 1" while an accepted row stays open only on unticked commitments the restatement box offers): it is limited to accepted rows held open by unticked commitments, any other defect still halts, the register gate still holds those rows until they are ticked, and the pinned halt line and confirmation gate are byte-identical
-# Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
-# #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
-# #5769 review: a stale=<n> row is named as any status, as check-open-questions.sh counts it; no halt is removed or qualified
-# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
-# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
-# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
-# Step 3 gains a closing summary placed before the recap, whose ADR verdicts come from the round's Decision record step and never from the interview applying the test; the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
-# The closing summary lists the Glossary group first and schedules a new or renamed term as its own reviewed change before plan and decompose; the confirmation gate, register gate and procedure check are untouched, so the restatement still waits for an explicit confirm
-# Only the closing summary Glossary bullet gained a fallback clause for when docs-hygiene is not enabled; the confirmation gate and its exemption text are untouched.
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the Brief" \
   "f9168797058fc219ebeaf7585123f9ea19a353754f28b454afe26e7cd6050afb"
-# The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
-# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
-# #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
-# Re-audit: the gotchas.md pointer moves out of the does-NOT list to a line above it, so it no longer reads as something the skill does not do; every does-NOT bullet, the fudge prohibition included, is unchanged.
-# The deep-dive bullet now says the interview dispatches exploration itself for a fact that needs more than a quick lookup (owner decision: the interview runs explore and research itself). Every other bullet, the fudge prohibition included, is unchanged.
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
   "7a4386a0469a6a1ecdd8269e727dd9527dc56d9253bd3527757b61d71897ba0e"
 
-# Step 2 and its loop.md twins house the rules that stop an assumption from locking
-# unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
-# the mechanism tripwire, the assumption sweep, and late commitment-row numbering. Each adds
-# a question, a row, or a label; none resolves a row or relaxes a defense above. The
-# section also routes Step 3's confirmation gate to the page surface (a `restate` op, then
-# the user's `confirm-understanding` event); that moves where the gate is shown, not whether
-# it runs, and the sweep still runs before it.
-# The re-grounding paragraph checks open recommendations on resume, before a queued round and on a new constraint; it adds a check and resolves no row.
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
-# Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
-# #12660: the page-only clauses (the --surface flag on the Brief cross-check and its Gates twin, where the confirmation gate is shown, the facts-field citation, the full recap, the procedure-check exception's tick rows, and the terminal-lane wording) move to context/lane-page.md and SKILL.md names no surface value; the exception now applies only on a lane whose spoke says its restatement box offers commitment ticks, any other defect still halts, the register gate still holds those rows, and the lock row, STOP-on-gap, no-silent-resolve and fudge-prohibition lines are byte-identical
-# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
-# edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
-# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
   "eb231ceeea553fefdaae908e4367fb3f8cb1c3a0456d2a632310d23bcce158f5"
-# Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
-# to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
-# a requirement and resolves nothing new.
-# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
-# The constraint ledger's Re-check bullet revises an open recommendation a new row changes; it resolves no row.
-# PRD seeds the Brief; Variation intent rename
-# Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve and constraint-ledger defenses intact
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Recommendations now carry a Flips if: line after Inference: (#11190); the only change in each section is that line and its mentions (removing them reproduces the old digest), it resolves no row, and the no-silent-resolve and constraint-ledger defenses are byte-identical
-# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
-# Re-pin for #8365 review: an unstated-value item keeps its register row whoever owns the value and a contact address looked up after connecting stays open until the user confirms it; both add rows the user confirms, resolve none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
-# Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
-# Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
-# #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
-# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
-# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
-# Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
-# Owner decisions Q70, Q72, Q74, Q75: the question template folds the Inference line into the recommendation reason and shows Checked against and Flips if only when they carry something; "grilling" wording becomes interview wording; a domain_docs setting (auto, ask, off) gates the glossary and ADR writes; a scenario comparison is offered when candidates compete. None of these resolves a row or touches the no-silent-resolve rule, the constraint-ledger rows or their re-check, which are byte-identical
-# Review on #14953: the Domain check step now names domain_docs (ask asks first, off records instead of writing), matching SKILL.md Domain-aware behaviors; the constraint-ledger rows and the process-change definition are byte-identical
-# Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
-# does-NOT-do: only the ADR fallback wording changed (by hand -> ADR candidate in the register row); the fudge-prohibition bullet is untouched and byte-pinned. loop.md Step 2: only item 8 changed, replacing the /architecture:adr outcome claim and saying how its skip offer is answered (asked in me/auto, taken in lock or unattended); no constraint-ledger row or process-change line moved.
-# Review fixes only: Step 3's ADR verdict line adds the passing part and the declined-under-ask case, and the overrule notes that under ask it is the answer; loop.md item 8 asks /architecture:adr to name the part a recorded decision passes. No constraint-ledger row, process-change definition, confirmation gate, register gate or procedure check changed
-# A decision whose evidence leaves only one viable answer is named on the round header Settled by evidence line with its Basis and an answered-from-evidence register row the user can reopen by id, and a quoted prior owner ruling answers its question as an answered-from-decision fact; every decision with a live alternative is still asked, so the auto-guard still never folds a user choice, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
-# The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
-# Terminology only: the trigger a captured assumption carries is named with the glossary term "recheck trigger"; the STOP-on-gap halt, its offer of ask / capture-as-assumption / switch mode, and the no-fudge rule are unchanged.
-# The edit drops only the parenthetical example (assume Postgres for now; revisit if write throughput exceeds X) from the Defer-with-assumption category, an ecosystem example cut under ADR 0101 (R11 K7, https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md). The category, its capture of the assumption and its recheck trigger, the me-mode limit, the constraint ledger rows and the process-change definition are unchanged.
-# frontier item 2 now points at context/frontier.md for the readiness test; the constraint ledger rows and process-change definition are untouched
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
   "ac1a9be7d6b5b2b517954fae534f70a91dd68172e60eb2f28b62968226e729f5"
-# The answer-path line now also mirrors a decision the session records in the ledger. It does
-# not change which rows relentless mode may close.
-# Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
-# The page bullet names the page's option labels, and the "Continue on signal" bullet routes a pause through /session-flow:workflow, then resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
-# The section's pointers now name context/lane-page.md and context/question-shape.md; a pointer changes no rule.
-# Re-pinned for #8314: the edit adds one paragraph to the Session-shorthand glossary subsection (write the glossary line with the register row at ask-time); the late-commitment next-free-id rule and its defense are untouched.
-# Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
-# Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
-# Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
-# #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
-# #11858 review: the page-surface Delivery bullet names single pacing's first-question add-round and one add per later question, and the round index leaves out held questions; each changes how a frontier is shown, resolves no row, and the late-commitment next-free-id rule is untouched
-# Rendered-views medium choice (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
-# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
-# Glossary skill renamed (Q61): /domain-driven-design:curate-language becomes /domain-driven-design:ubiquitous-language with its curate action for writes, and the interview reads the glossary through its lookup action (Q64) with a repository search fallback; only those tokens and the read line changed, so the no-silent-resolve rule, the constraint-ledger rows and the late-commitment next-free-id rule are byte-identical
-# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
-# edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
-# The /session-flow:workflow gate clause changed from 'if installed' to 'if enabled' and its Pointer fallback from 'not installed' to 'not enabled' (seam-phrasing gate, #16430); no defense sentence changed
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
   "713bf5f475597226013d471a5cc1a41a4579e256b844c69d8d5c9b28aea15a01"
-# Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
-# Re-pin for #8293 review: each sweep records the register high-water mark before it runs and a non-hedged item must land above it; categories, item shape and dispositions are unchanged, and a decision still becomes a register row, so cases A and B survive.
-# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
-# Re-pin for #8365 review: an unstated-value item keeps its register row whoever owns the value and a contact address looked up after connecting stays open until the user confirms it; both add rows the user confirms, resolve none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
-# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
-# Re-audit: the Dispatch paragraph drops text quoted from the subagents page and keeps the pointer as a dated record; the sweep's scope, item shape, disposition and the request-any-type-but-fork rule are unchanged, so both plants survive.
-# The self-answer source lists name prior owner decisions first, and an answer from a quoted prior owner ruling is an answered-from-decision register row, never an F-line fact, so a sweep decision item still always takes a register row and the procedure check still refuses an F-line for it; decisions with a live alternative and no ruling are still asked, and the lock, STOP-on-gap, no-silent-resolve and blocker defenses are byte-identical
-# Only pointer as-of dates and recheck triggers were removed (upstream-drift 5.0.0); every defense sentence and pinned line is unchanged.
-# edits say where an inline terminal round ends, what the mechanism question cites as its basis, and that a coined definition is agreed in a withheld question (the sweep asks it withheld where it recommended it); the no-silent-resolve rule and the late-commitment next-free-id rule are byte-identical, and the tripwire trigger and outcomes and the sweep's scope and item shape are unchanged
-# The edit drops only the example quote package.json:14 bullmq from the Disposition fact-and-tenant bullet and reflows that bullet to the file's wrap width (an ecosystem example cut under ADR 0101, R11 K7, https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0101-resolve-ecosystem-specifics-from-the-consumer-repository.md). The sweep's scope, item shape, the self-answer-first order, the file:line-or-URL quote requirement, the no-pipe rule, the quote check and every disposition are unchanged.
-# Row-shape bookkeeping (https://github.com/melodic-software/claude-code-plugins/issues/17279) only adds row-shape guidance to the register section and a note that sweep S<N> ids restart per sweep; ask-time writes, the gate, the unattended ladder and the sweep's scope, item shape and dispositions are unchanged
-# Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
-# Review fix for https://github.com/melodic-software/claude-code-plugins/issues/17736: the design deferral never applies while a confirmed constraint settles mechanism decisions in this interview; it narrows when a decision item is deferred, resolves no row, and the sweep's scope, item shape and other dispositions are unchanged
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "7741202424622a250ffaf696fd0bad31877dc4ad425e03490942d0766d151478"
-# The coverage prompt's exemption from the register, the gate and the unattended ladder moved
-# here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
-# question still writes its row at ask-time and brings the gate into scope.
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# The vocabulary sweep only renamed the absent convention source to "no convention file present", which it is (authoring-formats/README.md, AGENTS.md); the coverage prompt still runs with none present and exempts only itself, and no plant, gate or ladder rule changed
-# Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
 pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts itself and nothing else)" \
   "$COVERAGE" \
   "5f41e2094807dd0e0409f52f38a0683e1b121f48c8429e441fb63873308c46cf"
-# The EARS tags and the acceptance_criteria_format ladder moved here from SKILL.md and loop.md
-# Step 4; they shape criteria text and resolve no register row.
-# EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-# Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
-# The resolving section names the ladder step-2 resolver command with --root (#11597) and has it run before any root-file or README read; a non-zero exit stays the ladder step-6 free-text degrade, and the EARS tags and bullet shapes are byte-identical
-# The vocabulary sweep only renamed the absent convention source to "no convention file at all", which it is (authoring-formats/README.md, AGENTS.md); free-text output stays untagged and byte-comparable, and the EARS tags and ladder are unchanged
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
   "2707011ce51e3057290cff39b3d5509e20778e49f78393709290ecd3971f7b8c"
-# audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
-# human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
-# appended beside either line.
-# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
 pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, hedged rows included)" \
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
@@ -789,31 +345,6 @@ pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
   "dea5a9d5a6f66d93954ad3bc715d2910ea8c2237c9b085fc58107969d66eca68"
-# Re-pinned after merge: main case 19 (page-surface) plus cases 20 to 23 (mechanism
-# tripwire, assumption sweep, evidence currency, inherited constraint). Each grades a
-# question, row, or label before the contract locks; none licenses a silent capture or a
-# fudged gap, so none contradicts case 15 or 16. Case 24 (memory slice not offered as a
-# durable home) grades where content persists after merge and touches neither defense.
-# Case 25 (out-of-band return before the reply) is case 12's async twin: it grades a restate
-# and the queued-output-first order, and resolves no row the user did not answer.
-# Case 26 (scope returns resolved and unresolved rows, writes no PLAN.md) grades a `blocked`
-# `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
-# Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
-# Case 30 (shared-session-starts-share-before-first-round) grades that a shared session starts `share` before the first round; it resolves no row, so it agrees with cases 15 and 16.
-# Case 31 (ship-it-drops-questions-not-gates) moves the open rows to deferred as `USER-RESERVED` on the user's own ship-it, never answered with an invented answer, and keeps the confirmation gate, so it agrees with cases 15 and 16.
-# Cases 32-34 (wayfind-trigger-needs-two-rounds-running, declined-wayfind-not-repeated-until-escalation, never-switches-to-wayfind-on-its-own) grade only when wayfind is recommended and that the switch waits for the user; they resolve no row, so they agree with cases 15 and 16.
-# Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
-# Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
-# Case 38 (person-deferred-routes-to-document) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends the interview's document surface, so it agrees with cases 15 and 16.
-# Cases 46-50 move the document cases into this skill: each interviews only the send, writes the questions to a document under open register rows, and resolves none on the recipient's behalf; case 51 resolves a returned row only when its answer takes the recommendation, and reads back any other, which stays open until the user confirms it, so cases 15 and 16 hold.
-# Re-pin for #8293: case 39 (sweep-decision-item-not-settled-by-unsupported-fact) requires an undecided `decision` sweep item to become an `open` register row, asked, never a fact or a captured assumption, and blocks the lock while it is open, so it agrees with cases 15 and 16.
-# Re-pin for #8365: case 40 (reused-address-stated-literally-and-owner-confirmed) requires an unstated value to become an `open` register row asking the user to confirm the literal, and blocks the lock while it is open; it licenses no silent capture or fudged gap, so it agrees with cases 15 and 16.
-# Adds case 41 product-first-reply-is-one-question-with-strong-answer and case 42 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; neither licenses a silent capture or fudged gap, so cases 15 and 16 still hold
-# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Restate after any out-of-band return (#8466 review): the full restate also fires when a return releases a held question with no row moved, and when the message also processes a same-turn reply; case 44 adds the release-only path; each widens when the restate is required, resolves no row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
-# Rendered-views medium choice (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
-# Only the ADR handoff changed: the Domain-aware ADR bullet now points at round step 8, loop.md adds item 8 Decision record (sweep becomes 9), and eval 18 is renamed to the ADR-candidate fallback. No line about silent resolution, gaps, constraint rows or process changes was touched, and cases 15 and 16 are unchanged.
-# Document surface folded into the interview: the frontmatter adds the document trigger phrases and the `document` argument word; the Action Router adds one row that resolves a named surface and then runs `auto`, leaving the `lock` row and its STOP-on-gap reading untouched; the roster renames case 38 and adds cases 46-51, which register the recipient questions open and resolve none on anyone behalf, so neither defense is weakened
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
   "7bd78ae7a7bc7a32988b8a7b526a189373ac3fa961f79f7aa56c826a280d588b"
 
@@ -823,9 +354,6 @@ pin_case_digest "sibling case 2 still forbids folding a user choice into the Bri
 pin_case_digest "sibling case 3 still forbids fudging a gap in \`lock\` mode" \
   "lock-mode-does-not-fudge-gap" \
   "514f6a7c3dff3378cd22d99af4dcca604400338227d2e3b038d02cccc636e866"
-# Case 13 adds the unconfirmed problem as a `blocked` USER-RESERVED row; every named-blocker expectation stands.
-# #13185: the interview's record is now named the Brief (the Step 4 heading, the register gate's wording, an inherited constraint the Brief relies on, a blocker that blocks the Brief, case 13 reports the Brief unconfirmed, audit-answers names the Brief, ledger or summary); each is a rename, resolves no row, and every gate, halt, STOP-on-gap and blocker line keeps its rule
-# #13185 review: the register gate now names the Brief or summary, so a general session's summary stays gated; Step 4 names PLAN.md as the Brief and case 13's expectation reports the Brief unconfirmed; each is a rename and every gate, halt and blocker rule is unchanged
 pin_case_digest "sibling case 13 still requires named blockers instead of assumptions" \
   "unattended-run-emits-named-blockers-not-assumptions" \
   "6633823b6dc62312f3fa505e3959e0f23620da1ea0871e45f01ad41c34064efb"
@@ -835,7 +363,6 @@ pin_case_digest "case 8 still asks decisions and only looks up facts" \
 pin_case_digest "case 12 still refuses to read drift as consent" \
   "open-question-survives-an-unrelated-reply" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
-# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_case_digest "case 25 still refuses to settle a row on a superseded recommendation" \
   "out-of-band-return-supersedes-before-the-reply" \
   "a3e7ffd4412ccfb51465f0be3d871221a6c288d53131c8436ef6025bc30974bd"
@@ -979,9 +506,6 @@ pin "lane-page.md: the page is the lane whose restatement box offers commitment 
   "this lane's restatement box offers commitment ticks, so SKILL.md's exception applies here"
 pin "lane-page.md: the page's Brief cross-check adds --surface" "$LANE_PAGE" \
   "Step 4, Brief cross-check (and its Gates twin): add \`--surface '<data_dir>'\`"
-# The three pins above sit in this section; digesting it keeps an appended qualifier (one that
-# widens which defects the exception lets through, say) from slipping past them.
-# #12660: new digest over the page lane's part of SKILL.md Steps 2-4, moved here from SKILL.md's gate sections; it states only where the page shows each step and that its restatement box offers the ticks the Step 3 exception names, and the halts stay in SKILL.md
 pin_section "lane-page.md steps section is unchanged (the page's part of the Step 3 exception lives here)" \
   "$LANE_PAGE" \
   "## SKILL.md steps on this lane" \
@@ -989,7 +513,6 @@ pin_section "lane-page.md steps section is unchanged (the page's part of the Ste
   "ae49eb827feabdbdabbb84f03622a2dcf7ecce910a9b8e2a849f512fe98e3abd"
 pin "SKILL.md: a question citing a constraint is never asked on a card" "$SKILL" \
   "one that cites a constraint is asked in prose"
-# The pinned text now names the Brief as what relies on the constraint (#13185); the rule is unchanged.
 pin "SKILL.md: a relied-on inherited constraint is asked as a register row" "$SKILL" \
   "An \`inherited\` constraint the Brief relies on is asked as a register row at ask-time"
 pin "SKILL.md: in lock a relied-on inherited constraint is a gap that STOPs" "$SKILL" \
@@ -1057,8 +580,6 @@ pin "surface.md routes an accept-audit event to audit-answers" "$PLUGIN_DIR/skil
   "the skill routes the round to \`/planning:audit-answers\`"
 pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview/context/surface.md" \
   "| \`accept-audit\` |"
-# #12660 moved the page clauses out of SKILL.md's gate sections; the page lane reads surface.md
-# beside lane-page.md (surface-registry.test.mjs), so these twins keep each moved gate there.
 pin "surface.md: the page's confirmation gate waits for confirm-understanding" "$PLUGIN_DIR/skills/interview/context/surface.md" \
   "2. Wait for a \`confirm-understanding\` event."
 pin "surface.md: the page's restate keeps the full recap" "$PLUGIN_DIR/skills/interview/context/surface.md" \
@@ -1068,14 +589,6 @@ pin "surface.md: the tick exception covers only unticked commitments, any other 
 pin "surface.md: the page's Brief cross-check adds --surface" "$PLUGIN_DIR/skills/interview/context/surface.md" \
   "On this lane, pass \`--surface '<data_dir>'\` to the Step 4 \`--brief --procedure\` gate"
 
-# A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
-#     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of
-#     them ("in practice a gap counts as real only when …") changes the line and fails here.
-#     The router row and the confirmation-gate line now give `lock` one problem question; each
-#     keeps its STOP-on-gap clause word for word.
-#     The confirmation-gate line's opening clause now uses Step 3's stop wording ("no question is
-#     left to ask") in place of "an empty frontier is necessary but not sufficient" (#9790); it
-#     still withholds the stop until the user confirms, and the `lock` clause is unchanged.
 pin_exact "router \`lock\` row is byte-identical to the pinned defense" "$SKILL" \
   '| `lock` | **Force synthesis, one problem question** | "Stop asking, just write it", "I'"'"'m clear, lock the brief". Skip auto-detect, confirm the one-line problem with one question, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |'
 pin_exact "Step 1.5 \`lock\` routing line is byte-identical to the pinned defense" "$SKILL" \

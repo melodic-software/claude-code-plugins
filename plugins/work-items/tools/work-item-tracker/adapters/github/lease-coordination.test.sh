@@ -17,16 +17,6 @@ RELEASE="$SCRIPT_DIR/release.sh"
 CLAIM="$SCRIPT_DIR/claim.sh"
 ID="github:acme/widgets#1"
 
-# --- gh stub: a bash function (always wins over the external gh, and is inherited
-# by the `bash <verb>.sh` child via `export -f`). It reads canned responses from
-# $GH_STUB_DIR and appends write ops to calls.log, dispatching on the flags/paths
-# each call carries — the two reads of the same /comments endpoint are told apart
-# by --jq (`length` = activity count) vs (lease list), and successive lease-list
-# reads pick lease-comments-<n> when present so a revalidation read can differ. ---
-# A scenario that creates $d/stateful makes lease comments and assignees persist:
-# a POSTed comment is appended to lease-comments with the next id, a PATCH rewrites
-# that comment's body, and assignee POST/DELETE edit $d/assignees, so one scenario
-# can chain claim → release → claim against what earlier calls wrote.
 stub_body_arg() {
   local a
   for a in "$@"; do
@@ -64,11 +54,6 @@ gh() {
     [[ ! -f "$d/patch-fails-$n" ]] || return 1
     printf '%s\n' "${cid:-1}"
     ;;
-  # Assignee ops are REST (`gh api …/issues/<n>/assignees`), not `gh issue edit`
-  # — the gh subcommands route through GraphQL, which sandboxed sessions refuse.
-  # The login rides in an `assignees[]=<login>` -f field, so it is read off that
-  # field rather than off a positional flag argument. Both must be matched
-  # BEFORE the generic --paginate/-f branches below.
   *"--method DELETE"*"/assignees"*)
     login="$(stub_login_arg "$@")"
     printf 'REMOVE_ASSIGNEE %s\n' "$login" >>"$d/calls.log"
@@ -195,10 +180,6 @@ new_scenario
 EXP_MARKER="$(marker alice "$PAST" 24)"
 lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments"
 jq -cn --arg b "$EXP_MARKER" '{body:$b, issue:"1"}' >"$GH_STUB_DIR/comment"
-# `|| rc=$?` rather than a `set +e` / `set -e` pair: this file runs under
-# `set -uo pipefail` with errexit deliberately OFF, and such a pair would
-# ENABLE errexit rather than restore the prior state, aborting every later
-# case that expects a non-zero exit instead of letting it assert.
 rc=0
 bash "$RENEW" "$ID" --lease-comment-id 123 >/dev/null 2>&1 || rc=$?
 assert_eq "renew-lease returns conflict (7) for an expired active lease" "7" "$rc"
@@ -279,10 +260,6 @@ assert_eq "claim returns conflict (7) when another login is assigned" "7" "$rc"
 assert_eq "claim rolls its own assignment back once on conflict" "1" "$(grep -c '^REMOVE_ASSIGNEE alice' "$GH_STUB_DIR/calls.log")"
 cleanup_scenario
 
-# [silently dropped assignment] REST POST /assignees returns 201 but drops a login
-# that cannot be assigned. Without an explicit landed-check claim would report a
-# held lease while list-frontier still saw the item unassigned — two workers on one
-# item. Must fail auth (4) instead, and never post a lease comment.
 new_scenario
 printf 'alice\n' >"$GH_STUB_DIR/login"
 jq -cn '[]' >"$GH_STUB_DIR/assignees"
@@ -441,10 +418,6 @@ assert_eq "release under --holder refuses (7) another holder's lease" "7" "$rc"
 assert_not_contains "release under --holder does not supersede a local lease" "$(calls)" "PATCH"
 cleanup_scenario
 
-# [lease author] a lease comment counts only from a member, collaborator or owner,
-# or from a bot (an App installed on the repository, association NONE): the lane's
-# github-actions[bot] or a consumer's gh-bot.sh App. author_case <label> <association>
-# <login> <expected-rc> [user-type]
 author_case() {
   new_scenario
   : >"$GH_STUB_DIR/stateful"
@@ -475,7 +448,6 @@ assert_eq "the lease-only claim supersedes its own comment on that failure" "tru
   "$(jq -r '.[0].body | ltrimstr("<!-- work-item-lease v1 ") | rtrimstr(" -->") | fromjson | has("superseded_at")' "$GH_STUB_DIR/lease-comments")"
 cleanup_scenario
 
-# [log injection] a winner's holder is printed with its control characters removed.
 new_scenario
 : >"$GH_STUB_DIR/stateful"
 printf '[]\n' >"$GH_STUB_DIR/assignees"

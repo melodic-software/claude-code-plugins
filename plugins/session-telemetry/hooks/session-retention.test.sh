@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# Contract test for session-retention.sh (session-telemetry plugin). Black-box over a
-# fixture log root; mtimes are staged with POSIX `touch -t` from a bash
-# builtin timestamp, and process spawns are counted through PATH shims.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/session-retention.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# A process-group SIGHUP (a closed terminal or shell) can end bash without the EXIT trap.
 trap 'exit 129' HUP
 
 # shellcheck source=session-telemetry-test-helpers.sh
@@ -63,9 +59,6 @@ assert_eq "100 files, 30/14 → 30 kept" 30 "$kept"
 assert_eq "the newest 30 are the survivors" "s001.jsonl s030.jsonl" \
   "$(find "$P/.observability/claude/sessions" -name '*.jsonl' -exec basename {} \; | sort | sed -n '1p;$p' | tr '\n' ' ' | sed 's/ $//')"
 assert_eq "a pruning run spawns three processes (ls, find, rm)" 3 "$(wc -l <"$SPAWNS" | tr -d ' ')"
-# No stdin read: a writer that holds the pipe open for 3 s (the Win32 late-EOF
-# shape) must not delay the hook at all. Measured on the reading side, because
-# the pipeline as a whole only ends when the writer does.
 P2="$TEST_TMPDIR/heldopen"
 populate "$P2/.observability/claude" 40
 held_ms=$(
@@ -131,8 +124,6 @@ pending=$(find "$P/.observability/claude/prune-pending" -mindepth 1 -maxdepth 1 
 assert_eq "doomed files moved into one pending directory" 10 "$(find "$pending" -name '*.jsonl' | wc -l | tr -d ' ')"
 wait_for_sink "$ARCHIVE_LOG" 100
 assert_eq "the archiver received the pending directory as its argument" "$pending" "$(head -1 "$ARCHIVE_LOG" 2>/dev/null)"
-# The sleeping archiver is detached; it must not keep the test alive. Only
-# its own pid: a host-wide pkill also ends other suites' sleeps.
 if kill "$(cat "$ARCHIVE_PID" 2>/dev/null)" 2>/dev/null; then ok "the archiver was still sleeping"; else bad "the archiver was not sleeping"; fi
 
 P="$TEST_TMPDIR/sweep"

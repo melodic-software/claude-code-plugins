@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stub here answers the unwrapped calls.
 unset RUNNER_TEMP
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/get-item.sh"
@@ -16,9 +14,6 @@ assert_usage_error "$S" "github:o/r#1" --history --history
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 
-# --history: a gh stub answers the issue read (native `gh issue view` or REST) and applies
-# the script's own --jq program to raw timeline pages, as gh --paginate does. The expected
-# history is the closed and reopened events in timeline order; every other event is dropped.
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 STUB="$TMP_ROOT/bin"

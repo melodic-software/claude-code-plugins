@@ -19,9 +19,6 @@ mkdir -p "$STUB_BIN"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
 chmod +x "$STUB_BIN/gh"
 
-# Empty repo: no stashes → count 0, never an error, exit 0.
-# `-b main` pins the initial branch so the assertions below hold on machines where
-# `git init` still defaults to `master`.
 git init -q -b main "$TEST_TMPDIR/empty"
 git -C "$TEST_TMPDIR/empty" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/empty" config user.name "Test"

@@ -1,5 +1,3 @@
-# Jest, and the default for any JS/TS test file no other JS adapter detects.
-# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
 id: js-jest
 language: js
 block_model: brace
@@ -32,9 +30,6 @@ test_skip:
 suite_skip:
   - '(^|[^A-Za-z0-9_$.])(xdescribe|(describe|context|suite)[[:space:]]*\.[[:space:]]*skip)[[:space:]]*\('  # spellchecker:disable-line
 assertion:
-  # Matched generously: any helper whose name carries one of these counts. The
-  # t.<method> entry is the AVA / node-tap vocabulary, which asserts through
-  # the test-context object.
   calls:
     - 'expect[[:space:]]*\('
     - 'expect[[:space:]]*\.[[:space:]]*(poll|soft)[[:space:]]*\('
@@ -45,27 +40,17 @@ assertion:
     - 'rejects'
     - 'resolves'
     - '[Ss]napshot'
-    # checkout() is a call under test, not a check.
     - '[Cc]heck([^o]|$)'
     - '[Ee]nsure'
     - '[Vv]alidate'
     - 'fail[[:space:]]*\('
     - '(^|[^A-Za-z0-9_$.])t[[:space:]]*\.[[:space:]]*(is|not|deepEqual|notDeepEqual|like|equal|notEqual|same|notSame|strictSame|has|ok|notOk|truthy|falsy|true|false|pass|fail|throws|throwsAsync|notThrows|notThrowsAsync|regex|notRegex|match|snapshot|plan|end|type|emits)([^A-Za-z0-9_]|$)'  # spellchecker:disable-line
-  # Statement starts that assert nothing unless awaited or returned; jest-dom's
-  # toBeVisible is synchronous here, so only the promise forms are listed.
   async:
     - 'expect[[:space:]]*\(.*\)[[:space:]]*\.[[:space:]]*(resolves|rejects)[[:space:]]*\.'
     - 'expect[[:space:]]*\.[[:space:]]*poll[[:space:]]*\('
-  # An expect with no matcher, or a matcher never called: whole statements.
   inert:
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*;$'
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*(\.[[:space:]]*(not|resolves|rejects)[[:space:]]*)?\.[[:space:]]*to[A-Za-z]*[[:space:]]*;$'
-  # Matchers most wrong values pass, and a toThrow that names no error.
-  # not.toThrow() passes whatever the call returns; toBeGreaterThan(0), or a
-  # "> 0" comparison asserted true, passes for every count but zero. Matcher
-  # names: jestjs.io/docs/expect (Jest 30.5) and vitest.dev/api/expect
-  # (Vitest 5.0.3, where toThrowError is a deprecated alias), read 2026-10-10;
-  # recheck when either page renames or drops one of them.
   weak:
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(toBeDefined|toBeTruthy|not[[:space:]]*\.[[:space:]]*(toBeNull|toBeUndefined))[[:space:]]*\([[:space:]]*\)'
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(rejects[[:space:]]*\.[[:space:]]*)?(toThrow|toThrowError)[[:space:]]*\([[:space:]]*\)'

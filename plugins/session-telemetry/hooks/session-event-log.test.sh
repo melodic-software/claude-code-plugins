@@ -36,12 +36,6 @@ project() {
   printf '%s' "$d"
 }
 
-# run <project> <payload> [env...]: runs the hook with CLAUDE_PROJECT_DIR set.
-# The body is written to a file before the hook starts, then read back on
-# stdin. The parallel case fans the hook out 33 ways, and a pipe can let one
-# idle read (CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT, default 2s) return
-# before printf delivers the body: the hook exits, printf hits a broken pipe,
-# and that fire adds no line. A file has no writer left to race.
 run() {
   local proj="$1" body="$2" payload_file
   shift 2
@@ -190,8 +184,6 @@ assert_eq "payload cwd resolves the project" 1 "$(wc -l <"$P/.observability/clau
 if command -v git >/dev/null 2>&1; then
   MAIN="$TEST_TMPDIR/wt-main"
   WT="$TEST_TMPDIR/wt-linked"
-  # No global or system config: a machine's commit.gpgsign or hooks path must
-  # not fail the fixture commit.
   FIXTURE_GIT=(env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git)
   "${FIXTURE_GIT[@]}" init -q "$MAIN" 2>/dev/null
   "${FIXTURE_GIT[@]}" -C "$MAIN" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init 2>/dev/null
@@ -219,7 +211,6 @@ if command -v git >/dev/null 2>&1; then
       "$(wc -l <"$P/.observability/claude/sessions/sbg.jsonl" 2>/dev/null | tr -d ' ')"
     assert_file_absent "another worktree's gitdir → nothing under the other checkout" \
       "$MAIN/.observability/claude/sessions/sbg.jsonl"
-    # git writes a relative back-pointer under --relative-paths (git 2.48 and later).
     WT_REL="$TEST_TMPDIR/wt-relative"
     if "${FIXTURE_GIT[@]}" -C "$MAIN" worktree add -q --relative-paths "$WT_REL" 2>/dev/null; then
       run "$WT_REL" "$(payload srl PostToolUse)" "$ON" >/dev/null
@@ -247,11 +238,6 @@ fi
 P=$(project outside)
 run "$P" "$(payload s9 PostToolUse '"tool_name":"Edit","tool_input":{"file_path":"/opt/elsewhere/private/notes.md"}')" "$ON" >/dev/null
 assert_eq "outside path → last segment only" "notes.md" "$(jq -r .file_path "$P/.observability/claude/sessions/s9.jsonl")"
-# A Windows path carries no `/`: the last segment must be taken after `\` too,
-# or the whole path (username included) lands in the log.
-# Assembled from parts so no drive-letter path literal sits in this file (the
-# repo's hardcoded-path guard rejects one); the payload carries `\\` per
-# separator, the JSON escape of one backslash.
 BS="\\\\"
 WIN_PATH="Q:${BS}scratch${BS}private${BS}notes.md"
 run "$P" "$(payload s9w PostToolUse "\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"${WIN_PATH}\"}")" "$ON" >/dev/null
@@ -262,10 +248,6 @@ assert_record "an escaped payload body still satisfies the record schema" "$P/.o
 assert_eq "an escaped payload body round-trips verbatim" "$(printf 'said "go" then \\ stopped\tabruptly')" \
   "$(jq -r .reason "$P/.observability/claude/sessions/s9e.jsonl")"
 
-# --- effort: env, then the payload's top-level effort.level, else unset or n/a ----
-# Payload shapes follow the hooks reference's Stop, SubagentStop,
-# PermissionRequest, PostToolUseFailure, SessionStart and UserPromptSubmit input
-# examples; the levels are the five the reference names.
 P=$(project effort)
 ELOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
 STOP_TAIL='"stop_hook_active":false,"last_assistant_message":"I finished the refactor","background_tasks":[{"id":"t1","type":"subagent","status":"running","description":"d","agent_type":"Explore"}],"session_crons":[]'
@@ -401,10 +383,6 @@ assert_eq "mid-message pause after a nested brace → the line is still written"
 assert_eq "mid-message pause → the keys after the pause are present" "tu-9" \
   "$(jq -r .tool_use_id "$P/.observability/claude/sessions/s9p.jsonl" 2>/dev/null)"
 
-# --- a held-open pipe returns inside the idle bound, with the line written --------
-# The writer keeps the pipe open for 3 s after the payload (the Win32 late-EOF
-# shape). The hook's own wall time is measured on the reading side, because the
-# pipeline as a whole only ends when the writer does.
 P=$(project heldopen)
 elapsed_ms=$(
   {
@@ -485,7 +463,6 @@ wait
 assert_eq "live holder → the waiter's row lands after the holder's" "done UserPromptSubmit" \
   "$(jq -r '.holder // .hook_event_name' "$HLOG" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
 
-# The read cap is bytes: 30,000 four-byte characters (120 KB) cross 64 KB.
 P=$(project multibyte)
 EMOJI=$(printf '\360\237\230\200')
 WIDE=""
@@ -498,12 +475,6 @@ if (($(wc -c <"$BLOG14") <= 66560)); then ok "multibyte prompt → the row stays
 iconv -f UTF-8 -t UTF-8 "$BLOG14" >/dev/null 2>&1
 assert_exit "multibyte prompt → the cut row is valid UTF-8" 0 "$?"
 
-# --- an unusable stdin_read_timeout falls back to the default ----------------------
-# The env-block channel can deliver any string, so the schema's `min: 1` is not
-# a guard here. `0` makes `read -t` return at once with nothing read, and a
-# positive value under 10 µs returns before the payload's bytes arrive; both
-# must fall back to the default and still write the line, as the library's
-# hook::resolve_read_timeout_to does for the same variable.
 for bad_timeout in 0 0.0 00 0.000001; do
   P=$(project "timeout-$bad_timeout")
   OUT=$(run "$P" "$(payload s13 PostToolUse)" "$ON" "CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=$bad_timeout")
@@ -513,11 +484,6 @@ for bad_timeout in 0 0.0 00 0.000001; do
     "$(wc -l <"$P/.observability/claude/sessions/s13.jsonl" 2>/dev/null | tr -d ' ')"
 done
 
-# --- the mod's environment writes the record the settings row wrote ---------------
-# The module (register.ts) runs this script with the event's payload on stdin and
-# CLAUDE_EFFORT and TRACEPARENT cleared; a settings row got CLAUDE_EFFORT from the
-# payload's effort object. For each payload the two runs must write the same
-# record, all but ts and duration_ms, which measure the run itself.
 P=$(project parity)
 PLOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
 parity_case() {
@@ -534,8 +500,6 @@ parity_case "PostToolBatch" PostToolBatch '"effort":{"level":"low"},"tool_calls"
 parity_case "SessionStart" SessionStart '"source":"startup","model":"claude-opus-5-5"' ""
 parity_case "SubagentStop" SubagentStop '"stop_hook_active":false,"agent_id":"agent-7","agent_type":"Explore","last_assistant_message":"done"' ""
 parity_case "UserPromptSubmit with content on" UserPromptSubmit "$PROMPT_TAIL" "" "$CONTENT_ON"
-# With tracing on, a settings row got TRACEPARENT and the module gets none: the record
-# loses its traceparent key and nothing else. The value is the W3C trace context example.
 # spellchecker:ignore-next-line
 TP=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 run "$P" "$(payload row-traced Stop "$STOP_TAIL")" "$ON" TRACEPARENT="$TP" >/dev/null

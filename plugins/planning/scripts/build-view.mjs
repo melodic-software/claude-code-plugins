@@ -1,24 +1,4 @@
 #!/usr/bin/env node
-// Build a planning view (a kind the planning lane registers in lib/view-registry.mjs) from its
-// record through render(laneId, kind, record) in the shared view builder. The record is a file
-// (--record) or stdin: a PLAN.md for plan and design (design reads its `## Design` section), JSON
-// for brainstorm.
-// A page goes to one deterministic path under the OS temp directory, never beside the record.
-//
-//   node build-view.mjs <kind> [--record <file>]
-//     builds the page and prints its path
-//   node build-view.mjs <kind> --option <medium option> [--argument <medium>] [--visibility <V>] [--record <file>]
-//     resolves the medium (lib/view-settings.mjs), runs the publish gate (lib/publish-gate.mjs) over a
-//     publishing medium, builds the page unless the medium builds none, and hands it to the medium's
-//     registry entry. Prints one JSON line, the delivery plus `page` when a page was built, then the
-//     report line and one line per notice. <V> is the repository's visibility
-//     (PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE); left out, the shipped default never publishes.
-//   node build-view.mjs <kind> --connect http://127.0.0.1:<port> --out <data_dir>/page.html [--record <file>]
-//     the Claude-interactive page that view-bridge (../view-bridge/) serves; <data_dir> must be
-//     a private view-bridge data dir outside any working tree, or the build is refused (exit 2)
-//
-// Exit 0 built or delivered, 1 the record or the page fails its checks, 2 usage or environment.
-
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -152,7 +132,6 @@ function main(argv, env = process.env) {
       console.log(writePrivate(page, kind));
       return 0;
     }
-    // Replace a planted link or file rather than write through it.
     if (existsSync(out) && lstatSync(out).isDirectory()) throw new Error(`build-view: refused: ${out} is a directory`);
     rmSync(out, { force: true });
     writeFileSync(out, page, { flag: "wx", mode: 0o600 });

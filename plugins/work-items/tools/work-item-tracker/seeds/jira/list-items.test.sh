@@ -57,7 +57,6 @@ printf '200' >"$JIRA_FIX/1.status"
 jira_run "$S" --repo "test.atlassian.net/ABC" --state all
 assert_eq "--repo scopes to one project" 'project in ("ABC") ORDER BY created ASC' "$(sent_jql 1)"
 
-# --label narrows the search, so the ceiling counts labeled issues only (#7173).
 jira_run "$S" --repo "test.atlassian.net/ABC" --state all --label "area:ci"
 assert_eq "--label → exit 0" "0" "$RC"
 assert_eq "--label adds a labels clause to the JQL" \
@@ -83,9 +82,6 @@ fi
 jira_run "$S" --repo "wrong.atlassian.net/SW2"
 assert_eq "cross-site --repo → usage (2)" "2" "$RC"
 
-# HOSTILE --repo project key with an embedded quote must be rejected before any JQL is
-# built (exit 2), never break out of the `project in (...)` literal (JQL injection).
-# jira_run clears .counter first; a rejection before any HTTP call leaves it absent.
 jira_run "$S" --repo 'test.atlassian.net/SW2") OR (1=1) OR ("x'
 assert_eq "injection --repo key → usage (2)" "2" "$RC"
 if [[ ! -e "$JIRA_FIX/.counter" ]]; then
@@ -94,8 +90,6 @@ else
   fail "injection --repo made no HTTP call" "no curl call" "curl invoked"
 fi
 
-# --repo naming a well-formed project NOT in project_keys must be refused (exit 2):
-# --repo narrows within the declared scope, it cannot widen to an undeclared project.
 jira_run "$S" --repo "test.atlassian.net/OTHER"
 assert_eq "out-of-scope --repo project → usage (2)" "2" "$RC"
 if [[ ! -e "$JIRA_FIX/.counter" ]]; then
@@ -104,10 +98,6 @@ else
   fail "out-of-scope --repo made no HTTP call" "no curl call" "curl invoked"
 fi
 
-# rc_for_jira <case-label> <expected-rc> <jira-config-literal> — write a binding whose
-# config.jira is the given jq object literal (jq syntax, interpolated into the jq
-# program — not --argjson, which would demand strict JSON) and assert list-items
-# --state open's exit code. Isolates the config-validation cases below.
 rc_for_jira() {
   local label="$1" want="$2" jira="$3"
   rm -f "$JIRA_FIX/.counter"
@@ -117,17 +107,12 @@ rc_for_jira() {
   assert_eq "$label" "$want" "$?"
 }
 
-# HOSTILE config: a configured project key with an embedded quote is a config error
-# (exit 3), caught at config load before any query is assembled.
 rc_for_jira "injection project_keys config → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2\") OR (1=1) OR (\"x"], auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}'
 
 rc_for_jira "non-array project_keys → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:"ABC", auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}'
 
-# CREDENTIAL-EGRESS guard: site is the host the token is sent to. A site carrying URL
-# structure, or a non-atlassian.net host without the explicit opt-in, is a config error
-# (exit 3) BEFORE any request — a tracked binding cannot redirect the credential.
 rc_for_jira "site with URL structure → config (3)" "3" \
   '{site:"evil.example/@x.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN"}'
 rc_for_jira "non-atlassian site without opt-in → config (3)" "3" \
@@ -137,27 +122,18 @@ printf '200' >"$JIRA_FIX/1.status"
 rc_for_jira "custom-domain opt-in accepted (not config error)" "0" \
   '{site:"jira.internal.example", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", allow_custom_domain:true}'
 
-# auth_env must be a valid shell identifier — an invalid name aborts bash on the
-# ${!name} deref, so reject it at config load (exit 3), not on first read.
 rc_for_jira "invalid auth_env name → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA-TOKEN"}'
 
-# An explicitly empty done_category_keys would build `statusCategory not in ()` (invalid
-# JQL, HTTP 400) — reject it as a config error rather than surface a confusing exit 1.
 rc_for_jira "empty done_category_keys → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", done_category_keys:[]}'
 
-# An array whose ELEMENT is empty (or non-string) must also be rejected — a bash
-# line-loop would lose a trailing "" to command-substitution stripping, so validation
-# runs in jq over every element. `[""]` in either key array → config error (exit 3).
 rc_for_jira "empty-string done key element → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", done_category_keys:[""]}'
 rc_for_jira "empty-string project key element → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:[""], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN"}'
 rc_for_jira "non-string project key element → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:[123], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN"}'
-# A present-but-false/null done_category_keys must NOT silently collapse to the default
-# (jq `//` would) — a typo'd override is a config error, not a filtering change.
 rc_for_jira "false done_category_keys → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", done_category_keys:false}'
 
@@ -207,8 +183,6 @@ assert_eq "101 done blockers → one search plus two lookups" "3" "$(cat "$JIRA_
 assert_eq "first lookup carries 100 keys" "100" "$(sent_jql 2 | grep -o '"SW2-' | wc -l | tr -d ' ')"
 assert_eq "second lookup carries the 101st key" "1" "$(sent_jql 3 | grep -o '"SW2-' | wc -l | tr -d ' ')"
 assert_eq "all completed → resolved" "0/0" "$(jq -r '.items[0] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
-# A 400 on one chunk (Jira rejects the whole `key in (...)` query for one bad key) fails
-# every key in that chunk closed, and only that chunk.
 printf '400' >"$JIRA_FIX/3.status"
 printf '{"errorMessages":["An issue with key SW2-99 does not exist"]}' >"$JIRA_FIX/3.body"
 jira_run "$S" --state open

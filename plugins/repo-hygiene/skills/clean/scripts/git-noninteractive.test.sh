@@ -12,8 +12,6 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
-# run_bounded <seconds> <command...> — stdout+stderr of the command.
-# Exit 124 when it is still running after <seconds> (the command is killed).
 run_bounded() {
   local seconds="$1"
   shift
@@ -173,11 +171,6 @@ assert_contains "unreachable ssh tree reset reports remote unreachable" "$out" "
 assert_contains "unreachable ssh tree reset still resets" "$out" "AppliedReset: git reset --hard"
 assert_shim_ran "unreachable ssh tree reset"
 
-# --- ssh variants: git's own resolution decides which options the command takes ---
-# make_recorder <path> <openssh|plain> — records each call ("$0 $*") as one line
-# of <path>.log. openssh: -G succeeds, and the first BatchMode value wins, as in
-# ssh_config(5); a value other than yes waits the way a prompt would. plain: any
-# -o is rejected (exit 2), as Plink and a simple wrapper reject it.
 make_recorder() {
   local path="$1" kind="$2"
   mkdir -p "$(dirname "$path")"
@@ -240,7 +233,6 @@ log_of() {
   return 0
 }
 
-# Configured OpenSSH options come after the enforced ones, so they cannot win.
 OSSH="$VAR_DIR/openssh/ssh"
 make_recorder "$OSSH" openssh
 git config --file "$VAR_DIR/first.cfg" core.sshCommand "'$OSSH' -o BatchMode=no -o ConnectTimeout=30"
@@ -269,7 +261,6 @@ assert_contains "GIT_SSH plink.exe still runs" "$log" "$PLINK_EXE"
 assert_contains "GIT_SSH plink.exe gets -batch" "$log" " -batch "
 assert_not_contains "GIT_SSH plink.exe gets no OpenSSH option" "$log" " -o "
 
-# tortoiseplink: git passes -batch itself; nothing is added.
 TPLINK="$VAR_DIR/tortoise/TortoisePlink.exe"
 make_recorder "$TPLINK" plain
 git config --file "$VAR_DIR/tortoise.cfg" core.sshCommand "'$TPLINK'"
@@ -298,7 +289,6 @@ log="$(log_of "$PLAIN_SSH")"
 assert_contains "GIT_SSH_VARIANT=simple command runs" "$log" "$PLAIN_SSH"
 assert_not_contains "GIT_SSH_VARIANT=simple command gets no OpenSSH option" "$log" " -o "
 
-# An unrecognized basename gets OpenSSH options only when it passes git's -G probe with them.
 AUTO_NO="$VAR_DIR/auto-no/my-transport"
 make_recorder "$AUTO_NO" plain
 git config --file "$VAR_DIR/auto-no.cfg" core.sshCommand "'$AUTO_NO'"
@@ -317,7 +307,6 @@ log="$(log_of "$AUTO_YES")"
 assert_not_exit "auto OpenSSH wrapper does not reach a prompt" 124 "$rc"
 assert_contains "auto OpenSSH wrapper gets the enforced options first" "$log" "-o BatchMode=yes -o ConnectTimeout=5 -o BatchMode=no"
 
-# An explicit ssh variant is trusted without the -G probe, as git trusts it.
 EXPLICIT_ENV="$VAR_DIR/explicit-env/my-transport"
 make_recorder "$EXPLICIT_ENV" plain
 git config --file "$VAR_DIR/explicit-env.cfg" core.sshCommand "'$EXPLICIT_ENV'"
@@ -339,7 +328,6 @@ connect="$(printf '%s\n' "$log" | grep 'git-upload-pack' || true)"
 assert_not_contains "ssh.variant=ssh skips the -G probe" "$log" " -G "
 assert_contains "ssh.variant=ssh wrapper connects with the ssh options" "$connect" "-o BatchMode=yes -o ConnectTimeout=5"
 
-# GIT_SSH is a path, not a command line: an apostrophe and a space stay in the one word.
 QUOTED_SSH="$VAR_DIR/it's here/ssh"
 make_recorder "$QUOTED_SSH" openssh
 rc=0

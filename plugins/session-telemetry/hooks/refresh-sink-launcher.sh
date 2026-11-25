@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# SessionStart: keep ${CLAUDE_PLUGIN_DATA}/hook-telemetry-sink.sh, a launcher
-# that runs this install's hooks/hook-telemetry-sink.sh. The data directory
-# survives plugin updates and the plugin root does not, so the launcher is the
-# fixed path HOOK_TELEMETRY_SINK=@session-telemetry and @harness-ops resolve to
-# (docs/contracts/hook-telemetry, "Sink path resolution").
-#
-# The launcher carries the two options the sink reads, session_event_log_dir
-# and hook_events_max_bytes, as this install has them, setting or clearing each:
-# another plugin's hook runs the launcher with its own environment, which would
-# otherwise send its rows to a different root than session-telemetry's own.
-#
-# Rewritten only when that content changes, through a temp file renamed into
-# place, so a symlink at the launcher path is replaced, never followed;
-# otherwise only touched, because producers pick the newest launcher when
-# several session-telemetry installs keep one. A launcher whose sink is gone (its
-# install was removed) deletes itself and exits 0, so a producer moves on to
-# the next session-telemetry install.
-#
-# Beside it, ${CLAUDE_PLUGIN_DATA}/options.json records the options this
-# session's hooks run with, the record readers in other plugins resolve the
-# record roots from (docs/contracts/session-telemetry-data).
-#
-# Prints nothing: SessionStart stdout becomes context. Never fails the session.
 set -uo pipefail
 
 data="${CLAUDE_PLUGIN_DATA:-}"
@@ -42,10 +19,6 @@ json_str_to() {
   printf -v "$1" '%s' "$s"
 }
 
-# options.json (docs/contracts/session-telemetry-data): every
-# CLAUDE_PLUGIN_OPTION_* this session's hooks received, keyed by option name,
-# plus the plugin root, for a reader that cannot see this plugin's options.
-# Same write rule as the launcher: replaced through a rename only on a change.
 write_options() {
   local name key value json='{"plugin_root":"' esc current="" tmp first=1 i=0
   local -a names=()
@@ -54,7 +27,6 @@ write_options() {
   while IFS= read -r name; do
     [[ "$name" == CLAUDE_PLUGIN_OPTION_* ]] && names+=("$name")
   done < <(compgen -e | LC_ALL=C sort)
-  # One tr for every key: ${var,,} needs Bash 4, and these hooks run on 3.2.
   while IFS= read -r key; do
     [[ -n "$key" ]] || continue
     name="${names[i]}"

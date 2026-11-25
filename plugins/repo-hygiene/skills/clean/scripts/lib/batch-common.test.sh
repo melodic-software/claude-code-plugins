@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/batch-common.sh — fleet-clean shared plumbing.
-#
-# Headline cases cover the field-observed defects closed at the batch layer:
-#   - path normalization: `ghq list -p` backslash paths -> git-friendly forward
-#     slashes (deterministic on the Linux CI runner, where `\` is a legal byte).
-#   - resolve/dedup: the same repo named two ways is processed once; a non-repo
-#     input is recorded, not silently dropped.
-#   - shared-object-store dedup: linked worktrees collapse to one common dir.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -170,9 +162,6 @@ else
 fi
 chmod 644 "$UNREAD" 2>/dev/null || true
 
-# Fixed fd 3 (not Bash `{fd}`, which allocates from 10 up) so a named source
-# still opens when the runner's soft nofile ceiling is 10. Codex flagged the
-# missing case on #3641 after `{fd}` failed under that ulimit.
 printf 'keep\n' >"$TEST_TMPDIR/lowfd.txt"
 if (ulimit -n 10) >/dev/null 2>&1; then
   rc=0

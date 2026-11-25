@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# set-fields <id> --field <field-id>=<option-id> [--field ...] — CONTRACT.md "Verbs (core public
-# surface)". Write. Sets single-select org issue fields by option id. Each option id must be one
-# of its field's options in the item's organization (GET orgs/{org}/issue-fields); any other id
-# exits 5 before anything is written. The REST write takes option names, so the verb sends the
-# name the listing gives each id, all fields in one POST, which leaves the item's other fields as
-# they are.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -47,8 +41,6 @@ if [[ -n "$missing" ]]; then
   exit "$EX_NOT_FOUND"
 fi
 
-# The body goes as JSON on stdin: gh's -f/-F array-of-objects form splits each field id and value
-# into separate entries, which the API rejects.
 body="$(jq -c '{issue_field_values: map({field_id, value})}' <<<"$resolved")"
 wit_run_gh write api -X POST "${api_version[@]}" \
   "repos/$WIT_ID_OWNER/$WIT_ID_REPO/issues/$WIT_ID_NUMBER/issue-field-values" --input - <<<"$body"

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for hook-telemetry-sink.sh (session-telemetry plugin). Black-box.
-# The sink reads one envelope on stdin and appends one line in the hook event
-# record shape session-log-lib.sh documents: to <root>/hook-events.jsonl when
-# the envelope carries no session id, to <root>/sessions/<session_id>.jsonl
-# when it does. <root> is .observability/claude under the project.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +10,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/session-telemetry-test-helpers.sh"
 
 envelope() {
-  # <hook> <hook_event> <status> <duration_ms> <subject> <tool> [<extra-data-members>]
   local extra="${7:-}"
   jq -nc \
     --arg hook "$1" --arg ev "$2" --arg st "$3" \
@@ -31,10 +25,6 @@ run_sink() {
   printf '%s\n' "$line" | env CLAUDE_PROJECT_DIR="$proj" bash "$SINK" >/dev/null 2>&1
 }
 
-# The hook event record schema session-log-lib.sh documents, as one jq -e over
-# every line of a store. `source: "envelope"` rows describe a hook run, so they
-# carry the run group; the retired `event` key must be absent, which is what
-# lets a reader query `.hook_event_name` with no normalization prelude.
 RECORD_SCHEMA='(.ts|type)=="string" and (.hook_event_name|type)=="string"
   and (.status|type)=="string" and .source=="envelope"
   and ((.duration_ms|type)=="number" or .duration_ms==null)
@@ -42,7 +32,6 @@ RECORD_SCHEMA='(.ts|type)=="string" and (.hook_event_name|type)=="string"
   and (.hook|type)=="string" and (.exit_code|type)=="number"
   and (.subject|type)=="string" and (.tool|type)=="string"'
 
-# assert_record <label> <file> [<extra jq clause>]
 assert_record() {
   jq -e -s "all(.[]; $RECORD_SCHEMA${3:+ and ($3)})" "$2" >/dev/null 2>&1
   assert_exit "$1" 0 "$?"
@@ -202,8 +191,6 @@ printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
   env CLAUDE_PROJECT_DIR="$P13" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=abc bash "$SINK" >/dev/null 2>&1
 assert_file_absent "an invalid cap falls back to the default" "$P13/$ROOT_REL/hook-events.jsonl.1"
 assert_eq "an invalid cap still appends" 3 "$(wc -l <"$P13/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
-# 2^63 wraps negative in bash arithmetic; it must fall back to the default, not
-# rotate on every append.
 printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
   env CLAUDE_PROJECT_DIR="$P13" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=9223372036854775808 bash "$SINK" >/dev/null 2>&1
 assert_file_absent "a cap past 2^63-1 falls back to the default" "$P13/$ROOT_REL/hook-events.jsonl.1"

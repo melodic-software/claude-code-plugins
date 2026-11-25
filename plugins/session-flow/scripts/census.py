@@ -54,10 +54,6 @@ SECTIONS = frozenset(
 )
 UNKNOWN_VERSION = "unknown"
 UNKNOWN_ENTRYPOINT = "unknown"
-# Transcript `entrypoint` values of headless (`claude -p`) and Agent SDK runs. The transcript key is
-# undocumented; its values match the `app.entrypoint` telemetry attribute. Pointer:
-# https://code.claude.com/docs/en/monitoring-usage#standard-attributes (as of 2026-10-04; recheck
-# when that row adds an SDK entrypoint or a drift run reports the entrypoint canary lost).
 AUTOMATED_ENTRYPOINTS = frozenset({"sdk-cli", "sdk-ts", "sdk-py"})
 DEFAULT_MIN_COUNT = 20
 DEFAULT_VERSIONS = 3
@@ -83,8 +79,6 @@ def epoch(value: object) -> float | None:
     return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
 
 
-# argparse names the type function in its error ("invalid _positive value: 'abc'"), so the
-# name stays `_positive` to keep each CLI's error text unchanged.
 def _positive(value: str) -> int:
     number = int(value)
     if number < 1:
@@ -104,7 +98,6 @@ def write_atomic(path: Path, payload: dict | str) -> bool:
             else:
                 json.dump(payload, handle, indent=2, sort_keys=True)
                 handle.write("\n")
-        # Windows refuses the replace while a reader holds the target open.
         for _ in range(20):
             try:
                 os.replace(tmp, path)

@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154
-# Remove tool/linter caches for the clean caches tier.
-#
-# Default: --dry-run (writes a manifest of planned removals + reclaimable bytes).
-# --apply consumes the manifest (re-stat staleness guard) and mutates disk.
-# Respects protected paths and git-tracked files. Enumeration/manifest/apply
-# engine is shared with clean-build.sh in lib/clean-common.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

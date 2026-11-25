@@ -1,105 +1,20 @@
 #!/usr/bin/env bash
-# Mechanical outcome gate for a drafted PLAN.md (/planning:plan Step 4.7).
-#
-# The model that just wrote a plan rubber-stamps its own recap, so the criteria
-# that can be decided off the file are decided here, with no model involvement:
-#
-#   phases          at least one `### Phase N:` heading (N is 1, 2.5, 3a, or IV)
-#   status-tags     every `### Phase N:` heading ends in one of the three status
-#                   tags /planning:plan defines: not-started, [DOING] or [DONE]
-#                   (a note after " - " inside the brackets, as in [DOING - standing], is kept)
-#   sanity-checks   every phase section carries at least one `Sanity Check`
-#   decisions       when the plan tags a decision [EXEC-SHAPE] or [FALLBACK], a
-#                   `| Decision | What it changes ...` table has at least one row.
-#                   A tag may carry an id, `[EXEC-SHAPE D4]`, and the row for that
-#                   decision starts its first column with the same id (`| D4 Ignore
-#                   file first | ...`). An id is a capital letter, up to two more
-#                   letters, then letters or digits (D4, DX12, D4a); one id per tag. The criterion fails on a tag
-#                   id with no row (`id-without-row=`) and on a row id no tag cites
-#                   (`row-without-tag=`); several tags may cite one row. Pass prints
-#                   `mapped=<n>`, the distinct tag ids that have a row. A bare tag
-#                   with no id still passes, with a `warning=bare-tag` line naming it
-#   blast-radius    a Blast radius heading or line names LOW, MEDIUM, HIGH or CRITICAL
-#   portable-paths  no drive-letter path (C:\ or C:/) and no /Users/<name> or
-#                   /home/<name> path, unless the line carries <!-- path-example -->.
-#                   /Users and /home count only where they begin a path: not right
-#                   after a letter, digit, _, . / or -, so a repo folder such as
-#                   Domain/Users/ or src/home/ passes, but one right after a colon,
-#                   pipe or comma fails
-#   planned-breakage  every `**Planned breakage:**` line (a list marker before it
-#                   is allowed) sits in a phase section and reads
-#                   `<build|tests|lint> red until Phase <M> for <paths or test
-#                   filter>: <reason>`, where Phase <M> is a later `### Phase`
-#                   heading by position, so 2.5, 3a and IV compare by heading order.
-#                   A plan with no such line passes. Failures are listed as
-#                   `invalid=<line>:<reason>`, the reason one of kind, until, for,
-#                   missing-phase, not-later, last-phase or outside-phase
-#   criteria        every acceptance criterion id maps to a phase. A criterion is a
-#                   list item under an `Acceptance criteria` heading; its id opens
-#                   the item after any checkbox or bold, `AC` then digits
-#                   (`- AC3: ...`). A phase names the ids it satisfies on a
-#                   `**Satisfies:** AC1, AC3` line (a list marker before it is
-#                   allowed); one outside a phase section maps nothing. Fails on a
-#                   criterion id no phase satisfies (`unmapped=`), a satisfied id no
-#                   criterion defines (`unknown=`), a criterion with no id once any
-#                   has one (`without-id=<line>`) and an id defined twice
-#                   (`duplicate=`). Pass prints `ids=<n> mapped=<n>`. A plan with no
-#                   id anywhere passes `ids=0`, with a `warning=criteria-without-ids`
-#                   line when it has criteria; an item reading `none ...` is not one
-#   behaviors       `## Plan` opens with a `### Behavior` list: its first `###`
-#                   heading is that one. Each item is `- B<n>: <claim> (AC<i>, ...)`, and
-#                   its indented continuation lines count toward its cites; an
-#                   optional `Process criteria: AC<k>, ...` line in the list names the
-#                   criteria no behavior shows; a phase names the behaviors it builds on
-#                   a `**Delivers:** B1, B3` line (one outside a phase section maps
-#                   nothing). Fails on no list under `## Plan` (`list=missing`), a list that is not the
-#                   first `###` under `## Plan` (`list=not-first`), a B id used twice
-#                   (`duplicate=`), an item citing no AC id (`no-cite=`), a cited or
-#                   Process id no criterion defines (`unknown-cite=`), a criterion id
-#                   neither cited nor on the Process line (`uncited=`), one on both
-#                   (`cited-and-process=`), a behavior no phase delivers
-#                   (`undelivered=`) and a delivered id no item defines
-#                   (`unknown-delivers=`). Pass prints `behaviors=<n> ids=<n>`. A plan
-#                   with no criterion id passes `ids=0`, with a
-#                   `warning=behaviors-without-criterion-ids` line
-#
-# "No phase does Out-of-scope work, and every phase traces to a criterion" is
-# judgment and stays in the skill's prose; this gate does not claim it.
-#
-# Headings inside fenced code blocks are ignored. A fence closes only on the same
-# character with at least the opening length and no info string, so a three-backtick
-# block quoted inside a four-backtick block stays inside it. The path check reads
-# every line, fenced or not, because a published PLAN.md is read on other machines
-# either way.
-#
-# The default run is the Step 4.7 draft gate and does not look at the `Approval:`
-# line, which is written only after approval. `--approval-only` runs that one
-# check after the line is written:
-#
-#   approval        an `Approval:` line exists and its value is non-empty and is
-#                   neither the template placeholder (angle-bracket text) nor TBD.
-#                   Presence only: whether the recorded mandate is adequate is judgment.
-#                   An `Approval:` line inside a code fence does not count.
-#
 # Exit 0 = every criterion passes
 # Exit 1 = at least one criterion fails
 # Exit 2 = usage or environment error (missing or unreadable file, ...)
-#
-# Usage:
-#   bash check-plan-outcome.sh <PLAN.md>
-#   bash check-plan-outcome.sh --approval-only <PLAN.md>
-#   bash check-plan-outcome.sh --help
-#
-# Output (stdout, greppable): one `criterion=<name> status=<pass|fail> ...` line
-# per criterion, each failing path hit as `path-hit=<line>:<text>` (at most 20
-# lines, then `path-hit-truncated=<n>` when more exist; `hits=` is the full
-# count), then a closing `phases=<n> status=<ok|fail>` line. `--approval-only` prints the single
-# `criterion=approval status=<pass|fail>` line.
 
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Mechanical/,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'TXT'
+Mechanical outcome gate for a drafted PLAN.md: checks the criteria decidable off the file.
+
+Usage: bash check-plan-outcome.sh [--approval-only] <PLAN.md>
+  --approval-only  check only that a non-placeholder `Approval:` line exists
+  --help           print this help
+
+Exit 0 every criterion passes; 1 one fails; 2 usage or environment error.
+TXT
 }
 
 die() {
@@ -159,8 +74,6 @@ if [[ "$approval_only" -eq 1 ]]; then
   exit 1
 fi
 
-# One awk pass decides the structural criteria. CRLF is stripped so a plan
-# saved on Windows grades the same as one saved elsewhere.
 structural="$(
   awk '
     BEGIN { ID_RE = "^[A-Z][A-Za-z]?[A-Za-z]?[0-9]+[A-Za-z0-9]*" }

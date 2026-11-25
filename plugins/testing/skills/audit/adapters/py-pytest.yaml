@@ -1,5 +1,3 @@
-# pytest, and unittest-style test methods in pytest-collected files.
-# Schema and YAML subset: scripts/adapter-load.awk. Every regex is a portable ERE.
 id: py-pytest
 language: python
 block_model: indent
@@ -21,8 +19,6 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
-  # A Mock attribute named like an assertion without assert_ returns a child
-  # Mock, which is truthy and asserts nothing.
   inert:
     - '[A-Za-z_][A-Za-z0-9_.]*\.[[:space:]]*called(_once)?_with[[:space:]]*\('
   weak:

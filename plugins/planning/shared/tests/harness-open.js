@@ -1,5 +1,3 @@
-// Page side of the input harness (web/harness.html; ui_inputs.js serves both through the browser). Harness.open(name)
-// opens one input surface the way a person would and resolves to the selectors of its field and its send control.
 "use strict";
 (() => {
   const $ = s => document.querySelector(s);

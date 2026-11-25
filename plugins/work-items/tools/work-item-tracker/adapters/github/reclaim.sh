@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# reclaim <id> — CONTRACT.md "Lease protocol". Idempotent session-start reclaim:
-# expired lease + no activity → unassign the lease holder only, supersede lease,
-# note; activity → renew in place. Never touches a live lease, a co-assignee that
-# does not hold the expired lease, or a manual (lease-less) assignment.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -20,8 +16,6 @@ emit() {
   exit 0
 }
 
-# $() swallows wit_run_gh's exit-on-error; propagate so a transient API failure
-# is not misreported as "no lease record" (which would let reclaim proceed).
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 
 wit_select_active_lease "$leases"

@@ -150,16 +150,6 @@ Output (stdout, greppable):
 EOF
 }
 
-# The one definition of "inside a fence", shared by heading_matches and
-# extract_section so the two cannot disagree about what a heading is; the row
-# loop below reads the state these emit rather than detecting fences a third
-# time. fence_line(line) returns 1 when the line is a fence delimiter (and
-# updates the `fenced` state), 0 otherwise. A fence opens on three or more
-# backticks or tildes; it closes only on a line of the SAME character, at least
-# as LONG as the opener, with nothing but whitespace after it (a trailing CR
-# counts as whitespace, so a CRLF closer closes). Any other fence-shaped line
-# while a fence is open is content: a four-backtick fence can quote a
-# three-backtick example, and `~~~` inside a backtick fence does not close it.
 fence_awk='
   function fence_line(line,    run, ch, n) {
     if (match(line, /^[[:space:]]*(```+|~~~+)/) == 0) { return 0 }
@@ -185,15 +175,6 @@ squash_awk='
   }
 '
 
-# List the headings whose text matches `pattern` (case-insensitively, so a ledger
-# that title-cases the section still grades), one per line as
-# `<line number><TAB><heading>`. A heading-shaped line inside a fenced block is
-# documentation, never a heading: the template's own register carries a fenced
-# bash block whose `# Step 3 ...` comment lines would otherwise count, and a
-# fenced comment must neither bind a section nor terminate one. A trailing CR is
-# stripped so a CRLF ledger names its heading cleanly. No output means no match.
-# A fence still open at end of file exits 4: every heading after it was hidden,
-# and hiding is the silent drop this gate exists to refuse.
 heading_matches() {
   awk -v pattern="$1" "$fence_awk"'
     fence_line($0) { next }
@@ -210,18 +191,6 @@ heading_matches() {
 match_count() { printf '%s\n' "$1" | wc -l | tr -d '[:space:]'; }
 match_lines() { printf '%s\n' "$1" | cut -f1 | paste -sd, - | sed 's/,/, /g'; }
 
-# Print a section body: every line after `start` (the matched heading's line
-# number) up to the next unfenced heading of any level or end of file, each
-# prefixed `<marker><TAB>` where the marker is `f` for a fence delimiter or a
-# line inside a fence and `.` for a live line. The marker carries the fence
-# state to the caller so no second fence detector is needed. Taking the line
-# number rather than re-matching a pattern binds the body graded to the heading
-# the caller already named in its diagnostics. A fence opened in the section and
-# never closed exits 4: the row loop would otherwise skip every row after it as
-# documentation and grade the register clean with a question hidden. A caller
-# that ran heading_matches first never sees that exit (a heading only binds
-# outside a fence, so the whole-file check fires first); the guard is for a
-# caller that extracts by line number without it.
 extract_section() {
   awk -v start="$1" "$fence_awk"'
     NR <= start { next }
@@ -645,9 +614,6 @@ done
 [[ -n "$ledger" ]] || die_ungradeable "--ledger <path> is required"
 [[ -f "$ledger" ]] || die_ungradeable "--ledger not found: $ledger"
 
-# A named-but-missing --brief exits 2 rather than downgrading to `unchecked`:
-# the caller asked for the cross-check, so silently not running it would report
-# a pass the caller never earned.
 if [[ "$brief_named" -eq 1 ]]; then
   [[ -n "$brief" ]] || die_ungradeable "--brief needs a value"
   [[ -f "$brief" ]] || die_ungradeable "--brief not found: $brief"
@@ -756,12 +722,6 @@ while IFS= read -r line; do
 
   [[ "$line" =~ $row_candidate_re ]] || continue
 
-  # No leading zeros, and no Q0. `[[ ]]` numeric comparison evaluates its
-  # operands in arithmetic context, where a leading-zero numeral is OCTAL: the
-  # order test on `Q08` errors to stderr and resolves FALSE, so a misplaced row
-  # would silently pass. Rejecting the form outright keeps the comparison total.
-  # Q<N> is a running counter from 1, so `Q08` is malformed by the register's
-  # own contract anyway.
   [[ "$line" =~ ^[[:space:]]*-[[:space:]]+([Qq]([0-9]+)) ]]
   token="${BASH_REMATCH[1]}"
   num="${BASH_REMATCH[2]}"
@@ -809,9 +769,6 @@ while IFS= read -r line; do
     proc_problem "$id: round field is not 'round <N>' or 'round <N> (added in round <M>)' (N, M >= 1): '$round_field'"
   fi
 
-  # Statuses match case-insensitively without a subprocess per row (a `tr` fork
-  # costs over a second per row on a loaded Windows host). nocasematch, not
-  # ${var,,}, because macOS /bin/bash is 3.2; scoped so no other match sees it.
   shopt -s nocasematch
   case "$status_field" in
   open | discussing) open_count=$((open_count + 1)) ;;
@@ -887,9 +844,6 @@ while read -r a b gap_line; do
 done <<<"$declared_gaps"
 
 if [[ -n "$row_errors" ]]; then
-  # Exit 2 stays load-bearing for Step 3 and the --brief path; the verdict
-  # keeps the counts of the rows that parsed, so a row error reads apart from
-  # a ledger the gate could not read at all (whose counts are all zero).
   printf 'error: row errors in %s in: %s\n' "$where" "$ledger" >&2
   while IFS= read -r row_err; do
     printf 'error: %s\n' "$row_err" >&2
@@ -931,8 +885,6 @@ elif [[ "$brief_named" -eq 1 ]]; then
   fi
 
   missing=""
-  # MUST stay a builtin `[[ =~ ]]`: under pipefail, `printf | grep -qE` on a large
-  # section SIGPIPEs printf, and the 141 reads as a PRESENT id being absent.
   for id in $deferred_ids; do
     if ! [[ "$deferred_section" =~ (^|[^A-Za-z0-9])$id([^0-9]|$) ]]; then
       missing="$missing$id "
@@ -1031,7 +983,6 @@ if [[ "$procedure_on" -eq 1 ]]; then
       done <<<"$(heading_texts 1 "$export_hi" "$expected_brief")"
       while IFS= read -r want; do
         [[ -z "$want" || "$want" == decisions ]] && continue
-        # Not ${want^}: macOS /bin/bash is 3.2.
         label="$(printf '%s' "${want:0:1}" | tr '[:lower:]' '[:upper:]')${want:1}"
         [[ "$want" != tldr ]] || label=TLDR
         need_export_lines "${want//[^a-z0-9 -]/.}" "$label"

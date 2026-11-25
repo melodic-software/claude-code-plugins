@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Read-only repo hygiene inventory for the clean scan tier.
-#
-# Output contract (stable labels):
-#   Category: <Caches|Build artifacts>
-#   Path: <relative-path>
-#   Size: <human size>
-#   Tier: <caches|build|git>
-#   Total reclaimable: <bytes>
-#   Git worktrees: <count>
-#   Git stale refs dry-run: remote prune not measured
-#
-# Never deletes. Exit 0 always (graceful outside git repo).
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,8 +25,6 @@ case "${1:-}" in
 *) ;;
 esac
 
-# emit_tier CATEGORY TIER — one candidate path per stdin line. Redirected, never
-# piped, so the TOTAL_BYTES accumulation stays in this shell.
 emit_tier() {
   local category="$1" tier="$2" abs kb
   while IFS= read -r abs; do
@@ -68,8 +54,6 @@ emit_tier "Build artifacts" "build" < <(clean_build_candidates "$REPO_ROOT")
 
 WT_COUNT="$(git worktree list 2>/dev/null | wc -l | tr -d ' ')"
 echo "Git worktrees: ${WT_COUNT:-0}"
-# Local inventory only. A live `git remote prune` is git-prune.sh --apply, which
-# may contact the remote; this line must not.
 echo "Git stale refs dry-run: remote prune not measured"
 echo "Tier: git"
 

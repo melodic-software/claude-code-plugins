@@ -15,8 +15,6 @@ from conftest import FIXTURES, PLUGIN_SCRIPTS, SCRIPTS, envelope, run_cli
 
 STATE_KEY = SCRIPTS.parents[2] / "lib" / "state-key.sh"
 
-# Tracer fixture: msg_A streams three records (output 5, 20, 40; the last wins) and msg_B one (7).
-# The per-record sum would be 72, the streaming double count.
 TRACER_OUTPUT_TOKENS = 40 + 7
 
 
@@ -266,7 +264,6 @@ def test_changed_excerpt_words_reingests(data_dir, multi):
     assert collect(data_dir, root).returncode == 0
     data = envelope(collect(data_dir, root, "--excerpt-words", "3"))["data"]
     assert (data["ingested"], data["skipped_unchanged"]) == (3, 0)
-    # sess-a1's flagged turns are 8 and 3 words long.
     assert [t["words"] for t in records(data_dir)["sess-a1"]["human"]["flagged"]] == [3]
 
 
@@ -709,7 +706,6 @@ def test_skipped_redaction_rule_suppresses_excerpts_but_keeps_numbers(data_dir, 
 def test_failing_closed_keeps_edit_counts_but_no_paths(data_dir, multi, tmp_path):
     root, _ = multi
     assert collect_failing_closed(data_dir, root, tmp_path).returncode == 1
-    # sess-a1 edits src/widget.py three times and README.md once.
     assert records(data_dir)["sess-a1"]["edits"] == {
         "files": 2,
         "files_ge3": 1,
@@ -920,7 +916,6 @@ def test_orphaned_record_an_earlier_collector_stored_is_purged(data_dir, tmp_pat
     assert envelope(collect(data_dir, tmp_path / "projects"))["data"]["purged_orphaned"] == 0
 
 
-# resolve_bash mirrors hooks/exec-bash.mjs; the filesystem is injected, as the JS tests do.
 WIN_ENV = {"ProgramFiles": "C:\\Program Files", "PATH": "C:\\Windows\\System32;\"D:\\tools\";C:\\Program Files\\WindowsApps"}
 
 

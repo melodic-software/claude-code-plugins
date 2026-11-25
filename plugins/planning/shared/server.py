@@ -90,15 +90,11 @@ STATIC = {
 }
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 ASSET_CSP = "sandbox"
-# An html variant runs scripts in a sandbox with no same origin (no cookies, storage or session access), and only
-# the session's own pages may frame it: the prototype page does (Q98).
 HTML_ASSET_CSP = (
     "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; "
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PROTO = re.compile(r"/proto/(Q[1-9][0-9]{0,5})")
-# The pin helper (web/proto-pin.js) the prototype page asks for with /assets/<id>.html?pin=1: appended to the
-# variant as an inline script, the only kind its CSP runs. It talks to the page by postMessage alone.
 def pin_helper(text):
     """The pin helper's text, refused when it holds `</script`, `<script` or `<!--`: inside a script element any of
     them could end it early or hide its end from the parser."""
@@ -113,7 +109,6 @@ SECURITY_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosn
 ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431: "headers-too-large", 501: "not-implemented", 505: "bad-version"}
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")
 ASSET_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml", "html": "text/html"}
-# Control characters, a backslash, and U+2028 and U+2029, which str.splitlines() also ends a line on.
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\\\u2028\u2029]")
 
 
@@ -145,10 +140,6 @@ CLIENT_MESSAGE_MAX = 500
 FIELD_LIMITS = {"method": 16, "message": CLIENT_MESSAGE_MAX, "trace": TRACE_LIMIT, "route": 200, "source": 200}
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
-# POST /api/client-log: what a joined person's page reports (web/core.js telemetry): faults under the person's pid,
-# and a usage summary, which names no one, when the page hides. Summaries reach server.log only in a summary-batch
-# entry every SUMMARY_BATCH_SECONDS and at shutdown, never with a time or a request entry of their own: the page
-# sends its summary as it sends a heartbeat, whose request entry names the person.
 CLIENT_LOG = "/api/client-log"
 CLIENT_LOG_MAX = 4096
 CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60, "fp": 16}
@@ -160,16 +151,7 @@ SUMMARY_PER_MINUTE = 6
 SUMMARY_BATCH_SECONDS = 600
 SUMMARY_BATCH_BYTES = 100_000
 SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
-# so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted,
-# except in a session only one guest ever joined (one on one), whose held counts, and no pair, are written at shutdown
-# A summary's count tokens, added up per batch and never left in its pair: a component's taps (use, rage, dead) are no
-# one's. Any other token with one of these prefixes is dropped, so no text rides along; that includes an older page's
-# `rep:<fp>` repeat, whose fingerprint is also on its fault entry, which names the person.
 COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
-# A fault spike (README "Logs"): SPIKE_THRESHOLD faults of one kind within SPIKE_WINDOW seconds write one `fault-spike`
-# event for Claude, then none until SPIKE_COOLDOWN seconds pass. A kind is a SPIKE_KINDS client entry or `request`, an
-# answer with a 5xx status; `layout` also carries the phone keyboard readout, which is no fault. Kept logs of three real
-# sessions held at most 2 faults of a kind in any 300 s window, so 3 fires on none of them.
 SPIKE_KINDS = ("error", "rejection", "api")
 SPIKE_REFUSALS = (501, 505)  # http.server's refusals of a malformed request, sent before any Host check: no fault
 SPIKE_THRESHOLD = 3
@@ -183,11 +165,6 @@ TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5
 ASSET_COOKIE_SECONDS = 900
 
-# The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
-# public needs no identity; person needs a secret or the owner token; moderator is a person whose
-# role session.py checks; owner needs the X-Owner-Token header itself, the owner link's token or a signed-in device's
-# credential; host needs the owner link's token, never a device's. The upload chunk route takes raw bytes,
-# not JSON, so GuestHandler.upload_chunk serves it (UPLOAD_CHUNK).
 ROUTES = {
     "/api/join": ("public", "join"),
     "/api/heartbeat": ("person", "heartbeat"),
@@ -274,8 +251,6 @@ CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chun
 HEALTH = "/api/owner/health"
 GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image"),
               "/api/upload/image": ("person", "upload_image")}
-# The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
-# requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
 BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
@@ -449,8 +424,6 @@ class QuickTunnelStarter:
                 self.forget(lid, entry, "stopped")
                 continue
             if entry["target"]["kind"] == "port" and not self.listening(entry["target"]["port"]):
-                # The owner's server is gone: whatever binds the port next is not what they attested, so it never
-                # inherits the public address. A new server needs a new add-live and Approve.
                 self.forget(lid, entry, "failed", record=False)
                 app.log.info("live %s: nothing listens on port %d any more, so it ended", lid, entry["target"]["port"])
                 if app.session.live_ended(lid, "failed"):
@@ -930,9 +903,6 @@ class GuestHandler(BaseHTTPRequestHandler):
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
 
-    # The acting pid, the refusal and the traceback of the request being answered, and whether the answer goes
-    # unlogged (a usage summary taken); send() logs and clears them, since one handler serves every request on a
-    # kept-alive connection.
     pid = refusal = failure = None
     unlogged = False
 

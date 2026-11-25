@@ -1,26 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154
-# Stash audit facts for the clean git tier. No stash is ever dropped.
-#
-# Output contract (stable labels):
-#   StashStore: <absolute git-common-dir | unknown>   (dedup key across worktrees)
-#   PRCount: <n>  OR  PRDataUnavailable: <why>        (PR map status; exactly one)
-#   PRDataTruncated: <why>                            (only when the cap was hit)
-#   per stash — Stash, Commit, Age days, Source branch, Diffstat, PR, Advisory
-#   Stash count: <N>
-#   Summary: stashes=<N> likely-superseded=<M> (never auto-dropped)
-# `Stash` is the volatile `stash@{n}` selector (renumbers after every drop);
-# `Commit` is the stash's stable object id — the safe handle when dropping more
-# than one stash from a single audit.
 # Exit: 0 (2 on a usage error).
-# Omit -e/-o pipefail: always exits 0; sub-commands are best-effort (gh may be absent).
-#
-# FLEET FORM. --repo / --repos-from select repositories and --skip / --skip-from
-# exclude some (the surface clean-batch.sh has, resolved by lib/batch-common.sh).
-# Each audited repo is this same script run from inside it, one after another,
-# printed as `Repo: <path>` then its unchanged output. A repo whose git common
-# dir (the StashStore key) was already audited is reported skipped, and a repo
-# that fails is reported without stopping the rest.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -101,9 +81,8 @@ if [[ -z "$REPO_ROOT" ]]; then
   exit 0
 fi
 
-# Linked worktrees share one stash ref (stored against the common git dir), so a
-# sweep visiting several worktrees of the same repo dedups on this key (the fleet
-# form does it itself) rather than counting each worktree's identical stash list.
+# Linked worktrees share every refs/ ref, refs/stash included, so the stash store is keyed on the common dir:
+# https://git-scm.com/docs/git-worktree
 COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
 [[ -z "$COMMON_DIR" ]] && COMMON_DIR="$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
 printf 'StashStore: %s\n' "${COMMON_DIR:-unknown}"
@@ -138,9 +117,6 @@ while IFS=$'\t' read -r sel sha ts subject; do
   age_days=$(((NOW - ts) / 86400))
   src="$(printf '%s' "$subject" | sed -n 's/^\(WIP on\|On\) \([^:]*\):.*/\2/p')"
   src="${src:-unknown}"
-  # Prefer the untracked-inclusive stat (a `stash -u` pre-rebase backup is often
-  # all untracked, invisible to the default stat); fall back to the tracked-only
-  # stat on git too old for --include-untracked, then to a plain marker.
   diffstat="$(stash_stat --include-untracked --stat "$sel")"
   [[ -z "$diffstat" ]] && diffstat="$(stash_stat --stat "$sel")"
   [[ -z "$diffstat" ]] && diffstat="(no tracked changes)"

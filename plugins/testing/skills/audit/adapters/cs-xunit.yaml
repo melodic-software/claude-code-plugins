@@ -1,8 +1,3 @@
-# xUnit, and the default for any C# test file cs-nunit and cs-mstest do not
-# detect, so it also knows their test attributes. The assertion tokens cover
-# FluentAssertions, Shouldly and Verify snapshots; the mock fields cover Moq,
-# NSubstitute and FakeItEasy. cs-nunit and cs-mstest extend this adapter.
-# Schema and YAML subset: scripts/adapter-load.awk.
 id: cs-xunit
 language: cs
 block_model: brace
@@ -11,9 +6,6 @@ claim_by_content:
   files: ['*.cs']
   any_regex:
     - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test|TestCase|TestCaseSource|[A-Za-z]*TestMethod)([^A-Za-z0-9_]|$)'
-# Test attributes; the method signature that follows opens the block. A
-# Reqnroll [Then] step is where a scenario asserts, so it is judged as a test;
-# [Given] and [When] steps arrange and act, and are not.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)'
   - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
@@ -35,19 +27,9 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
-    # Microsoft.CodeAnalysis.Testing's analyzer and code-fix test types. The
-    # engine adds }.RunAsync( on their initializer in a file that imports the
-    # harness (cant-fail-scan.awk, BEGIN).
     - 'CSharp(Analyzer|CodeFix|CodeRefactoring|SourceGenerator)Test[[:space:]]*<'
-  # xUnit's *Async assertions return a Task (xUnit2021).
   async:
     - 'Assert[[:space:]]*\.[[:space:]]*[A-Za-z]+Async[[:space:]]*[<(]'
-  # .Should() with no matcher chained, as a whole statement. A literal
-  # condition always passes. typeof, nameof and a type's Name are never null
-  # (Namespace and FullName can be), and comparing
-  # two of them is settled at compile time, and so is Equal, NotEqual or Same
-  # (AreEqual, AreNotEqual or AreSame in NUnit) on two typeof operands; a
-  # runtime GetType() operand is not. cs-nunit inherits these.
   inert:
     - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
     - 'Assert[[:space:]]*\.[[:space:]]*(True[[:space:]]*\([[:space:]]*true|False[[:space:]]*\([[:space:]]*false)[[:space:]]*[,)]'
@@ -92,14 +74,8 @@ mock:
     - '\.[[:space:]]*DidNotReceive(WithAnyArgs)?[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
     - 'MustHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
     - 'MustNotHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
-# Verify, statement-initial: Moq's mock.Verify( is a mock assertion instead.
 snapshot:
   - '^[[:space:]]*(return[[:space:]]+|await[[:space:]]+)*(Verifier[[:space:]]*\.[[:space:]]*)?Verify(Json|Xml|File)?[[:space:]]*\('
-# FsCheck and CsCheck: the expected value is derived from generated inputs on purpose.
-# cs-nunit and cs-mstest inherit this list. A marker exempts only the test whose
-# body or attribute stack holds it. FsCheck's Check.Quick and QuickCheck forms run a
-# property with no attribute integration, the MSTest route; CsCheck's Sample runs a
-# generator held in a field, whose Gen. line sits outside the test.
 property_markers:
   - '\[[[:space:]]*(FsCheck[[:space:]]*\.[[:space:]]*)?(Xunit[[:space:]]*\.[[:space:]]*)?Property([[:space:]]*[](]|$)'
   - 'Prop[[:space:]]*\.[[:space:]]*ForAll'
@@ -109,6 +85,5 @@ property_markers:
   - '\.[[:space:]]*Sample(Async)?[[:space:]]*\('
 equality:
   call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame, Assert.Equivalent]
-# C# constants are PascalCase, so an uppercase name says nothing about constness.
 rules_off: [constant-restatement]
 suppress_marker: 'cant-fail-ok:'
