@@ -867,7 +867,10 @@ The chrome is one for every page family: the system/light/dark toggle (system by
 heading), and the accessibility floor. A page offers no other theme control: no accent or
 palette picker. A consumer may override three things through configuration, never on the page:
 the palette, the type stacks (fonts installed or embedded as `data:` URLs) and a logo (inline SVG
-or an embedded `data:` PNG or JPEG), never loaded from a URL. Layout, the accessibility floor, the toggle and the
+or an embedded `data:` PNG or JPEG), never loaded from a URL. The two embedded forms wait on one
+policy change ADR 0133 records: `img-src data:` and `font-src data:`, admitted only in the logo
+slot and `@font-face`. Until the first work item makes that change, the report profile and
+interactive rule 3 above refuse them. Layout, the accessibility floor, the toggle and the
 comment box stay fixed, and an override that would put a page below the floor is dropped for
 the shipped value. Where the setting lives, the token layer each plugin copies, the migration
 order and the drift checks are in
