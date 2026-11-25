@@ -61,7 +61,9 @@ sessions from the current transcript's directory and launches `observer.py` for 
 detached from the session, then returns at once. A session qualifies when it is not the current one,
 its transcript has been unchanged for `observer_idle_seconds` and changed within the last 3 days, it
 has no live-check usage file, no ledger, and no status file showing it analyzed to its current size.
-At most 2 run per start, newest first. `observer.py` reads the transcript once from its stored
+A ledger excludes a session only when it has no status file (an in-session checkpoint covered it); with
+a status file, the stored offset alone decides, so a resumed follow-up of an analyzed session is
+analyzed. At most 2 run per start, newest first. `observer.py` reads the transcript once from its stored
 offset, distills it, runs the analysis below, writes the ledger and its status file, and exits; a
 per-session `O_CREAT|O_EXCL` lock keeps two starts from analyzing one session twice.
 
@@ -154,6 +156,9 @@ about fourfold without the `--settings` pin and returned to the `low` range with
 The observations are kept, and nothing is written to the ledger, when the run exits non-zero, its JSON
 body reports `is_error`, its output is not JSON, `terminal_reason` (when present) is not `completed`,
 `subtype` is not `success`, `permission_denials` is non-empty, or the result text is empty.
+The status file then records `state: retained` and `failed_attempts`; the next start's catch-up
+retries the analysis once over the kept observations, so a span is analyzed at most twice until its
+transcript grows again.
 
 ## Short sessions and run usage
 

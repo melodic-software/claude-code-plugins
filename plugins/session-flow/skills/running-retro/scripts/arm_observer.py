@@ -11,8 +11,10 @@ A sibling is a candidate when its transcript:
   - has been idle at least --idle-seconds (it counts as ended) and changed
     within the last three days;
   - has no `live-<sid>.jsonl` marker in the work dir (the mod ran live checks);
-  - has no running-retro ledger naming it;
-  - has grown past the byte offset its status file records.
+  - has grown past the byte offset its status file records, or its last
+    analysis failed and may run once more (observer.retry_due);
+  - has no running-retro ledger naming it, when it has no status file (an
+    in-session checkpoint covered it); with a status file the offset decides.
 
 Prints one line per launch (or why none ran) and exits 0: callers
 fire-and-forget and never block on it.
@@ -86,9 +88,10 @@ def catch_up_candidates(
             continue
         if (work_dir / f"live-{sid}.jsonl").exists():
             continue
-        if obs.stored_offset(obs.read_status(work_dir, sid)) >= st.st_size:
+        status = obs.read_status(work_dir, sid)
+        if obs.stored_offset(status) >= st.st_size and not obs.retry_due(status):
             continue
-        if obs.find_session_ledger(ledger_dir, sid) is not None:
+        if not status and obs.find_session_ledger(ledger_dir, sid) is not None:
             continue
         found.append((st.st_mtime, path))
     found.sort(reverse=True)

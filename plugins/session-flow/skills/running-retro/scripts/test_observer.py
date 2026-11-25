@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json
+# test-scope: plugins/session-flow/hooks/observer-catchup.sh
+# test-scope: plugins/session-flow/lib/python-probe.sh
 
 from __future__ import annotations
 
@@ -1613,7 +1615,7 @@ class OneShotRun(unittest.TestCase):
                 unchanged = make_observer(tmp, analysis=True, session_id="re", min_lines=3)
                 unchanged.run()
                 self.assertEqual(1, captured["runs"], "no growth: no second analysis")
-                self.assertEqual("nothing-new", read_json(ob.status_path)["state"])
+                self.assertEqual("analyzed", read_json(ob.status_path)["state"])
                 with ob.transcript.open("a", encoding="utf-8") as f:
                     f.write(USER_RECORD)
                 grown = make_observer(tmp, analysis=True, session_id="re", min_lines=3)
@@ -1641,13 +1643,50 @@ class OneShotRun(unittest.TestCase):
                 [without_at(r) for r in status["analysis_runs"]],
             )
             self.assertEqual(ob.transcript.stat().st_size, status["byte_offset"])
-            self.assertEqual("retained", status["state"])
+            self.assertEqual("skipped", status["state"])
             self.assertTrue(ob.obs_path.exists())
             with ob.transcript.open("a", encoding="utf-8") as f:
                 f.write(USER_RECORD)
             with fake_analysis_run(captured):
                 make_observer(tmp, analysis=True, session_id="short", min_lines=3).run()
             self.assertEqual(1, captured["runs"], "3 lines now: analyzed")
+            self.assertIsNotNone(ledger_of(ob))
+
+    def test_failed_analysis_of_an_unchanged_span_is_retried_once(self):
+        failed = json.dumps(dict(COMPLETED_RUN, is_error=True, result="API Error"))
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="flaky")
+            ob.transcript.write_text(USER_RECORD * 3, encoding="utf-8")
+            captured: dict = {}
+            states = []
+            for _ in range(3):
+                with fake_analysis_run(captured, stdout=failed):
+                    make_observer(tmp, analysis=True, session_id="flaky").run()
+                status = read_json(ob.status_path)
+                states.append((status["state"], status["failed_attempts"]))
+            self.assertEqual(2, captured["runs"], "one first try, one retry, then none")
+            self.assertEqual([("retained", 1), ("retained", 2), ("retained", 2)], states)
+            self.assertEqual(3, len(ob.obs_path.read_text(encoding="utf-8").splitlines()))
+
+    def test_retry_over_retained_observations_can_succeed(self):
+        failed = json.dumps(dict(COMPLETED_RUN, is_error=True, result="API Error"))
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="heal")
+            ob.transcript.write_text(USER_RECORD * 3, encoding="utf-8")
+            with fake_analysis_run({}, stdout=failed):
+                ob.run()
+            seen: list[int] = []
+
+            def count():
+                seen.append(len(ob.obs_path.read_text(encoding="utf-8").splitlines()))
+
+            with fake_analysis_run({}, on_run=count):
+                make_observer(tmp, analysis=True, session_id="heal").run()
+            self.assertEqual([3], seen, "the retry read the retained observations")
+            status = read_json(ob.status_path)
+            self.assertEqual(("analyzed", 0), (status["state"], status["failed_attempts"]))
             self.assertIsNotNone(ledger_of(ob))
 
     def test_collect_only_run_keeps_observations(self):
@@ -1799,6 +1838,39 @@ class CatchUpSelection(unittest.TestCase):
         self.assertEqual([], self.picked())
         self.transcript("seen", age=IDLE + 60, lines=2)
         self.assertEqual(["seen"], self.picked())
+
+    def test_resumed_follow_up_of_an_analyzed_session_is_picked(self):
+        path = self.transcript("resumed", age=IDLE + 60)
+        size = path.stat().st_size
+        (self.ledgers / "20260101T000000Z-running-retro-x.md").write_text(
+            "---\nsession_id: resumed\nobserver: autonomous\n---\n", encoding="utf-8"
+        )
+        (self.work / "status-resumed.json").write_text(
+            json.dumps(
+                {"target_session": "resumed", "byte_offset": size, "state": "analyzed"}
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual([], self.picked())
+        self.transcript("resumed", age=IDLE + 60, lines=2)
+        self.assertEqual(["resumed"], self.picked())
+
+    def test_failed_session_is_picked_until_its_retry_is_spent(self):
+        path = self.transcript("failed", age=IDLE + 60)
+        status = self.work / "status-failed.json"
+        for attempts, picked in ((1, ["failed"]), (2, [])):
+            status.write_text(
+                json.dumps(
+                    {
+                        "target_session": "failed",
+                        "byte_offset": path.stat().st_size,
+                        "state": "retained",
+                        "failed_attempts": attempts,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(picked, self.picked(), attempts)
 
     def test_at_most_two_newest_first(self):
         for sid, age in (("a", IDLE + 300), ("b", IDLE + 100), ("c", IDLE + 200)):

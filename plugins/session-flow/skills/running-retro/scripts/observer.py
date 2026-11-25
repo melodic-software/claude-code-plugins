@@ -272,6 +272,7 @@ def summarize_record(rec: dict) -> dict:
 
 
 _LOCK_STALE_MARGIN_SECONDS = 300
+MAX_FAILED_ATTEMPTS = 2
 CREATE_NO_WINDOW = 0x08000000
 
 
@@ -293,6 +294,14 @@ def stored_offset(status: dict) -> int:
         return max(int(status.get("byte_offset", 0)), 0)
     except (TypeError, ValueError):
         return 0
+
+
+def retry_due(status: dict) -> bool:
+    """A failed analysis of the current span may run again, up to MAX_FAILED_ATTEMPTS."""
+    return (
+        status.get("state") == "retained"
+        and status.get("failed_attempts", 0) < MAX_FAILED_ATTEMPTS
+    )
 
 
 def find_session_ledger(ledger_dir: Path, session_id: str) -> Path | None:
@@ -333,6 +342,7 @@ class Observer:
         self.analysis_runs: list[dict] = read_status(
             self.work_dir, self.session_id
         ).get("analysis_runs", [])
+        self.below_min_lines = False
 
     def log(self, msg: str) -> None:
         try:
@@ -417,14 +427,20 @@ class Observer:
             self.log(f"observer already running for {self.session_id}; exiting")
             return 0
         try:
-            if not self._distill() or not self.analysis:
+            new_lines = self._distill()
+            status = read_status(self.work_dir, self.session_id)
+            if not self.analysis or not (new_lines or retry_due(status)):
                 return 0
             consumed = self._run_analysis()
             if consumed:
                 self._cleanup_observations()
-            self._write_status(
-                {"state": "analyzed" if consumed else "retained"}, merge=True
-            )
+            if consumed or self.below_min_lines:
+                update = {"state": "analyzed" if consumed else "skipped"}
+                update["failed_attempts"] = 0
+            else:
+                failed = status.get("failed_attempts", 0) + 1
+                update = {"state": "retained", "failed_attempts": failed}
+            self._write_status(update, merge=True)
             return 0
         finally:
             self.release_lock()
@@ -465,8 +481,9 @@ class Observer:
                 "byte_offset": offset + len(chunk),
                 "lines_observed": lines,
                 "parse_errors": line_stats.get("bad_lines", 0),
-                "state": "collected" if lines else "nothing-new",
-            }
+                **({"state": "collected", "failed_attempts": 0} if lines else {}),
+            },
+            merge=True,
         )
         return lines > 0
 
@@ -509,14 +526,12 @@ class Observer:
 
     def _write_status(self, status: dict, merge: bool = False) -> None:
         try:
-            if merge and self.status_path.exists():
-                base = json.loads(self.status_path.read_text(encoding="utf-8"))
-                base.update(status)
-                status = base
+            if merge:
+                status = {**read_status(self.work_dir, self.session_id), **status}
             if self.analysis_runs:
                 status["analysis_runs"] = self.analysis_runs
             self.status_path.write_text(json.dumps(status, indent=2), encoding="utf-8")
-        except (OSError, json.JSONDecodeError):
+        except OSError:
             pass
 
     def _run_analysis(self) -> bool:
@@ -546,6 +561,7 @@ class Observer:
                 )
                 self.log(reason)
                 self._add_analysis_run({"skipped": reason, "lines": session_lines})
+                self.below_min_lines = True
                 return False
         claude = _find_claude()
         if not claude:

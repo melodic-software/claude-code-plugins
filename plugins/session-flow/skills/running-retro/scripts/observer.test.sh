@@ -2,6 +2,8 @@
 # test-scope: plugins/session-flow/skills/running-retro/scripts/arm_observer.py
 # test-scope: plugins/session-flow/hooks/observer-catchup.sh
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json
+# test-scope: plugins/session-flow/lib/python-probe.sh
+# test-scope: plugins/session-flow/skills/running-retro/scripts/fixtures/claude-p-result.json
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
