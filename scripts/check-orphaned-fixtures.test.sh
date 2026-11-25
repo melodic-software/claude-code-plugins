@@ -137,6 +137,10 @@ mkdir -p "$repo/plugins/p/evals/case-b" "$repo/plugins/p/skills/s/evals/fixtures
 printf 'au_copy cfg/test_plugin_case.py test_plugin_case.py\n' >"$repo/plugins/p/evals/case-b/scaffold.sh"
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/cfg/test_plugin_case.py"
 if run_check "$repo" >/dev/null; then ok "a skill fixture a plugin-level case scaffold copies passes --check"; else fail "plugin-scaffold fixture wrongly flagged: $(run_check_out "$repo")"; fi
+printf 'au_copy other/test_plugin_case.py test_plugin_case.py\n' >"$repo/plugins/p/evals/case-b/scaffold.sh"
+out="$(run_check_out "$repo")"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"test_plugin_case.py"* ]]; then ok "a plugin-level scaffold naming only the basename under another path does not consume a skill fixture"; else fail "basename-only plugin scaffold wrongly consumed: rc=$rc out='$out'"; fi
 rm -f "$repo/plugins/p/evals/case-b/scaffold.sh"
 out="$(run_check_out "$repo")"
 rc=$?
