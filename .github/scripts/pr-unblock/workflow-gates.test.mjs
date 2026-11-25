@@ -965,7 +965,6 @@ const ACTIVITY_FIRST_JOBS = [
   "sync-shared-copies-select",
   "fix-test-scope-select",
   "address-feedback-select",
-  "review-dependency-select",
   "fix-ci-context",
 ];
 
@@ -973,8 +972,22 @@ test("pr-unblock.yml: a dispatcher on an older copy of its file reads no PR in a
   const text = read(UNBLOCK);
   const blocks = text.slice(text.indexOf("\njobs:\n")).split(/\n {2}(?=[a-z-]+:\n)/).slice(1);
   const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
-  assert.deepEqual(starts, ACTIVITY_FIRST_JOBS, "every other job waits on an activity's first job");
+  assert.deepEqual(starts, ["check-dispatcher-current", ...ACTIVITY_FIRST_JOBS], "every other job waits on a job");
   const wf = workflowText(text);
+  const current = wf.job("check-dispatcher-current");
+  assert.match(current, /^ {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh$/m);
+  const separate = ifOf(current, 4);
+  assert.equal(
+    evaluate(separate, { "inputs.activity": "review-dependency" }),
+    true,
+    "review-dependency keeps the separate job: its select job holds no actions: read for dispatcher-current.sh's run read",
+  );
+  for (const activity of ["resolve-conflicts", "sync-shared-copies", "fix-test-scope", "address-feedback", "fix-ci"]) {
+    assert.equal(evaluate(separate, { "inputs.activity": activity }), false, `${activity} starts no separate job`);
+  }
+  const dependency = jobGate(UNBLOCK, "review-dependency-select");
+  assert.deepEqual(dependency.needs, ["check-dispatcher-current"]);
+  assert.match(dependency.gate, /needs\.check-dispatcher-current\.outputs\.stale != 'true'/);
   for (const job of ACTIVITY_FIRST_JOBS) {
     const steps = wf.steps(job);
     const names = steps.map((s) => s.name);
@@ -994,6 +1007,7 @@ test("pr-unblock.yml: a dispatcher on an older copy of its file reads no PR in a
       assert.doesNotMatch(gate, /always\(\)|cancelled\(\)/, `${job}: ${later.name} does not run past a stopped step`);
     }
     assert.doesNotMatch(wf.job(job), /check-dispatcher-current/, `${job} reads no separate dispatcher job`);
+    assert.match(wf.job(job), /^ {4}permissions:\n(?: {6}[a-z-]+: read\n)*? {6}actions: read\n/m, `${job} holds the actions: read the compare's run read needs`);
   }
 });
 

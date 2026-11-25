@@ -102,6 +102,57 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check-dispatcher-current:
+    name: Check Dispatcher Current
+    if: inputs.activity == 'review-dependency'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      stale: ${{ steps.current.outputs.stale }}
+      standards-sha: ${{ steps.standards.outputs.sha }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        if: inputs.dispatcher-run-id != ''
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: ${{ github.event.repository.default_branch }}
+      - name: Check out the default branch tip
+        if: inputs.dispatcher-run-id != ''
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Resolve the standards commit
+        id: standards
+        if: inputs.dispatcher-run-id != ''
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          checkout: 'false'
+
+      - name: Compare the dispatcher file with the tip's
+        id: current
+        if: inputs.dispatcher-run-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
+      - name: Log the API budget at the end
+        if: always() && inputs.dispatcher-run-id != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # resolve-conflicts is five jobs, so no model ever holds a write token or
   # runs git. This one runs only base code with a read-only token. Before any
   # model turn it reads the PR head, resolves the slot (draft and held PRs
@@ -3151,9 +3202,11 @@ jobs:
   # whose runner head code could forge.
   review-dependency-select:
     name: Review Dependency Select
+    needs: check-dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'review-dependency'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.check-dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -3197,17 +3250,11 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Compare the dispatcher file with the tip's
-        id: current
-        if: inputs.dispatcher-run-id != ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
-        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
-
       - name: Download standards
         id: standards
         uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-dispatcher-current.outputs.standards-sha }}
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -3217,7 +3264,6 @@ jobs:
 
       - name: Check the kill switch
         id: kill
-        if: steps.current.outputs.stale != 'true'
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}

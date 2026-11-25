@@ -2594,7 +2594,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
   A step of the caller's first job (`dispatcher-current.sh`: in `pr-unblock.yml`, each activity's
   select job or `fix-ci-context`; in `pr-refine.yml`, `select-passes`) compares the two before the
-  job reads the PR, so nothing runs and the run ends green with no check and no stop, and the next
+  job reads the PR. `review-dependency-select` holds no `actions: read`, which the compare's run
+  read needs, so for that activity the `check-dispatcher-current` job compares first and the
+  select job does not start. Either way nothing runs and the run ends green with no check and no stop, and the next
   dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
   and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
   run to the broker.
