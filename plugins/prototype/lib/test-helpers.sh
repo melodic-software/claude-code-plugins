@@ -59,8 +59,10 @@ detect_wrapper_contract() {
   assert_equals "wrapper sits at the \${CLAUDE_SKILL_DIR}-addressable path" \
     "$PLUGIN_ROOT/skills/$skill/scripts/detect-ecosystems.sh" "$WRAPPER"
 
-  assert_contains "SKILL.md grants this exact skill-relative path" \
-    "$(cat "$SKILL_MD")" 'Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)'
+  assert_contains "SKILL.md allowed-tools grants this exact skill-relative path" \
+    "$(grep -e '^allowed-tools:' "$SKILL_MD")" '"Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"'
+  assert_contains "SKILL.md runs the granted path directly, paired with the grant" \
+    "$(cat "$SKILL_MD")" '!`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh'
 
   local wrapper_body
   wrapper_body="$(body "$WRAPPER")"
@@ -82,6 +84,14 @@ detect_wrapper_contract() {
   else
     fail "the resolved target exists and is executable" "executable file" "$CANONICAL"
   fi
+
+  local rationale
+  rationale="$(cat "$PLUGIN_ROOT/reference/skill-wrappers.md")"
+  assert_contains "rationale names the allowed-tools constraint" "$rationale" "allowed-tools"
+  assert_contains "rationale names the token grants use" "$rationale" 'CLAUDE_SKILL_DIR'
+  assert_contains "rationale names the token grants avoid" "$rationale" 'CLAUDE_PLUGIN_ROOT'
+  assert_contains "rationale records that the detector stays single-sourced" "$rationale" "single-source"
+  assert_contains "rationale explains the self-locating form" "$rationale" "not exported"
 
   if [[ -f "$SIBLING" ]]; then
     if diff <(body "$WRAPPER") <(body "$SIBLING") >/dev/null; then

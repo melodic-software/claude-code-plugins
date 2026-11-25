@@ -13,7 +13,7 @@ mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 export PERF_HARNESS_LEDGER_DIR="$WORK/ledger"
 
-# portability-ok: 'D:\a\b' is literal Windows path DATA under test, not a regex; the
+# portability-ok: 'D:\a\b' is literal Windows path data under test, not a regex or GNU escapes.
 assert_eq "backslash drive path folds to POSIX" "/d/a/b" "$(harness_posix_form 'D:\a\b')"
 assert_eq "forward-slash drive path folds to POSIX" "/d/a/b" "$(harness_posix_form 'D:/a/b')"
 assert_eq "drive root folds to POSIX" "/c/" "$(harness_posix_form 'C:/')"
