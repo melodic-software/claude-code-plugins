@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 MODE="${1:---check}"

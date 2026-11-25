@@ -1,4 +1,3 @@
-
 export const INK = '#141211';
 
 export function rng(seed, step = 0) {

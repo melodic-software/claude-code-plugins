@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 ip_realpath() {
   local p="${1:-}" dir base target hops=0
   [[ -n "$p" ]] || return 0

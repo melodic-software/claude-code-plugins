@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED:-true}" == "true" ]] || exit 0

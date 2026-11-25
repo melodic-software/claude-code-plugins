@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 UPSTREAM_URL="https://www.firecrawl.dev/agent-onboarding/SKILL.md"

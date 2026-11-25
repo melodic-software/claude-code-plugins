@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
