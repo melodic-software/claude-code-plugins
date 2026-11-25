@@ -52,23 +52,16 @@ if [[ "$part" == main || "$part" == all ]]; then
     [[ -f "$f" ]] && files+=("$f")
   done
 
-  # AC35: no file names a producing skill (<plugin>:<skill>), with plugin names read from plugins/.
   names=""
   for p in "$root"/plugins/*/; do
     p=${p%/}
     names="${names:+$names|}${p##*/}"
   done
-  # Two exemptions, each naming /planning:plan as the actor on a decision, never a visual's
-  # producer: exporters.py's ARBITER_PLAN line writes the Brief's arbiter token (the
-  # Deferred questions tag in the interview skill's Brief template), and the superseded-by-plan
-  # banner in index.html, with its ui_c.js assertion, says the plan changed the user's answer.
-  # A CSS declaration after `{` or `;` (`{animation:pulse ...}`) is a property, not a token.
   hits=$(grep -nE "(^|[^a-z0-9{;-])($names):[a-z-]+" "${files[@]}" |
     grep -vE '^exporters\.py:[0-9]+:ARBITER_(PLAN|DESIGN) = "\*\*arbiter: /planning:(plan|design)\*\*"$' |
     grep -vE '^(index\.html|tests/ui_c\.js):[0-9]+:.*planning:plan changed your answer')
   if [[ -z "$hits" ]]; then ok "AC35: no skill token in ${#files[@]} files"; else bad "AC35: skill tokens: $hits"; fi
 
-  # AC34: no user name, home path, or port other than the documented default 0 (a free port).
   hits=""
   for u in "${USER:-}" "${USERNAME:-}" "$(whoami 2>/dev/null)"; do
     u=${u##*\\}
@@ -83,7 +76,6 @@ if [[ "$part" == main || "$part" == all ]]; then
     grep -vE '[:= ]0$')
   if [[ -z "$hits" ]]; then ok "AC34: no port but 0"; else bad "AC34: hardcoded port: $hits"; fi
 
-  # index.html lint, when the repo's htmlhint is installed.
   if [[ -x "$root/node_modules/.bin/htmlhint" ]]; then
     if out=$("$root/node_modules/.bin/htmlhint" index.html 2>&1); then ok "htmlhint index.html"; else bad "htmlhint: $out"; fi
   else
@@ -98,7 +90,7 @@ results() {
     sed 's/^.*"PASS/PASS/; s/^.*"FAIL/FAIL/; s/^.*"ERROR/ERROR/; s/"$//' | grep -E '^(PASS|FAIL|ERROR) '
 }
 
-grade() { # suite output-file
+grade() {
   local n=0 line
   while IFS= read -r line; do
     n=$((n + 1))
@@ -143,14 +135,12 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   script_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
   py=$(command -v python3 || command -v python)
   unhandled() { "$py" "$here/round.py" --dir "${1:-$c}" status | sed -n 's/^ *#\([0-9][0-9]*\) .*/\1/p' | tr '\n' ' '; }
-  # Writes as Claude through apply: the ops JSON goes to a fresh file (apply consumes it), then runs.
-  rapply() { # data-dir ops-file ops-json
+  rapply() {
     printf '%s' "$3" >"$2"
     bash "$here/round.sh" --dir "$1" apply --file "$2"
   }
-  port_of() { sed -n 's/^PORT=//p' "$1/.interview-session.env" | tr -d '\r'; } # data-dir
-  # One page script through playwright-cli, its wall seconds written beside the output for grade.
-  run_code() { # script-file output-file
+  port_of() { sed -n 's/^PORT=//p' "$1/.interview-session.env" | tr -d '\r'; }
+  run_code() {
     local start=$SECONDS
     pw run-code --filename "$(script_path "$1")" >"$2" 2>&1
     echo "$((SECONDS - start))" >"$2.secs"
@@ -189,8 +179,6 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     git init -q "$repo"
     cp tests/fixtures/ui_c/questions.json tests/fixtures/ui_c/responses.json tests/fixtures/ui_c/settings.json "$c/"
     cp tests/fixtures/ui_c/planning.yaml "$repo/docs/conventions/planning.yaml"
-    # File visuals: vi's PNG is the 1x1 image vp carries inline, vs's SVG carries a text marker,
-    # and vx names a file that is never written.
     mkdir -p "$c/images" "$c/diagrams"
     printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' |
       base64 -d >"$c/images/flow.png"
@@ -206,12 +194,9 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     done
     run_code "$tmp/ui_c1.js" "$tmp/ui_c1.out"
     rapply "$c" "$tmp/c-revise-a2.json" '{"ops": [{"op": "revise", "id": "A2", "rec": "Yes, batch two, changed by Claude.", "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null
-    # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
     rapply "$c" "$tmp/c-revise-q1.json" '{"ops": [{"op": "revise", "id": "Q1", "commits": ["Uses a private cache", "Runs on every commit"], "force": true}]}' >/dev/null
     rapply "$c" "$tmp/c-revise-p2.json" '{"ops": [{"op": "revise", "id": "P2", "alternatives": ["a:No", "c:Never"], "force": true}]}' >/dev/null
-    # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
     rapply "$c" "$tmp/c-revise-p1.json" '{"ops": [{"op": "revise", "id": "P1", "rec": "Yes, the upstream step, revised.", "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null
-    # Claude declares Q3 as being revised: phase 2 reads the mark on its rail card and detail pane.
     rapply "$c" "$tmp/revising.json" '{"ops": [{"op": "revising-by-claude", "ids": ["Q3"], "why": "auditing the cache choice"}]}' >/dev/null 2>&1
     bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
     run_code "$tmp/ui_c2.js" "$tmp/ui_c2.out"
@@ -240,16 +225,12 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   }
 
   group_c_listen() {
-    # ui_c phase 4 runs against its own server, whose one event was delivered in 2020 and never
-    # handled, with no watcher ever polling.
     mkdir -p "$e"
     cp tests/fixtures/ui_d/questions.json tests/fixtures/ui_d/responses.json "$e/"
     bash "$here/round.sh" --dir "$e" ensure-running --port 0 >/dev/null
     eport=$(port_of "$e")
     sed "s/__PORT__/$eport/; s/__PHASE__/4/" tests/ui_c.js >"$tmp/ui_c4.js"
     run_code "$tmp/ui_c4.js" "$tmp/ui_c4.out"
-    # Phase 5, same server: an interview round 3, then a newer design round 1, for the header's
-    # derived round across two stages.
     for r in interview-3:3 design-1:1; do
       bash "$here/round.sh" --dir "$e" add-round --file "tests/fixtures/ui_d/round-${r%:*}.json" --round "${r#*:}" >/dev/null ||
         bad "ui_c.5: add-round ${r%:*} refused"
@@ -257,9 +238,6 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     sed "s/__PORT__/$eport/; s/__PHASE__/5/" tests/ui_c.js >"$tmp/ui_c5.js"
     run_code "$tmp/ui_c5.js" "$tmp/ui_c5.out"
 
-    # ui_c phase 6 runs against another server, with one question and no events. A background
-    # handler waits for the page to arm a watcher (the lease shows in /api/state), then handles
-    # the answer as a handle-only apply while the page stays open.
     f="$tmp/f3"
     mkdir -p "$f"
     cp tests/fixtures/ui_d/questions.json "$f/"
@@ -326,7 +304,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
   }
 
   group_e() {
-    # ui_e runs against its own server: one recommended and one withheld question, no events.
     mkdir -p "$g"
     cp tests/fixtures/ui_e/questions.json "$g/"
     bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
@@ -345,7 +322,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     # phases' lines so a log shows where the suite's time outside the page goes. Needs bash 5's
     # EPOCHREALTIME; without it the line reports '?'.
     declare -A jms=() jcount=()
-    jtime() { # kind command...
+    jtime() {
       local t0=${EPOCHREALTIME:-} t1 rc
       "${@:2}"
       rc=$?
@@ -372,7 +349,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       read -r -a s <<<"$(unhandled "$j")"
       [[ "${#s[@]}" -eq 0 ]] || jtime handle "$py" -m round --dir "$j" handle --seq "${s[@]}" >/dev/null
     }
-    japply() { # name ops-json
+    japply() {
       printf '%s' "$2" >"$j/ops/$1.json"
       jtime apply "$py" -m round --dir "$j" apply --file "$j/ops/$1.json" >/dev/null || bad "journey: ops $1 refused"
     }
@@ -393,7 +370,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     {"op": "reply", "id": "Q3", "text": "The benchmark settles it: three retries."}]}'
     bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round2.json --round 2 >/dev/null
     japply d '{"ops": [{"op": "note-reply", "seq": '"$note"', "text": "Yes, on track."}]}'
-    # The reply to the note goes to the log; the Notes reply that asks raises the notice (phase 3).
     japply d2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Should the retry count stay at three?"}]}'
     jrun 3
     jhandle
@@ -402,7 +378,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     {"op": "confirm-commitments", "id": "Q4", "reason": "Said yes in the terminal"},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging on their own.",
       "constraints": "Builds stop at ten minutes.", "planningOwned": "How the cache key is built."}}]}'
-    # A Notes reply that asks lands after the restatement: the restate notice must stay shown over it (phase 4).
     japply e2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "One more thing: what should the cache key include?"}]}'
     jrun 4
     jhandle
@@ -411,7 +386,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     "constraints": "Builds stop at ten minutes."}}]}'
     jrun 5
     jhandle
-    # Near the 500-character line cap, with an unbroken token: phase 6 checks the page never widens.
     long="on the runner image, whether a supercalifragilisticexpialidocious_unbroken_token_that_never_wraps_0123456789 is acceptable"
     long="$long; $long; $long; and whether the lock file wins over the runner image default for every job"
     japply g '{"ops": [{"op": "wait", "id": "Q5", "clear": true},
@@ -429,8 +403,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     jrun 7
     japply i '{"ops": [{"op": "activity", "text": "Checked the cache key while you were looking"}]}'
     jrun 8
-    # One log entry, one plain Notes reply, then a Notes reply that asks: only the asking reply counts
-    # in the title (phases 9, 11 and 13).
     japply j '{"ops": [{"op": "activity", "text": "Checked the cache key again while the tab was hidden"}, {"op": "note-reply", "text": "Still on track."}]}'
     japply j2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Still on track on your side?"}]}'
     jrun 9
@@ -446,13 +418,11 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     japply m '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview",
     "short": "Pattern scope", "title": "Which patterns count?", "recommendation": "Only the ones in the lock file.",
     "commits": [], "alternatives": [{"key": "a", "text": "All of them"}, {"key": "b", "text": "None"}]}}]}'
-    # The added Q9 goes to the log; the asking reply after it is what raises the toast in phase 14.
     japply m2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Q9 is new: which patterns count?"}]}'
     jrun 14
     read -r -a js <<<"$(unhandled "$j")"
     rapply "$j" "$j/ops/rev-q9.json" '{"ops": [{"op": "revise", "id": "Q9", "rec": "All of them, since the lock file lists none.", "alternatives": ["a:Only the ones in the lock file", "b:Whatever the config names"], "affects": "none", "seq": '"${js[${#js[@]} - 1]}"'}]}' >/dev/null
     jhandle
-    # The revision goes to the log; the asking reply after it raises the notification in phase 15.
     japply m3 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Does that pattern scope work for you?"}]}'
     jrun 15
     # Phase 16 runs after the wrap-up: a new open question, a range in a question's facts, and a
@@ -462,7 +432,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       "recommendation": "Only the jobs on the same runner image.", "commits": ["Shares one cache across jobs"], "alternatives": [{"key": "a", "text": "Every job"}, {"key": "b", "text": "None"}]}},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
-    # A Notes reply after the restatement: the restate notice outranks it in phase 16.
     japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
     # An ordinary Claude note after it must not unpin the question. Notes carry whole-second times,
     # so waiting for the next second to start gives it a later time than n2, as a full second would.
@@ -495,9 +464,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
   }
 
   group_live() {
-    # ui_live runs against a sixth server on the journey's first round. One tab stays open with a note
-    # half typed while the shell applies as Claude: reply with rec, revise, record-terminal, handle-only,
-    # then a revise of only an accepted question's title and short.
     l="$tmp/live"
     mkdir -p "$l/ops"
     cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$l/"
@@ -528,8 +494,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
   }
 
   group_page() {
-    # ui_page runs against a seventh server on its own round: the choices, chips, banners, header
-    # and layout of one question page, with the shell writing as Claude between phases.
     pg="$tmp/page"
     mkdir -p "$pg/ops"
     cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$pg/"
@@ -542,7 +506,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     done
     grun() { run_code "$tmp/up$1.js" "$tmp/up$1.out"; }
     grevn=0
-    grev() { # id json-fields: a revise op affecting none, alternatives kept, forced
+    grev() {
       grevn=$((grevn + 1))
       rapply "$pg" "$pg/ops/rev$grevn.json" '{"ops": [{"op": "revise", "id": "'"$1"'", '"$2"', "affects": "none", "keepAlternatives": true, "force": true}]}' >/dev/null || bad "page: revise $1 refused"
     }
@@ -562,7 +526,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     grun 9
     rapply "$pg" "$pg/ops/t.json" '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview", "short": "Notes owner", "title": "Who writes the release notes?", "recommendation": "The release owner.", "dependsOn": ["Q8"], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}},
     {"op": "record-terminal", "id": "Q9", "decision": "accept"}]}' >/dev/null || bad "page: add and record-terminal refused"
-    # An older terminal record has no rev: strip it, then revise Q9 so only the time orders the two.
     "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
     grev Q9 '"rec": "The release owner, with the support lead."'
     # Phase 10: a Notes reply that asks belongs under Needs you, a plain one in the log.
