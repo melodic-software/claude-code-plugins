@@ -45,7 +45,6 @@
 [[ -n "${_GUARDRAILS_GHPOST_LOADED:-}" ]] && return 0
 _GUARDRAILS_GHPOST_LOADED=1
 
-# A 1 MiB read covers a comment body.
 GHPOST_MAX_READ=1048576
 
 # ghpost::read_to <dest> <path>: the file's first GHPOST_MAX_READ characters;
@@ -292,8 +291,6 @@ ghpost::_literal_operand() {
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 ghpost::segment() {
   local j cmd form=""
-  # What stdin and here-strings feed this segment: read only when it posts,
-  # which is judged after the whole parse, so record them now.
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
     ((${HOOK_SEG_REDIR_OPAQUE[j]:-0})) && continue
     case "${HOOK_SEG_REDIR_OP[j]}" in
@@ -311,8 +308,6 @@ ghpost::segment() {
     hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" ghpost::segment
     return 0
   fi
-  # Step over what stands before the command word: assignments, a reserved
-  # word the tokenizer leaves at a segment head, and launchers with flags.
   while (($#)); do
     case "$1" in
     '{' | '}' | '!' | then | do | else | elif | if | while | until | command | builtin | time | exec | nohup | sudo | doas | env | nice | timeout | --) shift ;;
@@ -352,8 +347,6 @@ ghpost::segment() {
     hook::bash_parse_segments "$*" ghpost::segment
     return 0
     ;;
-  # A file copied, moved or linked into place may be the body a later post
-  # names; its sources are read like `cat` operands.
   cp | mv | ln | install | rsync | tee)
     GHPOST_WTARGETS+=("$cmd")
     for j in "$@"; do
@@ -394,8 +387,6 @@ ghpost::segment() {
   esac
   [[ -n "$form" ]] || return 0
   [[ -n "$GHPOST_POST" ]] || GHPOST_POST="$form"
-  # `attach` is local so a pending `--attach` never reaches the next segment
-  # of a re-entered parse.
   local w rest skip=0 attach=0 prev="" before cap=0
   # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
   local re_sub='(\$\(|`)(cat[[:space:]]+|<[[:space:]]*)([^)`]*)'

@@ -569,7 +569,7 @@ assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit st
 # allow. Now `exit` unwinds the guard, and after a deep exit the rest runs in a
 # forked process; its documents and status still count. The depth a later
 # guard sees is the structural pin; it holds on every platform.
-deep_stub() { # <name> <status>: recurse 100 frames, then exit <status> from the bottom
+deep_stub() {
   stub "$1" 'd() { if (($1)); then d $(($1 - 1)); else exit '"$2"'; fi; }
 d 100'
 }
@@ -765,13 +765,7 @@ for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dan
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
 
-# --- the reference-verify git hook reads every extension the verifiers do -----
-# The three verifiers run at commit time through git-hooks/reference-verify.sh,
-# which hands over only the extensions its own `case "$f"` lists. That list must
-# equal the union of the verifiers' `case "$FILE"` gates: an extension a gate
-# accepts and the list omits is a verifier that silently never runs on it. Both
-# sides are read from the scripts' source rather than a second hand-kept list.
-gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
+gate_exts_of() {
   sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
 }
 git_hook_exts=$(sed -n '/^  case "\$f" in/,/^  esac/p' "$HOOK_DIR/../git-hooks/reference-verify.sh" |
@@ -797,10 +791,7 @@ prime_filters() {
     }
   ' "$1" | sort -u
 }
-guard_reads() { # <guard.sh> -> the literal filters its source hands jq_fields
-  # The call plus its backslash continuations, single-quoted operands only: a
-  # filter built from a variable (`.tool_input.files[$i].path`) names an index
-  # the dispatcher cannot know and is never a candidate for priming.
+guard_reads() {
   awk -v q="'" '
     /^[[:space:]]*#/ { next }
     index($0, "hook::jq_fields \"$INPUT\"") { incall = 1 }
@@ -1166,7 +1157,7 @@ assert_contains "cap row: that one is refused by the count" "$ERR" "$CAP_MSG"
 # bash runs each substitution in an unquoted heredoc body, so every guard on
 # the row judges it as it judges the same text at top level; a quoted body is
 # data (docs/contracts/hook-precision/README.md).
-hd_row() { # <label> <expected rc> <command>
+hd_row() {
   cap_run "$(tool_payload Bash "$3")" "${BASH_ROW_ARGS[@]}"
   assert_exit "heredoc row: $1" "$2" "$RC"
 }

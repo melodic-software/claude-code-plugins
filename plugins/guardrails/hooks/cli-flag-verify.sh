@@ -28,9 +28,6 @@ set -uo pipefail
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
-# Kill switch FIRST, before any library is sourced: a disabled hook must not
-# pay to parse hook-utils.sh to learn it is off. Same predicate as
-# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
 [[ "${CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
 
 # The hook's own directory is derived with parameter expansion rather than
@@ -109,10 +106,6 @@ Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
-# Bundled verifier missing (install corruption, not a consumer-facing
-# prerequisite) — fail open, don't block, but tell the user once per session
-# rather than skip silently (docs/contracts/hook-observability/). The model
-# cannot reinstall a plugin, so it is not told; the path goes to the debug log.
 CFV_SHARED="$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
 if [[ ! -x "$VERIFIER" || ! -f "$CFV_SHARED" ]]; then
   if hook::notice_once "guardrails-cli-flag-verifier" "$INPUT"; then
@@ -177,21 +170,6 @@ is_skipped() {
   return 1
 }
 
-# Emit candidate command fragments (one per line) from the scanned payload
-# content ($SCAN_CONTENT — the changed hunk for Edit, full content for Write).
-#   - Markdown: scan CODE only — inline-code spans (one combined grep, then
-#     strip the delimiting backticks) + fenced code-block bodies. Fenced content
-#     carries no inline backticks, so the inline grep naturally excludes it.
-#   - Shell/PowerShell: every line is code.
-# Fence state is derived from the hunk alone, so a fence-straddling markdown edit
-# can misclassify in EITHER direction (a hunk inside a block whose ``` markers
-# fall outside it reads as prose and is under-scanned; a hunk that opens with a
-# closing ``` can over-scan). The convention trades this whole-file context away
-# for diff-scope precision; this fence-straddling residual is accepted, not
-# reconstructed. A distinct residual — an Edit hunk that is a bare flag fragment
-# with no binary in the changed region — IS recovered downstream by
-# reconstruct_partial_edit, which pulls bounded on-disk context so a swapped-in
-# unknown flag is not missed.
 emit_fragments() {
   if [[ "$IS_MD" == "true" ]]; then
     # Inline-code spans (strip the delimiting backticks).
@@ -212,18 +190,10 @@ emit_fragments() {
   fi
 }
 
-# Split fragments into command segments on shell command separators and
-# command-substitution / subshell boundaries, one segment per line. `$(` is
-# rewritten first so its `(` isn't double-counted by the class below. The split
-# is quote-blind: a separator inside a quoted prompt still cuts it, and a
-# segment that then starts with a known bin is scanned. Accepted residual.
 split_segments() {
   sed -E 's/\$\(/\n/g; s/(\|\||&&|[;|&`()])/\n/g'
 }
 
-# Populate CANDIDATES with "bin|subcmd-chain|flag" keys. The chain is the
-# non-flag tokens between the bin and the first long flag (short options are
-# skipped, not chain-breaking); every long flag in the segment binds to it.
 declare -A CANDIDATES=()
 
 extract_candidates() {
@@ -401,10 +371,6 @@ reconstruct_partial_edit() {
 
 ((HAS_FLAG_SHAPE)) && reconstruct_partial_edit
 
-# Split a "bin|chain|flag" CANDIDATES/FAILURES key into its three parts, plus
-# the finding's display text and the --help command it was checked against.
-# Globals rather than an echo: this runs per candidate and per finding, and a
-# command substitution would add a fork to each one.
 KEY_BIN=""
 KEY_CHAIN=""
 KEY_FLAG=""
