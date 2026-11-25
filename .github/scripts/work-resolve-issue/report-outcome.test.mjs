@@ -1,4 +1,4 @@
-// test-scope: .github/scripts/work-resolve-issue/* .github/scripts/branch-cleanup/* .github/actions/check-born-triaged/check-born-triaged.mjs
+// test-scope: .github/scripts/work-resolve-issue/* .github/scripts/branch-cleanup/* .github/actions/check-born-triaged/check-born-triaged.mjs .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

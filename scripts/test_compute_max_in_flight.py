@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: scripts/compute-max-in-flight.py docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json
+# test-scope: scripts/compute-max-in-flight.py docs/conventions/pr-pipeline.yaml docs/conventions/pr-pipeline/pr-pipeline.schema.json plugins/source-control/.claude-plugin/plugin.json
 """Tests for scripts/compute-max-in-flight.py and the cap's one ceiling."""
 
 from __future__ import annotations

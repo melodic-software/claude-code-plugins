@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/scripts/branch-update-method.sh
 """`branch_update_decision` against the real decision script: the signals it
 builds are ones the script accepts, and the rows it reaches are the ones the
 criteria table names for a head babysit cannot rewrite.

@@ -1,3 +1,5 @@
+// test-scope: plugins/review/lib/config-cascade.mjs plugins/review/lib/review-digest.mjs plugins/review/lib/view-registry.mjs plugins/review/lib/view-settings.mjs
+// test-scope: plugins/review/lib/yaml-subset.awk plugins/review/lib/yaml-subset.mjs plugins/review/schemas/reviewer-media.schema.json
 // /review:reviewer-media: the decision (policy, request label, fork, draft, thresholds, the delta
 // since posted media), the convention read from the base commit, and the completeness check.
 import { strict as assert } from "node:assert";

@@ -1,3 +1,4 @@
+// test-scope: plugins/sql-server/.claude-plugin/plugin.json plugins/sql-server/README.md
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
