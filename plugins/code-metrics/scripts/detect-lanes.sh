@@ -6,7 +6,7 @@ USAGE="$(
   cat <<'EOF'
 Classify files into the plugin's lanes; prints one <lane><TAB><file> line per file.
   detect-lanes.sh [--globs <lane>=<glob>[,<glob>...]]... [--disable <lane>]... [--paths-from <file>] [--] <file>...
-  --globs <lane>=<glob>  add globs to a lane
+  --globs <lane>=<glob>  replace the lane's extension mapping with these globs
   --disable <lane>       turn a lane off
   --paths-from <file>    read the file list from a file, one path per line
 Exit: 0 classified (an empty result is still 0); 2 usage or environment error.

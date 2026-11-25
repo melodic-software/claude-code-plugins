@@ -11,7 +11,7 @@ and print one code-metrics/v2 document.
   --base <ref>               measure the change from the merge-base with <ref>
   --config <resolved.json>   a resolved configuration (default: resolve-config.py)
   --ladder <file.tsv>        collector ladder to walk
-  --lane-globs <lane>=<glob> add globs to a lane
+  --lane-globs <lane>=<glob> replace the lane's extension mapping with these globs
   --disable-lane <lane>      turn a lane off
   --scope-file <file>        read the file list from a file, one path per line
   --print-scope              print the scope as lane<TAB>path rows and stop
