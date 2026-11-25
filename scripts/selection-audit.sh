@@ -231,6 +231,7 @@ cmd_trace() {
   out="$(cd "$out" && pwd -P)"
 
   git ls-files >"$out/tracked"
+  git update-index -q --refresh >/dev/null 2>&1 || true
   fallback_corpus >"$out/fallback" || die "cannot derive the suites pr-require-checks.yml's UNMAPPED fallback runs"
   if ((${#suites[@]} == 0)); then
     mapfile -t suites < <(traceable <"$out/tracked" | grep -v '\.test\.mjs$' | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
