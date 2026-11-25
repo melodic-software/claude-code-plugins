@@ -893,21 +893,17 @@ const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta
 const LISTED = JSON.parse(fixture("compare-paged-1.json"));
 const PAGE_TWO = JSON.parse(fixture("compare-paged-2.json"));
 const DIFF_TEXT = fixture("compare.diff");
-const RENAMED = ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json";
 const DELETED = ".changes/user-interface/chore-comment-sweep-v060-a9938050.md";
-const ADDED = ".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json";
+const ADDED = ".changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md";
+const cutShort = (text, sections) => text.split(/^(?=diff --git )/m).slice(0, -sections).join("");
+const bumped = (text) => text.replace("+bump: patch\n", "+bump: minor\n");
 
 test("diffFiles reads every section of a compare's diff text in the compare file-list shape", () => {
   const files = diffFiles(DIFF_TEXT);
   assert.equal(files.length, 301);
   const named = (name) => files.find((f) => f.filename === name);
-  assert.deepEqual(named(RENAMED), { filename: RENAMED, status: "renamed", previous_filename: ".github/standards/trusted-actors/trusted-actors.json", patch: "", modes: [] });
-  assert.deepEqual(named(ADDED), {
-    filename: ADDED,
-    status: "added",
-    modes: ["new file mode 100644"],
-    patch: '@@ -0,0 +1 @@\n+{"data":{"repository":{"issueTypes":{"nodes":[{"name":"Task","isEnabled":true},{"name":"Bug","isEnabled":true},{"name":"Feature","isEnabled":true}]}}}}',
-  });
+  assert.deepEqual(named(ADDED), { filename: ADDED, status: "added", modes: ["new file mode 100644"], patch: "@@ -0,0 +1,7 @@\n+---\n+bump: patch\n+---" });
+  assert.deepEqual(diffFiles("diff --git a/old.md b/new.md\nsimilarity index 100%\nrename from old.md\nrename to new.md\n"), [{ filename: "new.md", status: "renamed", previous_filename: "old.md", patch: "", modes: [] }]);
   assert.equal(named(DELETED).status, "removed");
   assert.ok(named(DELETED).patch.startsWith("@@ -1,5 +0,0 @@\n----\n-bump: none\n----"), "a removed `---` line stays in the hunk");
 });
@@ -926,17 +922,25 @@ test("a listing at the compare API's 300 files is the same net change only on it
   assert.equal(needsDiff(net(TF)), false);
   assert.equal(sameNetChange(LISTED, LISTED), false, "the listing alone may hide a file");
   assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, DIFF_TEXT]), true);
-  const edited = DIFF_TEXT.replace('+{"data":{"repository":{"issueTypes"', '+{"data":{"repository":{"issueKinds"');
-  assert.notEqual(edited, DIFF_TEXT);
-  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, edited]), false, "one changed line");
+  assert.notEqual(bumped(DIFF_TEXT), DIFF_TEXT);
+  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, bumped(DIFF_TEXT)]), false, "one changed line");
   assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, `${DIFF_TEXT}diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n`]), false, "a file more");
+  const none = { files: [] };
   const modeOnly = (mode) => `diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode ${mode}\n`;
-  assert.equal(sameNetChange(null, null, [modeOnly("100755"), modeOnly("100755")]), true);
-  assert.equal(sameNetChange(null, null, [modeOnly("100755"), modeOnly("120000")]), false, "a mode the listing never reports");
+  assert.equal(sameNetChange(none, none, [modeOnly("100755"), modeOnly("100755")]), true);
+  assert.equal(sameNetChange(none, none, [modeOnly("100755"), modeOnly("120000")]), false, "a mode the listing never reports");
   const binary = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n";
-  assert.equal(sameNetChange(null, null, [binary, binary]), false, "a binary change shows no patch to compare");
-  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [DIFF_TEXT, DIFF_TEXT]), true);
+  assert.equal(sameNetChange(none, none, [binary, binary]), false, "a binary change shows no patch to compare");
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [DIFF_TEXT, DIFF_TEXT], 301), true);
   assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN]), false);
+});
+
+test("two diffs cut short of the pull request's changed files, or of the files their listings name, carry nothing", () => {
+  const one = cutShort(DIFF_TEXT, 1);
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [one, one], 301), false, "300 files against 301 changed");
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [DIFF_TEXT, DIFF_TEXT]), false, "no changed-file count");
+  const two = cutShort(DIFF_TEXT, 2);
+  assert.equal(sameNetChange(LISTED, LISTED, [two, two]), false, "a diff missing a file the listing names");
 });
 
 test("wholeCompare pages the commits past the unpaged 250 and reads the files from the diff past 300", async () => {
@@ -956,6 +960,7 @@ test("wholeCompare pages the commits past the unpaged 250 and reads the files fr
   assert.equal(short.commits.length, 149, "a page short of the total stays short");
   assert.equal(pages.length, 2, "the read stops at a page short of 100");
   await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => "not a diff", "/c/a...b"), /does not parse/);
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => cutShort(DIFF_TEXT, 2), "/c/a...b"), /names fewer files than its listing/);
   const small = { ...PAGE_TWO, total_commits: 50, files: [TF] };
   assert.deepEqual(await wholeCompare(async () => small, async () => assert.fail("a listing under 300 needs no diff"), "/c/a...b"), small);
 });
@@ -1350,7 +1355,7 @@ test("an approval carries over a base merge whose compares list 300 files, judge
   const same = capped({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT });
   assert.deepEqual(await holdsModule.liftersOf(same.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: ["owner-person"] });
   assert.ok(same.reads.includes(`diff /repos/owner/repo/compare/${TIP}...${OLD}`) && same.reads.includes(`diff /repos/owner/repo/compare/${TIP}...${HEAD}`), same.reads.join(" "));
-  const evil = capped({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT.replace('"name":"Bug"', '"name":"Bugs"') });
+  const evil = capped({ [OLD]: DIFF_TEXT, [HEAD]: bumped(DIFF_TEXT) });
   assert.deepEqual(await holdsModule.liftersOf(evil.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a merge that changes one line");
   const short = liftWorld({ compares: { [OLD]: atOld(LISTED.files), [HEAD]: merged(LISTED.files) }, across: {}, changed: 302, diffs: { [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT } });
   assert.deepEqual(await holdsModule.liftersOf(short.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a diff naming fewer files than the pull request changes");

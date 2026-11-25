@@ -1895,11 +1895,13 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
 _FIXTURES = ROOT / ".github/scripts/pr-merge/fixtures"
 _LISTED = json.loads((_FIXTURES / "compare-paged-1.json").read_text(encoding="utf-8"))
 _DIFF = (_FIXTURES / "compare.diff").read_text(encoding="utf-8")
+_CUT = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-2])
 _MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
 _BINARY = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"
 DIFF_CASES = {
     "the same diffs": [_DIFF, _DIFF],
-    "one changed line": [_DIFF, _DIFF.replace('"name":"Bug"', '"name":"Bugs"')],
+    "one changed line": [_DIFF, _DIFF.replace("+bump: patch\n", "+bump: minor\n", 1)],
+    "diffs missing a file the listing names": [_CUT, _CUT],
     "a mode change more": [_DIFF, _DIFF + _MODE_ONLY],
     "a binary file in both": [_DIFF + _BINARY, _DIFF + _BINARY],
     "a quoted path": [_DIFF, _DIFF + 'diff --git "a/\\303\\251" "b/\\303\\251"\n'],
@@ -1911,6 +1913,13 @@ let text = "";
 for await (const chunk of process.stdin) text += chunk;
 const [listed, cases] = JSON.parse(text);
 console.log(JSON.stringify(cases.map((diffs) => [diffFiles(diffs[1]), needsDiff(listed), sameNetChange(listed, listed, diffs)])));
+"""
+NODE_DIFF_CARRY = """
+import { baseMergeCarry } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [[then, now, start, inBase], cases] = JSON.parse(text);
+console.log(JSON.stringify(cases.map(([diff, changed]) => baseMergeCarry(then, now, start, inBase, [diff, diff], changed ?? undefined))));
 """
 
 
@@ -1941,3 +1950,22 @@ class TheDiffNetChangeIsTheGates(unittest.TestCase):
         )
         self.assertFalse(policy.same_net_change(_LISTED, _LISTED), "the listing alone")
         self.assertEqual(len(policy.diff_files(_DIFF) or []), 301)
+        one = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-1])
+        files = _LISTED["files"]
+        args = (_THEN | {"files": files}, {"files": files, **_MERGED}, _OLD, set(_IN_BASE))
+        js = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_DIFF_CARRY % json.dumps(MODULE.as_uri())],
+            input=json.dumps([[args[0], args[1], _OLD, list(_IN_BASE)], [[_DIFF, 301], [one, 301], [_DIFF, None]]]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(
+            [
+                policy.base_merge_carry(*args, [_DIFF, _DIFF], 301),
+                policy.base_merge_carry(*args, [one, one], 301),
+                policy.base_merge_carry(*args, [_DIFF, _DIFF], None),
+            ],
+            json.loads(js.stdout),
+        )
+        self.assertEqual(json.loads(js.stdout), [True, False, False])

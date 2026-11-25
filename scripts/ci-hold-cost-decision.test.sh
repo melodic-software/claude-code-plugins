@@ -531,14 +531,23 @@ export STUB_DIFF_DIR="$TMP_ROOT/diffs"
 mkdir -p "$STUB_DIFF_DIR"
 cp "$FIXTURES/compare.diff" "$STUB_DIFF_DIR/$OLD.diff"
 cp "$STUB_DIFF_DIR/$OLD.diff" "$STUB_DIFF_DIR/$HEAD.diff"
+PR_BEFORE=$STUB_PR
+STUB_PR="$(jq -c '.changed_files = 301' <<<"$STUB_PR")"
+export STUB_PR
 expect "a compare at the 300-file cap carries the decision when both diffs show the same change" yes yes yes
 if grep -qxF "api repos/o/r/compare/$TIP_SHA...$HEAD -H Accept: application/vnd.github.diff" "$TMP_ROOT/log"; then
   ok "the capped compare's diff is read against the base branch's tip commit"
 else
   fail "no diff read: '$(grep compare "$TMP_ROOT/log")'"
 fi
-sed 's/"name":"Bug"/"name":"Bugs"/' "$STUB_DIFF_DIR/$OLD.diff" >"$STUB_DIFF_DIR/$HEAD.diff"
+sed '0,/^+bump: patch$/s//+bump: minor/' "$STUB_DIFF_DIR/$OLD.diff" >"$STUB_DIFF_DIR/$HEAD.diff"
 expect "a compare at the 300-file cap whose diffs differ by one line clears nothing" no no no "covering this head"
+cut_at=$(grep -n '^diff --git ' "$FIXTURES/compare.diff" | tail -n 1 | cut -d: -f1)
+head -n "$((cut_at - 1))" "$FIXTURES/compare.diff" >"$STUB_DIFF_DIR/$OLD.diff"
+cp "$STUB_DIFF_DIR/$OLD.diff" "$STUB_DIFF_DIR/$HEAD.diff"
+expect "two diffs cut short of the pull request's changed files clear nothing" no no no "covering this head"
+STUB_PR=$PR_BEFORE
+export STUB_PR
 unset STUB_DIFF_DIR STUB_LANE_COMPARE
 nets '[{"filename":"a.png","status":"modified"}]' '[{"filename":"a.png","status":"modified"}]'
 expect "a file with no patch carries nothing" no no no "covering this head"

@@ -756,8 +756,12 @@ export function sameNetChange(decided, current, diffs = null) {
     }
     return byName;
   };
-  const [then, now] =
-    Array.isArray(diffs) && diffs.length === 2 ? diffs.map((text) => net(diffFiles(text), false)) : [net(decided?.files, true), net(current?.files, true)];
+  let [then, now] = [net(decided?.files, true), net(current?.files, true)];
+  if (Array.isArray(diffs) && diffs.length === 2) {
+    const parsed = diffs.map(diffFiles);
+    if (!diffCovers(decided, parsed[0]) || !diffCovers(current, parsed[1])) return false;
+    [then, now] = parsed.map((files) => net(files, false));
+  }
   return then !== null && now !== null && then.size === now.size && [...then].every(([name, value]) => now.get(name) === value);
 }
 
@@ -769,6 +773,12 @@ export const needsDiff = (compare) =>
 
 export const DIFF = "application/vnd.github.diff";
 
+export function diffCovers(compare, files) {
+  if (!Array.isArray(files) || !Array.isArray(compare?.files) || files.length < compare.files.length) return false;
+  const byName = new Map(files.map((f) => [f.filename, f]));
+  return compare.files.every((f) => byName.has(f?.filename) && (f.previous_filename ?? null) === (byName.get(f.filename).previous_filename ?? null));
+}
+
 export async function wholeCompare(read, readDiff, path) {
   const whole = { ...(await read(`${path}?per_page=100&page=1`)) };
   if (Array.isArray(whole.commits)) {
@@ -779,8 +789,10 @@ export async function wholeCompare(read, readDiff, path) {
     }
   }
   if (Array.isArray(whole.files) && whole.files.length >= COMPARE_FILES) {
-    whole.files = diffFiles(await readDiff(path));
-    if (whole.files === null) throw new Error(`the diff of ${path} does not parse`);
+    const files = diffFiles(await readDiff(path));
+    if (files === null) throw new Error(`the diff of ${path} does not parse`);
+    if (!diffCovers(whole, files)) throw new Error(`the diff of ${path} names fewer files than its listing`);
+    whole.files = files;
   }
   return whole;
 }
@@ -885,8 +897,9 @@ export function baseMergesOnly(then, now, from, inBase = new Set()) {
 // since is a merge of the base (baseMergesOnly) and the net change is the
 // same over every file (sameNetChange), so a merge that writes any change of
 // its own carries nothing (babysit_merge_policy.base_merge_carry).
-export function baseMergeCarry(then, now, from, inBase = [], diffs = null) {
-  return baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now, diffs);
+export function baseMergeCarry(then, now, from, inBase = [], diffs = null, changed = undefined) {
+  const whole = diffs === null || (Array.isArray(diffs) && Number.isInteger(changed) && diffFiles(diffs[1])?.length === changed);
+  return whole && baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now, diffs);
 }
 
 // Whether the merges brought exactly the base's changes (the owner's decision
@@ -1137,7 +1150,7 @@ async function pages(github, path, key = null) {
 // to its tip commit (baseTip), which the lane-change vet and every compare
 // name, so no tag of the same name stands in for it. No decided head, an
 // unusable base name or a read that fails carries nothing.
-async function carries(github, actions, repo, comment, head, base, branch) {
+async function carries(github, actions, repo, comment, head, base, branch, number) {
   try {
     if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
@@ -1154,7 +1167,8 @@ async function carries(github, actions, repo, comment, head, base, branch) {
     const then = await compare(`${tip}...${decided}`);
     const now = await compare(`${tip}...${head}`);
     const diffs = await capDiffs(github, repo, [`${tip}...${decided}`, `${tip}...${head}`], [then, now]);
-    return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now), diffs);
+    const changed = diffs ? (await github("GET", `/repos/${repo}/pulls/${number}`))?.changed_files : undefined;
+    return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now), diffs, changed);
   } catch {
     return false;
   }
@@ -1252,7 +1266,7 @@ export async function costDecision(github, repo, number, body, humans, head, act
   // comment never stands in for a newer one that lacks either.
   const gaps = decision ? decisionGaps(decision.comment.body) : [];
   missing?.push(...gaps);
-  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
+  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName, number)) ? decision.link : null;
 }
 
 const fetchGitHub = (env) => async (method, path, body, headers = {}) => {

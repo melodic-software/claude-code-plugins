@@ -3942,11 +3942,30 @@ def same_net_change(decided: Any, current: Any, diffs: Any = None) -> bool:
         return by_name
 
     if is_json_array(diffs) and len(diffs) == 2:
-        then, now = (net(diff_files(text), False) for text in diffs)
+        parsed = [diff_files(text) for text in diffs]
+        if not diff_covers(decided, parsed[0]) or not diff_covers(current, parsed[1]):
+            return False
+        then, now = (net(files, False) for files in parsed)
     else:
         then = net(json_object(decided).get("files"), True)
         now = net(json_object(current).get("files"), True)
     return then is not None and now is not None and then == now
+
+
+def diff_covers(compare: Any, files: Any) -> bool:
+    """Whether diff files `files` name at least as many files as the compare
+    answer lists, and every listed file with its previous_filename
+    (merge-holds.mjs `diffCovers`)."""
+    listed = json_object(compare).get("files")
+    if not is_json_array(files) or not is_json_array(listed) or len(files) < len(listed):
+        return False
+    by_name = {f.get("filename"): f for f in files}
+    return all(
+        (name := json_object(f).get("filename")) in by_name
+        and json_object(f).get("previous_filename")
+        == by_name[name].get("previous_filename")
+        for f in listed
+    )
 
 
 # https://docs.github.com/en/rest/commits/commits#compare-two-commits
@@ -4122,6 +4141,7 @@ def base_merge_carry(
     start: str,
     in_base: Collection[str] = frozenset(),
     diffs: Any = None,
+    changed: Any = None,
 ) -> bool:
     """The one base-merge carry (merge-holds.mjs `baseMergeCarry`): whether
     what was decided at head `start` covers the head `now` was read at, from
@@ -4131,8 +4151,14 @@ def base_merge_carry(
     (`base_merges_only`) and the net change is the same over every file
     (`same_net_change`, with `diffs` when a listing caps), so a merge that
     writes any change of its own carries nothing."""
-    return base_merges_only(then, now, start, in_base) and same_net_change(
-        then, now, diffs
+    head = diff_files(diffs[1]) if is_json_array(diffs) and len(diffs) == 2 else None
+    whole = diffs is None or (
+        head is not None and type(changed) is int and len(head) == changed
+    )
+    return (
+        whole
+        and base_merges_only(then, now, start, in_base)
+        and same_net_change(then, now, diffs)
     )
 
 
@@ -4737,7 +4763,7 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
         in_base = base_parents(compare, tip, then, now)
     except PolicyReadError:
         return False
-    return base_merge_carry(then, now, decided, in_base, diffs)
+    return base_merge_carry(then, now, decided, in_base, diffs, pr.get("changed_files"))
 
 
 def cost_decision(

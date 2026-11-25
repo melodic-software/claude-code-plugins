@@ -5423,8 +5423,10 @@ test("main judges a reuse PR on every file past the compare listing's 300, read 
   const clean = await runReuse({ files: listed, diff, resolved: denying("docs/never/**") });
   assert.ok(!holds(clean.body), clean.body);
   assert.equal(clean.calls.filter((c) => c.method === "DIFF").length, 1, JSON.stringify(clean.calls.map((c) => `${c.method} ${c.path}`)));
-  const denied = await runReuse({ files: listed, diff, resolved: denying(".github/scripts/intake-triage/fixtures/intake-issue/issue-types.json") });
+  const denied = await runReuse({ files: listed, diff, resolved: denying("docs/adr/0120-*") });
   assert.ok(holds(denied.body), "a denied path the diff names");
+  const cut = diff.split(/^(?=diff --git )/m).slice(0, -2).join("");
+  assert.ok(holds((await runReuse({ files: listed, diff: cut, resolved: denying("docs/never/**") })).body), "a diff naming fewer files than the listing");
   assert.ok(holds((await runReuse({ files: listed, resolved: denying("docs/never/**") })).body), "a capped listing whose diff does not read");
 });
 
