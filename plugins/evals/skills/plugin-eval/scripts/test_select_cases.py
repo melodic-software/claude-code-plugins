@@ -491,6 +491,45 @@ class SelectCasesTest(unittest.TestCase):
         )
         self.assertEqual("0", blocks["plugins/alpha"]["agent-runs"])
 
+    def _base_with_next_section(self):
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        text = path.read_text(encoding="utf-8") + (
+            "\n## Next\n\n- Done, when available: /alpha:two\n- Stuck: /alpha:three\n"
+            "\n## Gotchas\n\n- Keep it short.\n"
+        )
+        path.write_text(text, encoding="utf-8")
+        _commit_all(self.repo, "add Next section")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        return path
+
+    def test_next_section_edit_is_no_run(self):
+        path = self._base_with_next_section()
+        text = path.read_text(encoding="utf-8").replace(
+            "- Done, when available: /alpha:two\n", "- Done: /alpha:two.\n"
+        )
+        path.write_text(text.replace("- Stuck: /alpha:three\n", ""), encoding="utf-8")
+        _commit_all(self.repo, "trim Next")
+
+        res = _run_select(self.repo)
+        self.assertEqual(0, res.returncode, res.stderr)
+        blocks = _parse_blocks(res.stdout)
+        self.assertNotIn("cases", blocks["plugins/alpha"])
+        self.assertEqual("0", blocks["plugins/alpha"]["agent-runs"])
+
+    def test_edit_outside_next_section_still_cuts(self):
+        path = self._base_with_next_section()
+        text = path.read_text(encoding="utf-8").replace("- Keep it short.\n", "- Keep it long.\n")
+        path.write_text(text.replace("- Stuck: /alpha:three\n", ""), encoding="utf-8")
+        _commit_all(self.repo, "trim Next and reword a gotcha")
+
+        res = _run_select(self.repo)
+        self.assertEqual(0, res.returncode, res.stderr)
+        blocks = _parse_blocks(res.stdout)
+        self.assertEqual(
+            "control-no-fire one-basic one-trigger",
+            blocks["plugins/alpha"]["cases"],
+        )
+
     def test_rewrap_with_an_inserted_word_is_cut(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         text = path.read_text(encoding="utf-8").replace(

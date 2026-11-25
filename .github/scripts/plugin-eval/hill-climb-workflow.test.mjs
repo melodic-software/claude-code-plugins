@@ -144,7 +144,6 @@ test("the model step is read-only, on the evals key alone, and frames what it re
   assert.match(key, /api-key: \$\{\{ secrets\.EVALS_CLAUDE_API_KEY \}\}\n/);
   assert.match(key, /if: steps\.prompt\.outcome == 'success' && steps\.key\.outputs\.present == 'true'\n/);
   assert.doesNotMatch(propose, /CLAUDE_CODE_OAUTH_TOKEN|subscription-token|fallback-token/);
-  // A credit-stopped key skips the key leg, and only a key credit stop uploads its marker.
   assert.match(step(propose, "Check the API key"), /selected: \$\{\{ needs\.check-key-credit\.outputs\.next-leg \}\}/);
   assert.match(step(propose, "Write the key's credit-stop marker"), /'key-credit-stop-EVALS_CLAUDE_API_KEY' && steps\.run-key\.outputs\.handoff-reason == 'credit-stop'/);
   assert.match(jobs(main)["check-key-credit"], /leg: start\n {10}role: evals\n {10}key-job: propose\n/);

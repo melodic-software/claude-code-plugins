@@ -26,56 +26,15 @@ name: PR Check Managed Files Hosted
 # enrolled for local CI routing takes the fleet-routed sibling,
 # components/managed-files-guard/managed-files-guard-fleet.yml, instead.
 
+# No `paths` filter: the action resolves this repository's managed
+# destinations from the manifest at run time and passes in seconds when the
+# pull request's file list (read from the API, no clone) touches none. A
+# filter here would have to list every target's destinations, so any
+# manifest change anywhere would re-sync this file to every target. `types`
+# restates the documented pull_request default.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - .claude/cloud-bootstrap.sh
-      - .claude/rules/pr-body-contract.md
-      - .editorconfig
-      - .editorconfig-checker.json
-      - .gitattributes
-      - .github/ISSUE_TEMPLATE/agent-ready.yml
-      - .github/ISSUE_TEMPLATE/bug-report.yml
-      - .github/ISSUE_TEMPLATE/feature-request.yml
-      - .github/ISSUE_TEMPLATE/task.yml
-      - .github/PULL_REQUEST_TEMPLATE.md
-      - .github/actionlint.yaml
-      - .github/standards/dependabot-policy/policy.json
-      - .github/standards/issue-body-contract/contract.json
-      - .github/standards/pyright/pyrightconfig.json
-      - .github/workflows/maintenance-check-links-online.yml
-      - .github/workflows/pr-automerge-dependabot-hosted.yml
-      - .github/workflows/pr-check-managed-files-hosted.yml
-      - .github/workflows/pr-review-hosted.yml
-      - .github/workflows/pr-review-security-hosted.yml
-      - .gitleaks.toml
-      - .golangci.yml
-      - .lefthook/base.yml
-      - .lefthook/dotnet-format-staged.mjs
-      - .lefthook/dotnet.yml
-      - .markdownlint-cli2.jsonc
-      - .node-version
-      - .shellcheckrc
-      - REVIEW.md
-      - _typos.toml
-      - docs/contracts/issue-body/contract.json
-      - docs/conventions/source-control/commit-convention.yml
-      - docs/standards/README.md
-      - docs/standards/bulk-mutation.md
-      - docs/standards/concise-prose.md
-      - docs/standards/configuration-switch-naming.md
-      - docs/standards/design-for-change.md
-      - docs/standards/deterministic-work-execution.md
-      - docs/standards/documentation-and-citations.md
-      - docs/standards/filing-prs-and-issues.md
-      - docs/standards/issue-tracker.md
-      - docs/standards/reference-dont-duplicate.md
-      - docs/standards/simpler-code.md
-      - docs/standards/source-authority-tiers.md
-      - eng/dotnet-analysis/Directory.Build.props
-      - eng/dotnet-analysis/dotnet.globalconfig
-      - plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 
 permissions:
   contents: read

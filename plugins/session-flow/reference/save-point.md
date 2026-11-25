@@ -141,6 +141,14 @@ remaining-work bullet carries the inherited status; a bullet that folds in an in
 "blocked" without `UNVERIFIED (<source>)` reproduces the exact failure this rule exists to prevent,
 with no file left behind for a later review to catch it in.
 
+**Write history, not the present.** A claim about code or state that a save-point keeps (the
+resumption brief, Observations, Decisions in force, a cumulative entry) carries, in its own text,
+the date it was true and, for code, the commit it was true at: `2026-11-24: …`, `as of
+owner/repo@<sha>, …`. Never a bare "currently", "now" or "is" about code or state: entries are
+carried across hops, and an undated present tense reads as true on every later one. When a fact
+changes, write a new dated claim and supersede the old one through its section's own mechanism (a
+`Superseded:` line or the `retire` list, structure doc), never by editing it.
+
 ## Original goal, mandatory on both paths
 
 The goal in the user's own words travels with every save-point, and a chain of them carries it

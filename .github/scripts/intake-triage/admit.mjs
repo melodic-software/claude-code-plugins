@@ -230,14 +230,10 @@ export const CONFIRMED = "status: confirmed";
 // Opens the refinement line that records the work's external state
 // (refine.mjs externalLine).
 export const EXTERNAL_STATE = "External state: ";
-// Refuse-labels that hold for a person; any other listed label is mechanical.
 const PERSON_LABELS = new Set(["needs-owner-decision", "do-not-merge"]);
 // The provenance label that holds an issue for a person (owner Q85, #9668);
 // any of UNTRUSTED_LABELS on an issue holds it the same way.
 export const UNTRUSTED = UNTRUSTED_LABEL;
-// A parent's labels that hold its children, except on a spec container, which
-// /work-items:decompose always marks human-gated: a parent carrying one of
-// the rules' `parent-container-labels`.
 const PARENT_HOLDS = new Set(["needs-human"]);
 // A body line opening with `Hold:`, as the merge gate reads one in a pull
 // request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
@@ -545,30 +541,14 @@ const workSections = (prose, text, workHeadings) => {
   return { known, lines };
 };
 
-// What the issue will do, not background text (owner decision 2026-10-31
-// Q1): a charge word counts in every clause but one that only lowers or
-// removes the charge (LOWERING) and does not also take one on (CHARGING), such
-// as "shorten their retention" or "set a retention policy". An unlisted verb
-// still counts, so the cost hold fails closed. A clause that lowers a guard on
-// spend (SAFEGUARD), or names a charge it moves to (TOWARD), still counts.
 const LOWERING =
   /\b(?:shorten\w*|reduc\w*|lower\w*|drop\w*|remov\w*|delete[sd]?|deleting|disable[sd]?|disabling|(?:cut|cuts|cutting)(?! over)|bound|bounds|bounded|bounding|trim\w*|turn(?:s|ed|ing)? off|cancel\w*|retir\w*|set(?:s|ting)? (?:an? |the )(?:[\w-]+ ){0,2}polic(?:y|ies))\b/i;
 const CHARGING =
   /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increase[sd]?|increasing|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|runs?|running|bump\w*|doubl\w*|expand\w*|spin(?:s|ning)? up|spun up|allocate[sd]?|allocating|allocations?|configure[sd]?|configuring|keep|keeps|keeping|kept|sign(?:s|ed|ing)? up|opt(?:s|ed|ing)? in|set(?:s|ting)?(?! (?:an? |the )(?:[\w-]+ ){0,2}polic))\b/i;
-// A billing account admission reads as a charge beside the shared words, in
-// every clause the cost words count in.
 const ADMIT_CHARGES = /\bazure\b/gi;
-// Another billing account reads as a charge only in a clause that takes
-// something on (CHARGING): work often names these without paying them.
-// A name counts unless it opens a compound that is no account: `openai/codex`,
-// `aws-sdk`. A verb inside a compound still is the verb (`auto-deploy`), but
-// `deployment` is a noun.
 const ACCOUNT_CHARGES = /\b(?:aws|gcp|google cloud|openai|openrouter|bedrock)\b(?![-/](?:sdk|cli|compatible|codex)\b)/gi;
 const accountsTakenOn = (clause) => (CHARGING.test(clause.replace(/[-/]/g, " ").replace(/\bdeployments?\b/gi, "")) ? [...clause.matchAll(ACCOUNT_CHARGES)].map((m) => m[0].toLowerCase()) : []);
 const SAFEGUARD = /\b(?:spend(?:ing)?[- ](?:limits?|caps?)|caps?|budgets?|quotas?)\b/i;
-// The charge a clause that lowers or raises a guard on money (SPEND_LIMIT)
-// reads as when it names no cost word: changing one is the owner's call either
-// way. A lane's verify, round, turn or API cap is not one.
 const SPEND_GUARD = "a spend guard";
 const SPEND_LIMIT = /\b(?:spend(?:ing)?|billing|costs?|budget|dollar)[- ](?:limits?|caps?|budgets?|quotas?)\b|\b(?:limits?|caps?|budgets?|quotas?) (?:on|for) (?:spend\w*|billing|costs?)\b|\$\s?\d/i;
 const TOWARD = /\b(?:for|with|in favou?r of|instead of|in place of|over to)\b/i;
@@ -608,8 +588,6 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
   const read = (text) => withoutCode(text, charges.code);
   const prose = read(body);
   const lines = prose.split("\n");
-  // An item's extent comes from `body`: a line of code alone blanks to
-  // nothing, which would end the item. Its words come from outside code.
   const items = taskItems(body, taskList).map(({ line, more }) => [line, ...more].map((index) => lines[index]).join(" "));
   const sections = workSections(prose, body, charges.workHeadings);
   const whole = !sections.known && !hasTaskLine(prose, taskList);
@@ -732,8 +710,6 @@ export function unrunnableReason({ items, found }) {
   return `its done-when asks for what an unattended lane run cannot perform: ${list}; ${split}`;
 }
 
-// Whether the newest `labeled` or `unlabeled` event of `label` in `events` is
-// a removal by an actor `trusted(actor)` does not accept. Pure.
 const removedByUntrusted = (events, label, trusted) => {
   const newest = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === label).at(-1);
   return newest?.event === "unlabeled" && !trusted(newest.actor);
@@ -803,7 +779,6 @@ export function addedByTrusted(events, label, humans, appId) {
 // The stop report-outcome routes to intake when the scan job refused a run's
 // patch for its size (stop-routes.json).
 export const PATCH_CAP_STOP = "scan-refused-patch";
-// report-outcome's intake marker line (stopPlan).
 const INTAKE_OUTCOME = /^<!-- work-resolve-issue outcome=intake(?: [a-z]+=\S+)* -->$/;
 
 // Whether the lanes App's report-outcome comment routed a PATCH_CAP_STOP to
@@ -822,8 +797,6 @@ export function patchCapStopped(comments, events, humans, appId) {
   });
 }
 
-// A deferred issue's labels that refuse its re-admission whatever the rules
-// say: a person's hold.
 const DEFERRAL_HOLDS = ["do-not-merge", "needs-human"];
 // The security area: a deferral judged the issue without it when it was added later.
 export const SECURITY_AREA = "area: security";
@@ -908,8 +881,6 @@ export function removalStands(events, isRemoval, isMark = () => true, isReMark =
   return !events.some((event, index) => isReMark(event) && isMark(event) && before(events, newest, index));
 }
 
-// The holds a lane stop adds beside its agent-ready removal. Lifting one
-// releases the issue, and no `status: ready` add follows a lift.
 const STOP_HOLDS = ["needs-human", ...DECISION_LABELS];
 
 // Why admission leaves an issue alone whatever its verdict, or null: its
@@ -980,16 +951,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const taskList = rules["task-list"];
 
   const refuse = [];
-  // Refusals a host or builder session takes (stop-routes.json routes the
-  // run's own patch-protected-path stop to host-run the same way).
   const hostWork = new Set();
   const holdCodes = new Set();
   const holdFor = (code) => holdCodes.add(code);
-  // A trusted size-split sub-issue never splits again, so Size Large neither
-  // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
-  // A trusted drift issue is never split either: its spec is one fixed
-  // template for one upstream's pages, which no split partitions, and the
-  // issue lane runs it at split-child-size (check-blockers.mjs).
   const splitChild = splitChildBody(spec, humans, taskList) !== null;
   const drift = issue.user?.id === ACTIONS_BOT_ID && driftIssueId(spec) !== null;
   const unsplit = splitChild || drift;
@@ -1023,8 +987,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!underParent && !rules.types.includes(type) && !rules["types-parent-if-present"].includes(type)) {
     refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"], ...rules["types-parent-if-present"]].join(", ")}`);
   } else if (underParent || (rules["types-parent-if-present"].includes(type) && parent !== null)) {
-    // An App-set needs-decision with no open decision does not hold
-    // (parentDecisionOpen); a parent read without that fact holds.
     const containerLabels = rules["parent-container-labels"] ?? [];
     const container = parent !== null && names(parent.labels).some((label) => containerLabels.includes(label));
     const held = (label) => (PARENT_HOLDS.has(label) && !container) || (DECISION_LABELS.includes(label) && parent.decisionOpen !== false);
@@ -1043,12 +1005,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(`it carries ${OUTSIDE_ACTOR_LABEL}, which a person lifts`);
     holdFor("security");
   }
-  // Reasons the owner already settled without a person: they park the issue
-  // at status: ready (a wait with no pull request), never needs-decision.
   const parked = [];
   const openSubs = subIssues.filter((item) => item?.state !== "closed");
-  // An issue whose run's patch was over the scan job's cap splits as Size
-  // Large does, at whatever admitted Size it was triaged (patchCapStopped).
   const size = verdict.dimensions?.size;
   const overCap = rules.sizes.includes(size) && patchCapStopped(comments, events, humans, appId);
   if (ownAgent && (size === "large" || (rules.sizes.includes(size) && !OWN_AGENT_SIZES.includes(size)))) {
@@ -1058,20 +1016,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(OWN_AGENT_PATCH_CAP);
     holdFor("intent");
   } else if ((size === "large" || overCap) && !rules.sizes.includes("large")) {
-    // An issue with sub-issues is split already (by intake or by hand): while
-    // one is open it waits on them below, and once all are closed it is
-    // refused, so it never parks as split pending every sweep. A finished
-    // parent (`finished`, finishedParent) is neither: the lane's one run
-    // checks its own done-when and builds nothing, so Size does not bound it.
     if (!((issue.sub_issues_summary?.total ?? 0) > 0)) {
       parked.push(size === "large" ? SIZE_SPLIT_PENDING : PATCH_SPLIT_PENDING);
     } else if (openSubs.length === 0 && !finished) {
       refuse.push(SIZE_SPLIT_DONE);
     }
   } else if (overCap && unsplit) {
-    // A sub-issue never splits again, nor does a drift issue, so the same work
-    // would only stop at the same cap: it parks for a builder instead of
-    // re-admitting unchanged.
     const reason = splitChild ? PATCH_SPLIT_CHILD : PATCH_DRIFT;
     refuse.push(reason);
     hostWork.add(reason);
@@ -1081,8 +1031,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  // Each field no one set refuses once above; `unsetOnly` tells a caller a
-  // refusal is for those alone, not for a set value or any other reason.
   const unset = ["size", "uncertainty"].filter((name) => verdict.dimensions?.[name] === "unset");
   // pr-verify judges a lane PR only against text a listed human wrote and
   // the refinement on their issue, so the criteria count only there, and it
@@ -1091,9 +1039,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  // The body's checks a person runs (personChecks) leave the checks below.
-  // personChecks counts a refinement only on a body a listed human wrote, so
-  // that body is the first trusted text.
   const ownSpec = ownAgent ? ownIds : undefined;
   const texts = trustedSpecTexts(spec, humans, appId, taskList, ownSpec);
   const moved = personChecks(spec, humans, appId, taskList, webHosts);
@@ -1105,16 +1050,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   const criteria = unrunnableCriteria(texts.join("\n"), taskList, webHosts);
   const unrunnable = unrunnableReason(criteria);
-  // An issue a listed human or the App put in the host queue parks at
-  // status: confirmed. A paid eval names a billing account and can bill the
-  // owner, an owner stop reason (docs/contracts/loop-lane/README.md), so it
-  // holds for a person; a model eval run spends only usage and credits that
-  // stop at a limit, so it is host work. Some items left for the lane is a
-  // split no person answers (stop reason `none`): it parks at status:
-  // confirmed, where refine.mjs splits those items off in the intake run
-  // whose lane comment it reads. With no such verdict (a sweep's admission),
-  // a split that is the one refusal sets `triage`: it parks at needs-triage,
-  // so the triage sweep runs intake, whose admission parks it for that split.
   const paid = criteria.found.some(({ kind }) => kind === PAID_EVAL);
   const queued = labels.includes(HOST_RUN) && addedByTrusted(events, HOST_RUN, humans, appId);
   const queue = unrunnable !== null && !queued && !paid;
@@ -1125,9 +1060,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     if (paid) holdFor("cost");
     if (hostRun) hostWork.add(unrunnable);
   }
-  // A metered or renewing charge needs the owner's decision, whatever the
-  // verdict flagged. A word an edit moved into code leaves this read, so that
-  // edit needs the same decision; a history that fails to read does not.
   const charged = workCharges(issue, charges, isPublic, taskList);
   if (charged.length > 0) {
     refuse.push(`its title or stated work names a charge (${charged.join(", ")}), which needs an owner decision`);
@@ -1148,8 +1080,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       refuse.push("its body was edited after the triage verdict, which judged the body as it stood before");
     }
   }
-  // A manual external step needs the owner present: refused with no person's
-  // decision, so it parks at status: confirmed, and admit() adds `attended`.
   let attended = false;
   if (!labels.includes(ATTENDED) && attendedHold(events, humans)) {
     refuse.push(`the newest removal of ${ATTENDED} was not a listed human's, so its hold stands`);
@@ -1166,8 +1096,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       if (PERSON_LABELS.has(label)) holdFor("intent");
     }
   }
-  // The sweep re-admits a deferred issue on no fresh verdict, so what changed
-  // since its deferral refuses, whatever the rules say (deferralLapsed).
   if (verdict.writtenAt === undefined && labels.includes(DEFERRED)) {
     for (const lapsed of deferralLapsed({ labels, events, editedAt: spec?.lastEditedAt, humans, appId })) {
       if (!refuse.includes(lapsed.reason)) {
@@ -1180,10 +1108,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (confirm) {
     refuse.push(confirm);
   }
-  // A merged Refs pull request since the newest decision or refinement may
-  // have done the work, so an agent checks it before a lane run repeats it;
-  // like any refusal no person must answer, it parks at status: confirmed. A
-  // finished parent's run is that check (verified-done).
   if (doneBy.length > 0 && !finished) {
     refuse.push(doneReason(doneBy));
   }
@@ -1219,19 +1143,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       wait.push(sourceCapWait(source, older, cap));
     }
   }
-  // A split issue's work is its sub-issues' (owner Q93): while one is open the
-  // parent waits, so a mechanical refusal or a pending split never loops it.
-  // A refusal that holds for a person still refuses first.
   for (const child of openSubs) {
     wait.push(subIssueWait(child.number));
   }
   if (!hold && openSubs.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
   }
-  // On a triage verdict whose only obstacle is the criteria, intake's
-  // refinement (refineDue) may supply them, so the issue waits at status:
-  // ready, and refine.mjs asks triage again once its refinement holds them.
-  // The criteria gate itself stands: only the refusal becomes a wait.
   const criteriaOnly = refuse.length === 1 && refuse[0] === noTrustedSpec(taskList);
   if (criteriaOnly && !hold && parked.length === 0 && wait.length === 0 && verdict.writtenAt !== undefined && !labels.includes("needs-human") && refineDue(spec, humans, appId, taskList)) {
     return { verdict: "wait", reasons: [`${refuse[0]}; intake's refinement of this body is due and may supply them`], pulls: [] };
@@ -1240,9 +1157,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: refuse, pulls: [], retriage: [] };
   }
   if (refuse.length > 0) {
-    // host-run queues the issue for a host or builder session, so it goes
-    // only on an issue whose every refusal is such work (hostWork): never
-    // beside a hold for a person, another refusal, a wait or a pending split.
     return {
       verdict: "refuse",
       reasons: refuse,
@@ -1352,8 +1266,6 @@ export async function trustedElsewhere(github, blocker, humans) {
 // either way) is the lanes App's; never for an unknown id or App.
 export const isAppId = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
 
-// Whether a REST actor is the lanes App (`appId`, compared strictly); never
-// for an unknown App.
 const appActor = (appId) => (actor) => appId !== undefined && actor?.id === appId;
 
 // The lanes App's own earlier verdict comment, if any.
@@ -1448,7 +1360,6 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
 // The lanes App's one admission comment (../lib/admission-comment.mjs).
 export const sayWhy = (github, repository, base, comments, text) => writeWhy(github, repository, base, comments, text, LANES_APP_LOGIN);
 
-// refine.mjs isThin's task-list prefix.
 const REFINE_TASK = "- [ ] ";
 
 // Whether intake's refinement run follows this triage of `spec` and its
@@ -1554,8 +1465,6 @@ export function webHostsFrom(text) {
   throw new Error("ISSUE_LANE_WEB_HOSTS is neither \"any\" nor a list of host names");
 }
 
-// A task-list line read as taskItems reads one; in a code fence it renders as
-// code, not as a criterion.
 const hasTaskLine = (text, taskList) => {
   const lines = String(text ?? "").split("\n");
   const blocks = fenceBlocks(lines);
@@ -1707,24 +1616,17 @@ export async function admissionFacts({ github, repository, number, issue, rules,
       }
     }
   }
-  // A throw here stops the caller before decide(), so nothing is written.
   const spec = await specOf(github, repository, number);
   const child = isApp(issue.user) && String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER);
   const typed = [...rules["types-under-parent"], ...rules["types-parent-if-present"]].includes(issue.type?.name);
   const parent = child || typed ? await parentOf(github, base) : null;
-  // A size split's sub-issue counts as its parent's text (splitChildBody).
   if (child) {
     spec.splitParent = await splitParentOf(github, repository, parent, appId);
   }
-  // A needs-decision only the field adds has no decisionOpen read, so it holds.
   const parentHolds = statusOf && typed && parent !== null && here(parent.repository_url, repository) ? await statusOf(parent.number, names(parent.labels)) : undefined;
-  // After parentHolds, so its events reuse that field read.
   const parentEvents = parentHolds && (() => statusOf.events(parent.number));
   const decisionOpen =
     typed && parent !== null && carried(names(parent.labels), DECISION_LABELS) ? await parentDecisionOpen({ github, repository, parent, humans, appId, events: parentEvents }) : undefined;
-  // Only a visibility that reads public skips the cost_private charge words.
-  // A failed read throws, like the reads above, so no verdict rests on a
-  // visibility it did not read (docs/conventions/pr-pipeline/README.md#outage-posture, element 4).
   const isPublic = (await github("GET", `/repos/${repository}`))?.visibility === "public";
   const subIssues = await openSubIssues(github, base, issue);
   const sources = sourceLabels(issue.labels);
@@ -1736,7 +1638,6 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     sourceOpen,
     issue,
     ...(statusOf && { holdLabels: await readyWhileDeferred(await writtenLabels({ statusOf, number: Number(number), names: names(issue.labels), wrote, sleep }), names(issue.labels)) }),
-    // After holdLabels, so it reuses that field read.
     ...(statusOf?.state && { fieldState: await statusOf.state(Number(number)) }),
     comments: await paginate(github, `${base}/comments`),
     spec,
@@ -1782,8 +1683,6 @@ export async function deferredAhead(github, repository, issue, listing, pullsFor
   }
   try {
     const deferred = await listing.issues(["deferred"]);
-    // An older issue the listing holds (`held`, Work status mid-write) could
-    // be deferred: it counts as one ahead, as an unreadable answer does.
     if ((deferred.held ?? []).some((item) => Number(item.number) !== Number(issue.number) && !(Date.parse(item.created_at) >= created))) {
       return true;
     }
@@ -1829,9 +1728,6 @@ export async function admissionsSince(github, repository, since, listing) {
       listed.add(item.number);
     }
   }
-  // An issue the listing holds (`held`, Work status mid-write) may be a
-  // racing admission: it counts as entered with its add not read (at null),
-  // so it takes room rather than undercount.
   const entered = (found.held ?? []).filter((item) => Number.isSafeInteger(item?.number) && !listed.has(item.number)).map((item) => ({ number: item.number, at: null }));
   for (const number of listed) {
     const adds = (await listing.events(number)).filter((event) => event?.event === "labeled" && [AGENT_READY, DEFERRED].includes(event.label?.name));
@@ -1881,8 +1777,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
   // would name the lanes App as the setter of a person's hold, or read as a
   // fresh status: ready that lifts an agent-ready removal (admissionSettled).
   const lower = names(facts.holdLabels ?? issue.labels);
-  // A state that is no hold is written only over no hold a person set since
-  // the read (write-status.mjs keepHold); `held` ends admission there.
   const move = (state) => setStatus(number, state, { keepHold: true });
   const write = (state, label) => (lower.includes(label) ? undefined : state === "needs-owner-decision" ? setStatus(number, state) : move(state));
   const held = (result) => {
@@ -1898,9 +1792,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "skipped", reasons: decision.reasons };
   }
   if (decision.verdict === "refuse") {
-    // A hold parks at needs-owner-decision; any other refusal parks at
-    // confirmed, which the triage sweep skips: an agent fixes the reason and
-    // dispatches intake again.
     const parked = decision.hold ? NEEDS_DECISION : CONFIRMED;
     const stop = held(await write(decision.hold ? "needs-owner-decision" : "confirmed", parked));
     if (stop) {
@@ -1910,8 +1801,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
     if (marks.length > 0) {
       await github("POST", `${base}/labels`, { labels: marks });
     }
-    // A hold names its owner reason (../lib/stop-reason.mjs); a parked
-    // refusal hands nothing to a person, so it carries no marker.
     await sayWhy(github, repository, base, comments, decision.hold ? heldRefusalText(reasons, decision.reason) : refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
     return { outcome: "refused", reasons: decision.reasons, status: parked };
@@ -1928,8 +1817,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "retriage", reasons: decision.reasons };
   }
   if (decision.verdict === "wait") {
-    // A wait with no open pull request leaves the issue at ready, off deferred,
-    // so the sweep does not admit it.
     const stop = held(decision.pulls.length > 0 ? await write("deferred", DEFERRED) : lower.includes(DEFERRED) ? await move("ready") : undefined);
     if (stop) {
       return stop;
@@ -1948,8 +1835,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
   const record = () => writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
   const checkedAt = Date.now();
   const s = await status();
-  // A queued count check-wip-cap could not read (fail-open) admits nothing,
-  // as an incomplete search answer admits nothing.
   const unread = s.admission_basis === "fail-open";
   const full = s.paused || unread || !s.admission_open || (s.admission_room ?? 1) <= 0;
   if (full || (await deferredAhead(github, repository, issue, listing))) {
@@ -1968,11 +1853,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }
-  // Runs for other issues may have read the same room: the issue claims its
-  // place with a fresh change of its Work status to deferred, which a later
-  // claimant reads ahead of its own, and keeps the claim unless fewer than the
-  // room count are ahead of it (admissionsAhead). A field that already reads
-  // deferred is set to ready first, so the claim is a new change.
   await record();
   const capped = Number.isFinite(s.admission_room);
   if (capped) {
@@ -1994,8 +1874,6 @@ export async function admit({ github, repository, number, verdict, rules, humans
       return { outcome: "deferred", reasons: [why] };
     }
   }
-  // The record was posted before the claim; the agent-ready field write starts
-  // the run, and a person's hold set since the claim stops it.
   const stop = held(await move(AGENT_READY));
   if (stop) {
     return stop;

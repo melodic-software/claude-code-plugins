@@ -288,7 +288,7 @@ assert_exit "relative root '.' inside a repo: outside write scanned → exit 2" 
 
 # A directory link to home names home under another path. Linux CI makes a
 # symlink; a Windows host makes a junction (a plain `ln -s` there copies).
-make_dir_link() { # <target> <link> -> 0 when <link> is a real directory link
+make_dir_link() {
   if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
     command -v cmd >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1 || return 1
     MSYS_NO_PATHCONV=1 cmd /c mklink /J "$(cygpath -w "$2")" "$(cygpath -w "$1")" >/dev/null 2>&1
@@ -746,7 +746,7 @@ d1_seam_rc() {
 # own resolver: under a forced Linux OSTYPE the library resolves with `cd -P`,
 # which on Git Bash follows the /tmp mount to a capitalized Windows path, so the
 # cases only run where that resolver spells each seam dir as given.
-d1_seam_self() { # <dir> -> 0 when the Linux resolver spells <dir> as given; answer left in D1_SEAM_GOT
+d1_seam_self() {
   # shellcheck disable=SC2016  # the child shell's expansions are literal source text
   D1_SEAM_GOT=$(bash -c 'OSTYPE=linux-gnu; source "$1/hook-utils.sh"; hook::physical_path_to p "$2" && printf %s "$p"' _ "$HOOK_DIR" "$1" 2>/dev/null)
   [[ "$D1_SEAM_GOT" == "$1" ]]
