@@ -3,6 +3,17 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-11-25
+
+### Changed
+
+- The `codex` skill now says that a write run cannot `git add` or `git commit`, because Codex's
+  sandbox keeps the Git directory read-only, including a linked worktree's. The caller stages and
+  commits after the run. Tasks that run `uv` should set `UV_CACHE_DIR` under the temp directory.
+  The skill also explains why a run whose only refusals were worked-around cache writes is still
+  recorded `blocked-by-mode`. It also states plainly that `--add-dir` is only for directories the
+  task writes outside both the worktree and the temp directories, which the sandbox already allows.
+
 ## [0.8.0] - 2026-11-24
 
 ### Added
