@@ -11898,6 +11898,169 @@ class BaseTipsRemembered(unittest.TestCase):
         self.assertEqual(self.reads(), 3)
 
 
+class ListedBaseTip(unittest.TestCase):
+    """`base_tip` lists the branch with one unauthenticated `git ls-remote`
+    of github.com first, by pr-require-checks.yml's ls-remote rule (one
+    refs/heads/<base> line of 40 hex, no tag of the same name); anything else
+    reads `git/ref/heads/<base>` over REST as before."""
+
+    OTHER = "b" * 40
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Real `git ls-remote` listings of a throwaway repository: main
+        alone, then beside a branch whose name ends in refs/heads/main and an
+        annotated tag named main."""
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        src = pathlib.Path(tmp.name) / "src"
+        cls.git(pathlib.Path(tmp.name), "init", "-q", "-b", "main", str(src))
+        cls.git(src, "commit", "-q", "--allow-empty", "-m", "one")
+        cls.sha = cls.git(src, "rev-parse", "HEAD")
+        cls.only_main = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.none_listed = cls.listing(src, "refs/heads/trunk", "refs/tags/trunk")
+        cls.git(src, "branch", "main-next")
+        cls.near_name = cls.listing(src, "refs/heads/main-next")
+        cls.git(src, "branch", "x/refs/heads/main")
+        cls.tail_match = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.git(src, "branch", "-D", "x/refs/heads/main")
+        cls.git(src, "tag", "-a", "main", "-m", "tag")
+        cls.tagged = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.peeled = cls.only_main + "".join(
+            f"{line}\n"
+            for line in subprocess.run(
+                ["git", "ls-remote", "--tags", str(src)],
+                check=True, capture_output=True, text=True,
+            ).stdout.splitlines()
+            if line.endswith("^{}")
+        )  # fmt: skip
+
+    @staticmethod
+    def git(root: pathlib.Path, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+
+    @staticmethod
+    def listing(src: pathlib.Path, *patterns: str) -> str:
+        return subprocess.run(
+            ["git", "ls-remote", str(src), *patterns],
+            check=True, capture_output=True, text=True,
+        ).stdout  # fmt: skip
+
+    def setUp(self) -> None:
+        self.gh = GhFake().install(self)
+        self.endpoint = f"repos/{REPO}/git/ref/heads/main"
+        self.gh.rest[self.endpoint] = {"object": {"sha": self.OTHER}}
+        self.enterContext(mock.patch.dict(os.environ, {"GH_HOST": "github.com"}))
+        self.runs: list[tuple[list[str], dict[str, Any]]] = []
+        self.answer: Any = subprocess.CompletedProcess([], 0, self.only_main, "")
+
+    def test_the_fixtures_are_the_listings_they_name(self) -> None:
+        self.assertEqual(self.only_main, f"{self.sha}\trefs/heads/main\n")
+        self.assertEqual(self.none_listed, "")
+        self.assertEqual(len(self.tail_match.splitlines()), 2)
+        self.assertEqual(
+            sorted(line.split("\t")[1] for line in self.tagged.splitlines()),
+            ["refs/heads/main", "refs/tags/main"],
+        )
+        self.assertEqual(
+            [line.split("\t")[1] for line in self.peeled.splitlines()],
+            ["refs/heads/main", "refs/tags/main^{}"],
+        )
+
+    def test_a_branch_whose_name_ends_in_the_base_does_not_hide_it(self) -> None:
+        self.answer = subprocess.CompletedProcess([], 0, self.tail_match, "")
+        self.assertEqual(self.tip(), self.sha)
+        self.assertEqual(self.reads(), 0)
+
+    def run_git(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        self.runs.append((argv, kwargs))
+        if isinstance(self.answer, BaseException):
+            raise self.answer
+        return self.answer
+
+    def tip(self, base: str = "main") -> str:
+        with mock.patch.object(policy, "run_command", self.run_git):
+            return policy.base_tip("owner", "repo", base)
+
+    def reads(self) -> int:
+        return self.gh.calls.count(["api", self.endpoint])
+
+    def test_a_listed_tip_answers_with_no_rest_read(self) -> None:
+        self.assertEqual(self.tip(), self.sha)
+        self.assertEqual(self.reads(), 0)
+        [(argv, kwargs)] = self.runs
+        self.assertEqual(
+            argv,
+            ["git", "-c", "credential.helper=", "ls-remote", f"https://github.com/{REPO}"]
+            + ["refs/heads/main", "refs/tags/main"],
+        )
+        self.assertEqual(kwargs["allowed_executables"], ("git",))
+        self.assertEqual(kwargs["env_overrides"], {"GIT_TERMINAL_PROMPT": "0"})
+        self.assertFalse(kwargs["check"])
+        self.assertGreater(kwargs["timeout_seconds"], 0)
+
+    def test_a_failed_listing_reads_over_rest(self) -> None:
+        for answer in (
+            subprocess.CompletedProcess([], 128, "", "fatal: could not read Username"),
+            RuntimeError("git ls-remote timed out after 30s"),
+            RuntimeError("git executable not found on PATH"),
+            OSError("exec format error"),
+        ):
+            with self.subTest(answer=answer):
+                self.answer = answer
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 4)
+
+    def test_a_listing_with_no_single_hex_head_reads_over_rest(self) -> None:
+        sha = self.sha
+        for stdout in (
+            self.none_listed,
+            self.near_name,
+            self.only_main + self.only_main.replace(sha, self.OTHER),
+            self.only_main.replace(sha, sha.upper()),
+            self.only_main.replace(sha, sha[:39]),
+        ):
+            with self.subTest(stdout=stdout):
+                self.answer = subprocess.CompletedProcess([], 0, stdout, "")
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 5)
+
+    def test_a_tag_named_like_the_branch_reads_over_rest(self) -> None:
+        for stdout in (self.tagged, self.peeled):
+            with self.subTest(stdout=stdout):
+                self.answer = subprocess.CompletedProcess([], 0, stdout, "")
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 2)
+
+    def test_another_gh_host_reads_over_rest_with_no_listing(self) -> None:
+        for host in ("ghe.example.com", "github.test"):
+            with self.subTest(host=host), mock.patch.dict(os.environ, {"GH_HOST": host}):
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.runs, [])
+        self.assertEqual(self.reads(), 2)
+
+    def test_an_unset_gh_host_lists_github_com(self) -> None:
+        del os.environ["GH_HOST"]
+        self.assertEqual(self.tip(), self.sha)
+        self.assertEqual(self.reads(), 0)
+
+    def test_a_failed_listing_and_rest_read_fail_closed(self) -> None:
+        self.answer = RuntimeError("git ls-remote timed out after 30s")
+        self.gh.rest[self.endpoint] = 404
+        with self.assertRaises(policy.PolicyReadError):
+            self.tip()
+
+    def test_a_listed_tip_is_remembered(self) -> None:
+        with policy.base_tips_remembered():
+            self.assertEqual(self.tip(), self.sha)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), self.sha)
+        self.assertEqual(len(self.runs), 1)
+        self.assertEqual(self.reads(), 0)
+
+
 class PassedMainTip(unittest.TestCase):
     """main's tip the workflow step resolved with git ls-remote (MAIN_TIP_SHA)
     answers `_GreenMain.main_tip` and the approval and decision carries'
