@@ -28,8 +28,6 @@ check "shipped hooks.json is in sync (--check exits 0)" 'bash "$GEN" --check'
 check "PreToolUse runs only test-weaken" \
   '[[ "$(jq -r "[.hooks.PreToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-weaken.sh ]]'
 
-# Report-only test findings come from /testing:audit on demand: no per-edit
-# scan, no task-end judge, no Bash row.
 check "no PostToolUse, Stop or SubagentStop entry" \
   '[[ "$(jq "[.hooks.PostToolUse, .hooks.Stop, .hooks.SubagentStop] | map(length) | add" "$HOOKS")" == 0 ]]'
 check "no row runs test-scan or a test-judge script" \
