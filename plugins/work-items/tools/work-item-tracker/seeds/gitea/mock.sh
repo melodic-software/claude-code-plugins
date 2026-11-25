@@ -143,9 +143,6 @@ gitea_fixture_adapter() {
     >"$GITEA_FIX_ADAPTER/capabilities.json"
 }
 
-# A stock Gitea issue payload, parameterized enough for the cases that need variation.
-# Field names are the real ones (modules/structs/issue.go), so a rename upstream shows
-# up here as a failing test rather than as a silently empty normalized field.
 gitea_issue_json() {
   local number="${1:-12}" state="${2:-open}" title="${3:-a real issue}"
   jq -cn --argjson n "$number" --arg s "$state" --arg t "$title" \

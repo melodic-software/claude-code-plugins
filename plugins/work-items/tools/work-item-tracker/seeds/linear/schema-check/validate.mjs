@@ -105,7 +105,7 @@ const ops = [
   { name: 'issueRelationCreate (create-item)', loc: 'create-item.sh:232-233',
     q: RELATION_CREATE, vars: { input: { issueId: 'b', relatedIssueId: 't', type: 'blocks' } } },
 
-  { name: 'issueUpdate parentId (add-sub-item)', loc: 'add-sub-item.sh:60-61',
+  { name: 'issueUpdate parentId (add-sub-item)', loc: 'add-sub-item.sh:57-58',
     q: ISSUE_UPDATE, vars: { id: 'c', input: { parentId: 'p' } } },
 
   { name: 'list-sub-items children', loc: 'list-sub-items.sh:53-60',
