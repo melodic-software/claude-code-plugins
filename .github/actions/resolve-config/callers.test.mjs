@@ -2218,14 +2218,14 @@ function claudeSecretJobs(files = workflowFiles(), load = workflow) {
   }
   return jobs;
 }
-const LAUNCHER_ACTION = {
-  "run-claude-cli": "melodic-software/ci-workflows/.github/actions/run-claude-cli@",
-  "claude-code-action": "anthropics/claude-code-action@",
+const LAUNCHER_ACTIONS = {
+  "run-claude-cli": ["melodic-software/ci-workflows/.github/actions/run-claude-cli@", "melodic-software/ci-workflows/.github/actions/run-review-chunks@"],
+  "claude-code-action": ["anthropics/claude-code-action@"],
 };
 const isLauncherStep = (step, launcher) =>
   launcher === "claude-cli"
     ? typeof step.run === "string" && step.uses === undefined && /^\s*claude\s+\S/m.test(step.run)
-    : String(step.uses ?? "").startsWith(LAUNCHER_ACTION[launcher]);
+    : (LAUNCHER_ACTIONS[launcher] ?? []).some((prefix) => String(step.uses ?? "").startsWith(prefix));
 // A value that is only whether a secret is set, ${{ secrets.NAME != '' }}, carries no credential.
 const PRESENCE_ONLY = /^\s*(?:\$\{\{\s*)?secrets\.[\w-]+\s*[!=]=\s*''\s*(?:\}\})?\s*$/;
 const withoutPresenceChecks = (node) =>
@@ -2501,6 +2501,10 @@ test("the stray-reader check names an extra step and an env that reaches every s
   assert.deepEqual(check({}, { steps: [launcher, extra] }), ["step extra"]);
   const other = { ...launcher, name: "other-owner", uses: "someone-else/ci-workflows/.github/actions/run-claude-cli@abc" };
   assert.deepEqual(check({}, { steps: [other] }), ["step other-owner"], "the launcher is pinned to its owner");
+  const chunks = { ...launcher, name: "chunks", uses: "melodic-software/ci-workflows/.github/actions/run-review-chunks@abc" };
+  assert.deepEqual(check({}, { steps: [launcher, chunks] }), [], "run-review-chunks runs run-claude-cli's leg per chunk");
+  assert.deepEqual(check({}, { steps: [{ ...chunks, uses: "someone-else/ci-workflows/.github/actions/run-review-chunks@abc" }] }), ["step chunks"]);
+  assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [chunks] } }, "claude-code-action"), ["step chunks"], "only a run-claude-cli lane takes it");
   assert.deepEqual(check({ env: { ANTHROPIC_AUTH_TOKEN: "x" } }, { steps: [launcher] }), ["workflow env"]);
   assert.deepEqual(check({}, { env: { ANTHROPIC_API_KEY: "x" }, steps: [launcher] }), ["job env"]);
   const cli = { name: "eval", run: "set -e\nclaude plugin eval x", env: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } };

@@ -1,4 +1,4 @@
-// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/* .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/* .github/scripts/pr-review-main/write-verdict.mjs .github/scripts/lib/trusted-actors.mjs lib/publish-gate.mjs .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 // pr-verify.yml's ordering rules, from its concurrency comment and the
 // README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
 // run must leave no verdict. The upload is therefore each job's only artifact
@@ -1086,12 +1086,23 @@ test("a handoff from any chunk hands the whole judgment on, and a denial in any 
   }
 });
 
+const PROMPT_STEP_READS = [
+  ".github/scripts/pr-verify/render-prompt.mjs",
+  ".github/scripts/pr-verify/prompt.md",
+  ".github/scripts/pr-verify/chunk-note.md",
+  ".github/scripts/pr-verify/write-verdict.mjs",
+  ".github/scripts/pr-review-main/write-verdict.mjs",
+  ".github/scripts/lib/trusted-actors.mjs",
+  "lib/publish-gate.mjs",
+];
 test("the prompt step gives each chunk its own parts and budget, a lone chunk no note, and the loop its step limit", () => {
   const run = /^ {8}run: \|\n((?: {10}.*\n?| *\n)+)/m.exec(step("Write the prompt and schema"))[1].replace(/^ {10}/gm, "");
   const write = (chunks, parts) => {
     const cwd = tempDir("pr-verify-prompt-");
-    cpSync(new URL("../", import.meta.url), path.join(cwd, ".base/.github/scripts"), { recursive: true });
-    cpSync(new URL("../../../lib", import.meta.url), path.join(cwd, ".base/lib"), { recursive: true });
+    for (const file of PROMPT_STEP_READS) {
+      mkdirSync(path.dirname(path.join(cwd, ".base", file)), { recursive: true });
+      cpSync(new URL(`../../../${file}`, import.meta.url), path.join(cwd, ".base", file));
+    }
     for (const [k, count] of parts.entries()) {
       mkdirSync(path.join(cwd, `data/diff/chunk-${k + 1}`), { recursive: true });
       for (let n = 1; n <= count; n += 1) writeFileSync(path.join(cwd, `data/diff/chunk-${k + 1}/part-00${n}.patch`), "x\n");
