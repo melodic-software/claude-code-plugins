@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.4] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [2.3.3] - 2026-11-24
 
 ### Changed
