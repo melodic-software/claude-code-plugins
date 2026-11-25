@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # shellcheck disable=SC2329 # the readers and their helpers are called as "read_$eco".
 set -uo pipefail
 
