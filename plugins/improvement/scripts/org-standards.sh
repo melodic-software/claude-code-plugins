@@ -200,12 +200,8 @@ layer_checkout() {
   if ! git -C "$tmp" -c core.symlinks=false -c advice.detachedHead=false checkout --quiet --detach "$sha" 2>/dev/null; then
     rm -rf "${tmp:?}"; return 4
   fi
-  if [[ -e "$dest" ]]; then
-    rm -rf "${tmp:?}"
-  else
-    mv "$tmp" "$dest" 2>/dev/null || rm -rf "${tmp:?}"
-    [[ ! -e "$dest/$leaf" ]] || rm -rf "${dest:?}/$leaf"
-  fi
+  mv "$tmp" "$dest" 2>/dev/null || rm -rf "${tmp:?}"
+  [[ ! -e "$dest/$leaf" ]] || rm -rf "${dest:?}/$leaf"
   [[ -d "$dest/.git" ]] && printf '%s\n' "$dest"
 }
 

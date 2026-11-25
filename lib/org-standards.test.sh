@@ -371,6 +371,26 @@ assert_eq "two concurrent reads at two commits: each checkout holds its commit's
   "$(g -C "$GUIDE_WORK" show "$GUIDE:docs/standards/README.md")|$(g -C "$GUIDE_WORK" show "$GUIDE2:docs/standards/README.md")" \
   "$(cat "$(cut -f3 "$TEST_TMPDIR/c1.out")")|$(cat "$(cut -f3 "$TEST_TMPDIR/c2.out")")"
 
+export ORG_STANDARDS_CACHE="$TEST_TMPDIR/lost-race-cache"
+mkdir -p "$TEST_TMPDIR/shim"
+cat >"$TEST_TMPDIR/shim/git" <<EOF
+#!/usr/bin/env bash
+"$(command -v git)" "\$@"
+rc=\$?
+if [[ \$rc -eq 0 && "\$1" == -C && "\$2" == */.build.* && " \$* " == *" checkout "* ]]; then
+  name=\$(basename "\$("$(command -v git)" -C "\$2" remote get-url origin)" .git)
+  cp -R "\$2" "\$(dirname "\$2")/\$name@\${*: -1}"
+fi
+exit \$rc
+EOF
+chmod +x "$TEST_TMPDIR/shim/git"
+printf -- '---\nstandards-contract: 1.3.0\nstandards_repositories:\n  - repo: stranger/guide\n    ref: %s\n---\n' "$GUIDE" \
+  >"$TEST_TMPDIR/home1/.claude/standards/README.md"
+lost=$(PATH="$TEST_TMPDIR/shim:$PATH" HOME="$TEST_TMPDIR/home1" bash "$SCRIPT" subscriptions --root "$t" 2>&1)
+assert_eq "a build that loses the rename to another reader uses the winner's checkout" \
+  "stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE	$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE/docs/standards/README.md" "$lost"
+assert_eq "a build that loses the rename leaves no build directory behind" "" "$(find "$ORG_STANDARDS_CACHE" -name '.build.*')"
+
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/live-cache"
 user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
 ORG_STANDARDS_TTL=0 bash "$SCRIPT" subscriptions --root "$t" >"$TEST_TMPDIR/l1.out" 2>"$TEST_TMPDIR/l1.err" &
