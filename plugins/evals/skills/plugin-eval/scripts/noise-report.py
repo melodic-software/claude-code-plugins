@@ -51,7 +51,7 @@ MIN_PYTHON = (3, 8)
 Z95 = 1.959963984540054
 MIN_CASES = 3
 CEILING = 0.95
-DROP = 1.0 / 3.0  # a case falling this far needs a measured cause before shipping
+DROP = 1.0 / 3.0
 ARMS = ("with", "without")  # cases[].arms.<arm>[]
 
 # Result-file field paths read here that the plugin-evals docs page does not
@@ -96,7 +96,6 @@ def grader_weight(grader, defs):
 
 
 def recomputed_score(run, defs):
-    """Weighted fraction of scored graders passed, or None with nothing to score."""
     graders = run.get(RUN_GRADERS)
     graders = (
         [g for g in graders if isinstance(g, dict)] if isinstance(graders, list) else []
@@ -112,7 +111,6 @@ def recomputed_score(run, defs):
 
 
 def run_score(run, defs, where, notes):
-    """The run's reported score, cross-checked against its graders; recomputed when absent."""
     reported = run.get(RUN_SCORE)
     computed = recomputed_score(run, defs)
     if not is_number(reported):
@@ -134,7 +132,6 @@ def arm_runs(case, arm):
 
 
 def incomparable(case):
-    """Why a case's arms cannot be compared, or None when they can."""
     for arm in ARMS:
         for index, run in enumerate(arm_runs(case, arm), 1):
             if run.get("error") is not None:
@@ -153,7 +150,6 @@ def incomparable(case):
 
 
 def case_score(case, arm, notes):
-    """Mean run score for one arm; None when the arm has no runs or a run has no score."""
     defs = definitions(case)
     scores = [
         run_score(
@@ -167,7 +163,6 @@ def case_score(case, arm, notes):
 
 
 def normal_interval(values, low, high):
-    """Mean and 95% normal-approximation interval, clamped to [low, high]."""
     m = mean(values)
     sd = math.sqrt(sum((v - m) ** 2 for v in values) / (len(values) - 1))
     half = Z95 * sd / math.sqrt(len(values))
@@ -175,7 +170,6 @@ def normal_interval(values, low, high):
 
 
 def beta_cf(a, b, x):
-    """Continued fraction for the regularized incomplete beta function."""
     tiny = 1e-300
     c, d = 1.0, 1.0 - (a + b) * x / (a + 1.0)
     d = 1.0 / (d if abs(d) > tiny else tiny)
@@ -224,7 +218,6 @@ def beta_quantile(q, a, b):
 
 
 def proportion_interval(k, n, method):
-    """95% interval on k passes out of n by the named method."""
     p = k / n
     if method == "wilson":
         z2 = Z95 * Z95
@@ -304,7 +297,6 @@ def paired_delta(deltas):
 
 
 def vote_value(vote):
-    """True for a PASS vote, False for a FAIL vote, None when unreadable."""
     if isinstance(vote, dict):
         vote = next((vote[key] for key in VOTE_VERDICT if key in vote), None)
     if isinstance(vote, bool):
@@ -315,7 +307,6 @@ def vote_value(vote):
 
 
 def run_votes(grader):
-    """The grader's readable votes, or None when it holds none."""
     for key in GRADER_VOTES:
         raw = grader.get(key)
         if isinstance(raw, list) and raw:
@@ -325,7 +316,6 @@ def run_votes(grader):
 
 
 def agreement(cases):
-    """One judge-agreement line per llm grader, read from votes the result holds."""
     tallies, judged = {}, False
     for case in cases:
         defs = definitions(case)
@@ -369,7 +359,6 @@ def agreement(cases):
 
 
 def load_result(path):
-    """The parsed result document, or None after naming why it cannot be read."""
     try:
         with open(path, encoding="utf-8") as handle:
             result = json.load(handle)
@@ -460,7 +449,6 @@ def main(argv=None):
 
 
 def case_rows(result):
-    """Comparable case scores by case name, and a line per case left out or checked."""
     cases = result.get("cases")
     cases = [c for c in cases if isinstance(c, dict)] if isinstance(cases, list) else []
     lines, notes, rows = [], [], {}
@@ -514,7 +502,6 @@ def report(result, threshold, method):
 
 
 def change_line(arm, pairs):
-    """The paired change line for one arm, and the interval's lower end."""
     m, lo, hi = normal_interval([after - before for before, after in pairs], -1.0, 1.0)
     line = (
         "%s-arm change (this minus baseline), paired over %d cases: %+.2f,"
@@ -524,7 +511,6 @@ def change_line(arm, pairs):
 
 
 def compare(result, baseline, margin):
-    """Compare this result to a baseline result, paired by case name."""
     rows, _ = case_rows(result)
     base, _ = case_rows(baseline)
     lines = []
