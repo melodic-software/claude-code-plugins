@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes (the shared drift-check contract):
-#   0 — no drift, or --apply completed
-#   1 — drift: upstream differs from the vendored baseline, or the baseline is missing
-#   2 — unverifiable: curl or diff missing, fetch or write failure, or usage
-
 set -uo pipefail
 
 MODE="${1:---check}"
@@ -22,8 +17,6 @@ BASELINE="$SNAPSHOT_DIR/SKILL.md"
 
 UPSTREAM_URL="https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md"
 
-# Upstream lacks the vendored attribution comment; drop it and its next line so an identical
-# copy reports no drift. {N;d} rather than GNU-only `,+1d` keeps this working on BSD sed.
 strip_attribution() {
   sed '/<!-- Vendored from https:\/\/github.com\/Dometrain\/mcp/{N;d}' "$1"
 }
@@ -74,8 +67,6 @@ if [[ ! -f "$BASELINE" ]]; then
   exit 1
 fi
 
-# Normalize line endings before comparing — baseline may be CRLF on Windows checkouts,
-# upstream is always LF. Without this, every Windows run reports false-positive drift.
 strip_attribution "$BASELINE" | tr -d '\r' >"$baseline_lf"
 tr -d '\r' <"$tmpfile" >"$tmpfile_lf"
 

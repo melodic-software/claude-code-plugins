@@ -193,7 +193,6 @@ async function main() {
   }
 }
 
-// Real paths: Node resolves import.meta.url through symlinks, argv[1] does not.
 function invokedAsCli() {
   const entry = process.argv[1];
   if (!entry) return false;

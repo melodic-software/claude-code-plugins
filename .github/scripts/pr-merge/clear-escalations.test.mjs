@@ -36,7 +36,7 @@ const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [], mergeBase, dotGithub = {} }) {
   const calls = [];
   const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
@@ -83,7 +83,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: labels.map((name) => ({ name })), mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
-      return { files: mainFiles };
+      return { files: mainFiles, ...(mergeBase && { merge_base_commit: { sha: mergeBase } }) };
+    }
+    const dotRef = new RegExp(`^/repos/${REPO}/contents/\\.github\\?ref=([0-9a-f]{40})$`).exec(path)?.[1];
+    if (method === "GET" && dotRef !== undefined) {
+      if (!(dotRef in dotGithub)) {
+        throw new Error(`GET ${path} failed with status 404`);
+      }
+      return structuredClone(dotGithub[dotRef]);
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7/files`) {
       return path.endsWith("page=1") ? pullFiles : [];
@@ -1582,9 +1589,24 @@ test("a workflow-staged keep line names main's SHA and the first workflow file i
     const { logs } = await run(w);
     assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes ${named}`), logs.join("\n"));
   }
-  const cut = world({ timeline: inlineTimeline(), mainFiles: Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` })) });
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const cut = world({ timeline: inlineTimeline(), mainFiles: many });
   const { logs } = await run(cut);
   assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN}'s file listing against it may be cut short`), logs.join("\n"));
+});
+
+test("past the compare API's 300-file list, workflow-staged reads .github/workflows' tree at main's merge base and tip", async () => {
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const BASE = "3".repeat(40);
+  const listing = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8")).dotGithub;
+  const tree = (changes) => listing.map((entry) => (entry.name in changes ? { ...entry, sha: changes[entry.name] } : entry));
+  const same = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ scripts: "9".repeat(40) }) } });
+  await run(same);
+  assert.equal(same.writes().at(-1)?.method, "DELETE", "an unchanged workflows tree takes the label off");
+  const moved = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ workflows: "8".repeat(40) }) } });
+  const kept = await run(moved);
+  assert.ok(kept.logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes .github/workflows`), kept.logs.join("\n"));
+  assert.ok(!moved.writes().some((write) => write.method === "DELETE"), "a changed workflows tree keeps the label");
 });
 
 test("a person's reply or review on the second page of either listing keeps it", async () => {

@@ -139,10 +139,6 @@ class MultiRootTests(unittest.TestCase):
     def test_an_absolute_source_root_on_disk_is_probed_without_the_scan_root(
         self,
     ) -> None:
-        # An absolute <source> discards scan_root under os.path.join, so the
-        # candidate is the absolute path itself. A later root that exists on
-        # this machine therefore wins even when the scan root is an empty
-        # temporary directory that cannot contribute a relative hit.
         with (
             tempfile.TemporaryDirectory() as first,
             tempfile.TemporaryDirectory() as later,

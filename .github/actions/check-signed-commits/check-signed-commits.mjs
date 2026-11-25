@@ -14,32 +14,47 @@ export { SIGNED_COMMITS_HOLD };
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+const COMPARE_PAGE = 100;
+const MAX_COMPARED_COMMITS = 10_000;
 
 // The comparison `sinceSha...headSha` when `sinceSha` is a well-formed SHA
 // GitHub knows as an ancestor of the head; otherwise null. `complete` is false
 // when the comparison lists fewer commits than it counts (it lists at most 250
 // unpaged).
-async function compareSince(github, base, sinceSha, headSha) {
+async function compareSince(github, base, sinceSha, headSha, pageSize) {
   if (!SHA.test(sinceSha ?? "")) {
     return null;
   }
-  let comparison;
-  try {
-    comparison = await github("GET", `${base}/compare/${sinceSha}...${headSha}`);
-  } catch (error) {
-    if (error?.status === 404) {
-      return null;
+  const commits = new Map();
+  let total;
+  for (let page = 1; page <= Math.ceil(MAX_COMPARED_COMMITS / pageSize); page += 1) {
+    let comparison;
+    try {
+      comparison = await github("GET", `${base}/compare/${sinceSha}...${headSha}?per_page=${pageSize}&page=${page}`);
+    } catch (error) {
+      if (page === 1 && error?.status === 404) {
+        return null;
+      }
+      throw error;
     }
-    throw error;
+    if (page === 1) {
+      if (comparison.status !== "ahead" && comparison.status !== "identical") {
+        return null;
+      }
+      total = comparison.total_commits;
+    }
+    if (!Array.isArray(comparison.commits) || !Number.isInteger(total) || total > MAX_COMPARED_COMMITS) {
+      break;
+    }
+    for (const commit of comparison.commits) {
+      commits.set(commit?.sha, commit);
+    }
+    if (commits.size >= total || comparison.commits.length < pageSize) {
+      break;
+    }
   }
-  if (comparison.status !== "ahead" && comparison.status !== "identical") {
-    return null;
-  }
-  if (!Array.isArray(comparison.commits)) {
-    return { commits: [], complete: false };
-  }
-  const { commits, total_commits: total } = comparison;
-  return { commits, complete: Number.isInteger(total) && total <= commits.length };
+  return { commits: [...commits.values()], complete: Number.isInteger(total) && total <= MAX_COMPARED_COMMITS && total <= commits.size };
 }
 
 // The lane's commits and whether they could all be read. A complete comparison
@@ -96,7 +111,7 @@ function escalationComment({ unverified, sinceIsAncestor, checkable, countKnown,
   return lines.join("\n");
 }
 
-export async function checkSignedCommits({ github, repository, prNumber, sinceSha, sleep = delay }) {
+export async function checkSignedCommits({ github, repository, prNumber, sinceSha, sleep = delay, pageSize = COMPARE_PAGE }) {
   const base = `/repos/${repository}`;
   const { pull, headConfirmed } = await readPull(github, base, prNumber, sleep);
   const prCommits = await paginate(github, `${base}/pulls/${prNumber}/commits`);
@@ -104,7 +119,7 @@ export async function checkSignedCommits({ github, repository, prNumber, sinceSh
   // when the PR's commit count says so.
   const countKnown = Number.isInteger(pull.commits);
   const prListComplete = countKnown && pull.commits <= prCommits.length;
-  const comparison = headConfirmed ? await compareSince(github, base, sinceSha, pull.head.sha) : null;
+  const comparison = headConfirmed ? await compareSince(github, base, sinceSha, pull.head.sha, pageSize) : null;
   const lane = laneCommits(comparison, prCommits, prListComplete);
   const checkable = headConfirmed && lane.checkable;
   const unverified = lane.commits

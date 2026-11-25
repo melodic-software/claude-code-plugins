@@ -1,26 +1,5 @@
 # shellcheck shell=bash
-# Shared high-confidence secret/credential patterns for secret-pattern-detection
-# and the write-path-independent pre-commit content-invariants hook.
-#
-# This is a library — NOT executable. Pure-function: no env reads, no stdin
-# parsing, no exit calls beyond the scan helper's documented return codes.
-# Callers handle I/O, exemptions, and exit-code mapping.
-#
-# Pattern selection: only HIGH-confidence patterns with distinctive prefixes
-# and fixed lengths or a fixed structure. The ghs_ installation token varies in
-# length and may carry a JWT with or without an app id, so it takes the regex
-# GitHub recommends for current and stateless installation tokens from
-# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-# (as of 2026-10-21; recheck when GitHub changes a token format or its
-# recommended regex). Generic patterns (password=, api_key=, secret=) are
-# excluded — too many false positives for a real-time blocking hook. Sourced
-# from gitleaks, TruffleHog, and secrets-patterns-db. grep -E (POSIX ERE) only,
-# run under LC_ALL=C: in a UTF-8 locale GNU grep takes quadratic time on a long
-# line against the combined set.
 
-# (label, ERE) parallel arrays — one combined grep can fast-reject the common
-# (no-secret) case in a single process. Index alignment is load-bearing: the
-# Nth label describes the Nth pattern.
 SECRET_LABELS=(
   "AWS Access Key"
   "GitHub PAT"
@@ -52,12 +31,6 @@ SECRET_PATTERNS=(
   '-----BEGIN [A-Z ]*PRIVATE KEY-----'
 )
 
-# secrets::any_match <content>
-#
-# Exit 0 when any pattern matches <content>, 1 when none does: the one grep
-# secrets::scan_text opens with. A caller that captures scan_text's output may
-# call this first and skip the capture's subshell when it returns 1, since
-# scan_text then prints nothing and returns 0.
 secrets::any_match() {
   local pattern grep_e_args=()
   for pattern in "${SECRET_PATTERNS[@]}"; do
@@ -66,21 +39,6 @@ secrets::any_match() {
   LC_ALL=C grep -qE "${grep_e_args[@]}" < <(printf '%s' "$1") 2>/dev/null
 }
 
-# secrets::scan_text <content>
-#
-# Scans <content> for high-confidence secret patterns.
-#
-# Output (stdout): one line per hit — `<label> (line <n[,n…]>)` — empty when
-# clean. Stdout is the ONLY channel: both callers read it through a command
-# substitution, so a global set here would be discarded with the subshell.
-# Telemetry labels are parsed back off these lines by the caller.
-#
-# Exit: 0 = clean, 1 = violations found.
-#
-# Feeds content through PROCESS SUBSTITUTION, never `<<<"$content"` (deadlocks
-# at 65536-65663 bytes) and never `printf | grep -q` under pipefail (SIGPIPE
-# inverts a hit into a clean miss). See hardcoded-path-patterns.sh for the
-# two-shapes rule.
 secrets::scan_text() {
   local content="$1" lines i
   secrets::any_match "$content" || return 0

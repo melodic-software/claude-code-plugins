@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# implement-dispatch gates stay inside the compaction re-attach slice (#4255).
-# Pins five gates: one git writer, phase-verifier before [DONE], INCONCLUSIVE return, major divergence, main-side build signal.
 set -uo pipefail
 
 HUB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/SKILL.md"

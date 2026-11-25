@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.2] - 2026-11-25
+
+### Changed
+
+- The babysit merge policy reads a branch tip (`base_tip`) with one unauthenticated
+  `git ls-remote https://github.com/<owner>/<name> refs/heads/<base> refs/tags/<base>` first, so
+  the read spends no REST quota. It takes the SHA only when the listing names `refs/heads/<base>`
+  once as 40 hex and holds no tag of the same name, the rule the CI workflows' main's-tip listing
+  uses. Anything else (a failed or timed-out listing, no `git`, a private repository, a
+  tag named like the branch, or `GH_HOST` naming a host other than github.com) reads
+  `git/ref/heads/<base>` over REST as before, and an unreadable tip still fails closed. The read
+  happens at the same moment as before, so the default-branch config, the trusted-actor list and
+  the standards repository's tip are judged at a tip as fresh as the REST read gave.
+
 ## [13.21.1] - 2026-11-25
 
 ### Fixed
