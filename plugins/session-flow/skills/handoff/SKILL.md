@@ -339,8 +339,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 - [ ] Claim provenance applied. Inherited status marked `UNVERIFIED (<source>)`, not stated as
   plain fact. A fix still in CI, merge, or another unreturned check is `UNVERIFIED (<check>)`,
   never "verified" or "the fix" (engine doc, "Claim provenance"; verified is not CI-green;
-  [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md)). Claims dated (engine doc,
-  "Write history, not the present")
+  [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the file and the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
 - [ ] `wip_commit` line reported ("WIP commit on an explicit pause"): not applied with its
