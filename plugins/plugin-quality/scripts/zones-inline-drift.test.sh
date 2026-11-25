@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # shellcheck disable=SC2088  # the ~/ strings are documented contract PHRASES being grep-matched as data, never paths this script expands
 set -uo pipefail
 

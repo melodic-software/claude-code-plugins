@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 harness_die() {
   printf 'HARNESS FAIL: %s\n' "$*" >&2
   exit 2

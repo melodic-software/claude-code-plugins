@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";

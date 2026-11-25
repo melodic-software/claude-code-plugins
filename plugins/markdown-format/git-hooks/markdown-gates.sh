@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 md_classify() {
   local code=1
   case "$1" in
