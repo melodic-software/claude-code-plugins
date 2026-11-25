@@ -46,6 +46,7 @@ worktree_path_resolve_against() {
     p="${p//"$bslash"/"$fwd"}"
     base="${base//"$bslash"/"$fwd"}"
   fi
+  # Matching the literal unexpanded tilde is the point: git never saw a shell-expanded one.
   # shellcheck disable=SC2088
   if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
     p="${HOME}/${p#\~/}"

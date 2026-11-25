@@ -67,6 +67,7 @@ err() {
 
 expand_tilde() {
   local p="$1"
+  # Config values arrive verbatim, so matching the literal unexpanded tilde is the point.
   # shellcheck disable=SC2088
   if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
     printf '%s/%s' "${HOME%/}" "${p#\~/}"

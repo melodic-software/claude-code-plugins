@@ -55,6 +55,7 @@ fi
 repo_dir="${repo_dir:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 
 root="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
+# The single-quoted ${user_config token is matched literally: the unexpanded placeholder is the input.
 # shellcheck disable=SC2016
 case "$root" in
 *'${user_config'*) root="" ;;

@@ -414,6 +414,7 @@ if [[ -n "$session_id" ]] && [[ ! "$session_id" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]; 
   exit 2
 fi
 
+# The ${user_config token is matched literally: the unexpanded placeholder is what is detected.
 # shellcheck disable=SC2016
 root_is_unset() {
   [[ -z "$1" || "$1" == *'${user_config'* ]]
@@ -471,6 +472,7 @@ if ((root_unset)); then
   if ((data_root_file_given)); then
     read_path_file --data-root-file "$data_root_file"
     data_root="$PATH_FILE_VALUE"
+    # A caller whose substitution did not fire hands over this literal token, matched as text.
     # shellcheck disable=SC2016
     [[ "$data_root" == *'${CLAUDE_PLUGIN_DATA'* ]] && data_root=""
   fi
@@ -499,6 +501,7 @@ EOF
 
   root="${data_root%/}/worktrees"
   printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
+  # The backticks are literal markdown in guidance text, not a command substitution.
   # shellcheck disable=SC2016
   printf '%s: set the plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' "$PROG" >&2
 fi
