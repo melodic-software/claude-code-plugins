@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -84,7 +84,21 @@ test("the preview of an existing file shows exactly the lines --yes then appends
   assert.doesNotMatch(preview.out, /Would add this row/u, "the row already exists");
 });
 
-test("with --yes it writes a file with no frontmatter and no counterweight lines, and one index row; the lookup prints the counterweights and conflicts of the ids the file cites", async () => {
+test("an index with no table yet: the preview shows the blank line, table header, separator and row the write adds", async () => {
+  const noTable = INDEX.slice(0, INDEX.indexOf("| Surface")).replace(/\n+$/u, "\n");
+  const home = tree({ ".claude/standards/README.md": noTable });
+  const args = ["example-small-steps", "--layer", "personal", "--surface", "change-size"];
+  const preview = await run(args, { home });
+  assert.equal(preview.code, 3);
+  assert.equal((await run([...args, "--yes"], { home })).code, 0);
+  const after = readFileSync(personal(home, "README.md"), "utf8");
+  assert.ok(after.startsWith(noTable), "the existing index text is kept as it was");
+  const added = after.slice(noTable.length);
+  assert.equal(added, "\n| Surface | Applies when | File |\n|---|---|---|\n| change-size | change-size | change-size.md |\n");
+  assert.ok(preview.out.includes(`${personal(home, "README.md")}:\n${added}`), preview.out);
+});
+
+test("with --yes it writes a file with no frontmatter and no counterweight lines, and one index row; the lookup option the file's header names prints the counterweights and conflicts of the ids the file cites", async () => {
   const home = personalHome();
   const { code } = await run(["example-big-design", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
   assert.equal(code, 0);
@@ -97,9 +111,13 @@ test("with --yes it writes a file with no frontmatter and no counterweight lines
   assert.deepEqual(rowsFor(index, "change-size.md"), ["| change-size | change-size | change-size.md |"]);
   assert.deepEqual(rowsFor(index, "testing.md").length, 1, "the existing row stays");
 
+  const header = text.slice(0, text.indexOf("\n- "));
+  assert.match(header, /engineering-concepts plugin's\s+lookup/u, "the header names the command in plain words");
+  const option = header.match(/`(--[a-z-]+)`/u)?.[1];
+  assert.ok(option, "the header names the lookup option that lists counterweights");
   const cited = [...text.matchAll(/^- .*\(`([a-z0-9-]+)`\)/gmu)].map((m) => m[1]);
   const lines = [];
-  const lookupCode = await lookup(["--data-dir", FIXTURES, "--home", home, "--project", repo(), "--counterweights-of", cited.join(",")], {
+  const lookupCode = await lookup(["--data-dir", FIXTURES, "--home", home, "--project", repo(), option, cited.join(",")], {
     out: (line) => lines.push(JSON.parse(line)),
     err: () => {},
   });
@@ -175,6 +193,8 @@ test("a missing or unknown layer, a surface that is not a kebab-case name, or an
     [["example-small-steps", "--layer", "personal", "--surface", "readme"], "surface"],
     [["example-small-steps", "--layer", "personal", "--surface", "README"], "surface"],
     [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", "a \\| b"], "applies-when"],
+    [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", ""], "applies-when"],
+    [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", " \n "], "applies-when"],
     [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--force"], null],
     [["--layer", "personal", "--surface", "change-size"], "concepts"],
   ];
@@ -249,4 +269,71 @@ test("a malformed .claude/standards.yaml is reported with its path and exits 1",
   assert.equal(code, 1);
   assert.deepEqual(errors.map((e) => [e.event, e.file]), [["standards config unreadable", join(project, ".claude", "standards.yaml")]]);
   assert.equal(existsSync(join(project, "docs", "standards", "change-size.md")), false);
+});
+
+test("an empty --applies-when is refused with exit 2 and a reason", async () => {
+  const home = personalHome();
+  const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", "", "--yes"], { home });
+  assert.equal(code, 2);
+  assert.match(errors[0].reason, /empty/u);
+  assert.equal(existsSync(personal(home, "change-size.md")), false);
+});
+
+test("a surface file or index that is a symbolic link is refused with exit 1 and a reason, and the link and its target are left as they were", async () => {
+  for (const name of ["change-size.md", "README.md"]) {
+    const home = personalHome();
+    const target = join(tree({ "target.md": "# Elsewhere\n" }), "target.md");
+    if (name === "README.md") writeFileSync(target, INDEX);
+    rmSync(personal(home, name), { force: true });
+    symlinkSync(target, personal(home, name));
+    const before = readFileSync(target, "utf8");
+    const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
+    assert.equal(code, 1, name);
+    assert.deepEqual(errors.map((e) => [e.event, e.path]), [["symbolic link refused", personal(home, name)]], name);
+    assert.match(errors[0].reason, /symbolic link/u, name);
+    assert.ok(lstatSync(personal(home, name)).isSymbolicLink(), `${name} is still a link`);
+    assert.equal(readFileSync(target, "utf8"), before, name);
+  }
+});
+
+const TEAM_SETTINGS = "docs/conventions/engineering-concepts.yaml";
+
+test("a concept the exclude setting drops is refused when named by id, alias or topic, with exit 1 and the setting and layer that drop it; nothing is written", async () => {
+  for (const [term, listed] of [["example-small-steps", "example-small-steps"], ["tiny-steps", "example-small-steps"], ["example-review-gate", "beta"]]) {
+    const project = repo({ [TEAM_SETTINGS]: `exclude:\n  - ${listed}\n` });
+    const home = personalHome();
+    const { code, errors } = await run([term, "--layer", "personal", "--surface", "change-size", "--yes"], { home, project });
+    assert.equal(code, 1, term);
+    assert.deepEqual(
+      errors.map((e) => [e.event, e.term, e.setting, e.value, e.layer, e.path]),
+      [["concept excluded", term, "exclude", listed, "team", join(project, TEAM_SETTINGS)]],
+      term,
+    );
+    assert.equal(existsSync(personal(home, "change-size.md")), false, term);
+    assert.equal(readFileSync(personal(home, "README.md"), "utf8"), INDEX, term);
+  }
+});
+
+test("the user's exclude option refuses a concept with its layer named, and a concept it does not list is adopted", async () => {
+  const home = personalHome();
+  const userConfig = join(tree({ "user-config.json": JSON.stringify({ exclude: "example-big-design" }) }), "user-config.json");
+  const refused = await run(["example-big-design", "--layer", "personal", "--surface", "change-size", "--user-config", userConfig, "--yes"], { home });
+  assert.equal(refused.code, 1);
+  assert.deepEqual(refused.errors.map((e) => [e.event, e.setting, e.value, e.layer]), [["concept excluded", "exclude", "example-big-design", "userConfig"]]);
+  const adopted = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--user-config", userConfig, "--yes"], { home });
+  assert.equal(adopted.code, 0);
+  assert.match(readFileSync(personal(home, "change-size.md"), "utf8"), /^- Example Small Steps \(`example-small-steps`\)/mu);
+});
+
+test("source_bar official-plus-confirming refuses a concept with no confirming source, naming the setting and its layer, and adopts one that has one", async () => {
+  const project = repo({ [TEAM_SETTINGS]: "source_bar: official-plus-confirming\n" });
+  const home = personalHome();
+  const refused = await run(["example-big-design", "--layer", "personal", "--surface", "change-size", "--yes"], { home, project });
+  assert.equal(refused.code, 1);
+  assert.deepEqual(
+    refused.errors.map((e) => [e.event, e.setting, e.value, e.layer, e.path]),
+    [["concept excluded", "source_bar", "official-plus-confirming", "team", join(project, TEAM_SETTINGS)]],
+  );
+  assert.equal(existsSync(personal(home, "change-size.md")), false);
+  assert.equal((await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home, project })).code, 0);
 });

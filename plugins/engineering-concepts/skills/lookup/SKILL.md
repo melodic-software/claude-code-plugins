@@ -43,6 +43,7 @@ counterweights and conflicts by name; say which filters you applied.
 - For the counterweights and conflicts of concepts cited in an adopted standards file, pass their
   ids as `--counterweights-of <id>,<id>` in place of a term: it prints one line per counterweight
   or conflict, and exit 1 with `"event":"concept not found"` names an id that matched nothing.
+  Keep each printed line beside the entry its `of` names, so neither is applied alone.
 
 The catalog holds no positions: a record says what a concept is called and where its source is,
 never whether to use it. A team's or person's stances live in their standards layers.

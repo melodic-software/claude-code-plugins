@@ -16,7 +16,8 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
 
 1. **Show the entries.** Run the lookup for the topic (or the named concepts) and list each entry
    as its name, id, official source, stage, and counterweights and conflicts by name. Keep the
-   heredoc as written: it hands the plugin's saved options to the script
+   lines from `<<'EC_SETTINGS'` to the closing `EC_SETTINGS` as written, here and in step 3: they
+   hand the plugin's saved options to the script
    ([Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)).
 
    ```bash
@@ -26,8 +27,8 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
    EC_SETTINGS
    ```
 
-   Exit 1 with a stderr line `"event":"catalog empty"` means no shipped concepts exist yet: say so
-   and stop. Exit 1 otherwise means nothing matched: name what was tried and stop.
+   Exit 1 with an error-output line `"event":"catalog empty"` means no shipped concepts exist yet:
+   say so and stop. Exit 1 otherwise means nothing matched: name what was tried and stop.
 
 2. **Ask** which entries to adopt (never pre-select), and where:
    - `personal`: `~/.claude/standards/`, the person's own standards in every repository.
@@ -42,10 +43,15 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
 
 3. **Show the file text.** Run the adopt script without `--yes`; exit 3 prints exactly the text
    the write adds: the whole file, heading included, when it is new, the appended lines when it
-   exists, and the index row. Show that output to the person unchanged.
+   exists, and the index row, or the table holding it when the index has none. The one change it
+   does not show is a line break added to the end of an index that lacks one. Show that output to
+   the person unchanged.
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/adopt.mjs" <id>... --layer <personal|team> --surface <name> --applies-when "<clues>" --project "<repository root>"
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/adopt.mjs" <id>... --layer <personal|team> --surface <name> --applies-when "<clues>" --project "<repository root>" --user-config - <<'EC_SETTINGS'
+   source_bar=${user_config.source_bar}
+   exclude=${user_config.exclude}
+   EC_SETTINGS
    ```
 
 4. **Write on an explicit yes** by re-running the same command with `--yes`. On anything else,
@@ -53,15 +59,26 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
    the command and retry.
 
 5. **Verify.** Read the written file and the index back, and confirm each adopted entry line and
-   the file's row are there as previewed. Report what you read, not what the script said.
+   the file's row are there as previewed. Report what you read, not what the script said. For
+   `team`, also run on each written file, from the repository root:
+   - `git check-ignore -v <file>` reports no match. A match means git ignores the standards folder
+     or the file: report the pattern and the file it comes from, since the team never sees an
+     ignored standard.
+   - `git ls-files --error-unmatch <file>` exits 0. Non-zero right after a fresh write means
+     written but untracked: commit it to share with the team, never success.
 
 6. **Report** the file and index written. For `team`, the files are new or changed in the working
    tree until committed: say so.
 
-Exit codes and stderr events (JSON lines):
+Exit codes and error-output events (one JSON record per line):
 
 - 0 with "already adopted": every entry is in the file and the row exists; nothing written.
 - 1 `concept not found`: name the term; nothing written.
+- 1 `concept excluded`: the `exclude` or `source_bar` setting named in `setting` drops the concept,
+  as the lookup does; report the `reason`, which names the layer, and the `path` of its file when
+  it has one; nothing written. Changing the setting is the person's call.
+- 1 `symbolic link refused`: the surface file or index at `path` is a symbolic link; report it and
+  leave the file it points to for the person to edit; nothing written.
 - 1 `no team index`: the repository has no standards index; offer the repository's standards setup
   instead of writing one here.
 - 1 `standards config unreadable` or `standards root outside the repository`: report the file

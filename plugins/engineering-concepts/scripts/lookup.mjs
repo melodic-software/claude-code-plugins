@@ -48,11 +48,12 @@ Options:
 
 Settings source_bar and exclude resolve through the plugin config cascade:
 defaults, userConfig, <home>/engineering-concepts.yaml, then
-<home>/engineering-concepts.local.yaml. A rejected value is reported on stderr.
+<home>/engineering-concepts.local.yaml. A rejected value is reported on the
+error output.
 
-Output: one JSON record per line on stdout, counterweights and conflicts_with as
-{id, name}. Diagnostics: JSON lines on stderr, each rejected record with its
-file:line in "at". With --counterweights-of, each line is
+Output: one JSON record per line, counterweights and conflicts_with as
+{id, name}. Diagnostics: one JSON record per line on the error output, each
+rejected record with its file:line in "at". With --counterweights-of, each line is
 {of, relation, concept}: relation is "counterweight" or "conflict", of and
 concept are {id, name}.
 Exit: 0 records printed (with --counterweights-of: every ID found), 1 none
@@ -131,20 +132,25 @@ export function loadIndex(dataDir, err, { shipped = false } = {}) {
 
 export const resolveId = (index, term) => (index.byId.has(term) ? term : index.byName.get(term.toLowerCase()));
 
+/** The setting that drops `record` and the value that does it, or null when the settings keep it. */
+export function droppedBy(record, excluded, sourceBar) {
+  for (const value of [record.id, record.topic]) if (excluded.has(value)) return { setting: "exclude", value };
+  if (sourceBar !== "official" && !(record.confirming_sources ?? []).length) return { setting: "source_bar", value: sourceBar };
+  return null;
+}
+
 function select(index, term, opts) {
   const excluded = new Set(opts.exclude.flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean));
   const id = term ? resolveId(index, term) : undefined;
   const pool = term ? (id === undefined ? [] : [index.byId.get(id)]) : [...index.byId.values()];
   return pool.filter(
     (r) =>
-      !excluded.has(r.id) &&
-      !excluded.has(r.topic) &&
+      !droppedBy(r, excluded, opts["source-bar"]) &&
       (!opts.topic || r.topic === opts.topic) &&
       (!opts.concern || r.concern === opts.concern) &&
       (!opts.kind || r.kind === opts.kind) &&
       (!opts.stage || r.stage === opts.stage || r.stage === "any") &&
-      (!opts.reversibility || r.reversibility === opts.reversibility) &&
-      (opts["source-bar"] === "official" || (r.confirming_sources ?? []).length > 0),
+      (!opts.reversibility || r.reversibility === opts.reversibility),
   );
 }
 
@@ -199,7 +205,7 @@ export async function checkSources(records, fetchImpl) {
 
 const STDIN_FD = 0;
 
-function readUserConfig(source) {
+export function readUserConfig(source) {
   if (source !== "-") return JSON.parse(readFileSync(source, "utf8"));
   return Object.fromEntries(
     readFileSync(STDIN_FD, "utf8")

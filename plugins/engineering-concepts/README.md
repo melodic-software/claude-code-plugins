@@ -51,7 +51,8 @@ naming the concept, its id and its official source. Counterweights and conflicts
 `lookup.mjs --counterweights-of <id>,<id>` prints one line per counterweight or conflict for the
 ids a file cites, so a consuming stage reads them from the shipped data at load time. It writes `<surface>.md` into the personal layer (`~/.claude/standards/`) or the team
 layer (the repository's standards root) and adds that file's row to the layer's index. Without
-`--yes` it only prints what it would write. The files follow the
+`--yes` it only prints what it would write. A concept the `exclude` or `source_bar` setting drops
+is refused, as the lookup leaves it out. The files follow the
 [standards contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/standards/README.md#standards-files):
 no frontmatter, one concern per file. Its `--help` lists the options and exit codes.
 
