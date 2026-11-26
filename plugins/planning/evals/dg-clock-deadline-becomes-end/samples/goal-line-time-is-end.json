@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n──────────────────────────────────────────────────────────\nThe import queue is shown empty in this conversation and notes/status.md holds a results line, or `date -u +%Y-%m-%dT%H:%MZ` shows 2099-12-01T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "terminal rails region, full date-time used as an OR end"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste this. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n```text\nThe queue is empty and a results line is in notes/status.md, shown in this session, or date -u shows 2099-12-01T06:00Z or later.\n```\n",
+      "why": "markdown fenced region"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line timestamped before 2099-12-01T06:00Z.\n──────────────────────────────────────────────────────────\n",
+      "why": "keeps the deadline an element must beat"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line, or `date -u` shows 06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "time of day without the date, true at once for a run that starts after it"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown in this conversation.\n──────────────────────────────────────────────────────────\n",
+      "why": "drops the time entirely"
+    }
+  ]
+}
