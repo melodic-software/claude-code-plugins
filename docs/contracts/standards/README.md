@@ -355,7 +355,9 @@ copied into each repository.
   `url.<base>.insteadOf` and every `credential.*` setting, read from the
   system and global config before it starts, following their `include` and
   `includeIf` sections (a `gitdir:` or `onbranch:` condition is matched
-  against the `--root` repository), and hands them to git in
+  against the `--root` repository; a `hasconfig:remote.*.url:` condition
+  sees only remotes written in the system or global file, never the
+  `--root` repository's own remotes), and hands them to git in
   `GIT_CONFIG_COUNT` environment variables, never on a command line. It
   runs with `http.followRedirects=false`, so credentials go only to the
   configured host: a repository that answers with a redirect (renamed or
