@@ -578,13 +578,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
-      # A fail the head can count ends the judgment here (write-verdict.mjs
-      # checkChunk): the later chunks, the final judge and any handoff are
-      # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. !cancelled() runs the check even after an earlier step
-      # failed. A judge step that run-claude-cli failed with no lane class but
-      # with an execution file stopped on its credential scan, so it counts as
-      # a fail with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && (steps.judge.outputs.lane-class == '' || steps.judge.outputs.lane-class == 'credential-stop') && steps.judge.outputs.execution-file != '')) }}
