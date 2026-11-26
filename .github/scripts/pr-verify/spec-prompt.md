@@ -17,7 +17,8 @@ one in pieces, is void, and a `fail` that does must name its defect in `notes`. 
 first two lists are wrapped at a fixed width, so a line break inside a JSON string is not in the
 original, and text too long for one file carries on in the next, cut between those lines.
 
-- Each chunk's result, whole, JSON with `chunk`, `of`, `verdict`, `summary` and `notes`:
+- Every chunk's result, whole and in chunk order, one JSON object with `chunk`, `of`, `verdict`,
+  `summary` and `notes` starting on its own line after the one before:
 
 RESULT_FILES
 

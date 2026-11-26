@@ -72,8 +72,8 @@ export const GH_CALL_BUDGET = 1000;
 const LEGS = ["", "-subscription", "-fallback"];
 const legs = (job, suffixes = [""]) => LEGS.flatMap((leg) => suffixes.map((suffix) => `${job}${leg}${suffix}`));
 const AUDIT_UNITS = ["a", "c", "d"].flatMap((group) => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `-${group}${n}`));
-const VERIFY_LEGS = ["", ...Array.from({ length: 11 }, (_, i) => `-${i + 2}`), "-spec"];
-const CHUNKS = ["", "-2", "-3", "-4"];
+const VERIFY_LEGS = ["", ...Array.from({ length: 11 }, (_, i) => `-${i + 2}`), "-chunks", "-spec"];
+const CHUNKS = ["", "-2", "-3", "-4", "-chunks"];
 const REVIEW_CHUNKS = ["claude-review", "claude-security-review"].flatMap((lane) => CHUNKS.map((chunk) => `-${lane}${chunk}`));
 export const TRANSCRIPT_JOB_IDS = {
   "intake-triage.yml": legs("refine-issue"),
@@ -91,7 +91,6 @@ export const TRANSCRIPT_JOB_IDS = {
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
   "pr-rate-merge-risk.yml": legs("rate-merge-risk"),
   "upstream-apply-changelog.yml": [...legs("apply-changelog"), ...legs("verify-env-scrub")],
-  // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
   "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => CHUNKS.map((chunk) => `${lane}-${job}${chunk}`))),
 };
 // A re-run uploads under its own attempt number; attempts past 3 are not read.

@@ -36,34 +36,90 @@ const index = (name, job = KEY) => STEPS[job].findIndex((s) => s.name === name);
 const writeDiff = readFileSync(new URL("./write-diff.py", import.meta.url), "utf8");
 const WRITE_DIFF = new URL("./write-diff.py", import.meta.url).pathname;
 const input = (block, key) => new RegExp(`^ {10}${key}: (.*)$`, "m").exec(block)?.[1];
-const SLOTS = Number(/^ {10}MAX_CHUNKS: "(\d+)"$/m.exec(step("Write the diff"))?.[1]);
+const MAX_CHUNKS = Number(/^ {10}MAX_CHUNKS: "(\d+)"$/m.exec(step("Write the diff"))?.[1]);
+const RUNS = [
+  { name: "Review chunk 1", id: "review-1", report: "Report chunk 1's outcome", transcript: "Upload chunk 1's sealed transcript" },
+  { name: "Review the later chunks", id: "review-chunks", report: "Report the later chunks' outcome", transcript: "Upload the later chunks' sealed transcript" },
+];
+const LATER = RUNS[1];
+const LEG_MINUTES = 15;
+const PARALLELISM = Number(/^ {2}CHUNK_PARALLELISM: "(\d+)"$/m.exec(text)?.[1]);
+const loopMinutes = (chunks) => 3 + Math.ceil((chunks - 1) / PARALLELISM) * (LEG_MINUTES + 1);
 
-test("each leg reviews every chunk in order, one run each, and stops at a handoff or a failure", () => {
-  assert.ok(SLOTS >= 2 && SLOTS <= 9, String(SLOTS));
+test("each leg reviews chunk 1, then every later chunk eight at once in one step, and stops at a handoff or a failure", () => {
+  assert.equal(MAX_CHUNKS, 75);
+  assert.equal(PARALLELISM, 8);
   for (const job of LEGS) {
-    assert.equal(/^ {10}MAX_CHUNKS: "(\d+)"$/m.exec(step("Write the diff", job))[1], String(SLOTS), job);
-    const runs = STEPS[job].filter((s) => /run-claude-cli@/.test(s.text)).map((s) => s.name);
-    assert.deepEqual(runs, Array.from({ length: SLOTS }, (_, i) => `Review chunk ${i + 1}`), job);
-    const first = step("Review chunk 1", job);
+    assert.equal(/^ {10}MAX_CHUNKS: "(\d+)"$/m.exec(step("Write the diff", job))[1], String(MAX_CHUNKS), job);
+    const runs = STEPS[job].filter((s) => /ci-workflows\/\.github\/actions\/run-(?:claude-cli|review-chunks)@/.test(s.text)).map((s) => s.name);
+    assert.deepEqual(runs, RUNS.map((r) => r.name), job);
+    const first = step(RUNS[0].name, job);
+    const later = step(LATER.name, job);
     assert.equal(/^ {8}if: (.*)$/m.exec(first)[1], "steps.prompt.outcome == 'success'", job);
-    for (let k = 1; k <= SLOTS; k++) {
-      const review = step(`Review chunk ${k}`, job);
-      assert.match(review, new RegExp(`^ {8}id: review-${k}$`, "m"), job);
-      assert.equal(input(review, "prompt-file"), `\${{ runner.temp }}/pr-review-main-prompt-${k}.md`, job);
-      const rest = (block) => block.replace(/^ {6}- name: .*\n|^ {8}(?:id|if): .*\n/gm, "").replace(/^ {10}prompt-file: .*$/m, "");
-      assert.equal(rest(review), rest(first), `${job} ${k}`);
-      if (k > 1) {
-        assert.equal(/^ {8}if: (.*)$/m.exec(review)[1], `steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= ${k} && steps.review-${k - 1}.outcome == 'success' && steps.review-${k - 1}.outputs.handoff != 'true'`, `${job} ${k}`);
-      }
-      const transcript = step(`Upload chunk ${k}'s sealed transcript`, job);
-      assert.equal(input(transcript, "execution-file"), `\${{ steps.review-${k}.outputs.execution-file }}`);
-      assert.equal(input(transcript, "job-id"), k === 1 ? "${{ github.job }}-${{ matrix.lane }}" : `\${{ github.job }}-\${{ matrix.lane }}-${k}`);
-    }
-    assert.ok(Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobText(job))[1]) >= SLOTS * 22 + 5, job);
+    assert.equal(input(first, "prompt-file"), "${{ runner.temp }}/pr-review-main-prompts/prompt-1.md", job);
+    assert.match(first, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main$/m, job);
+    assert.match(later, /uses: melodic-software\/ci-workflows\/\.github\/actions\/run-review-chunks@main$/m, job);
+    assert.match(later, /^ {8}id: review-chunks$/m, job);
+    const laterIf = "steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'";
+    assert.equal(/^ {8}if: (.*)$/m.exec(later)[1], laterIf, job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(step("Time the later chunks", job))[1], laterIf, job);
+    assert.equal(index("Time the later chunks", job) + 1, index(LATER.name, job), job);
+    assert.equal(input(later, "prompt-dir"), "${{ runner.temp }}/pr-review-main-prompts", job);
+    assert.equal(input(later, "chunk-first"), '"2"', job);
+    assert.equal(input(later, "chunk-last"), "${{ steps.diff.outputs.chunks }}", job);
+    assert.equal(input(later, "parallelism"), "${{ env.CHUNK_PARALLELISM }}", job);
+    assert.match(later, /^ {8}timeout-minutes: \$\{\{ fromJSON\(steps\.prompt\.outputs\.loop-minutes \|\| '1'\) \}\}$/m, job);
+    const rest = (block) =>
+      block
+        .replace(/^ {6}- name: .*\n|^ {8}(?:id|if|timeout-minutes|uses): .*\n/gm, "")
+        .replace(/^ {10}(?:prompt-file|prompt-dir|chunk-first|chunk-last|parallelism): .*\n/gm, "");
+    assert.equal(rest(later), rest(first), job);
+    assert.equal(input(step(RUNS[0].transcript, job), "execution-file"), "${{ steps.review-1.outputs.execution-file }}");
+    assert.equal(input(step(RUNS[0].transcript, job), "job-id"), "${{ github.job }}-${{ matrix.lane }}");
+    assert.equal(input(step(LATER.transcript, job), "execution-file"), "${{ steps.review-chunks.outputs.transcript-file }}");
+    assert.equal(input(step(LATER.transcript, job), "job-id"), "${{ github.job }}-${{ matrix.lane }}-chunks");
+    assert.equal(loopMinutes(MAX_CHUNKS), 163);
+    const timeout = Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobText(job))[1]);
+    assert.ok(timeout >= 22 + loopMinutes(MAX_CHUNKS) + 5 && timeout < 360, `${job} ${timeout}`);
     const prompts = step("Write the prompt and schema", job);
     assert.match(prompts, /printf '%s\\n' "\$prompt" >"\$PROMPT_STEM-\$k\.md"/);
-    assert.equal(input(prompts, "PROMPT_STEM"), "${{ runner.temp }}/pr-review-main-prompt");
+    assert.equal(input(prompts, "PROMPT_STEM"), "${{ runner.temp }}/pr-review-main-prompts/prompt");
+    assert.equal(input(prompts, "LEG_MINUTES"), `"${LEG_MINUTES}"`);
+    assert.equal(input(later, "leg-timeout-minutes"), `"${LEG_MINUTES}"`);
   }
+});
+
+test("the prompt step writes a prompt for each of 75 chunks and the later chunks' step limit", () => {
+  const run = /^ {8}run: \|\n((?:(?: {10}.*)?\n)+)/m.exec(`${step("Write the prompt and schema")}\n`)[1].replace(/^ {10}/gm, "");
+  const promptsFor = (chunks) => {
+    const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-prompts-"));
+    try {
+      const data = path.join(dir, "data");
+      for (let k = 1; k <= chunks; k++) {
+        mkdirSync(path.join(data, "diff", `chunk-${k}`), { recursive: true });
+        writeFileSync(path.join(data, "diff", `chunk-${k}`, "part-001.patch"), "+x\n");
+      }
+      const base = path.join(dir, ".base", ".github", "scripts", "pr-review-main");
+      mkdirSync(base, { recursive: true });
+      writeFileSync(path.join(base, "prompt.md"), "DIFF_PARTS\nCHUNK_NOTE\n");
+      const out = path.join(dir, "out");
+      writeFileSync(out, "");
+      const env = { ...process.env, DATA: data, LANE: "claude-review", SKILL: "code-review", MODEL: "opus", CHUNKS: String(chunks), PROMPT_STEM: path.join(dir, "prompts", "prompt"), SCHEMA_FILE: path.join(dir, "schema.json"), LEG_MINUTES: String(LEG_MINUTES), CHUNK_PARALLELISM: String(PARALLELISM), GITHUB_OUTPUT: out };
+      const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env });
+      const written = result.status === 0 ? readdirSync(path.join(dir, "prompts")).length : 0;
+      return { status: result.status, written, outputs: readFileSync(out, "utf8"), last: written ? readFileSync(path.join(dir, "prompts", `prompt-${chunks}.md`), "utf8") : "" };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const most = promptsFor(MAX_CHUNKS);
+  assert.equal(most.status, 0);
+  assert.equal(most.written, 75);
+  assert.ok(most.last.includes("These parts are chunk 75 of 75"));
+  assert.match(most.outputs, /^loop-minutes=163$/m);
+  assert.match(promptsFor(9).outputs, /^loop-minutes=19$/m);
+  assert.match(promptsFor(10).outputs, /^loop-minutes=35$/m);
+  assert.notEqual(promptsFor(100).status, 0);
 });
 
 test("a chunked review that wrote no verdict records chunk-failed for the report-review-counts job", () => {
@@ -71,7 +127,7 @@ test("a chunked review that wrote no verdict records chunk-failed for the report
     const stop = step("Record a failed chunk", job);
     assert.equal(index("Record a failed chunk", job), index("Write the verdict", job) + 1, job);
     assert.match(stop, /^ {8}id: chunk-stop$/m);
-    const noHandoff = Array.from({ length: SLOTS }, (_, i) => `steps.review-${i + 1}.outputs.handoff != 'true'`).join(" && ");
+    const noHandoff = RUNS.map((r) => `steps.${r.id}.outputs.handoff != 'true'`).join(" && ");
     assert.equal(/^ {8}if: (.*)$/m.exec(stop)[1], `\${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && ${noHandoff} }}`);
     const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(`${stop}\n`)[1].replace(/^ {10}/gm, "");
     const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-chunk-stop-"));
@@ -235,6 +291,13 @@ test("a diff the review cannot read whole stops green and names its reason for t
     assert.match(four.output, /^chunks=4$/m, job);
     assert.deepEqual(four.parts, ["chunk-1", "chunk-1/part-001.patch", "chunk-2", "chunk-2/part-001.patch", "chunk-3", "chunk-3/part-001.patch", "chunk-4", "chunk-4/part-001.patch"], job);
     assert.match(four.stdout, /^::notice title=pr-review-main chunks::lane=claude-security-review pr=7 chunks=4 bytes=200,200,200,200 manifest_paths=4$/m, job);
+    const many = (n) => runDiff(Array.from({ length: n }, (_, i) => filePatch(`f${i}`, 200)).join(""), { job, maxChunks: String(MAX_CHUNKS) });
+    const fifty = many(50);
+    assert.equal(fifty.status, 0, job);
+    assert.doesNotMatch(fifty.output, /stop=/, job);
+    assert.match(fifty.output, /^chunks=50$/m, job);
+    assert.match(many(MAX_CHUNKS).output, /^chunks=75$/m, job);
+    assert.match(many(MAX_CHUNKS + 1).output, /^stop=too-large$/m, job);
     const failed = runDiff(small, { job, pythonFails: true });
     assert.notEqual(failed.status, 0, job);
     assert.doesNotMatch(failed.output, /stop=/, job);
@@ -257,7 +320,7 @@ function renderPrompts(data, output, job) {
     symlinkSync(new URL("./prompt.md", import.meta.url).pathname, path.join(base, "prompt.md"));
     const out = path.join(dir, "out");
     writeFileSync(out, "");
-    const env = { ...process.env, DATA: data, LANE: "claude-review", SKILL: "code-review", MODEL: "opus", CHUNKS: chunks, PROMPT_STEM: path.join(dir, "prompt"), SCHEMA_FILE: path.join(dir, "schema.json"), GITHUB_OUTPUT: out };
+    const env = { ...process.env, DATA: data, LANE: "claude-review", SKILL: "code-review", MODEL: "opus", CHUNKS: chunks, PROMPT_STEM: path.join(dir, "prompt"), SCHEMA_FILE: path.join(dir, "schema.json"), LEG_MINUTES: String(LEG_MINUTES), CHUNK_PARALLELISM: String(PARALLELISM), GITHUB_OUTPUT: out };
     const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env });
     assert.equal(result.status, 0, result.stderr);
     const manifest = (() => { try { return readFileSync(path.join(data, "manifest.txt"), "utf8"); } catch { return null; } })();
@@ -551,23 +614,22 @@ test("an edited rename prints whole, as a delete and an add", () => {
   assert.match(patch, /^\+run the payload$/m);
 });
 
-test("each chunk's review leaves a lane record", () => {
-  assert.ok(SLOTS >= 2, String(SLOTS));
+test("each model step leaves a lane record", () => {
   for (const job of LEGS) {
-    for (let k = 1; k <= SLOTS; k++) {
-      const report = step(`Report chunk ${k}'s outcome`, job);
+    for (const run of RUNS) {
+      const report = step(run.report, job);
       assert.match(report, /report-lane-outcome@main/);
       assert.match(report, /^ {10}lane: pr-review-main$/m);
       assert.match(report, /^ {10}lane-id: pr-review-main-\$\{\{ matrix\.lane \}\}$/m);
-      assert.equal(input(report, "outcome"), `\${{ steps.review-${k}.outcome }}`);
-      assert.equal(input(report, "step-started-at"), k === 1 ? "${{ steps.prompt.outputs.started-at }}" : `\${{ steps.time-${k}.outputs.started-at }}`);
-      assert.equal(index(`Report chunk ${k}'s outcome`, job), index(`Review chunk ${k}`, job) + 1);
-      assert.match(step(`Review chunk ${k}`, job), /^ {8}continue-on-error: true$/m);
-      if (k > 1) {
-        assert.equal(index(`Time chunk ${k}`, job) + 1, index(`Review chunk ${k}`, job));
-        assert.equal(/^ {8}if: (.*)$/m.exec(step(`Time chunk ${k}`, job))[1], /^ {8}if: (.*)$/m.exec(step(`Review chunk ${k}`, job))[1]);
-      }
+      assert.equal(input(report, "outcome"), `\${{ steps.${run.id}.outcome }}`);
+      assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], `steps.${run.id}.outcome == 'success' || steps.${run.id}.outcome == 'failure'`);
+      assert.equal(index(run.report, job), index(run.name, job) + 1);
+      assert.match(step(run.name, job), /^ {8}continue-on-error: true$/m);
     }
+    assert.equal(input(step(RUNS[0].report, job), "step-started-at"), "${{ steps.prompt.outputs.started-at }}");
+    assert.equal(input(step(RUNS[0].report, job), "step-timeout-minutes"), "22");
+    assert.equal(input(step(LATER.report, job), "step-started-at"), "${{ steps.time-chunks.outputs.started-at }}");
+    assert.equal(input(step(LATER.report, job), "step-timeout-minutes"), "${{ steps.prompt.outputs.loop-minutes }}");
   }
 });
 
@@ -612,8 +674,8 @@ test("it checks out main only, and runs local actions from that checkout", () =>
 });
 
 test("the model reads its data directory alone", () => {
-  for (const job of LEGS) for (let k = 1; k <= SLOTS; k++) {
-  const review = step(`Review chunk ${k}`, job);
+  for (const job of LEGS) for (const run of RUNS) {
+  const review = step(run.name, job);
   assert.match(review, /^ {10}tools: Read$/m);
   assert.match(review, /^ {10}allowed-tools: Read\(\.\/pr-review-main-data\/\*\*\)$/m);
   assert.match(review, /^ {10}permission-mode: dontAsk$/m);
@@ -661,11 +723,13 @@ test("the verdict uploads once, after it is written, under the writer's name", (
     const write = step("Write the verdict", job);
     assert.match(write, /TREE_SHA: \$\{\{ steps\.diff\.outputs\.tree \}\}/);
     assert.match(write, /HEAD_SHA: \$\{\{ steps\.trigger\.outputs\.head-sha \}\}/);
-    const slots = Array.from({ length: SLOTS }, (_, i) => i + 1);
-    const each = slots.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.review-${k}.outcome == 'success')`);
-    const noHandoff = slots.map((k) => `steps.review-${k}.outputs.handoff != 'true'`);
-    assert.equal(/^ {8}if: (.*)$/m.exec(write)[1], ["steps.review-1.outcome == 'success'", ...each, ...noHandoff].join(" && "), job);
-    assert.ok(write.includes(`          EXECUTION_FILES: |\n${slots.map((k) => `            \${{ steps.review-${k}.outputs.execution-file }}\n`).join("")}`), job);
+    assert.equal(
+      /^ {8}if: (.*)$/m.exec(write)[1],
+      "steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-chunks.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-chunks.outputs.handoff != 'true'",
+      job,
+    );
+    assert.equal(input(write, "EXECUTION_FILE"), "${{ steps.review-1.outputs.execution-file }}", job);
+    assert.equal(input(write, "CHUNKS_DIR"), "${{ steps.review-chunks.outputs.results-dir }}", job);
     assert.equal(input(write, "CHUNKS"), "${{ steps.diff.outputs.chunks }}");
   }
   assert.match(step("Write the diff"), /rev-parse --verify "\$HEAD_SHA\^\{tree\}"/);
@@ -1325,6 +1389,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   assert.deepEqual(order, LEGS);
   const used = order.map((job) => {
     const review = step("Review chunk 1", job);
+    for (const name of CREDENTIAL_INPUTS) assert.equal(input(step(LATER.name, job), name), input(review, name), `${job} ${name}`);
     const set = CREDENTIAL_INPUTS.filter((name) => input(review, name) !== undefined);
     assert.equal(set.length, 1, `${job} passes one credential`);
     return [set[0], /^\$\{\{ secrets\.([A-Z_]+) \}\}$/.exec(input(review, set[0]))[1]];
@@ -1343,7 +1408,7 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   for (const job of LEGS) {
     for (const s of STEPS[job]) {
       const values = [...s.text.matchAll(/secrets\.([A-Z_]+)(?![A-Z_]| != '')/g)].map(([, name]) => name);
-      if (/^Review chunk \d$/.test(s.name)) assert.equal(values.length, 1, job);
+      if (RUNS.some((r) => r.name === s.name)) assert.equal(values.length, 1, job);
       else assert.deepEqual(values, [], `${job}: ${s.name}`);
     }
   }
@@ -1429,10 +1494,10 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
     [...fbOutputs.matchAll(/^ {6}([a-z-]+):/gm)].map(([, name]) => name),
     ["claude-review-stop", "claude-security-review-stop", "claude-review-head", "claude-security-review-head"],
   );
-  for (let k = 1; k <= SLOTS; k++) {
-    assert.doesNotMatch(step(`Review chunk ${k}`, KEY), /fallback-ready/);
-    assert.equal(input(step(`Review chunk ${k}`, SUB), "fallback-ready"), "${{ steps.credential.outputs.fallback-ready }}");
-    assert.doesNotMatch(step(`Review chunk ${k}`, FB), /fallback-ready/);
+  for (const run of RUNS) {
+    assert.doesNotMatch(step(run.name, KEY), /fallback-ready/);
+    assert.equal(input(step(run.name, SUB), "fallback-ready"), "${{ steps.credential.outputs.fallback-ready }}");
+    assert.doesNotMatch(step(run.name, FB), /fallback-ready/);
   }
   assert.match(jobText("report-review-counts"), /^ {4}needs: \[review, review-subscription, review-fallback\]$/m);
   assert.match(jobText("report-review-counts"), RECORD_IF);
@@ -1445,28 +1510,27 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
 
 test("the handoff step names its lane and a closed reason, and a handed-off leg stays green", () => {
   for (const job of [KEY, SUB]) {
-    const slots = Array.from({ length: SLOTS }, (_, i) => i + 1);
     const next = step("Pick the next leg", job);
     assert.match(next, /^ {8}id: next$/m);
     assert.match(next, /^ {8}if: \$\{\{ always\(\) \}\}$/m);
     assert.match(next, /^ {8}continue-on-error: true$/m);
     assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}");
-    assert.equal(input(next, "handoff"), `\${{ ${slots.map((k) => `steps.review-${k}.outputs.handoff == 'true'`).join(" || ")} }}`);
-    assert.equal(input(next, "handoff-reason"), `\${{ ${slots.map((k) => `steps.review-${k}.outputs.handoff-reason`).join(" || ")} }}`);
+    assert.equal(input(next, "handoff"), "${{ steps.review-1.outputs.handoff == 'true' || steps.review-chunks.outputs.handoff == 'true' }}");
+    assert.equal(input(next, "handoff-reason"), "${{ steps.review-1.outputs.handoff-reason || steps.review-chunks.outputs.handoff-reason }}");
     const handoff = step("Hand the lane on", job);
     assert.equal(/^ {8}if: (.*)$/m.exec(handoff)[1], "steps.next.outputs.next-leg != ''");
     assert.equal(input(handoff, "REASON"), "${{ steps.next.outputs.next-reason }}");
-    assert.ok(index(`Upload chunk ${SLOTS}'s sealed transcript`, job) + 1 === index("Pick the next leg", job));
+    assert.ok(index(LATER.transcript, job) + 1 === index("Pick the next leg", job));
     assert.ok(index("Pick the next leg", job) + 1 === index("Hand the lane on", job));
-    for (const k of slots) {
-      const report = step(`Report chunk ${k}'s outcome`, job);
-      assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], `steps.review-${k}.outcome == 'success' || steps.review-${k}.outcome == 'failure'`);
-      assert.equal(input(report, "handoff"), `\${{ steps.review-${k}.outputs.handoff }}`);
+    for (const run of RUNS) {
+      const report = step(run.report, job);
+      assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], `steps.${run.id}.outcome == 'success' || steps.${run.id}.outcome == 'failure'`);
+      assert.equal(input(report, "handoff"), `\${{ steps.${run.id}.outputs.handoff }}`);
       assert.match(report, /^ {8}continue-on-error: true$/m);
     }
     assert.match(step("Fail without a verdict", job), /&& steps\.handoff\.outcome != 'success'$/m);
   }
-  for (let k = 1; k <= SLOTS; k++) assert.equal(input(step(`Report chunk ${k}'s outcome`, FB), "handoff"), undefined);
+  for (const run of RUNS) assert.equal(input(step(run.report, FB), "handoff"), undefined);
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(step("Hand the lane on"))[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-handoff-"));
   try {
@@ -1501,8 +1565,8 @@ test("each later leg runs the key leg's steps but main's tip, and names why it r
   );
   for (const job of [SUB, FB]) {
     assert.equal(input(step("Check the credential", job), "reason"), "${{ matrix.reason }}");
-    for (let k = 1; k <= SLOTS; k++) {
-      assert.equal(input(step(`Report chunk ${k}'s outcome`, job), "fallback-reason"), "${{ steps.credential.outputs.fallback-reason }}");
+    for (const run of RUNS) {
+      assert.equal(input(step(run.report, job), "fallback-reason"), "${{ steps.credential.outputs.fallback-reason }}");
     }
   }
   assert.equal(input(step("Report chunk 1's outcome", KEY), "fallback-reason"), undefined);
