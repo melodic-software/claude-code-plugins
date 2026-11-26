@@ -10,7 +10,8 @@ export const CATEGORIES = ['process', 'decision', 'verification', 'instruction']
 export type Category = (typeof CATEGORIES)[number] | 'harness'
 export type Fix = { route: 'here'; how: string } | { route: 'session'; how: string; command: string }
 export type Finding = { finding: string; category: Category; rule: string; evidence: string; fix?: Fix }
-export type Parsed = { kind: 'none' } | { kind: 'finding'; value: Finding } | { kind: 'unparsable' }
+export type ParseFailure = { reason: string; lengths?: { finding: number; rule: number; evidence: number } }
+export type Parsed = { kind: 'none' } | { kind: 'finding'; value: Finding } | ({ kind: 'unparsable' } & ParseFailure)
 export type Trigger = 'step' | 'turn-end' | 'change' | 'gate' | 'harness'
 
 export const isStepCheck = (index: number, agentId: string | undefined, every = CHECK_EVERY) =>
@@ -85,13 +86,16 @@ const field = (lines: readonly string[], label: string) => {
 export const parseReply = (text: string, fieldMax = FIELD_MAX): Parsed => {
   const lines = clean(text).split(/\r?\n/)
   const finding = field(lines, 'finding')
-  if (finding === undefined || finding === '') return { kind: 'unparsable' }
+  if (finding === undefined || finding === '') return { kind: 'unparsable', reason: 'no_finding' }
   if (/^none\.?$/i.test(finding)) return { kind: 'none' }
   const rule = field(lines, 'rule') ?? ''
   const evidence = field(lines, 'evidence') ?? ''
   const raw = (field(lines, 'category') ?? '').toLowerCase()
   const category = CATEGORIES.find(c => raw.startsWith(c))
-  if (rule === '' || category === undefined || [finding, rule, evidence].some(v => v.length > fieldMax)) return { kind: 'unparsable' }
+  const lengths = { finding: finding.length, rule: rule.length, evidence: evidence.length }
+  const tooLong = (Object.keys(lengths) as (keyof typeof lengths)[]).find(k => lengths[k] > fieldMax)
+  const reason = rule === '' ? 'no_rule' : category === undefined ? 'bad_category' : tooLong ? `field_too_long:${tooLong}` : undefined
+  if (reason) return { kind: 'unparsable', reason, lengths }
   return { kind: 'finding', value: { finding: /[.!?]$/.test(finding) ? finding : `${finding}.`, category, rule, evidence } }
 }
 

@@ -9,6 +9,7 @@ import {
   SKIP_MAX,
   TYPED_PAST_FREE,
   type Finding,
+  type ParseFailure,
   type Trigger,
   checksToSkipAfterIgnored,
   isKnown,
@@ -184,7 +185,7 @@ export type Effect =
   | { kind: 'check'; trigger: Trigger; turnId: string; step: number }
   | { kind: 'fork'; req: CheckRequest }
   | { kind: 'accept'; req: CheckRequest; finding: Finding }
-  | { kind: 'finish'; req: CheckRequest; outcome: string }
+  | { kind: 'finish'; req: CheckRequest; outcome: string; detail?: ParseFailure }
   | { kind: 'store'; key: string; value: unknown }
   | { kind: 'record'; row: object }
   | { kind: 'ledger'; path: string; line: LedgerKind; finding: Finding; detail?: string }
@@ -211,8 +212,13 @@ const answered = (s: State, answer: string, toast?: string): Result => ({
   ],
 })
 
+const failure = ({ reason, lengths }: ParseFailure): ParseFailure => (lengths ? { reason, lengths } : { reason })
+
 const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Options): Result => {
-  const finish = (state: State, outcome: string, before: Effect[] = []): Result => ({ state, effects: [...before, { kind: 'finish', req: e.req, outcome }] })
+  const finish = (state: State, outcome: string, before: Effect[] = [], detail?: ParseFailure): Result => ({
+    state,
+    effects: [...before, { kind: 'finish', req: e.req, outcome, ...(detail ? { detail } : {}) }],
+  })
   if (!e.reply.isAnswered) {
     const reason = e.reply.reason
     return finish(s, reason === 'nothing-to-fork' || reason === 'empty-reply' ? 'none' : reason.replace('-', '_'))
@@ -229,7 +235,8 @@ const replied = (s: State, e: Extract<Event, { kind: 'check-replied' }>, o: Opti
     state = { ...state, card: null }
   }
   if (!isCurrent) return finish(state, 'stale', effects)
-  if (parsed.kind !== 'finding') return finish(state, parsed.kind === 'none' ? 'none' : 'parse_failed', effects)
+  if (parsed.kind === 'none') return finish(state, 'none', effects)
+  if (parsed.kind === 'unparsable') return finish(state, 'parse_failed', effects, failure(parsed))
   if (isKnown(parsed.value.finding, e.seen, e.disputed)) return finish(state, 'deduped', effects)
   return { state, effects: [...effects, { kind: 'accept', req: e.req, finding: parsed.value }] }
 }
@@ -276,7 +283,7 @@ export const step = (s: State, e: Event, o: Options): Result => {
           effects: [{ kind: 'record', row: { ...row, outcome: 'refused', finding: parsed.value.finding } }, { kind: 'deny', text: noteFor(parsed.value, 'plugin', o.autoNote) }],
         }
       const outcome = !e.reply.isAnswered ? e.reply.reason : parsed?.kind === 'finding' ? 'allowed_after_refusals' : parsed?.kind === 'none' ? 'none' : 'parse_failed'
-      return { state: s, effects: [{ kind: 'record', row: { ...row, outcome } }] }
+      return { state: s, effects: [{ kind: 'record', row: { ...row, outcome, ...(parsed?.kind === 'unparsable' ? failure(parsed) : {}) } }] }
     }
     case 'step':
       if (e.main) s = { ...s, lastStep: e.index }
