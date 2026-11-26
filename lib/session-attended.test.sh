@@ -33,7 +33,7 @@ cases.forEach((c, i) => {
     if (c.data !== null) writeFileSync(`${dir}/session-attended.env`, c.data);
   }
   const pairs = Object.entries(c.env).map(([k, v]) => `${k}=${v}`);
-  out.push(c.name, String(c.attended), dir, String(pairs.length), ...pairs);
+  out.push(c.name, String(c.attended), "execPath" in c ? JSON.stringify(c.execPath) : "", dir, String(pairs.length), ...pairs);
 });
 process.stdout.write(out.map((f) => `${f}\0`).join(""));
 NODE
@@ -46,7 +46,7 @@ rows >"$records" || {
 }
 
 count=0
-while IFS= read -r -d '' name && IFS= read -r -d '' want && IFS= read -r -d '' dir && IFS= read -r -d '' n; do
+while IFS= read -r -d '' name && IFS= read -r -d '' want && IFS= read -r -d '' wantexec && IFS= read -r -d '' dir && IFS= read -r -d '' n; do
   pairs=()
   for ((i = 0; i < n; i++)); do
     IFS= read -r -d '' pair
@@ -70,10 +70,12 @@ while IFS= read -r -d '' name && IFS= read -r -d '' want && IFS= read -r -d '' d
 
   out="$(env -i ${pairs[@]+"${pairs[@]}"} "$node" --input-type=module -e '
 const { pathToFileURL } = await import("node:url");
-const { sessionAttended } = await import(pathToFileURL(process.argv[1]).href);
-process.stdout.write(String(sessionAttended(process.env)));
-' "$dir/session-attended.mjs" 2>"$scratch/node.err")"
+const reader = await import(pathToFileURL(process.argv[1]).href);
+process.stdout.write(String(reader.sessionAttended(process.env)));
+if (process.argv[2]) process.stdout.write(` ${JSON.stringify(reader.sessionExecPath(process.env))}`);
+' "$dir/session-attended.mjs" "$wantexec" 2>"$scratch/node.err")"
   err="$(<"$scratch/node.err")"
+  want="$want${wantexec:+ $wantexec}"
   if [[ "$out" == "$want" && -z "$err" ]]; then
     pass "node: $name -> $want"
   else
