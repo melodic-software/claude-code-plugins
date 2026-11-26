@@ -1,0 +1,6 @@
+{
+  "ran-repo-lint": [
+    {"use": "command_position"},
+    "(?:(?:npm|pnpm|yarn)\\s+(?:run(?:-script)?\\s+)?lint:md\\b|(?:(?:bash|sh)\\s+(?:[^\\s\"\\\\;&|()]*/)?)?lint-md\\.sh\\b)"
+  ]
+}

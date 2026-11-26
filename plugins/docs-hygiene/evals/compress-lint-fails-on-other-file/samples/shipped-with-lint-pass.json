@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)\n\nLint command: npm run lint:md, inferred from package.json. docs/style.md fails the lint, but that file was not edited.", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | compressed | lint: PASS |", "why": "a table row"},
+    {"answer": "- `onboarding.md`: compressed, `lint=PASS` (`bash scripts/lint-md.sh docs/onboarding.md`)", "why": "code-formatted fields"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, lint=FAIL)\n\nlint-md: docs/style.md: first line is not an ATX heading", "why": "reverted on another file's failure"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=FAIL)", "why": "reports the other file's failure as the target's"},
+    {"answer": "onboarding.md: compressed\n\nlint=PASS", "why": "the action and the lint result on separate lines"},
+    {"answer": "The lint passed for the file, so I kept the compression.", "why": "prose without the lint field"}
+  ]
+}
