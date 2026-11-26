@@ -13,20 +13,7 @@ US=$'\037'
 die() { printf 'org-standards: %s\n' "$(printable "$1")" >&2; exit "${2:-2}"; }
 note() { printf 'org-standards: %s\n' "$(printable "$1")" >&2; }
 
-NET_KEYS='^(https?\.proxy|http\.sslcainfo|http\.sslcapath|core\.sshcommand|url\..*\.insteadof|credential\..*)$'
-GIT_ISOLATE=(-c core.hooksPath=/dev/null -c core.fsmonitor=false)
-USER_SSH=""
-while IFS= read -r -d '' kv; do
-  [[ "$kv" == *$'\n'* ]] || continue
-  key=${kv%%$'\n'*}
-  case "$key" in
-    core.sshcommand) USER_SSH=${kv#*$'\n'} ;;
-    *=*) ;;
-    *) GIT_ISOLATE+=(-c "$key=${kv#*$'\n'}") ;;
-  esac
-done < <(for scope in system global; do command git config "--$scope" -z --get-regexp "$NET_KEYS" 2>/dev/null || true; done)
-export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ALLOW_PROTOCOL=https:ssh:git:file
-git() { command git "${GIT_ISOLATE[@]}" "$@"; }
+GIT_ISOLATE=(-c core.hooksPath=/dev/null -c core.fsmonitor=false -c http.followRedirects=false)
 
 # shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
 ESCAPE='
@@ -57,8 +44,26 @@ while [[ $# -gt 0 ]]; do
 done
 case "$cmd" in dir|index|review|citations|subscriptions) ;; *) die "usage: org-standards.sh dir|index|review|citations|subscriptions [--root DIR]" ;; esac
 if [[ -z "$root" ]]; then
-  root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  root=$(GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null command git "${GIT_ISOLATE[@]}" rev-parse --show-toplevel 2>/dev/null || pwd)
 fi
+
+NET_KEYS='^(https?\.proxy|http\.sslcainfo|http\.sslcapath|core\.sshcommand|url\..*\.insteadof|credential\..*)$'
+USER_SSH=""
+cfg_count=${GIT_CONFIG_COUNT:-0}
+if [[ "$cfg_count" =~ ^[0-9]+$ ]]; then cfg_count=$((10#$cfg_count)); else cfg_count=0; fi
+while IFS= read -r -d '' kv; do
+  [[ "$kv" == *$'\n'* ]] || continue
+  key=${kv%%$'\n'*}
+  if [[ "$key" == core.sshcommand ]]; then USER_SSH=${kv#*$'\n'}; continue; fi
+  export "GIT_CONFIG_KEY_$cfg_count=$key" "GIT_CONFIG_VALUE_$cfg_count=${kv#*$'\n'}"
+  cfg_count=$((cfg_count + 1))
+done < <(
+  dir=$root; [[ -d "$dir" ]] || dir=.
+  for scope in system global; do command git -C "$dir" config "--$scope" --includes -z --get-regexp "$NET_KEYS" 2>/dev/null || true; done
+)
+[[ "$cfg_count" -eq 0 ]] || export GIT_CONFIG_COUNT=$cfg_count
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ALLOW_PROTOCOL=https:ssh:git:file
+git() { command git "${GIT_ISOLATE[@]}" "$@"; }
 
 yaml_value() {
   [[ -f "$1" ]] || return 0
@@ -68,7 +73,7 @@ yaml_value() {
 
 CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"
 [[ "$CACHE" == /* ]] || CACHE="$PWD/$CACHE"
-as_is "$CACHE" || die "the cache directory $CACHE holds a control character or invalid UTF-8"
+need_cache() { as_is "$CACHE" || die "the cache directory $CACHE holds a control character or invalid UTF-8"; }
 STATE="$CACHE/.state"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -77,8 +82,9 @@ GIT_TIMEOUT=${ORG_STANDARDS_GIT_TIMEOUT:-60}
 net_git() {
   local run=(command git)
   command -v timeout >/dev/null 2>&1 && run=(timeout "$GIT_TIMEOUT" git)
-  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-${USER_SSH:-ssh}} -o BatchMode=yes" \
-    GIT_CEILING_DIRECTORIES="${CACHE%/*}" "${run[@]}" "${GIT_ISOLATE[@]}" "$@"
+  { { GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-${USER_SSH:-ssh}} -o BatchMode=yes" \
+    GIT_CEILING_DIRECTORIES="${CACHE%/*}" "${run[@]}" "${GIT_ISOLATE[@]}" "$@" 2>&1 >&3 3>&-; } \
+    | NOTE=${REDIRECT_NOTE:-} awk "$ESCAPE"' ENVIRON["NOTE"] != "" && /returned error: 30[0-9]/ && !n++ { print "org-standards: " esc(ENVIRON["NOTE"], 0) }' >&2 3>&-; } 3>&1
 }
 checkout_git() { local dir=$1; shift; GIT_LFS_SKIP_SMUDGE=1 net_git -C "$dir" "$@"; }
 cache_git() { mkdir -p "$CACHE" && GIT_CEILING_DIRECTORIES="${CACHE%/*}" git -C "$CACHE" "$@"; }
@@ -116,7 +122,8 @@ org_dir() {
     note "standards_repository $repo is not <owner>/<repo>; no org layer"
     return 3
   fi
-  local cache
+  need_cache
+  local cache REDIRECT_NOTE="$repo answered with a redirect (for example, it was renamed or moved), which is not followed; set standards_repository to its new location"
   cache="$CACHE/$repo"
   clear_links "$cache" || return 4
   local stamp="$cache/.git/org-standards-fetched" ttl="${ORG_STANDARDS_TTL:-3600}" now
@@ -134,7 +141,7 @@ org_dir() {
     if [[ -f "$stamp" ]] && [[ $((now - $(cat "$stamp"))) -lt "$ttl" ]]; then
       printf '%s\n' "$cache"; return 0
     fi
-    if net_git -C "$cache" fetch --quiet --depth=1 origin main 2>/dev/null \
+    if net_git -C "$cache" fetch --quiet --depth=1 origin main \
       && checkout_git "$cache" -c core.symlinks=false checkout --quiet --force --detach FETCH_HEAD 2>/dev/null; then
       printf '%s\n' "$now" >"$stamp"
     else
@@ -145,7 +152,7 @@ org_dir() {
   mkdir -p "$(dirname "$cache")"
   local tmp
   tmp=$(mktemp -d "$(dirname "$cache")/.clone.XXXXXX")
-  if ! net_git -C "$CACHE" clone --quiet --no-checkout --depth=1 --branch main --config core.symlinks=false "$url" "$tmp" 2>/dev/null \
+  if ! net_git -C "$CACHE" clone --quiet --no-checkout --depth=1 --branch main --config core.symlinks=false "$url" "$tmp" \
     || ! checkout_git "$tmp" -c core.symlinks=false checkout --quiet --force main 2>/dev/null; then
     rm -rf "${tmp:?}"
     note "cannot clone $url; no org layer this run"
@@ -265,6 +272,7 @@ locate() {
 
 confine() {
   local root=$1 index=$2 topics=$3 sdir line kind id when f path version text key out
+  need_cache
   version=$(yaml_value "$index" standards-contract)
   if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
     note "$index: standards-contract $version is not a version; no usable index"; return 1
@@ -409,14 +417,29 @@ drift() {
 }
 
 frontmatter() {
-  awk 'NR == 1 { if ($0 != "---") exit; print ""; next } $0 == "---" { exit } { print }' "$1"
+  awk '{ sub(/\r$/, "") } NR == 1 { if ($0 != "---") exit; print ""; next } $0 == "---" { exit } { print }' "$1"
 }
 
 # shellcheck disable=SC2016  # an awk program run ahead of yaml-subset.awk: ORS appends each record's line, and END reads the parser's keyseen so a key is found under any spelling it accepts
 NUMBERED='
 { ORS = "\t" NR "\n" }
-END { ORS = "\n"; for (k in keyseen) if (k == "trusted_owners" || k == "standards_repositories") print ".key\t" k "\t" keyseen[k] }'
+END {
+  ORS = "\n"
+  for (k in keyseen) if (k ~ /(^|\.)(trusted_owners|standards_repositories)$/) print (index(k, ".") ? ".nested" : ".key") "\t" k "\t" keyseen[k]
+}'
 parse_yaml() { awk -f <(printf '%s\n' "$NUMBERED") -f "$1"; }
+
+key_line() {
+  local text=$2 parsed status at err
+  while :; do
+    status=0
+    parsed=$(printf '%s\n' "$text" | parse_yaml "$1") || status=$?
+    at=$(printf '%s\n' "$parsed" | awk -F'\t' -v k="$3" '$1 == ".key" && $2 == k { print $3 }')
+    err=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $2; exit }')
+    if [[ -n "$at" || "$status" -eq 0 || ! "$err" =~ ^[1-9][0-9]*$ ]]; then printf '%s' "$at"; return 0; fi
+    text=$(printf '%s\n' "$text" | awk -v l="$err" 'NR == l { print ""; next } { print }')
+  done
+}
 # shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
 VALUE_ON_KEY_LINE='function on_key_line(s) { sub(/^[^:]*:[ \t]*/, "", s); return s != "" && s !~ /^#/ }'
 
@@ -503,7 +526,7 @@ layer_checkout() {
   fi
   if [[ "$verify" -eq 1 ]]; then
     if ! net_git -C "$tmp" fetch --quiet --filter=blob:none --no-tags origin \
-      '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*' 2>/dev/null; then
+      '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'; then
       rm -rf "${tmp:?}"; return 4
     fi
     if ! commit=$(GIT_NO_LAZY_FETCH=1 git -C "$tmp" rev-parse --verify --quiet "$sha^{commit}" 2>/dev/null) \
@@ -516,7 +539,7 @@ layer_checkout() {
       clear_links "$dest" || { rm -rf "${tmp:?}"; return 4; }
       [[ ! -d "$dest/.git" ]] || { rm -rf "${tmp:?}"; printf '%s\n' "$dest"; return 0; }
     fi
-  elif ! net_git -C "$tmp" fetch --quiet --depth=1 origin "$sha" 2>/dev/null; then
+  elif ! net_git -C "$tmp" fetch --quiet --depth=1 origin "$sha"; then
     rm -rf "${tmp:?}"; return 4
   fi
   if ! checkout_git "$tmp" -c core.symlinks=false -c advice.detachedHead=false checkout --quiet --detach "$sha" >/dev/null 2>&1; then
@@ -557,7 +580,7 @@ live_sha() {
   fi
   local fresh
   mkdir -p "$CACHE"
-  fresh=$(net_git -C "$CACHE" ls-remote "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" refs/heads/main 2>/dev/null | awk 'NR == 1 { print $1 }') || fresh=""
+  fresh=$(net_git -C "$CACHE" ls-remote "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" refs/heads/main | awk 'NR == 1 { print $1 }') || fresh=""
   [[ "$fresh" =~ $SHA_RE ]] || fresh=""
   if [[ -z "$fresh" ]]; then
     [[ -n "${sha:-}" ]] && [[ -d "$CACHE/$repo@$sha/.git" ]] || return 4
@@ -571,6 +594,7 @@ live_sha() {
 subscription() {
   local file=$1 line=$2 repo=$3 ref=$4 topics=$5 only=$6 except=$7 org=$8 cur=$9 trusted=${10}
   local at="$file:$line" owner repo_l only_hit except_hit sha dir status=0 index last laststate
+  local REDIRECT_NOTE="$at: $repo answered with a redirect (for example, it was renamed or moved), which is not followed; set the subscription's repo to its new location"
   owner=$(lower "${repo%%/*}")
   repo_l=$(lower "$repo")
   only_hit=$(glob_hit "$cur" "$only")
@@ -676,9 +700,14 @@ subscriptions() {
   if [[ -z "$version" ]]; then
     note "subscriptions not read: $file has no standards-contract frontmatter key, so it is not an index"; return 0
   fi
+  local nkey nline
+  while IFS=$'\t' read -r nkey nline; do
+    note "$file:$nline: $nkey is under another key, so it is not read; write ${nkey##*.} at the top level of the frontmatter"
+  done < <(printf '%s\n' "$parsed" | awk -F'\t' '$1 == ".nested" { print $2 "\t" $3 }' | sort -t $'\t' -k2,2n)
   local entries
   entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted|untrusted)\t' || true)
   [[ -n "$entries" ]] || return 0
+  need_cache
   if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
     note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
@@ -686,7 +715,7 @@ subscriptions() {
   local org cur line repo ref topics only except prob layerfile at
   for layerfile in "$root/docs/conventions/source-control.yaml" "$(index_of "$root" 2>/dev/null || true)"; do
     [[ -f "$layerfile" ]] || continue
-    at=$(if [[ "$layerfile" == *.md ]]; then frontmatter "$layerfile"; else cat "$layerfile"; fi | grep -n -m1 '^trusted_owners:' | cut -d: -f1 || true)
+    at=$(key_line "$awkf" "$(if [[ "$layerfile" == *.md ]]; then frontmatter "$layerfile"; else cat "$layerfile"; fi)" trusted_owners)
     [[ -z "$at" ]] || note "$layerfile:$at: trusted_owners is read from the user-global index only; ignored here"
   done
   org=$(lower "$(yaml_value "$root/docs/conventions/source-control.yaml" standards_repository)")

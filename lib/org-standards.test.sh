@@ -304,6 +304,16 @@ assert_eq "a repository-layer trusted_owners is ignored: the unpinned subscripti
 assert_eq "a repository-layer trusted_owners is reported as ignored, naming each file and line" \
   "org-standards: $layered/docs/conventions/source-control.yaml:1: trusted_owners is read from the user-global index only; ignored here|org-standards: $layered/docs/standards/README.md:3: trusted_owners is read from the user-global index only; ignored here" \
   "$(errs subscriptions --root "$layered" | grep 'ignored here' | paste -sd'|' -)"
+for spelling in '"trusted_owners": [stranger]' 'trusted_owners : [stranger]' "'trusted_owners':"$'\n  - stranger'; do
+  printf 'pr_open_state: ready\n%s\n' "$spelling" >"$layered/docs/conventions/source-control.yaml"
+  printf -- '---\nstandards-contract: 1.3.0\n%s\n---\n' "$spelling" >"$layered/docs/standards/README.md"
+  assert_eq "a repository-layer trusted_owners written as $spelling is reported as ignored, naming each file and line" \
+    "org-standards: $layered/docs/conventions/source-control.yaml:2: trusted_owners is read from the user-global index only; ignored here|org-standards: $layered/docs/standards/README.md:3: trusted_owners is read from the user-global index only; ignored here" \
+    "$(errs subscriptions --root "$layered" | grep 'ignored here' | paste -sd'|' -)"
+done
+printf 'labels: {a: b}\ntrusted_owners:\n  - stranger\n' >"$layered/docs/conventions/source-control.yaml"
+assert_eq "a repository-layer trusted_owners below a line outside the YAML subset is still reported" "1" \
+  "$(errs subscriptions --root "$layered" | grep -cxF "org-standards: $layered/docs/conventions/source-control.yaml:2: trusted_owners is read from the user-global index only; ignored here")"
 
 user_index "trusted_owners:
   - acme
@@ -347,6 +357,16 @@ printf -- '---\nstandards-contract: 1.2.0\nstandards_repositories:\n  - repo: st
 assert_eq "an index below the subscriptions version is still read" "stranger/guide@$GUIDE" "$(run subscriptions --root "$t" | cut -f1)"
 assert_eq "an index below the subscriptions version is told to declare it" "1" \
   "$(errs subscriptions --root "$t" | grep -c 'declares standards-contract 1.2.0; standards_repositories needs 1.3.0')"
+printf -- '---\r\nstandards-contract: 1.3.0\r\nstandards_repositories:\r\n  - repo: stranger/guide\r\n    ref: %s\r\n---\r\n' "$GUIDE" >"$USER_INDEX"
+assert_eq "a user index with CRLF line endings is read like one with LF endings" "stranger/guide@$GUIDE|" \
+  "$(run subscriptions --root "$t" | cut -f1)|$(errs subscriptions --root "$t")"
+user_index "x:
+  standards_repositories:
+    - repo: stranger/guide
+      ref: $GUIDE
+"
+assert_eq "a standards_repositories nested under another key reads nothing and is reported with its file and line" "|1" \
+  "$(run subscriptions --root "$t")|$(errs subscriptions --root "$t" | grep -cxF "org-standards: $USER_INDEX:4: x.standards_repositories is under another key, so it is not read; write standards_repositories at the top level of the frontmatter")"
 
 rm -f "$USER_INDEX"
 mkdir "$USER_INDEX"
@@ -558,7 +578,8 @@ cat >"$TEST_TMPDIR/netshim/git" <<EOF
 #!/usr/bin/env bash
 case " \$* " in
   *" ls-remote "*|*" fetch "*|*" clone "*)
-    printf '%s|%s|%s|%s\n' "\${GIT_TERMINAL_PROMPT-}" "\${GIT_SSH_COMMAND-}" "\${GIT_ASKPASS-unset}" "\$*" >>"$TEST_TMPDIR/net.log"
+    printf '%s|%s|%s|%s|cfg=%s\n' "\${GIT_TERMINAL_PROMPT-}" "\${GIT_SSH_COMMAND-}" "\${GIT_ASKPASS-unset}" "\$*" \
+      "\$(env | grep -E '^GIT_CONFIG_(KEY|VALUE)_[0-9]+=' | sort | paste -sd' ' -)" >>"$TEST_TMPDIR/net.log"
     [[ -z "\${SLOW_NET:-}" ]] || exec sleep 20
     [[ -z "\${BAD_LS:-}" || " \$* " != *" ls-remote "* ]] || { printf '../../escape\trefs/heads/main\n'; exit 0; } ;;
 esac
@@ -576,8 +597,27 @@ standards_repositories:
 PATH="$TEST_TMPDIR/netshim:$PATH" run dir --root "$net" >/dev/null
 PATH="$TEST_TMPDIR/netshim:$PATH" ORG_STANDARDS_TTL=0 run dir --root "$net" >/dev/null
 PATH="$TEST_TMPDIR/netshim:$PATH" run subscriptions --root "$net" >/dev/null
-assert_eq "every clone, fetch and ls-remote runs with prompts off, ssh in batch mode, no askpass and hooks and fsmonitor off" "1|1|1|0" \
-  "$(grep -cE '[| ]clone ' "$TEST_TMPDIR/net.log")|$(grep -cE -m1 '[| ]fetch ' "$TEST_TMPDIR/net.log")|$(grep -cE '[| ]ls-remote ' "$TEST_TMPDIR/net.log")|$(grep -vc '^0|ssh -o BatchMode=yes||-c core.hooksPath=/dev/null -c core.fsmonitor=false ' "$TEST_TMPDIR/net.log")"
+assert_eq "every clone, fetch and ls-remote runs with prompts off, ssh in batch mode, no askpass, hooks and fsmonitor off and no redirect followed" "1|1|1|0" \
+  "$(grep -cE '[| ]clone ' "$TEST_TMPDIR/net.log")|$(grep -cE -m1 '[| ]fetch ' "$TEST_TMPDIR/net.log")|$(grep -cE '[| ]ls-remote ' "$TEST_TMPDIR/net.log")|$(grep -vc '^0|ssh -o BatchMode=yes||-c core.hooksPath=/dev/null -c core.fsmonitor=false -c http.followRedirects=false ' "$TEST_TMPDIR/net.log")"
+
+printf '[credential]\n\thelper = "!f() { echo password=SECRET-HELPER-TOKEN; }; f"\n' >"$TEST_TMPDIR/secret.gitconfig"
+: >"$TEST_TMPDIR/net.log"
+PATH="$TEST_TMPDIR/netshim:$PATH" GIT_CONFIG_GLOBAL="$TEST_TMPDIR/secret.gitconfig" ORG_STANDARDS_TTL=0 run dir --root "$net" >/dev/null
+assert_eq "a credential setting reaches git through its environment, never its command line, which other users can list" "yes|0|yes" \
+  "$([[ -s "$TEST_TMPDIR/net.log" ]] && echo yes || echo no)|$(awk -F'[|]cfg=' '$1 ~ /SECRET-HELPER-TOKEN/' "$TEST_TMPDIR/net.log" | wc -l)|$(awk -F'[|]cfg=' '$2 !~ /GIT_CONFIG_KEY_[0-9]+=credential.helper .*=!f\(\) \{ echo password=SECRET-HELPER-TOKEN; \}; f/ { bad = 1 } END { print bad ? "no" : "yes" }' "$TEST_TMPDIR/net.log")"
+
+incl=$(target incl "$OPTED")
+g init -q "$incl"
+printf '[credential]\n\thelper = from-include\n' >"$TEST_TMPDIR/incl-plain.gitconfig"
+printf '[credential]\n\thelper = from-this-repository\n' >"$TEST_TMPDIR/incl-here.gitconfig"
+printf '[credential]\n\thelper = from-another-repository\n' >"$TEST_TMPDIR/incl-there.gitconfig"
+printf '[include]\n\tpath = %s/incl-plain.gitconfig\n[includeIf "gitdir:%s/"]\n\tpath = %s/incl-here.gitconfig\n[includeIf "gitdir:%s/elsewhere/"]\n\tpath = %s/incl-there.gitconfig\n' \
+  "$TEST_TMPDIR" "$incl" "$TEST_TMPDIR" "$TEST_TMPDIR" "$TEST_TMPDIR" >"$TEST_TMPDIR/incl.gitconfig"
+: >"$TEST_TMPDIR/net.log"
+(cd "$TEST_TMPDIR" && PATH="$TEST_TMPDIR/netshim:$PATH" GIT_CONFIG_GLOBAL="$TEST_TMPDIR/incl.gitconfig" ORG_STANDARDS_TTL=0 run dir --root "$incl" >/dev/null)
+inc_cfg=$(awk -F'[|]cfg=' 'NR == 1 { print $2 }' "$TEST_TMPDIR/net.log")
+assert_eq "credential helpers in the user's included config files reach git, an includeIf gitdir matched against the --root repository" "yes|yes|no" \
+  "$([[ "$inc_cfg" == *=from-include* ]] && echo yes || echo no)|$([[ "$inc_cfg" == *=from-this-repository* ]] && echo yes || echo no)|$([[ "$inc_cfg" == *=from-another-repository* ]] && echo yes || echo no)"
 
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/bad-ls-cache"
 user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
@@ -1132,8 +1172,8 @@ assert_eq "a hostile global git config runs no hook, fsmonitor or filter during 
   "# Testing v2|2|" "$(cat "$ORG_STANDARDS_CACHE/acme/hostile/docs/standards/testing.md")|$((hostile_subs))|$(cat "$HOSTILE/marker" 2>/dev/null)"
 : >"$TEST_TMPDIR/net.log"
 PATH="$TEST_TMPDIR/netshim:$PATH" GIT_CONFIG_GLOBAL="$HOSTILE/gitconfig" ORG_STANDARDS_TTL=0 run dir --root "$thost" >/dev/null
-assert_eq "a fetch passes the user's proxy setting through and no other global setting" "1|0" \
-  "$(grep -c -- '-c http.proxy=http://127.0.0.1:9 ' "$TEST_TMPDIR/net.log")|$(grep -c -- "$HOSTILE/" "$TEST_TMPDIR/net.log")"
+assert_eq "a fetch passes the user's proxy setting through its environment and no other global setting" "1|0|0" \
+  "$(grep -c '|cfg=GIT_CONFIG_KEY_0=http.proxy GIT_CONFIG_VALUE_0=http://127.0.0.1:9$' "$TEST_TMPDIR/net.log")|$(grep -c -- 'http.proxy.*|cfg=' "$TEST_TMPDIR/net.log")|$(grep -c -- "$HOSTILE/" "$TEST_TMPDIR/net.log")"
 
 user_index $'trusted_owners: [acme]\nstandards_repositories:\n  - repo: acme/handbook\n'
 assert_eq "a flow-style trusted_owners trusts no owner and is reported with its file and line" "|1" \
@@ -1204,6 +1244,18 @@ ctl_out=$(
 assert_eq "control characters in STANDARDS_DIR, the cache path, standards_repository, the root and index rows reach neither stdout nor stderr raw" \
   "0|4|2|4|2|2|2|1|1|1|1|0" \
   "$(LC_ALL=C grep -c $'[\001-\010\013-\037\177\200-\237]' <<<"$ctl_out")|$(grep -cF "STANDARDS_DIR $TEST_TMPDIR/ctl-org$SHOWN holds a control character or invalid UTF-8; no org layer" <<<"$ctl_out")|$(grep -cx 'exit=4' <<<"$ctl_out")|$(grep -cx 'exit=3' <<<"$ctl_out")|$(grep -cF "standards_repository o/r$SHOWN is not <owner>/<repo>" <<<"$ctl_out")|$(grep -cF "the cache directory $TEST_TMPDIR/ctl-cache$SHOWN holds a control character" <<<"$ctl_out")|$(grep -cx 'exit=2' <<<"$ctl_out")|$(grep -cF "Surface a$SHOWN is not an id" <<<"$ctl_out")|$(grep -cF "| b | x$SHOWN\\xff | " <<<"$ctl_out")|$(grep -cF "File c$SHOWN.md is not a relative forward-slash path" <<<"$ctl_out")|$(grep -cF "$TEST_TMPDIR/ctl-root$SHOWN/docs/standards/README.md:3: trusted_owners is read from the user-global index only" <<<"$ctl_out")|$(grep -c 'warning' <<<"$ctl_out")"
+
+ctl_plain=$(target ctl-plain 'pr_open_state: ready\n')
+printf '# Local\n' >"$ctl_plain/REVIEW.md"
+user_index ''
+ctl_free=$(
+  LC_ALL=C.UTF-8 ORG_STANDARDS_CACHE="$TEST_TMPDIR/ctl-cache$CTL" bash "$SCRIPT" review --root "$ctl_plain" 2>&1; echo "exit=$?"
+  LC_ALL=C.UTF-8 ORG_STANDARDS_CACHE="$TEST_TMPDIR/ctl-cache$CTL" bash "$SCRIPT" citations --root "$ctl_plain" 2>&1; echo "exit=$?"
+  LC_ALL=C.UTF-8 ORG_STANDARDS_CACHE="$TEST_TMPDIR/ctl-cache$CTL" bash "$SCRIPT" subscriptions --root "$ctl_plain" 2>&1; echo "exit=$?"
+  env -u ORG_STANDARDS_CACHE LC_ALL=C.UTF-8 XDG_CACHE_HOME="$TEST_TMPDIR/ctl-xdg$CTL" bash "$SCRIPT" review --root "$ctl_plain" 2>&1; echo "exit=$?"
+)
+assert_eq "a control character in the cache path stops no command that needs no cache: no org layer and no subscription read as usual" \
+  "$(printf '# Local\nexit=0\nexit=0\nexit=0\n# Local\nexit=0')" "$ctl_free"
 
 EXT="$TEST_TMPDIR/ext"
 mkdir -p "$EXT"
@@ -1297,6 +1349,22 @@ if command -v python3 >/dev/null 2>&1 && command -v openssl >/dev/null 2>&1 && c
   assert_eq "an insteadOf rewrite in the user's own global config is followed, so the helper is asked about the host the user rewrote to" \
     "$TEST_TMPDIR/priv-cache/acme/standards|1|0" \
     "$priv_dir|$(grep -c "^get https://localhost:${PRIV_HOST#*:}$" "$CRED_LOG")|$(grep -c "$PRIV_HOST" "$CRED_LOG")"
+
+  python3 "$PRIV_FIXTURE/redirect.py" "$PRIV/cert.pem" "$PRIV/key.pem" "$PRIV/rport" "localhost:${PRIV_HOST#*:}" 2>"$PRIV/redirect.log" &
+  REDIR_PID=$!
+  trap 'kill "$PRIV_PID" "$REDIR_PID" 2>/dev/null; rm -rf "$TEST_TMPDIR"' EXIT
+  for _ in $(seq 50); do [[ -s "$PRIV/rport" ]] && break; sleep 0.2; done
+  REDIR_BASE="https://127.0.0.1:$(cat "$PRIV/rport")"
+  served=$(wc -l <"$PRIV/server.log")
+  redir_out=$(priv "$HELPER" env ORG_STANDARDS_GIT_BASE="$REDIR_BASE" bash "$SCRIPT" dir --root "$tpriv" 2>&1; echo "exit=$?")
+  assert_eq "a configured host that redirects is not followed: no credential is asked for, the target host is never reached, and the reader says to name the new location" \
+    "yes|0|0|1|1" \
+    "$([[ -s "$PRIV/redirect.log" ]] && echo yes || echo no)|$(wc -l <"$CRED_LOG")|$(($(wc -l <"$PRIV/server.log") - served))|$(grep -cxF 'org-standards: acme/standards answered with a redirect (for example, it was renamed or moved), which is not followed; set standards_repository to its new location' <<<"$redir_out")|$(grep -cx 'exit=4' <<<"$redir_out")"
+  user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+  redir_sub=$(priv "$HELPER" env ORG_STANDARDS_GIT_BASE="$REDIR_BASE" bash "$SCRIPT" subscriptions --root "$tpriv" 2>&1)
+  assert_eq "a subscription whose host redirects is not followed, and the reader says to name its new location" "0|1" \
+    "$(wc -l <"$CRED_LOG")|$(grep -cxF "org-standards: $USER_INDEX:6: acme/handbook answered with a redirect (for example, it was renamed or moved), which is not followed; set the subscription's repo to its new location" <<<"$redir_sub")"
+  kill "$REDIR_PID" 2>/dev/null
 
   start=$SECONDS
   hung=$(CRED_HANG=1 ORG_STANDARDS_GIT_TIMEOUT=2 priv "$HELPER" code dir --root "$tpriv")

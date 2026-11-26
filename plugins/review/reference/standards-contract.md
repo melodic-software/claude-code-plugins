@@ -299,9 +299,11 @@ index, so the standards they follow reach every repository they work in.
 - **Reports:** on stderr, naming the index file and line where one applies:
   a malformed entry (a tab-indented line inside it included), skipped while
   the rest of the list is read; a refused
-  entry; a `trusted_owners` that is not a block list; a `trusted_owners`
-  key in the repository's
-  `docs/conventions/source-control.yaml` or index, ignored; a topic the
+  entry; a `trusted_owners` that is not a block list; a `trusted_owners` or
+  `standards_repositories` nested under another key, not read; a
+  `trusted_owners` key in the repository's
+  `docs/conventions/source-control.yaml` or index, however it is spelled,
+  ignored; a repository that answers with a redirect; a topic the
   subscribed index lacks; a dropped `standards_dir` or `File` row; index drift since the last
   read (Surface ids added, removed or renamed); "subscriptions not read:
   user index unreadable"; an index that uses the list but declares a
@@ -354,7 +356,14 @@ copied into each repository.
   clone, fetch or checkout; it passes through only the user's `http.proxy`,
   `https.proxy`, `http.sslCAInfo`, `http.sslCAPath`, `core.sshCommand`,
   `url.<base>.insteadOf` and every `credential.*` setting, read from the
-  system and global config before it starts. A git
+  system and global config before it starts, following their `include` and
+  `includeIf` sections (a `gitdir:` or `onbranch:` condition is matched
+  against the `--root` repository), and hands them to git in
+  `GIT_CONFIG_COUNT` environment variables, never on a command line. It
+  runs with `http.followRedirects=false`, so credentials go only to the
+  configured host: a repository that answers with a redirect (renamed or
+  moved) is not read, and the reader says to point `standards_repository`
+  or the subscription at its new location. A git
   command that needs no repository (clone, `ls-remote`) runs in the cache
   directory and reads no repository config above it, so the config of the
   repository the reader runs from never applies, and no transport but
@@ -432,7 +441,8 @@ starts it, and reads that file in place of `REVIEW.md`.
   passed through, in the printed criteria and citations (tab kept) and in
   every value the reader's reports quote, whether it comes from a
   repository, the user-global index or the environment. A `STANDARDS_DIR`
-  or cache directory holding one is refused.
+  holding one is refused, and so is a cache directory holding one when a
+  command needs the cache (an org layer or a subscription is configured).
 
 ## Concern file: `.claude/standards.yaml`
 
@@ -485,7 +495,10 @@ layer): read the org index only as the printed index
 `org-standards.sh index` writes, never by running these rungs at the org
 checkout, match task context against its `Applies when` clues, and load the
 matched files at the paths its rows name, except a file the team layer
-replaces. An absent or unreadable org layer contributes nothing.
+replaces. An absent or unreadable org layer contributes nothing. A
+consumer that opens a citation in the composed review criteria opens only
+what `org-standards.sh citations` prints (see Review criteria:
+`REVIEW.md`).
 
 **Personal layers (every rung):** whatever the team rungs above yield,
 resolution ALSO discovers the personal layers (glob-discover

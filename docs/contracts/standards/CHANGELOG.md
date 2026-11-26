@@ -34,8 +34,9 @@ as the citation, a tab, and `<absolute path>#<heading>`. `review` prints the cri
 so no `REVIEW.md` text can add to the citations. Consumers open a `REVIEW.md` citation only from
 `citations`, never by resolving the criteria text.
 The `trusted_owners` and `standards_repositories` keys are found however YAML lets them be written
-(quoted, or with a space before the colon); a `trusted_owners` that is not a block list trusts no
-owner and is reported. `index` and
+(quoted, or with a space before the colon), in a repository layer too, where `trusted_owners` is
+reported as ignored; a `trusted_owners` that is not a block list trusts no owner and is reported,
+and either key nested under another key is reported and not read. `index` and
 `subscriptions` now print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract`
 version, the table header and each well-formed row of the `Surface | Applies when | File` table
 rebuilt from its cells (no prose or other line is copied; every other line holding a `|` is
@@ -45,15 +46,20 @@ copy, never by running the ladder at its checkout. Every clone, fetch, `ls-remot
 lazy object fetch gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60) and never
 prompts. Every git command the reader runs ignores the system and global git config, passing
 through only the user's proxy, CA, `core.sshCommand`, `url.<base>.insteadOf` and `credential.*`
-settings, so a private repository loads with the person's own credential helper or SSH key, never
-through a prompt, with hooks and fsmonitor off, so no hook, fsmonitor, filter driver (git-lfs included) or
-template from that config runs. A git command that needs no repository (clone, `ls-remote`) runs
+settings (their `include` and `includeIf` sections followed, a `gitdir:` or `onbranch:` condition
+matched against the `--root` repository), handed to git in `GIT_CONFIG_COUNT` environment
+variables rather than on a command line, so a private repository loads with the person's own
+credential helper or SSH key, never through a prompt, with hooks and fsmonitor off, so no hook,
+fsmonitor, filter driver (git-lfs included) or template from that config runs. No redirect is
+followed, so credentials go only to the configured host; a repository that answers with one is
+reported with a pointer to name its new location. A git command that needs no repository (clone, `ls-remote`) runs
 in the cache directory, reading no config of the repository the reader runs from or of one
 enclosing the cache, and no transport but `https`, `ssh`, `git` and `file` runs. A symbolic link at
 an owner directory or an entry of the cache is removed before the entry is read or built, so every
 checkout is built inside the cache. Every value the reader's reports quote, from a repository, the
 user-global index or the environment, shows each C0, DEL and C1 control character and each byte
-outside valid UTF-8 as `\xNN`, and a `STANDARDS_DIR` or cache directory holding one is refused.
+outside valid UTF-8 as `\xNN`, and a `STANDARDS_DIR` holding one is refused, as is a cache
+directory holding one when an org layer or a subscription needs it.
 A `ref` naming an annotated tag object reads the commit it tags. Reader
 state moves to `.state/` in the cache directory. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but
