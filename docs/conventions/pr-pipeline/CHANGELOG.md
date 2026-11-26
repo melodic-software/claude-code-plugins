@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [13.2.5] - 2026-11-26
+
+### Changed
+
+- The hold floor's `.github/scripts/intake-triage/triage-rubric.txt` row becomes a `gate` row for `docs/conventions/work-items.md`: the rubric file is deleted, and `/work-items:triage --ci` reads that file's `## Triage rules`, so a person still approves any change to the intake lane's triage rules.
+
 ## [13.2.4] - 2026-11-26
 
 ### Fixed
