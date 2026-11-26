@@ -8,5 +8,5 @@ bump: patch
 
 ### Fixed
 
-- The triage skill's triage-comment section no longer names `.github/scripts/intake-triage/triage-rubric.txt`, a file that is gone, as the intake lane's rubric.
+- The triage skill's triage-comment section points at CI mode's comment lines and the repository's `## Triage rules` as the source of the intake lane's lines, in place of `.github/scripts/intake-triage/triage-rubric.txt`, a file that is gone.
 - The `tr-ci-issue-number-mismatch-stops` eval case grades the reply for no verdict object, since CI mode returns its verdict as structured output, not a `triage-verdict.json` file.
