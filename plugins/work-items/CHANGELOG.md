@@ -3834,7 +3834,7 @@ Internal simplification, no behavior change.
 - **`reference/permission-preflight.md` cited the `work` skill by an unresolvable path.** The Step 0
   pointer for the `reclaim` classifier-denial mitigation read `skills/work/SKILL.md`, whose implied
   base is the plugin root while its real base is `reference/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  ADR 0018's
   correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md`, the form the same
   file already uses for `preflight.sh`. Intra-plugin citation, legal under clause 1; clause 3 only,
   so the target is unchanged and no routing moves.

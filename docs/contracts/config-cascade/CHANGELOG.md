@@ -179,7 +179,7 @@ unchanged, `.claude/<name>` stays a supported location, and no surface has to ch
   (`<standards_dir>/`), `songwriting` (`songwriting/templates/pat-pattison/`) and the `work-items`
   recurring schedule (`.github/recurring-schedule.json`) are recorded as Declared exceptions, each
   with a four-part record, and `songwriting` and the schedule gain Implementers rows.
-  [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) rules on location
+  ADR 0042 rules on location
   only and names the recursive `.claude/**/*.local.*` line as the canonical overlay spelling,
   applied when each surface next touches its setup. No `contract_version` bump: declaring
   exceptions changes neither precedence nor what a layer means.
@@ -218,7 +218,7 @@ Recommend stays the default posture.
   self-ignoring `.gitignore` inside a plugin-owned directory is a different file, not an
   exception. `source-control`'s append is ratified by
   [ADR 0040](https://github.com/melodic-software/claude-code-plugins/blob/0822bda61a013ea266acc01dcf17922873c18675/docs/adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md);
-  `work-items`' by [ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md).
+  `work-items`' by ADR 0015.
 
 ## [1.3] - 2026-09-28
 
@@ -318,7 +318,7 @@ personal `~/.claude/<surface>` as the team layer.
   `run-e2e/context/e2e-config.md`. All three are plugin-relative paths that resolve against nothing
   from this file, and five plugin surfaces fetch this README over `raw.githubusercontent.com` at run
   time, where the paths are not on disk at all.
-  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  ADR 0018
   makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
   into another plugin's private tree. The rows now read `/ai-slop:audit`, `/ai-slop:setup`, and
   `/testing:run-e2e`. No contract rule change and no layer, precedence, or override semantics

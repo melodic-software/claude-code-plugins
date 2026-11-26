@@ -683,7 +683,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   keep-these-four-consistent sentence named `prosody.md` and `meter.md`, which are siblings and
   resolve, alongside `skills/meter-prosody/SKILL.md`, whose implied base is the plugin root while
   its real base is `context/pat-pattison/research/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  ADR 0018's
   correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md`, the
   anchored form this `research/` tree already uses for the Datamuse script. The sentence is the
   plugin's own prose, not printed Pat Pattison text, so the distilled-corpus exclusion does not

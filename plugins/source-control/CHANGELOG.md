@@ -7463,7 +7463,7 @@ Internal simplification, no behavior change.
   against nothing.** The autonomy-table pointer read
   `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
   real base is `reference/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  ADR 0018's
   correction 1 names. It now names the public invocation,
   `/source-control:babysit-prs`, keeping the section name.
 
@@ -7473,7 +7473,7 @@ Internal simplification, no behavior change.
   the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
   that does not exist there. This sentence is the doc's address for the autonomy
   obligation, which is the case
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  ADR 0018's
   2026-08-28 amendment routes to the invocation rather than to a path whose
   meaning depends on which plugin fetched the document. Found by a third
   derivation over the plugin-level `reference/`, `context/` and `agents/` trees

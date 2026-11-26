@@ -251,7 +251,7 @@ internals become public invocations.
   `plugins/claude-ops/skills/audit-install-state/SKILL.md` and on the same two `review` paths. Every
   one of them reaches across a plugin boundary into a skill's private tree, and one reaches a
   `context/` file, which is private under any reading.
-  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  ADR 0018
   makes the plugin the encapsulation boundary for citation: plugins install independently, so a
   cited path can be genuinely absent, and `docs/**` names skills by slash invocation. The three
   sites now read `/review:quality-gate`, `/review:fanout`, and `/claude-ops:audit-install-state`.

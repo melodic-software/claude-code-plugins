@@ -2726,7 +2726,7 @@ This release changed no plugin content. Its entries repeat 0.13.19 and 0.13.21, 
   public. The shape is precedented in-repo by `plugins/autonomy/reference/` and
   `plugins/architecture/reference/`, and mints no new skill, so the shared skill-listing budget is
   unaffected. Recorded as
-  [ADR-0007](../../docs/adr/0007-host-per-model-doctrine-outside-skill-private-surfaces.md),
+  ADR-0007,
   superseding ADR-0006 **on the per-version doctrine's address and nothing else**. ADR-0006's decision (model-scoped
   by default, fleet-wide only through the promotion gate, routing by version and never by family) is
   preserved verbatim. ADR-0007 cures **one of ADR-0006's three** live private-surface cites; the two

@@ -56,7 +56,7 @@ added, and no worked example is added or removed.
   sentence did not. The paths and the plugin name stay, the quotes stay, and the machine-health
   citation now names what its procedure does, rendering the report and then updating state, instead
   of two step numbers that renumber on the next inserted step.
-- **The citations themselves stay, and [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+- **The citations themselves stay, and ADR 0018's
   amendment of the same date says why.** Each is evidence about this checkout, a worked example
   whose content is quoted inline, rather than the address a reader must visit to get a rule. The
   amendment states that test, which until now was applied without being written down.
