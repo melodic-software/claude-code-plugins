@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,13 +46,14 @@ source_bar setting drops is refused, as lookup.mjs leaves it out.
   --home DIR                user home for --layer personal
   -h, --help                show this help
 
-A concept already in the file is skipped, and an existing row for the file is kept.
-The preview prints the exact text the write adds: the whole file when it is new,
-the appended lines otherwise, and the index row, or the table holding it when the
-index has none. The one change it does not show is a line break added to the end
-of an index that lacks one. A file past ${LINE_BUDGET} lines is written with a
-warning. A surface file or index that is a symbolic link is refused. Diagnostics:
-one JSON record per line on the error output.
+A concept already in the file, or in another standards file of the layer, is
+skipped and the file citing it is named; an existing row for the file is kept.
+The preview prints the exact text the write adds: the whole file when it is new
+or empty, the appended lines otherwise, and the index row, or the table holding
+it when the index has none. When the file or the index does not end with a line
+break, the preview says one will be added. A file past ${LINE_BUDGET} lines is
+written with a warning. A surface file or index that is a symbolic link is
+refused. Diagnostics: one JSON record per line on the error output.
 Exit: 0 written or nothing new, 1 refused, 2 invalid option, 3 preview only.`;
 
 const OPTIONS = {
@@ -76,6 +78,16 @@ lookup with \`--counterweights-of\` and the ids cited below, comma separated.
 `;
 
 const entry = (r) => `- ${r.name} (\`${r.id}\`): ${r.source_url}\n`;
+
+const cites = (text, id) => text?.split("\n").some((line) => line.startsWith("- ") && line.includes(`(\`${id}\`)`));
+
+/** Where each settings layer comes from, in the words a person uses for it. */
+const LAYER_NAMES = {
+  defaults: "the plugin's defaults",
+  userConfig: "your saved plugin options",
+  team: "the repository's settings file",
+  local: "your personal settings file for this repository",
+};
 
 const read = (path) => (existsSync(path) ? readFileSync(path, "utf8") : null);
 
@@ -116,17 +128,39 @@ function teamRoot(project) {
   try {
     value = concern ? parse(concern)?.standards_dir : undefined;
   } catch (e) {
-    return { error: { file, reason: e.message } };
+    return { error: { file, reason: `the settings file could not be read: ${e.message}` } };
   }
   if (value !== undefined && typeof value !== "string") return { error: { file, reason: "standards_dir is not a path" } };
   return { dir: join(project, value || "docs/standards") };
 }
 
+/** A random name and an exclusive create, so a link planted at the temporary path is never followed. */
 function write(path, text) {
   mkdirSync(dirname(path), { recursive: true });
-  const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, text);
-  renameSync(temp, path);
+  const temp = `${path}.${randomBytes(8).toString("hex")}.tmp`;
+  const fd = openSync(temp, "wx");
+  try {
+    writeFileSync(fd, text);
+    closeSync(fd);
+    renameSync(temp, path);
+  } catch (e) {
+    rmSync(temp, { force: true });
+    throw e;
+  }
+}
+
+/** The layer's other standards files, regular files only, by path. */
+function otherFiles(dir, skip) {
+  let names;
+  try {
+    names = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return names
+    .filter((d) => d.isFile() && d.name.endsWith(".md") && d.name !== INDEX_FILE && d.name !== skip)
+    .map((d) => join(dir, d.name))
+    .sort();
 }
 
 export async function main(argv, { out = console.log, err = console.error, shippedDataDir = DATA_DIR } = {}) {
@@ -158,13 +192,14 @@ export async function main(argv, { out = console.log, err = console.error, shipp
   if (opts["applies-when"] !== undefined && !opts["applies-when"].trim()) {
     return invalid("applies-when", opts["applies-when"], null, "empty: name the tasks and files the concepts bear on, or leave the option out to use their concerns");
   }
-  if (!positionals.length) return invalid("concepts", null);
+  if (!positionals.length) return invalid("concepts", null, null, "name at least one concept: an id, a name or an alias");
   let userConfig = {};
   if (opts["user-config"]) {
     try {
       userConfig = readUserConfig(opts["user-config"]);
     } catch (e) {
-      return invalid("user-config", opts["user-config"], null, e.code ?? e.message);
+      const reason = e.code === "ENOENT" ? "file not found" : `the file could not be read: ${e.message}`;
+      return invalid("user-config", opts["user-config"], null, reason);
     }
   }
   const project = resolvePath(opts.project ?? gitRoot(process.cwd()));
@@ -180,10 +215,11 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     if (!drop) continue;
     refused++;
     const from = drop.setting === "exclude" ? settings.exclude_from[drop.value] : settings.source_bar_from;
+    const where = LAYER_NAMES[from.layer] ?? from.layer;
     const reason =
       drop.setting === "exclude"
-        ? `the ${from.layer} layer's exclude setting lists ${drop.value}, so the lookup leaves this concept out`
-        : `the ${from.layer} layer sets source_bar to ${drop.value}, and this concept lists no confirming source`;
+        ? `the exclude setting in ${where} lists ${drop.value}, so the lookup leaves this concept out`
+        : `the source_bar setting in ${where} is ${drop.value}, and this concept lists no confirming source`;
     err(JSON.stringify({ level: "error", event: "concept excluded", term, ...drop, ...from, reason }));
   }
   if (refused) return 1;
@@ -214,23 +250,35 @@ export async function main(argv, { out = console.log, err = console.error, shipp
   if (links.length) return 1;
 
   const current = read(filePath);
-  const isAdopted = (id) => current?.split("\n").some((line) => line.startsWith("- ") && line.includes(`(\`${id}\`)`));
-  const fresh = [...new Map(records.filter((r) => !isAdopted(r.id)).map((r) => [r.id, r])).values()];
   const indexText = read(indexPath);
   const currentIndex = isIndex(indexText) ? indexText : null;
   if (currentIndex === null && opts.layer === "team") {
     err(JSON.stringify({ level: "error", event: "no team index", index: indexPath, fix: "create the index with a standards setup skill first" }));
     return 1;
   }
-  const needsRow = currentIndex !== null && !currentIndex.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
+  const others = otherFiles(dir, file).map((path) => [path, read(path)]);
+  const unique = [...new Map(records.map((r) => [r.id, r])).values()];
+  const fresh = [];
+  for (const r of unique) {
+    if (cites(current, r.id)) continue;
+    const [elsewhere] = others.find(([, text]) => cites(text, r.id)) ?? [];
+    if (elsewhere) out(`${r.name} (${r.id}) is already adopted in ${elsewhere}, so it is not added again.`);
+    else fresh.push(r);
+  }
+  const blank = !current;
+  const needsRow =
+    currentIndex !== null &&
+    (current !== null || fresh.length > 0) &&
+    !currentIndex.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
   const unindexed = currentIndex === null ? `No index at ${indexPath}: the standards folder is read file by file, so the file still loads.` : null;
   if (!fresh.length && !needsRow) {
-    out(`Every concept named is already adopted in ${filePath}.`);
+    out(`Nothing to write: every concept named is already adopted.`);
     return 0;
   }
   const entries = fresh.map(entry).join("");
-  const appended = current === null || current === "" || current.endsWith("\n") ? entries : `\n${entries}`;
-  const next = current === null ? `${HEADER(opts.surface)}${entries}` : `${current}${appended}`;
+  const breakNote = (path) => `A line break will also be added at the end of ${path}, which does not end with one.`;
+  const fileLacksBreak = entries && !blank && !current.endsWith("\n");
+  const next = blank ? `${HEADER(opts.surface)}${entries}` : `${current}${fileLacksBreak ? "\n" : ""}${entries}`;
   const lineCount = next.split("\n").length - 1;
   if (entries && lineCount > LINE_BUDGET) {
     err(JSON.stringify({ level: "warn", event: "standards file over budget", file: filePath, lines: lineCount, budget: LINE_BUDGET, contract: BUDGET_RULE }));
@@ -239,8 +287,15 @@ export async function main(argv, { out = console.log, err = console.error, shipp
   const indexed = needsRow ? withRow(currentIndex, row) : null;
 
   if (!opts.yes) {
-    if (entries) out(current === null ? `Would create ${filePath}:\n${next}` : `Would append to ${filePath}:\n${appended}`);
-    if (indexed) out(`Would add ${indexed.table ? "a table holding this row" : "this row"} to ${indexPath}:\n${indexed.added}`);
+    if (entries) {
+      const action = current === null ? "Would create" : blank ? "Would fill the empty file" : "Would append to";
+      out(`${action} ${filePath}:\n${blank ? next : entries}`);
+      if (fileLacksBreak) out(breakNote(filePath));
+    }
+    if (indexed) {
+      out(`Would add ${indexed.table ? "a table holding this row" : "this row"} to ${indexPath}:\n${indexed.added}`);
+      if (!currentIndex.endsWith("\n")) out(breakNote(indexPath));
+    }
     if (unindexed) out(unindexed);
     out("Re-run with --yes to write.");
     return 3;
@@ -249,7 +304,7 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     if (entries) write(filePath, next);
     if (indexed) write(indexPath, indexed.text);
   } catch (e) {
-    err(JSON.stringify({ level: "error", event: "write failed", path: e.path ?? null, code: e.code ?? null, message: e.message }));
+    err(JSON.stringify({ level: "error", event: "write failed", path: e.path ?? null, code: e.code ?? null, message: `the file could not be written: ${e.message}` }));
     return 1;
   }
   out(`Adopted ${fresh.length} concept(s) into ${filePath}.`);

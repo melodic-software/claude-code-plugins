@@ -42,10 +42,10 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
    says how the layers combine: a team standard wins a direct clash with a personal one.
 
 3. **Show the file text.** Run the adopt script without `--yes`; exit 3 prints exactly the text
-   the write adds: the whole file, heading included, when it is new, the appended lines when it
-   exists, and the index row, or the table holding it when the index has none. The one change it
-   does not show is a line break added to the end of an index that lacks one. Show that output to
-   the person unchanged.
+   the write adds: the whole file, heading included, when it is new or empty, the appended lines
+   when it has text, and the index row, or the table holding it when the index has none. When the
+   file or the index does not end with a line break, a line says one will be added. Show that
+   output to the person unchanged.
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/adopt.mjs" <id>... --layer <personal|team> --surface <name> --applies-when "<clues>" --project "<repository root>" --user-config - <<'EC_SETTINGS'
@@ -72,7 +72,8 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
 
 Exit codes and error-output events (one JSON record per line):
 
-- 0 with "already adopted": every entry is in the file and the row exists; nothing written.
+- 0 with "already adopted": every concept is in the file, or in another standards file of the
+  layer that the output names, and the row exists; nothing written.
 - 1 `concept not found`: name the term; nothing written.
 - 1 `concept excluded`: the `exclude` or `source_bar` setting named in `setting` drops the concept,
   as the lookup does; report the `reason`, which names the layer, and the `path` of its file when
@@ -106,7 +107,8 @@ Exit codes and error-output events (one JSON record per line):
 ## Gotchas
 
 - An entry already in the file is skipped and an existing row is kept, so re-running is safe; it
-  never edits a row's `Applies when`.
+  never edits a row's `Applies when`. A concept another standards file of the layer already cites
+  is skipped too, and the output names that file: report it rather than moving the entry.
 - The file holds no counterweight or conflict lines, so they never go stale against the shipped
   data. A consuming stage that loads an adopted standards file runs the lookup on the ids the file
   cites and keeps one line per counterweight or conflict beside each entry:

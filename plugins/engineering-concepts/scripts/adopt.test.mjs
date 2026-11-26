@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -336,4 +336,114 @@ test("source_bar official-plus-confirming refuses a concept with no confirming s
   );
   assert.equal(existsSync(personal(home, "change-size.md")), false);
   assert.equal((await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home, project })).code, 0);
+});
+
+const lineBreakNote = (path) => `A line break will also be added at the end of ${path}, which does not end with one.`;
+
+test("the preview says so when the index or the surface file lacks a final line break, and says nothing when both have one", async () => {
+  const cases = [
+    [{ ".claude/standards/README.md": INDEX.replace(/\n+$/u, "") }, "README.md"],
+    [{ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": "# Mine" }, "change-size.md"],
+    [{ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": "# Mine\n" }, null],
+  ];
+  for (const [files, lacking] of cases) {
+    const home = tree(files);
+    const preview = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size"], { home });
+    assert.equal(preview.code, 3);
+    const notes = preview.out.split("\n").filter((line) => line.startsWith("A line break will also be added"));
+    assert.deepEqual(notes, lacking ? [lineBreakNote(personal(home, lacking))] : [], String(lacking));
+    if (!lacking) continue;
+    assert.equal((await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home })).code, 0);
+    const written = readFileSync(personal(home, lacking), "utf8");
+    assert.ok(written.startsWith(`${files[`.claude/standards/${lacking}`]}\n`), `${lacking} gained the line break the preview named`);
+  }
+});
+
+test("a --user-config file that does not exist is refused with the plain reason 'file not found'", async () => {
+  const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--user-config", join(tree(), "missing.json")]);
+  assert.equal(code, 2);
+  assert.deepEqual(errors.map((e) => [e.event, e.option, e.reason]), [["invalid option", "user-config", "file not found"]]);
+});
+
+test("a .claude/standards.yaml the parser rejects is reported with a plain lead-in before the parser's detail", async () => {
+  const project = repo({ ".claude/standards.yaml": "standards_dir: [docs\n", "docs/standards/README.md": INDEX });
+  const { errors } = await run(["example-small-steps", "--layer", "team", "--surface", "change-size"], { project });
+  assert.match(errors[0].reason, /^the settings file could not be read: .*line 1/u);
+});
+
+test("a concept refused by a setting names the layer in plain words, keeping the layer key", async () => {
+  const userConfig = join(tree({ "user-config.json": JSON.stringify({ exclude: "example-small-steps" }) }), "user-config.json");
+  const cases = [
+    [{}, ["--user-config", userConfig], "userConfig", "your saved plugin options"],
+    [{ [TEAM_SETTINGS]: "exclude:\n  - example-small-steps\n" }, [], "team", "the repository's settings file"],
+    [{ "docs/conventions/engineering-concepts.local.yaml": "exclude:\n  - example-small-steps\n" }, [], "local", "your personal settings file for this repository"],
+  ];
+  for (const [files, extra, layer, plain] of cases) {
+    const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", ...extra], { project: repo(files) });
+    assert.equal(code, 1, layer);
+    assert.equal(errors.at(-1).layer, layer);
+    assert.ok(errors.at(-1).reason.includes(plain), errors.at(-1).reason);
+    assert.doesNotMatch(errors.at(-1).reason, /userConfig|\blocal layer|\bteam layer/u);
+  }
+});
+
+test("a write the file system refuses keeps its code and gives the message a plain lead-in", { skip: process.getuid?.() === 0 && "root ignores directory permissions" }, async () => {
+  const home = personalHome();
+  const dir = join(home, ".claude", "standards");
+  chmodSync(dir, 0o500);
+  try {
+    const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
+    assert.equal(code, 1);
+    assert.deepEqual(errors.map((e) => [e.event, e.code]), [["write failed", "EACCES"]]);
+    assert.match(errors[0].message, /^the file could not be written: EACCES/u);
+  } finally {
+    chmodSync(dir, 0o700);
+  }
+});
+
+test("a surface file that exists but is empty gets the header a new file gets, naming the --counterweights-of lookup", async () => {
+  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": "" });
+  const fresh = personalHome();
+  const args = ["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"];
+  assert.equal((await run(args, { home })).code, 0);
+  assert.equal((await run(args, { home: fresh })).code, 0);
+  const written = readFileSync(personal(home, "change-size.md"), "utf8");
+  assert.match(written, /`--counterweights-of`/u);
+  assert.equal(written, readFileSync(personal(fresh, "change-size.md"), "utf8"));
+});
+
+test("no concept named is refused with a plain reason", async () => {
+  const { code, errors } = await run(["--layer", "personal", "--surface", "change-size"]);
+  assert.equal(code, 2);
+  assert.match(errors[0].reason, /name at least one concept/u);
+});
+
+test("a concept another standards file of the layer already cites is reported with that file and not added again", async () => {
+  const cited = "# Testing\n\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
+  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/testing.md": cited });
+  const mixed = await run(["example-small-steps", "example-review-gate", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
+  assert.equal(mixed.code, 0);
+  assert.ok(mixed.out.includes(personal(home, "testing.md")), mixed.out);
+  const entries = readFileSync(personal(home, "change-size.md"), "utf8").split("\n").filter((line) => line.startsWith("- "));
+  assert.deepEqual(entries, ["- Example Review Gate (`example-review-gate`): https://example.com/review-gate"]);
+
+  const only = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/testing.md": cited });
+  const none = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home: only });
+  assert.equal(none.code, 0);
+  assert.match(none.out, /already adopted/u);
+  assert.ok(none.out.includes(personal(only, "testing.md")), none.out);
+  assert.equal(existsSync(personal(only, "change-size.md")), false);
+  assert.equal(readFileSync(personal(only, "README.md"), "utf8"), INDEX);
+});
+
+test("a symbolic link planted where the old temporary file name went is not followed by the write", async () => {
+  const home = personalHome();
+  const target = join(tree({ "target.md": "untouched\n" }), "target.md");
+  const planted = `${personal(home, "change-size.md")}.${process.pid}.tmp`;
+  symlinkSync(target, planted);
+  assert.equal((await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home })).code, 0);
+  assert.equal(readFileSync(target, "utf8"), "untouched\n");
+  assert.ok(lstatSync(planted).isSymbolicLink(), "the planted link is left in place");
+  assert.equal(lstatSync(personal(home, "change-size.md")).isFile(), true);
+  assert.match(readFileSync(personal(home, "change-size.md"), "utf8"), /^- Example Small Steps/mu);
 });
