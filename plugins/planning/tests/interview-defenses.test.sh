@@ -240,7 +240,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "524280d07cd73f9047994d662462a5e4e261968633e483e82511eb5247d76d8b"
+  "0d90f1c7f8a8ee622cce44e029763ae4fe7ba61b25097adc0398593015b70666"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -547,7 +547,7 @@ pin "SKILL.md: a non-zero procedure exit halts the confirmation request" "$SKILL
 pin "SKILL.md: Step 3 names the model-judgment items the procedure check does not verify" "$SKILL" \
   "whether the Step 1 survey grounded the questions, whether the domain was classified, whether register rows were written at ask-time rather than answer-time, and whether the ready questions were recomputed between rounds"
 pin "SKILL.md: the terminal round prints its citations in the resolved citation_links form" "$SKILL" \
-  "show --level <question_detail> --links <citation_links>"
+  "show --level \"<question_detail>\" --links \"<citation_links>\""
 pin "SKILL.md: the round check holds the round to the resolved questions_per_round" "$SKILL" \
   "check-round-codes.sh\" --ledger <memory_dir>/<topic-slug>/interview-checklist.md --cap <questions_per_round>"
 pin "lane-page.md: the page refuses a round over the resolved questions_per_round" "$LANE_PAGE" \
