@@ -35,18 +35,19 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   default branch as below; a reworded one is a cut and runs before merge (Q11).
 - Except a routing-only `description` or `when_to_use` edit, which runs nothing: with its routing
   clauses removed (a `Not for <case>: /plugin:skill`, `Skip when ... /plugin:skill` or
-  `prefer /plugin:skill` clause, added, removed or reworded), every skill token treated as one
-  (`plugin:skill` to `/plugin:skill`, or a renamed skill), and decided-term swaps (next rule)
-  removed, the old and new text are equal. `select` lists the skill under `no-run-exempt:` with
-  that reason (owner, 2026-11-25, Q2212).
+  `prefer /plugin:skill` clause, added, removed or reworded), a skill token's change of form
+  (`plugin:skill` to `/plugin:skill`; a token is a skill when it has the slash or its plugin part
+  names a plugin in the repository, so `mode:fast` to `mode:slow` still counts, as does swapping
+  in another skill), and decided-term swaps (next rule) removed, the old and new text are equal.
+  `select` lists the skill under `no-run-exempt:` with that reason (owner, 2026-11-25, Q2212).
 - A decided-term swap or a comment-line deletion runs nothing, wherever `select` looks. A hunk is
   not a cut when it only swaps a term for the word [`docs/glossary.md`](../glossary.md) "Rejected
   terms" decided (or that word's last word, so `--lane` becomes `--area` for **focus area**), in
   either number, so that old and new are byte-identical once each swap is replaced, or only
-  deletes lines a comment fills in a code, YAML or shell file (`#` for YAML, shell and Python,
-  `//` and `/* */` for JS and TS; code before or after the comment disqualifies the line, and
-  markdown is excluded because an HTML comment can carry instructions a model reads; so is a
-  line inside a shell heredoc, PowerShell here-string, YAML block scalar, Python or TOML
+  deletes lines a comment fills in a code, YAML or shell file (`#` for YAML, shell, Python, TOML
+  and PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; code before or after the
+  comment disqualifies the line, and markdown is excluded because an HTML comment can carry instructions a model reads; so is a
+  line inside a shell heredoc, PowerShell here-string, YAML block scalar, Python, TOML or C#
   triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped line is content).
   That holds for a skill body, reference or agent hunk, a frontmatter value such as
   `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,

@@ -104,16 +104,32 @@ def _parse_rejected_terms(text):
     return tuple(pairs)
 
 
-def _routing_free_tokens(text):
+def _is_skill_token(token, plugins):
+    """A `plugin:skill` token names a skill: it carries the leading slash, or its plugin part is a
+    plugin in the repository (`mode:fast` is a value, not a skill)."""
+    return token.startswith("/") or token.split(":", 1)[0] in plugins
+
+
+def _routing_free_tokens(text, plugins=frozenset()):
     """Description tokens with each routing segment (`Not for ...`, `Skip ...` or `prefer ...` at a
-    clause start or after a comma, ending with a `plugin:skill` before the next comma) cut, the
-    clause-ending `.` or `;` dropped, and every skill token, slash or not, made one placeholder."""
+    clause start or after a comma, ending with a skill token before the next comma) cut, the
+    clause-ending `.` or `;` dropped, and each skill token's leading slash dropped, so only a
+    change of form (`plugin:skill` to `/plugin:skill`) compares equal."""
+
+    def cut(match):
+        routed = SKILL_TOKEN_RE.findall(match.group(0))[-1]
+        return "" if _is_skill_token(routed, plugins) else match.group(0)
+
+    def form(match):
+        token = match.group(0)
+        return token.lstrip("/") if _is_skill_token(token, plugins) else token
+
     kept = []
     for clause in CLAUSE_SPLIT_RE.split(text.strip()):
-        clause = ROUTING_SEGMENT_RE.sub("", clause.rstrip(".;")).strip()
+        clause = ROUTING_SEGMENT_RE.sub(cut, clause.rstrip(".;")).strip()
         if clause:
             kept.append(clause)
-    return SWAP_TOKEN_RE.findall(SKILL_TOKEN_RE.sub(" SKILLTOKEN ", " ".join(kept)))
+    return SWAP_TOKEN_RE.findall(SKILL_TOKEN_RE.sub(form, " ".join(kept)))
 
 
 def _plural(words):
@@ -179,9 +195,12 @@ def is_term_swap_only(old, new, pairs):
     )
 
 
-def is_routing_only_change(old, new, pairs):
-    """True when, with routing clauses and decided-term swaps removed, the two texts are equal."""
-    return _differs_only_by_swaps(_routing_free_tokens(old), _routing_free_tokens(new), pairs)
+def is_routing_only_change(old, new, pairs, plugins=frozenset()):
+    """True when, with routing clauses, skill-token form and decided-term swaps removed, the two
+    texts are equal; `plugins` names the repository's plugins."""
+    return _differs_only_by_swaps(
+        _routing_free_tokens(old, plugins), _routing_free_tokens(new, plugins), pairs
+    )
 
 
 def _string_block_lines(ext, text):

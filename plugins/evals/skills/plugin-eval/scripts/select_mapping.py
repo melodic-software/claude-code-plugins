@@ -402,7 +402,7 @@ def _value_text(value):
     return value if isinstance(value, str) else json.dumps(value, sort_keys=True)
 
 
-def _classify_description_change(base_fm, head_fm, pairs=()):
+def _classify_description_change(base_fm, head_fm, pairs=(), plugins=frozenset()):
     """`cut`, `additive`, `exempt` (routing clauses, skill tokens or decided terms only) or
     None; a cut in either key wins, then an additive edit."""
     status = None
@@ -415,7 +415,7 @@ def _classify_description_change(base_fm, head_fm, pairs=()):
             key_status = "additive"
         elif new_val is None:
             key_status = "cut"
-        elif no_run_text.is_routing_only_change(str(old_val), str(new_val), pairs):
+        elif no_run_text.is_routing_only_change(str(old_val), str(new_val), pairs, plugins):
             key_status = "exempt"
         else:
             old_tokens = DESC_TOKEN_RE.findall(str(old_val))
@@ -465,7 +465,9 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
     head_fm = _parse_frontmatter_loose(head_fm_raw)
 
     pairs = decided_term_pairs(repo_root, merge_base)
-    desc_class = _classify_description_change(base_fm, head_fm, pairs)
+    plugin_dir = os.path.join(repo_root, "plugins")
+    plugins = frozenset(os.listdir(plugin_dir) if os.path.isdir(plugin_dir) else ())
+    desc_class = _classify_description_change(base_fm, head_fm, pairs, plugins)
     other_fm_class = _classify_other_frontmatter(base_fm, head_fm, pairs)
 
     body_class = None

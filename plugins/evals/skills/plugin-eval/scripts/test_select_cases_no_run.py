@@ -209,13 +209,27 @@ class SelectCasesNoRunTest(unittest.TestCase):
         block = self._edit_and_select(path, "at 10:30", "at 11:45")
         self.assertNotIn("no-run-exempt", block, "10:30 is a time, not a skill token")
 
-    def test_skill_token_form_and_rename_are_exempt(self):
+    def test_skill_token_form_change_is_exempt(self):
         path = self._set_base_description(
             "Run alpha one checks after beta:runner. Use when checking alpha items."
         )
         self._assert_exempt(
-            self._edit_and_select(path, "after beta:runner.", "after /beta:sweeper.")
+            self._edit_and_select(path, "after beta:runner.", "after /beta:runner.")
         )
+
+    def test_swapping_in_another_skill_outside_a_routing_clause_is_cut(self):
+        path = self._set_base_description(
+            "Run alpha one checks after /beta:runner. Use when checking alpha items."
+        )
+        block = self._edit_and_select(path, "after /beta:runner.", "after /beta:sweeper.")
+        self.assertNotIn("no-run-exempt", block, "only a token's form is exempt, not its skill")
+
+    def test_non_skill_colon_value_change_is_cut(self):
+        path = self._set_base_description(
+            "Run alpha one checks in mode:fast. Use when checking alpha items."
+        )
+        block = self._edit_and_select(path, "in mode:fast.", "in mode:slow.")
+        self.assertNotIn("no-run-exempt", block, "mode is no plugin, so mode:fast is a value")
 
     def test_glossary_decided_term_swap_is_exempt(self):
         self._write_glossary()
@@ -422,13 +436,15 @@ class SelectCasesNoRunTest(unittest.TestCase):
         block = self._edit_and_select(config, "  # Heading the model reads\n", "")
         self.assertEqual("control-no-fire one-basic one-trigger", block.get("cases"))
 
-    def _assert_string_line_runs(self, rel, base_text, line):
+    def _assert_string_line_runs(
+        self, rel, base_text, line, cases="control-no-fire one-basic one-trigger"
+    ):
         path = self.repo / rel
         _write(self.repo, rel, base_text)
         _commit_all(self.repo, "seed a multi-line string")
         _git(self.repo, "branch", "-f", "base", "HEAD")
         block = self._edit_and_select(path, line, "")
-        self.assertEqual("control-no-fire one-basic one-trigger", block.get("cases"))
+        self.assertEqual(cases, block.get("cases"))
 
     def test_comment_shaped_line_in_a_toml_string_still_runs(self):
         self._assert_string_line_runs(
@@ -521,6 +537,61 @@ class SelectCasesNoRunTest(unittest.TestCase):
         )
         self.assertNotIn("cases", block, "deleting only JS comment lines runs nothing")
         self.assertEqual("one-basic", block.get("affected-no-run"))
+
+    def test_comment_shaped_line_in_a_js_backtick_string_still_runs(self):
+        self._assert_string_line_runs(
+            "plugins/alpha/evals/one-basic/seed.js",
+            "const prompt = `\n// Heading the model reads\nbody\n`;\n",
+            "// Heading the model reads\n",
+            "one-basic",
+        )
+
+    def test_comment_shaped_line_in_a_python_triple_quoted_string_still_runs(self):
+        self._assert_string_line_runs(
+            "plugins/alpha/evals/one-basic/seed_text.py",
+            'PROMPT = """\n# Heading the model reads\nbody\n"""\n',
+            "# Heading the model reads\n",
+            "one-basic",
+        )
+
+    def test_decided_term_swap_in_a_script_still_runs(self):
+        self._write_glossary()
+        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
+        scaffold.write_text(
+            scaffold.read_text(encoding="utf-8") + 'echo "check one lane"\n', encoding="utf-8"
+        )
+        _commit_all(self.repo, "add echo")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(scaffold, "one lane", "one focus area")
+        self.assertEqual("one-basic", block.get("cases"), "a script gets no swap exemption")
+
+    def test_swap_only_rename_with_identical_content_still_runs(self):
+        self._write_glossary()
+        _write(self.repo, "plugins/alpha/evals/one-basic/lane-notes.md", "Seed notes.\n")
+        _commit_all(self.repo, "add notes")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        _git(
+            self.repo,
+            "mv",
+            "plugins/alpha/evals/one-basic/lane-notes.md",
+            "plugins/alpha/evals/one-basic/area-notes.md",
+        )
+        _commit_all(self.repo, "rename notes")
+        res = _run_select(self.repo)
+        self.assertEqual(0, res.returncode, res.stderr)
+        self.assertEqual(
+            "one-basic",
+            _parse_blocks(res.stdout)["plugins/alpha"].get("cases"),
+            "a change with no hunks is never exempt",
+        )
+
+    def test_comment_deletion_in_a_plugin_wide_file_is_still_listed(self):
+        _write(self.repo, "plugins/alpha/hooks/guard.sh", "#!/usr/bin/env bash\n# Guards.\nexit 0\n")
+        _commit_all(self.repo, "add hook")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        hook = self.repo / "plugins/alpha/hooks/guard.sh"
+        block = self._edit_and_select(hook, "# Guards.\n", "")
+        self.assertEqual("plugins/alpha/hooks/guard.sh", block.get("plugin-wide"))
 
     def test_exempt_skill_is_listed_in_json(self):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"

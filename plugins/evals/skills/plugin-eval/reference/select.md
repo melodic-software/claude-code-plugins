@@ -18,7 +18,8 @@ eval case file or renamed path whose only difference swaps a term for the word t
 glossary's "Rejected terms" table decided (`docs/glossary.md`, else `GLOSSARY.md`), or that word's
 last word (`--lane` to `--area` for `focus area`), singular or plural, leaving old and new
 byte-identical once each swap is replaced, or deletes lines a comment fills in a code, YAML or
-shell file (`#`, `//`, `/* */`, with no code before or after it; never markdown, whose HTML
+shell file (`#` in YAML, shell, Python, TOML and PowerShell; `//` and `/* */` in JS, TS, JSONC,
+Go and C#; with no code before or after it; never markdown, whose HTML
 comments a model can read, nor a line inside a shell heredoc, PowerShell here-string, YAML
 block scalar, or triple-quoted or backtick string). Decided terms come from the glossary at the merge base; a
 directive comment (`//go:build`, `# shellcheck`, `# type: ignore` and the like) is never a
@@ -27,7 +28,8 @@ plugin-wide file is always listed. A hunk with any other change keeps the rules 
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
 removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),
-the difference between skill tokens (`plugin:skill` against `/plugin:skill`, or a renamed skill),
+a skill token's change of form (`plugin:skill` against `/plugin:skill`; a token is a skill when it
+has the slash or its plugin part names a repository plugin, so a different skill still counts),
 and each decided-term swap. Any other wording change keeps the rule above.
 
 ## Run it
