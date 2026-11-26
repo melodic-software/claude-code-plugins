@@ -15,9 +15,17 @@
     {
       "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty: `<QUEUE_CMD>` shows 0 pending items in this conversation, then one results line beginning with the output of `date -u +%Y-%m-%dT%H:%MZ` is appended to notes/status.md and shown. OR `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:00Z or later and that same results line has been appended and shown.\n──────────────────────────────────────────────────────────\n",
       "why": "uppercase OR branch, one-hour buffer"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown in this conversation, and a results line carrying a `date -u` timestamp goes into notes/status.md before stopping, or `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "'before stopping' orders the work; it names no time to beat"
     }
   ],
   "fail": [
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line, or `date -u +%Y-%m-%dT%H:%MZ` shows 2024-06-12T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "a past date resolved from stale knowledge makes the OR end true at once"
+    },
     {
       "answer": "",
       "why": "empty"
