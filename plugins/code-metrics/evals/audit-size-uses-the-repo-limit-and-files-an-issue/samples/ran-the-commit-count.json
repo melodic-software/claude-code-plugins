@@ -3,6 +3,10 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit/scripts/audit-size.sh\" --all --file-lines 400 --commits-since \"1 year ago\""}}],
       "why": "the script's own commit count"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "S=/plugins/code-metrics/skills/audit/scripts/audit-size.sh; \"$S\" --all --commits-since \"1 year ago\""}}],
+      "why": "the script called through a variable"
     }
   ],
   "fail": [

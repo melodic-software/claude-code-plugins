@@ -32,7 +32,8 @@ carry `function: null`, and are labeled `file-level`. Its Bash cyclomatic figure
 "<skill-dir>/scripts/audit-complexity.sh" --json --all src/  # the code-metrics/v3 document instead of markdown
 ```
 
-Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
+Present the markdown report to the user as printed, whole: every table and line in the order
+the script printed them, with any note of yours after it, never in place of a part of it. It opens with the scope and a "Coverage of
 this run" table (language, measure, collector, status, reason), then the references with their
 provenance and layer, then one row per function or file: every collector's numbers for a function
 sit on that one line, a Labels column carries `start-line-only`, `file-level`, and

@@ -52,7 +52,8 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
   `${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says; each repository gets its own
   section. `size --check` is a gate for one repository's hook or CI step, so it takes no target
   form.
-- Present the markdown report as printed. Keep the `--json` document when the numbers feed a
+- Present the markdown report as printed, whole, with your notes after it, never in place of a
+  part of it. Keep the `--json` document when the numbers feed a
   comparison: `/verification:measure metrics` (if enabled) consumes it (treat `status: empty` on either side as INCONCLUSIVE); otherwise keep it beside your
   notes and compare by hand.
 - A `null` value is a number the collector did not produce, never zero.
