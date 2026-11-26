@@ -28,8 +28,9 @@ public and consumer-agnostic, so it may carry no one person's topology.
    lane run locally, a drive-letter path; neither allows a space, `~`, `$`, a quote or a leading
    `-`. Over ssh the remote shell parses the command line, so the safe sets keep each value one
    word that shell leaves unchanged. Another machine's Windows lane is reached through that
-   machine's WSL lane, which runs `claude.exe` by its `/mnt/<drive>/` path: the Windows ssh account
-   is a local admin with no Claude sign-in, and this way every ssh hop lands in a POSIX shell. A lane that fails is never run; any other broken
+   machine's WSL lane, which runs `claude.exe` through a path on that lane, such as a symlink, so the
+   file names no Windows account: the Windows ssh account is a local admin with no Claude sign-in,
+   and this way every ssh hop lands in a POSIX shell. A lane that fails is never run; any other broken
    rule makes the hook ignore the file.
 4. **The file carries no secrets and no SSH host keys.** Host-key pinning stays in the ssh client's
    known-hosts configuration.

@@ -30,7 +30,7 @@ The file as rendered on host-b's WSL lane:
       "os": "windows",
       "role": "server",
       "lanes": [
-        { "kind": "windows", "route": "ssh", "alias": "host-a-wsl", "claudePath": "/mnt/c/Tools/claude/claude.exe" },
+        { "kind": "windows", "route": "ssh", "alias": "host-a-wsl", "claudePath": "/opt/claude/bin/claude-windows" },
         { "kind": "wsl", "route": "ssh", "alias": "host-a-wsl", "claudePath": "/opt/claude/bin/claude" }
       ]
     },
@@ -73,7 +73,7 @@ On host-b's Windows lane, host-b's entry instead reads:
 | `lanes[].route` | How the reading lane reaches that lane: `local` (itself), `interop` (WSL to the same machine's Windows lane), `wsl-exe` (Windows to the same machine's WSL lane, with `distro`), `ssh` (another machine, with `alias`). Another machine's Windows lane is reached over ssh to that machine's WSL lane, which runs `claude.exe` through interop: the account ssh reaches on the Windows side need not be the one signed into Claude. |
 | `lanes[].alias` | ssh host alias, resolved by the reading lane's ssh config. Required for `ssh`. |
 | `lanes[].distro` | WSL distribution name. Required for `wsl-exe`. |
-| `lanes[].claudePath` | Absolute path of the claude binary, as the program that runs it reads it: the reading lane for `local` and `interop` (a `/mnt/<drive>/...` path for `interop`), the target lane for `wsl-exe` (`wsl.exe --exec` runs it inside the distro) and `ssh` (the remote shell runs it; a `/mnt/<drive>/...` path for a `windows` lane). A drive-letter path for a `windows` lane on `local`; a `/` path everywhere else. |
+| `lanes[].claudePath` | Absolute path of the claude binary, as the program that runs it reads it: the reading lane for `local` and `interop` (a `/mnt/<drive>/...` path for `interop`), the target lane for `wsl-exe` (`wsl.exe --exec` runs it inside the distro) and `ssh` (the remote shell runs it; for a `windows` lane, a path on the target's WSL lane that resolves to `claude.exe`, such as a symlink, so the file names no Windows account). A drive-letter path for a `windows` lane on `local`; a `/` path everywhere else. |
 
 The schema also holds these, which it cannot express:
 
