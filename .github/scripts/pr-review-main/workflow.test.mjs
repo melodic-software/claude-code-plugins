@@ -1387,6 +1387,23 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
     rmSync(path.join(dir, ".base", "REVIEW.md"));
     assert.equal(copy().status, 0, "a main with no REVIEW.md still copies");
     assert.equal(composed(), "org review, see `standards/review/x.md#rule`\n", "default: the org's criteria alone");
+    rmSync(data, { recursive: true, force: true });
+    rmSync(path.join(org, "docs", "standards", "README.md"));
+    const noIndex = copy();
+    assert.equal(noIndex.status, 0, `an org checkout with no standards index still copies: ${noIndex.stderr}`);
+    assert.equal(
+      readFileSync(path.join(orgCopy, "citations.tsv"), "utf8"),
+      `standards/review/x.md#rule\t${orgCopy}/standards/review/x.md#rule\n`,
+      "with no org index, the org's citations are still listed",
+    );
+    rmSync(data, { recursive: true, force: true });
+    const missing = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...env, ORG: path.join(dir, "no-such-org-checkout") },
+    });
+    assert.equal(missing.status, 0, `a missing org checkout still copies: ${missing.stderr}`);
+    assert.deepEqual(readdirSync(orgCopy), ["citations.tsv"], "a missing org checkout copies no org file");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

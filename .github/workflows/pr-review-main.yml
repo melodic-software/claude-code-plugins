@@ -894,6 +894,11 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
+          : >"$DATA/org/citations.tsv"
+          if ! [ -d "$ORG" ]; then
+            echo "::warning::no organization standards checkout at '$ORG'; the review reads the repository's criteria alone"
+            exit 0
+          fi
           STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
           org_real=$(cd "$ORG" && pwd -P)
           confine() {
@@ -1610,6 +1615,11 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
+          : >"$DATA/org/citations.tsv"
+          if ! [ -d "$ORG" ]; then
+            echo "::warning::no organization standards checkout at '$ORG'; the review reads the repository's criteria alone"
+            exit 0
+          fi
           STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
           org_real=$(cd "$ORG" && pwd -P)
           confine() {
@@ -2304,6 +2314,11 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
+          : >"$DATA/org/citations.tsv"
+          if ! [ -d "$ORG" ]; then
+            echo "::warning::no organization standards checkout at '$ORG'; the review reads the repository's criteria alone"
+            exit 0
+          fi
           STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
           org_real=$(cd "$ORG" && pwd -P)
           confine() {
