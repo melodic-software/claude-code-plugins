@@ -1,6 +1,6 @@
 ---
 description: "Inventory and tidy the gitignored `.work` memory tiers (the repo's memory root and `~/.work`): report what is stale and what is in flight, normalize misplaced handoffs and retros, and remove stale known items behind one confirmation. Opt-in only; nothing runs unless invoked. Use when: 'tidy .work', 'clean up .work', 'what is piling up in .work', 'prune old handoffs', 'clear stale save-points', 'normalize my memory folder'. Handing off is /session-flow:handoff; making work durable before shutdown is /session-flow:clean-stop."
-argument-hint: "[report|normalize|clean] [--days N] [--offline] [--memory-dir DIR] [--scope all|repo|home] [--extra-concern-dir DIR]"
+argument-hint: "[report|normalize|clean] [--days N] [--offline] [--memory-dir DIR] [--scope all|repo|home]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py report:*)"]
