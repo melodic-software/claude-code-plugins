@@ -91,9 +91,9 @@ file nobody edits costs nobody anything.
   other work, gets a tracker item naming the file, its length, its commit count and the window:
   through `/work-items:track add` (if enabled), else the repository's own tracker. Never split it
   inside a change that is about something else.
-- **To stop growth without fixing anything yet**, offer `/toolchain:ratchet` (if enabled) on the
-  number of files at or above the reference (`summary.over_reference.file_lines` in the
-  `--json --all` document).
+- **To stop growth without fixing anything yet**, when the user asks how, offer `/toolchain:ratchet`
+  (if enabled) on the number of files at or above the reference
+  (`summary.over_reference.file_lines` in the `--json --all` document).
 
 ## Check mode
 
