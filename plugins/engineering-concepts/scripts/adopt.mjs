@@ -46,8 +46,11 @@ source_bar setting drops is refused, as lookup.mjs leaves it out.
   --home DIR                user home for --layer personal
   -h, --help                show this help
 
-A concept already in the file, or in another standards file of the layer, is
-skipped and the file citing it is named; an existing row for the file is kept.
+A concept already in the file, or in another standards file of the layer or its
+subfolders (symbolic links are not followed), is skipped and the file citing it
+is named; an existing row for the file is kept, and none is added when nothing
+is. A plugin settings file that cannot be read stops the run, so its exclude
+and source_bar are never ignored. Added lines keep the file's line endings.
 The preview prints the exact text the write adds: the whole file when it is new
 or empty, the appended lines otherwise, and the index row, or the table holding
 it when the index has none. When the file or the index does not end with a line
@@ -77,7 +80,22 @@ lookup with \`--counterweights-of\` and the ids cited below, comma separated.
 
 `;
 
-const entry = (r) => `- ${r.name} (\`${r.id}\`): ${r.source_url}\n`;
+const entry = (r, eol) => `- ${r.name} (\`${r.id}\`): ${r.source_url}${eol}`;
+
+/** A file's line ending, so lines added to it match the ones it has. */
+const eolOf = (text) => (text?.includes("\r\n") ? "\r\n" : "\n");
+
+const FS_REASONS = {
+  ENOENT: "file not found",
+  EISDIR: "is a folder, not a file",
+  ENOTDIR: "a folder in its path is a file",
+  EACCES: "permission denied",
+  EPERM: "permission denied",
+  ENOSPC: "the disk is full",
+  EROFS: "the file system is read-only",
+};
+
+const plainReason = (e, fallback) => FS_REASONS[e.code] ?? (e instanceof SyntaxError ? `not valid JSON: ${e.message}` : fallback);
 
 const cites = (text, id) => text?.split("\n").some((line) => line.startsWith("- ") && line.includes(`(\`${id}\`)`));
 
@@ -97,16 +115,17 @@ const read = (path) => (existsSync(path) ? readFileSync(path, "utf8") : null);
  * ending an index that lacked one.
  */
 function withRow(index, row) {
-  const lines = index.replace(/\n$/u, "").split("\n");
+  const eol = eolOf(index);
+  const lines = index.replace(/\r?\n$/u, "").split(eol);
   const header = lines.findIndex((line) => /^\|\s*Surface\s*\|/u.test(line));
   if (header < 0) {
-    const added = `\n| Surface | Applies when | File |\n|---|---|---|\n${row}\n`;
-    return { text: `${lines.join("\n")}\n${added}`, added, table: true };
+    const added = `${eol}| Surface | Applies when | File |${eol}|---|---|---|${eol}${row}${eol}`;
+    return { text: `${lines.join(eol)}${eol}${added}`, added, table: true };
   }
   let end = header;
   while (end + 1 < lines.length && lines[end + 1].startsWith("|")) end++;
   lines.splice(end + 1, 0, row);
-  return { text: `${lines.join("\n")}\n`, added: `${row}\n`, table: false };
+  return { text: `${lines.join(eol)}${eol}`, added: `${row}${eol}`, table: false };
 }
 
 const isLink = (path) => {
@@ -149,17 +168,23 @@ function write(path, text) {
   }
 }
 
-/** The layer's other standards files, regular files only, by path. */
-function otherFiles(dir, skip) {
+/**
+ * The layer's other standards files by path: `.md` files in it and its subfolders, as the standards
+ * contract allows, regular files only, so a symbolic link never leads the walk out of the layer.
+ */
+function otherFiles(dir, skip, sub = "") {
   let names;
   try {
-    names = readdirSync(dir, { withFileTypes: true });
+    names = readdirSync(join(dir, sub), { withFileTypes: true });
   } catch {
     return [];
   }
   return names
-    .filter((d) => d.isFile() && d.name.endsWith(".md") && d.name !== INDEX_FILE && d.name !== skip)
-    .map((d) => join(dir, d.name))
+    .flatMap((d) => {
+      const rel = join(sub, d.name);
+      if (d.isDirectory()) return otherFiles(dir, skip, rel);
+      return d.isFile() && d.name.endsWith(".md") && rel !== INDEX_FILE && rel !== skip ? [join(dir, rel)] : [];
+    })
     .sort();
 }
 
@@ -198,12 +223,22 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     try {
       userConfig = readUserConfig(opts["user-config"]);
     } catch (e) {
-      const reason = e.code === "ENOENT" ? "file not found" : `the file could not be read: ${e.message}`;
-      return invalid("user-config", opts["user-config"], null, reason);
+      return invalid("user-config", opts["user-config"], null, plainReason(e, "the file could not be read"));
     }
   }
   const project = resolvePath(opts.project ?? gitRoot(process.cwd()));
-  const settings = resolveSettings({ projectRoot: project, userConfig, userHome: opts.home, err });
+  const warnings = [];
+  const settings = resolveSettings({ projectRoot: project, userConfig, userHome: opts.home, err: (line) => warnings.push(line) });
+  const unreadable = new Set(settings.unreadable.map((u) => u.layer));
+  for (const line of warnings) {
+    const { event, layer } = JSON.parse(line);
+    if (!(event === "setting rejected" && unreadable.has(layer))) err(line);
+  }
+  for (const { layer, path, detail } of settings.unreadable) {
+    const reason = `${LAYER_NAMES[layer] ?? layer}, ${path}, could not be read, so nothing is adopted until it is fixed: ${detail}`;
+    err(JSON.stringify({ level: "error", event: "settings file unreadable", layer, path, reason }));
+  }
+  if (unreadable.size) return 1;
   const index = loadIndex(opts["data-dir"] ?? shippedDataDir, err, { shipped: opts["data-dir"] === undefined });
   const missing = positionals.filter((term) => resolveId(index, term) === undefined);
   for (const term of missing) err(JSON.stringify({ level: "error", event: "concept not found", term }));
@@ -265,33 +300,29 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     if (elsewhere) out(`${r.name} (${r.id}) is already adopted in ${elsewhere}, so it is not added again.`);
     else fresh.push(r);
   }
-  const blank = !current;
-  const needsRow =
-    currentIndex !== null &&
-    (current !== null || fresh.length > 0) &&
-    !currentIndex.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
-  const unindexed = currentIndex === null ? `No index at ${indexPath}: the standards folder is read file by file, so the file still loads.` : null;
-  if (!fresh.length && !needsRow) {
+  if (!fresh.length) {
     out(`Nothing to write: every concept named is already adopted.`);
     return 0;
   }
-  const entries = fresh.map(entry).join("");
+  const blank = !current?.trim();
+  const needsRow = currentIndex !== null && !currentIndex.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
+  const unindexed = currentIndex === null ? `No index at ${indexPath}: the standards folder is read file by file, so the file still loads.` : null;
+  const eol = eolOf(current);
+  const entries = fresh.map((r) => entry(r, eol)).join("");
   const breakNote = (path) => `A line break will also be added at the end of ${path}, which does not end with one.`;
-  const fileLacksBreak = entries && !blank && !current.endsWith("\n");
-  const next = blank ? `${HEADER(opts.surface)}${entries}` : `${current}${fileLacksBreak ? "\n" : ""}${entries}`;
+  const fileLacksBreak = !blank && !current.endsWith("\n");
+  const next = blank ? `${HEADER(opts.surface).replaceAll("\n", eol)}${entries}` : `${current}${fileLacksBreak ? eol : ""}${entries}`;
   const lineCount = next.split("\n").length - 1;
-  if (entries && lineCount > LINE_BUDGET) {
+  if (lineCount > LINE_BUDGET) {
     err(JSON.stringify({ level: "warn", event: "standards file over budget", file: filePath, lines: lineCount, budget: LINE_BUDGET, contract: BUDGET_RULE }));
   }
 
   const indexed = needsRow ? withRow(currentIndex, row) : null;
 
   if (!opts.yes) {
-    if (entries) {
-      const action = current === null ? "Would create" : blank ? "Would fill the empty file" : "Would append to";
-      out(`${action} ${filePath}:\n${blank ? next : entries}`);
-      if (fileLacksBreak) out(breakNote(filePath));
-    }
+    const action = current === null ? "Would create" : blank ? "Would fill the empty file" : "Would append to";
+    out(`${action} ${filePath}:\n${blank ? next : entries}`);
+    if (fileLacksBreak) out(breakNote(filePath));
     if (indexed) {
       out(`Would add ${indexed.table ? "a table holding this row" : "this row"} to ${indexPath}:\n${indexed.added}`);
       if (!currentIndex.endsWith("\n")) out(breakNote(indexPath));
@@ -300,12 +331,14 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     out("Re-run with --yes to write.");
     return 3;
   }
-  try {
-    if (entries) write(filePath, next);
-    if (indexed) write(indexPath, indexed.text);
-  } catch (e) {
-    err(JSON.stringify({ level: "error", event: "write failed", path: e.path ?? null, code: e.code ?? null, message: `the file could not be written: ${e.message}` }));
-    return 1;
+  for (const [path, text] of [[filePath, next], ...(indexed ? [[indexPath, indexed.text]] : [])]) {
+    try {
+      write(path, text);
+    } catch (e) {
+      const message = `${path} could not be written: ${plainReason(e, "the file system refused the write")}`;
+      err(JSON.stringify({ level: "error", event: "write failed", path, code: e.code ?? null, message }));
+      return 1;
+    }
   }
   out(`Adopted ${fresh.length} concept(s) into ${filePath}.`);
   if (unindexed) out(unindexed);

@@ -387,18 +387,108 @@ test("a concept refused by a setting names the layer in plain words, keeping the
   }
 });
 
-test("a write the file system refuses keeps its code and gives the message a plain lead-in", { skip: process.getuid?.() === 0 && "root ignores directory permissions" }, async () => {
+test("a write the file system refuses names the target file and the reason in plain words, keeping the code as a key", { skip: process.getuid?.() === 0 && "root ignores directory permissions" }, async () => {
   const home = personalHome();
   const dir = join(home, ".claude", "standards");
   chmodSync(dir, 0o500);
   try {
     const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
     assert.equal(code, 1);
-    assert.deepEqual(errors.map((e) => [e.event, e.code]), [["write failed", "EACCES"]]);
-    assert.match(errors[0].message, /^the file could not be written: EACCES/u);
+    const target = personal(home, "change-size.md");
+    assert.deepEqual(errors.map((e) => [e.event, e.path, e.code]), [["write failed", target, "EACCES"]]);
+    assert.equal(errors[0].message, `${target} could not be written: permission denied`);
   } finally {
     chmodSync(dir, 0o700);
   }
+});
+
+test("a --user-config that is a folder is refused with the plain reason 'is a folder, not a file'", async () => {
+  const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--user-config", tree()]);
+  assert.equal(code, 2);
+  assert.deepEqual(errors.map((e) => [e.event, e.option, e.reason]), [["invalid option", "user-config", "is a folder, not a file"]]);
+});
+
+test("a malformed plugin settings file stops adopt with a plain sentence naming the file and its layer, while the lookup only warns", async () => {
+  const cases = [
+    [TEAM_SETTINGS, "team", "the repository's settings file"],
+    ["docs/conventions/engineering-concepts.local.yaml", "local", "your personal settings file for this repository"],
+  ];
+  for (const [file, layer, plain] of cases) {
+    const project = repo({ [file]: "exclude: [example-small-steps\n" });
+    const home = personalHome();
+    const path = join(project, file);
+    const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home, project });
+    assert.equal(code, 1, layer);
+    assert.deepEqual(errors.map((e) => [e.level, e.event, e.layer, e.path]), [["error", "settings file unreadable", layer, path]], layer);
+    assert.ok(errors[0].reason.startsWith(`${plain}, ${path}, could not be read, so nothing is adopted until it is fixed: `), errors[0].reason);
+    assert.ok(!errors[0].reason.includes(`${layer} (`), errors[0].reason);
+    assert.equal(existsSync(personal(home, "change-size.md")), false, layer);
+    assert.equal(readFileSync(personal(home, "README.md"), "utf8"), INDEX, layer);
+
+    const warnings = [];
+    const lookupCode = await lookup(["--data-dir", FIXTURES, "--home", home, "--project", project, "example-small-steps"], { out: () => {}, err: (line) => warnings.push(JSON.parse(line)) });
+    assert.equal(lookupCode, 0, layer);
+    assert.deepEqual(warnings.map((w) => [w.level, w.event]), [["warn", "setting rejected"]], layer);
+  }
+});
+
+test("when every concept named is already cited in another file, the existing surface file gets no index row in the preview or the write", async () => {
+  const cited = "# Testing\n\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
+  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/testing.md": cited, ".claude/standards/change-size.md": "" });
+  const args = ["example-small-steps", "--layer", "personal", "--surface", "change-size"];
+  const preview = await run(args, { home });
+  assert.equal(preview.code, 0);
+  assert.doesNotMatch(preview.out, /Would add/u);
+  const write = await run([...args, "--yes"], { home });
+  assert.equal(write.code, 0);
+  assert.match(write.out, /Nothing to write/u);
+  assert.doesNotMatch(write.out, /Adopted 0/u);
+  assert.equal(readFileSync(personal(home, "README.md"), "utf8"), INDEX);
+  assert.equal(readFileSync(personal(home, "change-size.md"), "utf8"), "");
+});
+
+test("a surface file holding only whitespace gets the header a new file gets", async () => {
+  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": "  \n\n\t\n" });
+  const fresh = personalHome();
+  const args = ["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"];
+  assert.equal((await run(args, { home })).code, 0);
+  assert.equal((await run(args, { home: fresh })).code, 0);
+  assert.equal(readFileSync(personal(home, "change-size.md"), "utf8"), readFileSync(personal(fresh, "change-size.md"), "utf8"));
+});
+
+const lfOnly = (text) => text.replace(/\r\n/gu, "").includes("\n");
+
+test("a CRLF index and a CRLF surface file keep CRLF on every line adopt adds", async () => {
+  const noTable = INDEX.slice(0, INDEX.indexOf("| Surface")).replace(/\n+$/u, "\n");
+  for (const index of [INDEX, noTable]) {
+    const crlf = index.replace(/\n/gu, "\r\n");
+    const home = tree({ ".claude/standards/README.md": crlf, ".claude/standards/change-size.md": "# Mine\r\n" });
+    assert.equal((await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home })).code, 0);
+    const written = readFileSync(personal(home, "README.md"), "utf8");
+    assert.ok(written.startsWith(crlf), "the existing index text is kept as it was");
+    assert.ok(written.includes("| change-size | change-size | change-size.md |\r\n"), written);
+    assert.equal(lfOnly(written), false, JSON.stringify(written));
+    const surface = readFileSync(personal(home, "change-size.md"), "utf8");
+    assert.equal(surface, "# Mine\r\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\r\n");
+  }
+});
+
+test("a concept cited in a standards file in a subfolder of the layer is not added again, and one cited only through a symbolic link is", async () => {
+  const cited = "# Testing\n\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
+  const nested = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/topics/testing.md": cited });
+  const found = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home: nested });
+  assert.equal(found.code, 0);
+  assert.ok(found.out.includes(personal(nested, join("topics", "testing.md"))), found.out);
+  assert.equal(existsSync(personal(nested, "change-size.md")), false);
+
+  const outside = tree({ "elsewhere/testing.md": cited });
+  const linked = personalHome();
+  symlinkSync(join(outside, "elsewhere", "testing.md"), personal(linked, "linked.md"));
+  symlinkSync(join(outside, "elsewhere"), personal(linked, "linked-dir"));
+  const adopted = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home: linked });
+  assert.equal(adopted.code, 0);
+  assert.doesNotMatch(adopted.out, /already adopted/u);
+  assert.match(readFileSync(personal(linked, "change-size.md"), "utf8"), /^- Example Small Steps \(`example-small-steps`\)/mu);
 });
 
 test("a surface file that exists but is empty gets the header a new file gets, naming the --counterweights-of lookup", async () => {

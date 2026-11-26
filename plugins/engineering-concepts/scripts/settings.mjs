@@ -31,7 +31,8 @@ function conventionHome(projectRoot) {
  * source_bar and exclude through the ADR 0075 cascade: defaults, userConfig, team file, personal
  * override. source_bar takes the cascade's per-key winner; exclude is the union of every layer.
  * Each rejected value goes to `err` as one JSON line. `source_bar_from` and `exclude_from[value]`
- * name the layer, and its file when it has one, that set each value.
+ * name the layer, and its file when it has one, that set each value. `unreadable` lists each
+ * settings file that could not be read at all, with the reason stripped of the layer-name prefix.
  */
 export function resolveSettings({ projectRoot, userConfig = {}, userHome, err }) {
   const schema = readJson(join(ROOT, "schemas", `${PLUGIN}.schema.json`));
@@ -64,7 +65,10 @@ export function resolveSettings({ projectRoot, userConfig = {}, userHome, err })
     for (const [value, from] of listed) if (value.trim() && !excludeFrom.has(value.trim())) excludeFrom.set(value.trim(), from);
     const barLayer = out.provenance.source_bar;
     const source_bar_from = { layer: barLayer, path: out.layers.find((l) => l.name === barLayer)?.path ?? null };
-    return { source_bar: out.values.source_bar, exclude: [...excludeFrom.keys()], source_bar_from, exclude_from: Object.fromEntries(excludeFrom) };
+    const unreadable = out.layers
+      .filter((l) => l.state === "invalid" && l.path)
+      .map((l) => ({ layer: l.name, path: l.path, detail: l.errors.map((e) => e.replace(/^\S+ \(.*?\): /u, "")).join("; ") }));
+    return { source_bar: out.values.source_bar, exclude: [...excludeFrom.keys()], source_bar_from, exclude_from: Object.fromEntries(excludeFrom), unreadable };
   } finally {
     if (scratch) rmSync(scratch, { recursive: true, force: true });
   }
