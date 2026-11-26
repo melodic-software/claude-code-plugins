@@ -746,6 +746,12 @@ ALLOWLIST = [
         ".changes/code-tidying/rename.md",
         "Move any `.claude/tidy-lanes/` files to `.claude/tidy-areas/`.",
     ),
+    path(
+        "lane-hunt-scope",
+        "plugins/evals/skills/plugin-eval/scripts/test_select_cases_no_run.py",
+        "plugins/evals/skills/plugin-eval/scripts/test_select_cases_no_run.py",
+        "Hunt one rotated lane at a time.",
+    ),
 ]
 
 

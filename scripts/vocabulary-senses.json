@@ -220,7 +220,8 @@
         {"match": "\\bconcern lanes?\\b", "near": "\\b(?:audit|interface|motion)\\b"}
       ],
       "allow": [
-        {"path": ".changes/**", "reason": "a changelog fragment names the retired path it migrates from, like CHANGELOG history"}
+        {"path": ".changes/**", "reason": "a changelog fragment names the retired path it migrates from, like CHANGELOG history"},
+        {"path": "plugins/evals/skills/plugin-eval/scripts/test_select_cases_no_run.py", "reason": "decided-term swap tests use the retired word on purpose, as the glossary row they swap from"}
       ]
     }
   ]
