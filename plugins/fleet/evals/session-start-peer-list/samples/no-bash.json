@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [] },
+    { "answer": [ { "tool": "Grep", "input": { "pattern": "peer" } } ], "why": "an allowed search tool" }
+  ],
+  "fail": [
+    { "answer": [ { "tool": "Bash", "input": { "command": "claude agents --json" } } ], "why": "queried the sessions itself" }
+  ]
+}

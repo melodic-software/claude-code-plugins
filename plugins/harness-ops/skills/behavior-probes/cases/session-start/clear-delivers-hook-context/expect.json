@@ -1,0 +1,16 @@
+{
+  "claim": "After /clear, SessionStart fires again with source clear and the new session's additionalContext reaches the model before the next prompt.",
+  "tags": ["SessionStart", "additionalContext", "/clear", "hooks"],
+  "docs": ["https://code.claude.com/docs/en/hooks#sessionstart"],
+  "permission_mode": "auto",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "max_budget_usd": 1.0,
+  "turns": ["Say OK.", "/clear"],
+  "target": {
+    "reply_match": "probe-nonce-clear-<session8>",
+    "example": "probe-nonce-clear-0d0d0d0d"
+  },
+  "outcome": "reply",
+  "control": "session-start/startup-delivers-hook-context"
+}
