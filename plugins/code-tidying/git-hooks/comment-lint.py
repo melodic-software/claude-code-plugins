@@ -29,8 +29,13 @@ repository as the change holds it; with no <records> it fails.
 With <diff> (git diff -U0 output with a/ and b/ prefixes), a comment on an added code line is
 not judged when the base line it replaces carried the same comment text on a code line: paired in
 order in a hunk that adds as many lines as it removes, else with the one removed code line of the
-hunk holding that comment, when no other added code line of the hunk holds it too. A path that
-appears in more than one diff, or whose hunks do not fit its text, pairs no line.
+hunk holding that comment, when no other added code line of the hunk holds it too. A full-line
+comment on an added line is not judged when it rewrites a base comment run without adding comment
+lines. In a hunk that adds as many lines as it removes, its run (consecutive comment lines with no
+code) has no more lines than the base run on the removed line at the same place. In any other
+hunk, the removed lines touch one base run and the added lines one run, and the added lines hold
+no more lines of their run than the removed lines hold of the base run. A path that appears in
+more than one diff, or whose hunks do not fit its text, pairs no line.
 
 A path the comment reader fails on is named on stderr and not judged; the others still are.
 
@@ -498,6 +503,31 @@ def _same_trailing(n: int, lines: list[_Line], span_of: dict, base: list[_Line])
     return len(olds) == 1 and news == [n]
 
 
+def _comment_runs(lines: list[_Line], run_of: dict[int, list[int]], first: int, stop: int) -> list[list[int]]:
+    runs: list[list[int]] = []
+    for m in range(first, min(stop, len(lines))):
+        run = run_of.get(m)
+        if run is not None and not lines[m].code and run not in runs:
+            runs.append(run)
+    return runs
+
+
+def _reworded(n: int, lines: list[_Line], run_of: dict, span_of: dict, base: list[_Line], base_runs: dict) -> bool:
+    """Whether line n's full-line comment run rewrites one base comment run of its hunk without growing (pairing: USAGE)."""
+    span = span_of.get(n)
+    if span is None or lines[n].code:
+        return False
+    c, d, a, k = span
+    if k == d:
+        olds = _comment_runs(base, base_runs, a + n - c, a + n - c + 1)
+        return len(olds) == 1 and len(run_of[n]) <= len(olds[0])
+    olds = _comment_runs(base, base_runs, a, a + k)
+    news = _comment_runs(lines, run_of, c, c + d)
+    if len(olds) != 1 or len(news) != 1:
+        return False
+    return sum(c <= x < c + d for x in news[0]) <= sum(a <= m < a + k for m in olds[0])
+
+
 def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR, max_lines: int = CLASS_C_MAX_LINES, hunks: list | None = None):
     """The finding lines for the comments on <added> lines of <path>; None when no lexer reads it."""
     lexer, tokens = _lex(path, text)
@@ -507,15 +537,20 @@ def findings(path: str, text: str, added, posture: str, allow: list[str], repo: 
     lines = _layout(tokens, len(source))
     run_of = _runs(lines)
     block_of = _paragraphs(lines, run_of)
-    span_of, base = {}, []
+    span_of, base, base_runs = {}, [], {}
     found = _base(source, hunks) if hunks else None
     if found:
         old, span_of = found
         base = _layout(_CENSUS.tokens("\n".join(old), lexer), len(old))
+        base_runs = _runs(base)
     candidates = []
     for first, last in added:
         for n in range(max(first, 1), min(last, len(lines) - 1) + 1):
-            if not lines[n].comment or _same_trailing(n, lines, span_of, base):
+            if (
+                not lines[n].comment
+                or _same_trailing(n, lines, span_of, base)
+                or _reworded(n, lines, run_of, span_of, base, base_runs)
+            ):
                 continue
             if lexer.name == "PowerShell" and _inside_word(
                 source[n - 1] if n - 1 < len(source) else "", lines[n].comment

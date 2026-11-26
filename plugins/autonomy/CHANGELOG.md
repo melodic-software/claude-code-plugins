@@ -3,6 +3,15 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.17] - 2026-11-26
+
+### Changed
+
+- **The `drift-delta-sweep` routine runs three checks.** Its definition and the routines catalog
+  call the instruction-placement delta, the enforcement-surface delta and the repository drift
+  audit "checks", since "lane" now means only a worker that serves one pipeline stage. What the
+  sweep runs is unchanged.
+
 ## [5.2.16] - 2026-11-24
 
 ### Changed
