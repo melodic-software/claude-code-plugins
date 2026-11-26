@@ -11,12 +11,12 @@ n="" s=""
 while (($#)); do
   case "$1" in
   --mutants)
-    (($# >= 2)) && [[ -z "$n" ]] || usage
+    if (($# < 2)) || [[ -n "$n" ]]; then usage; fi
     n="$2"
     shift 2
     ;;
   --seconds)
-    (($# >= 2)) && [[ -z "$s" ]] || usage
+    if (($# < 2)) || [[ -n "$s" ]]; then usage; fi
     s="$2"
     shift 2
     ;;
