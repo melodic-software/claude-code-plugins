@@ -30,7 +30,15 @@ check() {
   done
   shift
   # shellcheck disable=SC2016
-  err="$(env -u "$option" HOME="$work/home" CLAUDE_PROJECT_DIR="$project" ${env[@]+"${env[@]}"} bash -c '. "$1" && shift && hook_enabled::resolve "$@"' _ "$lib" "$@" 2>&1 >/dev/null)"
+  err="$(env -u "$option" HOME="$work/home" CLAUDE_PROJECT_DIR="$project" ${env[@]+"${env[@]}"} bash -c '
+    . "$1" && shift || exit 2
+    hook_enabled::_managed_files() {
+      local f
+      _HOOK_ENABLED_MANAGED_FILES=()
+      _HOOK_ENABLED_MANAGED_OWNER_CHECK="${TEST_OWNER_CHECK:-1}"
+      for f in ${TEST_MANAGED-}; do _HOOK_ENABLED_MANAGED_FILES+=("$f"); done
+    }
+    hook_enabled::resolve "$@"' _ "$lib" "$@" 2>&1 >/dev/null)"
   code=$?
   if [[ "$code" == "$want" && "$err" == "$want_err" ]]; then
     echo "PASS: $name"
@@ -128,6 +136,38 @@ user_setting false
 lib="$HERE/hook-enabled.sh"
 check "security: a library outside the install cache reads no settings layer" 0 "" -- --security demo demo_enabled true
 rm -f "$settings"
+
+managed_setting() {
+  printf '{"pluginConfigs": {"demo@market": {"options": {"demo_enabled": %s}}}}\n' "$2" >"$1"
+  chmod 666 "$1"
+}
+lib="$installed"
+managed="$work/managed/managed-settings.json"
+dropin="$work/managed/managed-settings.d/50-team.json"
+mkdir -p "${dropin%/*}"
+repo
+user_setting false
+managed_setting "$managed" true
+check "security: a managed true beats the user's own settings false" 0 "" "TEST_MANAGED=$managed" -- --security demo demo_enabled true
+check "security: a managed true beats a user false and an environment false" 0 "" "TEST_MANAGED=$managed" "$option=false" -- --security demo demo_enabled false
+user_setting true
+managed_setting "$managed" false
+check "security: a managed false from a file others can write is named and skipped" 0 "hook-enabled: demo_enabled: skipped false from $managed; a managed file that turns a guard off must be root-owned and writable by no one else" "TEST_MANAGED=$managed" -- --security demo demo_enabled false
+check "security: a managed false from an administrator-only path beats the user's own settings true" 1 "" "TEST_MANAGED=$managed" TEST_OWNER_CHECK=0 -- --security demo demo_enabled true
+managed_setting "$managed" true
+managed_setting "$dropin" false
+check "security: a later managed drop-in overrides the primary file" 1 "" "TEST_MANAGED=$managed $dropin" TEST_OWNER_CHECK=0 -- --security demo demo_enabled true
+user_setting false
+check "security: a skipped managed false leaves the primary's true in force" 0 "hook-enabled: demo_enabled: skipped false from $dropin; a managed file that turns a guard off must be root-owned and writable by no one else" "TEST_MANAGED=$managed $dropin" -- --security demo demo_enabled false
+managed_setting "$managed" '"no"'
+user_setting false
+check "security: an invalid managed value is named and dropped; the user's settings decide" 1 "$(dropped no "pluginConfigs[\"demo@market\"] in $managed")" "TEST_MANAGED=$managed" -- --security demo demo_enabled true
+printf '{"pluginConfigs": {"other@market": {"options": {"demo_enabled": true}}}}\n' >"$managed"
+check "security: another plugin's managed entry is not the managed layer" 1 "" "TEST_MANAGED=$managed" -- --security demo demo_enabled true
+managed_setting "$managed" true
+check "a managed value is not read without --security" 1 "" "TEST_MANAGED=$managed" "$option=false" -- demo demo_enabled true
+lib="$HERE/hook-enabled.sh"
+rm -f "$settings" "$managed" "$dropin"
 
 repo
 printf 'demo_enabled: false\n' >"$project/settings/demo.yaml"
