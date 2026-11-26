@@ -101,9 +101,6 @@ else
   fail "take without begin yielded message='$HOOK_REWRITE_MESSAGE' changed='$HOOK_REWRITE_CHANGED'"
 fi
 
-# --- exit without take: the EXIT trap releases the snapshot ------------------
-# The #3401/#3405 leak class: an arm that exits without releasing. Run in a
-# child bash so the exit is real.
 printf 'three\n' >"$target"
 bash -c '
   source "$1/hook-utils.sh"
@@ -129,11 +126,6 @@ else
   fail "non-zero exit left $(scratch_count) file(s) behind"
 fi
 
-# --- caller's EXIT trap is chained, not replaced -----------------------------
-# The Codex P2 on #3452: begin's trap must not clobber a caller-armed EXIT
-# handler. The child arms its own cleanup marker BEFORE begin; both the
-# marker (caller's handler ran) and an empty scratch (guard's release ran)
-# must hold after exit.
 printf 'chain\n' >"$target"
 marker="$WORK/prev-trap-ran"
 bash -c '
@@ -238,9 +230,6 @@ else
   fail "empty file argument, unchanged: message='$HOOK_REWRITE_MESSAGE' changed='$HOOK_REWRITE_CHANGED'"
 fi
 
-# --- take composes with emit_channels as ONE document ------------------------
-# The #3406 class: rewrite disclosure plus findings context must be one JSON
-# document carrying both channels.
 hook::rewrite_guard_begin "$target"
 printf 'six\n' >"$target"
 hook::rewrite_take_disclosure "$target" "compose-msg"

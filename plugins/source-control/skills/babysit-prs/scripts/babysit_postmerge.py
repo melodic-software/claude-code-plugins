@@ -691,9 +691,9 @@ _default_branches: dict[tuple[str, str], str] = {}
 
 def _default_branch(owner: str, name: str) -> str:
     if (owner, name) not in _default_branches:
-        branch = json_object(
-            _read(["api", f"repos/{owner}/{name}"], "repository")
-        ).get("default_branch")
+        branch = json_object(_read(["api", f"repos/{owner}/{name}"], "repository")).get(
+            "default_branch"
+        )
         if not isinstance(branch, str) or not branch.strip():
             raise PostMergeReadError("repository: no default branch")
         _default_branches[owner, name] = branch
@@ -836,9 +836,13 @@ def _run_window(endpoint: str, label: str) -> list[dict[str, Any]]:
     ):
         last = _read(["api", f"{endpoint}&page={len(pages) + 1}"], label)
         pages.append(last)
-    items = list({i.get("id"): i for i in _listed(pages, label, "workflow_runs")}.values())
+    items = list(
+        {i.get("id"): i for i in _listed(pages, label, "workflow_runs")}.values()
+    )
     if len(items) != total:
-        raise PostMergeReadError(f"{label}: total_count {total}, but {len(items)} returned")
+        raise PostMergeReadError(
+            f"{label}: total_count {total}, but {len(items)} returned"
+        )
     return items
 
 
@@ -2800,7 +2804,13 @@ def _lane_reruns(
 
 def _dispatch_runs(ctx: _Context, floor: datetime, now: datetime) -> list[Run]:
     return _runs(
-        ctx.owner, ctx.name, FULL_RUN_WORKFLOW, "workflow_dispatch", ctx.branch, floor, now
+        ctx.owner,
+        ctx.name,
+        FULL_RUN_WORKFLOW,
+        "workflow_dispatch",
+        ctx.branch,
+        floor,
+        now,
     )
 
 
@@ -2943,7 +2953,9 @@ def newest_dispatch_lacks(repo: str, branch: str, lane_sha: str) -> bool:
         return True
     runs = [
         r
-        for r in _run_rows((json_object(i) for i in items), "workflow_dispatch", owner, name)
+        for r in _run_rows(
+            (json_object(i) for i in items), "workflow_dispatch", owner, name
+        )
         if r.head_branch == branch
     ]
     if not runs:
@@ -5210,9 +5222,7 @@ def _judge_run(args: argparse.Namespace) -> int:
     return code
 
 
-def anchor_covered(
-    repo: str, identity: str, report: Mapping[str, Any]
-) -> list[Any]:
+def anchor_covered(repo: str, identity: str, report: Mapping[str, Any]) -> list[Any]:
     anchor = read_anchor(repo, identity)
     if anchor is None:
         return []
@@ -5245,7 +5255,9 @@ def _settle_from(repo: str, path: str, identity: str) -> int:
     except (OSError, ValueError) as exc:
         report = {"error": f"{type(exc).__name__}: {exc}"}
     if report.get("readable") is True:
-        posted, warnings = settle(repo, anchor_covered(repo, identity, report), identity)
+        posted, warnings = settle(
+            repo, anchor_covered(repo, identity, report), identity
+        )
     else:
         posted, warnings = [], [f"settle-unposted: no readable report at {path}"]
     _print_json({"settled": posted, "warnings": warnings})

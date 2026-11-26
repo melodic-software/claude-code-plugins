@@ -37,7 +37,6 @@ assert_contains "p50 is reported" "p50=" "$RUN_OUT"
 assert_not_contains "p95 is NOT refused at the floor" "p95=REFUSED" "$RUN_OUT"
 
 # discriminating-skip-required: the percentile floor is the only thing this
-# case proves, and a skip here would leave the refusal unexercised.
 samples "$WORK/nineteen" 19
 run_summarize "arm" 1 "$WORK/nineteen"
 assert_eq "nineteen samples still exit 0" "0" "$RUN_RC"

@@ -159,14 +159,6 @@ export function installPackageDeps({
     return 0;
   }
 
-  // npm is a `.cmd` shim on Windows, which node refuses to spawn without a shell
-  // (CVE-2024-27980); a shell with a separate args array trips DEP0190. Passing a
-  // single command string with shell:true satisfies both. JSON.stringify wraps
-  // `packageDir` in double quotes, which keeps a path with spaces one argument in
-  // cmd.exe and POSIX sh; it is not shell escaping: sh still expands `$` and
-  // backticks inside double quotes, cmd.exe still expands `%VAR%`, and its `\"`
-  // is not a quote escape in cmd.exe. What keeps the command safe is that
-  // `packageDir` is a plugin-owned path (runCli rejects one outside the plugin).
   if (!depsCurrent) {
     const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
     const result = spawn(`${npmCommand} install --omit=dev --install-links ${JSON.stringify(packageDir)}`, {
@@ -248,7 +240,6 @@ export function runCli(argv, stderr = process.stderr) {
       flags[flag] = value;
     }
     if (!flags["--package"]) throw new Error("`--package` is required");
-    // Real paths on both sides: Node resolves this module's own path through symlinks.
     packageDir = fs.realpathSync(path.resolve(flags["--package"]));
     const rel = path.relative(pluginRoot, packageDir);
     if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {

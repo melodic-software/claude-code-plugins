@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/check-retirements.sh run from a linked worktree: a `.git/`
-# record path names git's own files, which a linked worktree keeps in the main
-# checkout's git directory, so detection and cleanup find them there.
-# Run directly: bash lib/check-retirements-worktree.test.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
 

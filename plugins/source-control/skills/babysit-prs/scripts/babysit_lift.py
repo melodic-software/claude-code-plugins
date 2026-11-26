@@ -139,7 +139,9 @@ def close_lifted(repo: str, identity: str | None) -> int:
             ".[] | select(.pull_request == null) | {number, body}",
         )
         if listing.returncode != 0:
-            print(f"::warning::could not read {filer}'s open records: none of them closed")
+            print(
+                f"::warning::could not read {filer}'s open records: none of them closed"
+            )
             continue
         for row in filter(None, listing.stdout.split("\n")):
             issue = json.loads(row)
@@ -154,7 +156,11 @@ def close_lifted(repo: str, identity: str | None) -> int:
             seen.add(number)
             try:
                 data = policy._graphql(
-                    policy.DEMOTION_RECORD, f"issue #{number}", o=owner, r=name, n=number
+                    policy.DEMOTION_RECORD,
+                    f"issue #{number}",
+                    o=owner,
+                    r=name,
+                    n=number,
                 )
                 record = policy.json_object(
                     policy.json_object(data.get("repository")).get("issue")
@@ -196,7 +202,10 @@ def close_lifted(repo: str, identity: str | None) -> int:
             if close.returncode:
                 print(f"::warning::could not close #{number}")
                 continue
-            if unlabel.returncode and policy.gh_http_status(unlabel.stderr or "") != 404:
+            if (
+                unlabel.returncode
+                and policy.gh_http_status(unlabel.stderr or "") != 404
+            ):
                 print(f"::warning::could not remove {label} from #{number}")
             print(f"closed #{number}: {lift.why}")
             closed += 1
@@ -221,12 +230,20 @@ def main(argv: list[str] | None = None) -> int:
         lines = (canary_lines if args.action == "canary-block" else revert_lines)(
             args.repo_dir, args.commits
         )
-    except (RuntimeError, OSError, UnicodeDecodeError, subprocess.CalledProcessError) as exc:
+    except (
+        RuntimeError,
+        OSError,
+        UnicodeDecodeError,
+        subprocess.CalledProcessError,
+    ) as exc:
         print(f"no lift block: {exc}", file=sys.stderr)
         return 1
     block_line = policy.lift_block(lines)
     if block_line is None:
-        print("no lift block: a path is unusable or the block is too large", file=sys.stderr)
+        print(
+            "no lift block: a path is unusable or the block is too large",
+            file=sys.stderr,
+        )
         return 1
     print(block_line)
     return 0

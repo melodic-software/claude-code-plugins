@@ -90,7 +90,6 @@ else
 fi
 
 # discriminating-skip-required: this case is the only behavioral proof that
-# `git checkout --` is not the restore path, which is source failure 5.
 mkdir -p "$WORK/git"
 git init --quiet "$WORK/git" >/dev/null 2>&1
 git -C "$WORK/git" config user.email harness@example.invalid
@@ -117,7 +116,6 @@ else
 fi
 
 # discriminating-skip-required: without this case nothing proves the harness
-# distinguishes "the check never ran" from "the check does not discriminate".
 mkdir -p "$WORK/dead127"
 write_subject "$WORK/dead127"
 cat >"$WORK/dead127/check.py" <<'DEAD127'
@@ -162,7 +160,6 @@ assert_contains "the refusal names the never-ran shape" "matched in NEITHER arm"
 assert_contains "the refusal denies it is a negative result" "not a negative result" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the only cover for the no-signal
-# path into the identical-arms branch.
 mkdir -p "$WORK/rcsignal"
 write_subject "$WORK/rcsignal"
 cat >"$WORK/rcsignal/config.json" <<CONFIG

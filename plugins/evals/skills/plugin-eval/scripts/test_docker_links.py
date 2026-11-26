@@ -199,7 +199,6 @@ class DockerLinksTest(unittest.TestCase):
         proc = self.start("a")
         child = int((self.home / "started-a").read_text(encoding="utf-8"))
         proc.kill()
-        # wait, not communicate: the live command still holds the pipes.
         proc.wait(timeout=20)
         restore = self.cli("restore")
         self.assertEqual(restore.returncode, 2, restore.stderr)
@@ -232,7 +231,6 @@ class DockerLinksTest(unittest.TestCase):
         self.assert_restored()
 
     def test_dangling_link_is_removed_for_the_run_and_recreated_after(self):
-        # features.json -> a /mnt/c file that does not exist, beside a resolving link.
         os.remove(self.desktop / "features.json")
         result = self.wrapped(
             LIST_LINKS + ' && test ! -e "$HOME/.docker/features.json"'
@@ -252,7 +250,6 @@ class DockerLinksTest(unittest.TestCase):
         self.assert_restored()
 
     def test_store_root_that_is_itself_a_link_is_swapped_and_restored(self):
-        # ~/.docker -> <mnt-c>/.docker, whose contexts entry is itself a link.
         real_store = self.desktop.parent / "linked-store"
         self.store.rename(real_store)
         os.symlink(str(real_store), self.store)

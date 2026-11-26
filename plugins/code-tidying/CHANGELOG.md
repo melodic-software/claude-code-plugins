@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-11-26
+
+### Fixed
+
+- The comment lint no longer judges a reworded full-line comment that adds no comment lines, so a stale prose comment can be corrected instead of deleted. In a hunk that adds as many lines as it removes, a changed comment run (consecutive comment lines with no code) passes when it has no more lines than the base run on the removed line at the same place. In any other hunk, the removed lines must touch one base run and the added lines one run, and the added lines must hold no more lines of their run than the removed lines hold of the base run. A new comment, a run that grew, a run with no base run in its hunk, and a comment that replaces code are still judged.
+
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **`/code-tidying:tidy` hunts focus areas, not lanes.** "Lane" now means only a worker that serves
+  one pipeline stage, so the glob-scoped slice tidy rotates through is a focus area. Project focus
+  areas live in `.claude/tidy-areas/<area>.md` (move any `.claude/tidy-lanes/` files there), the
+  required section `## Lane-specific extra exclusions` is now `## Area-specific extra exclusions`,
+  the bundled focus areas are under `skills/tidy/areas/`, and the templates are
+  `templates/*-area.template.md`. `/code-tidying:setup` checks and scaffolds the new paths, and
+  `batch-simplify` and `audit-dead-code` use the same word.
+
 ## [0.60.1] - 2026-11-26
 
 ### Fixed

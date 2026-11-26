@@ -1,26 +1,12 @@
 # GENERATED from lib/worktree-root-legacy.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# worktree-root-legacy.sh — retired git config alias peel.
-# Sourced by worktree-root-resolve.sh. Not a skill body. Delete after 2026-12-31.
-#
-# A publisher-named alias still exists on some machines. Readers rewrite it to
-# worktreeroot.path at the winning origin and drop the alias so consumers are
-# left on the current key. Fleet audit is read-only: when _worktree_root_git is
-# defined, this file dual-reads and does not write.
-
-# Delete this file after 2026-12-31.
-
 WORKTREE_ROOT_LEGACY_KEY="melodic.worktreeroot"
-# Assigned by worktree-root-resolve.sh before this file is sourced.
 : "${WORKTREE_ROOT_CURRENT_KEY:=worktreeroot.path}"
 
 worktree_root_legacy_read_only() {
   declare -F _worktree_root_git >/dev/null 2>&1
 }
 
-# Last-wins stream of retired-key records: one "<origin-file>\t<value>" line
-# per git config record. Origin-file is empty when git did not report file:.
-# Returns 0 when the key had at least one record.
 worktree_root_legacy_pairs() {
   local repo="$1" line origin val had=0
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -64,9 +50,6 @@ worktree_root_legacy_unset_file() {
   fi
 }
 
-# Copy the winning retired value onto the current key, then drop the alias
-# from every origin that still carries it. No-op when read-only or when the
-# last retired value is empty (same fallthrough as an empty last current key).
 worktree_root_legacy_promote() {
   local repo="$1" line origin val win_origin="" win_val="" had=0
   local -a origins=()
@@ -88,7 +71,6 @@ worktree_root_legacy_promote() {
   done
 }
 
-# Drop leftover retired-key records once the current key already answers.
 worktree_root_legacy_retire() {
   local repo="$1" line origin
   worktree_root_legacy_read_only && return 0
