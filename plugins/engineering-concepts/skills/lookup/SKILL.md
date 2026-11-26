@@ -40,6 +40,9 @@ counterweights and conflicts by name; say which filters you applied.
   beside the results.
 - A record's `owner` names the skill or page that owns the practice in depth; point there when the
   user wants to act on it.
+- For the counterweights and conflicts of concepts cited in an adopted standards file, pass their
+  ids as `--counterweights-of <id>,<id>` in place of a term: it prints one line per counterweight
+  or conflict, and exit 1 with `"event":"concept not found"` names an id that matched nothing.
 
 The catalog holds no positions: a record says what a concept is called and where its source is,
 never whether to use it. A team's or person's stances live in their standards layers.

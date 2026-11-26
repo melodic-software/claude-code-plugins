@@ -7,4 +7,4 @@ allowed_tools: [Skill, Read, Glob, Grep]
 expected_outcome: "A Skill call loads engineering-concepts:adopt."
 ---
 
-Take the engineering-concepts modularity topic and adopt the entries I pick as my personal standards, so they load in every design and review session from now on, in every repo.
+Take the engineering-concepts modularity topic and adopt the entries I choose as my personal standards, so they load in every design and review session from now on, in every repo.

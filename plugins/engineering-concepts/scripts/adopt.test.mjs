@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { main } from "./adopt.mjs";
+import { main as lookup } from "./lookup.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -58,21 +59,56 @@ test("without --yes it shows what it would write, exits 3 and writes nothing", a
   assert.equal(readFileSync(personal(home, "README.md"), "utf8"), INDEX);
 });
 
-test("with --yes it writes a file with no frontmatter, each concept and one line per counterweight or conflict, and one index row", async () => {
+test("the preview of a new file holds the whole text --yes then writes, header included, and the index row", async () => {
+  const home = personalHome();
+  const args = ["example-small-steps", "--layer", "personal", "--surface", "change-size"];
+  const preview = await run(args, { home });
+  assert.equal((await run([...args, "--yes"], { home })).code, 0);
+  const written = readFileSync(personal(home, "change-size.md"), "utf8");
+  assert.ok(written.startsWith("# "), "a new file starts with its heading");
+  assert.ok(preview.out.includes(`Would create ${personal(home, "change-size.md")}:\n${written}`), preview.out);
+  assert.ok(preview.out.includes(`Would add this row to ${personal(home, "README.md")}:\n| change-size | change-size | change-size.md |`), preview.out);
+});
+
+test("the preview of an existing file shows exactly the lines --yes then appends", async () => {
+  const home = personalHome();
+  const adopt = (extra, ...ids) => run([...ids, "--layer", "personal", "--surface", "change-size", ...extra], { home });
+  assert.equal((await adopt(["--yes"], "example-small-steps")).code, 0);
+  const before = readFileSync(personal(home, "change-size.md"), "utf8");
+  const preview = await adopt([], "example-review-gate");
+  assert.equal((await adopt(["--yes"], "example-review-gate")).code, 0);
+  const after = readFileSync(personal(home, "change-size.md"), "utf8");
+  assert.ok(after.startsWith(before), "the existing text is kept as it was");
+  assert.equal(after.slice(before.length), "- Example Review Gate (`example-review-gate`): https://example.com/review-gate\n");
+  assert.ok(preview.out.includes(`Would append to ${personal(home, "change-size.md")}:\n${after.slice(before.length)}`), preview.out);
+  assert.doesNotMatch(preview.out, /Would add this row/u, "the row already exists");
+});
+
+test("with --yes it writes a file with no frontmatter and no counterweight lines, and one index row; the lookup prints the counterweights and conflicts of the ids the file cites", async () => {
   const home = personalHome();
   const { code } = await run(["example-big-design", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
   assert.equal(code, 0);
-  const lines = readFileSync(personal(home, "change-size.md"), "utf8").split("\n");
-  assert.notEqual(lines[0], "---", "a standards file carries no frontmatter");
-  const at = lines.indexOf("- Example Big Design Up Front (`example-big-design`): https://example.com/big-design");
-  assert.ok(at >= 0, "the entry names the concept, its id and its official source");
-  assert.deepEqual(lines.slice(at + 1, at + 3), [
-    "  - Counterweight: Example Small Steps (`example-small-steps`)",
-    "  - Conflicts with: Example Review Gate (`example-review-gate`)",
-  ]);
+  const text = readFileSync(personal(home, "change-size.md"), "utf8");
+  assert.doesNotMatch(text, /^---$/mu, "a standards file carries no frontmatter anywhere");
+  const entries = text.split("\n").filter((line) => line.startsWith("- ") || line.startsWith("  "));
+  assert.deepEqual(entries, ["- Example Big Design Up Front (`example-big-design`): https://example.com/big-design"]);
+  assert.doesNotMatch(text, /Counterweight|Conflicts with|example-small-steps|example-review-gate/u, "counterweights come from the lookup, not the file");
   const index = readFileSync(personal(home, "README.md"), "utf8");
   assert.deepEqual(rowsFor(index, "change-size.md"), ["| change-size | change-size | change-size.md |"]);
   assert.deepEqual(rowsFor(index, "testing.md").length, 1, "the existing row stays");
+
+  const cited = [...text.matchAll(/^- .*\(`([a-z0-9-]+)`\)/gmu)].map((m) => m[1]);
+  const lines = [];
+  const lookupCode = await lookup(["--data-dir", FIXTURES, "--home", home, "--project", repo(), "--counterweights-of", cited.join(",")], {
+    out: (line) => lines.push(JSON.parse(line)),
+    err: () => {},
+  });
+  assert.equal(lookupCode, 0);
+  const big = { id: "example-big-design", name: "Example Big Design Up Front" };
+  assert.deepEqual(lines, [
+    { of: big, relation: "counterweight", concept: { id: "example-small-steps", name: "Example Small Steps" } },
+    { of: big, relation: "conflict", concept: { id: "example-review-gate", name: "Example Review Gate" } },
+  ]);
 });
 
 test("adopting again appends only the new concepts and keeps one index row; adopting nothing new writes nothing", async () => {
@@ -121,13 +157,13 @@ test("a team standards root with no index is refused with exit 1, and its hand-w
   assert.equal(readFileSync(join(project, "docs", "standards", "README.md"), "utf8"), handWritten);
 });
 
-test("a personal layer with no index gets the file and no index, and the output says it loads by glob discovery", async () => {
+test("a personal layer with no index gets the file and no index, and the output says the folder is read file by file", async () => {
   const home = tree();
   const { code, out } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
   assert.equal(code, 0);
   assert.match(readFileSync(personal(home, "change-size.md"), "utf8"), /^- Example Small Steps \(`example-small-steps`\)/mu);
   assert.equal(existsSync(personal(home, "README.md")), false);
-  assert.match(out, /glob/u);
+  assert.match(out, /read file by file/u);
 });
 
 test("a missing or unknown layer, a surface that is not a kebab-case name, or an unknown option exits 2 and writes nothing", async () => {
@@ -136,6 +172,9 @@ test("a missing or unknown layer, a surface that is not a kebab-case name, or an
     [["example-small-steps", "--layer", "org", "--surface", "change-size"], "layer"],
     [["example-small-steps", "--layer", "personal", "--surface", "../escape"], "surface"],
     [["example-small-steps", "--layer", "personal", "--surface", "Change Size"], "surface"],
+    [["example-small-steps", "--layer", "personal", "--surface", "readme"], "surface"],
+    [["example-small-steps", "--layer", "personal", "--surface", "README"], "surface"],
+    [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", "a \\| b"], "applies-when"],
     [["example-small-steps", "--layer", "personal", "--surface", "change-size", "--force"], null],
     [["--layer", "personal", "--surface", "change-size"], "concepts"],
   ];
@@ -162,6 +201,38 @@ test("a | in --applies-when is escaped so the index row keeps three columns", as
   await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", "sizing a change | splitting work", "--yes"], { home });
   const [row] = rowsFor(readFileSync(personal(home, "README.md"), "utf8"), "change-size.md");
   assert.equal(row, "| change-size | sizing a change \\| splitting work | change-size.md |");
+});
+
+test("a newline in --applies-when becomes a space, and a | inside backticks is escaped too, so the row stays on one line with three columns", async () => {
+  const home = personalHome();
+  await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", "sizing a change\nsplitting `a|b` work", "--yes"], { home });
+  const [row] = rowsFor(readFileSync(personal(home, "README.md"), "utf8"), "change-size.md");
+  assert.equal(row, "| change-size | sizing a change splitting `a\\|b` work | change-size.md |");
+});
+
+test("a backslash in --applies-when is refused with exit 2 and a reason, since no escape keeps it right both in and out of backticks", async () => {
+  const home = personalHome();
+  const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--applies-when", "a \\| b", "--yes"], { home });
+  assert.equal(code, 2);
+  assert.match(errors[0].reason, /backslash/u);
+  assert.equal(existsSync(personal(home, "change-size.md")), false);
+});
+
+const longFile = (lines) => `# Long\n${Array.from({ length: lines - 1 }, (_, i) => `- line ${i}`).join("\n")}\n`;
+
+test("a write that takes the file past the contract's 200-line budget warns and still writes; one that reaches 200 does not", async () => {
+  for (const [existing, warns] of [[200, true], [199, false]]) {
+    const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/change-size.md": longFile(existing) });
+    const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
+    assert.equal(code, 0, `${existing} lines`);
+    assert.equal(readFileSync(personal(home, "change-size.md"), "utf8").split("\n").length - 1, existing + 1);
+    assert.deepEqual(
+      errors.map((e) => [e.level, e.event, e.lines]),
+      warns ? [["warn", "standards file over budget", existing + 1]] : [],
+      `${existing} lines`,
+    );
+    if (warns) assert.match(errors[0].contract, /soft budget of roughly 200 lines per file/u);
+  }
 });
 
 test("run as a command, it previews with exit 3", () => {

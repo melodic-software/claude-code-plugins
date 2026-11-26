@@ -34,6 +34,10 @@ Options:
                             setting for this run
   --check-sources           fetch each source_url and mark unreachable ones for
                             re-sourcing; the only mode that touches the network
+  --counterweights-of ID    instead of records, print one line per counterweight
+                            and per conflict of the concept ID; repeatable or
+                            comma-separated, and takes no TERM. Run it on the ids
+                            cited in an adopted standards file
   --data-dir DIR            read records from DIR instead of the plugin's data/
   --project DIR             repository whose settings layers apply (default: the
                             git root of the working directory)
@@ -48,8 +52,11 @@ defaults, userConfig, <home>/engineering-concepts.yaml, then
 
 Output: one JSON record per line on stdout, counterweights and conflicts_with as
 {id, name}. Diagnostics: JSON lines on stderr, each rejected record with its
-file:line in "at".
-Exit: 0 records printed, 1 none matched, 2 invalid option.`;
+file:line in "at". With --counterweights-of, each line is
+{of, relation, concept}: relation is "counterweight" or "conflict", of and
+concept are {id, name}.
+Exit: 0 records printed (with --counterweights-of: every ID found), 1 none
+matched (an ID not found), 2 invalid option.`;
 
 const OPTIONS = {
   topic: { type: "string" },
@@ -60,6 +67,7 @@ const OPTIONS = {
   exclude: { type: "string", multiple: true, default: [] },
   "source-bar": { type: "string" },
   "check-sources": { type: "boolean", default: false },
+  "counterweights-of": { type: "string", multiple: true, default: [] },
   "data-dir": { type: "string" },
   project: { type: "string" },
   "user-config": { type: "string" },
@@ -148,6 +156,24 @@ export function present(index, record) {
   return { ...record, counterweights: record.counterweights.map(ref), conflicts_with: record.conflicts_with.map(ref) };
 }
 
+/** One line per counterweight and conflict of each term; `missing` holds the terms that name no record. */
+export function counterweightLines(index, terms) {
+  const lines = [];
+  const missing = [];
+  for (const term of terms) {
+    const id = resolveId(index, term);
+    if (id === undefined) {
+      missing.push(term);
+      continue;
+    }
+    const record = present(index, index.byId.get(id));
+    const of = { id: record.id, name: record.name };
+    for (const concept of record.counterweights) lines.push({ of, relation: "counterweight", concept });
+    for (const concept of record.conflicts_with) lines.push({ of, relation: "conflict", concept });
+  }
+  return { lines, missing };
+}
+
 async function probe(url, fetchImpl) {
   try {
     const res = await fetchImpl(url, { redirect: "follow", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
@@ -210,6 +236,8 @@ export async function main(
   if (opts.stage && !STAGES.includes(opts.stage)) return invalid("stage", opts.stage, STAGES);
   if (opts.reversibility && !REVERSIBILITY.includes(opts.reversibility)) return invalid("reversibility", opts.reversibility, REVERSIBILITY);
   if (opts["source-bar"] !== undefined && !SOURCE_BARS.includes(opts["source-bar"])) return invalid("source-bar", opts["source-bar"], SOURCE_BARS);
+  const weighed = opts["counterweights-of"].flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
+  if (weighed.length && positionals.length) return invalid("counterweights-of", positionals.join(" "), null, "takes no TERM");
 
   let userConfig = {};
   if (opts["user-config"]) {
@@ -223,6 +251,12 @@ export async function main(
   const filters = { ...opts, "source-bar": opts["source-bar"] ?? settings.source_bar, exclude: [...settings.exclude, ...opts.exclude] };
 
   const index = loadIndex(opts["data-dir"] ?? shippedDataDir, err, { shipped: opts["data-dir"] === undefined });
+  if (weighed.length) {
+    const { lines, missing } = counterweightLines(index, weighed);
+    for (const term of missing) err(JSON.stringify({ level: "error", event: "concept not found", term }));
+    for (const line of lines) out(JSON.stringify(line));
+    return missing.length ? 1 : 0;
+  }
   let records = select(index, positionals.join(" ").trim(), filters).map((r) => present(index, r));
   if (opts["check-sources"]) records = await checkSources(records, fetchImpl);
   for (const record of records) out(JSON.stringify(record));

@@ -15,7 +15,7 @@ records are added, so every lookup currently finds nothing.
 |---|---|
 | `/engineering-concepts:lookup` | Finds records by name, alias, id or tag and reports their sources, counterweights and conflicts |
 | `/engineering-concepts:load` | Brings a topic or one entry into the session as working context |
-| `/engineering-concepts:adopt` | Writes chosen entries into a personal or team standards file, with their counterweights and conflicts, and adds the file's index row |
+| `/engineering-concepts:adopt` | Writes chosen entries into a personal or team standards file and adds the file's index row |
 
 ## Data
 
@@ -47,8 +47,9 @@ schedule and read its report; tests never run it against the network.
 ## Adopt script
 
 `scripts/adopt.mjs` writes adopted standards: the entries a person or team chose, each as a line
-naming the concept, its id and its official source, with one line under it per counterweight or
-conflict. It writes `<surface>.md` into the personal layer (`~/.claude/standards/`) or the team
+naming the concept, its id and its official source. Counterweights and conflicts are not copied:
+`lookup.mjs --counterweights-of <id>,<id>` prints one line per counterweight or conflict for the
+ids a file cites, so a consuming stage reads them from the shipped data at load time. It writes `<surface>.md` into the personal layer (`~/.claude/standards/`) or the team
 layer (the repository's standards root) and adds that file's row to the layer's index. Without
 `--yes` it only prints what it would write. The files follow the
 [standards contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/standards/README.md#standards-files):

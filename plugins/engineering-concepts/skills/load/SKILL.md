@@ -45,6 +45,10 @@ alone.
 Loading never adopts a concept as a standard. A stance a team or person keeps lives in their
 standards layers.
 
+An adopted standards file names each concept by its id in backticks and holds no counterweights.
+When one is in context, run the lookup with `--counterweights-of` and the ids it cites, comma
+separated, and keep each printed line (one per counterweight or conflict) beside its entry.
+
 ## Boundaries
 
 - A single question about the catalog, with nothing to keep in view: `/engineering-concepts:lookup`.

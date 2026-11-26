@@ -271,3 +271,32 @@ test("a term that names no record exits 1 with nothing on stdout", async () => {
   assert.equal(code, 1);
   assert.deepEqual(records, []);
 });
+
+const BIG = { id: "example-big-design", name: "Example Big Design Up Front" };
+const SMALL = { id: "example-small-steps", name: "Example Small Steps" };
+const GATE = { id: "example-review-gate", name: "Example Review Gate" };
+
+test("--counterweights-of prints one line per counterweight and per conflict of each id, repeated or comma-separated", async () => {
+  const { code, records, errors } = await run(["--counterweights-of", "example-big-design,example-small-steps", "--counterweights-of", "example-review-gate"]);
+  assert.equal(code, 0);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(records, [
+    { of: BIG, relation: "counterweight", concept: SMALL },
+    { of: BIG, relation: "conflict", concept: GATE },
+    { of: SMALL, relation: "counterweight", concept: BIG },
+  ]);
+});
+
+test("--counterweights-of reports an id that names no record and exits 1, still printing the lines of the ids it found", async () => {
+  const { code, records, errors } = await run(["--counterweights-of", "example-small-steps,no-such-concept"]);
+  assert.equal(code, 1);
+  assert.deepEqual(records, [{ of: SMALL, relation: "counterweight", concept: BIG }]);
+  assert.deepEqual(errors.map((e) => [e.event, e.term]), [["concept not found", "no-such-concept"]]);
+});
+
+test("--counterweights-of with a TERM as well is refused with exit 2", async () => {
+  const { code, records, errors } = await run(["example-big-design", "--counterweights-of", "example-small-steps"]);
+  assert.equal(code, 2);
+  assert.deepEqual(records, []);
+  assert.deepEqual(errors.map((e) => [e.event, e.option]), [["invalid option", "counterweights-of"]]);
+});

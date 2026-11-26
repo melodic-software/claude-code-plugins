@@ -506,8 +506,7 @@ Avoid: built-in catalog, concept index
 
 **adopted standards**
 
-Shipped concepts a person or team chose and wrote into their personal or team standards, each
-named by its concept id with its counterweights and conflicts beside it
+Shipped concepts a person or team chose and wrote into a standards file
 ([engineering-concepts](../plugins/engineering-concepts/README.md#adopt-script)).
 
 Actions: adopt (Avoid: pick)

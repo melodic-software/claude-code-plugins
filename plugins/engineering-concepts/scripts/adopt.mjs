@@ -10,21 +10,29 @@ import { DATA_DIR, gitRoot, loadIndex, present, resolveId } from "./lookup.mjs";
 
 const LAYERS = ["personal", "team"];
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const INDEX_FILE = "README.md";
+const LINE_BUDGET = 200;
+const BUDGET_RULE =
+  "Size guidance: soft budget of roughly 200 lines per file. When a file outgrows it, split by concern and add rows. (docs/contracts/standards/README.md, Standards files)";
 
 const HELP = `Usage: adopt.mjs CONCEPT... --layer personal|team --surface NAME [options]
 
 Adopts shipped engineering concepts into a standards layer: writes each concept as
-one line naming it, its id and its official source, with one line under it per
-counterweight or conflict, into NAME.md, and adds that file's row to the layer's
-index. CONCEPT is an id, a name or an alias, as lookup.mjs matches it.
+one line naming it, its id and its official source into NAME.md, and adds that
+file's row to the layer's index. Counterweights and conflicts are not copied:
+lookup.mjs --counterweights-of prints them for the ids the file cites. CONCEPT is
+an id, a name or an alias, as lookup.mjs matches it.
 
   --layer personal          ~/.claude/standards/ (under --home); with no index
-                            there, the file is found by glob discovery
+                            there, the standards folder is read file by file
   --layer team              the repository's standards root (.claude/standards.yaml
                             standards_dir, default docs/standards/); needs an index
-  --surface NAME            kebab-case Surface id; the file is NAME.md
+  --surface NAME            the index row's name: a short lowercase name with
+                            dashes, like api-design; the file is NAME.md, and
+                            readme is refused because README.md is the index
   --applies-when TEXT       the index row's "Applies when" clues (default: the
-                            concepts' concerns)
+                            concepts' concerns); a | is escaped, a line break
+                            becomes a space, and a backslash is refused
   --yes                     write; without it, print what would be written
   --data-dir DIR            read concepts from DIR instead of the plugin's data/
   --project DIR             repository for --layer team (default: the git root of
@@ -33,7 +41,9 @@ index. CONCEPT is an id, a name or an alias, as lookup.mjs matches it.
   -h, --help                show this help
 
 A concept already in the file is skipped, and an existing row for the file is kept.
-Diagnostics: JSON lines on stderr.
+The preview prints the exact text the write adds: the whole file when it is new,
+the appended lines otherwise, and the index row. A file past ${LINE_BUDGET} lines is
+written with a warning. Diagnostics: JSON lines on stderr.
 Exit: 0 written or nothing new, 1 refused, 2 invalid option, 3 preview only.`;
 
 const OPTIONS = {
@@ -50,18 +60,12 @@ const OPTIONS = {
 const HEADER = (surface) => `# Adopted engineering concepts: ${surface}
 
 Each entry is an engineering concept adopted here, named by its id in the engineering-concepts
-plugin and linked to its official source. Apply it, and weigh it against the concepts listed
-under it.
+plugin and linked to its official source. Apply it together with its counterweights and
+conflicts, which the plugin's lookup prints for that id.
+
 `;
 
-const ref = (r) => (r.name ? `${r.name} (\`${r.id}\`)` : `\`${r.id}\``);
-
-const entry = (r) =>
-  [
-    `- ${ref(r)}: ${r.source_url}`,
-    ...r.counterweights.map((c) => `  - Counterweight: ${ref(c)}`),
-    ...r.conflicts_with.map((c) => `  - Conflicts with: ${ref(c)}`),
-  ].join("\n");
+const entry = (r) => `- ${r.name} (\`${r.id}\`): ${r.source_url}\n`;
 
 const read = (path) => (existsSync(path) ? readFileSync(path, "utf8") : null);
 
@@ -101,8 +105,8 @@ function write(path, text) {
 }
 
 export async function main(argv, { out = console.log, err = console.error, shippedDataDir = DATA_DIR } = {}) {
-  const invalid = (option, value, allowed) => {
-    err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }) }));
+  const invalid = (option, value, allowed, reason) => {
+    err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }), ...(reason && { reason }) }));
     return 2;
   };
   let parsed;
@@ -117,7 +121,15 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     return 0;
   }
   if (!LAYERS.includes(opts.layer)) return invalid("layer", opts.layer ?? null, LAYERS);
-  if (!KEBAB.test(opts.surface ?? "")) return invalid("surface", opts.surface ?? null);
+  if (!KEBAB.test(opts.surface ?? "")) {
+    return invalid("surface", opts.surface ?? null, null, "a short lowercase name with dashes, like api-design");
+  }
+  if (`${opts.surface}.md`.toLowerCase() === INDEX_FILE.toLowerCase()) {
+    return invalid("surface", opts.surface, null, `${INDEX_FILE} is the layer's index, so it cannot hold adopted concepts`);
+  }
+  if (opts["applies-when"]?.includes("\\")) {
+    return invalid("applies-when", opts["applies-when"], null, "a backslash cannot be written into the index row safely; remove it (a | needs no escaping)");
+  }
   if (!positionals.length) return invalid("concepts", null);
   const index = loadIndex(opts["data-dir"] ?? shippedDataDir, err, { shipped: opts["data-dir"] === undefined });
   const missing = positionals.filter((term) => resolveId(index, term) === undefined);
@@ -143,7 +155,7 @@ export async function main(argv, { out = console.log, err = console.error, shipp
   const concerns = [...new Set(records.map((r) => r.concern))].sort();
   const appliesWhen = (opts["applies-when"] ?? concerns.join(", ")).replace(/\s+/gu, " ").replace(/\|/gu, "\\|");
   const row = `| ${opts.surface} | ${appliesWhen} | ${file} |`;
-  const indexPath = join(dir, "README.md");
+  const indexPath = join(dir, INDEX_FILE);
 
   const current = read(filePath);
   const isAdopted = (id) => current?.split("\n").some((line) => line.startsWith("- ") && line.includes(`(\`${id}\`)`));
@@ -155,22 +167,28 @@ export async function main(argv, { out = console.log, err = console.error, shipp
     return 1;
   }
   const needsRow = currentIndex !== null && !currentIndex.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
-  const unindexed = currentIndex === null ? `No index at ${indexPath}: the file loads by glob discovery of that folder.` : null;
+  const unindexed = currentIndex === null ? `No index at ${indexPath}: the standards folder is read file by file, so the file still loads.` : null;
   if (!fresh.length && !needsRow) {
     out(`Every concept named is already adopted in ${filePath}.`);
     return 0;
   }
-  const added = fresh.map(entry).join("\n");
+  const entries = fresh.map(entry).join("");
+  const appended = current === null || current === "" || current.endsWith("\n") ? entries : `\n${entries}`;
+  const next = current === null ? `${HEADER(opts.surface)}${entries}` : `${current}${appended}`;
+  const lineCount = next.split("\n").length - 1;
+  if (entries && lineCount > LINE_BUDGET) {
+    err(JSON.stringify({ level: "warn", event: "standards file over budget", file: filePath, lines: lineCount, budget: LINE_BUDGET, contract: BUDGET_RULE }));
+  }
 
   if (!opts.yes) {
-    if (added) out(`Would add to ${filePath}:\n${added}`);
-    if (needsRow) out(`Would add to ${indexPath}:\n${row}`);
+    if (entries) out(current === null ? `Would create ${filePath}:\n${next}` : `Would append to ${filePath}:\n${appended}`);
+    if (needsRow) out(`Would add this row to ${indexPath}:\n${row}`);
     if (unindexed) out(unindexed);
     out("Re-run with --yes to write.");
     return 3;
   }
   try {
-    if (added) write(filePath, `${current ?? HEADER(opts.surface)}\n${added}\n`);
+    if (entries) write(filePath, next);
     if (needsRow) write(indexPath, withRow(currentIndex, row));
   } catch (e) {
     err(JSON.stringify({ level: "error", event: "write failed", path: e.path ?? null, code: e.code ?? null, message: e.message }));

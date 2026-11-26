@@ -1,5 +1,5 @@
 ---
-description: "Adopts chosen shipped engineering concepts into a personal or team standards file: each concept as a line with its id and official source, its counterweights and conflicts under it, and the file's index row, written only after an explicit yes. Use when asked to adopt a concept or a topic's concepts as a standard, or to make them load in every design, plan and review. Not for a one-off question: /engineering-concepts:lookup; not for this session only: /engineering-concepts:load."
+description: "Adopts chosen shipped engineering concepts into a personal or team standards file: each concept as a line with its id and official source, and the file's index row, written only after an explicit yes. Use when asked to adopt a concept or a topic's concepts as a standard, or to make them load in every design, plan and review. Not for a one-off question: /engineering-concepts:lookup; not for this session only: /engineering-concepts:load."
 argument-hint: "<topic|concept...> [personal|team]"
 user-invocable: true
 disable-model-invocation: false
@@ -34,13 +34,15 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
    - `team`: the repository's standards root, committed and shared; it needs the repository's
      standards index to exist already.
 
-   Also settle the surface name, a kebab-case file name (recommend the topic), and an
-   `Applies when` sentence for the index row naming the tasks and files the concepts bear on. The
+   Also settle the surface name, a short lowercase name with dashes that becomes the file name
+   (recommend the topic), and an `Applies when` sentence for the index row naming the tasks and
+   files the concepts bear on. The
    [standards contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/standards/README.md#layers-and-precedence)
    says how the layers combine: a team standard wins a direct clash with a personal one.
 
-3. **Preview.** Run the adopt script without `--yes`; exit 3 prints exactly what it would add to
-   the file and the index. Show that output to the person unchanged.
+3. **Show the file text.** Run the adopt script without `--yes`; exit 3 prints exactly the text
+   the write adds: the whole file, heading included, when it is new, the appended lines when it
+   exists, and the index row. Show that output to the person unchanged.
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/scripts/adopt.mjs" <id>... --layer <personal|team> --surface <name> --applies-when "<clues>" --project "<repository root>"
@@ -50,7 +52,10 @@ time. The shipped concepts hold no positions; adopting is the step that takes on
    stop with nothing written. If either run is refused, report the refusal and stop; never reshape
    the command and retry.
 
-5. **Report** the file and index written. For `team`, the files are new or changed in the working
+5. **Verify.** Read the written file and the index back, and confirm each adopted entry line and
+   the file's row are there as previewed. Report what you read, not what the script said.
+
+6. **Report** the file and index written. For `team`, the files are new or changed in the working
    tree until committed: say so.
 
 Exit codes and stderr events (JSON lines):
@@ -61,7 +66,10 @@ Exit codes and stderr events (JSON lines):
   instead of writing one here.
 - 1 `standards config unreadable` or `standards root outside the repository`: report the file
   named; nothing written.
-- 2 `invalid option`: fix the named option and run the preview again.
+- 2 `invalid option`: fix the named option (its `reason` says what is wrong) and run the preview
+  again.
+- A `standards file over budget` warning: the file passed the contract's soft budget of roughly
+  200 lines; the write still happened. Offer to split it by concern into a new surface.
 
 ## What this skill does not do
 
@@ -82,6 +90,9 @@ Exit codes and stderr events (JSON lines):
 
 - An entry already in the file is skipped and an existing row is kept, so re-running is safe; it
   never edits a row's `Applies when`.
-- The counterweight and conflict lines are the point: a consuming stage reads them beside the
-  entry, so a concept is never applied without what pulls against it. Never strip them.
-- With no personal index, the file still loads, by glob discovery of `~/.claude/standards/`.
+- The file holds no counterweight or conflict lines, so they never go stale against the shipped
+  data. A consuming stage that loads an adopted standards file runs the lookup on the ids the file
+  cites and keeps one line per counterweight or conflict beside each entry:
+  `node "${CLAUDE_PLUGIN_ROOT}/scripts/lookup.mjs" --counterweights-of <id>,<id>`.
+- With no personal index, the file still loads: the standards folder is read file by file.
+- A backslash in `Applies when` is refused; a `|` needs no escaping.
