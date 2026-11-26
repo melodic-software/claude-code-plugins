@@ -39,14 +39,14 @@ Each `Commits you to:` part of a recommendation is a row of its own with `(part 
 
 Register rows are unfenced `- Q<N>` list items. A fenced block in this section is the schema illustration, not data: the gate ignores fenced rows by design. Replace the example rows with this run's questions, deleting them before the first `round.sh next-id` or `scope-check` call, since both count every row they find; keep every live row unfenced and in this section, above any heading (a sub-heading ends the section, and the gate fails a row outside it).
 
-- Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin topic:: permissions
+- Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin; topic:: permissions
 - Q2 | open | round 1 | What content format? | topic:: content
-- Q3 | deferred | round 2 | Moderation model? | post-V1, also in the Brief's Deferred questions topic:: moderation
+- Q3 | deferred | round 2 | Moderation model? | post-V1, also in the Brief's Deferred questions; topic:: moderation
 
 ```text
-- Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin topic:: permissions
+- Q1 | answered | round 1 | Who can write comments? | enrolled + instructor + admin; topic:: permissions
 - Q2 | open | round 1 | What content format? | topic:: content
-- Q3 | deferred | round 2 | Moderation model? | post-V1, also in the Brief's Deferred questions topic:: moderation
+- Q3 | deferred | round 2 | Moderation model? | post-V1, also in the Brief's Deferred questions; topic:: moderation
 ```
 
 Gate twice, and a non-zero exit halts either time:

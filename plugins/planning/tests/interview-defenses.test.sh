@@ -502,7 +502,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "7920cbd48058fbaf8584c317fb5e5144cedeffcf08252eeb7c486c546eea4c77"
+  "321f0f6b2cc21e9bc2407766e76fe445ce9b2796fe1e02bf815feb0e1b8907d4"
 pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate exemption)" \
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
