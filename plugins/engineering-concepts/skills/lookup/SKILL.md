@@ -26,8 +26,7 @@ exclude=${user_config.exclude}
 EC_SETTINGS
 ```
 
-If that run is refused, run the first line alone without `--user-config -` and say the user-level
-settings were not applied. A `--source-bar` or `--exclude` the user asks for in the request goes on
+If that run is refused, report the refusal and stop; never reshape the command and retry. A `--source-bar` or `--exclude` the user asks for in the request goes on
 the command line. Report each hit as its name and id, the source link, the tags that made it match, and its
 counterweights and conflicts by name; say which filters you applied.
 

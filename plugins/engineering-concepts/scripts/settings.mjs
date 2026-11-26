@@ -53,6 +53,7 @@ export function resolveSettings({ projectRoot, userConfig = {}, userHome, err })
     for (const layer of out.layers) {
       for (const error of layer.errors) err(JSON.stringify({ level: "warn", event: "setting rejected", layer: layer.name, path: layer.path, error }));
     }
+    for (const { path, kind } of out.legacy) err(JSON.stringify({ level: "warn", event: "legacy config", path, kind }));
     const fileLayers = readLayers({ plugin: PLUGIN, projectRoot, home, schema, userConfig: {}, userHome }).layers.filter((l) => l.name !== "userConfig");
     const exclude = new Set([
       ...(unset(userExclude) ? [] : String(userExclude).split(",")),

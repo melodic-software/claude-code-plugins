@@ -187,6 +187,18 @@ test("--user-config - reads name=value lines from stdin and treats an unrendered
   assert.deepEqual(r.stdout.trim().split("\n").map((line) => JSON.parse(line).id), ["example-small-steps"]);
 });
 
+test("a legacy config file under --home is reported on stderr and not read", () => {
+  const script = fileURLToPath(new URL("./lookup.mjs", import.meta.url));
+  const home = join(scratch, "legacy-home");
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  const legacy = join(home, ".claude", "engineering-concepts.yaml");
+  writeFileSync(legacy, "exclude: [example-small-steps]\n");
+  const r = spawnSync(process.execPath, [script, "tiny-steps", "--data-dir", FIXTURES, "--project", EMPTY_REPO, "--home", home], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout.trim()).id, "example-small-steps");
+  assert.deepEqual(r.stderr.trim().split("\n").map((line) => JSON.parse(line)), [{ level: "warn", event: "legacy config", path: legacy, kind: "claude-user" }]);
+});
+
 test("with no setting in any layer, source_bar is official and nothing is excluded", async () => {
   const { records, errors } = await run([]);
   assert.equal(records.length, 3);

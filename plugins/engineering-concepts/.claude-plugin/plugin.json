@@ -24,7 +24,8 @@
       "type": "string",
       "title": "Source bar",
       "description": "Which catalog records lookups return: official (every record with an official source) or official-plus-confirming (only records that also list a confirming source). docs/conventions/engineering-concepts.yaml overrides this.",
-      "default": "official"
+      "default": "official",
+      "options": ["official", "official-plus-confirming"]
     },
     "exclude": {
       "type": "string",
