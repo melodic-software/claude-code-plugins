@@ -17,10 +17,10 @@ architecture repository).
 Run inside a checkout whose object store holds <base>, a commit, and <head>, a
 commit or tree (a pull request's test merge commit in CI). Every changed path
 must be one of:
-- an added changelog fragment, .changes/<plugin>/<name>.md, of at most 16384
-  bytes, that the base's changelog_fragments::validate accepts, with bump
-  patch or none, its plugin's only added fragment, for a plugin holding a
-  reproduced file;
+- an added changelog fragment, .changes/<plugin>/<name>.md, whose bytes are
+  exactly the fixed fragment below, that the base's
+  changelog_fragments::validate accepts, its plugin's only added fragment, for
+  a plugin holding a reproduced file;
 - a registered copy (scripts/shared-copies.txt) or a file holding a block
   scripts/sync-hold-floor.py writes, regenerated from the formatted base;
 - a shell file (*.sh, *.bash) an .editorconfig shell section governs, run
@@ -33,6 +33,15 @@ byte. Any other path, an added, deleted or renamed path, a mode change, a
 formatter or tool that fails or is off its pin, or one differing byte is no
 proof. Every formatter, regenerator and pin comes from <base>; <head> is read
 as blob ids only, so none of its code runs.
+
+The fixed fragment, so no author-written changelog text merges unreviewed:
+---
+bump: patch
+---
+
+### Changed
+
+- Reformatted with the pinned shfmt and Ruff; no behavior change.
 
 --classify  stop after sorting the paths, before any tool runs: exit 0 says the
             change may be formatter-only, so the caller installs the tools
@@ -108,17 +117,17 @@ holds_sync_hold_floor_block() {
 }
 
 git -C "$repo" diff --raw -z --no-renames --no-abbrev "$base" "$head" >"$scratch/diff" || fail_run "could not diff $base and $head"
-fragment_cap=16384
+fragment_blob=$(printf -- '---\nbump: patch\n---\n\n### Changed\n\n- Reformatted with the pinned shfmt and Ruff; no behavior change.\n' | git -C "$repo" hash-object --stdin) ||
+  fail_run "could not hash the fixed fragment"
 shell=() python=() regen=() fragments=()
 declare -A want=() was=() fragment_of=()
 while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
   read -r old_mode new_mode old_blob new_blob status <<<"${meta#:}"
   if [[ $path == .changes/* ]]; then
     if [[ $status == A && $new_mode == 100644 && $path =~ ^\.changes/[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9._-]*\.md$ ]]; then
-      size=$(git -C "$repo" cat-file -s "$new_blob") || fail_run "could not read $path"
       plugin=${path#.changes/} plugin=${plugin%%/*}
-      if ((size > fragment_cap)); then
-        no "$path: a fragment of $size bytes, over the $fragment_cap-byte cap"
+      if [[ $new_blob != "$fragment_blob" ]]; then
+        no "$path: a fragment other than the fixed formatter-only fragment"
       elif [[ -n ${fragment_of[$plugin]:-} ]]; then
         no "$path: a second fragment for $plugin, beside ${fragment_of[$plugin]}"
       else
@@ -259,8 +268,6 @@ done
         continue
         ;;
     esac
-    bump=$(changelog_fragments::bump_of "$f")
-    [[ $bump == patch || $bump == none ]] || echo "reason: $f: bump: $bump, past the patch a formatter-only change may release"
     plugin=${f#.changes/} plugin=${plugin%%/*}
     root=$(changelog_fragments::root_of "$plugin")
     for p in ${paths[@]+"${paths[@]}"}; do [[ $p == "$root"/* ]] && continue 2; done
