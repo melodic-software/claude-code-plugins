@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
+# Every single-quoted backtick below is literal markdown, never a shell expansion.
+# shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
