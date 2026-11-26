@@ -234,9 +234,10 @@ on-demand tasks FLEET.md lists.
 
 ## Gotchas
 
-- **Use the Windows OpenSSH client.** It is agent-backed and is what `~/.ssh/config` is wired to.
-  Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which reads
-  like a key problem and is not one.
+- **Use `<ssh>`, never Git Bash's `ssh`.** With `ssh_client` unset, `<ssh>` is the Windows OpenSSH
+  client, which is agent-backed and is what `~/.ssh/config` is wired to; a configured `ssh_client`
+  wins. Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which
+  reads like a key problem and is not one.
 - **Give every `claude -p` turn a closed stdin.** Over SSH the piped prompt is stdin, and it ends
   when `printf` does; our SSH rows send the prompt there, not as an argument, so no shell
   on either host parses prompt text. On R1 and R4 redirect `< /dev/null`, so nothing but the
