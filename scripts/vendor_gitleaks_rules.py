@@ -190,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    import tomllib  # 3.11+, gated above
+    import tomllib
 
     try:
         config = tomllib.loads(read_source(args.source).decode("utf-8"))

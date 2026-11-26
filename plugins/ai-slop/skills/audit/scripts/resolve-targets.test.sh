@@ -132,7 +132,6 @@ assert_eq "a bare invocation outside a checkout says so" "$(cat "$TEST_TMPDIR/ou
   "detect.sh: git could not confirm a work tree at $OUTSIDE; a bare invocation has no tracked markdown to list (pass paths explicitly)"
 assert_eq "a bare invocation outside a checkout is an empty list" "$(join_lines outside_bare)" ""
 
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if ln -s /dev/null "$TEST_TMPDIR/link-probe" 2>/dev/null && [[ -L "$TEST_TMPDIR/link-probe" ]]; then
   NOGIT="$TEST_TMPDIR/nogit"
   mkdir -p "$NOGIT"

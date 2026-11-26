@@ -80,7 +80,7 @@ expect "install-git-hooks wrote its plain dispatchers" yes \
   "$(test -f "$REPO/.git/hooks/commit-msg" && test -f "$REPO/.git/hooks/pre-commit" && echo yes)"
 expect "the hooks install-git-hooks writes are not leftovers" "0|" "$(detect)"
 
-RV_ASSETS="hooks/run-guards.sh hooks/abort-boundary.sh hooks/hook-utils.sh hooks/cli-flag-verify.sh
+RV_ASSETS="hooks/run-guards.sh hooks/abort-boundary.sh hooks/cli-flag-verify.sh
 hooks/skill-reference-verify.sh hooks/stale-path-verify.sh lib/verification/verify-cli-flag.sh
 lib/verification/cli-flag-cache.sh"
 RV_LOCAL="guardrails-r005 guardrails-r006 guardrails-r007 guardrails-r008 guardrails-r009 guardrails-r010 guardrails-r011 guardrails-r012 guardrails-r013 guardrails-r014"
@@ -97,6 +97,8 @@ reference_verify_install() {
     cp "$PLUGIN/$a" "$d/guardrails/"
     printf '# %s\n' "$(retired_text "${a##*/}")" >>"$d/guardrails/${a##*/}"
   done
+  printf '# shellcheck shell=bash\n# Shared hook utility library for this marketplace'\''s hook plugins.\n' \
+    >"$d/guardrails/hook-utils.sh"
 }
 
 retired_text() {

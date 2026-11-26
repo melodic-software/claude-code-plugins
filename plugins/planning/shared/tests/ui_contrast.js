@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-// Computed contrast on the shared page, against `share.sh ensure-running` with the fake cloudflared: on the main page
-// states (the focus view on a choice and a written question with answers, chat, the Host view, the Inbox, Session
-// settings, the Propose form, and a guest's phone with the chat closed and open), in dark and light each, every visible text run reaches WCAG 2.2 AA (1.4.3: 4.5:1, or 3:1 for large text, 24 px or
-// 18.66 px bold), placeholders included; text-field boundaries and icon-only buttons' icons reach
-// 3:1 against what they sit on (1.4.11); and the Propose button's boundary reaches 3:1 too, since it is the one way in
-// to Propose (research/propose-question-discoverability). Colors are read from computed styles and composited through
-// a canvas, so they are the sRGB the browser paints (oklch may be gamut-mapped); an inactive control (disabled or
-// aria-disabled) is exempt, as WCAG exempts it, and a run over a background image is skipped as unmeasurable.
-//   node plugins/planning/shared/tests/ui_contrast.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected values come from WCAG 2.2 (https://www.w3.org/TR/WCAG22/#contrast-minimum and #non-text-contrast) and the
-// relative-luminance formula it defines; the self-checks use WebAIM's published ratios (#777 on white is 4.48:1).
-// Per mode, the accent's text reaches 4.5:1 on every surface and text on the accent 4.5:1, a hovered primary button's
-// label 4.5:1 on its hover fill, and the ten person colors keep their AA ratios (initials 4.5:1 on the color, the color 3:1
-// on the page). The page has no palette or accent choice: the canonical chrome's System/Light/Dark toggle is its only one.
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 

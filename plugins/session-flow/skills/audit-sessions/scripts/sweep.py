@@ -82,11 +82,9 @@ TICKETS_SCHEMA = "audit-sessions.tickets/v1"
 PR_SCHEMA = "audit-sessions.pr/v1"
 SPAN_LABEL = "session-side proxy, not cycle time"
 RULES_SCHEMA = "audit-sessions.sweep-rules/v1"
-# Placeholders collect.py stores in place of a path; neither names one file.
 PLACEHOLDERS = {"<suppressed>", "<too-long>"}
 BUNDLED_RULES = Path(__file__).resolve().parents[1] / "reference" / "sweep-rules.json"
 KEEP_REPORTS = 20
-# Sessions (or PRs) the markdown report names per finding; the JSON keeps every one.
 MAX_LISTED = 5
 JUDGED_TITLE = "Judged (unranked)"
 JUDGED_NOTE = (
@@ -793,7 +791,6 @@ def main(argv: list[str] | None = None) -> int:
         return emit("json", "error", "--scope project needs --state-key <identity>/<worktree>", {}, 2)
     data_dir = Path(args.data_dir)
     if not census.store_dir(data_dir).is_dir():
-        # Its own code, so a consumer can tell "never collected here" from a broken store.
         return emit("json", "error", f"no audit-sessions store under {data_dir}; run collect first", {}, 3)
     try:
         records, skipped = census.load_records(data_dir)

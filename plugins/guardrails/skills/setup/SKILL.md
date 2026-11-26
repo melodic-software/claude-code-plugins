@@ -72,7 +72,8 @@ no toggle.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
    Probe the bash the hooks run: the one `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` resolves
-   (its header lists the candidate order), which can differ from the Bash tool's own bash.
+   in the order its `resolveBash` sets per platform (read it; do not recite it), which can differ
+   from the Bash tool's own bash.
    FAIL below the floor with the README Requirements remediation.
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: per the README, the blocking guards
    then deny every Bash and PowerShell call and the others skip their work after one notice

@@ -3,6 +3,12 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.6] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.1.5] - 2026-11-21
 
 ### Changed

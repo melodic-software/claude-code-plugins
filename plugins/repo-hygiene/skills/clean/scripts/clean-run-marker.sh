@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Opens, closes or reports the per-session run-open marker that scopes the clean
-# skill's destructive guard (destructive-guard.sh) to a mutating clean run.
-#
-# Usage:
-#   clean-run-marker.sh open  --tier <tier> --session <id> --data-dir <dir>
-#   clean-run-marker.sh close --session <id> --data-dir <dir>
-#   clean-run-marker.sh --help
-#
-# open writes the marker for every tier except the read-only scan and
-# scan-batch, which never arm the guard (it prints "not armed" and writes
-# nothing). close removes it and succeeds when it is already gone. The marker
-# lives under <dir>/clean-run/<id>.open; the guard reads the same path from
-# CLAUDE_PLUGIN_DATA and the hook input's session_id.
-#
 # Exit: 0 success; 2 usage error or an unusable --session / --data-dir.
 set -uo pipefail
 
@@ -21,7 +7,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/run-marker.sh"
 
 usage() {
-  sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'TXT'
+Opens or closes the per-session run-open marker that arms the clean skill's destructive guard.
+
+Usage:
+  clean-run-marker.sh open  --tier <tier> --session <id> --data-dir <dir>
+  clean-run-marker.sh close --session <id> --data-dir <dir>
+  --tier      the clean tier; scan and scan-batch never arm the guard
+  --session   the session id the marker is keyed on
+  --data-dir  the plugin data directory holding clean-run/<id>.open
+  --help      print this help
+
+Exit 0 success; 2 usage error or an unusable --session / --data-dir.
+TXT
 }
 
 ACTION="${1:-}"

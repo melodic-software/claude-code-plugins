@@ -130,8 +130,8 @@ generated playground for anything beyond personal exploration.
   is why Step 1 judges by install record and treats wording as advisory.
 - The copy-prompt button is the product; a sandboxed page (an Artifact) can restrict
   clipboard access, so confirm the round trip once before a long exploration.
-- A summarizing fetch of the upstream marketplace can misreport its contents;
-  verify upstream facts against raw files or the install record, never a summary.
+- Verify upstream marketplace facts against raw files or the install record, never a summarizing
+  fetch (how WebFetch reads a page: [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)).
 
 ## Boundary
 

@@ -1,46 +1,4 @@
 #!/usr/bin/env bash
-# Multi-repo working-tree realignment: run the single-repo git-tree-reset.sh
-# `tree` tier across a set of repositories behind one confirmation gate, with a
-# separator-agnostic skip list and a dirty-by-default guard.
-#
-# This is a thin orchestrator. It never runs a destructive git command itself:
-# every reset/clean is delegated to the UNCHANGED git-tree-reset.sh, so every
-# single-repo safety gate (upstream resolution, default-branch block, reset-
-# success gate, reparse-point restore, unpushed-commit block) is reused verbatim.
-# The batch layer adds only enumeration, skip-matching, the dirty guard, a per-
-# repo outcome summary, and a single batch-wide dry-run -> confirm -> apply gate.
-#
-# Motivation: an ad-hoc `ghq list` reset loop reset --hard a repo it was meant to
-# skip because the skip-match compared a Windows backslash path against a forward-
-# slash path and silently failed, losing an uncommitted edit. Both defects are
-# closed here: skip entries and enumerated repo paths are normalized to a
-# canonical separator-agnostic key before comparison (clean_skip_matches), and
-# dirty/unpushed repos are skipped unless --include-dirty is passed explicitly.
-#
-# Usage:
-#   git-tree-reset-batch.sh [--dry-run|--apply]
-#                           [--repo DIR...]... [--repos-from FILE|-]...
-#                           [--skip ENTRY]... [--skip-from FILE]...
-#                           [--include-dirty]
-#                           [--force-default-branch] [--include-deps]
-#                           [--include-secrets] [--help]
-# Default: --dry-run.
-#
-# Repo sources (a `ghq list`, a shell glob, or an explicit list all reduce to a
-# path list): --repo (repeatable, and consumes every consecutive non-flag path so
-# a shell glob — `--repo ~/repos/*` — arrives whole after expansion), and
-# --repos-from FILE (or - for stdin; how `ghq list -p` output is ingested).
-#
-# Skip list: --skip ENTRY (repeatable) / --skip-from FILE. An entry may be an
-# absolute path or a trailing owner/repo or repo segment; matching is separator-
-# agnostic. A skip entry that matches NO enumerated repo is reported as
-# UnmatchedSkip so a typo can never silently fail to protect a repo again.
-#
-# Dirty guard: a repo with uncommitted or untracked changes OR unpushed commits
-# is SKIPPED by default. --include-dirty opts in (and passes --allow-unpushed
-# through so unpushed repos actually reset) -- this re-enables the exact data-loss
-# vector, so the caller confirms it separately per the skill gate.
-#
 # Exit: 0 batch ran to completion (skips/blocks are normal, reported outcomes);
 #       1 one or more repos failed mid-apply -- a partial destructive apply the
 #         child reports non-zero: exit 5 (reset --hard failed) or exit 7 (reset
@@ -121,14 +79,6 @@ while [[ $# -gt 0 ]]; do
   --include-deps) INCLUDE_DEPS=1 ;;
   --include-secrets) INCLUDE_SECRETS=1 ;;
   --repo)
-    # Consume every consecutive non-flag arg, not just the first, so a shell glob
-    # (`--repo ~/repos/*`) — which the shell expands to N positional paths behind a
-    # single --repo — is ingested whole. Consumption stops at the next recognized
-    # token (any `-`-prefixed flag) or end of args; every flag in this parser is
-    # `-`-prefixed and repo paths are directories that never start with `-`, so the
-    # boundary is unambiguous. The `$2 != -*` guard is set -u-safe: [[ ]] does not
-    # expand $2 when $# < 2. `continue` skips the loop's trailing shift because this
-    # arm has already shifted past the flag and all the paths it consumed.
     [[ $# -ge 2 && "$2" != -* ]] || fail_usage "--repo requires a directory"
     shift
     while [[ $# -gt 0 && "$1" != -* ]]; do
@@ -267,16 +217,6 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   out="$(cd "$top" && bash "$TREE_RESET" "$CHILD_MODE" ${CHILD_PASS[@]+"${CHILD_PASS[@]}"} 2>&1)" || rc=$?
   case "$rc" in
   0)
-    # The child exits 0 for a clean success AND for success-with-signal cases the
-    # batch must not flatten to a bare outcome: an --include-dirty reset discards
-    # uncommitted/untracked edits (child TrackedDirty) AND unpushed commits (child
-    # AheadCount -- reset away because --include-dirty passes --allow-unpushed), and
-    # a clean that hit locked/in-use paths leaves them behind (child Unremovable>0,
-    # exit 0 by design). All are documented child output labels; surface them in the
-    # per-repo Reason so the --include-dirty dry-run confirmation can name every repo
-    # whose edits or commits it discards, and an operator never reads an incomplete
-    # clean as a completed reset. Counts are read from child output (not recomputed)
-    # because on apply the repo is already reset by this point.
     tracked_dirty="$(child_label "$out" TrackedDirty)"
     ahead="$(child_label "$out" AheadCount)"
     reason=none
@@ -306,11 +246,6 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     printf '%s\n' "$out" >&2
     ;;
   7)
-    # reset --hard succeeded but git clean failed for a non-locked-file reason: a
-    # partial destructive apply (tree reset, untracked removal incomplete), which
-    # the child reports non-zero. Treat it as failed like exit 5 so the batch
-    # summary and exit status never report a repo that was only partly realigned
-    # as a completed reset.
     record "$top" failed "clean failed after a successful reset -- partial apply, tree not fully cleaned (child output below)"
     printf '%s\n' "$out" >&2
     ;;

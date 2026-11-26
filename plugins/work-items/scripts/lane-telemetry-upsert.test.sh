@@ -278,8 +278,6 @@ else
   fail "a comment merely quoting the sentinel was adopted"
 fi
 
-# Anyone can paste the public sentinel. A foreign comment with a LOWER id would
-# otherwise win the lowest-id canonical rule and take this cycle's state.
 fresh_state
 printf '%s\nforged durable state\n' "$SENT" >"$FAKE_GH_STATE/c-3.body"
 printf 'mallory' >"$FAKE_GH_STATE/c-3.author"
@@ -308,7 +306,6 @@ else
   fail "a foreign-only sentinel comment was adopted instead of creating the lane's own"
 fi
 
-# Under an App installation token `gh api user` is refused; --app-slug names the bot.
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 printf 'lane-app[bot]' >"$FAKE_GH_STATE/c-77.author"
@@ -335,7 +332,6 @@ else
   fail "the reported Bot did not adopt its own comment"
 fi
 
-# Logins may carry underscores (enterprise managed users).
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 printf 'kyle_corp' >"$FAKE_GH_STATE/c-77.author"
@@ -490,8 +486,6 @@ check_rc 7 "$?" "a non-numeric --issue exits 7"
 
 MINBIN="$WORK/minbin"
 mkdir -p "$MINBIN"
-# The wrappers take an ABSOLUTE-path shebang: a `#!/usr/bin/env bash` wrapper for
-# `env` itself would be resolved through this same directory and fork-bomb.
 minbin_add() {
   local t real
   for t in "$@"; do
@@ -545,8 +539,6 @@ if [[ -z "$(grep -c . "$FAKE_GH_ARGV" 2>/dev/null | tr -d '0')" ]]; then
 else
   fail "a body refusal reached the API: $(cat "$FAKE_GH_ARGV")"
 fi
-# A CRLF body clears the gate: the sentinel is compared as a byte prefix and the
-# floor is measured below line 1, so the line ending never decides the verdict.
 fresh_state
 printf '%s\r\ncycle=7 clean_streak=1 item_cap=2\r\n' "$SENT" >"$WORK/crlf.md"
 run "$WORK/crlf.md"
@@ -623,7 +615,6 @@ else
   fail "duplicates were superseded on a stale read-back"
 fi
 
-# The comparison tolerates line endings: a CRLF body file read back as LF verifies.
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
 printf '%s\r\ncycle=7 clean_streak=1 item_cap=2\r\n' "$SENT" >"$WORK/crlf2.md"
@@ -674,8 +665,6 @@ CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$UPSERT" --lane "$LANE" --instance "$INSTANC
   --issue "$ISSUE" --body-file "$FOREIGN/body.md" >/dev/null 2>"$STDERR"
 check_rc 16 "$?" "another plugin's CLAUDE_PLUGIN_DATA is no safe body dir (exit 16)"
 
-# A credential-shaped body is withheld whole, never posted, never echoed. The
-# fake token is assembled at run time so no token-shaped literal is tracked.
 fresh_state
 FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
 printf '%s\ncycle=7 note=%s\n' "$SENT" "$FAKE_TOKEN" >"$WORK/leak.md"
@@ -705,8 +694,6 @@ else
   fail "home-ancestor refusal: $(cat "$STDERR")"
 fi
 
-# CDPATH cannot redirect a relative body path: with the cwd outside and a CDPATH
-# that holds a same-named dir inside the safe dir, the outside file is refused.
 fresh_state
 mkdir -p "$ROOT/cwd/sub" "$WORK/sub"
 cp "$GOOD" "$ROOT/cwd/sub/body.md"
@@ -736,7 +723,6 @@ else
 fi
 
 fresh_state
-# A fake home path, assembled at run time so no user path is tracked.
 FAKE_HOME="/ho""me/alice"
 printf '%s\ncycle=7 worktree=%s/worktrees/app\n' "$SENT" "$FAKE_HOME" >"$WORK/homepath.md"
 run "$WORK/homepath.md"
@@ -762,7 +748,6 @@ else
   fail "hostname-instance refusal: $(cat "$STDERR")"
 fi
 
-# A GitHub-hosted runner's home path reveals nothing, so it is not withheld.
 fresh_state
 printf '%s\ncycle=7 log=/ho''me/runner/work/app/app/run.log\n' "$SENT" >"$WORK/runner.md"
 run "$WORK/runner.md"

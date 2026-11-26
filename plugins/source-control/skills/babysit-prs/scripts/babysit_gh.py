@@ -1610,7 +1610,7 @@ def _search_prs_for_owners(
             try:
                 owner_has_repos = bool(list_repos_for_owner(owner))
             except RuntimeError:
-                owner_has_repos = True  # unconfirmed; fail closed as before.
+                owner_has_repos = True
             if not owner_has_repos:
                 continue
             errors.append(f"owner search {owner}: {exc}")
@@ -2690,7 +2690,9 @@ def lane_binding_checker(
     carries a binding; a failed read raises."""
     return lane_binding.lane_checker(
         pr=number,
-        get_pull=lambda pr: json_object(_api_read(f"repos/{repo}/pulls/{pr}", env_overrides)),
+        get_pull=lambda pr: json_object(
+            _api_read(f"repos/{repo}/pulls/{pr}", env_overrides)
+        ),
         get_run=lambda run_id: json_object(
             _api_read(f"repos/{repo}/actions/runs/{run_id}", env_overrides)
         ),

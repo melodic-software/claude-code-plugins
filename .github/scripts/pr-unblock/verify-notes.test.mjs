@@ -130,7 +130,7 @@ test("the verdict must be the fail its artifact name names", () => {
 
 test("a name that carries issue numbers must carry the ones the verdict records", () => {
   const issues = (...numbers) => numbers.map((number) => ({ number }));
-  const digest = "79b4cc554b80dca6"; // feat/x, as above
+  const digest = "79b4cc554b80dca6";
   assert.equal(readVerdict(`${NAME}-i7`, verdictText({ linked_issues: issues(7) })).pr, 42);
   assert.equal(readVerdict(`${NAME}-i7.12`, verdictText({ linked_issues: issues(12, 7) })).pr, 42);
   assert.equal(readVerdict(`${NAME}-${digest}-i7`, verdictText({ head_ref: "feat/x", linked_issues: issues(7) })).pr, 42);

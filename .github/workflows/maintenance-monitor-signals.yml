@@ -22,11 +22,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # list runs, jobs and artifacts, download pr-merge-summary, pr-merge-post-merge-report and the last run's monitor-signals-jobs
-      checks: read # read check-run annotations
-      contents: read # check out main
-      issues: write # file and update the lane's own issues
-      pull-requests: read # list merged pull requests
+      actions: read
+      checks: read
+      contents: read
+      issues: write
+      pull-requests: read
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"

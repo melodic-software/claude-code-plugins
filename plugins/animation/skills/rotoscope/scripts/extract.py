@@ -28,7 +28,7 @@ from decode import MID, end, frames, is_repeat, modes, per_area, probe  # noqa: 
 import workdir  # noqa: E402
 from render import WORKERS  # noqa: E402
 
-S, EPS, INTERP = 4, 0.25, 'cubic'   # supersample, approxPolyDP epsilon (source px), upsampler
+S, EPS, INTERP = 4, 0.25, 'cubic'
 SHARP = (2.0, 0.9)
 LEVELS = (50, 90, 165, 205)
 TINT_RG, TINT_SIGN_RG, TINT_SIGN_PX = 4, 6, 15000

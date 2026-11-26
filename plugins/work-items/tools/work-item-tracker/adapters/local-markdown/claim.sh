@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# claim <id> [--ttl-hours <n>] [--session-id <s>] — CONTRACT.md "Lease protocol".
-# Single-writer store: race arbitration is a pre-write check — an existing LIVE
-# lease means the item is claimed, so back off (exit 7) before writing anything.
-# The lease is an inline marker plus a store-global numeric handle (lease_comment_id)
-# that renew-lease addresses the way the GitHub adapter addresses a comment id.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -76,12 +71,6 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$holder" --arg now 
    + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)
    + (if $sid != "" then {session_id: $sid} else {} end)
    + (if $phase != "" then {phase: $phase} else {} end)')"
-# The lease marker and the assignee are one claim and must land together: a live
-# lease with an empty assignees would look available and let a later claim race the
-# live lease. A failed assignee write attempts to roll the marker back (wit_claim_write
-# warns if that best-effort compensation cannot run) and fails the claim — never a
-# success record for a half-applied write. Exit 1 is internal/unexpected store I/O
-# failure (CONTRACT.md "Exit codes"), distinct from an exit-7 claim race.
 marker_line="${WIT_LEASE_MARKER}${lease} -->"
 if ! wit_claim_write "$file" "$marker_line" "$(jq -cn --arg h "$holder" '[$h]')"; then
   printf 'claim: recording the assignee for %s failed\n' "$id" >&2

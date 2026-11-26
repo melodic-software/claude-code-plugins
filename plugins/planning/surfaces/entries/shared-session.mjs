@@ -1,6 +1,3 @@
-// A shared session several people answer through a public tunnel link (shared/share.sh). Its
-// ensure-running exits 2 without Python 3, curl or cloudflared. It opens a public link, so a
-// setting alone never starts it: the owner's request (the `share` action) or yes does.
 const python = ctx => ctx.has('python3') || ctx.has('python')
 
 export default {

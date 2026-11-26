@@ -642,8 +642,6 @@ def test_excerpts_print_stored_typed_turns_inside_since_and_scope(data_dir):
 
 
 def test_excerpt_with_shell_syntax_round_trips_as_one_json_string(data_dir, tmp_path):
-    # Absolute marker paths: any shell that ever evaluates the text, in any
-    # working directory, creates them where this test looks.
     marker = tmp_path / "PWNED"
     hostile = f"tabs\there\nsecond line $(touch {marker}) `touch {marker}2`"
     write_store(data_dir, typed("s1", "2026-09-10T08:00:00Z", "github.com/acme/web", hostile))

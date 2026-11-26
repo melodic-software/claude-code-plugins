@@ -15,7 +15,7 @@ if [[ -n "${CLAUDE_PLUGIN_DATA:-}" && -f "${CLAUDE_PLUGIN_DATA%/}/identity-domai
 fi
 
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 start=${EPOCHREALTIME:-}
 
@@ -196,7 +196,7 @@ bcd::trace() {
   printf 'block-cross-domain: trace %s\n' "$1" >&2
 }
 
-bcd::emit_tel() { # <form> [<status>, default ok]
+bcd::emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local subject data cwd=neutral
@@ -515,7 +515,7 @@ bcd::ps_assign() {
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
-bcd::identity_var() { # <assigned name, or PowerShell's $env:<name> in any case> <value>
+bcd::identity_var() {
   local u
   bcd::env_name_to u "$1"
   case "$u" in
@@ -527,7 +527,7 @@ bcd::identity_var() { # <assigned name, or PowerShell's $env:<name> in any case>
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
-bcd::git_key() { # <position> <config key> <value>
+bcd::git_key() {
   local k=${2,,}
   case "$k" in
   user.email | user.name | author.email | author.name | committer.email | committer.name | remote.*.url | remote.*.pushurl)
@@ -765,7 +765,7 @@ bcd::config_deny() {
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
-bcd::auth_found() { # <what the command does, as written>
+bcd::auth_found() {
   bcd::add_once BCD_AUTH_DENY "$1"
 }
 
@@ -899,18 +899,18 @@ bcd::is_idfile() {
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
-bcd::write_found() { # <what the command writes, as written>
+bcd::write_found() {
   bcd::add_once BCD_WRITE_DENY "$1"
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
-bcd::write_word() { # <command word or operator> <operand>
+bcd::write_word() {
   bcd::is_idfile "$2" && bcd::write_found "$1 $2"
   return 0
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
-bcd::identity_key() { # <config key>
+bcd::identity_key() {
   case "${1,,}" in
   user.email | user.signingkey | user.useconfigonly | credential.helper | credential.*.helper | \
     core.sshcommand | core.hookspath | include.path | includeif.*) return 0 ;;
@@ -919,7 +919,7 @@ bcd::identity_key() { # <config key>
 }
 
 # shellcheck disable=SC2329  # reached from the parse callback
-bcd::identity_section() { # <config section>
+bcd::identity_section() {
   case "${1,,}" in
   user | core | credential | credential.* | include | includeif.*) return 0 ;;
   *) return 1 ;;

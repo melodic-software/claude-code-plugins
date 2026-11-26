@@ -40,7 +40,7 @@ async page => {
     ok("the typed note is kept through both", (await page.inputValue("#note")) === "half typed thought");
     ok("zero console errors", errors.length === 0, errors.join(" | "));
   }
-  if (PHASE === 5) { // #7757: Q3 was accepted in phase 1; tick its one commitment here, and the shell then revises only its title and short
+  if (PHASE === 5) {
     await page.click('.rail-list .qbtn[data-q="Q3"]'); await page.waitForTimeout(200);
     await page.click('#dscroll [data-confirm="0"]');
     const ticked = async () => ((await (await page.request.get(base + "api/state")).json()).responses.events || []).some(e => e.kind === "confirm" && e.id === "Q3" && !e.withdrawn);

@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for affected-tests.sh. Selection only — nothing here runs a real
-# suite, because the point of the tool is that the real suites are expensive.
-#
-# Most scenarios build a throwaway git repo carrying a MINIATURE version of this
-# repo's own shape: a shared lib with a sync manifest, two carrying plugins, and
-# co-located suites. The cases that must be proved against the LIVE repository
-# (the derived shared-lib copy sets, real fan-outs and discovered probes) run the
-# selector over the whole tree, so they live in scripts/affected-tests-live.sh,
-# which the lint-repo job runs on every pull request.
 # test-scope: scripts/affected-tests* .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -18,14 +9,9 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/affected-tests.sh"
 
-# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
-# without those, the copy dies on a missing source at line 1 and every assertion
-# below turns into the same opaque failure.
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-vars here is what tells it (SC2154) the names are written.
 repo="" repo_renamed="" repo_multi="" repo2="" repo3="" repo_merge="" shimdir=""
 
 write_print_manifest() {
@@ -56,8 +42,6 @@ suite_body() {
   printf '#!/usr/bin/env bash\nprintf %%s "%s" >>"${MARKER_FILE:-/dev/null}"\nexit %s\n' "$1" "${2:-0}"
 }
 
-# Write a fixture script whose only job is to source its sibling widget.sh —
-# the shape that makes it a DEPENDENT of the shared lib.
 # shellcheck disable=SC2016 # deliberate: the emitted file must expand these, not this shell
 mk_widget_consumer() {
   printf 'source "$(dirname "${BASH_SOURCE[0]}")/widget.sh"\n' >"$1"
@@ -94,11 +78,6 @@ mk_repo() {
   git_test_config "$dir" commit -qm base >/dev/null
 }
 
-# run_sel <repo> <args...> -> selection in OUT, exit status in RC.
-# Both come back through globals rather than stdout: wrapping this in a command
-# substitution would run it in a subshell, and RC would silently keep whatever
-# the PREVIOUS case left behind — an assertion that reads as passing while
-# checking nothing.
 RC=0
 OUT=""
 run_sel() {
@@ -108,17 +87,10 @@ run_sel() {
   RC=$?
 }
 
-# Captured output is matched in-shell, never piped into a reader: under pipefail
-# an early-exit reader can kill the writer with SIGPIPE (see the pin below).
-# has_line <text> <line>: <line> is one whole line of <text>, matched literally.
 has_line() { [[ $'\n'$1$'\n' == *$'\n'"$2"$'\n'* ]]; }
 
 contains() { [[ $1 == *"$2"* ]]; }
 
-# --- the match helpers hold on an input far larger than a pipe buffer -------
-# A reader that exits on its first match can leave the writer to die of SIGPIPE,
-# and pipefail then reports that 141 as the match failing: a present needle reads
-# as absent, and a negated assertion passes. The needle sits on line 1 of 1 MB.
 filler=x
 for _ in {1..20}; do filler+=$filler; done
 big=$'NEEDLE-LINE\n'"$filler"
@@ -140,9 +112,6 @@ else
 fi
 unset big
 
-# --- no assertion in this file pipes output into an early-exit grep --------
-# The pin above covers the helpers; this keeps the piped shape from coming back
-# at any other site. Comment lines are skipped, so prose may still name it.
 piped_q="$(grep -nE '^[^#]*\|[[:space:]]*grep[^|]*-[a-zA-Z]*q' "$SELF_DIR/affected-tests.test.sh")"
 case $? in
 0) fail "non-comment lines pipe into grep -q, a SIGPIPE race under pipefail: $piped_q" ;;
@@ -230,17 +199,6 @@ else
   fail "--allow-unmapped should exit 0 (rc=$RC): $out"
 fi
 
-# --- a FAILING git grep is fatal, never a narrower selection ---------------
-# A reverse lookup reading from `< <(git grep ... 2>/dev/null || true)` would
-# discard git's diagnostic and erase its exit code, making a git ERROR (>=2)
-# identical to NO MATCH (1). Both would come back as "no dependents": a change
-# that normally fans out to many suites would select one or none, at exit 0.
-# That is under-selection reported as success — the exact fail-open this tool
-# exists to refuse — so the shim below makes `git grep` fail and demands a loud
-# exit.
-#
-# The shim delegates every other subcommand to the REAL git, captured as an
-# absolute path so the shim cannot recurse into itself via PATH.
 fixture_tree::build shimdir --label affected-tests-shim
 REAL_GIT="$(command -v git)"
 # shellcheck disable=SC2016 # deliberate: the emitted shim must expand these, not this shell
@@ -264,9 +222,6 @@ else
 fi
 rm -rf "$shimdir"
 
-# --- a usage error exits 2, not 1 ------------------------------------------
-# `${2:?...}` exits 1, which this script already spends on an unmapped file and
-# on a failing suite under --run, while the header documents usage errors as 2.
 for flag in --base --print-fanout; do
   out="$(cd "$repo" && bash scripts/affected-tests.sh "$flag" 2>&1)"
   RC=$?
@@ -302,10 +257,6 @@ else
   fail "half a manifest should exit 2 (rc=$RC): $out"
 fi
 
-# The skip must key on whether a src key is DECLARED, not on whether copies
-# yielded entries. An empty src line is a half-manifest even with no copy
-# lines, and the zero-manifests guard cannot catch that while the fixture's
-# real sync-widget.sh still parses.
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
   printf '#!/usr/bin/env bash\n'
@@ -323,11 +274,6 @@ else
 fi
 rm -f "$repo/scripts/sync-helper.sh"
 
-# --- a src with no copy key is a canonical-only cluster, not fatal ---------
-# A shared lib that has landed with no carrier yet publishes its src and zero
-# copy lines. That is not the rot the zero-yield guard exists for (declared
-# copy patterns matching nothing): it must register with an empty copy set so
-# the selector keeps running and --print-fanout can still name the src.
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 {
   printf '#!/usr/bin/env bash\n'
@@ -483,10 +429,6 @@ else
   fi
 fi
 
-# --- a broken diff is fatal, never an empty selection ----------------------
-# A producer running inside a process substitution would confine its fatal exit
-# to the subshell: mapfile would succeed with nothing and the run would report
-# "nothing to select" and exit 0. A validation caller would read that as clean.
 out="$(cd "$repo" && bash scripts/affected-tests.sh --base definitely-not-a-ref 2>&1)"
 RC=$?
 if [[ "$RC" -eq 2 ]] && ! contains "$out" 'nothing to select'; then
@@ -1015,14 +957,6 @@ else
   fail "R4: a bare .sh name selected a Python suite (rc=$RC): $OUT"
 fi
 
-# --- --run refuses to guess a runner for another ecosystem -----------------
-# Selected-but-not-run must never report as success. The invocations differ per
-# lane (python -m unittest against a named module, npm test, node --test,
-# vitest, Pester) and cannot be derived from a suite path; a guessed runner
-# either errors as though the suite failed, or exits 0 having run nothing, which
-# is a PASS the change never earned. Exit 3 says "ran the shell ones, these
-# still need their own lane", and --write-not-run lists them for a caller that
-# runs them (scripts/check-affected.sh --tests).
 printf 'stale\n' >"$TMP_ROOT/not-run"
 OUT="$(cd "$repo" && bash scripts/affected-tests.sh --run --write-not-run "$TMP_ROOT/not-run" eco/gadget.js 2>&1)"
 RC=$?
@@ -1160,17 +1094,6 @@ printf 'echo plus\n' >"$repo3/eco/name/plus+tool.sh"
   printf 'bash eco/name/plus+tool.sh\n'
 } >"$repo3/eco/name/plus.test.sh"
 
-# A file whose only mention from its DEPENDENT sits behind a shell default:
-# `"${TARGET:-<name>}"`. The `-` of the `:-` operator is inside the path-token
-# class, so without the operator strip the token is `-<name>` and the reverse
-# lookup never reaches the dependent.
-#
-# This case is here because it fails SILENTLY, which is worse than the shapes
-# above and is why it must be tested rather than argued about. The target has a
-# co-located suite of its own, so it stays MAPPED and the run still exits 0 —
-# while the dependent's suite, the one that actually drives it, is quietly
-# dropped. That is an under-selection reported as success, the exact failure
-# this whole file is built to refuse. Both suites must come back.
 printf 'echo defaulted\n' >"$repo3/eco/name/defaulted-target.sh"
 suite_body defaulted-target >"$repo3/eco/name/defaulted-target.test.sh"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
@@ -1319,12 +1242,6 @@ else
 fi
 rm -rf "$repo3"
 
-# --- LIVE repo: pr-require-checks.yml actually fans the selection out -----------------------
-# The plan's legs only buy anything if the workflow both sizes its matrix from
-# them and has each leg run its own suites. Either half alone is silently
-# useless: a plan read by no matrix runs one leg, and a matrix whose legs do
-# not pick their own list runs nothing or everything. Pinned together, in the
-# job that owns them.
 live_ci="$REPO_ROOT/.github/workflows/pr-require-checks.yml"
 test_bash_block="$(awk '
   /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
@@ -1343,9 +1260,6 @@ else
   fail "pr-require-checks.yml test-bash no longer fans the planned selection across a matrix at --jobs 3"
 fi
 
-# --- pr-require-checks.yml never asks for more than the proven three ------------------------
-# #3694: at --jobs 4 three separate suites failed by producing empty output from
-# an external command. Three is the ceiling, on either path.
 if grep -qE -- '--jobs ([04-9]|[1-9][0-9]+)' "$live_ci"; then
   fail "pr-require-checks.yml passes a --jobs count other than 3: $(grep -oE -- '--jobs [0-9]+' "$live_ci" | sort -u | tr '\n' ' ')"
 else
@@ -1478,9 +1392,6 @@ else
   fail "R8: a valid declaration was refused (rc=$RC): $out"
 fi
 
-# --- --unmapped-corpus: an unmapped file selects its own language's corpus ---
-# The report stays, the exit says so (4), and only the file's language runs: a
-# shell file never starts the Python corpus, and the other way round.
 run_sel "$repo" --unmapped-corpus plugins/alpha/zzorphan-plugin.sh
 if [[ "$RC" -eq 4 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
   has_line "$OUT" plugins/beta/hooks/beta-hook.test.sh && has_line "$OUT" lib/widget.test.sh &&

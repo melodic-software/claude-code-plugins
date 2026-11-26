@@ -61,13 +61,6 @@ TOP = 25
 BATCH = 12
 CHALLENGE_BATCH = 3
 WAVE = 8
-# Verification usage as (low, high) ranges around one measured run of this audit (2026-10-09, Claude
-# Code 2.1.296): a fact-check workflow of 50 agents, 5.53M tokens and 1 h 59 m, and one probe agent
-# running 17 headless cases in 0.12M tokens and 64 min. Verify spent 3.26M over 32 batch agents (0.10M
-# each) and Challenge 1.95M over 16 (0.12M each); pilot and ledger took 0.32M together. The run was 8
-# sequential steps (pilot, 6 waves of 8, ledger), about 15 min each. Probes took 7K tokens and 3.8 min
-# per case. The range widths are judgment. Recheck: remeasure from a run's workflow totals when the
-# verifier agents, their model, or the batch sizes above change.
 AGENT_TOKENS = (100_000, 125_000)
 FIXED_TOKENS = 320_000
 STEP_MINUTES = (12, 18)
@@ -171,7 +164,6 @@ def _wsl_distros(*flags: str) -> list[str]:
     if done.returncode != 0:
         return []
     raw = done.stdout
-    # wsl.exe writes UTF-16LE unless told otherwise; accept either.
     text = raw.decode("utf-16-le", errors="replace") if b"\x00" in raw else raw.decode("utf-8", errors="replace")
     names = (line.strip().lstrip("\ufeff") for line in text.splitlines())
     return [name for name in names if name]
@@ -188,7 +180,6 @@ def sibling_patterns() -> tuple[list[str], list[str]]:
         stopped = [d for d in _wsl_distros() if d not in running]
         patterns = [glob.escape("\\\\wsl$\\" + d) + home + "\\.claude\\projects" for d in running for home in ("\\home\\*", "\\root")]
         return patterns, stopped
-    # WSL registers its Windows-interop binfmt entry under this name (a suffixed variant matches too).
     if glob.glob("/proc/sys/fs/binfmt_misc/WSLInterop*"):
         return [str(Path(_wsl_automount_root()) / "*" / "Users" / "*" / ".claude" / "projects")], []
     return [], []
@@ -244,7 +235,6 @@ def aggregate(records: list[dict]) -> dict:
         turns += (record.get("human") or {}).get("turns") or 0
         perf["usage_limit_notices"] += (record.get("rate_limit") or {}).get("usage_limit_notices") or 0
         stop_hooks = record.get("stop_hooks") or {}
-        # Matching Stop hooks run in parallel: the wait is each stop's slowest hook, the plain sum is process time.
         perf["stop_hook_wait_ms"] += stop_hooks.get("wait_ms_total") or 0
         perf["stop_hook_ms"] += stop_hooks.get("ms_total") or 0
         if not isinstance(friction, dict):

@@ -1,4 +1,5 @@
 # test-scope: plugins/session-flow/scripts/tests/fixtures/* plugins/session-flow/scripts/dialect.py plugins/session-flow/scripts/handoff_chain.py plugins/session-flow/scripts/handoff_fit.py plugins/session-flow/scripts/io_streams.py plugins/session-flow/scripts/plugin_paths.py plugins/session-flow/scripts/save_point.py
+# test-scope: plugins/session-flow/scripts/tests/shape4_chain.py
 """Where a role chain's standing-rules file lives. Expected values come from
 reference/structure.md ("Role chains: the standing-rules file"): a new chain
 writes `handoffs/standing-rules/<chain-root-stem>.md`, outside `archive/` and

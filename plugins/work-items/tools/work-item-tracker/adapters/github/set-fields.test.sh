@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: set-fields against a gh stub. The org field listing is a trimmed recording of
-# GET orgs/melodic-software/issue-fields (2026-10-18); the expected write is the documented
-# REST body, {"issue_field_values": [{"field_id", "value": <option name>}]}, since the REST
-# write takes the option's name, not its id.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

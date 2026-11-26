@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/scripts/tests/fixtures/projects/-work-repo/*.jsonl
 """The settle clause on the UNVERIFIED marks `new` writes (the tool's strings stay
 matchable by older validators). A shape-2 hop carried past a
 predecessor that failed validation passes head's validator and the shape-3 validator

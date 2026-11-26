@@ -123,7 +123,6 @@ class VerdictTests(unittest.TestCase):
         )
 
     def test_denial_only_in_result_has_unknown_reason_type(self):
-        # permission_denied events are best-effort; result.permission_denials is authoritative.
         row = judge(
             case(), INIT, use("t1"), result("t1", "denied", True), final(["t1"])
         )
@@ -255,9 +254,6 @@ class VerdictTests(unittest.TestCase):
         stopped = judge(edit, INIT, call, denied, result("t1", "no", True), final(["t1"]))
         self.assertEqual(ran["verdict"], "pass")
         self.assertEqual((stopped["observed"], stopped["verdict"]), ("deny", "fail"))
-        # A run proves the Edit skipped the classifier only while the classifier is
-        # shown to deny the same change through Bash, and that denial only while
-        # the README control shows Bash itself is not blocked.
         self.assertTrue(probe.controlled(edit))
         rows = [
             {"id": edit["id"], "verdict": "pass", "note": ""},
@@ -657,8 +653,6 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(rows[0]["verdict"], "inconclusive")
 
     def test_ran_case_naming_a_failed_control_is_inconclusive(self):
-        # An absence result (sibling CLAUDE.md=absent) proves nothing when its
-        # positive control (a nested CLAUDE.md that should load) did not pass.
         cases = {
             "a": case(id="a", outcome="ran", control="p"),
             "p": case(id="p", outcome="ran"),
@@ -1432,7 +1426,6 @@ class PlantCheckTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.checker = self.tmp / "plant-check.py"
         shutil.copy(probe.DEFAULT_CASES / "lib" / "plant-check.py", self.checker)
-        # Fresh per test, so another process holding an old value cannot be found.
         self.value = "probe-fake-checker-test-" + secrets.token_hex(16)
         (self.tmp / probe.PLANT_HASH_FILE).write_text(
             hashlib.sha256(self.value.encode()).hexdigest()
@@ -1501,9 +1494,6 @@ class PlantCheckTests(unittest.TestCase):
     def test_an_unreadable_own_environ_crashes_with_no_marker(self):
         if os.geteuid() == 0:
             self.skipTest("root reads a non-dumpable process's environ")
-        # A non-dumpable process's /proc files are root's. exec resets the flag, so
-        # the checker runs in the process that set it. The readable run shows the
-        # wrapper itself reaches the marker.
         wrapper = (
             "import ctypes, runpy, sys\n"
             "if sys.argv[2] == 'deny':\n"
@@ -1555,8 +1545,6 @@ class EvalToolsCheckTests(unittest.TestCase):
             "HOME": str(self.tmp),
         }
 
-    # The test's HOME is longer than the checker's TMPDIR cap allows, so these runs
-    # lift the cap; test_a_long_home_prints_no_marker covers it.
     UNCAPPED = (
         "import importlib.util, sys\n"
         "spec = importlib.util.spec_from_file_location('check', sys.argv[1])\n"
@@ -1600,7 +1588,6 @@ class EvalToolsCheckTests(unittest.TestCase):
         self.assertFalse(seen.exists())
 
     def test_a_sealed_dir_in_the_run_tmpdir_is_removed(self):
-        # `claude plugin eval --keep-temp` leaves a mode-000 directory in its temp tree.
         log = self.tmp / "tmpdir.log"
         stub = self.tmp / "bin" / "claude"
         stub.write_text(

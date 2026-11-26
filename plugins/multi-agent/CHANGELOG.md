@@ -3,6 +3,18 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.3] - 2026-11-26
+
+### Changed
+
+- `/multi-agent:audit-defaults` points at the tools reference's WebFetch section for how WebFetch reads a page, instead of describing its truncation ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [5.2.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [5.2.1] - 2026-11-25
 
 ### Changed

@@ -91,8 +91,8 @@ says. Exit 3 means no store exists under `D`: after the envelope, add one line t
 - **Lane score history** (read by `trends`): `D/scores/lanes/<lane>.md`, one file per CI lane,
   that `/session-flow:retro ci-runs` appends to.
 - **Uninstall can delete the store.** Say so before the first collect on a machine: the store is the
-  only lasting copy of these numbers, because Claude Code removes old transcripts on its own
-  schedule and a deleted store cannot be rebuilt for sessions already removed. Which uninstall
+  only lasting copy of these numbers, because old transcripts are removed on the schedule
+  [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays) sets, and a deleted store cannot be rebuilt for sessions already removed. Which uninstall
   deletes it, and when it stays, is at the first pointer.
   - **Pointer**: for what uninstall removes, see
     <https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps>; for
@@ -145,7 +145,7 @@ transcript (a full re-read) on:
 
 A full re-read takes about 70 s for 2.6 GB of transcripts (measured 2026-10-02 on Claude Code
 2.1.287; recheck when a first run on a machine of similar size exceeds 300 s), so give any run that
-may be one a Bash timeout of 600000 ms or run it in the background. Other runs take under a second
+may be one the longest Bash timeout allowed (the ceiling: [timeout and output limits](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits)) or run it in the background. Other runs take under a second
 when nothing changed.
 
 Exit 2 means the data directory or the projects root is unusable: report the summary and stop.

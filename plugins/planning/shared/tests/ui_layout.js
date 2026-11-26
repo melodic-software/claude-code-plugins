@@ -8,17 +8,6 @@ const TOL = 1, MIN_HIT = 44, COMPOSER_GAP = 24;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const CHOICE = "Which default payment method?", TEXT = "Where should the order summary sit?", GOAL = "Pick the checkout we launch with.";
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
-// The iOS Safari keyboard, as WebKit implements it. The layout viewport and innerHeight stay; visualViewport's height
-// drops by the keyboard (https://www.bram.us/2021/09/13/prevent-items-from-being-hidden-underneath-the-virtual-keyboard-by-means-of-the-virtualkeyboard-api/).
-// On an iPhone a focused text field always forces a reveal (WKContentViewInteraction.mm passes requiresAccessoryView as
-// forceScroll), which centers the field in the height left above the keyboard, clamped to the document, over 0.25 s
-// (WKWebViewIOS.mm _zoomToFocusRect): that pan is visualViewport.offsetTop. visualViewport fires resize along the way
-// and scroll only once the pan stops (https://bugs.webkit.org/show_bug.cgi?id=218465); a resize handler can read
-// offsetTop 0 that reads right a moment later (https://bugs.webkit.org/show_bug.cgi?id=237851), which `stale` makes
-// the last event; `pan` sets the pan outright. KB (336 px, by judgment from an iPhone 13 with the suggestion bar) is the
-// default keyboard height. `scale` pinch-zooms the page first, as WebKit reports it: visualViewport.scale is the zoom,
-// its width and height shrink by it (the keyboard's screen height too), and so do innerWidth and innerHeight, which
-// WebKit keeps on the visual viewport (https://bugs.webkit.org/show_bug.cgi?id=174362); closing undoes the zoom.
 const KB = 336;
 const keyboard = (page, up, { kb = KB, stale = false, pan: setPan = null, scale = 1 } = {}) => page.evaluate(async ([up, kb, stale, setPan, scale]) => {
   const vv = window.visualViewport, lift = (o, k, v) => Object.defineProperty(o, k, { configurable: true, get: () => v });
@@ -82,7 +71,6 @@ async function show(page, view, keepChat = false) {
     if (label === "Focus" && (await more.isVisible()) && (await more.getAttribute("aria-expanded")) === "true") await more.click({ timeout: 5000 });
   };
   try {
-    // An open chat sheet makes the rest of a phone page inert, so it closes with Escape, not the chat button.
     if (!keepChat && await page.locator("section.vf-chat").isVisible().catch(() => false)) {
       await page.keyboard.press("Escape");
       if (!(await until(page, () => !!document.querySelector("section.vf-chat")?.hidden, null, 5000))) return "the open chat did not close";

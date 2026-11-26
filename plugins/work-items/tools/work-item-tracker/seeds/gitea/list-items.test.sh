@@ -17,8 +17,6 @@ assert_usage_error "$S" --repo
 gitea_fixture_init
 trap 'rm -rf "$GITEA_FIX"' EXIT
 
-# --repo is caller text that reaches a request path, so it faces the same anchored
-# allowlist the binding's own scopes did.
 rc="$(gitea_run "$S" --repo "not-a-scope")"
 assert_eq "malformed --repo → exit 2" "2" "$rc"
 rc="$(gitea_run "$S" --repo "../../etc/passwd")"
@@ -39,8 +37,6 @@ assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 assert_eq "a complete listing carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_eq "item id is fully qualified" "gitea:acme/webapp#12" "$(jq -r '.items[0].id' <<<"$(gitea_out)")"
 assert_eq "a row carries milestone as null" "true" "$(jq -c '.items[0] | has("milestone") and .milestone == null' <<<"$(gitea_out)")"
-# The page size must be EXPLICIT. Gitea defaults an omitted limit to 30 and truncates
-# silently — the same trap the contract calls out for `gh`.
 assert_contains "the request sends an explicit limit" "$(gitea_requests)" "limit=50"
 assert_contains "the request sends the requested state" "$(gitea_requests)" "state=open"
 
@@ -52,8 +48,6 @@ assert_contains "and says --repo is required" "$(gitea_err)" "--repo is required
 assert_eq "nothing was requested" "" "$(gitea_requests)"
 gitea_write_binding
 
-# In Gitea a PR IS an issue with `pull_request` populated. A PR arriving as a work item
-# would be claimed and worked like one.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "$(jq -cn --argjson i "$(gitea_issue_json 12 open 'real issue')" \
@@ -95,10 +89,6 @@ else
 fi
 gitea_write_binding
 
-# The status cases below fail the ISSUE page and never reach the per-item count. These
-# seed a healthy page and break only the dependencies request, so the failure is the one
-# that would otherwise exit inside $( ) and reach the caller as this adapter's internal
-# error.
 gitea_reset_routes
 gitea_seed "/dependencies" 401 '{"message":"token required"}'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
@@ -106,17 +96,12 @@ rc="$(gitea_run "$S")"
 assert_eq "unauthorized dependencies read → exit 4" "4" "$rc"
 assert_eq "and no envelope is emitted" "" "$(gitea_out)"
 
-# work-loop routes "seam exit 8 → backoff-and-retry", so a 5xx here must stay an 8.
 gitea_reset_routes
 gitea_seed "/dependencies" 503 '{"message":"down"}'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
 rc="$(gitea_run "$S")"
 assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
 
-# The number is interpolated into the dependencies request path, into an unquoted JSON
-# number literal in COUNTS, and is the join key of the final envelope pass, so a row
-# whose `number` is not a canonical JSON integer is refused before any of those: exit 1,
-# no envelope, and no request carrying the bad value.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json null open 'no number')]"
@@ -155,17 +140,11 @@ gitea_seed "/issues?" 429 '{"message":"slow down"}'
 rc="$(gitea_run "$S")"
 assert_eq "rate limited → exit 8" "8" "$rc"
 
-# `type` is a real query parameter on this endpoint (enum: issues|pulls). Without it gitea
-# returns pull requests too: they consumed the page budget, and the declared ceiling counted
-# ROWS rather than items, so a PR-heavy repo reported "reached the declared ceiling of 1000
-# items" having collected far fewer than 1000 issues.
 gitea_reset_routes
 gitea_seed "/issues?" 200 '[]'
 gitea_run "$S" >/dev/null 2>&1
 assert_contains "the list requests type=issues" "$(gitea_requests)" "type=issues"
 
-# Under gitea's page clamp every page comes back short, so the header must decide the end.
-# Page 1 is deliberately SHORT (1 row) while the count says 2.
 gitea_reset_routes
 gitea_seed_total "/issues?state=open&type=issues&page=1" 200 \
   '[{"number":1,"title":"one","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/web/issues/1","repository":{"full_name":"acme/web"}}]' 2
@@ -263,9 +242,6 @@ else
   pass "the fixture ceiling governed the walk"
 fi
 
-# --- --label goes to gitea, so the ceiling counts labeled issues only (#7173) ---
-# The same repository, past the ceiling unfiltered, holds one issue with the label. The
-# mock answers the labeled query with that issue, as gitea's `labels` filter would.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed_total "labels=area%3A%20ci" 200 "[$(gitea_issue_json 7 open 'labeled')]" 1

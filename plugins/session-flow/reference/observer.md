@@ -88,6 +88,29 @@ which it runs and its row carries `repeat: true`, so the usage file shows refuse
 unchanged. No finding, a fork error or `observer_gate_timeout_seconds` (default 30) lets the command
 run: an observer fault never blocks work.
 
+**Harness checks.** With `observer_harness_check` on (off by default), the pure module
+`hooks/observer-harness.ts` (event in, findings out) runs five scripted checks on the main thread
+that call no model, so they cost no tokens:
+
+- *Hook latency*: at each turn's end, reads `<observer_hook_log_dir>/sessions/<session>.jsonl`,
+  session-telemetry's per-session hook log, and reports a hook with at least
+  `observer_hook_min_runs` runs whose p95 `duration_ms` passes `observer_hook_p95_ms`.
+- *Cache miss*: cache tokens a turn wrote beyond the context growth the next `session.measure`
+  reports count as rewritten; past `observer_cache_miss_tokens`, the cause is compaction, idle
+  past the cache lifetime (5 minutes, or 60 once a 1-hour cache write is seen), a model switch, or
+  else a prefix change. Compaction and idle misses are recorded, not shown; the first turn never
+  counts, and each cause is shown once a session.
+- *Slow tool*: `tool.run` times each call; a tool (a Bash command by its first two words) that runs
+  past `observer_tool_slow_seconds` `observer_tool_repeat` times is reported once.
+- *Context*: each upward crossing of an `observer_context_percents` value.
+- *Rate limit*: a window at or past `observer_rate_limit_percent`, once per reset.
+
+Findings use category `harness` and go through the same ledger, band, remembered lists and usage
+rows as a live check's, with a `harness` field naming the check. Each names its fix: `here` (in
+this session) or a dedicated session, with a ready `cd '<repo>' && claude -n <name> "<prompt>"`
+command (`Set-Location` on Windows). A dedicated-session finding is never auto-sent. `/observer`
+counts harness findings beside the live checks.
+
 **Backoff.** A finding the person types past `observer_clear_after_prompts` (default 2) times without
 answering clears. Past `observer_ignored_free` (default 2) such findings in a row, the next 1, 2, 4,
 8 and then at most `observer_skip_max` (default 16) eligible checks are skipped; any button resets
@@ -271,6 +294,15 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | `observer_gate_pattern` | `git push`, `gh pr create\|merge\|comment\|review`, `gh issue create\|comment`, `gh api` with a writing method | Regular expression for the held commands. |
 | `observer_gate_timeout_seconds` | `30` | Longest hold; the command then runs. |
 | `observer_gate_refusals` | `1` | Times the same command is refused before it runs. |
+| `observer_harness_check` | `false` | Run the scripted harness checks (see "Harness checks"); they call no model. |
+| `observer_hook_log_dir` | `.observability/claude` | Folder of session-telemetry's per-session hook log, absolute or relative to the project. |
+| `observer_hook_p95_ms` | `1000` | Hook p95 latency budget in milliseconds. |
+| `observer_hook_min_runs` | `5` | Runs a hook needs before its p95 is judged. |
+| `observer_cache_miss_tokens` | `50000` | Rewritten cache tokens in one turn that count as a miss. |
+| `observer_tool_slow_seconds` | `60` | Seconds after which a tool call counts as slow. |
+| `observer_tool_repeat` | `3` | Slow calls of one tool before it is reported. |
+| `observer_context_percents` | `50,75` | Context-window percentages whose upward crossing is reported. |
+| `observer_rate_limit_percent` | `80` | Rate-limit window percent used that is reported, once per reset. |
 | `observer_clear_after_prompts` | `2` | Prompts a shown finding survives unanswered. |
 | `observer_ignored_free` | `2` | Ignored findings before the backoff starts skipping checks. |
 | `observer_skip_max` | `16` | Most checks the backoff skips in a row. |

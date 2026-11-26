@@ -34,8 +34,6 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# Bundled tzdata must be importable before any ZoneInfo(IANA) call so hosts
-# without a system TZDB (notably Windows) can resolve limit-message zones.
 _VENDOR_ZIP = Path(__file__).resolve().parent / "vendor" / "tzdata-zoneinfo.zip"
 
 
@@ -49,7 +47,6 @@ def _cache_owner_suffix() -> str:
     try:
         return f"-{os.getuid()}"  # type: ignore[attr-defined]
     except AttributeError:
-        # Windows: %TEMP% is already per-user, but keep the name distinct.
         return f"-{getpass.getuser()}"
 
 
@@ -87,9 +84,6 @@ def _ensure_bundled_tzdata() -> None:
                             raise
             finally:
                 shutil.rmtree(staging, ignore_errors=True)
-        # Trust the cache only if we own it. A directory planted by another
-        # user is skipped rather than imported; the run then degrades to the
-        # same exit 3 as a missing bundle.
         if not (cache_root / "tzdata").is_dir() or not _cache_is_trusted(cache_root):
             return
         cache_path = str(cache_root)
@@ -151,8 +145,6 @@ def resolve_zone(name: str) -> ZoneInfo:
     try:
         return ZoneInfo(name)
     except ZoneInfoNotFoundError as exc:
-        # ZoneInfoNotFoundError is a KeyError subclass; its str() quotes the
-        # message. Raise a plain RuntimeError so the CLI line stays readable.
         raise TimezoneUnavailableError(
             f"No time zone found with key {name} "
             "(system IANA TZDB unavailable and tzdata could not resolve it; "
@@ -179,7 +171,6 @@ def _first_at_or_after(received: datetime, zone, hour: int, minute: int) -> date
             .astimezone(zone)
             for fold in (0, 1)
         ]
-        # In a DST gap fold=1 shifts the instant; keep it only for a real wall time.
         real = [c for c in folds if c.replace(tzinfo=None) == naive] or folds[:1]
         due = [c for c in real if c.astimezone(timezone.utc) >= floor]
         if due:

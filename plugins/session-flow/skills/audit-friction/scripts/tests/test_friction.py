@@ -19,8 +19,6 @@ HOOK_KEY = "denied/hook/shellguard/BLOCKED: file write through the shell. Use th
 
 
 def run(script: Path, *args: str, siblings: str = "") -> subprocess.CompletedProcess[str]:
-    # An empty AUDIT_FRICTION_SIBLING_GLOBS turns sibling detection off, so a WSL or Windows test host's own
-    # projects trees never reach these runs.
     env = {**os.environ, "AUDIT_FRICTION_SIBLING_GLOBS": siblings}
     return subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, encoding="utf-8",
                           timeout=120, env=env)

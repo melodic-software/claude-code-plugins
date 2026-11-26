@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.7] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [4.4.6] - 2026-11-26
 
 ### Changed

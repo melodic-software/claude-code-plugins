@@ -6,10 +6,6 @@ readonly _WIT_JSON_LOADED=1
 readonly WIT_SCHEMA_VERSION="1.0"
 export WIT_SCHEMA_VERSION
 
-# jq definition every adapter normalizer prepends to emit `created_at` (CONTRACT.md "JSON
-# output contract"): an ISO 8601 timestamp with a `Z` or numeric offset and optional
-# fractional seconds becomes UTC `YYYY-MM-DDTHH:MM:SSZ`, which sorts as text. Anything
-# else, null included, becomes null.
 # shellcheck disable=SC2016,SC2034  # jq program text; read by the adapters that source this file
 readonly WIT_JQ_DEF_UTC_TS='def wit_utc_ts:
   if type != "string" then null
@@ -22,14 +18,10 @@ readonly WIT_JQ_DEF_UTC_TS='def wit_utc_ts:
       | todateiso8601) catch null) // null
   end;'
 
-# wit_strip_cr — stdin filter removing carriage returns (Windows/Git Bash can
-# contaminate captured command output; stdout must be CR-free).
 wit_strip_cr() {
   tr -d '\r'
 }
 
-# wit_check_contract_version <provider> <manifest-path>: CONTRACT.md "Contract-version
-# handshake". Returns 1 on a missing or major-skewed schema_version; callers map it to exit 3.
 wit_check_contract_version() {
   local provider="$1" manifest="$2" declared core_major core_minor a_major a_minor fix
   declared="$(jq -r '.schema_version // empty' "$manifest" 2>/dev/null)"
@@ -38,8 +30,6 @@ wit_check_contract_version() {
       "$provider" "${declared:-none}" "$WIT_SCHEMA_VERSION" >&2
     return 1
   fi
-  # Base-10 forced: bare (( )) reads a leading zero ("08.0") as octal and errors, and
-  # an errored condition is falsy, which would wave a skewed adapter through.
   core_major=$((10#${WIT_SCHEMA_VERSION%%.*}))
   core_minor=$((10#${WIT_SCHEMA_VERSION#*.}))
   a_major=$((10#${declared%%.*}))

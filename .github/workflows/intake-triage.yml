@@ -1,17 +1,5 @@
 name: Intake Triage
 
-# The same run adds the bare floor label `needs-triage` to an issue opened or
-# reopened with no `priority:*` label, through the shared
-# intake-label-needs-triage reusable from ci-workflows (its mechanism,
-# loop-safety and fail-closed label-existence contract are there). The floor
-# is not a priority value. A reopened issue runs only the gate, the kill
-# switch and the floor label, so it re-acquires the floor if its tier was
-# cleared while closed; triage stays with an opened issue. Settled per #506.
-#
-# An issue carrying a routing label (a /planning:wayfind map or decision item,
-# or a decompose container: the work-items binding's container label or
-# wayfind prefix) gets none of this, on any event: that skill routes it, and
-# the gate's notice names the label (.github/actions/check-born-triaged).
 on:
   issues:
     types: [opened, reopened]
@@ -721,13 +709,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The broker mints only for a listed human, or github-actions[bot] on a
-      # dispatch (intake-reenter.yml, the triage sweep), and a re-run only for
-      # a listed human. Anything else stops here quietly, before the token
-      # request: an issue the lanes App or a listed bot opened gets triage but
-      # no written verdict. So does an issue that closed while triage ran:
-      # the job token reads it (a public repository's issue needs no issues
-      # scope), and the broker would refuse it.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
@@ -778,16 +759,6 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           kill-switch-ok: true
 
-      # A verdict the kill switch voided stays green, as every lane's
-      # lane-token-stopped does, but never reads as applied: the triage sweep
-      # reads this step from the job listing, counts the run as a transient
-      # stop and, on an issue it has not handed off, dispatches intake again on
-      # a later pass (triage-sweep.mjs VOIDED_STEP). The sweep's gate reads the
-      # `vars` switches; the broker also refuses on a repository variable
-      # shadowing CLAUDE_LANES_DISABLED or an org switch it cannot see, so a
-      # pass can run while the broker still refuses: TRANSIENT_LIMIT bounds
-      # those re-dispatches. It runs only after the who-check passed, which
-      # validated the issue number.
       - name: Report the voided verdict
         id: voided
         if: steps.lane-token.outputs.skip-reason == 'kill-switch'
@@ -814,8 +785,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT"
 
-      # A held verdict, kept as the lane-hold-intake-triage artifact for
-      # monitor signal 13 (lane-hold-marker.mjs).
       - name: Mark the lane hold
         id: hold-marker
         if: steps.verdict.outputs.held == 'true'
@@ -832,8 +801,6 @@ jobs:
           overwrite: true
           if-no-files-found: ignore
 
-      # The token is cancelled as soon as the job is done; it would otherwise
-      # expire within the hour. This never fails the job.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
@@ -849,18 +816,6 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # Refines a thin issue (#9215): one whose verdict flags intent (no exact
-  # outcome) or whose body has no task list (no checkable criteria). It also
-  # takes an issue admission parked at `status: confirmed` for some, not all,
-  # of its done-when items being ones a lane run cannot perform: a
-  # sound split lists those items in the refinement comment as checks a
-  # person runs and leaves the issue body as written. Three
-  # jobs, as the reusable and apply-verdict split it: refine-select (no model,
-  # read token) picks the issue and writes the context; refine-issue (the
-  # model, contents: read only) explores the default branch, checks the
-  # duplicate candidates and reads the allowed docs hosts, and returns
-  # structured output; apply-refinement (no model) posts it as the lanes App
-  # in a separate marked comment. Rules: .github/scripts/intake-triage/refine.mjs.
   refine-select:
     name: Refine Select
     needs: [check-born-triaged, apply-verdict]
@@ -1023,18 +978,6 @@ jobs:
           known-failure-class: credit-stop
           handoff: "true"
 
-  # The model, on ci-workflows' run-claude-cli as the intake role, one
-  # credential per job. Its job's only token is GITHUB_TOKEN with contents:
-  # read and the model gets none; it reads the context file and the default
-  # branch checkout (its working directory) and fetches only the hosts below.
-  # run-claude-cli runs the CLI with --restricted, so no user, project or
-  # local settings load. refine-issue holds only the API key. When its key
-  # leg hands off (a credit stop, or class auth with API status 401 or 402),
-  # the key is empty, or refine-key-credit named the subscription leg first,
-  # refine-issue-subscription runs the same steps on a new VM on the
-  # subscription token alone, and refine-issue-fallback on the central
-  # fallback token after that. Its structured output is the result; it posts
-  # nothing.
   refine-issue:
     name: Refine Issue
     needs: [refine-select, refine-key-credit]
@@ -1086,8 +1029,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Under the workspace: --restricted confines the file tools to the
-      # working directory.
       - name: Download the context
         if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@v8
@@ -1117,7 +1058,6 @@ jobs:
           output-path: ${{ runner.temp }}/refine-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -1159,27 +1099,16 @@ jobs:
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' "$schema" >"$SCHEMA_FILE"
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
 
-      # bwrap for the env scrub, then no sudo or docker. A failure here stops
-      # the job, so the model never runs without isolation.
       - name: Isolate the runner
         if: steps.prompt.outcome == 'success'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
-      # Read under the data directory, plus the built-in reads in the working
-      # directory (the checkout), and WebFetch on the six official docs hosts
-      # the prompt step names; every other tool is denied, and dontAsk denies
-      # anything else that would prompt. continue-on-error keeps a launcher
-      # failure, a handoff included, from ending the job before "Fail without
-      # a refinement" decides. One leg and the CLI install fit in the step's
-      # timeout, and that fits in the job's 30.
       - name: Refine the issue
         id: run
         if: steps.prompt.outcome == 'success'
@@ -1294,9 +1223,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # The model's structured output, read from the launcher's file only after
-      # the leg's init message reports dontAsk (null when it does not parse);
-      # apply-refinement validates it.
       - name: Collect the refinement
         id: collect
         if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -1338,11 +1264,6 @@ jobs:
           echo "::error::the refinement left no output for this issue"
           exit 1
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1362,18 +1283,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription leg, as its own job on a new VM: refine-issue's
-  # processes, files and environment do not reach it. Its steps repeat
-  # refine-issue's from a fresh checkout, in the same order, but for the
-  # credential check, the launcher's credential and fallback-ready inputs,
-  # the handoff report, the key leg's credit-stop marker, the leg record's
-  # fallback reason and the last step's `if` (callers.test.mjs holds every
-  # other step and field equal). It runs after refine-issue handed off, found
-  # its key empty, or was skipped by the key-credit gate: when refine-issue's
-  # or refine-key-credit's next-leg names this leg, each compared to a fixed
-  # string in its `if`. Only this job references the subscription token.
-  # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, its leg hands off (a limit
-  # stop, a credit stop, or a 401 or 402) to refine-issue-fallback.
   refine-issue-subscription:
     name: Refine Issue Subscription
     needs: [refine-select, refine-key-credit, refine-issue]
@@ -1633,11 +1542,6 @@ jobs:
           echo "::error::the refinement left no output for this issue"
           exit 1
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1657,15 +1561,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The fallback leg, on the central fallback subscription's token alone, as
-  # its own job on a new VM. It runs only after refine-issue-subscription's
-  # leg handed off (a limit stop, a credit stop, or a 401 or 402) or found
-  # its token empty with the fallback token set: when its next-leg names
-  # this leg, compared to a fixed string. Its steps repeat
-  # refine-issue-subscription's but for the credential check, the launcher's
-  # credential input, the handoff report, the leg record's fallback reason,
-  # the next-leg call and the last step's `if` (callers.test.mjs holds the
-  # rest equal). It is the last leg and never hands off.
   refine-issue-fallback:
     name: Refine Issue Fallback
     needs: [refine-select, refine-issue-subscription]
@@ -1914,11 +1809,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Posts the refinement as the lanes App, with the grant apply-verdict gets
-  # (issues: write). No model: refine.mjs --apply validates the output
-  # against closed shapes and renders each field on one line. It never adds
-  # agent-ready or needs-human and files no issue; a split also rewrites the
-  # refined issue's done-when.
   apply-refinement:
     name: Apply Refinement
     needs: [check-born-triaged, refine-select, refine-issue, refine-issue-subscription, refine-issue-fallback]
@@ -1937,7 +1827,6 @@ jobs:
       id-token: write
     outputs:
       redispatch: ${{ steps.apply.outputs.redispatch }}
-      # The sub-issues a size split filed, space-separated.
       children: ${{ steps.apply.outputs.children }}
     steps:
       - name: Resolve main's tip
@@ -2061,8 +1950,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" --apply
 
-      # The token is cancelled as soon as the job is done; it would otherwise
-      # expire within the hour. This never fails the job.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
@@ -2078,13 +1965,6 @@ jobs:
         with:
           tokens: lanes-app
 
-  # An exact refinement or a split lifted the lanes App's status: triage the
-  # issue once more, as intake-reenter.yml does, so apply-verdict and
-  # admission read it with the refinement. refine-select skips the next run
-  # (the body is refined), so this runs at most once per body version. An
-  # issue edited while the model ran is triaged again the same way, with
-  # nothing written. Its own job holds the dispatch grant, not the job with
-  # the App token.
   dispatch-refined-triage:
     name: Dispatch Refined Triage
     needs: [apply-refinement]
@@ -2107,9 +1987,6 @@ jobs:
           gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
             -f ref=main -f "inputs[issue-number]=$ISSUE_NUMBER"
 
-      # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
-      # shape: this job has no checkout of that action, and its only call is
-      # the dispatch POST above, counted as it is sent.
       - name: Log the API calls at the end
         if: always()
         run: |
