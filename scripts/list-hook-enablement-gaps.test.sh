@@ -16,6 +16,7 @@ PENDING=(
   discovery
   display-redaction
   explainer-video
+  fleet
   multi-agent
   playwright
   plugin-profiles
