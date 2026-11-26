@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [13.1.2] - 2026-11-26
+
+### Fixed
+
+- ci-status's cost-hold step vets a lane run on a head past the compare API's 300 files by the review-lane workflows' blobs at the merge base and the head (merge-holds.mjs `laneChangeListed`) instead of keeping the hold at "changes too many files".
+
 ## [13.1.1] - 2026-11-26
 
 ### Changed

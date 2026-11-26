@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.4] - 2026-11-26
+
+### Changed
+
+- `/context7:setup` boundaries point at the plugin loading reference for what an update does to the cached plugin copy, instead of stating that the cache is replaced.
+
 ## [1.1.3] - 2026-11-23
 
 ### Changed
