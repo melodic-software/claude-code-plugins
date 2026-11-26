@@ -29,7 +29,7 @@ export const TOP_KEYS = ['version', 'self', 'hosts']
 export const HOST_KEYS = ['key', 'os', 'role', 'lanes']
 export const LANE_KEYS = ['kind', 'route', 'alias', 'distro', 'claudePath']
 const EXEC_NAME = /^(?:claude|claude\.exe|\d+\.\d+\.\d+)$/
-const DEFAULT_TIMEOUT_SECONDS = 2
+const DEFAULT_TIMEOUT_SECONDS = 3
 const DEADLINE_MARGIN_MS = 500
 const CAPS = { name: 40, folder: 80, repo: 40, branch: 40, host: 40 }
 const ALLOWED = { kind: ['interactive', 'background'], status: ['busy', 'idle', 'waiting'] }
@@ -40,7 +40,7 @@ const onlyKeys = (o, keys) => Object.keys(o).every((k) => keys.includes(k))
 const lastSegment = (p) => p.split(/[\\/]+/).filter(Boolean).at(-1) ?? ''
 
 /**
- * The `peer_query_timeout_seconds` option: 0 to 10 as given; empty, non-numeric or out of range reads as 2.
+ * The `peer_query_timeout_seconds` option: 0 to 10 as given; empty, non-numeric or out of range reads as 3.
  * @param {unknown} raw
  */
 export function timeoutSeconds(raw) {

@@ -96,7 +96,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `converge_docs_url` | string | *(none)* | URL of your own documentation for the fleet-converge command, which reach names when converging dotfiles comes up. Unset: reach names the command with no link. |
-| `peer_query_timeout_seconds` | number<br>*min 0, max 10* | `2` | Seconds the session-start peer list waits for each fleet lane's claude agents --json, from 0 to 10. 0 lists only the lane the session runs on. Empty or out of range: 2. |
+| `peer_query_timeout_seconds` | number<br>*min 0, max 10* | `3` | Seconds the session-start peer list waits for each fleet lane's claude agents --json, from 0 to 10. 0 lists only the lane the session runs on. Empty or out of range: 3. |
 
 ### How to set these
 

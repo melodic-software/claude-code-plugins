@@ -46,7 +46,7 @@ const SSH_OPTIONS = [
   '-n', '-T',
   '-o', 'BatchMode=yes',
   '-o', 'StrictHostKeyChecking=yes',
-  '-o', 'ConnectTimeout=2',
+  '-o', 'ConnectTimeout=3',
   '-o', 'ForwardAgent=no',
   '-o', 'ForwardX11=no',
   '-o', 'ClearAllForwardings=yes',
@@ -111,8 +111,8 @@ const withLane = (patch) => {
   return JSON.stringify(m)
 }
 
-test('timeout option: 0 to 10 is kept; empty, non-numeric and out of range read as 2', () => {
-  for (const [raw, want] of [['0', 0], ['10', 10], ['5', 5], [7, 7], ['11', 2], ['-1', 2], ['abc', 2], ['', 2], [undefined, 2]]) {
+test('timeout option: 0 to 10 is kept; empty, non-numeric and out of range read as 3', () => {
+  for (const [raw, want] of [['0', 0], ['10', 10], ['5', 5], [7, 7], ['11', 3], ['-1', 3], ['abc', 3], ['', 3], [undefined, 3]]) {
     assert.equal(timeoutSeconds(raw), want, `option ${JSON.stringify(raw)}`)
   }
 })
