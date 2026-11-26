@@ -133,7 +133,7 @@ function resolveBinary(explicit) {
       const candidate = join(dir, `claude${ext}`);
       try {
         if (existsSync(candidate) && statSync(candidate).isFile()) return realpathSync(candidate);
-      } catch { /* unreadable PATH entry — keep looking */ }
+      } catch {}
     }
   }
   return null;
@@ -157,7 +157,7 @@ function findSdkEntry(dirs) {
       const req = createRequire(join(resolve(dir), 'resolve-anchor.js'));
       const entry = req.resolve('@anthropic-ai/claude-agent-sdk');
       return { entry, anchor: resolve(dir) };
-    } catch { /* not resolvable from this anchor — next rung */ }
+    } catch {}
   }
   return null;
 }
@@ -255,7 +255,7 @@ function parseContextMarkdown(text, { binaryVersion: version = null } = {}) {
     for (const cells of tableRows(lines, agentsTable)) {
       if (cells.length >= 3) {
         let tokens = null;
-        try { tokens = parseTokenCell(cells[2]).tokens; } catch { /* keep null */ }
+        try { tokens = parseTokenCell(cells[2]).tokens; } catch {}
         agents.push({ agentType: cells[0], source: cells[1], tokens });
       }
     }
@@ -319,7 +319,7 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
           const usage = await q.getContextUsage();
           clearTimeout(timer);
           resolvePromise({ init: msg, usage });
-          try { await q.interrupt(); } catch { /* session may have ended */ }
+          try { await q.interrupt(); } catch {}
           break;
         }
       }
@@ -835,7 +835,7 @@ function catalogueTokens(lever) {
           if (extractCamelKeys(k).includes(k)) tokens.add(k);
         }
       }
-    } catch { /* emittedConfig is not JSON — prose fields still contribute */ }
+    } catch {}
   }
   return [...tokens];
 }

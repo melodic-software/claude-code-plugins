@@ -78,7 +78,7 @@ import unicodedata
 MIN_PYTHON = (3, 8)
 
 AGREEMENT_TARGET = 0.90
-LABELS = (("pass", "PASS"), ("fail", "FAIL"))  # samples/<grader>.json key, verdict
+LABELS = (("pass", "PASS"), ("fail", "FAIL"))
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VALIDATOR = os.path.join(HERE, "..", "..", "validate", "scripts", "validate-cases.py")

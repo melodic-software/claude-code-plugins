@@ -1,4 +1,3 @@
-# Team layer: sets every floor, plus one key with no floor.
 policy:
   locked: fixed
   ceiling: 10

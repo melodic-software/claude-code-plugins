@@ -396,7 +396,7 @@ HOME_DIR="${TOKEN%/}"
 explain "token:     $TOKEN"
 
 if [[ $STDIN_MODE -eq 1 ]]; then
-  : # no tree to check the directory against
+  :
 elif [[ $HAS_REF -eq 1 ]]; then
   if [[ "$(git -C "$ROOT" cat-file -t "$REF:./$HOME_DIR" 2>/dev/null)" != "tree" ]]; then
     echo "FAIL: pointer target directory missing: $HOME_DIR (named in $CHOSEN, not found at $REF)" >&2

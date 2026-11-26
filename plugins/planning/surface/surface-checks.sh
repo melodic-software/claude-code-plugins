@@ -384,7 +384,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
     japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
-    local now=${EPOCHREALTIME:-} us wait=1 # bash 4 has no EPOCHREALTIME: keep the full second
+    local now=${EPOCHREALTIME:-} us wait=1
     us=${now#*.}
     [[ "$us" =~ ^[0-9]{6}$ && "$us" != 000000 ]] && wait=$(printf '0.%06d' "$((1000000 - 10#$us))")
     jtime sleep sleep "$wait"

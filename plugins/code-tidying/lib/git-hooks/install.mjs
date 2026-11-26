@@ -173,7 +173,7 @@ export function repoInfo(dir) {
   const r = git(dir, ["rev-parse", "--show-toplevel", ...paths]);
   const [root, hooks, exclude, config, worktreeConfig] = r.out.split("\n");
   if (!r.ok || !root || worktreeConfig === undefined) return null;
-  const abs = (p) => path.resolve(dir, p); // --git-path answers relative to dir
+  const abs = (p) => path.resolve(dir, p);
   return {
     top: root,
     hooksDir: abs(hooks),
@@ -951,7 +951,7 @@ function symlinkOnPath(anchor, file) {
     try {
       if (lstatSync(at).isSymbolicLink()) return at;
     } catch {
-      return null; // absent from here down: copy creates it
+      return null;
     }
   }
   return null;
@@ -1025,7 +1025,7 @@ export function copy(info, plugin, entry, scope, manager, force = false) {
   const hook = manager === "plain" ? dispatcherState(p.dispatcher) : null;
   if ((before === "modified" || hook === "modified") && !force) return "refused";
   const exec = [];
-  const plainFiles = []; // staged without the exec bit at shared scope
+  const plainFiles = [];
   const support = [
     { file: p.lib, text: plugin.libText },
     ...sourceAssets(plugin, entry).map((a) => ({ file: path.join(path.dirname(p.script), a.name), text: a.text })),
@@ -1062,7 +1062,7 @@ export function decline(info, plugin, entry, undo = false, global = false, optIn
   const key = declineKey(plugin, entry);
   const args = undo ? ["config", ...scope, "--unset", key] : ["config", ...scope, key, optIn ? "false" : "true"];
   const r = git(info.top, args);
-  return r.ok || (undo && r.status === 5); // 5: the key was not set
+  return r.ok || (undo && r.status === 5);
 }
 
 const CONFIG_HOOK_EVENTS = ["commit-msg"];

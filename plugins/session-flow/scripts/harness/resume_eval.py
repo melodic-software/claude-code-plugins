@@ -660,7 +660,7 @@ class RunConfig:
     tmpdir: str
     copies: dict
     codex_model: str
-    call: object = None  # (cmd, cwd, env, stdin_text) -> (returncode, stdout, stderr)
+    call: object = None
     python: str = "python3"
 
 

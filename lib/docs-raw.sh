@@ -54,7 +54,7 @@ IFS=$'\x1f' read -r state reason key sha format validated bytes file < <(
   jq -r '.pages[0] | [.state, (.reason // "-"), (.cache_key // ""), (.sha256 // ""), (.format // ""),
     (.validated // ""), (.bytes // 0 | tostring), (.file // "")] | join("\u001f")' "$tmp/out/manifest.json"
 ) || die "cannot read the manifest"
-file="${file%$'\r'}" # a Windows jq ends its line with CRLF
+file="${file%$'\r'}"
 
 if [[ "$state" != read ]]; then
   printf 'docs-raw: url=%s state=unread reason=%s\n' "$url" "$reason"
@@ -81,7 +81,7 @@ fi
 
 body="${body//$'\r\n'/$'\n'}"
 body="${body%$'\r'}"
-[[ "$body" =~ $'\n'+$ ]] && body="${body:0:${#body}-${#BASH_REMATCH}}" # one pass, not one copy per LF
+[[ "$body" =~ $'\n'+$ ]] && body="${body:0:${#body}-${#BASH_REMATCH}}"
 n="$(printf '%s' "$body" | wc -c | tr -d ' ')"
 [[ "$n" -gt "$MAX_BODY" ]] && kind=too-large
 if command -v sha256sum >/dev/null 2>&1; then hash=(sha256sum); else hash=(shasum -a 256); fi

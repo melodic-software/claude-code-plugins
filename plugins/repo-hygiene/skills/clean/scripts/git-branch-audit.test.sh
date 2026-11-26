@@ -319,7 +319,7 @@ echo t3 >"$NU_REPO/t3"
 git -C "$NU_REPO" add t3
 git -C "$NU_REPO" commit -qm t3
 git -C "$NU_REPO" checkout -q main
-git -C "$NU_REPO" branch '#7-lead' # a legal name that starts like a comment line
+git -C "$NU_REPO" branch '#7-lead'
 tracked_tip="$(git -C "$NU_REPO" rev-parse refs/heads/feat/tracked)"
 never_tip="$(git -C "$NU_REPO" rev-parse refs/heads/feat/never-pushed)"
 lead_tip="$(git -C "$NU_REPO" rev-parse 'refs/heads/#7-lead')"

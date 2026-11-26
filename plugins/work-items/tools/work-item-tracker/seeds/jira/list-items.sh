@@ -75,7 +75,7 @@ truncated=true
 rows=""
 while ((emitted < limit)); do
   page_size=$((limit - emitted))
-  ((page_size > 5000)) && page_size=5000 # /search/jql caps maxResults at 5000/page
+  ((page_size > 5000)) && page_size=5000
   body="$(jq -cn --arg jql "$jql" --argjson fields "$fields_json" \
     --argjson mr "$page_size" --arg tok "$next_token" \
     '{jql: $jql, fields: $fields, maxResults: $mr} + (if $tok == "" then {} else {nextPageToken: $tok} end)')"

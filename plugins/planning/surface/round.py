@@ -238,7 +238,7 @@ FACTS_TABLE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
-COMMIT_SHA = re.compile(r"[0-9a-f]{40}")  # a full commit SHA, which page links pin; also in shared/session.py
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
 BRANCH_SOURCE_LINK = re.compile(
     r"https?://github\.com/[\w.-]+/[\w.-]+/blob/(?![0-9a-f]{7,40}/)[^/\s)]+/", re.ASCII
 )
@@ -3511,7 +3511,7 @@ def cmd_lease(d, a):
         if os.name == "posix":
             os.execvp(cmd[0], cmd)
         rc = subprocess.call(cmd)
-        sys.exit(128 - rc if rc < 0 else rc)  # a signal death reads as 128 + signal, not a wrapped status
+        sys.exit(128 - rc if rc < 0 else rc)
     lease = bridge.watcher_lease(d, NAME)
     if a.json:
         print(json.dumps({"lease": lease or None}, indent=2))

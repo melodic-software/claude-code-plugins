@@ -44,7 +44,7 @@ run() {
 code_is() { [[ "$CODE" -eq "$1" ]]; }
 out_has() { [[ "$OUT" == *"$1"* ]]; }
 no_trace() { [[ "$OUT" != *"    at "* && "$(printf '%s\n' "$OUT" | wc -l)" -le 2 ]]; }
-seed() { # seed <repo> <content>
+seed() {
   mkdir -p "$1/docs/conventions"
   printf '%b' "$2" >"$1/$REL"
 }

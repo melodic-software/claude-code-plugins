@@ -141,7 +141,7 @@ async function main() {
     results.push(`ERROR ${e?.stack || e}`);
   } finally {
     await browser.close().catch(() => {});
-    for (const d of dirs) { try { share(d, "stop"); } catch { /* not running */ } }
+    for (const d of dirs) { try { share(d, "stop"); } catch {} }
     fs.rmSync(tmp, { recursive: true, force: true });
   }
   for (const line of results) console.log(line);

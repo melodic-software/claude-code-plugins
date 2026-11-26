@@ -30,7 +30,7 @@ FAKE = str(FIXTURES / ("fake_cloudflared.py" if WINDOWS else "fake-cloudflared.s
 SHARE = SHARED / "share.py"
 
 
-FIXTURE_TOKEN_HASH = "0" * 63 + "1"  # every fixture's owner tokenHash: low entropy, so secret scanners pass it
+FIXTURE_TOKEN_HASH = "0" * 63 + "1"
 
 
 def write_state_fixture(state, name, folder=FIXTURES):
@@ -132,7 +132,7 @@ class FakeCloudflare:
     def __init__(self, case=None, edge=(530, NO_CONNECTOR_PAGE), api_status=200, connections=(), config=None):
         self.edge, self.api_status, self.puts, self.probes, self.api_gets = edge, api_status, [], [], []
         self.connections, self.config = list(connections), config
-        self.raced = None  # set: what GET configurations answers once a PUT landed, as if another machine wrote after it
+        self.raced = None
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -194,7 +194,7 @@ def free_edge():
     return _FREE[0].url
 
 
-CLOSED_ORIGIN = "http://127.0.0.1:1"  # a loopback port nothing listens on: an API call there fails, off the network
+CLOSED_ORIGIN = "http://127.0.0.1:1"
 
 
 def env(**extra):

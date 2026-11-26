@@ -56,7 +56,7 @@ import detached  # noqa: E402
 import session_bridge as bridge  # noqa: E402
 import tunnel  # noqa: E402
 
-NAME = "shared"  # matches server.py and session-bridge.conf
+NAME = "shared"
 SECRETS = ".shared-secrets.json"
 PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
@@ -65,7 +65,7 @@ SERVER_ERR = ".shared-server.err"
 LOCK = ".shared.lock"
 OPS_MAX = 1024 * 1024
 START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)
-NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given and no API token routes it; its ingress rule names this port
+NAMED_PORT = 8765
 LEASE_SECONDS = 5.0
 SYNC_SECONDS = 5.0
 PORT_FREE_SECONDS = float(os.environ.get("SHARED_PORT_FREE_SECONDS") or 5.0)
@@ -295,7 +295,7 @@ def named_config(d, a):
         raise Refused(1, f"refused: {problem}")
     if a.adopt_tunnel:
         raise Refused(1, "--adopt-tunnel records a quick tunnel; leave out --tunnel-hostname with it")
-    if api_file.startswith("${user_config."):  # an unset option can arrive as its unexpanded token: its default, empty
+    if api_file.startswith("${user_config."):
         api_file = ""
     token_file, api_file = (os.path.normpath(os.path.expanduser(f)) if f.startswith("~") else f for f in (token_file, api_file))
     why = tunnel.token_file_problem(token_file) or (api_file and tunnel.token_file_problem(api_file, "tunnel API token file", "tunnel_api_token_file"))
@@ -539,7 +539,7 @@ def bring_up(d, a):
         before = before if before and tunnel.config(before)[0] == hostname else None
         own = tunnel.alive(d) if before else None
         settled = bool(own and fallback)
-        if settled:  # its files matter only at cloudflared's next start, so the running link stays
+        if settled:
             print(f"named tunnel {hostname}: {fallback}; its running tunnel keeps serving this session", file=sys.stderr)
             hostname, token_file = tunnel.config(own)
             api_file, fallback = own.get("apiTokenFile") or "", None
@@ -548,7 +548,7 @@ def bring_up(d, a):
         requested = hostname
         if fallback:
             hostname, token_file, api_file = "", "", ""
-        fixed = hostname and not api_file  # no API token routes the tunnel, so its ingress rule names a fixed port
+        fixed = hostname and not api_file
         wanted, adopt = creation(d, a, resumed)
         ports = read_json(d / PORTS) or {}
         if fixed and wanted is None and not ports.get("guest"):
@@ -824,7 +824,7 @@ def log_lines(d):
     lines = []
     for f in [*rotated, d / LOG]:
         with contextlib.suppress(OSError):
-            lines += [line for line in f.read_text(encoding="utf-8", errors="replace").split("\n") if line]  # not splitlines(): only a newline ends an entry
+            lines += [line for line in f.read_text(encoding="utf-8", errors="replace").split("\n") if line]
     return lines
 
 
@@ -845,7 +845,7 @@ def cmd_logs(d, a):
 
 FIELD = re.compile(r' (\w+)=(?:"([^"]*)"|(\S*))')
 ESCAPE = re.compile(r"\\x([0-9a-f]{2})|\\u([0-9a-f]{4})")
-LAT_EDGES = (100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000)  # ms; web/core.js LAT_EDGES, plus one bucket above the last
+LAT_EDGES = (100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000)
 SLOW_GAP = 10000
 TOP = 10
 
@@ -1040,7 +1040,7 @@ def summary_text(s):
 
 
 class Parser(argparse.ArgumentParser):
-    def error(self, message):  # bad arguments are a refusal: exit 1, not argparse's 2
+    def error(self, message):
         self.print_usage(sys.stderr)
         self.exit(1, f"{self.prog}: error: {message}\n")
 
@@ -1091,7 +1091,7 @@ def parser():
 def main(argv=None):
     for stream in (sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8", errors=stream.errors)  # encoding alone would reset errors to strict
+            stream.reconfigure(encoding="utf-8", errors=stream.errors)
     p = parser()
     a = p.parse_args(argv)
     if a.cmd == "list":

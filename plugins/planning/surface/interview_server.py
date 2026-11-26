@@ -486,7 +486,7 @@ def unchecked_constraints(doc):
 
 
 def answer_order(questions, threshold):
-    from exporters import natural  # exporters imports this module at its top
+    from exporters import natural
 
     path = [
         q
@@ -1055,7 +1055,7 @@ def open_prereqs(doc, r, q):
     """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived,
     superseded or a declined proposal) and held, or with no decision that counts. Call
     release_user_holds first."""
-    from exporters import latest_decision  # exporters imports server at module top
+    from exporters import latest_decision
 
     qs = {x.get("id"): x for x in doc.get("questions") or [] if isinstance(x, dict)}
     out = []

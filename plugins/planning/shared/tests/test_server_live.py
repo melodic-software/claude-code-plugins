@@ -186,6 +186,11 @@ class TestBuildWalk(unittest.TestCase):
             self.skipTest(f"no hard link here: {exc}")
         self.refused("hard link: a.txt")
 
+    def test_a_windows_reparse_point_reads_as_a_link(self):
+        regular = stat.S_IFREG | 0o600
+        self.assertTrue(liveserve._linked(mock.Mock(st_mode=regular, st_file_attributes=0x400)))
+        self.assertFalse(liveserve._linked(mock.Mock(st_mode=regular, st_file_attributes=0)))
+
     def test_a_folder_symlink_is_refused(self):
         symlink(self, self.src / "data", tmpdir(self), directory=True)
         self.refused("link: data")

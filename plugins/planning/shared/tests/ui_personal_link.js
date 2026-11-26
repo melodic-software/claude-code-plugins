@@ -130,7 +130,7 @@ async function main() {
       const answer = await route.fetch();
       await had401;
       await new Promise(r => setTimeout(r, 500));
-      try { await route.fulfill({ response: answer }); } catch { /* the page reloaded away from it */ }
+      try { await route.fulfill({ response: answer }); } catch {}
     });
     const rescan = await rec.openIn(ctx, `${C.localUrl}#join=${C.guestKey}&pair=${code4}`);
     ok("a device whose old credential was signed out signs in with a new code", await until(rescan, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000),

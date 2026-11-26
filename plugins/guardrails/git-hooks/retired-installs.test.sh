@@ -36,7 +36,7 @@ detect() {
   printf '%s|%s' "$rc" "$(cut -f1 <<<"$rows" | sort | tr '\n' ' ' | sed 's/ $//')"
 }
 
-clean() { # <id> [--i-migrated] -> exit code
+clean() {
   bash "$HELPER" --manifest "$MANIFEST" --root "$REPO" --clean "$@" >/dev/null 2>&1
   echo $?
 }
