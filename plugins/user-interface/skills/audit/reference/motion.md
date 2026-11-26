@@ -1,11 +1,11 @@
-# Motion lane
+# Motion concern
 
 The procedure for the `motion` row of `reference/concerns.json`. The audit's generic steps run
 first; this file adds what only motion needs.
 
 ## Scope and config
 
-- The resolved `animation:` config sets the role durations and curves the lane judges against;
+- The resolved `animation:` config sets the role durations and curves the concern judges against;
   the project's own motion tokens beat it.
 - Film, video, sprite and pixel-art animation are out of scope.
 - List every animation in scope with its element, `path:line`, driver and properties. Name the
@@ -19,7 +19,7 @@ For CSS-styled files in scope, invoke `/user-interface:write-css review` with th
 those paths. Its `duration` check flags only a transition over the configured `large`, so judge
 every duration yourself under "Role durations" below, the ones it flagged and the ones it missed.
 Keep the rest of its motion findings (`ease-in`, `transition-all`, `motion`) as findings of this
-lane; an `ease-in` finding's fix is the one catalog.md "Easing" gives (the configured `in` curve on
+concern; an `ease-in` finding's fix is the one catalog.md "Easing" gives (the configured `in` curve on
 a permanent exit, else an ease-out curve), not the linter's message. Keep a
 `hover` finding only when it is about the animation (hover motion, catalog.md "Pointer gating"); an
 ungated `:hover` rule itself is the `touch` concern's finding.
@@ -58,14 +58,14 @@ behaviors.md: a press scale below its lower limit ("Button press").
 
 ## Sub-modes
 
-- **`cleanup`**: the lane's passes in a configured order. Read the resolved
+- **`cleanup`**: the concern's passes in a configured order. Read the resolved
   `animation.cleanup_order` from the detect step's `config.values`, and name the layer it came
   from in `config.provenance`. Run one pass per value, in list order; a value listed twice runs
-  once, at its first position. `review` is the lane with no sub-mode (the CSS pre-pass and
+  once, at its first position. `review` is the concern run with no sub-mode (the CSS pre-pass and
   "Review" above); `removal`, `opportunities` and `performance` are the sub-modes below. A pass
   whose scope holds nothing to judge (`performance` with no animation named) says so and asks
-  which animation to diagnose. Report each pass as its own subsection of the motion lane's
-  section, in run order, under the lane's one verdict. A later pass does not report again on an
+  which animation to diagnose. Report each pass as its own subsection of the motion concern's
+  section, in run order, under the concern's one verdict. A later pass does not report again on an
   animation an earlier pass marked Delete. With `--fix`, findings are offered in pass order.
 - **`opportunities`**: where animation would help, and where it must not go. For each suggestion,
   the element, its purpose and its frequency tier; then the places that must stay still, with the
@@ -86,7 +86,7 @@ behaviors.md: a press scale below its lower limit ("Button press").
     interface for a disorienting one.
 
   Report the Keep list too, with the purpose that saved each one. List a kept animation that is
-  badly built as a normal finding of this lane. Without that list a reader can't tell a judgment
+  badly built as a normal finding of this concern. Without that list a reader can't tell a judgment
   from deleting every transition.
 
   Each Delete and Reduce names the removal hazards below it was checked against, and the cleanup

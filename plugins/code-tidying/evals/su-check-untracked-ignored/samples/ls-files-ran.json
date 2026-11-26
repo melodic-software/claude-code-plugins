@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git ls-files --error-unmatch .claude/tidy-lanes/jobs.md"
+            "command": "git ls-files --error-unmatch .claude/tidy-areas/jobs.md"
           }
         }
       ]

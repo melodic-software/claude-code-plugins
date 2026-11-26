@@ -30,12 +30,14 @@ function conventionHome(projectRoot) {
 /**
  * source_bar and exclude through the ADR 0075 cascade: defaults, userConfig, team file, personal
  * override. source_bar takes the cascade's per-key winner; exclude is the union of every layer.
- * Each rejected value goes to `err` as one JSON line.
+ * Each rejected value goes to `err` as one JSON line. `source_bar_from` and `exclude_from[value]`
+ * name the layer, and its file when it has one, that set each value. `unreadable` lists each
+ * settings file that could not be read at all, with the reason stripped of the layer-name prefix.
  */
 export function resolveSettings({ projectRoot, userConfig = {}, userHome, err }) {
   const schema = readJson(join(ROOT, "schemas", `${PLUGIN}.schema.json`));
   const manifest = readJson(join(ROOT, ".claude-plugin", "plugin.json")).userConfig;
-  const { exclude: userExclude, ...cascadeUserConfig } = userConfig;
+  const { exclude: userExclude, ...cascadeUserConfig } = userConfig ?? {};
   const located = conventionHome(projectRoot);
   if (located.error) err(JSON.stringify({ level: "warn", event: "convention home unresolved", project: projectRoot, error: located.error }));
   const scratch = located.home === null ? mkdtempSync(join(tmpdir(), `${PLUGIN}-no-home-`)) : null;
@@ -55,11 +57,18 @@ export function resolveSettings({ projectRoot, userConfig = {}, userHome, err })
     }
     for (const { path, kind } of out.legacy) err(JSON.stringify({ level: "warn", event: "legacy config", path, kind }));
     const fileLayers = readLayers({ plugin: PLUGIN, projectRoot, home, schema, userConfig: {}, userHome }).layers.filter((l) => l.name !== "userConfig");
-    const exclude = new Set([
-      ...(unset(userExclude) ? [] : String(userExclude).split(",")),
-      ...fileLayers.flatMap((l) => l.values.exclude ?? []),
-    ].map((v) => v.trim()).filter(Boolean));
-    return { source_bar: out.values.source_bar, exclude: [...exclude] };
+    const excludeFrom = new Map();
+    const listed = [
+      ...(unset(userExclude) ? [] : String(userExclude).split(",")).map((value) => [value, { layer: "userConfig", path: null }]),
+      ...fileLayers.flatMap((l) => (l.values.exclude ?? []).map((value) => [value, { layer: l.name, path: l.path }])),
+    ];
+    for (const [value, from] of listed) if (value.trim() && !excludeFrom.has(value.trim())) excludeFrom.set(value.trim(), from);
+    const barLayer = out.provenance.source_bar;
+    const source_bar_from = { layer: barLayer, path: out.layers.find((l) => l.name === barLayer)?.path ?? null };
+    const unreadable = out.layers
+      .filter((l) => l.path && (l.state === "invalid" || l.errors.length))
+      .map((l) => ({ layer: l.name, path: l.path, detail: l.errors.map((e) => e.replace(/^\S+ \(.*?\): /u, "")).join("; ") }));
+    return { source_bar: out.values.source_bar, exclude: [...excludeFrom.keys()], source_bar_from, exclude_from: Object.fromEntries(excludeFrom), unreadable };
   } finally {
     if (scratch) rmSync(scratch, { recursive: true, force: true });
   }

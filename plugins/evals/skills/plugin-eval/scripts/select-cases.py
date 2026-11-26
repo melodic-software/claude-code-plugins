@@ -55,6 +55,10 @@ COMPARE_REFUSED_ADVICE = (
     "a compare run refuses these, so run the cases in a suite run"
     " on the default branch after merge"
 )
+NO_RUN_EXEMPT_REASON = (
+    "the description or when_to_use edit changes only routing clauses, skill tokens"
+    " or glossary-decided terms, so it runs no case"
+)
 
 
 def _load_module(name, path):
@@ -457,6 +461,7 @@ def select_cases(repo_root, diff_base, merge_base):
     run_cases = collections.defaultdict(set)
     after_merge_cases = collections.defaultdict(set)
     no_run_cases = collections.defaultdict(set)
+    no_run_exempt = collections.defaultdict(set)
     uncovered = collections.defaultdict(set)
     plugin_wide = collections.defaultdict(set)
     unmapped = collections.defaultdict(set)
@@ -469,6 +474,16 @@ def select_cases(repo_root, diff_base, merge_base):
     added_agents = []
     modified_dispatchers = []
     skill_or_agent_plugins = set()
+
+    no_run_paths = set()
+
+    def no_run_edit(code, rel_path):
+        return rel_path in no_run_paths or (
+            code == "M"
+            and select_mapping.is_no_run_file_change(
+                repo_root, merge_base, rel_path, rel_path
+            )
+        )
 
     expanded = []
     for code, path_a, path_b in entries:
@@ -492,12 +507,26 @@ def select_cases(repo_root, diff_base, merge_base):
                     changed_agents[old_agent] = "cut"
                     skill_or_agent_plugins.add(old_agent[0])
                 continue
+            if select_mapping.is_no_run_file_change(repo_root, merge_base, path_a, path_b):
+                no_run_paths.add(path_b)
+                expanded.append(("M", path_b))
+                continue
             expanded.append(("D", path_a))
             expanded.append(("A", path_b))
         elif code == "C" and path_b is not None:
             expanded.append(("A", path_b))
         else:
             expanded.append((code, path_a))
+
+    for old_path, new_path in select_mapping.swap_rename_pairs(
+        repo_root,
+        merge_base,
+        [p for c, p in expanded if c == "D" and p.startswith("plugins/")],
+        [p for c, p in expanded if c == "A" and p.startswith("plugins/")],
+    ):
+        expanded.remove(("D", old_path))
+        expanded[expanded.index(("A", new_path))] = ("M", new_path)
+        no_run_paths.add(new_path)
 
     for code, rel_path in expanded:
         parts = rel_path.split("/")
@@ -531,6 +560,8 @@ def select_cases(repo_root, diff_base, merge_base):
                     changed_skills[(plugin, skill)].add("desc_cut")
                 elif desc_cls == "additive":
                     changed_skills[(plugin, skill)].add("desc_additive")
+                elif desc_cls == "exempt":
+                    changed_skills[(plugin, skill)].add("desc_exempt")
                 skill_or_agent_plugins.add(plugin)
             elif select_mapping._is_script_path(inner_parts):
                 script_only_skills.add((plugin, skill))
@@ -596,7 +627,7 @@ def select_cases(repo_root, diff_base, merge_base):
                     break
             if owning_case is not None:
                 inner = rel_path[len(owning_case.rel_dir) + 1 :]
-                if inner.startswith("samples/"):
+                if inner.startswith("samples/") or no_run_edit(code, rel_path):
                     no_run_cases[plugin].add(owning_case)
                 elif (
                     inner in ("case.yaml", "prompt.md")
@@ -625,8 +656,9 @@ def select_cases(repo_root, diff_base, merge_base):
                     eval_abs, target_abs, suite_cases, ref_cache=fixture_ref_cache
                 )
                 if cited_cases:
+                    target = no_run_cases if no_run_edit(code, rel_path) else run_cases
                     for case in cited_cases:
-                        run_cases[plugin].add(case)
+                        target[plugin].add(case)
                 elif os.path.exists(target_abs):
                     unmapped[plugin].add(rel_path)
             continue
@@ -673,6 +705,10 @@ def select_cases(repo_root, diff_base, merge_base):
         elif "desc_additive" in reasons:
             for case in trigger_cases:
                 after_merge_cases[case.plugin].add(case)
+        elif "desc_exempt" in reasons:
+            no_run_exempt[plugin].add("%s:%s" % (plugin, skill))
+            for case in trigger_cases:
+                no_run_cases[case.plugin].add(case)
 
         desc_only = reasons <= {"desc_cut", "desc_additive"}
         if not skill_cases or (desc_only and not trigger_cases):
@@ -706,6 +742,7 @@ def select_cases(repo_root, diff_base, merge_base):
         set(run_cases)
         | set(after_merge_cases)
         | set(no_run_cases)
+        | set(no_run_exempt)
         | set(uncovered)
         | set(plugin_wide)
         | set(unmapped)
@@ -733,6 +770,7 @@ def select_cases(repo_root, diff_base, merge_base):
                 if c.name not in scheduled_names
             }
         )
+        exempt_list = sorted(no_run_exempt.get(plugin, set()))
         uncovered_list = sorted(uncovered.get(plugin, set()))
         plugin_wide_list = sorted(plugin_wide.get(plugin, set()))
         unmapped_list = sorted(unmapped.get(plugin, set()))
@@ -744,6 +782,7 @@ def select_cases(repo_root, diff_base, merge_base):
                 det_cases,
                 judged,
                 no_run_names,
+                exempt_list,
                 uncovered_list,
                 ram_names,
                 plugin_wide_list,
@@ -763,6 +802,7 @@ def select_cases(repo_root, diff_base, merge_base):
             "cases": det_cases,
             "judged": judged,
             "affected-no-run": no_run_names,
+            "no-run-exempt": exempt_list,
             "uncovered": uncovered_list,
             "run-after-merge": ram_names,
             "plugin-wide": plugin_wide_list,
@@ -796,6 +836,11 @@ def format_text(result):
             values = data[key]
             if values:
                 lines.append("%s: %s" % (key, " ".join(values)))
+            if key == "affected-no-run" and data["no-run-exempt"]:
+                lines.append(
+                    "no-run-exempt: %s; %s"
+                    % (" ".join(data["no-run-exempt"]), NO_RUN_EXEMPT_REASON)
+                )
         if data.get("compare-refused"):
             lines.append(
                 "compare-refused: %s; %s"

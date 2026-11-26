@@ -3,6 +3,18 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **`/code-tidying:tidy` hunts focus areas, not lanes.** "Lane" now means only a worker that serves
+  one pipeline stage, so the glob-scoped slice tidy rotates through is a focus area. Project focus
+  areas live in `.claude/tidy-areas/<area>.md` (move any `.claude/tidy-lanes/` files there), the
+  required section `## Lane-specific extra exclusions` is now `## Area-specific extra exclusions`,
+  the bundled focus areas are under `skills/tidy/areas/`, and the templates are
+  `templates/*-area.template.md`. `/code-tidying:setup` checks and scaffolds the new paths, and
+  `batch-simplify` and `audit-dead-code` use the same word.
+
 ## [0.60.1] - 2026-11-26
 
 ### Fixed

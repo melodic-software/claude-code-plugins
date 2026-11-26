@@ -93,7 +93,7 @@ fi
 old_user="${HOME:+$HOME/.claude/bugs.md}"
 user_target="a file outside \`~/.claude\` that the bugs \`gotchas_file\` option names"
 [[ -n "$user_opt" ]] && ! [[ "$user_opt" -ef "$old_user" ]] && user_target="\`$user_opt\`"
-emit_layer_or_old "userConfig" "$user_opt" "$old_user" "move its \`## Gotchas\` to $user_target and any \`lanes\` or \`filing_posture\` to the homes \`/bugs:setup check\` names"
+emit_layer_or_old "userConfig" "$user_opt" "$old_user" "move its \`## Gotchas\` to $user_target and any \`areas\` or \`filing_posture\` to the homes \`/bugs:setup check\` names"
 user="$read_file"
 if [[ -n "$root" ]]; then
   team="$root/docs/conventions/bugs.md"

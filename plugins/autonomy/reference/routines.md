@@ -337,7 +337,7 @@ commentary, and a leaf that contradicts one is non-conforming.
   detection, never the repair pattern `v1` requires.
 - **`drift-delta-sweep` and `doc-freshness-sweep` are distinct classes.** `doc-freshness-sweep`
   judges whether prose still describes its subject; `drift-delta-sweep` runs the repository's
-  installed drift lanes and reports their movement. Its repository-drift-audit lane is a full pass
+  installed drift checks and reports their movement. Its repository-drift-audit check is a full pass
   whose documentation dimension overlaps `doc-freshness-sweep`; an org enabling both accepts that
   one dimension is covered twice. The class's substantive prerequisites, three optional sibling
   plugins present and a run that resolves a branch identity and persists its memory-tier home

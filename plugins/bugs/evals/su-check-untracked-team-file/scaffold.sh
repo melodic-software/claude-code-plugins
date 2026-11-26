@@ -10,7 +10,7 @@ printf '# Service\n' >README.md
 git add README.md src
 git commit -q -m "chore: initial commit"
 cat >docs/conventions/bugs.yaml <<'YAML'
-lanes:
+areas:
   - name: entrypoints
     globs:
       - 'src/api/**/*.ts'
