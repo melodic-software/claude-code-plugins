@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
-# Every single-quoted backtick below is literal markdown, never a shell expansion.
-# shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -46,10 +44,11 @@ report_rows="$(awk -F'\t' '$1=="REF" && $7=="report"' "$work/sweep.tsv" | grep -
 assert_eq "the fixture has report sites to count" "1" "$([[ "$report_rows" -gt 0 ]] && printf 1 || printf 0)"
 assert_contains "the report-site total counts the report REF rows" "$out" "report sites: $report_rows"
 assert_eq "one report line per report REF row" "$report_rows" "$(printf '%s\n' "$out" | grep -c '^report ' || true)"
-assert_eq "each report line names its site, finding and old path" 'report CHANGELOG.md:7 FN-b1ff5a8e `docs/Alpha-One.md`
-report CHANGELOG.md:7 FN-f073cabd `docs/BETA.md`
-report docs/adr/0001-historical.md:10 FN-f073cabd `docs/BETA.md`' "$(printf '%s\n' "$out" | grep '^report ' | sort)"
-assert_contains "a report line's id is its finding's plan id" "$plan" '### FN-f073cabd `docs/BETA.md`'
+bt=$'\x60'
+assert_eq "each report line names its site, finding and old path" "report CHANGELOG.md:7 FN-b1ff5a8e ${bt}docs/Alpha-One.md${bt}
+report CHANGELOG.md:7 FN-f073cabd ${bt}docs/BETA.md${bt}
+report docs/adr/0001-historical.md:10 FN-f073cabd ${bt}docs/BETA.md${bt}" "$(printf '%s\n' "$out" | grep '^report ' | sort)"
+assert_contains "a report line's id is its finding's plan id" "$plan" "### FN-f073cabd ${bt}docs/BETA.md${bt}"
 id_line="$(grep -m1 '^finding ' <<<"$out" | awk '{print $2}')"
 assert_eq "the summary is ranked like the plan" "$(grep -m1 '^### FN-' "$work/plan.md" | awk '{print $2}')" "$id_line"
 first_by_tier="$(grep -m1 '^- \*\*By tier:\*\* ' "$work/plan.md" | sed 's/^- \*\*By tier:\*\* //')"
