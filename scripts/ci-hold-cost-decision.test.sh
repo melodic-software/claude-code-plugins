@@ -103,7 +103,17 @@ case "$*" in
   args="${args%% -H *}"
   cat "${STUB_DIFF_DIR:-/nonexistent}/${args##*...}.diff" 2>/dev/null || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
   ;;
-*/compare/"$TIP_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
+*/compare/"$TIP_SHA..."*)
+  # Unpaged, the compare lists at most 250 commits; paged, 100 a page.
+  failing compare
+  args="$*"
+  key="${args##*...}"
+  page=0
+  [[ $key =~ \?per_page=100\&page=([0-9]+)$ ]] && page=${BASH_REMATCH[1]}
+  failing "compare-page-$page"
+  out=$(from "$STUB_COMPARE" "${key%%\?*}") || exit 1
+  jq -c --argjson p "$page" 'if (.commits | type) == "array" then .commits |= (if $p == 0 then .[:250] else .[($p - 1) * 100:$p * 100] end) else . end' <<<"$out"
+  ;;
 */compare/"$BASE_SHA..."*) failing compare; args="$*"; from "${STUB_LANE_COMPARE:-$STUB_COMPARE}" "${args##*...}" ;;
 */compare/"${STUB_BASE_REF:-main}..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
@@ -486,6 +496,23 @@ nets "[$TF]" "[$(jq -c '.status = "renamed" | .previous_filename = "infra/old.tf
 expect "a rename since the decided head clears nothing" no no no "covering this head"
 nets "$(jq -cn '[range(299) | {filename: "f\(.)", status: "added", patch: "+x"}]')" "$(jq -cn '[range(299) | {filename: "f\(.)", status: "added", patch: "+x"}]')"
 expect "a net change of 299 files carries the decision" yes yes yes
+long_range() {
+  STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --arg m "$MAIN_SHA" --argjson f "[$TF]" --argjson extra "$1" '
+    def sha: tostring | ("0" * (40 - length)) + .;
+    ([range(1; 259) | {sha: sha, parents: [{sha: (if . == 1 then $m else (. - 1 | sha) end)}]}] + [{sha: $o, parents: [{sha: (258 | sha)}]}]) as $b
+    | {($o): {files: $f, commits: $b, total_commits: 259}, ($h): {files: $f, commits: ($b + [{sha: $h, parents: [{sha: $o}, {sha: $m}]}]), total_commits: (260 + $extra)}}')"
+  export STUB_COMPARE
+}
+long_range 0
+expect "a base merge over a range past the compare's 250 commits carries the decision" yes yes yes
+if grep -qxF "api repos/o/r/compare/$TIP_SHA...$HEAD?per_page=100&page=3" "$TMP_ROOT/log"; then
+  ok "the commits past the unpaged 250 are read in pages of 100"
+else
+  fail "no paged read: '$(grep compare "$TMP_ROOT/log")'"
+fi
+STUB_FAIL=compare-page-2 expect "a commit page that does not read carries nothing" no no no "covering this head"
+long_range 1
+expect "a commit list shorter than total_commits carries nothing" no no no "covering this head"
 nets "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')" "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')"
 expect "a compare of 300 files whose diffs do not read carries nothing" no no no
 FIXTURES="$TMP_ROOT/capped"

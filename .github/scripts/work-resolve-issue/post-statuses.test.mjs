@@ -5,6 +5,7 @@ import { test } from "node:test";
 
 import { main, plan } from "./post-statuses.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { chain } from "../pr-merge/capped-compare.fixture.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 const SHA = "c".repeat(40);
@@ -331,6 +332,33 @@ test("main posts a resumed run's statuses on the resumed branch's checked tip", 
       assert.equal(byContext(posted.map((c) => c.body))["pipeline/resolve-issue"], "success");
     },
   );
+});
+
+test("main reads a resumed branch past the compare's 250 commits in pages, and posts nothing on a page cut short", async () => {
+  const commits = chain(260).map((commit) => ({ ...APP_COMMIT, sha: commit.sha }));
+  for (const [label, total, posts] of [
+    ["260 commits of the App's", 260, true],
+    ["a page shorter than total_commits", 261, false],
+  ]) {
+    await withOutcome(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }) },
+      async (dir) => {
+        const fake = fakeFetch(resumedRoutes());
+        const pages = [];
+        const fetch = async (url, init = {}) => {
+          const { pathname, searchParams } = new URL(url);
+          if (!pathname.endsWith(`/compare/main...${TIP}`)) return fake.fetch(url, init);
+          const page = Number(searchParams.get("page") ?? 0);
+          pages.push(page);
+          return { ok: true, status: 200, json: async () => ({ total_commits: total, commits: page ? commits.slice((page - 1) * 100, page * 100) : commits.slice(0, 250) }) };
+        };
+        const run = { ...env(dir), RESUME_BRANCH: RESUMED, RUNNER_CHECKS: resumedChecks() };
+        assert.equal(await main({ env: run, fetch }), 0, label);
+        assert.deepEqual(pages, [0, 1, 2, 3], label);
+        assert.equal(fake.calls.some((c) => c.method === "POST" && c.path === `/repos/o/r/statuses/${TIP}`), posts, label);
+      },
+    );
+  }
 });
 
 test("main posts nothing for a resumed run whose resume or check results do not match the runner's", async () => {

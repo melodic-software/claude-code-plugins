@@ -158,10 +158,17 @@ class Lanes:
         if endpoint.endswith(f"...{TIP}"):
             parent = endpoint.split("/compare/", 1)[1].split("...")[0]
             return 200, {"status": "ahead" if parent == MAIN else "diverged"}
-        sha = endpoint.rsplit("...", 1)[1]
-        if sha in self.compares and self.unreadable != f"compare {sha}":
-            return 200, _history(sha, self.compares[sha])
-        return 404, None
+        sha, _, query = endpoint.rsplit("...", 1)[1].partition("?")
+        page = int(query.rsplit("page=", 1)[1]) if query else 0
+        read = f"compare {sha}" + (f" page {page}" if page else "")
+        if sha not in self.compares or self.unreadable == read:
+            return 404, None
+        answer = _history(sha, self.compares[sha])
+        commits = answer.get("commits") if isinstance(answer, dict) else None
+        if not isinstance(commits, list):
+            return 200, answer
+        cut = commits[(page - 1) * 100 : page * 100] if page else commits[:250]
+        return 200, answer | {"commits": cut}
 
     def paginated(
         self, endpoint: str, label: str, items_key: str | None = None, env: Any = None
@@ -486,6 +493,33 @@ class CostDecision(unittest.TestCase):
         self.assertIsNone(self.later({OLD: many(300), HEAD: many(300)}))
         binary = {"filename": "a.png", "status": "modified"}
         self.assertIsNone(self.later({OLD: _net(binary), HEAD: _net(binary)}))
+
+    def test_a_base_merge_over_a_range_past_250_commits_carries_read_in_pages(
+        self,
+    ) -> None:
+        branch = [
+            {"sha": f"{n:040x}", "parents": [{"sha": f"{n - 1:040x}" if n > 1 else MAIN}]}
+            for n in range(1, 259)
+        ]
+        branch.append({"sha": OLD, "parents": [{"sha": branch[-1]["sha"]}]})
+        then = _net(TF) | {"commits": branch, "total_commits": 259}
+        merge = {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]}
+        now = _net(TF) | {"commits": [*branch, merge], "total_commits": 260}
+        self.assertEqual(self.later({OLD: then, HEAD: now}), LINK)
+        self.assertEqual(
+            [r for r in self.reads if r.startswith(f"repos/owner/repo/compare/{TIP}...{HEAD}")],
+            [f"repos/owner/repo/compare/{TIP}...{HEAD}"]
+            + [
+                f"repos/owner/repo/compare/{TIP}...{HEAD}?per_page=100&page={page}"
+                for page in (1, 2, 3)
+            ],
+        )
+        cut = now | {"total_commits": 261}
+        self.assertIsNone(self.later({OLD: then, HEAD: cut}), "a page cut short")
+        self.assertIsNone(
+            self.later({OLD: then, HEAD: now}, unreadable=f"compare {HEAD} page 2"),
+            "a page that does not read",
+        )
 
     def test_a_failed_read_does_not_carry(self) -> None:
         same = {OLD: _net(TF), HEAD: _net(TF)}

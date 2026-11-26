@@ -5685,6 +5685,26 @@ jobs:
               console.log(out !== null && typeof out === "object" ? JSON.stringify(out) : String(out ?? ""));' \
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
+          # whole <range> <file>: the compare of <range> into <file>, its
+          # commits read again in pages of 100 when the unpaged answer lists
+          # fewer than total_commits (at most 250; the base's wholeCommits).
+          # A page that does not read fails it; a short page ends the read.
+          whole() {
+            local page=1 listed total
+            read_api "repos/$repo/compare/$1" >"$2" || return 1
+            listed=$(jq '.commits | if type == "array" then length else -1 end' "$2") || return 1
+            total=$(jq '.total_commits | if type == "number" then . else -1 end' "$2") || return 1
+            [ "$listed" -ge 0 ] && [ "$listed" -lt "$total" ] || return 0
+            listed=0
+            : >"$2.commits"
+            while [ "$listed" -lt "$total" ] && [ "$listed" -eq $(((page - 1) * 100)) ]; do
+              read_api "repos/$repo/compare/$1?per_page=100&page=$page" >"$2.page" || return 1
+              jq -c '.commits | arrays | .[]' "$2.page" >>"$2.commits" || return 1
+              listed=$(wc -l <"$2.commits")
+              page=$((page + 1))
+            done
+            jq --slurpfile commits "$2.commits" '.commits = $commits' "$2" >"$2.page" && mv "$2.page" "$2"
+          }
           # carries <decided>: whether a decision whose decided head is
           # <decided> covers HEAD_SHA: it is HEAD_SHA, or every commit since
           # is a merge whose other parents the base branch holds (their
@@ -5703,8 +5723,8 @@ jobs:
             tip=$(read_api "repos/$repo/git/ref/heads/$base_ref") || return 1
             tip=$(jq -r '.object.sha // ""' <<<"$tip") || return 1
             [[ $tip =~ ^[0-9a-f]{40}$ ]] || return 1
-            read_api "repos/$repo/compare/$tip...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
-            read_api "repos/$repo/compare/$tip...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
+            whole "$tip...$decided" "$RUNNER_TEMP/cost-hold-then.json" || return 1
+            whole "$tip...$HEAD_SHA" "$RUNNER_TEMP/cost-hold-now.json" || return 1
             jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json" || return 1
             # A listing at the compare API's 300 files, or with a file it gives
             # no patch, is judged on both diffs instead (the base's needsDiff).
