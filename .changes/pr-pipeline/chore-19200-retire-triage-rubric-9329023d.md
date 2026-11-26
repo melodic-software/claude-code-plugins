@@ -2,6 +2,6 @@
 bump: patch
 ---
 
-### Removed
+### Changed
 
-- The hold floor drops its `.github/scripts/intake-triage/triage-rubric.txt` row: the file is deleted, since `/work-items:triage --ci` reads `## Triage rules` in `docs/conventions/work-items.md` and no lane passes the rubric to a model.
+- The hold floor's `.github/scripts/intake-triage/triage-rubric.txt` row becomes a `gate` row for `docs/conventions/work-items.md`: the rubric file is deleted, and `/work-items:triage --ci` reads that file's `## Triage rules`, so a person still approves any change to the intake lane's triage rules.

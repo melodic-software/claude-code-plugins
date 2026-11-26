@@ -2,4 +2,4 @@
 bump: none
 ---
 
-Tests only: the babysit-prs floor suites drop the retired triage-rubric.txt floor row and repin the floor counts and digests; no shipped behavior changes.
+Tests only: the babysit-prs floor suites swap the retired triage-rubric.txt floor row for the docs/conventions/work-items.md gate row and recompute the digests; no shipped behavior changes.
