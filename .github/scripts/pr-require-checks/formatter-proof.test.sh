@@ -13,6 +13,10 @@ SCRIPT="$ROOT/.github/scripts/pr-require-checks/formatter-proof.sh"
 pin="$(sed -nE 's/^[[:space:]]*version=(v[0-9.]+)[[:space:]]*$/\1/p' "$ROOT/.github/actions/setup-pinned-shfmt/action.yml")"
 if [[ "$(shfmt --version 2>/dev/null)" != "$pin" ]] || ! bash "$ROOT/scripts/run-ruff.sh" --version >/dev/null 2>&1 ||
   ! command -v jq >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+  if [[ -n "${CI:-}" ]]; then
+    echo "FAIL: CI must provide shfmt $pin, the pinned Ruff (scripts/run-ruff.sh), jq and python3"
+    exit 1
+  fi
   echo "SKIP: needs shfmt $pin, the pinned Ruff (scripts/run-ruff.sh), jq and python3"
   test_harness::report
   exit
