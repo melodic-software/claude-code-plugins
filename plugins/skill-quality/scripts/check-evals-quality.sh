@@ -1,91 +1,20 @@
 #!/usr/bin/env bash
-# Deterministic eval-QUALITY lint for skill evals/evals.json files.
-#
-# Complements schema validation (reference/evals.schema.json): the schema
-# proves a case is structurally gradeable; this lint flags cases whose
-# CONTENT undermines grading — duplicate identities, missing fixtures,
-# empty or vague grading criteria, and sets missing the rich-form coverage
-# the migration playbook asks for (trigger/routing, happy path, at least one
-# refusal/guardrail, one anti-pattern). Static and deterministic: bash + jq,
-# NO model invocation, so results are reproducible in CI.
-#
-# Exit 0 = no FAIL findings (WARNs allowed); 1 = one or more FAIL findings;
-# 2 = usage/environment error (no jq, missing file, unparsable JSON —
-# fail closed, never a silent skip; schema validation owns shape errors).
-#
-# Usage:
-#   bash check-evals-quality.sh <evals.json> [<evals.json> ...]
-#   bash check-evals-quality.sh --help
-#
-# Checks (Q1-Q4 FAIL; Q5-Q11 WARN — quality heuristics stay advisory so the
-# gate never blocks on a judgment call):
-#   Q1. Duplicate case `id` within a set (FAIL — ids must be stable and
-#       unique for a grader to address a case)
-#   Q2. Duplicate case `name` within a set (FAIL)
-#   Q3. Non-gradeable grading criterion (FAIL — the schema only requires
-#       the ARRAY be non-empty / the string be minLength 1): an
-#       `expectations`/`assertions` item that is an empty or
-#       whitespace-only string, null, or an empty container; or a
-#       whitespace-only `expected_output` standing as a case's sole
-#       criterion. Non-empty object/array items pass — item shape is
-#       skill-author-defined
-#   Q4. Fixture reachability (FAIL for declared `files` entries; WARN for
-#       prose-only paths). A `files` entry that resolves to no file or
-#       directory relative to the skill dir or the evals dir, or that
-#       escapes those roots via an absolute path or a `..` component,
-#       FAILs — a case whose declared fixtures cannot be found under the
-#       documented roots cannot be exercised from the tree. Separately,
-#       when `files` is empty/absent and the case is not marked
-#       `narration: true`, path-shaped tokens (dir/…/file.ext) in
-#       `prompt`/`expected_output` that resolve to nothing under those
-#       roots WARN — otherwise `files: []` plus a path named only in
-#       prose silently dodges the declared-fixture check
-#   Q5. A case carrying BOTH `expectations` and `assertions` (WARN — the
-#       schema treats them as equivalent alternatives; carrying both makes
-#       the grading contract ambiguous. Pick one)
-#   Q6. Two cases sharing an identical prompt AND identical files (WARN —
-#       the second case adds no coverage unless its criteria differ for a
-#       reason; usually a copy-paste residue)
-#   Q7. Vague, unmeasurable criterion phrasing — a whole item (or a whole
-#       expected_output) that says only "the output is good" / "works as
-#       expected" etc. (WARN — Anthropic's evaluation guidance: criteria
-#       must be specific and measurable; a grader is told what to look
-#       for, what is allowed, what is disqualifying)
-#   Q8. Sole-criterion expected_output thinner than EXPECTED_OUTPUT_MIN
-#       chars after trimming, with no expectations/assertions (WARN — too
-#       thin to guide a grader as rubric instructions; padding cannot
-#       clear the floor)
-#   Q9. Set-level coverage: no case in the set exhibits refusal/guardrail
-#       or anti-pattern language (WARN — the playbook's rich form asks each
-#       set to aim for at least one refusal/guardrail and one anti-pattern
-#       case; detection is lexical, so treat as a prompt to check, not
-#       proof of absence)
-#   Q10. A criterion that leans on a strongly evaluative word (good,
-#       appropriate, reasonable, properly, correctly, useful, helpful,
-#       adequate, sensible) without saying what a grader must find (WARN —
-#       the word leaves the standard undefined; skips an item Q7 already
-#       flags. Lexical, so read the item before rewording it)
-#   Q11. A case marked `difficulty: hard` with no `why_hard` (WARN — a hard
-#       case earns its place by the reason a person judged it hard; without
-#       the reason a later editor cannot tell it from a routine case)
-#
-# Deliberately NOT checked: case count. The marketplace's low case volume
-# is a RECORDED divergence from the guidance's volume-over-polish principle
-# (see the playbook's "Method source"), revisited when the deferred runner
-# lands — a volume lint would contradict that recorded decision.
-#
-# Fixture resolution (Q4): each `files` entry is looked up relative to the
-# SKILL directory (the parent of the evals dir — the playbook's convention)
-# and, as a fallback, the evals dir itself. Entries naming files the eval
-# RUNNER must synthesize (consumer-repo state like `.claude/<config>.md`)
-# should still ship a fixture copy at one of those roots so the case stays
-# exercisable from the tree. Prose-path tokens use the same roots; cases
-# that intentionally name fictional consumer-repo paths without shipping
-# fixtures must set `narration: true` so the gap is explicit.
 set -uo pipefail
 
 usage() {
-  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Deterministic eval-quality lint for skill evals/evals.json files: checks Q1-Q4 FAIL, Q5-Q11 WARN.
+
+Usage:
+  bash check-evals-quality.sh <evals.json> [<evals.json> ...]
+  bash check-evals-quality.sh --help
+
+  <evals.json>  an evals file; fixtures resolve against its skill directory, then the evals directory
+  --help, -h    print this help
+
+Exit 0 = no FAIL findings (WARNs allowed); 1 = one or more FAIL findings;
+2 = usage/environment error (no jq, missing file, unparsable JSON).
+EOF
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -133,11 +62,6 @@ warn() {
   WARNINGS=$((WARNINGS + 1))
 }
 
-# One jq pass over every file: emits KIND<US>message lines (US = 0x1f), with
-# FILE<US>path lines for the fixture-existence check bash must do itself.
-# input_filename keys each finding to its source file. jq aborts on the
-# first unparsable input — that surfaces as exit 2 below (fail closed;
-# point schema validation at the file).
 # shellcheck disable=SC2016  # single quotes are deliberate: the $names inside are jq variables, not shell expansions
 JQ_PROG='
   input_filename as $f |
@@ -219,8 +143,6 @@ JQ_PROG='
     | "WARN" + $u + "\($f): \($c): marked difficulty: hard with no why_hard — say why a person judged it hard (Q11)")
 '
 
-# US (0x1f) delimits lint-line fields — it cannot appear in jq -r output of
-# JSON string content, so fields with spaces/tabs survive the bash read.
 US=$'\x1f'
 LINT_OUT="$(jq -r --arg u "$US" --arg vague "$VAGUE_RE" --arg evaluative "$EVALUATIVE_RE" --arg neg "$NEGATIVE_RE" \
   --arg prose_path "$PROSE_PATH_RE" --argjson min "$EXPECTED_OUTPUT_MIN" \
@@ -233,10 +155,6 @@ if [[ $JQ_RC -ne 0 ]]; then
   exit 2
 fi
 
-# Strip trailing sentence punctuation often glued to a prose path token
-# ("...overview.md.") without treating an interior dot as trailing.
-# Avoid `[[ =~ [[:class:]] ]]` — bash can terminate the compound command at
-# the inner `[[`, which corrupts the rest of the script's parse.
 strip_trailing_punct() {
   local s="$1"
   while true; do

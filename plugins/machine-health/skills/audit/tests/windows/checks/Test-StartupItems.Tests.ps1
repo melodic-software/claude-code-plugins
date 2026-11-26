@@ -42,7 +42,6 @@ BeforeAll {
         Mock Get-RunKeyEntry -ParameterFilter { $Scope -eq 'user-folder' } {
             New-Read -Entries @(New-Entry -Kind 'startup-folder' -Scope 'user-folder' -Name 'Notes.lnk')
         }
-        # The check runs the mock in its own script scope, so the time is captured here.
         $hkcuApproved = [pscustomobject]@{ ReadState = 'ok'; Entries = @{
                 Updater = [pscustomobject]@{ State = 'enabled'; RawByte = $null; DisabledAt = $null }
                 Paused  = [pscustomobject]@{ State = 'disabled'; RawByte = $null; DisabledAt = $script:DisabledAt }

@@ -71,9 +71,6 @@ runs:
       run: |
         [[ "$NODE_SETUP" == success ]] || { echo "::error::the pinned Node setup ended '${NODE_SETUP}', so the WIP cap is not read"; exit 1; }
 
-    # The cap comes through resolve-config, which needs its dependencies; an
-    # install that fails leaves the base config unread, so the run holds and admissions close.
-    # A composite step takes no timeout-minutes, so `timeout` bounds the install.
     - name: Count the open lane PRs
       id: check
       shell: bash

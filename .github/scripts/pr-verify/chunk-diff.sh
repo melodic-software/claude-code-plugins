@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Cuts $DATA/diff.patch into the chunks and parts the verifier reads, then
-# removes it. Each judgment is given its own parts, and the manifest names
-# every file's first part, so it can read across chunks where a change does.
-#
-# The chunks, pieces, parts and long-line folds are diff_chunking.py's
-# (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/diff-chunking/diff_chunking.py),
-# chunks of at most MAX_DIFF_BYTES and parts of at most PART_BYTES and
-# PART_LINES. With more than one chunk the manifest lists every file, and each
-# piece as `piece <i> of <n>`, with its chunk and first part, in
-# $DATA/manifest/part-<n>.txt files of at most PART_BYTES. A hunk over
-# MAX_DIFF_BYTES with its file's header is cut between its lines (--cut-lines),
-# each cut under a recounted `@@` header. An empty diff is one chunk with one
-# empty part.
-#
-# A file with one line over MAX_DIFF_BYTES with its headers, or a diff that
-# needs more than MAX_CHUNKS chunks, prints an error naming it and exits 1 with
-# no chunk written: the head gets no verdict, and so no fail on size alone.
 # shellcheck disable=SC2154 # the step's env sets DATA and the limits
 set -euo pipefail
 
@@ -28,11 +11,6 @@ if [[ -n "${LONG_LINE_BYTES+set}" ]]; then
   wrap=(--wrap "$LONG_LINE_BYTES")
 fi
 
-# The most chunks a head is judged in, and the run's cost guard: each judging
-# job in pr-verify.yml has a judge step for every chunk up to this, and a
-# timeout that holds them all and the final judge (workflow.test.mjs holds both
-# to it). 12 chunks of MAX_DIFF_BYTES hold a 3 MB diff of whole files. Only a
-# test sets its own.
 MAX_CHUNKS=${MAX_CHUNKS:-12}
 
 chunking="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../diff-chunking/diff_chunking.py"

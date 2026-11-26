@@ -16,11 +16,6 @@ const REPO_ROOT = join(import.meta.dirname, "../../..");
 const ISSUE_REFUSE = loadRules(REPO_ROOT).issue.refuse;
 const refused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path)));
 
-// A gitignore pattern as the permission docs describe Edit rules
-// (https://code.claude.com/docs/en/permissions#how-path-patterns-match): a
-// leading `/` anchors at the checkout, a bare name matches at any depth, `**/`
-// spans zero or more directories, a trailing `/**` everything below, `*` one
-// segment's characters.
 function matches(rule, path) {
   const pattern = /^Edit\((.*)\)$/.exec(rule)[1];
   const anchored = pattern.startsWith("/");

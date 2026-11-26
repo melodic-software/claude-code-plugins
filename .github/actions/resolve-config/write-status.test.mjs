@@ -1,7 +1,3 @@
-// The Work status writer over the live models.issue-status: one POST of the
-// state's option name, checked against the mapped option id; a write that
-// does not land throws, so the caller's run fails rather than leave the field
-// wrong. Option ids are written by hand from the org field.
 // test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -189,9 +185,6 @@ test("statusWriter restart from agent-ready leaves a field a person moved elsewh
   assert.equal(moved.posts().length, 0);
 });
 
-// The lanes token broker refuses the issue lane's token while the issue
-// carries a status label other than agent-ready (#16149): an issue form's
-// needs-triage stayed on #16000 and #16001 after admission set the field.
 test("statusWriter set to agent-ready removes the issue's other status labels before the write, and keeps every other label", async () => {
   const app = 337595936;
   const formLeftover = fieldWorld(86380003, app, ["needs-triage", "area: security"]);
@@ -490,7 +483,6 @@ test("statusWriter leaveAgentReady throws when the field cannot be read", async 
   await assert.rejects(() => leaveAgentReady(7, "needs-triage"), (error) => error instanceof StatusWriteError && /could not be read/.test(error.message));
 });
 
-// A POST that takes a batch only when GitHub's options, in `spelled`, hold every name.
 function optionPoster(spelled) {
   const posts = [];
   const post = async (batch) => {

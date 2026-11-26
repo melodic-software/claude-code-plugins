@@ -1,10 +1,3 @@
-// The lane-outcome record v1 (ci-workflows docs/lane-outcome.md), read back
-// with every known field a closed enum, a fixed pattern or a count, so no
-// value, hostname, path or email can pass. Unknown keys are dropped, as the
-// contract's Compatibility rules let v1 add fields. A record whose known field
-// breaks its rule, or that names another `v`, is no record. `activity` is the
-// hub's own addition, written by report-check-run from its runner input.
-
 export const MARKER = "lane-outcome ";
 const MAX_LENGTH = 1024;
 
@@ -13,19 +6,11 @@ const ACTIVITY = /^(?=.{1,64}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 const WINDOW = /^[a-z0-9_]{1,40}$/;
 const SECRET = /^(?:(?:([A-Z][A-Z0-9_]{0,75})_)?CLAUDE_CODE_OAUTH_TOKEN|([A-Z][A-Z0-9_]{0,84})_CLAUDE_API_KEY)$/;
-// A Claude model id, with the optional [1m] context suffix: nothing else
-// (an email, a host:port, a key or token prefix) can be published as one.
 const MODEL = /^claude-[a-z0-9.-]{1,56}(?:\[1m\])?$/;
 const HEX32 = /^[0-9a-f]{32}$/;
 const HEX16 = /^[0-9a-f]{16}$/;
 const JOB_KEY = /^[A-Za-z_][A-Za-z0-9_-]{0,99}$/;
 const OUTCOMES = new Set(["success", "failure", "timeout", "skip", "cancellation", "error"]);
-// `class` is any token in the enum's kebab shape: the known classes are
-// docs/lane-outcome.md's Failure classes, and a reader ignores a class value it
-// does not know rather than dropping the record (Compatibility: "A reader
-// ignores fields and class values it does not know"), so an unknown one is
-// kept as written and simply matches no class a reader acts on. Free text in it
-// still makes the record unreadable.
 const CLASS = /^(?=.{1,40}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const REASONS = new Set(["credit-stop", "auth", "no-key", "limit-stop"]);
 const STATUSES = new Set(["allowed", "allowed_warning", "rejected"]);
@@ -35,9 +20,6 @@ const count = (max = Number.MAX_SAFE_INTEGER, min = 0) => (value) => Number.isSa
 const matches = (pattern) => (value) => typeof value === "string" && pattern.test(value);
 const oneOf = (set) => (value) => set.has(value);
 const nullable = (check) => (value) => value === null || check(value);
-// An object with the `required` keys present and every key in `fields`
-// passing its check, as a copy holding only those keys, or false. A key it
-// does not know is dropped, since v1 adds fields within the version.
 const shape = (fields, required = []) => (value) => {
   if (!isObject(value) || !required.every((key) => Object.hasOwn(value, key))) {
     return false;
@@ -106,10 +88,6 @@ const RECORD = shape(
 const withoutBadJobId = (value) =>
   isObject(value) && Object.hasOwn(value, "jobId") && !matches(JOB_KEY)(value.jobId) ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== "jobId")) : value;
 
-// The v1 record in `value` with only its known, validated fields, or null
-// when a known field is out of shape, `v` is not 1, a failure names no
-// class, or the kept record (the `activity` key aside) passes 1,024
-// characters.
 export function validRecord(value) {
   const kept = RECORD(withoutBadJobId(value));
   if (!kept || (kept.outcome !== "success" && !Object.hasOwn(kept, "class"))) {
@@ -119,10 +97,6 @@ export function validRecord(value) {
   return JSON.stringify(record).length <= MAX_LENGTH ? kept : null;
 }
 
-// The first record after the marker in `text`, or null. A prefix that ends
-// at a "}" inside a string or a nested object does not parse, so the
-// shortest prefix ending at a "}" that parses is the JSON, whatever free
-// text follows it.
 export function readRecord(text) {
   const source = String(text ?? "");
   const at = source.indexOf(MARKER);

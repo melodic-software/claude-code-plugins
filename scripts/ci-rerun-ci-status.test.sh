@@ -35,7 +35,7 @@ if [[ ! -s "$ROOT/$FIND_SCRIPT" || ! -s "$TMP_ROOT/rerun.sh" ]]; then
   test_harness::report
   exit 1
 fi
-if [[ "$step" == *$'\n'"        run: bash .base/$FIND_SCRIPT"$'\n'* ]]; then
+if [[ "$step"$'\n' == *$'\n'"        run: bash .base/$FIND_SCRIPT"$'\n'* ]]; then
   ok "the find step runs the default branch's find script"
 else
   fail "the find step does not run .base/$FIND_SCRIPT"

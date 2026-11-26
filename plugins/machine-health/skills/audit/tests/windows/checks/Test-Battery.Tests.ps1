@@ -121,7 +121,6 @@ Describe 'Test-Battery -- locale robustness' -Tag 'check' {
             @(New-MockBattery)
         }
         $reportPath = Join-Path $TestDrive 'de.html'
-        # German labels + German thousands separator ('.')
         Set-Content -LiteralPath $reportPath -Encoding utf8 -Value (
             New-BatteryReportHtml -DesignMwh 50000 -FullMwh 42500 `
                 -DesignLabel 'ENTWURFSKAPAZITAT' -FullLabel 'KAPAZITAT BEI VOLLLADUNG' `
@@ -129,8 +128,6 @@ Describe 'Test-Battery -- locale robustness' -Tag 'check' {
         )
 
         $result = Invoke-BatteryAsObject -ReportPath $reportPath
-        # Localized labels must still parse: the parser reads the first two mWh values,
-        # which is locale-neutral.
         $result.detail.full_capacity_pct | Should -Be 85.0
     }
 

@@ -16,11 +16,6 @@ const suite = (...runs) => ({ checkRuns: { nodes: runs } });
 const checkRun = (databaseId, title, conclusion = "NEUTRAL", name = "pr-merge / gate", externalId = "pr-merge-gate") => ({ databaseId, name, title, conclusion, externalId });
 const listed = (...suites) => ({ checkSuites: { totalCount: suites.length, nodes: suites } });
 
-// `checks` maps a head to its commit node in the GraphQL answer. Each pull
-// request's head is its first row's head unless `prHeads` names another, or
-// null for a pull request GitHub reports NOT_FOUND: its alias is null and the
-// answer carries the error, as GitHub sends it. `errors` adds more errors.
-// The answers go through the script's own client, as fetch responses.
 function world(rows, checks = {}, { readFails = false, prHeads = {}, errors = [] } = {}) {
   const dir = tempDir("gate-check-");
   const summary = path.join(dir, "pr-merge-summary.json");

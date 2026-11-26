@@ -36,8 +36,6 @@ function Test-IsReparsePoint {
 }
 
 function Get-NonReparseFile {
-    # Manual recursion that never descends into reparse points: Get-ChildItem -Recurse filters
-    # after enumeration and follows junctions, so a %TEMP% junction could expose system files.
     [CmdletBinding()]
     [OutputType([System.IO.FileInfo])]
     param(
@@ -60,8 +58,6 @@ function Get-NonReparseFile {
                 if ($ReparseSkipCount) { $ReparseSkipCount.Value++ }
                 continue
             }
-            # StrictMode throws on an absent property and test mocks may lack PSIsContainer;
-            # a missing one means a plain file.
             if ($entry.PSObject.Properties['PSIsContainer'] -and $entry.PSIsContainer) {
                 $queue.Enqueue($entry.FullName)
             } else {

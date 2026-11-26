@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Expected values are Ruff's documented behavior: `x=1` formats to `x = 1`, and
-# the I001 fix sorts `import sys` after `import os`.
 # test-scope: plugins/python-format/git-hooks/entries.json plugins/python-format/git-hooks/adapters.sh
 # test-scope: plugins/python-format/lib/git-hooks/check-lib.sh plugins/python-format/lib/git-hooks/install.mjs
 # test-scope: plugins/python-format/lib/git-hooks/resolve-tool.sh plugins/python-format/git-hooks/lint.sh plugins/python-format/.claude-plugin/plugin.json

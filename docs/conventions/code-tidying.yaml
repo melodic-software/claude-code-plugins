@@ -13,3 +13,4 @@ comment_lint_allow:
   - '^#[[:space:]]*discriminating-skip-required:[[:space:]]*[^[:space:]]'
   - '^#[[:space:]]*slow-shape-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*cant-fail-ok:[[:space:]]*[^[:space:]]'
+  - '^(#|//)[[:space:]]*(BEGIN|END) hold-floor[[:space:]]'

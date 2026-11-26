@@ -48,15 +48,11 @@ function New-HealthResult {
         [string[]] $AdminFields
     )
 
-    # List[string], not [string[]]: ConvertTo-Json collapses empty and single-element
-    # arrays into $null or a scalar string, producing schema-invalid JSON.
     $commandsNormalized = [System.Collections.Generic.List[string]]::new()
     if ($null -ne $Commands) { $commandsNormalized.AddRange($Commands) }
     $detailNormalized = $Detail ?? @{}
 
     if ($AdminFields) {
-        # Admin-gated detail keys the check populates only when elevated; read by the
-        # report's elevation-coverage block and the admin_fields contract tests.
         $detailNormalized['admin_fields'] = @($AdminFields)
     }
 

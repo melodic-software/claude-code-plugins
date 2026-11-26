@@ -80,8 +80,6 @@ test("model text stays inside its fence", () => {
   assert.match(body, /```text\nSummary: a'''b\?\n```$/);
 });
 
-// GitHub scrolls a long code-block line sideways, so each quoted line breaks
-// at a space within 100 columns, continuations indented two spaces.
 const words = (n) => Array(n).fill("word").join(" ");
 const quoted = (body) => body.slice(body.indexOf("```text\n") + 8, body.lastIndexOf("\n```"));
 
@@ -120,14 +118,12 @@ test("the verdict must be the fail its artifact name names", () => {
     [NAME, verdictText({ pr: 43 })],
     [NAME, verdictText({ head_sha: "b".repeat(40) })],
     [NAME, verdictText({ notes: [1] })],
-    // 79b4cc554b80dca6 is the first 16 hex digits of `printf %s feat/x | sha256sum`.
     [`${NAME}-79b4cc554b80dca6`, verdictText({ head_ref: "feat/other" })],
     [`${NAME}-79b4cc554b80dca6`, verdictText()],
   ]) {
     assert.throws(() => readVerdict(name, text), name);
   }
   assert.equal(readVerdict(`${NAME}-79b4cc554b80dca6`, verdictText({ head_ref: "feat/x" })).pr, 42);
-  // a27da2afd9962004 and 8c8a071ad0e51f5e: `printf %s feat/a+b | sha256sum` and the same for fix/é.
   assert.equal(readVerdict(`${NAME}-a27da2afd9962004`, verdictText({ head_ref: "feat/a+b" })).pr, 42);
   assert.equal(readVerdict(`${NAME}-8c8a071ad0e51f5e`, verdictText({ head_ref: "fix/\u00e9" })).pr, 42);
 });
@@ -334,9 +330,6 @@ test("a lanes App PR's fail opens review threads, adds no label and posts no PR 
   assert.deepEqual(api.writes, []);
 });
 
-// A person's PR: GitHub lets only its author or a writer resolve a thread, and
-// the lanes App is neither, so the fail is one PR comment and a label that
-// ci-status holds in the merge queue, never a review thread.
 const PERSON = 153232337;
 const personBody = (head) =>
   [

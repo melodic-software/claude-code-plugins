@@ -1,22 +1,3 @@
-// The notes of pr-verify's FAILs at the heads behind the merge gate's
-// verify:earlier-fail refusal, read from their verdict artifacts, the notes'
-// source of truth, for an address-feedback round whose fail-note threads are
-// all resolved (address-feedback.mjs select, #12809). Run by the select job
-// with its GITHUB_TOKEN (actions, contents and pull-requests read).
-//
-// For each FAILed head: the FAIL's index artifact for that head
-// (write-verdict.mjs failIndexNames, an exact-name lookup) names the pr-verify
-// runs that FAILed it; each such run's artifacts hold the verdict, named for
-// this pull request and head (write-verdict.mjs NAME). A run counts only when
-// the merge gate's reader would count it (resolve-pr.mjs countedBy: a
-// pr-verify.yml run on the default branch of this repository), so no other
-// workflow's artifact hands the model its notes; another run is passed over.
-// The verdict is read with
-// verify-notes.mjs readVerdict and rendered with noteComments, the text
-// pr-verify's notes would have posted, quoted as data. Every other read that
-// fails, a listing that does not hold its count, a head with no counted FAIL
-// left to read, a withheld FAIL and more than MAX_NOTE_ITEMS items throw: the
-// caller fails closed.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -46,7 +27,6 @@ async function listing(actions, path) {
   return artifacts;
 }
 
-// verdict.json from an artifact's zip, as the upload holds it at its root.
 export function unzipVerdict(zip, { dir = process.env.RUNNER_TEMP || tmpdir() } = {}) {
   const work = mkdtempSync(join(dir, "earlier-fail-"));
   try {

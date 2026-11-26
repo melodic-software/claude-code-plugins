@@ -1,18 +1,3 @@
-// maintenance-measure-skill-edit-pass.yml and pr-run-plugin-evals.yml run the
-// eval on the evals role's API key first and move to its subscription token,
-// with no fallback, when the key stops: a dispatched suite run always, a pass
-// only when its caller sets allow-subscription (docs/review/evals.md).
-// Each leg's credential and the next leg come from ci-workflows'
-// select-model-credential, fetched at the pin the workflows name, and its
-// handoff from eval-handoff.mjs (the handoffReason run-claude-cli's contract
-// exports:
-// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs).
-// This truth table drives every state of each credential (set or empty, the
-// key switched off or skipped by the credit gate) and every launcher outcome
-// through each workflow's own job conditions, credential inputs, next-leg call
-// and stop step: the model runs only on a present credential, the subscription
-// leg runs exactly when the key stopped and the run may move, and every stop
-// that ends a run names the EVALS role.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";

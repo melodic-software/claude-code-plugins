@@ -32,10 +32,7 @@ sys.path.insert(
 import babysit_review_evidence as ev  # noqa: E402
 
 DIFF = ["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"]
-# A symlink's or a submodule's mode: the rename lines show neither target.
 LINK_MODES = {"120000", "160000"}
-# A move that may run or load: an executable, a path under a directory a
-# plugin or Claude Code loads from, or a file such a tool reads by its name.
 EXEC_MODE = "100755"
 LOADED_SEGMENTS = {"skills", "agents", "commands", "hooks"}
 LOADED_NAMES = {
@@ -131,7 +128,6 @@ def write_diff(repo: str, base: str, head: str, max_bytes: int) -> bytes:
                 "--",
                 *(f":(literal){p}" for p in whole),
             )
-        # Every `+` line, file headers too: a content line can look like one.
         added = b"\n".join(line for line in patch.split(b"\n") if line.startswith(b"+"))
         shown = [move for move in moves if named(move[1], added)]
         if not shown:

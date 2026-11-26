@@ -14,7 +14,6 @@ const PICKER = 'plugin-profile-picker'
 const ROW = 'profile:'
 const APPLY = 'Apply'
 const CANCEL = 'Cancel'
-// $.ui.ask takes two to four labels: a page holds three profiles and MORE.
 const PAGE = 3
 const NEXT_STEP = `Send any message, or run /${RELOAD} now, to load the change into this session; a new session starts with it.`
 const NOT_CHOSEN = 'No profile chosen; nothing changed.'
@@ -259,8 +258,6 @@ const markReloading = async ($: EngineInterface) => {
 }
 
 export const register: Register = on => {
-  // A reload loads this module again and fires session.start, which finishes a switch the reload
-  // interrupted; $.state outlives the reload.
   on('session.start', async ($, e, next) => {
     const started = await next(e)
     await registerCommand($)
@@ -268,7 +265,6 @@ export const register: Register = on => {
     return started
   }).catch(($, e, next) => next(e))
 
-  // No session.start fires after /clear, /resume or /branch, so the next prompt registers again.
   let reregister = false
   on('session.end', async ($, e, next) => {
     reregister = true
@@ -333,7 +329,6 @@ export const register: Register = on => {
 
   on('command.run', { command: COMMAND }, async ($, e) => ({ text: await outcome(() => switchProfile($, e.args.trim())) }))
 
-  // A reload from the command's own handler does not take, so it waits for the turn's end.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined && (await markReloading($))) {
