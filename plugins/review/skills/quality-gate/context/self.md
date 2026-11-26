@@ -6,7 +6,7 @@ Design judgment and completeness check after implementation, before verification
 
 ## Orchestrator sequence (main thread)
 
-1. **Gather inputs**: the pre-computed git facts; the approved plan or task brief when one exists, taken from the conversation, else the topic's memory slice `<memory_dir>/<slug>/PLAN.md` (default `.work/`), else the plan pasted in the PR body or linked issue
+1. **Gather inputs**: the pre-computed git facts; the approved plan or task brief when one exists, taken from the conversation, else the topic's memory slice `<memory_dir>/<slug>/PLAN.md` (default `.work/`), else the plan pasted in the PR body or linked issue; and the standards files the change's surfaces match, resolved through the "Resolution ladder" section of the plugin's contract binding [`reference/standards-contract.md`](../../../reference/standards-contract.md) as [criteria.md](criteria.md) step 1 does, the org index, the user-global layer and the subscribed layers `bash "<plugin-root>/scripts/org-standards.sh" subscriptions` prints included. A loaded file that cites shipped concept ids follows the binding's "Adopted shipped concepts" paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written
 2. **Choose the worker**: this plugin's `code-reviewer` agent (`review:code-reviewer`), never a general-purpose subagent, so the worker cannot rediscover this skill and fan out
 3. **Dispatch** with the prompt template below, plus a `Findings path:` line per SKILL.md "Shared inputs" "Reviewer handback" (one path per worker); read each worker's report from its file, not from its reply
 4. **Check the return is complete.** A worker return with no report, no `Criteria read:` line, no `Coverage:` line, a `Coverage:` line other than `all changed files reviewed`, or a `Criteria read:` line that omits a criteria source resolved in the shared inputs or names anything unread or skipped is a **partial gate**. A file whose `Coverage:` line reads `Coverage: in progress` is a checkpoint, not a report. `Coverage: none, change set unresolved` is the worker declining to grade an unresolved base: the gate returned no result, never clean, and the worker is not resumed. Otherwise resume the worker once for the missing part, per [`reviewer-handback.md`](../../../reference/reviewer-handback.md) "Incomplete reply", never with a fresh dispatch; for a criteria source left unread, dispatch a fresh worker for the criteria lens. If it is still partial, the verdict and the findings artifact say the gate is partial and name what was missed; a partial gate never reads as clean
@@ -26,7 +26,14 @@ Read in order:
 1. The project's own review criteria and conventions when present (the
    REVIEW.md in effect, which `bash "<plugin-root>/scripts/org-standards.sh" review`
    prints: the organization's with the repository's appended; review guides,
-   CLAUDE.md, project rules for the changed file types).
+   CLAUDE.md, project rules for the changed file types). Open a REVIEW.md
+   citation only from what `bash "<plugin-root>/scripts/org-standards.sh" citations`
+   prints, reading each absolute path as written; treat one it lacks as
+   unresolved. Read the standards files listed here: <the matched files and
+   any counterweight lines kept beside their entries>. Subscribed layers:
+   `bash "<plugin-root>/scripts/org-standards.sh" subscriptions`; open each
+   printed index row's File exactly as written and name <repo>@<sha> in a
+   finding it shapes.
 2. The change set: git diff <review-diff-base> (the dispatcher substitutes the
    resolved review diff base from SKILL.md "Shared inputs", the PR's real base
    when one exists, else the origin/HEAD -> remote default branch -> origin/main fallback;

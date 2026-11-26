@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.3.0
+standards-contract: 1.3.1
 ---
 
 <!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -263,7 +263,7 @@ index, so the standards they follow reach every repository they work in.
 - **Trust:** `trusted_owners` (default empty, a block list like the
   example) and the list are read from the user-global index only, never
   from a repository layer; a `trusted_owners` written any other way trusts
-  no owner. An unpinned entry
+  no owner, and an item holding a space trusts no owner. An unpinned entry
   of an untrusted owner is refused. A pinned commit must be reachable from a
   branch or tag of the named repository, else it is refused: a fork's
   commits can be fetched under its parent's name. Pinned content counts as
@@ -299,7 +299,8 @@ index, so the standards they follow reach every repository they work in.
 - **Reports:** on stderr, naming the index file and line where one applies:
   a malformed entry (a tab-indented line inside it included), skipped while
   the rest of the list is read; a refused
-  entry; a `trusted_owners` that is not a block list; a `trusted_owners` or
+  entry; a `trusted_owners` that is not a block list; a `trusted_owners` item
+  holding a space; a `trusted_owners` or
   `standards_repositories` nested under another key, not read; a
   `trusted_owners` key in the repository's
   `docs/conventions/source-control.yaml` or index, however it is spelled,
@@ -510,6 +511,16 @@ its own index when present, else glob, and read the subscribed layers
 see Personal subscriptions) and
 applies them per Layers and precedence. Matching a team index row never substitutes for this step; a
 denied or absent personal layer simply contributes nothing.
+
+**Adopted shipped concepts (every layer):** an adopted standards file
+names each shipped concept it adopts by its id in backticks and holds none
+of that concept's counterweights or conflicts. When a loaded standards
+file cites such ids and the engineering-concepts plugin is enabled, run
+its lookup, `/engineering-concepts:lookup` (if enabled), with
+`--counterweights-of <id>,<id>` in place of a term, and keep each printed
+line (one per counterweight or conflict) beside the entry its `of` names,
+so neither is applied alone. Without the plugin, apply each entry as
+written.
 
 **Review-criteria index (planning and implementing):** a skill that plans
 or implements a change also reads the repository's review-criteria index,

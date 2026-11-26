@@ -158,6 +158,11 @@ entry. With
 no such row, report nothing about paved paths. A row whose file does not exist
 goes in the summary comment as an unresolved citation.
 
+**Adopted shipped concepts.** A standards file this lane reads that cites
+shipped concept ids follows the binding's "Adopted shipped concepts"
+paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply
+each entry as written.
+
 **Closing issue.**
 
 - *Source.* Read the PR context file: the path on the prompt line that starts

@@ -111,6 +111,15 @@ in the user's words)` and `Chosen direction` lines of `<memory_dir>/<topic-slug>
 [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md). Its
 `time_units` user layer is `${user_config.time_units}` (unexpanded means unset).
 
+Then resolve the consumer's standards through the "Resolution ladder" section of the plugin's
+contract binding
+[`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md)
+and read the files whose `Applies when` matches the design's concerns, so each thread starts from
+the conventions the work will be reviewed against; each one applied goes into the conventions
+followed. A loaded file that cites shipped concept ids follows the binding's
+"Adopted shipped concepts" paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise
+apply each entry as written.
+
 Scan the whole problem space broadly before diving into any single capability. For each capability
 or concern:
 
