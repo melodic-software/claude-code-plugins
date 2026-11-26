@@ -135,7 +135,8 @@ Judge in this order:
    The review plugin's criterion "Fail a change that loosens a check" names the kinds of weakened
    check; it is not one of your files, so judge from this step. Two texts give a reason for one.
    The pull request body's `## Loosened checks` section in `CONTEXT_FILE` reasons an ordinary
-   check (a test, lint, coverage, a type check, a validator or a CI job): it names the check and
+   check (a test, lint, coverage, a type check, a scanner other than a secret scanner, a
+   validator or a CI job): it names the check and
    says why the change needs it, and you judge whether that reason holds for the diff. A weakened
    check it does not name, or whose reason does not hold, gets no reason from it. A security
    control, a billing hold, a secret scanner or a dependency audit gets none from the section,
