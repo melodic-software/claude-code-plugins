@@ -14,6 +14,13 @@ Usage: bash check-plan-outcome.sh [--approval-only] <PLAN.md>
   --help           print this help
 
 Exit 0 every criterion passes; 1 one fails; 2 usage or environment error.
+
+Criteria: phases, status-tags, sanity-checks, decisions, blast-radius, portable-paths,
+  planned-breakage, criteria, behaviors (rules: /planning:plan SKILL.md Step 4.7).
+
+Output (stdout, greppable): one criterion=<name> status=<pass|fail> ... line per criterion,
+each failing path hit as path-hit=<line>:<text> (at most 20, then path-hit-truncated=<n>),
+then phases=<n> status=<ok|fail>. --approval-only prints criterion=approval status=<pass|fail>.
 TXT
 }
 

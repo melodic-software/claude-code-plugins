@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 planned (dry-run) or every branch deleted; 1 a deletion failed or the
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

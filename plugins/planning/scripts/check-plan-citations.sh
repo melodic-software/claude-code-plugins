@@ -16,6 +16,17 @@ Usage: bash check-plan-citations.sh [--commit <rev>] [--repo <dir>] <PLAN.md>
   --help    print this help
 
 Exit 0 every citation and shape anchor resolves; 1 one does not; 2 usage or environment error.
+
+Citations inside code fences and on a line carrying <!-- citation-example --> are skipped.
+Citation reasons: missing-path, not-a-file, line-zero, past-end (adds last-line=<n>), reversed.
+Shape reasons: shape-missing-path, shape-missing-symbol, shape-past-end, shape-not-a-file,
+  shape-malformed; shape-line is a warning, not a failure.
+
+Output (stdout, greppable):
+  citation=<plan line>:<path>:<lines> status=fail reason=<reason>   per failing citation
+  shape=<plan line>:<info after shape> status=<fail|warn> reason=<reason>   per failing or warned anchor
+  shapes=<n> failed=<n> warned=<n>
+  citations=<n> failed=<n> commit=<sha> status=<ok|fail>
 TXT
 }
 

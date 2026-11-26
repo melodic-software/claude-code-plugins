@@ -16,8 +16,6 @@ Usage: bash check-round-codes.sh --ledger <interview-checklist.md> [--pacing rou
 
 Exit 0 no bare code and no structure failure; 1 at least one; 2 usage error, a missing or unreadable file, or an unterminated fence.
 
-`--pacing round|single` (default round) names the round's question pacing.
-
 Four structure checks run beside the bare-code check:
 
   answer line     each question block holds exactly one `My recommendation:`,

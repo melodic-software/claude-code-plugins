@@ -1,5 +1,4 @@
 # shellcheck shell=bash
-# TEST_JUDGE_REUSE=0 turns verdict reuse off (judge::reuse).
 # shellcheck disable=SC2034,SC2154 # globals shared with the sourcing hook
 
 judge::num() {
