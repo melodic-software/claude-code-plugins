@@ -53,7 +53,10 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
   section. `size --check` is a gate for one repository's hook or CI step, so it takes no target
   form.
 - Present the markdown report as printed, whole, with your notes after it, never in place of a
-  part of it. Keep the `--json` document when the numbers feed a
+  part of it. Above all, never drop or reword these three: the "Coverage of this run" table; each
+  reference's provenance line, section number included (such as `ISO/IEC 5055:2021 §8.2.117`, or
+  that the value is the plugin's own number); and, for a measure with no reference, that no
+  standard sets one. Keep the `--json` document when the numbers feed a
   comparison: `/verification:measure metrics` (if enabled) consumes it (treat `status: empty` on either side as INCONCLUSIVE); otherwise keep it beside your
   notes and compare by hand.
 - A `null` value is a number the collector did not produce, never zero.
