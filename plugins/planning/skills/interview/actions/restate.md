@@ -45,5 +45,5 @@ paragraph under `Restatement: UNCONFIRMED` and do not wait. Silence is never a y
 ## After the yes
 
 The restate writes no register row; it asks nothing the register tracks. Reached mid-interview,
-carry on from the round it interrupted. Run on its own, recommend the next step: `me` when a part
-read `not settled yet`, otherwise `lock`.
+carry on from the round it interrupted. Run on its own, recommend the next step: the default interview
+(`/planning:interview <topic>`) when a part read `not settled yet`, otherwise `lock`.

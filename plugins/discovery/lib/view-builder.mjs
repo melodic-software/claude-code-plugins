@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { escapeHtml, pageDigest, stampPage, validateRenderedPage } from "./html-escape.mjs";
-import { LANES } from "./view-registry.mjs";
+import { PRODUCERS } from "./view-registry.mjs";
 
 export const INTERACTIVE_MARKER = "rv-gen:view-builder-interactive";
 const MARKER_RE = /<!-- rv-gen:view-builder-interactive sha256:([0-9a-f]{64}) -->/g;
@@ -400,15 +400,15 @@ export const VIEW_KINDS = Object.freeze({
 const PLUGIN_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 /**
- * Build the `kind` view of `record` for the lane `laneId`, which must register that kind.
- * A record the kind cannot read throws ViewBuildError; an unknown lane or kind throws Error.
- * @param {{lanes?: object, kinds?: object, root?: string, connect?: string | null, title?: string | null}} [options]
- *   lanes and kinds replace the registries; root is the directory the kind's template path is under
+ * Build the `kind` view of `record` for the producer `producerId`, which must register that kind.
+ * A record the kind cannot read throws ViewBuildError; an unknown producer or kind throws Error.
+ * @param {{producers?: object, kinds?: object, root?: string, connect?: string | null, title?: string | null}} [options]
+ *   producers and kinds replace the registries; root is the directory the kind's template path is under
  */
-export function render(laneId, kind, record, { lanes = LANES, kinds = VIEW_KINDS, root = PLUGIN_ROOT, connect = null, title = null } = {}) {
-  const lane = Object.hasOwn(lanes, laneId) ? lanes[laneId] : undefined;
-  if (!lane) throw new Error(`view-builder: unknown lane ${JSON.stringify(laneId)}`);
-  if (!lane.kinds.includes(kind)) throw new Error(`view-builder: lane ${laneId} does not register the view kind ${JSON.stringify(kind)}`);
+export function render(producerId, kind, record, { producers = PRODUCERS, kinds = VIEW_KINDS, root = PLUGIN_ROOT, connect = null, title = null } = {}) {
+  const producer = Object.hasOwn(producers, producerId) ? producers[producerId] : undefined;
+  if (!producer) throw new Error(`view-builder: unknown producer ${JSON.stringify(producerId)}`);
+  if (!producer.kinds.includes(kind)) throw new Error(`view-builder: producer ${producerId} does not register the view kind ${JSON.stringify(kind)}`);
   const entry = Object.hasOwn(kinds, kind) ? kinds[kind] : undefined;
   if (!entry) throw new Error(`view-builder: no view kind ${JSON.stringify(kind)}`);
   return buildView({

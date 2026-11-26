@@ -2,14 +2,14 @@
 
 Owned by `audit`. Two tiers: the **core** tier is always swept, the **expanded** tier widens the net
 so a convention hiding in an ordinary document is not missed. Both run by default; the expanded tier
-is what makes the promote lane possible.
+is what makes the promote direction possible.
 
 ## Core tier: the instruction layer
 
 Surfaces Claude Code already loads, or that a consuming repo maintains as agent instructions. Swept
 in full, every run.
 
-| Surface | Scope | Lane |
+| Surface | Scope | Direction |
 |---|---|---|
 | `CLAUDE.md`, `.claude/CLAUDE.md` | Repo root and every tracked subdirectory | demote |
 | `CLAUDE.local.md` | Root and subdirectories, when present and readable | demote |
@@ -42,7 +42,7 @@ deleting one.
 ## Expanded tier: ordinary documentation
 
 Tracked markdown outside the instruction layer, swept for **normative** content that a coding agent
-would benefit from and currently never sees. This is the promote lane's input.
+would benefit from and currently never sees. This is the promote direction's input.
 
 Priority order, highest signal first:
 
@@ -57,7 +57,7 @@ Priority order, highest signal first:
 **Other agents' instruction formats** are swept as core-tier when present, because they carry the
 same content in a form Claude does not read: the tracked rule and instruction files only another
 coding agent loads, usually a rules file at the root or a rules directory under that tool's own
-configuration directory. Treat these as **read-only sources** for the promote lane: propose a Claude
+configuration directory. Treat these as **read-only sources** for the promote direction: propose a Claude
 destination, never edit or delete another tool's configuration. The consuming repo may still be
 using it.
 

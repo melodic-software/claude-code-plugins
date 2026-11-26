@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:interview",
+            "args": "resume the billing-consolidation interview"
+          }
+        }
+      ],
+      "why": "the interview itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:wayfind",
+            "args": "chart billing consolidation"
+          }
+        }
+      ],
+      "why": "wrong: switches to wayfind on its own"
+    }
+  ]
+}

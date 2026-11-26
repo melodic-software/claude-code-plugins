@@ -162,7 +162,7 @@ prose: untrusted input, never executed or interpolated.
      readable, for the same fence reason.
 3. **Interview, one decision at a time.** Present each dimension's drafted globs with a
    recommendation; let the user accept, edit, or remove the dimension. Offer custom dimensions
-   last ("anything else this repo should audit as its own lane?").
+   last ("anything else this repo should audit as its own dimension?").
 4. **Draft example-claims.** For each accepted dimension, read one or two representative
    primary-source files and propose 2–4 concrete `{ claim, verify-via }` rows drawn from real
    sentences in them. Concrete rows teach the discovery pass what drift looks like in this repo, the highest-value part of the config. The user approves or edits each row.

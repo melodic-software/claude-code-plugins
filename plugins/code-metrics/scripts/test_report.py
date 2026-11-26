@@ -110,7 +110,7 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "file_lines",
                     "collector": "scc 3.7.0",
                     "status": "ok",
@@ -121,19 +121,19 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_total": 12, "lines_non_blank": 11},
                 },
                 {
                     "file": "b.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_total": 3, "lines_non_blank": 2},
                 },
             ],
             [self.THRESHOLD],
         )
-        self.assertEqual(doc["schema"], "code-metrics/v2")
+        self.assertEqual(doc["schema"], "code-metrics/v3")
         self.assertEqual(doc["status"], "complete")
         self.assertEqual(doc["measures"][0]["over_reference"], ["file_lines"])
         self.assertEqual(doc["measures"][1]["over_reference"], [])
@@ -150,7 +150,7 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "file_lines",
                     "collector": "x",
                     "status": "ok",
@@ -161,7 +161,7 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_non_blank": None},
                 }
             ],
@@ -171,7 +171,7 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "file_lines",
                     "collector": "x",
                     "status": "ok",
@@ -182,7 +182,7 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_non_blank": None},
                 }
             ],
@@ -202,7 +202,7 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "coverage",
                     "collector": "lcov",
                     "status": "ok",
@@ -213,13 +213,13 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": "f",
-                    "lane": "python",
+                    "language": "python",
                     "values": {"coverage_pct": 50.0},
                 },
                 {
                     "file": "a.py",
                     "function": "g",
-                    "lane": "python",
+                    "language": "python",
                     "values": {"coverage_pct": 90.0},
                 },
             ],
@@ -234,7 +234,7 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "cyclomatic",
                     "collector": "lizard 1.24.0",
                     "status": "ok",
@@ -245,31 +245,31 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "cm_sample.py",
                     "function": "classify.inner",
-                    "lane": "python",
+                    "language": "python",
                     "values": {"cyclomatic": 2},
                 },
                 {
                     "file": "cm_sample.py",
                     "function": "classify",
-                    "lane": "python",
+                    "language": "python",
                     "values": {"cyclomatic": 3},
                 },
                 {
                     "file": "cm_sample.py",
                     "function": "classify",
-                    "lane": "python",
+                    "language": "python",
                     "values": {"halstead_difficulty": 2.0},
                 },
                 {
                     "file": "other.py",
                     "function": "classify",
-                    "lane": "python",
+                    "language": "python",
                     "values": {"cyclomatic": 1},
                 },
                 {
                     "file": "cm_sample.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_non_blank": 11},
                 },
             ],
@@ -283,7 +283,7 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "cyclomatic",
                     "collector": "lizard 1.24.0",
                     "status": "ok",
@@ -295,21 +295,21 @@ class AssembleTests(unittest.TestCase):
                     "file": "a.py",
                     "function": "render",
                     "start_line": 1,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"cyclomatic": 3},
                 },
                 {
                     "file": "a.py",
                     "function": "render",
                     "start_line": 10,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"cyclomatic": 2},
                 },
                 {
                     "file": "a.py",
                     "function": "render",
                     "start_line": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"halstead_difficulty": 4.0},
                 },
             ],
@@ -320,21 +320,21 @@ class AssembleTests(unittest.TestCase):
     def test_partial_and_empty_status_and_unavailable_list(self) -> None:
         run_rows = [
             {
-                "lane": "python",
+                "language": "python",
                 "measure": "file_lines",
                 "collector": "x",
                 "status": "ok",
                 "reason": None,
             },
             {
-                "lane": "bash",
+                "language": "bash",
                 "measure": "file_lines",
                 "collector": None,
                 "status": "unavailable",
                 "reason": "no tool",
             },
             {
-                "lane": "dotnet",
+                "language": "dotnet",
                 "measure": "cyclomatic",
                 "collector": None,
                 "status": "deferred",
@@ -347,7 +347,7 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_non_blank": 1},
                 }
             ],
@@ -363,18 +363,18 @@ class AssembleTests(unittest.TestCase):
     ) -> None:
         run_rows = [
             {
-                "lane": "python",
+                "language": "python",
                 "measure": "coverage",
                 "collector": "lcov",
                 "status": "partial",
                 "reason": "partial, 1 of 2 scope files present in the artifacts",
             },
             {
-                "lane": "python",
+                "language": "python",
                 "measure": "crap",
                 "collector": None,
                 "status": "not-applicable",
-                "reason": "no function-level cyclomatic rows in scope for this lane",
+                "reason": "no function-level cyclomatic rows in scope for this language",
             },
         ]
         doc = self.assemble(
@@ -383,7 +383,7 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"coverage_pct": 50.0},
                 }
             ],
@@ -397,7 +397,7 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "file_lines",
                     "collector": "line-counter bundled",
                     "status": "ok",
@@ -408,7 +408,7 @@ class AssembleTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_non_blank": 1200},
                 }
             ],
@@ -430,42 +430,42 @@ class AssembleTests(unittest.TestCase):
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "type_coverage",
                     "collector": "mypy-report 1.19.1",
                     "status": "ok",
                     "reason": None,
                 },
                 {
-                    "lane": "bash",
+                    "language": "bash",
                     "measure": "type_coverage",
                     "collector": None,
                     "status": "not-applicable",
                     "reason": "not applicable to shell",
                 },
             ],
-            [{"file": None, "function": None, "lane": "python", "values": {"x": 1}}],
+            [{"file": None, "function": None, "language": "python", "values": {"x": 1}}],
             [],
         )
         self.assertEqual(doc["status"], "complete")
         doc = self.assemble(
             [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "cyclomatic",
                     "collector": "radon 6.0.1",
                     "status": "ok",
                     "reason": None,
                 },
                 {
-                    "lane": "dotnet",
+                    "language": "dotnet",
                     "measure": "cyclomatic",
                     "collector": None,
                     "status": "deferred",
-                    "reason": "C# lane deferred",
+                    "reason": "C# language deferred",
                 },
             ],
-            [{"file": "a.py", "function": "f", "lane": "python", "values": {"x": 1}}],
+            [{"file": "a.py", "function": "f", "language": "python", "values": {"x": 1}}],
             [],
         )
         self.assertEqual(doc["status"], "partial")
@@ -486,7 +486,7 @@ class AssembleTests(unittest.TestCase):
                     jsonl(
                         [
                             {
-                                "lane": "x",
+                                "language": "x",
                                 "measure": "y",
                                 "status": "unavailable",
                                 "reason": None,
@@ -506,13 +506,13 @@ class AssembleTests(unittest.TestCase):
 class RenderTests(unittest.TestCase):
     def test_empty_status_headline_and_tables(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "empty",
             "scope": {"mode": "change", "base": "abc", "files": 0, "excluded": 0},
             "run": [
                 {
-                    "lane": "*",
+                    "language": "*",
                     "measure": "*",
                     "collector": None,
                     "status": "not-applicable",
@@ -540,7 +540,7 @@ class RenderTests(unittest.TestCase):
 
     def test_an_empty_all_scope_carries_no_widening_hint(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "empty",
             "scope": {"mode": "all", "base": None, "files": 0, "excluded": 0},
@@ -556,7 +556,7 @@ class RenderTests(unittest.TestCase):
 
     def _size_doc(self, rows: list[dict]) -> dict:
         return {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "complete",
             "scope": {"mode": "all", "base": None, "files": len(rows), "excluded": 0},
@@ -582,28 +582,28 @@ class RenderTests(unittest.TestCase):
             {
                 "file": "a.py",
                 "function": None,
-                "lane": "python",
+                "language": "python",
                 "values": {"lines_non_blank": 5},
                 "over_reference": [],
             },
             {
                 "file": "b.md",
                 "function": None,
-                "lane": "other",
+                "language": "other",
                 "values": {"lines_non_blank": 12},
                 "over_reference": ["file_lines"],
             },
             {
                 "file": "c.py",
                 "function": None,
-                "lane": "python",
+                "language": "python",
                 "values": {"lines_non_blank": None},
                 "over_reference": [],
             },
             {
                 "file": "d.sh",
                 "function": None,
-                "lane": "bash",
+                "language": "bash",
                 "values": {"lines_non_blank": 7},
                 "over_reference": [],
             },
@@ -632,7 +632,7 @@ class RenderTests(unittest.TestCase):
             {
                 "file": "a.py",
                 "function": "f",
-                "lane": "python",
+                "language": "python",
                 "start_line": 1,
                 "values": {"coverage_pct": 90.0},
                 "over_reference": [],
@@ -640,7 +640,7 @@ class RenderTests(unittest.TestCase):
             {
                 "file": "b.py",
                 "function": "g",
-                "lane": "python",
+                "language": "python",
                 "start_line": 1,
                 "values": {"coverage_pct": 10.0},
                 "over_reference": [],
@@ -653,7 +653,7 @@ class RenderTests(unittest.TestCase):
         )
         self.assertIn("Files: 2. Functions: 2. Over reference: none.", result.stdout)
 
-    def test_a_lane_row_sorts_among_file_rows_that_tie_on_the_value(self) -> None:
+    def test_a_language_row_sorts_among_file_rows_that_tie_on_the_value(self) -> None:
         doc = self._size_doc([])
         doc["skill"] = "audit-type-debt"
         doc["thresholds"] = [
@@ -675,15 +675,15 @@ class RenderTests(unittest.TestCase):
             {
                 "file": None,
                 "function": None,
-                "lane": "python",
+                "language": "python",
                 "values": values,
-                "labels": ["lane-total"],
+                "labels": ["language-total"],
                 "over_reference": [],
             },
             {
                 "file": "a.py",
                 "function": None,
-                "lane": "python",
+                "language": "python",
                 "values": values,
                 "labels": [],
                 "over_reference": [],
@@ -693,7 +693,7 @@ class RenderTests(unittest.TestCase):
         result = run("render", stdin=json.dumps(doc))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("| a.py |", result.stdout)
-        self.assertIn("lane-total", result.stdout)
+        self.assertIn("language-total", result.stdout)
         self.assertIn("Files: 1. Over reference: none.", result.stdout)
 
     def _type_debt_doc(self, measures: list[dict]) -> dict:
@@ -713,19 +713,19 @@ class RenderTests(unittest.TestCase):
         doc["summary"] = {"files": 0, "functions": 0, "over_reference": {}}
         return doc
 
-    def test_two_lane_rows_with_equal_values_stay_two_lines(self) -> None:
+    def test_two_language_rows_with_equal_values_stay_two_lines(self) -> None:
         doc = self._type_debt_doc(
             [
                 {
                     "file": None,
                     "function": None,
-                    "lane": lane,
+                    "language": language,
                     "collector": collector,
                     "values": {"type_coverage_pct": 100.0},
-                    "labels": ["lane-total"],
+                    "labels": ["language-total"],
                     "over_reference": [],
                 }
-                for lane, collector in (
+                for language, collector in (
                     ("python", "mypy-report"),
                     ("typescript", "type-coverage"),
                 )
@@ -733,15 +733,15 @@ class RenderTests(unittest.TestCase):
         )
         result = run("render", stdin=json.dumps(doc))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.count("| lane-total |"), 2)
+        self.assertEqual(result.stdout.count("| language-total |"), 2)
         self.assertNotIn("mypy-report, type-coverage", result.stdout)
 
-    def test_the_lane_row_leads_and_survives_the_row_cap(self) -> None:
+    def test_the_language_row_leads_and_survives_the_row_cap(self) -> None:
         rows = [
             {
                 "file": f"m{i:03d}.py",
                 "function": None,
-                "lane": "python",
+                "language": "python",
                 "values": {"type_coverage_pct": float(i % 100)},
                 "labels": [],
                 "over_reference": [],
@@ -752,28 +752,28 @@ class RenderTests(unittest.TestCase):
             {
                 "file": None,
                 "function": None,
-                "lane": "python",
+                "language": "python",
                 "values": {"type_coverage_pct": 50.0},
-                "labels": ["lane-total"],
+                "labels": ["language-total"],
                 "over_reference": [],
             }
         )
         doc = self._type_debt_doc(rows)
         result = run("render", stdin=json.dumps(doc))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("| lane-total |", result.stdout)
+        self.assertIn("| language-total |", result.stdout)
         self.assertIn("more rows", result.stdout)
         table_lines = [
             line for line in result.stdout.splitlines() if "| python |" in line
         ]
-        self.assertIn("lane-total", table_lines[0])
+        self.assertIn("language-total", table_lines[0])
 
     def test_the_row_cap_names_the_key_it_kept_the_top_rows_by(self) -> None:
         rows = [
             {
                 "file": f"f{i:04d}.md",
                 "function": None,
-                "lane": "other",
+                "language": "other",
                 "values": {"lines_non_blank": i},
                 "over_reference": [],
             }
@@ -791,13 +791,13 @@ class RenderTests(unittest.TestCase):
 
     def test_measures_table_lists_value_keys_and_over_reference(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 1, "excluded": 0},
             "run": [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "file_lines",
                     "collector": "scc 3.7.0",
                     "status": "ok",
@@ -816,7 +816,7 @@ class RenderTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_total": 12, "lines_non_blank": 11},
                     "over_reference": ["file_lines"],
                 }
@@ -831,7 +831,7 @@ class RenderTests(unittest.TestCase):
         }
         result = run("render", stdin=json.dumps(doc))
         self.assertIn(
-            "| File | Function | Lane | Labels | lines_total | lines_non_blank | Over reference |",
+            "| File | Function | Language | Labels | lines_total | lines_non_blank | Over reference |",
             result.stdout,
         )
         self.assertIn("| a.py |  | python |  | 12 | 11 | file_lines |", result.stdout)
@@ -847,7 +847,7 @@ class RenderTests(unittest.TestCase):
             return {
                 "file": file,
                 "function": name,
-                "lane": "python",
+                "language": "python",
                 "start_line": line,
                 "values": {"coverage_pct": cov, "cyclomatic": 3, "crap": crap},
                 "over_reference": [],
@@ -857,7 +857,7 @@ class RenderTests(unittest.TestCase):
             return {
                 "file": file,
                 "function": None,
-                "lane": "python",
+                "language": "python",
                 "start_line": None,
                 "values": {"coverage_pct": cov, "lines_executable": 10, "lines_hit": 5},
                 "over_reference": [],
@@ -876,13 +876,13 @@ class RenderTests(unittest.TestCase):
         ]
         measures = filler + files + [null_crap, top]
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-coverage",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 253, "excluded": 0},
             "run": [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "coverage",
                     "collector": "coverage-json",
                     "status": "ok",
@@ -939,7 +939,7 @@ class RenderTests(unittest.TestCase):
 
     def test_a_collect_failed_row_puts_an_exit_3_line_in_the_summary(self) -> None:
         base = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
             "thresholds": [],
             "measures": [],
@@ -952,7 +952,7 @@ class RenderTests(unittest.TestCase):
             status="empty",
             run=[
                 {
-                    "lane": "typescript",
+                    "language": "typescript",
                     "measure": "cyclomatic",
                     "collector": "eslint-complexity 10.1.0",
                     "status": "unavailable",
@@ -975,14 +975,14 @@ class RenderTests(unittest.TestCase):
             status="partial",
             run=[
                 {
-                    "lane": "typescript",
+                    "language": "typescript",
                     "measure": "coverage",
                     "collector": "lcov",
                     "status": "partial",
                     "reason": "partial, 1 of 2 scope files present in the artifacts",
                 },
                 {
-                    "lane": "typescript",
+                    "language": "typescript",
                     "measure": "crap",
                     "collector": None,
                     "status": "unavailable",
@@ -1007,7 +1007,7 @@ class RenderTests(unittest.TestCase):
 
     def test_a_no_artifact_run_ends_with_the_first_artifact_pointer(self) -> None:
         base = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-coverage",
             "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
             "thresholds": [],
@@ -1024,14 +1024,14 @@ class RenderTests(unittest.TestCase):
             status="empty",
             run=[
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "coverage",
                     "collector": None,
                     "status": "unavailable",
                     "reason": searched,
                 },
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "crap",
                     "collector": None,
                     "status": "unavailable",
@@ -1051,14 +1051,14 @@ class RenderTests(unittest.TestCase):
             status="partial",
             run=[
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "coverage",
                     "collector": "coverage.py",
                     "status": "partial",
                     "reason": "partial, 1 of 3 scope files present in the artifacts",
                 },
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "crap",
                     "collector": "coverage.py",
                     "status": "partial",
@@ -1075,7 +1075,7 @@ class RenderTests(unittest.TestCase):
 CLONE_ROW = {
     "file": None,
     "function": None,
-    "lane": "bash",
+    "language": "bash",
     "instances": [
         {"file": "alpha/shared/u.sh", "start_line": 1, "end_line": 20},
         {"file": "beta/shared/u.sh", "start_line": 1, "end_line": 20},
@@ -1090,7 +1090,7 @@ class CloneGroupRowTests(unittest.TestCase):
         doc = AssembleTests().assemble(
             [
                 {
-                    "lane": "bash",
+                    "language": "bash",
                     "measure": "duplication",
                     "collector": "jscpd 5.1.2",
                     "status": "ok",
@@ -1110,7 +1110,7 @@ class CloneGroupRowTests(unittest.TestCase):
 
     def test_render_shows_instances_and_the_duplicated_total(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-duplication",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
@@ -1142,7 +1142,7 @@ class CloneGroupRowTests(unittest.TestCase):
                     "file": "plugins/a/hooks/u.sh",
                     "function": "greet",
                     "start_line": 8,
-                    "lane": "bash",
+                    "language": "bash",
                     "values": {"cyclomatic": 3},
                     "replicas": {
                         "count": 3,
@@ -1165,7 +1165,7 @@ class CloneGroupRowTests(unittest.TestCase):
         doc = AssembleTests().assemble(
             [
                 {
-                    "lane": "bash",
+                    "language": "bash",
                     "measure": "duplication",
                     "collector": "jscpd 5.1.2",
                     "status": "ok",
@@ -1226,11 +1226,11 @@ class CloneGroupRowTests(unittest.TestCase):
         self.assertIn("so the 2 file(s) holding nothing but excluded", rendered.stdout)
 
 
-def clone_row(lane: str, first: str, second: str, lines: int, tokens: int = 90) -> dict:
+def clone_row(language: str, first: str, second: str, lines: int, tokens: int = 90) -> dict:
     return {
         "file": None,
         "function": None,
-        "lane": lane,
+        "language": language,
         "instances": [
             {"file": first, "start_line": 1, "end_line": lines},
             {"file": second, "start_line": 1, "end_line": lines},
@@ -1242,13 +1242,13 @@ def clone_row(lane: str, first: str, second: str, lines: int, tokens: int = 90) 
 
 def duplication_doc(measures: list[dict], **overrides: object) -> dict:
     doc = {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-duplication",
         "status": "complete",
         "scope": {"mode": "all", "base": None, "files": 4, "excluded": 0},
         "run": [
             {
-                "lane": "bash",
+                "language": "bash",
                 "measure": "duplication",
                 "collector": "jscpd 5.2.0",
                 "status": "ok",
@@ -1283,14 +1283,14 @@ class DuplicationRollupTests(unittest.TestCase):
         summary = resummarized(duplication_doc(self.ROWS))["summary"]
         self.assertEqual(summary["duplicated_lines"], 32)
         self.assertEqual(
-            summary["by_lane"],
+            summary["by_language"],
             {
                 "bash": {"groups": 2, "duplicated_lines": 25},
                 "python": {"groups": 1, "duplicated_lines": 7},
             },
         )
         self.assertEqual(
-            sum(b["duplicated_lines"] for b in summary["by_lane"].values()),
+            sum(b["duplicated_lines"] for b in summary["by_language"].values()),
             summary["duplicated_lines"],
         )
         self.assertEqual(
@@ -1327,7 +1327,7 @@ class DuplicationRollupTests(unittest.TestCase):
 
     def test_a_document_without_clone_rows_carries_no_rollup_maps(self) -> None:
         summary = resummarized(duplication_doc([]))["summary"]
-        self.assertNotIn("by_lane", summary)
+        self.assertNotIn("by_language", summary)
         self.assertNotIn("by_directory", summary)
 
 
@@ -1427,25 +1427,25 @@ class DuplicationRenderTests(unittest.TestCase):
             status="empty",
             run=[
                 {
-                    "lane": lane,
+                    "language": language,
                     "measure": "duplication",
                     "collector": None,
                     "status": "unavailable",
                     "reason": "jscpd: not on PATH",
                     "hint": hint,
                 }
-                for lane in ("bash", "python")
+                for language in ("bash", "python")
             ],
             unavailable=["bash/duplication", "python/duplication"],
         )
         out = self.rendered(doc)
-        self.assertEqual(out.count("No clone detector ran in any lane"), 1)
+        self.assertEqual(out.count("No clone detector ran in any language"), 1)
         self.assertEqual(out.count("npm install -g jscpd"), 1)
         self.assertIn("/code-metrics:setup", out)
         self.assertEqual(out.count("| unavailable | jscpd: not on PATH |"), 2)
         self.assertLess(out.index("No clone detector"), out.index("## Coverage"))
 
-    def test_a_not_applicable_lane_does_not_hide_the_no_detector_headline(
+    def test_a_not_applicable_language_does_not_hide_the_no_detector_headline(
         self,
     ) -> None:
         hint = "jscpd: https://github.com/kucherenko/jscpd (npm install -g jscpd)"
@@ -1454,7 +1454,7 @@ class DuplicationRenderTests(unittest.TestCase):
             status="empty",
             run=[
                 {
-                    "lane": "bash",
+                    "language": "bash",
                     "measure": "duplication",
                     "collector": None,
                     "status": "unavailable",
@@ -1462,18 +1462,18 @@ class DuplicationRenderTests(unittest.TestCase):
                     "hint": hint,
                 },
                 {
-                    "lane": "other",
+                    "language": "other",
                     "measure": "duplication",
                     "collector": None,
                     "status": "not-applicable",
-                    "reason": "no collector covers this lane",
+                    "reason": "no collector covers this language",
                     "hint": None,
                 },
             ],
             unavailable=["bash/duplication"],
         )
         out = self.rendered(doc)
-        self.assertEqual(out.count("No clone detector ran in any lane"), 1)
+        self.assertEqual(out.count("No clone detector ran in any language"), 1)
         self.assertEqual(out.count("npm install -g jscpd"), 1)
 
     def test_only_not_applicable_rows_print_no_headline(self) -> None:
@@ -1482,18 +1482,18 @@ class DuplicationRenderTests(unittest.TestCase):
             status="empty",
             run=[
                 {
-                    "lane": "other",
+                    "language": "other",
                     "measure": "duplication",
                     "collector": None,
                     "status": "not-applicable",
-                    "reason": "no collector covers this lane",
+                    "reason": "no collector covers this language",
                     "hint": None,
                 }
             ],
         )
         self.assertNotIn("No clone detector ran", self.rendered(doc))
 
-    def test_a_lane_that_skipped_every_file_is_partial_not_empty(self) -> None:
+    def test_a_language_that_skipped_every_file_is_partial_not_empty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             result = run(
@@ -1509,7 +1509,7 @@ class DuplicationRenderTests(unittest.TestCase):
                     jsonl(
                         [
                             {
-                                "lane": "bash",
+                                "language": "bash",
                                 "measure": "duplication",
                                 "collector": "jscpd 5.2.0",
                                 "status": "partial",
@@ -1534,13 +1534,13 @@ class DuplicationRenderTests(unittest.TestCase):
 
     def test_a_size_document_renders_as_before(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "partial",
             "scope": {"mode": "all", "base": None, "files": 1, "excluded": 0},
             "run": [
                 {
-                    "lane": "python",
+                    "language": "python",
                     "measure": "size",
                     "collector": "scc 3.4.0",
                     "status": "partial",
@@ -1553,7 +1553,7 @@ class DuplicationRenderTests(unittest.TestCase):
                 {
                     "file": "a.py",
                     "function": None,
-                    "lane": "python",
+                    "language": "python",
                     "values": {"lines_non_blank": 12},
                     "over_reference": ["file_lines"],
                 }
@@ -1575,13 +1575,13 @@ class DuplicationRenderTests(unittest.TestCase):
             "\n"
             "## Coverage of this run\n"
             "\n"
-            "| Lane | Measure | Collector | Status | Reason |\n"
+            "| Language | Measure | Collector | Status | Reason |\n"
             "|---|---|---|---|---|\n"
             "| python | size | scc 3.4.0 | partial | 1 of 2 files unreadable |\n"
             "\n"
             "## Measures\n"
             "\n"
-            "| File | Function | Lane | Labels | lines_non_blank | Over reference |\n"
+            "| File | Function | Language | Labels | lines_non_blank | Over reference |\n"
             "|---|---|---|---|---|---|\n"
             "| a.py |  | python |  | 12 | file_lines |\n"
             "\n"
@@ -1593,7 +1593,7 @@ class DuplicationRenderTests(unittest.TestCase):
 
 def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **scope):
     return {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-complexity",
         "status": "partial",
         "scope": {"mode": "paths", "base": None, "files": 1, "excluded": 0, **scope},
@@ -1620,7 +1620,7 @@ def function_row(**fields) -> dict:
         "function": "f",
         "start_line": 3,
         "end_line": 9,
-        "lane": "python",
+        "language": "python",
         "values": {},
         "collector": "lizard",
         "labels": [],
@@ -1728,7 +1728,7 @@ class JoinedRenderTests(unittest.TestCase):
         rows = [
             function_row(
                 file="plugins/a/hooks/u.sh",
-                lane="bash",
+                language="bash",
                 values={"cyclomatic": 22},
                 over_reference=["cyclomatic"],
                 labels=["replicated"],
@@ -1764,13 +1764,13 @@ class JoinedRenderTests(unittest.TestCase):
 
 def cwd_relative_doc() -> dict:
     return {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-coverage",
         "status": "partial",
         "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
         "run": [
             {
-                "lane": "python",
+                "language": "python",
                 "measure": "coverage",
                 "collector": "lcov",
                 "status": "partial",
@@ -1779,7 +1779,7 @@ def cwd_relative_doc() -> dict:
                 "missing": ["inner.py", "../lib/b.py"],
             },
             {
-                "lane": "python",
+                "language": "python",
                 "measure": "crap",
                 "collector": "lcov",
                 "status": "partial",
@@ -1791,7 +1791,7 @@ def cwd_relative_doc() -> dict:
         "measures": [
             {"file": "inner.py", "function": "f", "values": {}, "over_reference": []},
             {"file": "../lib/a.py", "function": None, "values": {}},
-            {"file": None, "lane": "python", "values": {}, "labels": ["lane-total"]},
+            {"file": None, "language": "python", "values": {}, "labels": ["language-total"]},
             {
                 "file": "../lib/c.py",
                 "function": "g",
@@ -1799,7 +1799,7 @@ def cwd_relative_doc() -> dict:
                 "replicas": {"count": 2, "files": ["../lib/c.py", "../lib2/c.py"]},
             },
             {
-                "lane": "python",
+                "language": "python",
                 "file": None,
                 "values": {"lines": 6},
                 "instances": [
@@ -1882,14 +1882,14 @@ class AnchorTests(unittest.TestCase):
         doc = cwd_relative_doc()
         doc["run"] = [
             {
-                "lane": "a",
+                "language": "a",
                 "measure": "coverage",
                 "status": "partial",
                 "reason": "partial; missing: a.py",
                 "missing": ["a.py"],
             },
             {
-                "lane": "b",
+                "language": "b",
                 "measure": "coverage",
                 "status": "partial",
                 "reason": "partial; missing: a.py, b.py",
@@ -1981,7 +1981,7 @@ class AnchorTests(unittest.TestCase):
             "over_reference": {},
             "duplicated_lines": 0,
             "clone_groups": 0,
-            "by_lane": {},
+            "by_language": {},
             "by_directory": {},
         }
         with tempfile.TemporaryDirectory() as tmp:
@@ -1990,7 +1990,7 @@ class AnchorTests(unittest.TestCase):
         summary = anchored["summary"]
         self.assertEqual(summary["duplicated_lines"], 0)
         self.assertEqual(summary["clone_groups"], 0)
-        self.assertEqual(summary["by_lane"], {})
+        self.assertEqual(summary["by_language"], {})
         self.assertEqual(summary["by_directory"], {})
         self.assertEqual(summary["files_excluded_only"], 1)
 

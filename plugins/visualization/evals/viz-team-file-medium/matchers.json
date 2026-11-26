@@ -15,7 +15,7 @@
     {
       "use": "token_argument"
     },
-    "--lane(?:\\s|=)+(?:\\\\\"|')?visualization:visualize\\b"
+    "--producer(?:\\s|=)+(?:\\\\\"|')?visualization:visualize\\b"
   ],
   "no-convention-shell-read": [
     {

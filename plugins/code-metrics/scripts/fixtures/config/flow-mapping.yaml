@@ -1,4 +1,4 @@
 # Fixture: a file outside the YAML subset (a flow mapping on line 4), so the
 # resolver's named error is exercised.
-lanes:
+languages:
   typescript: { enabled: true }

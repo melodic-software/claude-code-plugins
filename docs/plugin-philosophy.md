@@ -174,8 +174,8 @@ not a sanctioned citation in a skill body or reference file.
 
 A skill name is an imperative verb phrase; the plugin namespace supplies the object
 (`/machine-health:audit`, `/source-control:commit`). Names compose into instruction sentences, such as
-"/discovery:explore the module, then /planning:interview me", and one grammar keeps every name in
-the marketplace predictable. This is a deliberate, documented deviation from the official authoring
+"/discovery:explore the module, then /planning:interview the cache", and one grammar keeps every
+name in the marketplace predictable. This is a deliberate, documented deviation from the official authoring
 guidance's gerund preference. We read that guidance as allowing action-oriented names and as
 asking above all for one consistent pattern within a skill collection, which is what this section
 supplies. Neither the guidance nor the Agent Skills specification requires one form, and Claude

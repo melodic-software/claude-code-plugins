@@ -274,7 +274,7 @@ an UNPROVABLE file yields proposals only.
 
 ## Boundaries
 
-- Not `/code-tidying:tidy` or `/code-tidying:batch-simplify`: no lane rotation, no scope budget, no
+- Not `/code-tidying:tidy` or `/code-tidying:batch-simplify`: no focus-area rotation, no scope budget, no
   wave machinery, one pass over one resolved scope.
 - Not a bug-hunter or general simplifier: `/code-review` and `/simplify` own those, and
   `/ai-slop:audit` (if enabled) owns prose.

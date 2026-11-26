@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: adc-python-uncovered-no-install
 description: With vulture absent, the Python module is named uncovered rather than judged by eye or declared clean, the python -m entry point is not condemned, and nothing is installed
 tags: [audit-dead-code, coverage-honesty, never-fetch, vulture-lane, unreferenced-file]
-expected_outcome: The vulture lane is skipped (not resolvable, nothing fetched) and app/main.py and app/pricing.py are listed as uncovered (tool not installed). The grep lane's one candidate, app/main.py as an unreferenced-file, is adjudicated uncertain or alive because deploy.sh loads it through python -m app.main, never dead. No pip, pipx, uv or other installer is invoked.
+expected_outcome: The vulture analyzer is skipped (not resolvable, nothing fetched) and app/main.py and app/pricing.py are listed as uncovered (tool not installed). The grep analyzer's one candidate, app/main.py as an unreferenced-file, is adjudicated uncertain or alive because deploy.sh loads it through python -m app.main, never dead. No pip, pipx, uv or other installer is invoked.
 context:
   scaffold_script: scaffold.sh
 execution:

@@ -51,7 +51,7 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
 (`${CLAUDE_PLUGIN_ROOT}/reference/config.md`).
 
 The change scope reads committed lines only: a suppression in an uncommitted edit is not in it until
-it is committed, so name the file or use `--all` to see the working tree. `scope.exclude` and lane
+it is committed, so name the file or use `--all` to see the working tree. `scope.exclude` and language
 opt-outs apply as in the other audits.
 
 A target form (`--repo <repo>` and the others) runs the script once per repository, as

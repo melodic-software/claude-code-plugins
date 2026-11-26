@@ -700,6 +700,10 @@ class MoreDirectives(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNotNone(lint.DIRECTIVE.search(text))
 
+    def test_spellchecker_ignore_next_line_passes(self):
+        text = "# spellchecker:ignore-next-line\nx = 'Win32_SignedDriver'\n"
+        self.assertEqual(flagged("t.py", text), [])
+
     def test_portability_ok_passes(self):
         text = '#!/usr/bin/env bash\n# portability-ok: GNU stat only, Linux-only script\nsize=$(stat -c %s "$1")\necho "$size"\n'
         self.assertEqual(flagged("t.sh", text), [])

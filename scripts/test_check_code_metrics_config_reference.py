@@ -114,16 +114,16 @@ class DriftFailsTests(GateHarness):
         self.assert_drift(self.write(), "type_debt.reference", "ambiguous")
 
     def test_a_wildcard_row_whose_leaves_stop_agreeing_fails(self) -> None:
-        self.defaults["lanes"]["go"]["enabled"] = False
+        self.defaults["languages"]["go"]["enabled"] = False
         result = self.write()
-        self.assert_drift(result, "lanes.<lane>.enabled", "lanes.go.enabled")
+        self.assert_drift(result, "languages.<language>.enabled", "languages.go.enabled")
 
     def test_a_documented_undefaulted_key_that_gains_a_default_fails(self) -> None:
-        self.defaults["lanes"]["python"]["collectors"] = {"cyclomatic": ["lizard"]}
+        self.defaults["languages"]["python"]["collectors"] = {"cyclomatic": ["lizard"]}
         self.assert_drift(
             self.write(),
-            "lanes.<lane>.collectors.<measure>",
-            "lanes.python.collectors.cyclomatic",
+            "languages.<language>.collectors.<measure>",
+            "languages.python.collectors.cyclomatic",
         )
 
     def test_a_key_cell_that_is_not_a_code_span_fails(self) -> None:

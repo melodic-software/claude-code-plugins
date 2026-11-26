@@ -1,18 +1,26 @@
 {
   "pass": [
     {
-      "answer": "**Round 3.** Alerting for failed deliveries.\nScope check: 9 of 12 questions registered\nHeld: Q8 (who is alerted) until the PagerDuty Events API lookup returns\n\n❓ Q9: **What does an alert message include?**",
-      "why": "the held question is named on the Held: line"
+      "answer": "Round 3\nScope check: 8 questions asked so far\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\n\n❓ Q8 (alert contents): **What does an alert message include?**",
+      "why": "the held question is named in plain words on the Open: line, with what it waits on and no Q id"
     }
   ],
   "fail": [
     {
-      "answer": "**Round 3.** Alerting.\n\n❓ Q8: **Who is alerted when one endpoint keeps failing?**\n\n❓ Q9: **What does an alert message include?**",
-      "why": "no Held: line; both are asked"
+      "answer": "Round 3\nScope check: 9 questions asked so far\n\n❓ Q8 (who is alerted): **Who is alerted when one endpoint keeps failing?**\n\n❓ Q9 (alert contents): **What does an alert message include?**",
+      "why": "no Open: line; both are asked"
     },
     {
-      "answer": "**Round 3.**\nHeld: nothing\n\n❓ Q8: **What does an alert include?**",
-      "why": "the Held: line names no alert-routing question"
+      "answer": "Round 3\nScope check: 9 questions asked so far\nHeld: Q8 (who is alerted) until the PagerDuty Events API lookup returns\n\n❓ Q9 (alert contents): **What does an alert message include?**",
+      "why": "wrong: the old layout's Held: line, which also gives the held question an id before it is asked"
+    },
+    {
+      "answer": "Round 3\nScope check: 9 questions asked so far\nOpen: Q8 (who is alerted), waiting on the PagerDuty lookup\n\n❓ Q9 (alert contents): **What does an alert message include?**",
+      "why": "wrong: the Open: line names the held question by a Q id it does not have until it is asked"
+    },
+    {
+      "answer": "Round 3\nOpen: nothing\n\n❓ Q8 (alert contents): **What does an alert include?**",
+      "why": "the Open: line names no alert-routing question"
     }
   ]
 }

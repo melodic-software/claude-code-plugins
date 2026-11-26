@@ -3,18 +3,18 @@ set -uo pipefail
 
 USAGE="$(
   cat <<'EOF'
-The code-metrics dispatcher: resolve the scope, detect lanes, walk the collector ladder,
-and print one code-metrics/v2 document.
+The code-metrics dispatcher: resolve the scope, detect languages, walk the collector ladder,
+and print one code-metrics/v3 document.
   dispatch.sh <skill> --measures <m1,m2,...> [options] [--] [<path>...]
   --measures <list>          measures to collect. Required.
   --all                      every tracked or untracked-but-not-ignored file under the paths
   --base <ref>               measure the change from the merge-base with <ref>
   --config <resolved.json>   a resolved configuration (default: resolve-config.py)
   --ladder <file.tsv>        collector ladder to walk
-  --lane-globs <lane>=<glob> replace the lane's extension mapping with these globs
-  --disable-lane <lane>      turn a lane off
+  --language-globs <language>=<glob> replace the language's extension mapping with these globs
+  --disable-language <language>      turn a language off
   --scope-file <file>        read the file list from a file, one path per line
-  --print-scope              print the scope as lane<TAB>path rows and stop
+  --print-scope              print the scope as language<TAB>path rows and stop
   --no-collapse              keep sanctioned replicas as separate rows
   --no-anchor                leave paths cwd-relative
 Exit: 0 the document was produced (including an empty run); 2 usage or environment error;
@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 COLLECTORS="$PLUGIN_ROOT/scripts/collectors"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
-DETECT="$PLUGIN_ROOT/scripts/detect-lanes.sh"
+DETECT="$PLUGIN_ROOT/scripts/detect-languages.sh"
 LADDER="$PLUGIN_ROOT/scripts/collector-ladder.tsv"
 RESOLVER="$PLUGIN_ROOT/scripts/resolve-config.py"
 PATHGLOB="$PLUGIN_ROOT/scripts/pathglob.py"
@@ -103,13 +103,13 @@ while [[ $# -gt 0 ]]; do
     LADDER="$2"
     shift 2
     ;;
-  --lane-globs)
-    [[ $# -ge 2 ]] || die_usage "--lane-globs needs a value"
+  --language-globs)
+    [[ $# -ge 2 ]] || die_usage "--language-globs needs a value"
     DETECT_ARGS+=(--globs "$2")
     shift 2
     ;;
-  --disable-lane)
-    [[ $# -ge 2 ]] || die_usage "--disable-lane needs a value"
+  --disable-language)
+    [[ $# -ge 2 ]] || die_usage "--disable-language needs a value"
     DETECT_ARGS+=(--disable "$2")
     shift 2
     ;;
@@ -191,8 +191,8 @@ CONFIG_DETECT_ARGS=()
 for line in "${config_detect_args[@]}"; do
   [[ -n "$line" ]] || continue
   case "${line%% *}" in
-  --lane-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
-  --disable-lane) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
+  --language-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
+  --disable-language) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
   --scope-default)
     if [[ "$MODE_SET" -eq 0 && "$BASE_SET" -eq 0 && "${line#* }" == "all" ]]; then MODE="all"; fi
     ;;
@@ -380,31 +380,31 @@ if [[ "${CODE_METRICS_PROGRESS:-}" == "1" || ("${CODE_METRICS_PROGRESS:-}" != "0
 fi
 progress "$SKILL: $FILE_COUNT file(s) in scope ($MODE), $EXCLUDED excluded"
 
-LANES_TSV="$WORK/lanes"
+LANGUAGES_TSV="$WORK/languages"
 if [[ "$FILE_COUNT" -gt 0 ]]; then
-  bash "$DETECT" "${DETECT_ARGS[@]}" --paths-from "$SCOPED" >"$LANES_TSV" || exit 2
+  bash "$DETECT" "${DETECT_ARGS[@]}" --paths-from "$SCOPED" >"$LANGUAGES_TSV" || exit 2
 else
-  : >"$LANES_TSV"
+  : >"$LANGUAGES_TSV"
 fi
 
 if [[ "$PRINT_SCOPE" -eq 1 ]]; then
-  cat "$LANES_TSV"
+  cat "$LANGUAGES_TSV"
   exit 0
 fi
 
 ladder_tools() {
-  local lane="$1" measure="$2" explicit
-  explicit="$(awk -F'\t' -v l="$lane" -v m="$measure" 'NF >= 3 && $1 == l && $2 == m { print $3 "\t" }' "$LADDER_OVERRIDES")"
+  local language="$1" measure="$2" explicit
+  explicit="$(awk -F'\t' -v l="$language" -v m="$measure" 'NF >= 3 && $1 == l && $2 == m { print $3 "\t" }' "$LADDER_OVERRIDES")"
   [[ -n "$explicit" ]] ||
-    explicit="$(awk -F'\t' -v l="$lane" -v m="$measure" '!/^#/ && NF >= 3 && $1 == l && $2 == m { print $3 "\t" $4 }' "$LADDER")"
+    explicit="$(awk -F'\t' -v l="$language" -v m="$measure" '!/^#/ && NF >= 3 && $1 == l && $2 == m { print $3 "\t" $4 }' "$LADDER")"
   if [[ -n "$explicit" ]]; then
     printf '%s\n' "$explicit"
   else
-    awk -F'\t' -v l="$lane" '!/^#/ && NF >= 3 && $1 == l && $2 == "*" { print $3 "\t" $4 }' "$LADDER"
+    awk -F'\t' -v l="$language" '!/^#/ && NF >= 3 && $1 == l && $2 == "*" { print $3 "\t" $4 }' "$LADDER"
   fi
 }
 
-lane_shipped() {
+language_shipped() {
   awk -F'\t' -v l="$1" '!/^#/ && $1 == l { found = 1; exit } END { exit !found }' "$LADDER"
 }
 
@@ -417,20 +417,20 @@ COLLECT_FAILED=0
 run_row() {
   "${PY[@]}" -I -c '
 import json, sys
-lane, measure, collector, status, reason, hint = sys.argv[1:7]
-print(json.dumps({"lane": lane, "measure": measure, "collector": collector or None,
+language, measure, collector, status, reason, hint = sys.argv[1:7]
+print(json.dumps({"language": language, "measure": measure, "collector": collector or None,
                   "status": status, "reason": reason or None, "hint": hint or None}))
 ' "$2" "$3" "$4" "$5" "$6" "${7:-}" >"$WORK/run.$1"
 }
 
 IFS=',' read -r -a MEASURE_LIST <<<"$MEASURES"
-mapfile -t LANES < <(cut -f1 "$LANES_TSV" | awk 'NF && !seen[$0]++' | sort)
+mapfile -t LANGUAGES < <(cut -f1 "$LANGUAGES_TSV" | awk 'NF && !seen[$0]++' | sort)
 
 SLOT=0
-if [[ "$FILE_COUNT" -eq 0 || ${#LANES[@]} -eq 0 ]]; then
+if [[ "$FILE_COUNT" -eq 0 || ${#LANGUAGES[@]} -eq 0 ]]; then
   reason='no measurable files in scope'
   if [[ "$FILE_COUNT" -gt 0 ]]; then
-    reason="no measurable files in scope: the $FILE_COUNT file(s) in scope belong to no lane"
+    reason="no measurable files in scope: the $FILE_COUNT file(s) in scope belong to no language"
   elif [[ "$MODE" == "change" ]]; then
     reason="no measurable files in scope: the branch is at its merge-base with ${default_ref:-$BASE} (${BASE_SHA:0:12}) and the working tree holds no changed or untracked file; pass explicit paths or --all to measure the tree"
   fi
@@ -443,7 +443,7 @@ JOBS="${CODE_METRICS_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null 
 RUNNING=0
 PIDS=()
 COLLECT_SLOTS=()
-S_LANE=()
+S_LANGUAGE=()
 S_MEASURE=()
 S_TOOL=()
 S_VERSION=()
@@ -461,13 +461,13 @@ reap_one() {
 }
 
 launch_collect() {
-  local slot="$1" adapter="$2" lane="$3" measure="$4"
+  local slot="$1" adapter="$2" language="$3" measure="$4"
   shift 4
   printf '%s\n' "$@" >"$WORK/files.$slot"
   (
     started="$(date +%s)"
     CODE_METRICS_PARTIAL_REASON_FILE="$WORK/partial.$slot" \
-      "${PY[@]}" "$adapter" collect "$lane" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
+      "${PY[@]}" "$adapter" collect "$language" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
     rc=$?
     printf '%s %s\n' "$rc" "$(($(date +%s) - started))" >"$WORK/rc.$slot"
   ) &
@@ -478,17 +478,17 @@ launch_collect() {
   fi
 }
 
-for lane in "${LANES[@]}"; do
-  mapfile -t lane_files < <(awk -F'\t' -v l="$lane" '$1 == l { print $2 }' "$LANES_TSV")
+for language in "${LANGUAGES[@]}"; do
+  mapfile -t language_files < <(awk -F'\t' -v l="$language" '$1 == l { print $2 }' "$LANGUAGES_TSV")
   shipped=1
-  lane_shipped "$lane" || shipped=0
+  language_shipped "$language" || shipped=0
   for measure in "${MEASURE_LIST[@]}"; do
     slot=$SLOT
     SLOT=$((SLOT + 1))
-    tools="$(ladder_tools "$lane" "$measure")"
+    tools="$(ladder_tools "$language" "$measure")"
     if [[ -z "$tools" && "$shipped" -eq 0 ]]; then
       if [[ "$measure" != "file_lines" ]]; then
-        run_row "$slot" "$lane" "$measure" '' unavailable "no shipped collector for the $lane lane"
+        run_row "$slot" "$language" "$measure" '' unavailable "no shipped collector for the $language language"
         continue
       fi
       tools="$(ladder_tools other file_lines)"
@@ -506,7 +506,7 @@ for lane in "${LANES[@]}"; do
       *) ;;
       esac
       if [[ -n "$status" ]]; then
-        run_row "$slot" "$lane" "$measure" '' "$status" "${note:-$fallback}"
+        run_row "$slot" "$language" "$measure" '' "$status" "${note:-$fallback}"
         resolved=1
         break
       fi
@@ -515,7 +515,7 @@ for lane in "${LANES[@]}"; do
         reasons+="${reasons:+; }$tool: adapter not shipped"
         continue
       fi
-      probe_err="$WORK/probe.$lane.$measure.$tool"
+      probe_err="$WORK/probe.$language.$measure.$tool"
       if ! version="$("${PY[@]}" "$adapter" probe 2>"$probe_err")"; then
         hint="$("${PY[@]}" "$adapter" install_hint 2>/dev/null || true)"
         why="$(capped_line "$probe_err" 200)"
@@ -524,18 +524,18 @@ for lane in "${LANES[@]}"; do
         [[ -n "$first_hint" || -z "$hint" ]] || first_hint="$hint"
         continue
       fi
-      S_LANE[slot]="$lane"
+      S_LANGUAGE[slot]="$language"
       S_MEASURE[slot]="$measure"
       S_TOOL[slot]="$tool"
       S_VERSION[slot]="$version"
       COLLECT_SLOTS+=("$slot")
-      progress "$lane/$measure: running $tool $version over ${#lane_files[@]} file(s)"
-      launch_collect "$slot" "$adapter" "$lane" "$measure" "${lane_files[@]}"
+      progress "$language/$measure: running $tool $version over ${#language_files[@]} file(s)"
+      launch_collect "$slot" "$adapter" "$language" "$measure" "${language_files[@]}"
       resolved=1
       break
     done <<<"$tools"
     if [[ $resolved -eq 0 ]]; then
-      run_row "$slot" "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}" "$first_hint"
+      run_row "$slot" "$language" "$measure" '' unavailable "${reasons:-no ladder entry for $language/$measure}" "$first_hint"
     fi
   done
 done
@@ -545,26 +545,26 @@ for slot in "${COLLECT_SLOTS[@]}"; do
   rc=1
   elapsed=""
   read -r rc elapsed <"$WORK/rc.$slot" || rc=1
-  lane="${S_LANE[slot]}"
+  language="${S_LANGUAGE[slot]}"
   measure="${S_MEASURE[slot]}"
   tool="${S_TOOL[slot]}"
   version="${S_VERSION[slot]}"
   if [[ "${rc:-1}" -eq 0 ]]; then
     cat "$WORK/out.$slot" >>"$ROWS"
     if [[ -s "$WORK/partial.$slot" ]]; then
-      run_row "$slot" "$lane" "$measure" "$tool $version" partial "$(head -n 1 "$WORK/partial.$slot")"
+      run_row "$slot" "$language" "$measure" "$tool $version" partial "$(head -n 1 "$WORK/partial.$slot")"
     else
       note="$(capped_line "$WORK/err.$slot" 500)"
-      run_row "$slot" "$lane" "$measure" "$tool $version" ok "${note% }"
+      run_row "$slot" "$language" "$measure" "$tool $version" ok "${note% }"
     fi
-    progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(count_lines "$WORK/out.$slot") row(s)"
+    progress "$language/$measure: $tool finished in ${elapsed:-?}s, $(count_lines "$WORK/out.$slot") row(s)"
   elif [[ "${rc:-1}" -eq 4 ]]; then
-    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "$(capped_line "$WORK/err.$slot" 500)"
-    progress "$lane/$measure: $tool cannot run here (see the run table)"
+    run_row "$slot" "$language" "$measure" "$tool $version" unavailable "$(capped_line "$WORK/err.$slot" 500)"
+    progress "$language/$measure: $tool cannot run here (see the run table)"
   else
     COLLECT_FAILED=1
-    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(capped_line "$WORK/err.$slot" 500)"
-    progress "$lane/$measure: $tool failed (exit $rc) after ${elapsed:-?}s"
+    run_row "$slot" "$language" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(capped_line "$WORK/err.$slot" 500)"
+    progress "$language/$measure: $tool failed (exit $rc) after ${elapsed:-?}s"
   fi
 done
 for ((i = 0; i < SLOT; i++)); do
@@ -574,7 +574,7 @@ done
 SCOPE_JSON="$WORK/scope.json"
 base_json=null
 [[ -n "$BASE_SHA" ]] && base_json="$(json_str "${BASE_SHA:0:12}")"
-CLASSIFIED="$(cut -f2 "$LANES_TSV" | awk 'NF && !seen[$0]++' | wc -l | tr -d ' ')"
+CLASSIFIED="$(cut -f2 "$LANGUAGES_TSV" | awk 'NF && !seen[$0]++' | wc -l | tr -d ' ')"
 exclusions_json="[]"
 if [[ ${#EXCLUSION_ROWS[@]} -gt 0 ]]; then
   exclusions_json="[$(

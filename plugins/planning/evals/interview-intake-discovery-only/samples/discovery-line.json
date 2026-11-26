@@ -1,18 +1,26 @@
 {
   "pass": [
     {
-      "answer": "❓ Q1: **What problem should notifications solve?**\n\nContext:\n- The request names the feature only (user, round 1).\n\nDiscovery: the answer sets what the feature must do.",
-      "why": "a Discovery: line"
+      "answer": "❓ Q1 (the problem): **What problem should notifications solve?**\n\nContext:\n- The request names the feature only (user, round 1).\n\nNo recommendation: only you can answer this.\nYour answer settles: what the feature must do.",
+      "why": "a No recommendation: line, then its Your answer settles: line"
     }
   ],
   "fail": [
     {
-      "answer": "❓ Q1: **What problem should notifications solve?**\n\nWithheld: only you know why you want this.",
-      "why": "the old withheld shape, no Discovery: line"
+      "answer": "❓ Q1 (the problem): **What problem should notifications solve?**\n\nWithheld: only you know why you want this.",
+      "why": "the old withheld shape, no No recommendation: line"
     },
     {
-      "answer": "This round is for discovery: we learn the problem first.\n\nQ1: **What problem?**",
+      "answer": "This round is for discovery: we learn the problem first.\n\nQ1 (the problem): **What problem?**",
       "why": "the word mid-sentence, lowercase, is not the label"
+    },
+    {
+      "answer": "❓ Q1 (the problem): **What problem should notifications solve?**\n\nContext:\n1. The request names the feature only (your request)\n\nDiscovery: what the feature must do.",
+      "why": "wrong: the old layout's single Discovery: line, with no No recommendation: line"
+    },
+    {
+      "answer": "❓ Q1 (the problem): **What problem should notifications solve?**\n\nNo recommendation: only you know why the team wants notifications.",
+      "why": "wrong: a No recommendation: line with no Your answer settles: line after it"
     }
   ]
 }

@@ -69,7 +69,7 @@ class SetupApplyTests(unittest.TestCase):
                 str(target),
                 "size.file_lines=500",
                 'scope.exclude=["vendor/**", "gen/**"]',
-                "lanes.dotnet.enabled=false",
+                "languages.dotnet.enabled=false",
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             doc = yaml_subset.parse(target.read_text(encoding="utf-8"))
@@ -77,7 +77,7 @@ class SetupApplyTests(unittest.TestCase):
             self.assertEqual(doc["custom_key"], "keep")
             self.assertEqual(doc["size"]["file_lines"], 500)
             self.assertEqual(doc["scope"]["exclude"], ["vendor/**", "gen/**"])
-            self.assertIs(doc["lanes"]["dotnet"]["enabled"], False)
+            self.assertIs(doc["languages"]["dotnet"]["enabled"], False)
             self.assertIn(
                 "custom_key is not a key the contract declares",
                 run("--file", str(target), "custom_key=keep").stderr,
@@ -126,7 +126,7 @@ class SetupApplyTests(unittest.TestCase):
             retired.write_text(
                 "complexity:\n  cyclomatic:\n    reference: 12\n"
                 'scope:\n  exclude: ["gen/**"]\n'
-                "lanes:\n  go:\n    enabled: false\n",
+                "languages:\n  go:\n    enabled: false\n",
                 encoding="utf-8",
             )
             empty_user = home / "empty.yaml"
@@ -152,7 +152,7 @@ class SetupApplyTests(unittest.TestCase):
                 {
                     "complexity": {"cyclomatic": {"reference": 12}},
                     "scope": {"exclude": ["gen/**"]},
-                    "lanes": {"go": {"enabled": False}},
+                    "languages": {"go": {"enabled": False}},
                     "size": {"mode": "file-lines"},
                 },
             )
@@ -160,6 +160,24 @@ class SetupApplyTests(unittest.TestCase):
             self.assertIn("delete it", result.stdout)
             self.assertEqual(
                 resolved("--home", str(home), "--repo-root", str(root)), before
+            )
+
+    def test_a_claude_file_written_with_lanes_keeps_its_opt_out(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".claude").mkdir()
+            (root / ".claude" / "code-metrics.yaml").write_text(
+                "lanes:\n  go:\n    enabled: false\n    collectors: [gocyclo]\n",
+                encoding="utf-8",
+            )
+            result = run("--dir", tmp, "size.mode=file-lines")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("dropped lanes", result.stderr)
+            target = root / "docs" / "conventions" / "code-metrics.yaml"
+            doc = yaml_subset.parse(target.read_text(encoding="utf-8"))
+            self.assertNotIn("lanes", doc)
+            self.assertEqual(
+                doc["languages"], {"go": {"enabled": False, "collectors": ["gocyclo"]}}
             )
 
     def test_with_no_key_a_claude_file_is_moved_and_nothing_else_is_an_error(
@@ -186,7 +204,7 @@ class SetupApplyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(run("--dir", tmp).returncode, 2)
             self.assertEqual(run("--dir", tmp, "size.file_lines").returncode, 2)
-            result = run("--dir", tmp, "lanes.typescript={ enabled: true }")
+            result = run("--dir", tmp, "languages.typescript={ enabled: true }")
             self.assertEqual(result.returncode, 2)
             self.assertIn("outside the YAML subset", result.stderr)
             bad = Path(tmp) / "bad.yaml"
@@ -245,7 +263,7 @@ class SetupApplyTests(unittest.TestCase):
             (root / ".claude" / "code-metrics.yaml").write_text(
                 "size:\n  file_lines: 450\n  bogus: 1\n"
                 "oauth_token: gho_example\n"
-                "lanes:\n  go:\n    enabled: false\n",
+                "languages:\n  go:\n    enabled: false\n",
                 encoding="utf-8",
             )
             result = run("--dir", tmp)
@@ -253,7 +271,7 @@ class SetupApplyTests(unittest.TestCase):
             target = root / "docs" / "conventions" / "code-metrics.yaml"
             self.assertEqual(
                 yaml_subset.parse(target.read_text(encoding="utf-8")),
-                {"size": {"file_lines": 450}, "lanes": {"go": {"enabled": False}}},
+                {"size": {"file_lines": 450}, "languages": {"go": {"enabled": False}}},
             )
             self.assertIn("oauth_token", result.stderr)
             self.assertIn("size.bogus", result.stderr)

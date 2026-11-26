@@ -26,7 +26,7 @@ inside it, not filenames or per-scope slices, carry run-to-run history.
 - volatility: <evidence that the depended-on side changes: commits, co-change pairs>
 - evidence: <the concrete reproducible observation, file paths included>
 - evidence-verified: <true only once phase C reproduced this observation>
-- lane: apply | route
+- step: apply | route
 - remediation: <catalog entry name from remediations.md>
 - outcome: <commit/PR/tracker/handoff reference once status leaves proposed>
 - rejected-reason: <only when status is rejected and the reason will matter to a later run>
@@ -39,13 +39,13 @@ verified one.
 
 ## Status lifecycle
 
-- `proposed`: verified finding awaiting capacity. The next run's apply lane draws from
+- `proposed`: verified finding awaiting capacity. The next run's apply step draws from
   these first, before scanning for new ones.
 - `applied`: reduction landed and the batch verification passed; `outcome` names the
   commit or PR.
-- `deferred`: apply lane but over this run's budget, or blocked by a soft exclusion;
+- `deferred`: apply step but over this run's budget, or blocked by a soft exclusion;
   carries what unblocks it.
-- `routed`: route lane, handed off; `outcome` names the design session, tracker item, or
+- `routed`: route step, handed off; `outcome` names the design session, tracker item, or
   `/architecture:improve` candidate it became.
 - `rejected`: deliberately not pursued (not-a-finding on closer look, counterweight won,
   consumer standards sanction the coupling). Keep these: they stop the next run from

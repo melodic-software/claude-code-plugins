@@ -86,7 +86,7 @@ class MultimetricAdapterTests(unittest.TestCase):
                 (0, "version unavailable (multimetric has no version flag)"),
             )
 
-    def test_measures_lists_every_lane_and_measure_pair(self) -> None:
+    def test_measures_lists_every_language_and_measure_pair(self) -> None:
         self.assertEqual(
             sorted(run("measures").stdout.split()),
             [

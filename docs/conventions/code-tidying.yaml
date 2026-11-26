@@ -11,6 +11,10 @@ comment_lint_allow:
   - '^//[[:space:]]*test-scope:'
   - '^#[[:space:]]*fixture-isolation-scope:[[:space:]]*[^[:space:]]'
   - '^#[[:space:]]*discriminating-skip-required:[[:space:]]*[^[:space:]]'
+  - '^#[[:space:]]*discriminating-skip-ok:[[:space:]]*[^[:space:]]'
   - '^#[[:space:]]*slow-shape-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*cant-fail-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*(BEGIN|END) hold-floor[[:space:]]'
+comment_lint_exclude:
+  # Unedited vendored Apache-2.0 copy of https://github.com/GoogleChrome/web-vitals (web-vitals.LICENSE beside it); see #18772.
+  - plugins/planning/shared/web/web-vitals.attribution.iife.js

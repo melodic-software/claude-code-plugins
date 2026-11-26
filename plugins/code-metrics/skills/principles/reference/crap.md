@@ -111,10 +111,10 @@ because every one of them can change a number:
    candidates, because the artifact placed none of them at a line or because two of them fall
    inside the same range, the row records `cov_source: ambiguous` with `cov` and CRAP both `null`,
    a `coverage-ambiguous` label, and a `reason` saying which way it was unresolvable.
-4. **A lane whose resolved collector reports only start lines** gets a `run[]` row
-   `<lane>/crap: not-applicable` with the reason "the resolved collector reports no function end
-   lines", rather than a null that would quietly cover the whole lane. In this version Bash is that
-   lane, and it is a documented gap.
+4. **A language whose resolved collector reports only start lines** gets a `run[]` row
+   `<language>/crap: not-applicable` with the reason "the resolved collector reports no function end
+   lines", rather than a null that would quietly cover the whole language. In this version Bash is that
+   language, and it is a documented gap.
 5. **A function-hit flag of zero forces `cov: 0`.** lcov `FNDA`/`FNA` records and Cobertura
    `method` hits say whether the function was entered at all. Without that check, a declaration line
    executed at import time reports a small non-zero coverage for a function nothing ever called.

@@ -2,7 +2,7 @@
 """Adapter for `gocognit` (uudashr/gocognit), cognitive complexity for Go.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `gocognit -json -over 0 <files>` prints a list of
 
@@ -12,7 +12,7 @@ with no end line (probed 2026-09-05 against gocognit v1.2.1; the capture in
 fixtures/tool-output/gocognit.json is the reference shape). Rows carry
 `end_line: null` and the label `start-line-only` (design T7).
 
-Go is the only lane with a maintained cognitive-complexity collector besides
+Go is the only language with a maintained cognitive-complexity collector besides
 TypeScript's `eslint-plugin-sonarjs`; Python and Bash report the gap instead
 (design T11). The measure is Campbell's (SonarSource) and no standard sets a
 threshold for it.
@@ -39,7 +39,7 @@ from adapter_paths import (
 )
 
 NAME = "gocognit"
-LANE = "go"
+LANGUAGE = "go"
 MEASURE = "cognitive"
 
 
@@ -86,7 +86,7 @@ def module_version(exe: str) -> str | None:
     return None
 
 
-def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, wanted: list[str]) -> list[dict]:
     wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, list):
@@ -105,7 +105,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
                 "function": entry.get("FuncName"),
                 "start_line": position.get("Line"),
                 "end_line": None,
-                "lane": lane,
+                "language": language,
                 "values": {MEASURE: entry.get("Complexity")},
                 "collector": NAME,
                 "labels": ["start-line-only"],
@@ -114,9 +114,9 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    if lane != LANE or measure != MEASURE:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+def collect(language: str, measure: str, files: list[str]) -> int:
+    if language != LANGUAGE or measure != MEASURE:
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = shutil.which(NAME)
     if not exe:
@@ -129,7 +129,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         check=False,
     )
     try:
-        rows = translate(result.stdout, lane, files)
+        rows = translate(result.stdout, language, files)
     except (ValueError, TypeError, AttributeError) as exc:
         print(
             f"{NAME}.py: no parseable {NAME} output ({exc}); "
@@ -143,7 +143,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    print(f"{LANE}/{MEASURE}")
+    print(f"{LANGUAGE}/{MEASURE}")
 
 
 INSTALL_HINT = "gocognit: https://github.com/uudashr/gocognit (go install github.com/uudashr/gocognit/cmd/gocognit@latest)"

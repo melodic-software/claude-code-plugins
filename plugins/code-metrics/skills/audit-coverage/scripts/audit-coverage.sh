@@ -6,7 +6,7 @@ USAGE="$(
 /code-metrics:audit-coverage entry point: line coverage per file and function, and CRAP per
 function, read from coverage artifacts a build already produced.
   audit-coverage.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [--artifacts <path>]... [<path>...]
-  --json                    print the code-metrics/v2 document instead of the report
+  --json                    print the code-metrics/v3 document instead of the report
   --all                     measure every file, not the change
   --base <ref>              measure the change from the merge-base with <ref>
   --config <resolved.json>  a resolved configuration
