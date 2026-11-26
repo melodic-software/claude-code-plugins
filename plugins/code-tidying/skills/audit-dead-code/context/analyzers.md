@@ -17,7 +17,7 @@ and reached `ran` or `degraded`. Uncovered files are one `Note: uncovered <path>
 each, after `Summary coverage: covered=N uncovered=M`. The reasons are `no analyzer for the language`,
 `no manifest root`, `tool not installed`, `tool could not parse it`, and `analyzer not selected`.
 
-`files=` on a `Analyzer:` line is that input count, including `skipped` and `no-manifest`. `Summary
+`files=` on an `Analyzer:` line is that input count, including `skipped` and `no-manifest`. `Summary
 total: files-with-findings=` is the number of files that emitted a candidate. A clean-result note
 is printed only when `uncovered=0`, some analyzer reached `ran`, and there are no candidates. Uncovered
 files suppress both that note and the scan-of-nothing note.

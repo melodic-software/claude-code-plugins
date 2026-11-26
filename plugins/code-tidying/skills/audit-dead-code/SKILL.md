@@ -115,7 +115,7 @@ tokens before reading `--max`, `--analyzer` and `target`. What differs here:
 | `scanned-zero-files` | the analyzer had zero in-scope input files it **owns** (a nested project root's files belong to that root). Indistinguishable from clean in the detectors' own output |
 | `no-manifest` | the analyzer's language is in scope but no manifest root exists (`package.json` for knip, `go.mod` for gopls). Those files are uncovered unless another analyzer took them (grep takes JS/TS no `package.json` root owns). Not a missing binary |
 
-`files=` on a `Analyzer:` line is the number of files that analyzer took as input, including `skipped` and
+`files=` on an `Analyzer:` line is the number of files that analyzer took as input, including `skipped` and
 `no-manifest`; it is not the number of findings.
 
 A run where no analyzer reached `ran` and no source file is uncovered is **a scan of nothing, not a
