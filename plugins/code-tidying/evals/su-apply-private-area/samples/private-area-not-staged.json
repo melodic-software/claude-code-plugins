@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files --error-unmatch .claude/tidy-areas/mine.md"
+          }
+        }
+      ],
+      "why": "read-only probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add src/web/app.py"
+          }
+        }
+      ],
+      "why": "an unrelated path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add .claude/tidy-areas/mine.md"
+          }
+        }
+      ],
+      "why": "staged the private focus area"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add .claude/tidy-areas/"
+          }
+        }
+      ],
+      "why": "staged the focus area directory"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add -A"
+          }
+        }
+      ],
+      "why": "staged the tree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add ."
+          }
+        }
+      ],
+      "why": "staged the tree"
+    }
+  ]
+}

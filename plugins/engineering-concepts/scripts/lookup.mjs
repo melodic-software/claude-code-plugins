@@ -7,11 +7,12 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { resolveSettings } from "./settings.mjs";
 
-const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
+export const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
 const STAGES = ["interview", "design", "plan", "build", "review", "operate", "any"];
 const REVERSIBILITY = ["one-way", "two-way", "unrated"];
 const SOURCE_BARS = ["official", "official-plus-confirming"];
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const SKILL_OWNER = /^\/?[a-z0-9-]+:[a-z0-9-]+$/u;
 const FETCH_TIMEOUT_MS = 10_000;
 const FETCH_CONCURRENCY = 8;
 
@@ -34,6 +35,10 @@ Options:
                             setting for this run
   --check-sources           fetch each source_url and mark unreachable ones for
                             re-sourcing; the only mode that touches the network
+  --counterweights-of ID    instead of records, print one line per counterweight
+                            and per conflict of the concept ID; repeatable or
+                            comma-separated, and takes no TERM. Run it on the ids
+                            cited in an adopted standards file
   --data-dir DIR            read records from DIR instead of the plugin's data/
   --project DIR             repository whose settings layers apply (default: the
                             git root of the working directory)
@@ -44,12 +49,16 @@ Options:
 
 Settings source_bar and exclude resolve through the plugin config cascade:
 defaults, userConfig, <home>/engineering-concepts.yaml, then
-<home>/engineering-concepts.local.yaml. A rejected value is reported on stderr.
+<home>/engineering-concepts.local.yaml. A rejected value is reported on the
+error output.
 
-Output: one JSON record per line on stdout, counterweights and conflicts_with as
-{id, name}. Diagnostics: JSON lines on stderr, each rejected record with its
-file:line in "at".
-Exit: 0 records printed, 1 none matched, 2 invalid option.`;
+Output: one JSON record per line, counterweights and conflicts_with as
+{id, name}. Diagnostics: one JSON record per line on the error output, each
+rejected record with its file:line in "at". With --counterweights-of, each line is
+{of, relation, concept}: relation is "counterweight" or "conflict", of and
+concept are {id, name}.
+Exit: 0 records printed (with --counterweights-of: every ID found), 1 none
+matched (an ID not found), 2 invalid option.`;
 
 const OPTIONS = {
   topic: { type: "string" },
@@ -60,6 +69,7 @@ const OPTIONS = {
   exclude: { type: "string", multiple: true, default: [] },
   "source-bar": { type: "string" },
   "check-sources": { type: "boolean", default: false },
+  "counterweights-of": { type: "string", multiple: true, default: [] },
   "data-dir": { type: "string" },
   project: { type: "string" },
   "user-config": { type: "string" },
@@ -73,6 +83,7 @@ const isList = (v) => v === undefined || (Array.isArray(v) && v.every(isText));
 function rejection(record) {
   if (!isText(record.id) || !ID.test(record.id)) return "id is not a kebab-case slug";
   for (const field of ["name", "concern", "kind", "owner"]) if (!isText(record[field])) return `${field} is missing`;
+  if (!record.owner.startsWith("https://") && !SKILL_OWNER.test(record.owner)) return "owner is neither an https URL nor a plugin:skill name";
   if (!isText(record.source_url) || !record.source_url.startsWith("https://")) return "source_url is not an https URL";
   if (!STAGES.includes(record.stage)) return `stage is not one of ${STAGES.join("|")}`;
   if (!REVERSIBILITY.includes(record.reversibility)) return `reversibility is not one of ${REVERSIBILITY.join("|")}`;
@@ -82,13 +93,35 @@ function rejection(record) {
   return null;
 }
 
+export function recordLines(path) {
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/u)
+    .map((text, i) => ({ line: i + 1, text }))
+    .filter(({ text }) => text.trim());
+}
+
+export function parseRecord(text) {
+  let record;
+  try {
+    record = JSON.parse(text);
+  } catch (e) {
+    return { reason: `not JSON: ${e.message}` };
+  }
+  const reason = record && typeof record === "object" ? rejection(record) : "not a JSON object";
+  return reason ? { reason } : { record };
+}
+
+export function dataFiles(dataDir) {
+  return readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
+}
+
 /** `shipped` marks the plugin's own data/, which is absent or empty until curated records ship. */
 export function loadIndex(dataDir, err, { shipped = false } = {}) {
   const byId = new Map();
   const byName = new Map();
   let files = [];
   try {
-    files = readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
+    files = dataFiles(dataDir);
   } catch (e) {
     if (!(shipped && e.code === "ENOENT")) {
       err(JSON.stringify({ level: "error", event: "data directory unreadable", dir: dataDir, code: e.code }));
@@ -100,28 +133,27 @@ export function loadIndex(dataDir, err, { shipped = false } = {}) {
   for (const file of files) {
     const path = join(dataDir, file);
     const topic = basename(file, ".jsonl");
-    readFileSync(path, "utf8")
-      .split(/\r?\n/u)
-      .forEach((text, i) => {
-        if (!text.trim()) return;
-        const reject = (reason) =>
-          err(JSON.stringify({ level: "error", event: "record rejected", at: `${path}:${i + 1}`, file: path, line: i + 1, reason }));
-        let record;
-        try {
-          record = JSON.parse(text);
-        } catch (e) {
-          return reject(`not JSON: ${e.message}`);
-        }
-        const reason = record && typeof record === "object" ? rejection(record) : "not a JSON object";
-        if (reason) return reject(reason);
-        byId.set(record.id, { aliases: [], counterweights: [], conflicts_with: [], ...record, topic });
-        for (const name of [record.name, ...(record.aliases ?? [])]) byName.set(name.toLowerCase(), record.id);
-      });
+    for (const { line, text } of recordLines(path)) {
+      const { record, reason } = parseRecord(text);
+      if (reason) {
+        err(JSON.stringify({ level: "error", event: "record rejected", at: `${path}:${line}`, file: path, line, reason }));
+        continue;
+      }
+      byId.set(record.id, { aliases: [], counterweights: [], conflicts_with: [], ...record, topic });
+      for (const name of [record.name, ...(record.aliases ?? [])]) byName.set(name.toLowerCase(), record.id);
+    }
   }
   return { byId, byName };
 }
 
-const resolveId = (index, term) => (index.byId.has(term) ? term : index.byName.get(term.toLowerCase()));
+export const resolveId = (index, term) => (index.byId.has(term) ? term : index.byName.get(term.toLowerCase()));
+
+/** The setting that drops `record` and the value that does it, or null when the settings keep it. */
+export function droppedBy(record, excluded, sourceBar) {
+  for (const value of [record.id, record.topic]) if (excluded.has(value)) return { setting: "exclude", value };
+  if (sourceBar !== "official" && !(record.confirming_sources ?? []).length) return { setting: "source_bar", value: sourceBar };
+  return null;
+}
 
 function select(index, term, opts) {
   const excluded = new Set(opts.exclude.flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean));
@@ -129,23 +161,39 @@ function select(index, term, opts) {
   const pool = term ? (id === undefined ? [] : [index.byId.get(id)]) : [...index.byId.values()];
   return pool.filter(
     (r) =>
-      !excluded.has(r.id) &&
-      !excluded.has(r.topic) &&
+      !droppedBy(r, excluded, opts["source-bar"]) &&
       (!opts.topic || r.topic === opts.topic) &&
       (!opts.concern || r.concern === opts.concern) &&
       (!opts.kind || r.kind === opts.kind) &&
       (!opts.stage || r.stage === opts.stage || r.stage === "any") &&
-      (!opts.reversibility || r.reversibility === opts.reversibility) &&
-      (opts["source-bar"] === "official" || (r.confirming_sources ?? []).length > 0),
+      (!opts.reversibility || r.reversibility === opts.reversibility),
   );
 }
 
-function present(index, record) {
+export function present(index, record) {
   const ref = (raw) => {
     const id = resolveId(index, raw);
     return id === undefined ? { id: raw, name: null } : { id, name: index.byId.get(id).name };
   };
   return { ...record, counterweights: record.counterweights.map(ref), conflicts_with: record.conflicts_with.map(ref) };
+}
+
+/** One line per counterweight and conflict of each term; `missing` holds the terms that name no record. */
+export function counterweightLines(index, terms) {
+  const lines = [];
+  const missing = [];
+  for (const term of terms) {
+    const id = resolveId(index, term);
+    if (id === undefined) {
+      missing.push(term);
+      continue;
+    }
+    const record = present(index, index.byId.get(id));
+    const of = { id: record.id, name: record.name };
+    for (const concept of record.counterweights) lines.push({ of, relation: "counterweight", concept });
+    for (const concept of record.conflicts_with) lines.push({ of, relation: "conflict", concept });
+  }
+  return { lines, missing };
 }
 
 async function probe(url, fetchImpl) {
@@ -173,7 +221,7 @@ export async function checkSources(records, fetchImpl) {
 
 const STDIN_FD = 0;
 
-function readUserConfig(source) {
+export function readUserConfig(source) {
   if (source !== "-") return JSON.parse(readFileSync(source, "utf8"));
   return Object.fromEntries(
     readFileSync(STDIN_FD, "utf8")
@@ -183,7 +231,7 @@ function readUserConfig(source) {
   );
 }
 
-function gitRoot(dir) {
+export function gitRoot(dir) {
   const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
 }
@@ -210,6 +258,8 @@ export async function main(
   if (opts.stage && !STAGES.includes(opts.stage)) return invalid("stage", opts.stage, STAGES);
   if (opts.reversibility && !REVERSIBILITY.includes(opts.reversibility)) return invalid("reversibility", opts.reversibility, REVERSIBILITY);
   if (opts["source-bar"] !== undefined && !SOURCE_BARS.includes(opts["source-bar"])) return invalid("source-bar", opts["source-bar"], SOURCE_BARS);
+  const weighed = opts["counterweights-of"].flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
+  if (weighed.length && positionals.length) return invalid("counterweights-of", positionals.join(" "), null, "takes no TERM");
 
   let userConfig = {};
   if (opts["user-config"]) {
@@ -223,6 +273,12 @@ export async function main(
   const filters = { ...opts, "source-bar": opts["source-bar"] ?? settings.source_bar, exclude: [...settings.exclude, ...opts.exclude] };
 
   const index = loadIndex(opts["data-dir"] ?? shippedDataDir, err, { shipped: opts["data-dir"] === undefined });
+  if (weighed.length) {
+    const { lines, missing } = counterweightLines(index, weighed);
+    for (const term of missing) err(JSON.stringify({ level: "error", event: "concept not found", term }));
+    for (const line of lines) out(JSON.stringify(line));
+    return missing.length ? 1 : 0;
+  }
   let records = select(index, positionals.join(" ").trim(), filters).map((r) => present(index, r));
   if (opts["check-sources"]) records = await checkSources(records, fetchImpl);
   for (const record of records) out(JSON.stringify(record));

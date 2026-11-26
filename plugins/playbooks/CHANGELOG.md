@@ -4,6 +4,14 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.18] - 2026-11-26
+
+### Changed
+
+- **The repo-sweep hygiene catalog's tidy step names focus areas.** Its `args` and notes follow
+  `/code-tidying:tidy`'s rename: one focus area per call, read from `.claude/tidy-areas/*.md` and
+  the bundled focus areas.
+
 ## [0.36.17] - 2026-11-25
 
 ### Changed

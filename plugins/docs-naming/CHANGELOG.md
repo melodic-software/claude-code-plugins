@@ -3,6 +3,12 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.9] - 2026-11-26
+
+### Changed
+
+- The emitted file-name gate's failure summary is self-contained: it says to rename each offender to the rule or exempt it in the `file_names` configuration and re-emit the gate, instead of pointing at the script's header comment.
+
 ## [0.9.8] - 2026-11-25
 
 ### Changed
