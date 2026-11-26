@@ -150,8 +150,8 @@ checked and what it showed.
 
 Every briefed outcome posts one triage comment beside its brief, before its label edit; if it
 cannot be posted, apply no label. The needs-info and close outcomes keep their own comments. It carries the lines the intake lane's comment carries (the
-lines [ci-mode.md](ci-mode.md) step 7 names, plus the repository's own `## Triage rules` in
-`docs/conventions/work-items.md`), so a reader finds the same lines whichever ran:
+lines [ci-mode.md](ci-mode.md) step 7 names, plus any lines the repository's own `## Triage rules`
+in `docs/conventions/work-items.md` add), so a reader finds the same lines whichever ran:
 
 ````markdown
 **Triage: <outcome>**

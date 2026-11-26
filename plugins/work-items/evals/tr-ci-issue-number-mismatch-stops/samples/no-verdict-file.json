@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "cat .lane/scratch/issue.json"}}], "why": "reads the issue only"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "printf '%s' '{\"needs_human\":false}' > .lane/scratch/triage-verdict.json"}}], "why": "writes a verdict file through Bash"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat > triage-verdict.json <<'EOF'\n{}\nEOF"}}], "why": "writes a verdict file by heredoc"}
+  ]
+}

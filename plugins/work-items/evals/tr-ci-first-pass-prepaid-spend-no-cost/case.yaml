@@ -14,7 +14,7 @@ execution:
 graders:
   - name: no-cost-flag
     type: 'regex'
-    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*cost\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|\"|$)'
+    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*cost\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|"|$)'
     match: 'not_contains'
     target: 'last_message'
     arm: both

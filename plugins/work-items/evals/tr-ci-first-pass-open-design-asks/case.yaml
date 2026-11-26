@@ -14,7 +14,7 @@ execution:
 graders:
   - name: flags-intent
     type: 'regex'
-    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*intent\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|\"|$)'
+    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*intent\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|"|$)'
     target: 'last_message'
     arm: both
   - name: applies-needs-decision
