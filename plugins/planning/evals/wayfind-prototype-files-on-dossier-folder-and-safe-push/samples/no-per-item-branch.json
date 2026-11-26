@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": "Copy the files to 504-prove-knock-sends-email-and-in-app/ on the map's dossier branch.", "why": "no new branch"},
+    {"answer": "git switch dossier/500-map-notification-vendor\ngit push origin dossier/500-map-notification-vendor", "why": "dossier branch only"},
+    {"answer": "Decision items add no branch of their own; no new branch for #504.", "why": "negated mention"},
+    {"answer": "On the dossier branch `dossier/500-map-notification-vendor`, in `504-prove-knock/`.", "why": "branch name then the item folder"},
+    {"answer": "", "why": "empty reply creates no branch"},
+    {"answer": "No new branch for #504: the files go in its folder on the dossier branch.", "why": "capitalized negation"},
+    {"answer": "I won't open a new branch for #504.", "why": "negated with n't"},
+    {"answer": "There is no need for a new branch for #504.", "why": "no need for"}
+  ],
+  "fail": [
+    {"answer": "Create branch prototype/504 and push the files there.", "why": "per-item branch"},
+    {"answer": "git checkout -b prototype/504-knock\ngit push -u origin prototype/504-knock", "why": "checkout -b per-item branch"},
+    {"answer": "git switch -c 504-prove-knock", "why": "switch -c per-item branch"},
+    {"answer": "Open a new branch for #504 and commit the prototype there.", "why": "prose per-item branch"},
+    {"answer": "The other session is writing to the dossier branch, so the prototype goes on its own branch, `prototype/504-knock`, to avoid a collision.", "why": "wrong: per-item branch named after a comma"}
+  ]
+}

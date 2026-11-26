@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Item #43 is on the frontier; claiming it.",
-      "why": "meets the rule"
+      "why": "works the item"
+    },
+    {
+      "answer": "The argument is an item link, so this is work mode, not a proposal to chart. Claim: `/work-items:track start 43`. Open maps: `/work-items:track list --label 'wayfind: map' --state open`.",
+      "why": "lists maps by label without creating one"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply proposes nothing; other graders fail it"
     }
   ],
   "fail": [
     {
       "answer": "No map found for this; shall I chart one?",
-      "why": "breaks the rule"
+      "why": "proposes charting"
+    },
+    {
+      "answer": "Proposing to chart 'issues/43': say yes and I will run `/planning:wayfind chart issues/43`.",
+      "why": "chart proposal and command"
+    },
+    {
+      "answer": "Want me to start a new map for the cart persistence question?",
+      "why": "offers a new map"
+    },
+    {
+      "answer": "/work-items:track add --label 'wayfind: map' --body-file map.md \"Map: cart persistence\"",
+      "why": "creates a map"
+    },
+    {
+      "answer": "The link points at an issue, not a map. I'll chart a new map for the cart persistence question once you say yes.",
+      "why": "wrong: offers to chart in plain words"
     }
   ]
 }

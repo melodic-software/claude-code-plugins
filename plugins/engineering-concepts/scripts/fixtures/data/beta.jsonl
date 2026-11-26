@@ -1,0 +1,1 @@
+{"id":"example-review-gate","name":"Example Review Gate","aliases":["example-old-gate"],"concern":"quality","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/review-gate","owner":"/fixture:review","counterweights":[],"conflicts_with":[]}

@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "needs-human only where your vision decides it; the library pick has its budget, so an agent can settle it.",
-      "why": "meets the rule"
+      "why": "ties the label to vision"
+    },
+    {
+      "answer": "Mode: the first-time-user item asks for your vision of the experience, so it carries `needs-human`; the index-library item is a design question an agent can answer against the budget.",
+      "why": "vision before the label"
+    },
+    {
+      "answer": "| Item | Type | Mode |\n|---|---|---|\n| First-time user feel | interview | needs-human (needs your intent) |\n| Index library | design | agent |",
+      "why": "reason in the table cell"
+    },
+    {
+      "answer": "Not every interview item is needs-human: only one whose answer needs your intent or vision, like the first-time-user feel.",
+      "why": "rules out labeling by type and ties the label to intent"
     }
   ],
   "fail": [
     {
       "answer": "Interview items get needs-human, design items don't.",
-      "why": "breaks the rule"
+      "why": "by type alone"
+    },
+    {
+      "answer": "Labels: first-time user item: wayfind: interview, needs-human. Index library: wayfind: design.",
+      "why": "no reason"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Interview items carry needs-human since they need your intent; design items go to an agent.",
+      "why": "wrong: labels by item type and names intent only as a property of the type"
+    },
+    {
+      "answer": "needs-human goes on every interview item, because those need your vision; the index-library design item runs unattended.",
+      "why": "wrong: labels every item of one type"
     }
   ]
 }

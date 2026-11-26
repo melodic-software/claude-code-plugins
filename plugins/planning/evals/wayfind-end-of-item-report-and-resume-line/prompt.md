@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 24, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "After graduating an item, work reports the closed item, its Decisions-so-far line, no new items and the newly unblocked item, then ends with one clear-and-resume line (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

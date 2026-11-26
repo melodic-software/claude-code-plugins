@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
+import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { DIFF_TEXT, LISTED, PAGE_TWO } from "./capped-compare.fixture.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -920,6 +921,80 @@ test("sameNetChange compares filename, status, previous_filename and patch", () 
   assert.equal(sameNetChange(null, net(TF)), false);
 });
 
+const DELETED = ".changes/user-interface/chore-comment-sweep-v060-a9938050.md";
+const ADDED = ".changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md";
+const cutShort = (text, sections) => text.split(/^(?=diff --git )/m).slice(0, -sections).join("");
+const bumped = (text) => text.replace("+bump: patch\n", "+bump: minor\n");
+
+test("diffFiles reads every section of a compare's diff text in the compare file-list shape", () => {
+  const files = diffFiles(DIFF_TEXT);
+  assert.equal(files.length, 301);
+  const named = (name) => files.find((f) => f.filename === name);
+  assert.deepEqual(named(ADDED), { filename: ADDED, status: "added", modes: ["new file mode 100644"], patch: "@@ -0,0 +1,7 @@\n+---\n+bump: patch\n+---" });
+  assert.deepEqual(diffFiles("diff --git a/old.md b/new.md\nsimilarity index 100%\nrename from old.md\nrename to new.md\n"), [{ filename: "new.md", status: "renamed", previous_filename: "old.md", patch: "", modes: [] }]);
+  assert.equal(named(DELETED).status, "removed");
+  assert.ok(named(DELETED).patch.startsWith("@@ -1,5 +0,0 @@\n----\n-bump: none\n----"), "a removed `---` line stays in the hunk");
+});
+
+test("diffFiles refuses text it cannot name and keeps a binary file patchless", () => {
+  assert.equal(diffFiles(`index 1..2\n${DIFF_TEXT}`), null, "text before the first section");
+  assert.equal(diffFiles('diff --git "a/sp\\303\\251cial" "b/sp\\303\\251cial"\nindex 1..2 100644\n--- "a/sp\\303\\251cial"\n+++ "b/sp\\303\\251cial"\n@@ -1 +1 @@\n-a\n+b\n'), null, "a quoted path");
+  assert.equal(diffFiles("diff --git a/x b/x\nsome header\n"), null, "an unknown header line");
+  assert.deepEqual(diffFiles("diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"), [{ filename: "logo.png", status: "modified", modes: [] }]);
+  assert.deepEqual(diffFiles("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"), [{ filename: "run.sh", status: "changed", modes: ["old mode 100644", "new mode 100755"], patch: "" }]);
+});
+
+test("a listing at the compare API's 300 files is the same net change only on its two diffs", () => {
+  assert.equal(LISTED.files.length, 300);
+  assert.equal(needsDiff(LISTED), true);
+  assert.equal(needsDiff(net(TF)), false);
+  assert.equal(sameNetChange(LISTED, LISTED), false, "the listing alone may hide a file");
+  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, DIFF_TEXT]), true);
+  assert.notEqual(bumped(DIFF_TEXT), DIFF_TEXT);
+  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, bumped(DIFF_TEXT)]), false, "one changed line");
+  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, `${DIFF_TEXT}diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n`]), false, "a file more");
+  const none = { files: [] };
+  const modeOnly = (mode) => `diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode ${mode}\n`;
+  assert.equal(sameNetChange(none, none, [modeOnly("100755"), modeOnly("100755")]), true);
+  assert.equal(sameNetChange(none, none, [modeOnly("100755"), modeOnly("120000")]), false, "a mode the listing never reports");
+  const binary = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n";
+  assert.equal(sameNetChange(none, none, [binary, binary]), false, "a binary change shows no patch to compare");
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [DIFF_TEXT, DIFF_TEXT], 301), true);
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN]), false);
+});
+
+test("two diffs cut short of the pull request's changed files, or of the files their listings name, carry nothing", () => {
+  const one = cutShort(DIFF_TEXT, 1);
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [one, one], 301), false, "300 files against 301 changed");
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [DIFF_TEXT, DIFF_TEXT]), false, "no changed-file count");
+  const two = cutShort(DIFF_TEXT, 2);
+  assert.equal(sameNetChange(LISTED, LISTED, [two, two]), false, "a diff missing a file the listing names");
+});
+
+test("wholeCompare pages the commits past the unpaged 250 and reads the files from the diff past 300", async () => {
+  const reads = [];
+  const read = async (path) => {
+    reads.push(path);
+    return { "/c/a...b?per_page=100&page=1": LISTED, "/c/a...b?per_page=100&page=2": PAGE_TWO }[path];
+  };
+  const whole = await wholeCompare(read, async (path) => (reads.push(`diff ${path}`), DIFF_TEXT), "/c/a...b");
+  assert.equal(whole.total_commits, 150);
+  assert.equal(whole.commits.length, 150);
+  assert.deepEqual(whole.commits, [...LISTED.commits, ...PAGE_TWO.commits]);
+  assert.equal(whole.files.length, 301);
+  assert.deepEqual(reads, ["/c/a...b?per_page=100&page=1", "/c/a...b?per_page=100&page=2", "diff /c/a...b"]);
+  const pages = [];
+  const short = await wholeCompare(async (path) => (pages.push(path), path.endsWith("page=1") ? LISTED : { commits: PAGE_TWO.commits.slice(1) }), async () => DIFF_TEXT, "/c/a...b");
+  assert.equal(short.commits.length, 149, "a page short of the total stays short");
+  assert.equal(pages.length, 2, "the read stops at a page short of 100");
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => "not a diff", "/c/a...b"), /does not parse/);
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => cutShort(DIFF_TEXT, 2), "/c/a...b"), /names fewer files than its listing/);
+  assert.deepEqual(diffFiles(""), []);
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => "", "/c/a...b"), /names fewer files than its listing/, "an empty diff body");
+  const small = { ...PAGE_TWO, total_commits: 50, files: [TF] };
+  assert.deepEqual(await wholeCompare(async () => small, async () => assert.fail("a listing under 300 needs no diff"), "/c/a...b"), small);
+});
+
 test("linkHold binds a pass to the issue and link kind it judged", () => {
   const closes = (...numbers) => ({ totalCount: numbers.length, nodes: numbers.map((number) => ({ number, repository: { nameWithOwner: "o/r" } })) });
   const record = (number, spec_kind) => ({ linked_issues: [{ number }], ...(spec_kind ? { spec_kind } : {}) });
@@ -1217,12 +1292,18 @@ const liftWorld = ({
   events = [],
   activity = [push(HEAD, "2026-10-27T23:32:00Z"), push(OLD, "2026-10-27T23:00:00Z")],
   fail = "",
+  diffs = {},
 } = {}) => {
   const reads = [];
-  const github = async (method, path) => {
-    reads.push(path);
+  const github = async (method, path, body, headers = {}) => {
+    reads.push(headers.Accept === DIFF ? `diff ${path}` : path);
     assert.equal(method, "GET");
     if (fail && path.includes(fail)) throw new Error(`${fail} failed`);
+    if (headers.Accept === DIFF) {
+      const head = new RegExp(`^/repos/owner/repo/compare/${TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(path)?.[1];
+      if (head in diffs) return diffs[head];
+      throw new Error(`unexpected diff read ${path}`);
+    }
     if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: base }, changed_files: changed ?? compares[HEAD]?.files?.length };
     if (path === "/repos/owner/repo") {
       if (defaultBranch === null) throw new Error("the repository did not read");
@@ -1283,6 +1364,18 @@ test("an approval of an earlier head lifts a hold path over a later base merge, 
     assert.ok(world.reads.includes(`/repos/owner/repo/compare/${TIP}...${OLD}`) && world.reads.includes(`/repos/owner/repo/compare/${MAIN}...${TIP}`), world.reads.join(" "));
     assert.ok(!world.reads.some((path) => /\/compare\/(main\.\.\.|.*\.\.\.main$)/.test(path)), world.reads.join(" "));
   }
+});
+
+test("an approval carries over a base merge whose compares list 300 files, judged on their two diffs", async () => {
+  const humans = new Set([5]);
+  const capped = (diffs) => liftWorld({ compares: { [OLD]: atOld(LISTED.files), [HEAD]: merged(LISTED.files) }, across: {}, changed: 301, diffs });
+  const same = capped({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT });
+  assert.deepEqual(await holdsModule.liftersOf(same.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: ["owner-person"] });
+  assert.ok(same.reads.includes(`diff /repos/owner/repo/compare/${TIP}...${OLD}`) && same.reads.includes(`diff /repos/owner/repo/compare/${TIP}...${HEAD}`), same.reads.join(" "));
+  const evil = capped({ [OLD]: DIFF_TEXT, [HEAD]: bumped(DIFF_TEXT) });
+  assert.deepEqual(await holdsModule.liftersOf(evil.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a merge that changes one line");
+  const short = liftWorld({ compares: { [OLD]: atOld(LISTED.files), [HEAD]: merged(LISTED.files) }, across: {}, changed: 302, diffs: { [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT } });
+  assert.deepEqual(await holdsModule.liftersOf(short.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a diff naming fewer files than the pull request changes");
 });
 
 test("liftersOf takes main's tip the caller already resolved, and reads it only for another base or no tip", async () => {

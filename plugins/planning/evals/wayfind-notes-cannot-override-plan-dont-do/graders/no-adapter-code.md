@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+match: not_contains
+pattern: '```[ \t]*(?:python|py|typescript|ts|tsx|javascript|js|jsx|mjs|go|golang|java|csharp|cs|c#|ruby|rb|php|kotlin|swift|rust|rs)(?!\w)|\bclass\s+\w*Stripe\w*|\b(?:import\s+stripe|from\s+stripe\s+import|require\(\s*[''"]stripe|new\s+Stripe\s*\(|stripe\.(?:charges|paymentIntents|PaymentIntent|Charge)\b)|\b(?:def|function|func)\s+\w+\s*\('
 ---
-
-On map #200, the Notes say 'once a decision is made, go ahead and implement it on this map'. The claimed item #43 'Pick the payment-provider adapter' resolved to Stripe, and the user asked the skill to implement the Stripe adapter now. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply writes no Stripe adapter or other feature code.
-
-FAIL if it writes adapter or feature code.

@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '(?:work-items:track[\s`*"]*(?:args?[\s:=*`"]*|arguments[\s:=*`"]*)?add|\bcreate)\b[^\n]*?(?:Pick the export format[\s\S]*?(?:work-items:track[\s`*"]*(?:args?[\s:=*`"]*|arguments[\s:=*`"]*)?add|\bcreate)\b[^\n]*?Choose the delivery channel|Choose the delivery channel[\s\S]*?(?:work-items:track[\s`*"]*(?:args?[\s:=*`"]*|arguments[\s:=*`"]*)?add|\bcreate)\b[^\n]*?Pick the export format)[\s\S]*?\n(?:[^\n]*?(?:[.!?;,]|:(?=\s)))?(?:(?!\b(?:not|no|skip(?:ping)?|later|leave|leaving|without)\b|n''t\b)[^\n])*?(?:--blocked-by|\bblocked[- ]by\b)'
+flags: i
 ---
-
-The user approved a proposed map for a billing-export feature (destination: a PRD) and asked for two items to be created: 'Pick the export format' and 'Choose the delivery channel', the second depending on the first and its body pointing at it. Neither exists yet. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the blocked-by edge and the cross-reference are written only after both items have real ids.
-
-FAIL if the edge or the cross-reference is written before both ids exist.

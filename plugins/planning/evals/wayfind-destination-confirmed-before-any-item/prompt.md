@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 13, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Chart names a destination of a stated kind and asks the user to confirm it before any map or decision item is created (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

@@ -1,14 +1,50 @@
 {
   "pass": [
     {
-      "answer": "No map: these are three sharp tickets.",
-      "why": "meets the rule"
+      "answer": "No map: these are three sharp tickets. Route them to /work-items:decompose.",
+      "why": "declines the map"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels` gave `wayfind:` (default). Open maps: `/work-items:track list --label 'wayfind: map' --state open` returned none.\n\nNo-fog bail-out: all three pieces are already sharp, so no map. `/work-items:decompose` the three tickets.",
+      "why": "the start-of-action label lookup and open-map list are not a map"
+    },
+    {
+      "answer": "**Map:** none needed. Tickets:\n- Request-reset-token endpoint\n- Reset email send\n- Reset-confirmation endpoint\nRun /work-items:decompose on them.",
+      "why": "a Map line that declines, and plain tickets"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply creates nothing"
+    },
+    {
+      "answer": "Charting a map would add nothing here: three sharp tickets. Route them to /work-items:decompose.",
+      "why": "names charting only to decline it"
     }
   ],
   "fail": [
     {
       "answer": "Map: forgot-password flow. Items: 'Pick the token store', 'Choose the email provider'.",
-      "why": "breaks the rule"
+      "why": "writes out a map"
+    },
+    {
+      "answer": "/work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: forgot-password email flow\"",
+      "why": "creates a map issue"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: add --parent <map-id> --label 'wayfind: design' --body-file item-1.md \"Pick the token store\"\n```",
+      "why": "creates a decision item"
+    },
+    {
+      "answer": "Proposed map.\nDecision items:\n- 'Choose the reset-token lifetime' (design)\n\nNot-yet-specified:\n- **Email tone**: unclear.",
+      "why": "proposes a map with items and fog"
+    },
+    {
+      "answer": "Charting anyway since you asked for chart. I created the map 'Forgot-password email flow' with decision items 'Token lifetime' and 'Email provider'.",
+      "why": "wrong: charts in prose with no Map: line"
+    },
+    {
+      "answer": "I'll chart it as a small map with two decision items: token lifetime and email provider.",
+      "why": "wrong: charts a map in one sentence"
     }
   ]
 }

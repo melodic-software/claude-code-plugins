@@ -1936,3 +1936,122 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
         self.assertTrue(
             policy.ungated_since(_pushed([path]), [], floor=risk.floor_for())
         )
+
+
+def _capped() -> tuple[dict, str]:
+    """The listing of 300 files and diff of 301 sections that
+    `.github/scripts/pr-merge/capped-compare.fixture.mjs` builds from the
+    captured sample."""
+    fixtures = ROOT / ".github/scripts/pr-merge/fixtures"
+    sample = json.loads((fixtures / "compare-sample.json").read_text(encoding="utf-8"))
+    with (fixtures / "compare-sample.diff").open(encoding="utf-8", newline="") as text:
+        sections = re.split(r"(?m)^(?=diff --git )", text.read())[1:]
+    files, diff = [], []
+    for copy in range(300 // len(sample["files"])):
+        for entry, section in zip(sample["files"], sections, strict=False):
+            keys = [k for k in ("filename", "previous_filename") if k in entry]
+            copied = {k: entry[k] if copy == 0 else f"n{copy}/{entry[k]}" for k in keys}
+            files.append(entry | copied)
+            for k in keys:
+                section = section.replace(entry[k], copied[k])
+            diff.append(section)
+    return {"files": files}, "".join(diff) + sections[-1]
+
+
+_LISTED, _DIFF = _capped()
+_CR = _DIFF.replace("+bump: patch\n", "+bump: patch\r\n", 1)
+_CUT = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-2])
+_MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
+_BINARY = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"
+DIFF_CASES = {
+    "the same diffs": [_DIFF, _DIFF],
+    "one changed line": [_DIFF, _DIFF.replace("+bump: patch\n", "+bump: minor\n", 1)],
+    "diffs missing a file the listing names": [_CUT, _CUT],
+    "diffs that differ by a trailing carriage return": [_DIFF, _CR],
+    "a mode change more": [_DIFF, _DIFF + _MODE_ONLY],
+    "a binary file in both": [_DIFF + _BINARY, _DIFF + _BINARY],
+    "a quoted path": [_DIFF, _DIFF + 'diff --git "a/\\303\\251" "b/\\303\\251"\n'],
+    "text before the first section": [_DIFF, "index 1..2\n" + _DIFF],
+}
+NODE_DIFF = """
+import { diffFiles, needsDiff, sameNetChange } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [listed, cases] = JSON.parse(text);
+console.log(JSON.stringify(cases.map((diffs) => [diffFiles(diffs[1]), needsDiff(listed), sameNetChange(listed, listed, diffs)])));
+"""
+NODE_DIFF_CARRY = """
+import { baseMergeCarry } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [[then, now, start, inBase], cases] = JSON.parse(text);
+console.log(JSON.stringify(cases.map(([diff, changed]) => baseMergeCarry(then, now, start, inBase, [diff, diff], changed ?? undefined))));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheDiffNetChangeIsTheGates(unittest.TestCase):
+    def test_both_read_the_same_files_and_net_change_from_the_diffs(self) -> None:
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_DIFF % json.dumps(MODULE.as_uri())],
+            input=json.dumps([_LISTED, list(DIFF_CASES.values())]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, diffs), js in zip(DIFF_CASES.items(), answers, strict=True):
+            with self.subTest(name):
+                self.assertEqual(
+                    [
+                        policy.diff_files(diffs[1]),
+                        policy.needs_diff(_LISTED),
+                        policy.same_net_change(_LISTED, _LISTED, diffs),
+                    ],
+                    js,
+                )
+        self.assertEqual(
+            {name for name, (_, _, same) in zip(DIFF_CASES, answers, strict=True) if same},
+            {"the same diffs"},
+        )
+        self.assertFalse(policy.same_net_change(_LISTED, _LISTED), "the listing alone")
+        self.assertEqual(len(policy.diff_files(_DIFF) or []), 301)
+        one = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-1])
+        files = _LISTED["files"]
+        args = (_THEN | {"files": files}, {"files": files, **_MERGED}, _OLD, set(_IN_BASE))
+        js = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_DIFF_CARRY % json.dumps(MODULE.as_uri())],
+            input=json.dumps([[args[0], args[1], _OLD, list(_IN_BASE)], [[_DIFF, 301], [one, 301], [_DIFF, None]]]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(
+            [
+                policy.base_merge_carry(*args, [_DIFF, _DIFF], 301),
+                policy.base_merge_carry(*args, [one, one], 301),
+                policy.base_merge_carry(*args, [_DIFF, _DIFF], None),
+            ],
+            json.loads(js.stdout),
+        )
+        self.assertEqual(json.loads(js.stdout), [True, False, False])
+
+    def test_the_diff_read_keeps_carriage_returns_as_the_js_gate_does(self) -> None:
+        answers = {"T...O": _DIFF.encode(), "T...H": _CR.encode()}
+
+        def gh(args: list[str], *, binary: bool = False, **_: Any) -> Any:
+            raw = answers[args[1].rsplit("/", 1)[1]]
+            universal_newlines = raw.decode().replace("\r\n", "\n").replace("\r", "\n")
+            out = raw if binary else universal_newlines
+            return subprocess.CompletedProcess(args, 0, out, b"" if binary else "")
+
+        with mock.patch.object(policy, "gh_capture", side_effect=gh):
+            diffs = policy._cap_diffs("o", "r", ["T...O", "T...H"], [_LISTED, _LISTED])
+        self.assertEqual(diffs, [_DIFF, _CR])
+        self.assertFalse(policy.same_net_change(_LISTED, _LISTED, diffs))
+        answers["T...H"] = b"\xff"
+        with (
+            mock.patch.object(policy, "gh_capture", side_effect=gh),
+            self.assertRaises(policy.PolicyReadError),
+        ):
+            policy._cap_diffs("o", "r", ["T...O", "T...H"], [_LISTED, _LISTED])

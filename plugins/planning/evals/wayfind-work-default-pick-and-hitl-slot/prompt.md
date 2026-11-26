@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 15, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "With no item named, work skips frontier item #42 because this person's HITL slot is already held by #41, claims #43 instead and names the item holding the slot (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

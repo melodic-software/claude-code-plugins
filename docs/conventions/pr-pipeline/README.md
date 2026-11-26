@@ -1636,14 +1636,13 @@ the rules that only tighten in
   pieces, each under the file's header and no two in one chunk, and a hunk over 300000 bytes with
   that header is cut between its lines, each cut under an `@@` header recounted for its lines
   (`diff_chunking.py split --cut-lines`); each chunk is
-  reviewed by its own run, in
-  order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
+  reviewed by its own run, chunk 1 first and the rest `CHUNK_PARALLELISM` (8) at once in one
+  step (ci-workflows `run-review-chunks`), and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
   any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
-  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single line
-  over 300000 bytes with its headers, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
-  review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
-  until a dynamic chunk count lifts it
-  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
+  CRITICAL items than its `critical` count, which alone binds, and its summary keeps each chunk's
+  first 16000 / N characters. A patch that holds a single line
+  over 300000 bytes with its headers, or needs more than 75 chunks (the diff step's `MAX_CHUNKS`,
+  22.5 MB), gets no verdict and stops as `too-large`. A chunked
   diff also writes `manifest.txt` in the data directory, every file of the whole diff with its
   chunk, `piece <i> of <n>` for each piece of a cut file, and status (added, modified, deleted,
   or renamed with both paths), up to what one Read
@@ -2366,17 +2365,21 @@ back to them:
   `identical`), and the approved head is among its commits, so a non-merge commit, a merge of
   another branch or of a crafted merge commit, or a force push that rewrites the approved head
   carries nothing. Then either the net change against the tip is the same at both heads over
-  every file (`sameNetChange`), or the merges brought exactly the base's changes
+  every file (`sameNetChange`; when either listing stops at 300 files or gives a file no patch,
+  the two compares' `application/vnd.github.diff` texts decide, file modes included, at any file
+  count, and a binary file or a diff naming fewer files than the pull request changes carries
+  nothing), or the merges brought exactly the base's changes
   (`exactBaseCarry`): the compare from the approved head H to the current head H' lists, file for
   file and with the same status, `previous_filename` and patch, what the compare between the merge
   bases of H and of H' (M and M') with the tip lists, and the recursive trees of H' and M' give
   each of those files one mode (a removed file, or a renamed file's old path, in neither). A merge
   that writes any change of its own, to a hold path or any other file, flips the mode of a file the
-  base changed, or drops a base change, carries nothing. Either compare listing 300 files or more,
-  a commit list not read whole, a file with no patch, a truncated tree, or a head in a fork carries
-  nothing. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
-  files; nothing checks that against a second listing. The compare API reports no file mode, so a
-  mode-only change still reads the same on the same-net-change path: a known residual there.
+  base changed, or drops a base change, carries nothing. A commit list not read whole or a head in
+  a fork carries nothing, and on the exact path neither does either compare listing 300 files or
+  more, a file with no patch, or a truncated tree. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
+  files; nothing checks that against a second listing. The compare listing reports no file mode,
+  so a mode-only change still reads the same on the same-net-change path when both listings are
+  under the cap: a known residual there.
 - An approval of the current head lifts the verifier and issue-link holds too; an approval of an
   earlier head does not, since the merge result is new to pr-verify.
 
@@ -2878,32 +2881,34 @@ sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
 (`scripts/plan-test-lanes.sh`), so a skipped `test-node` does not read as that suite unrun. A
 label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
-bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
+bytes as it takes, up to 75 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 22.5 MB diff), each file
 whole but one over 300000 bytes, cut at its hunks (a hunk over a chunk between its lines, under
 recounted `@@` headers) into pieces the manifest lists as
 `piece <i> of <n>` (`chunk-diff.sh`, `diff_chunking.py`; the same chunk budget as `pr-review-main`),
 and a file with one line over a chunk gets no verdict; each chunk
-gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
+is judged by its own run with the same spec, chunk 1 first and the rest `CHUNK_PARALLELISM` (8) at once in one step
+(ci-workflows `run-review-chunks`), cut into parts one Read returns whole; a line over 1800
 bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
 (`manifest/part-*.txt`) names the part each file starts in, so a judge reads another chunk's part when
 its change references a file there and judges both sides. A `pass` or `pass-notes` counts only when the
 run read every part whole with no permission denial. A `fail` needs the schema and, when it read short,
 a defect in its notes. It counts on a denial, which it records, since no fail can pass the head, and
 it stands whatever follows:
-the step after each judge stops the later chunks, the final judge and any handoff, and
+a fail in chunk 1 skips the later chunks, a fail in any chunk skips the final judge and any handoff, and
 `Write the verdict` runs on it, so a re-run cannot sample that head. A `pass-notes` makes the head
 `pass-notes`. A head of two chunks or more also needs a final judge step, `Judge the whole spec`,
-denied the diff: it reads the spec and every chunk's checked result, whole, in as many files as that
-takes, as untrusted data (`spec-prompt.md`), and maps each done-when item to the chunk that delivers
+denied the diff: it reads the spec and every chunk's checked result, whole, one JSON object a line in as
+few files as that takes, within 300000 bytes (each chunk's prompt asks for summary and notes under
+300000 / N / 3 characters), as untrusted data (`spec-prompt.md`), and maps each done-when item to the chunk that delivers
 it, and a script fails the head on an item mapped to none. It must read the spec, the manifest and
 every result whole, and on a spec entry whose `spec_kind` is `refs` the context too, cut into the
 same parts. With no output
 from it, off the schema, or with a denial on anything but a `fail`, and no counted fail, the head gets
 no verdict, so no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A
 chunk that passes short of a part, leaves no output or is off the schema leaves no verdict for the
-head, and a handoff from any chunk hands the whole
-judgment to the next leg, which judges every chunk again. A file over 300000 bytes, or a diff that
-needs more than 12 chunks (over about 3.6 MB), ends the run red with no verdict and an error naming
+head, and a handoff from any chunk with no counted fail from a chunk that finished first hands the
+whole judgment to the next leg, which judges every chunk again (`write-verdict.mjs` `checkLaterChunks`). A file over 300000 bytes, or a diff that
+needs more than 75 chunks (over about 22.5 MB), ends the run red with no verdict and an error naming
 the file or the chunk count, so size alone writes no `fail`. With no verdict `verdictHold` holds the
 head, the trusted approval of the head lifts that, and a `pr-verify-failed` label stays. The diff
 step logs a `pr-verify chunks` notice, and the verdict step a `pr-verify chunk` notice per chunk. The run
@@ -2941,7 +2946,10 @@ shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or 
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
 verdict from a judge step `run-claude-cli` failed on its own credential scan, is written as a `fail`
 with a fixed text in place of all the model's, which counts toward the repeated-fail cap, so the head
-is not judged twice. A `pass` or `pass-notes` holding only a secret assignment, which may be a
+is not judged twice. A later chunk counts as such a stop only when it failed and `run-review-chunks`'
+`chunk-classes` (a JSON array, one string per later chunk) gives it an empty class; a later chunk that
+failed with a class (a handoff, max turns, a timeout), or with an unset, unparsable or wrong-length
+list, left no output. A `pass` or `pass-notes` holding only a secret assignment, which may be a
 fixture, uploads nothing, and the run fails. The chunk-results step stops with no verdict, before the final
 judge runs, on results over 300000 bytes. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since
@@ -4122,7 +4130,7 @@ with its default.
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch `refine` run sends for its PR's event; 0 to 20. Each event offers one PR, so 0 turns CI fix-docs off and any other value turns it on. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the header's limit: `plan` by what the window has used; `read-floor`, `writer-pause`, `breaker` and `stop-floor` by the header's remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `classify`) reads `read-floor`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge sweep job, which skips at job level while the post-merge check, cover dispatch and enable-auto-merge run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its merge sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead, or to the reset when sooner, leaves under `start-project` (github-token, 0.3) of the header's limit, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; `defer-project` (github-token, 0.3, 0 turns it off) and `defer-run-minutes` (github-token, 15) drive the same gate's deferral (`defer: "true"`, set on pr-merge's PR-scoped arm run, whose work the sweep recovers, with `defer-job: pr-merge`, so its horizon is `defer-run-minutes-pr-merge`, github-token, 6, the p90 of 29 first-attempt arm runs, 327 s, read 2026-11-20, and on the two hosted review callers' gates, whose run the lost-run reconciler re-runs once the reset is past, with `defer-job: review`, so their horizon is `defer-run-minutes-review`, github-token, 8, under the 10.4-minute p90 of 418 hosted review runs of 2 minutes or more read 2026-11-21, by a replay of the busiest windows of 2026-11-22 to 2026-11-24 that left none newly at or under `stop-floor`): on a first run attempt it stops the job, cause `defer` and the window's reset, while the projection of the window's burn rate to the gate's job key (else `defer-run-minutes`) ahead, or to the reset when sooner, leaves under `defer-project` of the header's limit, with no `start-gate` floor and no wait, and a re-run attempt never defers; both may be set here, and CI Status and pr-dispatch-feedback never defer; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`), each a share of the header's limit: `plan` by what the window has used; `read-floor`, `writer-pause`, `breaker` and `stop-floor` by the header's remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `classify`) reads `read-floor`, to warn once while calls continue, and stops on the header's remaining and GitHub's refusals: at a remaining of 0, or at or under `stop-floor` of the header's limit, it sends no further call to that pool before the header's reset, records the stop in the job's stop file, and holds the step under `API_BUDGET_HOLD`, else fails it; a response with no readable limit, remaining or future reset never stops on `stop-floor`; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips a scheduled tick when the previous scheduled run, by run id, marked a clean pass of its work (its `Mark this tick's work done` step, which a held or red pass and a paced tick skip), so two scheduled ticks in a row are never both skipped and its cadence halves (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler, pr-unblock-dispatch and work-unblock's sweep read it, and pr-merge's dispatch-post-merge-runs reads it for the merge sweep job, which skips at job level while the post-merge check, cover dispatch and enable-auto-merge run on every tick), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; `pace-pr-merge` (github-token, 0.3, rate-limits.json alone) replaces `pace` for pr-merge, so its merge sweep halves once the window is projected to have under 0.3 of the header's limit left at the reset, sooner than the other timer lanes, and `pace` 0 turns it off too; `start-gate` (github-token, 0.1) is the share of the header's limit, by its remaining, under which a kill-switch gate that starts new work (`.github/actions/check-kill-switch`, `budget: "true"`) does not start its lane while the reset is still ahead (one GET /rate_limit per such gate, a stop with reason `kill-switch`, cause `budget` and the window's `reset`; a refused read, 403, 429, `retry-after` or a remaining of 0, also stops, and any other failed read proceeds); that gate reads it from rate-limits.json alone, and the schema rejects a `start-gate` set here; on the issue lane's first call (`project: "true"`) the same gate also stops, cause `budget` and the window's reset, while the pacer's projection (`.github/actions/check-kill-switch/projection.mjs`) of the window's burn rate to `start-run-minutes` (github-token, 21, the p90 of successful issue runs' check-broker start to run end) ahead leaves under `start-project` (github-token, 0.3) of the header's limit, or, with the reset sooner, while the projection to the reset leaves under `start-project` scaled by the seconds to the reset over the horizon's seconds, reading `start-project` and `start-run-minutes` from rate-limits.json alone (the schema rejects `start-project`, `start-run-minutes` and `pace-pr-merge` here); work-unblock's sweep re-fires that stop after the reset like a low-budget one; `defer-project` (github-token, 0.3, 0 turns it off) and `defer-run-minutes` (github-token, 15) drive the same gate's deferral (`defer: "true"`, set on pr-merge's PR-scoped arm run, whose work the sweep recovers, with `defer-job: pr-merge`, so its horizon is `defer-run-minutes-pr-merge`, github-token, 6, the p90 of 29 first-attempt arm runs, 327 s, read 2026-11-20, and on the two hosted review callers' gates, whose run the lost-run reconciler re-runs once the reset is past, with `defer-job: review`, so their horizon is `defer-run-minutes-review`, github-token, 8, under the 10.4-minute p90 of 418 hosted review runs of 2 minutes or more read 2026-11-21, by a replay of the busiest windows of 2026-11-22 to 2026-11-24 that left none newly at or under `stop-floor`): on a first run attempt it stops the job, cause `defer` and the window's reset, while the projection of the window's burn rate to the gate's job key (else `defer-run-minutes`) ahead leaves under `defer-project` of the header's limit, or, with the reset sooner, while the projection to the reset leaves under `defer-project` scaled by the seconds to the reset over the horizon's seconds, since only that part of the job draws on this window, with no `start-gate` floor and no wait, and a re-run attempt never defers; both may be set here, and CI Status and pr-dispatch-feedback never defer; the others are thresholds meant for the hub's limits sampler, and nothing else in this repository enforces them. resolve-config passes the block through as set. |
 | `lane-level` | 2, 4, 3, 2, `[lanes-app]`, `true`, `CLAUDE_LANE_LEVEL`, 150 | The adaptive lane level L (owner decision Q111): `floor`, `ceiling`, `default`, `clean-windows` and `pools` for `decide()` in `.github/scripts/lib/lane-level.mjs`, whose truth table is `lane-level.vectors.json` beside it. `shadow` (default `true`), `variable` (default `CLAUDE_LANE_LEVEL`, must end in `_LANE_LEVEL`) and `valid-minutes` (default 150, 60 to 1440) govern publish and read: work-unblock's hourly `publish-lane-level` job publishes L as `<level>@<valid-until>` in `variable`, and pick-slot and label-unblocked read it through `.github/scripts/lib/lane-level-value.mjs` (empty, expired or malformed reads as `default`, clamped to `floor` and `ceiling`). While `shadow` is set the job mints no token and writes nothing, `SLOTS` stays `default`, and both log the level they would use. Each window L steps up 1 after `clean-windows` windows in a row that each had demand (runs waiting, or every slot running) and no limit signal, when every pool in `pools` fits: peak used, as a share of the pool's header limit, times (L+1)/L at most `api.<pool>.plan`. A window where a pool has `api.<pool>.writer-pause` of its header's limit left or less resets the streak. Any limit signal the lanes App's own calls meet (403, 429, a secondary-limit or GraphQL rate-limit error, `retry-after`) halves L, rounded down, to no less than `floor`, and blocks a step up until the reset it names. A breaker trip is not a signal: it mostly reflects GITHUB_TOKEN spend, which pacing controls, and the breaker stays the backstop. Missing readings or demand hold L and the streak; a missing or malformed previous level reads as `default`, and every level is clamped to `floor` and `ceiling`. A `floor` above the `ceiling`, as set or defaulted, is rejected. An `api` pool field left unset reads from `rate-limits.json`, as the rate guard reads it. `.github/scripts/lib/lane-level-replay.mjs` replays the rule over the hub's recorded history. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
