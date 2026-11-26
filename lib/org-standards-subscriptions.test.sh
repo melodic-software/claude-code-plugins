@@ -351,7 +351,7 @@ assert_eq "rule inventory: a subscribed layer is named as present, not counted" 
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/tab-cache"
 user_index "standards_repositories:
   - repo: stranger/guide
-	  ref: $GUIDE
+"$'\t'"  ref: $GUIDE
   - repo: stranger/guide
     ref: $GUIDE
 "

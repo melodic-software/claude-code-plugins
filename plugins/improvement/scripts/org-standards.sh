@@ -71,9 +71,13 @@ yaml_value() {
     -e "s/^\"\(.*\)\"$/\1/" -e "s/^'\(.*\)'$/\1/"
 }
 
-CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"
-[[ "$CACHE" == /* ]] || CACHE="$PWD/$CACHE"
-need_cache() { as_is "$CACHE" || die "the cache directory $CACHE holds a control character or invalid UTF-8"; }
+CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-${HOME:+$HOME/.cache}}}"
+[[ -z "$CACHE" ]] || [[ -n "${ORG_STANDARDS_CACHE:-}" ]] || CACHE="$CACHE/claude-code-plugins/org-standards"
+[[ -z "$CACHE" ]] || [[ "$CACHE" == /* ]] || CACHE="$PWD/$CACHE"
+need_cache() {
+  [[ -n "$CACHE" ]] || die "no cache directory: set HOME, XDG_CACHE_HOME or ORG_STANDARDS_CACHE"
+  as_is "$CACHE" || die "the cache directory $CACHE holds a control character or invalid UTF-8"
+}
 STATE="$CACHE/.state"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -657,6 +661,7 @@ subscriptions() {
     note "personal subscriptions skipped this session (STANDARDS_SUBSCRIPTIONS_DISABLED=true)"
     return 0
   fi
+  [[ -n "${HOME:-}" ]] || { note "subscriptions not read: HOME is not set"; return 0; }
   local file="$HOME/.claude/standards/README.md"
   [[ -e "$file" ]] || return 0
   if ! [[ -f "$file" && -r "$file" ]]; then note "subscriptions not read: user index unreadable ($file)"; return 0; fi

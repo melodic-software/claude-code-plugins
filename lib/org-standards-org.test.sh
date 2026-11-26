@@ -48,6 +48,10 @@ mkdir -p "$TEST_TMPDIR/ci-std"
 printf '# CI org\n' >"$TEST_TMPDIR/ci-std/REVIEW.md"
 assert_eq "STANDARDS_DIR is the org checkout" "$(listed "# CI org")" "$(STANDARDS_DIR="$TEST_TMPDIR/ci-std" composed --root "$t")"
 assert_eq "a STANDARDS_DIR that is not a directory: exit 4" "4" "$(STANDARDS_DIR="$TEST_TMPDIR/none" code dir --root "$t")"
+assert_eq "with no HOME set, STANDARDS_DIR is still the org checkout" "$TEST_TMPDIR/ci-std|0" \
+  "$(env -u HOME -u XDG_CACHE_HOME -u ORG_STANDARDS_CACHE STANDARDS_DIR="$TEST_TMPDIR/ci-std" bash "$SCRIPT" dir --root "$t" 2>/dev/null | tr -d '\n'; echo "|${PIPESTATUS[0]}")"
+assert_eq "with no HOME set, subscriptions read nothing and say why" "0|1" \
+  "$(env -u HOME bash "$SCRIPT" subscriptions --root "$t" >/dev/null 2>&1; echo "$?")|$(env -u HOME bash "$SCRIPT" subscriptions --root "$t" 2>&1 >/dev/null | grep -c '^org-standards: subscriptions not read: HOME is not set$')"
 
 t=$(target cache "$OPTED")
 cache=$(run dir --root "$t")
