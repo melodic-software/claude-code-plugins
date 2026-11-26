@@ -162,10 +162,20 @@ only end state:
   may waive;
 - names an identifier the user can replace or an account change can kill: a pull request number,
   an artifact or document URL;
-- fixes an order of work the user may reorder or defer.
+- fixes an order of work the user may reorder or defer;
+- needs something to happen before a fixed clock time, such as a line timestamped before 13:30Z:
+  once that time passes the element can never hold, and the evaluator ends the goal as impossible.
 
 Offer the OR exit, a more stable reference (the branch rather than the pull request number, "the
-artifact titled X" rather than its URL), or a wording about the outcome alone.
+artifact titled X" rather than its URL), or a wording about the outcome alone. A clock time enters
+the condition only as an end of its own ("…, or `date -u` shows 13:30Z or later"), never as a
+deadline an element must beat.
+
+**Check the elements against each other.** Before Step 3, read every required element against the
+others and against the repository's own gates, and refuse a draft in which one element requires a
+state another forbids, such as a hold label that keeps a required check red beside an element that
+needs that check green. No run can satisfy both, so the evaluator can only end it as impossible.
+Ask the user which element gives way, or give the conflicting pair the OR exit above.
 
 ### When the outcome is not quantifiable
 
