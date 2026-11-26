@@ -1,9 +1,8 @@
 # Handoff on the mobile surface
 
 Read only when the `surface` probe resolves `mobile`. The output order and every other rule in
-`SKILL.md` hold; this file changes only how the parts are drawn. The phone gives each list item a
-large gap and cuts code blocks at about 38 characters, so the panel and checklist share two lines
-and the prompt's prose wraps.
+`SKILL.md` hold; this file changes only how the parts are drawn: the panel and checklist share two
+lines, and the prompt's prose wraps to 38 characters.
 
 - **Prompt**: `save_point.py emit --format mobile` (or `amend --format mobile`), pasted verbatim
   ([engine doc, "Markdown surfaces"](../../../../reference/save-point.md#markdown-surfaces)). On the
