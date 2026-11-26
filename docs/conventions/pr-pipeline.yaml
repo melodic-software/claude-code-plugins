@@ -5,357 +5,160 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
-    # A Refine pass: pr-refine.yml's select-passes job runs it before review on a PR
-    # whose changed files match applies-when's paths and paths-ignore.
     stage: refine
     order: 10
     group: docs
-    # Runs the skill's detect script on head files, so no write token: the
-    # read runner turns its uncommitted fixes into a patch that apply-patch
-    # pushes under patch-rules.json's markdown-only docs row (pr-refine.yml
-    # passes patch-prepare: docs).
     effect: read
     applied-by:
       patch: apply-patch
-    # No web access: a page the run read could still steer the markdown a
-    # push carries, or carry a key out in it.
     gating: advisory
-    # Head markdown can quote issue, PR or web text.
     reads-untrusted: true
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
-      # A changelog fragment alone is no reason to tidy.
       paths-ignore: [".changes/**"]
-      # The human-gated label holds it in pr-refine.yml's select-passes job
-      # (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review)
-      # unless a lane escalation put it on (lane-hold.mjs), so one lane's
-      # escalation does not stop this fixer.
       labels-absent: [do-not-merge, "security: outside-actor"]
-      # Skips a draft PR before any model turn: pipeline lanes leave drafts
-      # alone.
       draft: [false]
   resolve-conflicts:
-    # Resolves the conflicts of merging the default branch's tip into a pull
-    # request. It runs no command and holds no write token: the read runner
-    # merges the base tip before the skill and hands the skill's resolutions
-    # on as a patch, which apply-conflict-patch commits with both parents.
     skill: source-control:pull-request
-    # The skill's CI mode for a base merge's conflicts: reads the runner's
-    # conflicts.json, resolves each conflicted path in place, runs no command,
-    # and leaves a path it cannot resolve with its markers, which escalates it.
     args: conflicts --ci --unattended
-    # pr-unblock.yml's resolve-conflicts-select job, which runs only base
-    # code, merges the base tip and decides clean, conflicted or escalate
-    # before any model turn; the read runner merges the same base again and
-    # checks it reaches the same conflict tree.
     prepare: merge-base
-    # Edits head files, so no write token: the resolutions leave as a patch.
     effect: read
     applied-by:
       patch: apply-conflict-patch
-    # ci-status judges the merged tree.
     gating: advisory
-    # Reads PR head files.
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
     applies-when:
-      # clean lets a hand dispatch merge the default branch into a PR that is
-      # only behind (a required check that reads the base can fail on a stale
-      # one); the select job skips a head already up to date. The dispatcher
-      # still sends only conflicting PRs (dispatch.mjs isCandidate).
       mergeable: [conflicting, clean]
-      # The human-gated label holds it in the select job unless another
-      # lane's escalation put it on (lane-hold.mjs).
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   apply-conflict-patch:
-    # Merges the base tip resolve-conflicts-select pinned into the head it
-    # gated, applies resolve-conflicts's patch to the conflict tree, and
-    # pushes one merge commit with the head and that base as parents, without
-    # force; a clean merge needs no patch. A script, no model, and it runs no
-    # head code; patch-rules.json's merge-base row admits only marker-free
-    # resolutions of the conflicted paths, and a head that moved since skips.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
-    # Pushes the merge to the pull request's branch, nothing else.
     effect: mutate-branch
     gating: advisory
-    # Reads the patch the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha, base-sha]
     applies-when:
-      # As resolve-conflicts: the write runner keeps the human-gated label a
-      # hold unless the select job read another lane's escalation.
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   address-feedback:
-    # Fixes the review lanes' open findings on a pull request and records a
-    # reply for each one. It posts nothing and holds no write token: the read
-    # runner turns its uncommitted fixes into a patch that
-    # apply-feedback-patch pushes, and hands its replies to publish-feedback.
-    # pr-dispatch-feedback.yml starts it on pull requests the lanes App opened
-    # and on adopted owner ones once idle (`adoption` below; pr-pipeline
-    # README, Owner pull requests); a trusted person may also dispatch it by
-    # hand.
     skill: source-control:pull-request
-    # The skill's CI mode for review comments: edits only files a finding
-    # names, never under .github/workflows/, and writes replies to a file.
-    # --unattended: nobody is present to answer an ask (live-config.test.mjs
-    # fails a lane call of a skill that takes it without it).
     args: comments --ci --unattended
-    # Before any model turn pr-unblock.yml's address-feedback-select job, which
-    # runs only base code, keeps only unresolved threads the reviewer bot
-    # opened on a reviewed head, left by it alone or answered by a trusted
-    # person after the lane escalated them, hands the pull request to a person
-    # when it changes .github/workflows/ or, once `loop.review-rounds` rounds
-    # ran, a person gated it or a kept thread is a CRITICAL or unrated
-    # security finding or one a person directed (a write-access fix
-    # request newer than the last round still runs one more round on its
-    # threads; other findings, IMPORTANT security, listed review bots' and
-    # pr-verify notes included, get one fresh fixer round with a no-weaken
-    # brief, then hold for a person on an IMPORTANT security finding that
-    # round left open, else fail the head as feedback-verifier-open or
-    # feedback-not-converging), and
-    # writes the thread file; the read runner
-    # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
     self-checks: ["scripts/check-affected.sh --uncommitted"]
-    # Edits head files, so no write token: the change leaves as a patch.
     effect: read
     applied-by:
       patch: apply-feedback-patch
       feedback-replies: publish-feedback
-    # ci-status and the review lanes judge the pushed fix.
     gating: advisory
-    # Reads review comments, which quote the diff.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # do-not-merge stops it. On a needs-human PR the select job keeps only
-      # threads a trusted person with write access asked it to fix, and
-      # holds the PR when there are none; pr-merge still refuses that PR.
       labels-absent: [do-not-merge, "security: outside-actor"]
-      # A draft pull request is skipped.
       draft: [false]
   apply-feedback-patch:
-    # Applies address-feedback's patch to the head the select job gated and
-    # pushes it as one commit, without force. A script, no model, and it runs
-    # no head code; patch-rules.json's review-threads row admits only paths in
-    # the kept threads' scope, and a head that moved since skips. The push
-    # commit carries the Lane-Activity trailer publish-feedback names in its
-    # replies; a patch that does not land leaves no such commit, so
-    # publish-feedback hands the pull request to a person.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
-    # Pushes the fix to the pull request's branch, nothing else.
     effect: mutate-branch
     gating: advisory
-    # Reads the patch the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # As address-feedback: a needs-human PR still takes a fix a trusted
-      # person with write access asked for.
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   publish-feedback:
-    # Posts the replies address-feedback recorded, exactly as written, resolves
-    # the threads it fixed, and posts the round marker. A script, no model.
     script: .github/scripts/pr-unblock/publish-feedback.mjs
-    # Writes pull request comments and resolves threads; pushes nothing.
     effect: publish-artifact
     gating: advisory
-    # Reads the replies the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
   resolve-feedback-threads:
-    # On a pull request a trusted person opened, resolves the review-bot
-    # threads publish-feedback answered (or GitHub reports outdated) and could
-    # not resolve, with no CRITICAL or person-decided security finding and no
-    # comment by anyone but the review bots and the lanes App. A script, no
-    # model; it reads the threads from GitHub itself (resolve-threads.mjs).
     script: .github/scripts/pr-unblock/resolve-threads.mjs
-    # Resolving a thread on a PR the lanes App did not open needs a writer,
-    # contents: write; it pushes nothing.
     effect: mutate-branch
-    # No PR head checkout: the job holding the write holds only the trusted base.
     checkout: base
     gating: advisory
-    # Reads review comments, which quote the diff.
     reads-untrusted: true
     inputs: [pr]
     applies-when:
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   review-dependency:
-    # Reviews one Dependabot pull request the classifier sorts `review` (a
-    # major bump, an action publisher outside the allowlist, a group holding
-    # a major, a red ci-status, or a file outside the content rule) and
-    # returns a verdict: merge, fix, close or escalate. It posts nothing and
-    # holds no write token: the read runner hands its verdict to
-    # apply-dependency-verdict and, on a fix verdict, its uncommitted fix as
-    # a patch that apply-dependency-patch pushes. pr-unblock-dispatch.yml
-    # starts it; a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
-    # The skill's CI mode for dependency bumps: reads the context file, the
-    # checkout and upstream release notes, runs no command, and leaves a fix
-    # to npm or pip manifest and lock files outside .github/ uncommitted;
-    # patch-rules.json's dependency-review row lands no other fix.
     args: dependency --ci --unattended
-    # Before any model turn pr-unblock.yml's review-dependency-select job,
-    # which runs only base code, skips a pull request Dependabot did not open
-    # or one sorted `auto`, hands it to a person once
-    # `loop.dependency-review-rounds` rounds already ran, and writes the
-    # context file; the read runner checks it and gives the skill a verdict
-    # schema for its structured output.
     prepare: dependency-review
-    # Reads the upstream changelog and release notes for the bumped versions.
     web-access:
       enabled: true
       domains: [github.com, raw.githubusercontent.com, www.npmjs.com, registry.npmjs.org, pypi.org]
-    # Edits head files, so no write token: the fix leaves as a patch.
     effect: read
     applied-by:
       patch: apply-dependency-patch
       dependency-verdict: apply-dependency-verdict
-    # ci-status judges the pushed fix; the verdict job acts on the verdict.
     gating: advisory
-    # Reads the PR body's release notes, the upstream changelog and head files.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # A stop routed to needs-session waits for the session builder: no
-      # same-head re-roll and no fresh round budget on a rebased head until a
-      # session removes the label.
       labels-absent: [do-not-merge, needs-human, needs-session, "security: outside-actor"]
       draft: [false]
   apply-dependency-patch:
-    # Applies review-dependency's patch, on a fix verdict only, to the head
-    # the select job gated and pushes it as one commit with [dependabot skip],
-    # without force. A script, no model, and it runs no head code;
-    # patch-rules.json's dependency-review row admits only a version change of
-    # npm or pip manifest and lock files outside .github/ in a directory the
-    # base dependabot.yml lists, and a head that moved since skips. A patch
-    # that does not land leaves no fix commit, so apply-dependency-verdict
-    # hands the pull request to a person.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
-    # Pushes the fix to the pull request's branch, nothing else.
     effect: mutate-branch
     gating: advisory
-    # Reads the patch the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
       labels-absent: [do-not-merge, needs-human, needs-session, "security: outside-actor"]
       draft: [false]
   apply-dependency-verdict:
-    # Acts on the verdict review-dependency recorded: posts the round marker
-    # (for merge, the record the pr-merge lane merges on), closes the pull request
-    # and files an ignore-entry issue (never for a security update), or hands
-    # the pull request to a person. Never merges. A script, no model.
     script: .github/scripts/pr-unblock/apply-dependency-verdict.mjs
     effect: publish-artifact
     gating: advisory
-    # Reads the verdict the model wrote, and the PR body for an advisory.
     reads-untrusted: true
     inputs: [pr, head-sha]
   fix-ci:
-    # Fixes the failing CI checks on a lanes App pull request, or an adopted
-    # owner one (`adoption` below): reproduces each
-    # with the repository's own command, fixes the cause and reruns it. It
-    # holds no write token: the runner turns its uncommitted edits into a
-    # patch that apply-patch pushes. pr-unblock-dispatch.yml starts it; a
-    # trusted person may also dispatch it by hand.
     skill: source-control:pull-request
-    # The skill's CI mode for failing checks: never weakens a check, never
-    # edits .github/workflows/, and reports each check fixed or escalated.
     args: ci --ci --unattended
-    # Before the run a base job writes the failing checks' names, workflow,
-    # annotations and log ends to a context file, or hands the pull request
-    # to a person once `loop.fix-ci-rounds` fixes were already pushed. The
-    # read runner gives the skill that file, Bash, Edit and Write.
     prepare: ci-context
-    # The re-pin script for the digest pins a PR's own diff moved: the skill
-    # is told to run its base copy. Bash, Edit and Write stay open, so review
-    # of the patch, not this list, controls what a re-pin changes.
     verify-scripts: [plugins/planning/scripts/repin-digests.sh]
     self-checks: ["scripts/check-affected.sh --uncommitted"]
-    # Runs head code, so no write token: the change leaves as a patch.
     effect: read
     applied-by:
       patch: apply-patch
-    # ci-status judges the pushed fix.
     gating: advisory
-    # Reads check annotations and logs, which print head text.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # The human-gated label holds it in fix-ci-context unless another
-      # lane's escalation put it on.
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   apply-patch:
-    # Applies a producer's patch (fix-ci's, fix-docs's) to the head the
-    # producer worked on and pushes it as one commit, without force. A
-    # script, no model, and it runs no head code; the patch-rules.json row of
-    # the producer's prepare mode (default for none) holds what it admits.
-    # Before the mint the runner checks the patch artifact and the head, and
-    # an empty, invalid or unappliable patch goes to a person.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
-    # Pushes the fix to the pull request's branch, nothing else.
     effect: mutate-branch
     gating: advisory
-    # Reads the patch and the report the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # The write runner keeps the human-gated label a hold unless the
-      # producer's base-code job read a lane escalation that lets it pass.
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   sync-shared-copies:
-    # Regenerates a lanes App pull request's shared-library copies after
-    # pr-merge refused its head as shared-copy-sources-changed. No model:
-    # pr-unblock.yml's sync-shared-copies-select job, which runs only base
-    # code, merges the pinned default branch tip into the head and runs this
-    # script, which runs the base's scripts/sync-shared-copies.sh and
-    # scripts/lib from outside the checkout and refuses a head that changes
-    # them or a write the base-tip scripts/shared-copies.txt does not list as
-    # a copy. apply-shared-copies pushes its patch.
     script: .github/scripts/pr-unblock/sync-shared-copies.sh
-    # Writes nothing itself: its patch leaves as an artifact.
     effect: read
     gating: advisory
-    # Reads PR head files.
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
     applies-when:
-      # The human-gated label holds it in the select job unless pr-merge's
-      # shared-copy refusal at the head put it on (lane-hold.mjs).
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   apply-shared-copies:
-    # Merges the base tip sync-shared-copies-select pinned into the head it
-    # gated, applies the regenerated copies to the clean merge (none when the
-    # merge already holds current copies), and pushes
-    # one merge commit with the head and that base as parents, without
-    # force. A script, no model, and it runs no head code; patch-rules.json's
-    # shared-copies row admits only copies the base-tip
-    # scripts/shared-copies.txt lists, and a head that moved since skips.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
-    # Pushes the merge to the pull request's branch, nothing else.
     effect: mutate-branch
     gating: advisory
-    # Reads the patch the select job wrote from head files.
     reads-untrusted: true
     inputs: [pr, head-sha, base-sha]
     applies-when:
-      # As sync-shared-copies: the write runner keeps the human-gated label a
-      # hold unless the select job read pr-merge's shared-copy refusal.
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
   fix-test-scope:
@@ -379,61 +182,10 @@ activities:
       labels-absent: [do-not-merge, needs-session, "security: outside-actor"]
       draft: [false]
   resolve-issue:
-    # Works one issue at Work status agent-ready: either leaves the change in the
-    # working tree, or stops and says why. The runner adds `--issue <number>`.
-    # It holds no write token: the read runner turns its uncommitted change
-    # into a patch that apply-issue-patch commits to a new branch.
     skill: work-items:work
     args: --ci
-    # Validates the format of every changelog fragment before the skill
-    # reports done. A missing fragment is caught on the PR by ci-status
-    # (--check-required needs committed work, and the lane commits through
-    # the API, not in the checkout). After the skill, work-resolve-issue.yml's
-    # run-checks job runs each check again itself, from the base copy against
-    # the lane branch with the base's scripts/ code and the branch's scripts/
-    # data files, and report-outcome stops a done
-    # run whose checks failed or did not run, whatever the outcome file says.
-    # check-changed-skills.sh --merge-base runs CI's changed-skills gate over
-    # the skills the change touches, with the base's check-skill.sh and each
-    # skill's script tests skipped, so it runs no checkout code.
     checks: ["scripts/check-changelog-fragments.sh --check", "scripts/check-changed-skills.sh --merge-base"]
-    # Runs the diff-scoped lint checks a push would face (markdown,
-    # shellcheck, exec bits, changelog fragments, plugin validation) in the
-    # run, so the skill fixes what they report before it commits and the PR
-    # does not open red. Advisory: unlike checks, the runner does not run
-    # these again, and a failure the skill cannot fix still opens the PR,
-    # named in its report. --uncommitted checks the work tree as the commit
-    # the API would make, since the lane commits through the API.
     self-checks: ["scripts/check-affected.sh --uncommitted"]
-    # Repository scripts the run may call with any arguments it chooses, to
-    # check its work the way an issue's done-when says. Each runs from a
-    # read-only copy of the base. A script that changes files, runs code from
-    # the checkout or reaches the network hands the run that power, so list
-    # one only when it limits that itself. Each script starts with GH_TOKEN
-    # and GITHUB_TOKEN unset, and no Bash process above it holds either:
-    # the read runner's run-claude-cli steps set neither token. No script here
-    # runs checkout code: run-test-file.sh and check-skill.sh are left out,
-    # and the PR's own CI runs the tests. check-skill.sh runs only inside the
-    # check-changed-skills.sh check above, from the base copy with script
-    # tests and markdownlint skipped.
-    # git-mv-rm.sh renames and removes paths inside the checkout.
-    # sync-shared-copies.sh regenerates registered shared-library copies
-    # inside the checkout: it reads the registry and canonicals there and
-    # writes only registered plugins/<name>/... copies, running no checkout
-    # code; it refuses a registry path that is absolute, has a . or .. segment
-    # or crosses a symbolic link, and from this copy refuses --check-bump,
-    # which can reach the GitHub API.
-    # check-evals-quality.sh reads evals.json files with bash and jq.
-    # new-changelog-fragment.sh writes .changes/<plugin>/<slug>.md in the
-    # work tree it runs in, refusing a plugin name with a path in it and a
-    # linked .changes directory (--carriers-of also makes and removes one
-    # temp file); it runs no checkout code and reaches no network.
-    # repin-digests.sh re-pins planning's interview-defenses digest pins: it
-    # reads the checkout's test file and the files it pins as text, computes
-    # each digest with its own copy's lib/pin-digests.sh, rewrites the sha256
-    # literals in that test file, refuses a pin argument that is not a plain
-    # string or names a file outside the plugin, and runs no checkout code
-    # (tests/repin.sh, which also runs the test, stays off this list).
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
       - scripts/git-mv-rm.sh
@@ -441,21 +193,9 @@ activities:
       - scripts/sync-shared-copies.sh
       - scripts/new-changelog-fragment.sh
       - plugins/planning/scripts/repin-digests.sh
-    # Lets the run read web pages, so it can check a fact against its source
-    # (a documented default on a vendor docs page) instead of trusting the
-    # issue's quote. It may search the web, fetch any page and run the
-    # research skills; it lists each page it read in its report. The
-    # launcher stages no curl-based docs script, so pages arrive through
-    # WebFetch alone. The job holds no write token (#8691) and a page can try
-    # to steer the run, so every PR the run opens is reviewed.
     web-access:
       enabled: true
       domains: any
-    # Tidies the run's own change before its last check run, so the PR reaches
-    # review already tidied, with no extra push or review round (#8485). Only
-    # a change within the cutoffs is tidied in the run; the cutoffs are a
-    # starting value for the lane baseline to retune. The runner allows the
-    # entry and the passes and no other skill.
     tidy:
       entry: code-tidying:tidy-diff
       passes:
@@ -477,49 +217,26 @@ activities:
           - docs/standards/
           - AGENTS.md
           - CLAUDE.md
-    # Runs model-chosen commands, so no write token: the change leaves as a
-    # patch, and the run's outcome file goes to report-outcome.
     effect: read
     applied-by:
       patch: apply-issue-patch
       work-outcome: report-outcome
     gating: advisory
-    # Reads the issue's title and body, which anyone can write, and its
-    # comments by listed authors.
     reads-untrusted: true
     inputs: [issue]
     applies-when:
       events: [field_added]
-      # Work status set to agent-ready admits the issue; it counts only when
-      # a listed human or the lanes App set it (models.issue-status), and the
-      # trigger gate checks the same. resolve-config folds the trusted field
-      # into the labels, so `agent-ready` below matches a field-only
-      # admission and a field hold matches labels-absent.
-      # No `work-class:` label admits or refuses it. A person decides an
-      # issue carrying one of these labels, or, for attended, takes its step
-      # present, so it starts nothing.
       labels-absent: [needs-human, needs-owner-decision, needs-reporter-info, attended, host-run, "security: outside-actor"]
-      # Read now, so Work status moved off agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
-    # Commits resolve-issue's patch to a new branch,
-    # work-resolve-issue/issue-<n>-<run id>-<attempt>, made at the commit the
-    # run started from (the default branch tip it checked out, or a resumed
-    # branch's tip), as one commit. A script, no model, and it runs nothing
-    # from the patch; patch-rules.json's `issue` row holds what it admits.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
-    # Makes the lane branch, nothing else; it never moves an existing one.
     effect: mutate-branch
     gating: advisory
-    # Reads the patch and the report the model wrote.
     reads-untrusted: true
     inputs:
       - issue
     applies-when:
-      # Read again right before the commit, with the Work status folded in:
-      # a hold added, or the field moved off agent-ready, while the model
-      # worked drops the patch.
       labels-absent:
         - needs-human
         - needs-owner-decision
@@ -530,25 +247,13 @@ activities:
       labels:
         - agent-ready
   report-outcome:
-    # Opens a ready pull request from the branch, or comments on the issue
-    # and labels it needs-human. It writes nothing to a Refs pull request's
-    # issue; work-unblock still lifts an existing refs-hold through its
-    # marker. A script, no model.
     script: .github/scripts/work-resolve-issue/report-outcome.mjs
     effect: publish-artifact
-    # The hand-back routes import .base/.github/actions at run time, so the
-    # PR head checkout must not replace the workspace.
     checkout: base
     gating: advisory
     reads-untrusted: false
     inputs: [issue]
   report-escalation:
-    # Ends a stopped run on its reason's route (escalation-routes.json):
-    # hold (the owner's three reasons, or a reason the table does not list)
-    # labels the PR needs-human and posts the reason with a resume key; fail
-    # posts or edits one lane-stopped comment, and report-stop-status a
-    # failing status on the head; a fail entry naming needs-session also adds
-    # that label, the session-builder queue.
     script: .github/scripts/pr-unblock/report-escalation.sh
     effect: publish-artifact
     gating: advisory
@@ -559,115 +264,31 @@ activities:
     args: --unattended --authority pr-merge --merge
     effect: merge
     gating: advisory
-    # Reads PR bodies, labels and comments for holds.
     reads-untrusted: true
     inputs: [pr, head-sha]
   enable-auto-merge:
-    # Turns on GitHub's native auto-merge (squash, at the head it read) for
-    # each open lanes App pull request into main whose issue link the merge
-    # gate takes (one closing issue, or one plain `Refs: #<n>` issue) and
-    # that carries no hold (a `Hold:` line, do-not-merge, the human-gated
-    # label, a member's "do not merge" comment, a head that changes a denied
-    # path, a hold on the gate's risk score), while the gate's lane has
-    # room (no demotion, rung on, below merge.max-in-flight), and turns it
-    # off on an armed one that now carries a hold or while the gate holds the
-    # lane off; auto-merge a person turned off stays off. No
-    # model. The enable-auto-merge job of .github/workflows/pr-merge.yml runs
-    # it on a listed human's PR unlabel, and on the schedule, which arms.
     script: .github/scripts/pr-merge/enable-auto-merge.mjs
     effect: merge
     gating: advisory
-    # Reads PR bodies, labels and comments for holds.
     reads-untrusted: true
     inputs: [pr, head-sha]
   label-unblocked:
-    # When an issue closes (or, on each sweep, for each issue a listed human or a
-    # merge closed in the last three hours), labels agent-ready each issue it
-    # blocked whose blockers are all closed, for any reason, by a listed human
-    # or a merge in this repository, meaning a merged PR or a commit (a pull
-    # request blocker: merged here; another repository's blocker: closed there
-    # by a listed human), oldest first, that carries no
-    # hold, and whose agent-ready label was never removed or whose Work status
-    # was set to ready by the lanes App or a listed human after its newest
-    # removal. The label
-    # starts resolve-issue. At the issue lane's queued cap (check-wip-cap) it
-    # sets such an issue's Work status to deferred instead, and each sweep
-    # admits the deferred ones oldest first within the room. A listed human
-    # adding admission-deferred to an issue at Work status ready marks it
-    # decided (owner decision Q75): the sweep reads its
-    # Size, Complexity and Uncertainty issue fields (each counting only when a
-    # listed human or the lanes App set it) and the default branch's
-    # .github/actions/resolve-config/admission-rules.json, runs intake's
-    # admission rules, and admits it only on their admit verdict; a refusal
-    # moves its Work status to needs-owner-decision with a comment. Each sweep also
-    # re-fires an agent-ready issue left stranded (no run, or one that ended
-    # with no report, for its cause's limits.stranded-backoff-hours, and no
-    # open PR of the lanes App's or a listed human's for it) once per version
-    # of the lane workflow files, then on a backoff (those hours doubling, at
-    # most 24) with one comment it
-    # edits, never needs-human (a run the token broker refused for the lanes
-    # kill switch re-fires on its own count and never spends that once, on the
-    # first sweep after the switch clears when check-broker stopped it before
-    # any model turn); and
-    # it hands an agent-ready issue whose
-    # lanes-App PR merged with `Refs:` or closed unmerged back to intake
-    # triage (Work status needs-triage and agent-ready off, which the hourly triage
-    # sweep dispatches intake for), lifting only the needs-human
-    # report-outcome set for a Refs PR that merged or closed unmerged.
-    # Each sweep also runs intake's admission rules on at most
-    # limits.readmit-per-run open issues at Work status ready in no queue
-    # (neither agent-ready nor deferred, no hold, refuse label, open blocker
-    # or open sub-issue), oldest updated first, writing as intake does, and
-    # closes at most limits.parent-rescan-per-run finished split parents whose
-    # number is the UTC hour modulo 24, whenever their last sub-issue closed. A
-    # script, no model.
-    # .github/workflows/work-unblock.yml runs it.
-    # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
     script: .github/scripts/work-unblock/label-unblocked.mjs
-    # Labels, unlabels and comments on issues, and closes as completed the
-    # parent of a size split (owner Q93) once every sub-issue is closed as
-    # completed by a listed human or a merge and its done-when is covered, a
-    # close it then counts as done; nothing else.
     effect: mutate-tracker
     gating: advisory
-    # Reads issue comments for the lanes App's outcome markers.
     reads-untrusted: true
     inputs: [issue]
   sync-status:
-    # When a listed human adds a queue-state status label
-    # (models.issue-status) to an issue, writes that label's state into its
-    # Work status field, unless the field holds a hold or that state already;
-    # when a listed human takes agent-ready off, writes confirmed only while
-    # the field reads agent-ready. The field is the state: a label's absence
-    # never resets it, and a hold label or an added agent-ready label writes
-    # nothing (a person sets agent-ready on the field). A script, no model.
-    # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/sync-status.mjs
-    # Writes the Work status issue field; nothing else.
     effect: mutate-tracker
     gating: advisory
-    # Reads only label names and field values, no free text.
     reads-untrusted: false
     inputs: [issue]
   publish-lane-level:
-    # Hourly, after the label-unblocked sweep: decides the issue lane's next
-    # concurrency level from the sweep's lanes App rate-limit readings, the
-    # lane's runs in progress and the last decision
-    # (.github/scripts/lib/lane-level.mjs), and publishes it as
-    # `<level>@<valid-until>` in the repository variable
-    # limits.lane-level.variable names, which pick-slot and label-unblocked
-    # read (.github/scripts/lib/lane-level-value.mjs). With
-    # limits.lane-level.shadow set it logs the level and writes nothing. A
-    # script, no model. .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/publish-lane-level.mjs
-    # Writes that one variable, never another (the script refuses any other
-    # name), with the Variables write lane-rules.json adds; it reads nothing
-    # else with the token.
     effect: mutate-variable
     gating: advisory
-    # Reads only rate-limit headers and run counts, no free text.
     reads-untrusted: false
-    # The hourly sweep's readings; no issue or pull request.
     inputs: []
   triage-issue:
     skill: work-items:triage
@@ -685,113 +306,34 @@ activities:
     reads-untrusted: true
     inputs: [issue]
   apply-verdict:
-    # After intake triage, writes its verdict as the lanes App: the Size,
-    # Complexity and Uncertainty issue fields (never a work-class label), and
-    # the Work status ready or needs-owner-decision, read from the lane comment
-    # the triage run posted, with a blocked-by edge for each open issue its
-    # `Blocked by:` line or the issue body's own `Blocked by` and
-    # `Depends on` lines name (at most 10 from the body); an edge GitHub answers 403, 429 or 5xx for is
-    # missed, and the edges the run wrote are deleted, so work-unblock never
-    # reads a partial set: a ready verdict then lands without Work status
-    # ready and is not admitted, so the hourly triage sweep runs intake again, and a
-    # 403 fails the job after every write.
-    # Only needs-human, a person's hold, the triage
-    # run's own escalation, an untrusted setter, a hold set after an earlier
-    # flagged verdict or with no readable earlier verdict, or the verdict
-    # itself holds the issue, and the reasons
-    # go on the issue in one comment it edits in place. On Work status ready
-    # it adds agent-ready when
-    # .github/actions/resolve-config/admission-rules.json holds and the caps
-    # have room, else sets Work status deferred (owner decision Q51, #9212). A
-    # script, no model.
-    # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/apply-verdict.mjs
-    # Labels issues, sets issue fields, writes blocked-by edges, edits the
-    # lane comment and posts a reasons and an admission comment; nothing else.
     effect: mutate-tracker
     gating: advisory
-    # Reads the lane comment, which carries model text.
     reads-untrusted: true
     inputs: [issue]
   apply-refinement:
-    # After intake triage, for a thin issue (Flags: intent, or no task list in
-    # the body): posts the read-only refine-issue run's output as one marked
-    # comment. Exact: the drafted criteria as a task list (admission's
-    # criterion 7 counts them only once a listed human posts them as their
-    # own, owner decision Q9); one more triage, lifting the lanes App's
-    # Work status needs-owner-decision, only when a listed human's text already
-    # holds a task list, else the status stays and the comment asks a listed human
-    # to post the criteria as their own decision comment. Not exact: numbered questions with RECOMMENDED
-    # answers at Work status needs-owner-decision. For an issue intake's admission
-    # parked at Work status confirmed for some, not all, done-when items a lane run
-    # cannot perform (work-unblock's admission parks it at needs-triage, so the
-    # triage sweep sends it to intake), a split the model judges sound lists those items in the
-    # refinement comment as checks a person runs, with their numbers and the
-    # body they number, lifts confirmed and triages once more; the body
-    # stays as its author wrote it, and admission and pr-verify leave those
-    # items out while that comment counts as spec (admit.mjs personChecks). Neither lifts while the App's
-    # verdict comment lists a flag other than intent or records that an
-    # earlier flag is unknown; that hold stays for a person. One refinement
-    # per body version.
-    # Never agent-ready or needs-human, and no new issue. A script, no model.
-    # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/refine.mjs
-    # Comments on and labels issues, and files sub-issues; never edits a body.
     effect: mutate-tracker
     gating: advisory
-    # Reads the model's output, written while it read issue and web text.
     reads-untrusted: true
-    # A Size Large issue a listed human filed, or one whose run's patch was
-    # over the scan job's cap (scan-refused-patch), which admission parks with
-    # "the split into sub-issues at intake is pending" (owner Q93), gets a
-    # size split instead: the model returns only item numbers, `parts` over
-    # the issue's trusted task-list lines (the listed human's, then those of
-    # intake's refinement where admission counts it) and `order` pairs; an
-    # invalid partition leaves it parked, with why in the step summary. The
-    # script files each part as a native sub-issue whose body is a fixed
-    # header and that part's lines as written, which admission and pr-verify
-    # trust under the split-child rule (admit.mjs splitChildBody); writes the
-    # order as native blocked-by edges
-    # (owner Q94); puts the issue's open blockers on the first parts and moves
-    # what the issue blocks onto the last parts; records the split in one
-    # comment; and dispatches intake for each sub-issue. No hold label, a
-    # sub-issue never splits again, and the issue's body is never edited.
-    # Admission waits on an issue while a sub-issue is open.
     inputs: [issue]
   apply-changelog:
-    # Runs `/harness-ops:changelog apply --ci <release>` in the
-    # upstream-apply-changelog apply-changelog job, which commits one local branch per
-    # owner plugin and writes ci-plan.json; apply-changelog-branches and
-    # publish-changelog-intake act on what it leaves. The job holds no write
-    # token, so no broker mint names it.
     skill: harness-ops:changelog
     args: apply --ci
     effect: read
     gating: advisory
-    # Reads the Claude Code changelog, written outside the org.
     reads-untrusted: true
   apply-changelog-branches:
-    # Recreates each changelog/<plugin>/v<release> branch the
-    # upstream-apply-changelog apply-changelog job's `/harness-ops:changelog apply --ci`
-    # committed, as lanes App commits through the Git Data API, after
-    # checking every commit changes only plugins/<plugin>/ and
-    # .changes/<plugin>/ as regular files and that the result holds the
-    # planned tree; skips a branch that exists. A script, no model. .github/workflows/upstream-apply-changelog.yml runs it.
     script: .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs
     args: push
     effect: mutate-branch
     gating: advisory
-    # Reads the plan and the bundle the model wrote.
     reads-untrusted: true
   publish-changelog-intake:
-    # Opens one pull request per pushed branch at the head push left that
-    # has none, and files each plan handoff whose key no issue carries. A script,
-    # no model. .github/workflows/upstream-apply-changelog.yml runs it.
     script: .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs
     args: publish
     effect: publish-artifact
     gating: advisory
-    # Posts the plan's titles and bodies, which the model wrote.
     reads-untrusted: true
   push-native-baseline-branch:
     script: .github/scripts/upstream-apply-changelog/native-baseline-publish.mjs
@@ -806,54 +348,35 @@ activities:
     gating: advisory
     reads-untrusted: true
   apply-upkeep-branches:
-    # Recreates each chore/tidy-adhoc-<slug>-<date> branch the code-tidying upkeep
-    # model job committed, as one lanes App commit through the Git Data API. A
-    # script, no model. .github/workflows/maintenance-tidy-code-upkeep.yml runs it.
     script: .github/scripts/maintenance-tidy-code-upkeep/batch.mjs
     args: push
     effect: mutate-branch
     gating: advisory
-    # Reads the plan and the bundle the model wrote.
     reads-untrusted: true
   publish-upkeep-prs:
-    # Opens one pull request per pushed branch that has none; push applies upkeep_max_open. A script,
-    # no model. .github/workflows/maintenance-tidy-code-upkeep.yml runs it.
     script: .github/scripts/maintenance-tidy-code-upkeep/batch.mjs
     args: publish
     effect: publish-artifact
     gating: advisory
-    # Posts the plan's titles and bodies, which the model wrote, each body after a
-    # `Refs: #<upkeep_spec_issue>` line (docs/conventions/code-tidying.yaml).
     reads-untrusted: true
   apply-skill-edit-branch:
-    # Pushes chore/hill-climb-<plugin>-<skill>-<run id>: the skill edit the scan
-    # job checked and pass b measured, and a fixed changelog fragment, as one
-    # lanes App commit through the Git Data API. A script, no model.
-    # .github/workflows/maintenance-measure-skill-edit.yml runs it on a win.
     script: .github/scripts/plugin-eval/hill-climb-publish.mjs
     args: push
     effect: mutate-branch
     gating: advisory
-    # Applies the patch the model's proposal became.
     reads-untrusted: true
   publish-skill-edit-pr:
-    # Opens that branch's pull request as a draft, its title and body written by
-    # the script from the run's scripted results. A script, no model.
-    # .github/workflows/maintenance-measure-skill-edit.yml runs it.
     script: .github/scripts/plugin-eval/hill-climb-publish.mjs
     args: publish
     effect: publish-artifact
     gating: advisory
-    # Quotes eval summaries, which can carry a run's error text, inside a fence.
     reads-untrusted: true
 
 lanes:
-  # Started by Work status agent-ready on an issue (.github/workflows/work-resolve-issue.yml).
   work-resolve-issue:
     stage: build
     slots:
       - activity: resolve-issue
-      # Runs after resolve-issue, in its own job with its own token.
       - activity: apply-issue-patch
         needs:
           - resolve-issue
@@ -861,81 +384,52 @@ lanes:
         needs:
           - resolve-issue
           - apply-issue-patch
-  # Tidies a ready PR. Each activity is a model job and its push job, in
-  # .github/workflows/pr-refine.yml.
   pr-refine:
     stage: refine
     slots:
-      # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file, on an event the lanes App or a listed human sent,
-      # except Dependabot, the release App and the standards-sync App.
       - activity: fix-docs
-      # Runs after fix-docs, in its own job with its own token.
       - activity: apply-patch
         needs: [fix-docs]
   pr-unblock:
     stage: fix
     slots:
       - activity: resolve-conflicts
-      # Runs after resolve-conflicts, in its own job with its own token: the
-      # merge commit, with or without the model's patch.
       - activity: apply-conflict-patch
         needs: [resolve-conflicts]
-      # Started by pr-dispatch-feedback.yml after both review lanes reviewed
-      # the head.
       - activity: address-feedback
-      # Run after address-feedback, each in its own job with its own token:
-      # the push, then the replies, which name the pushed commit.
       - activity: apply-feedback-patch
         needs: [address-feedback]
       - activity: publish-feedback
         needs: [address-feedback, apply-feedback-patch]
-      # Runs after publish-feedback, in its own job with its own token.
       - activity: resolve-feedback-threads
         needs: [publish-feedback]
-      # Started by pr-unblock-dispatch.yml for review-tier Dependabot PRs.
       - activity: review-dependency
-      # Run after review-dependency, each in its own job with its own token:
-      # the push of a fix, then the verdict, which judges what landed.
       - activity: apply-dependency-patch
         needs: [review-dependency]
       - activity: apply-dependency-verdict
         needs: [review-dependency, apply-dependency-patch]
-      # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
-      # failed.
       - activity: fix-ci
-      # Runs after fix-ci, in its own job with its own token.
       - activity: apply-patch
         needs: [fix-ci]
-      # Started by pr-unblock-dispatch.yml for lanes App PRs pr-merge refused
-      # as shared-copy-sources-changed at their head.
       - activity: sync-shared-copies
-      # Runs after sync-shared-copies, in its own job with its own token.
       - activity: apply-shared-copies
         needs: [sync-shared-copies]
       - activity: fix-test-scope
       - activity: apply-test-scope
         needs: [fix-test-scope]
-      # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
         needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch, sync-shared-copies, apply-shared-copies, fix-test-scope, apply-test-scope]
   pr-merge:
     stage: merge
     slots:
       - activity: merge-pr
-      # In its own job of pr-merge.yml, with its own token.
       - activity: enable-auto-merge
-  # Started by an issue closing and by a sweep of recent closes:
-  # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
   work-unblock:
     stage: admit
     slots:
       - activity: label-unblocked
       - activity: sync-status
-      # Hourly only, in its own job of work-unblock.yml after label-unblocked.
       - activity: publish-lane-level
-  # Started by intake triage on an opened issue or its dispatch
-  # (.github/workflows/intake-triage.yml).
   intake-triage:
     stage: intake
     slots:
@@ -956,20 +450,12 @@ lanes:
       - activity: push-native-baseline-branch
       - activity: publish-native-baseline-pr
         needs: [push-native-baseline-branch]
-  # Started daily and by a listed human's dispatch
-  # (.github/workflows/maintenance-tidy-code-upkeep.yml). Push and pull request
-  # open are separate jobs: the broker refuses contents and pull-requests write in
-  # one mint.
   maintenance-tidy-code-upkeep:
     stage: maintenance
     slots:
       - activity: apply-upkeep-branches
       - activity: publish-upkeep-prs
         needs: [apply-upkeep-branches]
-  # Started only by a listed human's dispatch
-  # (.github/workflows/maintenance-measure-skill-edit.yml); on a win, push and
-  # draft pull request open are separate jobs, as above (owner decision AL-Q11,
-  # #12035).
   maintenance-measure-skill-edit:
     stage: maintenance
     slots:
@@ -977,11 +463,6 @@ lanes:
       - activity: publish-skill-edit-pr
         needs: [apply-skill-edit-branch]
 
-# The model, effort and turn budget of every model run (README.md, Models).
-# Aliases only, never full model IDs. A profile with no effort keeps its
-# model's default effort. A role profile names a multi-agent role in place of a model.
-# A skill activity with no route takes default-profile; pr-verify.yml's
-# judgment routes as verify-pr.
 models:
   profiles:
     standard:
@@ -993,9 +474,6 @@ models:
       model: opus
       effort: high
       max-turns: 60
-    # Both review lanes judge work the code-fix and standard profiles write
-    # (opus), with no objective signal on the head when the model is chosen:
-    # docs/plugin-philosophy.md, Capability tiers, rules 3 and 4.
     pr-review:
       model: opus
       effort: high
@@ -1008,42 +486,25 @@ models:
       model: sonnet
       effort: medium
       max-turns: 10
-    # A worker on code at the verifier's effort, from the multi-agent role map;
-    # the turn budget standard gave.
     code-fix:
       role: worker
       workload: code
       effort-role: verifier
       max-turns: 75
-      # One rung up, for fix-ci's retry after it escalated only unfixed or
-      # not-reproducible checks.
       escalate-to: code-xhigh
-    # code-fix's worker for a release's plugin edits, with the turns one
-    # release takes: run 42275404281 spent 76 turns on 2.1.319 (134 core
-    # items) before the plan; 150 runs about 45 minutes at its pace, inside
-    # the leg's 70.
     apply-changelog:
       role: worker
       workload: code
       effort-role: verifier
       max-turns: 150
-    # The rung above Opus high: Opus at effort xhigh, for a high-Complexity
-    # issue and fix-ci's one retry. The rung above it is Fable, which no
-    # profile names: it stays off, owner-gated pending a per-week Fable
-    # allowance for the lanes. code-xhigh has no escalate-to, so nothing
-    # climbs past it.
     code-xhigh:
       model: opus
       effort: xhigh
       max-turns: 75
-    # A mechanical worker (prose fixes against a rule catalog), from the
-    # multi-agent role map; the turn budget standard gave.
     docs-fix:
       role: worker
       workload: mechanical
       max-turns: 75
-    # The merge-risk rater at the review lanes' model and effort, with its
-    # checker subagent on the same model.
     merge-risk:
       model: opus
       effort: high
@@ -1051,38 +512,20 @@ models:
       max-turns: 40
   default-profile: standard
   routes:
-    # Resolves code conflicts, a fix on code like address-feedback's.
     resolve-conflicts: code-fix
     address-feedback: code-fix
-    # Judges a dependency update against its release notes, as verify-pr
-    # judges a pull request against its spec.
     review-dependency: review
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review
-    # pr-rate-merge-risk.yml's report-only rating (#13657): the rater, and
-    # through subagent-model its blind checker's model; the checker's effort
-    # stays its agent file's pin (owner decision Q1).
     merge-risk: merge-risk
     review-code: pr-review
     review-security: pr-review
-    # Also intake-triage.yml's refine-issue pass on a thin issue.
     triage-issue: triage
-    # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
-    # An issue's code change, on run-claude-cli, which needs a model alias.
     resolve-issue: code-fix
-    # A release's plugin edits, on run-claude-cli.
     apply-changelog: apply-changelog
-    # pr-unblock's read-only judge of a finding address-feedback disputed: at
-    # least the review lanes' model, so a weaker model never overrules the
-    # reviewer.
     adjudicate-feedback: review
-  # A run on an issue (resolve-issue) takes its budget from the issue's Size,
-  # Complexity and Uncertainty org issue fields, read by id. An empty field,
-  # or one whose latest setter is not a listed human or the lanes App, reads
-  # as small, medium or known; an unmapped option fails the run. Turn cap = base-turns x complexity factor, rounded
-  # up; it replaces the profile's max-turns.
   issue-dimensions:
     fields:
       size:
@@ -1104,61 +547,26 @@ models:
           "85127655": knowable
           "85127656": unknown
     sizes:
-      # 75 turns is the standard profile's max-turns; a 50-minute leg covers
-      # the high factor at the 20 seconds a turn a 75-turn, 25-minute run
-      # allows, and the job holds 15 minutes more, for the steps around the
-      # launcher's leg (pr-run-activity-read.yml's launch step).
       small:
         base-turns: 75
         timeout-minutes: 65
-      # Twice small's turns and leg time.
       medium:
         base-turns: 150
         timeout-minutes: 115
       large: split
-    # A trusted size-split sub-issue rated Large (admission takes it whatever
-    # its Size, owner Q93) runs at this size instead of split-required: it
-    # never splits again, so holding it would park it for good.
     split-child-size: medium
     complexity:
-      # Base turns as they are: a small low-complexity issue runs at 75 turns.
       low: 1
-      # Half again, for an issue with several moving parts.
       medium: 1.5
-      # Double, the most a size's timeout covers.
       high: 2
-    # The profile a run starts on by Complexity, in place of its route's:
-    # high runs Opus at effort xhigh; low, medium and an unset field keep the
-    # activity's default.
     complexity-profiles:
       high: code-xhigh
     uncertainty:
-      # The approach is known: run it.
       known: run
-      # Answerable by reading first: the run researches, then works it.
       knowable: run
-      # Only an experiment answers it: skip until a probe has (probe-first).
       unknown: probe-first
-  # An issue's state is its Work status org issue field, read by field and
-  # option id; writers set the field, and a queue-state label does not decide
-  # it, though a hold label still holds on top of it. A state's name is its
-  # option's name on GitHub. Collapsing an issue's labels takes the first
-  # state in order one of whose labels it carries; one with none takes the
-  # last, needs-triage. A value counts when its latest setter is a listed
-  # human or the lanes App, or, for every state but agent-ready, a bot setter:
-  # the job GITHUB_TOKEN (github-actions[bot], 41898282) and every kind bot
-  # actor of trusted-actors.json whose login starts with melodic-, other than
-  # melodic-automation-lanes[bot], read from that list at read time, since
-  # this block sets no bot-setters list.
-  # Third-party bots (claude[bot], cursor[bot], cursoragent, dependabot[bot])
-  # never count, and agent-ready counts only from a listed
-  # human or the lanes App. Any other value reads as none, and an issue with
-  # no counted value keeps its labels; a counted value no option maps fails
-  # the read
-  # (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#models).
   issue-status:
     field-id: 48484079
-    # Bot field events before this time are label mirrors and never count as history.
     field-events-since: "2026-11-07T09:45:00Z"
     options:
       "84879216": needs-triage
@@ -1170,9 +578,6 @@ models:
       "86380003": ready
       "86380004": deferred
       "86380005": needs-human
-    # The labels each state collapses from. agent-ready and needs-human are
-    # the tracker's autonomous-eligible and human-gated role labels;
-    # needs-owner-decision is also a hold label of its own (admission-rules).
     labels:
       needs-triage:
         - needs-triage
@@ -1207,244 +612,70 @@ test-scope:
   apply: false
 loop:
   review-rounds: 3
-  # What a review lane reports on heads after the first one it reviewed
-  # whole: blocking-only (the default) or all.
   findings-after-first-review: blocking-only
   dependency-review-rounds: 2
-  # Fixes fix-ci may push to one pull request before the next run hands it to
-  # a person instead. 3 matches review-rounds: past it, CI failing again after
-  # each pushed fix means the fixes are not converging and a person decides.
   fix-ci-rounds: 3
 
 limits:
-  # fix-ci runs one pr-unblock-dispatch run starts. 2 matches the
-  # review-dependency cap, so a push to main starts at most a few model runs
-  # while plan usage per run is unmeasured; the backlog drains over pushes.
   fix-ci-per-run: 2
-  # Extra fix-ci dispatches on one head whose fix-ci run failed (an outage,
-  # a timeout). 1 retries once; a second failure on the same head is a
-  # pattern for a person, not a retry.
   fix-ci-restarts: 1
-  # fix-docs runs one pr-unblock-dispatch refine run starts for its PR's own
-  # event; each event offers one PR, so 0 turns CI fix-docs off and any other
-  # value turns it on. A push to main or the tick starts none.
-  # On for every PR not tidied in its own run (work-resolve-issue's within
-  # resolve-issue's tidy cutoffs are skipped): ADR 0089, which narrows #7576's
-  # D100 to those PRs.
   fix-docs-per-run: 2
-  # The issue lane's WIP cap when the lane merge rate cannot be read; the
-  # wip block below derives it otherwise.
   wip-cap: 12
-  # Restarts after a run reaches its turn cap, per agent-ready a person adds.
-  # 1: one capped run resumes from its pushed branch before a person is asked
-  # again. Raise it further only with a security review (#7677).
   turn-cap-restarts: 1
-  # Share of the lane's hourly merge rate admitted per hour. The queued cap
-  # (check-wip-cap) is the larger of this rate and admission-min-per-hour,
-  # times wip.merge-rate-window-hours; at it, past wip.pause-from, new
-  # agent-ready labels pause.
   admission-factor: 0.8
-  # Admissions per hour the queued cap never falls below, so a day with no
-  # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
   restarts-per-run: 10
-  # Kill-switch re-fires keep the issue lane's unfinished runs at this many
-  # per slot (SLOTS, the effective lane level: lane-level below) and no more: after the switch
-  # clears, each sweep, a finished run's included, tops the queue back up,
-  # oldest stranded first, so the lane stays full without a flood (owner
-  # decision Q109).
   refire-queue-per-slot: 2
-  # Re-fires of runs the start gate stopped on a low GITHUB_TOKEN budget keep
-  # the unfinished runs at this many per slot, inside that room. One per slot
-  # (2026-11-19) kept a second run from waiting past the 20-minute window after
-  # the reset; two per slot (2026-11-21) drains a deferred backlog faster now
-  # that window peaks sit far under the limit, and the start gate still stops a
-  # run that starts late (owner decision:
-  # https://github.com/melodic-software/architecture/blob/d4804179a43b794c5d3b0958fceedf48d1e90e7c/docs/owner-decisions.md#L306).
   refire-budget-per-slot: 2
-  # A work-resolve-issue run still `queued` this many minutes after it was
-  # created is not counted toward that room. The check-admission job runs on a
-  # GitHub-hosted runner and the slot wait comes after it, so a healthy run
-  # leaves `queued` within minutes; one that stays is lost and never starts,
-  # and counting it would hold the room at 0. Nor does a reopened fix issue's
-  # in-flight check count it among runs that name no issue. 60 is judgment:
-  # well past a hosted runner's pickup.
   stale-queued-minutes: 60
   sweep-gap-minutes: 5
-  # Base hours of work-unblock's re-fire backoff for a stranded agent-ready
-  # issue, per cause, doubled once per re-fire already made and held at 24
-  # (the schema's description says where each cause's doubling starts). The
-  # transient causes, where no model ran and nothing in the issue failed (no
-  # run started, no lane token, a kill-switch refusal), take 1; a run that
-  # ended with no report or failed again after a re-fire may fail the same way
-  # and spend run-hours each time, so those keep 3. kill-switch never doubles:
-  # a breaker trip is the lanes' load, not the issue's, so past
-  # limit-stops-per-issue trips each re-fire waits this flat hour, and
-  # refire-queue-per-slot paces the drain after the switch clears (owner
-  # decision Q109, 2026-11-10).
   stranded-backoff-hours:
     no-run: 1
     no-report: 3
     failed-again: 3
     failed-mint: 1
     kill-switch: 1
-  # upstream-apply-changelog apply-changelog legs past the kill switch in any 24 hours, a setup
-  # failure before the leg included (counted from the start records the leg job
-  # writes after the leg, as red-main.daily-cap counts reverts; a credit-stopped leg
-  # whose marker uploaded writes none). Each run
-  # takes one release, so 3 is the most anthropics/claude-code releases
-  # published in one UTC day or any 24 hours from 2026-05-02 to 2026-11-01
-  # (158 releases; GitHub releases API published_at, read 2026-11-02).
-  # Dispatches and retries count too; a release over the cap waits for the window.
   upstream-apply-changelog-per-day: 3
-  # GitHub API margins per pool (`api:` with github-token, lanes-app,
-  # graphql, owner-token, content-creation), each a share of the header's
-  # x-ratelimit-limit: plan of what the pool has used, read-floor,
-  # writer-pause, breaker and stop-floor of what it has left;
-  # content-creation adds per-minute and per-hour. The rate guard reads
-  # read-floor, to warn, and stop-floor, to stop a pool until its
-  # reset at or under that share left; github-token's pace (projected share left at reset)
-  # paces timer-driven lanes (log-api-budget/pace.mjs); the others are
-  # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
-  # defaults live in .github/actions/log-api-budget/rate-limits.json, held
-  # for a person like this file; add an `api:` entry here only to override one.
-  # github-token defer-project, defer-run-minutes, defer-run-minutes-pr-merge and defer-run-minutes-review: https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md
-  # The adaptive lane level L (owner decision Q111, 2026-11-10): the issue
-  # lane's concurrency .github/scripts/lib/lane-level.mjs would pick each
-  # window; SLOTS stays default while shadow is set. L steps up 1 after
-  # clean-windows windows in a row with no limit signal, lane demand and room
-  # (peak share used x (L+1)/L at most api.<pool>.plan, no pool at or under
-  # api.<pool>.writer-pause left), and halves on any limit signal the lanes
-  # App's own calls meet, within floor and ceiling. pools are the budgets L
-  # spends: the lanes App's bursts. A breaker trip, mostly GITHUB_TOKEN spend
-  # that pacing controls, is not a signal; the breaker stays the backstop.
   lane-level:
     floor: 2
     ceiling: 4
     default: 3
     clean-windows: 2
     pools: [lanes-app]
-    # Phase B (owner decision Q113 (a)): work-unblock's hourly
-    # publish-lane-level job publishes L as `<level>@<valid-until>` in the
-    # repository variable `variable` names, valid for valid-minutes, and
-    # pick-slot and label-unblocked read it (lib/lane-level-value.mjs; empty,
-    # expired or malformed reads as default). While shadow is true the job
-    # mints no token and writes nothing, the readers keep default, and both
-    # log the level they would use. variable must end in _LANE_LEVEL, so it
-    # can never name a lanes kill switch.
     shadow: true
     variable: CLAUDE_LANE_LEVEL
     valid-minutes: 150
 
 wip:
-  # Cap = lane PRs merged per hour over the window times this target.
   target-lead-time-hours: 2
-  # Floor under the computed cap. It stops a
-  # day with few merges from shrinking the cap until the lane stalls.
   min-cap: 12
   merge-rate-window-hours: 24
-  # Lane PRs opened in the window may be at most this share of those merged
-  # in it (not limits.admission-factor, which sizes the queued cap).
   opened-to-merged-ratio: 0.8
-  # Held lane PRs (needs-human, do-not-merge, or a "Hold: a human merges
-  # this" body line) count here, not against the cap; at this many the lane
-  # pauses (owner decision 2026-10-21).
   held-cap: 10
   held-alarm-hours: 24
-  # Over the WIP cap or the held cap runs pause from this date, and over the
-  # queued cap new admissions do (intake admission also defers while paused).
-  # Set with intake admitting issues itself (owner decision Q51, 2026-10-22).
-  # Empty: over a cap the lane alerts and keeps starting runs, and intake
-  # admission has no queued cap (an incomplete or failed queued read still
-  # defers it).
   pause-from: "2026-10-22T00:00:00Z"
 
-# The red-main revert rule (owner decision 2026-10-20; a failed guard fixes
-# forward, owner 2026-11-02 "(c) All to lanes" on #11022). post-merge-demotion-
-# alert.yml's report job reads it after a scheduled or dispatched
-# pr-require-checks run on main fails: red is confirmed only when the one
-# re-run of the failed jobs fails again in the same job, and the culprit is
-# the one merge that fails while its parent passes.
 red-main:
-  # true: the job names the culprit, the evidence runs and the revert it
-  # would open, in its step summary and one log issue, and writes nothing
-  # else. It stays true for 3 days of reports with no wrong blame before any
-  # revert merges; this version has no revert path either way.
   dry-run: true
-  # Auto-reverts in any 24 hours, dry-run decisions included; past it the
-  # culprit is fixed forward. 3 is judgment: no source gives a value.
   daily-cap: 3
-  # A culprit merged longer ago than this is fixed forward, since later merges
-  # may build on it. 24 is judgment, as daily-cap.
   max-culprit-age-hours: 24
-  # Minutes the job waits for the re-run of a full run pr-merge dispatched,
-  # which pr-merge's next scheduled run (every 30 minutes) starts and which
-  # raises no event of its own: 30 to start plus a full run's longest lane
-  # (16) plus queue time.
   confirm-wait-minutes: 55
-  # rollback: the revert rule above decides who reverts the culprit.
-  # fail-forward: no revert is planned; the fix issues repair main (owner
-  # decision W-51, 2026-10-21).
   remedy: rollback
 
-# Post-merge accounting paths besides the lanes App's (owner decision Q1 (a)
-# on #7531, 2026-11-05). A merge whose merge-queue actor or enqueuer is one of
-# a path's enqueuers, and whose pull request an agent session wrote, takes
-# that path: post-merge-file-demotion-issues.yml's canary pass labels it
-# `merge-path: <path>`, and a revert of it `post-merge: reverted`. record: the
-# labels only, never a demotion, a breaker trip or a hold (README.md, "Merge
-# paths").
 post-merge:
   paths:
     owner-agent:
       mode: record
       enqueuers: [kyle-sexton]
 
-# PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an
-# account on the standards trusted-actor list opened (by
-# id, a person or an App), with no hold label and no `Hold:` body line, and,
-# for a person's PR, whose activity and head commit are both idle-hours old
-# (pr-merge counts only trusted-actor activity and pushes; fix-ci, the last
-# update). fix-ci fixes its failed ci-status; address-feedback answers a
-# person's PR's lane review threads as the lanes App, under fix-ci's idle
-# rule, or at once when auto-merge is armed (`auto_merge`,
-# https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request); pr-merge
-# merges it under its usual gates. Without this section nothing
-# is adopted.
 adoption:
-  # 2: a session waiting in the GITHUB_TOKEN gate can be idle up to 2 h during a
-  # breaker trip, so 2 h with no trusted-actor push, comment or label change
-  # means the session left the PR. PRs open ready here, so non-draft alone does
-  # not show a PR is finished.
   idle-hours: 2
-  # Apps whose PR bodies a script writes: such a PR closing no issue is judged
-  # against its title and body, as a person's is. Any other App (a model
-  # writes its body, the lanes App's included) needs a closing issue, since
-  # the run that wrote the diff would also write its spec. Ids from
-  # trusted-actors.json: melodic-release[bot], melodic-standards-sync[bot].
   spec-from-body-apps: [337859524, 300666570]
-  # Apps that enqueue and merge their own PRs: pr-merge writes no reasons
-  # comment or risk escalation on one, as no one acts on it (ADR 0048). Its
-  # score still holds pr-merge's own merge. melodic-release[bot].
   self-merging-apps: [337859524]
 
-# Review bots, besides claude[bot] and the review lanes, whose review threads
-# pr-unblock's address-feedback works as the reviewer bot's: fix or explain,
-# adjudication and resolution, under the same trusted-person rules. Matched on
-# the account id GitHub records for a comment, never a login; their comment
-# text stays data. Owner decisions 2026-10-26 and Q29. 199175422 is
-# chatgpt-codex-connector[bot] (its threads on #10092); 62310815 is
-# github-advanced-security[bot], the code scanning (CodeQL) alerts.
 review-threads:
   reviewer-ids: [199175422, 62310815]
 
-# Work that needs the owner present (owner decision 2026-10-28): a manual step
-# on external state an agent cannot safely run or test. Intake's refinement
-# records `External state: manual (<class>: <what>)` only for a class listed
-# here (refine.mjs reads the list into the model's context and refuses any
-# other), and admission refuses such an issue with the `attended` label. An
-# IaC repository's preview and deploy flow is no such step. Dropping a class
-# is an edit here.
 attended:
   classes:
     dns: a DNS record or registrar change
@@ -1453,41 +684,9 @@ attended:
     host-elevation: an elevated (UAC or sudo) pass on a host
     network: a network or IP address registration
 
-# The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
-# branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
-# deletes a branch once its pull request and linked issue are closed, and never
-# one with an open issue or an open pull request.
 branch-cleanup:
-  # A run deletes at most this many; the rest wait for the next run.
   max-deletes-per-run: 25
 
-# The monitoring lane (maintenance-monitor-signals.yml). Its signal 13 counts
-# the held runs of work-resolve-issue (a fault stop whose retries were all
-# faults, or a WIP cap pause it could not read), work-unblock (a listing the sweep could not read), pr-refine (a
-# fix-docs read or a changed-files read that failed, or a Refine pass that
-# failed, whose refine-failed warning is read on red runs too: pr-refine's
-# failed runs are listed and read as well, and its own cap of 12 unread runs
-# (https://github.com/melodic-software/claude-code-plugins/issues/16656) covers
-# green and red together), intake-triage (a verdict a GitHub fault held) and
-# pr-merge (a lane token rate limit past the request's retry budget):
-# each ends green with only a notice, so a fault
-# that keeps holding shows nowhere else. A lane with `threshold` held runs or
-# more in the last `window-hours` raises the signal's issue, which only
-# notifies; it adds no stop and no cap. 4 matches the pr-merge sweeps in a row
-# that raise signal 12. 24 is the longest wait of work-unblock's stranded
-# backoff, so one issue's repeated holds can fall in one window.
-#
-# `incidents`, per signal: an incident issue opens once the signal has been on
-# for open-hours (0: at once), counted from continuous runs, and closes once it
-# has been clear for close-hours. A clear run resets the open timer; an on run
-# resets the close timer. Measured from the rolling issues' close and reopen
-# timelines, 2026-10-24 to 2026-11-08: open-hours is the whole hour just past
-# the p90 of how long the signal stayed on, at most 8; close-hours is the
-# median gap before it fired again, rounded up, at most 6. main-red opens at
-# once, and a signal with 3 episodes or fewer takes values from its cadence.
-# lane-variables, a security signal with no episodes yet, opens at once too,
-# and closes only after 168 hours clear: its evidence is one red run, and the
-# next hour's check passes whether or not anyone set the variable back.
 monitor:
   lane-holds:
     threshold: 4
@@ -1534,74 +733,18 @@ monitor:
       close-hours: 168
 
 merge:
-  # The rung is a pacing cap: off merges nothing without a human; merge lets
-  # the merge authority merge; merge-reviewed also needs AI review to be
-  # blocking on the local babysit lane. C2 and C3 are accepted aliases for
-  # merge and merge-reviewed. The lane reads no `work-class:` label: its merge
-  # criterion is the verifier verdict below.
   rung: merge
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
-  # The Apps whose touch holds a trust-gate path change for a person in
-  # ci-status (README.md, Both lanes review the head). Owner decision Q21
-  # (2026-10-29) turned the hold off until open issues and pull requests reach
-  # zero: the one entry is a login no App holds, because the schema needs one.
-  # Restoring the hold takes three steps: list melodic-agent[bot] again, set
-  # `diff-check.path-holds` true, and run scripts/sync-hold-floor.py.
   trust-path-hold-apps:
     - trust-path-hold-off[bot]
-  # true: report each decision and write nothing.
   report-only: false
-  # true: dispatch-post-merge-runs starts a full run of main inside its 30-minute
-  # cap when an unverified lane merge has no started full run covering it,
-  # one run for the whole batch, so the lane's in-flight room frees after one
-  # verify instead of waiting out the cap. false: the cap holds for every
-  # merge. Absent is true.
   full-run-cap-bypass: true
-  # native: the lanes App's pull requests merge through GitHub's auto-merge
-  # (the enable-auto-merge activity arms them, ci-status gates them), and the
-  # gate below neither lists, scores nor enqueues them. gate: the gate also
-  # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
-  # both. Absent is native.
   lane-prs: native
   baseline-file: docs/upstream/claude-code-native-surfaces.min.json
-  # Head branches a workflow owns and rebuilds. pr-merge's re-fire step
-  # (.github/scripts/pr-merge/refire-refused.mjs) never pushes an empty commit
-  # to a pull request from one, and pr-unblock never runs fix-ci on one
-  # (skip `owned-branch`): release-publish-plugins.yml rebuilds
-  # release/plugins, and pushes there answered 422 (run 41065454536's re-fire,
-  # runs 41308756974 and 41312571464's fix-ci).
   refire-skip-branches: [release/plugins]
-  # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
-  # head (lane PRs under lane-prs native are not listed). Must be true at a
-  # rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
-  # Lane merges in flight at once (queued plus merged and not yet verified,
-  # and armed pull requests the queue has not taken). The merge queue tests
-  # each PR against the latest base plus the PRs ahead of it. Computed from
-  # in-flight-sizing below: scripts/compute-max-in-flight.py prints it, and
-  # its --check test fails any other value.
   max-in-flight: 11
-  # max-in-flight = min(ceil(peak-merges-per-hour * mean-minutes-in-flight / 60),
-  #   floor((app-hourly-limit * app-target-percent / 100 - app-peak-hourly-used)
-  #   / (reader-runs-per-hour * app-calls-per-candidate))), at least 1.
-  # The first term is Little's law (in flight = rate * time in flight) at the
-  # burst the cap must not hold back, not at the mean rate (1.8 an hour). The
-  # measured day's whole-day means agree with it: 1.7 in flight at 1.75 merges
-  # an hour over 58 minutes (peak over mean is judgment). The second term keeps
-  # candidate reads inside the 70% planned-load target for the lanes App bucket.
-  # The merge-queue ruleset stays 5 and 5 above a cap of 5: max_entries_to_build
-  # limits pull requests requesting checks at once, max_entries_to_merge sizes
-  # a group, and neither limits the queue's length. The queue held at least 8
-  # at 2026-10-30T22:39Z with the ruleset at 5 and 5, and this count also holds
-  # merges already out of the queue.
-  # Inputs, for the day ending at measured: rate and time from each lanes
-  # App-enqueued merge's arming, or its AddedToMergeQueueEvent when it was
-  # never armed first, to the first pr-merge run after the next full run of
-  # main finished; app-peak-hourly-used and the calls from
-  # pr-merge's api-budget notices and `calls=` log lines on 16 scheduled runs.
-  # Measure again when a pr-merge run logs `merge.max-in-flight is`: the cap is
-  # holding work back.
   in-flight-sizing:
     measured: 2026-10-31
     peak-merges-per-hour: 11
@@ -1611,98 +754,23 @@ merge:
     app-peak-hourly-used: 1974
     app-calls-per-candidate: 9
     reader-runs-per-hour: 4
-  # Paths the PR checks read (git pathspecs). When main changed one since a
-  # PR's merge base, the gate updates the PR from main instead of enqueuing
-  # it, and a later run enqueues the new head once its checks pass: a head
-  # green on an old base fails the queue's merge with main and takes every
-  # entry built behind it down too (2026-10-19: about 6 slots). The
-  # shared-copy registry is what `Verify generated shared-library copies`
-  # checks the whole tree against, so it counts only for a PR touching a
-  # canonical or copy it registers at main's tip; the docs-only allowlist
-  # decides which test lanes a PR ran, so it counts for every PR. Each update
-  # reruns the PR's checks, verifier and reviews, so a path main changes often
-  # (scripts/**, these YAML files) costs more reruns than the ejections it
-  # saves. Workflow files are left out: the lane
-  # token holds no workflows permission to push them into a PR branch. A
-  # lanes App PR refused for stale shared copies (shared-copy-sources-changed)
-  # is answered by pr-unblock's sync-shared-copies activity, which merges main
-  # and regenerates them with main's tooling.
   check-inputs:
     - scripts/shared-copies.txt
     - scripts/docs-only-paths.txt
-  # Minutes pr-merge's gate loop runs before it starts no further candidate;
-  # the next run starts after the last one reached. Runs 39190604942,
-  # 39187691831 and 39183126369 (the last three scheduled sweeps that ran
-  # the gate) checked 37-39 candidates each: median 30-39 s, longest
-  # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
-  # candidate included, inside the 30 minutes between scheduled runs.
   gate-budget-minutes: 10
-  # Minutes one candidate's gate may spend reading before it stops at its next
-  # read, reported unknown; a write in progress always finishes. The first
-  # candidate a run stops is gated first next run under gate-deferred-minutes. Run 39883357253 spent 21.5 minutes on one candidate and held
-  # the queue behind it. 4 is above the longest measured candidate (157-164 s,
-  # above) and leaves the budget room for others (judgment).
   gate-candidate-minutes: 4
-  # Minutes the deferred candidate's gate may read; one stopped here is warned
-  # about and goes back to the capped rotation. 20 fits inside the merge job's
-  # 48-minute timeout with the minute before the loop and the closing steps
-  # (judgment).
   gate-deferred-minutes: 20
-  # Minutes a reasons comment must stand unchanged at the head before the
-  # gate adds the human-gated label for a reason only a person clears, or
-  # enable-auto-merge posts a failing pr-merge/unarmed status for one the
-  # lanes clear; 0 is no minimum. 60 is longer than a review lane's run
-  # (judgment), so a review still running at the head, which scores MED,
-  # finishes first.
   risk-escalation-minutes: 60
   skip-unchanged:
     max-minutes: 0
     max-skips: 3
-  # pr-verify FAILs at this many distinct heads of one PR hold it, never to
-  # merge unattended (owner decision 2026-10-21), when one that is not
-  # superseded stands at its head; FAILs at earlier heads alone leave a pass
-  # at the head to decide (owner decision Q245,
-  # https://github.com/melodic-software/claude-code-plugins/issues/17646). The
-  # pr-merge lane closes a lanes App one for a fresh attempt at its issue,
-  # and address-feedback and fix-ci start no more rounds on it (owner
-  # decision 2026-10-29).
   max-verify-fails: 3
-  # Fresh attempts one issue gets after the pr-merge lane closes its pull
-  # request at max-verify-fails or as too old: the issue goes back to
-  # agent-ready with the FAIL findings, and that closed pull request's FAILs
-  # leave the cap's count. Past this many the issue is parked at `status:
-  # confirmed` with no new attempt and no person's label (owner decision
-  # 2026-10-29).
   verify-cap-attempts: 1
-  # Days a suite failing on main outside the merges' affected set stays
-  # quarantined: its quarantine issue excuses its failures from demotion
-  # until it closes or is this old, then they demote again, even when the
-  # suite was already red before the merge. 7 is judgment (owner decision
-  # Q645 left the default to planning); at most 30.
   quarantine-days: 7
-  # pr-verify.yml judges PRs the lanes App (agent-identity) opened and, so an
-  # idle owner PR the pr-merge lane adopts has a verdict (owner decision Q22),
-  # the owner account's; `lane` judges the App's alone, `any` every author's.
   verify-authors: lane-or-owner
-  # Dependabot pull requests answer to this switch, not report-only: tier auto
-  # (every update non-major, allowed Actions publishers) merges once ci-status
-  # passes; tier review merges once the pr-unblock review leaves a merge
-  # verdict at the head and ci-status passes. A major update, or one whose
-  # version cannot be read (a SHA pin) or whose sources disagree, merges on
-  # that review verdict too (`majors: review`; owner direction 2026-10-24: the
-  # review lanes decide whether a pull request needs a person); `hold` would
-  # make it wait for a human whatever the verdict.
   dependabot:
     mode: enforce
     majors: review
-    # Action owners whose bumps skip ci-status's trust-gate hold on a
-    # Dependabot PR (Q24 below): every change block must swap only the SHA
-    # ref of one `uses: <owner>/...` line, to a commit a tag of that
-    # repository points to. Owner decision Q-ANTHROPIC-DEPS
-    # (2026-10-31). Absent or empty, Q24 holds every Dependabot PR.
-    # `melodic-software` is listed because an own release is this
-    # organization's code, not third-party code (owner decision 2026-11-15,
-    # the Dependabot policy's `fastTrack`).
     trusted-action-owners:
       - actions
       - anthropics
@@ -1789,8 +857,6 @@ merge:
         class: gate
       - glob: ".github/lane-registry.json"
         class: gate
-      # The arm path's Merge-Risk line, and the rating job's scripts that hand
-      # untrusted pull request text to a credentialed model run (#13657).
       - glob: ".github/scripts/pr-merge/merge-risk-line.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge-risk/input.mjs"

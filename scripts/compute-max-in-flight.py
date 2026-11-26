@@ -4,7 +4,7 @@
     python3 -I scripts/compute-max-in-flight.py          print the computed cap
     python3 -I scripts/compute-max-in-flight.py --check  exit 1 if the set value differs
 
-The formula is stated beside its inputs in the YAML; change an input, run this, and set
+The formula is cap() below; change an input, run this, and set
 `max-in-flight` to what it prints. test_compute_max_in_flight.py runs `--check`.
 """
 
