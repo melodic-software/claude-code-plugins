@@ -326,7 +326,7 @@ fi
 
 FIXTURE="$SCRIPT_DIR/context-zone.fixtures.mjs"
 FX="$WORK/fixture"
-FX_NOW=1791050400 # 2026-10-03T18:00:00Z, the NOW of hooks/zone.test.ts
+FX_NOW=1791050400
 resolve_pinned() {
   local home="$1" sid="$2" err="$3"
   (
