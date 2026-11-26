@@ -84,12 +84,6 @@ run_hook() {
 
 installs() { find "$1/python" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]'; }
 
-# Real Git Bash or Cygwin on Windows (the Windows CI lane): the ready stamp the real install writes, in native
-# Windows form (drive-letter paths, 8.3 or long names, .EXE suffixes as shutil.which gives them), holds and the hook
-# starts no Python. The fixture stays under /tmp, which Git Bash maps through an 8.3 short name, so the hook's ROOT
-# and the stamp's root spell one directory two ways. A sitecustomize on PYTHONPATH logs every Python start that
-# imports site, the hook's own interpreter probe included. Every later case stubs interpreters with shell scripts,
-# simulates Windows paths or needs Linux namespaces, so on Windows the suite ends here.
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
   root="$(new_plugin realwin "$digest")"
   data="$WORK/data-realwin"
@@ -144,7 +138,6 @@ else
   fail "first session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# Second session: no-op. An empty find-links folder would make any pip run fail, so a notice means it ran.
 run_hook "$root" "$EMPTY" CLAUDE_PLUGIN_DATA="$(native "$data")"
 out="$OUT"
 if [[ "$RC" -eq 0 && -z "$out" && "$(installs "$data")" == 1 ]]; then
@@ -272,9 +265,6 @@ else
   fail "linux paths: rc=$RC argv=[$ARGV] output=[$OUT]"
 fi
 
-# Only the py launcher (a python.org install without "Add python.exe to PATH"): under Git Bash or Cygwin the
-# hook asks it only to list (py -0p) and starts pydeps.py with a listed python.exe, never through py, which
-# installs the latest Python on any launch command while none is installed; elsewhere `py` is not taken for Python.
 launcher="$WORK/launcher"
 mkdir -p "$launcher" "$WORK/stub"
 {
@@ -414,9 +404,6 @@ else
   fail "symlinked plugin root: starts=$STARTS rc=$RC output=[$OUT]"
 fi
 
-# Under Git Bash, Windows Python writes the stamp with backslashes, while the hook sees POSIX paths. A stamp in that
-# shape holds under OSTYPE=msys and, paired, not elsewhere. Mounts, 8.3 names and .EXE suffixes need a Windows file
-# system: the real Git Bash case covers them. No case here covers a letter-case difference.
 windows_form() { printf '%s' "${1//\//\\}"; }
 target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 py_at="$(PATH="$logged:$PATH" command -v py 2>/dev/null || true)"
@@ -443,10 +430,6 @@ else
   fail "Windows-form stamp: starts under $starts_under"
 fi
 
-# Git Bash on Windows can report OSTYPE=cygwin while it mounts drives at /c/, not /cygdrive/c/. Inside a user and
-# mount namespace whose root holds a /c directory (this suite's WORK bound there), a stamp in Windows drive-letter
-# form holds under OSTYPE=cygwin and under OSTYPE=msys, and starts no Python. Skipped where unprivileged user
-# namespaces are not allowed.
 drive_case() {
   local nr="$WORK/newroot" d
   mkdir -p "$nr"

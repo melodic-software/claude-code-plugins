@@ -428,7 +428,9 @@ def parse_title(title: str, body: str) -> list[Update] | None:
         return found if len(found) == int(group.group(1)) else None
     if single := _SINGLE.search(subject):
         old, new = single.group(2), single.group(3)
-        return [Update(single.group(1), is_major(old, new), new, is_first_major(old, new))]
+        return [
+            Update(single.group(1), is_major(old, new), new, is_first_major(old, new))
+        ]
     return None
 
 
@@ -478,8 +480,10 @@ def all_own(updates: Sequence[Update], globs: Sequence[str]) -> bool:
     request takes no `publisher:` reason, and a below-1.0 second-component
     move is not major for it; a first-component move still is."""
     patterns = [_own_regex(g) for g in globs]
-    return bool(updates) and bool(patterns) and all(
-        any(p.match(u.name) for p in patterns) for u in updates
+    return (
+        bool(updates)
+        and bool(patterns)
+        and all(any(p.match(u.name) for p in patterns) for u in updates)
     )
 
 

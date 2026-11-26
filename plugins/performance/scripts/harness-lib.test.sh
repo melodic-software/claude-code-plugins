@@ -42,7 +42,6 @@ assert_eq "a shim directory under the temporary root is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the mktemp defect" "temporary root" "$RUN_OUT"
 
 # discriminating-skip-required: the spelling-independence of the temp-root
-# rejection is the only thing this case proves.
 TMPDIR_ALIAS="$(cd /tmp && pwd -P)"
 capture env TMPDIR=/tmp bash -c \
   "source '$SCRIPT_DIR/harness-lib.sh'; harness_resolve_shim_dir '$TMPDIR_ALIAS/perf-shim-probe'"

@@ -1,18 +1,5 @@
 // GENERATED from lib/view-registry.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// The medium registry for rendered views: one entry per medium, the one fallback chain, and each
-// view lane's registration. Skills never name a medium themselves; they reach this through
-// lib/view-settings.mjs. Adding a medium or a lane is an addition here, never a skill edit.
-//
-//   MediumEntry { id, publishes, reachable(context) -> {ok, reason}, deliver(view, context) -> {location}, reportName }
-//   Lane        { laneId, kinds, hostedCapable, default, hasMediumOption }
-//
-// `context.interactive` is false in a CI or other non-interactive run, where only the terminal is
-// reachable (docs/contracts/rendered-views/README.md, "Reachability and preference"). A lane's
-// `default` is its shipped medium, applied when no scope decides; null leaves the choice to the
-// skill's own content rule. `hasMediumOption` is true when the lane's plugin ships a `medium`
-// userConfig option, so a notice may point the user at it.
-
 const interactiveOnly = (context = {}) => (context.interactive === false ? { ok: false, reason: "non-interactive run" } : { ok: true });
 
 const entry = (id, publishes, reportName, reachable, deliver) => Object.freeze({ id, publishes, reportName, reachable, deliver });

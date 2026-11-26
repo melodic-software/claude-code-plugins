@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a lanes App pull request on kill switch, hold path, verifier or veto` step body
-# of .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
-# pull request without pr-merge's gate, so ci-status holds it on the kill
-# switch, a member's newest comment saying not to merge, and a changed or
-# renamed-from path matching the merge lane's denied paths. Body text holds nothing: the
-# do-not-merge label is the veto. It reads them live, on a pull
-# request event and in the merge queue, runs the base commit's
-# merge-holds.mjs, and fails closed when it cannot tell. In the merge queue it
-# also runs pr-merge's verdict reader (babysit_verify_evidence.py, stubbed
-# here) from main's checkout, whose FAIL refusals hold. The contract:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#native-auto-merge
 # test-scope: .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
@@ -36,9 +22,6 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helpe
 NAME='Fail a lanes App pull request on kill switch, hold path, verifier or veto'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 budget="$(sed -nE 's/^ +MERGE_GROUP_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
-# A draft's ci-status passes by design (`Note a draft`), so the step makes no
-# read there; the ready_for_review run judges the holds. A merge group has no
-# pull_request.draft, which is not true, so the queue still runs it.
 if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
   ok "step runs on pull_request and merge_group, and skips on a draft unless a re-run finds the pull request ready"
 else
@@ -86,10 +69,6 @@ if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$a
 else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
-# The step reads the lanes App's numeric id from ci-status's job-level
-# LANES_APP_ID, whose one source is the AUTOMATION_LANES_APP_SENDER_ID
-# repository variable: the workflow names LANES_APP_ID once, as that variable,
-# and no step overrides it.
 pins="$(grep -nE '^ +LANES_APP_ID:' "$WORKFLOW")"
 if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"$ ]]; then
   ok "ci-status's job-level LANES_APP_ID is the AUTOMATION_LANES_APP_SENDER_ID variable, set once"
@@ -100,18 +79,6 @@ identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr
 LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json")"
 [[ "$LANES_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES_APP_ID'"
 
-# The stub logs its arguments. A pull read prints STUB_PULL. A contents read
-# fails: the step reads merge-holds.mjs, pr-pipeline.yaml and the
-# trusted-actor list from the hold config checkout (BASE_CONFIG), never
-# through the API. A discussion read fails its first STUB_FAILS calls,
-# then prints STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON arrays) as the
-# API's page. A files read answers STUB_FILES (a JSON array of [path,
-# renamed-from or null, status] arrays, status renamed with a renamed-from
-# path and modified otherwise) as the files API's rows, through the step's
-# own --jq. An artifacts read by name prints the run ids
-# STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
-# the step's own --jq, each artifact's id ten times its run's; a run read
-# prints that id's entry of STUB_RUNS, or answers 404. An artifact archive
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -336,8 +303,6 @@ for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
   expect_pull_reads "with $payload the pull is read" 1
   unset STUB_AUTHOR_ID STUB_AUTHOR_TYPE
 done
-# A payload claiming another author never skips the lanes App's holds: the
-# read author is tested, and the lanes App's pull request is still held.
 STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]' STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 3 "it changes docs/held/a.md, a hold path"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
@@ -362,8 +327,6 @@ KILL=true expect "with the kill switch on, a lanes App pull request into another
   "::error::#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
 EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE KILL=true \
   expect "with the kill switch on, a queued lanes App pull request fails" 1 0 "::error::#7: the lanes kill switch is on"
-# The rule is the base checkout's merge-holds.mjs switchHold: a base that cannot
-# judge it fails closed before any further read.
 STUB_PULL="$(pull 'Closes #1')"
 for stub in '' 'export const holds = () => [];' 'export const switchHold = () => 7;' 'export const switchHold = () => "";' \
   'export const switchHold = () => { process.exit(0); };' 'export const switchHold = () => { throw new Error("x"); };'; do
@@ -426,8 +389,6 @@ else
   fail "the hold config checkout lacks: ${config_missing[*]}"
 fi
 base_step="$(step_of "Check out main's Node pin and verdict reader")"
-# The default branch tip arrives as the SHA its job's tip step resolved, which
-# saves checkout's REST call for a branch ref; an empty SHA skips the checkout.
 tip_step="$(awk -v tip="      - name: Resolve main's tip" -v name="      - name: Check out main's Node pin and verdict reader" '
   /^  [A-Za-z0-9_-]+:$/ { buf = ""; on = 0 }
   $0 == tip { buf = ""; on = 1 }
@@ -476,9 +437,6 @@ if [[ "$restore" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.m
 else
   fail "no merge_group-only, continue-on-error 'carry-run-cache.mjs read' of pr-merge's carried reads"
 fi
-# ci-status holds actions, pull-requests and statuses write: no step restores
-# an Actions cache, whose archive any job in main's cache scope can write and
-# whose restore extracts it anywhere in the workspace (#9455).
 ci_status="$(awk '/^  ci-status:/ { on = 1; print; next } on && /^  [A-Za-z0-9_-]+:$/ { exit } on { print }' "$WORKFLOW")"
 if grep -qE '^ +uses: actions/cache(/restore)?@' <<<"$ci_status"; then
   fail "ci-status restores an Actions cache"
@@ -658,9 +616,6 @@ STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" 
   expect "in the merge queue the files are read live, whatever the file holds" 1 3 "it changes docs/held/a.md, a hold path"
 expect_file_reads "in the merge queue the files are read" 1
 STUB_FILES='[["docs/guide.md"]]'
-# Owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B: the floor's
-# trust and gate entries hold with no denied path configured, a dot-prefixed
-# file and a renamed-from path included.
 for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-config/resolve.mjs \
   .github/actions/check-trusted-trigger/.x.mjs .github/actions/request-lane-token/action.yml \
   .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/log-api-budget/rate-guard.mjs \
@@ -675,8 +630,6 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the floor holds $path" 1 3 "it changes $path, a hold path"
 done
-# Its enforcement entries are the merge gate's, which a clean security review
-# bound to the head clears; ci-status leaves them to it.
 for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py \
   .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
   .github/scripts/pr-unblock/thread-scope.mjs .github/scripts/lib/retry-fetch.mjs \
@@ -694,18 +647,12 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "the gate, not ci-status, holds $path" 0 3 "no hold path"
 done
-# ci-status's own workflow, and a job-token dispatcher of a gated workflow, are
-# gate paths: ci-status holds them for a person.
 for path in .github/workflows/pr-require-checks.yml .github/workflows/intake-reenter.yml; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
   expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
 done
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
-# Owner direction 2026-10-24: no other path holds for being trusted alone, and
-# a manifest change is the security lane's finding. The lanes App's token
-# never carries the workflows permission, so no lanes App push changes a
-# workflow.
 for path in .github/standards/trusted-actors/README.md docs/conventions/pr-pipeline/README.md \
   plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-unblock/other.mjs .github/actions/other/action.yml \
   .github/actions/log-api-budget/action.yml docs/CODEOWNERS.md; do
@@ -789,10 +736,6 @@ else
   fail "a pull request event read a verdict: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
-# disarms: the auto-merge mutations the last run sent. Disarming needs
-# contents: write, which the step's GITHUB_TOKEN lacks, so it sends none; the
-# merge queue's pr-verify check at the head it merges holds an armed pull
-# request's new head.
 disarms() { grep -c '^api graphql .*disablePullRequestAutoMerge' "$TMP_ROOT/log"; }
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
 expect "a push to an armed lanes App pull request passes" 0 3 "no hold path"
@@ -897,8 +840,6 @@ STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does no
 STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' STUB_COLD='' STUB_RATE=''
 unset STUB_RULES STUB_CARRIED STUB_TOTAL STUB_LISTED_FAILS
-# The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
-# after arming to close or name another issue holds the group.
 NO_CLOSING='[]'
 export STUB_CLOSING STUB_RECORD STUB_NO_RECORD
 STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='.spec_kind = "refs"'
@@ -1060,8 +1001,6 @@ expect "a pull request number that is not a number fails closed" 1 0 "is not a n
 unset PR_NUMBER
 export STUB_APP_ID=''
 expect "a missing LANES_APP_ID fails closed without a call" 1 0 "::error::the job's LANES_APP_ID is not a numeric id"
-# A numeric id that is not merge.agent-identity's trusted-actor id would read
-# the lanes App's pull request as another author's and skip every hold.
 export STUB_APP_ID=300666570
 expect "a LANES_APP_ID other than merge.agent-identity's fails the lanes App's pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id (337595936)"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
