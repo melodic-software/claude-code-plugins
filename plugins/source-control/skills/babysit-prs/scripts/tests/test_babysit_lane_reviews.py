@@ -31,6 +31,9 @@ import babysit_merge_policy as policy  # noqa: E402
 import babysit_verify_evidence as ve  # noqa: E402
 from diff_risk import ChangedFile, LaneEvidence  # noqa: E402
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from capped_compare import docs_diff  # noqa: E402
+
 REPO = "example-org/example-repo"
 HEAD = "a" * 40
 BASE = "b" * 40
@@ -298,6 +301,8 @@ def carried(
     old_files: list[dict[str, object]] | None = None,
     reviews: list[dict[str, object]] | None = None,
     head_commits: list[dict[str, object]] | None = None,
+    head_total: int | None = None,
+    hold_paths: list[str] | None = None,
     pr: dict[str, object] = CARRIED_PR,
     reads: list[str] | None = None,
     now_head: str = HEAD,
@@ -325,7 +330,7 @@ def carried(
                 {"sha": OLD, "parents": [{"sha": MAIN}]},
                 {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]},
             ],
-            "total_commits": len(head_commits or [0, 0]),
+            "total_commits": head_total or len(head_commits or [0, 0]),
         },
     }
 
@@ -346,12 +351,23 @@ def carried(
         if endpoint.endswith(f"...{TIP}"):
             parent = endpoint.rsplit("/", 1)[1].split("...")[0]
             return 200, {"status": "ahead" if parent == MAIN else "diverged"}
+        endpoint, _, query = endpoint.partition("?per_page=100&page=")
+        page = int(query) if query else 0
+
+        def cut(answer: object) -> object:
+            commits = answer.get("commits") if isinstance(answer, dict) else None
+            if not isinstance(commits, list):
+                return answer
+            return answer | {
+                "commits": commits[(page - 1) * 100 : page * 100] if page else commits[:250]
+            }
+
         spec = endpoint.rsplit("/", 1)[1]
         if spec in across:
-            return 200, across[spec]
+            return 200, cut(across[spec])
         sha = endpoint.rsplit("...", 1)[1]
         assert endpoint == f"repos/{REPO}/compare/{TIP}...{sha}", endpoint
-        return 200, compares[sha]
+        return 200, cut(compares[sha])
 
     def paginated(endpoint: str, label: str, *args: object, **kwargs: object) -> object:
         if reads is not None:
@@ -364,9 +380,9 @@ def carried(
     with mock.patch.object(policy, "_get", side_effect=get):
         rows = [approval()] if reviews is None else reviews
         if not any(r.get("state") == "DISMISSED" for r in rows):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, hold_paths, floor=policy.floor_for(FLOOR_ROWS))
         with mock.patch.object(policy, "_paginated", side_effect=paginated):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, hold_paths, floor=policy.floor_for(FLOOR_ROWS))
 
 
 class ALiftCarriesOverABaseMerge(unittest.TestCase):
@@ -412,6 +428,76 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
             carried([HELD_PATCH], reviews=[approval("DISMISSED", HEAD)], timeline=[STALE]),
             [],
         )
+
+    def test_a_range_past_250_commits_is_read_in_pages(self) -> None:
+        merges = [
+            {"sha": f"{n:040x}", "parents": [{"sha": f"{n - 1:040x}" if n > 1 else OLD}, {"sha": MAIN}]}
+            for n in range(1, 259)
+        ]
+        last = {"sha": HEAD, "parents": [{"sha": merges[-1]["sha"]}, {"sha": MAIN}]}
+        commits = [{"sha": OLD, "parents": [{"sha": MAIN}]}, *merges, last]
+        reads: list[str] = []
+        self.assertEqual(carried([HELD_PATCH], head_commits=commits, reads=reads), ["user5"])
+        self.assertIn(f"repos/{REPO}/compare/{TIP}...{HEAD}?per_page=100&page=3", reads)
+        self.assertEqual(
+            carried([HELD_PATCH], head_commits=commits, head_total=261), [], "a page cut short"
+        )
+
+    def test_the_exact_carry_past_300_files_is_judged_on_the_two_diffs(self) -> None:
+        docs = [{"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"} for i in range(300)]
+        text = docs_diff(301)
+        paths = (*PATHS, *(f"docs/{i}.md" for i in range(301)))
+        case = {
+            "old_files": [HELD_PATCH, SHARED_OLD],
+            "across": ranges(docs, docs),
+            "trees": {HEAD: tree(*paths), MB_HEAD: tree(*paths)},
+        }
+        for name, diffs, lifted in (
+            ("the same diffs", [text, text], ["user5"]),
+            ("a diff that differs in one hunk", [text, text.replace(" +1,3 @@", " +1,4 @@", 1)], []),
+            ("diffs naming fewer files than the listing", [docs_diff(299)] * 2, []),
+        ):
+            with self.subTest(name), mock.patch.object(policy, "_cap_diffs", side_effect=lambda o, n, specs, cs, d=diffs: d if len(specs) == 2 and specs[0].startswith(OLD) else None):
+                self.assertEqual(carried([HELD_PATCH, SHARED_HEAD], **case), lifted)
+        with mock.patch.object(policy, "_cap_diffs", side_effect=lambda o, n, specs, cs: None):
+            self.assertEqual(carried([HELD_PATCH, SHARED_HEAD], **case), [], "no diff read")
+
+    def test_a_push_past_300_files_lifts_on_its_diff_and_not_when_it_does_not_read(
+        self,
+    ) -> None:
+        """The owner's decision Q10 of 2026-10-28, at any size (row L445)."""
+        docs = [{"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"} for i in range(300)]
+        pushed = [{"sha": OLD, "parents": [{"sha": MAIN}]}, {"sha": HEAD, "parents": [{"sha": OLD}]}]
+        across = {
+            f"{OLD}...{HEAD}": {
+                "status": "ahead",
+                "behind_by": 0,
+                "files": docs,
+                "commits": [{"sha": HEAD}],
+                "total_commits": 1,
+            }
+        }
+
+        def read(answer: object) -> object:
+            def cap_diffs(owner: str, name: str, specs: list[str], compares: list[object]) -> object:
+                if specs != [f"{OLD}...{HEAD}"]:
+                    return None
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+
+            return cap_diffs
+
+        for name, answer, lifted in (
+            ("a covering diff", [docs_diff(301)], ["user5"]),
+            ("a diff read that fails", policy.PolicyReadError("diff"), []),
+            ("a diff naming fewer files than the listing", [docs_diff(299)], []),
+        ):
+            with self.subTest(name), mock.patch.object(policy, "_cap_diffs", side_effect=read(answer)):
+                self.assertEqual(
+                    carried([HELD_PATCH], head_commits=pushed, across=across, hold_paths=[]),
+                    lifted,
+                )
 
     def test_10224s_shape_carries_when_the_merges_brought_exactly_mains_changes(
         self,

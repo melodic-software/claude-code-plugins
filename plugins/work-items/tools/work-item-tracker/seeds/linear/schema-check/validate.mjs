@@ -83,8 +83,6 @@ const ops = [
     q: `query($key: String!) { teams(filter: { key: { eq: $key } }, first: 1) { nodes { id } } }`,
     vars: { key: 'ENG' } },
 
-  // Labels come from the ROOT issueLabels connection, filtered to this team OR workspace-level
-  // (team: { null: true }), paginated, so workspace labels and pages past the first are both visible.
   { name: 'create-item label resolve (root issueLabels, team-or-workspace)', loc: 'create-item.sh:137-146',
     q: `query($team: ID!, $first: Int!, $after: String) {
     issueLabels(

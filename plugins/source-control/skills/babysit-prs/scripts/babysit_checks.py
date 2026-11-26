@@ -6,6 +6,7 @@ The identity keying defined here is the single source both the snapshot engine
 and the guarded merge gate use, so a StatusContext can never hide -- or be
 hidden by -- a same-named CheckRun.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -291,10 +292,7 @@ def classify_stuck_checks(
             continue
         age = _check_age_seconds(check, observed)
         aged_out = age is not None and age >= age_threshold_seconds
-        if (
-            check.get("type") == "StatusContext"
-            and not check.get("target_url")
-        ):
+        if check.get("type") == "StatusContext" and not check.get("target_url"):
             stuck_class = STUCK_ORPHANED_STATUS
         elif (
             check.get("type") == "CheckRun"

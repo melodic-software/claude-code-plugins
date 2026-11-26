@@ -2,8 +2,8 @@
 
 token_scan::awk_operand() {
   case "$1" in
-  ./* | /*) printf '%s' "$1" ;;
-  *) printf './%s' "$1" ;;
+    ./* | /*) printf '%s' "$1" ;;
+    *) printf './%s' "$1" ;;
   esac
 }
 

@@ -175,9 +175,6 @@ assert_eq "--count adds the correctness line when rules are listed" "suppression
 unjustified=4
 correctness=3" "$out"
 
-# ---- coverage, mutation-testing and security-scanner directives --------------------
-# Each spelling is the one the tool's own docs give (listed in the audit-suppressions
-# skill's Upstream syntax record). A mention inside a string literal or prose is no directive.
 EVD="$TEST_TMPDIR/evidence"
 mkdir -p "$EVD"
 putv() { printf '%s\n' "${@:2}" >"$EVD/$1"; }

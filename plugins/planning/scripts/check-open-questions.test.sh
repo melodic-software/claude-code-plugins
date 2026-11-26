@@ -332,10 +332,6 @@ EOF
 )"
 expect_exit "prose row starting with Q<N> -> 2" 2 --ledger "$prose"
 
-# 14d. A leading-zero id is malformed, and rejecting it is what keeps the
-#      contiguity check total: `[[ 08 -ne 8 ]]` evaluates in arithmetic context,
-#      reads 08 as invalid octal, errors, and resolves FALSE — so a gapped
-#      register would pass. Fail closed on the form instead.
 leadzero="$(
   mkledger <<'EOF'
 - Q1 | answered | round 1 | a | x

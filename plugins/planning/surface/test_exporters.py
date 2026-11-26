@@ -758,7 +758,6 @@ class TestExportBrief(SessionCase):
         if not MARKDOWNLINT:
             self.skipTest("markdownlint-cli2 not installed; `npm ci` at the repository root")
         _, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
-        # markdownlint-cli2 reads its config from its working directory.
         org = subprocess.run(
             ["bash", str(REPO / "lib" / "org-standards.sh"), "dir", "--root", str(REPO)],
             capture_output=True,

@@ -62,10 +62,6 @@ async function main() {
     const shownAs = pid => owner.evaluate(p => document.querySelector(`.vf-hperson:has([data-pid="${p}"])`)?.dataset.presence || "", pid);
     ok("everyone shows Active on the owner's page", await until(owner, ps => ps.every(p => window.Core.state.presence.some(x => x.cid === p && !x.away)), [hidPid, gonePid, snoozePid, busyPid, twoPid], 10000));
 
-    // ---------- hide one tab for 3 minutes; close another; watch both from the owner's page ----------
-    // Hidden while a plain beat waits out its gap: a focus just after a beat answered asks for one, and its gap timer is
-    // still pending when the tab hides. The hide's beat changes `visible`, so it must not wait on that timer, which
-    // the throttled tab would only run at its next one-minute wake.
     await hid.waitForResponse(r => new URL(r.url()).pathname === "/api/heartbeat");
     const t0 = Date.now(), samples = [], hiddenBeats = [];
     hid.on("request", r => { if (new URL(r.url()).pathname === "/api/heartbeat") hiddenBeats.push((Date.now() - t0) / 1000); });
@@ -133,8 +129,6 @@ async function main() {
     ok(`the hidden tab stays present and Away for ${HIDDEN_FOR} s: it never drops out and back`, samples.length > 150 && samples.every(x => x.hid !== "absent") && after.every(x => x.hid === "away"),
       JSON.stringify(samples.filter(x => x.hid !== "away").slice(0, 5)));
     ok("  and the people list shows it Away, never offline", after.every(x => x.row === "away"), JSON.stringify(after.filter(x => x.row !== "away").slice(0, 3)));
-    // With its timers held to one-minute wakes, the page still beats at every wake: the beat its timer starts goes out
-    // in that wake, not in the next one. Two-minute gaps here would leave it a hair from offline (90 s).
     const gaps = hiddenBeats.slice(1).map((t, i) => t - hiddenBeats[i]);
     ok("  while hidden the page beat at each one-minute wake", hiddenBeats.length >= 3 && gaps.every(g => g <= 75), `beats at ${hiddenBeats.map(t => t.toFixed(0)).join(", ")} s`);
     const lastSeen = Math.max(0, ...samples.filter(x => x.gone !== "absent").map(x => x.t));

@@ -1,6 +1,3 @@
-# NUnit: cs-xunit's assertion and mock vocabulary, claimed by NUnit's namespace
-# or its test attributes (the using may be a global or implicit one).
-# Schema and YAML subset: scripts/adapter-load.awk.
 id: cs-nunit
 extends: cs-xunit
 detect:
@@ -10,14 +7,11 @@ detect:
 test_start:
   - '^[[:space:]]*\[[[:space:]]*(Test|TestCase|TestCaseSource|Theory)([^A-Za-z0-9_]|$)'
   - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
-# ExpectedResult makes the return value the assertion, which no body token shows.
 test_skip:
   - 'Ignore'
   - 'Explicit'
   - 'ExpectedResult'
 assertion:
-  # Assert.ThatAsync returns a Task that must be awaited. Assert.ThrowsAsync is
-  # left out: it returns a Task only from NUnit 5, and NUnit 4 runs it synchronously.
   async:
     - 'Assert[[:space:]]*\.[[:space:]]*ThatAsync[[:space:]]*[<(]'
 equality:

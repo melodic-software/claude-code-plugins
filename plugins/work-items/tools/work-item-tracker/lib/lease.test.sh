@@ -8,7 +8,6 @@ source "$SCRIPT_DIR/../tests/lib.sh"
 
 assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
 
-# Portable ISO→epoch (GNU date -d and BSD date -j both handled). 1970-01-01T00:00:01Z = 1.
 assert_eq "wit_iso_to_epoch epoch-1" "1" "$(wit_iso_to_epoch '1970-01-01T00:00:01Z')"
 assert_eq "wit_iso_to_epoch known ts" "1783828800" "$(wit_iso_to_epoch '2026-07-12T04:00:00Z')"
 
@@ -30,8 +29,6 @@ assert_not_live() {
   assert_fails "$1" "not live" "live" wit_lease_is_live "$2" "$3"
 }
 
-# Lease liveness with DETERMINISTIC timestamps, so no now-boundary flake (#1424); a
-# superseded lease is never live even inside its ttl window.
 NOW="$(date -u +%s)"
 NOW_ISO="$(date -u -d "@$NOW" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$NOW" +%Y-%m-%dT%H:%M:%SZ)" # portability-ok: GNU-first, BSD fallback co-located (#1510)
 PAST_DEAD="$(jq -cn '{renewed_at:"2000-01-01T00:00:00Z", ttl_hours:24}')"
@@ -45,8 +42,6 @@ assert_live "fresh 15m lease is live" "$FRESH_15M" "$NOW"
 SUPERSEDED="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:24, superseded_at:$t}')"
 assert_not_live "superseded lease not live" "$SUPERSEDED" "$NOW"
 
-# A lease dated past now + 300 s, or with a TTL over 168 h, is not live: a planted
-# comment cannot block the item for ever.
 SKEW_OK="$(jq -cn --arg t "$(date -u -d "@$((NOW + 300))" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$((NOW + 300))" +%Y-%m-%dT%H:%M:%SZ)" '{renewed_at:$t, ttl_hours:24}')" # portability-ok: GNU-first, BSD fallback (#1510)
 assert_live "a lease renewed 300 s ahead (clock skew) is live" "$SKEW_OK" "$NOW"
 FUTURE_DATED="$(jq -cn --arg t "$(date -u -d "@$((NOW + 301))" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$((NOW + 301))" +%Y-%m-%dT%H:%M:%SZ)" '{renewed_at:$t, ttl_hours:24}')" # portability-ok: GNU-first, BSD fallback (#1510)
@@ -56,8 +51,6 @@ assert_live "a 168 h lease is live" "$AT_CAP" "$NOW"
 OVER_CAP="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:168, ttl_minutes:1}')"
 assert_not_live "a lease over the 168 h cap is not live" "$OVER_CAP" "$NOW"
 
-# Expiry boundary vs fixed injected clock (#1675 / medley#1675): exclusive end —
-# live while now < renewed_at+ttl; exact expiry and after are dead.
 FIXED_NOW=1783828800
 BOUNDARY_TTL=1
 BOUNDARY_EXPIRY=$((FIXED_NOW + BOUNDARY_TTL * 3600))

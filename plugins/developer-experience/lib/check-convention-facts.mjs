@@ -1,15 +1,6 @@
 #!/usr/bin/env node
 // GENERATED from lib/check-convention-facts.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Flag universal claims in a conventions file that may be targets written as current facts.
-// Usage: check-convention-facts.mjs <file>...
-// HEURISTIC and advisory: a line outside the `## Not yet` section whose sentence holds
-// `every`, `all`, `always`, `never` or `each` before more words is printed as
-// `<file>:<line>: universal claim "<word>": <text>`, for a reader to verify against the
-// repository. A finding is not proof of a false fact, and a missing finding is not proof of
-// a true one. Front matter, fenced code, inline code, HTML comments, headings and sentences
-// that open with "New" (a team rule for new work, which claims nothing about today) are skipped.
-// Exit 0 with or without findings, 2 on a usage error or an unreadable file.
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -35,7 +26,6 @@ export function findClaims(text) {
   let fence = null;
   let inComment = false;
   let notYet = false;
-  // A "New ..." team rule hard-wrapped onto the next line is still a team rule there.
   let ruleOpen = false;
   for (let i = start; i < lines.length; i++) {
     const line = lines[i];

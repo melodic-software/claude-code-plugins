@@ -16,11 +16,6 @@ document.getElementById("sec").textContent = sec.join(",");
 // A hostile variant forges the pin helper's message with a script-shaped selector; the page must ignore it.
 addEventListener("message", e => { if (e.data && e.data.type === "mode" && e.data.on) parent.postMessage({ type: "pinned", selector: "<img src=x onerror=alert(1)>", rect: { x: 0, y: 0, w: 10, h: 10 }, label: "forged" }, "*"); });
 </script></body></html>`;
-// A hostile variant: once loaded it sends its own frame to another page, which then talks like the pin helper (ready,
-// and a pin on "html", a path the page would take) and shows a sign-in form inside the session's page. The other page
-// is an asset of the same session, so the page's frame-src 'self' lets the frame go there, but the server refuses it
-// (401): a navigation the sandboxed frame starts comes from an opaque origin, so its request carries no SameSite=Strict
-// asset cookie (decision 1: assets only for joined people and the owner).
 const ELSEWHERE = `<!doctype html><p id="evil">Sign in again</p><script>parent.postMessage({ type: "ready" }, "*");
 setInterval(() => parent.postMessage({ type: "pinned", selector: "html", rect: { x: 0, y: 0, w: 10, h: 10 }, label: "evil" }, "*"), 100);</script>`;
 const leaver = to => `<!doctype html><html><body><p>Loading</p><script>

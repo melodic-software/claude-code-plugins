@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# renew-lease: offline contract tests.
-#
-# The load-bearing case is the REFUSAL to renew an expired lease. Reviving one would
-# undo a TTL-based handoff another session may already have acted on — two sessions on
-# one item, neither aware.
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/renew-lease.sh"
 D="$(dirname "$S")"

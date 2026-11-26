@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Print the Claude Code transcript directories one scope covers, one per line.
-#
-#   transcript_dirs.sh --scope worktree   this worktree's project directories
-#   transcript_dirs.sh --scope repo       every worktree of this repository, this one first
-#   transcript_dirs.sh --scope all        every directory in the transcript store
-#
-# Directory names are data: printed as they are, never evaluated.
 # Exit: 0 printed (possibly nothing); 2 usage.
 set -uo pipefail
 shopt -s nullglob

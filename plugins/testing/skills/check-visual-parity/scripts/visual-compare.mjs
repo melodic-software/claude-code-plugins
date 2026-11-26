@@ -1,12 +1,3 @@
-// Hashing, the host check and the pixel count for visual-compare.sh, which
-// validates every argument and installs the packages before calling this.
-//
-//   node visual-compare.mjs probe --deps <install dir>
-//   node visual-compare.mjs manifest --dir <d> --browser <s> --viewport <WxH> --scale <n> --head <sha>
-//   node visual-compare.mjs compare --deps <install dir> --baseline <d> --after <d>
-//                                   --tolerance <n> --reason <text> --diff-dir <d>
-//
-// Exit: 0 done (compare: every image passed), 1 a failing image, 2 an error.
 import { createHash } from 'node:crypto';
 import { lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -15,8 +6,6 @@ import { join, relative, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
-// pixelmatch's documented default color threshold, passed explicitly so the
-// report can print the value the count used.
 const THRESHOLD = 0.1;
 const MANIFEST = 'manifest.json';
 const SCHEMA = 'visual-compare-manifest/1';

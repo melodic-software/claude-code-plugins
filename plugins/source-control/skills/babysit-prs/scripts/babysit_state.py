@@ -6,6 +6,7 @@ lock, atomic writes, corrupt-state quarantine, the persisted per-PR projection
 and its lookup, mutation-ledger merging, the scope-aware `save_state`,
 persistent error quarantine, and cross-cycle sweep counters.
 """
+
 from __future__ import annotations
 
 import json

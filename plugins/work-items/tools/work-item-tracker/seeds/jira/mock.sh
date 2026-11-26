@@ -1,20 +1,8 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # JIRA_FIX/OUT/ERR/RC are read by the sourcing test files, not within this helper
-# Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
-#
-# Every verb path is exercised against a MOCK curl injected through WIT_JIRA_CURL, so no
-# test in this adapter touches the network.
-#
-# The mock answers by CALL COUNT rather than by URL, because this adapter's read verbs
-# issue one request per page in a fixed order: the Nth call gets the seeded
-# "$JIRA_FIX/<n>.body" and "$JIRA_FIX/<n>.status", defaulting to `{}` and 200. Each
-# call's argv is recorded to "$JIRA_FIX/<n>.args" so a test can assert the payload that
-# was actually sent, and the absence of "$JIRA_FIX/.counter" proves no call was made.
 
 JIRA_FIX=""
 
-# jira_fixture_init: a temp dir holding the mock curl. Call once per test file; pair
-# with a trap that removes JIRA_FIX.
 jira_fixture_init() {
   JIRA_FIX="$(mktemp -d)"
   cat >"$JIRA_FIX/curl" <<'MOCK'
@@ -31,8 +19,6 @@ MOCK
   chmod +x "$JIRA_FIX/curl"
 }
 
-# jira_write_binding <project-keys-json> [<extra-jira-config-json>]: a valid jira
-# binding declaring those keys as the read scope, with any extra config.jira keys merged.
 jira_write_binding() {
   local extra="${2:-}"
   [[ -n "$extra" ]] || extra='{}'
@@ -44,8 +30,6 @@ jira_write_binding() {
     >"$JIRA_FIX/binding.json"
 }
 
-# jira_run <script> <args…>: run a verb against the fixture from a cleared call
-# counter, setting OUT to its stdout, ERR to its stderr and RC to its exit code.
 jira_run() {
   local script="$1"
   shift

@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Hygiene checks, then the browser groups, for the interview surface. The suites run it:
-#   bash surface-checks.sh                 the hygiene checks and the main part (surface.test.sh)
-#   bash surface-checks.sh --part <part>   one part's browser groups (surface-<part>.test.sh): page,
-#                                          ui-c, ui-c-listen, ui-c-ledger or journey
-#   bash surface-checks.sh --part all      the hygiene checks and every browser group
-# Each browser group runs against its own server, so the parts are independent and the test
-# planner can give each suite its own leg.
-# Files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_e.js, tests/ui_journey.js, tests/ui_live.js,
-# tests/ui_page.js
-# (the user journey, run against tests/fixtures/journey), schema.py, and the JSON
-# Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
-# schema/visual.schema.json and schema/ops.schema.json.
-# The browser groups run only where playwright-cli resolves; elsewhere they print a SKIP with
-# the number of checks not run, never a pass. Each graded phase's line ends with its page script's
-# wall seconds (`ui_journey.3: 12 checks in 14s`), so a log shows where a suite's time goes.
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "$here/../../.." && pwd)
@@ -23,7 +8,6 @@ skip=0
 ok() { echo "ok: $1"; pass=$((pass + 1)); }
 bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
-# The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live" [page]="page" [ui-c]="c" [ui-c-listen]="c_listen" [ui-c-ledger]="c_ledger" [journey]="journey")
 declare -A CHECKS=([ab]=98 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=237 [live]=18 [page]=135)
 part=main
@@ -84,7 +68,6 @@ if [[ "$part" == main || "$part" == all ]]; then
   fi
 fi
 
-# Result lines from a playwright-cli run-code output file: one PASS/FAIL/ERROR per line.
 results() {
   grep -m1 'PASS\|FAIL\|ERROR' "$1" | awk '{ gsub(/\\n/, "\n"); print }' |
     sed 's/^.*"PASS/PASS/; s/^.*"FAIL/FAIL/; s/^.*"ERROR/ERROR/; s/"$//' | grep -E '^(PASS|FAIL|ERROR) '
@@ -104,7 +87,6 @@ grade() {
 }
 
 if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run by the surface-*.test.sh suites
-  # No fixture write or trap before the scratch dir is proven to exist.
   if ! tmp=$(mktemp -d "${TMPDIR:-/tmp}/iv-surface.XXXXXX") || [[ ! -d "$tmp" ]]; then
     echo "FAIL: mktemp gave no scratch dir"
     exit 1
@@ -115,10 +97,6 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   j="$tmp/journey"
   g="$tmp/g3"
   session="iv-$$"
-  # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
-  # Its temp root is in the scratch dir too: Chromium leaves an org.chromium.Chromium.* folder and
-  # playwright-cli a pw-* socket folder in TMPDIR, which finish removes with the rest. The name is
-  # short because Chromium's socket path inside it must fit in 107 bytes.
   mkdir "$tmp/b"
   pw() { (cd "$tmp" && TMPDIR="$tmp/b" playwright-cli -s="$session" "$@"); } # prereq-ok: test-only, run by the surface-*.test.sh suites
   finish() {
@@ -145,9 +123,6 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     pw run-code --filename "$(script_path "$1")" >"$2" 2>&1
     echo "$((SECONDS - start))" >"$2.secs"
   }
-  # After each run-code, playwright-cli waits its settle time (500 ms by default), and again once the
-  # script's requests finish: about 1 s a call. The journey's twenty phase scripts wait for what they
-  # check themselves, so its own suite's session skips that wait. The setting is read only at open.
   if [[ "$part" == journey ]]; then
     PLAYWRIGHT_MCP_TIMEOUT_SETTLE=0 pw open >/dev/null 2>&1
   else
@@ -171,9 +146,6 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   }
 
   group_c() {
-    # ui_c runs against a third server seeded with settings in every layer: the team file through
-    # CLAUDE_PROJECT_DIR (inherited by the detached server), the user file, and the data dir's
-    # settings.json. It runs in three phases; the shell writes as Claude between them.
     repo="$tmp/repo"
     mkdir -p "$c" "$repo/docs/conventions"
     git init -q "$repo"
@@ -202,11 +174,6 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     run_code "$tmp/ui_c2.js" "$tmp/ui_c2.out"
     read -r -a seqs <<<"$(unhandled)"
     [[ "${#seqs[@]}" -gt 0 ]] && bash "$here/round.sh" --dir "$c" handle --seq "${seqs[@]}" >/dev/null
-    # Phase 3 posts a fresh wrapup and watches the freeze lift inside its 10 s window, so the
-    # handle must land while the page script runs: this background handler polls for the new
-    # unhandled event and handles it (playwright-cli's own start-up, about 5 s on this host,
-    # would otherwise eat the window). It holds the handle 2 s so the page's check at 600 ms
-    # still sees the freeze: a poll that lands at once would lift it before the check.
     (
       for _ in $(seq 1 40); do
         read -r -a late <<<"$(unhandled)"
@@ -263,9 +230,6 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
   }
 
   group_c_ledger() {
-    # ui_c phases 7 and 8 (#9715) run against their own server holding only D1: phase 7 answers it,
-    # the shell supersedes it with D2 and reads export-ledger, and phase 8 checks the page meter
-    # agrees with the ledger's live and answered rows.
     sd="$tmp/s3"
     mkdir -p "$sd"
     cp tests/fixtures/ui_d/questions.json "$sd/"
@@ -286,9 +250,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     run_code "$tmp/ui_c8.js" "$tmp/ui_c8.out"
     bash "$here/round.sh" --dir "$sd" stop >/dev/null 2>&1
 
-    # ui_c phases 9 and 10 (#9692) each run against their own restated server: phase 9 accepts
-    # A1 to A3 and checks the accept tally and the agents check, phase 10 accepts T1 and checks
-    # Tick these and confirm.
     for n in 9 10; do
       x="$tmp/x$n"
       mkdir -p "$x"
@@ -315,12 +276,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
   }
 
   group_journey() {
-    # The journey runs against a fifth server seeded with an empty interview. It walks the whole
-    # flow on one page in twenty phases; the shell writes as Claude between them. Its short
-    # readingWindow lets phase 7 see Idle without waiting out the default 180 s after phase 1's delivery.
-    # Wall milliseconds of the shell's own steps between page phases, by kind, printed after the
-    # phases' lines so a log shows where the suite's time outside the page goes. Needs bash 5's
-    # EPOCHREALTIME; without it the line reports '?'.
     declare -A jms=() jcount=()
     jtime() {
       local t0=${EPOCHREALTIME:-} t1 rc
@@ -342,8 +297,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
       sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
     done
-    # The repeated writes run round as a module from this directory: Python then reuses its cached
-    # bytecode, where round.sh runs round.py as a script that recompiles all of it on every call.
     jhandle() {
       local s
       read -r -a s <<<"$(unhandled "$j")"
@@ -361,7 +314,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     {"op": "wait", "id": "Q5", "waitsOn": "whether the version must be pinned to the lock file or float with each new runner image release", "by": "user"},
     {"op": "set-status", "text": "Researching the retry benchmark for Q3"}]}'
     jrun 2
-    # Phase 2 leaves its Answer anyway on Q3, then a note: the note gets the Notes reply.
     read -r -a js <<<"$(unhandled "$j")"
     note=${js[${#js[@]} - 1]}
     [[ "${#js[@]}" -lt 2 ]] || bash "$here/round.sh" --dir "$j" handle --seq "${js[@]:0:${#js[@]}-1}" >/dev/null
@@ -425,25 +377,18 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     jhandle
     japply m3 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Does that pattern scope work for you?"}]}'
     jrun 15
-    # Phase 16 runs after the wrap-up: a new open question, a range in a question's facts, and a
-    # third restatement the wrap-up never saw.
     japply n '{"ops": [{"op": "revise", "id": "Q6", "facts": "Compare Q1-Q3, Q6 and Q9 before deciding."},
     {"op": "add", "question": {"id": "Q10", "group": "g1", "stage": "interview", "short": "Cache scope", "title": "Which jobs share the cache?",
       "recommendation": "Only the jobs on the same runner image.", "commits": ["Shares one cache across jobs"], "alternatives": [{"key": "a", "text": "Every job"}, {"key": "b", "text": "None"}]}},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
     japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
-    # An ordinary Claude note after it must not unpin the question. Notes carry whole-second times,
-    # so waiting for the next second to start gives it a later time than n2, as a full second would.
     local now=${EPOCHREALTIME:-} us wait=1 # bash 4 has no EPOCHREALTIME: keep the full second
     us=${now#*.}
     [[ "$us" =~ ^[0-9]{6}$ && "$us" != 000000 ]] && wait=$(printf '0.%06d' "$((1000000 - 10#$us))")
     jtime sleep sleep "$wait"
     japply n3 '{"ops": [{"op": "note-reply", "text": "The restatement is posted."}]}'
     jrun 16
-    # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
-    # phase 18 reads the modal, the shell stops the server (phase 19 reads the offline reason) and
-    # starts it again on the same data dir, which must keep its port (phase 20 reads the restart).
     jrun 17
     japply o '{"ops": [{"op": "set-status", "text": "Done: the Brief is written"},
     {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."},
@@ -484,7 +429,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     [[ "${#ls[@]}" -gt 0 ]] || bad "live: the page's accept left no event to handle"
     rapply "$l" "$l/ops/c.json" '{"ops": [{"op": "handle", "seqs": ['"${ls[*]// /, }"']}]}' >/dev/null || bad "live: handle op refused"
     lrun 4
-    # #7757: the page ticks Q3's commitment, then a revise of only its title and short must leave it closed
     lrun 5
     rapply "$l" "$l/ops/r3.json" '{"ops": [{"op": "revise", "id": "Q3", "title": "Should the build cache its dependencies between runs?", "short": "Dependency cache", "force": true}]}' >/dev/null || bad "live: title and short revise refused"
     grep -qE 'open: .*Q3 |Q3 .*to confirm' <<<"$(bash "$here/round.sh" --dir "$l" status)" && bad "live: status lists Q3 open or to confirm after the title and short revise"
@@ -528,7 +472,6 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     {"op": "record-terminal", "id": "Q9", "decision": "accept"}]}' >/dev/null || bad "page: add and record-terminal refused"
     "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
     grev Q9 '"rec": "The release owner, with the support lead."'
-    # Phase 10: a Notes reply that asks belongs under Needs you, a plain one in the log.
     rapply "$pg" "$pg/ops/note-plain.json" '{"ops": [{"op": "note-reply", "text": "Plain note: the owner is settled."}]}' >/dev/null || bad "page: note-reply refused"
     rapply "$pg" "$pg/ops/note-ask.json" '{"ops": [{"op": "note-reply", "text": "Asking note: should support sign off?", "needsAnswer": true}]}' >/dev/null || bad "page: note-reply --needs-answer refused"
     grun 10
@@ -537,49 +480,38 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     rapply "$pg" "$pg/ops/k1.json" '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1"], "force": true}]}' >/dev/null || bad "page: checkedAgainst revise refused"
     grun 12
     rapply "$pg" "$pg/ops/k2.json" '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1", "C2"], "force": true}]}' >/dev/null || bad "page: checkedAgainst revise refused"
-    # Phases 13 and 14, the frontier lock: Q11 is open in round 2 and Q12 in round 3 depends on it.
-    # Phase 13 runs the default confirm; the shell then sets the data dir's lock to hard.
     rapply "$pg" "$pg/ops/lock.json" '{"ops": [{"op": "add", "question": {"id": "Q11", "group": "g1", "stage": "interview", "round": 2, "short": "Rollout", "title": "How wide is the first rollout?", "recommendation": "One region.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Every region"}, {"key": "b", "text": "Staff only"}]}},
     {"op": "add", "question": {"id": "Q12", "group": "g1", "stage": "interview", "round": 3, "short": "Rollout gate", "title": "What gates the second region?", "recommendation": "A clean week of error logs.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "A fixed date"}, {"key": "b", "text": "Nothing"}]}}]}' >/dev/null || bad "page: the frontier-lock questions were refused"
     grun 13
     printf '%s' '{"frontierLock": "hard"}' >"$pg/settings.json"
     grun 14
-    # Phases 15 and 16 (#9714): Q13 on Q11 has no answer; phase 15 changes Q11's answer under the
-    # default confirm lock, the shell then reconfirms Q13, and phase 16 reads it unlocked.
     printf '%s' '{"frontierLock": "confirm"}' >"$pg/settings.json"
     rapply "$pg" "$pg/ops/up.json" '{"ops": [{"op": "add", "question": {"id": "Q13", "group": "g1", "stage": "interview", "round": 3, "short": "Rollback owner", "title": "Who can roll the first region back?", "recommendation": "The on-call engineer.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "The release owner"}, {"key": "b", "text": "Anyone on the team"}]}}]}' >/dev/null || bad "page: the upstream-changed question was refused"
     grun 15
     rapply "$pg" "$pg/ops/reconfirm.json" '{"ops": [{"op": "reconfirm", "ids": ["Q13"], "why": "The rollback owner does not turn on the rollout width."}]}' >/dev/null || bad "page: reconfirm refused"
     grun 16
-    # Phase 17 (#9694): three proposals the page accepts, edits and declines.
     rapply "$pg" "$pg/ops/propose.json" '{"ops": [{"op": "propose", "id": "Q14", "group": "g1", "short": "Health-check pause", "title": "Should the rollout pause on a failed health check?"},
     {"op": "propose", "id": "Q15", "group": "g1", "short": "Pause scope", "title": "Should a pause stop one region?"},
     {"op": "propose", "id": "Q16", "group": "g1", "short": "Pager", "title": "Should a pause page the on-call engineer?"}]}' >/dev/null || bad "page: the propose ops were refused"
     grun 17
-    # Phase 18 (gap G10): the page reloads as stamped, then with another build stamped in it.
     grun 18
-    # Phase 19 (G6, #9721): Q17 is asked in round 1, re-issued as Q18 in round 2, then as Q19 in round 3.
     rapply "$pg" "$pg/ops/chain.json" '{"ops": [{"op": "add", "question": {"id": "Q17", "group": "g1", "stage": "interview", "round": 1, "short": "Canary size", "title": "How big is the canary?", "recommendation": "One percent of traffic.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Ten percent"}, {"key": "b", "text": "No canary"}]}},
     {"op": "add", "question": {"id": "Q18", "group": "g1", "stage": "interview", "round": 2, "short": "Canary share", "title": "What share of traffic does the canary take?", "recommendation": "One percent.", "dependsOn": [], "supersedes": "Q17", "commits": [], "alternatives": [{"key": "a", "text": "Ten percent"}, {"key": "b", "text": "Half"}]}},
     {"op": "add", "question": {"id": "Q19", "group": "g1", "stage": "interview", "round": 3, "short": "Canary traffic", "title": "How much traffic goes to the canary first?", "recommendation": "One percent for an hour.", "dependsOn": [], "supersedes": "Q18", "commits": [], "alternatives": [{"key": "a", "text": "Ten percent for a day"}, {"key": "b", "text": "Everything at once"}]}}]}' >/dev/null || bad "page: the supersede chain was refused"
     grun 19
-    # Phase 20 (#9695): Q1 answered in the terminal, then a sweep round whose Q20 reconciles it.
     rapply "$pg" "$pg/ops/sweep.json" '{"ops": [{"op": "record-terminal", "id": "Q1", "decision": "own", "text": "Ship on Wednesday after the code freeze."},
     {"op": "add-round", "round": 4, "meta": {"kind": "sweep"}, "restate": {"text": "Q1 is settled. Q20 reconciles it with the rollout window.", "decided": ["Q1"], "open": ["Q20"]},
     "questions": [{"id": "Q20", "group": "g1", "stage": "interview", "short": "Freeze conflict", "title": "Q1 ships inside the rollout window: which answer holds?", "recommendation": "Keep the Wednesday ship.", "basis": "Judgment", "dependsOn": [], "reconciles": ["Q1"], "commits": [], "alternatives": [{"key": "a", "text": "Move the rollout window"}, {"key": "b", "text": "Ship on Thursday"}]}]}]}' >/dev/null || bad "page: the sweep round was refused"
     grun 20
-    # Phases 21 to 23 (#11858): no round index, then Q20 held for research, then single pacing with the hold cleared.
     grun 21
     rapply "$pg" "$pg/ops/hold.json" '{"ops": [{"op": "wait", "id": "Q20", "waitsOn": "the freeze calendar"}]}' >/dev/null || bad "page: the wait op was refused"
     grun 22
     rapply "$pg" "$pg/ops/unhold.json" '{"ops": [{"op": "wait", "id": "Q20", "clear": true}]}' >/dev/null || bad "page: the wait clear was refused"
     bash "$here/round.sh" --dir "$pg" ensure-running --pacing single >/dev/null || bad "page: ensure-running --pacing refused"
     grun 23
-    # Phase 24 (#11858): still single pacing; Q21 joins Q20's round 4 with an add, then Q12 (round 3) and Q20 are held.
     rapply "$pg" "$pg/ops/later.json" '{"ops": [{"op": "add", "question": {"id": "Q21", "group": "g1", "stage": "interview", "round": 4, "short": "Freeze notice", "title": "Who tells the team about the freeze?", "recommendation": "The release owner.", "basis": "Basis: verified, the release calendar\nInference: the owner already sends the calendar\nFlips if: the team moves release talk to a chat channel", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}}]}' >/dev/null || bad "page: the later round-4 question was refused"
     rapply "$pg" "$pg/ops/hold2.json" '{"ops": [{"op": "wait", "id": "Q12", "waitsOn": "the error-log baseline"}, {"op": "wait", "id": "Q20", "waitsOn": "the freeze calendar"}]}' >/dev/null || bad "page: the second wait ops were refused"
     grun 24
-    # Phases 25 to 27 (#12103): the flip condition, then the read-back of Q21's own answer beside it, then the numbered final confirmation.
     grun 25
     read -r -a gs <<<"$(unhandled "$pg")"
     rapply "$pg" "$pg/ops/readback.json" '{"ops": [{"op": "reply", "id": "Q21", "text": "Understood as: the release owner emails the team the day before the freeze.", "seq": '"${gs[${#gs[@]} - 1]}"'},
