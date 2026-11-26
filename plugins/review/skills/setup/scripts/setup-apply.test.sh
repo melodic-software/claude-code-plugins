@@ -147,7 +147,6 @@ run --root "$R7B" --yes downstream_probe=report >/dev/null
 assert_eq "case 7: apply over a block list exits 1" "1" "$?"
 assert_eq "case 7: the block-list file is unchanged" "$before" "$(cat "$(yaml_of "$R7B")")"
 
-# --- Case 8: unsafe paths are refused ----------------------------------------
 R8="$(new_root c8)"
 OUTSIDE="$TEST_TMPDIR/outside.yaml"
 printf 'kept\n' >"$OUTSIDE"
@@ -191,7 +190,6 @@ else
 fi
 chmod 755 "$R9/docs/conventions"
 
-# --- Case 10: a root path holding a command substitution is never run --------
 PWNED="$TEST_TMPDIR/pwned10"
 R10="$TEST_TMPDIR/\$(touch $PWNED)"
 mkdir -p "$R10/docs/conventions"
@@ -341,8 +339,6 @@ else
 fi
 chmod 644 "$(yaml_of "$R16")"
 
-# Preloads stand in for failures the file system will not produce on demand.
-# Each patches node:fs before the script's ESM imports bind.
 preload() {
   local p="$TEST_TMPDIR/$1.cjs"
   shift
@@ -350,9 +346,6 @@ preload() {
   printf '%s' "$p"
 }
 
-# --- Case 17: a realpath failure is one line ----------------------------------
-# Node resolves its own module paths through realpathSync too, so the preload
-# fails only for paths under this case's root.
 R17="$(new_root c17)"
 P17="$(preload realpath-fails \
   'const rp = fs.realpathSync;' \
@@ -362,10 +355,6 @@ assert_eq "case 17: a failed realpath exits 1" "1" "$?"
 one_line "case 17: a failed realpath" "$out"
 assert_eq "case 17: a failed realpath writes nothing" "0" "$(exists "$(yaml_of "$R17")")"
 
-# --- Case 18: the path is checked again before each mkdir ---------------------
-# After docs/ is created, the preload swaps it for a symlink to a directory
-# outside the root. The check before the docs/conventions mkdir must refuse,
-# so nothing is created outside.
 OUT18="$TEST_TMPDIR/outside18"
 mkdir -p "$OUT18"
 P18="$(preload swap-docs \
@@ -468,7 +457,6 @@ out="$(run --root "$R21" --check --ref origin/main)"
 assert_eq "case 21: a committed symlink exits 1" "1" "$?"
 assert_contains "case 21: a committed symlink is a WARN" "$out" "WARN"
 
-# --- Case 22: --ref accepts only a commit id or origin/<name> -----------------
 PWNED22="$TEST_TMPDIR/pwned22"
 for bad in main HEAD~1 'origin/a..b' 'origin/-x' '--output=x' "origin/\$(touch $PWNED22)" 'origin/main:docs' ''; do
   out="$(run --root "$R21" --check --ref "$bad")"
@@ -483,10 +471,6 @@ assert_eq "case 22: --ref without --check exits 2" "2" "$?"
 run --root "$R21" --check --ref >/dev/null
 assert_eq "case 22: --ref with no value exits 2" "2" "$?"
 
-# --- Case 23: origin/<name> reads refs/remotes/origin/<name>, never a same-named ref
-# A pull request's head can be checked out as a local branch, or tagged, under
-# the name origin/main. Each shadow below commits downstream_probe: run; the
-# remote-tracking ref commits report, and only report may come back.
 R23="$TEST_TMPDIR/c23"
 mkdir -p "$R23/docs/conventions"
 g "$R23" init -q
@@ -497,8 +481,6 @@ SHA23="$(g "$R23" rev-parse HEAD)"
 g "$R23" update-ref refs/remotes/origin/main "$SHA23"
 printf 'downstream_probe: run\n' >"$(yaml_of "$R23")"
 g "$R23" commit -q -a -m head
-# has_ref <root> <full ref>: 1 when the ref exists, else 0. Shadows are made
-# with update-ref, so a host setting such as tag.gpgsign cannot skip one.
 has_ref() { g "$1" show-ref --verify --quiet "$2" && echo 1 || echo 0; }
 for shadow in refs/heads/origin/main refs/tags/origin/main refs/origin/main; do
   g "$R23" update-ref "$shadow" HEAD
@@ -509,10 +491,6 @@ for shadow in refs/heads/origin/main refs/tags/origin/main refs/origin/main; do
   assert_contains "case 23: with $shadow named origin/main, the commit read is the remote-tracking one" "$out" "$SHA23"
 done
 
-# --- Case 25: with refs/remotes/origin/main absent, no look-alike ref stands in
-# Each shadow below would satisfy git's short-name lookup of
-# refs/remotes/origin/main. The documented result is exit 2: the layer cannot
-# be read and is skipped.
 R25="$TEST_TMPDIR/c25"
 mkdir -p "$R25/docs/conventions"
 g "$R25" init -q
@@ -531,10 +509,6 @@ for shadow in refs/heads/refs/remotes/origin/main refs/tags/refs/remotes/origin/
   g "$R25" update-ref -d "$shadow"
 done
 
-# --- Case 24: a bad value drops only its own key; a bad file drops every key ----
-# ADR 0064 Decision 7 drops the layer an invalid value sits in, per key. A bad
-# fanout_diversity value must not void a valid downstream_probe: report, or the
-# policy floor would fall back to run.
 per_key() {
   local r out
   r="$(new_root "pk-$1")"

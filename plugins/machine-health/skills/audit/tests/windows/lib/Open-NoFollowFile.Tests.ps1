@@ -40,8 +40,6 @@ Describe 'Open-NoFollowFile and Get-FileIdentity' -Tag 'lib' {
     }
 
     It 'opens with FILE_FLAG_OPEN_REPARSE_POINT and anonymous SECURITY_SQOS_PRESENT' {
-        # winbase.h: FILE_FLAG_OPEN_REPARSE_POINT 0x00200000, SECURITY_SQOS_PRESENT 0x00100000,
-        # SECURITY_ANONYMOUS 0.
         $script:NoFollowOpenFlags | Should -Be 0x00300000
     }
 

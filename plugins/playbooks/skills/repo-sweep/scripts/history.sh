@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Recommend run, rerun, or rerun-optional per catalog entry from what last ran in this repo.
-#
-#   history.sh <catalog-file>   one TSV row per entry, in catalog order: id, recommendation, reason
-#
-# Last version run per skill, first source holding the skill wins:
-#   1. Merged sweep PRs (head branch chore/repo-sweep-*), newest merge first: the done lines
-#      (SKILL.md Formats) between the repo-sweep markers. Survives squash merges.
-#   2. Playbook-Step trailers on the default branch (origin/HEAD, else HEAD), newest first.
-# Partial coverage counts only from the newest merged sweep PR that ran the step.
-# gh absent, unauthenticated, or failing: trailers only, with a warning on stderr.
-# Current versions come from skill-version.sh (same env overrides).
-#
-# recommendation (reason names the skills behind it):
-#   run             a skill of the entry never ran
-#   rerun           a skill ran at another version than the current one
-#   rerun-optional  every skill ran at its current version, or its current version is
-#                   @unknown (not comparable, so never rerun)
-# not-applicable is the caller's applies-when judgment; history.sh never prints it.
 # Exit: 0 ok; 1 catalog error; 2 usage.
 set -euo pipefail
 
@@ -59,7 +41,6 @@ fi
 ref=HEAD
 git rev-parse -q --verify origin/HEAD >/dev/null && ref=origin/HEAD
 git log --format='%(trailers:key=Playbook-Step,valueonly)' "$ref" | awk 'NF' >>"$tmp/last"
-# PR bodies and trailers are editable text that ends up in the agent's context and a new PR body.
 grep -E '^[a-z0-9-]+(:[a-z0-9-]+)?@[A-Za-z0-9._+-]+$' "$tmp/last" >"$tmp/safe" || true
 mv "$tmp/safe" "$tmp/last"
 

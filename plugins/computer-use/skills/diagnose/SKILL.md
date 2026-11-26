@@ -10,11 +10,14 @@ metadata:
 
 ## Purpose
 
-Claude Code ships computer use as a built-in MCP server whose tool descriptions already cover
-the mechanics: actions, the allowlist gate, permission tiers, the ladder that prefers a
-dedicated MCP over Chrome over screen control. **This skill does not restate any of that.**
+The mechanics of computer use (actions, the allowlist gate, permission tiers, which tool Claude
+prefers over screen control) belong to Claude Code's own tool descriptions and docs:
+[enable computer use](https://code.claude.com/docs/en/computer-use#enable-computer-use),
+[approve apps per session](https://code.claude.com/docs/en/computer-use#approve-apps-per-session)
+and [when computer use applies](https://code.claude.com/docs/en/computer-use#when-computer-use-applies).
+**This skill does not restate any of that.**
 
-It carries only what the surface does *not* tell you and the model cannot derive: the shape of
+It carries only what those tool descriptions and docs do *not* tell you and the model cannot derive: the shape of
 the screenshot budget, the failure modes that look like tool bugs but are environment state,
 and the per-OS input quirks that are invisible until they bite.
 
@@ -37,7 +40,7 @@ Parse `$ARGUMENTS`. Each value names one reference spoke; there are exactly thre
 | Small text unreadable after downscale | `zoom` the region. It re-captures at full resolution. Do **not** lower display resolution. |
 | `empty capture (0x0)` | Environment, not a tool bug. Walk the ladder → [failure-diagnostics.md](reference/failure-diagnostics.md) |
 | Input returns a UIPI error | An elevated or secure-desktop process holds the foreground. Not recoverable by retrying. |
-| "not in the allowed applications and is currently in front" | A background app stole focus. Retry with `screenshot` as the batch's first action. |
+| "not in the allowed applications and is currently in front" | A background app stole focus. Retry with `screenshot` as the batch's first action → [failure-diagnostics.md](reference/failure-diagnostics.md#x-is-not-in-the-allowed-applications-and-is-currently-in-front) |
 | Session died partway through a long task | Idle timeout. Claude's own input does **not** reset it → [failure-diagnostics.md](reference/failure-diagnostics.md#the-idle-timer-does-not-see-claude) |
 | A synthesized key does nothing in a menu | Shell-owned surfaces differ from in-app menus → your OS's quirks file |
 

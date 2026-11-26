@@ -26,6 +26,12 @@ of the same comment passes with it. A one-line ADR pointer (ADR-0042, or a path 
 under <adr-dir> (default docs/adr; one outside <records> falls back to it) of <records>, the
 repository as the change holds it; with no <records> it fails.
 
+With <diff> (git diff -U0 output with a/ and b/ prefixes), a comment on an added code line is
+not judged when the base line it replaces carried the same comment text on a code line: paired in
+order in a hunk that adds as many lines as it removes, else with the one removed code line of the
+hunk holding that comment, when no other added code line of the hunk holds it too. A path that
+appears in more than one diff, or whose hunks do not fit its text, pairs no line.
+
 A path the comment reader fails on is named on stderr and not judged; the others still are.
 
 Exit: 0 judged; 2 usage; 3 pygments is not importable; 4 grep -E rejected an allow pattern;
@@ -56,7 +62,7 @@ DIRECTIVE = re.compile(
     | \bhadolint\s+ignore= | \byamllint\s+(?:disable|enable) | \bcheckov:skip= | \btfsec:ignore
     | \btrivy:ignore | \bdotnet_diagnostic | \bReSharper\s+(?:disable|restore)\b | \bnoinspection\b
     | \b@formatter:(?:off|on)\b | \blgtm\b | \bcoverage:\s*ignore
-    | ^\s*//go:\w | ^\s*//\s*\+build\b | ^\s*//line\s | ^\s*/// <reference\b
+    | ^\s*//go:\w | ^\s*//\s*\+build\b | ^\s*//line\s | ^\s*///\s*<reference\b
     | ^\s*(?:\#|//|--|/\*)\s*\#?(?:end)?region\b | <editor-fold\b | </editor-fold> | \{\{\{\d*\s*$ | \}\}\}\d*\s*$
     | (?:^|\s)(?:vim?|ex):\s*(?:set?\s|[a-z]+=) | -\*-.*-\*- | \bLocal\s+Variables:
     | \byaml-language-server:\s*\$schema= | \bfrozen_string_literal:\s*(?:true|false) | ^\s*\#\s*syntax=
@@ -423,7 +429,76 @@ def _allowed(texts: list[str], allow: list[str]) -> set[int]:
     return {int(row.split(":", 1)[0]) - 1 for row in proc.stdout.splitlines() if row}
 
 
-def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR, max_lines: int = CLASS_C_MAX_LINES):
+def _hunks(diff: Path | None) -> dict[str, list | None]:
+    """Each path's -U0 hunks as (old start, removed lines, new start, added count); None for a path in more than one diff."""
+    out: dict[str, list | None] = {}
+    if diff is None:
+        return out
+    path, hunk, left, right = None, None, 0, 0
+    for row in diff.read_text(encoding="utf-8", errors="replace").split("\n"):
+        if left > 0 or right > 0:
+            if row.startswith(" "):
+                left, right = left - 1, right - 1
+            elif row.startswith("-"):
+                left -= 1
+                if hunk is not None:
+                    hunk[1].append(row[1:])
+            elif row.startswith("+"):
+                right -= 1
+            continue
+        if row.startswith("+++ "):
+            name = row[4:].removesuffix("\t")
+            path, hunk = (name[2:] if name.startswith("b/") else None), None
+            if path is not None:
+                out[path] = None if path in out else []
+        elif row.startswith("@@ "):
+            old, new = row.split(" ")[1:3]
+            a, _, b = old[1:].partition(",")
+            c, _, d = new[1:].partition(",")
+            left, right = (int(b) if b else 1), (int(d) if d else 1)
+            hunk = None
+            if path is not None and out[path] is not None:
+                hunk = (int(a), [], int(c), right)
+                out[path].append(hunk)
+    return out
+
+
+def _base(source: list[str], hunks: list) -> tuple[list[str], dict[int, tuple[int, int, int, int]]] | None:
+    """The base text the hunks were taken from, and each added line's hunk as (new start, added, old start, removed); None when the hunks do not fit."""
+    old: list[str] = []
+    span_of: dict[int, tuple[int, int, int, int]] = {}
+    at = 1
+    for a, removed, c, d in hunks:
+        stop = c if d == 0 else c - 1
+        if stop < at - 1 or stop > len(source):
+            return None
+        old.extend(source[at - 1 : stop])
+        if removed and len(old) + 1 != a:
+            return None
+        span = (c, d, len(old) + 1, len(removed))
+        span_of.update((c + i, span) for i in range(d))
+        old.extend(removed)
+        at = stop + 1 + d
+    old.extend(source[at - 1 :])
+    return old, span_of
+
+
+def _same_trailing(n: int, lines: list[_Line], span_of: dict, base: list[_Line]) -> bool:
+    """Whether line n's trailing comment is the one its base line already carried (pairing: USAGE)."""
+    span = span_of.get(n)
+    if span is None or not lines[n].code:
+        return False
+    c, d, a, k = span
+    text = lines[n].comment
+    if k == d:
+        m = a + n - c
+        return m < len(base) and base[m].code and base[m].comment == text
+    olds = [m for m in range(a, min(a + k, len(base))) if base[m].code and base[m].comment == text]
+    news = [x for x in range(c, min(c + d, len(lines))) if lines[x].code and lines[x].comment == text]
+    return len(olds) == 1 and news == [n]
+
+
+def findings(path: str, text: str, added, posture: str, allow: list[str], repo: Path | None = None, adr_dir: str = ADR_DIR, max_lines: int = CLASS_C_MAX_LINES, hunks: list | None = None):
     """The finding lines for the comments on <added> lines of <path>; None when no lexer reads it."""
     lexer, tokens = _lex(path, text)
     if lexer is None:
@@ -432,10 +507,15 @@ def findings(path: str, text: str, added, posture: str, allow: list[str], repo: 
     lines = _layout(tokens, len(source))
     run_of = _runs(lines)
     block_of = _paragraphs(lines, run_of)
+    span_of, base = {}, []
+    found = _base(source, hunks) if hunks else None
+    if found:
+        old, span_of = found
+        base = _layout(_CENSUS.tokens("\n".join(old), lexer), len(old))
     candidates = []
     for first, last in added:
         for n in range(max(first, 1), min(last, len(lines) - 1) + 1):
-            if not lines[n].comment:
+            if not lines[n].comment or _same_trailing(n, lines, span_of, base):
                 continue
             if lexer.name == "PowerShell" and _inside_word(
                 source[n - 1] if n - 1 < len(source) else "", lines[n].comment
@@ -474,6 +554,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--records", type=Path)
     parser.add_argument("--adr-dir", default=ADR_DIR)
     parser.add_argument("--class-c-max-lines", type=int, default=CLASS_C_MAX_LINES)
+    parser.add_argument("--diff", type=Path)
     args = parser.parse_args(argv)
     try:
         import pygments  # noqa: F401
@@ -487,6 +568,7 @@ def main(argv: list[str]) -> int:
     if args.allow:
         allow = [p for p in args.allow.read_text(encoding="utf-8").splitlines() if p]
     ranges = _ranges(args.ranges)
+    hunks = _hunks(args.diff)
     paths = [
         p
         for p in sys.stdin.buffer.read().decode("utf-8", "surrogateescape").split("\0")
@@ -497,7 +579,7 @@ def main(argv: list[str]) -> int:
         text = (args.root / path).read_text(encoding="utf-8", errors="replace")
         try:
             got = findings(
-                path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir, args.class_c_max_lines
+                path, text, ranges.get(path, []), args.posture, allow, args.records, args.adr_dir, args.class_c_max_lines, hunks.get(path)
             )
         except ValueError as err:
             print(

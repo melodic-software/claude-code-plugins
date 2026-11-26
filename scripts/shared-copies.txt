@@ -1090,3 +1090,9 @@ lib/session-attended.sh plugins/guardrails/hooks/session-attended.sh
 lib/session-attended.mjs plugins/guardrails/hooks/session-attended.mjs
 lib/session-attended.env plugins/session-flow/hooks/session-attended.env
 lib/session-attended.sh plugins/session-flow/hooks/session-attended.sh
+lib/config-cascade.mjs plugins/engineering-concepts/scripts/lib/config-cascade.mjs
+lib/yaml-subset.mjs plugins/engineering-concepts/scripts/lib/yaml-subset.mjs
+lib/resolve-convention-home.sh plugins/engineering-concepts/lib/resolve-convention-home.sh
+lib/prerequisites.mjs plugins/engineering-concepts/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/engineering-concepts/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/engineering-concepts/lib/prerequisites.ps1

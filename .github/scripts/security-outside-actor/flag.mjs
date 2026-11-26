@@ -1,38 +1,4 @@
 #!/usr/bin/env node
-// flag.mjs: flags an issue or pull request when someone outside the
-// organization writes on it. The author of the event's content (the comment,
-// the review, the pull request or the issue, in that order) is trusted when
-// GitHub reports them as OWNER or MEMBER, or when their numeric id is on the
-// default branch's trusted-actor list (our bots and Apps, and listed humans
-// whose membership is private). Anyone else is an outside actor: the issue or
-// pull request gets `security: outside-actor` and needs-human (an issue's Work
-// status field, write-status.mjs; a pull request's label), and one comment per
-// outside actor names their login and the event kind and says a person
-// reviews it. Their text is never read, quoted or passed on.
-//
-// An unreadable or malformed trusted-actor list flags the author: the check
-// fails closed. The label and needs-human are written on every untrusted
-// event, so a person who cleared needs-human hears of new outside activity;
-// the payload may be stale, so the write never skips (adding a present label
-// or setting the state the field holds is a no-op).
-// The comment is written
-// once per actor, found again by its marker, which counts only on a comment
-// github-actions[bot] wrote.
-//
-// Only a person on the trusted-actor list (kind human, matched by id, never a
-// Bot) removes `security: outside-actor`. Any other removal, a member's not on
-// the list included, puts it and needs-human back and posts one comment per remover
-// naming their login without a mention; an unreadable list puts them back too.
-//
-// Environment:
-//   GITHUB_TOKEN          the job's token: issues write, pull-requests write
-//   GITHUB_REPOSITORY     owner/repo
-//   GITHUB_EVENT_NAME     the triggering event
-//   GITHUB_EVENT_PATH     the event payload, read here and never by a shell
-//   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
-//   BASE_PATH             the default branch's checkout (default `.base`),
-//                         whose models.issue-status the field write reads
-//   GITHUB_API_URL
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -56,12 +22,8 @@ const KINDS = {
   pull_request_target: "pull request",
 };
 const ACTION = /^[a-z_]{1,32}$/;
-// Actions the sender takes on content another may have written: an edit, a
-// push to a pull request, a reopen.
 const SENDER_ACTIONS = new Set(["edited", "synchronize", "reopened"]);
 
-// Whether the payload's item is a pull request, which an issue_comment on one
-// names under `issue`.
 const isPull = (payload) => Boolean(payload.pull_request ?? payload.issue?.pull_request);
 
 const itemNumber = (payload) => {
@@ -72,19 +34,12 @@ const idOf = (user) => (Number.isInteger(user.id) ? user.id : null);
 const loginOf = (user) => (typeof user.login === "string" && LOGIN.test(user.login) ? user.login : null);
 const who = (actor) => (actor.login ? `\`${actor.login}\`` : "an account whose login could not be read");
 
-// The content's author and where it lives, from the event payload. Returns
-// null when the payload names no issue or pull request number.
 export function readEvent(eventName, payload) {
   const content = payload.comment ?? payload.review ?? payload.pull_request ?? payload.issue ?? {};
   const number = itemNumber(payload);
   if (number === null || !Object.hasOwn(KINDS, eventName)) {
     return null;
   }
-  // An edit, push or reopen by someone other than the author (retitling an
-  // outsider's issue, editing another's comment, pushing to another's pull
-  // request) is the sender's act, so the sender is judged by id alone: the
-  // payload carries no association for them, so anyone not on the trusted
-  // list, an organization member included, is flagged.
   const sender = payload.sender ?? {};
   const bySender = SENDER_ACTIONS.has(payload.action) && Number.isInteger(sender.id) && sender.id !== content.user?.id;
   const user = (bySender ? sender : content.user) ?? {};
@@ -98,8 +53,6 @@ export function readEvent(eventName, payload) {
   };
 }
 
-// Whether the author is inside the organization. `ids` is null when the
-// trusted-actor list could not be read: only the association can then trust.
 export function isTrusted(author, ids) {
   if (TRUSTED_ASSOCIATIONS.has(author.association)) {
     return true;
@@ -118,8 +71,6 @@ export function commentBody(author) {
   ].join("\n");
 }
 
-// A marker counts only on a comment github-actions[bot] wrote, so an outside
-// actor cannot post the marker to suppress their own flag.
 export const isOwnMarker = (comment, marker) =>
   comment?.user?.id === ACTIONS_BOT_ID && comment?.user?.type === "Bot" && String(comment.body ?? "").startsWith(marker);
 
@@ -150,7 +101,6 @@ export async function flag({ github, repository, author, setStatus }) {
   return writeFlag({ github, base, item: author, setStatus, comment, what: `flagging #${author.number}` });
 }
 
-// Who removed which label, from an `unlabeled` event's payload.
 export function readRemoval(payload) {
   const number = itemNumber(payload);
   if (number === null) {
@@ -167,7 +117,6 @@ export function readRemoval(payload) {
   };
 }
 
-// `humans` is null when the trusted-actor list could not be read.
 export const mayRemove = (remover, humans) => !remover.bot && humans !== null && remover.id !== null && humans.has(remover.id);
 
 export const removalMarkerFor = (remover) => `${MARKER} removed-by=${remover.id ?? "unknown"} -->`;

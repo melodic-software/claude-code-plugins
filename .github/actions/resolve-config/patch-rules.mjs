@@ -1,12 +1,7 @@
-// patch-rules.json's own check, kept out of resolve.mjs: the lanes token
-// broker fetches resolve.mjs at a pinned commit and never checks patch rules,
-// so a change to the refusal set needs no broker pin.
-
 import Ajv2020 from "ajv/dist/2020.js";
 
 import { Rejection } from "./resolve.mjs";
 
-// Every patch-rules.json row refuses these, so no row can admit them.
 const UNIVERSAL_REFUSE = Object.freeze([
   "github-workflows",
   "codeowners",
@@ -20,10 +15,6 @@ const UNIVERSAL_REFUSE = Object.freeze([
 
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
-// patch-rules.json against its schema, which names every refusal and allow
-// rule apply-patch knows; then what the schema cannot check: each row refuses
-// the universal set, a two-parent commit allows exactly merge-result, and
-// each prepare mode a patch-producing activity uses has a row.
 export function checkPatchRules(patchRules, schema, activities = {}) {
   const fail = (message) => {
     throw new Rejection("patch-rules", message);

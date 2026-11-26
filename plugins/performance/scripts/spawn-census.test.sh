@@ -36,11 +36,6 @@ run_census --shim-dir "$SHIM" --label counted --tool sed --tool cat -- bash "$WO
 assert_eq "a second run against the unchanged subject agrees" \
   "${first#*spawns=}" "${RUN_OUT#*spawns=}"
 
-# --- 3. stdin reaches the subject, and its exit code is not fabricated ---
-# A `printf | subject` pipeline under pipefail reports 141 whenever the subject
-# exits without draining stdin, because printf takes EPIPE. That is an exit code
-# the subject never returned, and it appears only on a pipe-buffer race, so it
-# would show up as an intermittent, unreproducible rc in the census.
 # discriminating-skip-required: the rc assertion here is the only thing standing
 # between a fabricated exit code and the report.
 # shellcheck disable=SC2016  # $line belongs to the inner `bash -c`, not to this shell
@@ -75,10 +70,6 @@ run_census --shim-dir "${TMPDIR:-/tmp}/perf-census-probe" --label tempdir --tool
 assert_eq "a temp-rooted shim directory is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the mktemp defect" "temporary root" "$RUN_OUT"
 
-# --- 6. an unresolvable tool FAILS rather than being skipped ---
-# The source harness wrote `|| continue` here. A silently dropped tool
-# undercounts every run and reports a confident wrong number, which
-# harness-integrity.md rule 2 forbids: assert the precondition, never degrade.
 # discriminating-skip-required: this case is the entire proof that an
 # unresolvable tool is refused rather than dropped.
 run_census --shim-dir "$SHIM" --label badtool \
@@ -114,9 +105,6 @@ assert_eq "a subject exiting 127 is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the false-green shape" "never ran" "$RUN_OUT"
 assert_not_contains "no spawn count is printed for a subject that never ran" "spawns=" "$RUN_OUT"
 
-# 126 is the other spelling of "never ran": found, but not executable, or a
-# directory, or refused by permissions. It produces the same tidy spawns=0 line,
-# so guarding only the more famous 127 leaves the identical false green reachable.
 # discriminating-skip-required: this case is the only cover for the 126 arm.
 run_census --shim-dir "$SHIM" --label notexec --tool sed --no-ledger -- "$WORK"
 assert_eq "a subject exiting 126 is refused" "2" "$RUN_RC"

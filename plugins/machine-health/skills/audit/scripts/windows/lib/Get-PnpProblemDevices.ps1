@@ -33,13 +33,9 @@ function Get-PnpProblemDevice {
         Write-Verbose "Get-PnpProblemDevice: pnputil invocation failed. $($invoked.error)"
         return @()
     }
-    # A NonZero exit is still parsed: pnputil's exit code is not documented as
-    # a no-problem-devices signal.
     $raw = $invoked.output
     if (-not $raw) { return @() }
 
-    # The first split element is always the pre-"Instance ID:" banner preamble, or
-    # the whole output when no device has a problem, so skip it.
     $blocks = @($raw -split '(?m)^Instance ID:' | Select-Object -Skip 1 | Where-Object { $_.Trim() })
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 

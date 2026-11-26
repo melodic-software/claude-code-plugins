@@ -70,8 +70,6 @@ export function decide(verdict, inputs) {
           "The skip reason is not a member of the schema's skip-reason enum.",
         );
 
-  // A job timeout or a manual cancel also reads cancelled; only a newer PR head
-  // read at report time shows the run was superseded.
   if (runResult === "cancelled") {
     return SHA.test(prHeadSha ?? "") && prHeadSha !== checkSha
       ? neutral("superseded-sha")
@@ -134,8 +132,6 @@ export function decide(verdict, inputs) {
       ? neutral(verdict["skip-reason"])
       : failure("A skip reason came with an act step that did not finish.");
   }
-  // A run job that failed before the act step leaves the act outcome skipped,
-  // so the run result is checked first and names the failed step's reason.
   if (runResult !== "success") {
     return failure(
       runFailure

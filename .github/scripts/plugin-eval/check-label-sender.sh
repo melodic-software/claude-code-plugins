@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Refuses an untrusted trigger verdict, a draft pull request, or a run no
-# `eval: run` label from a listed human started. The recorder run is the head's
-# copy, so nothing it wrote is read: the label event comes from the API
-# (https://docs.github.com/en/rest/issues/events). Reads PROCEED, REASON, LIST,
-# PR_NUMBER, ACTOR_ID, RUN_CREATED_AT and RUN_PATH.
 # shellcheck disable=SC2154,SC2292,SC2310 # gh failing in a condition refuses the run; the step env sets PROCEED, REASON, LIST, PR_NUMBER, ACTOR_ID, RUN_CREATED_AT and RUN_PATH
 set -eo pipefail
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token

@@ -1,58 +1,7 @@
 name: PR Run Plugin Evals
-# release-eval-hold.mjs reads a compare run's pull request, head and target
-# plugin from this name, since the runs API returns no dispatch inputs
-# (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
 run-name: >-
   ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'compare'
   && format('eval-compare pr={0} head={1} target={2}', inputs.pr, inputs.head-sha, inputs.target) || '' }}
-
-# Runs `claude plugin eval` on a fresh GitHub-hosted runner, two ways:
-#
-# - By hand (workflow_dispatch on the default branch), for any plugin's suite,
-#   including eval cases that drive a browser through Bash. A local run cannot:
-#   the eval's throwaway HOME hides tools installed under /home, and a
-#   symlinked ~/.docker makes the eval refuse any Bash-granting run. Here node,
-#   playwright-cli, the Playwright MCP server and Chromium are installed outside
-#   HOME and on PATH. The allow-real-servers input starts a case plugin's real
-#   MCP servers (plugins/testing/evals/browser-mcp-probe/README.md).
-# - When the `eval: run` label is added to a same-repository, non-draft pull
-#   request: the suite of each plugin whose skills/, agents/, context/ or
-#   evals/ the pull request changes, deterministic graders only, with no tool
-#   beyond the read-only set, no scaffold, and env scrub on. Advisory: no
-#   ruleset or ci-status reads this job. Adding the label again runs the
-#   current head. context/ is admitted by the owner decision at
-#   https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380.
-#
-# Before any model call the suite passes /evals:validate's validate-cases.py,
-# or the job fails. Each result goes through .github/scripts/plugin-eval/
-# summarize.mjs into the job summary: a with-versus-without table with PASS,
-# FAIL or NOT COMPARABLE per case and one health line per case, and the job
-# fails unless every case passes. Every run carries --max-cost-usd: 5 dollars
-# unless a dispatch sets the max-cost-usd input, at most 12.
-#
-# Lane hardening follows ADR 0049
-# (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
-# a dispatcher must be a listed human; on a pull request check-trusted-trigger
-# holds the PR author, the event actor and any re-runner to the trusted-actor
-# list, and the label must come from a listed human. The org kill switch is
-# read before the model step, every job's token can only read, and each run
-# gets a fresh runner. Scripts and actions run from the default branch; a pull
-# request supplies only the plugin under test. The
-# changed paths come from the checked-out head's own git diff, and
-# select-plugins.mjs lets a selected plugin through only when every change is
-# allowlisted: an eval case file (prompt.md, case.yaml, graders/*.md,
-# samples/**/*.json) that keeps allowed_tools, env, context and the other
-# run keys, or markdown under skills/, agents/ or context/ that keeps its
-# non-descriptive frontmatter and adds no shell preprocessing, in a plugin
-# whose tree holds no symlink or submodule and whose cases load only the
-# plugin itself or an unchanged directory inside it. Anything else is refused
-# (context/: https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380).
-#
-# Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
-# eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as
-# of 2026-10-10), so PLAYWRIGHT_BROWSERS_PATH does not. A case's scaffold gets
-# no EVAL_* variable either, so a case that needs the Chromium below pins it by
-# path under /opt/pw (plugins/testing/evals/browser-probe/scaffold.sh).
 
 on:
   workflow_dispatch:
@@ -152,20 +101,13 @@ on:
         required: false
         type: string
         default: ""
-  # The label starts pr-run-plugin-evals-label.yml, which holds no secret; its
-  # completion runs this file from main, never the PR's copy
-  # (https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
-  # Nothing the recorder run wrote is read: the jobs re-read the PR, its
-  # label event and its actors from the API.
+  # Runs this file from main, never the PR's copy, and reads nothing the recorder run wrote.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [PR Run Plugin Evals Label]
     types: [completed]
 
 permissions: {}
 
-# A recorder run shares its pull request branch's group; any other event gets
-# a group of its own, so a dispatch cannot replace a pending re-run
-# (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
 concurrency:
   group: >-
     eval-${{ github.event_name == 'workflow_run'
@@ -246,7 +188,6 @@ jobs:
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
-      # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
       - name: Resolve main's tip
@@ -255,8 +196,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: ${{ github.event.repository.default_branch }}
-      # The default branch tip; on a dispatch, the dispatched commit, which the
-      # job if: holds to the default branch.
       - name: Check out the default branch
         if: github.event_name != 'workflow_run' || steps.tip.outputs.sha != ''
         uses: actions/checkout@v7
@@ -305,11 +244,6 @@ jobs:
           echo "::error::upstream-degraded: ${REASON} on its status page stops this run; dispatch it again once it recovers"
           exit 1
 
-      # check-trusted-trigger needs a PR, and a dispatch names none, so the
-      # dispatcher is matched against the same list directly, by numeric id:
-      # it must be a listed human, and the lanes App bot is denied by id, as
-      # in pr-run-activity-write.yml. A re-run is refused: this step checks
-      # only the dispatcher's id. Dispatch the workflow again instead.
       - name: Check the dispatcher is a trusted human
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -345,9 +279,6 @@ jobs:
           standards-path: ${{ steps.standards.outputs.path }}
           triggering-actor: ${{ github.triggering_actor }}
 
-      # check-trusted-trigger accepts any listed actor; the label that spends
-      # the credential must come from a listed human, so a person opts in to
-      # each run.
       - name: Stop on an untrusted pull request trigger
         if: github.event_name == 'workflow_run'
         env:
@@ -371,9 +302,6 @@ jobs:
           selected: ${{ needs.check-key-credit.outputs.next-leg }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # The plugin under test on a pull request: the label-time head, with full
-      # history so the next step diffs this same commit against its base. A
-      # checkout runs no code from it.
       - name: Check out the pull request head
         if: steps.credential.outputs.present == 'true' && github.event_name == 'workflow_run'
         uses: actions/checkout@v7
@@ -383,9 +311,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The checked-out head's diff from its merge base with the pull
-      # request's base chooses the plugins; the target input does on a
-      # dispatch. Each line of its `list` output is a plugins/<name> path.
       - name: Choose the plugins
         id: plugins
         if: steps.credential.outputs.present == 'true'
@@ -406,25 +331,10 @@ jobs:
           CASES: ${{ inputs.cases }}
         run: bash .base/.github/scripts/plugin-eval/stage-suites.sh
 
-      # The tools and Chromium go under /opt, outside HOME, which each eval
-      # run replaces with a temporary one. This step uses sudo only to make
-      # these directories; no third-party code runs before isolation.
       - name: Create the tool directories
         if: steps.stage.outputs.go == 'true'
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
 
-      # A pull request supplies the prompts, and the eval's Read, Glob and Grep
-      # run without the Bash sandbox, so nothing else keeps them from the
-      # credential in /proc/<pid>/environ or the runner's own files. A
-      # root-owned managed settings file, which applies inside every eval run
-      # and which nothing in the run overrides (code.claude.com/docs/en/
-      # plugin-evals, "How runs are isolated"; code.claude.com/docs/en/
-      # settings, "Settings precedence", as of 2026-10-27), denies those
-      # paths. The runner's install directory is read from the Runner.Worker
-      # process above this step, not guessed; the job's _temp and _actions
-      # directories are denied beside it. Written while sudo is still there;
-      # the job stops if the runner directory is not found or the file cannot
-      # be written or read back. The probe step below proves the denial.
       - name: Deny the eval's reads of process and runner state
         id: deny
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
@@ -462,18 +372,12 @@ jobs:
           echo "runner-root=$runner_root" >>"$GITHUB_OUTPUT"
           echo "Denied the runner directory $runner_root and $work/_temp, $work/_actions."
 
-      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
-      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
-      # and docker access for the rest of the job.
       - name: Isolate the runner
         if: steps.stage.outputs.go == 'true'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
-      # claude, playwright-cli and the Playwright MCP server come from the
-      # locked root toolchain. Its install scripts run here, after sudo and
-      # docker access are gone.
       - name: Install the locked root toolchain
         timeout-minutes: 5
         if: steps.stage.outputs.go == 'true'
@@ -482,11 +386,6 @@ jobs:
           npm ci --prefix /opt/tools
           echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
-      # Eval cases whose scaffold renders frames (explainer-video, knowledge)
-      # name ffmpeg as a host tool, and the hosted image carries none. The script
-      # holds the pinned BtbN build. ffmpeg and ffprobe go into /opt/tools/bin,
-      # which every eval run's sandbox can read, after isolation, so neither
-      # runs with sudo.
       - name: Install ffmpeg for eval scaffolds
         if: >-
           steps.stage.outputs.go == 'true' &&
@@ -526,10 +425,6 @@ jobs:
           install -D -m 0755 "$(command -v typos)" /opt/tools/bin/typos
           echo /opt/tools/bin >>"$GITHUB_PATH"
 
-      # run-claude-cli's classifier, at the ref every lane runs it, for
-      # eval-handoff.mjs: its published contract, contract-files.txt and the
-      # paths it lists, nothing run here:
-      # https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs
       - name: Check out the launcher's classifier
         if: steps.stage.outputs.go == 'true'
         uses: actions/checkout@v7
@@ -550,22 +445,6 @@ jobs:
             .github/scripts/resolve-npm-tool-version.cjs
           sparse-checkout-cone-mode: false
 
-      # The job stops unless permission_denials (code.claude.com/docs/en/
-      # agent-sdk/typescript, "SDKResultMessage", as of 2026-10-28) in the
-      # result records each of the four calls as denied, or if the result holds
-      # the credential anywhere. Claude Code applies Read deny rules to Glob and
-      # Grep only on a best-effort basis (code.claude.com/docs/en/permissions,
-      # "Read & Edit"), so a Glob or Grep the policy does not stop fails here
-      # instead of reaching a case. The prompt names the run a policy self-test:
-      # asked only to read those paths, the model can decline them as credential
-      # harvesting and make no call. A session that ends with a call unmade
-      # proved nothing, so it runs again, up to three times; a call made and not
-      # denied stops the job at once, and calls still missing after three stop
-      # it as unproven, never as a policy failure (policy-probe.mjs judges the
-      # stream). The stream can hold what a call returned, so it stays in a file
-      # that is never printed and is removed after the check. A probe that the
-      # credential's own stop ended hands off instead (eval-handoff.mjs), so the
-      # next leg runs the eval.
       - name: Probe that the policy denies those reads
         id: probe
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_run'
@@ -614,14 +493,6 @@ jobs:
             *) echo "::error::${reason:-policy-probe.mjs could not judge the probe}, so no pull request case runs"; exit 1 ;;
           esac
 
-      # Chromium comes from the playwright that the locked playwright-cli
-      # and Playwright MCP server share. Without sudo there is no
-      # --with-deps: the hosted image already carries a browser's system
-      # libraries. A pull request run grants no Bash, so it needs no browser:
-      # it passes no --allow-tools, a case cannot widen that grant
-      # (plugins/evals/skills/plugin-eval/SKILL.md, the read-only suites
-      # paragraph), and select-plugins.mjs refuses a changed case's
-      # allowed_tools.
       - name: Install Chromium
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
         env:
@@ -630,15 +501,6 @@ jobs:
           node /opt/tools/node_modules/playwright/cli.js install chromium
           command -v playwright-cli claude
 
-      # Every Bash call in an eval run goes through Claude Code's bubblewrap
-      # sandbox (code.claude.com/docs/en/sandboxing, "Set up Linux and WSL2",
-      # as of 2026-10-10). This step checks bwrap and socat are on PATH, then
-      # starts bwrap as the runner user, with the whole filesystem (so
-      # /opt/tools and the setup-node toolcache) bound read-only, once bare
-      # and once running playwright-cli, and fails the job with the output of
-      # whichever cannot start, before any eval spends tokens. Its flags are
-      # not Claude Code's own, so a pass does not prove the full sandbox
-      # starts.
       - name: Check bwrap starts a sandbox
         if: steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
         run: bash .base/.github/scripts/plugin-eval/check-bwrap.sh
@@ -649,23 +511,11 @@ jobs:
           DISPATCHER: ${{ github.actor }}
         run: echo "::warning::CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off for this run; Bash subprocesses can see the Claude credentials. Dispatched by ${DISPATCHER}."
 
-      # One `claude plugin eval` per staged suite, each under its own
-      # --max-cost-usd. Its exit code is overloaded, so the summary step reads
-      # each JSON result instead. --keep-temp keeps each run's trace on the
-      # runner, outside the uploaded results, for the judge, the summary's
-      # health and validity lines and the Bash error excerpts. A pull request
-      # run grants no tool, runs no scaffold, keeps env scrub on and uses each
-      # case's own run count. TMPDIR sits outside /tmp, which the run's own
-      # sandbox makes read-only to Bash, and within the short length its
-      # sockets need (plugins/evals/skills/plugin-eval/reference/sandboxes.md).
       - name: Run the plugin eval
         id: eval
         if: steps.stage.outputs.go == 'true' && steps.probe.outputs.handoff != 'true'
         env:
           LANE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
-          # Strips credentials from Bash subprocesses inside each eval run.
-          # The env-scrub input set false gives "0", the opt-out value Claude
-          # Code's own messages name.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ (github.event_name == 'workflow_run' || inputs.env-scrub) && '1' || '0' }}
           SUITES: ${{ steps.stage.outputs.suites }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
@@ -744,12 +594,6 @@ jobs:
             echo "exit $status" >"$out/exit-code"
           done <<<"$SUITES"
 
-      # Whether the credential's own stop ended any run, read from each errored
-      # run's kept trace by run-claude-cli's classifier; nothing here prints a
-      # trace. A probe's handoff stands. The leg's execution file carries only
-      # the suites' durationSeconds and costUsd, for the lane record. A leg
-      # that hands off summarizes and uploads nothing: the next leg reruns the
-      # eval.
       - name: Judge the leg
         id: judge
         if: always() && steps.stage.outputs.go == 'true' && (steps.probe.outcome == 'success' || steps.probe.outcome == 'skipped')
@@ -777,13 +621,6 @@ jobs:
           printf '%s\n' "$verdict" | tee -a "$GITHUB_OUTPUT"
           echo "leg-result=$LEG_RESULT" >>"$GITHUB_OUTPUT"
 
-      # The verdict of record: summarize.mjs per result, PASS, FAIL or NOT
-      # COMPARABLE per case. A suite with no result fails the job too.
-      # A pull request run prints no case name, error or partial reason: the
-      # model output those can carry would land in the public job summary.
-      # The REST API returns no job summary, so each suite's summary is also
-      # printed to the job log, with workflow commands off, and kept as
-      # summary.md beside its results.json, which a dispatched run uploads.
       - name: Summarize the results
         if: always() && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
         env:
@@ -847,18 +684,6 @@ jobs:
           done <<<"$SUITES"
           exit "$failed"
 
-      # Opt-in (debug-errors) because the job log of this public repository
-      # is public. Prints, per run, at most 20 Bash calls whose tool_result
-      # has is_error true: the command cut to 300 characters, and the result
-      # text cut to its first 120 and last 2500 characters when longer than
-      # 2620 (the end holds the daemon log), each JSON-quoted onto one line.
-      # A second line, `key:`, holds the lines of the full result that match
-      # FATAL, Check failed, ERROR:, sandbox, permission or errno patterns
-      # (the cause line a long crash stack pushes out of the tail), minus the
-      # known .bashrc noise, de-duplicated, at most 15, each cut to 300
-      # characters; it is omitted when nothing matches. Nothing else from the
-      # trace is printed. Trace text is tool output, so workflow commands are
-      # off while it prints.
       - name: Print Bash error excerpts
         if: always() && github.event_name == 'workflow_dispatch' && inputs.debug-errors && steps.stage.outputs.go == 'true' && steps.judge.outputs.handoff != 'true'
         env:
@@ -939,9 +764,6 @@ jobs:
           done
           echo "::$token::"
 
-      # Only a dispatched run, whose cases merged through review, uploads its
-      # results: a pull request's prompts could steer model output into a
-      # public artifact.
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
@@ -961,10 +783,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 3
 
-      # Read by the next runs' credit gate (check-key-credit): the artifact its
-      # `marker` output names (check-key-credit gate.cjs markerName), uploaded
-      # only after the key leg's credit-stop handoff. The name is written out
-      # so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-EVALS_CLAUDE_API_KEY' && steps.judge.outputs.handoff-reason == 'credit-stop'
@@ -1719,22 +1537,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Compare mode (owner decision Q136,
-  # https://github.com/melodic-software/claude-code-plugins/issues/17854): the
-  # pull request's merge base and head reach the eval only as plugin text,
-  # patched onto this branch by compare-arms.sh from git objects; no script,
-  # hook, workflow or manifest of either runs. Each arm runs on the evals API
-  # key and moves to the evals subscription token when the key stops, only
-  # when compare-prepare found the pull request's author listed there as a
-  # human, never a bot; no other arm receives the token
-  # (docs/review/evals.md). The record job is the only one that
-  # writes: it holds pull-requests: write, checks out only this branch, and
-  # posts nothing unless
-  # every job before it passed and the head has not moved. A run whose jobs
-  # all skipped (a dispatch on a tag, which compare-prepare's ref gate skips)
-  # still concludes success, so release-eval-hold.mjs trusts the record only by
-  # reading this run back and finding its Compare Record job (that name,
-  # RECORD_JOB there) succeeded.
   compare-prepare:
     name: Compare Prepare
     if: >-

@@ -26,6 +26,15 @@ MESSAGE = (
 )
 SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+HOOK_DIFF = (
+    "--no-color", "--no-ext-diff", "-U0", "--text", "--diff-filter=ACMR",
+    "--src-prefix=a/", "--dst-prefix=b/", "--inter-hunk-context=0",
+)
+
 
 def flagged(path, text, posture="necessary", added=None, allow=()):
     lines = text.count("\n") + 1
@@ -46,6 +55,80 @@ class FindingLine(unittest.TestCase):
         self.assertIsNone(
             lint.findings("a.zzzunknown", "# x\n", [(1, 1)], "necessary", [])
         )
+
+
+class UnchangedTrailingComment(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = Path(tmp.name)
+        self.git("init", "-q")
+        self.git("config", "user.name", "t")
+        self.git("config", "user.email", "t@example.invalid")
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", str(self.repo), *args], check=True, capture_output=True).stdout
+
+    def commit(self, files):
+        for name, text in files.items():
+            (self.repo / name).write_text(text, encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "--no-verify", "-m", "c")
+        return self.git("rev-parse", "HEAD").decode().strip()
+
+    def staged(self, base, new):
+        self.commit(base)
+        for name, text in new.items():
+            (self.repo / name).write_text(text, encoding="utf-8")
+        self.git("add", "-A")
+        return self.git("-c", "core.quotePath=false", "diff", "--cached", *HOOK_DIFF, "--")
+
+    def pushed(self, *ranges):
+        return b"".join(self.git("-c", "core.quotePath=false", "diff", old, new, *HOOK_DIFF, "--") for old, new in ranges)
+
+    def hunks(self, diff):
+        p = self.repo / ".git" / "hook.diff"
+        p.write_bytes(diff)
+        return lint._hunks(p)
+
+    def lint(self, path, text, hunks):
+        got = lint.findings(path, text, [(1, text.count("\n"))], "necessary", [], hunks=hunks)
+        return [int(f.split(":")[1]) for f in got]
+
+    def test_diff_hunks_keep_removed_lines(self):
+        diff = self.staged({"a.js": "f\nx=1;  // why\n+++ b/z\n"}, {"a.js": "f\nx = 1; // why\n"})
+        self.assertEqual(self.hunks(diff)["a.js"], [(2, ["x=1;  // why", "+++ b/z"], 2, 1)])
+
+    def test_quoted_path_hunk_content_is_never_a_header(self):
+        quoted = 'q"é.py'
+        diff = self.staged({"a.py": "x=1\n", quoted: "x\n"}, {"a.py": "x = 1\n", quoted: "++ b/a.py\n"})
+        self.assertIn(b'+++ "b/q\\"', diff, "control: git quotes the header of a name holding a double quote")
+        self.assertEqual(self.hunks(diff), {"a.py": [(1, ["x=1"], 1, 1)]})
+
+    def test_path_with_a_space_keys_its_hunks_by_name(self):
+        diff = self.staged({"a b.py": "x=1  # why\n"}, {"a b.py": "x = 1  # why\n"})
+        self.assertEqual(self.hunks(diff), {"a b.py": [(1, ["x=1  # why"], 1, 1)]})
+
+    def test_slash_comment_unchanged_behind_respaced_code_passes(self):
+        text = "let x = 1; // why\nlet y = 2; // new\n"
+        diff = self.staged({"a.js": "let x=1;  // why\nlet y=2;\n"}, {"a.js": text})
+        self.assertEqual(self.lint("a.js", text, self.hunks(diff)["a.js"]), [2])
+
+    def test_path_in_two_pushed_ranges_pairs_nothing(self):
+        base = self.commit({"a.py": "x=1  # why\n"})
+        one = self.commit({"a.py": "x = 1  # why\n"})
+        self.git("checkout", "-q", "-b", "other", base)
+        two = self.commit({"a.py": "x  =  1  # why\n"})
+        hunks = self.hunks(self.pushed((base, one), (base, two)))["a.py"]
+        self.assertIsNone(hunks)
+        self.assertEqual(self.lint("a.py", "x = 1  # why\n", hunks), [1])
+
+    def test_diff_of_another_text_pairs_nothing(self):
+        head = "a = 0\nb = 0\nc = 0\nd = 0\n"
+        diff = self.staged({"a.py": head + "x=1  # why\n"}, {"a.py": head + "x = 1  # why\n"})
+        hunks = self.hunks(diff)["a.py"]
+        self.assertEqual(self.lint("a.py", head + "x = 1  # why\n", hunks), [], "control: the diff pairs its own text")
+        self.assertEqual(self.lint("a.py", "x = 1  # why\n", hunks), [1])
 
 
 class AddedLinesOnly(unittest.TestCase):
@@ -556,6 +639,11 @@ class MoreDirectives(unittest.TestCase):
         for path, text in cases:
             with self.subTest(text=text):
                 self.assertEqual(flagged(path, text), [])
+
+    def test_triple_slash_reference_is_a_directive_with_or_without_a_space(self):
+        for text in ('/// <reference path="a.d.ts" />', '///<reference path="a"/>'):
+            with self.subTest(text=text):
+                self.assertIsNotNone(lint.DIRECTIVE.search(text))
 
     def test_portability_ok_passes(self):
         text = '#!/usr/bin/env bash\n# portability-ok: GNU stat only, Linux-only script\nsize=$(stat -c %s "$1")\necho "$size"\n'

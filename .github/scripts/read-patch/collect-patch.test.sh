@@ -4,8 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECT="$SCRIPT_DIR/collect-patch.sh"
 
-# Keep the developer's own git configuration, and any inherited repository
-# location, out of every fixture.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
@@ -123,8 +121,6 @@ run_collect
 check 'undone: state is empty' empty "$(field state)"
 
 echo '# an exact move'
-# A moved file is a rename header with no content, so a large move stays
-# well under the patch cap.
 new_repo
 big=$(head -c 200000 /dev/zero | tr '\0' 'x')
 mkdir -p "$R/skills/old"
@@ -151,7 +147,6 @@ check 'move: the patch applies' 0 "$APPLY_RC"
 check 'move: the applied tree matches' yes "$SAME"
 
 echo '# a move with an edit'
-# Below 100% similarity a move stays a deletion and an addition.
 new_repo
 mkdir -p "$R/docs"
 git -C "$R" mv edit.txt docs/edit.txt
@@ -186,8 +181,6 @@ check 'config: the patch applies' 0 "$APPLY_RC"
 check 'config: the applied tree matches' yes "$SAME"
 
 echo '# planted git config, attributes and hooks'
-# Each plant writes a marker when git runs it; none may run, and the patch
-# holds the bytes on disk, never what a clean filter would stage.
 planted() {
   local name=$1
   run_collect
@@ -230,8 +223,6 @@ put edit.txt 'on disk\n'
 planted 'a core.fsmonitor command'
 
 echo '# CLI scrub stubs'
-# The empty files the CLI's Bash leaves at the top of the checkout under
-# its environment scrub are not the activity's change.
 STUBS=(bunfig.toml package.json .npmrc .yarnrc .yarnrc.yml .gitmodules package-lock.json yarn.lock
   pnpm-lock.yaml .env .env.local .env.development .env.development.local .env.test .env.test.local
   .env.production .env.production.local)

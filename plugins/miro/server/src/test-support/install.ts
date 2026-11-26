@@ -13,8 +13,6 @@ export function tempDataDir(): { dataDir: string; cleanup: () => void } {
   return {
     dataDir,
     cleanup: () => {
-      // seedInstall links node_modules to the real one: drop the link itself first so a
-      // recursive delete can never walk into the development install.
       try {
         unlinkSync(join(installDir(dataDir), "node_modules"));
       } catch {}
@@ -23,8 +21,6 @@ export function tempDataDir(): { dataDir: string; cleanup: () => void } {
   };
 }
 
-// Stands in for a finished `npm ci`: the development install already holds every runtime
-// dependency, so the launcher sees a complete install and never runs npm.
 export function seedInstall(dataDir: string): string {
   const target = installDir(dataDir);
   mkdirSync(target, { recursive: true });

@@ -1,23 +1,4 @@
 #!/usr/bin/env node
-// write-rating.mjs: turns /review:merge-risk's result into rating.json for
-// pr-rate-merge-risk.yml to upload as pr-merge-risk-<pr>-<head>, which
-// enable-auto-merge.mjs reads before it arms (merge-risk-line.mjs).
-//
-// The result is untrusted: it is derived from the pull request's own text.
-// Its shape is checked against a closed schema (merge-risk-line.mjs
-// checkResult), max and demote are recomputed from its rows, and the rater
-// and checker are the model ids the execution file shows ran, never ids the
-// model wrote. A run with any permission denial reached past its data and
-// leaves no rating. Exit 1 with nothing written on any refusal.
-//
-// Environment:
-//   OUTPUT_FILE      run-claude-cli's structured-output-file (credential-scanned)
-//   EXECUTION_FILE   run-claude-cli's execution-file, for denials and model ids
-//   PLUGIN_MANIFEST  the base review plugin's .claude-plugin/plugin.json
-//   PR_NUMBER, HEAD_SHA  the pull request and head the run rated
-//   CLI_VERSION      run-claude-cli's cli-version output
-//   STARTED_AT       the rating step's start, in epoch seconds
-//   OUT_DIR          where rating.json is written
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
@@ -29,9 +10,6 @@ const VERSION = /^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$/;
 
 const iso = (seconds) => new Date(Number(seconds) * 1000).toISOString();
 
-// Tools the blind checker's agent file declares (review:brief-reviewer) that
-// the cage withholds: a denial of one reached nothing. A denial of any other
-// tool, a Read outside the data directory above all, refuses the rating.
 export const WITHHELD = Object.freeze(["Bash", "Glob", "Grep"]);
 
 const contentOf = (message) => (Array.isArray(message?.message?.content) ? message.message.content : []);

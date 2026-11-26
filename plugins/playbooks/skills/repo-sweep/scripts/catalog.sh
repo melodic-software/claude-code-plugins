@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Parse a repo-sweep catalog (format: ../SKILL.md "Formats").
-#
-#   catalog.sh <catalog-file>                 one TSV row per entry, in file order:
-#                                             id, phase, skills, args, checked, issue, applies-when, prime
-#   catalog.sh --override <id> <catalog-file> that entry's "#### Override" block (empty if none)
-#   catalog.sh --notes <id> <catalog-file>    that entry's "#### Notes" block (empty if none)
-#
-# phase is the full "## ..." heading text. Missing keys print as empty fields.
 # Exit: 0 ok; 1 duplicate id, entry with no skill, or unknown id (nothing on stdout); 2 usage.
 set -euo pipefail
 

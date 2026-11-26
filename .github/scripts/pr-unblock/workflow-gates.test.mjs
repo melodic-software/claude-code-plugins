@@ -1,8 +1,3 @@
-// The job if: gates that keep a pipeline workflow from starting a runner that
-// could only skip or fail: pr-dispatch-feedback.yml on a review run GitHub
-// skipped (a draft) or cancelled (a newer push superseded it). And the gates
-// of pr-unblock.yml's address-feedback and review-dependency jobs, which a
-// skipped subscription call or a forged model-call output must not turn.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -25,7 +20,6 @@ process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const read = (file) => readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
 
-// A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
   const block = workflowText(read(file)).job(job);
   assert.match(block, /^ {2}\S+:\n(?: {4}#.*\n)*(?: {4}name: .*\n)? {4}if: >-\n/, `${file}: job ${job} has a folded if:`);
@@ -82,9 +76,6 @@ test("pr-dispatch-feedback.yml starts no runner for a skipped or cancelled revie
   assert.equal(runs("success", "workflow_run", "a".repeat(40), "main"), true);
   assert.equal(runs("success", "workflow_run", "", "main"), false);
   assert.equal(runs("success", "workflow_run", "", "main", "a".repeat(40)), true);
-  // The reconciler's re-run of a verdict the kill switch stopped posts the
-  // notes but dispatches nothing: the gate trusts that dispatcher only at
-  // attempt 1 or re-run by a listed human.
   const bot = { "github.run_attempt": "2", "github.triggering_actor": "github-actions[bot]" };
   assert.equal(runs("success", "workflow_run", "a".repeat(40), "main", "", bot), false);
   assert.equal(runs("success", "workflow_run", "", "main", "a".repeat(40), bot), false);
@@ -194,9 +185,6 @@ test("pr-dispatch-feedback.yml dispatches for a relayed review comment only from
   }
 });
 
-// The relay is listed by the name its file gives, and holds nothing a
-// PR-controlled copy could use: no permission, no checkout, no secret, and no
-// event field in a step (only the job's condition reads the event).
 test("pr-review-comment-relay.yml is a workflow_run upstream and reaches no token, secret or event text in a step", () => {
   const relay = readFileSync(new URL("../../workflows/pr-review-comment-relay.yml", import.meta.url), "utf8");
   const dispatcher = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
@@ -221,8 +209,6 @@ test("pr-review-comment-relay.yml starts a runner only for a person's comment on
       ...o,
     });
   assert.equal(runs(), true);
-  // The lanes App's own replies (publish-feedback, report-escalation) and any
-  // review bot's comments are Bot accounts: no relay, so no dispatcher loop.
   assert.equal(runs({ "github.event.comment.user.type": "Bot" }), false);
   assert.equal(runs({ "github.event.pull_request.head.repo.full_name": "fork/repo" }), false);
   assert.equal(runs({ "github.event.pull_request.head.ref": "feat/x" }), false);
@@ -402,9 +388,8 @@ const JOBS = [
   "publish-feedback",
 ];
 
-// Run 39783964241's shape: an API-key run skips the subscription call, and a
-// job that needs a skipped job and lacks !cancelled() (or always()) is skipped
-// too, so the push and the reply would never run.
+// A job whose needs include a skipped job is skipped unless its if: uses always() or !cancelled().
+// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
   const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription" || need === "address-feedback-fallback"));
   assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "address-feedback-subscription-handoff", "address-feedback-fallback", "apply-feedback-patch", "check-adjudicator-key-credit", "adjudicate-feedback", "publish-feedback"]);
@@ -446,9 +431,6 @@ test("pr-unblock.yml: each key call is skipped while API keys are off and runs a
   }
 });
 
-// The reply job decides on the select job's proceed alone: a hostile model
-// job can forge a handoff, a neutral check or any output of its own, and the
-// round still posts its marker, so the round cap holds.
 test("pr-unblock.yml: publish-feedback runs exactly when the select job proceeded or listed stale fail notes, whatever a model call reports", () => {
   const { gate, needs } = jobGate(UNBLOCK, "publish-feedback");
   assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-feedback"]);
@@ -466,10 +448,6 @@ test("pr-unblock.yml: publish-feedback runs exactly when the select job proceede
   }
 });
 
-// resolve-threads.mjs serves only a PR a listed person opened, and leaves
-// open every thread a person wrote in, so a lanes App PR's round and a
-// relayed person's reply start no resolve job and ask the broker for no token
-// (#13580). A person's PR on a review-completion round runs as before.
 test("pr-unblock.yml: resolve-feedback-threads starts no job on a PR no listed person opened or a relayed reply", () => {
   const { gate } = jobGate(UNBLOCK, "resolve-feedback-threads");
   const runs = (overrides = {}) =>
@@ -486,8 +464,6 @@ test("pr-unblock.yml: resolve-feedback-threads starts no job on a PR no listed p
   assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "" }), false, "an unread author");
   assert.equal(runs({ "inputs.upstream-relay": "true" }), false, "a relayed person's reply");
   assert.equal(runs({ "needs.address-feedback-select.outputs.person-opened": "false", "inputs.upstream-relay": "true" }), false, "a relay on a lanes App PR");
-  // The input feedback-dispatch.mjs sends on a relay round is declared, or
-  // GitHub refuses the dispatch.
   assert.match(readFileSync(new URL(`../../workflows/${UNBLOCK}`, import.meta.url), "utf8"), /\n      upstream-relay:\n        description: .+\n        required: false\n        type: string\n        default: ""\n/);
 });
 
@@ -529,10 +505,6 @@ test("pr-unblock.yml: a pass-only select uploads its context but never proceeds 
   );
 });
 
-// The post-hoc review of #9565: the job checked out, set up and staged on
-// every round, though only an INCORRECT reply gives it work. Skipping it is
-// fail-closed: an INCORRECT reply with no verdict escalates
-// feedback-unadjudicated (adjudicate-feedback.mjs settleDisputes).
 test("pr-unblock.yml: adjudicate-feedback runs on an INCORRECT reply from the leg that answered, whatever its patch", () => {
   const { gate } = jobGate(UNBLOCK, "adjudicate-feedback");
   const runs = (proceed, subResult, replies, disputed = "true", other = "", fbResult = "skipped") => {
@@ -651,8 +623,8 @@ const DEPENDENCY_JOBS = [
   "apply-dependency-verdict",
 ];
 
-// As for address-feedback: a job that needs a skipped subscription call and
-// lacks !cancelled() is skipped too, so the push and the verdict would never run.
+// A job whose needs include a skipped job is skipped unless its if: uses always() or !cancelled().
+// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
 test("pr-unblock.yml: every review-dependency job after a model call starts its if: with !cancelled()", () => {
   const after = DEPENDENCY_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "review-dependency" || need === "review-dependency-subscription" || need === "review-dependency-fallback"));
   assert.deepEqual(after, ["review-dependency-handoff", "review-dependency-subscription", "review-dependency-subscription-handoff", "review-dependency-fallback", "apply-dependency-patch", "apply-dependency-verdict"]);
@@ -661,9 +633,6 @@ test("pr-unblock.yml: every review-dependency job after a model call starts its 
   }
 });
 
-// The verdict job decides on the select job's proceed alone: a hostile model
-// job can forge a handoff, a neutral check or any output of its own, and the
-// round still posts its marker, so the round cap holds.
 test("pr-unblock.yml: apply-dependency-verdict runs exactly when the select job proceeded, whatever a model call reports", () => {
   const { gate, needs } = jobGate(UNBLOCK, "apply-dependency-verdict");
   assert.deepEqual(needs, ["review-dependency-select", "review-dependency", "review-dependency-subscription", "review-dependency-fallback", "apply-dependency-patch"]);
@@ -724,8 +693,8 @@ const CONFLICT_JOBS = [
   "report-stop-status",
 ];
 
-// As for review-dependency: a job that needs a skipped subscription call and
-// lacks !cancelled() is skipped too, so a clean merge would never be pushed.
+// A job whose needs include a skipped job is skipped unless its if: uses always() or !cancelled().
+// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
 test("pr-unblock.yml: every resolve-conflicts job after the select job starts its if: with !cancelled()", () => {
   for (const job of CONFLICT_JOBS.slice(1)) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
@@ -733,9 +702,6 @@ test("pr-unblock.yml: every resolve-conflicts job after the select job starts it
   assert.deepEqual(jobGate(UNBLOCK, "apply-conflict-patch").needs, ["resolve-conflicts-select", "resolve-conflicts", "resolve-conflicts-subscription", "resolve-conflicts-fallback"]);
 });
 
-// The push job decides on the select job's merge state, proceed and the
-// answering leg's scanned patch state; a forged run-job output reaches none.
-// The evaluator refuses any reference left unset, so the gate reads nothing else.
 test("pr-unblock.yml: apply-conflict-patch runs on a clean merge or a conflicted one with the answering leg's patch, whatever else a model call reports", () => {
   const { gate } = jobGate(UNBLOCK, "apply-conflict-patch");
   const runs = (state, proceed, subResult = "skipped", sub = "", first = "", fbResult = "skipped", fb = "") =>
@@ -825,9 +791,8 @@ const FIX_CI_JOBS = [
 ];
 const FIX_CI_CALLS = ["fix-ci", "fix-ci-subscription", "fix-ci-fallback", "fix-ci-rung-up", "fix-ci-rung-up-subscription", "fix-ci-rung-up-fallback"];
 
-// As for address-feedback: a job that needs a skipped call and lacks
-// !cancelled() is skipped too, so the fallback, the push and the unreported
-// post would never run.
+// A job whose needs include a skipped job is skipped unless its if: uses always() or !cancelled().
+// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
 test("pr-unblock.yml: every fix-ci job after a model call starts its if: with !cancelled()", () => {
   const after = FIX_CI_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => FIX_CI_CALLS.includes(need)));
   assert.deepEqual(after, [
@@ -846,9 +811,6 @@ test("pr-unblock.yml: every fix-ci job after a model call starts its if: with !c
   for (const job of after) assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
 });
 
-// A hostile model job can forge handed-off, lane-class, credential-present or
-// any output of its own. The fallback calls start on the handoff jobs' reads,
-// and the unreported post on fix-ci-context alone, so no forged output turns them.
 test("pr-unblock.yml: fix-ci's fallback calls and unreported post decide on base jobs alone, whatever a model call reports", () => {
   const forged = /needs\.fix-ci(?:-rung-up)?(?:-subscription|-fallback)?\.outputs\./;
   for (const job of [
@@ -908,10 +870,6 @@ test("pr-unblock.yml: apply-patch runs on a written or empty patch, or a refused
   assert.equal(runs("skipped", [], ["", ""]), false, "a call that left no patch and refused none");
 });
 
-// #9365: a hostile model job can forge lane-class, credential-present,
-// handed-off or any output of its own. address-feedback's and
-// review-dependency's fallback calls start on their handoff jobs' reads, so
-// no forged output starts or suppresses them.
 test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls start on base jobs alone, whatever a model call reports", () => {
   for (const [first, handoff, sub, select] of [
     ["address-feedback", "address-feedback-handoff", "address-feedback-subscription", "address-feedback-select"],
@@ -1094,16 +1052,11 @@ test("pr-unblock-dispatch.yml: only a push cancels the dispatcher run going; a t
   assert.equal(cancels("push"), true);
   assert.equal(cancels("schedule"), false);
   assert.equal(cancels("workflow_dispatch"), false);
-  // GitHub's default keeps one pending run: a newer tick replaces a waiting one.
   const end = block.findIndex((line, i) => i > at && !line.startsWith("      "));
   const keys = block.slice(at + 1, end).map((line) => line.trim().split(":")[0]);
   assert.deepEqual(keys, ["group", "cancel-in-progress"], "the default single pending run");
 });
 
-// The owner's one automatic hop past the subscription call: each lane's
-// third call starts only on its handoff jobs' reads, never on a call output a
-// hostile run job could forge, and only when the handoff job found the
-// fallback token set, so with the token empty neither new job runs.
 const THIRD_HOPS = [
   ["pr-unblock.yml", "resolve-conflicts"],
   ["pr-unblock.yml", "address-feedback"],
@@ -1156,8 +1109,6 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
     assert.match(block, /\n {6}fallback: fallback\n/, fallback);
     assert.match(block, /\n {6}fallback-claude-code-oauth-token: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN \}\}\n/, fallback);
     assert.doesNotMatch(block, /claude-api-key|\n {6}claude-code-oauth-token:|\n {6}fallback-ready:/, `${fallback} holds the fallback token alone and is the last leg`);
-    // The subscription call may hand off only on the presence read, a job
-    // that runs no head code, and holds no fallback token itself.
     const subBlock = jobBlock(file, sub).join("\n");
     assert.match(subBlock, new RegExp(`\\n {6}fallback-ready: \\$\\{\\{ needs\\.${handoff}\\.outputs\\.fallback-ready \\}\\}\\n`), sub);
     assert.doesNotMatch(subBlock, /FALLBACK_CLAUDE_CODE_OAUTH_TOKEN/, sub);
@@ -1167,9 +1118,6 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
   }
 });
 
-// post-verify-notes takes a pass or pass-notes verdict as well as a fail, by
-// write-verdict.mjs NAME's grammar: `-i` is a fail's alone. A verdict-shaped
-// name its filter drops fails the run.
 test("pr-dispatch-feedback.yml: post-verify-notes reads the names write-verdict.mjs NAME allows, pass names included", () => {
   const step = jobBlock("pr-dispatch-feedback.yml", "post-verify-notes").join("\n").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
   assert.ok(step, "the download step");
@@ -1258,9 +1206,6 @@ test("post-verify-notes names a deferred verdict exactly as recoverDeferred read
   }
 });
 
-// The dispatcher sends only same-repository PRs, but a hand dispatch can name
-// any PR. The step runs against a stub gh that applies the step's own --jq
-// filter to a PR payload, printing a null as the empty line gh prints.
 for (const [job, written] of [
   ["resolve-conflicts-select", "\ndefault-base=true\n"],
   ["address-feedback-select", "\n"],
@@ -1423,9 +1368,6 @@ for (const [activity, select] of [
   }
 });
 
-// The pull_request_target refine job of pr-unblock-dispatch.yml starts Refine
-// under the four invariants of owner decision Q12 (ADR 0090). Comment lines
-// are dropped, so only what the job runs is read.
 const refineLines = () => jobBlock(DISPATCHER, "refine").filter((line) => !/^\s*#/.test(line));
 
 test("pr-unblock-dispatch.yml starts the refine job on a ready same-repository PR's event into main, and the listing job never on one", () => {
@@ -1442,7 +1384,6 @@ test("pr-unblock-dispatch.yml starts the refine job on a ready same-repository P
   assert.equal(refine("pull_request_target", true), false, "a draft");
   assert.equal(refine("pull_request_target", false, "fork/r"), false, "a fork PR");
   assert.equal(refine("push"), false);
-  // A pull_request_target run's ref is the base branch, main.
   const listing = (event) => evaluate(jobGate(DISPATCHER, "dispatch").gate, { "github.ref": "refs/heads/main", "github.event_name": event });
   assert.equal(listing("pull_request_target"), false);
   for (const event of ["push", "schedule", "workflow_dispatch"]) {
@@ -1460,8 +1401,6 @@ test("refine invariant 1: it checks out only the commit its workflow file ran fr
   const body = lines.join("\n");
   assert.doesNotMatch(body, /github\.head_ref|pull_request\.head\.(?:sha|ref)|merge_commit_sha|refs\/pull\//, "no head ref or SHA");
   assert.match(body, /\n {10}persist-credentials: false\n/);
-  // A run: step could fetch and check out the head itself, so each script is
-  // pinned whole: any change to one needs this test changed with it.
   const runs = {};
   let step = "";
   for (let at = 0; at < lines.length; at += 1) {
@@ -1513,11 +1452,6 @@ test("refine invariant 1: it checks out only the commit its workflow file ran fr
   });
 });
 
-// The modules the refine job's script loads, statically or through
-// import(new URL(...)), read no event text from the environment. A module
-// whose own entry point reads one (feedback-dispatch.mjs's main reads its
-// workflow_run event) passes only while every read sits inside its exported
-// main and nothing in the graph imports that main or the whole module.
 const EVENT_READ = /GITHUB_EVENT_PATH|GITHUB_HEAD_REF|GITHUB_REF_NAME/g;
 
 function mainBody(source) {
@@ -1577,7 +1511,6 @@ test("refine invariant 2: no PR text reaches a step; run: holds no expression an
       assert.doesNotMatch(script.join("\n"), /\$\{\{/, `run: at line ${at}`);
     }
   }
-  // Each expression is one the job needs; the event supplies two numbers alone.
   const allowed = new Set([
     "github.event.pull_request.number",
     "github.event.sender.id",
@@ -1644,7 +1577,6 @@ test("refine: the record is named from the workflow commit and the dispatched ru
       });
       return { status: result.status, out: readFileSync(join(dir, "out"), "utf8") };
     };
-    // ADR 0090's form, pr-unblock-target-dispatched-<commit>-<run id>.
     assert.deepEqual(record("9001\n"), { status: 0, out: `name=pr-unblock-target-dispatched-${"b".repeat(40)}-9001\n` });
     assert.deepEqual(JSON.parse(readFileSync(join(dir, "pr-unblock-target-dispatched.json"), "utf8")), { dispatcher_run_id: 42, workflow_sha: "b".repeat(40), run_id: 9001 });
     assert.deepEqual(record(""), { status: 0, out: "" }, "no dispatch, no record");

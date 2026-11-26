@@ -76,7 +76,6 @@ else
   fail "first session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# Second session: no-op. An empty find-links folder would make any pip run fail, so a notice means it ran.
 run_hook "$root" "$EMPTY" CLAUDE_PLUGIN_DATA="$(native "$data")"
 out="$OUT"
 if [[ "$RC" -eq 0 && -z "$out" && "$(installs "$data")" == 1 ]]; then
