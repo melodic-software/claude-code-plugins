@@ -6266,6 +6266,35 @@ class TestScopeCheck(unittest.TestCase):
             "round 4 | opened unknown | closed 0\n",
         )
 
+    def test_round_two_has_one_earlier_round_and_round_one_none(self):
+        """Round 1 asks Q1-Q4 and holds back one (5 opened, 4 closed), but one round is not
+        two."""
+        held = [("Who reads the log?", "later")]
+        self.given(register(answered(1, 4, 1)), {1: round_text(1, [(n, f"Question {n}?") for n in range(1, 5)], held)})
+        for rnd in ("2", "1"):
+            with self.subTest(round=rnd):
+                self.assertEqual(self.scope("--round", rnd), "Scope check: 4 questions asked so far\n")
+                self.assertEqual(
+                    self.counts(), "\nround 1 | opened 5 | closed 4\nround 2 | opened unknown | closed 0\n"
+                )
+
+    def test_the_rounds_dir_names_the_rounds_that_were_shown(self):
+        """Rounds 1 and 3 each ask two and hold back one (3 opened, 2 closed); round 4 was never
+        shown."""
+        self.given(
+            register(answered(1, 2, 1) + answered(3, 4, 3)),
+            {
+                1: round_text(1, [(1, "Question 1?"), (2, "Question 2?")], [("Who reads the log?", "later")]),
+                3: round_text(3, [(3, "Question 3?"), (4, "Question 4?")], [("Who may delete it?", "later")]),
+                5: round_text(5, [], []),
+            },
+        )
+        self.assertEqual(self.scope("--round", "5"), "Scope check: 4 questions asked so far\n" + WAYFIND_LINE)
+        self.assertEqual(
+            self.counts(),
+            "\nround 1 | opened 3 | closed 2\nround 3 | opened 3 | closed 2\nround 5 | opened 0 | closed 0\n",
+        )
+
     def test_a_held_back_question_asked_in_the_next_round_counts_once(self):
         self.given(EXPOSING_LEDGER, EXPOSING_ROUNDS)
         self.scope("--round", "3")
