@@ -87,9 +87,9 @@ file nobody edits costs nobody anything.
   against the others in the table, are the ones worth work. Report both numbers and the date.
   `/architecture:improve` (if enabled) reads the same history to find what to deepen. A file that
   rarely changes gets no recommendation at all: no split, no lint exception, no item.
-- **File an issue; do not refactor in passing.** A long file met during other work gets a tracker
-  item naming the file, its length, its commit count and the window: through
-  `/work-items:track add` (if enabled), else the repository's own tracker. Never split it
+- **File an issue; do not refactor in passing.** A long file that also changes often, met during
+  other work, gets a tracker item naming the file, its length, its commit count and the window:
+  through `/work-items:track add` (if enabled), else the repository's own tracker. Never split it
   inside a change that is about something else.
 - **To stop growth without fixing anything yet**, offer `/toolchain:ratchet` (if enabled) on the
   number of files at or above the reference (`summary.over_reference.file_lines` in the

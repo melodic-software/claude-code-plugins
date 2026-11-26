@@ -17,6 +17,10 @@
     {
       "answer": [],
       "why": "no shell call at all"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n -- '--commits-since' /plugins/code-metrics/skills/audit/actions/size.md"}}],
+      "why": "the flag read from the skill, the script never run"
     }
   ]
 }

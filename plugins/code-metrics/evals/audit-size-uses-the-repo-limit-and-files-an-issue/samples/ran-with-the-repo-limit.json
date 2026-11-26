@@ -25,6 +25,10 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "wc -l *.py"}}],
       "why": "a hand count"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n -- '--file-lines 400' /plugins/code-metrics/skills/audit/actions/size.md"}}],
+      "why": "the flag read from the skill, the script never run"
     }
   ]
 }
