@@ -84,9 +84,13 @@ for index in ${indexes[@]+"${indexes[@]}"}; do
     }
     table == 1 {
       table = 2
-      if ($0 !~ /^[ \t]*\|[ \t:|-]+\|?[ \t]*$/) { print f ": the table header is not followed by a separator row"; bad = 1 }
+      sep = trim($0); sub(/^\|/, "", sep); sub(/\|$/, "", sep)
+      ok = sep != "" && split(sep, scell, "|") == 3
+      for (i = 1; ok && i <= 3; i++) if (trim(scell[i]) !~ /^:?-+:?$/) ok = 0
+      if (!ok) { print f ": the table header is not followed by a three-column separator row"; bad = 1 }
       next
     }
+    table == 2 && !/^[ \t]*\|/ { table = 3 }
     table == 2 && /^[ \t]*\|/ {
       row = trim($0); gsub(/\\\|/, "", row); sub(/^\|/, "", row); sub(/\|$/, "", row)
       cells = split(row, cell, "|")
@@ -95,6 +99,7 @@ for index in ${indexes[@]+"${indexes[@]}"}; do
     END {
       if (fm == 1) { print f ": frontmatter is never closed with ---"; bad = 1 }
       if (!table) { print f ": no index table with the header | Surface | Applies when | File |"; bad = 1 }
+      if (table == 1) { print f ": the table header is not followed by a three-column separator row"; bad = 1 }
       exit bad
     }' "$index")"
   index_status=$?

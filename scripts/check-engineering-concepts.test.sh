@@ -114,5 +114,8 @@ expect "index with an extra frontmatter key fails" 1 "only frontmatter key" --da
 expect "index row with the wrong number of cells fails with its line" 1 "bad-row-cells.md:11: row has 2 cells, want 3" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/bad-row-cells.md"
 expect "index with another contract major version fails" 1 "major" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/major-two.md"
 expect "index with a header and no rows passes" 0 "ok" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/no-rows.md"
+expect "index whose separator row has one column fails" 1 "three-column separator" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/narrow-separator.md"
+expect "index that ends right after the header fails" 1 "three-column separator" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/header-only.md"
+expect "a later table and a fenced block after the index table pass" 0 "ok" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/second-table.md"
 
 test_harness::report
