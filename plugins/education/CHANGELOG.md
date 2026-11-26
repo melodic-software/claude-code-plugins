@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-26
+
+### Changed
+
+- `teach` names its successors in `## Next`: `/education:quiz-me` after a codebase lesson on a change just made, `/planning:interview` when a change to the concept comes next.
+
 ## [3.1.0] - 2026-11-26
 
 ### Changed

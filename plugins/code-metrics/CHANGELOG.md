@@ -3,6 +3,13 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-26
+
+### Fixed
+
+- `audit` keeps the coverage table a table in its reply, and `size` offers the ratchet only when
+  the user asks how to stop growth.
+
 ## [2.0.2] - 2026-11-26
 
 ### Fixed
