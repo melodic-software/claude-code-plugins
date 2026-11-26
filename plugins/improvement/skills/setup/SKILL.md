@@ -34,8 +34,9 @@ file also owns `<home>`, the root rule, and the dual-read window for the old fil
 (`~/.claude/improvement.md`, `.claude/improvement.md`, `.claude/improvement.local.md`). Anchor
 every repo-relative read at the repo root (`git rev-parse --show-toplevel`), never at the CWD.
 
-The `userConfig` layer, as Claude Code substituted it into this skill (empty, or a literal
-`${user_config.…}` placeholder, means unset):
+The `userConfig` layer, read from this text, where Claude Code substitutes it
+([reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value));
+empty, or a literal `${user_config.…}` placeholder, means unset:
 
 | Option | Value |
 |---|---|
@@ -53,8 +54,9 @@ The `userConfig` layer, as Claude Code substituted it into this skill (empty, or
 
 This skill writes the team file, the personal file only to move an old personal file there, and
 the `evidence_sources_file` only to move an old user-global file's sources there. It never writes
-`userConfig`: an option is set through `/plugin configure improvement@<marketplace>`, and a fresh
-session observes the new value.
+`userConfig`: an option is set through `/plugin configure improvement@<marketplace>`, and we
+confirm a changed value in a fresh session; for when a saved value applies, read
+[plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
 
 ## `check` (read-only)
 
@@ -143,8 +145,10 @@ the user's yes for that file, so the config ends in one home, never two:
 - **`~/.claude/improvement.md`** → `userConfig`. This skill never writes `userConfig`, so the
   preview lists, for each key, the option to set and its value, and gives the routes:
   `/plugin configure improvement@<marketplace>`, or headless
-  `claude plugin configure improvement@<marketplace> --values-stdin < values.json` run from the
-  project the plugin is installed in. Its `evidence_sources` move to a YAML file outside the
+  `claude plugin configure improvement@<marketplace>`, run from
+  the project the plugin is installed in, with the flags
+  [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  documents. Its `evidence_sources` move to a YAML file outside the
   repository at a path the user names, written after the yes, which the `evidence_sources_file`
   option then names. The move finishes on a later `apply` in a fresh session: when every option in
   the table above reads the old file's value (and the named file resolves the same sources), ask
@@ -219,5 +223,6 @@ to re-run this setup to reconfigure.
 - **No git verdict outside the repository.** `git check-ignore` against `~/.claude/improvement.md`
   or an `evidence_sources_file` outside the worktree is meaningless (or confidently wrong when the
   home directory is itself a repo); the tracked/ignored probes apply to in-repo files only.
-- **A same-session `check` can show an old `userConfig` value.** Substitution happens when the
-  skill loads; confirm a changed option in a fresh session before deleting the old user-global file.
+- **A same-session `check` can show an old `userConfig` value.** Confirm a changed option in a
+  fresh session before deleting the old user-global file; when a saved value applies is in
+  [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
