@@ -23,8 +23,7 @@ export const OS_OF_KIND = { wsl: 'windows', windows: 'windows', linux: 'linux', 
 const OSES = new Set(Object.values(OS_OF_KIND))
 const LABEL = { wsl: 'WSL', windows: 'Windows', linux: 'Linux', macos: 'macOS' }
 export const ROUTES = ['local', 'interop', 'wsl-exe', 'ssh']
-/** A WSL distro holds no fleet key or aliases; the Windows client on the same machine does. */
-const WSL_SSH = '/mnt/c/Windows/System32/OpenSSH/ssh.exe'
+const DEFAULT_WSL_SSH = '/mnt/c/Windows/System32/OpenSSH/ssh.exe'
 export const TOP_KEYS = ['version', 'self', 'hosts']
 export const HOST_KEYS = ['key', 'os', 'role', 'lanes']
 export const LANE_KEYS = ['kind', 'route', 'alias', 'distro', 'claudePath']
@@ -50,6 +49,20 @@ export function timeoutSeconds(raw) {
   return Number.isFinite(n) && n >= 0 && n <= 10 ? n : DEFAULT_TIMEOUT_SECONDS
 }
 
+/**
+ * The ssh client for this lane: the `ssh_client` option when it is an absolute path (a `/` path,
+ * or a drive-letter path on Windows) to a file named `ssh` or `ssh.exe`; otherwise the platform's
+ * own client. A WSL distro defaults to the Windows client, which holds the fleet key and aliases.
+ * @returns {string | null}
+ */
+export function sshClient(ctx) {
+  const raw = ctx.sshClient
+  const pathFits = ctx.platform === 'win32' ? DRIVE_PATH : SLASH_PATH
+  if (typeof raw === 'string' && pathFits.test(raw) && /^ssh(?:\.exe)?$/.test(lastSegment(raw))) return raw
+  if (ctx.platform !== 'win32') return ownKind(ctx) === 'wsl' ? DEFAULT_WSL_SSH : '/usr/bin/ssh'
+  const root = windowsDir(ctx.env, 'SystemRoot')
+  return root && `${root}\\System32\\OpenSSH\\ssh.exe`
+}
 
 /** An ssh login into WSL carries no WSL_DISTRO_NAME; the kernel release still names Microsoft. */
 const wslKernel = (ctx) => {
@@ -166,8 +179,7 @@ export function buildCommand(lane, ctx) {
   if (route === 'local' || route === 'interop') return { file: claudePath, args: agents.slice(1), cwd }
   if (route === 'ssh') {
     const t = Math.max(1, Math.ceil(timeoutSeconds(ctx.timeout)))
-    const root = windowsDir(ctx.env, 'SystemRoot')
-    const file = ctx.platform === 'win32' ? root && `${root}\\System32\\OpenSSH\\ssh.exe` : ownKind(ctx) === 'wsl' ? WSL_SSH : '/usr/bin/ssh'
+    const file = sshClient(ctx)
     if (!file) return null
     const options = ['BatchMode=yes', 'StrictHostKeyChecking=yes', `ConnectTimeout=${t}`, 'ForwardAgent=no', 'ForwardX11=no', 'ClearAllForwardings=yes', 'PermitLocalCommand=no', 'RemoteCommand=none']
     return { file, args: ['-n', '-T', ...options.flatMap((o) => ['-o', o]), '--', alias, ...agents], cwd }
@@ -389,7 +401,7 @@ function render(results, ctx, repos, repoName) {
 
 /**
  * The peer list for a SessionStart payload, or '' when there is nothing to print.
- * `ctx`: `{ env, platform, homedir, hostname, now, pid, ppidOf, readFile, run, timeout, manifestPath?, deadlineMs? }`;
+ * `ctx`: `{ env, platform, homedir, hostname, now, pid, ppidOf, readFile, run, timeout, sshClient?, manifestPath?, deadlineMs? }`;
  * `run(file, args, { cwd, timeoutMs, signal })` resolves `{ code, signal, error, timedOut, stdout, stderr }`.
  */
 export async function peerList(payload, ctx) {
@@ -506,6 +518,7 @@ async function main(argv) {
   if (!isObject(payload)) return
   const ctx = {
     timeout: process.env.CLAUDE_PLUGIN_OPTION_PEER_QUERY_TIMEOUT_SECONDS,
+    sshClient: process.env.CLAUDE_PLUGIN_OPTION_SSH_CLIENT,
     manifestPath: preview && at >= 0 && argv[at + 1] ? resolve(argv[at + 1]) : undefined,
     env: process.env,
     platform: process.platform,

@@ -276,6 +276,14 @@ test('ssh option list', () => {
   assert.equal(buildCommand(lane, makeCtx({ env: { WSL_DISTRO_NAME: '' } })).file, '/usr/bin/ssh', 'plain Linux')
   const sshLogin = { env: { WSL_DISTRO_NAME: '' }, readFile: (p) => (p === '/proc/sys/kernel/osrelease' ? '6.18.33.2-microsoft-standard-WSL2\n' : '') }
   assert.equal(buildCommand(lane, makeCtx(sshLogin)).file, '/mnt/c/Windows/System32/OpenSSH/ssh.exe', 'ssh login into WSL')
+  const WIN_SSH = '/mnt/c/Windows/System32/OpenSSH/ssh.exe'
+  for (const [raw, want] of [['/usr/bin/ssh', '/usr/bin/ssh'], ['/mnt/d/Windows/System32/OpenSSH/ssh.exe', '/mnt/d/Windows/System32/OpenSSH/ssh.exe'], ['/usr/bin/sh', WIN_SSH], ['ssh', WIN_SSH], ['/opt/ssh $(id)', WIN_SSH], ['C:\\Tools\\ssh.exe', WIN_SSH], ['', WIN_SSH]]) {
+    assert.equal(buildCommand(lane, makeCtx({ sshClient: raw })).file, want, `ssh_client ${JSON.stringify(raw)} on WSL`)
+  }
+  assert.equal(buildCommand(lane, makeCtx({ sshClient: '/opt/openssh/bin/ssh', env: { WSL_DISTRO_NAME: '' } })).file, '/opt/openssh/bin/ssh', 'Linux takes the option')
+  const winCtx = (sshClient) => makeCtx({ platform: 'win32', sshClient, env: { SystemRoot: 'C:\\Windows' } })
+  assert.equal(buildCommand(lane, winCtx('D:\\OpenSSH\\ssh.exe')).file, 'D:\\OpenSSH\\ssh.exe', 'Windows takes a drive path')
+  assert.equal(buildCommand(lane, winCtx('/usr/bin/ssh')).file, 'C:\\Windows\\System32\\OpenSSH\\ssh.exe', 'Windows refuses a / path')
   assert.equal(pickLanes(readManifest(contractExample), makeCtx(sshLogin))[0].kind, 'wsl', 'ssh login into WSL finds its own lane')
   assert.equal(buildCommand(lane, makeCtx({ platform: 'darwin', env: { WSL_DISTRO_NAME: '' } })).file, '/usr/bin/ssh', 'macOS')
   const win = buildCommand(lane, makeCtx({ platform: 'win32', env: { SystemRoot: 'C:\\Windows' } }))

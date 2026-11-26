@@ -50,8 +50,8 @@ A SessionStart hook adds the live Claude Code sessions on every fleet lane to th
 context on startup, resume, `/clear`, compaction and fork, at no model-turn cost. It reads
 `~/.config/fleet/fleet.json` (contract: [fleet-manifest](../../docs/contracts/fleet-manifest/README.md))
 and runs each lane's `claude agents --json`: on this lane directly, through WSL interop or
-`wsl.exe -d <distro> --exec`, or over ssh in batch mode with strict host keys and no forwarding (from WSL, the Windows OpenSSH
-client, since the distro holds no fleet key).
+`wsl.exe -d <distro> --exec`, or over ssh in batch mode with strict host keys and no forwarding. The ssh client is the one
+`ssh_client` names, else the platform's own; on WSL that is the Windows OpenSSH client.
 It starts no local shell and runs no other program itself; ssh still follows your ssh config.
 
 - The list opens with a line saying it is data, that same-lane peers take SendMessage by name and
@@ -97,6 +97,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `converge_docs_url` | string | *(none)* | URL of your own documentation for the fleet-converge command, which reach names when converging dotfiles comes up. Unset: reach names the command with no link. |
 | `peer_query_timeout_seconds` | number<br>*min 0, max 10* | `3` | Seconds the session-start peer list waits for each fleet lane's claude agents --json, from 0 to 10. 0 lists only the lane the session runs on. Empty or out of range: 3. |
+| `ssh_client` | string | *(none)* | Absolute path of the ssh client the peer list runs to reach other machines; the file must be named ssh or ssh.exe (a drive-letter path on Windows). Empty or invalid: the platform's own client, on WSL the Windows OpenSSH client. Set /usr/bin/ssh on WSL when the distro holds the fleet key. |
 
 ### How to set these
 
