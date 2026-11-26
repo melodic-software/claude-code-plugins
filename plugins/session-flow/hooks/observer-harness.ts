@@ -107,7 +107,7 @@ const missCause = (s: HarnessState, usage: Usage, idleMinutes: number | undefine
 
 const settle = (s: HarnessState, tokens: number | undefined, o: HarnessOptions, where: Where): HarnessResult => {
   const p = s.pending
-  if (p === undefined) return { state: { ...s, context: tokens ?? s.context }, findings: [], rows: [] }
+  if (p === undefined || tokens === undefined) return { state: { ...s, context: tokens ?? s.context }, findings: [], rows: [] }
   const next: HarnessState = { ...s, pending: undefined, compacted: false, context: tokens ?? s.context, turns: s.turns + 1 }
   const usage = p.usage
   next.model = usage.model ?? s.model

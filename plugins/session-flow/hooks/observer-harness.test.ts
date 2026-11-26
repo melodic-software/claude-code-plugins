@@ -96,6 +96,11 @@ test('a measurement between compaction and the turn\'s end keeps the compaction 
   expect(r.rows).toEqual([expect.objectContaining({ harness: 'cache-miss', cause: 'compaction' })])
 })
 
+test('a measurement with no token count leaves the pending turn for the next one that has it', () => {
+  const r = run([...turn(0, 1000, 20_000), measured(100_000), ...turn(60_000, 61_000, 160_000), { kind: 'measured', rateLimits: [] }, measured(110_000)])
+  expect(r.findings.map(f => f.finding.evidence)).toEqual(['150000 tokens rewritten (160000 written, context grew 10000)'])
+})
+
 test('the first turn of a session is never a miss', () => {
   expect(run([...turn(0, 1000, 500_000), measured(100_000)]).findings).toEqual([])
 })
