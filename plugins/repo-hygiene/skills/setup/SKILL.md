@@ -84,11 +84,11 @@ Install nothing, and run no mutating tier.
      <https://code.claude.com/docs/en/setup#install-with-npm> live.
 
 5. **Destructive-guard registration and toggle**. INFO, and be precise about *where* the guard
-   lives, because the answer is the reason it is session-scoped:
+   lives, because the answer decides its lifetime:
    - It registers from the frontmatter `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md`,
-     not from a plugin-level `hooks/hooks.json`, which this plugin does not ship. We read it as
-     armed once `/repo-hygiene:clean` is invoked and for the rest of that session ([hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)),
-     so a session that never invoked the skill has no guard and nothing is wrong with that. Read that SKILL.md for the block (it runs `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh`); never look for a `hooks.json` or list `hooks/`.
+     not from a plugin-level `hooks/hooks.json`, which this plugin does not ship. Before reporting when the guard is
+     armed and how long it stays armed, fetch [hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents) live and state both from it;
+     an unarmed guard in a session that has not invoked `/repo-hygiene:clean` is INFO, expected, with nothing to fix. Read that SKILL.md for the block (it runs `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh`); never look for a `hooks.json` or list `hooks/`.
    - Report the effective `${user_config.clean_destructive_guard_enabled}` (an unexpanded token or
      an empty value means the manifest default `true`). Read it from this text as rendered; never
      echo it through Bash, where an unexpanded token is invalid shell syntax and the call is
