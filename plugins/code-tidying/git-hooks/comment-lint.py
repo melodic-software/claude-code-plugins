@@ -62,7 +62,7 @@ DIRECTIVE = re.compile(
     | @ts-(?:ignore|expect-error|nocheck|check)\b | \bprettier-ignore\b | \bbiome-ignore\b
     | \b(?:istanbul|c8|v8)\s+ignore\b | \bdeno-lint-ignore | \bNOLINT | //\s*nolint\b | \bnolint:
     | \brubocop:(?:disable|enable|todo)\b | \bStryker\s+(?:disable|restore)\b | \bNOSONAR\b
-    | \bmarkdownlint-(?:disable|enable|capture|restore) | \bspellchecker:\s*(?:on|off|disable)
+    | \bmarkdownlint-(?:disable|enable|capture|restore) | \bspellchecker:\s*(?:on|off|disable|ignore-next-line)
     | \bcspell:\s*\w | \btypos:\s*(?:on|off|ignore) | \bcodespell:\s*ignore | \bzizmor:\s*ignore
     | \bhadolint\s+ignore= | \byamllint\s+(?:disable|enable) | \bcheckov:skip= | \btfsec:ignore
     | \btrivy:ignore | \bdotnet_diagnostic | \bReSharper\s+(?:disable|restore)\b | \bnoinspection\b
