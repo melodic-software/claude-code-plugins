@@ -1,15 +1,15 @@
 # Drift-delta sweep
 
 Normative leaf of the [routine catalog](../routines.md): the `drift-delta-sweep` v1 class
-definition, a standing sweep that runs the repository's installed drift lanes on a cadence
+definition, a standing sweep that runs the repository's installed drift checks on a cadence
 and reports what moved since the previous cycle.
 
 ## Purpose
 
-The toil addressed is a coverage gap rather than a detection gap. The drift lanes a
+The toil addressed is a coverage gap rather than a detection gap. The drift checks a
 repository already installs are read-only and cheap to run, but they run only when a human
 remembers to invoke them, so movement between one invocation and the next is noticed late or
-not at all. `drift-delta-sweep` runs those lanes on a cadence and reports their movement, so
+not at all. `drift-delta-sweep` runs those checks on a cadence and reports their movement, so
 drift coverage is a standing property of the repository rather than a habit somebody has to
 keep.
 
@@ -22,7 +22,7 @@ Suggested cadence default: **weekly**, an org-bindable value set in the org's ro
 binding, never contract-fixed.
 
 The run predicate is a fact of the class, not a requirement the class imposes on a binding.
-The two delta lanes compare against their previous cycle, and capture a comparison point for
+The two delta checks compare against their previous cycle, and capture a comparison point for
 the next one, only when the executing session resolves a **branch identity**, either a branch
 checkout or a logical ref the runner supplies, and finds its memory-tier home
 **persisted across** runs. A run that resolves neither still executes and still reports: it
@@ -36,7 +36,7 @@ No vendor scheduling surface is named here; guided setup researches scheduling s
 ## Access scope
 
 Repo: the sweep reads the repository tree and writes through the governed queue and tracker
-only. No merge path: the repository drift audit lane runs without `--fix`, and no lane in the
+only. No merge path: the repository drift audit check runs without `--fix`, and no check in the
 fan-out prepares or applies a repository change. No production, product, org, or external-web
 access, so the connector-prerequisite branch of the mapping rules never applies. Per the
 catalog mapping rules' access axis, repo scope sets the `L2` unattended floor as the class
@@ -44,9 +44,9 @@ prerequisite ([guardrail contract](../guardrails.md)).
 
 ## Output contract
 
-- **Advisory report.** One report per run, carrying one section per lane, a **coverage line**
+- **Advisory report.** One report per run, carrying one section per check, a **coverage line**
   naming which enforcement-surface layers and which audit dimension this cycle walked, and a
-  "lanes not run" section naming each lane whose plugin is not enabled or that was blocked, and
+  "checks not run" section naming each check whose plugin is not enabled or that was blocked, and
   why it did not run. For a plugin that is not enabled, the remedy it names is the host's
   plugin enable command, preceded by its plugin install command when the plugin is not
   installed.
@@ -56,27 +56,27 @@ prerequisite ([guardrail contract](../guardrails.md)).
 The report is also the evidence with which this class keeps its own place on the enforcement
 surface. A catalog routine's handler runs no work itself and enqueues one signal onto a
 tracker-held governed queue item, so the durable record of the class is that queue item, the
-recurring-work-item shape the enforcement-surface lane's own guidance prefers, minted by a
+recurring-work-item shape the enforcement-surface check's own guidance prefers, minted by a
 scheduled tick. That queue item is itself an item on the enforcement surface, and the report
 is what has to justify it.
 
 ## Fan-out
 
-The class's instruction content: three lanes, invoked in this order. Each names the plugin
+The class's instruction content: three checks, invoked in this order. Each names the plugin
 that owns it, is gated on that plugin being enabled at the point of invocation, and states its
 fallback in the same sentence.
 
-1. **The instruction-placement delta lane.** Invoke `/instruction-placement:delta` when the
-   `instruction-placement` plugin is enabled; where it is not enabled, record the lane as not
-   run and continue. The lane owns what moved in the instruction-placement findings since its own
-   last run. Bootstrap rule: where the lane reports no prior artifact to compare against,
+1. **The instruction-placement delta check.** Invoke `/instruction-placement:delta` when the
+   `instruction-placement` plugin is enabled; where it is not enabled, record the check as not
+   run and continue. The check owns what moved in the instruction-placement findings since its own
+   last run. Bootstrap rule: where the check reports no prior artifact to compare against,
    invoke `/instruction-placement:audit` instead, which is read-only apart from writing its own
    findings artifact, so the next cycle has a baseline, and record the cycle as a bootstrap
    in the coverage line.
 
-2. **The enforcement-surface delta lane.** Invoke `/overengineering:delta` with `--unattended`
+2. **The enforcement-surface delta check.** Invoke `/overengineering:delta` with `--unattended`
    and the cycle's two layers when the `overengineering` plugin is enabled; where it is not
-   enabled, record the lane as not run and continue. The lane owns what moved in the
+   enabled, record the check as not run and continue. The check owns what moved in the
    enforcement surface since its own last run. The layer pair rotates on the ISO week number,
    read with `date -u +%V`; the pair index is (ISO week − 1) mod 5:
 
@@ -89,11 +89,11 @@ fallback in the same sentence.
    | 4 | `forge-apps external-integrations` |
 
    The rotation is stateless, a function of the week alone, so a 53-week year repeats one
-   pair, which the coverage line records. The report carries the lane's own coverage line.
+   pair, which the coverage line records. The report carries the check's own coverage line.
 
-3. **The repository drift audit lane.** Invoke `/codebase-health:audit` without `--fix` and
+3. **The repository drift audit check.** Invoke `/codebase-health:audit` without `--fix` and
    with exactly one dimension flag when the `codebase-health` plugin is enabled; where it is
-   not enabled, record the lane as not run and continue. The lane owns the full drift pass over
+   not enabled, record the check as not run and continue. The check owns the full drift pass over
    documentation, configuration, code, and architecture claims; it is a full pass every cycle
    and never a delta. The dimension rotates on the same ISO week number; the dimension index
    is (ISO week − 1) mod 4:
@@ -105,11 +105,11 @@ fallback in the same sentence.
    | 2 | `--code-only` |
    | 3 | `--arch-only` |
 
-   Before invoking, read the lane's own tracked configuration and expand that dimension's
-   `primary-sources` globs. Twenty files is the lane's confirm threshold, and an unattended
+   Before invoking, read the check's own tracked configuration and expand that dimension's
+   `primary-sources` globs. Twenty files is the check's confirm threshold, and an unattended
    session cannot answer that confirm. Where the configuration resolves no targets for the
-   dimension, or the expanded list exceeds twenty files, do not invoke the lane, and record it
-   as not run with the dimension and the file count. Keep the lane's checklist in-response and take no persist offer.
+   dimension, or the expanded list exceeds twenty files, do not invoke the check, and record it
+   as not run with the dimension and the file count. Keep the check's checklist in-response and take no persist offer.
 
 ## Derived guardrail row
 
@@ -117,7 +117,7 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 
 1. **Judgment axis.** Which movement matters, and which of it needs authorial judgment, is
    semantic judgment no rule engine resolves, so it is agent judgment (`AGT`). Detection belongs to
-   the lanes; the sweep's judgment is over what they returned.
+   the checks; the sweep's judgment is over what they returned.
 2. **Output axes.** The advisory report derives `C1` through the `AGT` + report rule, and the
    filed work items derive `C1` through the `AGT` + work-item rule: governed-queue and tracker
    writes with no repository mutation, scoped as permitted `C1` output by the
@@ -164,6 +164,6 @@ escalation rules.
 
 The proven manual pattern at class level is the operator-run cadence pass over report-only
 drift detectors: report-only drift-watch rows already carried in a consumer's recurring
-schedule, and the recurring-wiring guidance the enforcement-surface lane gives for its own
-repeat runs. No run record exists yet for these three lanes together. The `v1`
+schedule, and the recurring-wiring guidance the enforcement-surface check gives for its own
+repeat runs. No run record exists yet for these three checks together. The `v1`
 status rests on the class-level pattern, not on a logged run of this fan-out.

@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git ls-files --error-unmatch .claude/tidy-lanes/jobs.md"
+            "command": "git ls-files --error-unmatch .claude/tidy-areas/jobs.md"
           }
         },
         {
@@ -24,18 +24,18 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git add .claude/tidy-lanes/jobs.md"
+            "command": "git add .claude/tidy-areas/jobs.md"
           }
         }
       ],
-      "why": "staged a lane"
+      "why": "staged a focus area"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "git -C /w commit -m lanes"
+            "command": "git -C /w commit -m areas"
           }
         }
       ],
