@@ -375,13 +375,13 @@ function render(results, ctx, repos, repoName) {
 
 /**
  * The peer list for a SessionStart payload, or '' when there is nothing to print.
- * `ctx`: `{ env, platform, homedir, hostname, now, pid, ppidOf, readFile, run, timeout, deadlineMs? }`;
+ * `ctx`: `{ env, platform, homedir, hostname, now, pid, ppidOf, readFile, run, timeout, manifestPath?, deadlineMs? }`;
  * `run(file, args, { cwd, timeoutMs, signal })` resolves `{ code, signal, error, timedOut, stdout, stderr }`.
  */
 export async function peerList(payload, ctx) {
   let manifest = null
   try {
-    manifest = readManifest(ctx.readFile(`${ctx.homedir}/.config/fleet/fleet.json`))
+    manifest = readManifest(ctx.readFile(ctx.manifestPath ?? `${ctx.homedir}/.config/fleet/fleet.json`))
   } catch {}
   const lanes = pickLanes(manifest, ctx)
   if (!lanes.length) return ''
@@ -480,10 +480,19 @@ function readStdin() {
   })
 }
 
-async function main() {
-  const payload = JSON.parse(await readStdin())
+/**
+ * Hook mode reads the SessionStart payload on stdin and always reads ~/.config/fleet/fleet.json.
+ * `--preview` reads no stdin, takes this folder as the session's, prints the list as text, and
+ * alone honors `--manifest <file>`.
+ */
+async function main(argv) {
+  const preview = argv.includes('--preview')
+  const at = argv.indexOf('--manifest')
+  const payload = preview ? { cwd: process.cwd() } : JSON.parse(await readStdin())
   if (!isObject(payload)) return
   const ctx = {
+    timeout: process.env.CLAUDE_PLUGIN_OPTION_PEER_QUERY_TIMEOUT_SECONDS,
+    manifestPath: preview && at >= 0 && argv[at + 1] ? resolve(argv[at + 1]) : undefined,
     env: process.env,
     platform: process.platform,
     homedir: homedir(),
@@ -495,7 +504,8 @@ async function main() {
     run,
   }
   const additionalContext = await peerList(payload, ctx)
-  if (additionalContext) process.stdout.write(`${JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext } })}\n`)
+  if (preview) process.stdout.write(`${additionalContext || 'peer list: nothing to print'}\n`)
+  else if (additionalContext) process.stdout.write(`${JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext } })}\n`)
 }
 
 const realPath = (p) => {
@@ -506,7 +516,7 @@ const realPath = (p) => {
   }
 }
 if (process.argv[1] && realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url))) {
-  main()
+  main(process.argv.slice(2))
     .catch((e) => process.stderr.write(`peer-list: ${e?.message ?? e}\n`))
     .finally(() => process.stdout.write('', () => process.exit(0)))
 }
