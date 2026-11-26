@@ -29,6 +29,10 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "grep -n -- '--file-lines 400' /plugins/code-metrics/skills/audit/actions/size.md"}}],
       "why": "the flag read from the skill, the script never run"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit/scripts/audit-size.sh\" --all --file-lines=400"}}],
+      "why": "the script reads --file-lines only with a separate value, so this counts against the bundled default"
     }
   ]
 }
