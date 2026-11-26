@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: scripts/fixtures/engineering-concepts/**
+# test-scope: scripts/fixtures/engineering-concepts/** plugins/engineering-concepts/.claude-plugin/plugin.json plugins/engineering-concepts/schemas/engineering-concepts.schema.json
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
