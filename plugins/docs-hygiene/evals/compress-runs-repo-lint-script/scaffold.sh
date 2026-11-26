@@ -34,8 +34,7 @@ cat >scripts/lint-md.sh <<'SH'
 # Checks that each markdown file opens with an ATX heading; checks every .md file when given none.
 set -euo pipefail
 if (($# == 0)); then
-  mapfile -t files < <(find . -name '*.md' -not -path './node_modules/*' | sort)
-  set -- "${files[@]}"
+  while IFS= read -r f; do set -- "$@" "$f"; done < <(find . -name '*.md' -not -path './node_modules/*' | sort)
 fi
 status=0
 for f in "$@"; do

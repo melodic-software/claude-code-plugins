@@ -10,6 +10,6 @@ graders:
     arm: with-only
   - name: lists-toml-declaration
     type: regex
-    pattern: 'pyproject\.toml(?:[^\n]*\n){0,3}?[^\n]*ledger-sync|ledger-sync[^\n]*pyproject\.toml'
+    pattern: 'name\s*=\s*\\?["'']?ledger-sync\b|pyproject\.toml(?::|,?\s*line\s*)2\b'
     target: last_message
     arm: both

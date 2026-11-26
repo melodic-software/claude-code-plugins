@@ -9,6 +9,7 @@
     {"answer": "", "why": "empty reply"},
     {"answer": "No stale references to ledger-sync found. The rename looks complete.", "why": "misses the TOML declaration"},
     {"answer": "Container mode: bare-token residue suppressed. 0 actionable stragglers.\n\nChecked: README.md, packages/ledger-bridge/README.md.", "why": "the failure the TOML alternative prevents"},
-    {"answer": "Checked packages/ledger-bridge/pyproject.toml: fine.\n\nNothing else to change.", "why": "the manifest named as clean, without the old name"}
+    {"answer": "Checked packages/ledger-bridge/pyproject.toml: fine.\n\nNothing else to change.", "why": "the manifest named as clean, without the old name"},
+    {"answer": "Container rename: packages/ledger-sync -> packages/ledger-bridge (pyproject.toml present). Bare-token residue suppressed; 0 actionable stragglers.", "why": "restates the rename pair beside the manifest name, misses the declaration"}
   ]
 }
