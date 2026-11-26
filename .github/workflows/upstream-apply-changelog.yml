@@ -1,51 +1,5 @@
 name: Upstream Apply Changelog
 
-# The release intake lane (#7407): for one Claude Code release, the apply-changelog job
-# runs `/harness-ops:changelog apply --ci <release>`, which commits one local
-# branch per owner plugin and writes ci-plan.json
-# (plugins/harness-ops/skills/changelog/context/ci-mode.md). Scripted jobs
-# then act on that plan with lanes App tokens from the token broker, which
-# mints for this file on schedule and workflow_dispatch from main only, keyed
-# on the `release` request field:
-#   push-branches (mutate-branch: contents write) recreates each branch whose
-#     net diff changes only plugins/<plugin>/ and .changes/<plugin>/ as one
-#     commit on the base through the Git Data API, titled with the plan's pull
-#     request title, so GitHub authors and signs it as the lanes App;
-#   publish (publish-artifact: pull-requests and issues write, contents read)
-#     opens one pull request per pushed branch and files one issue per handoff
-#     row, each with its key marker and the `source: upstream-apply-changelog`
-#     label (a replace row as an audit-native-overlap nomination with a Hold:
-#     line; a docs-lag row only in the run summary), as
-#     https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan
-#     says.
-# The broker never grants contents and pull-requests write in one mint, nor
-# merge or actions, so no job here can merge.
-#
-# The verify-env-scrub job checks the release itself: capture-probe.mjs as a Bash
-# child of a leg on that release's CLI, holding the key. A release that lets
-# the child read the key, the job token or the runtime token fails that job
-# and the run. No job needs it, so a red probe blocks no publishing.
-#
-# A schedule run takes the newest of the ten newest unread releases
-# changelog-status.sh lists that is not done yet, so a later tick takes each
-# release of a burst in turn; a dispatch names one.
-# A release is skipped only when this workflow's
-# upstream-apply-changelog-done-<release> artifact exists, since --ci never
-# moves the read marker; existing branches and PRs are skipped per item.
-# At most limits.upstream-apply-changelog-per-day runs whose leg ran start
-# in any 24 hours (docs/conventions/pr-pipeline.yaml).
-# The model runs as three legs, one credential per job: apply-changelog on the issue
-# lane's API key, apply-changelog-subscription on its subscription token when the key
-# leg hands off (a credit stop, or a 401 or 402), the key is empty, or the
-# key-credit gate skips a key that credit-stopped inside its window, and
-# apply-changelog-fallback on FALLBACK_CLAUDE_CODE_OAUTH_TOKEN when the subscription leg
-# hands off (a limit stop, a credit stop, or a 401 or 402). A leg that hands
-# off is not counted toward the cap; the leg after it is.
-#
-# How to stop it: set the organization or repository lanes kill-switch
-# variable to anything but "false"; every job checks it first and the broker
-# reads it live.
-
 on:
   schedule:
     - cron: "25 * * * *"
@@ -58,10 +12,6 @@ on:
 
 permissions: {}
 
-# One run at a time; later runs wait in line and are never cancelled
-# (`queue: max`). The default keeps one waiting run and cancels it when a
-# newer one queues, which would drop a dispatch. GitHub keeps at most 100
-# waiting and cancels any more; a waiting schedule tick costs one gate.
 concurrency:
   group: upstream-apply-changelog
   cancel-in-progress: false
@@ -72,8 +22,6 @@ defaults:
     shell: bash
 
 jobs:
-  # Picks the release, skips one already processed, and applies the per-day
-  # cap. No model, no secret, a read-only token.
   select-release:
     name: Select Release
     if: github.ref == 'refs/heads/main'
@@ -125,12 +73,6 @@ jobs:
           WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or written"
 
-      # A dispatch, and any re-run of one, must come from a listed human; the
-      # broker checks the same, so this only keeps the model from running for
-      # nothing. Actor-only mode takes no schedule event, so a re-run of a
-      # scheduled run stops here: dispatch the release instead. Any re-run,
-      # partial or full, also skips the apply-changelog job (its run_attempt check), so
-      # a retry of the model is a new dispatch.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true' && (github.event_name == 'workflow_dispatch' || github.run_attempt != '1')
@@ -161,15 +103,6 @@ jobs:
           export DAILY_CAP
           node .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs gate
 
-      # Whether the key is still out of credit, and so which leg runs first
-      # (ci-workflows select-model-credential, its start call: check-key-credit's
-      # one artifact-list call for the `marker` the apply-changelog job uploads after a
-      # credit stop). A credit stop inside the window names the subscription
-      # leg, and apply-changelog-subscription runs the release on the subscription
-      # token. It runs only once a release is picked, so a tick with nothing
-      # to take spends no call. Probing is off: the concurrency group runs one
-      # run at a time, so no second run can reach the key while the first run
-      # after the window tries it. Every failure runs the key.
       - name: Read the key's credit history
         id: credit
         if: steps.gate.outputs.proceed == 'true'
@@ -184,9 +117,6 @@ jobs:
           reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
           probe-minutes: "0"
 
-      # Names the run whose credit stop holds the key off. The window's end
-      # is the gate's (it backs off after repeated stops), so it is not
-      # restated here.
       - name: Report the credit skip
         if: steps.credit.outputs.next-leg == 'subscription'
         continue-on-error: true
@@ -219,15 +149,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The model, on ci-workflows' run-claude-cli, with the API key and a
-  # read-only GITHUB_TOKEN and nothing else: the skill needs Bash to commit,
-  # so this job holds no write token, and what it leaves is sealed to the
-  # scan-carrier key and opened only by the scan job. run-claude-cli runs the
-  # CLI with --restricted (no user, project or local settings); the plugins
-  # load from read-only copies staged from main before the root checkout, and
-  # every CLAUDE.md, AGENTS.md, .mcp.json and .claude/ in the checkout is
-  # removed from the working tree first (R13). This is the key leg; a
-  # handoff or an empty key leaves the release to apply-changelog-subscription.
   apply-changelog:
     name: Apply Changelog
     needs: select-release
@@ -237,10 +158,6 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-    # No global or system git config applies to any step: one the model
-    # writes during its leg would otherwise reach the checkout after it
-    # (which copies the global config into its temporary HOME) and every
-    # later git call. The leg commits with the repository's own identity.
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -282,8 +199,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The lane's apply-changelog slot: its route's model, effort and turns.
-      # model-route takes only run routes, never a skill activity's route.
       - name: Resolve the model
         id: models
         if: steps.kill.outputs.proceed == 'true'
@@ -297,8 +212,6 @@ jobs:
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set leaves this step, never its value. An
-      # empty key hands the release to apply-changelog-subscription.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -367,10 +280,6 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060):
-          # harness-ops:changelog's Bash fetches the changelog from
-          # raw.githubusercontent.com (fetch-changelog.sh), a host the sandbox's
-          # GitHub-only network refuses.
           sandbox: "false"
           tools: |
             Read
@@ -407,9 +316,6 @@ jobs:
             .lane/plugins/verification
           leg-timeout-minutes: "70"
 
-      # The sealer, its key and the transcript uploader come from a fresh
-      # checkout of the base after the leg: the model could have written
-      # anything under the workspace and RUNNER_TEMP, including this path.
       - name: Clear the trusted checkout path
         if: always() && steps.models.outcome != 'skipped'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
@@ -423,14 +329,6 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
-      # Read by the next runs' credit gate: the artifact its `marker` output
-      # names (check-key-credit gate.cjs markerName), uploaded only after the
-      # leg's credit-stop handoff, which on this key leg means the key is out
-      # of credit. The name is written out so its retention row
-      # (.github/artifact-retention.json) claims it; a gate that names another
-      # marker writes none. Its upload time starts the window; one day's
-      # retention covers windows up to 24 hours. The file is rewritten after
-      # the leg and scanned with the trusted checkout's action.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.select-release.outputs.credit-marker == 'key-credit-stop-ISSUE_LANE_CLAUDE_API_KEY' && steps.run.outputs.handoff-reason == 'credit-stop'
@@ -463,12 +361,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # The gate's per-day cap counts these: every leg past the kill switch,
-      # a setup failure before the leg included, except one that handed off
-      # or found its credential empty, since the next leg then runs the
-      # release and records its own start. One start per run, so the cap
-      # stays the brake. The file is rewritten after the leg and scanned, as
-      # the marker is.
       - name: Record the start
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.run.outputs.handoff != 'true' && steps.credential.outputs.present != 'false'
@@ -539,8 +431,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # The plan, and the planned branches as one git bundle from the base,
-      # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
         id: seal
         if: always() && steps.run.outcome != 'skipped'
@@ -570,11 +460,6 @@ jobs:
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -586,7 +471,6 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           handoff-reason: ${{ steps.run.outputs.handoff-reason }}
 
-      # From the trusted checkout: the root checkout replaced .base.
       - name: Log the API budget at the end
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -595,17 +479,9 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription leg: the key leg's steps from a fresh VM, on the issue
-  # lane's subscription token alone, with no credit-stop marker. With
-  # FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a limit stop, a credit stop, or a
-  # 401 or 402 hands off to apply-changelog-fallback. upstream-apply-changelog.test.mjs
-  # holds its steps equal to the key leg's but for the credential, the
-  # handoff report, the leg record's fallback reason and the seal's job id.
   apply-changelog-subscription:
     name: Apply Changelog Subscription
     needs: [select-release, apply-changelog]
-    # The first attempt only, after the key leg handed off, found its key
-    # empty, or was skipped by the credit gate.
     if: >-
       ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.apply-changelog.outputs.next-leg == 'subscription' || needs.select-release.outputs.next-leg == 'subscription') }}
@@ -614,10 +490,6 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-    # No global or system git config applies to any step: one the model
-    # writes during its leg would otherwise reach the checkout after it
-    # (which copies the global config into its temporary HOME) and every
-    # later git call. The leg commits with the repository's own identity.
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -659,8 +531,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The lane's apply-changelog slot: its route's model, effort and turns.
-      # model-route takes only run routes, never a skill activity's route.
       - name: Resolve the model
         id: models
         if: steps.kill.outputs.proceed == 'true'
@@ -674,7 +544,6 @@ jobs:
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether each secret is set leaves this step, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -745,10 +614,6 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060):
-          # harness-ops:changelog's Bash fetches the changelog from
-          # raw.githubusercontent.com (fetch-changelog.sh), a host the sandbox's
-          # GitHub-only network refuses.
           sandbox: "false"
           tools: |
             Read
@@ -785,9 +650,6 @@ jobs:
             .lane/plugins/verification
           leg-timeout-minutes: "70"
 
-      # The sealer, its key and the transcript uploader come from a fresh
-      # checkout of the base after the leg: the model could have written
-      # anything under the workspace and RUNNER_TEMP, including this path.
       - name: Clear the trusted checkout path
         if: always() && steps.models.outcome != 'skipped'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
@@ -801,11 +663,6 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
-      # The gate's per-day cap counts these: every leg past the kill switch,
-      # a setup failure before the leg included, except one that handed off
-      # or found its credential empty, since the next leg then runs the
-      # release and records its own start. One start per run, so the cap
-      # stays the brake. The file is rewritten after the leg and scanned.
       - name: Record the start
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.run.outputs.handoff != 'true' && steps.credential.outputs.present != 'false'
@@ -873,8 +730,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The plan, and the planned branches as one git bundle from the base,
-      # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
         id: seal
         if: always() && steps.run.outcome != 'skipped'
@@ -904,11 +759,6 @@ jobs:
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -920,7 +770,6 @@ jobs:
           handoff: ${{ steps.run.outputs.handoff }}
           handoff-reason: ${{ steps.run.outputs.handoff-reason }}
 
-      # From the trusted checkout: the root checkout replaced .base.
       - name: Log the API budget at the end
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -932,8 +781,6 @@ jobs:
   apply-changelog-fallback:
     name: Apply Changelog Fallback
     needs: [select-release, apply-changelog-subscription]
-    # The first attempt only, after the subscription leg handed off or found
-    # its token empty.
     if: >-
       ${{ !cancelled() && needs.select-release.outputs.proceed == 'true' && github.run_attempt == '1'
       && needs.apply-changelog-subscription.outputs.next-leg == 'fallback' }}
@@ -942,10 +789,6 @@ jobs:
     cache-mode: read
     permissions:
       contents: read
-    # No global or system git config applies to any step: one the model
-    # writes during its leg would otherwise reach the checkout after it
-    # (which copies the global config into its temporary HOME) and every
-    # later git call. The leg commits with the repository's own identity.
     env:
       GIT_CONFIG_GLOBAL: /dev/null
       GIT_CONFIG_NOSYSTEM: "1"
@@ -985,8 +828,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The lane's apply-changelog slot: its route's model, effort and turns.
-      # model-route takes only run routes, never a skill activity's route.
       - name: Resolve the model
         id: models
         if: steps.kill.outputs.proceed == 'true'
@@ -1000,7 +841,6 @@ jobs:
           output-path: ${{ runner.temp }}/upstream-apply-changelog-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether each secret is set leaves this step, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1069,10 +909,6 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060):
-          # harness-ops:changelog's Bash fetches the changelog from
-          # raw.githubusercontent.com (fetch-changelog.sh), a host the sandbox's
-          # GitHub-only network refuses.
           sandbox: "false"
           tools: |
             Read
@@ -1109,9 +945,6 @@ jobs:
             .lane/plugins/verification
           leg-timeout-minutes: "70"
 
-      # The sealer, its key and the transcript uploader come from a fresh
-      # checkout of the base after the leg: the model could have written
-      # anything under the workspace and RUNNER_TEMP, including this path.
       - name: Clear the trusted checkout path
         if: always() && steps.models.outcome != 'skipped'
         run: rm -rf "${GITHUB_WORKSPACE:?}/.lane-trusted"
@@ -1125,11 +958,6 @@ jobs:
           persist-credentials: false
           set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
-      # The gate's per-day cap counts these: every leg past the kill switch,
-      # a setup failure before the leg included, except one that found its
-      # credential empty. This last leg never hands off. One start per run,
-      # so the cap stays the brake. The file is rewritten after the leg and
-      # scanned.
       - name: Record the start
         id: start
         if: always() && steps.models.outcome != 'skipped' && steps.credential.outputs.present != 'false'
@@ -1185,8 +1013,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The plan, and the planned branches as one git bundle from the base,
-      # sealed with the sealer from the trusted checkout.
       - name: Seal the plan and the branches
         id: seal
         if: always() && steps.run.outcome != 'skipped'
@@ -1216,7 +1042,6 @@ jobs:
           export PUBLIC_KEY_FILE PAYLOADS
           node "$TRUSTED/.github/actions/seal-lane-output/seal.mjs"
 
-      # From the trusted checkout: the root checkout replaced .base.
       - name: Log the API budget at the end
         if: always() && steps.run.outcome != 'skipped'
         continue-on-error: true
@@ -1225,14 +1050,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Whether the CLI's subprocess scrub holds on the release this run takes
-  # (run-claude-cli always sets it: lane.cjs legEnv). A Bash child of a leg on
-  # that CLI and the key runs capture-probe.mjs, whose canary child shows its
-  # /proc scan can see an environment, and two Read calls the deny rules must
-  # refuse. Same conditions as the apply-changelog job, so a release the gate takes again
-  # is probed again. This is the key leg's probe; verify-env-scrub-subscription and
-  # verify-env-scrub-fallback probe the same way on the credential each later leg
-  # runs on, after the same handoffs as the model's legs.
   verify-env-scrub:
     name: Verify Env Scrub
     needs: select-release
@@ -1284,7 +1101,6 @@ jobs:
           output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1324,10 +1140,6 @@ jobs:
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
 
-      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the key goes
-      # only to the api-key input.
-      # continue-on-error lets a handoff end the job green; "Check the probe"
-      # fails it on any other probe failure.
       - name: Probe what a Bash child can reach
         id: probe
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
@@ -1346,8 +1158,6 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
-          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.select-release.outputs.release }}
           tools: |
@@ -1401,9 +1211,6 @@ jobs:
           known-failure-class: ${{ steps.probe.outputs.lane-class }}
           max-turns: "6"
 
-      # Fails closed, naming the release and hit names only: a failed leg, a
-      # CLI other than the release, no result, a name that never reached the
-      # probe, any hit, a missed canary, or a Read the deny rules let through.
       - name: Check the probe
         if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
         env:
@@ -1442,11 +1249,6 @@ jobs:
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1519,7 +1321,6 @@ jobs:
           output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1560,10 +1361,6 @@ jobs:
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
 
-      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the token goes
-      # only to the subscription-token input.
-      # continue-on-error lets a handoff end the job green; "Check the probe"
-      # fails it on any other probe failure.
       - name: Probe what a Bash child can reach
         id: probe
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
@@ -1583,8 +1380,6 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
-          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.select-release.outputs.release }}
           tools: |
@@ -1638,9 +1433,6 @@ jobs:
           known-failure-class: ${{ steps.probe.outputs.lane-class }}
           max-turns: "6"
 
-      # Fails closed, naming the release and hit names only: a failed leg, a
-      # CLI other than the release, no result, a name that never reached the
-      # probe, any hit, a missed canary, or a Read the deny rules let through.
       - name: Check the probe
         if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
         env:
@@ -1679,11 +1471,6 @@ jobs:
           echo "::notice::Claude Code $RELEASE: the subprocess scrub probe passed"
           echo "Claude Code $RELEASE: the subprocess scrub probe passed" >>"$GITHUB_STEP_SUMMARY"
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1753,7 +1540,6 @@ jobs:
           output-path: ${{ runner.temp }}/upstream-apply-changelog-probe-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true'
@@ -1793,10 +1579,6 @@ jobs:
             echo 'Then answer with the last line the command printed. Do nothing else.'
           } >"$PROMPT_FILE"
 
-      # CAPTURE_PROBE_EXTRA_NAMES holds a name, never the secret: the token goes
-      # only to the fallback-token input.
-      # continue-on-error leaves the verdict to "Check the probe", which
-      # fails the job on any probe failure; this last leg never hands off.
       - name: Probe what a Bash child can reach
         id: probe
         if: steps.models.outcome == 'success' && steps.models.outputs.applies == 'true' && steps.credential.outputs.present == 'true'
@@ -1815,8 +1597,6 @@ jobs:
           model: ${{ steps.models.outputs.model }}
           max-turns: "6"
           permission-mode: dontAsk
-          # Sandbox off (melodic-software/ci-workflows#1060), as on the model
-          # legs, so the probe checks the scrub where their Bash runs.
           sandbox: "false"
           cli-version: ${{ needs.select-release.outputs.release }}
           tools: |
@@ -1870,9 +1650,6 @@ jobs:
           known-failure-class: ${{ steps.probe.outputs.lane-class }}
           max-turns: "6"
 
-      # Fails closed, naming the release and hit names only: a failed leg, a
-      # CLI other than the release, no result, a name that never reached the
-      # probe, any hit, a missed canary, or a Read the deny rules let through.
       - name: Check the probe
         if: always() && steps.probe.outcome != 'skipped' && steps.probe.outputs.handoff != 'true'
         env:
@@ -2257,10 +2034,6 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # Opens the sealed plan and bundle, scans what will be published for
-  # credentials, and uploads only a clean set. No model, no write token.
-  # One leg answers the run: the fallback leg when it ran, else the
-  # subscription leg when it ran, else the key leg.
   scan:
     name: Scan
     needs: [select-release, apply-changelog, apply-changelog-subscription, apply-changelog-fallback]
@@ -2268,9 +2041,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     cache-mode: read
-    # The scan-carrier key's second holder (owner decision, 2026-11-02):
-    # main only, no id-token, no write token, read-only cache; the
-    # environment admits main only.
     environment:
       name: pr-pipeline-scan-carrier
       deployment: false
@@ -2280,8 +2050,6 @@ jobs:
       clean: ${{ steps.upload.outcome == 'success' }}
       branches: ${{ steps.check.outputs.branches }}
       synthetic: ${{ steps.check.outputs.synthetic }}
-      # Push and publish download this artifact by id and check these
-      # hashes before anything is minted.
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       plan-sha256: ${{ steps.hash.outputs.plan }}
       bundle-sha256: ${{ steps.hash.outputs.bundle }}
@@ -2329,8 +2097,6 @@ jobs:
           sealed-5: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-5 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-5 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-5 || '' }}
           sealed-6: ${{ needs.apply-changelog-fallback.result != 'skipped' && needs.apply-changelog-fallback.outputs.sealed-6 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result != 'skipped' && needs.apply-changelog-subscription.outputs.sealed-6 || needs.apply-changelog-fallback.result == 'skipped' && needs.apply-changelog-subscription.result == 'skipped' && needs.apply-changelog.outputs.sealed-6 || '' }}
 
-      # The plan's checks, and each branch's diff as text for the scan: the
-      # bundle itself is compressed, so its bytes say nothing to a scanner.
       - name: Check the plan and write the diffs
         id: check
         env:
@@ -2395,10 +2161,6 @@ jobs:
         with:
           tokens: github-token
 
-  # mutate-branch: contents write only. Recreates each planned branch that does
-  # not exist yet as one lanes App commit holding the scanned head tree, as
-  # apply-patch does for work-resolve-issue, after checking its net diff stays
-  # inside its plugin.
   push-branches:
     name: Push Branches
     needs: [select-release, scan]
@@ -2456,9 +2218,6 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Before the mint: the scan job's artifact, by id, and the SHA-256 it
-      # recorded for each file. A missing or altered file fails the job, so
-      # nothing is minted.
       - name: Download the plan and the branches
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: actions/download-artifact@v8
@@ -2532,15 +2291,6 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # publish-artifact: pull-requests and issues write, contents read. Opens a
-  # pull request for each branch at the head push-branches left that has
-  # none, and files one issue per handoff row, skipping a row whose key or
-  # Drift key line an open lanes App issue holds; then records the release
-  # done. A cap-exceeded or hold-path plan also files one stop notice naming
-  # its stop_reason, with no row and no label, and is recorded done once the
-  # notice and every row are filed; a range-not-computed plan files nothing
-  # and is not recorded done, so the next run takes the release again
-  # (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
   publish:
     name: Publish
     needs: [select-release, scan, push-branches]
@@ -2597,9 +2347,6 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Before the mint: the scan job's artifact, by id, and the SHA-256 it
-      # recorded for each file; with no bundle hash there must be no bundle.
-      # A missing or altered file fails the job, so nothing is minted.
       - name: Download the plan
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: actions/download-artifact@v8

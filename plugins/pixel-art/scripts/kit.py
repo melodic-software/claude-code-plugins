@@ -10,7 +10,6 @@ for props. It is a library, not a fixed character.
 import json
 
 PRESETS = {
-    # fractions of the frame. head_cy is the head center; the rest are boxes.
     "chibi": {
         "head_rx": 0.30, "head_ry": 0.26, "head_cy": 0.30,
         "torso": (0.30, 0.52, 0.40, 0.16),

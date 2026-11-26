@@ -3,6 +3,13 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.8] - 2026-11-25
+
+### Changed
+
+- Shared `host.html` synced (comment-only removal).
+- The variant switcher's page-authoring rules moved from the asset's header comment to `reference/switcher.md`.
+
 ## [0.47.7] - 2026-11-25
 
 ### Changed

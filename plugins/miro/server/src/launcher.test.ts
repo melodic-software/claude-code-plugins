@@ -84,7 +84,6 @@ describe("first launch that cannot install", () => {
     expect(run.status).toBe(1);
     expect(run.stderr.length).toBeGreaterThan(65_536);
     expect(run.stderr.startsWith("miro MCP server cannot start: cannot create ")).toBe(true);
-    // The repair command ends differently per platform, so take its tail from the launcher.
     expect(run.stderr.endsWith(`${installCommand(installDir(longData))}\n`)).toBe(true);
   });
 });
@@ -140,8 +139,6 @@ describe("later launches", () => {
 
     expect(app).not.toBe(ensureSource(target));
     expect(readFileSync(join(app, "package.json"), "utf8")).toBe(changed);
-    // The source copy's own manifest scopes `imports`, and a bare dependency still resolves
-    // from the install's node_modules above it.
     writeFileSync(
       join(app, "probe.ts"),
       'import { z } from "zod";\nimport * as viaImports from "#probe";\nprocess.stdout.write(String(z === viaImports.z));\n',
@@ -187,8 +184,6 @@ describe("repair command", () => {
 
   const pwsh = spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"]).status === 0;
 
-  // One top-level `& { ... }` statement keeps `$ErrorActionPreference = 'Stop'` out of the user's
-  // session; a bare assignment would be a second top-level statement that persists.
   it.skipIf(!pwsh)("parses as one child script block, so Stop does not leak", () => {
     const probe =
       "$e = $null; $s = [System.Management.Automation.Language.Parser]::ParseInput(" +
@@ -201,8 +196,6 @@ describe("repair command", () => {
     expect(run.stdout.trim()).toBe("0 1 Ampersand ScriptBlockExpressionAst");
   });
 
-  // PowerShell's tokenizer treats U+2018, U+2019, U+201A and U+201B as single-quote characters
-  // (language specification 2.3.5.2); doubling the same character escapes each one.
   const curlyTarget = "D:\\it\u2018s \u2019 \u201A \u201B data\\mcp-server\\abc";
 
   it("doubles every PowerShell single-quote character, not only the ASCII one", () => {
@@ -226,7 +219,6 @@ describe("repair command", () => {
         EXPECTED_PATH: curlyTarget,
       },
     });
-    // Remove-Item, New-Item, Copy-Item -Destination and npm --prefix each carry the path once.
     expect(run.stdout.trim()).toBe("0 4");
   });
 });

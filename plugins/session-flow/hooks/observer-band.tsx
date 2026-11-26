@@ -32,7 +32,7 @@ export const askedRow = (ui: Elements, icon: string, act: AskedActions) => {
   )
 }
 
-export const band = (ui: Elements, icon: string, f: Finding, source: string, isOpen: boolean, cost: string, act: BandActions) => {
+export const band = (ui: Elements, icon: string, f: Finding, source: string, isOpen: boolean, cost: string, act: BandActions, sent?: string) => {
   const { Box, Button, Text } = ui
   return (
     <Box flexDirection="column">
@@ -63,7 +63,7 @@ export const band = (ui: Elements, icon: string, f: Finding, source: string, isO
         </Box>
       ) : null}
       <Box gap={2}>
-        <Button key="send" hotkey="5" label="Send to Claude" plain onPress={act.send} />
+        {sent === undefined ? <Button key="send" hotkey="5" label="Send to Claude" plain onPress={act.send} /> : <Text dimColor>sent to Claude</Text>}
         <Button key="noted" hotkey="6" label="Noted" plain onPress={act.noted} />
         <Button key="dispute" hotkey="7" label="Dispute" plain onPress={act.dispute} />
         <Button key="why" hotkey="8" label={isOpen ? 'Hide' : 'Why'} plain onPress={act.why} />

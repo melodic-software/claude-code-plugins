@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# The team-layer schema accepts any mutation tool id: a shipped adapter's id,
-# the reserved `manual`, and an id with no shipped adapter (cargo-mutants). An
-# empty or non-string tool and an unknown key are still refused.
-#
-# The node pass checks the keywords the schema uses (type, minLength, enum,
-# additionalProperties). When check-jsonschema is on PATH, the YAML forms are
-# validated with it too, the validator scripts/check-convention-yaml.sh runs.
 # test-scope: plugins/mutation-testing/schemas/mutation-testing.schema.json
 # test-scope: plugins/mutation-testing/skills/audit/context/config-fallback.md
 # test-scope: plugins/mutation-testing/skills/setup/templates/config-template.md
@@ -33,8 +26,6 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-# validates <json config>: exit 0 when the config fits the schema, 3 when not;
-# any other exit is node failing, which no case expects.
 validates() {
   node -e '
 const schema = require(process.argv[1]);

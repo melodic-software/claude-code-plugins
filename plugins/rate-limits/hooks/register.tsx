@@ -3,7 +3,6 @@ import type { EngineInterface, PromptOrigin, Register, SessionRateLimit, Timer }
 import { desktopNotice, type DesktopChange } from './desktop-notice.tsx'
 import { readTiers } from './levels.ts'
 
-// The contract directory under the home directory. make-probe-copy.sh rewrites this one line.
 const CONTRACT_DIR = 'rate-limits'
 const SNAPSHOT_FILE = 'rate-limits.json'
 const HELPER = 'lib/write-snapshot.mjs'
@@ -21,7 +20,6 @@ const DEFAULT_DATA = DATA_ITEMS
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
 const PERSON_ORIGINS = ['composer', 'bridge']
 const COMMAND = 'rate-limits'
-// Command replies carry no plugin prefix: Claude Code shows each under the plugin's name.
 const USAGE = `Usage: /${COMMAND} [band [on|off]]`
 const README = 'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/rate-limits/README.md'
 
@@ -43,8 +41,6 @@ type Config = {
   toast: boolean
   switchUrl: string | undefined
 }
-// An operator notice offers held lines and shows on every surface; a crossing notice stands in for
-// the toast where toasts may not draw, so it shows only off the terminal.
 type Notice = { text: string; kind: 'crossing' | 'operator'; changes?: DesktopChange[] }
 type Body = {
   captured_at: string
@@ -85,8 +81,6 @@ type State = {
   reofferTimer: Timer | undefined
 }
 
-// A bad value reads as the option's default and adds one line to `bad`: the engine refuses the whole
-// module for a value outside a declared range, so the ranges are checked here instead.
 export const parseConfig = (options: Record<string, unknown>): Config => {
   const bad: string[] = []
   const reject = (key: string, kind: string, fallback: string) =>
@@ -128,7 +122,6 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
 
 const resetsMsOf = (limit: SessionRateLimit) => (limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt))
 
-// The status line drops a window once its reset time has passed; so does this reading.
 export const liveWindows = (limits: readonly SessionRateLimit[], nowMs: number): Reading => {
   const reading: Reading = new Map()
   for (const { kind } of WINDOWS) {
@@ -185,13 +178,6 @@ const toastBody = (kind: string, event: Event, limit: SessionRateLimit | undefin
 
 const order = (kind: string) => WINDOWS.findIndex(w => w.kind === kind)
 
-// Records crossings since the last check as pending events, one per window, the newest kept.
-// Use only rises within a window, so a dip is reporting noise: a window's level falls, and its
-// lines re-arm, only when the window resets (its reset time passes) or leaves the reading.
-// Returns the events the person is told of: a rise from a known level, or a reset from the edge.
-// A window's first reading is never one, so a fresh load or the reading after a reset stays quiet.
-// A window whose reset time reads earlier than the recorded one is taken as a new window, as after
-// an account change: its latched state is dropped, and a line voids what Claude was told of it.
 export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs: number) => {
   const changes: [string, Event][] = []
   const moved: string[] = []
@@ -247,9 +233,6 @@ const windowSig = (limits: readonly SessionRateLimit[]) =>
   JSON.stringify(WINDOWS.map(({ kind }) => limits.find(l => l.kind === kind)).map(l => l && [l.percentUsed, l.resetsAt ?? null]))
 
 const dueEvents = (st: State, cfg: Config): [string, Due][] => {
-  // After /clear or a fresh load mid-session, only a window at the edge is restated; after a
-  // compaction, a resume or a /branch, each window past quiet. A quiet window is never restated.
-  // A restatement states the current reading, and none is made once that reading is below the level.
   const restated = (edgeOnly: boolean): [string, Due][] =>
     [...st.levels].flatMap(([kind, w]): [string, Due][] => {
       const limit = st.reading?.get(kind)
@@ -417,9 +400,6 @@ async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: bo
 const noticeShows = (st: State, surface: string) =>
   st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
-// The module's band row: rate-limits: 5h <x>% | 7d <y>%, led by the plugin's name so the row says whose it is.
-// Before a reading every window shows -; after one, only the windows reported, since an account
-// with no 5-hour limit never reports that window.
 export const bandText = (reading: Reading | undefined) =>
   `rate-limits: ${WINDOWS.filter(({ kind }) => !reading?.size || reading.has(kind))
     .map(({ kind, short }) => {
@@ -465,8 +445,6 @@ const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (awai
 
 const isIdShaped = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9-]{1,128}$/.test(value)
 
-// The account in the state file, undefined when unreadable; a field is left out when missing or
-// malformed. The file is large and rewritten often, so a parse is kept until its mtime or size changes.
 async function readIdentity($: EngineInterface, st: State, home: string): Promise<Identity | undefined> {
   const path = `${(await $.env.get('CLAUDE_CONFIG_DIR')) || home}/.claude.json`
   const stat = await $.fs.stat(path).catch(() => undefined)
@@ -545,7 +523,6 @@ async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger
   if (trigger === 'timer' && onDisk !== undefined && onDisk.session_id !== sessionId && !(diskAt < (st.lastResponseAtMs ?? 0))) {
     return
   }
-  // After a branch the file takes the new session id at once: the id is part of what a reader trusts.
   const moved =
     onDisk === undefined || wholePoints(onDisk) !== wholePoints(body) || (st.branched && onDisk.session_id !== sessionId)
   if (!moved && Number.isFinite(diskAt) && now - diskAt < FLOOR_MS) return
@@ -667,8 +644,6 @@ export const register: Register = (on, options) => {
       logOnce($, st, 'tool-register', `the status pull tool could not register: ${reason}`)
     }
     await refresh($, st, cfg)
-    // A fresh load mid-session (a reload, a worker respawn, an enable, a --resume launch): the
-    // earlier lines already reached Claude, so only a window at the edge is restated.
     if ((await $.session.turns()) > 0) {
       st.pending.clear()
       st.restateIfLoud = true

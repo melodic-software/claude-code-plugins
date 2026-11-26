@@ -1,22 +1,3 @@
-// The installed plugins and what each one ships. The one module that runs `claude plugin` or
-// reads Claude Code's plugin registry.
-//
-//   recordsFromCli([run])               -> install records from `claude plugin list --json`
-//   recordsFromDisk(configDir, [read])  -> the same records from plugins/installed_plugins.json,
-//   inventory({projectDir, records})    -> Map<id, {id, version, installPath, dependsOn, ships, skills}>
-//   knownMarketplaces([run])            -> Set of the marketplace names this machine has added
-//   marketplaceLocation(configDir, name) -> the folder plugins/known_marketplaces.json gives that
-//                                          marketplace's clone, or throws InventoryError
-//   installPlugin(id, [run])            -> installs one plugin at user scope, or throws InventoryError
-//
-// A project or local install counts only in its own project. dependsOn holds the plugin.json
-// dependencies as name@marketplace, a bare name meaning the plugin's own marketplace. ships says
-// whether hooks/hooks.json registers hooks or a mod, and whether the plugin carries an MCP or a
-// language server. skills names each skills/<name>/SKILL.md the plugin carries.
-//
-// installPlugin never passes --marketplace, which would add a marketplace, nor --yes, which would
-// accept a command a marketplace declares: a plugin that needs either is left for a person to
-// install by hand.
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";

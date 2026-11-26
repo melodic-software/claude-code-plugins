@@ -22,11 +22,6 @@ $commands = @(
 $FailureSummary = 'Reliability check failed.'
 $PassThru = $false
 $CheckBody = {
-    # Win32_ReliabilityStabilityMetrics returns one row per day with a
-    # SystemStabilityIndex in 0-10 (10 = most stable). Not deprecated on
-    # Windows 11 26200, but the RAC (Reliability Analysis Component) task
-    # must be running for the table to populate. When it isn't, we emit
-    # INFO rather than UNKNOWN so the check doesn't cry wolf.
     $metrics = @()
     try {
         $metrics = @(Get-CimInstance -ClassName Win32_ReliabilityStabilityMetrics -ErrorAction Stop |
@@ -46,7 +41,6 @@ $CheckBody = {
     }
 
     if ($metrics.Count -eq 0 -and $records.Count -eq 0) {
-        # Either RAC task disabled or host is too new (< 7 days of data).
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'INFO' `
             -Summary 'Reliability Monitor data not populated (RAC task may be disabled).' `
@@ -80,13 +74,6 @@ $CheckBody = {
                     }
                 })
 
-        # Hardware/driver-class classifier: match on SourceName, which is a
-        # structured provider identifier (e.g., "Disk", "Microsoft-Windows-Kernel-Power",
-        # "Microsoft-Windows-WER-SystemErrorReporting"). Matching ProductName
-        # instead would be too broad -- it is the crashing app's display name,
-        # so ordinary Windows-component records (e.g., "Windows Explorer" hang
-        # with ProductName="Windows") would be misclassified as hardware
-        # failures, producing false CRIT reports.
         $hardwareCrashCount = @($records | Where-Object {
                 $_.SourceName -match 'hardware|disk|memory|bugcheck|kernel-power|WER-SystemErrorReporting'
             }).Count

@@ -52,7 +52,6 @@ $CheckBody = {
                     try {
                         $row = $line | ConvertFrom-Json -ErrorAction Stop
                         if ($row.PSObject.Properties['Size']) {
-                            # Size field is a human string like "12.3GB". Parse loosely.
                             $bytes = ConvertFrom-HumanSize -InputString $row.Size
                             if ($bytes) { $total += $bytes }
                         }
@@ -74,7 +73,6 @@ $CheckBody = {
             $notes.Add("wsl enum failed: $($_.Exception.Message)")
         }
 
-        # Per-distro vhdx size (best effort): LocalState\ext4.vhdx per package.
         $packagesRoot = "$env:LOCALAPPDATA\Packages"
         if (Test-Path -LiteralPath $packagesRoot) {
             $vhdxTotal = 0

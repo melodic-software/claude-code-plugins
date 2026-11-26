@@ -1,5 +1,3 @@
-// Expected hashes are the published SHA-256 test vectors (FIPS 180-2: "abc",
-// and the empty string); ids are the shared trusted-actors fixture's.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

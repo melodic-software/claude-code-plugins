@@ -1,16 +1,5 @@
 #!/bin/sh
 # shellcheck shell=bash
-# python-format's side of lib/git-hooks/resolve-tool.sh: the ecosystem id whose
-# record setup reports (hooks never run it), the files it acts on, and its
-# Ruff adapter. Sourced by the batch hook
-# and both git-hook entries.
-#
-# The adapter governs a file only when a Ruff configuration sits in its
-# directory or above it, up to the repository root (.ruff.toml, ruff.toml, or a
-# pyproject.toml with a [tool.ruff] section). Ruff comes from a .venv the
-# repository does not commit, walking up from the file, else PATH. Format sorts
-# imports only where the repository's own lint config selects the import rules,
-# then formats; lint reports and fixes nothing.
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=python-format
@@ -34,8 +23,6 @@ pf__config_here() {
   [[ -f "$1/pyproject.toml" ]] && grep -qE "$PF_RUFF_SECTION" "$1/pyproject.toml" 2>/dev/null
 }
 
-# pf__walk <dir> <root> <predicate>: 0 when the predicate holds at <dir> or a
-# directory above it, up to <root>; PF_WALK_DIR is where it held.
 pf__walk() {
   local dir="$1"
   while :; do
@@ -47,7 +34,6 @@ pf__walk() {
   done
 }
 
-# A .venv the repository commits is its code, not the user's install.
 pf__venv_here() {
   local cand
   for cand in "$1/.venv/bin/ruff" "$1/.venv/Scripts/ruff.exe"; do
@@ -67,8 +53,6 @@ pf__dir() { # <file> <root>: the file's directory, absolute
   printf '%s' "$f"
 }
 
-# pf__ruff <dir> <root>: sets RT_BIN, the venv ruff walking up from <dir>, else
-# ruff on PATH. Cached per root.
 pf__ruff() {
   if [[ "${PF_BIN_ROOT:-}" != "$2" ]]; then
     PF_BIN=ruff
@@ -78,8 +62,6 @@ pf__ruff() {
   RT_BIN="$PF_BIN"
 }
 
-# pf__detail <config dir> <root>: sets RT_DETAIL to the governing config and
-# the binary, repo-relative, in Ruff's same-directory precedence.
 pf__detail() {
   local name rel="${1#"$2"}"
   rel="${rel#/}"
@@ -131,16 +113,12 @@ rt_adapter_in_repo() { # <concern> <root>
   pf__detail "$config_dir" "$2"
 }
 
-# rt_config_counts <config path>: 0 unless it is a pyproject.toml with no
-# [tool.ruff] section in the work tree or the index, which Ruff does not read.
 rt_config_counts() {
   [[ "${1##*/}" == pyproject.toml ]] || return 0
   grep -qE "$PF_RUFF_SECTION" "$1" 2>/dev/null && return 0
   grep -qE "$PF_RUFF_SECTION" < <(rt_git show ":$1" 2>/dev/null)
 }
 
-# rt_lint_index <path>: lint the staged copy of a file gone from the work
-# tree; --stdin-filename keeps the config and its excludes for that path.
 rt_lint_index() {
   rt_git show ":$1" 2>/dev/null |
     (cd "$RT_DIR" && "$RT_BIN" check --no-fix --output-format concise --force-exclude --no-cache --quiet --stdin-filename "$1" -)

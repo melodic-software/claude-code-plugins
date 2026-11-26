@@ -144,13 +144,10 @@ function Get-ProcessSnapshot {
     param()
 
     foreach ($p in @(Get-Process -ErrorAction SilentlyContinue)) {
-        # Id 0 is the Idle pseudo-process: its "CPU" is the unused capacity.
         if ($p.Id -eq 0) { continue }
         $cpu = try { $p.TotalProcessorTime.TotalSeconds } catch { $null }
         $start = try { $p.StartTime.ToUniversalTime().Ticks } catch { $null }
         $path = $p.Path
-        # Id 4 (System) has no image file; any other process with no readable
-        # path is taken as one that denies the read.
         $pathState = if ($path) { 'ok' } elseif ($p.Id -le 4) { 'absent' } else { 'denied' }
         [pscustomobject]@{
             Name            = $p.ProcessName

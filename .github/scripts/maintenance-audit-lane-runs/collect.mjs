@@ -17,7 +17,8 @@ const LOG_LINES = 60;
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, "g");
 const LANE_WORKFLOW = /^\.github\/workflows\/(pr|work|intake)-[a-z0-9-]+\.ya?ml$/;
 const SELF = ".github/workflows/maintenance-audit-lane-runs.yml";
-// GitHub's run listing returns at most this many runs per filtered search.
+// A filtered run listing returns at most 1,000 runs; split the range.
+// https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
 const LIST_CAP = 1000;
 export const DETAIL_RESERVE = 184;
 
@@ -32,9 +33,6 @@ export function createBudget(limit) {
   };
 }
 
-// A REST call against env's API and token that spends one unit of budget per
-// request. A GET answered 404 and any 204 return null; any other failure
-// throws an error carrying the HTTP status.
 export function budgetedCall(env, budget) {
   return async (method, path, body) => {
     budget.spend();
@@ -101,12 +99,6 @@ export function tailLog(text, count = LOG_LINES) {
 
 const stamp = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-// Every run of each workflow but this one created from `from` to `to` (whole
-// seconds, both ends included). A range's first page of 100 carries its
-// count, so listing goes on from page 2; a range at the listing cap is halved
-// until each part fits. Listing stops before the budget's last `reserve`
-// calls, and each workflow it could not read in full is in `partial` with the
-// runs it read and its count (null when not read).
 export async function listRuns({ gh, repo, from, to, budget, reserve = DETAIL_RESERVE }) {
   const room = () => budget.used < budget.limit - reserve;
   const workflows = [];

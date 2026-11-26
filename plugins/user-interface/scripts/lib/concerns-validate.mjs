@@ -1,11 +1,3 @@
-// Validates reference/concerns.json: its schema, then what a schema cannot state.
-//
-//   checkConcerns(table, {pluginRoot, schema, routing}) -> ["<path>: <message>", ...], empty when it fits
-//
-// Beyond reference/concerns.schema.json: ids and audit.order values are unique; every type names a file in
-// reference/types/; every spokes[].path, recipes[] entry and non-null audit.procedure is a file under
-// the plugin root; every routing_concerns id is a concern in routing.json. Paths are data: one that
-// leaves the plugin root is refused with its own message, never read.
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { validate } from "./routing-validate.mjs";

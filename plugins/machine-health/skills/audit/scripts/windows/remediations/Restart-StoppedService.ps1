@@ -57,8 +57,6 @@ function Get-ServiceState {
 }
 
 function Get-PropertyValue {
-    # Returns $null for an absent property instead of throwing under StrictMode;
-    # works for PSCustomObject, hashtable and ordered dictionary values.
     [CmdletBinding()]
     param(
         $InputObject,
@@ -80,8 +78,6 @@ function Resolve-FindingTarget {
     [OutputType([object[]])]
     param($FindingData)
 
-    # A badly shaped finding yields an empty target list, never a crash; read properties
-    # through Get-PropertyValue, since StrictMode 3.0 throws on an absent one.
     $obj = $FindingData
     if ($FindingData -is [string]) {
         try {

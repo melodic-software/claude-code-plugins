@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.3] - 2026-11-25
+
+### Changed
+
+- `babysit-prs` `CARRY_REFUSES` adds the work-items triage skill's `scripts/` and `schemas/`, which the intake lane's workflow now loads, so a push that touches one stops an approval carrying, as `merge-holds.mjs` does.
+
+- `babysit_verify_evidence.py evidence` takes `--pass-out <file>`: for an allow at the head it
+  writes the counted passes with their runs, the first pass's verdict.json and the closing issues
+  the judgment read, so ci-status's merge-queue step can hand them to merge-holds.mjs without
+  reading them again. The printed report does not change, and a caller that does not pass the flag
+  sees no difference.
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+### Fixed
+
+- `/source-control:babysit-prs` stops an approval carry over a push that changes `plugins/code-tidying/git-hooks/comment-lint-ci.sh`, which the required checks now run.
+
+- `read-pr.sh view --diff` reads a pull request of any size: when GitHub refuses the pull request's own diff with HTTP 406 (over 300 files), it reads the diff from the compare endpoint between the pull request's base and head commits instead. A smaller pull request still reads through the pull request endpoint, so a token with only Pull requests read keeps working ([#19124](https://github.com/melodic-software/claude-code-plugins/issues/19124)). The merge-risk, explain-change and PR-mode quality-gate reviews that read the diff through it now work on large pull requests.
+
 ## [13.21.2] - 2026-11-25
 
 ### Changed

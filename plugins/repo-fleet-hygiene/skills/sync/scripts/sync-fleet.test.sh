@@ -286,10 +286,6 @@ else
   fail "dirty non-default branch is parked in a worktree" "$parked"
 fi
 
-# Test double for worktree-create.sh. It records its arguments in $STUB_LOG.
-# STUB_FOREIGN=1 makes another session push a stash first, STUB_REAL=1 creates
-# the real worktree and prints its path, and STUB_EXIT ends the run with that
-# status.
 mkdir "$TMP/stub"
 STUB="$TMP/stub/worktree-create.sh"
 export STUB_LOG="$TMP/stub.args"
@@ -324,10 +320,6 @@ dirty_clone() {
   git -C "$1" add STAGED.md
 }
 
-# run_park <repo> [<worktree-root>]: apply with the stub helper under the
-# caller's STUB_* variables, passing --worktree-root only when a root is given;
-# sets OUT, ERR, CODE, ARGS (what the helper was called with), and WT (the
-# applied worktree path).
 run_park() {
   local root=()
   [[ -z "${2:-}" ]] || { mkdir -p "$2"; root=(--worktree-root "$2"); }
@@ -367,7 +359,6 @@ expect "unpark leaves the other session's stash alone" "$d $(stash_subjects "$re
   is "$(stash_subjects "$repo_b")" "On main: foreign-session"
 expect "unpark returns to the original branch" "$d" is "$(git -C "$repo_b" branch --show-current)" feature-b
 
-# Helper status 3: nothing was created.
 repo_c="$TMP/park-c"
 dirty_clone "$repo_c" feature-c
 STUB_EXIT=3 run_park "$repo_c" "$TMP/wt-c"
@@ -400,7 +391,6 @@ expect "no root anywhere skips the repo as helper exit 3, restored, with a remed
 expect "no root anywhere leaves the work in place and no stash" "$d" \
   is "$(restored_in_place "$repo_i" && echo in-place)|$(stash_subjects "$repo_i")" "in-place|"
 
-# Helper status 4 and 5 with a path: the worktree exists, so the park continues.
 for status in 4 5; do
   repo_s="$TMP/park-s$status"
   dirty_clone "$repo_s" "feature-s$status"
@@ -416,7 +406,6 @@ for status in 4 5; do
     is "$(stash_subjects "$repo_s")|$(git -C "$repo_s" branch --show-current)" "|main"
 done
 
-# Helper status 4 without a path: nothing usable, so unpark.
 repo_d="$TMP/park-d"
 dirty_clone "$repo_d" feature-d
 STUB_EXIT=4 run_park "$repo_d" "$TMP/wt-d"

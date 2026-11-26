@@ -80,7 +80,6 @@ function Resolve-CheckupPick {
     if (-not [System.IO.File]::Exists($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($mapPath))) {
         & $refuse "run $fileStamp has no id map in '$ViewsDir' (pruned or never built). Rerun the audit and pick from its page."
     }
-    # JsonNode keeps every value as written; ConvertFrom-Json would turn a date-shaped string into a DateTime.
     $isObject = { param($Node) $Node -is [System.Text.Json.Nodes.JsonObject] }
     $str = {
         param($Node)

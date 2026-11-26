@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.12.1] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [10.12.0] - 2026-11-25
 
 ### Added
@@ -3332,7 +3338,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 ### Changed
 
 - **`fanout`'s `fix` action consumes a merged SET of findings files, not the newest one
-  ([ADR 0010](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0010-merge-findings-across-producers-and-mark-consumption-explicitly.md),
+  (ADR 0010,
   #2678).** The findings-file shape is the whole integration contract, and nothing authenticates the
   writer, so any component that persists a conforming file reaches the apply relay. That made a
   second producer a silent-data-loss bug: `fix` took the newest `*.md` and merged nothing, so a

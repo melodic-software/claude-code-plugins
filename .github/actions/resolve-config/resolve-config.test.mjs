@@ -124,7 +124,6 @@ const fileList = (count, prefix = "src/f") =>
     filename: `${prefix}${index}.js`,
   }));
 
-// Serves `files` 100 to a page, as pulls/{n}/files does.
 function pullRoutes({ changedFiles, files, labels = [] }) {
   return {
     "/repos/melodic-software/claude-code-plugins/pulls/42/files": (path) => {
@@ -217,8 +216,6 @@ test("a mutate-branch activity can commit; args stay in the file only", async ()
   assert.equal(Object.hasOwn(outputs, "args"), false);
 });
 
-// A skill's launcher permission mode: dontAsk unless the leaf sets auto; a
-// script has none; any other value fails the schema.
 const withPermissionMode = (mode) => {
   const { env } = workspace();
   env.LANE = "pr-refine";
@@ -813,7 +810,6 @@ test("a leaf with prepare that does not apply resolves without prepare support",
 const GATED_HEAD = "a".repeat(40);
 const OTHER_HEAD = "b".repeat(40);
 
-// Serves GET /pulls/42 from `reads` in turn, repeating the last one.
 function pullReads(reads) {
   let index = 0;
   return fakeGitHub({

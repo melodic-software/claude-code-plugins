@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Decide whether to skip, offer, or build the change digest, and where a built
-// page goes. Reads the pull request's facts as `/source-control:pull-request
-// view` prints them, on stdin; it uses files, additions, deletions, labels and
-// baseRefOid. Resolves
-// the review-digest cascade surface for the policy and thresholds, and `medium`
-// through the shared medium resolver (lib/view-settings.mjs) with this plugin's
-// `medium` option (`--option`). Team files are read from the base commit,
-// never the working tree, so a checked-out pull request cannot configure its
-// own digest. The team file is docs/conventions/review-digest.yaml. Prints one
-// JSON object. Paths and labels from the pull request are compared, never
-// echoed.
-//
-//   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
-//                     [--policy off|offer|always] [--requested] [--option <medium>] < facts.json
-//   digest-policy.mjs --publish-gate --facts <facts.json> [--explicit] < diff
-// Exit 0 decided, 2 usage or unreadable facts.
-
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,10 +46,6 @@ export function publishGate({ explicit, visibility, diff }) {
   return sharedGate({ explicit, visibility: known, text: diff, subject: "diff" });
 }
 
-// The gate's only repository input is the pull request URL in `--facts`, whose
-// visibility it looks up itself (the lookup `publish-hosted.mjs` uses), so no
-// repository or visibility a caller types reaches it (#7740). A missing facts
-// file, one with no usable URL, or a failed lookup gates as UNKNOWN.
 function gateMain(argv) {
   const [flag, facts, ...rest] = argv;
   if (flag !== "--facts" || !facts || facts.startsWith("--") || rest.some((a) => a !== "--explicit")) {

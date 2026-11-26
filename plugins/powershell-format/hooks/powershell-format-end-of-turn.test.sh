@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the opt-in Stop row (powershell_format_end_of_turn), launched
-# exactly as hooks.json registers it: off by default; on, an uncommitted finding
-# exits 2 with the finding on stderr and nothing is rewritten; stop_hook_active
-# keeps it from blocking twice in one turn; the plugin kill switch wins. The
-# spawn budget case fences the cost every user pays per turn with the option
-# off: the node launcher only.
 # test-scope: plugins/powershell-format/hooks/hooks.json plugins/powershell-format/git-hooks/lint.sh plugins/powershell-format/.claude-plugin/plugin.json plugins/powershell-format/hooks/exec-bash.mjs
 # shellcheck disable=SC2016  # literal PowerShell variable syntax: single quotes are intentional
 set -uo pipefail
@@ -64,8 +58,6 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# The finding lines are the tool's own documented messages; the closing hint
-# line is this plugin's wording, so the case drops it instead of restating it.
 findings() { printf '%s' "${1%$'\n'*}"; }
 FINDING="a.ps1:2: [Warning] PSAvoidGlobalVars: Found global variable 'global:foo'."
 printf 'Get-Date\n$global:foo = 1\n' >"$R/a.ps1"
@@ -77,9 +69,6 @@ expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=false)"
-# Without pwsh, or with a pwsh that lacks PSScriptAnalyzer (exit 3), the check
-# script fails an agent (git-hooks test); the row turns that one failure into a
-# silent pass, since the SessionStart probe and /powershell-format:setup check report it.
 NOTOOL="$WORK/no-pwsh"
 mkdir -p "$NOTOOL"
 for t in node git bash sh sed awk cat mktemp rm dirname grep tr jq; do
@@ -97,7 +86,6 @@ git -C "$R" checkout -q a.ps1
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_END_OF_TURN=true)"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" powershell-format Stop powershell-format.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' --check 'test ! -s "$HOOK_STDOUT"')"

@@ -81,7 +81,6 @@ Describe 'audit SKILL.md command templates' -Tag 'skill' {
     It 'holds the roots block and six commands' {
         $script:AuditBlocks.Count | Should -Be 7
         foreach ($token in $script:AuditTokens) { $script:AuditBlocks[0] | Should -BeLike "*$token*" }
-        # The PowerShell tool takes newlines only inside a here-string.
         @($script:AuditBlocks[0].Trim() -split '\n').Count | Should -Be 5
         foreach ($command in $script:AuditBlocks[1..6]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
     }

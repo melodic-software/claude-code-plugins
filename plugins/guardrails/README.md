@@ -76,6 +76,13 @@ The [hook budget accounting](#hook-budget-accounting) carries the measurement.
 `settings-write-ask` and `connected-page-gate` are node scripts with rows of their own that run
 `node` on the script directly, outside the dispatcher; both fail open on any internal error.
 
+The `Bash|PowerShell` guards also run on `PreSkillShellCommand`, on each command a skill injects
+as it loads, with the same row; this needs Claude Code 2.1.332 or later. A refused injected command
+does not run, and the skill loads without its output.
+
+- **Pointer**: for what that event receives and how a refusal reaches the skill, read
+  [hooks: PreSkillShellCommand](https://code.claude.com/docs/en/hooks#preskillshellcommand) live.
+
 In a session that loads a mod, don't rely on this plugin's `PreToolUse` hooks alone.
 
 - **Pointer**: when a mod is installed beside this plugin, read

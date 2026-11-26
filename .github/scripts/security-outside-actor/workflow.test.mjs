@@ -1,6 +1,3 @@
-// intake-label-outside-actor-activity.yml's hardening: members and Bot senders start no
-// job, the job checks out main only, holds the job token with least privilege
-// and no secret, and passes no event text to a shell.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -81,9 +78,6 @@ test("a Bot sender starts no job: only Apps installed here send as Bot, so lane 
   assert.equal(runs({ sender: { type: "User" }, issue: { author_association: "NONE" } }), true, "a machine user is still checked");
 });
 
-// An App installed on a fork, not here, can act on the fork's pull request,
-// so a Bot sender of any pull_request_target action on a fork pull request is
-// still judged.
 test("a Bot on a fork pull request starts the job on any action; on this repository's own branch, or on an issue, it does not", () => {
   const app = { id: 9, type: "Bot" };
   const author = { id: 1, type: "User" };
@@ -104,8 +98,6 @@ test("a Bot on a fork pull request starts the job on any action; on this reposit
   }
 });
 
-// Only a listed person removes security: outside-actor: every removal starts
-// the job, whoever sent it and whoever wrote the item; flag.mjs judges it.
 test("removing security: outside-actor starts the job for any sender; removing another label starts none", () => {
   assert.ok(condition.includes(`github.event.label.name == '${OUTSIDE_ACTOR_LABEL}'`), "the gate names the label from merge-holds.mjs");
   const repository = "melodic-software/claude-code-plugins";
@@ -137,7 +129,6 @@ test("it checks out main only, without credentials, and every external action re
   for (const [, uses] of text.matchAll(/\n +uses: ([^\s.][^\s]*)/g)) {
     assert.match(uses, /^(?:melodic-software\/\S+@main|(?:actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/\S+@v\d+(?:\.\d+){0,2}|(?!(?:melodic-software|actions|github|dependabot|microsoft|azure|Azure|anthropics|openai)\/)\S+@[0-9a-f]{40})$/, uses);
   }
-  // The one head read is the fork test in the job's `if`: metadata, never a checkout.
   const forkRead = "github.event.pull_request.head.repo.full_name != github.repository";
   assert.equal(text.split(forkRead).length, 2, "the fork test appears once");
   assert.ok(condition.includes(forkRead), "the fork test sits in the job's if");

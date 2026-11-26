@@ -1,44 +1,4 @@
 #!/usr/bin/env node
-// release-eval-hold.mjs: takes `do-not-merge` off an open pull request whose
-// hold waits only on eval evidence of no loss, once the eval-pair record for
-// its current head is posted by a listed human, or by github-actions[bot] from
-// a compare run of pr-run-plugin-evals.yml that this script reads back: a
-// successful workflow_dispatch run on the default branch whose run name
-// (`eval-compare pr=<n> head=<sha> target=plugins/<name>`, set from its
-// inputs) names this pull request and the record's head, and whose Compare
-// Record job ran to success. The comment's author alone counts for
-// nothing, since any workflow can post as github-actions[bot] (owner decision
-// Q136: https://github.com/melodic-software/claude-code-plugins/issues/17854).
-// With no record at the head, compare runs also release the hold when, for
-// every plugin whose skills/, agents/ or context/ files the pull request
-// changes, the newest compare run at the head for that plugin, trusted the
-// same way, ran its Compare Cannot Start job to success: each run itself
-// recorded that it cannot start (CANNOT_START_CAUSES), so the pull request
-// merges first and its affected cases run on the default branch after
-// (docs/review/evals.md). A refusal for one plugin never releases another's
-// cut, and a missing record alone never releases. No model. The hold convention is in
-// docs/contracts/loop-lane/README.md (Cross-lane PR hold).
-//
-// The head and the label are read again before the comment and before the
-// removal. The comment comes first, carrying RELEASED_MARKER, so a failed
-// removal is retried by the next run without a second comment. At most
-// RELEASES_PER_RUN a run. Each pull request logs one line,
-// `release-eval-hold: #<n> released head=<sha> record=<url> wait-minutes=<m>`
-// or `release-eval-hold: #<n> kept: <reason>`, and the run ends with
-// `release-eval-hold: held=<h> released=<r> kept=<k> failed=<f>`.
-//
-// Environment:
-//   GH_TOKEN             the lane token (reads, the comment, the label)
-//   RUNS_TOKEN           a token with actions: read for the cited and listed
-//                        compare runs (default GH_TOKEN), which
-//                        https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run
-//                        requires
-//   GITHUB_REPOSITORY    owner/repo
-//   TRUSTED_ACTORS_PATH  trusted-actors.json from the default branch tip
-//   KILL_SWITCH          `proceed` to run
-//   LANES_BOT_LOGIN      the lanes App's login (default LANES_APP_LOGIN)
-//   GITHUB_STEP_SUMMARY  receives the run line
-//   GITHUB_API_URL
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

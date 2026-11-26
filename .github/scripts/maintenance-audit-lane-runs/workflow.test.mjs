@@ -1,12 +1,4 @@
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
-// maintenance-audit-lane-runs.yml's hardening, from docs/conventions/pr-pipeline/README.md
-// ("Every lane" and "The lane sweep"): only a schedule or a manual run starts
-// it, the model legs and the route jobs hold read permissions only, each leg
-// runs run-claude-cli as the automations role on one credential with Read,
-// Grep and Glob and no shell, only the scripted file and triage-sweep jobs
-// write, and every job checks the kill switch first. A unit moves from the key
-// leg to the subscription leg, and from there to the fallback leg, only on a
-// clean handoff. The hourly schedule runs only the triage sweep.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -42,9 +34,6 @@ const list = (block, key) =>
     .map((line) => line.trim())
     .filter(Boolean);
 const LAUNCHER = /^melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@main/;
-// Why each later leg ran, for its unit's one lane record: the route job's
-// closed-set reason, which select-model-credential checks against its own
-// closed list, never written into a script.
 const REASON = "${{ steps.credential.outputs.fallback-reason }}";
 
 test("only a schedule or a manual run starts the lane, with no default permissions", () => {
@@ -107,8 +96,6 @@ test("the model runs only in the three legs, on one pinned run-claude-cli as the
     for (const [other] of LEGS.filter((id) => id !== job).map((id) => CREDENTIAL[id])) {
       assert.equal(value(judge, other), undefined, `${job} ${other}`);
     }
-    // Each secret is read in its own leg, and the fallback token's presence
-    // only in the subscription leg, which may hand off to it.
     const secrets = [...jobs[job].matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
     assert.deepEqual([...new Set(secrets)].sort(), job === SUB ? [secret, FALLBACK].sort() : [secret], job);
   }
@@ -121,7 +108,6 @@ test("each leg reads only the data and the checkout, with Read, Grep and Glob an
     const judge = step("Judge the unit", job);
     assert.equal(value(judge, "permission-mode"), "dontAsk", job);
     assert.deepEqual(list(judge, "tools"), ["Read", "Grep", "Glob"], job);
-    // A bare Grep or Glob allow rule reaches every path, /proc included.
     assert.deepEqual(list(judge, "allowed-tools"), ["Read(./.lane-sweep-data/**)", "Read(./.base/**)"], job);
     const denied = list(judge, "disallowed-tools");
     for (const rule of ["Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch", "Agent", "mcp__*"]) {
@@ -130,7 +116,6 @@ test("each leg reads only the data and the checkout, with Read, Grep and Glob an
     for (const path of ["//proc/**", "//sys/**", "~/.*", "~/.*/**", "/${{ runner.temp }}/**"]) {
       assert.ok(denied.includes(`Read(${path})`), `${job} denies Read(${path})`);
     }
-    // The workspace is under home, so a home-wide deny would block the checkout.
     assert.ok(!denied.includes("Read(~/**)"), job);
     assert.equal(value(judge, "json-schema-file"), "${{ runner.temp }}/lane-sweep-schema.json", job);
     assert.match(value(step("Write the findings", job), "STRUCTURED_OUTPUT_FILE"), /^\$\{\{ steps\.judge\.outputs\.structured-output-file \}\}$/, job);
@@ -151,11 +136,6 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
     /\n {4}if: \$\{\{ !cancelled\(\) && needs\.collect-subscription-handoffs\.result == 'success' && needs\.collect-subscription-handoffs\.outputs\.count != '' && needs\.collect-subscription-handoffs\.outputs\.count != '0' \}\}\n/,
   );
   assert.match(jobs[FB], /\n {6}matrix: \$\{\{ fromJson\(needs\.collect-subscription-handoffs\.outputs\.matrix\) \}\}\n/);
-  // The key leg hands off on the launcher's handoff after a denial-free leg,
-  // or on an empty key; the subscription leg on the launcher's handoff, or
-  // on an empty token, and only with the fallback token set; the fallback
-  // leg never. select-model-credential's next-leg call decides each
-  // (credential-legs.test.mjs holds it to the old conditions).
   for (const [job, leg, next] of [
     [KEY, "key-leg", "subscription"],
     [SUB, "sub-leg", "fallback"],
@@ -188,7 +168,6 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
     [ROUTES[1], "subscription", "judge-subscription-handoff-*"],
   ]) {
     assert.equal(value(step("Download the handoff markers", route), "pattern"), pattern, route);
-    // A lone match would otherwise land straight in the path, several each in its own directory.
     assert.equal(value(step("Download the handoff markers", route), "merge-multiple"), "true", route);
     const routeStep = steps(route).find((s) => s.name.startsWith("Route the handed-off units")).text;
     assert.equal(value(routeStep, "LEG"), leg, route);
@@ -204,7 +183,6 @@ test("each unit leaves one lane record per leg, the leg that handed off marked h
   assert.equal(value(report(KEY), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}");
   assert.equal(value(report(SUB), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}");
   assert.equal(value(report(FB), "handoff"), undefined);
-  // A report that throws on a handed-off leg must not turn the leg red.
   assert.equal(value(report(KEY), "continue-on-error", 8), "true");
   assert.equal(value(report(SUB), "continue-on-error", 8), "true");
   assert.equal(value(report(FB), "if", 8),"steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'");
@@ -236,14 +214,9 @@ test("the daily schedule runs the audit, the hourly one only the triage sweep", 
   assert.deepEqual(crons, ["33 6 * * *", "17 * * * *"]);
   assert.match(jobs.collect, /\n {4}if: github\.ref == 'refs\/heads\/main' && github\.event\.schedule != '17 \* \* \* \*'\n/);
   assert.match(jobs["triage-sweep"], /\n {4}if: github\.ref == 'refs\/heads\/main'\n/);
-  // Two passes at once could dispatch the same issue twice.
   assert.match(jobs["triage-sweep"], /\n {4}concurrency:\n {6}group: [^\n]+\n {6}cancel-in-progress: false\n/);
 });
 
-// The key-credit gate (#13586): collect reads the key's credit history, a
-// credit-stopped key skips assess-units, and collect-key-handoffs routes every
-// unit to assess-units-subscription as a credit-stop handoff; a key leg's
-// credit-stop marker makes collect-key-handoffs upload the gate's marker.
 test("a credit-stopped key skips the key leg and every unit goes to the subscription leg", () => {
   assert.match(jobs.collect, /\n {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@main\b/);
   assert.match(jobs.collect, /\n {10}leg: start\n {10}role: automations\n {10}key-job: judge\n/);

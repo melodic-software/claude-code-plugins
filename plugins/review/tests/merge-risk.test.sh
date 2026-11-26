@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
-# this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
 # test-scope: plugins/review/skills/merge-risk/SKILL.md
 # test-scope: plugins/review/skills/merge-risk/reference/rubric.md
 set -uo pipefail

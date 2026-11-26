@@ -59,6 +59,5 @@ function Get-MutedFindingKey {
         $State.checks.PSObject.Properties[$CheckId]
     }
     $keys = [string[]]@(if ($null -ne $check) { $check.Value.muted_findings | ForEach-Object { $_.key } })
-    # NoEnumerate keeps an empty or one-key result a string[] for the caller.
     Write-Output -NoEnumerate -InputObject $keys
 }

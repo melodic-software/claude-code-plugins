@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Inventory every MCP server in the resolved Claude Code configuration for audit-posture.
-#
-# Static only: reads config files, never runs anything a config names, never touches the network.
-# Output (stdout): a dated title line, a TSV header, one row per server sorted by scope then
-# name, a provided_by column (organization for managedMcpServers, managed-mcp.json
-# for that file, otherwise -), `# source <scope> <path> <status>` lines (found, found-empty, skipped (...), absent),
-# then `# not read:` and `# not evaluated:` footer lines. Output is allowlisted: a config value
-# reaches stdout only when the raw value fully matches a strict package, image, URL, path, or
-# name grammar; anything else prints as "-" (pin "unparsed") or redacted-name(<length>).
-# Usage: inventory.sh [--claude-json F] [--project D] [--mcp-json F] [--managed-dir D]
-#                     [--config F]... [--date YYYY-MM-DD] | --help
 # Exit: 0 ok; 2 on a usage error, jq missing, unparsable JSON, or a number/boolean server map.
 set -uo pipefail
 export LC_ALL=C
@@ -115,15 +104,6 @@ MANAGED_PRESENT=false
 META_LOCAL='{"matched": false, "disabled": [], "disabledJson": [], "enabledJson": [], "enableAll": false}'
 SKIPPED_TEXT="skipped (mcpServers is a path; pass that file as --config)"
 
-# Value filter applied to every emitted package, publisher, name, and drop-in file name:
-# split on / @ : = # . _ - [ ] and space; reject a value over 100 characters, a segment over
-# 40, a known secret prefix at the start or after a non-alphanumeric character, or a segment
-# of 20+ characters holding at least three digits and three letters. A segment that is
-# exactly a 64-hex digest or 40-hex commit passes. AWS key prefixes (AKIA, ASIA) match only
-# in upper case, since AWS key ids are upper case and lower-case "asia" is an ordinary word.
-# A UUID anywhere, or a run of 32+ hex digits other than a trailing #<40 hex> git commit or
-# @sha256:<64 hex> digest, is also rejected, as is a value with three or more segments that
-# are each 6+ characters holding at least two digits and two letters.
 # shellcheck disable=SC2016
 JQ_VF='def vf:
   (length <= 100)
@@ -149,9 +129,6 @@ die_json() {
   exit 2
 }
 
-# dropin_shown <path>: the path to print for a managed-settings.d drop-in; a file name holding
-# any byte outside printable ASCII (LC_ALL=C makes the match bytewise), or failing the value
-# filter, prints as redacted-file.
 dropin_shown() {
   if [[ "${1##*/}" != *[!\ -~]* ]] && jq -en --arg f "${1##*/}" "$JQ_VF"' $f | vf' >/dev/null 2>&1; then
     printf '%s' "$1"
@@ -217,7 +194,6 @@ fi
 add_file_source project "$MCP_JSON" '.mcpServers'
 add_file_source managed "$MANAGED_DIR/managed-mcp.json" '.mcpServers' && MANAGED_PRESENT=true
 
-# managed-settings.json first, then drop-ins in name order; a later file wins per name.
 add_file_source managed-settings "$MANAGED_DIR/managed-settings.json" '.managedMcpServers'
 shopt -s nullglob
 for dropin in "$MANAGED_DIR"/managed-settings.d/*.json; do
@@ -229,12 +205,6 @@ for config in ${CONFIGS[@]+"${CONFIGS[@]}"}; do
   add_file_source file "$config" '.mcpServers'
 done
 
-# Classification. Output is allowlisted: a package, image, URL, path, or host reaches stdout
-# only when the raw value fully matches one of the grammars below, with nothing stripped
-# first except URL userinfo. Anything else prints package "-", pin "unparsed", publisher "-".
-# Wrapper strings (bash -c, cmd /c, pwsh -Command, env -S) are parsed conservatively: exact
-# assignment prefixes are dropped from the start, and any quote, escape, or shell operator
-# left over makes the row unparsed.
 # shellcheck disable=SC2016
 CLASSIFY='
 def clean: tostring | gsub("[[:cntrl:]]"; "");

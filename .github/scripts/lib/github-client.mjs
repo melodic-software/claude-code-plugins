@@ -15,17 +15,6 @@ export class GitHubError extends Error {
   }
 }
 
-// Why GitHub refused a call, from the answer already in hand, so it costs no
-// request: the status, the x-ratelimit-remaining, -reset and -resource
-// headers ("none" when absent), retry-after when sent, and the body's first
-// 200 characters. x-ratelimit-resource names "the rate limit resource that the
-// request counted against", and a secondary limit's 403 or 429 carries "an
-// error message that indicates that you exceeded a secondary rate limit"
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api);
-// retry-after, x-ratelimit-remaining and x-ratelimit-reset say when to call
-// again (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
-// The body is JSON-quoted and % escaped, so it cannot end or re-encode the
-// annotation line it goes in. A body already read is "".
 export async function responseDetail(response) {
   const header = (name) => response.headers?.get?.(name) ?? null;
   let text = "";
