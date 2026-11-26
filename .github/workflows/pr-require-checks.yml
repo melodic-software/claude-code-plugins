@@ -4138,7 +4138,7 @@ jobs:
           tokens: github-token
 
   # Formatter-only proof, owner decision row L438:
-  # https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L438
+  # https://github.com/melodic-software/architecture/blob/733e2a74cbc650f9a5d21c0d8aefdfc5f0275ed0/docs/owner-decisions.md?plain=1#L438
   prove-formatting:
     name: Prove Formatting
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft != true }}

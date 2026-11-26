@@ -138,6 +138,10 @@ big="$(fragment patch "$(printf 'x%.0s' {1..16384})")"
 h="$(make_head fragment-big "${FORMATTED[@]}" "$FRAG" "$big")"
 prove --classify "$BASE" "$h"
 expect "a fragment over the cap is no proof before any tool runs" 1 "- $FRAG: a fragment of ${#big} bytes, over the 16384-byte cap"
+h="$(make_head fragment-two "${FORMATTED[@]}" "$FRAG" "$(fragment patch)" .changes/p/fmt-5678ef01.md "$(fragment patch)")"
+prove --classify "$BASE" "$h"
+expect "a second fragment for one plugin is no proof before any tool runs" 1 \
+  "- .changes/p/fmt-5678ef01.md: a second fragment for p, beside $FRAG"
 
 h="$(make_head fragment-edit "${FORMATTED[@]}" .changes/p/note.txt 'note\n')"
 prove "$BASE" "$h"

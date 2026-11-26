@@ -109,16 +109,19 @@ holds_sync_hold_floor_block() {
 git -C "$repo" diff --raw -z --no-renames --no-abbrev "$base" "$head" >"$scratch/diff" || fail_run "could not diff $base and $head"
 fragment_cap=16384
 shell=() python=() regen=() fragments=()
-declare -A want=() was=()
+declare -A want=() was=() fragment_of=()
 while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
   read -r old_mode new_mode old_blob new_blob status <<<"${meta#:}"
   if [[ $path == .changes/* ]]; then
     if [[ $status == A && $new_mode == 100644 && $path =~ ^\.changes/[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9._-]*\.md$ ]]; then
       size=$(git -C "$repo" cat-file -s "$new_blob") || fail_run "could not read $path"
+      plugin=${path#.changes/} plugin=${plugin%%/*}
       if ((size > fragment_cap)); then
         no "$path: a fragment of $size bytes, over the $fragment_cap-byte cap"
+      elif [[ -n ${fragment_of[$plugin]:-} ]]; then
+        no "$path: a second fragment for $plugin, beside ${fragment_of[$plugin]}"
       else
-        fragments+=("$path") want[$path]=$new_blob
+        fragments+=("$path") want[$path]=$new_blob fragment_of[$plugin]=$path
       fi
     else
       no "$path: a change under .changes/ other than one added fragment .md file"
