@@ -127,6 +127,10 @@ status_of() {
   printf '%s' "$s"
 }
 
+finding_id() {
+  printf 'FN-%s' "$(printf '%s' "$1" | git hash-object --stdin | cut -c1-8)"
+}
+
 offenders="$(awk -F'\t' '$1=="OFFENDER" {print $2 "\t" $3}' "$INVENTORY")"
 finding_count="$(printf '%s' "$offenders" | grep -c . || true)"
 
@@ -145,7 +149,7 @@ ranked="$(printf '%s' "$ranked" | sort -rn -k1,1)"
 
 while IFS="$(printf '\t')" read -r nsites old new; do
   [[ -n "$old" ]] || continue
-  id="FN-$(printf '%s' "$old" | git hash-object --stdin | cut -c1-8)"
+  id="$(finding_id "$old")"
   status="$(status_of "$id")"
   refs="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o' "$SWEEP")"
   files="$(printf '%s' "$refs" | awk -F'\t' '{print $3}' | sort -u | grep -c . || true)"
@@ -219,6 +223,13 @@ sweep_sites="$(awk -F'\t' '$1=="SITES" {print $2; exit}' "$SWEEP")"
 by_action="$(awk -F'\t' '$1=="REF" {print $7}' "$SWEEP" |
   sort | uniq -c | awk '{printf "%s %s, ", $1, $2}' | sed 's/, $//')"
 [[ -n "$by_action" ]] || by_action="no site found"
-report_sites="$(awk -F'\t' '$1=="REF" && $7=="report"' "$SWEEP" | grep -c . || true)"
+report_rows="$(awk -F'\t' '$1=="REF" && $7=="report"' "$SWEEP")"
+report_sites="$(printf '%s' "$report_rows" | grep -c . || true)"
 printf 'total: %s site(s); by action: %s; report sites: %s\n' "$sweep_sites" "$by_action" "${report_sites:-0}"
+while IFS="$(printf '\t')" read -r _ old file line _; do
+  [[ -n "$old" ]] || continue
+  printf 'report %s:%s %s `%s`\n' "$file" "$line" "$(finding_id "$old")" "$old"
+done <<EOF
+$report_rows
+EOF
 exit 0
