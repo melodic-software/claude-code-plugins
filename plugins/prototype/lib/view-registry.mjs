@@ -1,6 +1,5 @@
 // GENERATED from lib/view-registry.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-
 const interactiveOnly = (context = {}) => (context.interactive === false ? { ok: false, reason: "non-interactive run" } : { ok: true });
 
 const entry = (id, publishes, reportName, reachable, deliver) => Object.freeze({ id, publishes, reportName, reachable, deliver });

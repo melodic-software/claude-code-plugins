@@ -96,8 +96,8 @@ Backups remain the recovery boundary for user data.
     `systemMessage`, fetch [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form),
     [Exit code 0](https://code.claude.com/docs/en/hooks#exit-code-0) and
     [JSON output](https://code.claude.com/docs/en/hooks#json-output) live.
-- Bash that `hooks/exec-bash.mjs` can find. The file's header comment lists the candidates in
-  order for each platform: on Windows, `CLAUDE_CODE_GIT_BASH_PATH`, the Git for Windows install
+- Bash that `hooks/exec-bash.mjs` can find. [The launcher's contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-budget/README.md#the-exec-bashmjs-launcher)
+  lists the candidates in order for each platform: on Windows, `CLAUDE_CODE_GIT_BASH_PATH`, the Git for Windows install
   roots, then `PATH`; elsewhere, `PATH` first. The WSL relay (`System32\bash.exe`) is never used.
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
   cleanup. The floor's single origin is the `MIN_PYTHON` constant in

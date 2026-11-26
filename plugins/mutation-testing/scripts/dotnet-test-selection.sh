@@ -95,6 +95,27 @@ classes_of() {
   }' <"$1"
 }
 
+project_of() {
+  local f="$1" dir="$2" found
+  while :; do
+    found=("$dir"/*.csproj)
+    if ((${#found[@]} > 1)); then
+      printf '%s: %s: more than one project in %s\n' "$self" "$f" "$dir" >&2
+      return 1
+    fi
+    if ((${#found[@]} == 1)); then
+      printf '%s' "${found[0]}"
+      return 0
+    fi
+    if [[ "$dir" == / ]]; then
+      printf '%s: %s: no *.csproj in its directory or any above it\n' "$self" "$f" >&2
+      return 1
+    fi
+    dir="${dir%/*}"
+    [[ -n "$dir" ]] || dir=/
+  done
+}
+
 quote() {
   local s="'" q="'\\''"
   printf "'%s'" "${1//"$s"/$q}"
@@ -114,25 +135,7 @@ for f in "$@"; do
     fail=1
     continue
   fi
-  proj=""
-  while :; do
-    found=("$dir"/*.csproj)
-    if ((${#found[@]} > 1)); then
-      printf '%s: %s: more than one project in %s\n' "$self" "$f" "$dir" >&2
-      break
-    fi
-    if ((${#found[@]} == 1)); then
-      proj="${found[0]}"
-      break
-    fi
-    if [[ "$dir" == / ]]; then
-      printf '%s: %s: no *.csproj in its directory or any above it\n' "$self" "$f" >&2
-      break
-    fi
-    dir="${dir%/*}"
-    [[ -n "$dir" ]] || dir=/
-  done
-  if [[ -z "$proj" ]]; then
+  if ! proj="$(project_of "$f" "$dir")"; then
     fail=1
     continue
   fi

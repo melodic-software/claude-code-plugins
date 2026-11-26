@@ -8,6 +8,7 @@ babysit scripts read the binding from the default branch (the admission label at
 the pull request's base branch), at the default convention home
 `docs/conventions`, where they read `pr-pipeline.yaml` too.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping

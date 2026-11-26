@@ -50,11 +50,6 @@ MIN_PYTHON = (3, 8)
 TMP_SUFFIX = ".link-swap-tmp"
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 
-# Runs as the command's process: waits for the wrapper's go byte, which comes
-# only after the wrapper has recorded this pid, then execs the command in place.
-# EOF instead of the byte means the wrapper died or stopped first. Python
-# ignores SIGPIPE and SIGXFSZ at startup and an ignored signal survives exec, so
-# the gate puts them back to default first, as Popen's restore_signals does.
 GATE = """import os, signal, sys
 go = int(sys.argv[1])
 if os.read(go, 1) != b"x":

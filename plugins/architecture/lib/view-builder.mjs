@@ -1,6 +1,5 @@
 // GENERATED from lib/view-builder.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -13,8 +12,6 @@ const MARKER_RE = /<!-- rv-gen:view-builder-interactive sha256:([0-9a-f]{64}) --
 const DATA_ID = "rv-data";
 const DATA_OPEN = `<script type="application/json" id="${DATA_ID}">`;
 
-// An opaque token: every id, for, value, data-* value and data key the
-// template names. Never derived from data, so no payload can carry data text.
 const KEY = /^[a-z0-9-]{1,32}$/;
 const FRAGMENT = /^#[a-z0-9-]{1,32}$/;
 const URL_FRAGMENT = /^url\(#[a-z0-9-]{1,32}\)$/;
@@ -28,9 +25,6 @@ const HTML_TAGS = [
   "figcaption", "strong", "em", "small", "kbd", "mark", "hr", "br", "a",
   "button", "label", "input", "select", "option", "textarea", "fieldset", "legend", "output",
 ];
-// Shape, path, text, group and definition elements only (rule 6). Refused by
-// omission: foreignObject, script, image, feImage, use, a-in-SVG navigation,
-// mpath, discard, the SMIL animation elements, and SVG style.
 const SVG_TAGS = [
   "svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
   "text", "tspan", "desc", "defs", "lineargradient", "radialgradient", "stop",
@@ -42,7 +36,6 @@ const ATTRS = new Set([
   "charset", "class", "content", "http-equiv", "id", "lang", "name", "title",
   "role", "hidden", "open", "type", "for", "value", "placeholder", "checked",
   "min", "max", "step", "href",
-  // SVG geometry and presentation
   "xmlns", "viewbox", "width", "height", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy",
   "r", "rx", "ry", "d", "points", "fill", "stroke", "stroke-width", "stroke-linecap",
   "stroke-linejoin", "stroke-dasharray", "opacity", "fill-opacity", "stroke-opacity",
@@ -58,12 +51,10 @@ const DATA_RV = new Set([
   "data-rv-choice", "data-rv-send", "data-rv-session", "data-rv-replies",
   "data-rv-theme", "data-rv-shows", "data-rv-example", "data-rv-record",
 ]);
-// The one origin a Claude-interactive page may reach: a session-bridge server on loopback (rule 9).
 const BRIDGE_ORIGIN = /^http:\/\/127\.0\.0\.1:([1-9][0-9]{0,4})$/;
 const CSP_CONNECT = /; connect-src (http:\/\/127\.0\.0\.1:[0-9]{1,5})$/;
 const INPUT_TYPES = new Set(["checkbox", "radio", "search", "range", "text"]);
 const FORM_CONTROLS = new Set(["input", "textarea", "select", "option"]);
-// Elements whose text is CSS, metadata, or code: data bound into them would stop being page text.
 const UNBINDABLE = new Set(["html", "head", "title", "meta", "style", "script"]);
 const CONTENT_BINDINGS = new Set(["data-rv-text", "data-rv-count", "data-rv-each"]);
 export const TITLE_MAX = 80;
@@ -138,8 +129,6 @@ function plainTitle(title) {
   return chars.length <= TITLE_MAX ? chars.join("") : `${chars.slice(0, TITLE_MAX - 1).join("").trimEnd()}…`;
 }
 
-// The only text the builder writes outside the data block or a report slot (rule 5).
-// It goes in as escaped text, so it cannot end the element or add markup.
 function withTitle(html, title) {
   const text = title === null ? "" : plainTitle(title);
   if (text === "") {
@@ -167,8 +156,6 @@ export function validateView(html, runtime) {
     ? validateInteractivePage(html, runtime ?? loadRuntime())
     : validateRenderedPage(html);
 }
-
-// ------------------------------------------------------------ view kinds
 
 const isText = (value) => typeof value === "string";
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -433,8 +420,6 @@ export function render(producerId, kind, record, { producers = PRODUCERS, kinds 
   });
 }
 
-// ---------------------------------------------------------------- report
-
 function parseSlots(template, failures) {
   const root = { children: [] };
   const stack = [root];
@@ -510,8 +495,6 @@ function buildReport(template, data, title) {
   return page;
 }
 
-// ----------------------------------------------------------- interactive
-
 function styleBodies(html) {
   return [...html.matchAll(/<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi)];
 }
@@ -542,7 +525,6 @@ function buildInteractive(template, data, runtime, connect, title) {
   if (failures.length) {
     throw new ViewBuildError(failures);
   }
-  // `<` as < keeps `</script` and `<!--` out of the block (rule 2).
   const json = JSON.stringify(data).replaceAll("<", "\\u003c");
   const csp = contentSecurityPolicy(runtime, styles.length ? styles[0][1] : null, connect);
   const meta = `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">`;
@@ -577,9 +559,6 @@ function parseAttributes(raw) {
   return attrs;
 }
 
-// Finds each script element and removes the two permitted ones. A body holding
-// `<!--` or `<script` fails closed: there the browser's tokenizer would not end
-// the element at the first `</script`, so this scan would check another page.
 function extractScripts(html, runtime, failures) {
   const opens = [...html.matchAll(/<script(?=[\s/>])/gi)];
   if (opens.length !== 2) {
@@ -716,7 +695,6 @@ export function validateInteractivePage(html, runtime) {
   const csp = /^(?:<!doctype html>\s*)?<html[^>]*>\s*<head>\s*(?:<!--[^>]*-->\s*)?<meta charset="utf-8">\s*<meta http-equiv="Content-Security-Policy" content="([^"]*)">/i.exec(
     rest.trimStart(),
   );
-  // A connect-src passes only as the last directive naming one loopback origin.
   const connect = csp ? (CSP_CONNECT.exec(csp[1])?.[1] ?? null) : null;
   if (connect !== null && !bridgeOriginOk(connect)) {
     failures.push("connect");
@@ -759,8 +737,6 @@ export function validateInteractivePage(html, runtime) {
   }
   return { ok: failures.length === 0, failures: [...new Set(failures)] };
 }
-
-// ------------------------------------------------------------------- CLI
 
 function main(argv) {
   const args = {};

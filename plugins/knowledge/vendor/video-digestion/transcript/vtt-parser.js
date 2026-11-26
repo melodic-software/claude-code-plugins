@@ -125,8 +125,6 @@ export function parseVttSegment(vttText, { keepLines = false } = {}) {
         !lines[i].includes("-->")
       ) {
         const cleaned = stripVttInlineTags(lines[i].trim());
-        // Skip consecutive duplicate lines (Hotmart VTT repeats each line
-        // for display carry-forward — joining both doubles the text)
         if (cleaned && cleaned !== textLines[textLines.length - 1]) {
           textLines.push(cleaned);
         }

@@ -154,7 +154,11 @@ def api_budget_sh(indent: str) -> list[str]:
     text = (ROOT / API_BUDGET).read_text(encoding="utf-8").removesuffix("\n")
     return [
         f"{indent}API_BUDGET_SH: |",
-        *(f"{indent}  {line}" if line else "" for line in text.split("\n") if not line.lstrip().startswith("#")),
+        *(
+            f"{indent}  {line}" if line else ""
+            for line in text.split("\n")
+            if not line.lstrip().startswith("#")
+        ),
     ]
 
 

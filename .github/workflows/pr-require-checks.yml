@@ -5323,6 +5323,7 @@ jobs:
             /.github/scripts/lib/github-client.mjs
             /.github/scripts/lib/trusted-actors.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/check-kill-switch/budget-policy.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
             /.github/actions/log-api-budget/rate-limits.json
@@ -5492,6 +5493,7 @@ jobs:
             /.github/scripts/lib/github-client.mjs
             /.github/scripts/lib/trusted-actors.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/check-kill-switch/budget-policy.mjs
             /.github/actions/check-kill-switch/projection.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
             /.github/actions/log-api-budget/rate-limits.json

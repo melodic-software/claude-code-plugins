@@ -24,6 +24,8 @@ $2"; fi; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP"' EXIT
+export HOME="$TMP/home"
+mkdir -p "$HOME"
 
 new_repo() {
   mkdir -p "$1"
