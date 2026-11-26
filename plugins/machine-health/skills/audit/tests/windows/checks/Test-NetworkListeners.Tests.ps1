@@ -10,7 +10,6 @@ BeforeAll {
         return ConvertFrom-CheckOutput (& $script:ScriptPath -MutedKeys $MutedKeys)
     }
 
-    # Outside every user-writable folder (TestDrive sits under TEMP, which is one).
     $script:SignedPath = Join-Path $env:ProgramFiles 'Vendor\server.exe'
 
     $script:ResolvedSources = @('process', 'process-reported', 'service')
@@ -26,8 +25,6 @@ BeforeAll {
         }
     }
 
-    # Mock bodies run inside the check script, where $script: names the check's
-    # scope, so the fake read lives in one table the mock reaches by closure.
     $script:Fake = @{}
     $fake = $script:Fake
     Set-Item -Path function:Get-FakeOwner -Value ({ $fake['read'] }.GetNewClosure())

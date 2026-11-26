@@ -1,8 +1,3 @@
-// Expected values: the external_id format docs/conventions/pr-pipeline/pr-run-activity.md
-// specifies (`<lane>:<activity>:<run id>:<run attempt>`), and check run
-// 122864732692 as the API returned it on #10583 (details_url
-// https://github.com/melodic-software/claude-code-plugins/runs/122864732692,
-// external_id "", posted by run 40700900804).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

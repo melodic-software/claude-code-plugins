@@ -45,8 +45,6 @@ def make_stub(
     )
 
 
-# ESLint's own wording, verbatim from a live run with no configuration file
-# anywhere above the target (fixtures/tool-output/eslint-no-config.txt).
 NO_CONFIG_LINE = "ESLint couldn't find an eslint.config.(js|mjs|cjs) file."
 
 

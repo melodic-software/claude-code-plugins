@@ -1,30 +1,4 @@
 #!/usr/bin/env node
-// deterministic-suite.mjs: copy a plugin's eval suite without the graders
-// that need a paid judge, so a run spends nothing on grading.
-//
-//   deterministic-suite.mjs <plugin-dir> <out-name>
-//
-// Reads the plugin's eval dir (the manifest's experimental.evals, else
-// evals/) and writes <plugin-dir>/<out-name>/ holding every file of it except
-// results/, the llm and baseline graders, and the cases left with no grader.
-// `claude plugin eval --eval-dir <out-name>` then runs deterministic graders
-// only. Prints {"evalDir", "kept", "dropped", "stripped"} as JSON: case paths
-// relative to the eval dir, and stripped maps each kept case that lost graders
-// to their names.
-//
-// A case is a directory holding prompt.md or case.yaml, found the way
-// /evals:validate's validate-cases.py finds one. A grader is paid when its
-// text names type llm or baseline, quoted or not: a graders/*.md file, or one
-// item of case.yaml's block `graders:` list. Run after that validator passes,
-// every grader has one of the six types, and a stray match only strips a
-// grader, never keeps a paid one. Each case.yaml cut removes the item's lines
-// and leaves every other byte; it is kept only when validate-cases.py's own
-// parser reads the copy as the original minus those items and no paid line is
-// left. Any other outcome (a flow-style list, a parse error, no python3) drops
-// the case, with a note on stderr. A stripped grader's samples/<name>.json goes
-// with it. The parser is loaded from this script's tree, never the plugin's.
-//
-// Exit 0 written; 2 a usage error, or the eval dir or output cannot be used.
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
@@ -84,9 +58,6 @@ function parseYaml(texts) {
   return JSON.parse(run.stdout);
 }
 
-// Line ranges [start, end) of each item of the top-level block `graders:`
-// list, each ending at its last non-blank, non-comment line; null for any
-// other shape.
 export function graderItems(lines) {
   const header = lines.findIndex((line) => /^graders[ \t]*:[ \t]*(?:#.*)?\r?$/.test(line));
   const body = (line) => line.trim() !== "" && !line.trim().startsWith("#");
@@ -114,9 +85,6 @@ export function graderItems(lines) {
   return { header, items };
 }
 
-// The copy of one case.yaml without its paid items, as {text, names, left}
-// (left null when its graders are not a block list), or throws when the cut
-// cannot be proven against the parser.
 export function stripCaseYaml(text) {
   const lines = text.split("\n");
   const shape = graderItems(lines);
@@ -152,8 +120,6 @@ export function stripCaseYaml(text) {
   return { text: stripped, names, left: expected.graders?.length ?? 0 };
 }
 
-// How one case is copied: null to drop it, else the case.yaml text to write
-// (or null to leave it), and the graders/*.md files and names to strip.
 export function planCase(caseDir) {
   const graderDir = join(caseDir, "graders");
   const files = existsSync(graderDir) ? readdirSync(graderDir).filter((name) => name.endsWith(".md")).sort() : [];

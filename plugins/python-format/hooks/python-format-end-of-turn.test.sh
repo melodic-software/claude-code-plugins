@@ -87,7 +87,6 @@ out="$(printf '{"stop_hook_active":false}' | bash "$COPY/hooks/python-format.sh"
 expect "missing-tool lines alone keep the row quiet" "0|" "$?|$out"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" python-format Stop python-format.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' --check 'test ! -s "$HOOK_STDOUT"')"

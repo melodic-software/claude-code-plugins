@@ -1,19 +1,4 @@
 #!/bin/sh
-# instruction-placement pre-commit check: fail when the generated rules index no
-# longer matches .claude/rules/.
-#
-#   index-check.sh               the staged changes (git runs it as pre-commit)
-#   index-check.sh --worktree    the uncommitted changes against HEAD
-#
-# The check runs only when a changed path is under a .claude/rules/ directory
-# (a deletion or rename included) or is the index file itself: the root
-# AGENTS.md, else the root CLAUDE.md. It compares that file's index block with a
-# fresh render (at pre-commit, of the staged copies) and prints the regenerate
-# command when they differ. A renderer error blocks. A repository
-# with no index block has not adopted an index and is never failed. This check
-# needs no external tool; render-index.sh and discover.sh sit beside this script
-# in an installed copy.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -65,8 +50,6 @@ if [[ "$CHECKS_MODE" == pre-commit ]]; then
     git checkout-index -z --stdin --prefix="$src/" || exit 1
 fi
 
-# check exits 0 in sync, 1 drifted, 3 with no index block (not adopted); any
-# other status is no verdict, and no verdict blocks.
 verdict="$(checks_bash_run "$renderer" check --file "$src/$target" --root "$src" 2>"$CHECKS_TMP/render.err")"
 rc=$?
 ((rc == 0 || rc == 3)) && exit 0

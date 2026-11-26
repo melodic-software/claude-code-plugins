@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.19.1] - 2026-11-26
+
+### Changed
+
+- **`/planning:brainstorm`, `/planning:prd`, `/planning:interview` and `/planning:design` name one successor per `## Next` bullet.** The interview's spec bullet splits into a PRD bullet and a design-stage bullet, the design's handoff bullet names only `/planning:design-handoff`, and the "unsure where this leaves the work" bullet is gone.
+
+## [5.19.0] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- `/planning:plan` lists each interview answer a plan changes in its approval request, as `Q<N> (<plain name>): you answered <was>; the plan proposes <new>`, and one "approve" reconfirms every listed row. A reply that names a row still reconfirms or restores that row alone, and an unattended run still leaves listed rows uncleared.
+
 ## [5.18.0] - 2026-11-25
 
 ### Added

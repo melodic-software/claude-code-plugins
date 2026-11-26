@@ -76,11 +76,6 @@ undeclared workload (declared ones on stderr), or an unreadable bundled layer.
 EOF
 }
 
-# Validation constants: a chosen subset of the aliases at
-# https://code.claude.com/docs/en/model-config#model-aliases and the levels at
-# https://code.claude.com/docs/en/model-config#choose-an-effort-level (as of
-# 2026-10-11; recheck when either section adds, renames or drops an alias or a
-# level). `default`, `opusplan` and the `[1m]` variants are left out on purpose.
 ALIASES=" opus sonnet haiku fable "
 EFFORTS=" low medium high xhigh max "
 SOURCE_ID_RE='^[a-z0-9][a-z0-9-]*$'
@@ -154,9 +149,6 @@ fi
 [[ -z "$SESSION_MODEL" || "$ALIASES" == *" $SESSION_MODEL "* ]] ||
   die "unknown session model '$SESSION_MODEL' (valid:$ALIASES; omit when unknown)"
 
-# Bash 3.2 (stock macOS) has no associative arrays, so each dotted key maps to
-# a VAL_<key> and SRC_<key> variable. Keys hold only [A-Za-z0-9_.-]; `_` is
-# escaped first, so `a-b` and `a_H_b` get distinct names.
 kv_name() {
   local n="${1//_/_U_}"
   n="${n//-/_H_}"
@@ -216,8 +208,6 @@ valid_value() {
   vendor_rank) [[ "$2" =~ ^-?(0|[1-9][0-9]*)$ ]] ;;
   frontier)
     local a parts=()
-    # read drops one trailing empty field, so a trailing comma is refused here,
-    # as the schema's pattern refuses it.
     [[ "$2" != *, ]] || return 1
     IFS=',' read -ra parts <<<"$2"
     ((${#parts[@]})) || return 1

@@ -7,8 +7,6 @@ BeforeAll {
 
 Describe 'Test-SdkVersions -- baseline' -Tag 'check' {
     It 'emits a schema-valid CheckResult when no SDKs are on PATH' {
-        # Native SDK commands cannot be mocked reliably. Stub Get-Command to
-        # report absence; the script's guard path takes over.
         Mock Get-Command {
             param($Name)
             if ($Name -in @('dotnet', 'node', 'python', 'python3')) { return $null }
@@ -24,8 +22,6 @@ Describe 'Test-SdkVersions -- baseline' -Tag 'check' {
 
 Describe 'Test-SdkVersions -- oldest label' -Tag 'check' {
     BeforeAll {
-        # `& $Path` runs the check in its own script scope, so a test-script
-        # function is invisible. Global shadows are what `& dotnet` resolves.
         function global:dotnet { $args | Out-Null; '8.0.100 [C:\sdk]' }
         function global:node { $args | Out-Null; 'v22.0.0' }
     }

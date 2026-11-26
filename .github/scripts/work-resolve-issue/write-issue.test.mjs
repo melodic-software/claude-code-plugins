@@ -89,7 +89,6 @@ function fakeGitHub({ comments: posted, edits = {}, issueEdits = {}, users = {},
     if (key === "POST /graphql" && body.variables.number === 6825) {
       const { lastEditedAt = null, renamedAt, bodyEdits = [], renames, bodyMore = false, renamesMore = false } = issueEdits;
       const nodes = renames ?? (renamedAt ? [{ createdAt: renamedAt }] : []);
-      // `bodyEdits` newest first, as GitHub lists them; the page is the one the query asks for.
       const [, side, size] = body.query.match(/userContentEdits\((first|last): (\d+)\)/);
       const page = side === "first" ? bodyEdits.slice(0, Number(size)) : bodyEdits.slice(-Number(size));
       const more = bodyMore || bodyEdits.length > page.length;
@@ -123,7 +122,6 @@ let list;
 let standards;
 beforeEach(() => {
   dir = tempDir("write-issue-");
-  // The shared fixture plus cursoragent, a listed bot whose login has no [bot].
   const actors = JSON.parse(readFileSync(SHARED_LIST, "utf8"));
   actors.actors.push({ ...CURSOR_AGENT, kind: "bot" });
   standards = standardsAt(path.join(dir, "standards"));
@@ -197,11 +195,6 @@ test("an instruction in the body or an outsider's comment reaches the lane only 
   }
 });
 
-// Owner decision on #14215 (Q195 (a)): a trusted upstream-drift issue
-// (github-actions[bot] wrote it, nobody else last edited it, the filer's exact
-// title and hex-pin lead line) runs from a fixed template that reads none of
-// its body, so even an upstream-chosen path in a row, as an older filer
-// wrote, never reaches it.
 describe("a trusted upstream-drift issue", () => {
   const ACTIONS = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
   const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS.id };
@@ -242,7 +235,6 @@ describe("a trusted upstream-drift issue", () => {
 
   test("the filer's rewrite after the admission record still runs; any other editor's refuses edited", async () => {
     const admitted = { ...DRIFT, body: `${DRIFT.body}\nan older week's rows\n` };
-    // Body edits newest first, as GitHub lists them; the filer's is the last.
     const rewrite = (bodyEdits) =>
       fakeGitHub({
         comments: [],
@@ -297,9 +289,6 @@ describe("a trusted upstream-drift issue", () => {
   });
 });
 
-// #12456 class A: a finished parent (admit.mjs finishedParent) carries
-// verify_close, the sub-issues the run's verify-and-close check stands on; a
-// sub-issue closed not planned (class B) or still open leaves it out.
 test("a parent whose every sub-issue a listed human closed as completed carries verify_close", async () => {
   const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: OWNER, repository_url: `https://api.github.com/repos/${REPO}`, ...extra });
   const parentRun = (children) =>
@@ -725,8 +714,6 @@ test("the App's restart anchors at the admission it restarted, so an edit before
   }
 });
 
-// Run 39098689377 on #6642: a payload's issue updated_at can be a second
-// before its own event, so with no admission at or before it the first after counts.
 test("a trigger whose update time predates every admission anchors at the first one after it", async () => {
   const app = { sender: String(LANES_BOT.id), eventAt: "2026-10-13T11:59:59Z" };
   const { code, issue } = await run(fakeGitHub({ comments: FOUR, edits: LATE_EDIT, admissions: [record(13), record(20)] }), app);
@@ -757,8 +744,6 @@ test("a change in the same second as the admission counts as after it", async ()
   assert.equal(code, 1);
 });
 
-// Codex P1 on #7780: a run still going when the same person sets agent-ready
-// again keeps its own admission, so it never adopts the newer text.
 test("a run anchors at the admission at or before its trigger, never a later one", async () => {
   const admissions = [set(OWNER, 13), set(OWNER, 20, "ready"), set(OWNER, 20)];
   const edited = { lastEditedAt: "2026-10-15T00:00:00Z" };

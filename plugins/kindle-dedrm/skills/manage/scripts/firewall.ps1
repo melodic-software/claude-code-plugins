@@ -45,8 +45,6 @@ function Get-Rule {
 }
 
 function Show-State {
-    # Status lines go to the host (console), not the success stream, so a caller
-    # testing the return value (if (Show-State)) receives only the bool.
     $rule = Get-Rule
     if (-not $rule) {
         Write-Host '[firewall] absent'
@@ -68,12 +66,6 @@ switch ($Action) {
         }
         $rule = Get-Rule
         if ($rule) {
-            # Compared against 'True', never tested for truthiness. Get-NetFirewallRule's
-            # Enabled is a NetSecurity enum whose members are True = 1 and False = 2, so
-            # BOTH are non-zero and both coerce to boolean $true. `-not $rule.Enabled` is
-            # therefore always false, so a truthiness guard never re-enables a disabled
-            # rule. The string comparison also holds when the property arrives already
-            # stringified.
             if ($rule.Enabled -ne 'True') {
                 Enable-NetFirewallRule -DisplayName $RuleName | Out-Null
                 Write-Output '[firewall] re-enabled existing rule'
@@ -102,8 +94,6 @@ switch ($Action) {
             Write-Output '[firewall] not present — nothing to disable'
             exit 0
         }
-        # Same enum hazard as the enable branch above: a bare truthiness test takes the
-        # disable path even for a rule that is already disabled.
         if ($rule.Enabled -eq 'True') {
             Disable-NetFirewallRule -DisplayName $RuleName | Out-Null
             Write-Output '[firewall] disabled (rule retained — re-enable when sync is done)'

@@ -1,27 +1,5 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part b of 5:
-# sections 2c to 2j. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -e.test.sh; block-root-delete-target-fixtures.sh
-# holds what they share.
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
-# no host-repo assertion library.
-#
-# The core table runs through expect_both, so every verdict is asserted twice:
-# once with the guard alone, and once under hooks/run-guards.sh. A guard that
-# decides one way by itself and another under the dispatcher is a failure here
-# rather than a blind spot.
-#
-# The guard is NOT host-gated, so no case forces OSTYPE: a recursive delete of
-# `/`, of `~`, of `$HOME`, or with --no-preserve-root is unrecoverable on every
-# host this plugin runs on, and CI is Linux.
-#
-# File-wide, and deliberate: every command string below is a LITERAL the guard
-# must read exactly as an operator wrote it. `$HOME` and `${HOME}` are matched
-# as text, because the guard never evaluates an expansion (SC2016), and `\\` is
-# a real pair of backslashes rather than an escaped quote (SC1003). Expanding
-# either here would test something other than what the guard sees.
+# Command strings are literals the guard reads as written: $HOME stays text (SC2016), \\ is two backslashes (SC1003).
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -304,10 +282,8 @@ expect_both 'protected: a subdirectory of the toplevel allowed' 0 "${RDT_CWD[@]}
   --command 'rm -rf plugins/rdt-nonexistent/build'
 expect_both 'protected: a path named under .git allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf .git/rdt-nonexistent-x'
 expect_both 'protected: the toplevel glob leaves .git, allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf *'
-# A glob matches dot names on PowerShell, and in bash once dotglob is on.
 expect_both 'protected: PS Remove-Item * from the toplevel blocks (its * matches .git)' 2 \
   --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse -Force *'
-# A bash child of the PowerShell tool globs as bash does: `*` skips .git.
 expect_both 'protected: PS bash -c rm -rf * from the toplevel allowed (bash * skips .git)' 0 \
   --tool PowerShell "${RDT_CWD[@]}" --command "bash -c 'rm -rf *'"
 expect_both 'protected: PS cmd /c bash -c rm -rf * from the toplevel allowed' 0 \
@@ -326,9 +302,7 @@ expect_both 'protected: PS wsl rm -rf * keeps the PowerShell glob reading, block
   --tool PowerShell "${RDT_CWD[@]}" --command 'wsl rm -rf *'
 expect_both 'protected: dotglob then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'shopt -s dotglob; rm -rf *'
 expect_both 'protected: GLOBIGNORE then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'GLOBIGNORE=x; rm -rf *'
-# A case-insensitive filesystem removes .git through .GIT.
 expect_both 'protected: rm -rf .GIT blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .GIT'
-# Win32 trims a trailing dot or space, so `.git.` names `.git` there.
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32)
   expect_both 'protected: PS Remove-Item on .git. blocks' 2 \
@@ -389,8 +363,6 @@ expect_both 'protected: scratchpads: TMPDIR at the base, a temp file there allow
   --payload "$(rdt_pl "rm -rf '$RDT_CB/rdt-own-tmp'" "$RDT_TOP" "$RDT_OWN")" -- "TMPDIR=$RDT_CB"
 expect_both "protected: scratchpads: TMPDIR at the base, another session's scratchpad blocks" 2 \
   --payload "$(rdt_pl "rm -rf '$RDT_OTH'" "$RDT_TOP" "$RDT_OWN")" -- "TMPDIR=$RDT_CB"
-# Without a payload scratchpad the base is <temp root>/claude-<uid>
-# (<temp root>/claude on Windows); TMPDIR names a fixture temp root here.
 RDT_TR="$TEST_TMPDIR/rdt-tmproot"
 rdt_cn="claude-$UID"
 case "${OSTYPE:-}" in
@@ -493,14 +465,10 @@ expect_both 'find: no start point from the toplevel is . and blocks' 2 "${RDT_CW
 expect_both 'find: no start point from a subdirectory allowed' 0 --cwd "$RDT_TOP/plugins" \
   --command "find -name '*.pyc' -delete"
 expect_both 'find: a .git start point blocks' 2 "${RDT_CWD[@]}" --command 'find .git -name x -exec rm {} +'
-# GNU reads a first primary spelled -f... as the expression, so `.` is judged
-# though BSD reads it as -f and a start point.
 expect_both 'find: -fstype first still judges . from the toplevel' 2 "${RDT_CWD[@]}" \
   --command 'find -fstype ext4 -delete'
 expect_both 'find: -files0-from judges no . from the toplevel' 0 "${RDT_CWD[@]}" \
   --command 'find -files0-from list -delete'
-# Under -H, -L or -follow find follows a start point that is a symlink, so it
-# is judged by where it points; without them the link itself is the target.
 if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$TEST_TMPDIR/rdt-find-link" 2>/dev/null &&
   [[ -L "$TEST_TMPDIR/rdt-find-link" ]]; then
   expect_both 'find: a link start point under temp, not followed, allowed' 0 "${RDT_CWD[@]}" \
@@ -839,9 +807,6 @@ robocopy src / -MIR
 echo "$(robocopy src / /MIR)"
 EOF
 
-# From the Bash tool MSYS rewrites a single-slash one-letter word to that
-# drive's root, so `/e` is an operand there and never the /E option; from the
-# PowerShell tool it is the option, and the robocopy names no destination.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"

@@ -1,14 +1,3 @@
-// eval-handoff.mjs hands an eval leg to the next credential on exactly the
-// stops run-claude-cli's action.yml names: a key leg's credit stop or 401/402,
-// a subscription leg's credit stop, 401/402 or limit stop when a fallback leg
-// follows, and never from the fallback leg. The rule cases take their expected
-// values from that description (ci-workflows .github/actions/run-claude-cli/
-// action.yml at b8bdd7f, the `handoff` output), held against the contract's
-// handoffReason. Every case runs run-claude-cli's published contract,
-// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs,
-// fetched at the pin the eval workflows check out, so a pin bump that reshapes
-// what eval-handoff reads fails here; the stream messages are the observed
-// shapes ci-workflows' classify.test.cjs records (CLI 2.1.302).
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -90,8 +79,6 @@ test("the eval legs' sparse checkout is the contract manifest and its paths at t
   }
 });
 
-// Run 42138674762: the classifier required in place climbed to the workspace
-// root's package.json, which did not parse, and the leg failed before judging.
 test("the classifier loads under a workspace whose root package.json does not parse", async () => {
   const { spawnSync } = await import("node:child_process");
   const ws = tempDir("eval-handoff-ws-");
@@ -110,8 +97,6 @@ test("the classifier loads under a workspace whose root package.json does not pa
   assert.equal(r.stdout, "handoff=true\nhandoff-reason=credit-stop\nlane-class=credit-stop\noutcome=failure\n");
 });
 
-// A classifier that cannot load fails the run with exit 2 and no verdict, so
-// the workflow step stops the leg red rather than guessing a handoff.
 test("a classifier that cannot load prints no verdict and exits 2", async () => {
   const { spawnSync } = await import("node:child_process");
   const r = spawnSync(process.execPath, [new URL("./eval-handoff.mjs", import.meta.url).pathname], {
@@ -150,7 +135,6 @@ const rejected = (status) => [
   { type: "assistant", error: "authentication_failed", is_api_error_message: true, api_error_status: status, message: { model: "<synthetic>", content: [{ type: "text", text: REJECTED_TEXT }], usage: { input_tokens: 0, output_tokens: 0 } } },
   { type: "result", subtype: "success", is_error: true, num_turns: 1, total_cost_usd: 0, api_error_status: status, terminal_reason: "api_error", result: REJECTED_TEXT, usage: { input_tokens: 0, output_tokens: 0 } },
 ];
-// A subscription run held by a rejected five-hour window, its reset in the future.
 const LIMITED = [
   { type: "system", subtype: "init" },
   { type: "rate_limit_event", rate_limit_info: { status: "rejected", resetsAt: 4102444800, rateLimitType: "five_hour" } },
@@ -174,8 +158,6 @@ test("the real classifier: a subscription leg's limit stop and credit stop hand 
   assert.equal(judgeLegStreams([{ text: jsonl(LIMITED), exitCode: 1 }], { leg: "fallback", fallbackReady: true }, real).handoff, false);
 });
 
-// The partial reasons plugin-evals' results.json table lists: cost_ceiling,
-// interrupted and auth_failed. Only auth_failed is the credential's stop.
 const partial = (partialReason) => ({ partial: true, partialReason, cases: [{ arms: { with: [{ error: "exit 1: Not logged in · Please run /login", tracePath: "/absent/trace.jsonl" }] } }] });
 const none = { handoff: false, reason: "", laneClass: "" };
 

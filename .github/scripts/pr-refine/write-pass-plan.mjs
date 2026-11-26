@@ -1,9 +1,3 @@
-// pr-refine.yml's select-passes job: reads the base config under BASE_PATH as
-// resolve-config loads it (configFromBase) and the PR's changed paths (one a
-// line), expands the pr-refine lane's slots through resolve.mjs laneSlots,
-// plans the Refine passes (plan-passes.mjs) and writes them as step outputs:
-// passes and batches as JSON, files as a JSON map of pass to files matched,
-// and `<pass>=true` for each planned pass, which the pass's first job gates on.
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 
 import { configFromBase } from "../../actions/resolve-config/resolve-config.mjs";

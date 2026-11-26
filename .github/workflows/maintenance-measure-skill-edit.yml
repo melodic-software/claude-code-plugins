@@ -1,51 +1,5 @@
 name: Maintenance Measure Skill Edit
 
-# Measures one proposed edit to one skill against the skill as merged, on a
-# listed human's dispatch, and opens a draft pull request when it wins (#12035;
-# plan: the #6405 comment
-# https://github.com/melodic-software/claude-code-plugins/issues/6405#issuecomment-6625292188):
-#
-#   check-inputs  no spend: a listed human on the default branch, the kill switch,
-#             upstream status, the credential, the inputs, and a suite that
-#             keeps a case once judged graders are dropped.
-#   measure-baseline, the unchanged skill twice (maintenance-measure-skill-edit-pass.yml), each on its
-#   measure-baseline-again  own runner, 3 runs per case per arm under --max-cost-usd 5.
-#   generate-edit  win-test.py's baseline gates, then run-claude-cli on the API
-#             key (--restricted, read-only GITHUB_TOKEN, no write token,
-#             read-only tools), returning one edit as structured output.
-#   scan      no model, no secret: applies the edit to a fresh checkout and
-#             refuses it outside plugins/<p>/skills/<skill>/, under evals/, or
-#             as select-plugins.mjs refuses a pull request's change.
-#   measure-edit  the same pass with the edit applied.
-#   compare-passes  win-test.py over all three passes; the job summary names the gate
-#             that stopped the run, with its numbers. On a win it uploads the
-#             edit as a patch with each pass's with-versus-without results.
-#   push-branch  on a win only (mutate-branch: contents write): the scanned
-#             patch and a fixed changelog fragment as one lanes App commit on
-#             chore/hill-climb-<plugin>-<skill>-<run id> (hill-climb-publish.mjs).
-#   publish   (publish-artifact: pull-requests write, contents read) opens that
-#             branch's pull request as a draft, its body written by the script
-#             from the win's results.
-#
-# A skill's cases are its suite's cases tagged with the skill's name, unless
-# the tag or case input selects others. Every pass grants no tool beyond the
-# read-only set, so only a suite whose cases score with Read, Glob, Grep and
-# Skill measures here.
-#
-# The owner's grant (AL-Q11,
-# https://github.com/melodic-software/claude-code-plugins/issues/12035#issuecomment-6650791111):
-# chore/hill-climb-* branches only, a listed human's dispatch only, draft pull
-# requests only, and no write token in the model step. Only push-branch and
-# publish hold id-token, each to mint one lanes App token from the broker,
-# which refuses this caller on any event but workflow_dispatch and any actor
-# or re-runner but a listed human. No job holds a merge right, checks or
-# statuses write, or workflows. Every pass and the proposal run on the
-# evals role's API key alone, never on a subscription token
-# (docs/review/evals.md); a stopped key ends the run. How to stop it: set the
-# organization or repository lanes kill-switch variable to anything but
-# "false"; every job that spends or writes checks it first, and the broker
-# reads it live.
-
 on:
   workflow_dispatch:
     inputs:
@@ -144,8 +98,6 @@ jobs:
           echo "gate: kill-switch: the GITHUB_TOKEN budget is low until ${RESET} (epoch seconds)" >>"$GITHUB_STEP_SUMMARY"
           echo "::notice::the GITHUB_TOKEN budget is low until ${RESET} (epoch seconds), which stops this run; nothing read or written"
 
-      # Each stop names its gate in the job summary. Each pass checks the
-      # credential is set, so no job here reads a secret.
       - name: Check the run may spend
         if: steps.kill.outputs.cause != 'budget'
         env:
@@ -198,8 +150,6 @@ jobs:
             echo "case=$CASE"
           } >>"$GITHUB_OUTPUT"
 
-      # validate-cases.py and deterministic-suite.mjs make no model call; the
-      # case count after the tag or case filter is known only after pass a.
       - name: Check the suite
         id: stage
         if: steps.kill.outputs.proceed == 'true'
@@ -346,7 +296,6 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
           exit 1
 
-      # Under the workspace: --restricted confines the file tools to it.
       - name: Download pass a
         uses: actions/download-artifact@v8
         with:
@@ -359,8 +308,6 @@ jobs:
           artifact-ids: ${{ needs.measure-baseline-again.outputs.artifact-id }}
           path: ${{ github.workspace }}/hill-climb-data/a2
 
-      # Each pass's manifest by the SHA-256 its job recorded, then every file by
-      # the manifest; win-test.py's baseline gates decide whether the model runs.
       - name: Check the baseline
         id: baseline
         env:
@@ -519,10 +466,6 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-key
 
-      # Read by the next runs' credit gate (check-key-credit): the artifact
-      # its `marker` output names (check-key-credit gate.cjs markerName),
-      # uploaded only after the key leg's credit-stop handoff. The name is
-      # written out so its retention row claims it.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.check-key-credit.outputs.marker == 'key-credit-stop-EVALS_CLAUDE_API_KEY' && steps.run-key.outputs.handoff-reason == 'credit-stop'
@@ -580,8 +523,6 @@ jobs:
           echo "::error::EVALS credentials not assigned or used up: EVALS_CLAUDE_API_KEY stopped ($REASON), so no edit was proposed; a hill climb runs on the API key alone, so reassign the EVALS role through the account rotation tool (docs/review/evals.md)"
           exit 1
 
-      # Read from the launcher's file only after the leg's init message reports
-      # dontAsk; the scan job validates it.
       - name: Collect the proposal
         id: collect
         if: steps.run-key.outcome == 'success' && steps.run-key.outputs.structured-output-file != ''
@@ -622,9 +563,6 @@ jobs:
         with:
           tokens: github-token
 
-  # No model, no secret. The edit becomes one local commit on the measured
-  # base, so the path rule and select-plugins.mjs judge the exact change pass b
-  # will run.
   scan:
     name: Scan
     needs: [check-inputs, generate-edit]
@@ -734,8 +672,6 @@ jobs:
     secrets:
       EVALS_CLAUDE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}
 
-  # No model, no secret. Names the gate that stopped the run, with its
-  # numbers; on a win, keeps the edit and each pass's results for 3 days.
   compare-passes:
     name: Compare Passes
     needs: [check-inputs, measure-baseline, measure-baseline-again, generate-edit, scan, measure-edit]
@@ -838,9 +774,6 @@ jobs:
             exit 1
           fi
 
-      # A win's evidence: the edit, and pass a's and pass b's with-versus-without
-      # results and summaries. No traces. The publish job checks it against the
-      # manifest's SHA-256.
       - name: Stage the win
         id: stage
         if: steps.decide.outputs.win == 'true'
@@ -883,12 +816,6 @@ jobs:
         run: |
           echo "gate: win-upload: the win was not uploaded (credential scan clean=${CLEAN:-unread}), so no branch or pull request follows" | tee -a "$GITHUB_STEP_SUMMARY"
 
-  # mutate-branch: contents write only, on a win only (AL-Q11). No model, and
-  # nothing of the model's proposal: the patch is the one the scan job checked
-  # and pass b measured, applied to a second checkout of the base so the
-  # scripts in .base stay main's. hill-climb-publish.mjs checks the result
-  # changes only the skill's markdown and one fixed changelog fragment, and no
-  # hold path, before it writes chore/hill-climb-<plugin>-<skill>-<run id>.
   push-branch:
     name: Push Branch
     needs: [check-inputs, scan, compare-passes]
@@ -946,8 +873,6 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Before the mint: the scan job's artifact, by id, and the SHA-256 it
-      # recorded. A missing or altered patch fails the job.
       - name: Download the edit
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
         uses: actions/download-artifact@v8
@@ -1036,10 +961,6 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # publish-artifact: pull-requests write, contents read. The title and body
-  # are written and scanned before the mint, from the compare-passes job's win
-  # artifact checked against its manifest's SHA-256; the pull request opens as
-  # a draft, and nothing here or in any lane marks it ready or merges it.
   publish:
     name: Publish
     needs: [check-inputs, compare-passes, push-branch]

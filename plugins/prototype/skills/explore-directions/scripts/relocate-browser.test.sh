@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/prototype/.claude-plugin/plugin.json
-# Browser check of note relocation (notes-bridge/relocate-note.mjs) on a test-local mockup with the
-# bundled switcher inlined, served by this plugin's notes-bridge copy and driven through
-# playwright-cli. A note taken on variant B, state empty, worst content re-locates in a fresh page
-# to the same element, with that view restored through the switcher's vs:show event. Its shot is
-# the element only: no host-page pixel and no switcher pixel, though the switcher covers part of it.
-# A note on an element whose test id sits on a same-tag ancestor shoots that element, not the
-# ancestor. With the element's test id renamed, the path still finds it, unconfirmed; with the element gone,
-# the shot is the stored box, labeled position only.
-# SKIPs without playwright-cli, node, python3 or curl.
 # test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html
 set -euo pipefail
 

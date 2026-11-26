@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Browser check of the notes host's Notes panel (notes-bridge/host.html) on the explore-directions
-# eval fixture with the bundled switcher inlined, served by this plugin's notes-bridge copy and
-# driven through playwright-cli. N hides and shows the panel with the focus on its button, then in
-# the panel; a draft is saved, edited, deleted and sent, the editor giving the focus back to the
-# control that opened it; the note's status moves from sent to delivered once a watcher takes it,
-# and to handled with the reply once the session applies its ops; a note and a reply holding
-# `<img src=x onerror=...>` show as text, create no element and run no handler.
-# SKIPs without playwright-cli, python3 or curl.
 # test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 

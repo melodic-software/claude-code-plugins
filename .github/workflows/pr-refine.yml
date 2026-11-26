@@ -1,39 +1,7 @@
 name: PR Refine
 
-# Lane caller for pr-refine: its file stem is the lane, so the lanes token
-# broker accepts its write activities. No App key; each run job's OIDC token is
-# exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
-# Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
-#
-# workflow_dispatch only. fix-docs: pr-unblock-dispatch.yml's refine job sends
-# one, on the PR's own pull_request_target event, per ready PR that changes a
-# Markdown file and never had a fix-docs run, when the event's sender is the
-# lanes App or a listed human, except Dependabot, the release App and the
-# standards-sync App, and not for a work-resolve-issue PR tidied in its own run
-# (within the tidy cutoffs) (refine-event-dispatch.mjs over
-# fix-docs-dispatch.mjs); the push and scheduled dispatcher runs send none. The
-# refine job sets dispatcher-run-id; a trusted human may dispatch with
-# pr-number and activity alone. Every job trusts the default branch tip, as the
-# dispatcher runs from the tip.
-#
-# Each activity is a model job and its push job (slots[].needs in
-# docs/conventions/pr-pipeline.yaml); pairs on one PR serialize on the per-PR
-# write queue.
-
-# fix-docs-dispatch.mjs reads this title to skip a second dispatch while one
-# for the same activity and PR is still queued or going. Quoted: unquoted,
-# " #" would start a YAML comment and drop the PR number.
 run-name: "PR Refine ${{ inputs.activity }} #${{ inputs.pr-number }}"
 
-# API_BUDGET_HOLD (outage posture element 2,
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/outage-posture-audit.md): only
-# select-passes's changed-files read, head read and hold check set it, since
-# an unread file list, head or hold holds green and starts nothing. handoff-evidence.sh sets
-# it itself for the fix-docs reads.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   workflow_dispatch:
     inputs:
@@ -60,19 +28,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # A dispatcher that ran an older copy of its file than the tip sent a run the
-  # broker refuses every write token, so the compare step runs first; on a
-  # difference no later step or job starts and the run ends green (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#runs-that-post-no-check).
-  #
-  # Plans the Refine passes from the PR's changed files
-  # (.github/scripts/pr-refine/plan-passes.mjs; https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review).
-  # A file list at the REST cap of 3000 may be cut off, so it plans every pass
-  # and each runner's own applies-when decides.
-  #
-  # On a planned fix-docs it reads the PR head fix-docs's report posts its
-  # check on, and whether the human-gated label holds fix-docs (lane-hold.mjs).
-  # A head or hold it cannot read holds green with unread=true, so nothing
-  # after it starts but fix-docs-head-held (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/outage-posture-audit.md).
   select-passes:
     name: Select Passes
     if: >-
@@ -240,11 +195,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Job-level evidence that select-passes held on an unread head, hold or
-  # changed-files list: the run ends green, and fix-docs-dispatch.mjs (heldHead)
-  # reads this job's conclusion to dispatch the PR again; monitor signal 13
-  # counts its titled notice (signals.mjs HOLD_LANES). select-passes runs no
-  # head code, so nothing forges it (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review).
   fix-docs-head-held:
     name: Fix Docs Head Held
     needs: select-passes
@@ -280,13 +230,6 @@ jobs:
           overwrite: true
           if-no-files-found: ignore
 
-  # fix-docs is split across jobs, so no model ever holds a write token. The
-  # model job: a read activity with no write token and no OIDC token in the job that
-  # runs head code. The skill fixes the changed Markdown files; the runner
-  # uploads its uncommitted edits as a patch. It runs on the pr-unblock
-  # role's API key alone. Drafts and do-not-merge PRs skip in the config's
-  # applies-when, a human-gated hold in select-passes (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review),
-  # before any model turn.
   fix-docs:
     name: Fix Docs
     needs: select-passes
@@ -320,18 +263,6 @@ jobs:
       claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether fix-docs's report job posted its check, and whether the broker
-  # allowed the call, read from this run's jobs through the Actions API, as
-  # pr-unblock.yml's fix-ci-handoff reads them for fix-ci: never from a
-  # fix-docs output, since fix-docs's run job runs head code and can forge
-  # handed-off, lane-class or credential-present. A listing that lags past the
-  # read budget, and a read that fails 3 times (handoff-evidence.sh's fix-docs
-  # hold, a rate limit included), each end green with one notice and the handoff
-  # facts empty, which starts no fallback. fix-docs-dispatch.mjs reads such a
-  # held run from its job conclusions (heldHandoff) and dispatches the PR again,
-  # as after a red run, until limit-stops-per-head runs went red or held, or two
-  # were lost (cancelled, timed_out or startup_failure); any other completed run
-  # ends the PR. A failed fix-docs still reds its own jobs and the run.
   fix-docs-handoff:
     name: Fix Docs Handoff
     needs: [select-passes, fix-docs]
@@ -384,11 +315,6 @@ jobs:
           overwrite: true
           if-no-files-found: ignore
 
-      # Whether the third call can run, never the token. fix-docs-subscription
-      # passes it on as fallback-ready, so with the token empty its
-      # subscription leg stays the last. A failed read leaves it empty. A
-      # lagging read sets it, and the empty handed-off still keeps both later
-      # legs from starting.
       - name: Check the fallback token
         id: fallback
         env:
@@ -403,11 +329,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The key's credit-stop markers, read by the read runner's check-broker in
-  # later runs (each first call's key-credit-job). Each comes from a jobs-API
-  # read of the call's run job (handoff-evidence.sh credit-stop), never from a
-  # call's output. No job needs this one, so the read, which waits for the
-  # jobs listing's steps, delays no handoff.
   upload-key-credit-markers:
     name: Upload Key Credit Markers
     needs: [fix-docs]
@@ -492,19 +413,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
-  # only when the broker allowed fix-docs, fix-docs posted no check, and
-  # fix-docs handed off: a credit stop or an empty key, whose run job succeeds
-  # with its scan job skipped, leaving no upload, lane record or check.
-  # fix-docs posts nothing on a decline (post-decline: false), so the broker's
-  # allow keeps a kill switch or a refusal from starting a second leg, and the
-  # handoff keeps a trigger decline or a supersede (the PR head moved after
-  # select-passes read it (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review), so a second leg would supersede too) from starting
-  # one: their scan job runs. Its start reads no fix-docs output, only
-  # fix-docs-handoff's, and it holds the OAuth token alone. fallback: handoff
-  # labels the lane record without reading a fix-docs output: only the run job
-  # knows whether it was a credit stop or an empty key, and head code can
-  # forge that.
   fix-docs-subscription:
     name: Fix Docs Subscription
     needs: [select-passes, fix-docs, fix-docs-handoff]
@@ -540,12 +448,6 @@ jobs:
       claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Whether fix-docs-subscription handed off to the fallback token, read from
-  # this run's jobs by handoff-evidence.sh, never from a fix-docs-subscription
-  # output: its broker allowed it, its run job succeeded and its scan job never
-  # ran. It runs only when fix-docs-handoff found the fallback token set, so
-  # with the token empty neither it nor the third call starts. A failed or
-  # lagging read starts no third call.
   fix-docs-subscription-handoff:
     name: Fix Docs Subscription Handoff
     needs: [fix-docs-handoff, fix-docs-subscription]
@@ -633,16 +535,6 @@ jobs:
       fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # fix-docs's push job: the apply-patch activity under patch-rules.json's
-  # docs row, which admits only markdown outside skills/ and no SKILL.md. It
-  # runs only on a written patch: no change is the common case and needs no
-  # one. The lane has no escalation job, so a refused patch posts the
-  # pr-refine / apply-patch check neutral and labels nothing. One leg answers,
-  # as for pr-unblock.yml's apply-patch: the fallback call when it ran, else
-  # the subscription call when it ran, else the first, and every input is that
-  # leg's scan job's, never a run job's, since the run job runs head code. The
-  # head is select-passes's, read by a job that ran no head code (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review); apply-patch
-  # still applies onto the head its own gate reads.
   apply-docs-patch:
     name: Apply Docs Patch
     needs: [select-passes, fix-docs, fix-docs-subscription, fix-docs-fallback]
@@ -674,20 +566,9 @@ jobs:
       patch-prepare: docs
       timeout-minutes: 30
       patch-head-sha: ${{ needs.select-passes.outputs.head-sha }}
-      # lane-escalation drops the human-gated label from the holds while the
-      # write runner reads it again as a lane escalation (lane-hold.mjs).
       patch-human-gate: ${{ needs.select-passes.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       reply-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}
 
-  # One refine-pass notice per planned pass (log-pass-records.mjs): its name,
-  # files matched, outcome (pushed, none, superseded or failed) and seconds
-  # since the plan started. A failed pass also logs a refine-failed warning,
-  # which monitor signal 13 counts as a pr-refine hold, on this job of a red
-  # run too (signals.mjs HOLD_LANES). Each outcome comes from the jobs'
-  # results and the push job's outputs, which only its base script sets,
-  # never from a model call's run job, which runs head code. A select-passes job that
-  # failed logs refine-failed for pass=plan, since no pass's job ran. No token
-  # but a read-only one for the checkout.
   record-passes:
     name: Record Passes
     needs: [select-passes, fix-docs, fix-docs-handoff, fix-docs-subscription, fix-docs-subscription-handoff, fix-docs-fallback, apply-docs-patch]

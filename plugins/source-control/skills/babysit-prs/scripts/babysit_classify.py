@@ -84,14 +84,6 @@ REQUIRED_FIX_RE = re.compile(
     + r"request(?:s|ing)? changes|regression|vulnerability|high[- ]severity)\b",
     re.I,
 )
-# Blocking-severity markers, case-sensitive and whole-word, matching the
-# vocabulary babysit-readiness-gate.sh counts as findings (CRITICAL/IMPORTANT).
-# Deliberately NOT case-insensitive: lowercase "critical"/"important" occur
-# constantly in ordinary review prose ("it is important to note", "critical
-# path"), whereas the uppercase tokens are the reviewer's structured severity
-# labels. SUGGESTION is intentionally excluded here -- like a 🟡 nit it is a
-# non-blocking marker -- so an approval carrying only suggestions/nits stays
-# non-blocking.
 BLOCKING_SEVERITY_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT)\b")
 REVIEW_SKIP_RE = re.compile(
     r"\bbugbot\b[^\n.]{0,80}?\b(?:skipped|did(?:n't| not) run|"
@@ -326,47 +318,9 @@ def skip_downgrade(text: str) -> bool:
     return not has_blocking_text(remainder) and not has_blocking_severity(remainder)
 
 
-# --- Finding decomposition counting (readiness gate) -------------------------
-#
-# The readiness gate (babysit-readiness-gate.sh) delegates its finding and
-# classification counts here so the severity vocabulary is defined once, not
-# re-implemented in bash grep. The bash script retains an equivalent grep
-# fallback ONLY for the Python-free safe-tier degrade (loop.md is that path);
-# the convergence test pins the two counts together on thread-state-free
-# fixtures. See babysit_findings.py for the CLI entrypoint.
 SEVERITY_WORDS_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT|SUGGESTION)\b")
-# codex's shields.io P-severity badge: the `/badge/P{N}-` URL segment appears
-# exactly once per finding (the badge's alt text carries the same P-number token
-# a second time, so a bare `P[0-3]` would double-count). `/badge/P0-` never
-# matches a lowercase priority:p0-critical label.
 SEVERITY_BADGE_RE = re.compile(r"/badge/P[0-3]-")
 SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
-# A markdown table cell that OPENS with a disposition token -- not one that
-# merely contains a disposition word somewhere in its prose. The cell is
-# `|`, non-word decoration, the token, then either the end of the cell or a
-# PUNCTUATED annotation.
-#
-# Case-insensitive (unlike SEVERITY_WORDS_RE above): a worker's classification
-# reply that writes a natural-language disposition like "Valid (defer)" instead
-# of the mandated all-caps VALID must still count as a classification, or the
-# readiness gate reports a false BLOCKED even though the finding genuinely was
-# classified (#619).
-#
-# The annotation must be introduced by PUNCTUATION -- a dash, colon, or opening
-# bracket -- never by a bare space. That is the discriminator between the
-# dispositions `reference/review-discipline.md` documents and prose that happens
-# to start with a disposition word:
-#   documented   `VALID: fixing`  `VALID (defer)`  `VALID (fix now)`
-#   prose        `Valid cache entries are rejected`
-# Matching anywhere in the row instead would also credit `| CI check | result is
-# valid |`, and either miss lets an unclassified finding past the
-# under-decomposition gate.
-#
-# The decoration before the token excludes word characters, not just letters, so
-# `2valid` cannot open a cell; the character required after the token is
-# likewise non-word, so `valid2` and `VALID_TOKEN` do not satisfy it. Every
-# class excludes `|`, so no run crosses a cell boundary. Together those keep
-# "invalid"/"INVALID" from false-matching "valid"/"VALID".
 _CELL_DECORATION = r"[^A-Za-z0-9_|]*"
 _CELL_ANNOTATION = r"(?:[ \t]*[^A-Za-z0-9_ \t|][^|]*)?[ \t]*"
 _CLASSIFY_CELL = (
@@ -394,12 +348,6 @@ def thread_is_open(comment: dict[str, Any]) -> bool:
     return not (bool(comment.get("isResolved")) or bool(comment.get("isOutdated")))
 
 
-# The surface a comment lives on -- not just its resolution state -- is
-# load-bearing for classification credit (#642): a review thread can be resolved
-# (its findings and their in-thread classifications drop together), while a
-# PR-level comment never can, so a stale classification posted there would
-# otherwise count forever. Credit is bucketed by these surfaces and capped within
-# each, so a row on one surface cannot offset a finding on another.
 THREAD_SURFACE = "thread"
 PR_LEVEL_SURFACE = "pr_level"
 UNKNOWN_SURFACE = "unknown"

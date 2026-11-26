@@ -1,9 +1,4 @@
 // test-scope: .github/scripts/plugin-eval/fixtures/traces/*
-// Expected verdicts come from /evals:plugin-eval's reference/ci.md parser: a
-// partial document, a run with skippedPaidGraders or a non-null error, and a
-// two-arm case with no delta are each NOT COMPARABLE, never a score. The
-// single-arm-by-design rule (context.history_file set, no without-arm key) is
-// run-validity.py's row count rule.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

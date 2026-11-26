@@ -1,46 +1,3 @@
-// Starts the pr-unblock lane's fix-ci activity for each open pull request the
-// lanes App opened, or a trusted actor opened (an App's at once, a person's
-// once idle; the base config's `adoption` section), whose head's lanes failed
-// (the `ci-lanes` commit status ci-status records, not ci-status itself, which
-// a review-lane hold or a pending review also fails) or whose pr-test-platforms
-// run failed, from the same
-// dispatcher run
-// as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
-// broker check it as they check a resolve-conflicts dispatch. A pull request
-// from a head branch a workflow owns and rebuilds (merge.refire-skip-branches,
-// the release branch) is never dispatched: the rebuild is its fix.
-//
-// The listing is dispatch.mjs's LIST_QUERY, one GraphQL query per page of 50
-// pull requests shared with the run's other dispatchers: each one's author,
-// labels, body, last update, and its last commit's date and check rollup. Its
-// rateLimit.cost is logged; the same query reads when the base tip was
-// committed. A head is dispatched when it has no
-// pr-unblock / fix-ci check run from the GitHub Actions app, or when every
-// such run failed or found no failing check, fewer than
-// `limit-stops-per-head` of them stand on it, and since the base tip at most
-// `fix-ci-restarts` failed and none found nothing; at most `fix-ci-per-run`
-// per dispatcher run, lowest PR number first. The rollup lists only a check
-// name's newest run, so before it dispatches a head the dispatcher reads the
-// head's fix-ci runs over REST, and the per-head count comes from those.
-// A head at the cap gets one `::warning::` and goes into the dispatch record
-// (dispatch-record.mjs), so later runs skip it before any read; the next push
-// makes a new head.
-// A head whose lanes passed but whose pr-test-platforms run failed is a
-// candidate too. A head is skipped while a re-run of its tested run is
-// queued or going, while an infra-only first failure's one re-run by the
-// lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
-// RERUN_DUE_MINUTES; a lost first attempt's too), and when its tested run
-// ended cancelled with no check on the head that fix-ci-context counts as
-// failing (its failingChecks, over the same check-run read), which would only
-// post a skip; a check cancelled past its time limit counts, read from
-// its annotations (#9828); a real
-// failure (a test, lint or typecheck step), an infra failure that failed
-// again, and a run or field that cannot be read go to fix-ci, with the cause
-// logged.
-// The fix-ci-context job decides the round cap. Logs carry PR numbers, SHAs,
-// run ids, counts and failed job and step names (control characters dropped,
-// 80 characters each at most) only.
-
 import {
   AGGREGATE_JOBS,
   FAILED,
@@ -76,7 +33,6 @@ export const DEFAULTS = Object.freeze({
   stopCheckName: "pr-unblock / apply-patch",
   requiredWorkflow: ".github/workflows/pr-require-checks.yml",
   advisoryWorkflow: ".github/workflows/pr-test-platforms.yml",
-  // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: DISPATCH_HOLDS,
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
@@ -127,20 +83,6 @@ const asRest = (run) => ({
   output: { title: run.title ?? null },
 });
 
-// The head's fix-ci runs (REST) in the rollup's shape, one per run attempt:
-// fix-ci and the in-run fix-ci-rung-up both post a fix-ci check, and the pair
-// is one attempt, read from its last check, that spends one place under the
-// per-head cap for each of its checks (`spent`). An attempt a lane-stopped push job
-// check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
-// the head may be retried under the same caps a failed run is, and so does one
-// whose push job failed on a token refusal, which pushed nothing. One a
-// kill-switch push job check followed reads as that kill-switch skip, which
-// did no work: it is retried like a held skip, spending no restart. A check's
-// attempt is the workflow run attempt postingAttempt names; not its check
-// suite, which GitHub picks for a check created over the API. A stop marks
-// only its own run attempt, so a re-run is a new attempt; a check with no
-// readable attempt falls back to timing, a stop after it and before the next
-// fix-ci check started.
 export function withStops(runs, stopRuns) {
   const stops = stopRuns.filter((run) => laneStop(run) || tokenRefused(run));
   const kills = stopRuns.filter(killSwitchStop);
@@ -236,9 +178,6 @@ const advisoryFailed = (node, checks, checkName) =>
   lanesState(node) === "SUCCESS" &&
   checks.some((run) => run.name !== checkName && !AGGREGATE_JOBS.has(run.name) && run.status === "COMPLETED" && run.conclusion === "FAILURE");
 
-// A job or step name comes from the PR head's workflow file: control characters
-// are dropped and the length capped, so it cannot start a workflow command in
-// the log of a job that holds actions: write.
 const logName = (name) => String(name ?? "").replace(/[\x00-\x1f\x7f]+/g, " ").slice(0, 80);
 
 export function failureCause(required, now = Date.now()) {
@@ -350,10 +289,6 @@ export function skipReason(
   if (runs.length === 0) {
     return "";
   }
-  // The rollup's newest push job check names no run attempt: when it is a
-  // lane or kill-switch stop, which turns the fix-ci run before it into a
-  // failed or paused one (withStops), the REST read decides the head. So
-  // does a failed one: the rollup has no summary to tell a token refusal by.
   if (node.fixCiRuns === undefined && runs.every((run) => run.status === "COMPLETED") && checks.some((run) => run.name === stopCheckName && (run.conclusion === "FAILURE" || releasesHead(asRest(run))))) {
     return "";
   }
@@ -537,10 +472,6 @@ export async function dispatchCiFixes({
       log(`skip fix-ci #${node.number}: ${early}`);
       continue;
     }
-    // A cancelled tested run can hide a failed job behind a later skipped run
-    // of it, which the rollup does not show: read what fix-ci-context reads.
-    // When only cancelled checks fail, read whether one ran past its time
-    // limit, which fix-ci takes (#9828).
     let headFailing;
     const timeLimited = [];
     if (cancelled(requiredRun)) {

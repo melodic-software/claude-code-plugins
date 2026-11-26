@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// council-plan.mjs: the deterministic half of /review:council.
-//
-//   config --root <dir> [--ref <ref>] [--user-file <json>]
-//     Resolves the council keys (default < user option < docs/conventions/review.yaml, per key)
-//     and prints {lanes, max_rounds, scores, members, panel, rules} each as {value, layer}, plus
-//     needs_risk, read_at and problems. With --ref the repository file is read from that ref's
-//     committed copy. The user file holds the plugin's option values as given: scalars, and
-//     JSON text (or an already-parsed value) for council_members, council_panel, council_rules.
-//
-//   select --config <json file> --changed <paths file> --tier <t> --tier-reason <r>
-//          --risk <LEVEL|unrated> --risk-reason <r> --round <n> --dirty <true|false>
-//          [--claude-version <x.y.z>]
-//     Picks the panel: the first rule whose every term matches, else the panel, else every
-//     catalog member. Each member gets a route and a status; a member its adapter cannot run as
-//     written is skipped with the reason, never replaced. Skips come from adapters/<provider>.yaml.
-//
-// Exit 0 with JSON on stdout; 2 with one stderr line on a usage error.
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
@@ -86,7 +69,6 @@ function repositoryLayer(root, ref) {
   } else {
     const path = join(real, FILE);
     if (!existsSync(path)) return { doc: null, read_at: `working tree, no ${FILE}`, problems: [] };
-    // A symlink, or a path that resolves elsewhere through a linked directory, is refused (config.md "Resolution").
     const stat = lstatSync(path);
     if (stat.isSymbolicLink() || realpathSync(path) !== path || !stat.isFile()) {
       return { doc: null, read_at: "working tree", problems: [`${FILE}: not a regular file inside the repository; repository layer dropped`] };
@@ -126,7 +108,6 @@ function userLayer(file) {
         continue;
       }
     }
-    // Option values reach the skill as text, so a whole number may arrive quoted.
     if (k === "council_max_rounds" && typeof v === "string" && /^[0-9]+$/.test(v)) v = Number(v);
     doc[k] = v;
   }
@@ -184,7 +165,6 @@ export function resolveConfig({ root, ref, userFile }) {
   };
 }
 
-// globToRegExp: `**` any path (slashes included), `*` and `?` within one segment.
 export function globToRegExp(glob) {
   let re = "";
   for (let i = 0; i < glob.length; i++) {

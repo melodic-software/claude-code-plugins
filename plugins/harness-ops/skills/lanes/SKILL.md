@@ -376,9 +376,8 @@ Basis: the plugins reference,
 
 Two lane-cycle mechanics need no reasoning, so they are scripted here and a lane
 prompt references the script instead of re-deriving the work every cycle. Both
-follow `lane-launcher.sh`'s conventions (jq CRLF wrapper, the `--help` header as
-the full contract, explicit exit codes). The header is the source of truth for
-each, the summary below is a pointer, not a copy.
+follow `lane-launcher.sh`'s conventions (jq CRLF wrapper, flags and exit codes in
+`--help`, explicit exit codes).
 
 - **`scripts/machine-behavior.sh`**. Emits the lane's MACHINE-BEHAVIOR block (gh
   identity, clone path, worktree inventory, installed plugin versions) as a
@@ -404,7 +403,7 @@ each, the summary below is a pointer, not a copy.
   scanned and withheld on a hit. With no resolvable
   write identity it writes nothing and exits 4. The marker grammar, the `<lane>@<instance>` writer-identity rule,
   the body-file containment and size limits, the pre-write and read-back checks,
-  and every exit code are in the script's `--help` header. Two rules the caller
+  and every exit code are in the script's `--help`. Two rules the caller
   must follow: pass the body as file contents or on stdin (see "Never pass a body
   as an `@path` string" below), and lead the body with a telemetry key such as
   `lane:` rather than a GitHub @mention, because a body whose first line begins

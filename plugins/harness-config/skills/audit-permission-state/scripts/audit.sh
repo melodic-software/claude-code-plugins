@@ -1,39 +1,4 @@
 #!/usr/bin/env bash
-# audit.sh — run the permission-state stages once each, in order, with sectioned
-# output.
-#
-# WHY THIS EXISTS
-#
-# Every stage downstream of the inventory consumes the inventory's records. Run
-# as separate pipelines, `permission-state.sh` executes once per pipeline: five
-# pipelines walked every scope five times and re-printed the whole surface
-# inventory at the head of each. This runs it once and fans the records out.
-#
-# The stage scripts stay independently invocable and are not modified by this
-# file. That is load-bearing rather than incidental: draft-auto-mode-rules
-# invokes automode-block-lint.sh by path, and audit-pass composes the stages on
-# its own terms. This is one convenience caller among several, never a gateway.
-#
-# DEFAULT BREADTH
-#
-# Bare invocation runs every read-only stage. The full pipeline is sub-second, and
-# the stages a narrower default skipped (the plane lint, managed conformance, the
-# autoMode block lint) are the ones most likely to carry an actionable finding.
-# Flags narrow; they never widen.
-#
-# Two lanes stay opt-in because neither is read-only in the way the rest are:
-#   --oracle    spawns a real `claude -p` session (rewrites ~/.claude.json and
-#               adds state under the config directory). Priced; never default.
-#   --critique  shells out to `claude auto-mode critique`, which is slow and, in
-#               measured runs, truncates or returns nothing while exiting 0.
-#
-# EXIT STATUS
-#
-# 0 when every stage that ran reported. Non-zero from a stage propagates: the
-# inventory exits 2 without jq, and the merge exits 2 on empty input. A stage's
-# own `status=` token, not this script's exit code, says whether what it read was
-# complete — a run can exit 0 having been unable to open a single scope, which is
-# exactly the confusion the status tokens exist to resolve.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

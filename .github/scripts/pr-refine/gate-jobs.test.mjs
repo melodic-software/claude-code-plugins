@@ -35,9 +35,6 @@ const lookup = (context) => (path) => {
 };
 const evaluate = (gate, context) => evaluateIn(gate, lookup(context));
 
-// Runs the jobs in file order as GitHub would: a job whose gate names no
-// status function also needs every job it needs to have succeeded; a job
-// that runs succeeds with the outputs `outputs` gives it.
 function simulate(base, outputs, forced = {}) {
   const results = {};
   const context = { ...base };

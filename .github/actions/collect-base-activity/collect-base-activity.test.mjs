@@ -1547,6 +1547,8 @@ test("run-claude-cli: a verdict-mode skill keeps exactly the read tools and writ
   assert.deepEqual(schema.properties.complexity, { type: "string", enum: ["low", "medium", "high"] });
   assert.deepEqual(schema.properties.uncertainty, { type: "string", enum: ["known", "knowable", "unknown"] });
   assert.equal(schema.additionalProperties, false);
+  const { default: Ajv } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("ajv");
+  assert.equal(typeof new Ajv({ strict: true }).compile(schema), "function");
   assert.ok(run.preamble.includes(`the issue file is ${WORKSPACE}/.lane/scratch/issue.json`), run.preamble);
   assert.match(run.preamble, /Your verdict is your structured output/);
   assert.equal(run.promptFile, "Call the Skill tool with skill work-items:triage and args --issue 7 --ci, then follow the skill instructions to the end.\n");

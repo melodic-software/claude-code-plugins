@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// Measures the read controls and the process topology of ADR 0086 sections 1
-// and 4 against a local SQL Server Linux container it starts and removes, then
-// rewrites the results block of reference/read-safety-measurement.md.
-//
-//   node scripts/measure-read-safety.mjs [--image <tag>] [--doc <path>] [--runs <n>]
-//
-// Needs Docker, Node 22 and the plugin's dependencies (npm ci). The SA and
-// reader passwords are generated per run and never written or printed. The
-// container's certificate is self-signed, so the measurement connects with a
-// driver whose Connection sets trustServerCertificate; the shipped executor
-// code runs unchanged on top of it.
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -50,10 +39,6 @@ async function failureOf(fn) {
 }
 
 const role = (program) => (program === APP_NAME ? 'agent' : program === WRITER_APP ? 'writer' : program ? 'other' : 'system');
-// What a waiting task waits on. sys.dm_os_waiting_tasks reports a negative
-// blocking_session_id for an owner SQL Server cannot name (-2 orphaned
-// distributed transaction, -3 deferred recovery, -4 and -5 latch owner), and
-// the task's own session for a parallel query's tasks waiting on each other.
 const blockerOf = (session, blocking, program) =>
   blocking < 0 ? `unidentified (${blocking})` : blocking === session ? 'same session' : role(program);
 const waitClass = (type) => (type?.startsWith('LCK_') ? 'lock' : 'other');
@@ -63,7 +48,6 @@ async function tediousModule() {
   return module.default ?? module;
 }
 
-// tedious with the one change a self-signed container certificate needs.
 async function trustingDriver() {
   const tedious = await tediousModule();
   class Connection extends tedious.Connection {
@@ -128,8 +112,6 @@ async function measure() {
     const reader = password();
     const port = await freePort();
     console.error(`starting ${name} from ${image} on 127.0.0.1:${port}`);
-    // Before the run: `docker run -d` creates the container before it starts it,
-    // so a failed start still leaves one for cleanup to remove.
     started = true;
     docker(
       ['run', '-d', '--name', name, '--memory', '2g', '-e', 'ACCEPT_EULA=Y', '-e', 'MSSQL_SA_PASSWORD', '-e', 'MSSQL_MEMORY_LIMIT_MB=1536',

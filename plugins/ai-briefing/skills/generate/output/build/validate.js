@@ -1,4 +1,3 @@
-// Outputs: shots/*.png + audit.json. Exit 0 = green, 1 = blocking issues.
 import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";

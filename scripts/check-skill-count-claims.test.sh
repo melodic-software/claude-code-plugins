@@ -9,8 +9,6 @@ SUT_SRC="$SCRIPT_DIR/check-skill-count-claims.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-vars here is what tells it (SC2154) the names are written.
 TMP="" CLEAN=""
 
 fixture_tree::build TMP --sut "$SUT_SRC" --plugins

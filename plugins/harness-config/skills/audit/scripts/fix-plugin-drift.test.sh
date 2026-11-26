@@ -4,8 +4,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fix-plugin-drift.sh"
 
-# A POSIX-form base: a drive-letter TMPDIR such as C:/... carries a colon that
-# splits PATH when a case builds a shim directory under it.
 TMP_BASE="${TMPDIR:-/tmp}"
 if command -v cygpath >/dev/null 2>&1; then
   TMP_BASE=$(cygpath -u "$TMP_BASE") || TMP_BASE="${TMPDIR:-/tmp}"
@@ -75,9 +73,6 @@ skip() {
   printf 'SKIP: %s\n  reason: %s\n' "$1" "$2" >&2
 }
 
-# count_cr / count_lf <file> - carriage returns and line feeds in a file. Git
-# Bash grep never matches a carriage return, so the count goes through tr; the
-# arithmetic expansion strips the leading spaces BSD wc -c pads with.
 count_cr() {
   local n
   n=$(tr -dc '\r' <"$1" | wc -c)
@@ -377,8 +372,6 @@ fi
 assert_eq "case-10: backup holds the pre-apply bytes" "yes" "$bak_match"
 assert_eq "case-10: backup is named settings.json.bak.<stamp>.<random>" "yes" "$(backup_shaped "$bak")"
 assert_contains "case-10: summary names the backup" "$out" "(backup: $bak)"
-# 0600 only where this host honors mode bits: a probe made under the same umask
-# shows whether it does (MSYS reports every file as -rw-r--r--).
 (
   umask 077
   : >"$case_dir/mode.probe"
@@ -606,10 +599,6 @@ signal_shim() {
   chmod +x "$dir/jq"
 }
 
-# A suite started as a background job (check-changed-skills.sh runs checkers with
-# `&`) inherits SIGINT ignored, and bash cannot trap a signal ignored on entry, so
-# the script under test would never see the INT. env --default-signal restores it;
-# where env lacks the flag (BSD env), case 16 is skipped instead of failing.
 SIGINT_RESET=()
 SIGINT_UNTESTABLE=""
 if [[ "$(trap -p INT)" == "trap -- '' SIGINT" ]]; then
@@ -715,8 +704,6 @@ assert_contains "case-18: SKIPPED section sits above the plan" "$before_plan" " 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
 printf '%s\n' "$DRIFT_FINDINGS" >"$case_dir/findings.json"
-# Compact, so a jq round trip would change the bytes even with no edit in it.
-# The removal's key is already absent; NEW is never a pending edit.
 printf '{"enabledPlugins":{"alpha@market1":true}}\n' >"$case_dir/settings.json"
 cp "$case_dir/settings.json" "$case_dir/settings.pre"
 
@@ -779,7 +766,6 @@ cp "$case_dir/settings.json" "$case_dir/settings.pre"
 for shape in object string empty element multi; do
   case "$shape" in
   object) printf '{"not":"an array"}\n' >"$case_dir/findings.json" ;;
-  # Two documents: jq -e alone would judge only the trailing array.
   multi) printf '{"x":%s}\n[]\n' "$(printf '%s' "$DRIFT_FINDINGS" | jq -c '.[0]')" >"$case_dir/findings.json" ;;
   string) printf '"text"\n' >"$case_dir/findings.json" ;;
   element) printf '[1]\n' >"$case_dir/findings.json" ;;
@@ -946,8 +932,6 @@ date_shim() {
   chmod +x "$dir/date"
 }
 
-# link_to_null <path> - a symlink to /dev/null, or nothing when this host's ln
-# makes a copy instead (Git Bash without native symlinks). The caller checks -L.
 link_to_null() {
   MSYS=winsymlinks:nativestrict ln -s /dev/null "$1" 2>/dev/null || ln -s /dev/null "$1" 2>/dev/null || true
 }
@@ -1039,10 +1023,6 @@ assert_jq "case-31: only the exact CR-bearing key is removed, nothing is added" 
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_case)
 mkdir -p "$case_dir/.claude" "$case_dir/.claude-plugin"
-# A directory-source marketplace, because NTFS refuses a carriage return in a
-# fixture file name. `gone@mk` names a marketplace the file does not declare,
-# and `dup@mk\r` is in the catalog: both carry a name the CR-bearing orphans
-# share without the CR, and both must survive.
 printf '%s\n' '{
   "enabledPlugins": {
     "alpha@mk\r": true,

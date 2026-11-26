@@ -1,24 +1,18 @@
 #!/usr/bin/env bash
-# Render data-model.md (and data-model.dbml) from a collect-data.sh record.
-#
-# Usage:
-#   render-data.sh --record <data-model.json> --out <dir>
-#       [--dialect mermaid|dbml] [--scope module|all|<module>] [--include-columns]
-#   render-data.sh --help
-#
-# The record is schema_version 1, one object per line. Any other layout exits 1
-# and writes nothing.
-#
-# --scope module (the default) draws the only module. Several modules write a
-# refusal that names them and exit 3. No diagram is drawn until the scope is
-# one module or all.
-#
-# Exit: 0 = artifact written (a collected refusal is still exit 0); 1 = the
-# record is unreadable; 2 = usage; 3 = scope unresolved, refusal written.
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render data-model.md (and data-model.dbml) from a collect-data.sh record.
+Usage: render-data.sh --record <data-model.json> --out <dir> [options]
+  --record <file>      data-model.json from collect-data.sh
+  --out <dir>          directory the artifacts are written into
+  --dialect <d>        mermaid or dbml
+  --scope <s>          module (default), all, or a module name
+  --include-columns    draw columns as well as entities
+Exit: 0 written (a collected refusal is still 0); 1 unreadable record; 2 usage;
+3 scope unresolved, refusal written.
+EOF
 }
 
 die() {

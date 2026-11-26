@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# worktree action gates stay inside the compaction re-attach slice (#4255).
 set -uo pipefail
 
 HUB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/SKILL.md"

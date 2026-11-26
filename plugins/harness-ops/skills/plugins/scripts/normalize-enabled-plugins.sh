@@ -1,37 +1,4 @@
 #!/usr/bin/env bash
-# Reorder `enabledPlugins` keys alphabetically in a user-scope settings file.
-#
-#   normalize-enabled-plugins.sh [--file <path>] [--check]
-#   normalize-enabled-plugins.sh --report-project <path>
-#
-# Claude Code's settings writer appends each newly installed `enabledPlugins`
-# key at the end of the map. The rest of the map is alphabetical, so every
-# `sync` that installs something leaves an unsorted tail that never self-heals.
-# There is no `claude plugin` verb that reorders the map, so this script does
-# a strict key-reorder write of the user-scope file only.
-#
-# Invariants:
-#   - User scope only. `--file` defaults to ~/.claude/settings.json
-#     (overridable via FLEET_STATE_USER_SETTINGS, same as fleet-state.sh).
-#   - `--report-project` inspects a committed project settings file and NEVER
-#     writes it. `converge` is the only action permitted to touch that file.
-#   - Keys and values stay byte-identical; only key order changes. If a
-#     semantic diff appears (jq -S before != jq -S after), the write is
-#     aborted rather than applied.
-#   - Permission denial and parse failure are loud (exit 2), never silent.
-#
-# Output, one line on stdout:
-#   already-sorted keys=N             the map is in order; nothing written
-#   normalized moved=K keys=N         wrote a reorder that moved K of N keys
-#   would-normalize moved=K keys=N    --check: a reorder would move K of N keys
-#   missing-file keys=0               the --file path does not exist; nothing
-#                                     written, exit 0 (a machine with no user
-#                                     settings file yet is not an error)
-#   project-absent | project-sorted keys=N | project-unsorted keys=N
-#                                     --report-project
-# K is the fewest keys the reorder moves: N less the longest subsequence of
-# keys already in sorted order, so one appended key reads moved=1 at any N.
-#
 # Exit: 0 already-sorted, missing-file, or wrote a reorder (or --report-project);
 #       1 --check found unsorted keys (would normalize; no write);
 #       2 usage / refused (parse, semantic-diff, write-denied, project write).
@@ -182,8 +149,6 @@ before_sorted="$workdir/before.json"
 after_sorted="$workdir/after.json"
 trap 'rm -rf "$workdir"' EXIT
 
-# Preserve compact vs pretty and CRLF vs LF so a one-key reorder does not
-# churn unrelated lines or line endings.
 jq_indent=(--indent 2)
 line_count="$(tr -d '\r' <"$FILE" | wc -l)"
 if [[ ! -s "$FILE" || "$line_count" -le 1 ]]; then
@@ -206,12 +171,6 @@ if [[ "$crlf" -eq 1 ]]; then
   tmp="$tmp_crlf"
 fi
 
-# Semantic equality of the whole document, key-order-insensitive. A rewrite
-# that changed a value, dropped a key, or invented enabledPlugins when absent
-# must not land. Real temp files rather than process substitution: a
-# native-Windows jq does not reliably read Git Bash /dev/fd paths.
-# jq -e/--exit-status makes a false comparison fail the `if` — without it
-# the guard is dead code (jq exits 0 for both true and false).
 if ! jq -S . "$FILE" >"$before_sorted" || ! jq -S . "$tmp" >"$after_sorted"; then
   echo "refused: unreadable-json ($FILE)" >&2
   exit 2
@@ -222,8 +181,6 @@ if ! jq -en --slurpfile before "$before_sorted" --slurpfile after "$after_sorted
   exit 2
 fi
 
-# Atomic replace: write a sibling then mv so a crash cannot truncate the
-# live settings file. Preserve the original mode when chmod --reference works.
 sib="$FILE.norm.$$"
 if ! cat "$tmp" >"$sib"; then
   echo "refused: write-denied (could not write $sib)" >&2

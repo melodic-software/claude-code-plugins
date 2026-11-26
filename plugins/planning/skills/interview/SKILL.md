@@ -445,13 +445,13 @@ Failure patterns from real sessions: `context/gotchas.md`.
 ## Next
 
 - The interview renamed a term and the code still uses the old name: /docs-hygiene:rename-references <old> to <new>, before the spec.
-- The user confirmed the shared understanding and the work needs a spec: /planning:prd when product intent (users, success measures) is still unsettled; for an engineering task, /planning:design, which records a one-line early exit when no design question is open and hands on to planning.
+- Shared understanding confirmed, product intent (users, success measures) still unsettled: /planning:prd.
+- Shared understanding confirmed on an engineering task: the design stage (/planning:design), which records a one-line early exit when no design question is open.
 - Quickly accepted answers want a fresh-context check: /planning:audit-answers.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
 
 ## Related
 
-- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 - Problem still too rough to frame approaches: /planning:brainstorm.
 - Unfamiliar area needs blindspot pass first: /discovery:blindspot.
 

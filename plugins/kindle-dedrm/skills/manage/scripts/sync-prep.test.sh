@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for sync-prep.sh.
-#
-# sync-prep.sh is a print-only step: it opens the sync window by TELLING the
-# operator which elevated command to run and by handing off to sync-finalize.sh.
-# It must never disable a firewall rule itself and must never delete anything.
-# Every case below therefore asserts on two things at once, what the script
-# printed and what it did not do, because a regression that started running
-# those commands inline would still print plausible output.
-#
-# Isolation. Each case copies the real script into a throwaway mktemp sandbox so
-# its SCRIPT_DIR resolves there, writes the status.sh sibling it probes as a
-# stub, and runs it under a PATH whose first entry shadows rm, pwsh,
-# powershell.exe, netsh and icacls with recorders that perform nothing. Nothing
-# outside the sandbox is read or written, no call can reach a real firewall, and
-# an attempted delete is recorded rather than performed.
-#
-# Assertion helpers are duplicated per plugin on purpose:
-# docs/contracts/shell-test-helpers/README.md.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -106,8 +88,6 @@ make_sandbox() {
 
 snapshot() { find "$1" -mindepth 1 | LC_ALL=C sort; }
 
-# The shim directory is prepended as a command-scoped assignment rather than by
-# exporting PATH, so this suite's own rm (the EXIT trap) is never the shim.
 run_sut() {
   local sbx="$1"
   shift
@@ -177,8 +157,6 @@ assert_contains "live run points at its own sync-finalize.sh" "${out}" "${sbx}/s
 if [[ -n "${RULE_NAME}" ]]; then
   assert_contains "live run names firewall.ps1's own rule" "${out}" "${RULE_NAME}"
 fi
-# The upgrade refusal is the safety instruction the whole workflow rests on: an
-# accepted 2.9.x upgrade breaks key extraction and costs a re-download.
 assert_contains "live run keeps the upgrade refusal" "${out}" "if Kindle prompts to upgrade, REFUSE"
 assert_contains "live run keeps the quit-Kindle step" "${out}" "Quit Kindle entirely"
 assert_touched_nothing "live run" "${sbx}" "${before}"
@@ -238,9 +216,6 @@ assert_lacks "a misspelled --dryrun does not enable dry-run" "${out}" "[DRY-RUN]
 assert_contains "a misspelled --dryrun takes the live path" "${out}" "=== USER STEPS (do not skip) ==="
 assert_touched_nothing "unknown argument" "${sbx}" "${before}"
 
-# Unlike its siblings, sync-prep.sh expands no LOCALAPPDATA/APPDATA/USERPROFILE,
-# so it runs before provisioning. Under `set -u` a newly added expansion of an
-# unset one would abort mid-walkthrough, which this case catches.
 sbx="$(make_sandbox present)"
 before="$(snapshot "${sbx}")"
 out="$(
@@ -254,10 +229,6 @@ assert_contains "unset env vars still yield the full walkthrough" "${out}" "=== 
 assert_lacks "unset env vars raise no unbound-variable error" "${out}" "unbound variable"
 assert_touched_nothing "unset Windows env vars" "${sbx}" "${before}"
 
-# SCRIPT_DIR is `cd ... && pwd`, not a bare dirname, and the difference only
-# shows when the script is invoked by a relative path: the printed
-# sync-finalize.sh handoff has to stay absolute, since the operator pastes it
-# into a shell whose working directory is their own.
 sbx="$(make_sandbox present)"
 before="$(snapshot "${sbx}")"
 out="$(

@@ -1,79 +1,5 @@
 name: Maintenance Reconcile Lost Runs
 
-# A CI run on the PR's current head that ended failure only from an outside
-# outage (each failed job hit its time limit, failed in an install step, or
-# lost its runner: infra-failure.mjs) has its failed jobs re-run once, at
-# attempt 1 only, 15 minutes after the attempt ended, and only while
-# status.npmjs.org and githubstatus.com both show indicator none; at attempt 2
-# pr-unblock's fix-ci takes it. A run with
-# any other failure has its failed jobs re-run once, at attempt 1 only, so a
-# flaky test the diff did not cause can pass. pr-unblock's fix-ci waits only on
-# a re-run already queued or going, or on an infra-only first failure's re-run
-# while it is due (infra-failure.mjs RERUN_DUE_MINUTES). A pr-require-checks
-# run whose failed jobs (Mark Lanes, or CI Status alone) failed only where the
-# GITHUB_TOKEN hit its rate-limit floor, by the rate guard's own refusal text,
-# has its failed jobs re-run once the same way, placed before lane runs.
-#
-# A pr-require-checks run that passed on its first attempt is re-run once,
-# recorded, when the head's pr-verify pass predates a change to its spec (an
-# issue edit or a new spec comment), so pr-verify judges the head again
-# instead of leaving it at verify:spec-changed. So is one inside GitHub's
-# re-run window on a pull request past the gate's TOO_OLD_DAYS whose head has
-# no counted verdict, so a fresh pass clears verify:too-old.
-#
-# A lanes App pull request whose newest pr-require-checks run failed, on its
-# first attempt, only in ci-status, which noted that the lanes kill switch was
-# on, has that ci-status re-run, recorded as above, by the first run after the
-# switch is lifted, whatever the run's age; it takes a place under the cap. A
-# run at a later attempt is left to a person.
-# Any pull request's ci-status that failed only on reviews still running or
-# not yet started is re-run the same way once both reviews' newest runs on
-# the head finished at least PENDING_BACKOFF_MINUTES ago.
-#
-# An intake-triage run an issue event started whose first attempt failed only
-# in its intake-label-needs-triage job (a rate limit, most often) left the
-# issue without its floor label; its failed jobs are re-run once, taking no
-# place under the cap. A run where any other job failed is left alone, so no
-# triage or broker job runs again. When that failure kept the issue from a
-# status label, the hourly triage sweep in maintenance-audit-lane-runs.yml
-# re-dispatches intake and adds needs-triage after 2 dispatches leave it
-# untriaged; otherwise, and once a dispatch triages it, the issue stays without
-# the floor label.
-#
-# pr-verify's and pr-review-main's trigger checks trust a re-run github-actions[bot] starts only
-# through this run's record of it: the plan step names an artifact
-# reconcile-rerun-<run id>-<attempt>-<head sha>, naming the attempt the re-run starts, for each
-# pr-verify or pr-review-main run it will re-run, for each pr-require-checks run whose
-# re-run makes its attempt 2, or attempt 3 when a spec changed again after a
-# recorded re-run's pass (pr-verify runs after it; the cap is
-# RECONCILER_ATTEMPT_CAP in check-trusted-trigger.mjs), and for each hosted review run a kill switch or the
-# upstream-status gate stopped, the upload steps below write them, and only then
-# does the act step re-run those runs. That no other run can upload into this run's artifacts is
-# UNVERIFIED: GitHub does not document that it scopes the runtime upload token
-# to its own run, and the REST API has no endpoint that creates an artifact.
-# A forged record still needs a github-actions[bot] re-run, at the attempt it names, of the
-# lane, and the check's actor checks still apply
-# (.github/actions/check-trusted-trigger/README.md).
-#
-# It does nothing while githubstatus.com shows Actions as anything but
-# operational, or the page cannot be read, so it adds no load mid-incident. At
-# most 3 re-runs are in flight at once, auto-merge PRs first, beside at most
-# 12 re-runs a pass of hosted reviews and pr-verify runs a defer gate stopped,
-# each once its window's reset is a minute past, and its writes
-# are at least a second apart. A lost pull_request review or refine lane run is listed in
-# the run summary for a person: those lanes, or the lanes token broker, refuse
-# a re-run github-actions[bot] starts. No model, and no PR code is checked out.
-# Rules: https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
-#
-# One full pass runs per token window. A later tick of that window runs only
-# when the full pass queued hosted reviews it left waiting on a running checks
-# run: it re-runs those, once their checks run has finished, through the same
-# budget gate, records and act step, and uploads no settled runs
-# (followup.mjs).
-#
-# How to stop it: set the organization or repository lanes kill-switch
-# variable to anything but "false".
-
 on:
   schedule:
     - cron: "4,19,34,49 * * * *"
@@ -105,8 +31,6 @@ jobs:
       checks: read # a cut job's annotations: whether it lost its runner; a held pr-verify run's notice
       contents: read # check out main
       pull-requests: read # list the open PRs
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -165,15 +89,6 @@ jobs:
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
 
-      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
-      # at reset, projected at this window's burn rate, is under limits.api
-      # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
-      # and only when the previous scheduled run marked a clean pass, so the timer
-      # lanes slow to half cadence before the breaker stops every lane. A pass
-      # that deferred recovery work for want of a place marks none, so the tick
-      # after it always runs. Any
-      # other event, or a read that fails, runs as before
-      # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
         if: steps.reset.outputs.due != 'false' && steps.reset.outputs.post-reset != 'true'
@@ -198,7 +113,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          # Read as the review callers read them: only `true`, in any case, stops the lane.
           CLAUDE_REVIEW_DISABLED: ${{ vars.CLAUDE_REVIEW_DISABLED }}
           CLAUDE_SECURITY_REVIEW_DISABLED: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
@@ -213,9 +127,6 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
           node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
-      # One record per pr-verify or pr-review-main run, per pr-require-checks run made attempt
-      # 2, and per stopped hosted review run the act step re-runs, uploaded
-      # first. A failed upload fails the job, so that run is not re-run.
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
@@ -501,11 +412,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # A Verdict re-run uploads a pr-feedback-deferred record, so this fixed
-      # name goes first: the dispatch tick reads the per-head records only
-      # while it is listed (feedback-dispatch.mjs DEFERRAL_MARKER). Kept a day
-      # longer than the record, and a failed upload skips the act step, so no
-      # record outlives its marker. The plan holds run ids, PR numbers and SHAs.
       - name: Mark the deferred verdicts
         if: steps.plan.outputs.deferral == 'true'
         uses: actions/upload-artifact@v7
@@ -525,14 +431,10 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
-      # The runs this pass settled for good, which the next pass skips
-      # (reconcile.mjs SETTLED_ARTIFACT). A missing upload costs the next pass
-      # a full read, never a re-run.
       - name: Scan the upload for credentials
         id: scan-upload-4
         if: >-
           ${{ !cancelled() && steps.plan.outcome == 'success' && steps.recent.outputs.followup != 'true' }}
-        # A hit withholds only the carry: the next pass reads every run.
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:

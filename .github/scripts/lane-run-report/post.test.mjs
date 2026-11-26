@@ -1,6 +1,4 @@
 // test-scope: .github/workflows/*.yml
-// post.mjs: the lane run report comment, its rows checked again here because
-// the run job that carried them shared RUNNER_TEMP with the model.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -593,9 +591,6 @@ function jobsOf(name) {
   });
 }
 
-// GitHub refused the comment POST with issues: write alone (403 "Resource
-// not accessible by integration"), so the posting job holds pull-requests:
-// write, and no other runner job does: the run jobs hold the model.
 for (const runner of ["pr-run-activity-read.yml", "pr-run-activity-write.yml"]) {
   test(`${runner}: only the job posting the lane run report holds pull-requests: write`, () => {
     const jobs = jobsOf(runner);
@@ -606,8 +601,6 @@ for (const runner of ["pr-run-activity-read.yml", "pr-run-activity-write.yml"]) 
   });
 }
 
-// A called job holds no more than its caller grants, and a caller granting
-// less fails the workflow at load.
 test("every job calling a runner grants pull-requests: write", () => {
   const callers = [];
   for (const file of readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f))) {

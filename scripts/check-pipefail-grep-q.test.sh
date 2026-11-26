@@ -371,8 +371,6 @@ default_case "a baseline entry with nothing left to fix is stale" 1 $'plugins/p/
 default_case "a baseline entry whose file is gone is stale" 1 $'plugins/p/bad.sh\nplugins/p/gone.sh' \
   "STALE BASELINE: " "'plugins/p/gone.sh'"
 
-# A bare name shaped like var=value must still be read as a file, not as an awk
-# variable assignment that would silently scan nothing.
 mkdir -p "$WORK/eq"
 # shellcheck disable=SC2016  # literal fixture source; nothing here should expand
 printf '%s\n' 'echo "$x" | grep -q foo' >"$WORK/eq/a=b.sh"

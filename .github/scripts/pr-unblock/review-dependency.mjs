@@ -1,24 +1,3 @@
-// The pr-unblock lane's review-dependency selection, shared by the select job
-// and the verdict job's script (apply-dependency-verdict.mjs). It runs no PR
-// head code and hands the model no decision.
-//
-//   select  run by pr-unblock.yml's review-dependency-select job, before any
-//           model turn, with the job's read-only token: skips a pull request
-//           Dependabot did not open, one whose head is no longer the gated
-//           head (superseded-sha), or one dependency-classify.mjs sorts `auto`
-//           (pr-merge owns those), writes the install-script pin patch
-//           (PIN_PATCH_FILE, install-script-pin.mjs) with no model turn when
-//           the head's allowScripts pin lags its lockfile, escalates once
-//           the configured number of
-//           review rounds ran, and otherwise writes the context file the skill
-//           reads (DEPENDENCY_FILE) and the run fields the verdict job reads
-//           (CONTEXT_RUN_FILE): the gated head, the security, config and
-//           truncation flags, the review-only controls, the base config's
-//           pairs, and the time before any model turn.
-//
-// The PR body holds third-party release notes: it is copied into the context
-// file as data and never logged or interpolated into a command.
-
 import { createHash } from "node:crypto";
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
@@ -46,9 +25,6 @@ export const VERDICTS = Object.freeze(["merge", "fix", "close", "escalate"]);
 const ROUND_PREFIX = "<!-- pr-unblock:review-dependency-round ";
 const ROUND_HEAD = /\shead=([0-9a-f]{40})\s/;
 const ROUND_LINE = /^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40}) verdict=(merge|fix|close|escalate|invalid) run=([1-9][0-9]{0,14}-[1-9][0-9]{0,4}|none) -->$/;
-// The pulls files listing stops here
-// (docs.github.com/en/rest/pulls/pulls#list-pull-requests-files, as of
-// 2026-10-15; recheck when that section changes its limit).
 export const FILES_CAP = 3000;
 const PATCH_CAP = 20_000;
 const PATCHES_TOTAL_CAP = 300_000;
@@ -61,8 +37,6 @@ export function roundLine({ head, verdict, run }) {
   return `<!-- pr-unblock:review-dependency-round head=${head} verdict=${verdict} run=${run} -->`;
 }
 
-// The round markers the lanes App posted, oldest first; any other author's
-// copy is ignored.
 export function rounds(issueComments, appId) {
   return appFirstLines(issueComments, appId)
     .map((line) => ROUND_LINE.exec(line))
@@ -70,11 +44,6 @@ export function rounds(issueComments, appId) {
     .map((match) => ({ head: match[1], verdict: match[2], run: match[3] }));
 }
 
-// The lanes App's round markers at the pull request's current commits
-// (`shas`): a marker at a head a recreate or force push replaced is not a round
-// of this pull request. A marker that names no head counts, so a malformed one
-// stops the lane sooner, never later; with no `shas` (a listing that is not the
-// whole pull request), every marker counts.
 export function countRounds(issueComments, appId, shas = null) {
   const current = Array.isArray(shas) ? new Set(shas) : null;
   return appFirstLines(issueComments, appId)
@@ -85,9 +54,6 @@ export function countRounds(issueComments, appId, shas = null) {
     }).length;
 }
 
-// The model job's check run, posted by its report job on the head it gated.
-// It counts a round whose verdict job never ran; a forged one only stops the
-// lane sooner.
 export function countCheckRounds(checkRunsByCommit) {
   return checkRunsByCommit.filter((runs) =>
     runs.some(
@@ -98,18 +64,11 @@ export function countCheckRounds(checkRunsByCommit) {
 
 export const newestOf = (checkRuns) => checkRuns.filter((run) => run.app?.slug === "github-actions").sort((a, b) => b.id - a.id)[0];
 
-// The newest gate run GitHub Actions posted on the head: its conclusion once
-// completed, else pending.
 export function ciStatusOf(checkRuns) {
   const newest = newestOf(checkRuns);
   return newest?.status === "completed" ? String(newest.conclusion) : "pending";
 }
 
-// While a full run is in flight on the head, the contract-only ci-status fails
-// with this annotation and the full run's newer ci-status decides
-// (pr-require-checks.yml, yield-to-full-run). The rule matches the guardrails
-// merge guard's: every failure annotation is that marker for this head or the
-// runner's exit line, and at least one is the marker.
 const SUPERSEDED = /^superseded by full run https:\/\/[^ ]+\/actions\/runs\/[0-9]+ in flight on ([0-9a-f]+)[:. ]/;
 const EXIT_LINE = /^Process completed with exit code [0-9]+\.$/;
 export function supersededOnly(annotations, headSha) {
@@ -139,17 +98,11 @@ export function newestRound(issueComments, appId) {
   return match ? { head: match[1], verdict: match[2], run: match[3], createdAt: String(newest.created_at) } : null;
 }
 
-// The gate's check runs on a head, listed by `list(name)`: CI Status's, else
-// ci-status's on a head tested before the rename. Never its ci-status alias's
-// beside CI Status's: only CI Status carries the gate's annotations. Literals,
-// since apply-dependency-verdict.mjs runs from a copy of this directory alone.
 export async function gateCheckRuns(list) {
   const runs = await list("CI Status");
   return newestOf(runs) ? runs : list("ci-status");
 }
 
-// ciStatusOf, with a superseded contract-only failure read as pending. A
-// failed annotations read leaves the failure standing.
 export async function readCiStatus(api, headSha, pr) {
   const runs = await gateCheckRuns((name) => api.listCheckRuns(headSha, name));
   const status = ciStatusOf(runs);
@@ -164,8 +117,6 @@ export async function readCiStatus(api, headSha, pr) {
   }
 }
 
-// A commit's changed paths, or null when unreadable or at the listing limit,
-// as the pr-merge lane's _commit_files reads them.
 export function commitFilesReader(api) {
   const cache = new Map();
   return async (sha) => {
@@ -183,11 +134,6 @@ export function commitFilesReader(api) {
   };
 }
 
-// The classifier's input from REST reads: the pull request, its commits and
-// files, the files of each non-Dependabot commit, the base config, and the
-// base Dependabot policy (readPolicy) with this repository's name; then the
-// provenance gate, which reads the package registry (`provenance`, the live
-// one unless a test passes its own).
 export async function classifyPull({ pull, ciStatus, commits, files, config, policy, repository, readCommitFiles, provenance = provenanceReasons }) {
   const touched = new Map();
   for (const item of commits) {
@@ -231,9 +177,6 @@ function capPatches(files) {
   });
 }
 
-// The install-script pin move the head needs ({ from, to, patch }), or null:
-// only a pull request that changes the root package.json or package-lock.json
-// is read, and both files at the head are data. A pin it cannot move throws.
 export async function pinMove(api, files, headSha) {
   if (!files.some((file) => file.filename === "package.json" || file.filename === "package-lock.json")) {
     return null;
@@ -315,7 +258,6 @@ export async function select({
   for (const commit of commits) {
     checkRuns.push(await api.listCheckRuns(commit.sha, MODEL_CHECK));
   }
-  // The commits listing stops at 250: a partial one cannot show a head is gone.
   const whole = commits.length === pull.commits && commits.at(-1)?.sha === headSha;
   const shas = whole ? commits.map((commit) => commit.sha) : null;
   const done = Math.max(countRounds(comments, appId, shas), countCheckRounds(checkRuns));
@@ -343,24 +285,17 @@ export async function select({
       files_truncated: files.length >= FILES_CAP,
       merge_clears_gate_hold: gate.gateHold === "verdict",
       files: capPatches(files),
-      // Dependabot's text, with the upstream release notes it quotes: data.
       body: pull.body ?? "",
     },
   };
 }
 
-// Dependabot's id comes from the base's trusted-actors list, by login.
 export function dependabotIdFrom(trustedActorsPath) {
   const actors = readRawTrustedActors(trustedActorsPath).actors ?? [];
   const actor = actors.find((row) => row.login === DEPENDABOT_LOGIN && row.kind === "bot");
   return positive(actor?.id, `the ${DEPENDABOT_LOGIN} id in ${trustedActorsPath}`);
 }
 
-// The base's .github/dependabot.yml as [ecosystem, directory] pairs. A file
-// it cannot read, or one with no entry that reads, is null, which the
-// classifier reports as dependabot-config-unreadable as the pr-merge lane
-// does (review tier, and no merge verdict); each case logs its own warning so
-// the cause is visible.
 export function readConfig(path, log = (line) => console.log(line)) {
   let text;
   try {
@@ -376,9 +311,6 @@ export function readConfig(path, log = (line) => console.log(line)) {
   return pairs;
 }
 
-// The base's standards Dependabot policy as parsed JSON. A file it cannot
-// read or parse is null, which the classifier reports as
-// dependabot-policy-unreadable (review tier for every Dependabot PR).
 export function readPolicy(path, log = (line) => console.log(line)) {
   try {
     return JSON.parse(readFileSync(String(path ?? ""), "utf8"));
@@ -388,16 +320,12 @@ export function readPolicy(path, log = (line) => console.log(line)) {
   }
 }
 
-// The distinct `control` strings of the review-only entries the
-// classification matched, in entry order.
 export const reviewControls = (classification) => [...new Set((classification?.reviewOnly ?? []).map((entry) => entry.control))];
 
 export function maxRoundsFrom(value) {
   return value === undefined || value === "" ? DEFAULT_MAX_ROUNDS : positive(value, "DEPENDENCY_REVIEW_ROUNDS");
 }
 
-// The run fields the verdict job reads, all decided here before any model
-// turn: no field comes from the model or its runner.
 export function contextRun({ pr, headSha, classification, file, config, startedAt }) {
   return {
     version: 1,
@@ -412,7 +340,6 @@ export function contextRun({ pr, headSha, classification, file, config, startedA
   };
 }
 
-// `date -u +%Y-%m-%dT%H:%M:%SZ`'s shape, which the verdict job requires.
 const utcSeconds = (date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 export async function main(argv, env, { api, log = (line) => console.log(line), provenance, now = () => new Date() } = {}) {

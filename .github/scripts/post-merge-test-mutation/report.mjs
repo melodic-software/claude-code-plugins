@@ -1,36 +1,14 @@
-// post-merge-test-mutation.yml's report job: the audit's structured output is
-// untrusted model text, read from the environment, checked against
-// result.schema.json, and written to the job summary with the pushed range and
-// the pull requests that merged its commits. When exactly one pull request merged
-// them, the comment body for comment.mjs goes to COMMENT_PATH and its number to
-// the `pull` step output. No model runs here.
-//
-// Env: STRUCTURED_OUTPUT, AUDIT_RESULT (the audit job's result), RESTORED
-// (`true` or `false` from the audit job's own check of the checkout),
-// STOP_CLASS (`rate-limit` or `overloaded` when a limit stopped the audit, else
-// empty), BEFORE,
-// AFTER, RANGE_MODE (`range`, `commit` when the push had no usable previous
-// head, or empty when the audit stopped first), REPOSITORY, GITHUB_TOKEN,
-// GITHUB_STEP_SUMMARY, COMMENT_PATH, GITHUB_OUTPUT, GITHUB_RUN_ID.
-// Exits 1 when the audit left no valid result or RESTORED is not `true` after
-// a `restore-failed` outcome: the workflow's check of the tree decides a
-// restore, never the model's own report. A limit stop exits 0. Surviving
-// mutants alone never fail it (the plugin gates on no score).
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { commitPulls, createGitHub, graphQLReader } from "../lib/github-client.mjs";
 
-// The first line of the lane's comment on a merged pull request.
 export const MARKER = "<!-- post-merge-test-mutation -->";
 export const SCHEMA = JSON.parse(readFileSync(new URL("./result.schema.json", import.meta.url), "utf8"));
 const SHA = /^[0-9a-f]{40}$/;
 const STATES = SCHEMA.properties.mutants.items.properties.state.enum;
 
-// The subset of JSON Schema result.schema.json uses; a value it does not
-// match is named by its path. A key the schema does not list is model text, so
-// it is counted, never echoed.
 export function violations(value, schema = SCHEMA, at = "$") {
   if (schema.enum) return schema.enum.includes(value) ? [] : [`${at}: not one of ${schema.enum.join(", ")}`];
   if (schema.type === "string") {
@@ -65,8 +43,6 @@ export function parseResult(text) {
     return { error: "the audit returned no JSON result" };
   }
   const bad = violations(value);
-  // Structured output takes no lookaround, so the schema's pattern admits a
-  // `.` or `..` segment; a repository-relative path has none.
   if (!bad.length) {
     value.mutants.forEach((m, index) => {
       if (m.path.split("/").some((part) => part === "." || part === "..")) bad.push(`$.mutants[${index}].path: has a . or .. segment`);
@@ -75,7 +51,6 @@ export function parseResult(text) {
   return bad.length ? { error: `the audit's result does not match result.schema.json: ${bad.slice(0, 5).join("; ")}` } : { result: value };
 }
 
-// Stryker's aggregates, as the principles skill's metrics.md defines them.
 export function scores(mutants) {
   const count = Object.fromEntries(STATES.map((state) => [state, mutants.filter((m) => m.state === state).length]));
   const detected = count.killed + count.timeout;
@@ -85,10 +60,6 @@ export function scores(mutants) {
   return { count, coveredScore: percent(detected, covered), mutationScore: percent(detected, valid) };
 }
 
-// The pull requests into main that merged the commit. A pull request closed
-// unmerged also lists the commit (any author can open one on main's tip and
-// close it), so only a set `merged_at` counts. A failed read is `null`, never
-// an empty list.
 export async function mergedPulls({ github, repository, sha }) {
   try {
     const pulls = await commitPulls({
@@ -103,10 +74,6 @@ export async function mergedPulls({ github, repository, sha }) {
   }
 }
 
-// The pull requests that merged any commit of the pushed range: a merge queue
-// lands several pull requests in one push, and the audit mutates the whole
-// range, so the head's pull request alone may not own a survivor. A range the
-// compare read does not list in full, or any failed read, is `null`.
 export async function rangePulls({ github, repository, before, after }) {
   let commits;
   try {
@@ -172,9 +139,6 @@ export function render({ result, error, stop, before, after, mode, pulls, reposi
   return [...lines, ""].join("\n");
 }
 
-// The pull request comment: render's report with no free model text. The
-// detail is left out, and a failed result names no violation, since a
-// violation names the model's values; the run's summary has both.
 export function commentBody({ result, error, stop, before, after, mode, pulls, repository, runId }) {
   const report = render({
     result: result && { ...result, detail: "" },

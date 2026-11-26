@@ -1,20 +1,3 @@
-// Whether a lane escalation still lets the patch-activity push past the
-// human-gated label on a pull request, read again right before the write
-// runner's apply-patch push (pr-run-activity-write.yml, "Read the hold labels
-// from the base"). The caller's select job decided it once, before the model
-// turn; anything posted since (a review-lane hold, a person's comment, review
-// or label, another escalation) can change the answer. It re-runs the check
-// that select ran, on the same reads: prHold for the activity (fix-ci,
-// fix-docs, resolve-conflicts and address-feedback on an owner PR), and
-// gateSource over the issue comments and label events for address-feedback on
-// any other PR (address-feedback.mjs select). Writes to GITHUB_OUTPUT:
-// lane-escalation=true|false.
-//
-// Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, PR_NUMBER,
-// HEAD_SHA, APP_SENDER_ID, LABEL, ACTIVITY; BASE_PATH and TRUSTED_ACTORS as
-// address-feedback.mjs ownerAdoption reads them; ARTIFACT_READ_TOKEN
-// (actions: read; the review lanes' comment records).
-
 import { appendFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
@@ -46,8 +29,6 @@ export async function main(env, { api, actions, adoption, log = (line) => consol
     actions ?? laneReader(env),
   );
   const isLanesApp = (user) => user?.id === appId && user?.type === "Bot";
-  // address-feedback's select reads the issue comments and label events (a
-  // pull-requests: read token may), the other selects the REST issue timeline.
   const feedback = env.ACTIVITY === "address-feedback";
   const readTimeline = feedback
     ? async () => [...commentItems(await client.listIssueComments(pr)), ...(await client.listLabelEvents(pr))]

@@ -41,8 +41,6 @@ for d in "$REPO" "$OTHER"; do
   git -C "$d" init -q
   printf '%s\n' '.work/' >"$d/.git/info/exclude"
 done
-# The script names the ledger from git's own spelling of the toplevel, which is not
-# the mktemp spelling on macOS (/private/var) or Git for Windows (C:/...).
 REPO="$(git -C "$REPO" rev-parse --show-toplevel)"
 OTHER="$(git -C "$OTHER" rev-parse --show-toplevel)"
 LEDGER="$REPO/.work/t1/sweep-ledger.md"

@@ -697,7 +697,6 @@ def inventory_rows(
                 "reason": f"cannot be read ({error})",
             }
             continue
-        # Windows DirEntry stats carry st_dev 0, so only a real device id compares.
         if _descends(st) and (
             str(path) in mounts or (st.st_dev and st.st_dev != root_st.st_dev)
         ):

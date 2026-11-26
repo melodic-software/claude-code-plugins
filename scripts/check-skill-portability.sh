@@ -1,65 +1,4 @@
 #!/usr/bin/env bash
-# Portability-lint gate: skills declared ecosystem/forge/tracker-agnostic must
-# not ship bare hardcoded stack/forge/branch/tracker defaults. The agnosticism
-# contract lives in docs/plugin-philosophy.md (Design boundary,
-# Two-lane convention posture, Cross-platform contract's declared-narrower-scope
-# allowance); prose states it but cannot self-verify, so this gate turns the
-# assertion into a mechanical check.
-#
-#   scripts/check-skill-portability.sh <base-ref>   gate skill files a PR changed
-#   scripts/check-skill-portability.sh --all         audit every skill file
-#   scripts/check-skill-portability.sh --paths F...   scan exactly these files
-#
-# WHAT is detected is data, not logic: the coupling tokens live in
-# scripts/skill-portability-tokens.txt (override with SKILL_PORTABILITY_TOKENS),
-# one ERE pattern per active line, so a reviewer re-catch is a one-line data edit
-# and rollout stages one token-class at a time. HOW a legitimate hit is excused
-# is this script's job.
-#
-# Scope declaration: no new frontmatter field. A skill is agnostic by default
-# (the Design boundary already binds every plugin), so the gated set is "the
-# skill files a change touches",
-# exactly as the skill-quality gate scopes itself. A skill with an inherent,
-# declared narrower scope (a genuinely forge- or ecosystem-locked capability
-# under a neutral name) opts out with a reviewer-visible comment, reusing the
-# annotated-exemption shape the silent-skip gate established rather than inventing
-# a declaration mechanism.
-#
-# Changed-FILE (not whole-skill-dir) scoping keeps a PR responsible only for the
-# files it actually edits, so enabling a token class never red-lines main: main's
-# push event scans nothing (the self-test is the push path), and existing
-# violations wait for the owning follow-up fix or the file's next edit.
-#
-# A token hit fails UNLESS one of three reviewer-visible escapes applies:
-#   1. a detection-first resolution use — an auto-recognized branch-resolution
-#      command on the hit line (an `origin/HEAD` / symbolic-ref / merge-base /
-#      PR-baseRefName ladder that falls back to origin/main is the CORRECT
-#      pattern, not a bare assumption); the resolution command is the evidence,
-#      not the surrounding prose, so a bare default whose resolution is not
-#      co-located on the line flags and uses a per-site portability-ok escape;
-#   2. a per-site recorded exemption `portability-ok: <reason>` on the hit line
-#      or in the contiguous comment block directly above it;
-#   3. a whole-file `portability-scope: <reason>` declaration — a dedicated
-#      `#` or `<!--` comment line whose content (after the marker and
-#      optional whitespace) STARTS with the literal token, e.g.
-#      `<!-- portability-scope: <reason> -->` — not merely a line that
-#      mentions the string somewhere (a doc-block sentence explaining this
-#      very mechanism, or a string literal), which would wrongly exempt a
-#      whole file for a reason it never actually declared (the inherent,
-#      declared narrower boundary).
-#
-# This is a grep-level tripwire, not a semantic proof. Guard markers are seeded
-# for the one active class (branch/default-branch) and SCOPED to it: is_guarded()
-# reads the matched pattern as well as the line, so branch-resolution evidence
-# never excuses a different class's coupling on the same line. Enabling a further
-# class adds its own markers here, proven against an `--all` audit first.
-#
-# Files scanned within a changed skill: *.md and *.sh, excluding *.test.sh (test
-# fixtures), vendor/ (upstream-synced copies with their own drift gate), and
-# evals/ (eval fixtures carry adversarial example prompts by design).
-#
-# Exit 0 = clean (or nothing in scope); 1 = one or more violations; 2 = usage /
-# environment error (fail closed — never a silent skip).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -108,10 +47,6 @@ paths)
   files=("${GE_PATHS[@]}")
   ;;
 base)
-  # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
-  # git pathspec does not match under git's default (non-pathname) globbing.
-  # A failed diff exits 2 from the shared entry rather than arriving here as
-  # an empty scope.
   changed=()
   gate_entry::collect_changed changed "$GE_REF" -- 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
@@ -135,31 +70,14 @@ if ((${#files[@]} == 0)); then
   gate_entry::finish 0
 fi
 
-# scan_file <path> — print `LINE: token -> text` for each unexcused hit.
 scan_file() {
   local file="$1"
-  # A whole-file declared narrower scope (the inherent-boundary case) excuses
-  # every hit in the file; the declaration is visible in the diff. Anchored
-  # to a genuine comment line whose content actually STARTS with the token
-  # (shared fix with check-shell-portability.sh's identical mechanism — see
-  # #1513), not a bare substring match anywhere in the file: an unanchored
-  # search would also match this very sentence (a doc-block comment merely
-  # explaining the mechanism) or a mention inside prose/a string literal.
-  # The `<!--` alternative also admits a block comment nested inside Markdown
-  # list/blockquote containers (`- <!--`, `> <!--`, `1. <!--`, nested
-  # combinations) — the opener is still the first content of its container, so
-  # it is a genuine dedicated comment line, not the #611 mid-sentence case.
-  # Each container marker must be followed by whitespace, so prose that merely
-  # contains a dash or digit before an inline `<!--` stays rejected. See #1342.
   if grep -qE '^[[:space:]]*(#|((>|[-*+]|[0-9]+[.)])[[:space:]]+)*<!--)[[:space:]]*portability-scope:' -- "$file"; then
     return 0
   fi
-  # awk operand disambiguation: a bare relative operand shaped like
-  # identifier=value (e.g. a top-level file literally named FOO=bar.md) is
-  # parsed by awk as a command-line variable assignment, not opened as a
-  # file — silently dropping it from the scan. See #1513, #1531; the rule
-  # lives in scripts/lib/token-scan.sh, shared with the twin scanner.
   local awk_file
+  # awk reads an operand shaped name=value as an assignment, not a file:
+  # https://pubs.opengroup.org/onlinepubs/9799919799/utilities/awk.html
   awk_file="$(token_scan::awk_operand "$file")"
   awk '
     function is_annotated(l) { return l ~ /portability-ok:[[:space:]]*[^[:space:]#<\-]/ }
@@ -334,9 +252,6 @@ for file in "${files[@]}"; do
     printf 'Error: no such file: %s\n' "$file" >&2
     exit 2
   fi
-  # Propagate a scanner fault (e.g. a malformed active ERE token makes awk exit
-  # non-zero with no stdout): without this the empty $out reads as "clean" and
-  # the file is silently skipped — the exact false negative fail-closed forbids.
   out="$(scan_file "$file")" || {
     printf 'Error: gate scanner failed on %s — failing closed\n' "$file" >&2
     exit 2

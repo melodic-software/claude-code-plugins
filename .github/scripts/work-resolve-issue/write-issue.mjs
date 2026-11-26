@@ -1,79 +1,4 @@
 #!/usr/bin/env node
-// write-issue.mjs: writes issue.json for the resolve-issue skill. The title,
-// body and labels go in as written, but for a trusted upstream-drift issue
-// (admit.mjs driftIssue, https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues), whose body is admit.mjs trustedDriftSpec and which
-// carries `source: "upstream-drift"`: an issue neither a listed human nor the
-// lanes App wrote, and no such drift issue, fails the run here, behind the check-admission job's own stop
-// (check-blockers.mjs), and the skill still reads them as data. Comments go in only when select-trusted-text's author and
-// edit rules keep them, oldest first, each tagged with its author's kind from
-// the trusted-actor list. A human's comment whose first line is
-// `**Decision recorded.**`, not posted through an App, and unedited or last
-// edited by a human, is marked `decision: true` with `decided_at`, its latest
-// create or edit time. The lanes App's own comments never go in, since its
-// pushback quotes the issue body, except its intake refinement (REFINE_MARKER,
-// refine.mjs), tagged `refinement`: admission may have counted its criteria,
-// and the pr-merge lane's capped-close record (CAPPED_CLOSE_MARKER,
-// babysit_verify_evidence.py capped_close), tagged `verify-findings`: the
-// verifier's findings on the pull request it closed for this fresh attempt,
-// quoted as data. That record is posted just before the restart's re-add,
-// which anchors at the admission it restarted, so it is kept whenever it was
-// posted, only while no one but the lanes App edited it.
-// `person_checks` lists, as written, the body's done-when items intake's split
-// refinement names as checks a person runs, only under admission's guards
-// (admit.mjs personChecks, over the comments posted before the admission, with the
-// issue lane's web hosts); a split refinement whose record does not stand is
-// left out, so its prose excuses no item. `split_parent` holds the body of the
-// native parent a size split filed the issue from, only while the issue
-// counts as that parent's text (size-split.mjs splitChildBody) and a listed human
-// wrote, and last edited before the admission if ever, that body: the split
-// copies only its task-list lines. `scope` lists, for such a part split by
-// target, the targets its Scope line names (size-split.mjs splitScope).
-// `verify_close` lists, for a finished parent (admit.mjs finishedParent), its
-// sub-issues, each closed as completed by a trusted close: the run checks the
-// issue's own done-when and stops verified-done or verify-unmet. On any failure no file is left, so
-// the skill never reads a partial issue.
-//
-// The admission readAdmission anchors on admitted the issue as it stood
-// then, so a comment created or edited after that is left out, and a title or
-// body changed since fails the run; an admission record's hashes must also
-// match the title and body written here.
-//
-// When the run resumes an earlier run's lane branch (report-outcome
-// --find-prior), `resume` says so: the branch, why that run ended, the tip the
-// new branch starts at, each commit's subject (the earlier run's words, data)
-// and the files it changed with their line counts, from GET /compare between
-// the trusted base and the tip. When the run starts fresh past an earlier
-// run's lane branch that is behind the default branch, `stale_branch` lists
-// that branch's work the same way, for the model to reuse its approach.
-//
-// Environment:
-//   GITHUB_TOKEN          the lane token, which can read the issue
-//   GITHUB_REPOSITORY     owner/repo
-//   ISSUE_NUMBER          the issue the lane works
-//   TRUSTED_ACTORS_PATH   the base's trusted-actor list
-//   ISSUE_FILE            where to write issue.json
-//   LANES_APP_ID          the lanes App bot's user id
-//   TRIGGER_SENDER_ID     the account whose event started the run (else
-//                         LABEL_SENDER_ID)
-//   TRIGGER_AT            the issue's updated_at in that event's payload (else
-//                         LABEL_EVENT_AT)
-//   BASE_PATH, CONFIG_PATH
-//                         the base checkout and its pr-pipeline.yaml, whose
-//                         models.issue-status names the Work status field
-//   RESUME_BRANCH, RESUME_TIP, RESUME_CAUSE
-//                         the resumed lane branch, its tip and the earlier
-//                         run's outcome, or empty when the run resumes nothing
-//   STALE_BRANCH, STALE_TIP
-//                         the stale lane branch the run starts fresh past and
-//                         its checked tip, or empty
-//   BASE_SHA              the trusted base the comparison starts from
-//   ISSUE_LANE_WEB_HOSTS  the issue lane's web hosts as JSON (admit.mjs
-//                         webHostsFrom); unset allows only GitHub hosts
-//   GITHUB_API_URL
-//   GITHUB_OUTPUT         receives refused=edited when the title or body
-//                         changed after the admission, or refused=edited-trusted
-//                         when only listed accounts changed them, which
-//                         report-outcome names
 import { rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -90,18 +15,12 @@ import { admittedAt, contentHash, matchesRecord, timeOf } from "../lib/admission
 import { laneBranchPattern, WORK_RESOLVE_ISSUE } from "../lib/lane-branch.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
-// Comments other than decisions, newest kept, so a pile of them cannot crowd
-// out the body.
 export const MAX_OTHER_COMMENTS = 20;
 
-// The first line of the pr-merge lane's capped-close record.
 export const CAPPED_CLOSE_MARKER = "<!-- verify-capped-close pr=";
 
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 
-// When an issue's body was last edited, and its newest body edits and title
-// changes with the account behind each. GitHub lists body edits newest first
-// and timeline items oldest first, so each reads its newest page.
 const ACCOUNT = "{ ... on User { databaseId } ... on Bot { databaseId } }";
 const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -113,16 +32,6 @@ const ISSUE_EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!)
   }
 }`;
 
-// "" when the title and body are as they stood at `frozenAt`; "edited-trusted"
-// when every change since was made by an account in `trusted`; else "edited".
-// Timestamps are whole seconds, so a change in the label's own second counts
-// as after it, and an unparsable time is a change. Fail closed: a change whose
-// account is unread, or a page that may hide an older change after
-// `frozenAt`, is "edited". A failed read or an unexpected shape throws.
-// `bodyFree` is an account whose body edits do not count: github-actions[bot]
-// on a trusted drift issue, whose body the run never reads (trustedDriftSpec),
-// so the filer's scheduled rewrite leaves the run's spec as admitted
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
 async function readEditsSince(github, repository, number, frozenAt, trusted, bodyFree = null) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: ISSUE_EDITS_QUERY, variables: { owner, name, number: Number(number) } }))
@@ -131,7 +40,6 @@ async function readEditsSince(github, repository, number, frozenAt, trusted, bod
     throw new Error("issue edits have an unexpected shape");
   }
   const after = (time) => time != null && !(timeOf(time) < frozenAt);
-  // An older page can hide a change only when every node on this one is after `frozenAt`.
   const since = (page, olderKey, timeKey, accountKey) => {
     const nodes = Array.isArray(page?.nodes) ? page.nodes : [];
     const hidden = page?.pageInfo?.[olderKey] === true && nodes.every((node) => after(node?.[timeKey]));
@@ -149,13 +57,6 @@ async function readEditsSince(github, repository, number, frozenAt, trusted, bod
   return bodyTrusted && !title.hidden && title.byTrusted ? "edited-trusted" : "edited";
 }
 
-// The admission the run freezes at (admission-record.mjs admittedAt): the
-// lanes App's newest admission record or a listed human's newest Work status
-// set of agent-ready, whichever is newer, at or before the event that started
-// the run (`triggerAt`, its payload's issue update time; else the first after
-// it), so a later admission never moves it. The App's restarts write no
-// record, so they anchor at the admission they restarted. A human sender's own
-// sets count, and none when the App sent it. Neither found throws.
 async function readAdmission(github, repository, number, { lanesAppId, humans, sender, triggerAt, env }) {
   const config = issueStatusFromBase(env);
   const state = Object.values(config?.options ?? {}).includes("agent-ready") ? "agent-ready" : null;
@@ -190,9 +91,6 @@ async function readStale(github, env) {
   return { branch, tip, ...(await branchWork(github, env, base, tip)) };
 }
 
-// Each commit's subject (the earlier run's words, data) and the files it
-// changed with their line counts, from GET /compare between the trusted base
-// and `tip`, capped.
 async function branchWork(github, env, base, tip) {
   const comparison = await github("GET", `/repos/${env.GITHUB_REPOSITORY}/compare/${base}...${tip}`);
   if (!Array.isArray(comparison?.commits) || !Array.isArray(comparison?.files)) {
@@ -233,11 +131,6 @@ export async function main({ env = process.env, github, log = console.log, write
     const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const repository = env.GITHUB_REPOSITORY;
     const data = await client("GET", `/repos/${repository}/issues/${env.ISSUE_NUMBER}`);
-    // The check-admission job stops this run first (check-blockers.mjs); this holds the
-    // line if a run gets past it. A trusted drift issue (admit.mjs
-    // driftIssue) passes, and its body is never written: issue.json carries
-    // trustedDriftSpec for its kind instead
-    // (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
     let spec;
     let drifted = null;
     if (!authorAdmitted(data, humans, lanesAppId)) {
@@ -257,10 +150,6 @@ export async function main({ env = process.env, github, log = console.log, write
 
     const admission = await readAdmission(client, repository, env.ISSUE_NUMBER, { lanesAppId, humans, sender: Number(senderText), triggerAt, env });
     const frozenAt = admission.at;
-    // Edits since the admission decide first; a record also holds the hashes
-    // of the text it admitted, which this run's one read must match.
-    // On a trusted drift issue only the title, which names the upstream, is
-    // the admitted text the run reads.
     const drift = drifted !== null;
     let refused = await readEditsSince(client, repository, env.ISSUE_NUMBER, frozenAt, new Set([...ids, lanesAppId]), drift ? ACTIONS_BOT_ID : null);
     const recordMatches = (record) => (drift ? contentHash(data.title) === record.titleSha256 : matchesRecord(record, { title: data.title, body: data.body ?? "" }));
@@ -272,8 +161,6 @@ export async function main({ env = process.env, github, log = console.log, write
       throw Object.assign(new Error(`the issue title or body changed after its admission${by}`), { refused });
     }
 
-    // The body's checks a person runs, as admission read them: the comments
-    // posted before the admission, every one read, on the body as written now.
     const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
     spec ??= await specOf(client, repository, env.ISSUE_NUMBER);
     const before = spec.comments.filter((node) => timeOf(node.createdAt) < frozenAt);
@@ -282,7 +169,6 @@ export async function main({ env = process.env, github, log = console.log, write
         ? personChecks({ ...spec, comments: before }, humans, lanesAppId, taskList, () => webHostsFrom(env.ISSUE_LANE_WEB_HOSTS))
         : [];
     const standing = moved.length > 0 ? refinementSpec(before, lanesAppId)?.databaseId : undefined;
-    // A size split's part: its parent's body, under the part's own trust rule.
     let splitParent;
     let scope = null;
     if (spec.author?.__typename === "Bot" && spec.author.databaseId === lanesAppId && spec.body.startsWith(SPLIT_CHILD_MARKER)) {
@@ -322,7 +208,6 @@ export async function main({ env = process.env, github, log = console.log, write
       }
       const createdAt = timeOf(comment.created_at);
       const editedAt = lastEditedAt === null ? createdAt : timeOf(lastEditedAt);
-      // NaN compares false, so an unparsable time is left out.
       if (!(createdAt < frozenAt && editedAt < frozenAt)) {
         dropped["after-admission"] += 1;
         continue;

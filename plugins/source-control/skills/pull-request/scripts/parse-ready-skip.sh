@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Parse the `ready --skip` override: a person present skips ready's steps for
-# this one run, with a reason. The steps are pre_ready's six
-# (pre-ready-steps.sh); the hold checks, the push and the flip are not steps and
-# cannot be skipped. A run with no person present passes --unattended and is
-# refused.
-#
-# Usage:
-#   parse-ready-skip.sh [--unattended] [--skip <step>[,<step>...] --reason <text>]
-#
-# Output, tab-separated, only when --skip is given: one `reason  <text>` line
-# (control characters become spaces), then one `skip  <step>` line per step, in
-# run order. No --skip prints nothing.
-#
-# Exit 0; 2 a usage error (an unknown, repeated or empty step, a missing or
-# empty reason, a reason without --skip, an unknown or repeated flag); 3 --skip
-# under --unattended. On any exit but 0, stdout is empty: nothing is skipped.
 set -uo pipefail
 
 # shellcheck source=pre-ready-steps.sh

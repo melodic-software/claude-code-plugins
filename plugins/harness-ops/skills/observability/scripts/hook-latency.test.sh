@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for hook-latency.sh against tiny OTLP/JSON fixture stores
-# (CC_OTEL_STORE points at a temp dir; the real store is never read). The cases need the real
-# duckdb query, so they gate on `command -v duckdb` (CI installs it in ci.yml test-linux).
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,8 +15,6 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Shape of a real Collector record; cc_logs_from binds intValue, traceId and spanId, so the
-# fixture must carry them.
 record() {
   printf '{"timeUnixNano":"%s000000000","body":{"stringValue":"claude_code.hook_execution_complete"},"attributes":[{"key":"claude.lane","value":{"stringValue":"windows"}},{"key":"session.id","value":{"stringValue":"%s"}},{"key":"event.name","value":{"stringValue":"hook_execution_complete"}},{"key":"event.sequence","value":{"intValue":"7"}},{"key":"hook_event","value":{"stringValue":"%s"}},{"key":"total_duration_ms","value":{"stringValue":"%s"}}],"traceId":"","spanId":""}' \
     "$((EPOCHSECONDS - $4))" "$1" "$2" "$3"

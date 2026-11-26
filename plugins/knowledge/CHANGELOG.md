@@ -4,6 +4,19 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.11] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+### Fixed
+
+- The video-digest readiness report runs when the `asr_python` option is unset. The pre-computed
+  preflight command now single-quotes its `--asr-python` argument, so the literal
+  `${user_config.asr_python}` token Claude Code leaves for an unset option reaches the script
+  instead of failing in bash with "bad substitution".
+
 ## [3.5.10] - 2026-11-25
 
 ### Changed

@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for the connected-page Artifact guard.
-#
-# Contract: a PreToolUse Artifact call whose `file_path`, or any HTML entry in `files`,
-# holds a content security policy with a loopback connect-src gets permissionDecision
-# "deny". Pages come from the real digest builder. Everything else gets no output and
-# exit 0: a page built without --connect, a call with no file, an unreadable path, a
-# non-HTML asset, another tool, garbage input, and the guard switched off.
-#
-# Self-contained: defines its own assertion helpers; installed plugins are cache-isolated.
 # test-scope: plugins/guardrails/hooks/hooks.json
 
 set -uo pipefail

@@ -1,10 +1,3 @@
-// Expected values come from the head-ref map rules in head-ref-map.mjs and
-// pr-merge.yml: the map is read only from the newest scheduled or hand-started
-// pr-merge.yml run on main other than this one (found the way rotation.mjs
-// finds the cursor) whose head commit is on main, holds artifact id to head ref and nothing else, keeps an
-// entry only while its id is listed (with no listing file, every entry as it
-// is), adds only this run's own downloads, and on any other failure writes
-// nothing.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -31,11 +24,6 @@ const wf = (id, event, branch = "main", path = ".github/workflows/pr-merge.yml",
 });
 
 let n = 0;
-// `pages` is the workflow's run listing, newest first; `maps` maps a run id to
-// the text its pr-merge-head-refs artifact holds; `offMain` lists the head
-// commits the compare API reports as not on main. Requests count REST
-// requests: each API call, and two per `gh run download` (it lists the run's
-// artifacts, then fetches the archive).
 async function readRun({ pages = [[]], maps = {}, offMain = [], fail } = {}) {
   forgetMainTip();
   n += 1;
@@ -79,17 +67,12 @@ test("the newest trusted run's map is read in seven requests", async () => {
     pages: [[wf(999, "schedule"), wf(8, "pull_request_target"), wf(7, "schedule"), wf(6, "workflow_dispatch")]],
     maps: { 8: mapOf({ 1: "forged" }), 7: mapOf({ 30: "feat/other", 40: "" }), 6: mapOf({ 1: "old" }) },
   });
-  // This run (999) is skipped, and a pull_request_target run is never asked.
   assert.deepEqual(result.downloads, [7]);
   assert.deepEqual(result.written, { version: 1, repo: REPO, head_refs: { 30: "feat/other", 40: "" } });
-  // The run listing, run 7's artifact filter, the tag named main (absent),
-  // main's tip, the compare of run 7's head commit with it, and its download.
   assert.equal(result.requests, 7);
 });
 
 test("a run whose head commit is not on main is passed over", async () => {
-  // Run 9 ran on a tag named main whose commit main does not hold; run 8's
-  // head_sha is not a commit id.
   const result = await readRun({
     pages: [[wf(9, "workflow_dispatch"), wf(8, "schedule", "main", undefined, "main"), wf(7, "schedule")]],
     maps: { 9: mapOf({ 1: "forged" }), 8: mapOf({ 1: "forged" }), 7: mapOf({ 30: "feat/other" }) },
@@ -143,9 +126,6 @@ test("the next map keeps listed entries and adds this run's downloads", () => {
     listing: { artifacts: [...listed(30, 40, 60, 70, 80).artifacts, { id: 50, expired: true }] },
     repo: REPO,
   });
-  // 50 has expired; 60 recorded no head ref; 70 is another repository's key;
-  // 80 came from the last run's carried run cache, never a download; 90 was
-  // downloaded but is no longer listed.
   assert.deepEqual(refs, { 30: "feat/other", 40: "feat/x", 60: "" });
 });
 
@@ -185,13 +165,10 @@ test("write merges the map read before the gate with the run's downloads", async
 });
 
 test("write with no listing carries the map read before the gate, quietly", async () => {
-  // A run with no candidates saves no listing; the next run that saves one prunes the map.
   const { written, lines } = await writeRun({ previous: mapOf({ 30: "a", 31: "" }), runCache: cached({ [`${REPO}|40`]: { head_ref: "b" } }) });
-  // 40 is a download no listing vouches for, so only the map read before the gate is carried.
   assert.deepEqual(written, { version: 1, repo: REPO, head_refs: { 30: "a", 31: "" } });
   assert.equal(lines.length, 1);
   assert.ok(!lines[0].startsWith("::warning"));
-  // No map read before the gate, or one that is dropped: nothing to carry.
   const none = await writeRun({ runCache: cached({}) });
   assert.equal(none.written, undefined);
   assert.equal(none.lines.length, 1);
@@ -214,8 +191,6 @@ test("a bad previous map is dropped; no run cache prunes the previous map", asyn
   assert.deepEqual(bare.written.head_refs, { 30: "a" });
 });
 
-// The gate's reader (babysit_verify_evidence.py `load_head_refs`) loads the
-// map a run with no listing carries.
 test("the gate reads the carried map", async () => {
   const { out } = await writeRun({ previous: mapOf({ 30: "a", 31: "" }) });
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
@@ -225,8 +200,6 @@ test("the gate reads the carried map", async () => {
   assert.deepEqual(JSON.parse(run.stdout), { 30: "a", 31: "" });
 });
 
-// The tag named main and main's tip are read once per process, however many
-// runs are checked; a failed read is remembered too, and refuses every run.
 test("onMain reads the tag named main and main's tip once per process", async () => {
   const calls = [];
   const actions = async (method, url) => {
@@ -245,13 +218,9 @@ test("onMain reads the tag named main and main's tip once per process", async ()
     return mainCall(url, { mainTag: true });
   };
   assert.equal(await onMain({ repo: REPO, actions: tagged, sha: sha(7) }), false);
-  // Still refused with a client that would answer 404: the refusal holds.
   assert.equal(await onMain({ repo: REPO, actions, sha: sha(7) }), false);
 });
 
-// A tip the job listed with `git ls-remote` (PR_MERGE_MAIN_TIP) replaces both
-// ref reads; each run is still compared with it, and a commit off main is
-// still refused. A value that is not 40 hex is ignored and the refs are read.
 test("onMain takes main's tip from PR_MERGE_MAIN_TIP without a ref read", async () => {
   const calls = [];
   const actions = async (method, url) => {

@@ -1,36 +1,7 @@
 name: Maintenance Delete Stale Branches
 
-# Deletes the branches of this repository whose work is finished: a branch
-# lives as long as its issue is open (owner decisions W-7 and #8958). Daily the
-# select-stale-branches job sorts every branch by the branch-cleanup rule
-# (docs/conventions/pr-pipeline/README.md, "Branch cleanup"): a branch whose
-# pull request closed or merged and whose linked issue closed is deleted; one
-# with an open issue, an open pull request, a protection or ruleset, or that
-# is the default, release/*, dependabot/* or gh-readonly-queue/* branch is
-# never deleted; anything else is listed for a person. It reads issue and pull
-# request text with a token that writes nothing, prints how many it will
-# delete, and hands at most `branch-cleanup.max-deletes-per-run` candidates to
-# the delete job as an artifact. The delete job, the only one that writes,
-# reads that list and no issue or pull request text. Before each delete it
-# re-reads the tip and the open pull requests, and appends {repo, branch, sha,
-# rule, issue, pr, deletedAt} to the ledger: the step summary and the
-# branch-cleanup-ledger artifact. The delete is a GraphQL updateRefs whose
-# beforeOid is the listed tip, so a push that lands after the re-read makes
-# GitHub refuse it; a second ledger line {repo, branch, sha, notDeletedAt,
-# reason} then records that the branch still stands. A branch with no such
-# line is restored from its ledger SHA with
-# `git push origin <sha>:refs/heads/<branch>`. No model, and no branch code is
-# checked out. Rules: .github/scripts/branch-cleanup/.
-#
-# The schedule deletes; a manual run is a dry-run unless dry-run is set to
-# false, and a dry-run starts no delete job. How to stop it: set the
-# organization or repository lanes kill-switch variable to anything but
-# "false"; each job checks it.
-
 on:
   schedule:
-    # judgment: 13 UTC, the quietest hour of job calls measured 2026-11-02T22Z to 11-04T06Z
-    # (2,000 on 11-03, one day of data; 06 UTC averaged 4,189 over two days).
     - cron: "17 13 * * *"
   workflow_dispatch:
     inputs:
@@ -61,9 +32,6 @@ jobs:
       pull-requests: read
     outputs:
       planned: ${{ steps.plan.outputs.planned }}
-      # The candidate list's artifact name, fixed by the attempt that planned
-      # it: re-running only a failed delete job keeps this job's outputs, so
-      # the delete job still finds the list select-stale-branches uploaded.
       candidates: branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}
       standards-sha: ${{ steps.standards.outputs.sha }}
     env:
@@ -110,11 +78,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # A workflow token's REST limit is per repository per hour
-      # (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api);
-      # cleanup.mjs leaves the delete job 1 call plus 5 for each of the
-      # max-deletes-per-run deletes and evaluates branches with the rest,
-      # stopping at the cap.
       - name: Plan the deletes
         id: plan
         if: steps.kill.outputs.proceed == 'true'
@@ -202,8 +165,6 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
 
-      # This run's own select-stale-branches job wrote it; the delete stage still refuses a
-      # list over the cap or with an entry it does not expect.
       - name: Download the candidate list
         if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@v8

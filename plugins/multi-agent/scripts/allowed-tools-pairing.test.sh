@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Contract: every bundled-script `allowed-tools` grant in this plugin is PAIRED
-# with the invocation its skill body actually tells Claude to run.
-#
-# A Bash permission rule is matched against the literal command string, and
-# `bash` is NOT one of the wrappers Claude Code strips before matching (list:
-# <https://code.claude.com/docs/en/permissions>). So `Bash(bash <path>:*)` is interpreter-led, while a rule written without
-# `bash` stops matching the moment the body still says `bash <path>`. Only the
-# paired form (direct invocation in the body, direct path in the rule) is both
-# non-interpreter-led AND live. Quoting counts too: an unquoted rule does not
-# match a quoted body path, which is how one grant in this repo shipped dead.
-#
-# This gate requires `${CLAUDE_SKILL_DIR}` in a grant, and that is a repo
-# convention rather than a platform limit: the skills page documents
-# `${CLAUDE_PLUGIN_ROOT}` substituting in a plugin skill's `allowed-tools`
-# (<https://code.claude.com/docs/en/skills>). The reason the rule still holds:
-# the docs establish substitution, not that such a rule matches at runtime on
-# every host, and this
-# repo does not ship a grant on docs alone
-# (`plugins/discovery/reference/parent-contract.md`).
-#
-# SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
-# fixed string searched for VERBATIM in markdown and frontmatter, where those
-# placeholders are substituted by Claude Code at load time. Letting the shell
-# expand any of them would make this gate silently match nothing.
 # test-scope: plugins/multi-agent/skills/*.md plugins/multi-agent/skills/*/scripts/*
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -50,8 +26,6 @@ fail() {
   echo "FAIL: $1" >&2
   fails=1
 }
-# Not `SKIP:`: scripts/run-plugin-tests.sh counts that prefix as an absent-tool
-# skip, and this path is a declared absence of an allowlist, not of a tool.
 note() { echo "NOTE: $1"; }
 
 allowed_tools() {

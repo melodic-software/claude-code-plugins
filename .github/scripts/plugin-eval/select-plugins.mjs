@@ -1,56 +1,4 @@
 #!/usr/bin/env node
-// select-plugins.mjs: the plugins whose eval suite a pull request's changes
-// call for.
-//
-//   select-plugins.mjs [--repo <dir> --base <ref> --head <ref>]
-//
-// Reads changed paths, one per line, on stdin and prints each plugin
-// directory (`plugins/<name>`) that has a changed file under its skills/,
-// agents/, context/ or evals/, sorted, one per line. Prints nothing when none
-// does. context/ is admitted by the owner decision at
-// https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380.
-//
-// A selected plugin's suite runs with the pull request's own plugin loaded
-// under --trust-plugin and the eval's credential in the environment, so only
-// changes known not to add code that runs are let through, an allowlist:
-//
-// - every changed path of a selected plugin sits under skills/, agents/,
-//   context/, evals/ or reference/, or is the plugin's README.md; reference/
-//   and README.md are carried, never selected:
-//   https://github.com/melodic-software/architecture/blob/60608e8446b08ff6320e3272a1c041e521258794/docs/owner-decisions.md#L421;
-// - every changed path under skills/, agents/, context/ or reference/ is
-//   markdown, since a script there can be called by an unchanged hook, server
-//   or skill (context/:
-//   https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380);
-// - a changed markdown file under skills/, agents/, context/ or reference/,
-//   or the plugin's README.md, keeps,
-//   between --base and --head in the git repository --repo, every frontmatter
-//   key outside SAFE_KEYS (hooks, allowed-tools, shell and the rest), in a
-//   frontmatter shape frontmatter() can read and with no YAML alias in those
-//   keys, and adds or changes no `!` shell-preprocessing line or ```! block, and
-//   changes no body text of a file that already has one. Without --repo it
-//   cannot be read, so it is refused;
-// - every changed path under evals/ is a case file: prompt.md, case.yaml,
-//   graders/<name>.md or samples/**/<name>.json in a case directory. A
-//   scaffold script, a fixture (scaffold scripts run fixtures/ seed scripts
-//   outside the sandbox) or a stub plugin is refused;
-// - a changed prompt.md or case.yaml keeps every key outside CASE_SAFE_KEYS
-//   (allowed_tools, env, context and its scaffold_script,
-//   growthbook_overrides and the rest), and in case.yaml every execution key outside
-//   CASE_SAFE_EXECUTION_KEYS, in a shape frontmatter() can read;
-// - every case in a selected plugin's tree at --head loads, through its
-//   `plugins:` key, only the plugin's own root or a directory inside the
-//   plugin with no changed path under it. A plugin a case loads runs its
-//   hooks outside the sandbox, and no rule above inspects another plugin or
-//   a stub directory. Without --repo the cases cannot be read, so the plugin
-//   is refused;
-// - no path is one git quoted (a leading `"`), whose real name is unknown;
-// - a selected plugin's tree at --head holds no symlink or submodule, since
-//   the loader follows a link to content no rule above inspected. Without
-//   --repo the tree cannot be read, so the plugin is refused.
-//
-// When a path breaks a rule, `<path>: <reason>` lines go to stderr
-// and the exit is 1. Exit 0 otherwise.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
@@ -66,10 +14,6 @@ const SEG = "[A-Za-z0-9_-][A-Za-z0-9._-]*";
 const CASE_FILE = new RegExp(`^evals/(?:${SEG}/)+(?:prompt\\.md|case\\.yaml|graders/${SEG}\\.md|samples/(?:${SEG}/)*${SEG}\\.json)$`);
 const CASE_DEFINITION = /(?:^|\/)(?:prompt\.md|case\.yaml)$/;
 
-// prompt.md and case.yaml keys that only describe, grade or bound a case, and
-// plugins, whose every entry caseLoadRefusals checks. A change to any other
-// key (allowed_tools, env, context, growthbook_overrides, artifact_publish, an
-// unknown key) is refused.
 export const CASE_SAFE_KEYS = new Set([
   "append_system_prompt",
   "description",
@@ -84,15 +28,8 @@ export const CASE_SAFE_KEYS = new Set([
   "tags",
   "timeout_seconds",
 ]);
-// case.yaml's execution block: every key but env and allowed_tools. A pull
-// request run passes no --allow-tools, so a gated tool such as Bash is not
-// granted whatever a case lists (plugins/evals/skills/plugin-eval/SKILL.md,
-// the read-only suites paragraph); keeping allowed_tools unchanged keeps a
-// changed case from asking for one at all.
 export const CASE_SAFE_EXECUTION_KEYS = new Set(["max_turns", "prompt", "timeout_seconds"]);
 
-// Frontmatter keys that only describe or route a skill or agent. A change to
-// any other key is refused.
 export const SAFE_KEYS = new Set([
   "argument-hint",
   "color",
@@ -107,9 +44,6 @@ export const SAFE_KEYS = new Set([
   "when_to_use",
 ]);
 
-// Shell preprocessing that runs when the skill loads: a line with an inline
-// !`cmd`, or a fenced block whose opening fence (three or more backticks, at
-// any position) is followed by `!`, through its closing fence.
 const INLINE = /!`/;
 const FENCE_OPEN = /```+!/;
 const FENCE_CLOSE = /^\s*```+\s*$/;
@@ -121,21 +55,10 @@ export const selectPlugins = (paths) =>
 
 const FENCE = /^---[ \t]*$/;
 const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)/;
-// A YAML alias (*name) starting a value, list item or flow entry can pull in
-// an anchor set under another key.
 const ALIAS = /(?:^|[:[{,]|^[ \t]*-)[ \t]*\*[A-Za-z0-9_]/m;
 
-// Top-level frontmatter entries as key -> text (the key line and its
-// continuation lines); text with no frontmatter has none. Only a plain shape
-// every YAML reader agrees on is read: `---` on the first line, a closing
-// `---`, each entry a `key:` at column 0 with indented, blank or comment
-// continuation lines. Anything else (an indented block, a `? key`, a flow
-// mapping, a quoted or repeated key, frontmatter after a blank line) returns
-// null, which refuses the file.
 export function frontmatter(text) {
   const raw = String(text ?? "").replace(/^﻿/, "");
-  // A YAML reader breaks lines on these too, so a key after one is hidden
-  // from a split on \r?\n.
   if (/\r(?!\n)|[\u0085\u2028\u2029]/.test(raw)) {
     return null;
   }
@@ -197,8 +120,6 @@ const body = (text) => {
   return end === -1 ? raw : lines.slice(end + 1).join("\n");
 };
 
-// Why a changed markdown file is refused, or null. `head` is null when the
-// file is deleted; `base` is null when it is new.
 export function proseRefusal(base, head) {
   if (head === null) {
     return null;
@@ -241,7 +162,6 @@ const executionKeys = (entry) => {
   return frontmatter(`---\n${rest.map((line) => line.slice(2)).join("\n")}\n---\n`);
 };
 
-// Why a changed prompt.md or case.yaml is refused, or null.
 export function caseRefusal(path, base, head) {
   if (head === null) {
     return null;
@@ -277,8 +197,6 @@ export function caseRefusal(path, base, head) {
   return null;
 }
 
-// The `plugins:` entries of a case's key text: [] with no key, null for any
-// shape but a one-line flow list of double-quoted strings with no escapes.
 export function casePlugins(entry) {
   if (entry === undefined) {
     return [];
@@ -375,10 +293,6 @@ export function refusals(paths, plugins, read = () => undefined) {
   return out;
 }
 
-// `<path>: <reason>` for each symlink or submodule in a selected plugin's
-// tree, and for a plugin whose root is not a directory or holds nothing.
-// tree(plugin) returns its entries as { mode, path }, or undefined when it
-// cannot be read.
 export function linkRefusals(plugins, tree = () => undefined) {
   const out = [];
   for (const plugin of plugins) {
@@ -405,9 +319,6 @@ export function linkRefusals(plugins, tree = () => undefined) {
   return out;
 }
 
-// Every entry under plugin at ref, submodules included, from `git ls-tree -r -z`.
-// The pathspec has no trailing slash, so a root that is itself a symlink or
-// submodule is listed as an entry at the plugin's own path.
 const gitTree = (repo, ref) => (plugin) =>
   execFileSync("git", ["-C", repo, "ls-tree", "-r", "-z", "--full-tree", ref, "--", plugin], {
     encoding: "utf8",
@@ -421,7 +332,6 @@ const gitTree = (repo, ref) => (plugin) =>
       return { mode: line.slice(0, line.indexOf(" ")), path: line.slice(tab + 1) };
     });
 
-// A ref git cannot resolve would read every file as absent, so it throws.
 const gitReader = (repo, refs) => {
   for (const ref of Object.values(refs)) {
     execFileSync("git", ["-C", repo, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { stdio: "ignore" });
@@ -429,9 +339,6 @@ const gitReader = (repo, refs) => {
   return (side, path) => gitShow(repo, refs[side], path);
 };
 
-// The file's text, null only when git says the path is absent at ref, and
-// undefined for any other failure (too large for the buffer, a spawn error),
-// so an unread file is refused, not taken as deleted.
 export const gitShow = (repo, ref, path, maxBuffer = 64 * 1024 * 1024) => {
   try {
     return execFileSync("git", ["-C", repo, "show", `${ref}:${path}`], {

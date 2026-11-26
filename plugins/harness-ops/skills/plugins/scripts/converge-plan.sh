@@ -1,67 +1,4 @@
 #!/usr/bin/env bash
-# Read-only planning pass for `converge`: turns a fleet-state.sh report into one
-# row per lagging (projectPath, id) pin, grouped by path, each carrying the
-# strategy, the exact command, and a class that says whether converge can act.
-# It NEVER runs a `claude plugin` command and never writes a settings file; the
-# model presents the plan and runs only what the user confirms, one batch per
-# path (context/converge.md Step 3).
-#
-# Usage:
-#   converge-plan.sh [--marketplace <name>]
-#   converge-plan.sh --from <report.json> [--marketplace <name>]
-#
-# Without --from, runs the sibling fleet-state.sh (default marketplace, or the
-# named one). With --from, reads a single-marketplace report it already emitted.
-#
-# Output (stdout): one JSON object.
-#   {marketplace, counts, groups}
-#   counts   {rows, paths, actionable, worktree, "blocked-absent", "blocked-home",
-#             "blocked-catalog"}
-#   groups   [{projectPath, rows: [...]}] sorted by path; projectPath null holds
-#            the user-scope rows (no path, no `cd`)
-#   rows     [{id, scope, version, highest, class, strategy, command, default,
-#              warning, alternative, why}]
-#   alternative  {strategy, command, warning} or null: the non-default strategy an
-#            actionable row also offers. A committed-enable `update` row offers
-#            uninstall with the committed-entry warning; an `uninstall` row offers
-#            update unless the catalog reads below the highest version.
-#
-# Only a record BEHIND the highest version its id holds gets a row (divergences
-# with versionsMatch false; a record whose version does not parse as
-# major.minor.patch is left out, the same fail-open the sibling scripts use).
-# One row per (projectPath, id, scope): an id holding both a project and a local
-# record in one path gets two rows, since each takes its own `-s` flag.
-#
-# Class, first match wins:
-#   blocked-home     projectPathIsHome is true: its .claude/settings.json is USER
-#                    settings, so a project-scope command would change user scope.
-#                    No command.
-#   blocked-absent   projectPathPresent is not true (or no projectPath): the `cd`
-#                    cannot run. No command. Never "dead": it may be an unmounted
-#                    volume.
-#   worktree         the path is a linked worktree (linkedWorktree true). `update`
-#                    is not offered there; uninstall is offered only when user
-#                    scope holds the highest version, otherwise strategy is `none`.
-#   blocked-catalog  the update strategy is chosen and the catalog reads below the
-#                    highest installed version, so update would roll back. No
-#                    command; uninstall is not offered as a way around it.
-#   actionable       everything else; `command` is runnable.
-#
-# Strategy follows context/converge.md Step 2: user scope holds the highest
-# version -> `uninstall -s <scope> --keep-data`, except a `project` row whose
-# tracked .claude/settings.json holds an enabledPlugins entry for the id (any
-# value), which takes `update`; otherwise `update` for the row's scope. A
-# committed-enable check that cannot be read counts as a committed enable. A
-# worktree row with a committed enable keeps uninstall as `default: false` with a
-# `warning`, since neither strategy is the default there.
-#
-# Committed-enable check: for each distinct present path that needs it, one
-# `git ls-files --error-unmatch .claude/settings.json`. Whether that file holds
-# an entry for the id comes from the report's `projectEnabledEntry`, which
-# fleet-state.sh reads; this script reads no settings file. A tracked file whose
-# entry is "true", "false" or "other" is a committed enable; "absent" is not; a
-# report without the field, or "unreadable", counts as one. Nothing is written.
-#
 # Exit codes:
 #   0  plan emitted (an empty plan is success)
 #   1  a marketplace run could not be resolved (fleet-state.sh exit 1, or an error
@@ -102,7 +39,7 @@ Classes: actionable, worktree, blocked-absent, blocked-home, blocked-catalog.
 Exit: 0 plan emitted; 1 marketplace could not be resolved; 2 usage error, jq
 missing, or an unusable report.
 
-The output shape and the rules are in the header comment of this script.
+The output shape and the rules are in context/script-contracts.md and context/converge.md.
 EOF
   printf '%s\n' "$text"
 }
@@ -190,10 +127,6 @@ if [[ -n "$TARGET" && "$TARGET" != "${shape#ok:}" ]]; then
   exit 2
 fi
 
-# The row program, shared by the path-listing pass and the plan pass so the two
-# cannot disagree about which rows need the committed-enable check. `$committed`
-# maps a path to "tracked", "untracked" or "unknown"; "unknown" (the check could
-# not be read) counts as a committed enable.
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 ROWS_PROGRAM='
   def triple:
@@ -231,11 +164,6 @@ if ! jq_to paths_needed -r "$ROWS_PROGRAM"'
   exit 2
 fi
 
-# Tracked state per path, fail closed: "unknown" counts every id as a committed
-# enable. Exit 1 from ls-files is "not tracked" (untracked or missing file); any
-# other failure decides nothing, so it stays closed. The object is assembled in
-# the shell, so no jq runs per path; LC_ALL=C keeps the encoder byte-wise, so a
-# non-ASCII path passes through verbatim under any bash locale.
 committed_body=""
 path_json=""
 while IFS= read -r p; do

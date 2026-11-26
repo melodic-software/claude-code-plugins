@@ -1,29 +1,5 @@
 #!/usr/bin/env bash
-# Gate: no plugin hook configuration may carry a bare ${user_config.*} token.
-#
-#   scripts/check-hook-userconfig-argv.sh    fail on any ${user_config.*} in a
-#                                            plugin hook config
-#
-# Why: the declared userConfig `default` is unimplemented upstream (#46477 —
-# closed not-planned), so an unset-but-defaulted ${user_config.*} argv token
-# silently drops the ENTIRE hook entry instead of substituting. On a default
-# install the hook never fires. The channel decision matrix
-# (docs/contracts/hook-config-delivery/) rules argv out for hooks until
-# upstream implements `default`; this gate pins that rule.
-#
-# Scope: hook configurations only — the default hooks/hooks.json, any
-# manifest-pointed hook config file (`hooks` as a string or array of paths),
-# and an inline manifest `hooks` object. MCP and LSP server configs are OUT of
-# scope: ${user_config.*} substitution there is sanctioned and does not drop
-# components. A hooks/*.json file the manifest never references is not loaded
-# by Claude Code and is not scanned.
-#
-# Also: an exec-form `--require-true NAME` gate in those configs needs a
-# `userConfig.<name>` key in the plugin's manifest, else no user can enable it.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in scripts/README.md, "The check-script
-# contract", and held by scripts/check-script-contract.test.sh.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -47,21 +23,12 @@ flag() {
   errors=$((errors + 1))
 }
 
-# scan_manifest_path <plugin-dir> <manifest> <relative hooks path> — trust
-# boundary, the same rule the sibling exec-form gate applies:
-# scripts/lib/manifest-path-guard.sh holds it, and hands back an empty path for
-# a value that leaves the plugin directory, which scan_file then ignores.
 scan_manifest_path() {
   local plugin="$1" manifest="$2" rel="$3" path
   manifest_path_guard::resolve_to path check-hook-userconfig-argv "$manifest" "$plugin" "$rel"
   scan_file "$path"
 }
 
-# scan_file <repo-relative hook config path> — two passes: a raw-text grep for
-# precise file:line reporting, then a decoded pass (jq re-serializes the JSON,
-# resolving \u-escapes such as ${user_config.KEY} that the loader decodes
-# before substitution) so an escaped spelling of the token cannot slip past the
-# raw scan. An unparsable file gets the raw pass only.
 scan_file() {
   local file="$1" hits line
   [[ -f "$file" ]] || return 0
@@ -76,15 +43,6 @@ scan_file() {
   check_require_true "$file" "$file" .
 }
 
-# check_require_true <reported path> <json file> <jq filter selecting the hook
-# config> — exec-bash.mjs reads `--require-true NAME` from
-# CLAUDE_PLUGIN_OPTION_NAME, which Claude Code sets only for a declared
-# userConfig key `name` (case-insensitive here) of type boolean (the gate opens
-# only on the literal string true). Without that key no user can ever turn the
-# hook on, so the gate fails. Only the leading gate pairs right after the
-# exec-bash.mjs launcher count, as lib/exec-bash.mjs parseLaunchArgs reads them,
-# in an args array or a whitespace-tokenized shell-form command string. Each
-# (file, name) is reported once.
 check_require_true() {
   local shown="$1" src="$2" filter="$3" plugin manifest name type
   plugin="${shown#plugins/}"
@@ -114,7 +72,6 @@ for plugin in plugins/*/; do
   plugin="${plugin%/}"
   manifest="$plugin/.claude-plugin/plugin.json"
 
-  # Default location, always loaded when present.
   scan_file "$plugin/hooks/hooks.json"
 
   [[ -f "$manifest" ]] || continue

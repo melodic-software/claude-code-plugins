@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a body line that would break the squash signature` step body
-# of .github/workflows/pr-require-checks.yml's ci-status under the shell
-# Actions gives a step with no `shell:` (bash -e).
-#
-# GitHub builds the squash commit message from the pull request body and wraps
-# it. A message line that starts with `committer ` is read as a header when
-# GitHub signs the commit, so the signature verifies invalid,
-# the signed-commit rule refuses the push, and the merge queue removes the pull
-# request as `branch_protection_failure` (#7279, #7360). Only that word is
-# checked: lines starting `author ` (#8489) and `parent ` (#7933) are in squash
-# messages that verified valid. The wrap the step
-# models: a line of at most 72 characters is kept as written; a longer one is
-# split on runs of spaces and tabs and filled greedily to 72 characters.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -77,14 +64,11 @@ $PAD $key identity set in the step env." "" "::error::"
   expect "'$key ' at a line start passes" 0 $PR "Closes #1
 $key identity set in the step env." "" "::error::"
 done
-# Lines from squash messages that verified valid: #8489 (line 32) and #7933
-# (line 15).
 expect "the #8489 'author ' line passes" 0 $PR \
   "author or a listed human, not through an App. It removes \`status:" "" "::error::"
 expect "the #7933 'parent ' line passes" 0 $PR \
   "parent pins \`smol-toml\` 1.8.0 and \`micromark-extension-math\` 3.1.0" "" "::error::"
 
-# The #7225 body line that broke the queue's squash commit c2b54b0.
 expect "the #7225 line fails at its real wrap point" 1 $PR \
   "- Scripts, the version-bump script and the tracker config copied from the trusted base before the head checkout and hash-checked before use; committer identity set in the step env." \
   "line 1"
@@ -113,23 +97,17 @@ expect "a word that lands mid-line after the wrap passes" 0 $PR \
 expect "the keyword mid-line inside a code block passes" 0 $PR '```
 git config user.name; the committer stays the bot
 ```'
-# GitHub wraps fenced lines like any other (no exemption), so a code-block
-# line that starts with a keyword breaks the signature the same way.
 expect "a code-block line starting with a keyword fails" 1 $PR '```
 committer Bot <bot@example.com> 1700000000 +0000
 ```' "line 2"
 expect "a long indented line loses its indent when wrapped and fails" 1 $PR \
   "  committer identity set in the step env, and the rest of this line runs past seventy-two"
 expect "CRLF line endings are read as LF" 1 $PR $'Closes #1\r\n\r\ncommitter x\r\n' "line 3"
-# Characters, not bytes: 70 characters with two-byte letters stay one line.
 expect "non-ASCII text is measured in characters" 0 $PR \
   "éééééééééé éééééééééé éééééééééé éééééééééé éééééééééé ééééééé committer"
-# A non-breaking space does not split words, as in GitHub's wrap.
 expect "a non-breaking space is not a wrap point" 0 $PR \
   "$PAD "$'\xc2\xa0'"committer x"
 
-# The merge group reads the squash commit's own message: its first line is the
-# subject, never wrapped, and the rest is already wrapped.
 expect "a merge-group message line starting with a keyword fails" 1 merge_group \
   "feat: x (#1)
 

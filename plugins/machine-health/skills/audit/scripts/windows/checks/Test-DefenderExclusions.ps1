@@ -71,7 +71,6 @@ $CheckBody = {
                 exclusion_extension_count = @($state.Extensions).Count
                 exclusion_process_count   = @($state.Processes).Count
                 unexpected_path_count     = $unexpectedPaths.Count
-                # Objects, not strings, so the markdown report shows a count, never a value.
                 unexpected_paths          = @($unexpectedPaths | Select-Object -First 20 | ForEach-Object { [pscustomobject]@{ path = $_ } })
                 list_state                = $state.ReadState
                 items_count               = $items.Count

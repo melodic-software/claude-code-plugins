@@ -182,9 +182,6 @@ class JscpdAdapterTests(unittest.TestCase):
             self.assertIn("--ignore **/vendor/**,**/dist/**", argv)
 
     def test_a_long_file_list_never_reaches_the_command_line(self) -> None:
-        # Regression for the Windows failure: past the command-line limit jscpd
-        # wrote no report and printed nothing. The stub fails the same way past
-        # a small argument count, so a list carried on argv fails this test.
         with tempfile.TemporaryDirectory() as tmp:
             log = Path(tmp) / "argv.log"
             listing = Path(tmp) / "paths.txt"

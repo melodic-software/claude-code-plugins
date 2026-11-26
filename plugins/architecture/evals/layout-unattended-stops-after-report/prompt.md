@@ -1,7 +1,7 @@
 ---
 description: "improve-layout unattended with a recorded style: the scaffolded cart cluster is judged against docs/adr/0004-folder-per-feature.md:9 on its card, with a proposed layout and before and after trees; the candidate artifact is written to the memory tier, then the run stops: no question, no interview, no other skill, no file moved. Source: the improve skill's evals.json case layout-unattended-stops-after-report, given a scaffold. Needs --scaffold --allow-tools Bash Write and a sandbox backend."
 tags: [architecture, improve-layout, co-change, scaffold]
-runs: 6
+runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

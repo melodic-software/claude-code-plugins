@@ -1,8 +1,3 @@
-// maintenance-measure-skill-edit.yml and its pass workflow measure an edit, and
-// only the two jobs after a win write, under the owner's grant (AL-Q11): each
-// holds id-token for one lanes App token and nothing else writes; the one model
-// step is read-only and frames what it reads as data; every pass runs the same
-// bounded eval; and the only artifact kept past the run is a win's, for 3 days.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -17,7 +12,6 @@ const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.me
 const code = (text) => text.replace(/^\s*#.*$/gm, "");
 const main = read("maintenance-measure-skill-edit.yml");
 const pass = read("maintenance-measure-skill-edit-pass.yml");
-// The jobs that mint a lanes App token, each its one effect (AL-Q11).
 const WRITERS = { "push-branch": "apply-skill-edit-branch", publish: "publish-skill-edit-pr" };
 const jobs = (text) => {
   const wf = workflowText(text);
@@ -37,9 +31,6 @@ test("only push-branch and publish hold id-token, each for its one lane token; e
       const writer = file === "maintenance-measure-skill-edit.yml" && Object.hasOwn(WRITERS, name);
       const permissions = block.match(/\n {4}permissions:\n((?: {6}.+\n)+)/)?.[1] ?? "";
       const keys = [...permissions.matchAll(/^ {6}([a-z-]+): (\w+)/gm)].map(([, key, level]) => `${key}: ${level}`);
-      // check-inputs also reads this run's re-runner (check-trusted-trigger);
-      // a check-key-credit job, in either file, reads only the credit-stop
-      // markers, and a pass's caller grants its pass workflow's check-key-credit that read.
       const creditGate = name === "check-key-credit";
       const reads = creditGate
         ? ["actions: read"]
@@ -52,7 +43,6 @@ test("only push-branch and publish hold id-token, each for its one lane token; e
       if (!writer) assert.doesNotMatch(code(block), /id-token|request-lane-token|LANES_BROKER/, `${file} ${name}`);
     }
   }
-  // The model step's job holds no write token and no OIDC token.
   assert.doesNotMatch(jobs(main)["generate-edit"], /id-token|lane-token|GH_TOKEN/);
 });
 
@@ -78,7 +68,6 @@ test("the writes run only after a verified win, check what they carry before the
   assert.match(step(push, "Report a stop before the push"), /if: always\(\) && steps\.push\.outcome == 'skipped'\n[^]*echo "gate: push-branch: [^"]*" \| tee -a "\$GITHUB_STEP_SUMMARY"/);
   assert.match(step(publish, "Report a stop before the pull request"), /if: always\(\) && steps\.open\.outcome == 'skipped'\n[^]*echo "gate: publish: [^"]*" \| tee -a "\$GITHUB_STEP_SUMMARY"/);
   assert.match(step(jobs(main)["compare-passes"], "Report a win that was not kept"), /steps\.upload-win\.outcome != 'success'[^]*gate: win-upload: /);
-  // The workflow names no merge, ready flip or auto-merge.
   assert.doesNotMatch(code(main), /gh pr (merge|ready)|enable-auto-merge|markPullRequestReadyForReview|draft: false/);
   assert.match(main, /^on:\n {2}workflow_dispatch:\n/m);
   assert.doesNotMatch(main, /^ {2}(schedule|push|pull_request\w*|workflow_run):/m);
@@ -106,7 +95,6 @@ test("every pass runs 3 runs per case per arm under --max-cost-usd 5, with no to
   assert.match(run, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"/);
   assert.match(run, />"\$RUNNER_TEMP\/console\.log" 2>&1/);
   assert.match(step(pass, "Read the pass"), /run-validity\.py "\$OUT\/results\.json" --runs 3 --scaffolded/);
-  // The policy and its probe come before any case, and the policy before isolation.
   const order = ["Deny the eval's reads", "Isolate the runner", "Probe that the policy", "Run the pass"].map((name) => pass.indexOf(`- name: ${name}`));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
 });
@@ -186,12 +174,8 @@ test("the verdict names the stopping gate, and only a win is kept, for 3 days", 
       assert.ok(["retention-days: 1", "retention-days: 3"].includes(days), days);
     }
   }
-  assert.match(main, /# The owner's grant \(AL-Q11,\n# https:\/\/github\.com\/melodic-software\/claude-code-plugins\/issues\/12035#issuecomment-6650791111\)/);
 });
 
-// The Decide step's closing branch, run in bash: a gate stop (status 1) is
-// green with its line already written, and any other failure names its gate
-// and fails the job.
 test("the verdict fails and names the gate when win-test.py cannot read a pass file", () => {
   const decide = step(jobs(main)["compare-passes"], "Decide");
   const tail = decide.slice(decide.indexOf('if [ "$status" = 0 ]'), decide.lastIndexOf("fi") + 2);

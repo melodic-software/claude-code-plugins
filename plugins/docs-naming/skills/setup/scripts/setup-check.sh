@@ -1,25 +1,6 @@
 #!/usr/bin/env bash
-# setup-check.sh — verify the docs-naming consumer configuration.
-#
-# Read-only. Prints one row per check and changes nothing, so it is safe to run
-# against a repository nobody has reviewed.
-#
-# WHAT IT IS FOR. Every value the file-name skills act on comes from
-# `<home>/docs-naming.yaml` and its two personal layers: which tree is scoped,
-# which names are legal, which references may be rewritten in which form, and
-# which shell command runs after a generated file moves. A malformed layer, a
-# regex that no grep accepts, or a regenerator whose command is not installed all
-# fail LATE otherwise: the audit reports nothing, or the realign stops with a
-# tree half migrated. This turns each of those into a row before any of it runs.
-#
-# Every single-quoted `${...}` below is a jq program argument, substituted by jq
-# from --arg/--argjson, never by the shell.
+# Every single-quoted `${...}` below is a jq program argument, never a shell expansion.
 # shellcheck disable=SC2016
-#
-# Usage:
-#   setup-check.sh [--root <dir>] [--home <dir>]
-#   setup-check.sh --help
-#
 # Exit: 0 every check passed (WARN and INFO rows do not fail the run),
 #       1 at least one FAIL row, 2 usage or a missing prerequisite.
 set -uo pipefail
@@ -38,7 +19,14 @@ die() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+Verify the docs-naming consumer configuration; prints one row per check, changes nothing.
+Usage: setup-check.sh [--root <dir>] [--home <dir>]
+  --root <dir>  repository root
+  --home <dir>  convention home holding docs-naming.yaml
+Exit: 0 every check passed (WARN and INFO rows do not fail); 1 at least one FAIL row;
+2 usage or a missing prerequisite.
+EOF
 }
 
 row() {

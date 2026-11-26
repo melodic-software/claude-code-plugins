@@ -1,50 +1,6 @@
 #!/usr/bin/env bash
-# apply-rename.sh — execute ONE accepted rename from a file-name findings plan.
-#
-# One finding per invocation. The plan's record is the instruction set: this
-# script never re-inventories the tree, never re-derives a form, a tier, or an
-# action, and never decides which site to touch. It applies what the record says
-# after proving the record still describes the tree.
-#
-# THE DRIFT GUARD IS PER SITE, NOT PER FILE. A whole-file content hash cannot be
-# the test: in any real doc tree the renamed files cite each other, so applying
-# the first accepted rename edits a file another finding names, and a file-level
-# guard would block every rename after the first. What is checked instead is
-# exact and narrow: the old path is still in the INDEX, and each site's recorded
-# line still carries the old name. A site that no longer matches is reported and
-# skipped; a substitution that would hit zero times is reported, never a silent
-# no-op.
-#
-# EXISTENCE IS ASKED OF THE INDEX, NEVER THE FILESYSTEM. On a case-insensitive
-# checkout `[[ -e docs/foo.md ]]` is true while only `docs/Foo.md` exists, so a
-# filesystem test would refuse every case-only rename on the platforms the whole
-# rule exists to protect.
-#
-# THE WRITE-BACK PRESERVES THE INODE. Edits go through a temp file and are
-# written back with `cat`, never moved over the target: `mv` replaces the inode
-# and drops the executable bit, and a reference sweep across a real repository
-# edits hook scripts and gate scripts that stop launching the moment they lose
-# it.
-#
-# AN INTERRUPTED RUN RESUMES. `applying` is written before `git mv` and cleared
-# after the last edit, so a run that died between them is resumed rather than
-# blocked: the maps are idempotent, and an old path that is gone while the new
-# path is present is a half-finished apply, not a drifted tree.
-#
-# Every single-quoted `${...}` below is a jq or awk program argument, never a
-# shell expansion.
+# Every single-quoted `${...}` below is a jq or awk program argument, never a shell expansion.
 # shellcheck disable=SC2016
-#
-# Usage:
-#   apply-rename.sh --artifact <plan.md> --id <FN-xxxxxxxx>
-#                   [--config <json>] [--root <dir>] [--dry-run]
-#   apply-rename.sh --regenerate-only [--config <json>] [--root <dir>]
-#   apply-rename.sh --help
-#
-# Exit: 0 applied (or, with --dry-run, planned), 1 blocked (the reason and the
-#       remedy on stderr; the TREE is unchanged, and a record the operator had
-#       accepted is marked `blocked` so the decision does not read as still
-#       queued), 2 usage or a missing prerequisite.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -63,7 +19,19 @@ blocked() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+Execute one accepted rename from a file-name findings plan.
+Usage: apply-rename.sh --artifact <plan.md> --id <FN-xxxxxxxx> [--config <json>] [--root <dir>] [--dry-run]
+       apply-rename.sh --regenerate-only [--config <json>] [--root <dir>]
+  --artifact <plan.md>  the findings plan
+  --id <FN-xxxxxxxx>    the finding to apply
+  --config <json>       a resolved configuration document
+  --root <dir>          repository root
+  --dry-run             plan without changing the tree
+  --regenerate-only     only rerun the generated-file regenerators
+Exit: 0 applied (or planned with --dry-run); 1 blocked (tree unchanged, reason on stderr);
+2 usage or a missing prerequisite.
+EOF
 }
 
 TEMPS=()

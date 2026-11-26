@@ -1,49 +1,4 @@
 #!/usr/bin/env node
-// lane-records.mjs: keeps, from one pr-merge run to the next, the
-// pr-merge-dispatched-<id> and pr-merge-rerun-<id>-attempt-2 records the
-// post-merge check proved (babysit_postmerge.py `_lane_record`), so it does
-// not list each record and read the run that uploaded it on every run. A
-// record that is present stays present: the run that uploaded it, its event,
-// branch and head commit never change, and main forbids force pushes.
-//
-// Each record answered from here can let a merge verify (a lane dispatch
-// covering it, or the lane's own re-run turning a red attempt 1 into a
-// flake), so it is read only the way the head-ref map is (head-ref-map.mjs):
-// `read`, before each post-merge check, takes the file from the newest
-// scheduled or hand-started run of main's pr-merge.yml, this run aside,
-// holding the pr-merge-lane-records artifact (rotation.mjs `trustedRun`),
-// and only when that run's head commit is on main (`onMain`). Only a run's
-// own steps can upload its artifacts, so the file was written by main's
-// pr-merge.yml; it never goes through actions/cache. The check still runs
-// its sender rule over the sender fields the file stores for each record
-// before using it; only the head commit's ancestry is read live.
-//
-// `write`, after the gate: the file the checks of this job rewrote (the
-// records they read in and the final ones they proved, created at or after
-// their floor), each kept while unexpired and, when the run saved an artifact
-// listing, while it lists its artifact id unexpired, written to
-// LANE_RECORDS_OUT for actions/upload-artifact. With no listing file (no
-// candidates, or a listing the run could not read), unexpired records are
-// carried as they are and pruned on the next run that saves a listing: the
-// listing only prunes, and is no trust check. A listing file that cannot be
-// parsed writes nothing, and the next run reads an older file.
-//
-// The file is `{"version": 1, "repo": "<owner/repo>", "records": {"<record
-// name>": {"created_at", "artifact", "expires_at", "sender"}}}`. A file of
-// any other shape is no file. Any failure writes nothing and warns: the
-// check then reads every record, which costs requests, never a decision.
-//
-// Environment:
-//   ACTIONS_TOKEN             read: the job's GITHUB_TOKEN (actions: read)
-//   GITHUB_REPOSITORY         owner/repo
-//   GITHUB_RUN_ID             read: this run, which has no file yet
-//   RUNNER_TEMP               read: where the artifact is downloaded
-//   PR_MERGE_READS_PATH       read: the job's shared GET answers
-//                             (rotation.mjs sharedReads), if set
-//   GITHUB_API_URL
-//   LANE_RECORDS_PATH         the file the checks read and rewrite
-//   BABYSIT_VERIFY_LISTING    write: the run's saved artifact listing, if any
-//   LANE_RECORDS_OUT          write: the file to upload
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# local-file findings buffer: read.sh [--since <UTC ISO-8601>]
 # Exit: 0 ok, 1 read failure, 2 usage, 3 not in a repository or jq missing.
 set -uo pipefail
 

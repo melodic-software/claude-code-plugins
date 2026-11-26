@@ -290,9 +290,6 @@ describe("recovery CLI argument validation", () => {
     captured.stderr.length = 0;
   });
 
-  // Regression (#3365): `path.resolve(argv[2..5])` ran BEFORE the presence
-  // check, so a missing argument threw `TypeError` and the usage branch was
-  // unreachable. A bad invocation must print the usage line and return 1.
   it.each([
     ["no arguments", []],
     ["only slice-dir", ["slice"]],
@@ -308,9 +305,6 @@ describe("recovery CLI argument validation", () => {
 });
 
 describe("stratified downsample reporting", () => {
-  // Regression (#3365): the WARN interpolated `selection.selected.length`
-  // AFTER `selection` was reassigned to the downsampled array, so it printed
-  // "N → N" and hid every dropped frame.
   it("reports the pre-downsample count, not the post-downsample count", () => {
     const selected = Array.from({ length: 50 }, (_, i) => ({ path: `f${i}.png` }));
 

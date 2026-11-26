@@ -61,7 +61,6 @@ mkdir "$ROOT/hidden-only"
 printf 'x\n' >"$ROOT/hidden-only/.env"
 mkdir "$TEST_TMPDIR/link-target"
 ln -s "$TEST_TMPDIR/link-target" "$ROOT/linked" 2>/dev/null || SKIP_LINK=1
-# Git Bash without symlink permission makes `ln -s` copy the target and succeed.
 if [[ -z "${SKIP_LINK:-}" && ! -L "$ROOT/linked" ]]; then
   rm -rf "$ROOT/linked"
   SKIP_LINK=1
@@ -135,8 +134,6 @@ assert_eq "root inside a repo: child without .git is foreign" $'inner\tforeign\t
 git -C "$REPO_A" config worktreeroot.path "$ROOT"
 run_scan --repo-dir "$REPO_A"
 assert_exit "default root resolves through worktreeroot.path" 0 "$RC"
-# git hands the root back in its own spelling and the scan resolves it with
-# `pwd -P` (on Windows Git Bash /c/..., not the /tmp/... mktemp returned).
 assert_contains "default root scans the configured root" "$OUT" "$(physical_dir "$ROOT")/husk"
 
 run_scan --root "$TEST_TMPDIR/not-mounted" --repo-dir "$REPO_A"

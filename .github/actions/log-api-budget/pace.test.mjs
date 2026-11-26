@@ -159,8 +159,6 @@ test("a previous scheduled run that did not finish its work, or none, keeps the 
   assert.match(unnamed.lines[0], /this tick runs: no PACE_WORK_STEP names this lane's work$/);
 });
 
-// The previous run is the highest id below this one, whatever created_at
-// says: on 2026-11-01 runs were stamped an hour ahead (rotation.mjs runOrder).
 test("the previous scheduled run is found by run id, not by its creation time", async () => {
   const skewed = [
     { id: 8, created_at: minutesAgo(-60) },

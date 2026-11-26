@@ -10,10 +10,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
-# The fixture cases expect the local file at the fixture's repository root. On
-# Windows the reader anchors it on the start directory instead, so the suite pins
-# a non-Windows platform through the reader's seam, and the Windows-branch cases
-# (Case 14) set PERMISSION_STATE_OSTYPE per call.
 export PERMISSION_STATE_OSTYPE=linux-gnu
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -259,12 +255,6 @@ err_out=$(nojq "$empty_path_dir" linux-gnu)
 assert_not_contains "no package manager found: no guessed command" "$err_out" "Install it:"
 assert_contains "no package manager found: the download page instead" "$err_out" "https://jqlang.org/download/"
 
-# --- Case 14: all four documented local-file exceptions -----------------------
-# The documented list is "outside a git repository, when the repository root is
-# your home directory, on Windows, or when the repository root or its .git or
-# .claude entry isn't owned by your user". Two of the four used to be resolved;
-# a native-Windows machine therefore had its local file reported absent while it
-# was live beside settings.json.
 OUT_DEFAULT=$(run)
 assert_contains "the default anchor is the repository root" "$OUT_DEFAULT" "anchored on the repository root"
 

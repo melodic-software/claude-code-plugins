@@ -20,12 +20,6 @@ class TestModuleStandsAlone(unittest.TestCase):
     def test_the_lib_imports_without_the_engine_on_the_path(self):
         engine_dir = LIB_DIR.parent / "skills" / "audit-performance" / "scripts"
         self.assertTrue(engine_dir.is_dir(), "precondition: engine dir must exist to be excluded")
-        # A fresh isolated interpreter, not this process: sys.path here is shared with every
-        # other suite a pytest run collected alongside this one (CI's Python lane collects the
-        # engine's suite in the same process, and pytest prepends each suite's directory), so
-        # an in-process check can only prove what happens to be absent right now. `-I` starts
-        # with neither the cwd nor PYTHONPATH on the path; the child then proves the exclusion
-        # itself before importing.
         probe = (
             "import pathlib, sys\n"
             f"engine = pathlib.Path({str(engine_dir)!r})\n"
@@ -108,10 +102,6 @@ class TestMeasurabilityVerdict(unittest.TestCase):
         self.assertIn("1400.0", why)
 
     def test_a_timeout_outranks_the_bimodal_reason(self):
-        # A timed-out sample is recorded at the timeout ceiling, so max_ms is
-        # censored. If bimodality were reported first, the reader would get a
-        # spread computed from that ceiling described as an observed slow mode,
-        # which reads as a finite measurement of an unbounded tail.
         # discriminating-skip-required: this is the only case where both findings
         # co-occur, so without it the precedence can silently invert.
         summary = spawn_noise.summarize_spawn_samples([180.0, 1400.0, 20000.0], 1, 900)

@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
-# Tests for tree-entries.sh on throwaway repositories: `main` (the trusted
-# base) is merged into `pr` (the gated head) without committing, the test
-# stages a resolution, and the entries must describe exactly the index.
 # shellcheck disable=SC2310  # tg wraps one git call, so its status is that call's
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTRIES="$SCRIPT_DIR/tree-entries.sh"
 
-# Keep the developer's own git configuration, and any inherited repository
-# location, out of every fixture.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
@@ -106,8 +101,6 @@ check 'many-paths: 606 entries' 606 "$(grep -c . <<<"$OUT")"
 check 'many-paths: only blobs neither parent holds are created' 2 "$(grep -c ' create-blob	' <<<"$OUT")"
 
 echo '# untracked-dir'
-# claude-code-action leaves an untracked .claude-pr/ directory, and the model
-# may leave unstaged edits: neither is staged, so neither is an entry.
 new_repo
 put c.txt 'base\n'
 put keep.txt 'keep\n'
@@ -124,7 +117,6 @@ merge_main
 put c.txt 'resolved\n'
 tg add c.txt
 tg update-index --chmod=+x tool.sh
-# A staged submodule pointer names a commit, never a blob to upload.
 SUB=$(tg rev-parse main)
 tg update-index --add --cacheinfo "160000,$SUB,sub"
 put .claude-pr/snapshot.txt 'snapshot\n'
@@ -162,8 +154,6 @@ conflict_with plain.txt
 put c.txt 'resolved\n'
 tg add c.txt
 TREE=$(tg write-tree)
-# Hex of a length between the two object-id sizes is a ref name, never an id:
-# a branch and a tag named with 45 hex digits must not resolve.
 L45=$(printf 'a%.0s' {1..45}) B45=$(printf 'b%.0s' {1..45})
 tg branch -f "$L45" main
 tg tag "$B45" "$TREE"

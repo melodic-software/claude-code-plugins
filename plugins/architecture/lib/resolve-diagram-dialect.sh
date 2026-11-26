@@ -1,25 +1,15 @@
 #!/usr/bin/env bash
-# Resolve diagram_dialect.<kind> from an authoring-formats topic doc.
-#
-# This script is the team-doc rung of the authoring-formats ladder. An explicit
-# --dialect argument on the skill invocation is the caller's job.
-#
-#   data    mermaid | dbml. A missing doc, key, or value outside the set
-#           degrades to the default mermaid.
-#   system  likec4 | c4-plantuml. No default: a missing doc, key, or value
-#           outside the set (mermaid included, which the convention refuses)
-#           prints none, meaning emit no C4 view.
-#
-# Usage:
-#   resolve-diagram-dialect.sh --kind data|system [--formats <authoring-formats README>]
-#   resolve-diagram-dialect.sh --help
-#
-# Stdout is one of mermaid, dbml, likec4, c4-plantuml, none. The cause of any
-# fallback goes to stderr. Exit 0 when usage is valid, 2 on usage.
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Resolve diagram_dialect.<kind> from an authoring-formats topic doc.
+Usage: resolve-diagram-dialect.sh --kind data|system [--formats <authoring-formats README>]
+  --kind     data (mermaid | dbml, default mermaid) or system (likec4 | c4-plantuml, else none)
+  --formats  the authoring-formats README to read
+Prints mermaid, dbml, likec4, c4-plantuml or none; the cause of any fallback goes to stderr.
+Exit: 0 on valid usage, 2 on usage.
+EOF
 }
 
 die() {

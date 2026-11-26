@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 16, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Chart sets needs-human by whether an answer needs the user's intent or vision, not by item type: the first-time-user item gets it and the index-library item does not (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

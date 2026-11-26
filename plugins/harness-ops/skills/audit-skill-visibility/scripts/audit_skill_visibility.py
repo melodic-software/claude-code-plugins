@@ -82,8 +82,6 @@ def is_usage_evidence(entry: dict) -> bool:
 TIER_CAPABILITIES = {
     "T-full": {"invocation_trigger", "windowed_count", "per_repo", "lifetime_count"},
     "T-local": {"windowed_count", "per_repo", "lifetime_count"},
-    # Native counters are lifetime-since-install and never windowed, so no
-    # windowed claim is honest at this tier.
     "T-baseline": {"lifetime_count"},
     "T-none": set(),
 }
@@ -105,41 +103,6 @@ def tier_supports(tier: str, claim: str) -> bool:
     return claim in TIER_CAPABILITIES.get(tier, set())
 
 
-# Claude Code's own listing-budget scorer, mirrored so the starvation band can
-# predict which descriptions the product will actually drop. Before this existed
-# the band sorted on a field nothing populated, so it rendered alphabetical order
-# dressed as usage-informed.
-#
-# -- Verification stamp (docs/contracts/upstream-drift) ----------------------
-# Claim: the product ranks skills for description truncation by
-#   `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, sorts that score
-#   descending, then walks EVERY competing entry with a running description
-#   budget, granting whatever fits and rendering the rest name-only. The walk is
-#   greedy first-fit with no early exit, so it is not a score-ordered prefix and
-#   description length is a second ranking input.
-# Basis: string extraction of `claude.exe`, first at Claude Code 2.1.251 (`zPe`
-#   the scorer, `Ymt` the truncator, plus the scorer's two other call sites, the
-#   slash-menu top-5 pin and the command-search score boost), then RE-VERIFIED
-#   unchanged at 2.1.252 and again at 2.1.263, where the truncation runs in two
-#   places with identical semantics (the system-prompt listing, which collects
-#   grants, and `budgetTruncatedSkills`, which collects refusals). Evidence in
-#   reference/listing-scorer.md, beside this skill. Re-verified at 2.1.289,
-#   together with the fit check `compute_listing` mirrors (the whole rendered
-#   listing against the budget) and the 3-bytes-per-token default for every
-#   model outside the product's 4-byte list.
-# As-of: 2026-10-04, re-verified against Claude Code 2.1.289.
-# Locate it by SHAPE, never by name. The minified identifier is not stable across
-#   builds: the scorer was `zPe` in 2.1.251, `WPe` in 2.1.252 and `t$e` in
-#   2.1.263, with a byte-identical body. Grep for the arithmetic instead, e.g.
-#   `grep -a -o -E '.{0,180}Math\.pow\(0\.5,.{0,180}' <claude binary>`, and for
-#   the truncator `budgetTruncatedSkills`.
-# Reasoning and the counters' own semantics: reference/listing-scorer.md and
-#   reference/usage-counters.md, beside this skill.
-# Recheck trigger: a release note naming the skill listing, its character budget,
-#   or skill usage counters; or the counters changing shape in `~/.claude.json`.
-# On mismatch: the report must degrade to `score_basis: "unscored"` and say the
-#   ordering is unknown. A confidently wrong band is worse than no band.
-# -----------------------------------------------------------------------------
 LISTING_SCORE_HALF_LIFE_DAYS = 7.0
 LISTING_SCORE_FLOOR = 0.1
 
@@ -290,9 +253,6 @@ def _fold_lines(lines: list[str], separator: str) -> str:
     return text
 
 
-# The true spellings of a boolean frontmatter field. Pointer: for what a boolean
-# field accepts, fetch https://code.claude.com/docs/en/skills#frontmatter-reference
-# live. As of: 2026-11-04. Recheck trigger: that section changing its spellings.
 FRONTMATTER_TRUE = frozenset({"true", "yes", "on", "1"})
 
 
@@ -309,9 +269,6 @@ def _yaml_scalar(value: str, continuation: list[str]) -> str:
         indents = [len(ln) - len(ln.lstrip()) for ln in continuation if ln.strip()]
         cut = min(indents, default=0)
         body = [line[cut:] for line in continuation]
-        # No trailing newline whatever the chomping indicator: Claude Code
-        # 2.1.289 listed a `description: |` skill without the newline YAML
-        # keeps, one character shorter than a literal YAML load.
         if block.group(1) == ">":
             return _fold_lines(body, " ")
         return "\n".join(body).rstrip("\n")
@@ -558,7 +515,6 @@ def _project_skill_dirs(project: str) -> list[str]:
             break
         parent = os.path.dirname(current)
         if parent == current:
-            # No repository above: only the starting directory loads.
             chain = chain[:1]
             break
         current = parent
@@ -696,12 +652,6 @@ def parse_workflow_meta(text: str) -> dict | None:
     }
 
 
-# Scope precedence, highest first. NOT a guess and NOT re-derived here: the
-# rule is stated in this same plugin's
-# `skills/plugins/context/scope-semantics.md`, which verified it against the
-# official plugins-reference docs -- "the record that actually loads for a
-# given directory is the one at the highest-precedence scope present, never
-# simply 'the newest version installed.'"
 SCOPE_PRECEDENCE = ("local", "project", "user")
 
 
@@ -823,9 +773,6 @@ def resolve_installed(
             applicable,
             key=lambda e: (_scope_rank(e.get("scope", "")), e.get("scope", "")),
         )
-        # A directory-source marketplace loads the CHECKOUT, so neither cached
-        # record is what runs and a "loads project X, superseding user Y" line
-        # would name two versions that are both beside the point.
         from_directory = (entry.get("source") or {}).get(
             "source"
         ) == "directory" and bool(location)
@@ -840,12 +787,6 @@ def resolve_installed(
                 }
             )
 
-        # A directory-source marketplace loads from the checkout rather than
-        # from the cached installPath, so the catalog -- not a hardcoded
-        # layout -- names where each plugin lives. `source` there is a path
-        # relative to installLocation; a plugin may legitimately declare `.`
-        # or a custom directory, so guessing `plugins/<name>` would silently
-        # miss it.
         root = winner.get("installPath", "")
         scope = winner.get("scope", "unknown")
         version = winner.get("version", "")
@@ -901,11 +842,6 @@ def collect_installed(
         return _load_json(os.path.join(plugins_dir, name))
 
     marketplaces = _load("known_marketplaces.json")
-    # Attach EVERY marketplace's catalog (`<installLocation>/.claude-plugin/
-    # marketplace.json`, the same file `plugins/scripts/fleet-state.sh`
-    # reads). A directory-source marketplace needs it so the resolver honors
-    # the plugin's DECLARED source path instead of assuming a layout. A
-    # missing or unparsable catalog attaches an empty list.
     for entry in marketplaces.values():
         if not isinstance(entry, dict):
             continue
@@ -942,21 +878,6 @@ def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
     return parse_native(blob.get("skillUsage") or {}, _parse_ts(first_start))
 
 
-# -- Verification stamp (docs/contracts/upstream-drift) ----------------------
-# Claim: a session transcript (`~/.claude/projects/<project>/<session>.jsonl`)
-#   records the listing the model received as an `attachment` line of type
-#   `skill_listing` carrying `content` (the rendered listing, entries joined by
-#   newlines), `names` (entry names in order), `skillCount` and `isInitial`; a
-#   `model` attachment carries `identity.modelId`.
-# Basis: observed in a Claude Code 2.1.289 transcript, where `content` was
-#   149,934 characters for 289 names and matched the rendered entries plus
-#   288 newlines exactly. Not a published format.
-# As-of: 2026-10-04, Claude Code 2.1.289.
-# Recheck trigger: a release note naming transcripts or the skill listing, or
-#   this reader returning `not-read` on a fresh transcript.
-# On mismatch: the capture reports `not-read` with its reason and the verdict
-#   falls back to enumerated coverage; nothing is guessed from a partial parse.
-# -----------------------------------------------------------------------------
 def parse_listing_capture(lines: list[str]) -> dict:
     """The last full skill listing in a transcript, split into entries.
 
@@ -1041,9 +962,6 @@ def collect_jsonl(store_path: str) -> tuple[list[dict], datetime | None]:
 
 COMPONENT = "audit-skill-visibility"
 
-# One safe path segment. Mirrors the pattern lib/state-key.sh validates its own
-# output against, so a hand-supplied key is held to the same bar as a derived
-# one. `..` cannot match: the first character class excludes `.`.
 SAFE_KEY_SEGMENT = re.compile(r"[a-z0-9][a-z0-9._-]*")
 
 
@@ -1158,7 +1076,6 @@ class ListingConfig:
     budget_fraction: float = 0.01
     max_desc_chars: int = 1536
     bytes_per_token: int = 4
-    # The literal " - " the harness inserts between description and when_to_use.
     joiner_chars: int = 3
     env_char_budget: int | None = None
     fraction_basis: str = "fraction"
@@ -1183,18 +1100,6 @@ def listing_budget_chars(cfg: ListingConfig) -> int:
 def budget_basis(cfg: ListingConfig) -> str:
     return "env-override" if cfg.env_char_budget is not None else cfg.fraction_basis
 
-
-# --- Settings scopes ---------------------------------------------------------
-#
-# The two listing keys are `Any file` scope keys, merged PER KEY across the
-# settings scopes with the precedence user < project < local < flag < policy:
-# the last scope that defines a key wins it. The flag scope (`--settings` on the
-# command line) lives inside the running session and cannot be observed from an
-# out-of-process script, so it is recorded as unread rather than as absent.
-# Environment variables are not a level in this stack. Basis:
-# https://code.claude.com/docs/en/settings (precedence) and the settings schema
-# text in the shipped binary; verified 2026-09-11 at Claude Code 2.1.263. Recheck when the
-# settings page's precedence list adds or reorders a scope.
 
 LISTING_SETTINGS_KEYS = ("skillListingBudgetFraction", "skillListingMaxDescChars")
 
@@ -1502,8 +1407,6 @@ def enumerate_managed_scope(
     if not os.path.isfile(lib_path):
         return _unreadable("vendored lib/managed-scope.sh is missing")
     if not os.path.dirname(bash):
-        # Windows CreateProcess searches System32 before PATH and would run
-        # the WSL relay bash.exe; resolve the name the way PATH does.
         resolved = shutil.which(bash)
         if resolved is None:
             return _unreadable(f"{bash} is not on PATH")
@@ -1539,9 +1442,6 @@ def enumerate_managed_scope(
         "lib": lib_path,
         "base_file": groups[0][0],
         "dropin_dir": groups[0][1],
-        # Registry keys and the preferences domain are policy surfaces this
-        # reader does not open; they are named so an empty file list is never
-        # mistaken for "no managed policy deployed".
         "unread_surfaces": groups[1] + groups[2],
     }
 
@@ -1601,23 +1501,6 @@ def settings_layers(project_root: str, config_root: str, managed: dict) -> list[
         )
     return layers
 
-
-# --- Context window and bytes per token ---------------------------------------
-#
-# Both are per model, and this script never resolves the model from disk: the
-# session's model is not written anywhere an out-of-process reader can trust.
-# The honest static report is a band over every combination, collapsed only by
-# an operator pin or by an environment variable the product itself honors.
-#
-# Window resolution assumes a model ID Claude Code recognizes, the only case
-# where `CLAUDE_CODE_MAX_CONTEXT_TOKENS` needs `DISABLE_COMPACT`: the variable
-# wins only when `DISABLE_COMPACT` is also set; else a truthy
-# `CLAUDE_CODE_DISABLE_1M_CONTEXT` forces 200k; else the active model decides,
-# which from outside the session means both windows. This script models
-# recognized IDs only and cannot tell the ID from outside the session, so for
-# any other ID, such as a gateway alias, the operator pins `--context-window`.
-# Which IDs the product treats how:
-# https://code.claude.com/docs/en/model-config#which-ids-claude_code_max_context_tokens-applies-to
 
 WINDOW_BAND: tuple[int, ...] = (200_000, 1_000_000)
 BYTES_PER_TOKEN_BAND: tuple[int, ...] = (4, 3)
@@ -1883,30 +1766,18 @@ def compute_listing(
 
     rows: list[dict] = []
     demand = 0
-    # The grant loop's budget is computed FORWARD from a floor, never backward
-    # from the overflow: the product starts at `budget - V`, where V is what the
-    # listing costs before any description is granted. Every entry that appears
-    # at all pays for its own name; the exempt classes pay their full rendering
-    # because they are never candidates.
     floor = 0
     listed = 0
-    # The full rendering, every description granted: what the product compares
-    # with the budget to decide whether the listing fits at all.
     full = 0
     for entry in denominator:
         eligibility = _eligibility(entry)
         desc_chars = _demand_chars(entry, cfg)
         chars = desc_chars if eligibility == "competing" else 0
         demand += chars
-        # A `disable-model-invocation` skill and a disabled plugin's skill are
-        # absent from the listing ENTIRELY, so unlike the bundled class they
-        # cost nothing and take no separator.
         if eligibility not in ("exempt-user-only", "exempt-hidden"):
             listed += 1
             name_only = len(entry["qualified_name"]) + 2
             rendered = name_only + 2 + desc_chars
-            # A bundled entry keeps its description unconditionally, so its
-            # floor is charged for it.
             floor += rendered if eligibility == "exempt-bundled" else name_only
             full += name_only if eligibility == "exempt-name-only" else rendered
         rows.append(
@@ -1949,27 +1820,9 @@ def compute_listing(
         "native-counters" if any(r["usage_score"] for r in competing) else "unscored"
     )
 
-    # WHICH rows are shed is a GREEDY FIRST-FIT walk, not a score-ordered
-    # prefix. The product sorts descending by score and then walks EVERY
-    # competing entry with a running description budget, granting whatever still
-    # fits and shedding whatever does not. Crucially its loop has no early exit,
-    # so a cheap low-scored description can still be granted after an expensive
-    # higher-scored one was refused. Modeling this as a prefix understated the
-    # protection long descriptions lose and overstated it for short ones.
-    #
-    # Consequence worth stating plainly: description LENGTH is a ranking input,
-    # which no prose description of this mechanism mentions.
-    #
-    # Ties keep CATALOG ORDER, not alphabetical. The product's sort is stable, so
-    # equal scores stay in input order; Python's is too, which is why this sorts
-    # on the score alone. It matters most in the `unscored` case, where every
-    # score is 0 and the tiebreaker IS the whole ordering: an alphabetical one
-    # would disagree with the product on every row.
     competing.sort(key=lambda r: -r["usage_score"])
     remaining = max(0, budget - floor)
     for row in competing:
-        # A grant costs the description plus its `: ` joiner: the entry grows
-        # from `- <name>` to `- <name>: <description>`.
         grant = row["demand_chars"] + 2
         if overflow <= 0:
             row["verdict"] = fits
@@ -2003,8 +1856,6 @@ def compute_listing(
             row["band"] = None
 
     return {
-        # The env override sets the budget whatever the window and bytes per
-        # token, so its row is named for the variable, not for those axes.
         "label": "SLASH_COMMAND_TOOL_CHAR_BUDGET"
         if cfg.env_char_budget is not None
         else band_label(cfg.context_window_tokens, cfg.bytes_per_token),
@@ -2260,9 +2111,6 @@ def reachability(entry: dict) -> dict:
             "provenance": "assembled-from-docs-and-binary, not an official list",
         }
 
-    # `skillOverrides` governs non-plugin skills only: the product's listing
-    # resolver returns "on" for every plugin-sourced skill before it reads the
-    # override map, so a plugin entry never carries one.
     if override is not None:
         if override == "user-invocable-only" or frontmatter.get(
             "disable_model_invocation"
@@ -2487,13 +2335,6 @@ def classify(
     tier = resolve_tier(set(horizons))
     events_by_skill, ambiguous_keys = resolve_event_keys(denominator, events)
 
-    # The band mirrors the product, so it is scored the way the product scores:
-    # from the NATIVE counters only, under the EXACT qualified key. `zPe` does no
-    # bare-key fallback of its own -- when usage was recorded under a bare leaf
-    # the product's own scorer sees zero for that listing entry too, so scoring
-    # the merged total here would predict a truncation the product will not
-    # perform. The merge below is for the observation count, which asks a
-    # different question and wants every event.
     native_scores: dict[str, float] = {}
     for entry in denominator:
         name = entry["qualified_name"]
@@ -3423,16 +3264,7 @@ def main(argv: list[str] | None = None) -> int:
         walked = None
     else:
         clock = _parse_ts(args.now) if args.now else datetime.now(tz=UTC)
-        # CLAUDE_PROJECT_DIR is the project Claude Code itself resolved; cwd
-        # is the fallback. Project/local install records are matched against
-        # it, since those load only in their own project, and the project and
-        # local settings scopes are read from its `.claude/`.
         current_project = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-        # The settings scopes feed two consumers: the listing keys below, and
-        # `enabledPlugins` for the installed fleet. One read, one merge walk,
-        # the managed locations from the vendored managed-scope.sh, never
-        # from a path written here. CLAUDE_CONFIG_DIR relocates the whole
-        # ~/.claude tree, user settings included.
         config_root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser(
             "~/.claude"
         )
@@ -3453,8 +3285,6 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 2
-            # The listing also carries the user's and the project's own
-            # skills, governed by `skillOverrides` instead of enabledPlugins.
             overrides = merge_skill_overrides(layers)
             denominator += collect_user_and_project_skills(
                 config_root, current_project, overrides

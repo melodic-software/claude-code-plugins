@@ -11,7 +11,6 @@ Preferences and Secure Preferences.
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-ChromiumExtension.ps1'
 
-    # Under TestDrive so the provider cmdlets' -LiteralPath binds; nothing is written there.
     $script:Root = [System.IO.Path]::Combine($TestDrive, 'User Data')
     $script:InstallDir = [System.IO.Path]::Combine($TestDrive, 'Program Files', 'Browser', 'Application')
 

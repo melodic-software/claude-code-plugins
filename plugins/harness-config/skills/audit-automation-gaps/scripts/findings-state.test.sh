@@ -1,23 +1,8 @@
 #!/usr/bin/env bash
-# THE CASE THIS SUITE EXISTS FOR is case 8: two repositories writing the same run
-# id into one plugin data root must not collide. That is rule 1 of
-# docs/contracts/plugin-data-report-keying/README.md, and an unkeyed
-# implementation would serve one project's approved items and evidence to
-# another. It is demonstrated with two real git fixtures rather than asserted.
-#
-# Three cases are NEGATIVE in the sense this repo means it: they mutate a copy of
-# the script to delete exactly one check and assert the mutated copy reaches the
-# outcome the real one refuses. A test that would still pass with the check
-# deleted proves nothing.
-#
-# File-scoped: `read` is one of findings-state.sh's SUBCOMMAND NAMES, so every
-# `run read ...` here is an argument word, never the bash builtin. This suite
-# calls the builtin nowhere.
+# `read` in this suite is findings-state.sh's subcommand name, never the bash builtin.
 # shellcheck disable=SC2162
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -36,10 +21,6 @@ skip() {
   SKIPPED=$((SKIPPED + 1))
   printf 'SKIP (host: %s): %s\n' "$2" "$1"
 }
-# Under MSYS without winsymlinks, `ln -s` COPIES the target instead of linking
-# it. Two cases below need a real symlink: one plants a dangling link to make an
-# append fail, the other plants a link to prove the pointer is replaced rather
-# than written through. Probe the round trip rather than the OS name.
 host_makes_symlinks() {
   local d rc=1
   d="$(mktemp -d)"
@@ -293,12 +274,6 @@ assert_eq "every history line parses as JSON" "3" \
 assert_eq "the newest run is last" "run-0001-2" \
   "$(printf '%s\n' "$OUT" | jq -s -r '.[-1].run_id')"
 
-# --- Case 8: THE COLLISION PROOF --------------------------------------------
-#
-# Two repositories, one plugin data root, the SAME run id, different payloads.
-# Under an unkeyed layout the second write replaces the first and the first
-# project is then served the second's approved items.
-
 rc=0
 OUT=$(run write --plugin-data "$DATA" --root "$REPO_B" --run-id run-0001 --findings "$EMPTY" 2>&1) || rc=$?
 assert_exit "repo B writes the same run id without error" 0 "$rc"
@@ -520,10 +495,6 @@ rc=0
 OUT=$(run read --plugin-data "$PDATA" --root "$REPO_A" --run-id partial 2>&1) || rc=$?
 assert_exit "the orphaned run is still readable by its id" 0 "$rc"
 
-# The pre-flight cannot see every failure, so the publish is also rolled back
-# when the append fails anyway. A DANGLING symlink is the reproduction: `-e` is
-# false for one, so it passes the pre-flight, and the append into a directory
-# that does not exist then fails with the findings file already published.
 if host_makes_symlinks; then
   RBDATA="$TEST_TMPDIR/rollback-data"
   RBDIR="$RBDATA/audit-automation-gaps/$A_KEY"
@@ -541,12 +512,6 @@ if host_makes_symlinks; then
 else
   skip "a failed history append rolls the findings file back" "ln -s copies here"
 fi
-
-# --- Case 14: UNREADABLE IS NOT ABSENT ---------------------------------------
-#
-# Directories stand in for the unreadable file here because the suite may run as
-# root, where a chmod 000 file is still readable and the case would pass without
-# testing anything.
 
 BDATA="$TEST_TMPDIR/broken-state-data"
 BDIR="$BDATA/audit-automation-gaps/$A_KEY"
@@ -696,9 +661,6 @@ for tool in bash sh git date sha256sum shasum tr sed cut head cat mv rm mkdir fi
   tool_path="$(command -v "$tool" 2>/dev/null)" || continue
   ln -s "$tool_path" "$NOJQ_BIN/$tool" 2>/dev/null || true
 done
-# Probe the shim rather than trust it: a host where `ln -s` copies, or where a
-# needed tool is a shell function or builtin alias, would otherwise turn this
-# case into a meaningless failure.
 if PATH="$NOJQ_BIN" bash -c 'command -v git >/dev/null 2>&1 && ! command -v jq >/dev/null 2>&1' 2>/dev/null; then
   NOJQ_DATA="$TEST_TMPDIR/nojq-data"
   run write --plugin-data "$NOJQ_DATA" --root "$REPO_A" --run-id nojq --findings "$GOOD" >/dev/null 2>&1

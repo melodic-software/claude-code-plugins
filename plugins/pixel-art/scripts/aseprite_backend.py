@@ -112,8 +112,6 @@ sprite:close()
 
 
 def script_argv(executable, lua_path, ase_path, spec_path):
-    # Aseprite processes CLI arguments in order: a --script-param after --script
-    # is not set yet when the script runs.
     return [
         executable, "--batch",
         "--script-param", f"ase={ase_path}",

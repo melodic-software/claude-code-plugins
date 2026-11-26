@@ -1,56 +1,3 @@
-// Starts the pr-refine lane's fix-docs activity once per pull request: for
-// each open, ready, same-repository PR into the base that changes a Markdown
-// file, carries no hold label (the human-gated one only when a lane escalation
-// put it on: gate-source.mjs prHold), and has never had a fix-docs check run under
-// either lane fix-docs has run in, by any author except the accounts in
-// excludedAuthorIds (refine-event-dispatch.mjs offers only a PR whose event's
-// sender is the lanes App or a listed human), and is not a work-resolve-issue PR (the lanes App's, on a
-// lane branch, whose one commit is the lane run's) tidied in its own run
-// (within the tidy cutoffs). It runs from pr-unblock-dispatch.yml's refine
-// job for the one PR whose pull_request_target event started that run
-// (refine-event-dispatch.mjs), so the trigger gate and the broker check it as
-// they check a resolve-conflicts dispatch.
-//
-// Once per PR, not after each push. The listing the caller passes (that one
-// PR, read by dispatch.mjs's PULL_QUERY) logs its rateLimit.cost; it drops a
-// PR whose head already has the check run. For each PR left, lowest number
-// first, one more query reads the check runs on its last HISTORY_COMMITS
-// commits, and a PR with one on any of them is done for good: its head goes
-// into the dispatch record, when the caller keeps one, so a later run skips
-// that read. A run older than that window, or a force-push that dropped its
-// commit, costs one more run. At most `fix-docs-per-run` dispatches per
-// dispatcher run; 0 sends none and makes no GitHub call. Logs carry PR
-// numbers, SHAs, run ids and counts only.
-//
-// A run whose model leg emitted an empty head, or that stopped at its trigger
-// gate, posts no check (post-decline: false), so a check run alone would let a
-// PR be dispatched every cycle. The newest runs of the workflow, read once
-// for the in-flight guard, settle it too: a PR with a completed run titled
-// for it is done, and its head goes into the dispatch record, unless each such
-// run says nothing about the PR. Those get another dispatch, the PR's next
-// event being the probe (outage posture element 3):
-//   - one lost run (LOST: cancelled, timed_out or startup_failure);
-//   - fewer than maxRunsPerHead runs that went red, or that ended green on a
-//     failed or lagging handoff read (heldHandoff) or an unread PR head
-//     (heldHead), the one green run whose jobs are read.
-//     A red run that posted its check is ended by that check. Red alone names no
-//     cause, a read that failed or a broker that refused, so the count is what
-//     ends a refusal, and an outage past that many runs still ends the PR.
-// The listing cannot tell a run the broker's refusal skipped, a hold skipped or
-// a kill switch stopped from one that ran the model, so each that ended green
-// ends the PR too. A run older than that listing costs one more run.
-//
-// A dispatch record the caller keeps also holds the fix-docs runs dispatched
-// on each head; refine-event-dispatch.mjs keeps none, so each event's run
-// starts from an empty one;
-// once `limit-stops-per-head` are kept, each one's status and jobs are read
-// through the Actions API, and a head with that many whose record-broker-allow job
-// succeeded (which no run job can write: handoff-evidence.sh's allowed) goes
-// into the dispatch record with one `::warning::`, until a new push. For this
-// cap, a run the broker refused, or one a hold skipped, ended with no model
-// turn: it does not count and leaves the list once it is done, as a run that
-// is gone does.
-
 import { DISPATCH_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrRefineTitle } from "../lib/run-title.mjs";
 import { LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
@@ -66,12 +13,7 @@ export const DEFAULTS = Object.freeze({
   activity: "fix-docs",
   checkName: "pr-refine / fix-docs",
   earlierCheckName: "pr-unblock / fix-docs",
-  // Account ids (GET /users/<login>, the same as GraphQL's databaseId):
-  // dependabot[bot], whose own rebases a lane commit stops;
-  // melodic-release[bot] and melodic-standards-sync[bot], whose PRs
-  // carry generated or synced files.
   excludedAuthorIds: Object.freeze([49699333, 337859524, 300666570]),
-  // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: DISPATCH_HOLDS,
   allowedJobs: Object.freeze(ALLOW_JOBS.map((id) => `fix-docs / ${id}`)),
@@ -126,12 +68,6 @@ export function withinTidyCutoffs(node, cutoffs) {
   return new Set(paths.map(areaOf)).size <= cutoffs["max-areas"];
 }
 
-// Whether the PR's head is the lane run's own commit, which its tidy saw: the
-// PR has one commit, the listed one, and it is the lanes App's API commit
-// (report-outcome.mjs allLaneCommits). A listed commit other than the head is
-// left to the head check below, which lists the PR as no candidate. The listing's GraphQL fields go
-// into the REST shape that helper reads; GitHub records web-flow, whose email
-// is noreply@github.com, as the committer of a commit it signs for the API.
 function laneRunHead(node) {
   const commit = node.commits?.nodes?.[0]?.commit;
   if (node.commits?.totalCount !== 1 || !commit) {
@@ -156,12 +92,6 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
   if (excludedAuthorIds.includes(author)) {
     return "opened by an excluded account";
   }
-  // work-resolve-issue tidies its own change in its run when the change is
-  // within its tidy cutoffs (its `tidy` key, #8485). Every term: the App's
-  // other PRs never tidied, anyone can name a branch, a later push (a
-  // person's, fix-ci's, resolve-conflicts') was never tidied, and a lane
-  // change over the cutoffs was not tidied. author is a safe integer, so an
-  // unset or malformed id skips none.
   if (author === appSenderId && laneBranchIssue(node.headRefName) !== null && laneRunHead(node) && withinTidyCutoffs(node, tidyCutoffs)) {
     return "a work-resolve-issue PR, tidied in its own run";
   }
@@ -169,8 +99,6 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
     return "held";
   }
   const paths = (node.files?.nodes ?? []).map((file) => String(file?.path ?? ""));
-  // A list cut off at 100 files may hold a Markdown file further on; the lane's
-  // own applies-when then decides, before any model turn.
   if (!paths.some((path) => MARKDOWN.test(path)) && !node.files?.pageInfo?.hasNextPage) {
     return "changes no Markdown file";
   }
@@ -195,10 +123,6 @@ function historyHasRun(pullRequest) {
   });
 }
 
-// A pr-refine.yml job as the jobs API names it, from its job id (a called
-// job's `<caller id> / <callee id>`): each id in Title Case, `fix-docs / run`
-// as `Fix Docs / Run`; or the ids themselves, on a run started before the
-// rename.
 const titled = (id) => id.replace(/[a-z0-9]+/g, (word) => word[0].toUpperCase() + word.slice(1)).replaceAll("-", " ");
 const NAMINGS = [titled, (id) => id];
 const isJob = (job, id) => NAMINGS.some((named) => job?.name === named(id));

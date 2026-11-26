@@ -146,8 +146,7 @@ STRADDLE_DIR="$TEST_TMPDIR/straddle"
 mkdir -p "$STRADDLE_DIR"
 {
   printf '# Straddle\n\n'
-  # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus; the backticks are
-  # literal markdown and part of the character count that puts the date at offset 60.
+  # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus
   printf '  synced set (verified against the `chore: sync standards components` history on 2026-07-30), so\n\n'
   # shellcheck disable=SC2016 # same literal fixture text, date shifted past the window.
   printf '  synced set (verified against the `chore: sync standards componentsxxxx` history on 2026-07-30), so\n'

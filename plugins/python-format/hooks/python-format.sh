@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# PostToolBatch has no matcher, so the row fires on every batch. The launcher
-# skips the script unless the payload mentions ".py", and the script then reads
-# tool_calls[].tool_input.file_path itself, so a batch with no Python edit costs
-# one node process. A file that Read named is never rewritten. Files under
-# .githooks/ are installed copies and are skipped, as are gitignored files
-# unless python_format_lint_gitignored is true. The batch payload carries no
-# pre-edit bytes, so a file that already drifted from the config is rewritten
-# whole, as the pre-commit entry would.
-
 set -uo pipefail
 
 [[ "${CLAUDE_PLUGIN_OPTION_PYTHON_FORMAT_ENABLED:-true}" == "true" ]] || exit 0
@@ -29,7 +20,6 @@ if [[ "${1:-}" == --end-of-turn ]]; then
     *) report+="$line"$'\n' ;;
     esac
   done <<<"$err"
-  # silent-skip-ok: only missing-tool lines remained, which the SessionStart probe reports.
   [[ -n "${report//[[:space:]]/}" ]] || exit 0
   printf '%s' "$report" >&2
   exit 2

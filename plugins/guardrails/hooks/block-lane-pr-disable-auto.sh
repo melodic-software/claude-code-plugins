@@ -54,7 +54,6 @@ lpd::cli() {
       case "$a" in
       --) flags=0 && continue ;;
       --disable-auto) disable=1 && continue ;;
-      # gh takes a boolean flag's value after `=`.
       --disable-auto=*)
         [[ "${a#*=}" == false || "${a#*=}" == 0 ]] || disable=1
         continue
@@ -253,8 +252,6 @@ lpd::check() {
     what="$sel"
     if [[ "$repo" == - ]]; then
       repo=""
-      # Without -R or a URL gh reads the repository from the working directory
-      # and the environment, which a cd or GH_REPO in the command changes.
       if [[ ! "$sel" =~ ^https?:// ]] && ((LPD_CD || LPD_GHREPO)); then
         lpd::block "BLOCKED: guardrails could not tell which repository this auto-merge disable runs in (the command changes directory or names GH_REPO or GH_HOST, and names no -R repository)." "$LPD_LITERAL_FIX"
       fi

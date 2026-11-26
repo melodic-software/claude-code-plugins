@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# tree-entries.sh <gated-head> <trusted-base-sha> <tree>
-#
-# The tree of the merge commit, as entries for the Git Data API, run by
-# apply-patch.mjs from the write runner's base copy. <tree> is the merge tree
-# apply-patch.mjs built and checked (the conflict tree with the model's patch
-# applied), so nothing else in the checkout enters it. No model runs in that
-# job.
-#
-# Stdout: one line per path <tree> changes against <gated-head>:
-#   <mode> <blob-sha|null> <create-blob|-><TAB><path>
-# `null` marks a deletion (the mode is then the gated head's). `create-blob`
-# marks a blob neither the gated head nor the trusted base holds at that path,
-# so GitHub may not have it yet: the caller uploads only those, which keeps a
-# merge that brings thousands of base-side paths to a few blob requests.
-#
-# Every git call reads gitattributes from the trusted base tree
-# (GIT_ATTR_SOURCE, git 2.41 or later).
-#
 # Exit: 0; 1 on an input that is not a full object id of the right type, a
 # path holding a newline, or git failure.
 # shellcheck disable=SC2310  # g wraps one git call, so its status is that call's
@@ -51,9 +33,6 @@ trap 'rm -rf "$tmp"' EXIT
 
 g diff-tree -r --raw -z --no-renames --no-abbrev --no-ext-diff --no-textconv "$head" "$tree" >"$tmp/raw"
 
-# Raw -z records: ":<src-mode> <dst-mode> <src-sha> <dst-sha> <status>" NUL
-# "<path>" NUL. The base's object at each path comes from one cat-file batch,
-# whose line protocol is why a path may not hold a newline.
 metas=() paths=()
 while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
   [[ $path != *$'\n'* ]] || die 'a staged path holds a newline'

@@ -86,9 +86,6 @@ def env(name: str) -> str:
 
 
 def load(path: str) -> list[int]:
-    # Resolved rather than opened literally, for the reason summarize.py records:
-    # whether MSYS converts a POSIX path carried in an environment variable is a
-    # heuristic, not a guarantee.
     resolved, note = pathfix.resolve_existing(path)
     if note:
         print(f"NOTE: {note}", file=sys.stderr)

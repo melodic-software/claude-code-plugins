@@ -12,11 +12,6 @@ import time
 import unittest
 from datetime import datetime, timedelta, timezone
 
-# ISOLATION (#2840). The churn tests below build throwaway git repositories. An
-# inherited ABSOLUTE GIT_DIR overrides repository discovery and outranks `git
-# -C`, so a fixture's `git config` would write its throwaway identity into the
-# CALLER's .git/config — shared by every worktree of the clone — instead of into
-# the fixture. Cleared unconditionally, before any test spawns git.
 for _v in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_v, None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
@@ -454,14 +449,6 @@ class ReachabilityTest(unittest.TestCase):
         self.assertIn("claude plugin enable alpha@mkt", reach["remedy"])
         self.assertEqual(reach["provenance"], engine.NEVER_ENABLED_PROVENANCE)
 
-    # --- defaultEnabled does not decide an absent key -------------------------
-    #
-    # The settings and plugins references call `defaultEnabled` the fallback
-    # for a plugin no scope names. A fixture probe of `claude plugin list
-    # --json` on Claude Code 2.1.280 says otherwise: a plugin whose marketplace
-    # entry or manifest sets `defaultEnabled: true`, and no scope names, is
-    # reported disabled. The engine follows the product.
-
     def test_default_enabled_never_decides_an_absent_key(self):
         for catalog in (True, False, "no", self._NO_KEY):
             for manifest in (True, False, self._NO_KEY):
@@ -500,13 +487,6 @@ class ReachabilityTest(unittest.TestCase):
             )
         self.assertEqual(reach["value"], "unknown")
         self.assertEqual(reach["evidence"], paths["project"])
-
-    # --- a non-Boolean enabledPlugins value rejects its file -----------------
-    #
-    # A fixture probe on Claude Code 2.1.280: a user settings file holding
-    # `"yes"` for one key read its `true` sibling disabled in `claude plugin
-    # list --json`, `claude doctor` listed the value under "Invalid settings",
-    # and the other scopes still decided. The engine follows the product.
 
     def test_a_true_key_beside_a_non_boolean_one_is_hidden(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1485,9 +1465,6 @@ class RenderTablesTest(unittest.TestCase):
         self.assertIn("| `c:three` | malformed-frontmatter |", reach)
         self.assertEqual(reach.count("- `no-description`:"), 1)
         self.assertEqual(reach.count("- `malformed-frontmatter`:"), 1)
-        # A missing description is unreliable, not unreachable: the product
-        # falls back to the first body paragraph, so the caption must not say
-        # the skill can never match.
         self.assertIn("falls back to the first body paragraph", reach)
         self.assertNotIn("ever matching", reach)
         self.assertIn("Fix the frontmatter of the 3 misconfigured skills", md)
@@ -2079,7 +2056,6 @@ def _clear_readonly(func, path, _error):
 
 
 def rmtree_force(path):
-    # `onerror` is deprecated from 3.12 and `onexc` does not exist before it.
     if sys.version_info >= (3, 12):
         shutil.rmtree(path, onexc=_clear_readonly)
     else:
@@ -3346,8 +3322,6 @@ class FrontmatterScalarTest(unittest.TestCase):
         self.assertEqual(engine.parse_frontmatter(text)["description"], "one\ntwo")
 
     def test_a_clipped_literal_block_is_listed_without_its_trailing_newline(self):
-        # Observed: the product listed a `description: |` skill one character
-        # shorter than YAML's clipped load, which keeps a final newline.
         text = "---\ndescription: |\n  one\n  two\n---\n"
         self.assertEqual(engine.parse_frontmatter(text)["description"], "one\ntwo")
 

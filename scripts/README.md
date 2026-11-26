@@ -174,7 +174,7 @@ recipe is also run clean (exit `0`, statement on stdout) and against a seeded
 violation (exit `1`, finding on stderr and not on stdout). A member with no
 recipe yet is held to those last two halves by its own co-located suite.
 
-Five members diverge on purpose:
+Four members diverge on purpose:
 
 - `scripts/check-hook-exec-form.sh` treats a hook declaration it cannot parse as
   a finding (`1`), not an environment problem. The input is what is wrong, and
@@ -183,10 +183,6 @@ Five members diverge on purpose:
   scans to empty or the inlined kill-switch predicate no longer agrees with the
   `hook::is_enabled` it duplicates. Both are statements about the tree, not about
   the host.
-- `scripts/check-changelog-parity.sh` discusses exit `128` and `141` at length
-  and emits neither. Those are git's "no merge base" and a reader killed by
-  SIGPIPE, each converted to an `exit 2` or read correctly. Grepping the file for
-  those numbers finds the guards, not divergence.
 - `scripts/check-cant-fail-scan.sh <base>` exits `0` with a `Not applicable`
   line counting the changed files when none of them is a test file: its corpus
   is the changed test files, and a change that adds no test cannot add one that
@@ -202,3 +198,46 @@ and `set -uo` both appear in the family and neither is required, which is why
 the prologue states its own `|| exit 2` instead of depending on which one is in
 force. Members still resolving the repo root under `set -e` alone are aligned on
 touch.
+
+## Artifact retention
+
+[`check-artifact-retention.sh`](check-artifact-retention.sh) holds every
+`actions/upload-artifact@` step in `.github/workflows/*.yml`/`*.yaml` and
+`.github/actions/*/action.yml`/`action.yaml` to the days
+[`.github/artifact-retention.json`](../.github/artifact-retention.json) names for
+the artifact's family. An upload with no `retention-days` keeps its artifact for
+the repository default, 90 days, and every kept artifact lengthens the listing the
+pr-verify evidence reader pages through, so each row names who reads the family
+and why its length is needed.
+
+A step's family comes from its `with.name`, first rule that applies:
+
+1. A name with no `${{` is static and matches the family whose key equals it. A
+   `*` family never takes a static name.
+2. A name with `${{` after literal text matches the family whose key is that text
+   followed by `*`, exactly: `patch-${{ inputs.lane }}-...` matches `patch-*`, so
+   `verdict-*` never takes `dependency-verdict-...`.
+3. A name starting with `${{` matches the family whose `uploads` list holds
+   `<file>#<job id>` for the step's job; in a composite action the job id is
+   `runs`.
+
+A finding is a step with no name, a name matching no family or two, no
+`retention-days`, a value that is not a whole number of days, or a value other
+than its family's. `max` is 90 days. A row naming `computed-by` (a script that
+must exist) lets its steps read `${{ steps.<id>.outputs.retention-days }}`; its
+value records the longest that script returns.
+
+A row's `scan` says whether its uploads are lane or eval artifacts
+`lib/publish-gate.mjs` `scanLeak` clears first. `upload`: each upload follows a
+`.github/actions/scan-upload` step (or ci-workflows' at a full commit SHA) over
+the same path and its `if:` requires that step's clean output, or it reads from
+the read runner's leak-scan output directory and requires leak-scan's clean
+output. `plaintext`: an earlier scan step in the same steps clears the plaintext
+the upload seals. `none`: no scan. A scanned upload without that step is a
+finding.
+
+The table must pass `.github/artifact-retention.schema.json`; each reader and
+`max-reader` must start with a path that exists; a `max` row names a
+`max-reader` that is one of its readers; each `uploads` entry names a job that
+uploads a computed name; and every family matches at least one step, so a
+removed upload leaves no row behind.

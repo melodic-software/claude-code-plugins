@@ -27,8 +27,6 @@ BeforeAll {
     $script:Start = [datetime]::new(2026, 6, 27, 1, 52, 48, [DateTimeKind]::Utc)
     $script:Launched = [datetime]::new(2026, 9, 1, 12, 0, 0, [DateTimeKind]::Utc)
 
-    # One app per verdict path. The check runs mocks in its own scope, so the
-    # fixtures are captured into each mock's closure.
     function Set-Host {
         param(
             [string] $UserAssistState = 'ok',

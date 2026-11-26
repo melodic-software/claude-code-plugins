@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2319 # check reads the status of the condition on the line above it
-# Cases for scripts/check-changed-links-online.sh against a throwaway repository
-# and a stub lychee. The stub's --dump prints a fixed list standing in for
-# lychee's extraction (which skips code spans and fenced blocks); the cases
-# check which of those links the script keeps, what it hands the online run,
-# and how it maps lychee's exit codes onto the check-script contract.
 # test-scope: scripts/check-changed-links-online.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG RUNNER_TEMP
@@ -55,7 +50,6 @@ exit "${STUB_EXIT:-0}"
 EOF
 chmod +x "$stub"
 
-# What lychee's parser would extract from docs/a.md at head: no code span URL.
 dump=$'https://kept.test/a\nhttps://new.test/page#section\nhttps://wiki.test/Rule_(programming)\nhttps://host.test/\nhttps://fixture.test/f'
 
 standards="$TMP_ROOT/standards"
@@ -147,8 +141,6 @@ run -- >/dev/null 2>&1
 [[ $? -eq 2 ]]
 check $? "a missing base ref is a usage error (exit 2)"
 
-# A file moved and edited in one change is a rename to git; its new path still
-# goes to lychee --dump, and only its added line counts.
 moved_base="$(g rev-parse HEAD)"
 mkdir -p "$repo/docs/guide"
 g mv docs/a.md docs/guide/a.md

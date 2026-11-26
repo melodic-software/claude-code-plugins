@@ -2169,6 +2169,17 @@ test("a GITHUB_READ_STORE directory carries kept answers to a later client on th
   assert.deepEqual(other.sent, [`GET ${RUN_PATH} Bearer u -`]);
 });
 
+test("createGitHub keeps a JSON read and a diff read of one URL apart, and returns the diff as text", async () => {
+  const gh = conditional([{ etag: '"e1"', body: '{"id":7}' }, { etag: '"e2"', body: "diff --git a/x b/x\n", headers: { "content-type": "application/vnd.github.diff; charset=utf-8" } }, { status: 304 }, { status: 304 }]);
+  const github = createGitHub(gh.options);
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.equal(await github("GET", RUN_PATH, undefined, { Accept: "application/vnd.github.diff" }), "diff --git a/x b/x\n");
+  assert.equal(gh.sent[1].split(" ").at(-1), "-", "the diff read is not sent with the JSON read's ETag");
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.equal(await github("GET", RUN_PATH, undefined, { Accept: "application/vnd.github.diff" }), "diff --git a/x b/x\n");
+  assert.deepEqual(gh.sent.slice(2).map((line) => line.split(" ").at(-1)), ['"e1"', '"e2"']);
+});
+
 test("a GITHUB_READ_STORE file that cannot be read, or names another URL, counts as absent", async () => {
   for (const spoil of [() => "{not json", (text) => text.replace("/runs/7", "/runs/8")]) {
     const dir = tempDir("read-store-");

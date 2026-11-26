@@ -181,10 +181,6 @@ test("a configured kill switch name writes nothing and the run still ends with a
   assert.match(lines.at(-1), /CLAUDE_LANES_REPO_DISABLED was not set: refusing to write variable "CLAUDE_LANES_REPO_DISABLED"/);
 });
 
-// GET /repos/{repo}/actions/variables as the REST docs describe it: per_page
-// defaults to 10 and caps at 30, page counts from 1, and every page carries
-// the whole total_count. `state.variables` is the repository's list, which a
-// test edits between the two listings.
 function variablesApi(initial) {
   const state = { variables: initial.map((variable) => ({ ...variable })), fail: false, calls: [] };
   const github = async (method, path) => {

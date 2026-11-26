@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+match: not_contains
+pattern: 'work-items:track[\s`*"]*(?:(?:Arg|arg)(?:ument)?s[\s:=*`"]*)?add\b[^\n]*(?:--parent\b|(?:wayfind:|<prefix>) (?:map|research|interview|design|prototype|task)\b)|(?:^|\n)[#>*\s-]*Map:\**[ \t]+(?!(?:(?:None|none)|(?:No|no)|(?:Not|not)|n/a)\b)\S|Not-yet-specified\**[ \t]*:?\**[ \t]*(?:\n[ \t]*)*(?:[-*][ \t]+)?\*\*[^*\n]{1,60}\*\*|\b(?:Decision|decision) items?:\**[ \t]*(?:\n[ \t]*(?:[-*]|\d+\.)[ \t]*)?["''‘“*]|(?:^|[.!?;:\n])(?:(?!\b(?:(?:No|no)|(?:Not|not)|(?:Never|never)|(?:Would|would)|(?:Could|could)|(?:Instead|instead)|(?:Rather|rather)|(?:Skip|skip)(?:ping)?|(?:Nothing|nothing)|(?:Without|without)|(?:Unless|unless)|(?:If|if)|(?:Whether|whether))\b|n''t\b)[^.!?;:\n])*?\b(?:(?:Creat|creat)(?:e|ed|ing)|(?:Open|open)(?:ed|ing)|(?:Fil|fil)(?:ed|ing)|(?:Chart|chart)(?:ed|ing)?|(?:Built|built|Building|building)|(?:Draft|draft)(?:ed|ing))\b(?:(?!\b(?:(?:No|no)|(?:Not|not))\b|n''t\b)[^.!?;:\n]){0,40}?\b(?:(?:Map|map)|(?:Decision|decision) items?)\b(?![^.!?;:\n]{0,12}\b(?:would|could|is not|isn''t)\b)'
 ---
-
-The user asked wayfind to chart a 'forgot password' email flow and said it is exactly three clear tickets: a reset-token request endpoint, an email send, and a reset-confirmation endpoint. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply creates no map and no decision items.
-
-FAIL if it creates or writes out a map or decision items.

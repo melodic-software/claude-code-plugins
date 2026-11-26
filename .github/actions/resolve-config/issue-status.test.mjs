@@ -1,8 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json
-// models.issue-status: the label collapse and the Work status field reader,
-// over the live config. Expected values are written by hand: the option ids
-// from the org field as read on 2026-11-01, and the label table and collapse
-// order from the owner decision Q-WS (architecture owner-decisions; Refs #7577).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -247,8 +243,6 @@ test("read: a melodic- bot-setter the trusted-actor list no longer holds as that
   assert.equal(readStatus({ fieldValues: row, fieldSetters: { [FIELD]: ACTIONS_BOT } }, CONFIG, { actors: [] }), "needs-human");
 });
 
-// The value (REST) and setter (GraphQL) are separate reads; `fieldNames`
-// carries the option the newest event left, and a disagreement throws.
 test("read: a value the newest field event names differently throws, for any setter", () => {
   const fieldValues = [{ field: FIELD, option: OPTIONS["needs-human"] }];
   for (const setter of [LISTED, LANES_APP, ACTIONS_BOT]) {
@@ -271,9 +265,6 @@ test("check: field-events-since must be a real ISO UTC time, and may be unset", 
   }
 });
 
-// With `fieldEvents` (resolve-config.mjs fieldEvents, oldest first), the
-// newest event whose setter counts for the value it set decides; an uncounted
-// change neither sets nor clears. The REST value holds the newest write.
 const set = (actorId, to) => ({ field: String(FIELD), removed: false, actorId, to });
 const removal = (actorId) => ({ field: String(FIELD), removed: true, actorId, to: null });
 const fromEvents = (fieldEvents, now) =>

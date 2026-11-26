@@ -135,8 +135,13 @@ nothing and reports "already configured".
    skip this step and change no existing runtime. With it, build and validate a temporary
    locked runtime first, then replace the current runtime with same-filesystem renames. A
    dependency, browser-install, or launch failure must leave the working runtime untouched.
-   The plugin cache is read-only, and Node ESM does not use `NODE_PATH` for bare-package
-   resolution.
+   Install nothing into the plugin's installed directory, and resolve bare packages without
+   `NODE_PATH`. Where an installed plugin lives:
+   [find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk);
+   what an update does to it:
+   [cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions).
+   How ESM resolves bare specifiers:
+   [Node.js ESM: no `NODE_PATH`](https://nodejs.org/api/esm.html#no-node_path).
 
    ```bash
    command -v node >/dev/null 2>&1 || {

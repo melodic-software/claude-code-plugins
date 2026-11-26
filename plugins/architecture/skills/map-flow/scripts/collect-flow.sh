@@ -1,47 +1,4 @@
 #!/usr/bin/env bash
-# Collect a call-sequence trace from one C# entry point.
-#
-# WHY. A sequence drawn from memory has no citation. This script records a hop
-# only when a tracked C# file contains the call, and follows it only when the
-# receiver's declared type (a field, property, parameter, local or
-# primary-constructor parameter) is a class in the tree that declares the
-# method. Every other call is an unresolved hop with a mechanism and is not
-# walked. It is never bound to a similarly named class.
-#
-# Usage:
-#   collect-flow.sh --repo <path> --entry <entry> [--depth N]
-#       [--out <file>] [--generated-on <date>]
-#   collect-flow.sh --help
-#
-# <entry> is a route (/orders/{id}), an HTTP verb and a route
-# (GET /orders/{id}), Type.Method (OrdersService.Handle), or a method name
-# (Handle). A route is matched against Http* and Route attributes and Map*
-# calls; a Map* call is traced through the method it names as its handler
-# (a lambda is refused). A class-level [Route] is not composed with a method
-# route.
-#
-# Tracked *.cs files only (`git ls-files`). The first adapter is C#. A tree
-# with no C# source is refused. Configuration and project files are not
-# executed.
-#
-# Output: flow.json, schema_version 1, one hop object per line.
-#   entry.name is the invocation string.
-#   hops[].resolution is statically-resolved (the receiver's type was read from
-#   a declaration in the enclosing class or method), inferred (through a base
-#   class or a declaration in another file), or unresolved.
-#   hops[].mechanism names why an unresolved hop is unresolved: interface,
-#   dependency-injection, reflection, broker, dynamic-publish, external-call,
-#   receiver-type-unknown, callee-not-in-tree, or ambiguous-method.
-#   hops[].sync is synchronous or asynchronous (from await, except a hand-off,
-#   which is always asynchronous).
-#   hops[].handoff is yes when the call is Publish or Send (a hand-off to
-#   map-events; the hop is unresolved, mechanism broker).
-#   Hops are in call order, a followed callee's hops right after its call.
-#   truncated is yes when --depth stopped the walk before a callee that itself
-#   contains a call.
-#
-# Portability: bash plus POSIX awk. No jq, no python.
-#
 # Exit: 0 = a record was written; 1 = the path is not a readable directory;
 # 2 = usage; 3 = refused, nothing was written, the reason is on stderr.
 set -uo pipefail
@@ -52,7 +9,18 @@ TRACE_AWK="$SCRIPT_DIR/trace-flow.awk"
 source "$SCRIPT_DIR/../../../lib/github-remote.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Collect a call-sequence trace from one C# entry point.
+Usage: collect-flow.sh --repo <path> --entry <entry> [--depth N] [--out <file>] [--generated-on <date>]
+  --repo <path>          repository to read (tracked *.cs files only)
+  --entry <entry>        a route, a verb and route, Type.Method, or a method name
+  --depth N              how deep to follow callees
+  --out <file>           where flow.json is written (default stdout)
+  --generated-on <date>  date recorded in the record
+Writes flow.json, schema_version 1, one hop object per line.
+Exit: 0 a record was written; 1 the path is not a readable directory; 2 usage;
+3 refused, nothing written, the reason on stderr.
+EOF
 }
 
 die() {

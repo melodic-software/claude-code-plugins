@@ -118,8 +118,6 @@ test("shouldSkipLinkCheck covers the whole 2001::/23 special-purpose block", asy
 const resolvesPublic = async () => [{ address: "93.184.216.34", family: 4 }];
 
 test("shouldSkipLinkCheck reads resolver answers in RFC 4291 dotted-quad form", async () => {
-	// node:dns can answer with the IPv4-mapped dotted form; parsing the quad as
-	// hex reads 192.168.1.1 as 0x192, so the record would fall through as public.
 	for (const address of ["::ffff:192.168.1.1", "::ffff:169.254.169.254"]) {
 		assert.equal(
 			await shouldSkipLinkCheck("http://name.example/", async () => [
@@ -168,14 +166,6 @@ test("shouldSkipLinkCheck skips unresolvable and unreadable hostnames (fail clos
 	);
 });
 
-// validate.js Gate 4 hands this predicate to linkinator's `linksToSkip`, which
-// awaits it — 7.6.1 declares `linksToSkip?: string[] | ((link: string) =>
-// Promise<boolean>)`. The hazard that shape invites is a predicate that resolves
-// to something merely TRUTHY, or one that answers the same way for every input:
-// either makes linkinator skip every URL, and the validator then reports success
-// having checked nothing. Nothing else in this suite distinguishes "checked and
-// passed" from "skipped everything and passed", so assert the resolved values are
-// STRICT booleans and that they actually differ by input.
 test("shouldSkipLinkCheck resolves to strict booleans that differ by input", async () => {
 	const skipped = await shouldSkipLinkCheck("http://169.254.169.254/");
 	const checked = await shouldSkipLinkCheck(

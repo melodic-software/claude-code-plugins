@@ -59,9 +59,6 @@ MERGE_WRAPPER = "scripts/source-control-babysit-merge"
 RESOLVE_WRAPPER = "scripts/source-control-babysit-resolve-thread"
 THREADS_WRAPPER = "scripts/source-control-review-threads"
 
-# Where a refusal is enforced. The distinction is observable: a bash-wrapper
-# refusal never reaches Python, so it prints plain text to stderr and emits no
-# JSON; a python-cli refusal emits the engine's JSON envelope on stdout.
 BASH_WRAPPER = "bash-wrapper"
 PYTHON_CLI = "python-cli"
 
@@ -1826,11 +1823,6 @@ WRAPPER_BACKING_CLI = {
     THREADS_WRAPPER: THREADS_CLI,
 }
 
-# Flags the backing CLI accepts but the wrapper refuses, so a documented wrapper
-# command naming one is a command that always exits 2. The wrapper boundary is
-# narrower than the parser, and validating documented commands against the
-# parser alone would bless exactly the invocation the wrapper exists to prevent.
-# Matched as prefix families, mirroring the wrapper's own bash test.
 WRAPPER_DENIED_FLAGS: dict[str, tuple[str, ...]] = {
     MERGE_WRAPPER: ("--allow-unpinned-head",),
     RESOLVE_WRAPPER: (),

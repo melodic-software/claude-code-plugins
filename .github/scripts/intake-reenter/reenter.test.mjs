@@ -1,20 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json
-// Expected values come from the requested behavior for answered issues: a
-// listed human's `**Decision recorded.**` first line on a
-// `needs-owner-decision` issue, or the author's or a listed human's reply
-// on a `needs-reporter-info` issue, removes that status label and sets the
-// Work status field to needs-triage; it dispatches intake-triage.yml once with the issue number
-// only when the issue's author is one intake admits on open (a listed human
-// or the lanes App). A decision on an issue that carries `needs-human`
-// re-enters nothing and gets one reply saying how the hold is released
-// (https://github.com/melodic-software/claude-code-plugins/issues/18251), and
-// a listed human's removal of `needs-human` re-enters an
-// issue at `needs-owner-decision` (owner decision on #10735). A decision on
-// a `status: confirmed` issue whose only status that is, with no
-// `agent-ready`, re-enters it whether admission parked it or a person
-// confirmed it (requested behavior: a person's confirmation followed by that
-// person's decision must reach triage). Anything else
-// changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -63,11 +47,6 @@ writeFileSync(
   }),
 );
 
-// One issue with its comments. `editors` maps a comment id to its last
-// editor's id; `author` opened the issue; `gone` names labels GitHub answers 404 for on removal (a run
-// that already took them); `fail` names one `METHOD path` write that answers 500 once.
-// `fieldNodes` are its Work status field events; the field holds what they
-// leave, and a field write adds the job token's event.
 function world({ labels, author = OWNER, state = "open", pullRequest = false, comments = [], events = [], fieldNodes = [], editors = {}, gone = [], fail = null }) {
   let failing = fail;
   const current = new Set(labels);
@@ -816,9 +795,6 @@ test("the workflow runs on a needs-human unlabel", () => {
   assert.match(workflow, /github\.event\.label\.name == 'needs-human'/);
 });
 
-// The reenter job's folded `if:`, evaluated against one event. Covers only
-// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels
-// and, case-insensitively as GitHub does, over the comment body.
 function reenterGate({ event, labels, label = null, comment = null, sender = null, action = event === "issues" ? "unlabeled" : "created", fieldId = null, author = OWNER.id }) {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
   const block = /\n {2}reenter:\n(?: {4}#.*\n)*(?: {4}name: .*\n)? {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];

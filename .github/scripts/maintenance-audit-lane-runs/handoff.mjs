@@ -1,16 +1,3 @@
-// The judge's per-unit handoff between its legs: key, subscription, fallback.
-// A matrix job's outputs are not per unit, so a leg that hands its unit on
-// uploads a marker artifact, and a route job with no secret turns the markers
-// into the next leg's matrix. Each marker is one file named for its leg and
-// unit, downloaded with merge-multiple into one flat directory: without it,
-// download-artifact puts a lone match's files straight into the path and
-// several matches each in its own directory. Every value is checked against a closed set: a
-// marker names a collector unit id and a handoff reason run-claude-cli set
-// after it restored the step files, so the model cannot set either.
-//
-//   record     LEG, UNIT, REASON, HANDOFF_DIR: writes HANDOFF_DIR/<prefix><unit>.json
-//   check-leg  LOG_FILE, GITHUB_OUTPUT: clean=true when the leg hit no denial
-//   route      LEG, HANDOFF_DIR, GITHUB_OUTPUT: matrix and count for the next leg
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";

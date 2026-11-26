@@ -162,6 +162,17 @@ for shape in '1' '"budget"' '{"reason":"cycle-budget","requested_at":"2026-07-26
 done
 assert_contains "the object form's reason is surfaced in the report" "$OUT" "cycle-budget @ 2026-07-26T10:00:00Z"
 
+LONG_X="$(printf 'x%.0s' {1..300})"
+write_telemetry "$TELS" "{\"reason\":\"a|b\`c\\r\\nd$LONG_X\",\"requested_at\":\"t\"}" 'null'
+OUT="$(run_consumer check --telemetry-json "$TELS" --agents-json "$AGENTS_NONE")"
+ROW="$(grep -F '| work |' <<<"$OUT")"
+assert_contains "a hostile reason still reports the request" "$ROW" "| work | would-restart |"
+assert_contains "a hostile reason loses its pipe, backtick and line break" "$ROW" "abcd"
+assert_not_contains "a hostile reason cannot add a table cell" "$ROW" "a|b"
+assert_not_contains "a hostile reason cannot carry a backtick" "$ROW" '`'
+assert_eq "a hostile reason stays on the request's one report row" "1" "$(grep -c -F '| work |' <<<"$OUT")"
+assert_not_contains "a hostile reason is cut at 200 characters" "$ROW" "$(printf 'x%.0s' {1..200})"
+
 : >"$LAUNCH_LOG"
 OUT="$(run_consumer check --telemetry-json "$TEL" --agents-json "$AGENTS_NONE")"
 assert_contains "check reports what would restart" "$OUT" "| work | would-restart |"
@@ -368,7 +379,7 @@ bash "$SCRIPT" check --config "$CONFIG" --repo "$REPO" --target-repo "../evil" \
 assert_eq "a non owner/name --target-repo exits 3" "3" "$?"
 
 OUT="$(bash "$SCRIPT" --help 2>&1)"
-assert_contains "--help prints the header contract" "$OUT" "RELAUNCH PREDICATE"
+assert_contains "--help lists the run action" "$OUT" "restart-consumer.sh run"
 
 DATA_LG="$TMP/data-ledger"
 LG_KEY="$(printf '%s' "$(git -C "$REPO" rev-parse --show-toplevel)" | git hash-object --stdin)"

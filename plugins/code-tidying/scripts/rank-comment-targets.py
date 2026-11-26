@@ -308,9 +308,6 @@ def main(argv: list[str] | None = None) -> int:
         if r is None:
             gated["not a code file"] += 1
             continue
-        # ADMIN is written with `/` separators, and os.path.normpath yields `\`
-        # on Windows, so the gate must match against a slash-normalized copy or
-        # it silently passes every administrative path on that platform.
         if ADMIN.search(p.replace(os.sep, "/")) and not admin_gate_lifted(
             p, args.allow_path, args.override_exclusions
         ):

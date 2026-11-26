@@ -1,19 +1,5 @@
 #!/usr/bin/env bash
 # spellchecker:off
-# Contract tests for the spelling lint entry (git-hooks/lint.sh): the typos
-# adapter runs with or without a repository typos config, a
-# typo on an added line blocks with "<path>:<line>: <message>", one on an
-# unchanged line does not, a partly staged file is judged as staged, the
-# repository's typos config (excludes, allow-list) governs, typos failing with
-# no finding fails closed, --worktree covers uncommitted and untracked files, a
-# .claude/ecosystems/ record never runs, a missing typos follows the skip-key
-# rule, and the plugin's own vendored installer wires the entry so `git commit`
-# runs it. The stub cases, which need no real typos, pin the resolve rows and the path
-# transport: paths reach typos as arguments after --.
-# "teh" -> "the" is typos' own built-in correction, the fixture every case uses;
-# typos --format brief prints "<path>:<line>:<col>: error: <message>" and exits
-# 0 when clean, 2 on typos, anything else on an error
-# (https://github.com/crate-ci/typos/blob/master/README.md).
 # test-scope: plugins/spelling/git-hooks/entries.json plugins/spelling/git-hooks/adapters.sh
 # test-scope: plugins/spelling/lib/git-hooks/check-lib.sh plugins/spelling/lib/git-hooks/resolve-tool.sh plugins/spelling/lib/git-hooks/install.mjs
 set -uo pipefail

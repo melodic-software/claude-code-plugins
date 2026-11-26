@@ -1,26 +1,3 @@
-// The lane concurrency level L the adaptive throughput controller would pick
-// for the next window, as a pure function of the previous decision, one
-// window's readings, that window's lane demand and the resolved limits.
-// It is the decide part of collect, decide, publish and read
-// (work-unblock/publish-lane-level.mjs calls it hourly), and
-// lane-level.vectors.json is its truth table.
-//
-//   previous  { level, streak, holdUntil } from the last decision, or null
-//   readings  { at, pools: { <pool>: { used, limit } }, signals: [..], reset? }
-//             at and reset are epoch seconds; used and limit come from the
-//             pool's x-ratelimit headers; signals name each limit signal the
-//             lanes App's own calls met (403, 429, a secondary-limit or
-//             GraphQL rate-limit error, retry-after). A breaker trip is not
-//             one: the breaker stays its own backstop.
-//   demand    { waiting, running }: the most lane runs waiting for a slot
-//             and the most running in the window, or null when unread
-//   config    the resolved `limits` leaf: `lane-level` and `api`, an api
-//             pool's unset fields read from rate-limits.json as the rate
-//             guard reads them
-//
-// Returns { level, streak, holdUntil, reason }, reason one of step-up,
-// step-down, streak, hot, hold, no-demand, no-fit, ceiling, missing-data.
-
 import { apiLimits } from "../../actions/log-api-budget/rate-guard.mjs";
 
 export const LANE_LEVEL_DEFAULTS = Object.freeze({
@@ -34,8 +11,6 @@ export const LANE_LEVEL_DEFAULTS = Object.freeze({
   "valid-minutes": 150,
 });
 
-// Shares are decimal configuration, so a boundary the config states exactly
-// (0.7 x 3 x 5000) must not flip on binary rounding.
 const EPSILON = 1e-9;
 
 const isCount = (value) => Number.isInteger(value) && value >= 0;

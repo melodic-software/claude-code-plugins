@@ -84,16 +84,6 @@ SCHEMA = "claude-install-state/4"
 
 UNREFERENCED_VERSIONS_CAP = 25
 
-# --------------------------------------------------------------------------
-# Secrets: paths whose CONTENTS are never opened by this engine.
-#
-# `stat` is permitted (name, size, mtime are inventory line-items). Reading
-# bytes is not. `ide/*.lock` is on this list because its body carries an
-# `authToken`; the cost of not reading it is that the real PID inside stays
-# unknown, which is the correct answer for a report-only pass -- see
-# reference/name-schemes.md.
-# --------------------------------------------------------------------------
-
 NEVER_READ_GLOBS = (
     ".credentials.json",
     "daemon/control.key",
@@ -110,7 +100,6 @@ CONTENT_READ_ALLOWLIST = (
     "plugins/.last_inuse_sweep",
     "plugins/installed_plugins.json",
 )
-# Same rule for paths that repeat per plugin version: each marker holds one epoch-ms timestamp.
 CONTENT_READ_GLOBS = ("plugins/cache/*/*/*/.orphaned_at",)
 
 
@@ -126,9 +115,6 @@ class SecretReadRefused(RuntimeError):
 
 def is_never_read(relpath: str) -> bool:
     """True when `relpath` (POSIX-style, relative to the root) is secret-bearing."""
-    # `lstrip("./")` would eat the leading dot of a dotfile and turn
-    # `.credentials.json` into an unmatched `credentials.json`. Strip the `./`
-    # prefix as a prefix, not as a character set.
     rel = relpath.replace("\\", "/")
     while rel.startswith("./"):
         rel = rel[2:]
@@ -153,14 +139,6 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
     with path.open(encoding="utf-8", errors="replace") as fh:
         return fh.read(limit)
 
-
-# --------------------------------------------------------------------------
-# Surfaces: what upstream documents about each path under ~/.claude
-#
-# Pointer for every SWEPT / KEPT row: https://code.claude.com/docs/en/claude-directory#application-data,
-# read as raw markdown. As of 2026-10-11. See reference/surfaces.md.
-# Recheck when that section adds, moves or drops a path row.
-# --------------------------------------------------------------------------
 
 SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
 KEPT = "product-managed-kept"  # documented as never age-swept
@@ -247,13 +225,6 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     "daemon": (SECRET, "Contains control.key / pipe.key -- those two are never opened"),
 }
 
-# What the sweep's unit of retention actually is, where upstream says so. This
-# decides whether a file whose mtime exceeds the window means anything at all.
-#
-# It usually does not. `file-history/` retains by CHECKPOINT COUNT, and keeps
-# each file's first snapshot regardless of age; per-session directories age out
-# with their session, not with each contained file. A per-file mtime comparison
-# on those paths measures something real and proves nothing about the sweep.
 SWEEP_UNIT: dict[str, str] = {
     "projects": (
         "the session transcript; subagent and tool-result directories are removed WITH their "
@@ -992,10 +963,6 @@ def recent_writers(rows: list[FileRow], hours: int) -> list[dict]:
     scope, and enablement is read at session start so a running session keeps
     whatever it loaded. A file written in the last few hours is a measurement.
     """
-    # Same precision as FileRow.mtime (`iso()` uses timespec="seconds"), for the same
-    # reason `rollup`'s cutoff does: without it the cutoff carries microseconds, `.`
-    # (0x2E) sorts after `+` (0x2B), and a file written inside the window but in the
-    # cutoff second compares LOWER than the cutoff and is silently dropped.
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(
         timespec="seconds"
     )
@@ -1239,17 +1206,6 @@ def home_root_state(root: Path) -> list[dict]:
     return out
 
 
-# --------------------------------------------------------------------------
-# Environment: is this tree a cloud-session container's, or the operator's?
-#
-# Label only. Nothing below changes a staleness verdict; the block exists so
-# a three-minute-old container tree is never graded as the operator's machine.
-# --------------------------------------------------------------------------
-
-# Tree-level signals: (relpath, kind, evidence, note). A `named` signal decides
-# the verdict on its own. `session-env/`, `remote-settings.json` and
-# `policy-limits.json` are deliberately absent: every install can carry them,
-# so they would fire on every local tree.
 REMOTE_TREE_SIGNALS: tuple[tuple[str, str, str, str], ...] = (
     (
         "launcher-settings.json",
@@ -1771,8 +1727,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not a directory: {root}", file=sys.stderr)
         return 2
 
-    # Whether the scanned tree is the auditing process's own config dir decides
-    # whether CLAUDE_CODE_REMOTE says anything about it (see environment_state).
     try:
         own_config_dir = args.root is None or (
             root.resolve() == resolve_root(None).resolve()
@@ -1852,12 +1806,6 @@ def main(argv: list[str] | None = None) -> int:
             ),
         }
 
-    # The JSON stays a summary: `rollup` attaches `members` to every entry it labels
-    # per-file, and they are dropped here rather than serialized. Measured at +58 KB
-    # against a 27 KB summary (3.2x) on an 86k-file install, against a report a model
-    # reads end to end -- and `write_csv` already emits every row. Any note or doc
-    # describing this flag must say it LABELS entries, not that it embeds rows;
-    # `TestCsvNoteAccuracy` pins that, because the claim drifted here once already.
     for entry in report["entries"]:
         entry.pop("members", None)
 

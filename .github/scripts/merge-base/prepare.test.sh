@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# Tests for prepare.sh on throwaway repositories: a `pr` branch (the gated
-# head) and `main` (the trusted base) that diverge from one base commit.
 # shellcheck disable=SC2310  # tg wraps one git call, so its status is that call's
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREPARE="$SCRIPT_DIR/prepare.sh"
 
-# Keep the developer's own git configuration, and any inherited repository
-# location, out of every fixture.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
@@ -107,8 +103,6 @@ check 'text-conflict: the config is untouched' "$CONFIG_BEFORE" "$(sha_of "$R/.g
 check 'text-conflict: unmerged path recorded' a.txt "$(tr '\0' '\n' <"$DIR/unmerged-paths")"
 
 echo '# conflict-tree'
-# T0: the merge's stage-0 entries plus the marker file git left at each
-# unmerged path, under the head's mode, written without touching the index.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 side main b.txt 'from main\n'
 run_prepare
@@ -123,8 +117,6 @@ check 'conflict-tree: the live index stays unmerged' 123 "$(tg ls-files -u -- a.
 check 'conflict-tree: no scratch index is left behind' '' "$(find "$DIR" -name 't0-index*')"
 run_prepare
 check 'conflict-tree: a second run reaches the same tree' "$T0" "$(val conflict-tree)"
-# The version-bump script sorts under LC_ALL=C whatever the caller's locale,
-# so the three runs of one round reach the same tree.
 new_repo
 put plugins/p/CHANGELOG.md 'x\n'
 commit 'add changelog'
@@ -152,17 +144,12 @@ check 'conflict-tree: an escalation names none' escalate/ "$(val merge-state)/$(
 echo '# binary-conflict'
 conflict a.bin 'base\0bin\n' 'pr\0bin\n' 'main\0bin\n'
 run_prepare
-# A conflict git writes no markers for is escalated before any model turn.
 check 'binary-conflict: escalates unresolved-conflict' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 check 'binary-conflict: MERGE_HEAD set' "$(tg rev-parse main)" "$(merge_head)"
 check 'binary-conflict: snapshot holds stages 1 2 3' 123 "$(stages a.bin)"
-# A binary head side whose bytes hold marker-shaped lines: git leaves the
-# head's file in the worktree, and that is still no conflict to resolve.
 conflict a.bin 'base\0\n' 'pr\0\n<<<<<<< x\n=======\n>>>>>>> y\n' 'main\0\n'
 run_prepare
 check 'binary-conflict: a head side holding marker-shaped lines still escalates' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
-# Markers longer than seven characters (conflict-marker-size from the base's
-# attributes) are still markers, so this text conflict goes to the model.
 new_repo
 put .gitattributes '*.txt conflict-marker-size=10\n'
 put a.txt 'one\n'
@@ -216,7 +203,6 @@ symlink_base 'file:pr\n' 'file:main\n'
 run_prepare
 check 'symlink-conflict: a symlink ancestor under two text sides is a text conflict' conflicted/ "$(val merge-state)/$(val escalation-reason)"
 check 'symlink-conflict: snapshot holds stages 1 2 3' 123 "$(stages l.txt)"
-# A side that is still a symlink has no markers to resolve.
 symlink_base 'link:a' 'file:main\n'
 run_prepare
 check 'symlink-conflict: a symlink side escalates' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
@@ -244,8 +230,6 @@ for p in CLAUDE.md CLAUDE.local.md .mcp.json .claude.json .claude/rules/r.md .ri
   run_prepare
   check "protected-conflict: $p goes to the model" conflicted/ "$(val merge-state)/$(val escalation-reason)"
 done
-# The head's .gitattributes cannot hide a protected conflict with a merge
-# driver: attributes come from the trusted base tree.
 conflict .claude/settings.json 'base\n' 'pr\n' 'main\n'
 side pr .gitattributes '.claude/settings.json merge=union\n.github/workflows/* merge=union\n'
 run_prepare
@@ -268,7 +252,6 @@ check 'clean-after-bump: the script ran mid-merge' "$(tg rev-parse main)" "$(cat
 check 'clean-after-bump: the script reads attributes from the trusted base' "$(tg rev-parse main)" "$(cat "$R/bump-attr-source")"
 check 'clean-after-bump: snapshot taken after the script (stage 0 only)' 0 "$(stages plugins/p/CHANGELOG.md)"
 check 'clean-after-bump: MERGE_HEAD kept for the commit' "$(tg rev-parse main)" "$(merge_head)"
-# Exit 1 means pairs were left for manual resolution: the merge stays conflicted.
 BUMP="$TMP/manual-bump.sh"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$BUMP"
 conflict plugins/p/CHANGELOG.md 'x\n' 'pr\n' 'main\n'
@@ -307,7 +290,6 @@ RC=0
   bash "$PREPARE" "$(tg rev-parse main)" "$(tg rev-parse main)" "$NOOP_BUMP" "$DIR" 2>/dev/null) || RC=$?
 check 'preconditions: HEAD other than the gated head fails' 1 "$RC"
 check 'preconditions: no merge started' '' "$(merge_head)"
-# Hex of a length between the two object-id sizes is a ref name, never an id.
 L41=$(printf 'a%.0s' {1..41}) L45=$(printf 'a%.0s' {1..45}) L63=$(printf 'a%.0s' {1..63})
 for n in "$L41" "$L45" "$L63"; do tg branch -f "$n" main; done
 for bad in pr HEAD --output=x "$(tg rev-parse --short main)" "$L41" "$L45" "$L63"; do
@@ -317,8 +299,6 @@ for bad in pr HEAD --output=x "$(tg rev-parse --short main)" "$L41" "$L45" "$L63
   check "preconditions: a gated head given as '$bad' is refused" 1 "$RC"
 done
 check 'preconditions: no merge started for a refused input' '' "$(merge_head)"
-# A git without --attr-source (before 2.41) cannot read attributes from the
-# base tree, so prepare refuses to run.
 mkdir -p "$TMP/oldgit"
 # shellcheck disable=SC2016  # the stub's own $1 and $@
 printf '#!/usr/bin/env bash\nif [[ $1 == version ]]; then echo "git version 2.40.1"; exit 0; fi\nexec %q "$@"\n' "$(command -v git)" >"$TMP/oldgit/git"
@@ -326,7 +306,6 @@ chmod +x "$TMP/oldgit/git"
 invoke "$(tg rev-parse pr)" "$(tg rev-parse main)" PATH="$TMP/oldgit:$PATH"
 check 'preconditions: git older than 2.41 fails' 1 "$RC"
 if [[ $ERR == *2.41* ]]; then ok 'preconditions: the error names the version needed'; else not_ok "preconditions: the error names the version needed: $ERR"; fi
-# A command configured in the repository (here core.fsmonitor) never runs.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 tg checkout -q pr
 printf '#!/usr/bin/env bash\ntouch "%s/fsmonitor-ran"\n' "$TMP" >"$TMP/fsmonitor.sh"

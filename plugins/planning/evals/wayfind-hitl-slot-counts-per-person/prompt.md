@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 23, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "The needs-human slot defaults to 1 and counts claims per person, so another person's claim does not block claiming #42 and routing it to /planning:interview (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

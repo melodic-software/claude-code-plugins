@@ -142,7 +142,6 @@ _PS_SINGLE_QUOTES = re.compile("['‘’‚‛]")
 
 
 def _ps_q(path: Path) -> str:
-    # PowerShell reads all four curly forms as single quotes; doubling escapes each.
     return "'" + _PS_SINGLE_QUOTES.sub(lambda m: m[0] * 2, str(path)) + "'"
 
 

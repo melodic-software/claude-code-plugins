@@ -1,6 +1,3 @@
-# Workaround for Windows' no-steal-focus policy after `playwright-cli -s=<name> open --headed`
-# spawns Chrome from a background process tree. See ../reference/windows-quirks.md.
-
 #Requires -Version 7.4
 
 [CmdletBinding()]
@@ -37,8 +34,6 @@ if (-not $chrome) {
     exit 1
 }
 
-# SetForegroundWindow can return TRUE while the focus assignment silently fails
-# (Microsoft Learn), so confirm with GetForegroundWindow() before claiming success.
 [void][Win32Focus]::ShowWindow($chrome.MainWindowHandle, [Win32Focus]::SW_RESTORE)
 $setOk = [Win32Focus]::SetForegroundWindow($chrome.MainWindowHandle)
 $actual = [Win32Focus]::GetForegroundWindow()

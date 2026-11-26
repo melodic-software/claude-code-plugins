@@ -194,10 +194,7 @@ This is a **different, cross-skill limit** from `check`'s per-skill listing-entr
 (`description` + `when_to_use`): the shared budget every loaded skill draws from together. The
 script exits 0 regardless of overflow, because the live budget depends on session and policy
 inputs no repository file records (the budget's basis: pointer below). Point `/doctor` at the live session for the authoritative resolved cost. The scripts'
-encoded constants are recorded once each: in the comment above `DESC_CHAR_CAP=` in
-[`${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh`](../../scripts/check-skill.sh) and in the header
-of [`${CLAUDE_PLUGIN_ROOT}/scripts/check-listing-budget.sh`](../../scripts/check-listing-budget.sh)
-(scripts, so no section anchor).
+encoded constants are recorded once, in the [plugin README's Checks section](../../README.md#checks).
 
 - **Pointer**: when you need the per-entry cap, the shared budget's basis, its default, or its
   override, fetch <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars>,

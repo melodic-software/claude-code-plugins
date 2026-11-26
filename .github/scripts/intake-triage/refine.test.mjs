@@ -385,8 +385,6 @@ describe("render", () => {
     assert.ok(!body.split("\n").some((line) => line.trimStart().startsWith("- [ ] ")));
   });
 
-  // Only a comment whose first line is `**Decision recorded.**` answers, so
-  // the questions close with that reply in a block the owner can copy (#7916).
   test("an inexact refinement shows the copyable decision reply above its footer and stays not exact", () => {
     const body = render(validateOutput(INEXACT, new Set([3])));
     assert.equal(DECISION_REPLY, "**Decision recorded.** <answer>");
@@ -394,8 +392,6 @@ describe("render", () => {
     assert.equal(refinementExact(body), false);
   });
 
-  // The Issue Triage prompt asks owner questions too, so its comment must end
-  // with the same reply and lead-in the refinement prints (#7916).
   test("the Issue Triage prompt ends its owner questions with the refinement's copyable reply", () => {
     const rubric = readFileSync(new URL("triage-rubric.txt", import.meta.url), "utf8");
     const rule = /\nDECISION REPLY\. ((?:.+\n)+?)\n/.exec(rubric);
@@ -1459,7 +1455,6 @@ describe("size split", () => {
   const CHECKS_PLUGIN = "- [ ] plugin-diagnostics launches `node` only through `node-or-skip`";
   const CREATES_PLUGIN = "- [ ] Create the `plugin-diagnostics` plugin with its hooks";
   const MISSING = ["plugins/plugin-diagnostics"];
-  // The issue's prose, which writes the plugin's name in backticks as #16437 did.
   const PROSE = "`plugin-diagnostics` reports why installed plugins cannot run.";
   const unitSplit = (lines, absent) => {
     const body = [PROSE, "", "## Done when", "", ...lines].join("\n");

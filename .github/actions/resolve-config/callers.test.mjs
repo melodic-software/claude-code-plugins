@@ -11,6 +11,7 @@
 // test-scope: .github/actions/resolve-config/package.json
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: scripts/check-docs-only-gate.sh
 // test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 // test-scope: plugins/work-items/skills/triage/context/ci-mode.md docs/conventions/work-items.md .github/lane-funding.json
 // test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
@@ -146,14 +147,13 @@ for (const [file, job, lane, laneSwitch] of [
     }
   });
 
-  test(`${file}: the review waits on the kill switch and Refine jobs and skips a draft`, () => {
+  test(`${file}: the review waits only on the kill switch, never for Refine, and skips a draft`, () => {
     const review = jobs[job];
-    assert.deepEqual(review.needs, ["check-kill-switch", "wait-for-refine"]);
-    for (const gate of review.needs) assert.equal(typeof jobs[gate]?.steps?.length, "number", `${gate} is a job with steps`);
+    assert.deepEqual(review.needs, ["check-kill-switch"]);
+    assert.deepEqual(Object.keys(jobs).sort(), ["check-kill-switch", job].sort(), "no job runs before the review but the kill switch");
     const context = {
       "github.event.pull_request.draft": false,
       "needs.check-kill-switch.outputs.proceed": "true",
-      "needs.wait-for-refine.outputs.proceed": "true",
     };
     assert.equal(evaluate(review.if, context), true, "a ready PR is reviewed");
     assert.equal(evaluate(review.if, { ...context, "github.event.pull_request.draft": true }), false, "a draft is not reviewed");
@@ -176,7 +176,6 @@ for (const [file, job, lane, laneSwitch] of [
       const context = {
         "github.event.pull_request.draft": false,
         "needs.check-kill-switch.outputs.proceed": proceed,
-        "needs.wait-for-refine.outputs.proceed": "true",
       };
       assert.equal(evaluate(review.if, context), proceed === "true", `proceed=${JSON.stringify(proceed)}`);
     }
@@ -197,53 +196,6 @@ for (const [file, job, lane, laneSwitch] of [
     assert.equal(proceeds("true", "true"), "false");
     assert.equal(proceeds("false", "false"), "false");
     assert.equal(proceeds("", "false"), "false", "an unreadable lanes switch stops the review");
-  });
-
-  test(`${file}: the review waits for this head's Refine and skips only a head that moved`, () => {
-    const review = jobs[job];
-    const wait = jobs["wait-for-refine"];
-    assert.match(review.if, / && needs\.wait-for-refine\.outputs\.proceed != 'false' \}\}$/);
-    for (const [proceed, reviewed] of [["true", true], ["", true], ["false", false]]) {
-      const context = {
-        "github.event.pull_request.draft": false,
-        "needs.check-kill-switch.outputs.proceed": "true",
-        "needs.wait-for-refine.outputs.proceed": proceed,
-      };
-      assert.equal(evaluate(review.if, context), reviewed, `wait-for-refine proceed=${JSON.stringify(proceed)}`);
-    }
-    assert.deepEqual(wait.needs, ["check-kill-switch"]);
-    for (const [draft, kill, waits] of [[false, "true", true], [false, "false", false], [false, "", false], [true, "true", false]]) {
-      const context = { "github.event.pull_request.draft": draft, "needs.check-kill-switch.outputs.proceed": kill };
-      assert.equal(evaluate(wait.if, context), waits, `draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
-      assert.equal(evaluate(review.if, { ...context, "needs.wait-for-refine.outputs.proceed": "" }), waits, `review, wait-for-refine skipped: draft=${draft} kill-switch proceed=${JSON.stringify(kill)}`);
-    }
-    assert.deepEqual(wait.permissions, { actions: "read", contents: "read", "pull-requests": "read" });
-    assert.deepEqual(stepSecrets(wait), [], "the wait job reads no secret");
-    assert.equal(wait.outputs.proceed, "${{ steps.wait.outputs.proceed }}");
-    const step = wait.steps.find((s) => s.id === "wait");
-    assert.equal(step.run, "node .base/.github/scripts/pr-review/wait-refine.mjs", "no expression reaches the shell");
-    assert.equal(step["continue-on-error"], true);
-    assert.equal(step["timeout-minutes"], 45);
-    assert.equal(wait["timeout-minutes"], 50, "the step times out before the job");
-    assert.deepEqual(step.env, {
-      GITHUB_TOKEN: "${{ github.token }}",
-      PR_NUMBER: "${{ github.event.pull_request.number }}",
-      HEAD_SHA: "${{ github.event.pull_request.head.sha }}",
-      PR_BASE_REF: "${{ github.event.pull_request.base.ref }}",
-      PR_HEAD_REPO: "${{ github.event.pull_request.head.repo.full_name }}",
-      API_BUDGET_HOLD: "1",
-    });
-    const checkout = wait.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
-    assertMainTip(wait.steps, checkout);
-    assert.equal(checkout.with.path, ".base");
-    assert.equal(checkout.with["persist-credentials"], false);
-    const sparse = checkout.with["sparse-checkout"].trim().split("\n");
-    for (const path of importClosure(".github/scripts/pr-review/wait-refine.mjs")) {
-      assert.ok(
-        sparse.some((entry) => (entry.endsWith("/") ? `/${path}`.startsWith(entry) : `/${path}` === entry)),
-        `the sparse checkout lacks ${path}`,
-      );
-    }
   });
 }
 
@@ -2218,14 +2170,14 @@ function claudeSecretJobs(files = workflowFiles(), load = workflow) {
   }
   return jobs;
 }
-const LAUNCHER_ACTION = {
-  "run-claude-cli": "melodic-software/ci-workflows/.github/actions/run-claude-cli@",
-  "claude-code-action": "anthropics/claude-code-action@",
+const LAUNCHER_ACTIONS = {
+  "run-claude-cli": ["melodic-software/ci-workflows/.github/actions/run-claude-cli@", "melodic-software/ci-workflows/.github/actions/run-review-chunks@"],
+  "claude-code-action": ["anthropics/claude-code-action@"],
 };
 const isLauncherStep = (step, launcher) =>
   launcher === "claude-cli"
     ? typeof step.run === "string" && step.uses === undefined && /^\s*claude\s+\S/m.test(step.run)
-    : String(step.uses ?? "").startsWith(LAUNCHER_ACTION[launcher]);
+    : (LAUNCHER_ACTIONS[launcher] ?? []).some((prefix) => String(step.uses ?? "").startsWith(prefix));
 // A value that is only whether a secret is set, ${{ secrets.NAME != '' }}, carries no credential.
 const PRESENCE_ONLY = /^\s*(?:\$\{\{\s*)?secrets\.[\w-]+\s*[!=]=\s*''\s*(?:\}\})?\s*$/;
 const withoutPresenceChecks = (node) =>
@@ -2501,6 +2453,10 @@ test("the stray-reader check names an extra step and an env that reaches every s
   assert.deepEqual(check({}, { steps: [launcher, extra] }), ["step extra"]);
   const other = { ...launcher, name: "other-owner", uses: "someone-else/ci-workflows/.github/actions/run-claude-cli@abc" };
   assert.deepEqual(check({}, { steps: [other] }), ["step other-owner"], "the launcher is pinned to its owner");
+  const chunks = { ...launcher, name: "chunks", uses: "melodic-software/ci-workflows/.github/actions/run-review-chunks@abc" };
+  assert.deepEqual(check({}, { steps: [launcher, chunks] }), [], "run-review-chunks runs run-claude-cli's leg per chunk");
+  assert.deepEqual(check({}, { steps: [{ ...chunks, uses: "someone-else/ci-workflows/.github/actions/run-review-chunks@abc" }] }), ["step chunks"]);
+  assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [chunks] } }, "claude-code-action"), ["step chunks"], "only a run-claude-cli lane takes it");
   assert.deepEqual(check({ env: { ANTHROPIC_AUTH_TOKEN: "x" } }, { steps: [launcher] }), ["workflow env"]);
   assert.deepEqual(check({}, { env: { ANTHROPIC_API_KEY: "x" }, steps: [launcher] }), ["job env"]);
   const cli = { name: "eval", run: "set -e\nclaude plugin eval x", env: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } };
@@ -2717,6 +2673,28 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
 });
 
 const STATUS_WRITE_RETRY_SECONDS = 7;
+
+test("aggregate-results' contract-only default at ci-status's pin is the docs-only gate's CONTRACT_ONLY_PREDICATE, and no caller overrides it", async () => {
+  const job = workflow("pr-require-checks.yml").jobs["ci-status"];
+  const composite = ".github/actions/pr-require-checks/report-ci-status";
+  const step = job.steps.find((s) => String(s.uses ?? "").startsWith(`melodic-software/ci-workflows/${composite}@`));
+  assert.ok(step, "ci-status runs report-ci-status");
+  const pin = step.uses.split("@")[1];
+  assert.equal(step.with?.["contract-only"], undefined, "ci-status passes no contract-only to report-ci-status");
+  const report = parse(await fetchAtPin(pin, `${composite}/action.yml`));
+  const aggregateStep = report.runs.steps.find((s) => s.uses === "$/.github/actions/pr-require-checks/aggregate-results");
+  assert.ok(aggregateStep, `report-ci-status at ${pin} runs aggregate-results`);
+  const passed = aggregateStep.with?.["contract-only"];
+  const resolved = passed === undefined ? undefined : String(passed).match(/^\$\{\{\s*inputs\.contract-only\s*\}\}$/) ? report.inputs?.["contract-only"]?.default : passed;
+  const aggregate = parse(await fetchAtPin(pin, ".github/actions/pr-require-checks/aggregate-results/action.yml"));
+  const expected = resolved ?? aggregate.inputs?.["contract-only"]?.default;
+  assert.ok(expected, `aggregate-results at ${pin} declares a contract-only default`);
+  const gate = readFileSync(fileURLToPath(new URL("../../../scripts/check-docs-only-gate.sh", import.meta.url)), "utf8");
+  const literal = gate.match(/^CONTRACT_ONLY_PREDICATE="((?:[^"\\]|\\.)*)"$/m)?.[1]?.replace(/\\(.)/g, "$1");
+  assert.ok(literal, "check-docs-only-gate.sh sets CONTRACT_ONLY_PREDICATE");
+  const unwrapped = String(expected).trim().replace(/^\$\{\{\s*([\s\S]*?)\s*\}\}$/, "$1");
+  assert.equal(unwrapped, literal, `aggregate-results' contract-only at ${pin} drifted from CONTRACT_ONLY_PREDICATE: a drifted copy turns all-skipped lanes into a pass`);
+});
 
 test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step each and GH_READ_MARGIN_SECONDS together", async () => {
   const job = workflow("pr-require-checks.yml").jobs["ci-status"];
@@ -3384,8 +3362,6 @@ test("API_BUDGET_HOLD is set step by step, only where the script holds, and neve
     "pr-refine.yml select-passes: Check the human-gated hold",
     "pr-refine.yml select-passes: List the PR's changed files",
     "pr-refine.yml select-passes: Read the PR's head SHA",
-    "pr-review-hosted.yml wait-for-refine: Wait for this head's refine run",
-    "pr-review-security-hosted.yml wait-for-refine: Wait for this head's refine run",
     "pr-unblock-dispatch.yml dispatch: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs",
     "pr-unblock.yml resolve-conflicts-select: Check the human-gated hold",
     "pr-unblock.yml sync-shared-copies-select: Check the human-gated hold",
@@ -6666,18 +6642,16 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   }
   const slot = select.steps.find((s) => s.id === "slot");
   assert.deepEqual([slot.with.lane, slot.with.activity, slot.with["prepare-supported"], slot.with["applied-by-supported"]], ["pr-unblock", "address-feedback", "true", "patch feedback-replies"]);
-  const starts = (activity, sender = "1", stale = "") =>
+  const starts = (activity, sender = "1") =>
     evaluate(select.if, {
       "inputs.pr-number": "7",
       "inputs.activity": activity,
       "format('{0}', github.event.sender.id)": sender,
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
-      "needs.check-dispatcher-current.outputs.stale": stale,
     });
   assert.equal(starts("address-feedback"), true);
   assert.equal(starts("fix-ci"), false);
   assert.equal(starts("address-feedback", "2"), false, "the lanes App's own dispatch");
-  assert.equal(starts("address-feedback", "1", "true"), false, "a dispatcher on an older copy of its file");
   const proceed = (upload, applies, decided, resolveOnly = "") =>
     evaluate(select.outputs.proceed, {
       "steps.upload.outcome": upload,

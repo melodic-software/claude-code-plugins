@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# bot-thread-repo.sh <dir>: a repo <dir>/repo whose origin names a GitHub repository,
-# plus a NOTES.txt asking to resolve a review-bot thread with `gh api graphql`.
-# The cases set GH_HOST to an .invalid host, so the mutation never reaches GitHub.
 set -euo pipefail
 d="$1"
 mkdir -p "$d/repo"

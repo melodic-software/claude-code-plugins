@@ -137,7 +137,6 @@ def grade(csa, slice_dir: Path) -> tuple[int, str]:
         raise csa.Ungradeable(f"slice directory not found: {slice_dir}")
     if not (slice_dir / "RESEARCH.md").is_file():
         raise csa.Ungradeable(f"no index: {slice_dir / 'RESEARCH.md'}")
-    # fnmatchcase, not glob: pathlib's glob is case-insensitive on Windows.
     sidecars = sorted(
         p
         for p in slice_dir.iterdir()

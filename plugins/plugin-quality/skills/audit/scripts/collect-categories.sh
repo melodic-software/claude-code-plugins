@@ -1,28 +1,5 @@
 #!/usr/bin/env bash
-# Grade an audit-notes ledger for the three named categories and the two
-# seams that ride with them (standards alignment, emitted-finding samples).
-#
-# A category that is absent, or present but neither `none` nor a finding,
-# is a skipped category. That is the defect this script exists to make
-# visible. Research is graded on every Errors, Improvements and Quality of
-# life finding, and on any finding that carries a remediation:
-# `open-question`, or `tier-0` / `tier-1` with a primary and at least two
-# corroborators. A claim with neither is not a recommendation.
-#
-# A tier record names the fetched bytes instead of asserting them:
-# `primary: <url> saved=<path> span=<quoted span>`, and each corroborator
-# is a `corroborator:` line of the same shape with its own URL. The span
-# must sit on one line of the saved file, which must exist, be non-empty and resolve
-# inside the notes file's own directory.
-#
-# The audit's other returns ride in the same file under `## Blindspots`,
-# `## Doc-worthy gotchas` and `## Unverified claims`. Those headings are
-# allowed and their bodies are not graded. Any other heading is malformed.
-#
 # Exit: 0 complete, 1 incomplete or malformed, 2 usage.
-# The report is stdout. Usage errors are stderr.
-#
-#   collect-categories.sh --notes <audit-notes.md>
 set -uo pipefail
 
 usage() {

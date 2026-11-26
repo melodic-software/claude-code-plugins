@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 resolved; 1 not a git repository; 2 usage; 4 the shared extension
-# list (code-extensions.txt beside this script) cannot be read, named on stderr.
 set -uo pipefail
 
 EXT_LIST="$(dirname "${BASH_SOURCE[0]}")/code-extensions.txt"

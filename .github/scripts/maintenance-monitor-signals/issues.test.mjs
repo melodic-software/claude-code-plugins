@@ -92,8 +92,6 @@ test("a zero open threshold files at the first run; a clear run restarts the tim
   assert.deepEqual(clear.file, []);
 });
 
-// #9866's first twelve on and off spans, in hours, as the issue's timeline
-// recorded them (2026-10-24 on), replayed one run an hour.
 const FLAPPING = [
   ["on", 1.01],
   ["off", 2.0],
@@ -380,8 +378,6 @@ test("the body carries each finding's evidence inside a text fence, says how to 
   assert.match(renderBody(family([]), runUrl), /\*\*State:\*\* clear in/);
 });
 
-// The post-hoc review of #9772: a finding's summary carries run, job and URL
-// text, and rendered outside a fence a mention, link or tag in it worked.
 test("each finding's summary renders inside a text fence in the body", () => {
   const hostile = { ...findingFor([1]), summary: "job @someone [x](https://e.example) <img src=x> #12 failed" };
   const text = renderBody(family([hostile]), runUrl);

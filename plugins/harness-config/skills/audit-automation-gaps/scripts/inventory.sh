@@ -1,86 +1,4 @@
 #!/usr/bin/env bash
-# Automation landscape counts for the audit-automation-gaps skill.
-#
-# The skill injects this script's stdout as pre-computed context, so the output is
-# a COUNT TABLE and never a row dump. An all-scope enumerator that emitted one
-# line per hook would spend more of the window than the audit it feeds.
-#
-# A zero produced by not looking reads exactly like a real absence, so every
-# walk and every count in this file goes through one of four helpers, and none
-# of them can answer 0 for a scope it did not actually read:
-#   find0        the only tree walk. Passes -H so a SYMLINKED .claude/skills,
-#                .claude/agents or .claude/hooks is descended instead of silently
-#                yielding nothing; prunes .git and node_modules so .git/hooks/*
-#                sample scripts cannot be counted as a plugin's hook scripts; and
-#                emits NUL-delimited paths so a newline inside a path cannot split
-#                one file into two.
-#   dir_status   classifies a directory scope before it is walked. A path that
-#                exists but cannot be traversed, a dangling symlink included, is
-#                unreadable, never absent and never 0. All four directory scopes
-#                go through it, .claude/skills, .claude/agents, .claude/hooks and
-#                managed-settings.d, and each carries the status word the whole
-#                way out through count_dir or scope_count.
-#   jq_num       FAILS instead of printing 0 when jq fails. A hooks or
-#                enabledPlugins key holding a string, a number or an array is
-#                reported invalid-json, because the wrong type is not "no hooks".
-#   count0       counts a NUL stream rather than lines.
-# An unusable project root is likewise fatal: printing another directory's counts
-# under the requested root's name was the worst shape of all, since the header
-# named a directory the numbers did not come from.
-#
-# TWO MECHANICS THIS OUTPUT KEEPS APART. Hook entries MERGE across settings
-# levels: user, project, local and managed each contribute, and none replaces
-# another, so a per-scope additive count table is the honest shape for them.
-# enabledPlugins is a PRECEDENCE key, not a merged one, and this script therefore
-# reports the maps as read and computes no effective set. That is the same posture
-# harness-ops:inventory and harness-ops:audit-native-overlap already take, and the
-# Enablement section names where the verdict lives.
-#
-# WHICH PROJECT SETTINGS FILES. With the root taken from git, the project-settings
-# rows read .claude/settings.json in the directory the run starts in, and the
-# local-settings rows read .claude/settings.local.json at the repository root, or
-# at the main checkout's root in a linked worktree: the files a session started
-# there reads. On Windows the local-settings rows read the file beside the
-# shared one instead, as the docs say. The tree counts still cover the whole
-# repository root. With INVENTORY_PROJECT_DIR set, both files are read from that
-# directory.
-# Source: https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
-# As of: 2026-11-04.
-# Recheck trigger: that section moves either file, or adds a case (it already
-#   names a home-directory repository root and foreign ownership, where the
-#   local file stays beside the shared one; this script does not model those two).
-#
-# STATUS, NEVER A SILENT ZERO. A location that could not be read reports
-# unreadable, invalid-json, skipped or not-probed. A count is printed only for a
-# location that was actually read.
-#
-# VOCABULARY is harness-ops:inventory's, not a second dialect for the same ideas:
-#   present / absent / unreadable / invalid-json / skipped / not-probed
-#   standing     registered for the whole session, part of the always-on set
-#   conditional  registered only when a skill is invoked, or only while a
-#                subagent runs, so it is not part of the standing set
-#   A hook script on disk is not a wired hook. Script counts live in Components,
-#   apart from the wired handler counts, and are never added to them.
-#
-# This script reads every hook location the docs table listed as of the date
-#   below, and counts entries from different settings levels as merged, not
-#   replaced.
-# Pointer: when changing the locations this script reads, fetch
-#   https://code.claude.com/docs/en/hooks#hook-locations live.
-# As of: 2026-10-11.
-# Recheck trigger: that table gains, drops or renames a row, or the sentence
-#   stating that hook entries merge across settings levels changes.
-#
-# Claim: managed policy has a documented per-OS location, so this script probes it
-#   instead of reporting it not-probed.
-# Basis: the paths are owned by ../../../lib/managed-scope.sh, which carries its
-#   own stamp against https://code.claude.com/docs/en/managed-settings; that page
-#   was re-read for this script and still lists
-#   /Library/Application Support/ClaudeCode/, /etc/claude-code/ and
-#   C:\Program Files\ClaudeCode\ plus an optional managed-settings.d directory.
-# As of: 2026-09-13.
-# Recheck trigger: managed-scope.sh's own recheck trigger fires, or this script
-#   starts reporting managed policy not-probed on a machine that has a policy.
 set -u
 
 usage() {
@@ -167,7 +85,6 @@ else
   project_root="${git_root:-${CLAUDE_PROJECT_DIR:-$PWD}}"
   common_dir=""
   [[ -z "$git_root" ]] || common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
-  # A bare repository's common dir is not a .git inside a checkout: no main checkout.
   [[ "${common_dir##*/}" != .git ]] || main_root="$(cd -- "${common_dir%/*}" 2>/dev/null && pwd -P)"
 fi
 
@@ -184,9 +101,6 @@ local_settings=".claude/settings.local.json"
 if [[ -n "$git_root" ]]; then
   root_real="$(pwd -P)"
   [[ "$start_dir" == "$root_real" ]] || project_settings="$start_dir/.claude/settings.json"
-  # On Windows the local file stays beside the shared one, so a linked worktree
-  # is never swapped to the main checkout there. The OSTYPE test is the idiom
-  # lib/managed-scope.sh and permission-state.sh already use for the platform.
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32*)
     local_settings="${project_settings%settings.json}settings.local.json"
@@ -250,9 +164,6 @@ find0() {
 
 count0() { tr -cd '\000' | wc -c | tr -d ' '; }
 
-# A settings file names its hook block under the `hooks` key; a plugin manifest
-# may wrap the same block or carry the events at its top level, so the two get
-# their own programs rather than one guessing filter over both.
 SETTINGS_EVENTS_JQ='[(.hooks // {}) | to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | .key] | length'
 SETTINGS_HANDLERS_JQ='[(.hooks // {}) | to_entries[] | .value[]? | (.hooks // []) | length] | add // 0'
 PLUGIN_EVENTS_JQ='def hk: if has("hooks") then .hooks else . end; [hk | to_entries[] | select((.value | type) == "array" and (.value | length) > 0) | .key] | length'
@@ -267,8 +178,6 @@ jq_num() {
   esac
 }
 
-# The jq type of one expression, or empty when jq could not run. Asked directly
-# because an array answers most count programs without erroring.
 jq_type() { "$jq_bin" -r "$1 | type" "$2" 2>/dev/null; }
 
 plugin_roots=()
@@ -334,12 +243,6 @@ row() {
 }
 
 
-# Reads one settings-shaped file's hook block into three globals instead of
-# printing them. note() appends to an array, and a command substitution would run
-# it in a subshell whose appends die with it, so a file that could not be read
-# would lose its explanation on the way back to the caller. shc_status is one
-# vocabulary word; shc_events and shc_handlers are numbers only when it is
-# present, and are zero otherwise so no caller can add a count nothing measured.
 shc_status=""
 shc_events=0
 shc_handlers=0
@@ -630,8 +533,6 @@ else
   printf '  %-10s %-12s %s\n' managed not-probed "managed-scope library unavailable"
 fi
 if [[ -f .claude-plugin/marketplace.json && "$have_jq" -eq 1 ]]; then
-  # `length` answers on a string as well as on an array, so a plugins key of the
-  # wrong type would otherwise publish a character count as an entry count.
   if [[ "$(jq_type '(.plugins // [])' .claude-plugin/marketplace.json)" != "array" ]]; then
     printf '  %-10s %-12s %s\n' catalog invalid-json \
       ".claude-plugin/marketplace.json (plugins is not an array)"

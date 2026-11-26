@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Conformance check for a findings-buffer adapter: conformance.sh <adapter-dir>
 # Exit: 0 every check passed, 1 a check failed, 2 usage, 3 jq missing.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE

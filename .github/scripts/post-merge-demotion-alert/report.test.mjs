@@ -204,7 +204,6 @@ test("the job waits for the re-run a later pr-merge run starts", async () => {
   assert.equal(decisionOf(result.body), "auto-revert");
 });
 
-// github-actions[bot]'s numeric user id, which GitHub assigns and no account can take.
 const BOT = { login: "github-actions[bot]", id: 41898282 };
 const LOG = { number: 77, state: "open", user: BOT, body: "<!-- red-main-revert-log -->\n\nlog" };
 const logged = (culprit, decision, at, runId = 1, user = BOT) => ({
@@ -307,7 +306,6 @@ test("the culprit's age is read after the wait for the re-run, not before it", a
   assert.match(result.body, /past max-culprit-age-hours/);
 });
 
-// #8699 item 2: the cap counts only the log issue's own decisions.
 test("a newer issue carrying the log marker is not the log, so its decisions neither fill the cap nor take the report", async () => {
   const decoy = { number: 99, state: "open", user: BOT, body: "<!-- red-main-revert-log -->\n\ndecoy" };
   const w = world({
@@ -340,7 +338,6 @@ test("a marker comment from an account other than github-actions[bot]'s id does 
   assert.equal(decisionOf((await run(ENV, w)).body), "auto-revert");
 });
 
-// #8699 item 1: a red whose report was dropped is named by the next report.
 const midRangeRed = () => [
   { sha: sha("a"), number: 201, by: LANES, run: confirmedRed(41) },
   { sha: HEAD, number: 203, by: LANES },

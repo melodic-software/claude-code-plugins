@@ -2,8 +2,6 @@ const KEY_ONLY = ["Write the key's credit-stop marker", "Scan the key's credit-s
 const HEADER = `  sweep-areas:
     name: Sweep Areas
     needs: select-areas
-    # The first attempt only: a re-run never runs the model again. A key the
-    # credit gate skipped runs nothing here; sweep-areas-subscription runs it.
     if: needs.select-areas.outputs.proceed == 'true' && needs.select-areas.outputs.next-leg != 'subscription' && github.run_attempt == '1'
 `;
 const NEXT_OUTPUTS = "      next-leg: ${{ steps.next.outputs.next-leg }}\n      next-reason: ${{ steps.next.outputs.next-reason }}\n";
@@ -32,7 +30,6 @@ export default {
       drop: KEY_ONLY,
       comments: {
         ...COMMENTS,
-        "Check the credential": "Only whether each secret is set reaches the action, never its value.",
         "Pick the next leg": true,
       },
       replace: [
@@ -41,8 +38,6 @@ export default {
           `  sweep-areas-subscription:
     name: Sweep Areas Subscription
     needs: [select-areas, sweep-areas]
-    # The first attempt only, after the key leg handed off, found its key
-    # empty, or was skipped by the credit gate.
     if: >-
       \${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.sweep-areas.outputs.next-leg == 'subscription' || needs.select-areas.outputs.next-leg == 'subscription') }}
@@ -51,9 +46,7 @@ export default {
         ],
         [
           NEXT_OUTPUTS,
-          `${NEXT_OUTPUTS}      # sweep-areas-fallback also starts on an empty subscription token when the
-      # fallback token is empty too, so its own check reports that.
-      credential-present: \${{ steps.credential.outputs.present }}
+          `${NEXT_OUTPUTS}      credential-present: \${{ steps.credential.outputs.present }}
 `,
           1,
         ],
@@ -97,7 +90,6 @@ export default {
       drop: [...KEY_ONLY, "Report the key's handoff", "Pick the next leg"],
       comments: {
         ...COMMENTS,
-        "Check the credential": "Only whether the secret is set reaches the action, never its value.",
       },
       replace: [
         [
@@ -105,8 +97,6 @@ export default {
           `  sweep-areas-fallback:
     name: Sweep Areas Fallback
     needs: [select-areas, sweep-areas-subscription]
-    # The first attempt only, after the subscription leg handed off or found
-    # its token empty.
     if: >-
       \${{ !cancelled() && needs.select-areas.outputs.proceed == 'true' && github.run_attempt == '1'
       && (needs.sweep-areas-subscription.outputs.next-leg == 'fallback' || needs.sweep-areas-subscription.outputs.credential-present == 'false') }}

@@ -6,23 +6,15 @@ SCRIPT="$ROOT/scripts/check-stale-base-overlap.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
-# The builder clears the inherited git environment for the whole suite: an
-# inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect `git init` and
-# `git config` into the caller's repository.
 # shellcheck source=lib/fixture-tree.sh
 . "$ROOT/scripts/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 scratch=""
 fixture_tree::build scratch --label stale-base-overlap
 
 make_repo() {
   local dir="$1"
   mkdir -p "$dir"
-  # git_init_test_repo owns the throwaway identity: user.email, user.name,
-  # commit.gpgsign=false and core.autocrlf=false, so a signing-enabled or
-  # CRLF-converting machine runs these cases the same way CI does.
   git_init_test_repo "$dir"
   git -C "$dir" symbolic-ref HEAD refs/heads/main
   printf 'a\n' >"$dir/shared.txt"
@@ -140,7 +132,6 @@ else
   fail "generated docs plus real overlap: rc=$rc out='$out'"
 fi
 
-# #7871: a PR only behind main on release notes is not refused before the queue.
 repo="$scratch/release-notes"
 make_repo "$repo"
 cd "$repo" || exit 1
@@ -174,7 +165,6 @@ else
   fail "release notes plus real overlap: rc=$rc out='$out'"
 fi
 
-# #7871: the pull_request step is advisory; the merge queue is the gate.
 out="$(bash "$SCRIPT" --warn main 2>&1)" && rc=0 || rc=$?
 if [[ $rc -eq 0 && "$out" == *"::warning"*"shared.txt"* && "$out" == *"::warning"*"plugins/p/CHANGELOG.md"* ]]; then
   ok "--warn turns a non-changelog overlap into a ::warning listing the paths and exits 0"

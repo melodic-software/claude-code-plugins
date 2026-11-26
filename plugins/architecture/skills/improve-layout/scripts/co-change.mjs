@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Exit 0 report written, 2 usage or environment (bad flag, git missing, not a git work tree).
-
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve as resolvePath } from "node:path";

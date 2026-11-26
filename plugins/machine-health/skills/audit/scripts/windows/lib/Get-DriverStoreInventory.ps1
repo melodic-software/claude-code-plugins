@@ -52,7 +52,6 @@ function Get-DriverStoreInventory {
                     $entry[($Matches[1] -replace '\s+', '')] = $Matches[2].Trim()
                 }
             }
-            # Skip the pnputil header record (no PublishedName field)
             if ($entry.Contains('PublishedName')) {
                 $result.Add([pscustomobject]$entry)
             }

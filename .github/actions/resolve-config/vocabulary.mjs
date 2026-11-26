@@ -1,6 +1,3 @@
-// Lane and activity name checks over the standards github-actions-conventions
-// vocabulary data. Each returns undefined for a valid name, else the reason.
-
 function longestPrefix(candidates, text) {
   return candidates
     .filter(
@@ -15,7 +12,6 @@ const stageOf = (name, vocabulary) =>
     name,
   );
 
-// A lane is named `<stage>-<function>[-<modifier>]`, both from the vocabulary.
 export function checkLaneName(name, vocabulary) {
   const stage = stageOf(name, vocabulary);
   const fn =

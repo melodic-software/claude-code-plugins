@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# Every page variant is derived from fixtures/effort-pins in a temp dir and read
-# through the SETTINGS_AUDIT_DOCS_FIXTURE_DIR seam, so no case touches the network.
-# Every case shares one docs cache in the temp dir, never the user's; a variant
-# read after the shipped page under the same URL proves the script fetches fresh.
-#
-# Backticked markdown must reach the files unexpanded, so single quotes are the
-# correct spelling.
+# Backticked markdown must reach the fixture files unexpanded.
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -28,7 +22,6 @@ variant() {
   mkdir -p "$T/v-$1"
   cp "$FX/llms.txt" "$T/v-$1/llms.txt"
   sed -e "$2" "$FX/model-config.md" >"$T/v-$1/model-config.md"
-  # Callers run this in a command substitution, so a no-op is recorded in a file.
   cmp -s "$FX/model-config.md" "$T/v-$1/model-config.md" && printf '%s\n' "$1" >>"$T/noop-variants"
   printf '%s' "$T/v-$1"
 }

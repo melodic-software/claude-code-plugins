@@ -1,88 +1,26 @@
 #!/usr/bin/env bash
-# Render a C4 component view of one deployable from dependency-graph.json.
-#
-# WHY. Grouping, arrow direction, layer-violation marking, and aggregation are
-# mechanical. Two runs on the same graph and flags produce byte-identical
-# files. The script does not weigh what the graph should look like.
-#
-# Usage:
-#   render-components.sh --graph <dependency-graph.json> --out <dir> [options]
-#   render-components.sh --help
-#
-# Options:
-#   --graph <file>         The record map-dependencies' dependency-graph.sh
-#                          writes (schema_version 1, with a "result" key).
-#                          Required.
-#   --out <dir>            Directory the artifacts are written into. Required.
-#   --container <name>     Deployable to chart: a node id, path, or unique name.
-#                          With one indegree-zero deployable whose closure covers
-#                          every project, that deployable is the default. Several
-#                          deployables exit 3 and name the choices. Nothing is
-#                          written in that case. A stray manifest (a project no
-#                          edge touches, in an ecosystem no linked or .NET
-#                          project shares) is neither a choice nor an outside
-#                          module; it is counted as set aside.
-#   --group-by <strategy>  directory (default), namespace, or layer. directory
-#                          groups by the parent of the project's own directory;
-#                          namespace by the namespace minus its last segment.
-#                          layer requires --layers.
-#   --layers <a,b,c>       Layering convention, outside to inside. An edge from
-#                          a later layer to an earlier one is marked as a
-#                          violation. The mark is informational: the exit code
-#                          stays 0.
-#   --dialect <name>       likec4, c4-plantuml, or none (default): the resolved
-#                          authoring-formats diagram_dialect.system, which has
-#                          no default and refuses mermaid. likec4 and
-#                          c4-plantuml write components.md with one fenced
-#                          likec4 or plantuml block plus the tables. none
-#                          writes the prose and tables with no diagram.
-#   --source <text>        Provenance line. Default: dependency-graph.json.
-#   --node-threshold <N>   Component count above which the view aggregates to
-#                          coarser groups and says so. Default: the record's
-#                          node_threshold, else 40. Aggregation never drops a
-#                          component or an evidence row.
-#   --root <dir>           The charted repository. When given and it is a git
-#                          checkout, a graph whose generated_on differs from
-#                          the HEAD commit date gets one warning line in
-#                          components.md and on stderr. The warning never
-#                          blocks the render.
-#   --notes <file>         Appended verbatim to components.md.
-#
-# The record's physical shape is one object per line, the same contract as
-# landscape.json. A node line's first key is "id". An edge line's first key is
-# "from". Any other layout exits 1 and writes nothing. So does a record with no
-# "result" key, which is not a dependency-graph.sh record: regenerate it.
-#
-# An edge of kind "project" and status "resolved" whose ends are both charted
-# projects is an internal component edge. Kind "package" is collapsed, not
-# drawn. A project edge whose status is "unresolved", or whose target is not a
-# charted project, is listed and never matched to a similarly named project.
-#
-# A single project with no internal edges is a thin result: components.md says
-# so and names the neighboring rungs, and no one-box diagram is written.
-# ecosystem "unknown" writes the record's message and no diagram. Any other
-# ecosystem name, including "mixed" (more than one reader ran), is charted.
-#
-# Prints one summary line on stdout:
-#
-#   components: container="<name>" components=<n> edges=<n> drawn_edges=<n>
-#   violations=<n> aggregated=<yes|no> thin=<yes|no> external_collapsed=<n>
-#   unresolved=<n>
-#
-# Determinism is the contract: the same graph and flags produce byte-identical
-# files.
-#
-# Portability: bash plus POSIX awk/grep/sed. No jq, no grep -P, no python.
-#
-# Exit: 0 = written (including thin and unknown); 1 = unreadable graph, wrong
-# schema, wrong layout, unknown container, or missing output directory;
-# 2 = usage; 3 = a container must be chosen (nothing written).
 # Artifact text keeps markdown backticks. They are literal, not substitutions.
 # shellcheck disable=SC2016
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render a C4 component view of one deployable from dependency-graph.json.
+Usage: render-components.sh --graph <dependency-graph.json> --out <dir> [options]
+  --graph <file>         dependency-graph.sh record (schema_version 1). Required.
+  --out <dir>            directory the artifacts are written into. Required.
+  --container <name>     deployable to chart: a node id, path, or unique name
+  --group-by <strategy>  directory (default), namespace, or layer (needs --layers)
+  --layers <a,b,c>       layering, outside to inside; a backward edge is marked a violation
+  --dialect <name>       likec4, c4-plantuml, or none (default)
+  --source <text>        provenance line (default dependency-graph.json)
+  --node-threshold <N>   component count above which the view aggregates (default: record's, else 40)
+  --root <dir>           charted repository; warns when the graph is older than HEAD
+  --notes <file>         appended verbatim to components.md
+The same graph and flags produce byte-identical files.
+Exit: 0 written (including thin and unknown); 1 unreadable graph, wrong schema or layout, unknown
+container, or missing output directory; 2 usage; 3 a container must be chosen (nothing written).
+EOF
 }
 
 die() {

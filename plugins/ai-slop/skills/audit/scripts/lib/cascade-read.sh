@@ -1,15 +1,4 @@
 # shellcheck shell=bash
-# One reader for the three config-cascade key shapes detect.sh uses.
-# Sourceable; not invoked directly. A layer is a YAML file (*.yaml, *.yml; read
-# with lib/parse-concern-value.sh and its yaml-subset.awk parser) or a legacy
-# JSON file (read with jq, which is then required). A layer its parser refuses
-# (nonzero, including trailing bytes after a valid JSON value, or a YAML
-# document outside the subset) is skipped whole.
-#
-# Every reader records the layer that supplied the value it returns, so a
-# resolver can report it: cascade_scalar_layer, cascade_list_layer and
-# cascade_slug_layer[<slug>] are the last layer that defined the key (empty
-# when none did).
 
 _CASCADE_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../lib" 2>/dev/null && pwd)"
 _CASCADE_PCV="$_CASCADE_LIB/parse-concern-value.sh"
@@ -22,8 +11,6 @@ cascade_list_layer=""
 _cascade_is_yaml() { [[ "$1" == *.yaml || "$1" == *.yml ]]; }
 _cascade_has_jq() { command -v jq >/dev/null 2>&1; }
 
-# _cascade_usable <layer>: the layer can be parsed at all. A YAML layer must be
-# inside the parser's subset; a JSON layer needs jq and a single valid value.
 _cascade_usable() {
   if _cascade_is_yaml "$1"; then
     [[ -f "$_CASCADE_PCV" ]] && bash "$_CASCADE_PCV" --strict "$1" __probe__ >/dev/null 2>&1
@@ -32,10 +19,6 @@ _cascade_usable() {
   fi
 }
 
-# cascade::scalar <dest> <jq-filter> <layer>...
-# Last layer whose filter yields a non-empty value wins. A missing key or an
-# empty value leaves the earlier value standing. The filter is a jq path
-# (`.thresholds.ai_vocabulary`); a YAML layer reads the same dotted key.
 cascade::scalar() {
   local -n dest_ref="$1"
   local filter="$2"
@@ -61,19 +44,10 @@ cascade::scalar() {
   dest_ref="$out"
 }
 
-# _cascade_yaml_key_present <layer> <key>: a top-level `key:` line exists, even
-# with an empty value (`key: []` or a bare `key:`), which the flattener prints
-# nothing for.
 _cascade_yaml_key_present() {
   grep -Eq "^$2[[:space:]]*:" "$1" 2>/dev/null
 }
 
-# cascade::list <dest-array> <key> <layer>...
-# Wholesale replace, presence-keyed: a layer that has the key replaces the
-# list, and an explicit empty array clears it. A layer that lacks the key, or
-# that its parser refuses, leaves the list standing. Sets cascade_list_layer to
-# the last layer that defined the key (empty when none did). Elements keep their
-# internal spaces; one output line is one element.
 cascade::list() {
   local -n dest_ref="$1"
   local key="$2"
@@ -102,8 +76,6 @@ cascade::list() {
   done
 }
 
-# _cascade_yaml_slug_rows <layer> <key>: print `slug<TAB>globs` for each entry of
-# the mapping at <key>; globs are space-joined and empty for `slug: []`.
 _cascade_yaml_slug_rows() {
   local layer="$1" key="$2" records
   records="$(LC_ALL=C awk -f "$_CASCADE_AWK" "$layer" 2>/dev/null)" || return 1
@@ -128,11 +100,6 @@ _cascade_yaml_slug_rows() {
   ' <<<"$records"
 }
 
-# cascade::slug_map <dest-assoc> <key> <layer>...
-# Per-slug replace. A later layer's entry for a slug replaces that slug only.
-# An explicit empty array clears the slug. A layer its parser refuses is skipped
-# whole, so a truncated object cannot apply the entries jq printed before
-# failing. Sets cascade_slug_layer[<slug>] to the layer that supplied the slug.
 cascade::slug_map() {
   local -n map_ref="$1"
   local key="$2"

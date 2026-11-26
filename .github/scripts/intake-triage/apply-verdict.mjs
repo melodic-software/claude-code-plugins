@@ -1,96 +1,4 @@
 #!/usr/bin/env node
-// apply-verdict.mjs: writes intake triage's verdict on the issue it triaged, as
-// the lanes App, so the work lanes count it. No model. It reads the lane
-// comment the ci-workflows reusable posted (github-actions[bot], first line the
-// marker) and takes:
-//
-// - Size, Complexity and Uncertainty from lines that start the line with exactly
-//   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value a key of
-//   models.issue-dimensions in any case (small, Small, KNOWABLE);
-// - the flags from one `Flags: ` line, `none` or a comma list of intent,
-//   security, cost and untrusted, the last marking untrusted provenance;
-// - the issues it depends on from one `Blocked by: ` line, `none` or a comma
-//   list of `#<number>` (edges.mjs); a missing or unreadable line names none.
-//
-// It then sets the three issue fields (their ids from
-// models.issue-dimensions, checked against the ids GitHub answers) and sets
-// the Work status field to ready when all three fields and no flag parsed, no
-// hold (needs-human, needs-reporter-info, needs-owner-decision, as the issue's
-// labels and the field give them, read-status.mjs) holds the issue,
-// and nothing it found conflicts; otherwise needs-owner-decision (unless a
-// needs-info or needs-decision status is already there), removing a parked
-// `status: confirmed` after the write so one status stands, never ready, and
-// one lanes App comment, edited in place, that lists why. The status written
-// is the one the labels left collapse to (verdictStatus), so the triage run's
-// own hold labels reach the field too; those labels stay on the issue.
-// A status hold the lanes App set on an earlier run gives way to a ready
-// verdict and is taken off only when the App's earlier verdict comment lists
-// no flag. One that listed a flag, or no App verdict comment at all (an issue
-// held before these comments), holds, and the new comment carries the flag or
-// the missing record forward, except that a listed human's `**Decision
-// recorded.**` written after that comment last changed answers its intent flag
-// (flagsAfterDecision); a security, cost or unrecorded flag stays. A
-// held verdict's comment names its owner reason as the stop-reason marker and
-// line (../lib/stop-reason.mjs), the strongest of its causes. A held verdict
-// writes that comment before its labels and, when the comment write fails, adds no label and takes off only
-// `status: ready`, so no hold lands without its record; needs-human, and
-// a hold the triage run (github-actions[bot], the reusable's escalation), a
-// person, or an unread setter set, holds. One exception: a needs-human or
-// needs-owner-decision this run's triage applied (github-actions[bot], at or after STARTED_AT) on a
-// verdict that did not escalate, absent when the run started, with a readable
-// `Flags: none`, no `Cost: ` line (a `Cost decided: ` one is fine) and no outside-actor or untrusted-provenance
-// hold (read again right before the label writes), is refused and taken off when
-// the rest of the plan is ready, so a capability limit (a host run, a paid
-// eval) reaches admission, which routes it to `host-run` or holds it with a
-// split, and a choice of means stays the issue lane's. The
-// `needs-triage` floor label is taken off after the verdict is written.
-// Work classes are retired: a proposed class is never applied, and a class
-// label on the issue is neither read nor taken off. Untrusted provenance adds
-// `provenance: untrusted`, which holds the issue and is not taken off. The lanes App's own earlier field values give
-// way to the new verdict; a field value a listed human set is kept and is the value admission
-// reads; one anyone else set, or one whose setter cannot be read, is kept and
-// sends the issue to needs-decision. It writes a native blocked-by edge for each open issue of this repository
-// the verdict or the issue body (edges.mjs textBlockers) names; an edge GitHub answers 403, 429 or 5xx for is missed,
-// named in the summary and an annotation, the edges the run wrote are
-// deleted again, and a ready verdict then lands
-// without `status: ready` and is not admitted, so the hourly triage sweep runs
-// intake again (a 403 also fails the job after every write). Then on
-// `status: ready` it hands the verdict to admit.mjs,
-// which adds `agent-ready` when the admission rules, the blockers and the caps
-// allow. Otherwise, when a done-when item is one the lane cannot perform,
-// admit.mjs's noteUnrunnable posts the split it recommends. An option GitHub
-// keeps under another id than models.issue-dimensions maps fails the run and
-// leaves the issue's labels as they are. A GitHub fault (isFault), in admission
-// or anywhere else, holds the run green with a notice instead (closing).
-//
-// Issue text can only refuse or hold back: a line the model quotes is prefixed
-// `> ` and matches nothing, a duplicated, missing or unknown value writes no
-// fields, the body's blockers add only edges to open issues, and an escalated
-// run writes only needs-decision, its reasons and those edges; model text
-// reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
-// whose author is a listed human or the lanes App, or a trusted upstream-drift
-// issue (admit.mjs authorTrust), and only from a lane
-// comment updated at or after STARTED_AT (this run's), so a run whose triage
-// wrote nothing never applies an older verdict.
-//
-// `--check` decides, before any token is requested, whether the broker would
-// mint: the actor is a listed human, or github-actions[bot] on a dispatch; a
-// re-run's triggering actor is a listed human; and the issue is still an open
-// issue, read live with the job token (the broker refuses any other target).
-//
-// Environment:
-//   GH_TOKEN              the lanes App token: issues write
-//   GITHUB_REPOSITORY     owner/repo
-//   GITHUB_API_URL
-//   ISSUE_NUMBER          the triaged issue
-//   STARTED_AT            when this run's first job started (ISO 8601)
-//   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
-//   BASE_PATH             the default branch checkout, for models.issue-dimensions
-//                         and models.issue-status
-//   KILL_SWITCH           `proceed`, or the run stops before any API call
-//   RESOLVED_CONFIG       resolve-config's output: the limits and wip leaves
-//                         admission's cap check reads
-//   EVENT_NAME, ACTOR_ID, TRIGGERING_ACTOR, RUN_ATTEMPT   for --check
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -123,10 +31,6 @@ export const DIMENSIONS = Object.freeze({
   complexity: "Complexity",
   uncertainty: "Uncertainty",
 });
-// Each field's options in reading order, the order a problem lists them in.
-// An options map is keyed by numeric option id, and JavaScript lists such keys
-// ascending, which would read Size backwards (large, medium, small). A name
-// not listed here follows the listed ones.
 const OPTION_ORDER = Object.freeze({
   size: ["small", "medium", "large"],
   complexity: ["low", "medium", "high"],
@@ -152,7 +56,6 @@ const NUMBER = /^[1-9][0-9]{0,9}$/;
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 const admissionError = (error) => ({ outcome: "error", reasons: [String(error?.message ?? error)], ...(isFault(error) ? { fault: true } : {}) });
 
-// The --check answer: whether the broker would mint for this run's actors.
 export function checkActors(env, humans, logins) {
   if (!NUMBER.test(env.ACTOR_ID ?? "")) {
     return false;
@@ -169,10 +72,6 @@ export function checkActors(env, humans, logins) {
   return rerunner !== undefined && humans.has(rerunner);
 }
 
-// The whole --check answer: checkActors, then the issue read live, since it
-// can close while triage runs and the broker refuses an author admission does
-// not admit. A failed read keeps the actors' answer: the write's own read
-// (run) still guards it.
 export async function checkRun({ env, humans, logins, github, log = console.log }) {
   if (!checkActors(env, humans, logins)) {
     log("apply-verdict: the broker would not mint for this run's actors");
@@ -241,9 +140,6 @@ function typedVerdict(text, dimensionsConfig) {
   return { dimensions, flags, blockedBy: [...new Set(blockedBy)] };
 }
 
-// The verdict the lane comment carries: {escalated, untrusted, dimensions,
-// flags, problems}. dimensions maps each key to its config key or is null;
-// flags is a list or null. problems says why a part did not parse.
 export function parseVerdict(body, dimensionsConfig, typedText = "") {
   const lines = String(body ?? "").split("\n");
   const problems = [];
@@ -329,10 +225,6 @@ export function parseVerdict(body, dimensionsConfig, typedText = "") {
   };
 }
 
-// The writes the verdict calls for, given the issue's labels as the Work
-// status field decides them, its own `rawLabels`, and its current field
-// values ({fieldId: {option, setter}}). A status label comes off when either
-// carries it, so a stale queue label the field hides still goes. Pure.
 export function planWrites(
   verdict,
   { labels, rawLabels = labels, fields, dimensionsConfig, appId, humans = new Set(), holdSetters = {}, earlierFlags = [], triageLabels = [] },
@@ -456,19 +348,6 @@ export function planWrites(
 
 export { earlierFlags, ownVerdict, UNRECORDED, VERDICT_MARKER };
 
-// The earlier verdict's flags (earlierFlags: a list, or null when unrecorded)
-// once a recorded decision is read. A listed human's `**Decision recorded.**`
-// comment (select-trusted-text isDecisionComment over `kept`, its
-// selectTrustedIssueComments items) written after the lanes App's verdict
-// comment (`own`) last changed answers the questions that verdict held for:
-// its carried intent flag no longer holds, and this run's own verdict says
-// what the decision leaves open. A carried security or cost flag stays (owner
-// Q4: a security flag reaches the owner; a charge clears only through a
-// `Cost decided: ` line), and so does an unrecorded one (null), which may have
-// been either. Pure.
-// The time is the newest intent raise the comment records (RAISED, written by
-// sayReasons, since an identical body is never re-written and so keeps an
-// older updated_at), else the comment's own updated_at.
 export function flagsAfterDecision(flags, own, kept, humans) {
   const since = Date.parse(raisedAt(own?.body) ?? own?.updated_at);
   const decided = Number.isFinite(since) && kept.some((item) => Date.parse(item.comment?.created_at) > since && isDecisionComment(item, humans));
@@ -481,8 +360,6 @@ export function raisedAt(body) {
   return line ? line.slice(RAISED.length, -" -->".length) : null;
 }
 
-// The RAISED line for a held comment: this run's verdict time when its own
-// verdict flags intent, else the line the earlier comment carried, else none.
 export function raisedLine(verdictFlags, writtenAt, earlierBody) {
   const at = verdictFlags?.includes("intent") ? writtenAt : raisedAt(earlierBody);
   return Number.isFinite(Date.parse(at)) ? [`${RAISED}${at} -->`] : [];
@@ -547,11 +424,6 @@ async function readFields(github, repository, number, fieldSetters) {
   return fields;
 }
 
-// The Work status a verdict leaves on an issue whose label names, with the
-// verdict's label writes applied, are `labels`: the first state in `config`'s
-// order whose label is among them (issue-status.mjs collapseStatus), so the
-// triage run's needs-human, `needs-reporter-info` and `needs-owner-decision`
-// translate to their state; null for agent-ready, which admission writes.
 export async function verdictStatus(labels, config) {
   const { collapseStatus } = await import("../../actions/resolve-config/issue-status.mjs");
   const state = collapseStatus(labels, config);
@@ -561,14 +433,6 @@ export async function verdictStatus(labels, config) {
 const STATUS_ADDS = new Set([READY, NEEDS_DECISION]);
 const QUEUE_LABELS = new Set([READY, NEEDS_TRIAGE, CONFIRMED]);
 
-// `setStatus(number, state, {fields})` (write-status.mjs statusWriter's
-// `set`) writes the Work status verdictStatus gives over `statusConfig`
-// (models.issue-status; null writes none); a failed write throws, and
-// `admitIssue(verdict, {wrote})` gets the state written or found in place, which
-// admission reads until the field shows it (admit.mjs writtenLabels).
-// `statusOf` (read-status.mjs statusReader), when given, decides the issue's
-// label names and its status history; without it, its own labels and REST
-// events.
 export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, setStatus = async () => {}, statusConfig = null, statusOf, log = console.log }) {
   if (env.KILL_SWITCH !== "proceed") {
     log("apply-verdict: the kill switch did not answer proceed; nothing read or written");
@@ -642,10 +506,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   let plan = planFor(labels);
 
   if (plan.fieldWrites.length > 0) {
-    // Safe to send twice: the POST sets each listed field to one option, so a
-    // second copy after a 5xx that GitHub did apply sets the same values.
     const post = (issue_field_values) => github("POST", `${base}/issue-field-values`, { issue_field_values }, FIELD_API, { resendOnce: true });
-    // The answer is checked by option id whichever casing GitHub took.
     const written = await postOptionNames(
       post,
       plan.fieldWrites.map(({ fieldId, name }) => ({ field_id: fieldId, value: name })),
@@ -660,16 +521,6 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       );
     }
   }
-  // Before any label, so admission reads them. Admission reads blockers only
-  // from the native edges, so a missed one would be invisible to it: a ready
-  // verdict then lands without `status: ready` and is not admitted, and the
-  // hourly triage sweep (maintenance-audit-lane-runs/triage-sweep.mjs), which
-  // dispatches intake on an issue with no `status:` label, runs it again.
-  // writeEdges deletes the edges this run wrote when any misses, so
-  // work-unblock never reads a partial set; the re-run writes them all.
-  // The body's own `Blocked by` and `Depends on` lines count too, since
-  // the model's line can leave them out (#8994); an escalated verdict
-  // writes them, so a label added by hand later still finds the edge.
   const named = verdict.untrusted || labels.some((label) => UNTRUSTED_LABELS.includes(label)) ? { numbers: [], dropped: 0 } : textBlockers(issue.body, repository);
   const blockers = [...new Set([...verdict.blockedBy, ...named.numbers])];
   const edges = blockers.length > 0 ? await writeEdges({ github, repository, number, blockers }) : null;
@@ -792,27 +643,9 @@ const missedEdges = (missed) => missed.map(({ number, status }) => `#${number} n
 const undeletedEdges = (undeleted) => undeleted.map(({ number, status }) => `#${number} written and not deleted (GitHub answered ${status})`);
 const forbidden = (missed = [], undeleted = []) => [...missed, ...undeleted].some(({ status }) => status === 403);
 
-// What a 403 on a blocked-by edge means and how to grant the permission, for
-// the annotation and the issue comment. GitHub has no separate dependencies
-// permission: the blocked-by endpoints take the Issues repository permission,
-// at write to add or delete an edge
-// (https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps,
-// read 2026-10-26). Label writes take Issues or Pull requests write; while
-// intake-triage.yml grants this job pull-requests: read, labels that landed
-// rule the permission in, so the 403 was a rate limit. An added permission
-// takes effect once each account the App is installed on approves it
-// (https://docs.github.com/en/apps/maintaining-github-apps/modifying-a-github-app-registration,
-// read 2026-10-26).
 export const FORBIDDEN_EDGE =
   "a 403 is a rate limit when this run's label writes landed, since this token makes them through the same grant, and intake's next run writes the edge; otherwise the lanes App lacks the Issues repository permission at write, which no re-run fixes. To grant it, the App's owner sets Issues to Read and write under Repository permissions on the App's Permissions & events settings page, then the owner of the account it is installed on approves the updated permissions";
 
-// The annotation for missed edges, or null. A 403 is a missing permission,
-// which no re-run fixes, or a rate limit: it fails the job, after every write.
-// Either way a ready verdict waits without `status: ready` for the sweep. An
-// edge the run wrote and could not delete after a miss is a partial set
-// work-unblock reads: when that blocker closes first, it can admit the issue.
-// A verdict that is not ready admits nothing and holds no `status: ready`
-// back, so its missed edges only warn.
 export function missedAnnotation(missed = [], undeleted = [], ready = true) {
   if (missed.length === 0) {
     return null;
@@ -842,15 +675,6 @@ export function missedAnnotation(missed = [], undeleted = [], ready = true) {
 
 export { isFault };
 
-// The step's closing annotations and exit code, for run()'s result or the
-// error it threw. A fault, in admission or anywhere in the run, holds green
-// with a notice (outage posture element 2), since an hourly sweep takes the
-// issue up again: work-unblock's readmitReady one left at `status: ready` in
-// no queue, the triage sweep one with no `status:` label, which reads this
-// notice's `held: ` as it reads a failure (triage-sweep.mjs classifyRun). Any
-// other error, a forbidden missed edge and an unwritten reasons comment fail.
-// `held` is the step's `held` output, which keeps refine-select from acting
-// on a verdict whose result is unknown (intake-triage.yml).
 export function closing({ result, error } = {}) {
   const clean = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
   const held = (why) => `::notice title=apply-verdict::held: ${why}`;
@@ -877,8 +701,6 @@ export function closing({ result, error } = {}) {
   return { lines, code, held: Boolean(result.admission?.fault) };
 }
 
-// Logs closing()'s lines, writes `held=true` to the step outputs on a hold,
-// and returns the exit code.
 export function finish({ lines, code, held }, { outputPath, log = console.log } = {}) {
   lines.forEach((line) => log(line));
   if (held && outputPath) {
@@ -914,15 +736,6 @@ export async function judgedText(github, repository, number, judgedAt) {
   }
 }
 
-// One lanes App comment, edited in place, says why the verdict holds the
-// issue; a later ready verdict marks it settled, naming the status admission
-// left. None is posted for a ready verdict that stays ready and never held,
-// nor for one admission refused to a status that is no hold, since admission's
-// own comment already says so and planWrites reads the record (earlierFlags)
-// only beside a hold label; one admission moved to a hold
-// or did not finish gets the record a later run reads.
-// A missing edge GitHub answered 403 for names the permission (refused); a
-// 429 or 5xx does not, since the sweep's re-run writes it.
 async function sayReasons(github, repository, base, comments, appId, plan, admission, refused, raised = [], judge = async () => null) {
   const own = ownVerdict(comments, appId);
   const after = settled(admission);
@@ -952,7 +765,6 @@ async function sayReasons(github, repository, base, comments, appId, plan, admis
         "",
         ...plan.reasons.map((reason) => `- ${reason}`),
         "",
-        // After the reason list, which earlierFlags reads line by line.
         ...raised,
         ...personReasonLines(INTAKE_LANE, plan.reason).toReversed(),
       ].join("\n");

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Detect project ecosystem marker files without relying on ls exit status on missing globs.
 set -euo pipefail
 
 cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" 2>/dev/null || true

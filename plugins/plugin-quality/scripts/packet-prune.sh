@@ -1,48 +1,4 @@
 #!/usr/bin/env bash
-# Retention pruning for the plugin-quality evidence tree.
-#
-# Three properties are enforced here, not in prose:
-#
-#   1. Dry run by default. Nothing is deleted without an explicit `--apply`.
-#   2. A packet holding `item*.md` (item.md, or item-<owner>.md) anywhere beneath it is never deleted, at any
-#      age. That file is a drafted-but-unemitted deliverable; step 6's
-#      unattended clause makes it the only copy of the audit's entire output.
-#      Retention must not be the thing that destroys it. The search is recursive
-#      and case-insensitive, because a deliverable one directory down is exactly
-#      as unrecoverable as one at the top. Retained packets are reported, so an
-#      operator can see the tree is growing and act on it.
-#   3. Nothing outside the evidence root is ever touched. Containment is
-#      re-established per candidate by canonicalizing it (`cd` + `pwd -P`), not
-#      once for the root: a symlink anywhere on the way down — a symlinked
-#      session directory suffices — otherwise yields a path whose real location
-#      is elsewhere, and `rm -rf` follows real locations. Such candidates are
-#      reported as ESCAPED and skipped, and deletion targets the canonical path.
-#
-# Age comes from the nonce directory name (`YYYYMMDDTHHMMSSZ`), not from mtime:
-# mtime is rewritten by any tool that touches the tree (including the sibling
-# PostToolUse formatters that rewrite packet files in place), so grading age by
-# mtime would make retention depend on the same mutation the packet exists to
-# resist. Fail closed: a directory whose name is not a parsable nonce is never
-# deleted — it is reported as unparsable. Parsable means a real UTC instant, not
-# merely the right characters: `00000000T000000Z` has a nonce's exact shape and
-# names no date, so it is graded UNPARSABLE rather than compared as an ancient
-# timestamp and destroyed.
-#
-# Usage:
-#   bash packet-prune.sh --root <evidence-root> [--days N] [--apply]
-#   bash packet-prune.sh --help
-#
-# <evidence-root> is the `evidence/` directory under this plugin's data
-# directory. Its layout is <root>/<session-id>/<target-slug>/<run-nonce>/.
-#
-# Output (stdout, greppable): one `<verdict> <path>` line per packet, then a
-# summary line. An apply run reports `deleted=<n>`; a dry run reports
-# `would-delete=<n>` instead, so a summary never claims deletions that did not
-# happen. Both carry
-# `scanned= retained-item= kept= unparsable= escaped= failed=`.
-# Verdicts: DELETE (or WOULD-DELETE in dry run), RETAIN-ITEM, KEEP, UNPARSABLE,
-# ESCAPED, FAILED.
-#
 # Exit 0 = ran (dry run or apply) with nothing left unresolved.
 # Exit 1 = ran, but at least one delete FAILED. Reported, never swallowed: a
 #          retention pass that could not delete what it decided to delete has
@@ -54,7 +10,21 @@
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Retention pruning/,/^# Exit 0/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Retention pruning for the plugin-quality evidence tree: dry run unless --apply; a packet holding item*.md is never deleted.
+
+Usage:
+  bash packet-prune.sh --root <evidence-root> [--days N] [--apply]
+  bash packet-prune.sh --help
+
+  --root <dir>  the evidence/ directory: <root>/<session-id>/<target-slug>/<run-nonce>/
+  --days N      delete packets whose nonce is older than N days (default 30)
+  --apply       delete; without it, report what would be deleted
+  --help, -h    print this help
+
+Exit 0 = ran with nothing left unresolved; 1 = at least one delete failed;
+2 = usage error, a refused root, an unusable --days, or no supported date dialect.
+EOF
 }
 
 root=""
@@ -107,10 +77,6 @@ done
   exit 2
 }
 
-# Root containment. This script's only job is deleting directories, so a
-# mistyped path is the whole risk surface. Require the root to be literally
-# named `evidence` — the one directory name the packet layout gives it — so a
-# fat-fingered `--root ~` or `--root .` is refused rather than walked.
 root_abs="$(cd "$root" && pwd -P)" || {
   echo "error: cannot resolve --root: $root" >&2
   exit 2
@@ -124,12 +90,6 @@ case "$root_abs" in
   ;;
 esac
 
-# Cutoff as a comparable YYYYMMDDTHHMMSSZ string. A retention pass that cannot
-# grade age must delete nothing, so both the missing-binary and the
-# unusable-value cases refuse rather than fall back to a permissive cutoff.
-# Probe which date dialect exists BEFORE computing the cutoff, so a computation
-# that fails for a different reason — an out-of-range --days, say — is not
-# misreported as a missing binary and sent to the wrong fix.
 if date -u -d "1 days ago" +%Y >/dev/null 2>&1; then # portability-ok: GNU-first probe of a dual-dialect pair; the BSD (-v) form is the elif below
   date_dialect=gnu
 elif date -u -v-1d +%Y >/dev/null 2>&1; then
@@ -150,17 +110,6 @@ if [[ ! "$cutoff" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
   exit 2
 fi
 
-# True when <nonce> names a real UTC instant, not merely something shaped like
-# one. The character-shape regex below is not a date check: `00000000T000000Z`
-# and `20260231T000000Z` both match it, neither names an instant that exists, and
-# lexical comparison grades both as ancient — so a shape-only test hands them to
-# `rm -rf` under `--apply`, destroying an ungradable packet the fail-closed rule
-# promises to keep. Round-trip the calendar value through `date` and require it
-# to reproduce the nonce EXACTLY: a value the implementation rejects outright
-# (GNU) or silently normalizes to a different day (BSD turns Feb 31 into Mar 3)
-# cannot come back identical. Fail closed in every uncertain case — a missing
-# binary, a non-zero exit, empty output, or any mismatch returns false, which
-# routes the packet to UNPARSABLE and never to DELETE.
 nonce_is_real_utc() {
   local nonce="$1" ymd="${1:0:8}" hms="${1:9:6}" round=""
   if [[ "$date_dialect" == gnu ]]; then
@@ -172,14 +121,6 @@ nonce_is_real_utc() {
   [[ -n "$round" && "$round" == "$nonce" ]]
 }
 
-# Self-check the round-trip against a value already known to be a real instant:
-# the cutoff this script just computed and validated. If a known-good nonce does
-# not reproduce itself, the round-trip is broken in this userland — a dialect
-# whose `-j -f` parse is unavailable or spells its output differently, say — and
-# EVERY packet would grade UNPARSABLE. That is fail-closed, but silently: pruning
-# would stop forever while still reporting success and exiting 0. Refuse loudly
-# instead, the same way a missing `date` already does. This is also the only
-# check that can catch a broken BSD branch, which no GNU-only CI can reach.
 if ! nonce_is_real_utc "$cutoff"; then
   echo "error: the $date_dialect date implementation cannot round-trip a known-good nonce ($cutoff) — cannot grade packet age, refusing to prune" >&2
   exit 2
@@ -198,9 +139,6 @@ for packet in "$root_abs"/*/*/*; do
   scanned=$((scanned + 1))
   nonce="${packet##*/}"
 
-  # Per-candidate containment (header property 3). The candidate must also not
-  # BE a symlink, even one whose target is inside the root: removing the link is
-  # not removing the packet.
   packet_real="$(cd "$packet" 2>/dev/null && pwd -P)" || packet_real=""
   if [[ -z "$packet_real" || "$packet_real" != "$root_abs"/* || -L "$packet" ]]; then
     echo "ESCAPED $packet"
@@ -240,9 +178,6 @@ for packet in "$root_abs"/*/*/*; do
   fi
 done
 
-# Never report `deleted=` for a run that deleted nothing: a summary line is
-# what a caller greps, and one that claims deletions in a dry run is a lie a
-# log reader cannot catch.
 deleted_key=would-delete
 [[ "$apply" -eq 0 ]] || deleted_key=deleted
 echo "scanned=$scanned $deleted_key=$deleted retained-item=$retained_item kept=$kept unparsable=$unparsable escaped=$escaped failed=$failed"

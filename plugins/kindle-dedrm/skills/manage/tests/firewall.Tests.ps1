@@ -25,20 +25,12 @@ them against a rule object, rather than by asserting on a copy of the source
 text. The `check` action needs no elevation and is driven end to end.
 #>
 
-# Mirrors Microsoft.PowerShell.Cmdletization.GeneratedTypes.NetSecurity.Enabled,
-# which only exists once the Windows-only NetSecurity module is loaded. Declared
-# locally so the suite runs anywhere; the first test cross-checks the two where
-# the real type is available.
 enum FakeNetSecurityEnabled {
     True = 1
     False = 2
 }
 
 BeforeAll {
-    # Separate child segments, not one 'scripts\firewall.ps1' string: Join-Path
-    # does not split a child argument on `\`, so on non-Windows pwsh the
-    # backslash would survive as an ordinary filename character and the path
-    # would not resolve.
     $script:ScriptPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'scripts' 'firewall.ps1'
 
     function Get-EnabledGuard {
@@ -79,7 +71,6 @@ Describe 'firewall.ps1' {
             [int]$real::False | Should -Be ([int][FakeNetSecurityEnabled]::False)
             [int]$real::True | Should -Be ([int][FakeNetSecurityEnabled]::True)
             "$($real::False)" | Should -Be 'False'
-            # The whole defect in one line: a DISABLED rule is boolean true.
             [bool]$real::False | Should -BeTrue
         }
     }
@@ -125,11 +116,6 @@ Describe 'firewall.ps1' {
     }
 
     Context 'both guards tolerate the other shapes Enabled arrives in' {
-        # Why the comparison is against the STRING 'True' rather than the
-        # fully-qualified NetSecurity type literal: the literal only resolves
-        # once the Windows-only NetSecurity module is loaded, while `-eq 'True'`
-        # holds for the enum, for a CIM path that hands the property back
-        # already stringified, and for a plain boolean.
         It 'reads plain "False"/"True" strings the same way' {
             $enable = Get-EnabledGuard -Path $script:ScriptPath -Action 'enable'
             $disable = Get-EnabledGuard -Path $script:ScriptPath -Action 'disable'
@@ -143,15 +129,6 @@ Describe 'firewall.ps1' {
             [bool](& $disable.Guard) | Should -BeTrue
         }
 
-        # Deliberately weaker than its siblings, and labeled so no reader
-        # mistakes it for a regression pin. With a [bool] on the LEFT, PowerShell
-        # converts the RIGHT operand to [bool], and every non-empty string
-        # converts to $true -- so 'True', 'False', and any other literal behave
-        # identically here, and the guard collapses to the truthiness test this
-        # suite rules out. The case therefore proves only that the fix did not
-        # BREAK a boolean-valued property; it cannot discriminate the fix from
-        # the defect, because a plain boolean never had the enum's True = 1 /
-        # False = 2 aliasing the defect depended on.
         It 'does not break when Enabled arrives as a plain boolean' {
             $enable = Get-EnabledGuard -Path $script:ScriptPath -Action 'enable'
             $disable = Get-EnabledGuard -Path $script:ScriptPath -Action 'disable'
@@ -167,13 +144,6 @@ Describe 'firewall.ps1' {
     }
 
     Context 'check action, end to end' {
-        # Run in a child pwsh: firewall.ps1 calls `exit`, which escapes an
-        # in-process `& $ScriptPath` and surfaces as
-        # "A 'break' or 'continue' statement ... escaped from your code",
-        # aborting the WHOLE container with no results rather than failing one
-        # test. The child gets a Get-NetFirewallRule stub in its global scope,
-        # which the script picks up because it defines no function of that name
-        # itself.
         BeforeAll {
             function Invoke-FirewallCheck {
                 param([Parameter(Mandatory)] [string] $EnabledMember)

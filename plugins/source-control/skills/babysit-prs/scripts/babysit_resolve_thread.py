@@ -232,9 +232,6 @@ def resolve_thread_audit_log_path() -> Path:
     override = os.environ.get("SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG")
     if override:
         return Path(override).expanduser()
-    # Another plugin's SessionStart hook can export its own data dir into every
-    # Bash call under this name, so an inherited value counts only when its last
-    # path segment names this plugin.
     plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA", "")
     segment = Path(plugin_data.rstrip("/\\")).name if plugin_data else ""
     if segment == "source-control" or segment.startswith("source-control-"):
@@ -256,32 +253,12 @@ def append_resolve_thread_audit(record: dict[str, object]) -> None:
         fh.write(json.dumps(stamped, separators=(",", ":"), sort_keys=True) + "\n")
 
 
-# Deterministic proxies for "a security or P1 thread" -- deliberately NARROWER
-# than the shared P0-P3 vocabulary in babysit_classify: the permission grants
-# forbid the unattended path only for security/P1-class findings, while
-# advisory P2/P3 threads are exactly what the worker is documented to resolve
-# once outdated (reference/orchestration.md), so a P0-P3-wide guard would
-# permanently self-block the merge gate on its own advisory threads. The word
-# "security" is matched as prose (the shared vocabulary ignores prose words to
-# avoid false READINESS counts, but the grant names it); uppercase CRITICAL is
-# the word-form of the same forbidden class. A false positive only routes the
-# thread to interactive judgment.
-# Structured P0/P1 markers only -- shields badge (/badge/P0- or /badge/P1-) or
-# bracketed [P0]/[P1] -- not bare prose mentions such as "P1/P4 defect" in a P2
-# thread's body (#1939). Line-leading `P1:` / `P0:` declarations and explicit
-# `P1 must fix` forms remain blocking -- bots emit them as severity labels.
-# Vetted `--resolve --thread-id` mode applies no severity screen; it trusts the
-# calling agent's vetting. That asymmetry is intentional.
 FORBIDDEN_P01_BADGE_RE = re.compile(r"/badge/P[01]-", re.IGNORECASE)
 FORBIDDEN_P01_BRACKET_RE = re.compile(r"\[P[01]\]", re.IGNORECASE)
 FORBIDDEN_P01_PREFIX_RE = re.compile(r"(?:^|[\s\n])P[01]\s*:", re.IGNORECASE)
 FORBIDDEN_P01_MUST_FIX_RE = re.compile(r"\bP[01]\s+must\s+fix\b", re.IGNORECASE)
 SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
-# Bulk `--include-human` must not sweep a thread whose most recent human reply
-# explicitly parks the finding (#671). Structured VALID (defer) markers and the
-# defer-language phrases operators use when holding a thread pending a ruling
-# are treated equivalently.
 HUMAN_DEFERRAL_RE = re.compile(
     r"(?:"
     r"VALID\s*\(\s*defer\s*\)"
@@ -305,10 +282,6 @@ FORBIDDEN_CLASS_PATTERNS = (
 )
 
 
-# The first line address-feedback's `renderReply`
-# (.github/scripts/pr-unblock/publish-feedback.mjs) writes for a fixed finding.
-# Its other dispositions leave the thread open, so only this one counts as an
-# answer, and only on the lane's latest reply.
 LANE_FIXED_HEADER = "**pr-unblock / address-feedback: VALID, fixed**"
 
 
@@ -523,8 +496,6 @@ def fetch_threads(
     self_logins: frozenset[str] = frozenset(),
     lane_logins: frozenset[str] = frozenset(),
 ) -> list[dict[str, object]]:
-    # include_resolved so the caller can see (and skip) already-resolved threads;
-    # comments_first=100 to inspect every participant for the bot-only test.
     project = partial(
         project_thread,
         extra_bot_logins=extra_bot_logins,
@@ -599,9 +570,6 @@ def classify(
     if not thread["botOnly"] and not include_human:
         return "skipped-human-thread"
     if include_human and not pinned_thread and thread.get("humanDeferred", True):
-        # Bulk `--include-human` must not sweep a thread a human deliberately
-        # parked pending a ruling (#671). A pinned `--thread-id` call is an
-        # explicit per-thread vet and may still proceed.
         return "skipped-human-deferred"
     if (autonomous or only_outdated) and not thread["isOutdated"]:
         return "skipped-not-outdated"
@@ -610,20 +578,6 @@ def classify(
     if own_pr and not thread.get("laneAnswered", False):
         return "skipped-own-pr-not-lane-answered"
     if independent and not _is_single_finding(thread):
-        # Resolution is a THREAD-level act while a disposition is a claim about ONE
-        # finding, so a thread carrying several findings cannot be cleared on one
-        # evidence tuple: `resolveReviewThread` drops every comment the thread
-        # carries out of the readiness denominator
-        # (`babysit_classify.thread_is_open`), so evidence for finding A would
-        # suppress an unaddressed finding B and let the merge gate pass over it.
-        # D7.5 (`reference/review-discipline.md`) states the same rule as a
-        # property of the whole thread: every finding extracted from it needs its
-        # own recorded disposition. This mode validates exactly one, so a
-        # multi-finding thread is refused and escalates instead.
-        #
-        # Scoped to `independent` alone: `--autonomous`'s addressed signal is
-        # `isOutdated`, which GitHub computes for the thread as a whole rather
-        # than per finding, so there is no per-finding claim there to under-cover.
         return "skipped-multi-finding-thread"
     return "eligible"
 
@@ -656,7 +610,6 @@ def gh_http_status(proc: subprocess.CompletedProcess[str]) -> int | None:
     return http_status_from_text(proc.stderr or "")
 
 
-# owner/repo#N, #N, or a bare N (bare and #N default to the PR's own repo).
 TRACKER_ITEM_RE = re.compile(
     r"\A(?:(?P<repo>[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#|#)?(?P<number>[0-9]+)\Z"
 )
@@ -712,12 +665,6 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
         ["api", f"repos/{head_owner}/{head_name}/compare/{sha}...{head_oid}"]
     )
     if compare.returncode != 0:
-        # A SHA absent from the head repository 404s here -- the world answering
-        # "no such commit", which is a not-on-head refusal. Every OTHER failure
-        # (403, 5xx, rate limit, timeout, no HTTP response at all) is the world
-        # being unreachable, and reporting that as a not-on-head answer would send
-        # the caller off to replace evidence that may be perfectly valid instead
-        # of retrying the outage.
         return False, (
             "refused-fix-commit-not-on-head"
             if gh_http_status(compare) == 404
@@ -729,10 +676,6 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
         return False, "refused-evidence-unverifiable"
     status = dig(result, "status")
     behind_by = dig(result, "behind_by")
-    # base=sha, head=head_oid: `identical` or `ahead` both mean head_oid
-    # descends from sha with no divergence, i.e. sha IS in the head branch's
-    # history. `behind_by == 0` restates that from the other side, so a
-    # `diverged`/`behind` result cannot slip through on status alone.
     if status in ("identical", "ahead") and behind_by == 0:
         return True, ""
     return False, "refused-fix-commit-not-on-head"
@@ -743,25 +686,11 @@ def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
     if not match:
         return False, "refused-tracker-item-not-found"
     repo = match.group("repo") or default_repo
-    # `TRACKER_ITEM_RE` admits an owner/repo SHAPE, not a valid one: its character
-    # class allows a leading dot and a bare dot-dot, so a repository component of
-    # `..` builds a `repos/<owner>/../issues/<n>` path that normalizes to something
-    # that was never a GitHub endpoint. The same format validation
-    # `verify_fix_commit` applies to the analogous compare URL therefore applies
-    # here, so the refusal names the malformed reference rather than reporting a
-    # lookup miss for an item nobody ever looked up. Applied to the RESOLVED repo,
-    # which costs nothing on the `default_repo` path (already validated by
-    # `parse_repo_number`) and keeps one rule instead of two.
     owner, _, name = repo.partition("/")
     if not is_owner_repo_pair(owner, name):
         return False, "refused-evidence-unverifiable"
     proc = gh_capture(["api", f"repos/{repo}/issues/{match.group('number')}"])
     if proc.returncode != 0:
-        # Only a confirmed 404 means the item is not there. A 403 on an issues
-        # endpoint is a permission answer, not a lookup miss, and a 5xx or a
-        # timeout is no answer at all -- telling the caller to fix a reference
-        # that does not exist while the API is merely unavailable is exactly what
-        # `refused-evidence-unverifiable` exists to prevent.
         return False, (
             "refused-tracker-item-not-found"
             if gh_http_status(proc) == 404
@@ -896,12 +825,6 @@ def parse_extra_bot_logins(raw: str | None) -> frozenset[str]:
 
 def main() -> int:
     configure_stdio()
-    # allow_abbrev=False: the permission grants covering this helper state
-    # their conditions as the literal presence or absence of a flag in the
-    # command text. Prefix abbreviation (argparse's default) lets `--i` resolve
-    # to --include-human while the text contains neither, so the written
-    # command and the resolved behavior diverge -- exactly what those
-    # conditions must be able to rule out.
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("pr", help="owner/repo#number or PR URL")
     parser.add_argument(
@@ -1400,13 +1323,6 @@ def main() -> int:
                 "includeHuman": args.include_human,
                 "ownPr": own_pr,
                 "laneLoginsSource": lane_logins_source if own_pr else None,
-                # Count only threads whose OPENING author is human. `botOnly`
-                # (every comment in the thread is a bot) is the wrong gate: a
-                # bot-opened thread carrying a later human reply is `botOnly:
-                # false` yet was never a human's thread, so counting it here
-                # reported a human-thread action that never happened (#512). The
-                # opening-author test matches the `--include-human` eligibility
-                # decision, via the shared `is_bot` authorship classifier.
                 "humanThreadsActed": sum(
                     1
                     for row in results

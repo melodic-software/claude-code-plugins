@@ -25,8 +25,6 @@ BIN="$TMP/bin"
 mkdir -p "$BIN"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/resolve-version-bump-conflict.sh"
 
-# run <prepare-output> [env assignments...]: runs the step with a prepare.sh
-# that prints <prepare-output>; sets RC, OUTPUT (GITHUB_OUTPUT) and LOG.
 run() {
   printf '#!/usr/bin/env bash\nprintf %%s %q\n' "$1" >"$BIN/prepare.sh"
   shift

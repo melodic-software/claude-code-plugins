@@ -322,6 +322,19 @@ else
   fail "a capture path with a bidi override is refused" "rc=$rc: $(cat "$T/err")"
 fi
 
+bash -c 'while :; do sleep 1; done' spawned $'x\ntouch '"$T"$'/pwned\n' &
+H=$!
+PIDS+=("$H")
+sleep 0.2
+mapfile -t LA < <(launch_args "$H")
+build "${LA[@]}" -- rec '<pid>'
+printf '%s\n' "$out" | sh >/dev/null 2>&1
+if [[ "$rc" == 0 && ! -e "$T/pwned" ]] && ! grep -q '^touch ' <<<"$out"; then
+  pass "a line break in a bound command line cannot end its comment in the printed script"
+else
+  fail "a line break in a bound command line cannot end its comment in the printed script" "rc=$rc out=$out"
+fi
+
 if ((FAILED)); then
   printf '%d failed\n' "$FAILED" >&2
   exit 1

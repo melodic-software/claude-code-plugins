@@ -17,6 +17,7 @@ session) and `retro_offer` (`offer` or `off`, default `offer`: under `off`,
 | `worker_continuation` | `resume`, `respawn` | `resume` | `/session-flow:orchestrate` (priming addendum only; export modes omit it) | repository file over user option over default |
 | `wip_commit` | an unquoted `true` or `false` | `false` | `/session-flow:handoff` ("WIP commit on an explicit pause") | repository file over user option over default |
 | `retro_lenses` | `1`, `3` (an unquoted `3` is valid) | `1` | `/session-flow:retro` session mode (Phase 2, "Review lenses"; `3` runs three parallel lens subagents merged before scoring) | repository file over user option over default |
+| `implementation_route` | `local`, `factory` | `local` | `/session-flow:workflow` (default mode step 3, after decompose; `factory` hands published items to the repository's factory lanes, except one that needs a local dependency) | repository file over user option over default |
 | `transcript_scope` | `worktree`, `repo`, `all` | `worktree` | `/session-flow:find-handoff` (step 2, the transcript scan); `/session-flow:recall` (Steps 2 and 3) | narrowest wins (`worktree` < `repo` < `all`); an unset user option counts as `worktree` |
 | `recall_report_kinds` | comma-separated issue types or labels | `Bug` | `/session-flow:recall` (Steps 2 and 5, the Still reported section) | repository file over user option over default |
 | `recall_doc_paths` | comma-separated git pathspecs | `*.md` | `/session-flow:recall` (Steps 2 and 5, the postmortem search) | repository file over user option over default |

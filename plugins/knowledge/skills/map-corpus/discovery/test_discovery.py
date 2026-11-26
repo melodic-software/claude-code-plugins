@@ -198,7 +198,6 @@ class TestParserSitemap(Base):
         self.assertIn(b"DOCTYPE", proc.stderr)
 
     def test_doctype_rejected_beyond_prefix_window(self):
-        # padding the prolog past any prefix window must not smuggle a DTD in
         padding = b"<!-- " + b"x" * 5000 + b" -->\n"
         snap = write(
             self.dir,
@@ -437,8 +436,6 @@ class TestLinkMapGate(LinkMapHarness):
         self.assertIn(b"not_a_real_key", proc.stderr)
 
 
-# Synthetic listing in the documented shape of GitHub's recursive trees API
-# (a stand-in for cursor/plugins: no capture, placeholder SHAs throughout).
 TREE_FIXTURE = os.path.join(HERE, "fixtures", "github-tree-pstack.json")
 REF = "1" * 40
 PSTACK_GLOBS = [

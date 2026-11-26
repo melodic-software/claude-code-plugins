@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# dotnet-test-selection.sh <test file>...: the {tests} expansion for dotnet test.
-#
-# Groups the given C# test files by owning project, the nearest *.csproj walking
-# up from each file, and prints one line per project, in first-seen order:
-#
-#   '<project>' --filter 'FullyQualifiedName~<Namespace>.<Class>.|...'
-#
-# with one term per top-level class the project's given files declare. The
-# namespace comes from a file-scoped declaration or the enclosing namespace
-# blocks, joined with `.`; a class in no namespace is its bare name. The
-# trailing `.` keeps `~` (contains) from also matching a class whose name
-# extends this one. A class holding nested classes also gets a `<Class>+` term,
-# so their tests match whether the adapter joins a nested class with `.` or `+`.
-# A generic class gets one term with no trailing dot, since this script does not
-# know how the adapter spells its type parameters. Comments, string and
-# character literals and preprocessor lines are skipped before classes are read.
-#
-# Each line is shell-quoted, so `dotnet test <line>` runs one project. A project
-# path is relative to the working directory when the project sits under it,
-# absolute otherwise.
-#
-# Exit 0: printed. 1: a file is unreadable, has no owning project, has a
-# directory with more than one *.csproj nearest it, or declares no top-level
-# class; nothing is printed. 2: usage error.
 set -uo pipefail
 shopt -s nullglob
 

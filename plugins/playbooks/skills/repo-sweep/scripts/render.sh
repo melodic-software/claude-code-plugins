@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Render a repo-sweep plan (formats: ../SKILL.md "Formats").
-#
-#   render.sh --checklist <catalog> <selection-line> [<recommendations-tsv>]
-#     The PR checklist block: the markers around one "- [ ] <id>: <skills>" line per
-#     selected id, in selection order. Given the TSV, a "Not run:" section follows, one line
-#     per unselected catalog entry in catalog order: "not applicable, <reason>" for a
-#     not-applicable row, "not selected, recommended <rec>: <reason>" for any other row,
-#     "not selected" for an entry the TSV lacks.
-#   render.sh --page <catalog> <recommendations-tsv>
-#     The selection page: the template with its one __REPO_SWEEP_DATA__ token replaced by
-#     the JSON below. Template: $REPO_SWEEP_PAGE_TEMPLATE, default
-#     ../../../reference/repo-sweep-plan-page.html from this script. The TSV must hold a
-#     row for every catalog id.
-#
-# selection-line: "repo-sweep-selection: <id>,<id>,..." (the page's copy output).
-# recommendations-tsv: id, recommendation (run|rerun|rerun-optional|not-applicable), reason:
-# history.sh's output with the caller's not-applicable judgments applied.
-# Page JSON, entries in catalog order:
-#   {"playbook": "<catalog stem>", "entries": [{"id", "phase", "skills": [...], "args",
-#    "issue", "appliesWhen", "recommendation", "reason", "checked"}]}
-# checked is the catalog default, false on a not-applicable row. Every "<" is written as
-# < so the data cannot close the <script> element holding it.
-# Exit: 0 ok; 1 bad input (unknown or duplicate id, bad recommendation, missing TSV row,
-# template missing or without exactly one token); 2 usage.
 set -euo pipefail
 
 dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

@@ -156,7 +156,6 @@ export function registerStickyNoteTools(
       const board = await api.getBoard(board_id);
       const items: Array<Record<string, unknown>> = [];
       if (type === "connector") {
-        // Connectors are not returned by the items endpoint; Miro exposes them separately.
         for await (const connector of board.getAllConnectors()) {
           items.push({
             id: connector.id,

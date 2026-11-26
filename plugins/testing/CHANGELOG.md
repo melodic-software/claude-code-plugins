@@ -3,6 +3,15 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.3] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk` synced (comment-only removal).
+- The audit skill's adapter file format moved from the `adapter-load.awk` header comment to `skills/audit/reference/adapter-format.md`; the audit scanners lose their comments, with no behavior change.
+
+- Shared detector-findings contract synced where this plugin carries it: it registers `code-tidying/remove-comments/rule-glossary-candidate`; no other change to this plugin.
+
 ## [6.0.2] - 2026-11-25
 
 ### Changed

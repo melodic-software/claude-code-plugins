@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -15,9 +15,11 @@ export const MAX_BOT_COMMITS = 2;
 export const MAX_GAPS = 50;
 export const MAX_SUITES = 20;
 export const MAX_TRACE_BYTES = 1024 * 1024;
+export const JOB_PAGES = 10;
 export const REQUIRED_WORKFLOW = ".github/workflows/pr-require-checks.yml";
 export const TRACE_JOB = "Test Selection";
 export const TRACE_STEP = "Trace the changed suites";
+const TRACE_SHARD = new RegExp(`^${TRACE_JOB}(?: \\(\\d+\\))?$`);
 export const ACCEPTED_VERDICT = /^(selects |unmapped: )/;
 export const REASONS = Object.freeze({ invalid: "test-scope-invalid", notAllGaps: "test-scope-not-all-gaps", gapsRemain: "test-scope-gaps-remain" });
 export const DEPENDABOT_LOGIN = "dependabot[bot]";
@@ -34,12 +36,15 @@ export function traceOnlyFailure(required) {
     return false;
   }
   const failed = jobs.filter((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
-  if (failed.length !== 1 || failed[0].name !== TRACE_JOB || failed[0].conclusion !== "failure" || !Array.isArray(failed[0].steps)) {
+  return failed.length > 0 && failed.every(failedAtTrace);
+}
+
+function failedAtTrace(job) {
+  if (!TRACE_SHARD.test(job.name) || job.conclusion !== "failure" || !Array.isArray(job.steps)) {
     return false;
   }
-  const steps = failed[0].steps;
-  const at = steps.findIndex((step) => step?.conclusion === "failure");
-  return at !== -1 && steps[at].name === TRACE_STEP && steps.slice(0, at).every((step) => PASSED_STEP.has(step?.conclusion));
+  const at = job.steps.findIndex((step) => step?.conclusion === "failure");
+  return at !== -1 && job.steps[at].name === TRACE_STEP && job.steps.slice(0, at).every((step) => PASSED_STEP.has(step?.conclusion));
 }
 
 class TraceError extends Error {}
@@ -67,14 +72,28 @@ function table(dir, name, width) {
 export const SUITE_COLUMNS = 4;
 const SUITE_ROW = /^([0-9]+|not-traced)\t[0-9]+\t[0-9]+$/;
 
+function readShard(dir) {
+  const suites = table(dir, "suites.tsv", SUITE_COLUMNS);
+  const bad = suites.findIndex((fields) => !SUITE_ROW.test(fields.slice(1).join("\t")));
+  if (bad !== -1) {
+    throw new TraceError(`suites.tsv line ${bad + 1} is not suite, exit code or not-traced, seconds, read count`);
+  }
+  return { gaps: table(dir, "gaps.tsv", 3), suites, verdicts: table(dir, "verdicts.tsv", 2) };
+}
+
 export function readTrace(dir) {
   try {
-    const suites = table(dir, "suites.tsv", SUITE_COLUMNS);
-    const bad = suites.findIndex((fields) => !SUITE_ROW.test(fields.slice(1).join("\t")));
-    if (bad !== -1) {
-      throw new TraceError(`suites.tsv line ${bad + 1} is not suite, exit code or not-traced, seconds, read count`);
+    if (lstatSync(join(dir, "suites.tsv"), { throwIfNoEntry: false }) !== undefined) {
+      return readShard(dir);
     }
-    return { gaps: table(dir, "gaps.tsv", 3), suites, verdicts: table(dir, "verdicts.tsv", 2) };
+    const shards = lstatSync(dir, { throwIfNoEntry: false })?.isDirectory()
+      ? readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort()
+      : [];
+    if (shards.length === 0) {
+      throw new TraceError("the download holds no suites.tsv and no shard directory");
+    }
+    const parts = shards.map((name) => readShard(join(dir, name)));
+    return Object.fromEntries(["gaps", "suites", "verdicts"].map((key) => [key, parts.flatMap((part) => part[key])]));
   } catch (error) {
     if (error instanceof TraceError) {
       return refuse(REASONS.invalid, error.message);
@@ -213,7 +232,7 @@ export async function locate({ call, repository, pr, headSha }) {
   if (!run) {
     return { skip: "not-applicable", why: "no completed pull_request run of pr-require-checks at the head" };
   }
-  const jobs = await pages(call, `/repos/${repository}/actions/runs/${run.id}/jobs?filter=latest`, { key: "jobs", max: 3 });
+  const jobs = await pages(call, `/repos/${repository}/actions/runs/${run.id}/jobs?filter=latest`, { key: "jobs", max: JOB_PAGES });
   if (!traceOnlyFailure({ run, jobs })) {
     return { skip: "not-applicable", why: `run ${run.id} did not fail at ${TRACE_STEP} alone` };
   }

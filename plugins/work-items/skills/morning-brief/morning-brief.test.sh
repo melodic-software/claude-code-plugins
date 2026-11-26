@@ -753,7 +753,7 @@ cat >"$TMP/touch.json" <<'EOF'
      {"__typename": "PullRequestReview", "createdAt": "2026-07-19T10:06:00Z", "author": {"login": "op-user"}, "state": "COMMENTED"},
      {"__typename": "MergedEvent", "createdAt": "2026-07-20T07:00:00Z", "actor": {"login": "op-user"}},
      {"__typename": "IssueComment", "createdAt": "2026-07-19T09:00:00Z", "author": {"login": "lanes-app"},
-      "body": "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=abc -->\nStopped.\n\n- Reason: `ci-fix-round-cap`"}]},
+      "body": "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=abc -->\n<!-- stop-reason lane=pr-unblock reason=design -->\n### pr-unblock / report-escalation\nHeld for a person: why.\nReason: `design`\n\n- Lane code: `ci-fix-round-cap`"}]},
    "labels": {"nodes": [
      {"__typename": "LabeledEvent", "createdAt": "2026-07-19T09:00:00Z", "actor": {"login": "lanes-app"}, "label": {"name": "needs-human"}},
      {"__typename": "UnlabeledEvent", "createdAt": "2026-07-19T12:30:00Z", "actor": {"login": "op-user"}, "label": {"name": "needs-human"}},
@@ -797,7 +797,7 @@ assert_contains "touches: the second day's row" "$TOUCH_SEC" \
   "  2026-07-20          0        1        1        0        1        2                     0"
 assert_contains "touches: hold waits pair each lift with its apply event" "$TOUCH_SEC" \
   "  hold waits (needs-human applied to lifted): n=2, median 3h 30m, max 2d 18h, 1 with no apply event read"
-assert_contains "touches: an escalation reason from a Reason line" "$TOUCH_SEC" "       1  pr-unblock escalated ci-fix-round-cap"
+assert_contains "touches: an escalation reason from the Lane code line" "$TOUCH_SEC" "       1  pr-unblock escalated ci-fix-round-cap"
 assert_contains "touches: an escalation reason from the pr-merge marker" "$TOUCH_SEC" "       1  pr-merge escalated risk"
 assert_contains "touches: an escalation reason from the outcome marker" "$TOUCH_SEC" "       1  work-resolve-issue escalated pushback"
 assert_contains "touches: a marker with no reason" "$TOUCH_SEC" "       1  work-loop ratify-c3 unspecified"

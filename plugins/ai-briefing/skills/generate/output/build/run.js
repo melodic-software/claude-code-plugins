@@ -1,4 +1,3 @@
-// Exit codes: 0 = all green, 1 = validation failed, 2 = build error.
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

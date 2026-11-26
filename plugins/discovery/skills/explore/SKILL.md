@@ -214,7 +214,6 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 - A question turns on what a live system holds now (a database, a tracker, a service): read it through that system's CLI or MCP tool from the stage that asks.
 - The picture is enough, no contract is locked, and the diff will not be quick to review and cheap to retry: `/planning:interview`.
 - The contract is locked and the work adds types, contracts, or module boundaries: `/planning:design`.
-- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## Related
 

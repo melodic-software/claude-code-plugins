@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# The checkup decision page builder: the interactive validator profile, hostile machine
-# text, the hidden run choice, and row-id parity between the builder's id map and the
-# ids the shared runtime assigns when the page loads in a headless browser.
-# Machine-derived text is K2, so every string must reach the page only as escaped JSON data.
-#
-#   bash plugins/machine-health/tests/checkup-view.test.sh
-#
-# Set CHROME to pick the browser. Set CHECKUP_SCREENSHOTS to a folder to also save the
-# built page in light and dark themes as PNG files there.
 # Exit 0 clean, 1 findings, 2 environment (node or a Chrome or Chromium binary missing).
 set -euo pipefail
 

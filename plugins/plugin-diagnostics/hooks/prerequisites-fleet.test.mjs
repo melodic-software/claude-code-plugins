@@ -12,7 +12,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const checker = path.join(here, "..", "lib", "prerequisites.mjs");
 const posix = process.platform !== "win32";
 
-// A config directory laid out the way Claude Code installs plugins: plugins/cache/<marketplace>/<name>/<version>.
 function fleet({ plugins, enabled, pluginConfigs = {} }) {
   const config = tempDir("prereq-fleet-");
   const installed = {};

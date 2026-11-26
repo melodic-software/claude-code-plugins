@@ -1,21 +1,8 @@
 #!/usr/bin/env bash
-# Black-box contract test for the javascript-format PostToolBatch row, launched exactly
-# as hooks.json registers it (node exec-bash.mjs with the row's args).
-#
-# Self-contained: builds throwaway git repos with runtime-generated fixtures.
-# Each repo gets a node_modules/.bin/biome shim that forwards to a real Biome, so
-# the hook's node_modules resolution path is exercised. The row is run from an
-# UNRELATED cwd so any reliance on the caller's working directory would surface
-# (Biome discovers config from the directory the hook cds to, not the caller's).
-#
-# Requires a real Biome binary: $BIOME_TEST_BIN if set, else `biome` on PATH.
-# Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/javascript-format/.claude-plugin/plugin.json plugins/javascript-format/hooks/hooks.json plugins/javascript-format/prerequisites.json plugins/javascript-format/lib/git-hooks/install.mjs plugins/javascript-format/lib/prerequisites.mjs plugins/javascript-format/git-hooks/format.sh
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG BIOME_CONFIG_PATH
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -38,10 +25,6 @@ expect() {
   if [[ "$2" == "$3" ]]; then ok "$1"; else fail "$1: want [$2] got [$3]"; fi
 }
 
-# --- The local-bin walk is bound to prerequisites.json --------------------------
-# The walk is not composed from the manifest, so this case is the binding: the
-# manifest lists biome, jq and node, and the walk states biome's local_bin
-# verbatim.
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.requires | map(.id)) == ["biome", "jq", "node"] and .requires[0].detect.local_bin == ["node_modules/.bin/biome"]' "$MANIFEST" >/dev/null 2>&1; then
@@ -91,10 +74,6 @@ else
   fail "probe cases need git and node"
 fi
 
-# --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ----
-# The batch row takes no matcher and no `if`: the hooks reference says neither
-# applies to the event. The launcher flag takes one text, which cannot cover ten
-# extensions, so the script filters; the row carries only the kill-switch gate.
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
   EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","JAVASCRIPT_FORMAT_ENABLED","${CLAUDE_PLUGIN_ROOT}/hooks/javascript-format.sh"]'
@@ -112,9 +91,6 @@ else
   fail "hooks.json assertions need jq and $HOOKS_JSON"
 fi
 
-# --- SessionStart probe: run by harness-ops behind javascript_format_enabled ---
-# harness-ops' prerequisites-fleet.mjs runs this plugin's probe and skips it when the
-# option is set to anything but true; that runner's own test covers the gate.
 expect "prerequisites.json: session_probe is gated on javascript_format_enabled" "JAVASCRIPT_FORMAT_ENABLED" \
   "$(jq -r '.session_probe.run_if_unset_or_true' "$PLUGIN_ROOT/prerequisites.json" | tr -d '\r')"
 
@@ -155,15 +131,12 @@ new_biome_repo() {
   fi
 }
 
-# payload <tool> <file>...: a PostToolBatch payload with one call per file.
 payload() {
   local tool="$1"
   shift
   jq -n --arg t "$tool" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [$ARGS.positional[] | {tool_name: $t, tool_input: {file_path: .}, tool_use_id: "toolu_x", tool_response: "ok"}]}' --args "$@"
 }
 
-# fire <payload> [env...]: the registered row, from an unrelated cwd. CLAUDE_PROJECT_DIR
-# stays unset so scoping falls to git-working-tree membership.
 fire() {
   local p="$1"
   shift
@@ -175,9 +148,6 @@ fire() {
 
 run_edit() { fire "$(payload Edit "$1")"; }
 
-# --- Opt-in gate OFF (no biome.json) -> file left untouched -------------------
-# A repo with Biome installed but NO config must not have its files rewritten to
-# Biome's built-in defaults.
 REPO_NO="$WORK/no-config"
 new_biome_repo "$REPO_NO" NO_CONFIG
 printf 'const x=1;var y=2\n' >"$REPO_NO/nofmt.ts"
@@ -185,8 +155,6 @@ OUT=$(run_edit "$REPO_NO/nofmt.ts")
 expect "no config: exit 0 and silent" "0|" "$?|$OUT"
 expect "no config: file left untouched" "const x=1;var y=2" "$(cat "$REPO_NO/nofmt.ts")"
 
-# .biome.json/.biome.jsonc are only loaded by Biome >= 2.4, so they must not
-# opt in: an older Biome would reformat with built-in defaults.
 REPO_DOT="$WORK/dotted-only"
 new_biome_repo "$REPO_DOT" NO_CONFIG
 printf '{}\n' >"$REPO_DOT/.biome.json"
@@ -194,7 +162,6 @@ printf 'const x=1;var y=2\n' >"$REPO_DOT/dot.ts"
 run_edit "$REPO_DOT/dot.ts" >/dev/null
 expect "hidden .biome.json only: file left untouched" "const x=1;var y=2" "$(cat "$REPO_DOT/dot.ts")"
 
-# --- Rewrites, and prints nothing -----------------------------------------------
 REPO="$WORK/consumer"
 new_biome_repo "$REPO"
 mkdir -p "$REPO/src" "$REPO/lib"
@@ -230,7 +197,6 @@ printf 'import { a } from "./a";\n' >"$REPO/unused.ts"
 run_edit "$REPO/unused.ts" >/dev/null
 expect "an unused import survives the in-session rewrite" 'import { a } from "./a";' "$(cat "$REPO/unused.ts")"
 
-# BIOME_CONFIG_PATH is a config-path override; the repo config stays authoritative.
 REPO_ENV="$WORK/env-override"
 new_biome_repo "$REPO_ENV" '{ "javascript": { "formatter": { "quoteStyle": "single" } } }'
 EXT_CFG="$WORK/external-cfg"
@@ -240,7 +206,6 @@ printf 'const s = "hi";\nexport { s };\n' >"$REPO_ENV/q.ts"
 fire "$(payload Edit "$REPO_ENV/q.ts")" BIOME_CONFIG_PATH="$EXT_CFG" >/dev/null
 expect "BIOME_CONFIG_PATH is neutralized: the repo config is authoritative" "const s = 'hi';" "$(head -1 "$REPO_ENV/q.ts")"
 
-# The topmost config governs, and runs a nested one beneath it.
 REPO_NEST="$WORK/nested"
 new_biome_repo "$REPO_NEST" '{ "formatter": { "indentStyle": "space", "indentWidth": 2 } }'
 mkdir -p "$REPO_NEST/pkg/sub"
@@ -251,9 +216,6 @@ fire "$(payload Edit "$REPO_NEST/pkg/sub/f.ts" "$REPO_NEST/g.ts")" >/dev/null
 expect "the nested file formats under the root config extended by its own" "$(printf 'export function f() {\n        return 1;\n}')" "$(cat "$REPO_NEST/pkg/sub/f.ts")"
 expect "a file outside the nested config formats under the root config" "$(printf 'export function g() {\n  return 1;\n}')" "$(cat "$REPO_NEST/g.ts")"
 
-# --- The batch -------------------------------------------------------------------
-# One call, several files, all rewritten; a Read, a non-Biome file and a
-# duplicate are not.
 printf 'export const a=1\n' >"$REPO/b1.ts"
 printf 'export const b=1\n' >"$REPO/b2.mjs"
 printf 'export const c=1\n' >"$REPO/b3.ts"
@@ -296,14 +258,11 @@ for ext in tsx js jsx cjs mts jsonc; do
   expect "extension .$ext is rewritten" "$want" "$(cat "$REPO/ext.$ext")"
 done
 
-# --- Skips ------------------------------------------------------------------------
-# .githooks/ holds installed copies of check scripts, never rewritten here.
 mkdir -p "$REPO/.githooks/javascript-format"
 printf 'export const g=1\n' >"$REPO/.githooks/javascript-format/copy.ts"
 fire "$(payload Write "$REPO/.githooks/javascript-format/copy.ts")" >/dev/null
 expect "a file under .githooks/ is skipped" "export const g=1" "$(cat "$REPO/.githooks/javascript-format/copy.ts")"
 
-# The config's ignores hold for an explicitly passed path, silently.
 REPO_IGN="$WORK/ignore-config"
 new_biome_repo "$REPO_IGN" '{ "files": { "includes": ["**", "!**/generated/**"] } }'
 mkdir -p "$REPO_IGN/generated"
@@ -323,7 +282,6 @@ printf 'export const p=1\n' >"$REPO_PATH/p.ts"
 fire "$(payload Edit "$REPO_PATH/p.ts")" PATH="$(dirname "$REAL_BIOME"):$PATH" >/dev/null
 expect "PATH fallback: Biome resolved and file formatted" "export const p = 1;" "$(cat "$REPO_PATH/p.ts")"
 
-# Biome absent: the file is skipped silently; the SessionStart probe reports the gap.
 REPO_NB="$WORK/no-biome"
 mkdir -p "$REPO_NB"
 git -C "$REPO_NB" init -q
@@ -382,12 +340,7 @@ expect "the record's command never ran" "" "$(cat "$WORK/stub.log")"
 expect "a crafted file name reached Biome as data" "export const c = 1;" "$(cat "$REPO_REC/$CRAFTED")"
 expect "a crafted file name ran nothing" "no" "$([[ -e "$REPO_REC/pwned" || -e "$UNRELATED/pwned" ]] && echo yes || echo no)"
 
-# --- Spawn budget ----------------------------------------------------------------
-# PostToolBatch has no matcher, so the row fires on every batch of every session.
-# A batch that names no Biome file costs the node launcher and one bash, which
-# decides in a pattern match before any other process starts.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" javascript-format PostToolBatch javascript-format.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/README.md"},"tool_use_id":"toolu_census","tool_response":"# readme"}]}' \

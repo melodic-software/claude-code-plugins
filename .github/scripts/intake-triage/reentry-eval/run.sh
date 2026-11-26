@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Runs the intake re-entry eval (#8491) on the subscription login: builds the
-# suite from a ci-workflows clone at the ref the caller pins, with and without
-# this repository's instructions, outside any git tree, then runs
-# `claude plugin eval` on each build at the triage profile's model.
-#
-#   run.sh <ci-workflows clone> <out dir outside any git tree> [extra plugin eval flags...]
 set -euo pipefail
 
 [[ $# -ge 2 ]] || {
@@ -13,7 +7,6 @@ set -euo pipefail
 }
 clone=$1 out=$2
 shift 2
-# Subscription login only: an API key in the environment would bill it instead.
 if [[ -n "${ANTHROPIC_API_KEY:-}" || -n "${CLAUDE_API_KEY:-}" ]]; then
   echo "run.sh: an API key is set; this eval runs on the subscription login only" >&2
   exit 2
@@ -34,13 +27,9 @@ git -C "$clone" show "$sha:.github/actions/check-intake-triage-verdict/verdict.c
 node "$here/build-suite.mjs" --reusable "$out/reusable.yml" --verdict "$out/verdict.cjs" --sha "$sha" --out "$out/with"
 node "$here/build-suite.mjs" --reusable "$out/reusable.yml" --verdict "$out/verdict.cjs" --sha "$sha" --out "$out/without" --no-instructions
 
-# The triage profile (docs/conventions/pr-pipeline.yaml, models.profiles.triage).
 flags=(--scaffold --trust-plugin --no-publish --model sonnet --judge-model opus --runs 3 -j 4 "$@")
-# An empty HOME keeps the host's own stores (a Docker context link among them)
-# out of the run; the login stays in the operator's config dir.
 config=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 plugin_eval=(env HOME="$out/home" CLAUDE_CONFIG_DIR="$config" CLAUDE_CODE_EFFORT_LEVEL=medium "${CLAUDE_BIN:-claude}" plugin eval)
-# A failing case exits nonzero; run the baseline either way.
 rc=0
 "${plugin_eval[@]}" "$out/with" "${flags[@]}" --output-dir "$out/results-with" || rc=$?
 "${plugin_eval[@]}" "$out/without" "${flags[@]}" --ablation none --output-dir "$out/results-without" || rc=$?

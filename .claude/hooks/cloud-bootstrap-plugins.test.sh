@@ -20,7 +20,6 @@ if [[ ! -f "$BOOTSTRAP" ]]; then
   exit 1
 fi
 
-# silent-skip-ok: routed to a visible SKIP line counted apart from PASS
 host_executes_extensionless_claude_stub() {
   local d stub out
   d="$(mktemp -d)"
@@ -47,8 +46,8 @@ trap 'rm -rf "$TMP"' EXIT
 
 extract_fail=0
 
-if ! grep -q '^# --- Python CI deps' "$BOOTSTRAP"; then
-  echo "FAIL: end anchor '# --- Python CI deps' not found in $BOOTSTRAP"
+if ! grep -q '^python3 -m pip install' "$BOOTSTRAP"; then
+  echo "FAIL: end anchor '^python3 -m pip install' not found in $BOOTSTRAP"
   echo "      Without it the extraction runs to end of file and would execute the"
   echo "      script's pip, curl, install and git fetch steps once per case."
   extract_fail=1
@@ -66,7 +65,7 @@ BLOCK="$TMP/plugin-block.sh"
 {
   # shellcheck disable=SC2016  # the preamble is fixture text; $1 must stay literal
   printf '#!/usr/bin/env bash\nset -euo pipefail\nrepo_root="$1"\ncd -- "$repo_root"\n'
-  awk '/^claude_bin=/ {p = 1} /^# --- Python CI deps/ {p = 0} p' "$BOOTSTRAP"
+  awk '/^claude_bin=/ {p = 1} /^python3 -m pip install/ {p = 0} p' "$BOOTSTRAP"
 } >"$BLOCK"
 
 if ! grep -q 'plugin list --json' "$BLOCK"; then
@@ -285,8 +284,6 @@ run_case fresh "$NONE" "$BOTH_USER" "$REG_BOTH_HEAD" NONE
 expect "a first-run install counts as installed, not failed" \
   "plugins 2 declared, 2 newly installed, 0 refreshed, 0 failed"
 
-# The regression this whole change set exists for: the refresh chain's trailing
-# `plugin enable` exits 1 on the healthy path, and the stub reproduces that.
 run_case refreshed "$BOTH_USER" "$BOTH_USER" "$REG_BOTH_FIRST" "$REG_BOTH_HEAD"
 expect "a healthy refresh is not a failure even though \`plugin enable\` exits 1" \
   "plugins 2 declared, 0 newly installed, 1 refreshed, 0 failed"

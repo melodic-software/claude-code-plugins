@@ -195,8 +195,6 @@ def validate_issue(issue: dict[str, Any], index: int) -> list[str]:
             except (ValueError, TypeError):
                 errors.append(f"{prefix}: invalid date in '{date_field}': {val}")
 
-    # closedAt carries GitHub's raw timestamp (e.g. 2026-01-01T00:00:00Z);
-    # accept a bare date too.
     closed = issue.get("closedAt")
     if closed is not None:
         try:

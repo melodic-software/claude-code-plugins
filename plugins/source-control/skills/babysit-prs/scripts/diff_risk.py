@@ -176,25 +176,11 @@ class ChangedFile:
     additions: int
     deletions: int
     has_patch: bool  # False for binary, submodule, or over-size files
-    # Git file mode ("100644", "100755", "120000", "160000") on the side that
-    # exists (the base side for a removed file). The pull-request files API
-    # omits it, so the caller fills it from the git trees API or
-    # `git diff --raw`.
     mode: str
-    # The base-side mode. Required for a modified, changed, renamed or copied file. The
-    # caller passes None for an absent side; "000000" (git's absent mode) is
-    # read as absent and accepted only for an added file.
     previous_mode: str | None = None
-    # The files API's unified patch text, when it sent one (None otherwise).
     patch: str | None = None
-    # A manifest's or workflow's (base, head) text, None for an absent side,
-    # read by the caller; contents_error says why it could not.
     contents: tuple[str | None, str | None] | None = None
     contents_error: str | None = None
-    # Git blob ids, read with the modes: `blob` on the side `mode` names,
-    # `previous_blob` on the base side of a two-sided change. With no patch,
-    # they show a file carries no content a review did not read
-    # (`_unread_content`); None holds it for a person.
     blob: str | None = None
     previous_blob: str | None = None
     diff_read: bool = False
@@ -206,17 +192,10 @@ class LaneEvidence:
     bound: bool  # the evidence binding held on the pinned SHA
     unbound_reason: str | None
     open_findings: int | None  # None when not bound
-    # Every open finding is one a clean whole review of the head closes: none
-    # was reported at the head, no whole review of it is recorded, and no
-    # lane thread is unresolved.
     whole_review_clears: bool = False
-    # The security lane's open findings that hold the merge (CRITICAL, read
-    # by babysit_review_evidence.py); None when every one does. A
-    # claude-review finding never holds, whatever this says.
     blocking_findings: int | None = None
 
 
-# (glob, class, whether a `gate` row may take the author lift).
 FloorRows = tuple[tuple[str, str, bool], ...]
 
 
@@ -231,18 +210,11 @@ class RiskInput:
     path_holds: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
-    # The repository is public, where standard hosted runners are free; any
-    # other value reads every runs-on and macOS line as a charge.
     public: bool | None = None
     cost_decision: str | None = None
-    # Directories holding a Pulumi project file (Pulumi.yaml, .yml or .json)
-    # at the base ("" for the root): any change under one is infrastructure
-    # as code.
     pulumi_dirs: tuple[str, ...] | None = ()
     floor_exempt: frozenset[str] = frozenset()
     author_reviewed: frozenset[str] = frozenset()
-    # The listing reached the files API's cap, so no read ever completes it
-    # and its paths can never all be judged.
     files_capped: bool = False
     base_sha: str | None = None
     floor_rows: FloorRows = ()
@@ -259,7 +231,6 @@ class Reason:
 class RiskResult:
     score: Risk  # max(reason.severity), LOW when no reason
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
-    # The path holds `RiskInput.path_holds` False left out of `reasons`.
     skipped: tuple[Reason, ...] = ()
 
 
@@ -299,11 +270,6 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 
-# A secret the job token is not: any `secrets` reference but GITHUB_TOKEN
-# itself. The union of the reference forms (`secrets.X`, `secrets.*`,
-# `secrets['X']`, `toJSON(secrets)`, `secrets: inherit`) and any `secrets`
-# context in a `${{ }}` expression, whose span may hold a lone `}` (a string
-# or a `format` placeholder); a word inside a string or a name is neither.
 _NOT_JOB_TOKEN = r"(?!\s*\.\s*github_token\b)(?!\s*\[\s*['\"]github_token['\"]\s*\])"
 _EXPRESSION_SECRET = r"\$\{\{(?:[^}]|\}(?!\}))*?(?<![\w.'\"-])secrets(?![\w-])"
 _NON_JOB_SECRET = re.compile(
@@ -313,17 +279,11 @@ _NON_JOB_SECRET = re.compile(
     rf"|{_EXPRESSION_SECRET}{_NOT_JOB_TOKEN}",
     re.IGNORECASE,
 )
-# A lane token minted in the run, or an OIDC token a cloud trusts:
-# `id-token: write`, its key or value quoted or not, or `write-all`, which
-# sets "access for all of the available permissions" (https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#permissions),
-# id-token among them.
 _MINTED_CREDENTIAL = re.compile(
     r"\buses\s*:\s*['\"]?[^\s'\"]*request-lane-token|\bid-token['\"]?\s*:\s*['\"]?write\b"
     r"|\bwrite-all\b",
     re.IGNORECASE,
 )
-# `actions: write`, any key or value quoting, block or flow form: the token
-# can dispatch the gated credentialed workflows. `write-all` is matched above.
 _DISPATCH_SCOPE = re.compile(
     r"(?<![\w-])['\"]?actions['\"]?\s*:\s*['\"]?write\b", re.IGNORECASE
 )
@@ -348,11 +308,6 @@ def gated_workflow(stem: str, text: str) -> bool:
 
 AUTHOR_REVIEW_CLASSES = frozenset({"gate"})
 FLOOR_ROW_CLASSES = frozenset({"trust", "gate", "enforcement"})
-# The review's own surface, which owner decision Q11 (A) keeps with a person:
-# a review cannot judge the workflows holding its or other credentials, the
-# scripts that set its counts, or the files that set what agents may do and
-# what reviews judge against, so these `gate` rows never take the author lift.
-# A repository's own such rows carry `author-lift: false` in `floor-paths`.
 _NO_AUTHOR_LIFT = frozenset(
     {
         "**/.claude/**",
@@ -448,7 +403,6 @@ def floor_for(rows: FloorRows = ()) -> Floor:
 
 REVIEW_PATH_PREFIX = "review-path:"
 
-# plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
 
 LANES: dict[str, tuple[str, Risk]] = {
@@ -469,22 +423,17 @@ TRUST_GATE_PREFIX = "trust-gate:"
 TRUST_GATE_CODE = f"{TRUST_GATE_PREFIX}trusted-actors"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 
-# GitHub's documented pull request file statuses.
 STATUSES = frozenset(
     {"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
 )
 
 UNSAFE_PATH_CODE = "high-path:**"
 
-# Every tracked path segment uses only these characters. Anything else (a `:`,
-# a `~`, whitespace, a control or non-ASCII character) could alias a floor path
-# on some filesystem, so it is unsafe rather than enumerated.
 _SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
 _SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
 
 _ABSENT_MODE = "000000"
 _TWO_SIDED = frozenset({"modified", "changed", "renamed", "copied"})
-# Git file modes by type. Only regular files may stay below HIGH.
 _MODE_TYPES = {
     "100644": "regular",
     "100755": "regular",
@@ -877,10 +826,6 @@ COST_CODE = "cost-review-required"
 COST_FINDING_CODE = "cost-finding"
 SECRET_EXPOSURE_CODE = "secret-exposure-review"
 AGENT_SURFACE_CODE = "agent-surface-review"
-# Infrastructure as code: any change can add or resize a billed resource.
-# Pulumi reads a project or stack file in JSON or either YAML extension;
-# Terraform's JSON forms and the ARM template names Azure's quickstart
-# samples use count with the native ones.
 COST_PATHS: tuple[str, ...] = (
     "**/Pulumi.yaml",
     "**/Pulumi.yml",
@@ -901,16 +846,10 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Standard hosted runners are free only on public repositories, so on any
-# other a runs-on line, a Windows or macOS label (a matrix value) or a
-# schedule (recurring runs) charges.
 _COST_PRIVATE_LINE = re.compile(
     r"\bruns-on\s*:|\bmacos\b|\bwindows\b|\bcron\s*:|[\"']cron[\"']\s*:",
     re.IGNORECASE,
 )
-# Runner labels free on a public repository: GitHub's standard hosted labels
-# and the `free_runner_labels` globs, read only from the operator's
-# settings: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-config-delivery/README.md
 _FREE_RUNNER = re.compile(
     r"(?:ubuntu|windows|macos)-(?:latest|[0-9]+(?:\.[0-9]+)?)(?:-arm)?|windows-11-arm"
     + "".join(
@@ -1007,8 +946,6 @@ def _yaml_entries(text: str) -> list[tuple[tuple[str, ...], str]]:
         content, i = _join_flow(content, lines, i)
         stripped = content.lstrip()
         dash = stripped == "-" or stripped.startswith("- ")
-        # A list may sit at its key's own indent; a sibling item closes the
-        # one before it.
         while stack and (
             stack[-1][0] > indent
             or (stack[-1][0] == indent and (not dash or stack[-1][1].startswith("[")))
@@ -1114,22 +1051,14 @@ def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
 _SAFE_PIPELINE_LINE = re.compile(
     r"\s*(?:#.*)?|\s*(?:description|title)\s*:(?:\s.*)?", re.IGNORECASE
 )
-# Any secrets reference: `secrets.NAME`, `secrets.*`, `secrets['NAME']`, the
-# whole `secrets` context as an argument, and `secrets: inherit`, its key or
-# value quoted or not.
 _SECRET_REF = re.compile(
     r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
     r"|\bsecrets['\"]?\s*:\s*['\"]?inherit\b"
     rf"|{_EXPRESSION_SECRET}(?:[^}}]|\}}(?!\}}))*\}}\}}",
     re.IGNORECASE,
 )
-# Inside a `${{ }}` expression, the bare `secrets` context anywhere outside a
-# string literal (`${{ secrets }}`, `contains(secrets, 'X')`) is a reference
-# too; `has-secrets` or `steps.secrets-check` is another name.
 _STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
 _BARE_SECRETS = re.compile(r"(?<![\w.-])secrets(?![\w-])(?!\s*[.\[])", re.IGNORECASE)
-# An `if:` value is an expression without `${{ }}`, so its bare `secrets`
-# counts too; a block scalar's lines are joined to it first.
 _IF_VALUE = re.compile(
     r"(?:^\s*(?:-\s+)?|[{,]\s*)['\"]?if['\"]?\s*:\s*(.*)", re.IGNORECASE
 )
@@ -1150,8 +1079,6 @@ _MODEL_ACTION = re.compile(
 )
 _MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
 _LOCAL_USES = re.compile(r"\buses\s*:\s*['\"]?([.$]/[^\s'\"#]+)", re.IGNORECASE)
-# A composite action's metadata, which can start a model leg outside
-# `.github/workflows/`.
 _ACTIONS = (".github/actions/**/action.yml", ".github/actions/**/action.yaml")
 _TIMEOUT_VALUE = re.compile(
     r"(?:^\s*(?:-\s+)?|[{,]\s*)['\"]?(?:leg-)?timeout-minutes['\"]?\s*:\s*"
@@ -1257,7 +1184,6 @@ def _expressions(
             inside, quoted = True, False
             start = i = j + 3
         elif quoted:
-            # A doubled `''` closes and reopens: the same literal.
             quoted = text[i] != "'"
             i += 1
         elif text[i] == "'":
@@ -1528,8 +1454,6 @@ def _raised_retention(added: list[str], removed: list[str]) -> list[str]:
 
 PERMISSION_WIDENING_CODE = "permission-widening-review"
 PRIVILEGED_TRIGGER_CODE = "privileged-trigger-review"
-# Triggers that run the default branch's copy with a write token on another
-# event's behalf, or on text anyone who can comment or open an issue writes.
 PRIVILEGED_TRIGGERS = frozenset(
     {
         "pull_request_target",
@@ -1543,18 +1467,11 @@ PRIVILEGED_TRIGGERS = frozenset(
         "repository_dispatch",
     }
 )
-# A job with no `permissions:` of its own or at the top level runs on the
-# repository default, which this module cannot see, so it may write.
 _DEFAULT_TOKEN = "repository-default"
-# Raw-text backstops on comment-stripped lines, so a parser difference
-# between PyYAML and GitHub's cannot hide a gain: a write grant, and a
-# privileged trigger in a trigger's shape (a key, a list item, or a name on
-# an `on:` line), never a `github.event.workflow_run` expression.
 _WRITE_TEXT = re.compile(
     r"\b(?:id-token|[a-z-]+)\s*:\s*['\"]?write\b|\bwrite-all\b", re.IGNORECASE
 )
 _TRIGGER_NAMES = "|".join(sorted(PRIVILEGED_TRIGGERS, key=len, reverse=True))
-# A key form never takes `issues`, which is also a permissions scope.
 _TRIGGER_KEY = re.compile(
     r"^\s*['\"]?("
     + "|".join(sorted(PRIVILEGED_TRIGGERS - {"issues"}, key=len, reverse=True))
@@ -1656,7 +1573,6 @@ def _uncommented(line: str, quote: str) -> tuple[str, str]:
         if quote == '"' and c == "\\":
             i += 1
         elif c == quote:
-            # A doubled `''` is a quote inside the single-quoted scalar.
             if quote == "'" and line.startswith("''", i):
                 i += 1
             else:
@@ -1799,7 +1715,6 @@ def _workflow_privileges(text: str | None) -> tuple[_Jobs, set[str]] | None:
         return {}, set()
     if not isinstance(data, dict) or not isinstance(data.get("jobs"), dict):
         return None
-    # PyYAML reads a plain `on` key as the YAML 1.1 bool; GitHub reads "on".
     on = data.get("on", data.get(True))
     if on is None:
         triggers: set[str] = set()
@@ -1956,8 +1871,6 @@ def _cost_reasons(
             agent = _new_model_legs(added, removed)
             if agent:
                 agents.append(f"{f.path}: {'; '.join(agent)}")
-            # Hosted minutes and artifact storage are free only on a public
-            # repository.
             if not public:
                 charge += _billed_timeouts(raw, added, removed)
                 charge += _raised_retention(added, removed)
@@ -2221,17 +2134,6 @@ def holding(result: RiskResult) -> list[Reason]:
     ]
 
 
-# The holding reasons only a person clears (when a person is needed:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
-# with real-charge and trust holds kept, and for a hold no lane can clear): a
-# CRITICAL security finding, a trusted-actor widening, a real-charge hold, a
-# new secrets reference or model leg and a listing past the files API's cap.
-# A high path (the floor, a configured denied path, or an aliasing path,
-# symlink, submodule or mode change) still holds, but is not a person's: the
-# owner set no path restrictions (#11020). The lanes clear every other
-# holding reason, such as review evidence not yet bound to the head or a
-# listing a read did not finish, by judging again. The one list both the
-# merge gate and enable-auto-merge.mjs read.
 FILES_CAPPED_CODE = "files-capped"
 PERSON_CODES = frozenset(
     {

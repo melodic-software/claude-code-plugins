@@ -1,6 +1,3 @@
-// A workflow job's log as text, for work-unblock's refusal check: one fetch
-// through the rate guard's latch, no retry, and a body over `maxBytes` bytes
-// refused by its Content-Length or as it streams.
 import { Buffer } from "node:buffer";
 
 import { GitHubError } from "../lib/github-client.mjs";
@@ -23,7 +20,6 @@ export function createJobLogReader({ token, apiUrl = "https://api.github.com", f
       await response.body?.cancel().catch(() => {});
       throw response.ok ? over() : new GitHubError(response.status, what);
     }
-    // Leaving the loop cancels the stream.
     const chunks = [];
     let size = 0;
     for await (const chunk of response.body ?? []) {

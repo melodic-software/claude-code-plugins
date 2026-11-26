@@ -4,26 +4,6 @@
 // test-scope: .github/scripts/*.sh .github/scripts/*.bash .github/scripts/*.mjs
 // test-scope: plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
 // test-scope: plugins/formal-verification/scripts/check.mjs
-// Every workflow job that calls the GitHub API leaves api-budget readings and
-// logs them at its end, so the lane record's githubCalls covers the job: each
-// step that runs gh itself wraps it with api_budget_wrap_gh, or sources
-// api-budget.bash and calls api_budget_read, each script that runs as its own
-// process wraps its own calls, the job (or the step) sets
-// API_BUDGET_TOKEN for the actions below, and a final always() step runs this
-// action. A job calls GitHub when a step:
-//   - runs `gh api|issue|pr|run|workflow|release|label|search|repo`, or
-//     handoff-evidence.sh or dispatcher-current.sh;
-//   - runs a repository script (scripts/ or .github/scripts/, .sh or .bash,
-//     or any repository .sh or .bash a step env variable names and the step
-//     runs as `bash "$NAME"` or `"$NAME"`) whose own text does any of those;
-//   - uses resolve-config or check-trusted-trigger;
-//   - runs `node <path>.mjs` whose own text runs gh through child_process
-//     ("gh" as the file to run). Each such call sits in a counted helper, a
-//     top-level block naming api_budget_wrap_gh that runs gh under the
-//     wrapper for the token API_BUDGET_TOKEN names, which the job or step sets.
-// It does not see GitHub calls made through fetch or Python (an
-// api-budget.mjs caller, babysit_gh.py), through a script a script runs or a
-// scripts/lib file a script sources, or through other gh subcommands.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path/posix";
@@ -34,8 +14,6 @@ import { parse } from "yaml";
 const ROOT = new URL("../../../", import.meta.url);
 const WORKFLOWS = new URL(".github/workflows/", ROOT);
 
-// Jobs that call GitHub and are not yet covered, each with the exact gap the
-// detector reports for it, so a gap that grows, shrinks or closes fails.
 const NO_LOG = "no job-end log-api-budget step";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
@@ -64,8 +42,6 @@ const ALLOWED = new Map([
     "pr-review-main.yml:report-review-counts",
     `${NO_LOG}; step "Record the stops" calls gh without api_budget_wrap_gh; step "Record the counts" calls gh without api_budget_wrap_gh`,
   ],
-  // Steps whose own gh calls run unwrapped, on the release App's
-  // token, which has no api-budget token name yet.
   [
     "release-generate-dependabot-changelog-fragments.yml:generate-changelog-fragments",
     'step "Write the fragments and open the pull request" calls gh without api_budget_wrap_gh',
@@ -78,15 +54,11 @@ const ALLOWED = new Map([
     "release-publish-plugins.yml:merge",
     `step "Queue the checked head" calls gh without api_budget_wrap_gh; ${DECIDE_REBUILD}`,
   ],
-  // The detector judges selection-audit.sh by the whole file; trace, the mode
-  // this job runs, makes none of its gh calls (red-replay does).
   ["maintenance-audit-test-selection.yml:audit-test-selection", NO_LOG],
-  // Likewise upkeep.mjs: detect, the command this job runs, makes no gh call.
   [
     "maintenance-tidy-code-upkeep.yml:detect",
     `${NO_LOG}; .github/scripts/maintenance-tidy-code-upkeep/upkeep.mjs counts its gh calls only under API_BUDGET_TOKEN`,
   ],
-  // Node scripts that run gh through child_process with no counted helper.
   [
     "post-merge-file-demotion-issues.yml:file-demotion-issue",
     ".github/scripts/post-merge-demotion-alert/failing-checks.mjs runs gh outside a counted helper (1 call site)",
@@ -100,17 +72,12 @@ const SCRIPT =
   /(?:^|[\s"'])(?:\.base\/)?((?:\.github\/)?scripts\/[\w./-]+\.(?:sh|bash))\b/g;
 const WRAP = /\bapi_budget_wrap_gh\b/;
 const BASH_RUN = /\bbash +(?:\.base\/)?((?:\.github\/)?scripts\/[\w./-]+\.(?:sh|bash))\b/g;
-// A Node script a step runs, and a gh call in it through child_process: "gh"
-// as the file to run, passed to an exec or spawn function or a local helper.
 const NODE_SCRIPT =
   /(?:^|[\s;&|(])node +(?:\.base\/|\.lane-trusted\/)?([\w./-]+\.mjs)\b/gm;
 const CHILD_PROCESS = /["'](?:node:)?child_process["']/;
 const NODE_GH = /["'`]gh["'`]\s*[,)]/g;
-// Running a script a step env variable names: `bash "$NAME"`, `sh "$NAME"`, or
-// "$NAME" as the command. Sourcing it (`. "$NAME"`) is not running it.
 const ENV_SCRIPT =
   /(?:^[ \t]*|[;&|({][ \t]*|\b(?:bash|sh)[ \t]+)"?\$\{?([A-Z_][A-Z0-9_]*)\}?"?(?=[\s;&|)]|$)/gm;
-// Sourcing api-budget.bash by a literal path, or by "$NAME" from the step env.
 const LIB_SOURCE =
   /(?:^|[\s;{(])(?:\.|source) +(?:["']?([\w./-]*api-budget\.bash)\b|"\$\{?([A-Z_][A-Z0-9_]*)\}?")/gm;
 const SELF_WRAP =
@@ -140,18 +107,12 @@ const detector = ({ read, exists }) => {
       ...[...(step.run ?? "").matchAll(SCRIPT)].map(([, path]) => path),
       ...envScripts(step),
     ].filter((path) => GH_CALL.test(read(path)));
-  // A script run as its own process gets no gh() a step defines: it wraps its
-  // own calls by sourcing a wrapper file that exists and defines
-  // api_budget_wrap_gh.
   const scriptWraps = (path) => {
     const rel = read(path).match(SELF_WRAP)?.[1];
     if (!rel) return false;
     const wrapper = join(dirname(path), rel);
     return exists(wrapper) && /\bapi_budget_wrap_gh\(\)/.test(read(wrapper));
   };
-  // A Node script's gh calls, as { counted, uncounted }: a call in a top-level
-  // block that names api_budget_wrap_gh is that counted helper's own (it runs
-  // gh under the wrapper, or bare with no token); any other is uncounted.
   const nodeGh = (path) => {
     const text = read(path);
     const calls = { counted: 0, uncounted: 0 };
@@ -180,13 +141,6 @@ const detector = ({ read, exists }) => {
       `(?:^|[\\s;{(])(?:\\.|source) ["']?(?:\\.base/)?${path.replaceAll(".", "\\.")}`,
       "m",
     ).test(run);
-  // A step's own gh calls go through the gh() its own shell defines, by
-  // api_budget_wrap_gh or by sourcing a self-wrapping script; a wrap in
-  // another step, or API_BUDGET_TOKEN, which only the Node clients read, does
-  // not reach them. Script paths are left to the script rules.
-  // A step that records its own readings sources the library, by its path or
-  // by a step env variable holding it, and calls api_budget_read.
-  // Comment lines are not code, so neither half may come from one.
   const recordsOwn = ({ run = "", env = {} }) => {
     const code = run.replace(/^\s*#.*$/gm, "");
     return (
@@ -216,7 +170,6 @@ const detector = ({ read, exists }) => {
           /always\(\)/.test(s.if ?? "")) ||
         /\bapi_budget_emit\b/.test(s.run ?? ""),
     );
-    // A sourced script runs in the step's shell, under the gh() it defines.
     const sourcedUnderWrap = (path) =>
       steps.some((s) => WRAP.test(s.run ?? "") && sources(s.run, path));
     const scripts = steps.flatMap(scriptsOf);
@@ -326,8 +279,6 @@ const files = {
   "scripts/bare.sh": "gh issue list\n",
   "scripts/names-only.sh":
     "# api_budget_wrap_gh is defined elsewhere\ngh pr view 1\n",
-  // Node: a counted helper and a call through it; a bare execFileSync and one
-  // through a local runner; a "gh" literal with no child_process import.
   "scripts/counted.mjs": `import { execFileSync } from "node:child_process";\nexport function gh(args) {\n  if (!token) return execFileSync("gh", args);\n  return execFileSync("bash", ["-c", '. "$1" && api_budget_wrap_gh "$2" && shift 2 && gh "$@"', "gh", lib, token, ...args]);\n}\nconst x = gh(["pr", "list"]);\n`,
   "scripts/bare.mjs": `import { execFileSync } from "node:child_process";\nconst run = (file, args) => execFileSync(file, args);\nexecFileSync("gh", ["api", "x"]);\nrun("gh", ["pr", "list"]);\n`,
   "scripts/no-child.mjs": `const name = "gh";\nconsole.log(name, ["gh", 1]);\n`,
@@ -359,14 +310,12 @@ test("covered() names each missing piece", () => {
     covered({ steps: [WRAPPED, { ...LOG, if: "success()" }] }),
     ["no job-end log-api-budget step"],
   );
-  // API_BUDGET_TOKEN reaches the Node clients only, never a step's bare gh.
   assert.deepEqual(covered({ env, steps: [BARE, LOG] }), [
     'step "Bare" calls gh without api_budget_wrap_gh',
   ]);
   assert.deepEqual(covered({ steps: [{ run: "gh pr view 1" }, LOG] }), [
     'step "0" calls gh without api_budget_wrap_gh',
   ]);
-  // A wrap in one step leaves another step's gh unwrapped.
   assert.deepEqual(covered({ env, steps: [WRAPPED, BARE, LOG] }), [
     'step "Bare" calls gh without api_budget_wrap_gh',
   ]);
@@ -441,7 +390,6 @@ test("covered() names each missing piece", () => {
     }),
     false,
   );
-  // Sourcing a self-wrapping script defines gh() in the step's shell.
   assert.deepEqual(
     covered({ steps: [{ run: ". scripts/wraps.sh\ngh api y" }, LOG] }),
     [],

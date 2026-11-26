@@ -164,7 +164,6 @@ def synthesize(batches, session, style_rows, speed, space_id):
         edges = token_edges(np.asarray(durations).ravel(), len(waveform))
         for w, start in zip(batch, starts):
             a, b = w['span']
-            # +1 skips the leading pad: id position p spans edges[p + 1] .. edges[p + 2]
             spans.append((offset + int(edges[start + a + 1]), offset + int(edges[start + b + 1])))
         audio.append(waveform)
         offset += len(waveform)

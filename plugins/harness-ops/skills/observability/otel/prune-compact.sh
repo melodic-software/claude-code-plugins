@@ -1,28 +1,17 @@
 #!/usr/bin/env bash
-# prune-compact.sh — duckdb cold compaction, verify, and jq body surgery.
-# Sourced by prune-otel-store.sh; not an entry point.
-#
 # Requires SCRIPT_DIR, OS_KIND, and err() from the caller.
 # shellcheck disable=SC2154  # SCRIPT_DIR and OS_KIND are set by prune-otel-store.sh before source.
 
-# maximum_object_size matches cc-otel.sql (32 MiB — generous over the ~224 KB largest inline-body record).
 readonly DUCKDB_MAX_OBJECT_SIZE=33554432
 
-# Prompt-bearing attribute keys the cold tier scrubs unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1
-# (SQL list items). Compaction and --scrub-cold both read these and the lists below, so a new
-# key added here reaches both.
 readonly COLD_LOG_PROMPT_KEYS="'prompt', 'prompt_text'"
 readonly COLD_SPAN_PROMPT_KEYS="'user_prompt', 'prompt', 'prompt_text'"
-# The rest of the content class (cc-otel.sql's cold content boundary): promoted columns and
-# their attribute keys, scrubbed only when CC_OTEL_COLD_KEEP_CONTENT=0. Spans' content, output,
-# diff and bash_command come from the tool.output span event, which the raw column never holds.
 readonly COLD_LOG_CONTENT_COLS="response error tool_parameters tool_input hook_definitions hook_matcher managed_settings_settings managed_settings_helper_path body_ref workspace_host_paths user_email"
 readonly COLD_LOG_CONTENT_KEYS="'response', 'error', 'tool_parameters', 'tool_input', 'hook_definitions', 'hook_matcher', 'managed_settings.settings', 'managed_settings.helper.path', 'body_ref', 'workspace.host_paths', 'user.email'"
 readonly COLD_SPAN_CONTENT_COLS="user_system_prompt response_model_output new_context tool_input full_command error hook_definitions system_prompt_preview user_email file_path content output diff bash_command"
 readonly COLD_SPAN_CONTENT_KEYS="'user_system_prompt', 'response.model_output', 'new_context', 'tool_input', 'full_command', 'error', 'hook_definitions', 'system_prompt_preview', 'user.email', 'file_path'"
 readonly COLD_METRIC_CONTENT_COLS="user_email"
 readonly COLD_METRIC_CONTENT_KEYS="'user.email'"
-# from_json shape of a serialized attributes list; value stays raw JSON so it round-trips.
 readonly COLD_ATTR_SHAPE='[{"key":"VARCHAR","value":"JSON"}]'
 
 keep_prompts() { [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; }
@@ -43,8 +32,6 @@ cold_scrub_keys() {
   printf '%s' "$keys"
 }
 
-# REPLACE items NULLing the columns the switches in effect scrub (or empty). NULLIF(x, x) NULLs
-# a column without changing its type.
 cold_scrub_replace() {
   local kind="$1" items="" c
   if ! keep_prompts; then
@@ -60,39 +47,25 @@ cold_scrub_replace() {
   printf '%s' "$items"
 }
 
-# duckdb with cc-otel.sql's macros loaded, for a query over cold files. CC_OTEL_STORE points at
-# the cold dir, which holds no hot store files, so the hot-view binds fail fast; -cmd turns bail
-# back on after the init's `.bail off`, so a failing query exits non-zero. Arg 1: cold dir.
 duckdb_cold() {
   local cold_dir="$1"
   shift
   env CC_OTEL_STORE="$cold_dir" duckdb -init "$(sql_path "$SCRIPT_DIR/cc-otel.sql")" -cmd ".bail on" "$@"
 }
 
-# One kind's cold rows (a file, or a glob) under the current column contract: a file compacted
-# before a column was promoted reads it NULL. Extra read_parquet options ride in $3.
 cold_rows_sql() {
   printf "(SELECT * FROM %s() UNION ALL BY NAME SELECT * FROM read_parquet('%s', union_by_name = true%s))" \
     "$(cold_stub_macro "$1")" "$2" "${3:-}"
 }
 
-# Convert a path for embedding in a SQL string literal (or as a duckdb CLI arg). Native
-# duckdb.exe cannot resolve an MSYS path (/tmp/..., /d/...); cygpath -m yields a forward-slash
-# Windows path (C:/...) — safe in a SQL string literal and idempotent on an already-Windows
-# path (D:/...). No-op on POSIX (cygpath absent).
 sql_path() {
   local p="$1"
   if [[ "$OS_KIND" == windows ]] && command -v cygpath >/dev/null 2>&1; then
     p="$(cygpath -m "$p")"
   fi
-  # SQL-literal safety: callers interpolate this inside '...' — double any
-  # single quote so a path like /tmp/O'Neil cannot break the literal.
   printf '%s\n' "${p//\'/\'\'}"
 }
 
-# Run a command with stdout discarded; on failure pass its stderr to err() so the cause is
-# visible instead of a bare "failed". A duckdb -init load also reports the expected hot-view bind
-# errors (see compact_dropped); the failing statement's error comes last.
 run_reporting() {
   local out label=("$@")
   [[ "${label[0]}" == env ]] && label=("${label[@]:1}")
@@ -103,8 +76,6 @@ run_reporting() {
   fi
 }
 
-# Verify a trimmed temp parses as newline-delimited OTLP-JSON. An empty temp (all records aged
-# out) is a valid zero-record store. Overridable via CC_OTEL_VERIFY_CMD (test seam).
 verify_temp() {
   local temp="$1"
   [[ -s "$temp" ]] || return 0
@@ -120,25 +91,6 @@ verify_temp() {
     "SELECT count(*) FROM read_json_auto('$(sql_path "$temp")', format='newline_delimited', maximum_object_size=$DUCKDB_MAX_OBJECT_SIZE, sample_size=-1);"
 }
 
-# Compact one store file's aged-out (dropped) lines to a cold Parquet file BEFORE the hot trim
-# drops them. Cold layout: <store>/cold/<base>-<UTC-ISO-basic>Z.parquet — one file per prune
-# run (append-only: a failed compaction can never corrupt prior cold history; the .tmp suffix
-# below never matches the *-*.parquet glob the cc_*_cold macros read).
-#
-# Logs cross the B1 content boundary here: api_request_body/api_response_body rows are
-# excluded entirely; user_prompt rows survive (prompt frequency/timing analytics) but body and
-# the `prompt` column are NULLed and the prompt-bearing `prompt` and `prompt_text` attributes
-# are scrubbed from the attribute list — unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1. With
-# CC_OTEL_COLD_KEEP_CONTENT=0 the content-class columns of all three kinds are NULLed and their
-# keys scrubbed the same way; by default they are kept. Metrics have no row exclusions. Join-key
-# columns (session_id, prompt_id, tool_use_id, trace_id, span_id) ride the shared
-# cc_logs_from projection (cc-otel.sql), bridging cold rows to on-disk transcript lookups.
-#
-# Verify-before-replace extends to the cold step: COPY to a .tmp, verify it parses via
-# read_parquet, then mv into place. Any failure returns 1 and the caller aborts the trim with
-# the hot store untouched (always-abort — never trim what wasn't compacted). A crash BETWEEN
-# the cold mv and the hot mv re-compacts the same lines next run: duplicate cold rows, never
-# lost ones.
 compact_dropped() {
   local f="$1" dropped="$2" store_dir="$3" cold_ts="$4"
   local base="${f%.json}"
@@ -173,17 +125,8 @@ compact_dropped() {
     [[ -n "$keys" ]] && attrs="list_filter(attributes_list, lambda x: x.key NOT IN ($keys))"
     select_sql="SELECT * EXCLUDE (attributes_list)${replace:+ REPLACE ($replace)}, to_json($attrs) AS $(cold_raw_col "$base") FROM $(cold_from_macro "$base")('$src_sql')"
     if [[ "$base" == cc-logs ]]; then
-      # COALESCE: NOT IN over a NULL event_name yields NULL (row silently filtered) — keep
-      # nameless rows instead of losing them to three-valued logic.
       select_sql="$select_sql WHERE COALESCE(event_name, '') NOT IN ('api_request_body', 'api_response_body')"
     fi
-    # -init loads the cc_*_from table macros (SSOT projection). Only the macros are needed
-    # here, but the same file also creates the HOT views, which bind their
-    # store file eagerly at CREATE — against the real store that re-infers the full multi-MB
-    # schema per COPY invocation. Pointing CC_OTEL_STORE at a dir with no store files makes
-    # those binds fail instantly; cc-otel.sql's `.bail off` keeps the load going (macros
-    # still defined), so compaction works on any store shape — including a store missing one
-    # of the two files, and the very first compaction (empty cold/).
     if ! run_reporting env CC_OTEL_STORE="$store_dir/.prune-in-progress" \
       duckdb -init "$(sql_path "$SCRIPT_DIR/cc-otel.sql")" \
       -c "COPY ($select_sql) TO '$dst_sql' (FORMAT PARQUET, COMPRESSION ZSTD);"; then
@@ -201,11 +144,6 @@ compact_dropped() {
   mv -f "$cold_tmp" "$cold_file"
 }
 
-# Cold files compacted before a key joined the scrub lists (or with a keep switch on) still
-# hold content the switches now scrub. A row is dirty when its attribute list carries a
-# scrubbed key or a scrubbed column is non-NULL. Args: cc-logs|cc-traces|cc-metrics, then the
-# scope: prompts (the prompt set only, for the routine notice) or all (what --scrub-cold
-# removes under the switches in effect). Prints `false` when nothing is in scope.
 cold_dirty_predicate() {
   local kind="$1" scope="$2" raw keys="" cols="" c pred=""
   raw="$(cold_raw_col "$kind")"
@@ -236,8 +174,6 @@ cold_scrub_select() {
   printf '%s' "SELECT * REPLACE (${replace:+$replace, }to_json(list_filter(from_json($raw, '$COLD_ATTR_SHAPE'), lambda x: x.key NOT IN (${keys:-''}))) AS $raw) FROM $(cold_rows_sql "$kind" "$src_sql")"
 }
 
-# duckdb_cold with stdin closed, printing its output without CRs. Arg 1 names what it reads for
-# the error, which carries duckdb's last stderr line; the rest go to duckdb_cold.
 duckdb_cold_read() {
   local what="$1" out errf
   shift
@@ -251,15 +187,11 @@ duckdb_cold_read() {
   printf '%s\n' "${out//$'\r'/}"
 }
 
-# Print "<rows>,<dirty rows>" for one cold Parquet file.
 cold_counts() {
   local kind="$1" file="$2"
   duckdb_cold_read "$file" "${file%/*}" -csv -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind" all)) FROM $(cold_rows_sql "$kind" "$(sql_path "$file")");"
 }
 
-# Print "<rows>|<dirty rows>|<file name>" for every cold file of one kind, in ONE duckdb call
-# over the kind's glob (cold history is unbounded; a process per file does not scale).
-# Prints nothing when the kind has no cold files. Arg 3: predicate scope (see above).
 cold_glob_counts() {
   local kind="$1" cold_dir="$2" scope="$3"
   compgen -G "$cold_dir/$kind-*.parquet" >/dev/null || return 0
@@ -284,9 +216,6 @@ cold_snapshot() {
   } | sort | cksum
 }
 
-# cold/.prompt-scrub-clean asserts no cold file holds prompt content, so routine prunes skip
-# the scan. Keep-off compaction writes clean files, so it stays valid; a keep-on compaction
-# deletes it (compact_dropped). It is only written under the prune sentinel.
 readonly COLD_CLEAN_MARKER=.prompt-scrub-clean
 COLD_CLEAN_SNAPSHOT=""
 
@@ -322,12 +251,6 @@ mark_cold_clean_briefly() {
   release_sentinel
 }
 
-# Rewrite each dirty cold file with the compaction scrub under the switches in effect (logs and
-# spans; metrics too when CC_OTEL_COLD_KEEP_CONTENT=0): COPY to a .tmp in cold/, verify the row
-# count is unchanged and no dirty row remains, then mv over the original. Clean files are left
-# untouched. Always scans, whatever the marker says; a completed real run that scrubbed prompts
-# writes the marker. dry_run=true reports only. Returns 1 on the first failure, leaving that
-# file and every later one as they were.
 scrub_cold() {
   local store_dir="$1" dry_run="$2"
   local cold_dir="$1/cold" kind file name counts rows dirty base tmp after affected=0 scrubbed=0
@@ -378,13 +301,6 @@ scrub_cold() {
   fi
 }
 
-# Strip api_*_body logRecords from each surgery-routed line (records past the body window
-# whose batch line is still inside the structure window). Lines left with ZERO records (pure-
-# body batches) drop entirely; survivors are re-serialized by jq and APPENDED to the kept
-# temp (sibling structure records preserved). Stripped body records do NOT reach cold — the
-# B1 boundary excludes api_*_body rows there anyway. Prints
-# "surgery_kept=<n> surgery_dropped=<n>"; returns 1 on jq absence or failure (caller aborts
-# BEFORE the hot trim — always-abort, original untouched).
 SURGERY_JQ_FILTER='
   .resourceLogs[]?.scopeLogs[]?.logRecords |= map(select(
     [.attributes[]? | select(.key == "event.name") | .value.stringValue // ""]

@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// post-merge-test-mutation.yml's report job: the audit's result from the mutate
-// job's executed mutants and the triage leg's verdicts, in result.schema.json's
-// shape. Every state comes from the executor; triage adds only a survivor's
-// disposition and cause, by index, and a survivor it gave none is
-// `unclassified`. Both inputs are checked against their schemas. No model
-// runs here.
-//
-//   assemble.mjs <executed.json> [<triage.json>]
-//
-// Prints the result as JSON; exits 1 when the executed file is missing or
-// malformed, or a survivor exists and the triage file does not.
 import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";

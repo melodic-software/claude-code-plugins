@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const COMMAND_KEYS = [
@@ -58,23 +58,28 @@ const CI_FILES = [
 const INSTALL_VERBS = {
   npm: [
     "i", "in", "ins", "inst", "insta", "instal", "isnt", "isnta", "isntal", "isntall", "add", "it", "cit", "ci",
-    "clean-install", "clean-install-test", "install-test", "install-ci-test", "update", "up", "upgrade", "udpate",
-    "exec", "x", "link", "ln", "rebuild", "rb",
+    "clean-install", "clean-install-test", "install-test", "install-ci-test", "update", "u", "up", "upgrade", "udpate",
+    "exec", "x", "link", "ln", "rebuild", "rb", "ic", "install-clean", "isntall-clean", "sit", "init", "create",
   ],
-  pnpm: ["i", "add", "update", "up", "upgrade", "dlx", "exec", "fetch", "import", "rebuild", "rb", "it", "install-test"],
-  yarn: ["add", "up", "upgrade", "upgrade-interactive", "dlx", "exec", "global"],
-  bun: ["i", "add", "update", "x", "link"],
+  pnpm: [
+    "i", "add", "update", "up", "upgrade", "dlx", "exec", "fetch", "import", "rebuild", "rb", "it", "install-test", "init",
+    "create",
+  ],
+  yarn: ["add", "up", "upgrade", "upgrade-interactive", "dlx", "exec", "global", "init", "create"],
+  bun: ["i", "add", "update", "x", "link", "init", "create"],
   pip: ["download", "wheel"],
   uv: ["sync", "add", "pip", "tool"],
+  poetry: ["add", "update", "sync"],
   dotnet: ["restore", "tool", "workload", "add", "new"],
   cargo: ["add", "fetch", "update"],
   go: ["get", "mod"],
   gem: [],
-  bundle: [],
+  bundle: ["add", "update"],
 };
 const BARE_INSTALLS = new Set(["yarn", "bundle"]);
+const SHELL_KEYWORDS = new Set(["if", "then", "elif", "else", "while", "until", "do", "!", "eval", "source", "."]);
 const REFUSED_TOOLS = new Set([
-  "npx", "pnpx", "bunx", "uvx", "pipx", "sudo", "doas", "gsudo", "pkexec", "su", "apt", "apt-get", "brew", "choco",
+  "npx", "pnpx", "bunx", "uvx", "pipx", "ensurepip", "sudo", "doas", "gsudo", "pkexec", "su", "apt", "apt-get", "brew", "choco",
   "winget", "scoop", "snap", "dnf", "yum", "apk", "pacman", "zypper", "port", "nix-env", "curl", "wget",
 ]);
 const WRAPPERS = new Set(["env", "command", "exec", "nice", "nohup", "time", "xargs", "stdbuf", "setsid", "timeout", "ionice", "chrt"]);
@@ -146,43 +151,46 @@ function toolName(token) {
   return /^pip[\d.]*$/.test(name) ? "pip" : name;
 }
 
+function verbReason(name, args) {
+  const positional = args.filter((t) => !t.startsWith("-"));
+  if (!positional.length) return null;
+  const verbs = args[0].startsWith("-") ? positional : [args[0]];
+  for (const verb of verbs) {
+    if (verb === "install") return `runs an install verb (${name} install)`;
+    if (Object.hasOwn(INSTALL_VERBS, name) && INSTALL_VERBS[name].includes(verb)) return `runs an install verb (${name} ${verb})`;
+  }
+  return null;
+}
+
+function toolReason(name, args) {
+  if (REFUSED_TOOLS.has(name)) return `runs ${name}`;
+  if (SHELLS.test(name) && args.some((t) => /^(?:-\w*c\w*|-Command|-EncodedCommand|\/[cCkK])$/.test(t))) {
+    return `runs a command string through ${name}`;
+  }
+  if (name === "uv" && args.some((t) => t.startsWith("--with"))) return "runs uv with an added dependency";
+  if (name === "go" && args[0] === "run" && args.some((t) => t.includes("@"))) return "runs go run on a versioned module, which downloads it";
+  if (/^(?:python[\d.]*|py)$/.test(name)) {
+    const at = args.findIndex((t) => /^-[A-Za-z]*m./.test(t));
+    if (at !== -1) {
+      const module = toolName(args[at].replace(/^-[A-Za-z]*?m/, ""));
+      const reason = toolReason(module, args.slice(at + 1)) ?? verbReason(module, args.slice(at + 1));
+      if (reason) return reason;
+    }
+  }
+  return verbReason(name, args);
+}
+
 export function installReason(command) {
-  if (/\$\(|`|[<>]\(/.test(command)) return "holds a command substitution";
+  if (/[$`]|[<>]\(/.test(command)) return "holds a shell expansion or command substitution";
   for (let tokens of segments(command)) {
-    for (;;) {
-      while (tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0])) tokens = tokens.slice(1);
-      if (!tokens.length || !WRAPPERS.has(toolName(tokens[0]))) break;
-      const wrapper = toolName(tokens[0]);
-      tokens = tokens.slice(1);
-      while (tokens.length && tokens[0].startsWith("-")) tokens = tokens.slice(1);
-      if (wrapper === "timeout" && tokens.length && /^\d/.test(tokens[0])) tokens = tokens.slice(1);
-    }
+    while (tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0])) tokens = tokens.slice(1);
     if (!tokens.length) continue;
-    let name = toolName(tokens[0]);
-    let args = tokens.slice(1);
-    if (REFUSED_TOOLS.has(name)) return `runs ${name}`;
-    if (SHELLS.test(name) && args.some((t) => /^(?:-\w*c\w*|-Command|-EncodedCommand|\/[cCkK])$/.test(t))) {
-      return `runs a command string through ${name}`;
-    }
-    if (/^(?:python[\d.]*|py)$/.test(name)) {
-      const at = args.findIndex((t) => t.startsWith("-m"));
-      if (at === -1) continue;
-      const separate = args[at] === "-m";
-      name = toolName(separate ? (args[at + 1] ?? "") : args[at].slice(2));
-      args = args.slice(separate ? at + 2 : at + 1);
-      if (name === "ensurepip" || name === "pipx") return `runs ${name}`;
-    }
-    const positional = args.filter((t) => !t.startsWith("-"));
-    if (!positional.length) {
-      if (BARE_INSTALLS.has(name)) return `runs ${name} with no verb, which installs`;
-      continue;
-    }
-    const verbs = args[0].startsWith("-") ? positional : [args[0]];
-    for (const verb of verbs) {
-      if (verb === "install") return `runs an install verb (${name} install)`;
-      if (Object.hasOwn(INSTALL_VERBS, name) && INSTALL_VERBS[name].includes(verb)) {
-        return `runs an install verb (${name} ${verb})`;
-      }
+    const lead = toolName(tokens[0]);
+    if (WRAPPERS.has(lead) || SHELL_KEYWORDS.has(tokens[0])) return `starts with ${tokens[0]}, which runs the rest as another command`;
+    if (BARE_INSTALLS.has(lead) && tokens.slice(1).every((t) => t.startsWith("-"))) return `runs ${lead} with no verb, which installs`;
+    for (let i = 0; i < tokens.length; i++) {
+      const reason = toolReason(toolName(tokens[i]), tokens.slice(i + 1));
+      if (reason) return reason;
     }
   }
   return null;
@@ -254,8 +262,9 @@ function manifestScript(entry, ctx) {
   }
   if (!Object.hasOwn(scripts, name)) return "the cited line is not a package.json script";
   if (!SHELL_WORD.test(name)) return "the script name holds characters a shell would read";
-  const present = Object.keys(LOCKFILES).filter((path) => ctx.src.exists(path));
-  const managers = [...new Set(ctx.src.tracked(present).map((path) => LOCKFILES[path]))];
+  const kept = ctx.src.tracked(Object.keys(LOCKFILES));
+  if (!kept) return "git could not list the lockfiles, so the package manager is unknown";
+  const managers = [...new Set(kept.map((path) => LOCKFILES[path]))];
   if (managers.length > 1) return `lockfiles name more than one package manager (${managers.join(", ")})`;
   const pm = managers[0] ?? "npm";
   const allowed = [`${pm} run ${name}`];
@@ -265,7 +274,10 @@ function manifestScript(entry, ctx) {
 
 function makeTarget(entry, ctx) {
   if (ctx.rel.includes("/")) return "cites a Makefile outside the repository root";
-  const picked = ["GNUmakefile", "makefile", "Makefile"].find((name) => ctx.src.exists(name));
+  const kept = ctx.src.tracked(["GNUmakefile", "makefile", "Makefile"]);
+  if (!kept) return "git could not list the makefiles";
+  const picked = kept[0];
+  if (!picked) return "the base tracks no GNUmakefile, makefile or Makefile";
   if (picked !== ctx.rel) return `make reads ${picked}, not ${ctx.rel}`;
   const m = ctx.text.match(/^([^\s:=#][^:=#]*?)\s*::?(?!:?=)/);
   const targets = m ? m[1].split(/\s+/).filter((t) => /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/.test(t)) : [];
@@ -304,12 +316,43 @@ function isStatedFile(rel) {
   return /^\.claude\/rules\/.+\.md$/.test(rel);
 }
 
-function statedLine(entry, text) {
-  const spans = [...text.matchAll(/`([^`]+)`/g)].map((m) => m[1].trim());
-  if (!spans.includes(entry.value) && text.trim() !== entry.value) {
+const FORBID_WORDS = /\b(?:never|not|cannot|can\s+not|no|avoid|instead\s+of|forbid\w*|prohibit\w*|unless|without|only)\b|n['’]t\b/i;
+function headingLines(lines) {
+  let fence = null;
+  return lines.map((line) => {
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1];
+    if (fence) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      return false;
+    }
+    if (marker) {
+      fence = marker;
+      return false;
+    }
+    return /^ {0,3}#{1,6}(?:\s|$)/.test(line);
+  });
+}
+
+function citedBlock(lines, index) {
+  const heading = headingLines(lines);
+  let start = index;
+  while (start > 0 && !heading[start]) start--;
+  let end = index;
+  while (end + 1 < lines.length && !heading[end + 1]) end++;
+  return { start, block: lines.slice(start, end + 1) };
+}
+
+function statedLine(entry, ctx) {
+  const spans = [...ctx.text.matchAll(/`([^`]+)`/g)].map((m) => m[1].trim());
+  if (!spans.includes(entry.value) && ctx.text.trim() !== entry.value) {
     return "the cited instructions line does not state the command as a whole code span";
   }
-  if (/\b(?:never|not|avoid|instead of)\b|n't\b/i.test(text)) return "the cited instructions line may forbid the command";
+  const index = entry.line - 1;
+  const { start, block } = citedBlock(ctx.lines, index);
+  const unspan = (line) => line.replace(/`([^`]*)`/g, (_, code) => (code.trim() === entry.value ? " " : ` ${code} `));
+  const prose = block.map((line) => unspan(line).replace(/[_*]/g, " "));
+  if (ctx.text.trim() === entry.value) prose[index - start] = "";
+  if (prose.some((line) => FORBID_WORDS.test(line))) return "the cited instructions block may forbid the command";
   return null;
 }
 
@@ -369,66 +412,28 @@ function defaultBranchBase(root) {
   return null;
 }
 
-export function workingTree(repo, baseRef) {
-  const root = realpathSync(repo);
-  const inGit = gitToplevel(root) === root;
-  let base = null;
-  if (baseRef) {
-    requireCommit(root, baseRef);
-    base = { ref: baseRef, name: baseRef };
-  } else if (inGit) {
-    base = defaultBranchBase(root);
-    if (!base) throw new Error("cannot find the default branch to compare the cited files with; pass --base <ref>");
-  }
-  return {
-    root,
-    locate(file) {
-      let real;
-      try {
-        real = realpathSync(resolve(root, file));
-      } catch {
-        return { reason: `the cited file ${file} does not exist` };
-      }
-      const rel = toPosix(relative(root, real));
-      if (!rel || rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return { reason: "cites a file outside the repository" };
-      return { rel };
-    },
-    read(rel) {
-      try {
-        return readFileSync(join(root, rel), "utf8");
-      } catch {
-        return null;
-      }
-    },
-    exists(rel) {
-      try {
-        return existsSync(join(root, rel)) && readdirSync(dirname(join(root, rel))).includes(basename(rel));
-      } catch {
-        return false;
-      }
-    },
-    tracked(paths) {
-      if (!inGit || !paths.length) return paths;
-      const listed = runGit(root, ["ls-files", "-z", "--", ...paths]);
-      if (listed.status !== 0) return paths;
-      const set = new Set(listed.stdout.split("\0").filter(Boolean));
-      return paths.filter((p) => set.has(p));
-    },
-    unchanged(rel) {
-      if (!base) return null;
-      if (runGit(root, ["ls-files", "--error-unmatch", "--", rel]).status !== 0) return "the cited file is not tracked";
-      if (runGit(root, ["diff", "--quiet", base.ref, "--", rel]).status !== 0) return `the cited file differs from ${base.name}`;
-      return null;
-    },
-  };
+function gitRoot(dir) {
+  const root = realpathSync(dir);
+  if (gitToplevel(root) !== root) throw new Error(`${root} is not the root of a git work tree, or git failed there`);
+  return root;
 }
 
-export function baseRevision(repo, ref) {
-  const root = realpathSync(repo);
+export function baseRevision(repo, ref, name = ref) {
+  const root = gitRoot(repo);
   requireCommit(root, ref);
-  const regularFile = (rel) => /^100(?:644|755) blob /.test(runGit(root, ["ls-tree", ref, "--", rel]).stdout ?? "");
+  const listTree = (paths) => runGit(root, ["ls-tree", "-z", ref, "--", ...paths]);
+  const regularFiles = (stdout) =>
+    stdout
+      .split("\0")
+      .map((row) => row.match(/^100(?:644|755) blob \S+\t(.+)$/s)?.[1])
+      .filter(Boolean);
+  const regularFile = (rel) => {
+    const listed = listTree([rel]);
+    return listed.status === 0 && regularFiles(listed.stdout).includes(rel);
+  };
   return {
     root,
+    name,
     locate(file) {
       const rel = posix.normalize(file).replace(/^\.\//, "");
       if (rel === "." || rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return { reason: "cites a file outside the repository" };
@@ -439,9 +444,12 @@ export function baseRevision(repo, ref) {
       const shown = runGit(root, ["cat-file", "blob", `${ref}:${rel}`]);
       return shown.status === 0 ? shown.stdout : null;
     },
-    exists: regularFile,
-    tracked: (paths) => paths.filter(regularFile),
-    unchanged: () => null,
+    tracked(paths) {
+      const listed = listTree(paths);
+      if (listed.status !== 0) return null;
+      const kept = new Set(regularFiles(listed.stdout));
+      return paths.filter((p) => kept.has(p));
+    },
   };
 }
 
@@ -456,16 +464,14 @@ export function checkSource(entry, src) {
   const install = installReason(entry.value);
   if (install) return { reason: install };
   const content = src.read(rel);
-  if (content === null) return { reason: `the cited file ${entry.file} cannot be read` };
-  const changed = src.unchanged(rel);
-  if (changed) return { reason: changed };
+  if (content === null) return { reason: `the cited file ${entry.file} is not a tracked regular file at ${src.name}` };
   const lines = content.split(LINE_BREAK);
   const text = lines[entry.line - 1];
   if (text === undefined) return { reason: `the cited file has no line ${entry.line}` };
   const ctx = { src, rel, content, lines, text };
   const recorded = rel.match(RECORD_FILE);
   if (recorded) return { reason: recordedLine(entry, ctx, recorded[1]), kind: "recorded" };
-  if (isStatedFile(rel)) return { reason: statedLine(entry, text), kind: "stated" };
+  if (isStatedFile(rel)) return { reason: statedLine(entry, ctx), kind: "stated" };
   if (basename(rel) === "package.json") return { reason: manifestScript(entry, ctx), kind: "inferred" };
   if (/^(?:GNUmakefile|[Mm]akefile)$/.test(basename(rel))) return { reason: makeTarget(entry, ctx), kind: "inferred" };
   if (/^(?:\.?justfile|Justfile)$/.test(basename(rel))) return { reason: justRecipe(entry, ctx), kind: "inferred" };
@@ -497,6 +503,7 @@ export function parseRecord(text) {
   const values = {};
   const errors = [];
   let globs = null;
+  if (hasUnsafe(text.replace(/\r\n|\r|\n/g, ""))) errors.push("record holds a control or invisible character");
   for (let i = lines[0] === "---" ? 1 : 0; i < lines.length; i++) {
     const line = lines[i];
     if (/^ *(?:#.*)?$/.test(line)) continue;
@@ -594,6 +601,18 @@ export function buildRecord(assumedText, { ecosystem, globs, src }) {
   return recheck.length ? { errors: recheck, notes } : { text, values, notes };
 }
 
+function realAncestor(path) {
+  const rest = [];
+  for (let probe = path; ; probe = dirname(probe)) {
+    try {
+      return resolve(realpathSync(probe), ...rest);
+    } catch {
+      if (dirname(probe) === probe) return path;
+      rest.unshift(basename(probe));
+    }
+  }
+}
+
 function outRefusal(repo, out) {
   let parent;
   try {
@@ -605,8 +624,10 @@ function outRefusal(repo, out) {
   const homeRecords = resolve(homedir(), ".claude", "ecosystems");
   const roots = [repo, gitToplevel(parent)].filter(Boolean);
   const inRecords = roots.some((root) => RECORDS_FOLDER.test(toPosix(relative(root, target))));
-  const fromHome = toPosix(relative(homeRecords, target));
-  const inHome = fromHome !== ".." && !fromHome.startsWith("../") && !isAbsolute(fromHome);
+  const inHome = [homeRecords, realAncestor(homeRecords)].some((dir) => {
+    const fromHome = toPosix(relative(dir.toLowerCase(), target.toLowerCase()));
+    return fromHome !== ".." && !fromHome.startsWith("../") && !isAbsolute(fromHome);
+  });
   if (inRecords || inHome) return { refused: `${out} is inside an ecosystem records folder; write the draft elsewhere` };
   return null;
 }
@@ -614,8 +635,8 @@ function outRefusal(repo, out) {
 const USAGE = `Usage:
   node lane-record.mjs write --ecosystem <id> --glob <pattern> [--glob <pattern>...] --out <file> [--base <ref>] [--repo <dir>] [--lines <file>]
   node lane-record.mjs verify --record <file> --base <ref> [--ecosystem <id>] [--repo <dir>] [--lines <file>]
-The assumed: lines come from --lines, else standard input. verify reads each cited file at --base <ref>.
-write refuses a cited file that differs from --base <ref>, else from the merge-base with the default branch.
+The assumed: lines come from --lines, else standard input. --repo must be the root of a git work tree.
+Each cited file is read at --base <ref>; write mode defaults to the merge-base with the default branch.
 Exit 0: written or verified. Exit 1: refused, nothing written. Exit 2: usage or I/O error.
 `;
 
@@ -654,8 +675,10 @@ export async function main(args, stdinText) {
   let repo;
   let src;
   try {
-    repo = opts.repo ? realpathSync(opts.repo) : (gitToplevel(process.cwd()) ?? realpathSync(process.cwd()));
-    src = mode === "verify" ? baseRevision(repo, opts.base) : workingTree(repo, opts.base);
+    repo = gitRoot(opts.repo || gitToplevel(process.cwd()) || process.cwd());
+    const base = opts.base ? { ref: opts.base, name: opts.base } : defaultBranchBase(repo);
+    if (!base) throw new Error("cannot find the default branch to compare the cited files with");
+    src = baseRevision(repo, base.ref, base.name);
   } catch (error) {
     return usage(error.message);
   }

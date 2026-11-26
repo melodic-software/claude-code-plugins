@@ -1,23 +1,3 @@
-// Merge paths for the post-merge accounting (README.md, "Merge paths"): which
-// path a merged pull request took, the labels that record it, and the per-path
-// rollup read back from those labels.
-//
-// A merge is on the `lanes` path when the agent identity is the actor or
-// enqueuer of its pull request's latest AddedToMergeQueueEvent, the test the
-// alert's `classify` applies. It is on a configured path (`post-merge.paths`
-// in pr-pipeline.yaml) when one of that path's enqueuers is, and an agent
-// session wrote the pull request (isAgentAuthored). A record-mode path's
-// merges get `merge-path: <path>`, and its reverted pull requests
-// `post-merge: reverted` too; nothing here demotes, trips the revert breaker or
-// holds a pull request, and the lanes path gets no label.
-//
-//   merge-path.mjs label --merged "<n>..." --reverted "<n>..."
-//     The file-demotion-issue job's canary pass: labels the push's merges and the pull
-//     requests it reverts. Needs BASE_PATH (main's checkout, for the config),
-//     GITHUB_REPOSITORY and gh's token. Exits 1 when a label write failed.
-//   merge-path.mjs rollup --since <YYYY-MM-DD> --until <YYYY-MM-DD> [--repo <owner/repo>] [--json]
-//     Merges, reverts and escaped defects per path for merges in the window.
-//     Reads the config under BASE_PATH, default this checkout.
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import process from "node:process";
@@ -27,12 +7,9 @@ import { DEMOTION, parseRecordMarker } from "./demotion-record.mjs";
 
 export const PATH_LABEL_PREFIX = "merge-path: ";
 export const REVERTED_LABEL = "post-merge: reverted";
-// Older pull requests carry the names from before the org label grammar
-// (`axis: value`): `merge-path:<path>` and `post-merge:reverted`.
 const PATH_LABEL_STEM = "merge-path:"; // both forms start with it
 const LEGACY_REVERTED_LABEL = "post-merge:reverted";
 const isReverted = (labels) => labels.includes(REVERTED_LABEL) || labels.includes(LEGACY_REVERTED_LABEL);
-// The path a label names, for either the current or the legacy prefix; null for any other label.
 export const labelPath = (label) =>
   label.startsWith(PATH_LABEL_STEM) ? label.slice(PATH_LABEL_STEM.length).trim() || null : null;
 export const LANES = "lanes";
@@ -46,14 +23,10 @@ const SESSION_MARKER = /<!--\s*session:\s*\S[^\n]*?-->/;
 const GENERATED = "Generated with [Claude Code]";
 const CLAUDE_TRAILER = /^co-authored-by:[ \t]*claude\b/im;
 
-// The agent-authored rule: the body carries a session marker or the Claude
-// Code footer, and a commit carries a Co-Authored-By: Claude trailer.
 export const isAgentAuthored = ({ body, commitMessages }) =>
   (SESSION_MARKER.test(body ?? "") || (body ?? "").includes(GENERATED)) &&
   (commitMessages ?? []).some((message) => CLAUDE_TRAILER.test(message ?? ""));
 
-// The configured paths that are well formed, as { name: { mode, enqueuers } }
-// with enqueuers lowercased; anything else is dropped.
 export function resolvePaths(paths) {
   const out = {};
   for (const [name, path] of Object.entries(paths ?? {})) {
@@ -70,7 +43,6 @@ const actorKey = (actor) =>
     ? ""
     : actor.login.toLowerCase() + (actor.__typename === "Bot" && !actor.login.endsWith("[bot]") ? "[bot]" : "");
 
-// The path a merged pull request took: `lanes`, a configured path's name, or null.
 export function pathOf(pr, { identity, paths }) {
   const keys = [actorKey(pr.queue?.actor), actorKey(pr.queue?.enqueuer)].filter(Boolean);
   if (identity && keys.includes(identity.toLowerCase())) return LANES;
@@ -80,9 +52,6 @@ export function pathOf(pr, { identity, paths }) {
   return null;
 }
 
-// The labels each pull request still needs: its record path's label, and
-// post-merge: reverted when the push reverted it. A legacy name already on the
-// pull request counts as present. [{ number, labels }].
 export function labelPlan(prs, { identity, paths, reverted }) {
   const plan = [];
   for (const pr of prs) {
@@ -107,9 +76,6 @@ export const pullRequestsQuery = (numbers) =>
     )
     .join(" ")} } }`;
 
-// The labels a pull request's label events leave on it, in timeline order: added by a
-// LabeledEvent, taken off by a later UnlabeledEvent. A label deleted repo-wide leaves its
-// LabeledEvent and no UnlabeledEvent, so it stays in this set.
 const labelsFromEvents = (nodes) => {
   const held = new Set();
   for (const e of nodes ?? []) {
@@ -121,9 +87,6 @@ const labelsFromEvents = (nodes) => {
   return [...held];
 };
 
-// One pullRequest node as { number, body, labels, commitMessages, queue }. With the
-// rollup's label events read, `labels` also holds a label the pull request still had
-// when the label itself was deleted.
 export const toPr = (node) => ({
   number: node.number,
   title: node.title ?? "",
@@ -143,9 +106,6 @@ const numbersOf = (text) => [...new Set((text ?? "").split(/\s+/).filter((t) => 
 
 const API_BUDGET_LIB = fileURLToPath(new URL("../../actions/log-api-budget/api-budget.bash", import.meta.url));
 
-// `gh <args>`, through api-budget.bash's gh wrapper when API_BUDGET_TOKEN
-// names the token (the job-end api-calls notice counts each request); plain
-// gh otherwise, as for a rollup run by hand.
 const defaultGh = (args) =>
   execFileSync(
     "bash",
@@ -156,8 +116,6 @@ const defaultGh = (args) =>
 const graphql = (gh, query, vars) =>
   JSON.parse(gh(["api", "graphql", "-f", `query=${query}`, ...Object.entries(vars).flatMap(([k, v]) => ["-f", `${k}=${v}`])]));
 
-// The canary pass: label the push's record-path merges and the pull requests
-// it reverts. Returns { plan, failed }.
 export function label({ repo, merged, reverted, config, gh = defaultGh, log = console.log }) {
   const paths = resolvePaths(config.paths);
   const numbers = [...new Set([...merged, ...reverted])].sort((a, b) => a - b);
@@ -233,13 +191,6 @@ function search(gh, query, q) {
   }
 }
 
-// The rollup over already-read pull requests: `merged` is every pull request
-// merged from the window's start to now, `revertRecords` the lane revert
-// records' bodies. A merge's path is its merge-path label, current or held when the
-// label was deleted (its LabeledEvent survives with no UnlabeledEvent), else `lanes` by
-// enqueuer, else `other`. Reverted: labeled post-merge:reverted or named on a
-// lane revert record. Escaped: a later merged pull request with a fix: title
-// cites it as #N or by URL.
 export function rollup({ repo, since, until, merged, revertRecords, identity }) {
   const end = new Date(`${until}T00:00:00Z`).getTime() + 86_400_000;
   const start = new Date(`${since}T00:00:00Z`).getTime();

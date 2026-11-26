@@ -188,10 +188,6 @@ stub_latest=""
 out=$(run_check 2>&1)
 assert_exit "registry unreachable: exit 2" 2 "$?"
 
-# The upstream skill directory ships no LICENSE; the script copies it from the
-# package root afterwards. A LICENSE past 200 lines fills the preview and pushes a
-# real SKILL.md change out of it when it is compared.
-
 APPLY="$TEST_TMPDIR/apply"
 UPSTREAM_DIR="$APPLY/package/skills/playwright-cli"
 VENDOR_DIR="$APPLY/vendor"

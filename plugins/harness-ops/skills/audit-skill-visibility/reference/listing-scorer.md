@@ -2,9 +2,9 @@
 
 Read this when the starvation band's ordering is in question: why it is not a
 count, why a bare usage key does not move it, and when it means nothing at all.
-The engine's own stamp lives beside `listing_score` in
-`scripts/audit_skill_visibility.py`; this file is the reasoning, not a second
-copy of the claim.
+This file holds the claim `listing_score` in
+`scripts/audit_skill_visibility.py` mirrors, its verification record
+([On drift](#on-drift)) and the reasoning.
 
 ## What the product actually does
 
@@ -139,10 +139,13 @@ input order under a stable sort, and a catalog in another order would show it.
 
 ## On drift
 
-This is a minified bundle, not a published interface. The recheck trigger is a
+This is a minified bundle, not a published interface. As of 2026-10-04 the
+scorer, the truncation walk and the fit check were re-verified against Claude
+Code 2.1.289. The recheck trigger is a
 release note naming the skill listing, its character budget, or the usage
 counters, or the counters changing shape in `~/.claude.json`. On a mismatch the
-honest degradation is back to `unscored`, never a confidently wrong band.
+report degrades to `score_basis: "unscored"` and says the ordering is unknown,
+never a confidently wrong band.
 
 **Locate the scorer by shape, never by name.** The minified identifier moves
 between builds. It was `zPe` in 2.1.251, `WPe` in 2.1.252 and `t$e` in 2.1.263,
@@ -194,3 +197,15 @@ above were last verified 2026-10-04 at 2.1.289, where the entry and floor
 arithmetic reproduced a captured 289-entry listing (149,934 characters) to the
 character. First verified 2026-09-11 at 2.1.263. Recheck when a release note names the
 skill listing, its character budget or its truncation, or a build changes the scorer arithmetic.
+
+## The transcript listing record
+
+`--listing-capture` reads a session transcript's `attachment` line of type
+`skill_listing`, carrying `content` (the rendered listing, entries joined by
+newlines), `names` (entry names in order), `skillCount` and `isInitial`;
+`parse_listing_capture` takes the model from a `model` attachment's
+`identity.modelId`. That shape is not published: it was observed in a Claude
+Code 2.1.289 transcript on 2026-10-04. Recheck it when a release note names
+transcripts or the skill listing, or the reader returns `not-read` on a fresh
+transcript. A shape it does not recognize reports the capture as `not-read`
+with its reason, and the verdict falls back to enumerated coverage.

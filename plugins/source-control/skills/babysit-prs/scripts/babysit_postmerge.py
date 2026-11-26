@@ -125,36 +125,14 @@ from babysit_util import (
 FULL_RUN_WORKFLOW = "pr-require-checks.yml"
 CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
 CANARY_PATH = f".github/workflows/{CANARY_WORKFLOW}"
-# The pr-merge lane dispatches the full run with its own GITHUB_TOKEN (the
-# lanes App holds no actions: write) and records the dispatched run's id in an
-# artifact named with this prefix; `_Context.lane_dispatched` reads it. The
-# artifact expires (pr-merge.yml's retention-days), but the verdict never
-# judges a settled merge on its runs again, so only a merge not yet settled
-# depends on it.
 LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
 LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
 LANE_DISPATCH_ACTOR = "github-actions[bot]"
-# Its dispatch-post-merge-runs job starts the one re-run of a red lane-dispatched
-# full run, also under GITHUB_TOKEN, and records it in an artifact named
-# `<prefix><run id>-attempt-2`; `_Context.lane_rerun` reads it.
 LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
-# The events of the pr-merge.yml jobs that upload each record: dispatch-full-run
-# (push, and after the merge job) and dispatch-post-merge-runs (schedule and
-# workflow_dispatch) write the dispatch record; only dispatch-post-merge-runs writes
-# the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
-# dispatch-post-merge-runs also sends a red full run to post-merge-file-demotion-issues.yml
-# and records it in an artifact named `<prefix><run id>`, the one job and events
-# of the re-run record; `_Context.lane_alerted` reads it.
 LANE_ALERT_ARTIFACT = "pr-merge-alerted-"
 LANE_ALERT_EVENTS = LANE_RERUN_EVENTS
-# A record found once stays found: pr-merge.yml names a file here that holds
-# the records earlier checks proved (.github/scripts/pr-merge/lane-records.mjs
-# reads it from the last trusted pr-merge run's artifact). A record in it is
-# answered with no read once its sender passes `_Context._lane_sender` again;
-# the check writes back the records it proved whose uploading run completed
-# and whose artifact was listed unexpired. Any other file is no file.
 LANE_RECORDS_ENV = "BABYSIT_POSTMERGE_LANE_RECORDS"
 LANE_RECORDS_VERSION = 1
 _LANE_RECORD_NAME = re.compile(
@@ -168,13 +146,6 @@ _ATTEMPT_KEY = re.compile(r"[1-9][0-9]{0,15}:[1-9][0-9]{0,2}")
 ATTEMPT_JOBS_MAX_AGE = timedelta(days=30)
 ATTEMPT_JOBS_MAX = 400
 ATTEMPT_JOBS_BYTES = 32_768
-# With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
-# created within red-main.confirm-wait-minutes plus this, with a newly failing
-# check that demotes (`_Context.regressions`), gets that re-run even when no
-# lane merge it covers is judged (`_Context.lane_rerun_lookback`).
-# post-merge-file-demotion-issues.yml waits confirm-wait-minutes after such a run
-# ends for it, and a later re-run changes no filing; this covers the run
-# itself (about 20 minutes) with margin (judgment).
 FULL_RUN_ALLOWANCE = timedelta(minutes=50)
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
@@ -184,25 +155,12 @@ _RECORD_TEXT = re.compile(r"[^- A-Za-z0-9._:,/();]")
 DEFAULT_ROLE_LABEL = "needs-human"
 STANDARDS_SYNC_ROLE = "standards-sync"
 DEFAULT_STANDARDS_SYNC_LABEL = "standards-sync"
-# The follow-up note on an existing record; the demotion-alert workflow writes
-# the same prefix, so either filer's note is a sighting to the other.
 FAILURE_NOTE = "The post-merge check found this failure again: "
 MERGED_PAGE_SIZE = 100
-# A run listing reads its `created` range in windows, each read page by page
-# and split in half while its search reaches RUN_SEARCH_CAP: a one-second
-# window that still reaches it, or a listing past this many window reads,
-# is unreadable.
 RUN_PAGE_SIZE = 100
 RUN_WINDOW_READS = 16
 _SECOND = timedelta(seconds=1)
 MERGED_PAGE_LIMIT = 30
-# A red full run counts against a merge only for a check that was not already
-# failing on the branch's newest completed run of the same event before it.
-# A check is a failed job, or one gate the hygiene aggregator step names in a
-# titled failure annotation (`<gate> failed`). The lane aggregator job is red
-# whenever another job is, so beside one it adds nothing; the gitleaks gate
-# scans every fetched branch on these events, so no merge into the branch can
-# turn it red. post-merge-file-demotion-issues.yml applies the same rule.
 FAILED_CONCLUSIONS = (
     "failure",
     "timed_out",
@@ -212,27 +170,6 @@ FAILED_CONCLUSIONS = (
 )
 HYGIENE_AGGREGATE_STEP = "Aggregate hygiene results"
 UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
-# A newly failing check demotes only when one of its failing suites is in the
-# affected set of the merges since the branch's last green full run, or no
-# suite can be named. The unit is the suite (a test file). Only a test leg
-# whose one failed step is its suite step names its suites, from its log: the
-# runner's `FAIL: <suite>` lines, or the exit line the step prints after each
-# pytest invocation, which carries the step's nonce. The
-# affected set is scripts/plan-test-lanes.sh, the PR runs' own selector, over
-# the paths changed since the last green full run's SHA, run from a worktree
-# of that green SHA (so no merge judged can narrow its own set) with no token
-# in its environment; a window that changes the selector, or a plan that
-# picks nothing, has no set. A suite inside the set always
-# demotes, quarantined or not. A suite outside it that failed again on a
-# re-run demotes unless it passed on an earlier attempt (it is non-deterministic)
-# or also failed at that green SHA (the merges did not cause it):
-# `_Context._repeat_excused`.
-# Any other suite outside it demotes nothing and is quarantined: with no open quarantine issue it gets one (`file_quarantines`);
-# an open one older than `merge.quarantine-days` (the smaller of its value at
-# that green SHA and at the red run's, `_Context._quarantine_days`) makes it
-# demote again, as does one edited since filing (`_Context._quarantine_issues`). The
-# merge gate's own suites are never excused. post-merge-file-demotion-issues.yml applies the same rule through
-# `--judge-run`.
 SUITE_STEPS = {
     "Run this leg's shell suites": "bash",
     "Run this leg's Python suites": "python",
@@ -277,11 +214,7 @@ SETTLE_COMPARE_CAP = 5
 SETTLE_COMPARE_BUDGET = 20
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
-# `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
-# failed read (3) or rate limit (75) produces, so only it lets pr-merge.yml send.
 EXIT_NOT_ALERTED = 4
-# `--stop-uncovered`'s stop: a code no crash, refusal, failed read, verdict or
-# rate limit produces, so only it reads as "this report would need a dispatch".
 EXIT_UNCOVERED = 6
 
 IsHuman = Callable[[Any], bool]
@@ -335,8 +268,6 @@ class Failure:
     merge: AutoMerge
     run_url: str | None
     detail: str
-    # The newly failing checks the detail names, as `_Context.regressions`
-    # returns them: a job name, or `<job>: <gate title>`.
     checks: tuple[str, ...] = ()
 
     @property
@@ -621,9 +552,6 @@ def _graphql(
     return payload["data"]
 
 
-# The enqueues the merged read returns per pull request, newest last: an
-# immediate-enqueue native arm counts only when every one is the identity's
-# (`native_auto_merge`), and a longer history reads as not native.
 ENQUEUE_EVENTS = 10
 MERGED_QUERY = (
     "query PostMergeMerged($o:String!,$r:String!,$b:String!,$c:String){"
@@ -651,7 +579,6 @@ ARMED_QUERY = (
     "first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{id number "
     "author{__typename login} autoMergeRequest{enabledBy{__typename login}}}}}}"
 )
-# Open pull request pages the armed read walks: 1000, as enable-auto-merge.mjs.
 ARMED_PAGE_LIMIT = 10
 DISARM_MUTATION = (
     "mutation PostMergeDisarm($id:ID!){"
@@ -902,11 +829,6 @@ def _run_window(endpoint: str, label: str) -> list[dict[str, Any]]:
         raise _RunSearchCapped(
             f"{label}: total_count {capped}, at the {RUN_SEARCH_CAP}-run search cap"
         )
-    # Pages are read while the last one is full, never stopping at the
-    # count a page claims, which can be low; ten full pages reach the cap and
-    # split the window (`_listed`). A run counted twice across shifted pages
-    # is kept once, and the runs must equal the first page's count: a run
-    # created during the read is past it, and a dropped one fails it.
     pages, last = [first], first
     while (
         len(pages) < RUN_SEARCH_CAP // RUN_PAGE_SIZE
@@ -1157,17 +1079,11 @@ _BASH_FAIL = re.compile(r"FAIL: (\S+\.test\.sh)")
 _BASH_NO_RESULT = re.compile(
     r"FAIL: (\S+\.test\.sh) \(no result recorded; the worker never reported\)"
 )
-# The runner prints a fresh nonce before any suite runs, in a variable no
-# suite inherits, and repeats it in each advisory warning: a warning a suite's
-# own output prints cannot carry it, so it excuses nothing.
 _BASH_NONCE = re.compile(r"Advisory nonce: ([0-9a-f]{16})")
 _BASH_ADVISORY = re.compile(
     r"(?:::warning(?: title=[^:]*)?::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
     r" on this run \(nonce ([0-9a-f]{16})[;)]"
 )
-# The Python step prints the same nonce line and repeats the nonce in its call
-# and exit lines: a suite's captured output cannot carry it, so pytest's own
-# output, its summary included, names nothing.
 _PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+) # nonce ([0-9a-f]{16})")
 _PYTEST_EXIT = re.compile(r"pytest exit (\d+) -- (\S+) # nonce ([0-9a-f]{16})")
 
@@ -1204,8 +1120,6 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
                 advisory.add(m[1])
         if started - passed - failed:
             return None
-        # A suite's own output can print `FAIL: <name>`; only a suite the
-        # runner started (`=== <suite> ===`) is one.
         failed &= started
         failed -= advisory
     else:
@@ -1649,8 +1563,6 @@ class _Context:
                 proc = gh_capture(
                     [
                         "api",
-                        # A job log carries terminal escape sequences, which
-                        # gh refuses to print without this flag.
                         "--allow-escape-sequences",
                         f"repos/{self.owner}/{self.name}/actions/jobs/{job_id}/logs",
                     ]
@@ -2052,8 +1964,6 @@ class _Context:
                 for j in listed
                 if j.get("conclusion") == "success"
             )
-            # A red run with no failed job (a workflow file that does not
-            # load) is one check of its own, never excused.
             checks: set[str] = (
                 set() if jobs else {f"{FULL_RUN_WORKFLOW}: no failed jobs"}
             )
@@ -2076,9 +1986,6 @@ class _Context:
                 if not gates or steps - {HYGIENE_AGGREGATE_STEP}:
                     checks.add(name)
                 elif not steps:
-                    # The jobs API can list a completed job's steps empty or
-                    # cut short. A failed job listing no failed step has
-                    # unknown steps, so the job counts whole.
                     unknown.add(name)
                 checks |= {f"{name}: {g}" for g in gates - UNATTRIBUTABLE_GATES}
             self.check_jobs[key] = by_name
@@ -2580,13 +2487,6 @@ class _Context:
                     f"{newer.head_sha[:12]} after it",
                 )
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
-        # A re-run by anyone else (a person re-running until green) cannot
-        # clear a red attempt 1. Two github-actions[bot] re-runs can:
-        # post-merge-file-demotion-issues.yml's single re-run, which re-runs no run
-        # the bot started, and for a run the pr-merge lane dispatched, the one
-        # its dispatch-post-merge-runs job recorded. That job uploads the record
-        # just after its re-run starts, so a bot attempt 2 of a lane-dispatched
-        # run still in progress waits for its record instead of reading red.
         if (
             second.status != "completed"
             and second.triggering_actor == LANE_DISPATCH_ACTOR
@@ -2775,12 +2675,6 @@ def _judge(
             tally.outstanding.append(run.created_at)
 
     if not any(r.created_at <= deadline for r in own) and now > deadline:
-        # A listing can answer without runs it holds, so the absence is read
-        # again by the merge commit and each descendant committed in time: a
-        # run there the listing lacked proves the listing incomplete, and the
-        # verdict is unreadable, not a failure.
-        # Only a run that could have counted as the identity's in time can
-        # prove that.
         listed = {r.id for signal, r in full_runs if signal == SIGNAL_DISPATCH}
         missing = [
             run
@@ -2927,9 +2821,6 @@ def _listed_runs(
     listed = [(SIGNAL_SCHEDULE, r) for r in schedule] + [
         (SIGNAL_DISPATCH, r) for r in dispatched
     ]
-    # A listing filtered by branch name also returns runs on a tag named
-    # like the branch, whose red would be charged to the merge. A run the
-    # concurrency group replaced before it started is no signal.
     full_runs = sorted(
         (
             item
@@ -3528,11 +3419,7 @@ PIN_QUERY = (
     "comments(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{"
     "author{__typename login} body createdAt lastEditedAt}}}}}"
 )
-# Comment pages the pin read walks: 3000 comments. A longer thread reads as
-# no pin, which fails the read-back once the dispatch deadline passes.
 PIN_PAGE_LIMIT = 30
-# `read_pins`: pull requests per query, and the first comment page it reads
-# of each (no review or comment time: only `alone` reads them).
 PIN_BATCH = 20
 PIN_COMMENTS = (
     "comments(first:100){pageInfo{hasNextPage endCursor} nodes{"
@@ -4246,13 +4133,6 @@ def remediate(
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
                         f"body={body}",
-                        # The lanes App's issue starts intake triage on its
-                        # own; the human-gated label, or the Work status
-                        # field set to needs-human below and retried on a
-                        # later pass while unset (which admission reads as
-                        # that label, read-status.mjs statusLabels), keeps
-                        # admission off it (admit.mjs STOP_HOLDS), so it
-                        # never becomes lane work.
                         *(() if status else ("-f", f"labels[]={role_label}")),
                     ],
                     "file the demotion issue",
@@ -4387,17 +4267,6 @@ def verdict_exit(verdict: PostMergeVerdict) -> int:
     return 0
 
 
-# The lane check's floor anchor. The policy floor moves only on a config
-# commit or a demotion clear, so at the lane's merge rate the merged walk
-# reaches MERGED_PAGE_LIMIT and every lane check reads unreadable. The anchor
-# moves the lane's floor past merges a trusted run judged final.
-# dispatch-post-merge-runs's check writes it to the file ANCHOR_ENV names, and
-# that job alone uploads it as ANCHOR_ARTIFACT; the next lane check reads it
-# back over REST (`read_anchor`). It is rebuilt and re-checked on every run
-# from GitHub state only main's pr-merge.yml can produce: an unexpired
-# artifact whose uploading run passes `_Context._lane_sender` for that job's
-# events, with a matching key. No file, comment or label the lane identity
-# can write feeds it, and anything else is no anchor: the policy floor.
 ANCHOR_ARTIFACT = "pr-merge-post-merge-anchor"
 ANCHOR_FILE = "anchor.json"
 ANCHOR_ENV = "BABYSIT_POSTMERGE_ANCHOR"
@@ -4494,7 +4363,6 @@ def read_anchor(
                 )
             )
             items = list(map(json_object, json_array(listing.get("artifacts"))))
-            # Newest first by id: the listing follows created_at, which can skew.
             for item in sorted(items, key=lambda a: -int(a.get("id") or 0)):
                 run_id = json_object(item.get("workflow_run")).get("id")
                 if not (
@@ -4839,13 +4707,6 @@ def pending_runs_unchanged(
         return False
 
 
-# How much of `policy.SHARED_MAX_AGE` a report reused from an earlier tick
-# must have left: the merge gate (`assess`, per candidate) and the lane room
-# read the same report after dispatch-post-merge-runs ends, and one past the age
-# sends them to the full check. Over 72 scheduled runs on 2026-10-26/27 the
-# gate ended a median 17.7 minutes after a reuse tick's check would start;
-# replayed on those runs, 10 minutes reuses as often as 5 and leaves fewer
-# gates past the age.
 IDLE_HEADROOM = timedelta(minutes=10)
 QUARANTINE_MARKER = "<!-- post-merge-quarantine "
 

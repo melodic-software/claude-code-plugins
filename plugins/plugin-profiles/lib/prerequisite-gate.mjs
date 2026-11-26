@@ -1,11 +1,3 @@
-// The required prerequisites a set of plugins declares and this machine lacks, read through the
-// prerequisites contract (docs/contracts/prerequisites/README.md) with its vendored checker.
-//
-//   missingRequired(plugins, {env, platform, cwd, dataDirOf}) -> [{plugin, tool, detail, degrade, install}]
-//
-// plugins: [{id, installPath}]. A plugin with no prerequisites.json declares nothing; one whose
-// file fails the schema is reported with that as its detail, since its needs cannot be read.
-// install is the declared hints as "manager: hint" lines.
 import { detectEntry, loadManifest } from "./prerequisites.mjs";
 
 const FAILED = new Set(["missing", "outdated"]);

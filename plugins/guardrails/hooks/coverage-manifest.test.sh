@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for hooks/coverage.json, the data manifest that declares which
-# baseline permission families and patterns each guard blocks, and the levers
-# that narrow or switch it off. The manifest is never executed; the claims it
-# makes about the guards are what this file pins: every hook it names ships and
-# is registered, every event is one hooks.json declares, every family and
-# pattern is one the harness-config audit baseline actually lists, and every
-# lever is a documented option.
 # test-scope: plugins/guardrails/README.md plugins/guardrails/hooks/hooks.json
 set -uo pipefail
 

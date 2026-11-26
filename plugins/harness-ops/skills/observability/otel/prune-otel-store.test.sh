@@ -28,8 +28,6 @@ START_STUB="$TMP/start-stub.sh"
 QUERY_ERROR_STUB="$TMP/query-error-stub.sh"
 COMPACT_STUB="$TMP/compact-stub.sh"
 printf '#!/usr/bin/env bash\ntouch "%s/stopped.marker"\n' "$TMP" >"$STOP_STUB"
-# The restart seam also launches a child lock contender. It must lose while the first prune's
-# sentinel remains held; this proves restart-before-release ordering with a separate process.
 # shellcheck disable=SC2016  # literal CC_OTEL_STORE expansion must reach the stub script
 printf '#!/usr/bin/env bash\n( if mkdir "${CC_OTEL_STORE:?}/.prune-in-progress" 2>/dev/null; then exit 1; else touch "%s/concurrent-blocked.marker"; fi )\nwait\ntouch "%s/restarted.marker"\n' \
   "$TMP" "$TMP" >"$START_STUB"
@@ -80,9 +78,6 @@ readonly PROMPT_EXTRA=',{"key":"prompt","value":{"stringValue":"SECRET_PROMPT_SE
 readonly SPAN_PROMPT_EXTRA=',{"key":"user_prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_text","value":{"stringValue":"SECRET_PROMPT_TEXT_SENTINEL"}}'
 readonly API_EXTRA=',{"key":"body","value":{"stringValue":"API_BODY_SENTINEL"}},{"key":"model","value":{"stringValue":"claude-x"}}'
 readonly DOUBLE_EXTRA=',{"key":"cost_usd","value":{"doubleValue":123.456}}'
-# The body-class classifier text INSIDE a JSON string value: every quote arrives escaped
-# (\"), so the unescaped anchored marker the router matches cannot occur. A structure line
-# carrying this content must NOT be classified as a body line.
 readonly FOOTGUN_EXTRA=',{"key":"note","value":{"stringValue":"saw {\"key\":\"event.name\",\"value\":{\"stringValue\":\"api_request_body\"}} in content"}}'
 
 new_store() {
@@ -111,8 +106,6 @@ dq() {
   duckdb -csv -noheader -c "$1" 2>/dev/null | tr -d '\r'
 }
 dq_macro() {
-  # CC_OTEL_STORE points at a dir with no store files: hot-view binds fail fast, `.bail off`
-  # carries the load through (same pattern as the script's own compaction invocation).
   CC_OTEL_STORE="$TMP/no-store" duckdb -csv -noheader \
     -init "$(sql_path "$SCRIPT_DIR/cc-otel.sql")" -c "$1" 2>/dev/null | tr -d '\r'
 }
@@ -303,9 +296,6 @@ assert_eq "locked run leaves file unchanged" "2" "$(wc -l <"$S/cc-logs.json" | t
 assert_not_contains "locked run never stops Collector" "$(ls "$TMP")" "stopped.marker"
 rmdir "$S/.prune-in-progress"
 
-# --- 8a. lock race: sixteen acquirers in a tight loop, never two holders at once ---
-# Whole prunes start too far apart to race; uutils mkdir (Ubuntu 25.10+) let two racers both
-# win, which only a tight loop like this reproduces.
 race_log="$TMP/sentinel-race.log"
 : >"$race_log"
 race_pids=()
@@ -623,11 +613,6 @@ else
   skip_case "duckdb not found — skipping metrics cold-compaction case"
 fi
 
-# --- 15b. schema-thin metrics slice (duckdb): asDouble-only dropped lines still compact ---
-# Real-data regression: a dropped temp is an arbitrary slice — read_json_auto infers ONLY the
-# sub-keys present in it, and a slice whose sums are all asDouble (token/cost usage days) has
-# no asInt key for a native dp.asInt reference to bind against. Caught live by the Phase 1
-# tail-slice probe; the projection must tolerate either sum kind being wholly absent.
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store coldmetricsthin)"
   {
@@ -654,9 +639,6 @@ else
   skip_case "duckdb not found — skipping schema-thin metrics case"
 fi
 
-# --- 15c. schema-thin logs slice (duckdb): records without traceId/spanId still compact ---
-# Real-data regression (#5232): records emitted without tracing carry no traceId/spanId, so a
-# dropped temp made only of them has no such key for a native r.traceId reference to bind.
 if [[ "$HAS_DUCKDB" == true ]]; then
   S="$(new_store coldlogsthin)"
   {
@@ -684,7 +666,6 @@ else
   skip_case "duckdb not found — skipping compaction stderr case"
 fi
 
-# --- 15e. Windows: a backslash CC_OTEL_STORE (as Machine-scope env delivers it) is usable ---
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then
   S="$(new_store backslash)"
   {
@@ -1000,9 +981,6 @@ assert_eq "under-total run never stopped the Collector" "no" "$([[ -e "$TMP/stop
 out="$(CC_OTEL_HOT_MAX_MB=1 CC_OTEL_HOT_TOTAL_MAX_MB=0 run_prune "$S")"
 assert_contains "total cap 0 disables the total size prune" "$out" "action=noop-nothing-to-prune"
 
-# --- 28c. total cap over many lines: the cut's sort output overflows a pipe buffer ---
-# 30000 small lines (~5MB): hundreds of KB of sorted rows follow the cut, so a cut reader that
-# stopped early would SIGPIPE sort and, under pipefail, end the prune before it reports.
 S="$(new_store totalcap-many)"
 for ((i = 0; i < 10000; i++)); do
   t=$((NOW - 3 * 86400 + i * 3))
@@ -1172,9 +1150,6 @@ else
   skip_case "duckdb not found — skipping cold marker case"
 fi
 
-# --- content-class fixtures: each promoted content column carries SECRET_<COLUMN>_SENTINEL ---
-# <column>:<attribute key> per table; spans' tool.output event attributes are listed apart
-# because they ride the span event, not the span's own attribute array.
 readonly LOG_CONTENT="response:response error:error tool_parameters:tool_parameters tool_input:tool_input hook_definitions:hook_definitions hook_matcher:hook_matcher managed_settings_settings:managed_settings.settings managed_settings_helper_path:managed_settings.helper.path body_ref:body_ref workspace_host_paths:workspace.host_paths user_email:user.email"
 readonly SPAN_CONTENT="user_system_prompt:user_system_prompt response_model_output:response.model_output new_context:new_context tool_input:tool_input full_command:full_command error:error hook_definitions:hook_definitions system_prompt_preview:system_prompt_preview user_email:user.email file_path:file_path"
 readonly SPAN_EVENT_CONTENT="content:content output:output diff:diff bash_command:bash_command"

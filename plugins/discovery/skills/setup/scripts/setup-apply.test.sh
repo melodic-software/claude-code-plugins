@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for setup-apply.mjs, the writer behind /discovery:setup apply.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-# Expected values come from the key contract in reference/config.md:
-# explore_output takes auto, change-prep or explain, the research_* keys take
-# whole numbers of 1 or more, and the file is
-# docs/conventions/discovery.yaml at the repository root.
 # test-scope: plugins/discovery/lib/resolve-convention-home.sh plugins/discovery/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -87,7 +80,6 @@ printf 'explore_output: tutorial\n' >"$repo/docs/conventions/discovery.yaml"
 run "$repo" --yes explore_output=auto
 if [[ "$CODE" -eq 0 && "$(bash "$READER" "$repo/docs/conventions/discovery.yaml" explore_output)" == "auto" ]]; then pass 'an invalid existing value is replaced by a valid one'; else fail 'an invalid existing value is replaced by a valid one'; fi
 
-# docs/conventions as a symlink to a directory outside the repository.
 repo="$(new_repo)"
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 mkdir -p "$repo/docs"
@@ -106,10 +98,6 @@ printf 'explore_output: tutorial\n' >"$repo/docs/conventions/discovery.yaml"
 run "$repo" --check
 if [[ "$CODE" -eq 1 && "$OUT" == *"explore_output=tutorial"* ]]; then pass '--check on an invalid value exits 1 and names it'; else fail '--check on an invalid value exits 1 and names it'; fi
 
-# Documents a JSON Schema validator rejects although each line looks fine:
-# a key set twice, an empty or null value, a map or a list where the schema
-# wants one string. --check reports each as WARN. apply replaces a lone
-# empty or null value line, which leaves a valid file, and refuses the rest.
 shape_case() { # shape_case <label> <refuse|replace> <file content>
   local label="$1" want="$2" content="$3" repo f before
   repo="$(new_repo)"
@@ -162,8 +150,6 @@ ln -s "$repo" "$WORKROOT/root-link"
 run "$WORKROOT/root-link" explore_output=explain
 if [[ "$CODE" -eq 0 && "$(bash "$READER" "$repo/docs/conventions/discovery.yaml" explore_output)" == "explain" ]]; then pass 'a symlinked --root writes into the repository it points at'; else fail 'a symlinked --root writes into the repository it points at'; fi
 
-# Write-path guards: a hard-linked target, a directory where the file goes,
-# and a file where docs/ should be. Each is a one-line refusal, no stack trace.
 repo="$(new_repo)"
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 printf 'explore_output: auto\n' >"$outside/shared.yaml"
@@ -197,8 +183,6 @@ OUT="$(ulimit -f 0 && node "$SUT" --root "$repo" explore_output=explain 2>&1)"
 CODE=$?
 if [[ "$CODE" -eq 1 && "$(wc -l <<<"$OUT")" -eq 1 && -z "$(ls -A "$repo/docs/conventions")" ]]; then pass 'a failed write is a one-line refusal and removes the temp file'; else fail 'a failed write is a one-line refusal and removes the temp file'; fi
 
-# A close that fails after releasing the descriptor (EIO, as close(2) may
-# report): a preload makes the first close of the temp file throw.
 preload="$WORKROOT/close-fails.cjs"
 printf '%s\n' \
   'const fs = require("node:fs");' \

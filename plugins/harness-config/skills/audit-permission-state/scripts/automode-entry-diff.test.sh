@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for automode-entry-diff.sh (self-contained — ships with the plugin).
-#
-# Classification cases feed hand-written merge records on stdin. Oracle cases
-# use a fixture capture (ENTRY_DIFF_ORACLE_CAPTURE) or a recording stub claude
-# on PATH — no case ever spawns a real session, and no test reads the
-# operator's real ~/.claude.
-#
-# portability-scope: the oracle fixture reproduces Claude Code's own [DEBUG]
-# narration byte for byte, and that narration prints Windows settings paths in
-# native form (C:\Users\...\.claude\settings.json — see the recorded capture in
-# the permission-model research corpus). The backslash runs the gate reads as
-# regex escapes are those paths inside heredoc DATA, not shell code. Rewriting
-# them to POSIX form would make the fixture stop matching what the parser must
-# survive on the plugin's primary platform, which is the whole point of the case.
+# portability-scope: the oracle fixture reproduces Claude Code's [DEBUG] narration, which prints native Windows paths
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

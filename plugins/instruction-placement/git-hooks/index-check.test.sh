@@ -60,7 +60,6 @@ check() {
 }
 
 rc_of() { printf '%s' "${1%%|*}"; }
-# stderr holds table rows, which carry `|`: strip the two leading fields instead.
 err_of() {
   local rest="${1#*|}"
   printf '%s' "${rest#*|}"

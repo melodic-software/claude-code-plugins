@@ -1,7 +1,7 @@
 ---
 description: "improve-layout with no recorded style, unattended: asks nothing, runs the co-change script over the scaffolded history (one four-file order cluster over four folders) and reports the cluster's files, folders, spread, focus, pattern and pairs; the card reads 'none recorded', judges nothing, and carries Speculative. Source: the improve skill's evals.json case layout-no-style-unattended-reports-without-judging, given a scaffold. Needs --scaffold --allow-tools Bash Write and a sandbox backend."
 tags: [architecture, improve-layout, co-change, scaffold]
-runs: 6
+runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

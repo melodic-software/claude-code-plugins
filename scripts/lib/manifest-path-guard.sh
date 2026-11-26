@@ -1,37 +1,5 @@
 # shellcheck shell=bash
-# Shared trust boundary for manifest-pointed hook config paths. Sourced, never
-# executed.
-#
-# hook-configs.sh (the corpus walker the exec-form, Windows-probe and
-# slow-shapes gates read) and check-hook-userconfig-argv.sh both follow a plugin
-# manifest's `hooks` string/array value to another file, and a manifest is input
-# the gate does not control. A value that leaves the plugin directory -- an
-# absolute path, a Windows drive letter, or any `..` segment -- is refused
-# rather than followed, so a crafted manifest cannot point a gate at files
-# outside the tree it claims to scan.
-#
-# The refusal is a VISIBLE skip (scripts/check-silent-skips.sh), and the
-# callers' suites assert the wording of that line, so it is a CI contract: only
-# the leading script name differs between callers.
-#
-# The test is a portable string check on purpose: no realpath, no `readlink -f`,
-# nothing that would need the BSD fallback ladder.
-#
-# Usage:
-#
-#   manifest_path_guard::resolve_to <out-var> <gate> <manifest> <plugin> <rel>
-#
-# Writes `<plugin>/<rel>` (a leading `./` removed) into <out-var> when <rel>
-# stays inside the plugin, and the empty string when it does not, or when <rel>
-# is empty. <gate> leads the skip line. It always returns 0 so a caller under
-# errexit tests the out-var rather than running the call in a condition context,
-# which would disable errexit for the whole callee.
-#
-# Every local carries the `_mpg_` prefix: a bash nameref resolves in the scope
-# where it is USED, so an unprefixed local sharing the caller's out-var name
-# would shadow that caller's variable.
 
-# manifest_path_guard::resolve_to <out-var> <gate> <manifest> <plugin> <rel>
 manifest_path_guard::resolve_to() {
   local -n _mpg_out="$1"
   local _mpg_gate="$2" _mpg_manifest="$3" _mpg_plugin="$4" _mpg_rel="$5"

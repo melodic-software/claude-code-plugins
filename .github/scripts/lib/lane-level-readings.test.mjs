@@ -6,7 +6,6 @@ import { decide } from "./lane-level.mjs";
 import { readingsOf } from "./lane-level-readings.mjs";
 
 const AT = 1794351600;
-// rate-guard.mjs readingLine: <status> <limit> <remaining> <used> <reset> <resource> <route>
 const line = (status, limit, remaining, used, reset, resource = "core", route = "repos/{repo}/issues/{n}") =>
   `${status} ${limit} ${remaining} ${used} ${reset} ${resource} ${route}`;
 

@@ -77,7 +77,8 @@ git -C "$R" checkout -q a.sh
 expect "on: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_BASH_FORMAT_END_OF_TURN=true)"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
+# Cygwin's strace has no -e trace=SET filter; its -e toggles DEBUG_EVENTS.
+# https://www.cygwin.com/cygwin-ug-net/strace.html
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" bash-format Stop bash-format.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' --check 'test ! -s "$HOOK_STDOUT"')"

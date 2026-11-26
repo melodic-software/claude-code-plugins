@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# cwd-probe-agent.sh <dir>: after hub-layout.sh <dir>, a project subagent cwd-probe in
-# <dir>/repos/github.com/acme/hub/.claude/agents/ that holds only Bash and runs the
-# one command its task names.
 set -euo pipefail
 d="${1:?usage: cwd-probe-agent.sh <dir>}"
 hub="$d/repos/github.com/acme/hub"

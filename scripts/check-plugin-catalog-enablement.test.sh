@@ -9,8 +9,6 @@ SUT_SRC="$SCRIPT_DIR/check-plugin-catalog-enablement.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TMP=""
 
 fixture_tree::build TMP --sut "$SUT_SRC"
@@ -139,12 +137,6 @@ else
   fail "foreign-marketplace key should not fail the gate (rc=$rc): $out"
 fi
 
-# Suffix stripping must be a literal match, not a pattern. Under a pattern such
-# as `sed -n "s/@$MARKET\$//p"` the '.' in 'melodic.software' matches any
-# character, so 'alpha@melodicXsoftware' is accepted as this marketplace's
-# key and the genuine 'alpha@melodic.software' entry goes unnoticed -- the
-# gate reporting drift that does not exist while missing the shape it exists
-# to catch.
 market_name='melodic.software'
 write_marketplace alpha
 write_bootstrap 'melodic.software'
@@ -214,9 +206,6 @@ else
   fail "settings marketplaces should not decide the name (rc=$rc): $out"
 fi
 
-# A declared source that differs from the user's registration makes Claude
-# Code refetch from it, so a project entry under this name shadows the
-# marketplace local sessions resolve.
 write_marketplace alpha
 {
   echo '{'

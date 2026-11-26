@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Read-only cross-repository Git/GitHub hygiene collector.
-# Intentionally contains no mutating Git/GitHub operation.
-# --apply-plan is a read-only dry-run approval artifact over a prior plan file.
 set -uo pipefail
 
 usage() {
@@ -60,8 +57,6 @@ them.
 EOF
 }
 
-# Windows drive-letter alone (D:) means "cwd on that drive" in shells; a fleet
-# discovery root means the volume root. Append / so -d and discovery agree.
 normalize_discovery_root() {
   local p="$1"
   if [[ "$p" =~ ^[A-Za-z]:$ ]]; then
@@ -78,7 +73,6 @@ fail() {
   exit 2
 }
 
-# ASCII only, like tr in the locales this runs under; no fork, and no ${var,,} for bash 3.2.
 lower() {
   local text="$1" i upper=ABCDEFGHIJKLMNOPQRSTUVWXYZ letters=abcdefghijklmnopqrstuvwxyz
   for ((i = 0; i < 26; i++)); do
@@ -87,8 +81,6 @@ lower() {
   printf '%s' "$text"
 }
 
-# Sets the variable named $1 to the stdout of the command in $2..., with CRs removed and stderr
-# dropped, and returns the command's status. A pipe through tr would cost two more forks per call.
 capture_text() { # <out-var> <command> [args]...
   local __capture_out __capture_status
   __capture_out="$("${@:2}" 2>/dev/null)"
@@ -101,11 +93,6 @@ capture_text() { # <out-var> <command> [args]...
   return "$__capture_status"
 }
 
-# True when $1 equals one of the remaining arguments. Collapses the report's
-# order-preserving "append if not already present" passes, which cannot use a
-# sort/uniq: the emission order IS the report order. Callers expand their array
-# as "${arr[@]:-}" to stay safe under `set -u` on bash 3.2, so an empty array
-# arrives as a single empty argument rather than as no arguments at all.
 array_contains() {
   local needle="$1" item
   shift
@@ -115,10 +102,6 @@ array_contains() {
   return 1
 }
 
-# Path presentation. MSYS/Cygwin render Windows drives as /c/..., a form no Windows shell, file
-# manager, or IDE accepts. This report is actionable text whose paths get pasted, so convert to the
-# drive form for PRESENTATION ONLY -- every comparison, dedup key, and filesystem test upstream
-# keeps the native form it was given.
 WINDOWS_PATH_DISPLAY=false
 CASE_INSENSITIVE_PATHS=false
 case "$(uname -s 2>/dev/null || true)" in
@@ -138,9 +121,6 @@ to_native_path() {
     printf '%s' "$text"
     return 0
   }
-  # Convert at the value start and after a space: the report's two shapes are a bare path field and
-  # a path embedded in a handoff sentence. The case pre-filter skips drives not present, and the
-  # paired letter tables avoid ${var^} / ${var,,} so bash 3.2 (macOS system bash) still runs this.
   for ((i = 0; i < 26; i++)); do
     lower_drive="${WINDOWS_DRIVE_LETTERS:i:1}"
     case "$text" in
@@ -154,11 +134,6 @@ to_native_path() {
   printf '%s' "$text"
 }
 
-# An MSYS mount such as /tmp carries no drive letter for to_native_path to rewrite; only the mount
-# table knows it is %LOCALAPPDATA%\Temp. cygpath reads that table and ships with Git for Windows
-# and MSYS2. It forks once per call, so it is kept to the file paths an operator must open from
-# another shell, not run over every report value. The result goes to a named variable rather than
-# stdout so a non-Windows path reaches the report byte-for-byte, trailing newlines included.
 to_native_file_path() { # <out-var> <path>
   local path="$2" native
   if [[ "$WINDOWS_PATH_DISPLAY" == "true" ]] && command -v cygpath >/dev/null 2>&1 &&
@@ -168,19 +143,11 @@ to_native_file_path() { # <out-var> <path>
   printf -v "$1" '%s' "$path"
 }
 
-# True when $1 is well-formed UTF-8 (the RFC 3629 section 4 grammar: no overlong form, surrogate,
-# code point above U+10FFFF, or stray/truncated continuation byte) made only of printable
-# characters. Rejected even when well-formed: C0 controls and DEL, C1 controls U+0080..U+009F (U+009B
-# is the 8-bit CSI that terminals act on like ESC [), the Unicode Bidi_Control characters that
-# reorder displayed text, and U+2028/U+2029, which Unicode line breaking treats as mandatory breaks.
-# Decoded byte by byte under LC_ALL=C, where the POSIX locale's [[:cntrl:]] covers only C0 and DEL
-# and every byte above 0x7F is one opaque character, so the verdict ignores the operator's locale.
 utf8_printable() {
   local value="$1" LC_ALL=C
   local i=0 n=${#value} byte cp need lo hi
   while ((i < n)); do
     printf -v byte '%d' "'${value:i:1}"
-    # bash 3.2 (macOS system bash) returns a byte above 0x7F as a signed char: 0xFF reads as -1.
     ((byte < 0)) && byte=$((byte + 256))
     i=$((i + 1))
     lo=0x80 hi=0xBF
@@ -208,8 +175,6 @@ utf8_printable() {
       cp=$(((cp << 6) | (byte & 0x3F)))
       i=$((i + 1)) need=$((need - 1)) lo=0x80 hi=0xBF
     done
-    # C1 controls; Bidi_Control U+061C, U+200E..U+200F, U+202A..U+202E, U+2066..U+2069; and
-    # U+2028..U+2029, which share the U+2028..U+202E run with the embedding/override controls.
     ((cp <= 0x9F || cp == 0x61C)) && return 1
     ((cp >= 0x200E && cp <= 0x200F)) && return 1
     ((cp >= 0x2028 && cp <= 0x202E)) && return 1
@@ -218,13 +183,7 @@ utf8_printable() {
   return 0
 }
 
-# Keep ordinary printable report values readable, but encode any control-bearing value as one Bash
-# %q field. Git permits newlines and terminal-control bytes in filesystem paths; raw rendering would
-# let a crafted registration forge Finding/Confidence/Handoff lines in this actionable report.
 display_value() {
-  # LC_ALL=C keeps %q byte-wise: an escaped value renders every byte above 0x7F as \ooo. The
-  # [[:print:]] test is only the printable-ASCII fast path, since under C locale every byte above
-  # 0x7F fails it; anything else must pass utf8_printable to render raw.
   local value="$1" escaped
   local LC_ALL=C
   if [[ "$value" != *[![:print:]]* ]] || utf8_printable "$value"; then
@@ -242,9 +201,6 @@ print_field() {
   printf '\n'
 }
 
-# Remedy sentence naming the exact setup command that skips a discovered directory by name. Empty
-# unless the target's basename is a bare directory name made only of printable ASCII, so an
-# unvalidated path segment is never interpolated into a copy-paste command.
 skip_setup_remedy() {
   local name="${1##*/}" quoted
   local LC_ALL=C
@@ -253,9 +209,6 @@ skip_setup_remedy() {
   printf 'To skip this directory name in every later run: /repo-fleet-hygiene:setup apply --extend-skip %s' "$quoted"
 }
 
-# Fail closed before executing either external state reader. The allowlists constrain command,
-# option order, arity, and dynamic operand shape; caller-controlled global options, aliases, config
-# injection, write-capable API methods, and all other Git/gh subcommands are rejected.
 git_probe_allowed() {
   local key remote ref
   case "${1:-}" in
@@ -275,7 +228,6 @@ git_probe_allowed() {
       return
     fi
     if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
-      # Fixed literal pattern only -- not an arbitrary caller-supplied regex.
       [[ "$6" == '^canonical\.[^[:cntrl:]]+\.path$' ]]
       return
     fi
@@ -285,12 +237,6 @@ git_probe_allowed() {
     [[ $# -ge 4 && -n "${2:-}" ]] || return 1
     case "$3" in
     rev-parse)
-      # --show-prefix is read-only and operand-free, like --show-toplevel. It is the probe that
-      # tells a work-tree ROOT (empty) from a path below one (non-empty) without any path
-      # arithmetic, which is what keeps a leftover directory from being read as the worktree it is
-      # registered as.
-      # --is-bare-repository is the same shape again, and it is what separates a
-      # bare hub's legitimately-absent working tree from a probe that failed.
       [[ $# -eq 4 && ("$4" == "--show-toplevel" || "$4" == "--show-prefix" || "$4" == "--is-bare-repository") ]] ||
         [[ $# -eq 5 && "$4" == "--path-format=absolute" && "$5" == "--git-common-dir" ]]
       ;;
@@ -322,7 +268,6 @@ git_probe_allowed() {
         "$6" == refs/remotes/*/ && ! "$6" =~ [[:cntrl:][:space:]] ]]
       ;;
     ls-remote)
-      # Read-only live remote probe: prove a named head still exists upstream without fetch/prune.
       remote="${5:-}"
       ref="${6:-}"
       [[ $# -eq 6 && "$4" == "--heads" && -n "$remote" && "$remote" != -* &&
@@ -348,12 +293,8 @@ run_git_probe() {
     return 126
   fi
   (
-    # Repository selectors and command-scoped config must come only from the validated argv above.
-    # GIT_CONFIG_COUNT=0 neutralizes inherited GIT_CONFIG_KEY_*/VALUE_* pairs even when the parent
-    # environment contains them; the older aggregate injection variable is removed explicitly.
-    # GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM are pinned to /dev/null (per git(1) ENVIRONMENT) so an
-    # inherited selector or a global includeIf (e.g. an injected url.*.insteadOf) can never redirect
-    # a probe away from the repository's own on-disk config.
+    # git adds GIT_CONFIG_KEY_<n>/VALUE_<n> pairs only up to GIT_CONFIG_COUNT, and GIT_CONFIG_GLOBAL/SYSTEM replace those files:
+    # https://git-scm.com/docs/git-config#ENVIRONMENT
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_PREFIX
     # Subshell-local env only; SC2030/SC2031 are false cross-function hits vs run_convention_git.
@@ -364,13 +305,6 @@ run_git_probe() {
   )
 }
 
-# ls-remote reaches the network, so it needs the operator's transport config: a global
-# core.sshCommand (Git for Windows' bundled ssh cannot reach the Windows OpenSSH agent), a system
-# credential.helper, http.* proxies. run_git_probe discards all of it with global/system config,
-# which failed every probe (#4211). run_transport_git keeps global/system config for the same
-# allowlisted argv; run_ls_remote_probe then binds the result back to the pinned view by requiring
-# the remote URL to name the same github.com repository with and without that config, so a global
-# url.*.insteadOf can rewrite the transport but never redirect the probe to another repository.
 run_transport_git() {
   if ! git_probe_allowed "$@"; then
     printf 'Rejected non-allowlisted Git probe\n' >&2
@@ -402,9 +336,6 @@ run_ls_remote_probe() {
   run_transport_git -C "$repo" ls-remote --heads "$remote" "$ref"
 }
 
-# Convention-root reads (worktreeroot.path, plus a retired alias the
-# resolver still dual-reads) must see global/includeIf config, so they are
-# a separate allowlist from run_git_probe. Fixed keys and flag orders only.
 convention_git_allowed() {
   case "${1:-}" in
   -C)
@@ -414,8 +345,6 @@ convention_git_allowed() {
       [[ $# -eq 4 && "$4" == "--git-dir" ]]
       ;;
     config)
-      # Resolver: --get-all --type=path <key>
-      # Origin:   --get-all --show-origin --type=path <key>
       case "$#" in
       6)
         [[ "$4" == "--get-all" && "$5" == "--type=path" &&
@@ -445,7 +374,6 @@ run_convention_git() {
   (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_PREFIX
-    # Do not null GIT_CONFIG_GLOBAL/SYSTEM: the worktree-root key is expected outside the repo.
     # Subshell-local env only; SC2030/SC2031 are false cross-function hits vs run_git_probe.
     # shellcheck disable=SC2030,SC2031
     export GIT_CONFIG_COUNT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat \
@@ -461,17 +389,10 @@ _worktree_root_git() {
 # shellcheck source=../../../scripts/worktree-root-resolve.sh
 source "${BASH_SOURCE[0]%/*}/../../../scripts/worktree-root-resolve.sh"
 
-# Aliased GraphQL merged-PR page size. GitHub admits first/last in 1..100; each alias costs one
-# node. Measured live: cost stays 1 for at least 40 aliases (nodeCount equals the alias count).
-# 100 aliases per page stays well under the 500_000-node ceiling and the 5_000-point/hour primary
-# limit. Single-sourced with the allowlist so nothing reachable by a caller can change it.
 MERGED_PR_GRAPHQL_ALIAS_PAGE=100
 
-# Fixed jq flatten for the aliased GraphQL response — single-sourced with the allowlist pin.
-# Filters rateLimit and null repository payloads; emits one TSV row per merged PR node.
 MERGED_PR_GRAPHQL_JQ='.data|to_entries[]|select(.key|test("^b[0-9]+$"))|.value//empty|.pullRequests.nodes[]?|[.number,.headRefName,.headRefOid,.mergedAt,.url]|@tsv'
 
-# Escape a value for inclusion in a GraphQL string literal (owner, name, headRefName).
 graphql_string_escape() {
   local s=${1-}
   s=${s//\\/\\\\}
@@ -479,22 +400,14 @@ graphql_string_escape() {
   printf '%s' "$s"
 }
 
-# Any-state PR evidence for remote heads with no merged PR: one alias per head (h<index>), every
-# state, and totalCount so a truncated node list never reads as "no OPEN or MERGED PR". The jq
-# emits one TOTAL row per alias even when the node list is empty or the payload is null (empty
-# count), so "no PR" is proven by a present zero, never inferred from a missing row.
 ANY_STATE_PR_GRAPHQL_FIRST=100
 # shellcheck disable=SC2016 # $k is a jq variable, not a shell expansion.
 ANY_STATE_PR_GRAPHQL_JQ='.data|to_entries[]|select(.key|test("^h[0-9]+$"))|.key as $k|([$k,"TOTAL",(.value.pullRequests.totalCount//""|tostring)]|@tsv),(.value.pullRequests.nodes[]?|[$k,.state,.headRefOid,(.number|tostring),.url]|@tsv)'
 
-# Admit only the collector's query-shaped PR GraphQL documents: no mutation/subscription, no search
-# API (its head: qualifier prefix-matches), exact headRefName matching, and the caller's fixed
-# page-size and state-list pair (for example first:1,states:[MERGED]).
 graphql_query_admitted() {
   local q=${1-} page_states=${2-}
   [[ -n "$q" && -n "$page_states" ]] || return 1
   [[ "$q" =~ [[:cntrl:]] ]] && return 1
-  # Literal brace prefixes: query{...} or query {...}
   [[ "$q" == "query{"* || "$q" == "query {"* ]] || return 1
   case "$(printf '%s' "$q" | tr '[:upper:]' '[:lower:]')" in
   *mutation* | *subscription* | *'search('* | *'head:'*) return 1 ;;
@@ -510,9 +423,6 @@ gh_probe_allowed() {
     [[ $# -eq 4 && "$2" == "status" && "$3" == "--hostname" && "$4" == "github.com" ]]
     ;;
   api)
-    # Four read-only shapes: repository identity GET, authenticated-login GET, and the aliased
-    # GraphQL merged-PR and any-state PR queries (query documents only; each fixed --jq flatten
-    # admits only its own query shape).
     if [[ $# -eq 8 && "$2" =~ ^repos/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
       "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
       "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]]; then
@@ -541,9 +451,6 @@ gh_probe_allowed() {
   esac
 }
 
-# GitHub CLI has no request-timeout flag. Prefer GNU timeout/gtimeout only when its documented
-# --kill-after capability is present. The pure-Bash watchdog is the platform-safe fallback and still
-# escalates TERM to KILL after a finite grace period. The test switch can only shorten both bounds.
 GH_TIMEOUT_SECONDS=30
 GH_KILL_AFTER_SECONDS=5
 if [[ "${REPO_FLEET_TEST_FAST_TIMEOUTS:-}" == "1" ]]; then
@@ -598,20 +505,6 @@ run_bounded_gh() {
   )
 }
 
-# --- Finding registry -------------------------------------------------------
-# What a finding kind IS lives here and nowhere else: its confidence tier, its disposition
-# sentence, and whether it is an actionable branch or worktree handoff. Emitters name only the
-# kind, the action predicates are lookups, `--print-finding-registry` publishes the table as data,
-# and the reference table plus the finding-kind coverage gate read that data mode. A kind whose
-# tier said one thing at the call site and another in the reference doc is not expressible.
-#
-# Fields, `|`-separated: kind|confidence|branch-action|worktree-action|disposition
-#   confidence  one tier, or several separated by `/` when the evidence picks the tier per
-#               finding; the multi-tier form is emitted through emit_finding_as.
-#   disposition the sentence, or `*` when the finding carries its own; `*` is emitted through
-#               emit_finding_as too.
-# `read -r -d ''` fills the variable from the heredoc with no subprocess and returns non-zero at
-# EOF, which is the normal outcome here.
 IFS= read -r -d '' FINDING_REGISTRY <<'REGISTRY' || true
 merged-local-branch|HIGH|yes|no|Candidate per-repository branch-audit handoff
 merged-worktree|HIGH|no|yes|Candidate worktree dry-run handoff before branch cleanup
@@ -682,9 +575,6 @@ finding_registry_lookup() {
   return 1
 }
 
-# Data mode for the gates that must agree with the registry (the finding-kind coverage gate and
-# the reference table's parity assertion) without scraping this file's source. Tab-separated so a
-# consumer can take a column with awk; dispositions carry no tab.
 print_finding_registry() {
   local line
   while IFS= read -r line; do
@@ -693,8 +583,6 @@ print_finding_registry() {
   done <<<"$FINDING_REGISTRY"
 }
 
-# Findings buffered for rollup / action-plan rendering (#2608, #2609), with the per-tier tallies
-# the Summary line reports.
 FINDINGS_HIGH=0
 FINDINGS_MEDIUM=0
 FINDINGS_LOW=0
@@ -702,8 +590,6 @@ FINDINGS_UNKNOWN=0
 FINDINGS_ACKED=0
 LS_REMOTE_ATTEMPTS=0
 LS_REMOTE_FAILURES=0
-# Per-repository finding tally, reset by analyze_repo: a section that ends with zero findings
-# emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
 REPO_FINDING_COUNT=0
 F_CONF=()
 F_KIND=()
@@ -763,9 +649,6 @@ record_finding() {
   F_REPO_IDX+=("$CURRENT_REPO_IDX")
 }
 
-# Takes every buffered MEDIUM finding of <kind> back out of the store and the tier tally, keeping
-# the remaining rows in order. Compacts in place (no array rebuild) so bash 3.2 stays safe under
-# `set -u`.
 withhold_medium_findings() {
   local kind="$1" i n=${#F_KIND[@]} keep=0
   for ((i = 0; i < n; i++)); do
@@ -800,9 +683,6 @@ emit_finding() {
     "$FINDING_ROW_DISPOSITION" "$handoff"
 }
 
-# The escape for the kinds whose tier or disposition is decided by the evidence rather than by the
-# kind. <confidence> must be one of the tiers the row declares. Pass `-` as <disposition> to take
-# the row's fixed sentence; pass the finding's own sentence only where the row declares `*`.
 emit_finding_as() {
   local confidence="$1" disposition="$2" kind="$3" target="$4" evidence="$5" handoff="${6:-}"
   finding_registry_lookup "$kind" || fail "unregistered finding kind: $kind"
@@ -840,11 +720,6 @@ branch_family() {
   return 0
 }
 
-# --- Path and layout helpers ------------------------------------------------
-# Pure string/filesystem helpers the classifiers below share. They sit above the source guard
-# because a sourced file stops there, and a classifier that cannot reach its helpers cannot be
-# driven from a test.
-
 path_key() {
   local value="${1//\\//}"
   while [[ "$value" == */ ]]; do value="${value%/}"; done
@@ -855,10 +730,6 @@ path_key() {
   fi
 }
 
-# Physical path for containment comparisons. git worktree list reports resolved
-# paths; worktreeroot.path may be a symlink alias. Same realpath||readlink -f
-# idiom as source-control/hook-utils. Annotate: earlier subshell+continuation join
-# state in this file can miss the shell-portability-lint auto-guard.
 physical_path() {
   local resolved
   # portability-ok: realpath||readlink -f ladder (hook-utils idiom); auto-guard can miss after subshell+continuation join state
@@ -875,13 +746,6 @@ physical_path_key() {
   path_key "$(physical_path "$1")"
 }
 
-# Worktree-root convention is owned by source-control (#2597 / #2606). This collector reads it and
-# reports conformance; it never invents a default root. Prefer the machine-readable git key
-# (worktreeroot.path, #2610) when present; otherwise the source-control pluginConfigs /
-# CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT surface. Every git-config read is gated on rev-parse --git-dir
-# first: under dubious ownership, git config --get returns the global default as though it were the
-# repository's answer (rc=0, no stderr). Attribution uses --show-origin so a conditional include is
-# not collapsed to a bare "global" scope.
 CONFIGURED_WORKTREE_ROOT=""
 CONFIGURED_WORKTREE_ROOT_ORIGIN=""
 CONFIGURED_WORKTREE_ROOT_SOURCE="unset"
@@ -900,8 +764,6 @@ FLEET_REPOS_ROOT_UNSET=0
 PLUGINCONFIGS_JQ_MISSING=false
 PLUGINCONFIGS_SETTINGS_PATH=""
 
-# Sanitize a branch name into the slug half of <owner>-<repo>-<slug>, matching source-control's
-# worktree-create helper so the expected location names the path create would have used.
 worktree_slug() {
   local slug="$1"
   slug="${slug//[^A-Za-z0-9._-]/-}"
@@ -924,10 +786,6 @@ expected_worktree_dirname() {
   fi
 }
 
-# Tool-owned locations the source-control convention explicitly exempts from "misplaced" —
-# Codex ($CODEX_HOME/worktrees, default ~/.codex/worktrees) and Cursor (~/.cursor/worktrees).
-# Claude Code's in-repo .claude/worktrees/ is tool-created but NON-conforming by the fleet rule
-# (EnterWorktree(name:)), so it is not classified tool-owned here.
 is_tool_owned_worktree() {
   local key tool_home
   key="$(path_key "$1")"
@@ -963,17 +821,6 @@ record_fleet_worktree_root() {
   FLEET_WT_ROOT_REPOS+=(1)
 }
 
-# Worktree classification. Index i of every WT_* array describes one registration and index 0 is
-# the main worktree:
-#
-#   WT_PATHS / WT_BRANCHES / WT_PRUNABLE / WT_LOCKED   git worktree list --porcelain -z
-#   WT_PRESENT                                          "true" when the registered path is a directory
-#   WT_PREFIX_STATUS / WT_PREFIX                        rev-parse --show-prefix: "ok" plus its value
-#   WT_COMMON_DIR_STATUS / WT_COMMON_DIR                rev-parse --git-common-dir: "ok" plus its value
-#
-# Scalars read: canonical, canonical_top, expected_common, WT_ORIGIN_OWNER, WT_ORIGIN_REPO and the
-# CONFIGURED_WORKTREE_ROOT trio. A probe status other than "ok" is classified as unavailable rather
-# than retried: what could be observed was already decided by the collector.
 # shellcheck disable=SC2154  # WT_* and canonical* are the collection phase's evidence, read here
 classify_worktrees() {
   local wt_index wt_path wt_branch wt_label is_main
@@ -1005,12 +852,6 @@ classify_worktrees() {
       fi
       continue
     fi
-    # A registered path that is not a work-tree ROOT still answers `git -C` — with the CONTAINING
-    # repository's state rather than its own, at exit 0, which is indistinguishable from a healthy
-    # clean worktree. `--show-prefix` is the discriminator, and it needs no path arithmetic: empty
-    # exactly at a work-tree root, non-empty anywhere below one. `--is-inside-work-tree` cannot
-    # answer it, because a leftover directory inside a repository genuinely IS inside that work
-    # tree. Both branches stop here: every observation below describes the wrong repository.
     if [[ "${WT_PREFIX_STATUS[$wt_index]}" != "ok" ]]; then
       emit_finding worktree-root-unverifiable "$wt_label" \
         "git rev-parse --show-prefix failed at the registered path" \
@@ -1022,35 +863,22 @@ classify_worktrees() {
         "Run /source-control:worktree cleanup --dry-run in $canonical"
       continue
     fi
-    # Placement drift. A worktree inside its own repository's working tree is what makes a read
-    # matching a path-scoped rule's glob also load the parent checkout's copy of that rule; the
-    # sanctioned placement is an external root outside every repository.
     if [[ "$is_main" == "false" && -n "$canonical_top" ]] &&
       [[ "$(path_key "$wt_path")" == "$(path_key "$canonical_top")"/* ]]; then
       emit_finding worktree-nested-in-repository "$wt_label" \
         "registered worktree root is inside the canonical checkout's own working tree ($canonical_top)" \
         "Recreate it at an external root with /source-control:worktree create, then remove this one"
     fi
-    # Conformance against the configured worktree root (#2606). Main checkout is never expected
-    # under the root. Tool-owned (Codex/Cursor) is distinguished from misplaced; when no root is
-    # configured, record placement only — never invent a convention.
     if [[ "$is_main" == "false" ]]; then
       repo_wt_linked=$((repo_wt_linked + 1))
       FLEET_WT_LINKED=$((FLEET_WT_LINKED + 1))
       placement_paths+="${placement_paths:+, }$wt_label"
-      # Match /source-control:worktree create dirname rules (#2606 review): owner/repo come from
-      # `origin` only, resolved once by the collector. Without origin, owner is omitted and repo is
-      # the checkout basename. Never use select_remote's sole-GitHub fallback (e.g. upstream) —
-      # that falsely flags creator-compliant trees.
       wt_owner="$WT_ORIGIN_OWNER"
       wt_repo="$WT_ORIGIN_REPO"
       if [[ -z "$wt_repo" ]]; then
         wt_repo="${canonical##*/}"
         wt_owner=""
       fi
-      # Creation-time path identity: when the dirname already matches the create
-      # pattern, recover that slug. Porcelain's current branch is mutable
-      # (rename/detach) and must not redefine expected layout for comparison.
       wt_basename="${wt_path##*/}"
       creation_slug=""
       if [[ -n "$wt_owner" ]]; then
@@ -1105,8 +933,6 @@ classify_worktrees() {
         "expected common dir $expected_common; actual $actual_common" \
         "Inspect both repositories; consider git worktree repair only after choosing the authority"
     elif [[ "$is_main" == "false" && "${WT_LOCKED[$wt_index]}" != "true" ]]; then
-      # Disposability (stranded / unknown / safe) is owned by /source-control:worktree status.
-      # Do not emit a weaker porcelain-clean reclaimability verdict here (#2605 / #2597).
       status_handoff_count=$((status_handoff_count + 1))
       status_handoff_targets+="${status_handoff_targets:+, }$wt_label"
     fi
@@ -1117,9 +943,6 @@ classify_worktrees() {
       "Run /source-control:worktree status in $canonical; use /source-control:worktree cleanup --dry-run only after Work is safe"
   fi
 
-  # Per-repository conformance / placement rollup (#2606). Always state counts when linked
-  # worktrees were classified; with a configured root this is the conformance verdict, without it
-  # placement only.
   if ((repo_wt_linked > 0)); then
     if [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]; then
       record_fleet_worktree_root "$CONFIGURED_WORKTREE_ROOT"
@@ -1139,18 +962,6 @@ classify_worktrees() {
   fi
 }
 
-# Local-branch classification. Index i of every BRANCH_* array describes one local branch:
-#
-#   BRANCH_NAMES / BRANCH_TIPS                for-each-ref refs/heads/
-#   BRANCH_ATTACHED / BRANCH_IS_MAIN          the branch's worktree registration, if any
-#   BRANCH_PROTECTED                          default branch, current branch, or main-worktree branch
-#   BRANCH_PR_MATCH / BRANCH_PR_ANY           merged-PR row `num|oid|merged|url`, exact-tip and any
-#   BRANCH_ANCESTRY                           merge-base --is-ancestor exit status, empty when unprobed
-#
-# BRANCH_ANCESTRY is empty for every branch the collector had no reason to probe, which is exactly
-# the set this classifier draws no ancestry conclusion about; the guard for that probe lives in the
-# collector alone. Scalars read: canonical, canonical_remote, default_branch, current_branch,
-# remote_inventory_failed, and REMOTE_BRANCH_NAMES / REMOTE_BRANCH_TIPS for push-state wording.
 # shellcheck disable=SC2154  # BRANCH_* and the repo scalars are the collection phase's evidence, read here
 classify_branches() {
   local branch_index branch tip attached is_main protected protection_reason
@@ -1177,16 +988,6 @@ classify_branches() {
           "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals local tip ($pr_url)" \
           "Run /repo-hygiene:clean git in $canonical"
       else
-        # Protected AND exact-OID merged. Without this arm the evidence is computed
-        # and then discarded: neither branch above fires, so the strongest merge
-        # evidence the collector has produces no finding at all. The weaker
-        # merged-pr-tip-drift below carries no protection guard and DOES emit, so
-        # silence here reads as "nothing merged" rather than "merged but protected".
-        # Reported, never a cleanup candidate -- the protection rule is unchanged
-        # and this kind is deliberately absent from branch_action_kind().
-        # The default branch cannot reach here: BRANCH_PR_MATCH is populated only for
-        # branches other than the default branch, so a default branch never enters this
-        # block. Only the current-branch and main-worktree protections are reachable.
         protection_reason="branch is protected"
         if [[ "$is_main" == "true" ]]; then
           protection_reason="attached to the main worktree"
@@ -1199,13 +1000,6 @@ classify_branches() {
       fi
     elif [[ -n "$pr_any" && "$branch" != "$default_branch" ]]; then
       IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
-      # Whether the local tip matches the last-fetched remote-tracking ref changes the cleanup
-      # risk profile, so the evidence names that observation from the already-collected inventory
-      # -- purely local, no network. A remote-tracking ref only records what the remote advertised
-      # at the LAST FETCH (the branch may have been deleted or force-pushed since), so the
-      # evidence is framed as cached local observation, never as current remote reachability.
-      # Absence from that ref does not prove the tip was never pushed: post-merge head deletion
-      # plus prune is common, and the tip object may still exist on the remote under another ref.
       if [[ "$remote_inventory_failed" == "true" || -z "$canonical_remote" ]]; then
         push_state="remote-tracking inventory unavailable, push state unknown"
       else
@@ -1234,9 +1028,6 @@ classify_branches() {
   done
 }
 
-# Tests source the fail-closed Git/gh wrappers and the finding registry above directly, to
-# exercise forbidden probe vectors and to drive the classifiers without running discovery. Normal
-# execution continues into the collector below.
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
   return 0
 fi
@@ -1247,8 +1038,6 @@ source "${BASH_SOURCE[0]%/*}/../../../scripts/scope-resolve.sh"
 source "${BASH_SOURCE[0]%/*}/../../../scripts/fleet-discovery.sh"
 FLEET_GIT_CMD=run_git_probe
 
-# Data mode: answers before argument parsing, config resolution, and discovery, so a gate reads
-# the registry without running an audit and without requiring git.
 if [[ "${1:-}" == "--print-finding-registry" ]]; then
   print_finding_registry
   exit 0
@@ -1350,8 +1139,6 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   -*)
-    # Reject unknown dashed tokens; that is the injection boundary. Bare paths
-    # (including drive roots) are accepted below as --root equivalents (#2599).
     fail "unknown argument: $1"
     ;;
   *)
@@ -1362,8 +1149,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --apply-plan is a standalone read-only mode: render an ordered dry-run approval
-# artifact from a prior audit plan. No discovery, no GitHub calls, no mutation.
 if [[ -n "$APPLY_PLAN" ]]; then
   if [[ ${#ROOT_ARGS[@]} -gt 0 || ${#REPO_ARGS[@]} -gt 0 || ${#NAMED_ARGS[@]} -gt 0 || -n "$CONFIG_FILE" ||
     ${#OVERRIDE_KEYS[@]} -gt 0 || ${#SKIP_NAMES[@]} -gt 0 || ${#SKIP_APPEND_NAMES[@]} -gt 0 ||
@@ -1461,31 +1246,12 @@ PY
   exit $?
 fi
 
-# Project directory. ${CLAUDE_PROJECT_DIR} is documented to substitute in a skill's markdown
-# content and in its allowed-tools Bash rules -- NOT to be present in the Bash tool's environment,
-# which is where this collector runs. Reading it from the environment left the project rung of the
-# config ladder permanently unreachable, so the skill body passes it in as --project-dir, where the
-# documented substitution applies. The environment is still honored for callers that genuinely have
-# it (hooks, MCP stdio servers, a direct shell).
-#
-# The ${...} guard below is defense in depth, not the primary path: when Claude Code does not
-# substitute the placeholder, the literal reaches the shell, which expands the unset variable to an
-# empty string before this script is entered -- so the ordinary miss arrives as empty and is handled
-# by the emptiness checks. The guard catches only a literal that survives shell expansion (a
-# single-quoted argument, or a caller that invokes this script without a shell), where treating
-# "${CLAUDE_PROJECT_DIR}" as a directory name would be strictly worse than treating it as absent.
 PROJECT_DIR="${PROJECT_DIR_ARG:-${CLAUDE_PROJECT_DIR:-}}"
 case "$PROJECT_DIR" in
 "\${"*) PROJECT_DIR="" ;;
 *) ;;
 esac
 
-# Config resolution ladder: explicit --config, then the project-scoped file,
-# then the user-global one. A fleet config is inherently machine-scoped, so a
-# user-global ~/.claude file is honored when the current project carries none —
-# that file is recorded user intent, not a guessed broader machine root. The
-# consumed source is named in the report header so silent non-consumption
-# cannot happen.
 CONFIG_SOURCE="none"
 if [[ -n "$CONFIG_FILE" ]]; then
   [[ -f "$CONFIG_FILE" ]] || fail "config file not found: $CONFIG_FILE"
@@ -1520,11 +1286,6 @@ if [[ -n "$CONFIG_FILE" ]]; then
   REPO_ARGS+=(${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
 fi
 
-# Acknowledged known-inaccessible GitHub identities (fleet.ackUnavailable,
-# repeatable). An acknowledgment only demotes a 404/403
-# github-identity-unavailable finding to ACKNOWLEDGED prominence — it never
-# suppresses the finding, never touches non-404/403 failures, and never
-# affects evidence from a successful API response.
 ACK_KEYS=()
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
@@ -1536,12 +1297,6 @@ if [[ -n "$CONFIG_FILE" ]]; then
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.ackUnavailable 2>/dev/null || true)
 fi
 
-# Discovery skip names (--skip / fleet.skip). Explicit entries REPLACE the default set rather than
-# appending (#2712): otherwise shrinking (e.g. reaching a repo under vendor/) is impossible. CLI and
-# config compose additively with each other like other scope inputs; with neither supplied, use
-# vendor plus the package-cache names. --extend-skip / fleet.skipAppend add to whichever list is in
-# effect (#4220). . , .. , and .git stay skipped unconditionally even when an explicit list omits
-# them (#2826).
 [[ -z "$CONFIG_FILE" ]] || fleet_load_config_skip "$CONFIG_FILE"
 fleet_finalize_skip_names
 
@@ -1557,9 +1312,6 @@ SCOPE_FALLBACK_NOTE="so no repository scope resolved"
 PRE_FALLBACK_ROOTS=${#ROOT_ARGS[@]}
 PRE_FALLBACK_REPOS=${#REPO_ARGS[@]}
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
-  # Explicit args and fleet config produced nothing. The shared ladder tries
-  # named paths, ghq roots, an ancestor, then the working directory. The project directory
-  # is still not an implicit repo (#2599).
   fallback_file="$(mktemp)"
   if scope_resolve_fallback "${NAMED_ARGS[@]}" >"$fallback_file"; then
     while IFS=$'\t' read -r kind value || [[ -n "$kind" ]]; do
@@ -1593,14 +1345,11 @@ if [[ -n "$FALLBACK_PROVENANCE" && -z "$SCOPE_PROVENANCE" ]]; then
   SCOPE_PROVENANCE="$FALLBACK_PROVENANCE"
 fi
 
-# Last --show-origin record for one worktree-root key. Prints the origin
-# token (file:/path, command:, …) or nothing.
 worktree_root_show_origin() {
   local probe="$1" key="$2" line origin value last_origin=""
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     [[ -n "$line" ]] || continue
-    # --show-origin prefixes "file:<path><TAB><value>" (or "command:..." / "standard input").
     if [[ "$line" == *$'\t'* ]]; then
       origin="${line%%$'\t'*}"
       value="${line#*$'\t'}"
@@ -1615,9 +1364,6 @@ worktree_root_show_origin() {
   printf '%s' "$last_origin"
 }
 
-# Gate + last-wins read of worktreeroot.path from one repository. Sets
-# CONFIGURED_WORKTREE_ROOT / _ORIGIN / _SOURCE on success. Origin may still
-# live on a retired alias under a read-only git wrapper.
 try_read_worktree_root() {
   local probe="$1" last_origin=""
   [[ -n "$probe" && -d "$probe" ]] || return 1
@@ -1632,9 +1378,6 @@ try_read_worktree_root() {
   return 0
 }
 
-# Fallback when the git key is unset: source-control's existing worktree_root userConfig,
-# surfaced as CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT in a plugin session, else pluginConfigs in the
-# user settings file. Never invents the plugin-data default — an absent key stays unset.
 try_read_source_control_worktree_root() {
   local env_val settings home_dir cfg_dir value
   env_val="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
@@ -1657,10 +1400,6 @@ try_read_source_control_worktree_root() {
   else
     return 1
   fi
-  # Marketplace-qualified keys are source-control@<marketplace>; also accept a bare source-control
-  # entry. jq last-wins across matching entries so a more-specific install can override.
-  # jq is not a declared plugin requirement (README: Git + Bash / Git Bash). Missing jq must not
-  # look identical to "key unset" — that would falsely report worktree-root-unconfigured.
   if ! command -v jq >/dev/null 2>&1; then
     PLUGINCONFIGS_JQ_MISSING=true
     PLUGINCONFIGS_SETTINGS_PATH="$settings"
@@ -1683,9 +1422,6 @@ try_read_source_control_worktree_root() {
   return 0
 }
 
-# Root for a repository whose own config sets no worktreeroot.path: the project directory's key,
-# else source-control worktree_root. Another target's key is never borrowed; it may come from that
-# repository's own includeIf.
 resolve_fallback_worktree_root() {
   CONFIGURED_WORKTREE_ROOT=""
   CONFIGURED_WORKTREE_ROOT_ORIGIN=""
@@ -1718,10 +1454,6 @@ resolve_configured_worktree_root() {
   [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]
 }
 
-# Sets the CONFIGURED_WORKTREE_ROOT trio for one canonical checkout. `git -C <canonical> config`
-# honors includeIf, so a per-repository override wins over the global key the way git itself
-# resolves it; with no key of its own the repository uses the fallback, never another target's
-# root. A resolved root that differs from the header root is recorded for the fleet summary.
 resolve_repo_worktree_root() {
   local canonical="$1"
   try_read_worktree_root "$canonical" || use_fallback_worktree_root
@@ -1734,13 +1466,8 @@ resolve_repo_worktree_root() {
   [[ -n "$CONFIGURED_WORKTREE_ROOT" ]]
 }
 
-# directory_has_non_git_entries <dir>: true when <dir> still looks like a former non-bare
-# checkout left with core.bare=true. Real `git init --bare` hubs store HEAD/config/objects/refs
-# at the repository root and never have an in-tree `.git`; the anomaly this finding targets keeps
-# a nested `.git` (file or directory) beside leftover working-tree content (#2602).
 directory_has_non_git_entries() {
   local dir="$1" child name
-  # Ordinary bare hubs have no nested .git — do not treat their admin files as checkout debris.
   [[ -e "$dir/.git" || -L "$dir/.git" ]] || return 1
   for child in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do
     [[ -e "$child" || -L "$child" ]] || continue
@@ -1750,12 +1477,9 @@ directory_has_non_git_entries() {
     *) return 0 ;;
     esac
   done
-  # Nested .git alone still marks the misconfigured non-bare shape (empty work tree).
   return 0
 }
 
-# count_worktree_registrations <dir>: how many porcelain worktree records git reports. The main
-# (possibly bare) registration counts as one; linked worktrees push the total above one.
 count_worktree_registrations() {
   local dir="$1" record count=0
   while IFS= read -r -d '' record; do
@@ -1765,8 +1489,6 @@ count_worktree_registrations() {
   printf '%s\n' "$count"
 }
 
-# classify_bare_live_tree <dir>: when <dir> is bare AND has working-tree content or linked
-# worktrees, print evidence and return 0. Otherwise return non-zero. Does not mutate state.
 classify_bare_live_tree() {
   local dir="$1" bare wt_count=0 has_content="false" detail=""
   capture_text bare run_git_probe -C "$dir" rev-parse --is-bare-repository || return 1
@@ -1833,25 +1555,12 @@ DISCOVERY_SKIP_PATHS=()
 DISCOVERY_SKIP_REASONS=()
 DISCOVERY_NONREPO_COUNT=0
 DISCOVERY_UNREADABLE_COUNT=0
-# Intermediate directories that are symbolic links (or Windows junctions that test as symlinks
-# under Git Bash). Discovery still does not follow them; each path is disclosed rather than omitted
-# silently (#2711).
 DISCOVERY_SYMLINK_PATHS=()
 
-# Paths where core.bare=true coincides with working-tree content and/or linked worktrees. Rejecting
-# these as "not a Git working tree" would omit the one administrative anomaly this collector exists
-# to surface (#2602); they are reported as findings and never abort the run.
 BARE_LIVE_TREE_PATHS=()
 BARE_LIVE_TREE_EVIDENCE=()
 BARE_LIVE_TREE_COMMON_KEYS=()
 
-# reject_target <origin> <message>: apply the rejection policy for a target that failed a
-# prerequisite. "config" and "discovery" return 1 so the caller records a stale-config entry or a
-# discovery-skip and continues: a husk a package cache left under --root (uv writes a zero-byte
-# .git into its sdists cache) must not abort every repository after it. "cli" and "default" stop
-# the run. "default" is the implicit no-argument target — the same hard failure, plus the scope
-# remedies, because the operator did not choose this path and the bare rejection gives them
-# nothing to act on.
 reject_target() {
   local origin="$1" message="$2"
   [[ "$origin" == "config" || "$origin" == "discovery" ]] && return 1
@@ -1895,15 +1604,8 @@ if [[ "$UNRESOLVED_SCOPE" == "true" ]]; then
     "no scope resolved: no bare path, --root, or --repo, and no config-supplied fleet.root/fleet.repo"
 fi
 
-# main_worktree <dir>: the repository-of-record checkout for <dir>, or non-zero when the porcelain
-# cannot answer. `git worktree list --porcelain` lists the MAIN worktree first regardless of which
-# worktree it runs from (git-worktree(1)), and the collector already relies on that ordering when it
-# classifies registrations. `rev-parse --show-toplevel` cannot substitute: inside a linked worktree
-# it returns the LINKED root, so it can never distinguish the two.
 main_worktree() {
   local dir="$1" record=""
-  # -z records are NUL-delimited and command substitution would drop the NULs outright, so read the
-  # first record directly off the stream.
   IFS= read -r -d '' record < <(run_git_probe -C "$dir" worktree list --porcelain -z -- 2>/dev/null)
   record="${record%$'\r'}"
   [[ "$record" == "worktree "* ]] || return 1
@@ -1912,13 +1614,6 @@ main_worktree() {
   printf '%s\n' "$record"
 }
 
-# add_target <path> <origin>: origin "cli" hard-fails on an invalid path (a typo should stop the
-# run); origin "default" hard-fails with the scope remedies; origin "config" records a
-# stale-config-entry and continues (the entry, not the run, is the failure unit for a tracked fleet
-# config); origin "discovery" records a discovery-skip and continues (a husk under --root must not
-# abort every subsequent repository). Invalid config SYNTAX still hard-fails upstream. A bare
-# repository with live working-tree content or linked worktrees is classified as a finding instead
-# of rejected (#2602).
 add_target() {
   local candidate="$1" origin="${2:-cli}" top common common_key main_top main_resolved
   local bare_live_evidence=""
@@ -1949,21 +1644,7 @@ add_target() {
       "$(discovery_skip_reason "$candidate" "cannot resolve the Git common directory for the discovered path")"
     return 0
   }
-  # Siblings sharing one common directory are one repository, and the dedup below keeps whichever
-  # arrives first -- which for recursive discovery is glob order. Retarget to the repository of
-  # record BEFORE that tie-break, so a linked worktree reached first can never become the canonical
-  # path every emitted handoff points at. The .git test is a cost gate only: a main worktree carries
-  # .git as a DIRECTORY and a linked one as a FILE, so an ordinary sweep never pays for the probe.
   if [[ ! -d "$top/.git" ]] && main_top="$(main_worktree "$candidate")" && [[ -n "$main_top" ]]; then
-    # The porcelain's first record is NOT always a checkout, and three ordinary shapes all present a
-    # .git file so they reach here: a submodule reports the superproject's .git/modules/<name> admin
-    # directory, --separate-git-dir reports the detached git directory, and a worktree of a bare
-    # repository reports the bare repository. Adopting any of them would aim every handoff INSIDE
-    # another repository's administrative directory -- the precise harm this retarget exists to
-    # prevent. So re-resolve the porcelain's answer as a working tree and adopt only a genuine,
-    # different checkout: bare and separate-git-dir fail this probe and are skipped, a submodule
-    # resolves back to the path we already had and self-cancels, and a real linked worktree resolves
-    # to its main worktree and retargets.
     capture_text main_resolved run_git_probe -C "$main_top" rev-parse --show-toplevel || main_resolved=""
     if [[ -n "$main_resolved" && "$(path_key "$main_resolved")" != "$(path_key "$top")" ]]; then
       if ! array_contains "$top" "${RETARGETED_FROM[@]:-}"; then
@@ -1989,17 +1670,10 @@ for ((repo_index = 0; repo_index < ${#REPO_ARGS[@]}; repo_index++)); do
   fi
 done
 
-# Discovery hooks for the shared walker in fleet-discovery.sh. It stops descending at a .git marker,
-# so a repo buried inside another repo's tree never appears as its own audit target (#2712), and a
-# husk that fails a prerequisite degrades per-entry in add_target.
 fleet_on_repo() { add_target "$1" discovery; }
 
-# Symlinked/junctioned intermediate dirs are not followed, but each is disclosed (#2711).
 fleet_on_symlink() { DISCOVERY_SYMLINK_PATHS+=("$1"); }
 
-# Unreadable directories are ordinary under a volume-wide --root (e.g. Windows $RECYCLE.BIN). Count
-# and move on; never abort the walk. A .git marker that is somehow still visible is recorded as a
-# discovery skip so the header's unreadable count is not the only signal.
 fleet_on_unreadable() {
   if [[ "$2" == 1 ]]; then
     reject_target discovery "not a Git working tree: $1"
@@ -2020,9 +1694,6 @@ for ((root_index = 0; root_index < ${#ROOT_ARGS[@]}; root_index++)); do
     STALE_CONFIG_REASONS+=("configured fleet.root path is not a directory")
     continue
   fi
-  # fleet_discover_root deliberately skips symlinks (-L). Accepting a symlink root here would
-  # record ROOT_LABELS and exit "0 repositories" even when the target tree is full of repos (#2599).
-  # Non-readable/non-executable directories are the same false-empty class.
   if [[ -L "$root" ]]; then
     [[ "$root_index" -ge "$CLI_ROOT_COUNT" ]] || fail "discovery root is a symlink (refused): $root"
     STALE_CONFIG_PATHS+=("$root")
@@ -2041,11 +1712,6 @@ for ((root_index = 0; root_index < ${#ROOT_ARGS[@]}; root_index++)); do
   ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done
 
-# An all-stale config (every entry deleted since the last run) must still produce a report whose
-# stale-config-entry findings tell the user what to remediate. A discovery root that exists but
-# contains no repositories is a valid empty audit ("0 repositories found"), not an error — the
-# operator named that tree (#2599). Hard-fail only when nothing was ever in scope: no roots walked,
-# no repos, and no stale/skip/bare-live entry to report.
 if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 && ${#DISCOVERY_SKIP_PATHS[@]} -eq 0 && ${#DISCOVERY_SYMLINK_PATHS[@]} -eq 0 && ${#BARE_LIVE_TREE_PATHS[@]} -eq 0 && ${#ROOT_LABELS[@]} -eq 0 ]]; then
   fail "no Git working trees found in the requested scope"
 fi
@@ -2059,11 +1725,6 @@ if command -v gh >/dev/null 2>&1 && run_bounded_gh auth status --hostname github
   GH_READY=true
 fi
 
-# Which gh account produced the GitHub evidence changes how UNKNOWN findings read (a dozen HTTP
-# 404s under
-# the wrong login is expected, under the right one it is a real signal), so the header names it.
-# Best-effort: any probe failure keeps the plain header line. This is the cheap subset of the
-# tracked per-domain-gh-auth request (multiple accounts per host) — see the plugin backlog.
 GH_ACCOUNT=""
 if [[ "$GH_READY" == "true" ]]; then
   GH_ACCOUNT="$(run_bounded_gh api user --hostname github.com --method GET --template '{{.login}}' 2>/dev/null | tr -d '\r\n')" || GH_ACCOUNT=""
@@ -2129,12 +1790,6 @@ lookup_override() {
   if [[ -n "$CONFIG_FILE" ]]; then
     configured="$(run_git_probe config --file "$CONFIG_FILE" --get "canonical.$key.path" 2>/dev/null || true)"
     if [[ -z "$configured" ]]; then
-      # git config subsection names are case-sensitive, so a config section
-      # written with GitHub's display casing (the setup skill allows
-      # case-preserving owner/name) never matches the lowercase key above --
-      # regardless of what casing the discovered remote itself happens to
-      # use, which need not match the config's casing either. Scan every
-      # canonical.*.path entry and compare case-insensitively.
       while IFS= read -r -d '' entry; do
         name="${entry%%$'\n'*}"
         value="${entry#*$'\n'}"
@@ -2189,10 +1844,6 @@ IDENT_KEYS=()
 IDENT_PATHS=()
 
 json_escape() {
-  # Minimal JSON string escape for path/report text. Iterate bytes under LC_ALL=C so
-  # ${#s}/${s:i:1} are stable, but only \u00XX-escape ASCII controls. Bytes >= 0x80 pass
-  # through unchanged so complete UTF-8 code points stay intact (byte-wise \u00C3\u00A9
-  # style escapes would mojibake non-ASCII repository paths such as répô).
   local s="$1" out="" i c hex o
   local LC_ALL=C
   for ((i = 0; i < ${#s}; i++)); do
@@ -2287,8 +1938,6 @@ print_collapsed_target_detail() {
       kinds_line+="${kinds_line:+, }${F_KIND[$j]} (${F_CONF[$j]})"
     done
     print_field Findings "$kinds_line"
-    # One Finding/Confidence pair per kind under the shared Target keeps legacy report greps
-    # working while still collapsing to a single target entry (#2608).
     for ((j = 0; j < ${#F_KIND[@]}; j++)); do
       [[ "${F_REPO_IDX[$j]}" == "$repo_idx" && "${F_TARGET[$j]}" == "$t" ]] || continue
       print_field Finding "${F_KIND[$j]}"
@@ -2301,10 +1950,6 @@ print_collapsed_target_detail() {
   done
 }
 
-# Append one parsed `git worktree list --porcelain -z` registration to the WT_*
-# parallel arrays. The porcelain separates records with an empty field and the
-# stream also ends on one, so a record carrying no `worktree ` line is a
-# separator artifact rather than a registration: an empty path appends nothing.
 push_worktree_record() {
   [[ -n "$1" ]] || return 0
   WT_PATHS+=("$1")
@@ -2313,13 +1958,6 @@ push_worktree_record() {
   WT_LOCKED+=("$4")
 }
 
-# Remote heads that delete_branch_on_merge can never reach: never-pr (no PR of any state has this
-# exact headRefName) and closed-unmerged (CLOSED PRs only, and the live tip equals one's
-# headRefOid). Reads analyze_repo's evidence. Only a head the merged-PR query returned no row for
-# is queried here, so a branch with a MERGED PR stays in the merged-remote-branch path; a MERGED or
-# OPEN row in this query is skipped as well. Default, current and worktree-attached branches are
-# protected. With no default branch known the class is skipped, or the default branch itself would
-# read as never-pr. Each candidate records the full live tip from ls-remote as expected_oid.
 classify_unmerged_remote_branches() {
   [[ "$repo_pr_available" == "true" && "$remote_inventory_failed" == "false" &&
     -n "$canonical_remote" && -n "$canonical_key" && -n "$github_repo" &&
@@ -2410,7 +2048,6 @@ classify_unmerged_remote_branches() {
         "Re-verify with ls-remote or a pruning fetch, then rerun the audit; no tip is recorded, so no deletion is planned"
       continue
     fi
-    # Empty ls-remote: the head is already gone upstream.
     [[ -n "$live_oid" ]] || continue
 
     rb_num="" rb_url=""
@@ -2452,9 +2089,6 @@ classify_unmerged_remote_branches() {
   fi
 }
 
-# find_merged_pr <branch> <tip>: over analyze_repo's repo_pr_rows, set its pr_any to the first
-# merged-PR row for <branch> and its pr_match to the first whose headRefOid is <tip>, each as
-# number|oid|mergedAt|url; empty when no row matches.
 find_merged_pr() {
   local want_branch="$1" want_tip="$2"
   pr_match="" pr_any=""
@@ -2548,9 +2182,6 @@ analyze_repo() {
           "Review git remote set-url for $discovered_remote in $discovered"
       fi
     elif [[ "$expected_reason" == *"HTTP 404"* || "$expected_reason" == *"HTTP 403"* ]] && is_acked "$discovered_key"; then
-      # Acked demotion applies ONLY to the foreseeable-inaccessible statuses;
-      # any other failure (network, timeout, malformed response) keeps full
-      # UNKNOWN prominence with its real reason even for an acked identity.
       emit_finding_as ACKNOWLEDGED "Acknowledged; no GitHub evidence combined" \
         github-identity-unavailable "$discovered_key" \
         "$expected_reason; acknowledged known-inaccessible via fleet.ackUnavailable" \
@@ -2562,9 +2193,6 @@ analyze_repo() {
     fi
   fi
 
-  # Duplicate-checkout keys use the GitHub-canonicalized identity when resolution succeeded, so an
-  # old checkout whose remote still says old/repo pairs with a fresh clone of new/repo; the parsed
-  # remote is only the fallback when canonical resolution is unavailable.
   if [[ -n "$github_repo" ]]; then
     IDENT_KEYS+=("github.com/$(lower "$github_repo")")
     IDENT_PATHS+=("$discovered")
@@ -2608,16 +2236,6 @@ analyze_repo() {
     return
   }
 
-  # Resolved through git rather than taken from discovery so that it and the porcelain's worktree
-  # paths come from ONE source. A filesystem-derived path and a git-emitted one differ by spelling
-  # on Windows (/d/repos/<repo> vs <drive>:/repos/<repo>), and path_key normalizes separators and case but not the
-  # drive form — a containment test across those two forms silently never matches.
-  # A BARE canonical has no working tree, so `--show-toplevel` fails there by
-  # design and there is nothing for a worktree to be nested inside — a legitimate
-  # skip, not an unknown. Any OTHER failure is an unknown, and it gets a finding
-  # rather than a silent skip: every sibling probe in this function reports when
-  # it cannot answer, and a placement check that quietly did not run reads
-  # identically to one that ran and found nothing.
   local canonical_top canonical_bare="false" canonical_bare_text
   capture_text canonical_bare_text run_git_probe -C "$canonical" rev-parse --is-bare-repository
   [[ "$canonical_bare_text" == "true" ]] && canonical_bare="true"
@@ -2628,7 +2246,6 @@ analyze_repo() {
       "Inspect the canonical checkout, then rerun"
   fi
 
-  # Parse the stable NUL-delimited porcelain format. Only these registrations are worktree evidence.
   local wt_path="" wt_branch="" wt_prunable="false" wt_locked="false" field worktree_status=1
   local wt_prefix wt_prefix_status wt_common wt_common_status
   while IFS= read -r -d '' field; do
@@ -2657,16 +2274,6 @@ analyze_repo() {
   fi
   push_worktree_record "$wt_path" "$wt_branch" "$wt_prunable" "$wt_locked"
 
-  # Worktree evidence for classify_worktrees. Every Git observation about a registration is taken
-  # here so the classification below reads arrays only. The probes carry the same guards the
-  # classifier's arms do -- an absent path is never probed, and a registration that is not a
-  # work-tree root is not asked for a common directory, because both answers would describe the
-  # containing repository instead of the registration.
-  #
-  # owner/repo for the expected-layout comparison come from `origin` on the canonical checkout,
-  # which is one answer for every registration, so it is resolved once here rather than per
-  # worktree. select_remote's sole-GitHub fallback (e.g. upstream) is deliberately not used: it
-  # would falsely flag creator-compliant trees.
   if capture_text origin_url run_git_probe -C "$canonical" remote get-url origin &&
     [[ -n "$origin_url" ]] && parse_github_url "$origin_url"; then
     WT_ORIGIN_OWNER="${PARSED_SLUG%%/*}"
@@ -2680,9 +2287,6 @@ analyze_repo() {
     wt_common_status="skipped"
     if [[ -d "$wt_path" ]]; then
       WT_PRESENT+=("true")
-      # `--show-prefix` discriminates a work-tree ROOT from a leftover directory below one: empty
-      # exactly at a root, non-empty anywhere beneath it. `--is-inside-work-tree` cannot, because a
-      # leftover directory inside a repository genuinely IS inside that work tree.
       if capture_text wt_prefix run_git_probe -C "$wt_path" rev-parse --show-prefix; then
         wt_prefix_status="ok"
       else
@@ -2706,8 +2310,6 @@ analyze_repo() {
     WT_COMMON_DIR+=("$wt_common")
   done
 
-  # Dynamic scope: classify_worktrees reads this repository's root through the shadowed trio, and
-  # the fleet-level header value is untouched once analyze_repo returns.
   local CONFIGURED_WORKTREE_ROOT="" CONFIGURED_WORKTREE_ROOT_ORIGIN="" CONFIGURED_WORKTREE_ROOT_SOURCE="unset"
   resolve_repo_worktree_root "$canonical" || FLEET_REPOS_ROOT_UNSET=$((FLEET_REPOS_ROOT_UNSET + 1))
   classify_worktrees
@@ -2723,9 +2325,6 @@ analyze_repo() {
     return
   fi
 
-  # Git emits one LF after every custom for-each-ref format. Terminate each complete branch/tip
-  # record with an explicit NUL, strip only that Git-added record separator, and preserve the
-  # producer's exit status in a separate NUL field. Never classify partial output from a failed probe.
   while IFS= read -r -d '' ref_record; do
     while [[ "$ref_record" == $'\n'* || "$ref_record" == $'\r'* ]]; do
       ref_record="${ref_record:1}"
@@ -2759,9 +2358,6 @@ analyze_repo() {
     return
   fi
 
-  # Remote-tracking inventory is local-only evidence for merged-pr-tip-drift push-state wording.
-  # Merge evidence itself is gathered by exact headRefName GraphQL aliases below and does not
-  # depend on these refs (auto-deleted-then-pruned heads stay queryable on GitHub).
   if [[ -n "$canonical_remote" ]]; then
     while IFS= read -r -d '' remote_ref_record; do
       while [[ "$remote_ref_record" == $'\n'* || "$remote_ref_record" == $'\r'* ]]; do
@@ -2780,9 +2376,6 @@ analyze_repo() {
         remote_date="${remote_tip#*$'\t'}"
         remote_tip="${remote_tip%%$'\t'*}"
       fi
-      # refs/remotes/<remote>/ also yields a bare "<remote>" entry (the symbolic HEAD pointer to
-      # the remote's default branch, e.g. refs/remotes/origin/HEAD -> refname:short "origin") --
-      # require the literal "<remote>/" prefix so that entry is excluded, not misread as a branch.
       if [[ "$remote_branch_short" == "$canonical_remote/"* ]]; then
         remote_branch_short="${remote_branch_short#"$canonical_remote"/}"
         if [[ -n "$remote_branch_short" ]]; then
@@ -2807,10 +2400,6 @@ analyze_repo() {
     fi
   fi
 
-  # One aliased GraphQL query per page of local branches (exact headRefName, first:1, MERGED).
-  # Per-branch aliases retire the REST window truncation and the privacy-gated --head fallback:
-  # every non-default local branch the operator asked about is queried by exact name. Fail closed
-  # when gh/GraphQL is unavailable — never infer unmerged from a missing row after a failed page.
   if [[ -n "$github_repo" && "$GH_READY" == "true" ]]; then
     gql_owner="${github_repo%%/*}"
     gql_name="${github_repo#*/}"
@@ -2827,8 +2416,6 @@ analyze_repo() {
         [[ "$branch" =~ [[:cntrl:]] ]] && continue
         GQL_BRANCHES+=("$branch")
       done
-      # Remote-only heads (local already deleted) still need exact headRefName GraphQL rows
-      # for merged-remote-branch classification.
       for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]:-}"; do
         [[ -n "$remote_branch_short" && "$remote_branch_short" != "$default_branch" ]] || continue
         [[ "$remote_branch_short" =~ [[:cntrl:]] ]] && continue
@@ -2871,12 +2458,6 @@ analyze_repo() {
     fi
   fi
 
-  # Branch evidence for classify_branches. Worktree attachment, protection, and the merged-PR row
-  # each branch matches are joins over evidence already in memory; the ancestry probe is the one
-  # Git call, and its guard lives here alone. It runs exactly where the classifier would have run
-  # it -- no merged-PR row of any kind, unprotected, unattached, and a remote default branch to
-  # compare against -- so a branch the classifier draws no ancestry conclusion about is never
-  # probed, and BRANCH_ANCESTRY stays empty for it.
   for ((branch_index = 0; branch_index < ${#BRANCH_NAMES[@]}; branch_index++)); do
     branch="${BRANCH_NAMES[$branch_index]}"
     tip="${BRANCH_TIPS[$branch_index]}"
@@ -2915,15 +2496,6 @@ analyze_repo() {
 
   classify_branches
 
-  # Merged remote branches that still exist on the remote are a distinct class from local cleanup:
-  # delete_branch_on_merge was off (or blocked), so the head ref remains on origin after merge.
-  # Match GraphQL merged-PR rows against the REMOTE tip (not the local tip). This also catches
-  # remote-only heads (local already deleted). A last-fetched remote-tracking tip alone is not
-  # live proof — after merge-and-auto-delete without a pruning fetch the cached ref can linger —
-  # so HIGH requires ls-remote to confirm the head still exists at the matched tip. When
-  # ls-remote fails, report the cached observation at MEDIUM. Empty ls-remote means the remote
-  # head is gone; emit nothing. Enabling GitHub delete_branch_on_merge is complementary and is
-  # never a substitute for this visibility; this collector never changes that setting.
   if [[ "$repo_pr_available" == "true" && "$remote_inventory_failed" == "false" && -n "$canonical_remote" ]]; then
     for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
       remote_branch_short="${REMOTE_BRANCH_NAMES[$ri]}"
@@ -2932,10 +2504,6 @@ analyze_repo() {
       [[ "$remote_branch_short" == "$default_branch" ]] && continue
       find_merged_pr "$remote_branch_short" "$remote_tip"
       if [[ -z "$pr_match" && -n "$pr_any" ]]; then
-        # The merged head moved past the remote-tracking tip. When the tip is an ancestor of the
-        # head and the head object is in this clone, every commit on the remote branch was in the
-        # merged PR. The probe exits non-zero for a missing head object, so that case stays
-        # silent. No ls-remote runs, so the finding is never HIGH.
         IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
         if run_git_probe -C "$canonical" merge-base --is-ancestor "$remote_tip" "$pr_oid" 2>/dev/null; then
           emit_finding_as MEDIUM - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
@@ -2951,8 +2519,6 @@ analyze_repo() {
         live_out="$(run_ls_remote_probe "$canonical" "$canonical_remote" \
           "refs/heads/$remote_branch_short" 2>/dev/null)" || live_status=$?
         live_oid="${live_out%%[[:space:]]*}"
-        # An empty or tip-mismatched ls-remote means the remote head is gone or moved: emit nothing,
-        # rather than blame delete_branch_on_merge on a stale local remote-tracking observation.
         if [[ "$live_status" -eq 0 && -n "$live_oid" && "$live_oid" == "$remote_tip" ]]; then
           emit_finding_as HIGH - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
             "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); ls-remote confirmed refs/heads/$remote_branch_short still at $live_oid (delete_branch_on_merge not enabled or blocked for this repository)" \
@@ -3078,7 +2644,6 @@ for ((skip_index = 0; skip_index < ${#DISCOVERY_SKIP_PATHS[@]}; skip_index++)); 
     "No action required for ordinary non-repositories; inspect unexpected .git markers, then rerun${skip_remedy:+. $skip_remedy}"
 done
 
-# Symlinked/junctioned intermediate directories under --root: still not followed, but never silent (#2711).
 for ((symlink_index = 0; symlink_index < ${#DISCOVERY_SYMLINK_PATHS[@]}; symlink_index++)); do
   printf '\n'
   skip_remedy="$(skip_setup_remedy "${DISCOVERY_SYMLINK_PATHS[$symlink_index]}")"
@@ -3087,8 +2652,6 @@ for ((symlink_index = 0; symlink_index < ${#DISCOVERY_SYMLINK_PATHS[@]}; symlink
     "Pass an explicit --root/--repo for the link target if that tree should be in scope, or replace the junction/symlink with a real directory${skip_remedy:+. $skip_remedy}"
 done
 
-# Bare repositories that still have working-tree content or linked worktrees (#2602). Reported
-# before per-repo analysis so the anomaly is visible even when no worktree could be audited.
 for ((bare_index = 0; bare_index < ${#BARE_LIVE_TREE_PATHS[@]}; bare_index++)); do
   printf '\n'
   print_field Repo "${BARE_LIVE_TREE_PATHS[$bare_index]}"
@@ -3119,9 +2682,6 @@ for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
   fi
 done
 
-# Fleet-level worktree-root conformance headline (#2606). Emitted even when every other finding is
-# empty — "N of M outside the configured root" is the signal this fleet lacked. Buffered before the
-# human rollup so kind counts and --detail include these findings.
 if [[ "$PLUGINCONFIGS_JQ_MISSING" == "true" ]] &&
   [[ -z "$CONFIGURED_WORKTREE_ROOT" || "$FLEET_REPOS_ROOT_UNSET" -gt 0 ]]; then
   emit_finding worktree-root-pluginconfigs-unreadable "fleet" \
@@ -3164,10 +2724,6 @@ else
     "Set worktreeroot.path (git config) or source-control worktree_root, then rerun for conformance"
 fi
 
-# When every attempted ls-remote failed, N MEDIUM merged-remote-branch and
-# unmerged-remote-branch-unverified findings are one transport/binding problem, not N independent
-# stale heads (#4211). The per-repository rows are withheld and the single fleet finding replaces
-# them. Empty ls-remote (head already gone) is a successful probe and does not count as a failure.
 if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEMPTS" ]]; then
   withhold_medium_findings merged-remote-branch
   withhold_medium_findings unmerged-remote-branch-unverified
@@ -3176,7 +2732,6 @@ if [[ "$LS_REMOTE_ATTEMPTS" -gt 0 && "$LS_REMOTE_FAILURES" -eq "$LS_REMOTE_ATTEM
     "Confirm git ls-remote --heads works by hand with the operator's usual Git transport, then rerun"
 fi
 
-# --- Human rollup (#2608) ---------------------------------------------------
 printf '\n'
 printf 'Repository rollup\n'
 printf 'Presentation: counts by finding kind; duplicate targets collapsed in detail/plan\n'
@@ -3238,10 +2793,6 @@ print_field 'Fleet verdict' "$fleet_verdict"
 printf 'Fleet counts: clean=%s with_candidates=%s blocked=%s\n' \
   "$fleet_clean" "$fleet_candidates" "$fleet_blocked"
 
-# --- Fleet-scale action plan (#2609) ----------------------------------------
-# One recommended skill invocation per (canonical repository, skill). Branch cleanups are listed
-# before worktree cleanups so an operator approving the plan never prunes a worktree before the
-# branch that still anchors its reflog.
 printf '\n'
 printf 'Fleet action plan\n'
 printf 'Confirmation model: ONE gate for this entire plan (not per repository per skill)\n'
@@ -3253,9 +2804,6 @@ ACTION_CANONICAL=()
 ACTION_OPERATION=()
 ACTION_PHASE=()
 ACTION_KINDS=()
-# Targets are real array elements owned by action index (ACTION_TARGET_OWNER), not a
-# delimited string: Unix paths may contain newlines, so no in-band separator is safe,
-# and bash scalars cannot store NUL either.
 ACTION_TARGET_OWNER=()
 ACTION_TARGET_VALUE=()
 
@@ -3511,11 +3059,5 @@ fi
 
 printf '\nSummary: repositories_audited=%s high=%s medium=%s low=%s unknown=%s acknowledged=%s\n' \
   "$REPOS_AUDITED" "$FINDINGS_HIGH" "$FINDINGS_MEDIUM" "$FINDINGS_LOW" "$FINDINGS_UNKNOWN" "$FINDINGS_ACKED"
-# Deliberately a statement of the enforcing mechanism, not a tally. The previous line printed a
-# hardcoded "Mutation count: 0", which would have read identically in a build that mutated -- an
-# unfalsifiable reassurance in the exact place a reader looks for assurance. A real counter is not
-# available either: most probes run inside command substitution, so an increment would be lost with
-# the subshell and would undercount. The allowlists are the fact; they are named so a reader can go
-# read them.
 printf 'Mutations: none possible; every Git and gh invocation is checked against a read-only\n'
 printf '  command allowlist (git_probe_allowed / gh_probe_allowed) and rejected otherwise.\n'

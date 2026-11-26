@@ -1,9 +1,11 @@
+// test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
+import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 process.env.STANDARDS_DIR ||= standardsCheckout();
@@ -150,10 +152,42 @@ test("the newest labeled event is read by its time, not its place in the list", 
   assert.equal(source(reordered), "lane-escalation");
 });
 
-const escalated = (reason, at = "2026-10-18T10:00:05Z") =>
-  commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
+const escalated = (reason, at = "2026-10-18T10:00:05Z", codeLabel = "Lane code", stopLine = "<!-- stop-reason lane=pr-unblock reason=design -->") =>
+  commented(
+    APP,
+    `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\n${stopLine && `${stopLine}\n`}### pr-unblock / report-escalation\nHeld for a person: why.\nReason: \`design\`\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${OLD}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n- \`src/a.js:1\`: https://github.com/o/r/pull/1#discussion_r1\n\n</details>`,
+    at,
+  );
 const allows = (timeline, activity, { reviewComments = [], reviews = [] } = {}) =>
   laneEscalationAllows({ timeline, reviewComments, reviews, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
+
+test("report-escalation.sh's pr-unblock stop-reason marker is read; another lane's, another code or a mangled one is unknown", () => {
+  const marked = (stopLine) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed", undefined, "Lane code", stopLine)];
+  assert.equal(source(marked("")), "lane-escalation", "a hold route with no owner reason writes no marker line");
+  for (const code of PERSON_REASONS) {
+    assert.equal(source(marked(personReasonLines("pr-unblock", code)[0])), "lane-escalation", code);
+  }
+  for (const stopLine of [
+    "<!-- stop-reason lane=pr-verify reason=security -->",
+    "<!-- stop-reason lane=fix-ci reason=design -->",
+    "<!-- stop-reason lane=pr-unblock reason=none -->",
+    "<!-- stop-reason lane=pr-unblock reason=Design -->",
+    "<!-- stop-reason lane=pr-unblock reason=design-x -->",
+    "<!-- stop-reason lane=pr-unblock reason=design extra=1 -->",
+    "<!-- stop-reason lane=pr-unblock reason=design  -->",
+    " <!-- stop-reason lane=pr-unblock reason=design -->",
+    "<!-- stop-reason lane=pr-unblock -->",
+    "<!--stop-reason lane=pr-unblock reason=design -->",
+  ]) {
+    assert.equal(source(marked(stopLine)), "unknown", stopLine);
+  }
+});
+
+test("a hold comment that labels its lane code `- Reason:` holds its activity too", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated", undefined, "Reason")];
+  assert.equal(allows(timeline, "fix-ci"), false);
+  assert.equal(allows(timeline, "resolve-conflicts"), true);
+});
 
 test("a lane escalation holds only the activity it belongs to", () => {
   const by = (reason) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated(reason)];
@@ -182,7 +216,6 @@ test("a person's comment since the label went on holds every activity; one befor
   assert.equal(allows(after, "resolve-conflicts"), false);
   assert.equal(allows(before, "fix-ci"), true);
   assert.equal(allows(bot, "fix-ci"), true, "a bot's comment is no one asking to wait");
-  // GitHub's REST timeline: a review carries submitted_at, an inline comment sits under line-commented.
   const review = [...base, { event: "reviewed", user: OWNER, submitted_at: "2026-10-18T11:00:00Z", state: "changes_requested" }];
   const inline = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T11:00:00Z" }] }];
   assert.equal(allows(review, "fix-ci"), false, "a person's review");
@@ -207,8 +240,6 @@ test("a person's timeline comment with no updated_at counts as written since the
   assert.equal(allows(inline, "fix-ci"), false, "an inline comment");
 });
 
-// GitHub's REST pulls/<n>/comments: a reply inside an existing review thread
-// carries in_reply_to_id and has no event on the issue timeline (#10526, #10533).
 const reply = (user, at, extra = {}) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: at, updated_at: at, ...extra });
 
 test("a person's inline reply in a review thread, seen only in the review comments, holds every activity", () => {
@@ -285,8 +316,6 @@ test("prHold reads the timeline only for the human-gated label, and holds on any
   assert.equal((await hold_(["needs-human"], { gateLabel: null })).held, true, "with no readable human-gated label it holds");
 });
 
-// check-signed-commits' escalation comment, posted with its report job's
-// GITHUB_TOKEN; its label write adds no `labeled` event when the label is on.
 const noReviews = async () => ({ comments: [], reviews: [] });
 const signedHold = (user, at) =>
   commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${OLD}\``, at);
@@ -409,7 +438,6 @@ test("listLabelEvents maps GraphQL label events to timeline items across pages",
     {
       nodes: [
         { __typename: "UnlabeledEvent", createdAt: "2026-10-18T11:00:00Z", label: { name: "needs-human" }, actor: { __typename: "User", login: OWNER.login, databaseId: OWNER.id } },
-        // GraphQL names a Bot without the `[bot]` REST gives it.
         { __typename: "LabeledEvent", createdAt: "2026-10-18T12:00:00Z", label: { name: "needs-human" }, actor: { __typename: "Bot", login: "github-actions", databaseId: ACTIONS.id } },
       ],
       pageInfo: { hasNextPage: false, endCursor: null },
