@@ -5,7 +5,7 @@
       "why": "a one-line Blocked verdict comes before the findings"
     },
     {
-      "answer": "Reviewed: src/components/CodeBlock.tsx (diff).\n\nBlocked: one Blocking finding on the accessibility floor (accessibility lane only; the other lanes are left for a later pass).\n\n- Blocking: CodeBlock.tsx:16, icon-only button with no accessible name. Add aria-label=\"Copy code\".",
+      "answer": "Reviewed: src/components/CodeBlock.tsx (diff).\n\nBlocked: one Blocking finding on the accessibility floor (accessibility concern only; the other concerns are left for a later pass).\n\n- Blocking: CodeBlock.tsx:16, icon-only button with no accessible name. Add aria-label=\"Copy code\".",
       "why": "a short reviewed line, then the Blocked verdict, then the finding"
     }
   ],

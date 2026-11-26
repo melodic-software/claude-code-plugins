@@ -57,7 +57,7 @@ class FindingLine(unittest.TestCase):
         )
 
 
-class UnchangedTrailingComment(unittest.TestCase):
+class GitDiff:
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -95,6 +95,8 @@ class UnchangedTrailingComment(unittest.TestCase):
         got = lint.findings(path, text, [(1, text.count("\n"))], "necessary", [], hunks=hunks)
         return [int(f.split(":")[1]) for f in got]
 
+
+class UnchangedTrailingComment(GitDiff, unittest.TestCase):
     def test_diff_hunks_keep_removed_lines(self):
         diff = self.staged({"a.js": "f\nx=1;  // why\n+++ b/z\n"}, {"a.js": "f\nx = 1; // why\n"})
         self.assertEqual(self.hunks(diff)["a.js"], [(2, ["x=1;  // why", "+++ b/z"], 2, 1)])
@@ -129,6 +131,59 @@ class UnchangedTrailingComment(unittest.TestCase):
         hunks = self.hunks(diff)["a.py"]
         self.assertEqual(self.lint("a.py", head + "x = 1  # why\n", hunks), [], "control: the diff pairs its own text")
         self.assertEqual(self.lint("a.py", "x = 1  # why\n", hunks), [1])
+
+
+class RewordedComment(GitDiff, unittest.TestCase):
+    BASE = "x = 1\n# The step runs even after a failure\n# so the verdict is still read.\ny = 2\n"
+
+    def check(self, new, base=BASE):
+        hunks = self.hunks(self.staged({"a.py": base}, {"a.py": new}))["a.py"]
+        added = [(c, c + d - 1) for _, _, c, d in hunks if d]
+
+        def judged(pairing):
+            got = lint.findings("a.py", new, added, "necessary", [], hunks=pairing)
+            return [int(f.split(":")[1]) for f in got]
+
+        self.unpaired = judged(None)
+        return judged(hunks)
+
+    def test_multi_line_reword_passes(self):
+        new = "x = 1\n# The step runs unless the run was cancelled\n# so chunk 1's verdict is read.\ny = 2\n"
+        self.assertEqual(self.check(new), [])
+        self.assertEqual(self.unpaired, [2, 3], "control: with no diff every added comment is judged")
+
+    def test_reword_of_one_line_in_the_run_passes(self):
+        self.assertEqual(self.check(self.BASE.replace("still read", "read anyway")), [])
+
+    def test_reword_that_shortens_the_run_passes(self):
+        self.assertEqual(self.check("x = 1\n# The step reads the verdict after a failure.\ny = 2\n"), [])
+
+    def test_new_prose_comment_fails(self):
+        new = "x = 1\n# The step runs even after a failure\n# so the verdict is still read.\n# set up y\ny = 2\n"
+        self.assertEqual(self.check(new, "x = 1\ny = 2\n"), [2, 3, 4])
+
+    def test_comment_that_grows_its_run_fails(self):
+        new = self.BASE.replace("read.\n", "read.\n# A cancel stops it.\n")
+        self.assertEqual(self.check(new), [4])
+
+    def test_reword_that_grows_its_run_fails(self):
+        new = "x = 1\n# The step runs unless\n# the run was cancelled,\n# so the verdict is read.\ny = 2\n"
+        self.assertEqual(self.check(new), [2, 3, 4])
+
+    def test_hunk_that_splits_a_base_run_and_adds_comment_lines_fails(self):
+        base = "# a1\n# a2\n# a3\n# a4\nx = 1\n"
+        self.assertEqual(self.check("# a1\n# a2\n# a3\nx = 9\n# new 1\n# new 2\ny = 2\n", base), [5, 6])
+
+    def test_comment_moved_to_another_hunk_fails(self):
+        base = "# a note on x\nx = 1\ny = 2\nz = 3\n"
+        self.assertEqual(self.check("x = 1\ny = 2\n# a note on z\nz = 3\n", base), [3])
+
+    def test_comment_replacing_code_fails(self):
+        self.assertEqual(self.check("x = 1\n# a note\n", "x = 1\ny = 2\n"), [2])
+
+    def test_one_base_run_split_into_two_fails(self):
+        base = "x = 1\n# first half\n# second half\ny = 2\n"
+        self.assertEqual(self.check("x = 1\n# first part\nz = 3\n# second part\ny = 2\n", base), [2, 4])
 
 
 class AddedLinesOnly(unittest.TestCase):

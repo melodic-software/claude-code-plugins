@@ -111,7 +111,7 @@
 # findings report with a handoff to `clean` (#5516).
 # user-interface joins on the verb's own grounds. Its object, the interface
 # code of a project, is supplied by the namespace, and the scope argument
-# (diff, tree or launch) and a concern lane narrow it without renaming it. The
+# (diff, tree or launch) and a concern narrow it without renaming it. The
 # contract is exactly the verb's: a bare call reports findings and edits
 # nothing, and `--fix` is the explicit override the verb table sanctions,
 # applying one finding at a time and only after a yes on that finding. The

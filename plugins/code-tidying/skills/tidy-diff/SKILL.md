@@ -1,5 +1,5 @@
 ---
-description: "Tidies one change's own lines, named in a file-and-line list, before that change is committed: a simplify pass, proven comment deletions and a generated-code residue pass on code, the docs-hygiene writing rules and an ai-slop fix on markdown. Needs no branch or base ref, so it runs on a detached head and in an unattended lane. Use when: 'tidy my change before the commit', 'tidy these lines', 'tidy-diff', or a lane names it as its tidy entry. A rotated lane hunt is /code-tidying:tidy; a branch or window sweep is /code-tidying:batch-simplify."
+description: "Tidies one change's own lines, named in a file-and-line list, before that change is committed: a simplify pass, proven comment deletions and a generated-code residue pass on code, the docs-hygiene writing rules and an ai-slop fix on markdown. Needs no branch or base ref, so it runs on a detached head and in an unattended lane. Use when: 'tidy my change before the commit', 'tidy these lines', 'tidy-diff', or a lane names it as its tidy entry. A rotated focus area hunt is /code-tidying:tidy; a branch or window sweep is /code-tidying:batch-simplify."
 argument-hint: "<lines-file> [--turns <n>]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)"]
 user-invocable: true

@@ -787,9 +787,9 @@ export function baseMergeCarry(then, now, from, inBase = [], diffs = null, chang
   return whole && baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now, diffs);
 }
 
-export function exactBaseCarry(merges, based, trees = null) {
+export function exactBaseCarry(merges, based, trees = null, diffs = null) {
   const forward = (compare, statuses) => statuses.includes(compare?.status) && compare.behind_by === 0 && listedCommits(compare) !== null;
-  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based) && sameModes(merges, trees);
+  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based, diffs) && sameModes(diffs === null ? merges : { files: diffFiles(diffs[0]) }, trees);
 }
 
 function sameModes(merges, trees) {
@@ -801,7 +801,7 @@ function sameModes(merges, trees) {
     }
     return byPath;
   };
-  if (!Array.isArray(trees) || trees.length !== 2) return false;
+  if (!Array.isArray(trees) || trees.length !== 2 || !Array.isArray(merges?.files)) return false;
   const [head, base] = trees.map(modes);
   if (head === null || base === null) return false;
   return merges.files.every((f) => {
@@ -811,17 +811,19 @@ function sameModes(merges, trees) {
   });
 }
 
-export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined, diffs = null) {
+export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined, diffs = null, mergeDiffs = null) {
   const pushed = (commits) => dismissal === null || (commits ?? []).some((c) => c?.sha === dismissal);
-  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now, diffs) || exactBaseCarry(merges, based, trees));
-  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths) && pushed(listedCommits(merges)));
+  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now, diffs) || exactBaseCarry(merges, based, trees, mergeDiffs));
+  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths, mergeDiffs?.[0] ?? null) && pushed(listedCommits(merges)));
 }
 
 export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/work-items/skills/triage/scripts/**", "plugins/work-items/skills/triage/schemas/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh", "plugins/code-tidying/git-hooks/comment-lint-ci.sh"]);
 
-export function ungatedSince(merges, holdPaths) {
-  const files = merges?.files;
-  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(files) || files.length >= 300) return false;
+export function ungatedSince(merges, holdPaths, diff = null) {
+  const listed = merges?.files;
+  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(listed)) return false;
+  const files = listed.length >= COMPARE_FILES ? diffFiles(diff) : listed;
+  if (files !== listed && !diffCovers(merges, files)) return false;
   if (!files.every((f) => typeof f?.filename === "string")) return false;
   const paths = files.flatMap((f) => [f.filename, ...(typeof f.previous_filename === "string" ? [f.previous_filename] : [])]);
   const loaded = [...REVIEW_FLOOR, ...CARRY_REFUSES];
@@ -893,6 +895,7 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
       if (!compares.has(range)) compares.set(range, await github("GET", `/repos/${repo}/compare/${range}`));
       return compares.get(range);
     };
+    const whole = async (range) => wholeCommits((path) => github("GET", path), `/repos/${repo}/compare/${range}`, await compare(range));
     const treeReads = new Map();
     const tree = async (sha) => {
       if (!treeReads.has(sha)) treeReads.set(sha, await github("GET", `/repos/${repo}/git/trees/${sha}?recursive=1`));
@@ -906,25 +909,29 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
         continue;
       }
       if (!carrying) continue;
-      const [then, now] = [await compare(`${tip}...${sha}`), await compare(`${tip}...${head}`)];
+      const [then, now] = [await whole(`${tip}...${sha}`), await whole(`${tip}...${head}`)];
       const diffs = await capDiffs(github, repo, [`${tip}...${sha}`, `${tip}...${head}`], [then, now]);
       const listed = diffs ? diffFiles(diffs[1])?.length : now?.files?.length;
       if (!Array.isArray(now?.files) || listed !== pull.changed_files) continue;
       const inBase = await baseParents(compare, tip, then, now);
-      let [merges, based, trees] = [null, null, null];
+      let [merges, based, trees, mergeDiffs] = [null, null, null, null];
       const [from, to] = [sha40(then?.merge_base_commit?.sha), sha40(now?.merge_base_commit?.sha)];
       if (baseMergesOnly(then, now, sha, inBase) && !sameNetChange(then, now, diffs) && from && to) {
-        [merges, based] = [await compare(`${sha}...${head}`), await compare(`${from}...${to}`)];
+        [merges, based] = [await whole(`${sha}...${head}`), await whole(`${from}...${to}`)];
+        mergeDiffs = await capDiffs(github, repo, [`${sha}...${head}`, `${from}...${to}`], [merges, based]);
         trees = [await tree(head), await tree(to)];
       }
-      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, undefined, diffs)) {
+      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, undefined, diffs, mergeDiffs)) {
         lifters.add(login);
         continue;
       }
       if (holdPaths !== undefined && merges === null) {
-        merges = await compare(`${sha}...${head}`).catch(() => null);
+        merges = await whole(`${sha}...${head}`).catch(() => null);
       }
-      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths, diffs)) lifters.add(login);
+      if (holdPaths !== undefined && mergeDiffs === null && merges !== null) {
+        mergeDiffs = await capDiffs(github, repo, [`${sha}...${head}`], [merges]).catch(() => null);
+      }
+      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths, diffs, mergeDiffs)) lifters.add(login);
     }
     return { lifters: [...lifters].sort() };
   } catch {
