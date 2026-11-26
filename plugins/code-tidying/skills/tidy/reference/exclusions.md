@@ -2,9 +2,9 @@
 
 Three exclusion lists gate every tidy run, in order of how they apply:
 
-1. **GLOBAL HARD EXCLUSIONS**: not touched, regardless of lane. Applies to every run, and the path entries are lifted only through the section 4 channels.
+1. **GLOBAL HARD EXCLUSIONS**: not touched, regardless of focus area. Applies to every run, and the path entries are lifted only through the section 4 channels.
 2. **GLOBAL SOFT EXCLUSIONS**: technically allowed but an autonomous run is not equipped to verify changes safely. Touch only with explicit user override.
-3. **SELF-UPDATE EXTRA HARD**: additional restrictions that only apply when the `self-update` lane is the active lane. Applied on top of the global lists.
+3. **SELF-UPDATE EXTRA HARD**: additional restrictions that only apply when the `self-update` focus area is the active focus area. Applied on top of the global lists.
 
 Section 4 then defines the three channels that **lift** the section 1 path entries for a run, an operator, or a repository, and names what no channel lifts.
 
@@ -14,11 +14,11 @@ These lists are the canonical universal baseline; the consuming project's own in
 
 ## 1. GLOBAL HARD EXCLUSIONS
 
-The GLOBAL HARD list gates every lane. A tidying that would touch any entry is automatically out of scope. File an issue if drift exists, and clean-exit the run if the only candidates fall in this list.
+The GLOBAL HARD list gates every focus area. A tidying that would touch any entry is automatically out of scope. File an issue if drift exists, and clean-exit the run if the only candidates fall in this list.
 
 ### Agent & enforcement configuration (universal)
 
-Claude Code surface: `.claude/**` in full. The whole directory is agent surface: settings, agents, hooks, rules, routines, tidy-lanes (the consumer's own lane definitions, since the lane contract cannot tidy itself), and any settings-wired hook or bootstrap script that lives there. Any script wired as a hook command **anywhere** is excluded wherever it lives, because a hook command may point outside `.claude/`. Every place a hook can be wired counts, not only the project settings files: see [Hook locations](https://code.claude.com/docs/en/hooks#hook-locations). `.mcp.json`. Other agents' config bundles (e.g. `.codex/**`, `.cursor/**`), since a tidy must not mutate another agent's behavior. GitHub surface: `.github/workflows/**`, `.github/actions/**`, `.github/CODEOWNERS`, `.github/dependabot.yml`. Local git-hook chain: the hook manager's config and script directories (e.g. `lefthook.yml`, `.lefthook/**`, `.husky/**`, `.pre-commit-config.yaml`). Cross-ecosystem lint / style config: `.editorconfig`, `.shellcheckrc`, and their per-tool equivalents.
+Claude Code surface: `.claude/**` in full. The whole directory is agent surface: settings, agents, hooks, rules, routines, tidy-areas (the consumer's own focus area definitions, since the focus area contract cannot tidy itself), and any settings-wired hook or bootstrap script that lives there. Any script wired as a hook command **anywhere** is excluded wherever it lives, because a hook command may point outside `.claude/`. Every place a hook can be wired counts, not only the project settings files: see [Hook locations](https://code.claude.com/docs/en/hooks#hook-locations). `.mcp.json`. Other agents' config bundles (e.g. `.codex/**`, `.cursor/**`), since a tidy must not mutate another agent's behavior. GitHub surface: `.github/workflows/**`, `.github/actions/**`, `.github/CODEOWNERS`, `.github/dependabot.yml`. Local git-hook chain: the hook manager's config and script directories (e.g. `lefthook.yml`, `.lefthook/**`, `.husky/**`, `.pre-commit-config.yaml`). Cross-ecosystem lint / style config: `.editorconfig`, `.shellcheckrc`, and their per-tool equivalents.
 
 ### Consumer-declared protections
 
@@ -26,7 +26,7 @@ The consuming project's own `CLAUDE.md` / `.claude/rules` may declare additional
 
 ### Security & branch protection
 
-Branch-protection rule changes are out of scope for any lane. Security workflows + secret-scanning / static-analysis config: `.github/workflows/**` is HARD by path globally; called out separately for emphasis. Secret-pattern detection rules and their fixtures.
+Branch-protection rule changes are out of scope for any focus area. Security workflows + secret-scanning / static-analysis config: `.github/workflows/**` is HARD by path globally; called out separately for emphasis. Secret-pattern detection rules and their fixtures.
 
 ### Behavioral changes (regardless of file location)
 
@@ -47,7 +47,7 @@ These are not path-list entries (they're not glob-matchable). They apply as agen
 
 ## 2. GLOBAL SOFT EXCLUSIONS
 
-The GLOBAL SOFT list identifies areas where edits are technically allowed, but an autonomous run cannot verify changes in them safely. Manual override (a lane run with explicit user supervision) is the only acceptable mode for SOFT-excluded areas. Entries are concept tokens. Classify candidates against them during Phase D.
+The GLOBAL SOFT list identifies areas where edits are technically allowed, but an autonomous run cannot verify changes in them safely. Manual override (a focus area run with explicit user supervision) is the only acceptable mode for SOFT-excluded areas. Entries are concept tokens. Classify candidates against them during Phase D.
 
 ### Stack-agnostic concepts
 
@@ -64,7 +64,7 @@ The consuming project's instructions may declare additional areas its verificati
 
 ## 3. SELF-UPDATE EXTRA HARD
 
-This list applies only when the active lane is `self-update`. The self-update lane operates on this plugin's own files in a maintainer working-tree checkout, and these EXTRA HARD entries protect the skill's contract surface from being modified by an autonomous run of itself.
+This list applies only when the active focus area is `self-update`. The self-update focus area operates on this plugin's own files in a maintainer working-tree checkout, and these EXTRA HARD entries protect the skill's contract surface from being modified by an autonomous run of itself.
 
 If during a self-update run you find drift in any of the following, **clean exit, no PR, report what was found to the user.** Do not file an issue (the "file deferrals" pattern is for in-scope work). The user reviews and decides.
 
@@ -78,16 +78,16 @@ If during a self-update run you find drift in any of the following, **clean exit
 - The HARD / SOFT exclusion lists (this file): section headings, bullet items, section ordering. The safety net cannot tidy itself
 - The Action Router section of `SKILL.md`: the argument grammar table is a contract with users
 - The Workflow phase list in `SKILL.md`: phase names and order are a contract; renumbering or renaming changes behavior
-- The Lane catalog + lane-resolution-order sections in `SKILL.md`: the consumer lane contract (`.claude/tidy-lanes/`) is a published interface
-- Lane file `## Scope` blocks: every lane file's scope globs. Changing scope changes what the lane operates on
-- Lane file `## Watch-for patterns`: adding or removing watch-for items changes the lane's behavior
-- Lane file `## Lane-specific extra exclusions`: same logic as the global lists; safety contract
+- The Focus area catalog + area-resolution-order sections in `SKILL.md`: the consumer focus area contract (`.claude/tidy-areas/`) is a published interface
+- Focus area file `## Scope` blocks: every focus area file's scope globs. Changing scope changes what the focus area operates on
+- Focus area file `## Watch-for patterns`: adding or removing watch-for items changes the focus area's behavior
+- Focus area file `## Area-specific extra exclusions`: same logic as the global lists; safety contract
 - `<plugin-root>/reference/pr-scope-budget.md`: a generated copy of the shared PR scope budget convention; its numbers change in the convention, never in a tidy
 
 ### Out-of-scope work
 
-- Adding new bundled lanes or templates is a feature addition (`feat:`), not a tidy
-- Removing existing lanes or templates is a behavioral change with downstream impact
+- Adding new bundled focus areas or templates is a feature addition (`feat:`), not a tidy
+- Removing existing focus areas or templates is a behavioral change with downstream impact
 - Changing Conventional Commits type defaults affects PR titles, which affect the default branch's history
 
 ---
@@ -108,11 +108,11 @@ Three channels lift it, each owning one row of the config-ownership table in `do
 
 Bare token `override`, spelled the way `safe`, `docs`, and `dry-run` are. It lifts the HARD **path** list for the run's resolved target and nothing wider. Always honored when the session is interactive, because an interactive user is present to see what the run reports.
 
-Interactivity gates only `tidy`. On `remove-comments` and `batch-simplify` the token is honored in a non-interactive run as well, because the target is already the enumeration: the user typing `override <path>` named the file, so there is nothing further to enumerate and take a go-ahead on. The `tidy` gate below exists because a lane of globs is not a named file.
+Interactivity gates only `tidy`. On `remove-comments` and `batch-simplify` the token is honored in a non-interactive run as well, because the target is already the enumeration: the user typing `override <path>` named the file, so there is nothing further to enumerate and take a go-ahead on. The `tidy` gate below exists because a focus area of globs is not a named file.
 
-Its reach is the run's target, and the three skills' targets are not the same size. On `remove-comments` and `batch-simplify` the target is a named path or a resolved diff, and the user typing the token has the file in view. On `tidy` the target is a whole lane of globs, so the same token lifts the list across every file the lane matches, and the run's output is an autonomous PR rather than a working-tree diff the user reads first.
+Its reach is the run's target, and the three skills' targets are not the same size. On `remove-comments` and `batch-simplify` the target is a named path or a resolved diff, and the user typing the token has the file in view. On `tidy` the target is a whole focus area of globs, so the same token lifts the list across every file the focus area matches, and the run's output is an autonomous PR rather than a working-tree diff the user reads first.
 
-That difference gets a gate rather than a caveat. On `tidy`, `override` **enumerates before it edits**: after Phase D's hunt, the run lists the specific HARD paths it now intends to touch and takes a go-ahead on that list, exactly as `batch-simplify`'s repo mode confirms its inventory. An interactive user answers. A non-interactive run has nobody to answer, so it does not proceed on a blanket token: it reports the enumerated list and continues with those candidates dropped, leaving the rest of the lane's tidyings to ship normally. The operator then re-runs interactively or puts the durable entries in the repository overrides file, which is the channel built for a standing decision. Combining `override` with `dry-run` produces that enumeration and nothing else, which is the cheap way to see the list first.
+That difference gets a gate rather than a caveat. On `tidy`, `override` **enumerates before it edits**: after Phase D's hunt, the run lists the specific HARD paths it now intends to touch and takes a go-ahead on that list, exactly as `batch-simplify`'s repo mode confirms its inventory. An interactive user answers. A non-interactive run has nobody to answer, so it does not proceed on a blanket token: it reports the enumerated list and continues with those candidates dropped, leaving the rest of the focus area's tidyings to ship normally. The operator then re-runs interactively or puts the durable entries in the repository overrides file, which is the channel built for a standing decision. Combining `override` with `dry-run` produces that enumeration and nothing else, which is the cheap way to see the list first.
 
 The gate reaches only the paths this argument lifted. A path lifted by the repository overrides file or by `hard_exclusions=advisory` is already a standing decision the operator recorded outside the run, so it proceeds without a go-ahead in an interactive and a non-interactive run alike, and is named in the Phase H lifted table like every other lifted path. A non-interactive `tidy` therefore drops argument-lifted candidates and nothing else.
 
@@ -143,7 +143,7 @@ Rules the file obeys:
 
 - **Root-relative only.** Reject an absolute path and any entry containing `..`; report the rejected line rather than resolving it.
 - **It only subtracts.** A glob here can lift a section 1 path entry. It cannot add one, and it cannot lift anything on the non-overridable list below.
-- **It cannot lift itself.** The file sits inside `.claude/**`, which section 1 protects, and a glob matching the overrides file or the tidy-lanes beside it is rejected with that reason. Editing the switch is the operator's job, never a run's: a mechanism that can widen its own reach is not a mechanism. Lifting the rest of `.claude/**` is allowed, and the run reports the lifted set path by path.
+- **It cannot lift itself.** The file sits inside `.claude/**`, which section 1 protects, and a glob matching the overrides file or the tidy-areas beside it is rejected with that reason. Editing the switch is the operator's job, never a run's: a mechanism that can widen its own reach is not a mechanism. Lifting the rest of `.claude/**` is allowed, and the run reports the lifted set path by path.
 - **A same-repo collision resolves toward the protection.** When a glob here matches a path the same repository's `CLAUDE.md` or `.claude/rules` declares protected, the protection wins and the run reports the conflict by naming both declarations. Two tracked team statements disagree, and a plugin does not get to pick a winner silently.
 
 ### Precedence
@@ -167,18 +167,18 @@ Not overridable, in any channel, at any value:
 
 - **The behavioral guards** in section 1 (`Behavioral changes`). DB migrations against real instances, breaking API changes, HTTP route signature changes, MCP tool schema changes. These are not paths, so there is nothing for a path override to lift: they are the skills' structure-only contract, and a run that changes behavior is out of contract wherever the file sits.
 - **The work-tracking exclusions** in section 1. Claimed items, items with an open PR, blocked or deferred items. These are tracker state, not paths, and lifting them means colliding with another agent's work.
-- **Section 3, SELF-UPDATE EXTRA HARD.** The self-update lane's guard against an autonomous run rewriting this plugin's own contract surface, including this section. A mechanism that can switch itself off is not a mechanism.
-- **The override machinery itself**, wherever it lives: this file, the consumer's `.claude/code-tidying/exclusion-overrides.md`, and the `.claude/tidy-lanes/` definitions beside it. Same reason. A run may be granted the rest of `.claude/**`; it is never granted the switch that grants it.
+- **Section 3, SELF-UPDATE EXTRA HARD.** The self-update focus area's guard against an autonomous run rewriting this plugin's own contract surface, including this section. A mechanism that can switch itself off is not a mechanism.
+- **The override machinery itself**, wherever it lives: this file, the consumer's `.claude/code-tidying/exclusion-overrides.md`, and the `.claude/tidy-areas/` definitions beside it. Same reason. A run may be granted the rest of `.claude/**`; it is never granted the switch that grants it.
 - **The GLOBAL SOFT list** in section 2, which is not a path list and already has its own explicit-user-override rule.
 
 ---
 
 ## How to apply these lists during a run
 
-1. **Phase A (Triage)**: re-read this file and the consuming project's declared protections. Resolve the three override channels in section 4 and write down the lifted set before hunting. Note the active lane's lane-specific extra exclusions on top of these globals.
+1. **Phase A (Triage)**: re-read this file and the consuming project's declared protections. Resolve the three override channels in section 4 and write down the lifted set before hunting. Note the active focus area's area-specific extra exclusions on top of these globals.
 2. **Phase D (Hunt)**: when classifying candidates, drop anything that touches a GLOBAL HARD path that section 4 did not lift. Move SOFT candidates to the deferred-items list unless the user has explicitly authorized them in interactive mode.
 3. **Phase E (Implement)**: every Edit / Write call has the file path validated against the HARD list above, minus the lifted set. If a tidying would require touching an unlifted HARD file, abort the tidying and continue with the next candidate. Stage with `git add <path>` only, never `-A` or `.`.
 4. **Report**: every lifted path is named in the run's report with the channel that lifted it (section 4, "Reviewability is the price").
-5. **Self-update specifically**: `lanes/self-update.md` summarizes the EXTRA HARD list; this file is the canonical version, so the two are reconciled here when they differ. Section 4 does not reach it.
+5. **Self-update specifically**: `areas/self-update.md` summarizes the EXTRA HARD list; this file is the canonical version, so the two are reconciled here when they differ. Section 4 does not reach it.
 
 If a HARD-list entry is wrong for a whole repository (the file moved, the concern is stale), the durable fix is the overrides file in section 4 or a deliberate user-driven edit here, not an autonomous tidying that "discovers" the entry should change.

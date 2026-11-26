@@ -1,17 +1,4 @@
 // test-scope: docs/upstream/*
-// Expected values come from the verdict rules in
-// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): only a successful pr-require-checks pull_request run of this
-// repository starts a verdict, for exactly one open same-repository PR into
-// main whose head is the run's head SHA; the head is the run's, and the base
-// SHA is the PR's; a head with a counted verdict from a completed run (a FAIL
-// under any number the commit's pull requests carry) is not judged again, but a run still going or one that
-// uploaded nothing does not stop a new judgment; with merge.verify-authors
-// `lane` (the default) only a PR the lanes App (merge.agent-identity, a Bot
-// account) opened is judged, `any` judges every author, and any other value
-// judges none. Response shapes follow GET
-// /actions/runs/{id}, /commits/{sha}/pulls, /actions/artifacts?name= (only
-// artifacts with that name are returned) and the closingIssuesReferences
-// GraphQL field.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -95,7 +82,6 @@ const eventFile = (run = upstream()) => {
   return file;
 };
 
-// The first 16 hex digits of `printf %s <ref> | sha256sum`, for feat/x and feat/other.
 const REF_DIGEST = "79b4cc554b80dca6";
 const OTHER_DIGEST = "3b0035df584451e9";
 const pull = (overrides = {}) => ({
@@ -125,11 +111,6 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-// ci-status's steps that tell a draft's run from a ready one, as GET
-// /actions/runs/{id}/jobs?filter=latest returned them for #11832's two runs at
-// head 8d7ef05b: `Note a draft` ran in run 41273054889, started while the pull
-// request was a draft, and skipped in run 41273113342, started after it was
-// marked ready (pr-require-checks.yml: `if: github.event.pull_request.draft == true`).
 const ciStatusJobs = (draftStep) => ({
   total_count: 1,
   jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: draftStep }, { name: "Aggregate lane results", conclusion: "success" }] }],
@@ -143,8 +124,6 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       if (prFiles === null) throw new Error(`GET ${apiPath} failed with status 502`);
       return prFiles;
     }
-    // GET /compare/{base}...{head}: the pull request's changed files, as
-    // `files` holds them; with none given the read fails.
     if (apiPath === `/repos/${REPO}/compare/${BASE}...${HEAD}`) {
       if (changed === undefined) throw new Error(`GET ${apiPath} failed with status 502`);
       return { status: "ahead", merge_base_commit: { sha: BASE }, files: changed };
@@ -155,8 +134,6 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       if (text === undefined) throw new Error(`GET ${apiPath} failed with status 404`);
       return { encoding: "base64", content: Buffer.from(text).toString("base64") };
     }
-    // A later page of an issue's comments: commentPages[number][cursor] is
-    // the comments connection GitHub returns after that cursor.
     if (apiPath === "/graphql" && body.query.includes("after: $after")) {
       const { number, after } = body.variables;
       const page = commentPages[number]?.[after];
@@ -180,15 +157,11 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
     if (apiPath === "/graphql" && body.query.includes("issueOrPullRequest")) {
       queries.push(body.variables.number);
       const n = body.variables.number;
-      // GitHub's answer for a number that names nothing, as a live read of a
-      // missing number returned it; refs[n] may also be a whole answer.
       if (!(n in refs)) {
         return { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"], message: `Could not resolve to an issue or pull request with the number of ${n}.` }] };
       }
       return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
     }
-    // The pull request's RenamedTitleEvent timeline, oldest first; `renames`
-    // may also be a whole answer.
     const renameAnswer = () => {
       if (!Array.isArray(renames)) return renames;
       const nodes = renames.map((actor) => ({ __typename: "RenamedTitleEvent", actor }));
@@ -198,8 +171,6 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       assert.equal(body.variables.number, 41);
       return renameAnswer();
     }
-    // The pull request's body edits and issue connect and disconnect events
-    // (RELINK_QUERY); with none given the read fails, which keeps a FAIL.
     if (apiPath === "/graphql" && body.query.includes("userContentEdits") && !body.query.includes("closingIssuesReferences")) {
       assert.deepEqual(body.variables, { o: "example-org", r: "example-repo", n: 41 });
       if (relink === undefined) throw new Error("POST /graphql failed with status 502");
@@ -257,8 +228,6 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
   });
 });
 
-// pull()'s pull request as GraphQL's associatedPullRequests returns it: the
-// App's login without "[bot]", the state in capitals.
 const GRAPHQL_PULL = {
   number: 41,
   state: "OPEN",
@@ -331,16 +300,11 @@ test("a Refs number that names no issue or pull request names no spec, and any o
     const answer = { data: { repository: { issueOrPullRequest: null } }, errors };
     await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(errors));
   }
-  // No errors and no repository, or a null issue without NOT_FOUND, is no
-  // answer, not "no issue".
   for (const answer of [{ data: {} }, { data: { repository: null } }, {}, { data: { repository: { issueOrPullRequest: null } } }]) {
     await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(answer));
   }
 });
 
-// Owner decision 2026-11-07: an issue maintenance-file-recurring-issues.yml
-// filed (github-actions[bot], one marker line) takes its spec from its
-// schedule row as the resolver's own checkout holds it, never the issue text.
 const ACTIONS_BOT = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
 const ROW = {
   id: "weekly-x",
@@ -418,12 +382,6 @@ test("linkedIssues called without a schedule, as the pr-unblock lanes call it, r
   assert.ok(specText[0].body.includes(row.notes), "the body carries the row's notes from this checkout");
 });
 
-// Owner decision 2026-11-16: an issue maintenance-file-upstream-drift-issues.yml
-// filed (github-actions[bot], the title and hex-pin lead line
-// scripts/upstream-drift-issues.sh writes) is the spec of a pull request that
-// closes it and changes only the docs/upstream pages pinned to that upstream
-// in the resolver's own checkout. The spec names the id and those pages; no
-// other line of the issue reaches it.
 const DRIFT_ID = "mattpocock/sandcastle";
 const DRIFT_PAGE = "docs/upstream/mattpocock-sandcastle.md";
 const OTHER_PAGE = "docs/upstream/emilkowalski-skills.md";
@@ -432,8 +390,6 @@ const PAGES = new Map([
   [OTHER_PAGE, "emilkowalski/skills"],
 ]);
 const DRIFT_LEAD = `Upstream \`${DRIFT_ID}\` changed since the pin on its docs/upstream page.`;
-// A body with write_body's lead and an upstream-chosen path in a row, as an
-// older filer wrote: the spec must never read it.
 const DRIFT_BODY = [
   DRIFT_LEAD,
   "",
@@ -703,8 +659,6 @@ test("linkedIssues with no changed-file read, as the pr-unblock lanes call it, g
   assert.equal(specText[0].body, null);
 });
 
-// A main-red incident as the monitoring lane files it (its title and marker
-// line), with run output in its body that must never become spec.
 const INCIDENT_MARKER = "<!-- factory-monitor key=incident:main-red fp=0123456789abcdef -->";
 const INCIDENT_BODY = [
   INCIDENT_MARKER,
@@ -782,9 +736,6 @@ test("upstreamPages reads a page's marker only where check-upstream-drift.sh doe
   assert.deepEqual([...pages], [["docs/upstream/good.md", "a/b"]]);
 });
 
-// Owner decision 2026-11-03 on #12965: a closing pull request's body names on
-// a `Siblings:` line the pull requests that delivered part of its issue, and
-// each counts only when merged into main here with its own `Refs:` naming it.
 const MERGED_AT = "2026-10-10T00:00:00Z";
 const sibling = (number, overrides = {}) => ({
   __typename: "PullRequest",
@@ -838,7 +789,6 @@ test("a sibling that did not merge here, or whose body does not name the issue, 
     ["edited before the merge by someone else", sibling(12917, { lastEditedAt: "2026-10-09T00:00:00Z", editor: OUTSIDER })],
     ["edited after the merge by the lanes App", sibling(12917, { lastEditedAt: "2026-10-11T00:00:00Z", editor: LANES_APP })],
     ["edited by the lanes App at an unreadable merge time", sibling(12917, { mergedAt: null, lastEditedAt: "2026-10-09T00:00:00Z", editor: LANES_APP })],
-    // Its body is spec text, so its author must be one spec text may come from.
     ["written by an outsider", sibling(12917, { author: OUTSIDER })],
     ["written by another bot", sibling(12917, { author: { ...LANES_APP, login: "other-app", databaseId: 4242 } })],
     ["written by a User with the lanes App's id", sibling(12917, { author: { ...LANES_APP, __typename: "User" } })],
@@ -879,8 +829,6 @@ test("only a plain visible Siblings line of a closing pull request is read", asy
   assert.deepEqual([resolved.specText, queries], [[{ number: 7, spec_kind: "refs", body: "the spec", comments: [] }], [7]]);
 });
 
-// The production helper throws on any GraphQL `errors` unless asked to keep
-// them, so main must read the Refs issue with one that keeps them.
 test("main with the real GitHub helper reads a Refs typo as no linked issue", async () => {
   const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
@@ -906,7 +854,6 @@ test("main with the real GitHub helper reads a Refs typo as no linked issue", as
   assert.deepEqual(JSON.parse(readFileSync(env.SPEC_FILE, "utf8")), []);
 });
 
-// retry-after latches the rate guard, so main gets a latch of its own.
 test("a refused read's annotation carries the status, the rate-limit headers and the body prefix", async () => {
   const dir = tempDir("pr-verify-");
   const actors = path.join(dir, "trusted-actors.json");
@@ -935,10 +882,6 @@ test("a refused read's annotation carries the status, the rate-limit headers and
   }
 });
 
-// Outage posture element 2 (docs/conventions/pr-pipeline/README.md#outage-posture): a GitHub fault (a
-// 5xx, a 429, a rate-guard stop, no answer) or a 200 whose completeness check
-// fails makes the verdict unknown, so the step holds green with a `held: `
-// notice and judges nothing; any other error is red, as before.
 const assertHeld = (closed, why) => {
   assert.equal(closed.code, 0, why);
   assert.equal(closed.outputs, "proceed=false\nreason=held\n", why);
@@ -989,8 +932,6 @@ test("a 200 whose completeness check fails holds the resolver green with the hel
 });
 
 test("a real defect still fails the resolver red", async () => {
-  // A malformed run id, a GraphQL error other than NOT_FOUND and the page cap
-  // are not a short answer, so a retry would meet them again.
   const malformed = await thrown(resolvePull({ github: fake(), repository: REPO, upstreamRun: upstream({ id: "1;x" }) }));
   assert.equal(malformed.message, "the upstream run id is not a run id");
   const graphqlError = await thrown(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer: { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "INTERNAL" }] } } } }));
@@ -1015,10 +956,6 @@ test("a whole job list that every re-read returns the same way stays red", async
   }
 });
 
-// A list longer than the query reads (closing issues first: 10, a jobs page
-// of 100, another associatedPullRequests page, comments past COMMENT_PAGES
-// pages) fails every re-read the same way, so it stays red instead of holding
-// unseen.
 test("an answer past what the query reads stays red", async () => {
   const identity = (base) => base;
   const cases = {
@@ -1050,7 +987,6 @@ test("run as the step, a resolver that gets no answer from GitHub exits 0 with t
   const output = path.join(dir, "out");
   writeFileSync(output, "");
   const { PATH, HOME } = process.env;
-  // Nothing listens on port 9 of the loopback, so every attempt is refused.
   const env = {
     PATH,
     HOME,
@@ -1094,21 +1030,12 @@ test("a run that is not a passing pr-require-checks pull_request run of this rep
   }
 });
 
-// A run whose only failure is a hold an approving review of the head lifts is
-// judged, so the person approves a judged head; any other failure still
-// starts nothing. The job and step shapes follow GET
-// /actions/runs/{id}/jobs as it listed a held ci-status run, and the log
-// lines follow that job's log: a timestamp, `##[error]`, then the
-// `#<pr>: <reason>.` merge-holds.mjs prints. Each reason is merge-holds.mjs
-// `holds`' own text, so its wording cannot drift from this check unseen.
 const HOLD_FILES = ["plugins/x/scripts/risk.py"];
 const PATH_HOLD = holds("", [], HOLD_FILES, ["plugins/x/**"])[0];
 const COST = holds("", [], ["infra/main.tf"], [])[0];
 const BODY = holds("Hold: wait", [], [], [])[0];
-// A cost path whose name carries the lift clause, as an author can name a file.
 const LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges that bring only the base's changes; then re-run ci-status";
 const COST_NAMED = holds("", [], [`infra/x${LIFT}.tf`], [])[0];
-// The lift clause as main worded it before, from a held ci-status log.
 const OLD_WORDING = "#41: it changes plugins/x/scripts/risk.py, a hold path; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges of the base that leave its net change the same; then re-run ci-status.";
 const CI_STEPS = [
   ["Set up job", "success"],
@@ -1148,8 +1075,6 @@ test("a run that failed only on a hold an approval of the head lifts is judged",
   assert.equal(await held(logOf(OLD_WORDING)), "ok");
 });
 
-// The gate job shows as CI Status, beside its ci-status alias that repeats its
-// conclusion; the log read is CI Status's, never the alias's.
 test("a held run reads CI Status's log, and its ci-status alias is no other failure", async () => {
   const gate = { ...ciJob(), name: "CI Status" };
   const alias = { id: 9009, name: "ci-status", conclusion: "failure", steps: [{ name: "Report the conclusion of `CI Status`", conclusion: "failure" }] };
@@ -1227,8 +1152,6 @@ test("a held run from before the composite, with check-contract's own step, is j
   assert.equal(await held(oldContractLog(DO_NOT_MERGE_LINE), failing(CONTRACT_STEP)), "not-a-passing-run");
 });
 
-// A run reports its own commit's step names, so a held run from before the
-// hold step's rename still reports the earlier name.
 test("a held run that still reports the hold step's earlier name is judged the same way", async () => {
   const oldName = "Fail a lanes App pull request its body or a member holds";
   const jobs = heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n === HOLD_STEP ? oldName : n, c])));
@@ -1328,7 +1251,6 @@ test("main reads the ci-status log through the redirect, without the token, and 
   }
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\nreason=ok\npr-number=41\n/);
   assert.deepEqual(storage, [{}]);
-  // One reading per GitHub API request, the log's 302 among them; none for storage.
   const readings = readFileSync(path.join(dir, "api-budget", "github-token"), "utf8").trim().split("\n");
   assert.equal(readings.length, apiRequests);
   assert.equal(readings.filter((line) => line.startsWith("302 ")).length, 1);
@@ -1363,12 +1285,9 @@ test("a User account named like a dependency manager is not one", async () => {
 
 test("a PR the lanes App did not open is not judged", async () => {
   assert.equal(await reason({ pulls: [HUMAN_PR] }), "author-not-lane");
-  // A User account holding the App's login is not the App.
   assert.equal(await reason({ pulls: [pull({ user: { id: 5, login: LANE, type: "User" } })] }), "author-not-lane", "a User");
-  // Another App is a Bot account too, so only the login tells it apart.
   assert.equal(await reason({ pulls: [pull({ user: { id: 6, login: "other-app[bot]", type: "Bot" } })] }), "author-not-lane", "another App");
   assert.equal(await reason({ pulls: [HUMAN_PR] }, { verifyAuthors: "lane" }), "author-not-lane", "lane named");
-  // The workflow passes an unset identity as an empty string.
   assert.equal(await reason({ pulls: [pull()] }, { laneIdentity: "" }), "author-not-lane", "no identity");
 });
 
@@ -1401,7 +1320,6 @@ test("verify-authors lane-or-owner judges the owner account's PRs and the lane's
   assert.equal(await reason({ pulls: [pull()] }, opts), "ok", "lane");
   const owner = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [owner] }, opts), "ok", "owner");
-  // Matched by account id, never login.
   const spoof = pull({ user: { id: OWNER_ID + 1, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [spoof] }, opts), "author-not-lane-or-owner", "owner login, other id");
   const app = pull({ user: { id: OWNER_ID, login: "melodic-release[bot]", type: "Bot" } });
@@ -1422,14 +1340,9 @@ test("lane-or-owner reads the owner ids it is given", async () => {
   assert.equal(await reason({ pulls: [owner] }, { verifyAuthors: "lane-or-owner" }), "author-not-lane-or-owner", "not given");
 });
 
-// Owner decision 2026-10-22: with no closing issue here, a person's or a
-// script-written App's title and body are the spec; a model-written App's
-// (claude[bot]) or the lanes App's are not, since its run wrote them.
 test("a trusted PR with no closing issue here is its own spec, unless a model wrote its body", async () => {
   const RELEASE = 337859524;
   const CLAUDE = 209825114;
-  // cursoragent is a GitHub User the trusted list marks kind bot: a model
-  // writes its bodies, so only a kind human id counts as a person.
   const CURSORAGENT = 199161495;
   const opts = {
     verifyAuthors: "lane-or-owner",
@@ -1451,8 +1364,6 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
     assert.equal(result.specKind, expected.length ? "pull-request" : "none", user.login);
     assert.deepEqual(result.linkedIssues, [], user.login);
   }
-  // S&C D: a body last edited by anyone but its author or a trusted person
-  // is not the spec; edited by them, it still is.
   const owner = own({ id: OWNER_ID, login: "kyle-sexton", type: "User" });
   const releasePr = own({ id: RELEASE, login: "melodic-release[bot]", type: "Bot" });
   const by = (databaseId, __typename = "User") => ({ lastEditedAt: "2026-10-22T00:00:00Z", editor: { __typename, login: "x", databaseId } });
@@ -1471,9 +1382,6 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   assert.deepEqual(result.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
-// #9115: the title joins the spec, so a title someone else renamed last is
-// not the author's intent either; only the latest rename counts, as only the
-// body's latest edit does.
 test("a PR whose title another actor renamed last is not its own spec", async () => {
   const RELEASE = 337859524;
   const opts = {
@@ -1502,7 +1410,6 @@ test("a PR whose title another actor renamed last is not its own spec", async ()
     assert.deepEqual(result.specText, expected, label);
     assert.equal(result.specKind, expected.length ? "pull-request" : "none", label);
   }
-  // A rename read with no timeline stops the run rather than trusting the title.
   await assert.rejects(resolve({ pulls: [owner], issues: [], renames: { data: { repository: { pullRequest: null } } } }, opts), /timelineItems could not be read/);
   for (const setup of [{ pulls: [owner] }, { pulls: [pull({ title: "t", body: "b" })], issues: [] }]) {
     const result = await resolve({ ...setup, renames: { data: null } }, opts);
@@ -1559,8 +1466,6 @@ test("a counted verdict at the head from a completed run stops a new judgment", 
   }
 });
 
-// draftRun reads a draft's run from ci-status's DRAFT_STEP, which must run on
-// a draft's event and on nothing else.
 test("ci-status's draft step runs exactly when the run's pull request was a draft", () => {
   const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
   const job = /^ {2}ci-status:\n((?: {4}.*\n|\n)*)/m.exec(workflow)?.[1] ?? "";
@@ -1582,10 +1487,6 @@ test("the draft state is CI Status's draft step, not its ci-status alias's steps
   assert.equal(await reason({ jobs: renamed(READY_JOBS) }), "ok");
 });
 
-// The jobs API can list a finished job's steps empty or cut short
-// (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
-// conclusion of the draft step decides: `success` a draft's run, `skipped`
-// not. Anything else is unreadable: no judgment, and a FAIL stays counted.
 const ciStatusWith = (steps) => ({ total_count: 1, jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps }] });
 const UNREADABLE_DRAFT_STATE = {
   "an empty step list": ciStatusWith([]),
@@ -1601,11 +1502,6 @@ test("a run whose draft step is not listed with a conclusion is not judged, and 
   assert.equal(await reason({ jobs: READY_JOBS }), "ok");
 });
 
-// #11832 at head 8d7ef05b: opened as a draft, marked ready seconds later.
-// Checks run 41273054889 (created 04:25:39) started on the draft and skipped
-// every suite; pr-verify run 41273103059 (created 04:26:22, once the pull
-// request read as ready) judged it and uploaded a FAIL for "no suite ran";
-// checks run 41273113342 (created 04:26:33) started on the ready pull request.
 const DRAFT_CHECKS = 41273054889;
 const DRAFT_FAIL_RUN = 41273103059;
 const draftRace = (beforeFail = DRAFT_JOBS, overrides = {}) => ({
@@ -1690,8 +1586,6 @@ test("the resolver looks up exactly the names write-verdict writes", async () =>
 });
 
 test("a FAIL named with this pull request's issues stops a new judgment", async () => {
-  // The fake pull request closes one issue, so write-verdict.mjs named its
-  // FAIL with that number after -i.
   const pulls = [pull()];
   for (const name of [`pr-verify-41-${HEAD}-fail-i7`]) {
     assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
@@ -1724,11 +1618,6 @@ test("a head whose only verdict is a FAIL named with issues skips after one link
   assert.deepEqual(await specReads({ artifacts, runs: { 77: verifyRun(77) } }), ["already-judged", 1]);
 });
 
-// A relink: the PR's FAIL at the head was named without issues (it linked
-// none), and the PR now closes ISSUE. The FAIL's run was created at
-// FAILED_AT; the edit shapes follow a live userContentEdits read of an edited
-// pull request (newest first, the original text last, stamped when the pull
-// request opened, by its author), with identifying details changed.
 const FAILED_AT = "2026-10-20T06:00:00Z";
 const PERSON = { __typename: "User", login: "maintainer", databaseId: 100 };
 const LANES_APP = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
@@ -2035,7 +1924,6 @@ test("a run still going, or a run that uploaded nothing, does not stop a new jud
 });
 
 test("a head whose only verdict can no longer be read is judged again", async () => {
-  // An expired artifact cannot be downloaded, so the gate cannot read it either.
   for (const verdict of ["pass", "fail"]) {
     const item = artifact(`pr-verify-41-${HEAD}-${verdict}`, 77, true);
     assert.equal(await reason({ artifacts: [item], runs: { 77: verifyRun(77) } }), "ok", verdict);
@@ -2095,7 +1983,6 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
   assert.deepEqual((await resolve({ issues: [issue] })).specText, [
     { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] },
   ]);
-  // The gate re-reads the same comments with the same filter, by id and update time.
   assert.deepEqual((await resolve({ issues: [issue] })).linkedIssues[0].spec_comments, [
     { id: 1, updated_at: "2026-10-11T00:00:00Z" },
     { id: 6, updated_at: "2026-10-16T00:00:00Z" },
@@ -2144,11 +2031,9 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
   const kept = comment("kept", human);
   const issue = on([kept, refinement]);
   assert.deepEqual(await comments(issue), ["kept", refinement.body]);
-  // The gate's filter is human-only, so the record it compares holds no App comment.
   assert.deepEqual((await resolve({ issues: [issue] }, { laneAppId: 337595936 })).linkedIssues[0].spec_comments, [
     { id: kept.databaseId, updated_at: kept.updatedAt },
   ]);
-  // Without the lanes App's id nothing the App wrote counts.
   assert.deepEqual((await resolve({ issues: [issue] })).specText[0].comments, ["kept"]);
 
   const edited = comment(`${MARKER}\nedited`, lanes, { lastEditedAt: "2026-10-20T00:00:00Z", editor: lanes });
@@ -2181,8 +2066,6 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
   }
 });
 
-// #9372: intake's split leaves the human's body untouched, so it stays
-// trusted; the split refinement alone names the item a person runs.
 test("the done-when items intake's split refinement lists as checks a person runs reach the verifier beside the untouched body", async () => {
   const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
   const body = ["## Done when", "", "- [ ] Line 9 says 27 checks.", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
@@ -2330,7 +2213,6 @@ test("main identifies the lanes App by merge.agent-identity's id on the trusted 
     }
     return JSON.parse(readFileSync(files.text, "utf8"))[0].comments;
   };
-  // loginKey strips a trailing [bot], so both spellings of the identity resolve.
   assert.deepEqual(await run(LANE), [body]);
   assert.deepEqual(await run("melodic-automation-lanes"), [body]);
 });
@@ -2437,7 +2319,6 @@ test("an issue whose comments are cut off fails the read", async () => {
   await assert.rejects(resolve({ issues: [cut] }), { message: "#7: the issue's comments could not be read" });
 });
 
-// #9867 had 144 comments: two GraphQL pages of at most 100.
 test("an issue with more comments than one page resolves with every page's spec comments", async () => {
   const bot = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
   const person = { __typename: "User", login: "maintainer", databaseId: 100 };
@@ -2806,9 +2687,6 @@ test("a trusted target-subset child's spec entry carries its scope", async () =>
   assert.deepEqual(await scopeOf(plain), [undefined]);
 });
 
-// A parent read short of its comments, or not read at all, stops the run:
-// judging without the child's criteria leaves a pass the gate would count
-// once the parent reads whole again (an outsider deleting padding comments).
 test("a split child whose parent cannot be read whole stops the run", async () => {
   const vector = VECTORS.cases.find((item) => item.name === "the trusted child");
   const cut = { ...parentNode(vector), comments: { totalCount: 101, nodes: [] } };
@@ -2939,7 +2817,6 @@ test("the carried reads round-trip for the same run attempt and nothing else", (
   const { attempt, ...rest } = CARRY;
   assert.deepEqual(takeReads(packed, "1"), rest);
   assert.equal(takeReads(packReads({ ...CARRY, relinkSinceHead: "true" }), "1").relinkSinceHead, "true");
-  // A re-run of the subscription job alone is a new attempt: it reads again.
   assert.equal(takeReads(packed, "2"), null);
   assert.equal(takeReads(packed, ""), null);
   for (const broken of [
@@ -2959,7 +2836,6 @@ test("the carried reads round-trip for the same run attempt and nothing else", (
   assert.equal(takeReads("not base64 json", "1"), null);
   assert.equal(takeReads("", "1"), null);
   assert.equal(packReads({ ...CARRY, context: { pad: "x".repeat(CARRY_MAX) } }), "");
-  // The taker caps size too, whoever wrote the bundle.
   assert.equal(takeReads("A".repeat(CARRY_MAX + 1), "1"), null);
 });
 
@@ -3069,15 +2945,6 @@ test("a rated read skips a head its own origin already rated, and only that", as
   assert.equal(await reason({ pulls: [HUMAN_PR] }, { rated }), "author-not-lane");
 });
 
-// fake()'s answers over HTTP through createGitHub. Each artifact-name listing
-// carries an ETag computed from its body, and one sent back as If-None-Match
-// that equals the current body's ETag answers 304 with no body. Sources:
-// GitHub's "Use conditional requests" ("If the response has not changed, you
-// will receive a 304 Not Modified response",
-// https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
-// and the babysit reader's observation that the ETag follows the body across
-// names (babysit_verify_evidence.py, EMPTY_ETAG_SUFFIX). `etags: false`
-// sends none; `answer(listing)` may replace a listing's response.
 const tagOf = (text) => `W/"${createHash("sha256").update(text).digest("hex")}"`;
 const EMPTY_TAG = tagOf(JSON.stringify({ total_count: 0, artifacts: [] }));
 function overHttp(setup, { etags = true, answer } = {}) {

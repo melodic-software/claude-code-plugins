@@ -49,7 +49,6 @@ assert_contains "all four invocations were compared" "invocations compared : 4" 
 assert_contains "the corpus and matrix produced distinct results" "baseline=4 candidate=4" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the only thing standing between a
-# narrow verdict and a reader who believes it was a broad one.
 cat >"$WORK/base/noisy.py" <<'QUIET'
 print("same stdout")
 QUIET
@@ -91,7 +90,6 @@ assert_contains "the mismatch shows both verdicts" "DENY" "$RUN_OUT"
 assert_not_contains "a mismatching run never claims parity" "PARITY:" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the only proof that a symmetric
-# failure of both arms is distinguished from genuine parity.
 cat >"$WORK/base/dead.py" <<'DEAD'
 import sys
 

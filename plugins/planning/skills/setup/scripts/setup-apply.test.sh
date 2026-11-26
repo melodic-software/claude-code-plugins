@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for setup-apply.mjs, the writer behind /planning:setup apply.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir.
-# Expected values come from the key contract in reference/config.md:
-# plan_store takes local or tracker, phase_order takes composed,
-# subtraction-first or riskiest-first, scaffold_stubs takes the YAML booleans
-# true or false (a quoted "true" is a string, so invalid), and the file is
-# docs/conventions/planning.yaml at the repository root.
 # Labels and one fixture path hold a literal $HOME or $(...) on purpose.
 # shellcheck disable=SC2016
 # test-scope: plugins/planning/lib/resolve-convention-home.sh plugins/planning/.claude-plugin/plugin.json
@@ -97,9 +89,6 @@ check 'a key outside the schema exits 1 and writes nothing' test "$CODE" -eq 1 -
 run "$repo" 'phase_order='
 check 'an empty value argument exits 1 and writes nothing' test "$CODE" -eq 1 -a ! -e "$repo/docs"
 
-# An existing key outside the schema is named in one warning and ignored: its
-# line is kept byte for byte and the asked-for key is written. --check warns
-# on it, still prints the valid key, and exits 1.
 repo="$(new_repo)"
 f="$repo/docs/conventions/planning.yaml"
 mkdir -p "$repo/docs/conventions"
@@ -269,7 +258,6 @@ CODE=$?
 check 'a failed write is a one-line refusal' one_line_refusal
 check 'a failed write removes the temp file' test -z "$(ls -A "$repo/docs/conventions")"
 
-# Preloads that inject filesystem faults into the script's node:fs calls.
 preload() { # preload <name> <js line...>: writes $WORKROOT/<name>.cjs
   local name="$1"
   shift
@@ -284,7 +272,6 @@ run_preloaded() {
 TRACK_TMP_FD='const open = fs.openSync, close = fs.closeSync; let tmpFd = -1; fs.openSync = (p, ...r) => { const fd = open(p, ...r); if (String(p).endsWith(".tmp")) tmpFd = fd; return fd; };'
 CLOSE_FAILS='fs.closeSync = (fd) => { close(fd); if (fd === tmpFd) { tmpFd = -1; throw Object.assign(new Error("EIO: i/o error, close"), { code: "EIO" }); } };'
 
-# A close that fails after releasing the descriptor (close(2) may report EIO).
 preload close-fails "$TRACK_TMP_FD" "$CLOSE_FAILS"
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
@@ -299,8 +286,6 @@ mkdir -p "$repo/docs/conventions"
 run_preloaded close-and-rm-fail "$repo" phase_order=composed
 check 'a failed close and a failed cleanup are one line' one_line_refusal
 
-# docs/ swapped for a symlink right after it is created: the next mkdir must
-# not create docs/conventions outside the repository.
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
 preload swap-docs 'const mk = fs.mkdirSync;' \
   'fs.mkdirSync = (p, ...r) => { const out = mk(p, ...r); if (String(p).endsWith("/docs")) { fs.rmdirSync(p); fs.symlinkSync(process.env.SWAP_TO, p); } return out; };'
@@ -320,7 +305,6 @@ OUT="$(HOME="$repo/inner-home" node "$SUT" --root "$repo" phase_order=composed 2
 CODE=$?
 check 'a root above $HOME is a one-line refusal' one_line_refusal
 
-# A root path holding shell syntax is data, never evaluated.
 weird="$WORKROOT/"'repo-$(touch PWNED)'
 mkdir -p "$weird"
 git -C "$weird" init -q

@@ -74,10 +74,10 @@ def frames(film, fps):
                 if len(buf) < w * h * 3:
                     sys.exit(f'decode: ffmpeg stopped after {i} of {len(pts)} frames of {film} (exit {p.wait()})')
                 yield np.frombuffer(buf, np.uint8).reshape(h, w, 3), t
-            p.stdout.read()   # drain, so a wait cannot block on a full pipe
+            p.stdout.read()
             if p.wait():
                 sys.exit(f'decode: ffmpeg failed decoding {film} (exit {p.returncode})')
-        finally:   # a caller that stops early (--t) must not leave ffmpeg writing into a closed pipe
+        finally:
             p.kill()
             p.wait()
 

@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git check-ignore -v .claude/tidy-lanes/scratch-ui.md"
+            "command": "git check-ignore -v .claude/tidy-areas/scratch-ui.md"
           }
         }
       ]

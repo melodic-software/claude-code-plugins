@@ -1,5 +1,33 @@
 # Changelog: session-flow plugin
 
+## [10.7.2] - 2026-11-26
+
+### Changed
+
+- `/session-flow:audit-sessions` and `/session-flow:recall` point at the Bash timeout limits, the `cleanupPeriodDays` setting and the plugin reference's saved-value section for the timeout ceiling, transcript retention and `${user_config.*}` substitution, instead of stating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [10.7.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+### Fixed
+
+- `reference/observer.md` now documents the harness checks: what each of the five checks reads and when it reports, how a finding names its fix, and the nine `observer_*` options that tune them.
+
+## [10.7.0] - 2026-11-26
+
+### Changed
+
+- The observer catch-up hook arms from the shared attended predicate (`hooks/session-attended.sh`) instead of `CLAUDE_CODE_ENTRYPOINT == cli`: an attended session now arms whatever its entrypoint reads, unless that value is headless, and an unattended session whose entrypoint reads `cli` no longer does.
+
+## [10.6.0] - 2026-11-26
+
+### Added
+
+- With `observer_harness_check` on, the observer runs scripted harness checks that call no model: a hook whose p95 latency this session passes `observer_hook_p95_ms` (read from session-telemetry's per-session hook log), a turn that rewrites the prompt cache with no break, compaction or model switch to explain it, a tool or Bash command that runs past `observer_tool_slow_seconds` `observer_tool_repeat` times, each crossing of `observer_context_percents`, and a rate-limit window at `observer_rate_limit_percent`. Each finding lands in the running-retro ledger and the band under a `harness` category, names its fix (here in this session, or a ready `cd <repo>` and `claude -n <name> "<prompt>"` command for a dedicated session on this platform), and `/observer` counts them beside the live checks. A dedicated-session finding is never auto-sent. Off by default.
+
 ## [10.5.0] - 2026-11-26
 
 ### Added

@@ -78,8 +78,7 @@ rm -f "$FAIL_FILE"
 
 FAIL2_FILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 write_item "$FAIL2_FILE"
-# Invoked indirectly by the sourced wit_claim_write, which shellcheck cannot see
-# across the source boundary (it resolves mktemp there as the external command).
+# Invoked indirectly by the sourced wit_claim_write, which shellcheck cannot see across the source boundary.
 # shellcheck disable=SC2329
 mktemp() { return 1; }
 WARN="$(wit_claim_write "$FAIL2_FILE" "$MARKER_LINE" '["tester"]' 2>&1)"

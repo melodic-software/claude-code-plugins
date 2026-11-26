@@ -9,7 +9,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary cloud-shfmt SessionStart open 0
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 CLOUD_SHFMT_PIN="v3.14.1"
 CLOUD_SHFMT_SHA="76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"

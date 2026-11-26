@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# list-sub-items <parent-id> [--state open|closed|all] — adapter contract
-# (CONTRACT.md "Adapter contract"). Enumerates a container's DIRECT children as
-# full normalized item objects (same envelope as list-items), each carrying its
-# stored parent_id. Raw enumeration: closed and nested-container children are
-# kept (frontier filtering is a separate core-side step). Offline — the parent
-# link lives in each item's frontmatter, so no native sub-issue surface is
-# needed; matches by the stored (JSON-quoted) `parent` field.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

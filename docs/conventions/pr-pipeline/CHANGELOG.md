@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [13.2.2] - 2026-11-26
+
+### Fixed
+
+- A person's approval carries over base merges at any pull request size. `merge-holds.mjs` `liftersOf` reads every compare of the approval carry with its commits paged past the unpaged 250 (`wholeCommits`); `exactBaseCarry` judges the merges and base ranges on their two `application/vnd.github.diff` texts when either listing reaches 300 files or gives a file no patch, the tree modes checked for every file the merges' diff names; and `ungatedSince` judges a push of 300 files or more on the files of its diff, with the same hold-path, review-floor and `CARRY_REFUSES` checks. A page or diff that does not read, a list still shorter than `total_commits`, or a diff that does not parse or names fewer files than its listing carries nothing.
+
+## [13.2.1] - 2026-11-26
+
+### Fixed
+
+- pr-verify records a judge step that run-claude-cli stopped on its credential scan (lane class `credential-stop`) as a withheld fail, for chunk 1, the later chunks and the whole-spec judge, so the head is held for a person. Before, run-claude-cli reported that stop as `other`, the chunk-1 guard never passed, and the head got no verdict. An empty class from an older run-claude-cli still counts as the stop; every other class is still no output.
+
+- The cost-decision carry no longer refuses a range of more than 250 commits. `merge-holds.mjs` `carries` and ci-status's cost-hold step read a compare whose unpaged commit list stops short of `total_commits` again in pages of 100 (the new `wholeCommits`, `wholeCompare`'s paging without its diff), and so do `report-outcome.mjs` `--find-prior` and `post-statuses.mjs` for a lane branch's commits. A page that does not read, or a list still shorter than `total_commits`, carries nothing and resumes nothing.
+
 ## [13.2.0] - 2026-11-26
 
 ### Changed

@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# get-statuses --field <name> <id>... — CONTRACT.md "Verbs (core public surface)". Read-only.
-# Reads each item's value of one single-select issue field (the core passes "Work status"), as
-# GraphQL Issue.issueFieldValues answers it: one query per repository per 100 items. An item
-# whose field is unset, or that the answer leaves out, reads null.
-#
-# When the binding sets config.github.status_trust (README "Work status trust"), the value is
-# instead the one the newest counted Work status event left, null when that event removed it,
-# so an uncounted change neither sets nor clears a counted state. The field is the model's
-# models.issue-status field-id. Trust covers Work status only: any other --field reads plain.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -37,11 +28,8 @@ wit_gh_load_status_trust
 COUNTED_TRUST=""
 [[ "$field" != "Work status" ]] || COUNTED_TRUST="$WIT_GH_STATUS_TRUST"
 
-# A full page of field values may hide the Work status value; a full event window holding a
-# value and no counted event may have pushed the counted setter out. Either fails the read.
 readonly FIELD_VALUE_PAGE=25
 readonly FIELD_EVENT_WINDOW=100
-# The job token's bot, the one bot-setters entry the trust list need not hold.
 readonly ACTIONS_BOT_ID=41898282 ACTIONS_BOT_LOGIN="github-actions[bot]" STATUS_LANES_APP="melodic-automation-lanes[bot]"
 
 TRUST_TMP=""
@@ -77,12 +65,6 @@ fetch_standards_file() {
   cp "$TRUST_TMP/standards.json" "$3"
 }
 
-# trust_context <repo>: set CONTEXT to {field, states, ready, people, bots} from <repo>'s
-# trust list and model: field the Work status field id, states the mapped option names, ready
-# the one state a bot-setters value never counts for (the model's ready-state, else
-# WIT_DEFAULT_READY_STATE), people the ids that count for every state (kind human, or the
-# lanes App's login), bots the bot-setters ids that count for every state but ready. Exits 3
-# when either file is invalid.
 trust_context() {
   local repo="$1" actors_path model_path lanes actors records
   actors_path="$(jq -r '.trusted_actors' <<<"$WIT_GH_STATUS_TRUST")"
@@ -198,7 +180,6 @@ while IFS= read -r group; do
   [[ -z "$COUNTED_TRUST" ]] || trust_context "$repo"
   for ((i = 0; i < count; i += 100)); do
     chunk="$(jq -c --argjson i "$i" '.[$i:$i + 100]' <<<"$group")"
-    # Aliases are built from validated issue numbers only.
     if [[ -z "$COUNTED_TRUST" ]]; then
       aliases="$(jq -r 'map("i\(.number): issue(number: \(.number)) { issueFieldValues(first: 25) { nodes { ... on IssueFieldSingleSelectValue { name field { ... on IssueFieldSingleSelect { name } } } } } }") | join(" ")' <<<"$chunk")"
       fragments=""
@@ -211,9 +192,9 @@ while IFS= read -r group; do
     if [[ -z "$COUNTED_TRUST" ]]; then
       query_arg=(-f query="$query")
     else
-      # 100 trusted aliases run past the 32,767-character Windows command line, so the
-      # query goes to gh as a file.
       printf '%s' "$query" >"$TRUST_TMP/query.graphql"
+      # Windows caps a command line at 32,767 characters, so the counted-trust query goes as a file:
+      # https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa
       query_arg=(-F query="@$TRUST_TMP/query.graphql")
     fi
     wit_run_gh read api graphql -f owner="${repo%%/*}" -f name="${repo#*/}" "${query_arg[@]}"

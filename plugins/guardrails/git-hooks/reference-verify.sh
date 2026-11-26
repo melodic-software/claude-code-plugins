@@ -92,9 +92,6 @@ changed_lines() {
         right = (n[2] == "") ? 1 : n[2] + 0
         if (path != "" && right > 0) printf "%s\t%d\t%d\n", path, start, start + right - 1
       }' >"$CHECKS_TMP/ranges.copy"
-  # A failed stage fails the hook and keeps the lib's ranges, which judge a
-  # copy whole: short ranges would drop findings. A diff stopped by SIGPIPE
-  # (141) means awk stopped first, and awk reports.
   local -a st=("${PIPESTATUS[@]}")
   if ((st[0] != 0 && st[0] != 141)); then
     checks_tool_failed git "${st[0]}" 'listing the lines a copy adds'
@@ -186,17 +183,6 @@ first_line() {
     "$CHECKS_TMP/ranges"
 }
 
-# report <path> <whole>: the verifiers' report on stdin as "<path>:<line>: "
-# rows. A detail line names a flag with its command ("faketool --bogus (not in
-# ...)"), a path or a skill reference; it gets the first judged line of the tip's
-# text ($CHECKS_TMP/file) holding that text, every line when <whole> is 1, else
-# those the range adds. A heading gets its first detail's line; a line matching
-# nothing, the file's first added line.
-# Each row has a kind, taken from the verifier heading it sits under: a
-# stale-path-verify block is advisory and goes to $advisory; any other block,
-# and a line before any heading, blocks and goes to stdout.
-# The path travels in the environment: awk -v decodes a backslash escape, and
-# the path is printed.
 report() {
   REPORT_PATH="$1" awk -v whole="$2" -v first="$(first_line "$1")" \
     -v ranges="$CHECKS_TMP/ranges" -v file="$CHECKS_TMP/file" -v adv="$advisory" '
@@ -276,13 +262,6 @@ check_range() {
   while IFS= read -r -d '' f; do
     verified_type "$f" || continue
     checks_regular_file --tip "$TIP" "$f" || continue
-    # The text goes to jq as a file: an argument over the kernel's per-argument
-    # limit (128 KiB on Linux) fails jq, and the file would go unjudged.
-    # Git quotes a name holding a quote, a backslash or a control byte whatever
-    # core.quotePath says, so the range table has no entry for it: such a file
-    # is judged whole, as a new one is.
-    # A step that fails here would hand the verifiers an empty or partial
-    # payload, so the file is reported unchecked instead.
     slot="$batch/$((k + 1))"
     note=""
     whole=0
@@ -312,12 +291,6 @@ check_range() {
       slots[n]=$k
     fi
   done < <(checks_files)
-  # git exports GIT_DIR (a linked worktree's git dir) to its hooks; under it
-  # `git -C <dir> rev-parse --show-toplevel` answers <dir>, so the verifiers
-  # would take the file's own folder for the repository root. They find the
-  # repository from the file, as an edit hook does.
-  # The verifiers are advisory and exit 0, so any other status, or output
-  # jq cannot read, means the file went unchecked.
   ran=0
   if ((k)); then
     (

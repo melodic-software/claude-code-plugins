@@ -108,6 +108,7 @@ lib/org-standards.sh plugins/planning/scripts/org-standards.sh
 lib/org-standards.sh plugins/review/scripts/org-standards.sh
 lib/org-standards.sh plugins/improvement/scripts/org-standards.sh
 lib/org-standards.sh plugins/harness-config/scripts/org-standards.sh
+lib/org-standards.sh plugins/discovery/scripts/org-standards.sh
 docs/contracts/enforcement-ladder/README.md plugins/review/context/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/session-flow/skills/retro/reference/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md
@@ -122,6 +123,7 @@ docs/contracts/detector-findings/README.md plugins/mutation-testing/reference/de
 docs/contracts/detector-findings/README.md plugins/testing/reference/detector-findings.md
 docs/contracts/pre-pr-ordering/README.md plugins/source-control/reference/pre-pr-ordering.md
 docs/contracts/standards/README.md plugins/improvement/reference/standards-contract.md
+docs/contracts/standards/README.md plugins/discovery/reference/standards-contract.md
 docs/contracts/type-discipline/README.md plugins/planning/skills/design/reference/type-discipline.md
 docs/contracts/type-discipline/README.md plugins/implementation/reference/type-discipline.md
 docs/contracts/type-discipline/README.md plugins/review/context/type-discipline.md
@@ -209,6 +211,7 @@ lib/yaml-subset.awk plugins/verification/lib/yaml-subset.awk
 lib/parse-concern-value.sh plugins/source-control/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/source-control/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/harness-config/lib/yaml-subset.awk
+lib/yaml-subset.awk plugins/improvement/lib/yaml-subset.awk
 lib/config-root.sh plugins/source-control/lib/config-root.sh
 lib/config-root.sh plugins/ai-slop/lib/config-root.sh
 lib/config-root.sh plugins/attribution/lib/config-root.sh

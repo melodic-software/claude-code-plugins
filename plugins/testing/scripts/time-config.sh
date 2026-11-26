@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Time test-scan.sh end to end and resolve-config.sh --quick alone for each
-# team-layer configuration: none, .claude/testing.yaml only, the docs block
-# only, and both. One sample of every arm per iteration, in interleaved order,
-# after a warm-up pass; p50 and p95 in milliseconds.
-#
-# Usage: time-config.sh [samples]     default 50
 set -uo pipefail
 
 N="${1:-50}"

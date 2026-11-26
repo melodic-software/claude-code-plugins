@@ -6,7 +6,7 @@
   ],
   "fail": [
     {
-      "answer": "The personal override .claude/bugs.local.md opts out with lanes: []."
+      "answer": "The personal override .claude/bugs.local.md opts out with areas: []."
     }
   ]
 }

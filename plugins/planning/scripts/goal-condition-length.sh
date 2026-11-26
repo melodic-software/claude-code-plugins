@@ -1,30 +1,21 @@
 #!/usr/bin/env bash
-# Mechanical character-length gate for a drafted /goal completion condition.
-#
-# A language model cannot reliably count characters, so conformance to the
-# /goal condition character limit is decided here — deterministically, with NO
-# model involvement. The limit is NOT baked in: the caller passes the value it
-# read from the current official docs at authoring time (--limit), so this gate
-# never rots when the documented limit changes between Claude Code versions.
-#
 # Exit 0 = condition length is within the limit (count <= limit)
 # Exit 1 = condition exceeds the limit (count > limit)
 # Exit 2 = usage or environment error (bad/missing --limit, empty condition, ...)
-#
-# Usage:
-#   bash goal-condition-length.sh --limit <N> [--file <path>]   # else reads stdin
-#   bash goal-condition-length.sh --help
-#
-# Counting: Unicode code points ("characters"), locale-independent via perl when
-# present, falling back to `wc -m`. A trailing newline (as a file editor adds)
-# is not part of the pasted condition and is stripped before counting.
-#
-# Output (stdout, greppable): `chars=<n> limit=<N> status=<ok|over>`
 
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Mechanical/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'TXT'
+Mechanical character-length gate for a drafted /goal completion condition.
+
+Usage: bash goal-condition-length.sh --limit <N> [--file <path>]
+  --limit  the documented character limit (required)
+  --file   the condition file (default stdin)
+  --help   print this help
+
+Exit 0 within the limit; 1 over it; 2 usage or environment error.
+TXT
 }
 
 die() {
@@ -68,7 +59,6 @@ if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -eq 0 ]]; then
   die "--limit must be a positive integer, got: $limit"
 fi
 
-# Command substitution strips trailing newlines; a pasted /goal condition carries none.
 if [[ -n "$file" ]]; then
   [[ -f "$file" ]] || die "--file not found: $file"
   condition="$(cat -- "$file")"

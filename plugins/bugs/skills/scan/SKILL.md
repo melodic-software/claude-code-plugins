@@ -1,6 +1,6 @@
 ---
-description: "Proactive hunt for unobserved bugs in resting code: read-only, recall-biased hunter subagents per lens, then a fresh-context refute gate per candidate, reporting only verified five-field findings over a target path, feature or diff, or a rotated lane. Use when the user asks to 'find a bug', 'bug hunt', 'scan for bugs' or 'hunt for bugs in X', or a loop or routine runs the lane rotation. Skip when reviewing a diff (review:code-review), security auditing (review:security-review), root-causing an observed failure (debugging:debug), or checking doc, config, code or architecture claim drift (codebase-health:audit); 'scan repo for issues' is harness-ops:known-issues, and 'file a bug' the user observed is bugs:write."
-argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]"
+description: "Proactive hunt for unobserved bugs in resting code: read-only, recall-biased hunter subagents per lens, then a fresh-context refute gate per candidate, reporting only verified five-field findings over a target path, feature or diff, or a rotated focus area. Use when the user asks to 'find a bug', 'bug hunt', 'scan for bugs' or 'hunt for bugs in X', or a loop or routine runs the focus area rotation. Skip when reviewing a diff (review:code-review), security auditing (review:security-review), root-causing an observed failure (debugging:debug), or checking doc, config, code or architecture claim drift (codebase-health:audit); 'scan repo for issues' is harness-ops:known-issues, and 'file a bug' the user observed is bugs:write."
+argument-hint: "[<path|feature|diff>] [--area <name>] [--track] [--dry-run] [--unattended] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -25,7 +25,7 @@ Unless this section says otherwise, treat a failure (not a repository, git unava
 
 ## Pre-computed context
 
-Lane config: !`ls "${CLAUDE_PROJECT_DIR:-.}/docs/conventions/bugs.yaml" 2>/dev/null || echo "absent — bundled default lanes apply"`
+Focus area config: !`ls "${CLAUDE_PROJECT_DIR:-.}/docs/conventions/bugs.yaml" 2>/dev/null || echo "absent — bundled default focus areas apply"`
 
 Consumer gotchas:
 !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" --user-file '${user_config.gotchas_file}' || echo "(consumer gotchas unavailable)"`
@@ -39,7 +39,7 @@ Arguments: `$ARGUMENTS`
 ## Purpose
 
 Hunt defects **nobody has observed yet** in resting code; no diff, failing test, or stack trace is
-needed. One invocation is **one bounded pass**: hunt a target or a rotated lane, verify each
+needed. One invocation is **one bounded pass**: hunt a target or a rotated focus area, verify each
 candidate through a separate fresh-context gate, report what survives in the plugin's five-field
 shape, stop. Per-run recall is low and the raw false-positive rate high, so recall and precision
 are separate stages: hunters are told to be generous, the gate is told to refute.
@@ -71,9 +71,9 @@ the next run has no filed item to read back.
 
 | Argument | Mode | Behavior |
 |---|---|---|
-| `<path>` / `<feature>` / `<diff-ish ref>` | **Targeted** | Hunt exactly that scope. No lane rotation, no cursor advance. |
-| `--lane <name>` | **Named lane** | Hunt the named lane's globs. Advances the cursor to that lane. |
-| *(empty)* | **Rotation** | Self-select the next lane via the cursor ladder, then hunt it. |
+| `<path>` / `<feature>` / `<diff-ish ref>` | **Targeted** | Hunt exactly that scope. No focus area rotation, no cursor advance. |
+| `--area <name>` | **Named focus area** | Hunt the named focus area's globs. Advances the cursor to that focus area. |
+| *(empty)* | **Rotation** | Self-select the next focus area via the cursor ladder, then hunt it. |
 | `--track` | **Filing** | After reporting, file verified findings as raw intake, subject to `filing_posture` and the Step 7 ladder. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
 | `--unattended` | **Unattended** | The caller declares that nobody is present (a loop, a routine, a lane rule). No scanned code runs, every survivor is `verified-by-reading`, and Step 7 routes as unattended. Composable with any mode. A run is also unattended without the flag when the environment says nobody is present ("Unattended runs" below). |
@@ -87,11 +87,11 @@ That test is [`${CLAUDE_PLUGIN_ROOT}/reference/run-reviewed-code.md`](../../refe
 "Who counts as unattended", this plugin's copy of the marketplace contract. Every other run is
 attended. Steps 4, 6 and 7 read "unattended" this way.
 
-`lanes` resolves from `docs/conventions/bugs.yaml`, the team layer, and `filing_posture` from
+`areas` resolves from `docs/conventions/bugs.yaml`, the team layer, and `filing_posture` from
 `docs/conventions/work-items.yaml` (Filing posture in the reference). Keys,
 layers, and merge semantics live only in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). When no layer
-declares lanes, use the bundled generic default lanes in [`context/lenses.md`](context/lenses.md).
+declares focus areas, use the bundled generic default focus areas in [`context/lenses.md`](context/lenses.md).
 
 ## Over several repositories
 
@@ -102,7 +102,7 @@ repositories, which resolve, count, fan out and merge as
 forms", "Resolving repositories", "Fan-out" and "Merging findings" say. Each repository runs the
 whole pipeline below, Steps 1 to 7, with its root anchored. What differs here:
 
-- **Config per repository.** `lanes`, `filing_posture`, the verification level and the consumer
+- **Config per repository.** `areas`, `filing_posture`, the verification level and the consumer
   gotchas all come from that repository: run `read-verification.sh` (Step 4) and
   `concat-gotchas.sh --user-file "<value>"` with `CLAUDE_PROJECT_DIR=<root>`, `<value>` being
   `${user_config.gotchas_file}` as this text shows it (empty when unexpanded). The pre-computed lines above describe
@@ -114,8 +114,8 @@ whole pipeline below, Steps 1 to 7, with its root anchored. What differs here:
   `output_dir` or two clones with one basename put several repositories in one directory. The
   `.bug-reports/` fallback applies to this checkout only. Another repository with no report
   directory is not persisted, and the report says so. Rung 1 searches that repository's tracker,
-  and rung 3 indexes its lane list.
-- **Modes per repository.** `--lane <name>` hunts that lane in each repository that declares it;
+  and rung 3 indexes its focus area list.
+- **Modes per repository.** `--area <name>` hunts that focus area in each repository that declares it;
   a repository that does not is reported skipped with the reason. A targeted path resolves under
   each repository's root, and a repository where it does not exist is reported skipped.
 - **Hunter and gate stay separate.** Each repository's subagent dispatches its own hunters and
@@ -129,11 +129,11 @@ whole pipeline below, Steps 1 to 7, with its root anchored. What differs here:
 
 ## Cursor ladder (rotation mode)
 
-The next lane is derived **statelessly**; the first rung that answers wins:
+The next focus area is derived **statelessly**; the first rung that answers wins:
 
 1. **Tracker history.** When the `work-items` plugin is enabled and a tracker binding resolves,
-   search items (`--state all`) for the provenance line `Filed by /bugs:scan (lane: <name>)`. The
-   most recently filed lane is the previous lane; take the next one in declaration order. The search
+   search items (`--state all`) for the provenance line `Filed by /bugs:scan (area: <name>)`. The
+   most recently filed focus area is the previous focus area; take the next one in declaration order. The search
    must be an **exact match** on that line (the seam's search verb, or the provider's literal body
    match with the string quoted): a fuzzy search cannot tell "no match" from "missed". With only a
    fuzzy search, or no search run against a bound tracker, print why and fall through. An unbound
@@ -149,35 +149,35 @@ The next lane is derived **statelessly**; the first rung that answers wins:
 2. **Persisted-report cursor.** Resolve the report directory by the **same precedence persistence
    uses** (`/bugs:write`'s Step 4, as Step 5 does); reading a directory reports no longer land in is
    how a configured `output_dir` strands the cursor. Search **backward from the newest report** for
-   the newest one carrying a valid rotation cursor block, one that names the rotation lane (see
-   [`context/findings-report.md`](context/findings-report.md)), and take the next lane after it the
+   the newest one carrying a valid rotation cursor block, one that names the rotation focus area (see
+   [`context/findings-report.md`](context/findings-report.md)), and take the next focus area after it the
    same way. Skip reports without one:
    `/bugs:write`'s reports share the directory and carry none, and a targeted scan's report must
    never advance rotation. If none carries one, fall through.
-3. **Date-derived floor.** Index the declared lane list by
-   `(days since 1970-01-01 UTC) mod (lane count)`.
+3. **Date-derived floor.** Index the declared focus area list by
+   `(days since 1970-01-01 UTC) mod (focus area count)`.
 
 State the rung used in the report.
 
 **Reset semantics.** Deleted reports or a fresh machine drop the run to rung 3, a valid state, not
 an error. `<project-slug>` is the project root's kebab-cased basename, so two checkouts sharing a
 basename (`~/work/api` and `~/oss/api`) share one cursor directory: name the absolute project root in the report. Two zero-state
-sessions on the same day select the **same** lane; accept it (dedupe absorbs the duplicates) rather
+sessions on the same day select the **same** focus area; accept it (dedupe absorbs the duplicates) rather
 than jitter it, because the deterministic floor is what makes daily coverage predictable.
 
 ## Budget
 
-- **Stop condition:** 3 verified findings, or the lane's budget-bounded sample is complete.
+- **Stop condition:** 3 verified findings, or the focus area's budget-bounded sample is complete.
 - **Candidate cap:** at most 10 candidates per hunt wave reach the gate (5 on a small scope). Rank by
   evidence strength and drop the tail rather than widening the wave; the dropped tail is reported,
   never discarded.
 - **Refill cap:** if a whole wave is refuted, at most **2** refill waves, then report the refuted set
   and stop. An unbounded refill loop is a token sink: each refill wave pays the full gate again.
-- **"Lane exhausted" means the sample is complete, not that the lane is bug-free.** Never claim
+- **"Focus area exhausted" means the sample is complete, not that the focus area is bug-free.** Never claim
   exhaustive coverage.
 
 Zero verified findings is a successful outcome: report it, advance the cursor on a rotation or
-named-lane run, and do not refill past the cap or invent a finding to justify the run.
+named focus area run, and do not refill past the cap or invent a finding to justify the run.
 
 ### Sizing. Model by stage, breadth by scope, effort as the ceiling
 
@@ -228,11 +228,11 @@ and what happens to a blocked one, see <https://code.claude.com/docs/en/sub-agen
 | medium | 20 files or 5,000 lines or fewer | 2 to 3 | 10 |
 | large | above | 4, or 5 when the scope renders user-facing data | 10, refill waves allowed |
 
-A targeted run over one file is small; a full lane is usually large. The scope class, lens count,
+A targeted run over one file is small; a full focus area is usually large. The scope class, lens count,
 and models used go in the run metadata.
 
 **Effort as the ceiling.** The [Effort](#effort) row bounds lenses and refill waves; scope picks
-within it, never above it. A `low` run over a large lane still dispatches one lens.
+within it, never above it. A `low` run over a large focus area still dispatches one lens.
 
 ### Effort
 
@@ -253,17 +253,17 @@ fresh-context refuting subagent at every effort level, and "if uncertain, it is 
 | `high`, `xhigh`, `max` | up to 5, sized to the scope per the sizing table | 2 | 3 verified findings |
 
 The gate cap per wave holds at every level. Name the effort level and lens count in the run
-metadata, so a `low` run reads as the narrower sample it is rather than as a clean lane.
+metadata, so a `low` run reads as the narrower sample it is rather than as a clean focus area.
 
 ## The scan pipeline
 
-Process one unit (one target, or one lane) at a time. A unit is closed when its verified findings
+Process one unit (one target, or one focus area) at a time. A unit is closed when its verified findings
 are reported, deduped, and (under `--track` with `filing_posture` allowing it) filed; only then does
 the cursor advance.
 
 ### Step 1. Resolve scope
 
-Resolve the mode, lane globs, and `filing_posture` per the reference. Enumerate the file list
+Resolve the mode, focus area globs, and `filing_posture` per the reference. Enumerate the file list
 and drop test suites (`*.test.*`, `test_*`, `*.Tests.ps1`): hunters read a test to learn a unit's
 contract and never hunt the test itself. Over ~40 files, narrow to the highest-signal subset
 (recently changed, highest fan-in, most branch-dense) and say in the report that you sampled.
@@ -281,7 +281,7 @@ contract (objective, output format, tool and source guidance, task boundaries) i
 row is the ceiling. Dispatch lens 5 only when the scope renders user-facing data (components,
 templates, views, messages, reports). Every hunter is read-only, attaches a verbatim evidence quote
 to every candidate, may follow one hop outside the scope (a direct caller or callee of a scoped
-file) and tags such a candidate `out-of-lane`, and is told that **returning no candidate is a valid
+file) and tags such a candidate `out-of-area`, and is told that **returning no candidate is a valid
 and expected outcome**. Each hunter prompt also carries the scanned-source framing in
 [`context/lenses.md`](context/lenses.md).
 
@@ -289,8 +289,8 @@ and expected outcome**. Each hunter prompt also carries the scanned-source frami
 
 ### Step 3. Triage the candidate list (main thread, before any gate)
 
-1. **Seed from the prior tail.** On a rotation or named-lane run, read the newest persisted report
-   for this lane (the directory rung 2 reads) and add its "Candidates not gated" rows ahead of the
+1. **Seed from the prior tail.** On a rotation or named focus area run, read the newest persisted report
+   for this focus area (the directory rung 2 reads) and add its "Candidates not gated" rows ahead of the
    hunters' output; at equal evidence strength they rank first. Skipping the seed re-buys what the
    last run already paid for. A row whose quoted location no longer exists goes to the side
    observations. A targeted run seeds nothing.
@@ -375,7 +375,7 @@ an unattended run file every verified finding. Then, presence-gated on `work-ite
    is reopened or linked from a fresh item.
 2. **Categorize as raw intake.** A scan filing records what was observed, not a verified diagnosis.
 3. **File** through `track add`, which owns the body template and the argv-safe write. The body
-   carries the five fields and the provenance line `Filed by /bugs:scan (lane: <name>)`, which
+   carries the five fields and the provenance line `Filed by /bugs:scan (area: <name>)`, which
    rung 1 of the cursor ladder recognizes.
 4. **Mark `needs-triage` from the live label set** when that exact name exists. **Create no
    labels**; if it is missing, say so and file without it. The filer does not self-triage.
@@ -400,7 +400,7 @@ tracker item and an unattended run never strands work in a transcript:
 
 Recommend the route;
 do not auto-invoke it. A finding worth root-causing first goes to `/debugging:debug` (if enabled). With nothing
-verified, say so and name the lane and rung, so the next run rotates on.
+verified, say so and name the focus area and rung, so the next run rotates on.
 
 ## Next
 
@@ -420,7 +420,7 @@ verified, say so and name the lane and rung, so the next run rotates on.
   the gate; a candidate dropped as cosmetic is written to the side observations.
 - **No evidence quote, no finding.** A candidate without a verbatim quote of the offending source is
   retracted at the gate, not "investigated further".
-- **`--dry-run` must not advance the cursor.** A dry run that persists a cursor silently skips a lane
+- **`--dry-run` must not advance the cursor.** A dry run that persists a cursor silently skips a focus area
   on the next real run.
 - **`--track` is not `--file`.** `--file` is `/bugs:write`'s flag for persisting a report to disk;
   the same token here would mean tracker mutation.
@@ -439,8 +439,8 @@ verified, say so and name the lane and rung, so the next run rotates on.
 
 | File | Load when |
 |---|---|
-| [`context/lenses.md`](context/lenses.md) | Step 2, writing each hunter's dispatch prompt; also holds the hotspot ranking and the bundled default lanes. |
+| [`context/lenses.md`](context/lenses.md) | Step 2, writing each hunter's dispatch prompt; also holds the hotspot ranking and the bundled default focus areas. |
 | [`context/verification-gate.md`](context/verification-gate.md) | Step 4, before dispatching the refute gate on a candidate. |
 | [`context/findings-report.md`](context/findings-report.md) | Step 5, emitting the report, and rung 2 reading a prior cursor back. |
-| [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) | A `docs/conventions/bugs.yaml` key decides the run (lane, rotation, filing posture) and its layer is unclear. |
+| [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md) | A `docs/conventions/bugs.yaml` key decides the run (focus area, rotation, filing posture) and its layer is unclear. |
 | [`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../write/SKILL.md) | Emitting a finding in the five-field shape, running the duplicate scan, or resolving where reports persist. |

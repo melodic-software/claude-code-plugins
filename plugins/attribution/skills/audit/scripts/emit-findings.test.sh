@@ -1448,7 +1448,6 @@ attribution_root_spelling_reaches_an_anchor() {
   [[ "$alt" == "$REPO" ]]
 }
 
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if attribution_root_spelling_reaches_an_anchor; then
   assert_contains "an absolute path is relativized" "$(cat "$ABS")" "| docs/page.md:7 |"
   assert_not_contains "the repo root does not survive into Location" "$(cat "$ABS")" "$REPO/docs"
@@ -1468,7 +1467,6 @@ assert_not_contains "a failed write never claims it wrote" "$OUT" "wrote"
 UNWRITABLE="$TEST_TMPDIR/unwritable"
 mkdir -p "$UNWRITABLE"
 chmod a-w "$UNWRITABLE"
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if [[ ! -w "$UNWRITABLE" ]]; then
   assert_fails "an unwritable destination exits non-zero" \
     bash "$EMIT" --report "$REPORTS/full.json" --out "$UNWRITABLE/x.md"

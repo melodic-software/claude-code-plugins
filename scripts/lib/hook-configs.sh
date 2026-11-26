@@ -190,11 +190,11 @@ hook_configs::scan() {
   while IFS=$'\t' read -r kind file line detail; do
     detail="${detail%$'\r'}"
     case "$kind" in
-    V) "$on_hook" "$file" "$line" exec array "$detail" "$detail" ;;
-    N) "$on_hook" "$file" "$line" exec other "$detail" "$detail" ;;
-    S) "$on_hook" "$file" "$line" shell none "$detail" "$detail" ;;
-    X) "$on_bad" frontmatter "$file" "$line" "$detail" ;;
-    *) ;;
+      V) "$on_hook" "$file" "$line" exec array "$detail" "$detail" ;;
+      N) "$on_hook" "$file" "$line" exec other "$detail" "$detail" ;;
+      S) "$on_hook" "$file" "$line" shell none "$detail" "$detail" ;;
+      X) "$on_bad" frontmatter "$file" "$line" "$detail" ;;
+      *) ;;
     esac
   done <<<"$out"
   return 0
@@ -215,9 +215,9 @@ hook_configs::sources() {
   hook_configs::_manifest_out out sources "" ${_HC_MANIFESTS[@]+"${_HC_MANIFESTS[@]}"}
   while IFS="$HOOK_CONFIGS_SEP" read -r kind file rest; do
     case "$kind" in
-    I) HOOK_CONFIG_SOURCES+=("$file"$'\t'"$rest") ;;
-    P) hook_configs::_pointed "$gate" seen pointed "$file" "$rest" ;;
-    *) ;;
+      I) HOOK_CONFIG_SOURCES+=("$file"$'\t'"$rest") ;;
+      P) hook_configs::_pointed "$gate" seen pointed "$file" "$rest" ;;
+      *) ;;
     esac
   done <<<"$out"
   for file in ${pointed[@]+"${pointed[@]}"}; do

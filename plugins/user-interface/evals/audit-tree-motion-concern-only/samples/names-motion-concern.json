@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Motion concern, tree scope.",
+      "why": "names the concern"
+    },
+    {
+      "answer": "Judged against catalog.md and behaviors.md.",
+      "why": "names the spokes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here are the animation problems.",
+      "why": "near miss: no concern or spoke named"
+    }
+  ]
+}

@@ -172,6 +172,25 @@ test("pr-run-activity-read's run job runs the same leg and sets the same outputs
   t.diagnostic(`${count} states`);
 });
 
+test("a forged credit-stop marker only hands the first call to the subscription leg: no launcher runs on it and nothing else reads skip-key", () => {
+  const reads = [...TEXT.matchAll(/^.*skip-key.*$/gm)].map((m) => m[0].trim());
+  assert.deepEqual(reads, [
+    "skip-key: ${{ steps.credit.outputs.skip-key }}",
+    "skip-run: ${{ inputs.issue-number == '' && inputs.post-decline && steps.credit.outputs.skip-key == 'true' }}",
+    "steps.credit.outputs.skip-key == 'true'",
+    "selected: ${{ needs.check-broker.outputs.skip-key == 'true' && 'subscription' || '' }}",
+  ]);
+  let forged = 0;
+  for (const s of states()) {
+    if (s.fallback !== "" || s.gate !== "true" || !s.reached) continue;
+    forged++;
+    const run = newRun(s);
+    assert.deepEqual(run.ran, [], JSON.stringify(s));
+    assert.equal(run.outputs["handed-off"], "true", JSON.stringify(s));
+  }
+  assert.ok(forged > 0);
+});
+
 test("the workflow_call outputs the run and check-broker jobs set, and their sources, are unchanged from 5599e627fc", () => {
   const call = {
     "head-sha": "${{ jobs.run.outputs.head-sha }}",

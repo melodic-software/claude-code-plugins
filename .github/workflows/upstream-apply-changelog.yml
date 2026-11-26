@@ -179,7 +179,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Download standards
         id: standards
@@ -251,7 +251,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Prepare the working tree
         id: prepare
@@ -327,7 +327,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Write the key's credit-stop marker
         id: credit-marker
@@ -511,7 +511,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Download standards
         id: standards
@@ -584,7 +584,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Prepare the working tree
         id: prepare
@@ -661,7 +661,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Record the start
         id: start
@@ -808,7 +808,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Download standards
         id: standards
@@ -880,7 +880,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Prepare the working tree
         id: prepare
@@ -956,7 +956,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Record the start
         id: start
@@ -2065,7 +2065,7 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Set up Node
         uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
@@ -2185,7 +2185,7 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Download standards
         id: standards
@@ -2314,7 +2314,7 @@ jobs:
           ref: ${{ needs.select-release.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
+          set-safe-directory: false
 
       - name: Download standards
         id: standards

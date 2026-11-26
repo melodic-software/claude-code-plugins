@@ -140,8 +140,8 @@ class Clause:
 @dataclass
 class Span:
     clause_id: str
-    start: int  # 1-based, inclusive
-    end: int  # 1-based, inclusive
+    start: int
+    end: int
     text: str = ""
 
 

@@ -23,10 +23,8 @@ RULES_FILE = (
 )
 
 _SEP = r"[\\/]+"
-# A user segment ends at a separator; a spaced name counts only when a separator follows it.
 _NAME_CHAR = r"""[^\\/\s"'`<>|:*?,;()\[\]{}]"""
 _NAME = rf"{_NAME_CHAR}+(?: {_NAME_CHAR}+)*(?={_SEP})|{_NAME_CHAR}+"
-# Windows, Git Bash and WSL spellings fold case; the POSIX homes do not.
 _HOME = re.compile(
     rf"(?<![\w.~-])(?:(?i:[a-z]:|/mnt/[a-z]|/[a-z]){_SEP}(?i:users)|/home|/Users){_SEP}(?:{_NAME})"
 )
@@ -34,20 +32,13 @@ _EMAIL = re.compile(
     r"(?<![\w.%+-])[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
 )
 _KEYWORD = r"key|secret|token|passw(?:or)?d|passphrase|pwd|(?<![a-z])(?:pass|pw)(?![a-z])"
-# A quoted key leaves its closing quote before the separator, separators can repeat (`=>`, `:=`),
-# and a quoted value runs to its own closing quote.
 _ASSIGNMENT = re.compile(
     rf"""(?i)({_KEYWORD})(["']?(?:\s*[:=]+>?)+\s*)(?!<redacted:)("[^"]*"|'[^']*'|\S+)"""
 )
-# Prose ("my password is X") is redacted only when X holds a digit or symbol, so a plain word stays.
 _PROSE = re.compile(
     r"(?i)\b(passw(?:or)?d|passphrase|pwd|secret|token)(\s+(?:(?:is|was|-)\s+)?)"
     r"(?!<redacted:)(?=[^\s,;]*[\d!@#$%^&*])[^\s,;]+"
 )
-# The scheme starts where no scheme character precedes it and is short, so a long token of scheme
-# characters is scanned once, not from every offset. The password runs to the token's last `@`, so
-# one holding `@` or `/` is redacted whole; a token with no `@` left is consumed unchanged, so the
-# scan resumes after it instead of retrying from every later scheme in it.
 _URL_CREDENTIAL = re.compile(
     r"(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]{0,30}://[^\s:/@]*:)(?:(\S+)(?=@)|\S*)"
 )
@@ -58,22 +49,16 @@ def _url_credential(match: re.Match[str]) -> str:
 
 
 _BEARER = re.compile(r"(?i)\b(bearer)(\s+)(?!<redacted:)[A-Za-z0-9._~+/=-]{8,}")
-# A JSON or log header quotes the key and the value: `"Authorization": "Basic <credential>"`.
 _BASIC = re.compile(
     r"""(?i)\b(authorization["']?\s*:\s*["']?basic)(\s+)(?!<redacted:)[A-Za-z0-9+/=]{8,}"""
 )
-# A private key block runs to its END marker, or to the end of the text when that was cut off.
 _PRIVATE_KEY = re.compile(
     r"-----BEGIN ([A-Z ]*)PRIVATE KEY-----.*?(?:-----END \1PRIVATE KEY-----|\Z)", re.S
 )
-# A password attached to a database client's -p flag; -P is the port, and a bare -p prompts.
 _CLI_PASSWORD = re.compile(
     r"""(?i)(?<![\w-])((?:mysql|mysqldump|mysqladmin|mariadb)\b[^\n|;&]*?\s(?-i:-p))"""
     r"""(?!<redacted:)('[^']*'|"[^"]*"|[^\s'"]\S*)"""
 )
-# Run before the vendored rules: github-app-token stops at 36 alphanumerics, so it would leave the
-# tail of a stateless ghs_ token that holds a dot. Each writes a keyword-free stand-in, swapped for
-# its label after every other pass, so the label's "token" cannot wake generic-api-key.
 _PRE_PASSES = (
     (re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
     (re.compile(r"sk-ant-oat02-[A-Za-z0-9_-]+"), "anthropic-oauth-token"),
@@ -114,12 +99,9 @@ class Redactor:
         return len(self.rules)
 
     def redact(self, text: str) -> str:
-        # The curl rules were written for RE2. Python's `.` matches a bare \r, so a run of them
-        # backtracks polynomially; as \n, `.` stops at each one.
         text = text.replace("\r\n", "\n").replace("\r", "\n")
         for index, (pattern, _) in enumerate(_PRE_PASSES):
             text = pattern.sub(f"<redacted:pre-{index}>", text)
-        # A rule runs only when one of its keywords appears, as gitleaks does.
         lowered = text.lower()
         for rule in self.rules:
             if not rule.keywords or any(k in lowered for k in rule.keywords):

@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Tests for visual-compare.sh and visual-compare.mjs.
-#
-# Two groups. The network-free group always runs: --help, argument errors,
-# install --dry-run, the repair lines, manifest, and the pixel_tolerance config
-# reader. The pixel group needs pixelmatch and pngjs: it runs when
-# VISUAL_COMPARE_DEPS_DIR names an install base whose
-# <base>/visual-compare/<lockfile hash>/ loads, or when VISUAL_COMPARE_REQUIRE=1,
-# which installs them and fails the suite when they cannot be installed.
-# Otherwise it prints one skip line and the suite exits on the first group.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA CLAUDE_CONFIG_DIR VISUAL_COMPARE_PLATFORM
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -120,8 +111,6 @@ before="$(cksum "$T/m/manifest.json")"
 run manifest --dir "$T/m" --browser "chromium 141" --viewport 800x600 --scale 1
 assert_eq "a second manifest over an existing one exits 2" 2 "$rc"
 assert_eq "and leaves the manifest byte-identical" "$before" "$(cksum "$T/m/manifest.json")"
-# A value that starts with '-' reaches the .mjs whole: its strict parseArgs
-# refuses one passed as a separate argument.
 mkdir -p "$T/dash"
 printf 'not really a png' >"$T/dash/home.png"
 run manifest --dir "$T/dash" --browser "-headless chromium 140" --viewport 1280x720 --scale 1

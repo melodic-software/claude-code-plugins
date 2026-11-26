@@ -75,8 +75,8 @@ fails closed like every other guard-relevant unknown in this plugin.
 
    **`node` and bash**, probed with the Bash tool, not through the launcher. FAIL if
    `command -v node` finds nothing: every guard and detector row runs `node`, so none launches and no guard
-   is enforced. FAIL if no bash resolves in the launcher's own order, which the header comment of
-   `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` lists per platform (read it; do not recite it). On
+   is enforced. FAIL if no bash resolves in the launcher's own order, which `resolveBash` in
+   `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` sets per platform (read it; do not recite it). On
    Windows the remediation is either `CLAUDE_CODE_GIT_BASH_PATH`, a Git for Windows install, or a
    `bash.exe` on `PATH` outside `System32`, `Sysnative` and `WindowsApps`; elsewhere, a `bash` on
    `PATH`. Both FAILs stay FAIL with the toggle disabled, like the interpreter ladder. State the

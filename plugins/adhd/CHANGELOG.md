@@ -3,6 +3,18 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.12] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.11.11] - 2026-11-26
+
+### Changed
+
+- Shared `html-chrome.html` synced: its palette, type stacks and per-scheme roles are now kept equal to the marketplace's shared token layer, it gains an `--accent` role set to the existing clay value, and its header no longer rules out a team or user theme override. Pages look the same; no other change to this plugin.
+
 ## [0.11.10] - 2026-11-24
 
 ### Changed

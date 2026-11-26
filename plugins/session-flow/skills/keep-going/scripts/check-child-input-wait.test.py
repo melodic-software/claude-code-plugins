@@ -54,16 +54,12 @@ class LinuxTreeTests(unittest.TestCase):
             raise unittest.SkipTest("this host hides /proc/<pid>/syscall")
 
     def spawn(self, script):
-        # A background job in a non-interactive shell gets /dev/null as stdin,
-        # so the blocking child runs in the foreground of the root shell.
         return subprocess.Popen(
             ["bash", "-c", script], stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
 
     def verdict_of(self, root, needle, want):
-        # In-process: hosts that limit ptrace let only an ancestor read a
-        # process's syscall, and this test process is the children's ancestor.
         deadline = time.time() + 10
         verdict = None
         while time.time() < deadline:
@@ -85,8 +81,6 @@ class LinuxTreeTests(unittest.TestCase):
             root.wait()
 
     def wchan_only_verdict(self, root, needle):
-        # Real kernel wchan symbols, with /proc/<pid>/syscall made unreadable
-        # as it is for a non-ancestor checker under Yama ptrace_scope>=1.
         real_open = open
 
         def no_syscall(path, *a, **k):
@@ -133,9 +127,6 @@ class LinuxTreeTests(unittest.TestCase):
             os.close(secondary)
 
     def test_cli_as_non_ancestor_on_blocked_child(self):
-        # The skill runs the checker as its own process, a sibling of the
-        # shell's children: under Yama ptrace_scope>=1 it reads only wchan,
-        # where a pipe read is "unknown" (exit 4); otherwise syscall gives "yes".
         root = self.spawn("bash -c 'read x'; true")
         try:
             deadline = time.time() + 10
@@ -177,8 +168,6 @@ class LinuxTreeTests(unittest.TestCase):
 
 class VerdictTests(unittest.TestCase):
     def wchan_verdict(self, wchan):
-        # Models a non-ancestor checker on a host with Yama ptrace_scope>=1:
-        # /proc/<pid>/syscall is unreadable, only wchan answers.
         def fake_open(path, *a, **k):
             if str(path).endswith("/stat"):
                 return mock.mock_open(read_data=b"1 (x) S 0 0")()
@@ -196,15 +185,11 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual(self.wchan_verdict("hrtimer_nanosleep"), "unknown")
 
     def test_wchan_pipe_and_generic_waits_are_unknown(self):
-        # wchan cannot see the fd: a pipeline consumer sits in a pipe read,
-        # and wait_woken backs socket and tty waits alike.
         for wchan in ("pipe_read", "anon_pipe_read", "pipe_wait", "wait_woken"):
             with self.subTest(wchan=wchan):
                 self.assertEqual(self.wchan_verdict(wchan), "unknown")
 
     def test_linux_table_survives_exit_between_reads(self):
-        # An empty cmdline sends the table to /proc/<pid>/comm, which can be
-        # gone by then.
         def fake_open(path, *a, **k):
             if str(path).endswith("/stat"):
                 return mock.mock_open(read_data=b"4242 (x) Z 1 0")()

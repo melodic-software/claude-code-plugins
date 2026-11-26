@@ -11,7 +11,7 @@ metadata:
 ---
 ## Run-start suggestion
 
-Relay the sentence below to the user and do not run `/skill-doctor` yourself: it is a command the Skill tool never lists.
+Relay the sentence below to the user and do not run `/skill-doctor` yourself: it is the user's command to type (what it reports: [find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills)).
 
 If /skill-doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill and `/skill-doctor`** below), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
@@ -37,7 +37,7 @@ therefore never takes effect; `harness-config:audit`, when installed, reports th
 - **Pointer**: when deciding whether `skillOverrides` can affect a plugin skill, fetch [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings) live.
 
 Claude Code budgets the model-visible skill listing in characters, at
-`window x bytes-per-token x skillListingBudgetFraction` (our binary reading), and, when it
+`window x bytes-per-token x skillListingBudgetFraction` (our binary reading; the docs' account, which differs on the drop order: [skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)), and, when it
 overflows, **sheds descriptions from the lowest-scoring skills first**. Names always survive,
 descriptions do not. A skill at zero usage scores zero, so it loses its description, loses the
 keywords a request would match against, and stays at zero. Unused is partly self-causing.
@@ -139,7 +139,7 @@ excluded and reported rather than counted. Current project comes from
 
 A marketplace whose source is a local `directory` loads from that **checkout**,
 not from either cached `installPath`. Verified by a skill executing out of the
-marketplace directory. For those, the plugin's root comes from the catalog's
+marketplace directory; the docs' account: [in-place and copied plugins](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins). For those, the plugin's root comes from the catalog's
 declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
 Whether each resolved plugin actually loads is read from `enabledPlugins` in the
@@ -251,8 +251,8 @@ workflows, and with `--installed` the user's `~/.claude/skills`, the
 `.claude/skills` of the project and each parent up to the repository root, and
 the signed-in account's claude.ai-synced skills, each with `skillOverrides`
 applied. A user or project skill is listed under its frontmatter `name` when it
-sets one, a synced skill under its folder name, and the engine lets a personal skill shadow a project skill of the same name, the order read live from [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name). Built-in and bundled skills ship
-inside Claude Code and cannot be read from disk, so without a capture
+sets one, a synced skill under its folder name, and the engine lets a personal skill shadow a project skill of the same name, the order read live from [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name). The engine reads no built-in or bundled
+skill from disk (what those are: [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)), so without a capture
 `coverage` is `enumerated-only`, the Markdown says what was not counted, and a
 row whose counted entries fit reports `fit-unconfirmed`, never `listing-fits`:
 only a read capture that covers the counted fleet can confirm a fit. A capture

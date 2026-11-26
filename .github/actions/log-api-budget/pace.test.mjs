@@ -337,3 +337,13 @@ test("pr-merge reads the pacer in dispatch-post-merge-runs and skips only the sw
     assert.doesNotMatch(jobOf(file, job), /steps\.pace\./, `${job} reads no pacer of its own`);
   }
 });
+
+test("an override of pace-pr-merge never reaches the pacer: that share is read from rate-limits.json alone", async () => {
+  const resolved = join(tempDir("pace-override-"), "resolved.json");
+  writeFileSync(resolved, JSON.stringify({ limits: { api: { "github-token": { "pace-pr-merge": 0.9 } } } }));
+  const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": String(NOW + 1800) };
+  const fetchImpl = async () => new Response(JSON.stringify({ workflow_runs: PAIR }), { headers });
+  const got = await run({ RESOLVED_CONFIG: resolved, GITHUB_WORKFLOW_REF: "o/r/.github/workflows/pr-merge.yml@refs/heads/main" }, fetchImpl);
+  assert.equal(got.output, "paced=false\n");
+  assert.match(got.lines[0], /projected=0\.6 pace=0\.3 paced=false/);
+});

@@ -196,9 +196,9 @@ the step UNKNOWN with remediation, never green.
    override; `babysit_stacked_prs` judges a native stack layer against its trunk instead), so an
    unprotected repo in an autopilot fleet deserves a protection rule, not an override.
 3. **Windows long-path support for the worktree root.** On Windows, worktrees under the (possibly
-   deep) worktree root can exceed 260 characters. Probe `git config --get core.longpaths` and the OS
-   policy (registry value `LongPathsEnabled` under
-   `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`); report each as enabled/disabled with the
+   deep) worktree root can exceed the Windows path length limit. Probe `git config --get core.longpaths` and the OS
+   policy (registry value `LongPathsEnabled` under `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`, per
+   [registry setting to enable long paths](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation#registry-setting-to-enable-long-paths)); report each as enabled/disabled with the
    remediation (`git config --global core.longpaths true`; the OS value needs an elevated change, so
    report it, never attempt it). Skip this probe silently on non-Windows.
 4. **Lane-script reachability under the host permission layer.** The babysit lane declares its own

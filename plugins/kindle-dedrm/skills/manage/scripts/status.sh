@@ -13,7 +13,6 @@ KEY_FINDER_DIR="${HOME}/Tools/Kindle_Key_Finder"
 DOWNLOADS_DIR="${HOME}/Downloads"
 FIREWALL_RULE_NAME="Block Kindle for PC (lock 2.8.0)"
 
-
 probe_kindle_version() {
   if [[ -f "${KINDLE_APP_DIR}/Kindle.exe" ]]; then
     # $env:LOCALAPPDATA is expanded by PowerShell, not bash.
@@ -45,7 +44,6 @@ probe_cached_installer() {
   if [[ -f "${installer}" ]]; then
     local size_bytes
     # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
-    # above already require Windows) — a BSD stat fallback would be dead code.
     size_bytes=$(stat -c%s "${installer}" 2>/dev/null || echo 0)
     echo "present-${size_bytes}b"
   else
@@ -95,7 +93,6 @@ probe_book_count() {
   converted=$(find "${CALIBRE_LIBRARY_DIR}" -name "*.epub" 2>/dev/null | grep -vc "Quick Start")
   echo "synced=${synced},converted=${converted}"
 }
-
 
 cat <<EOF
 {

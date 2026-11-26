@@ -26,7 +26,7 @@ import numpy as np
 
 from measure import paper, render, workdir
 
-LONG_EDGE = 2576           # the image long-edge limit: reference/method.md, "Reviewing images"
+LONG_EDGE = 2576
 CROP = (min(500, LONG_EDGE // 3), 400)
 TILE, TILE_BLUR, TILE_MAX = 32, 3, 8
 PAPER_MAX = 5.0

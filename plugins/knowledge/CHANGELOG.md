@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.5.12] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+- Comments outside the necessary posture are removed from the vendored `node-launcher`, `repo-analysis` and `video-digestion` libraries, and a test now pins that a clone whose isolated home cannot be made fails without starting git.
+
 ## [3.5.11] - 2026-11-25
 
 ### Changed

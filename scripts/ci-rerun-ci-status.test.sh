@@ -52,7 +52,7 @@ for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 job="$(awk '/^  rerun-ci-status:$/ { on = 1; next } on && /^  [a-z]/ { exit } on { print }' "$WORKFLOW")"
-if [[ "$job" == *$'    permissions:\n      contents: read # '*$'\n      actions: write # '*$'\n      pull-requests: read # '*$'\n    steps:'* ]]; then
+if [[ "$job" == *$'    permissions:\n      contents: read\n      actions: write\n      pull-requests: read\n'*$'\n    steps:'* ]]; then
   ok "the job holds contents: read, actions: write and pull-requests: read only"
 else
   fail "the job's permissions changed"

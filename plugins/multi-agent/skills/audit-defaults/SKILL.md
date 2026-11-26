@@ -137,8 +137,8 @@ return saved results is in
    the list of distinct sources to read.
 2. Read each URL pointer's anchored section by the
    [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-rungs)
-   (rung 1, fresh bytes; WebFetch is rung 2, degraded because it truncates
-   long pages silently). Read the `/workflow-authoring`
+   (rung 1, fresh bytes; WebFetch is rung 2, which that contract calls degraded; how WebFetch
+   reads a page: [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)). Read the `/workflow-authoring`
    pointer as in step 6 above. Done when every source is marked read or unread.
 3. Judge each default `current` (the cited section states the value or the
    rule it follows from), `drifted` (name the value the source now supports),

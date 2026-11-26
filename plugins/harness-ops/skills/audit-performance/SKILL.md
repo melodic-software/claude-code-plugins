@@ -125,8 +125,8 @@ evidence supports and what it cannot distinguish. This report is one sample, not
 study.
 
 This engine never reads `history.jsonl` or transcript files, so it cannot report hook cost
-over past sessions. A `/doctor` session can read them, so a person who wants the transcript-derived
-history asks there. That is not time-sensitive: do not prepend it.
+over past sessions. A person who wants that history asks `/doctor` (what its checkup covers:
+[check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor)). That is not time-sensitive: do not prepend it.
 
 **Clearing the first three does not end the audit.** A machine can have a current binary, a
 healthy sweep, and a modest fleet and still stall for a minute per tool call, because none of

@@ -1,27 +1,4 @@
 #!/usr/bin/env node
-// merge-risk-failures.mjs: per merge-risk `demote` group, how many rated
-// merges on the default branch later met each failure signal the repository
-// already records. A team trend, never per person, and read-only.
-//
-//   merge-risk-failures.mjs [--repo <dir>] [--branch <ref>] [--since D] [--until D] [--format json|md]
-//   merge-risk-failures.mjs --snapshot FILE [--format json|md]   compute only, no network
-//   merge-risk-failures.mjs fetch --out FILE [window flags]       write the snapshot only
-//
-// D is a UTC date (YYYY-MM-DD); the window is [since, until], default the 84
-// days ending today, as delivery-metrics.sh. A merge is rated by its lanes App
-// marker comment (`<!-- merge-risk-line head=<sha> [lane=<lane> run=<id>] -->`
-// and a `Merge-Risk:` line), else by a `Merge-Risk:` line in its squash body.
-// Its failure signals, each read back by merge commit or pull request number:
-// - demotion: a `babysit-merge-demotion` or `post-merge-failure` issue of
-//   signal schedule, dispatch or read-back (post-merge-file-demotion-issues.yml
-//   and babysit_postmerge.py), by github-actions[bot] or merge.agent-identity;
-// - canary: such an issue of signal canary (the silent-revert canary's record);
-// - revert: a later commit on the branch that reverts it, by measure-delivery's
-//   three forms (SKILL.md "Deploy signal").
-// A record naming a range of merges counts in `*_in_range`, never alone.
-// Reads use the operator's gh within CALL_BUDGET calls and stop at the first
-// rate-limit error. Exit 0 done, 1 a read failed, 2 usage, 3 rate limited.
-
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -38,9 +15,6 @@ const RATED = /^Merge-Risk: max=(?:LOW|MEDIUM|HIGH|CRITICAL) demote=(true|false)
 const RECORD = /^<!-- (babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) signal=(schedule|dispatch|canary|revert|read-back) -->$/;
 const firstLine = (text) => String(text ?? "").split(/\r?\n/)[0];
 
-// The lanes App's (`bot`, without `[bot]`) newest marker comment for `head`,
-// skipping one last edited by anyone else, as {demote, lane, run}; demote is
-// null when the record is unrated. null when there is none.
 export function readMarker(comments, bot, head) {
   const isApp = (actor) => actor?.__typename === "Bot" && actor.login === bot;
   const newest = (comments ?? [])
@@ -53,9 +27,6 @@ export function readMarker(comments, bot, head) {
   return { demote: rated ? rated[1] === "true" : null, lane, run };
 }
 
-// The demote value of the last `Merge-Risk:` line in a squash body, joined
-// over GitHub's 72-column wrap up to the next blank line; null when unrated
-// or absent.
 export function squashRating(body) {
   const lines = String(body ?? "").split(/\r?\n/);
   const at = lines.findLastIndex((line) => line.startsWith("Merge-Risk: "));
@@ -68,10 +39,6 @@ export function squashRating(body) {
 const REVERT_SUBJECT = /^Revert "|^revert(\([^)]*\))?!?: /;
 const stripOwnRef = (subject) => subject.replace(/ *\(#[0-9]+\)$/, "");
 
-// What a commit reverts, by measure-delivery's forms in its order: `This
-// reverts commit <sha>` lines; else, with a revert subject, pull request
-// numbers (`Reverts [owner/repo]#n` body lines, `(#n` subject groups other
-// than its own); else the subjects it quotes or names. null when none apply.
 export function revertsOf({ subject, body }) {
   const shas = [...new Set([...String(body).matchAll(/This reverts (?:commit )?([0-9a-f]{40})/g)].map((m) => m[1]))];
   if (shas.length) return { shas, prs: [], subjects: [] };
@@ -88,9 +55,6 @@ export function revertsOf({ subject, body }) {
   return { shas: [], prs: [], subjects: [...new Set([inner, rest, stripOwnRef(rest)].filter((s) => s !== undefined))] };
 }
 
-// A demotion or post-merge-failure record's marker, its `- Pull request:`
-// number and the merge commits its range lists; the `, by <name>` of a range
-// line is never read. null for any other issue.
 export function parseRecordMarker(line) {
   const match = RECORD.exec(String(line ?? ""));
   return match && { kind: match[1], sha: match[2], signal: match[3] };
@@ -110,7 +74,6 @@ export function readRecord(body) {
 const ratio = (part, whole) => (whole === 0 ? null : Math.round((part / whole) * 10000) / 10000);
 const empty = () => ({ rated: 0, demotion: 0, demotion_in_range: 0, canary: 0, canary_in_range: 0, revert: 0, any: 0 });
 
-// The report from a snapshot (fetchSnapshot's shape); a pure function.
 export function compute({ since, until, commits, markers, records }) {
   const markerOf = new Map(markers.map((m) => [m.merge, m]));
   let unrated = 0;
@@ -229,7 +192,6 @@ export function fetchSnapshot({ dir, branch, repo, since, until }) {
   const identity = /^merge:\n(?:[ \t]+.*\n|\s*\n)*?[ \t]+agent-identity: ([A-Za-z0-9-]+)\[bot\]\s*$/m.exec(yaml)?.[1];
   if (!identity) throw new Error("docs/conventions/pr-pipeline.yaml names no merge.agent-identity");
   const markers = [];
-  // A search returns at most 1000 results, so the window is read a week at a time.
   for (let from = since; from < until; from += SLICE_DAYS * 86400) {
     const q = `repo:${repo} is:pr is:merged author:app/${identity} merged:${day(from)}..${day(Math.min(from + SLICE_DAYS * 86400, until) - 1)}`;
     for (let after = null; ; ) {

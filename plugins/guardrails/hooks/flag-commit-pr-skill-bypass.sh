@@ -9,7 +9,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary flag-commit-pr-skill-bypass PreToolUse open 0
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 start=${EPOCHREALTIME:-}
 
@@ -29,7 +29,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   COMMAND="$PS_BLANKED"
 fi
 
-SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
+SUBJECT=""
 hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
 
 emit_tel() {
@@ -118,7 +118,7 @@ strip_literals() {
       in_heredoc=1
     fi
     result+="${line}"$'\n'
-  done < <(printf '%s\n' "$cmd") # not <<<: a >=64KiB here-string deadlocks (see hardcoded-path-patterns.sh)
+  done < <(printf '%s\n' "$cmd")
   printf '%s' "${result%$'\n'}" | sed -E -e "s/'[^']*'//g" -e 's/"([^"\\]|\\.)*"//g'
 }
 

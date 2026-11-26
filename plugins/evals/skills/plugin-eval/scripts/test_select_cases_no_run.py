@@ -344,6 +344,37 @@ class SelectCasesNoRunTest(unittest.TestCase):
         self.assertEqual("control-no-fire one-basic one-trigger", block.get("affected-no-run"))
         self.assertEqual("0", block["agent-runs"])
 
+    def test_decided_term_swap_across_number_is_no_run(self):
+        path = self._base_with_lane_text()
+        block = self._edit_and_select(path, "rotated lane at", "rotated focus areas at")
+        self.assertNotIn("cases", block, "singular to plural is still the decided term")
+        self.assertEqual("0", block["agent-runs"])
+
+    def test_swap_only_rename_of_an_agent_is_not_no_run(self):
+        import select_mapping
+
+        self._write_glossary()
+        _write(self.repo, "plugins/alpha/agents/lane-helper.md", "# Helper for one lane\n")
+        _commit_all(self.repo, "add agent")
+        base = _git(self.repo, "rev-parse", "HEAD").strip()
+        _git(
+            self.repo,
+            "mv",
+            "plugins/alpha/agents/lane-helper.md",
+            "plugins/alpha/agents/area-helper.md",
+        )
+        _write(self.repo, "plugins/alpha/agents/area-helper.md", "# Helper for one focus area\n")
+        _commit_all(self.repo, "rename agent")
+        self.assertFalse(
+            select_mapping.is_no_run_file_change(
+                str(self.repo),
+                base,
+                "plugins/alpha/agents/lane-helper.md",
+                "plugins/alpha/agents/area-helper.md",
+            ),
+            "renaming an agent renames what people dispatch",
+        )
+
     def test_decided_term_flag_rename_in_argument_hint_is_no_run(self):
         path = self._base_with_lane_text()
         block = self._edit_and_select(path, "[--lane <lane>]", "[--area <area>]")

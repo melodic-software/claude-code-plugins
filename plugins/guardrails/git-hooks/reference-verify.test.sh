@@ -222,8 +222,6 @@ expect "an unresolved skill reference fails the push" \
   "1|NOTES.md:1: skill-reference-verify: skill reference(s) in NOTES.md do not resolve; this repo owns the plugin:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 
-# A file over the kernel's per-argument limit (128 KiB on Linux) is judged, not
-# skipped: its text never travels as one argument.
 new_repo
 {
   printf '#!/usr/bin/env bash\n'

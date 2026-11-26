@@ -1,28 +1,6 @@
 #!/bin/sh
 # GENERATED from lib/prerequisites.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Run prerequisites.mjs from this directory with the same arguments and exit code.
-# Without node on PATH, print one fixed line and exit 1, because the checker
-# cannot run and node is itself a missing required dependency.
-#
-#   sh prerequisites.sh check <plugin-root> [--for <scope>]
-#
-# node-notice is the one mode that never needs node. A SessionStart hook runs it
-# so a machine without node still hears about it:
-#
-#   sh prerequisites.sh node-notice <check-command> [<enabled-option-name>]
-#
-# With node on PATH it exits 0 and prints nothing. Without node it prints one
-# SessionStart notice to the user (systemMessage; only the user can install
-# node) that names the plugin whose lib/ holds this stub (its plugin.json name, else
-# the check command's plugin) and the check command, gated on its plugin being
-# enabled when that is another plugin, then exits 0, the exit code these hooks use whenever they print JSON
-# (https://code.claude.com/docs/en/hooks#exit-code-0, as of 2026-10-11; recheck
-# when that section changes the exit code it names for JSON output). The
-# prerequisites.mjs probe follows this record. Every plugin's notice shares one latch
-# keyed by session id in the temp directory, so a session sees it once. Old
-# latch files stay until the OS clears the temp directory. A plugin's kill
-# switch (CLAUDE_PLUGIN_OPTION_<name>) set to anything but true silences it.
 # shellcheck shell=sh disable=SC2154
 if [ "${1:-}" = node-notice ]; then
   command -v node >/dev/null 2>&1 && exit 0

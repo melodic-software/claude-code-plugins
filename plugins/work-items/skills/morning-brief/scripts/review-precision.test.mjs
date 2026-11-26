@@ -328,7 +328,6 @@ test("an unanswered finding on a resolved thread stays unanswered and is counted
 test("a lane comment's versions give one review per reviewed head", () => {
   const body = (lane, head, n, k) => `<!-- claude-lane-reviewed-head lane=${lane} sha=${head} -->\n**${lane}** reviewed \`${head}\`: read 2 of 2 changed file(s); ${n} finding(s), ${k} as inline comments.\n\n## Review`;
   assert.deepEqual(reviewsOf({ createdAt: T("10"), body: body(CR, A, 2, 1), userContentEdits: { totalCount: 0, nodes: [] } }), [{ lane: CR, sha: A, at: T("10"), findings: 2, inline: 1 }]);
-  // Edited: each edit holds a full version, the newest first; the body repeats the newest.
   const edited = { createdAt: T("10"), body: body(SR, B, 0, 0), userContentEdits: { totalCount: 2, nodes: [{ editedAt: T("11"), diff: body(SR, B, 0, 0) }, { editedAt: T("10"), diff: body(SR, A, 1, 1) }] } };
   assert.deepEqual(reviewsOf(edited), [
     { lane: SR, sha: B, at: T("11"), findings: 0, inline: 0 },
