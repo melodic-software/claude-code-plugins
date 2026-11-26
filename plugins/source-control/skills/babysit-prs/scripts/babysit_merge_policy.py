@@ -4189,19 +4189,22 @@ def base_merge_carry(
     )
 
 
-def exact_base_carry(merges: Any, based: Any, trees: Any = None) -> bool:
+def exact_base_carry(
+    merges: Any, based: Any, trees: Any = None, diffs: Any = None
+) -> bool:
     """Whether the merges brought exactly the base's changes (the owner's
     decision of 2026-10-28, part b; merge-holds.mjs `exactBaseCarry`):
     `merges` is the compare H...H', what the merges brought into the approved
     head, and `based` the compare M...M' between the merge bases of H and of
     H' with the base's tip. H' must be ahead of H and M' of (or at) M, each
     commit list read whole, and the two file lists the same file for file
-    (`same_net_change`). A file the merges changed beyond the base, or a base
-    change they dropped, carries nothing. This assumes GitHub omits no file
-    from a compare's list of fewer than 300 files; nothing here reads a
-    second listing to check that. The compare API reports no file mode, so
-    `trees` ([H' tree, M' tree], recursive git/trees answers) decide it
-    (`_same_modes`)."""
+    (`same_net_change`, on the two ranges' `diffs` when a listing caps, the
+    files of the merges' diff then checked for modes). A file the merges
+    changed beyond the base, or a base change they dropped, carries nothing.
+    This assumes GitHub omits no file from a compare's list of fewer than 300
+    files; nothing here reads a second listing to check that. The compare API
+    reports no file mode, so `trees` ([H' tree, M' tree], recursive git/trees
+    answers) decide it (`_same_modes`)."""
 
     def forward(compare: Any, statuses: tuple[str, ...]) -> bool:
         compare = json_object(compare)
@@ -4216,8 +4219,10 @@ def exact_base_carry(merges: Any, based: Any, trees: Any = None) -> bool:
     return (
         forward(merges, ("ahead",))
         and forward(based, ("ahead", "identical"))
-        and same_net_change(merges, based)
-        and _same_modes(merges, trees)
+        and same_net_change(merges, based, diffs)
+        and _same_modes(
+            merges if diffs is None else {"files": diff_files(diffs[0])}, trees
+        )
     )
 
 
@@ -4240,12 +4245,13 @@ def _same_modes(merges: Any, trees: Any) -> bool:
                 found[path] = mode
         return found
 
-    if not is_json_array(trees) or len(trees) != 2:
+    files = json_object(merges).get("files")
+    if not is_json_array(trees) or len(trees) != 2 or not is_json_array(files):
         return False
     head, base = modes(trees[0]), modes(trees[1])
     if head is None or base is None:
         return False
-    for f in json_object(merges).get("files") or ():
+    for f in files:
         f = json_object(f)
         name, status, previous = f.get("filename"), f.get("status"), f.get("previous_filename")
         gone = ([name] if status == "removed" else []) + (
@@ -4311,23 +4317,30 @@ CARRY_REFUSES: tuple[str, ...] = (
 
 
 def ungated_since(
-    merges: Any, hold_paths: Sequence[str] | None, *, floor: Floor
+    merges: Any,
+    hold_paths: Sequence[str] | None,
+    *,
+    floor: Floor,
+    diff: Any = None,
 ) -> bool:
     """Whether the compare start...H' `merges` touches no hold path and no
     file a hold path loads, old paths of renames included (merge-holds.mjs
     `ungatedSince`): `hold_paths`, the effective `floor` and CARRY_REFUSES.
-    H' ahead with nothing behind, its commit list read whole
-    and fewer than the compare API's 300 files listed, each named."""
+    H' ahead with nothing behind, its commit list read whole, each file
+    named; a listing at the compare API's 300 files is judged on the files of
+    its `diff`, which must name every file the listing does."""
     compare = json_object(merges)
-    files = compare.get("files")
+    listed = compare.get("files")
     if (
         hold_paths is None
         or compare.get("status") != "ahead"
         or compare.get("behind_by") != 0
         or _listed_commits(compare) is None
-        or not is_json_array(files)
-        or len(files) >= 300
+        or not is_json_array(listed)
     ):
+        return False
+    files = diff_files(diff) if len(listed) >= COMPARE_FILES else listed
+    if files is not listed and not diff_covers(compare, files):
         return False
     paths: list[str] = []
     for f in files:
@@ -4355,6 +4368,7 @@ def approval_carry(
     *,
     floor: Floor,
     diffs: Any = None,
+    merge_diffs: Any = None,
 ) -> bool:
     """Whether an approval of `start` carries to the head `now` was read at
     (merge-holds.mjs `approvalCarry`), by either of two paths: every commit
@@ -4376,11 +4390,19 @@ def approval_carry(
     merged = (
         base_merges_only(then, now, start, in_base)
         and pushed(_new_commits(then, now))
-        and (same_net_change(then, now, diffs) or exact_base_carry(merges, based, trees))
+        and (
+            same_net_change(then, now, diffs)
+            or exact_base_carry(merges, based, trees, merge_diffs)
+        )
     )
     return merged or (
         hold_paths is not None
-        and ungated_since(merges, hold_paths, floor=floor)
+        and ungated_since(
+            merges,
+            hold_paths,
+            floor=floor,
+            diff=merge_diffs[0] if merge_diffs else None,
+        )
         and pushed(_listed_commits(json_object(merges)))
     )
 
@@ -4677,6 +4699,9 @@ def carried_lifters(
             compares[spec] = _compare(owner, name, spec)
         return compares[spec]
 
+    def whole(spec: str) -> Any:
+        return _whole_commits(owner, name, spec, compare(spec))
+
     def tree(commit: str) -> Any:
         status, answer = _get(f"repos/{owner}/{name}/git/trees/{commit}?recursive=1")
         if status != 200:
@@ -4720,7 +4745,7 @@ def carried_lifters(
                 continue
             if not carrying:
                 continue
-            then, now = compare(f"{tip}...{lifted}"), compare(f"{tip}...{sha}")
+            then, now = whole(f"{tip}...{lifted}"), whole(f"{tip}...{sha}")
             diffs = _cap_diffs(owner, name, [f"{tip}...{lifted}", f"{tip}...{sha}"], [then, now])
             files = json_object(now).get("files")
             listed = diff_files(diffs[1]) if diffs else files
@@ -4732,7 +4757,7 @@ def carried_lifters(
             ):
                 continue
             in_base = base_parents(compare, tip, then, now)
-            merges = based = trees = None
+            merges = based = trees = merge_diffs = None
             start, end = (
                 json_object(json_object(c).get("merge_base_commit")).get("sha")
                 for c in (then, now)
@@ -4742,7 +4767,9 @@ def carried_lifters(
                 and not same_net_change(then, now, diffs)
                 and all(isinstance(x, str) and SHA_RE.fullmatch(x) for x in (start, end))
             ):
-                merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
+                ranges = [f"{lifted}...{sha}", f"{start}...{end}"]
+                merges, based = whole(ranges[0]), whole(ranges[1])
+                merge_diffs = _cap_diffs(owner, name, ranges, [merges, based])
                 trees = [tree(sha), tree(end)]
             if approval_carry(
                 then,
@@ -4755,14 +4782,20 @@ def carried_lifters(
                 trees,
                 floor=floor,
                 diffs=diffs,
+                merge_diffs=merge_diffs,
             ):
                 lifters.add(login)
                 continue
             if hold_paths is not None and merges is None:
                 try:
-                    merges = compare(f"{lifted}...{sha}")
+                    merges = whole(f"{lifted}...{sha}")
                 except PolicyReadError:
                     merges = None
+            if hold_paths is not None and merge_diffs is None and merges is not None:
+                try:
+                    merge_diffs = _cap_diffs(owner, name, [f"{lifted}...{sha}"], [merges])
+                except PolicyReadError:
+                    merge_diffs = None
             if hold_paths is not None and approval_carry(
                 then,
                 now,
@@ -4775,6 +4808,7 @@ def carried_lifters(
                 hold_paths,
                 floor=floor,
                 diffs=diffs,
+                merge_diffs=merge_diffs,
             ):
                 lifters.add(login)
     except PolicyReadError:

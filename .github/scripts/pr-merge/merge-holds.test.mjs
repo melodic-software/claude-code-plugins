@@ -1332,10 +1332,16 @@ const liftWorld = ({
     assert.equal(method, "GET");
     if (fail && path.includes(fail)) throw new Error(`${fail} failed`);
     if (headers.Accept === DIFF) {
-      const head = new RegExp(`^/repos/owner/repo/compare/${TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(path)?.[1];
-      if (head in diffs) return diffs[head];
+      const [, from, head] = /^\/repos\/owner\/repo\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/.exec(path) ?? [];
+      const key = from === TIP ? head : `${from}...${head}`;
+      if (key in diffs) return diffs[key];
       throw new Error(`unexpected diff read ${path}`);
     }
+    const paged = /^(\/repos\/owner\/repo\/compare\/[^?]+)\?per_page=100&page=([0-9]+)$/.exec(path);
+    const page = paged ? Number(paged[2]) : 0;
+    if (paged) path = paged[1];
+    const cut = (answer) =>
+      Array.isArray(answer?.commits) ? { ...answer, commits: page ? answer.commits.slice((page - 1) * 100, page * 100) : answer.commits.slice(0, 250) } : answer;
     if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: base }, changed_files: changed ?? compares[HEAD]?.files?.length };
     if (path === "/repos/owner/repo") {
       if (defaultBranch === null) throw new Error("the repository did not read");
@@ -1351,9 +1357,9 @@ const liftWorld = ({
     const parent = new RegExp(`^/repos/owner/repo/compare/([0-9a-f]{40})\\.\\.\\.${TIP}$`).exec(path);
     if (parent) return { status: bases[parent[1]] ?? "diverged" };
     const compare = new RegExp(`^/repos/owner/repo/compare/${TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(path);
-    if (compare && compare[1] in compares) return compares[compare[1]];
+    if (compare && compare[1] in compares) return cut(compares[compare[1]]);
     const range = /^\/repos\/owner\/repo\/compare\/([0-9a-f]{40}\.\.\.[0-9a-f]{40})$/.exec(path);
-    if (range && range[1] in across) return across[range[1]];
+    if (range && range[1] in across) return cut(across[range[1]]);
     throw new Error(`unexpected read ${path}`);
   };
   return { github, reads };
@@ -1408,6 +1414,67 @@ test("an approval carries over a base merge whose compares list 300 files, judge
   assert.deepEqual(await holdsModule.liftersOf(evil.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a merge that changes one line");
   const short = liftWorld({ compares: { [OLD]: atOld(LISTED.files), [HEAD]: merged(LISTED.files) }, across: {}, changed: 302, diffs: { [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT } });
   assert.deepEqual(await holdsModule.liftersOf(short.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a diff naming fewer files than the pull request changes");
+});
+
+test("an approval carries over a base merge whose ranges run past 250 commits, read in pages, and a page cut short carries nothing", async () => {
+  const humans = new Set([5]);
+  const branch = chain(259, MAIN).map((commit, at) => (at === 258 ? { ...commit, sha: OLD } : commit));
+  const then = { ...atOld(), commits: branch, total_commits: 259 };
+  const now = { ...merged([HELD_PATCH]), commits: [...branch, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 260 };
+  const lifts = (compares) => holdsModule.liftersOf(liftWorld({ compares }).github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP });
+  assert.deepEqual(await lifts({ [OLD]: then, [HEAD]: now }), { lifters: ["owner-person"] });
+  assert.deepEqual(await lifts({ [OLD]: then, [HEAD]: { ...now, total_commits: 261 } }), { lifters: [] }, "a page shorter than total_commits");
+});
+
+test("the exact carry judges merges past 300 files on the two ranges' diffs, and fails closed on a diff that differs or does not read", async () => {
+  const humans = new Set([5]);
+  const paths = diffFiles(DIFF_TEXT).flatMap((f) => (f.status === "removed" ? [] : [[f.filename]]));
+  const wide = (diffs) =>
+    liftWorld({
+      ...REPLAY,
+      across: ranges(brought(LISTED.files, { commits: [...chain(259, MAIN), { sha: HEAD }], total_commits: 260 }), baseRange(LISTED.files)),
+      modes: trees(treeOf(paths), treeOf(paths)),
+      diffs,
+    });
+  const lifts = (world) => holdsModule.liftersOf(world.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP });
+  const same = wide({ [`${OLD}...${HEAD}`]: DIFF_TEXT, [`${MB_OLD}...${MB_HEAD}`]: DIFF_TEXT });
+  assert.deepEqual(await lifts(same), { lifters: ["owner-person"] });
+  assert.ok(same.reads.includes(`diff /repos/owner/repo/compare/${OLD}...${HEAD}`), same.reads.join(" "));
+  assert.deepEqual(await lifts(wide({ [`${OLD}...${HEAD}`]: DIFF_TEXT, [`${MB_OLD}...${MB_HEAD}`]: bumped(DIFF_TEXT) })), { lifters: [] }, "one changed line");
+  assert.deepEqual(await lifts(wide({ [`${OLD}...${HEAD}`]: DIFF_TEXT })), { lifters: [] }, "a diff that does not read");
+  const short = cutShort(DIFF_TEXT, 2);
+  assert.deepEqual(await lifts(wide({ [`${OLD}...${HEAD}`]: short, [`${MB_OLD}...${MB_HEAD}`]: short })), { lifters: [] }, "diffs naming fewer files than the listing");
+});
+
+test("Q10 past 300 files: the push is judged on its diff, and a held file the listing hides past 300 refuses", async () => {
+  const docs = (n, extra = "") =>
+    Array.from({ length: n }, (_, i) => `diff --git a/docs/${i}.md b/docs/${i}.md\nindex 1..2 100644\n--- a/docs/${i}.md\n+++ b/docs/${i}.md\n@@ -1 +1 @@\n-a\n+b\n`).join("") + extra;
+  const many = pushed(Array.from({ length: 300 }, (_, i) => `docs/${i}.md`));
+  const hidden = "diff --git a/.github/workflows/x.yml b/.github/workflows/x.yml\nindex 1..2 100644\n--- a/.github/workflows/x.yml\n+++ b/.github/workflows/x.yml\n@@ -1 +1 @@\n-a\n+b\n";
+  assert.equal(ungatedSince(many, [], docs(301)), true);
+  assert.equal(approvalCarry(null, null, H0, [], many, null, null, null, [], null, [docs(301), null]), true);
+  for (const [name, diff] of [
+    ["no diff", null],
+    ["a diff that does not parse", "not a diff"],
+    ["a diff naming fewer files than the listing", docs(299)],
+    ["a workflow the listing hides past 300", docs(300, hidden)],
+    ["a binary workflow the listing hides past 300", docs(300, "diff --git a/.github/workflows/x.yml b/.github/workflows/x.yml\nindex 1..2 100644\nBinary files a/.github/workflows/x.yml and b/.github/workflows/x.yml differ\n")],
+  ]) {
+    assert.equal(ungatedSince(many, [], diff), false, name);
+  }
+  assert.equal(ungatedSince(many, ["docs/7.md"], docs(301)), false, "a configured hold path inside the diff");
+  const humans = new Set([5]);
+  const world = liftWorld({
+    compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }], total_commits: 2 } },
+    across: { [`${OLD}...${HEAD}`]: { ...many, commits: [{ sha: HEAD }] } },
+    diffs: { [`${OLD}...${HEAD}`]: docs(301) },
+  });
+  assert.deepEqual(await holdsModule.liftersOf(world.github, REPO, 99, HEAD, humans, [], { mainTip: TIP }), { lifters: ["owner-person"] });
+  const unread = liftWorld({
+    compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }], total_commits: 2 } },
+    across: { [`${OLD}...${HEAD}`]: { ...many, commits: [{ sha: HEAD }] } },
+  });
+  assert.deepEqual(await holdsModule.liftersOf(unread.github, REPO, 99, HEAD, humans, [], { mainTip: TIP }), { lifters: [] }, "a diff that does not read");
 });
 
 test("liftersOf takes main's tip the caller already resolved, and reads it only for another base or no tip", async () => {
@@ -1537,8 +1604,8 @@ test("a merge that adds anything beyond the base's changes, or a range not read 
     "a non-merge commit beside the merge": shape(brought([BASE_DOC, SHARED_BASE]), undefined, {
       compares: { [OLD]: atOld([HELD_PATCH, SHARED_AT_OLD]), [HEAD]: { ...merged([HELD_PATCH, SHARED_AT_HEAD]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: OLD }, { sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OTHER }] }], total_commits: 3 } },
     }),
-    "300 files brought": shape(brought(many), baseRange(many)),
-    "300 files in the base's range": shape(brought([BASE_DOC, SHARED_BASE]), baseRange(many)),
+    "300 files brought whose diffs do not read": shape(brought(many), baseRange(many)),
+    "300 files in the base's range whose diffs do not read": shape(brought([BASE_DOC, SHARED_BASE]), baseRange(many)),
     "a brought file with no patch": shape(brought([BASE_DOC, { ...SHARED_BASE, patch: undefined }]), baseRange([BASE_DOC, { ...SHARED_BASE, patch: undefined }])),
     "a brought commit list cut short": shape(brought([BASE_DOC, SHARED_BASE], { total_commits: 251 })),
     "a base range commit list cut short": shape(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC, SHARED_BASE], { total_commits: 251 })),

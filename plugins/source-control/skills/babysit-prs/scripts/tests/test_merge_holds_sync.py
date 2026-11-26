@@ -1684,7 +1684,7 @@ import { CARRY_REFUSES, ungatedSince } from %s;
 let text = "";
 for await (const chunk of process.stdin) text += chunk;
 const cases = JSON.parse(text);
-console.log(JSON.stringify([CARRY_REFUSES, cases.map(([merges, holdPaths]) => ungatedSince(merges, holdPaths))]));
+console.log(JSON.stringify([CARRY_REFUSES, cases.map(([merges, holdPaths, diff]) => ungatedSince(merges, holdPaths, diff ?? null))]));
 """
 _H1 = "b" * 40
 
@@ -1699,6 +1699,18 @@ def _pushed(files: list[str], **extra: Any) -> dict[str, Any]:
     } | extra
 
 
+def _docs_diff(n: int) -> str:
+    return "".join(
+        f"diff --git a/docs/{i}.md b/docs/{i}.md\nindex 1..2 100644\n"
+        f"--- a/docs/{i}.md\n+++ b/docs/{i}.md\n@@ -1 +1 @@\n-a\n+b\n"
+        for i in range(n)
+    )
+
+
+_WORKFLOW_DIFF = (
+    "diff --git a/.github/workflows/x.yml b/.github/workflows/x.yml\nindex 1..2 100644\n"
+    "--- a/.github/workflows/x.yml\n+++ b/.github/workflows/x.yml\n@@ -1 +1 @@\n-a\n+b\n"
+)
 _SCRIPTS_DIR = "plugins/source-control/skills/babysit-prs/scripts"
 Q10_CASES = {
     "a docs-only push": ([_pushed(["docs/a.md", "plugins/work-items/README.md"]), []], True),
@@ -1713,6 +1725,11 @@ Q10_CASES = {
     "a configured hold path": ([_pushed(["docs/conventions/held.md"]), ["docs/conventions/**"]], False),
     "a rename off a gated file": ([_pushed(["docs/moved.md"]) | {"files": [{"filename": "docs/moved.md", "status": "renamed", "previous_filename": ".github/actions/request-lane-token/action.yml"}]}, []], False),
     "300 files": ([_pushed([f"docs/{i}.md" for i in range(300)]), []], False),
+    "300 files judged on a covering diff": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], _docs_diff(301)], True),
+    "300 files and a diff naming fewer": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], _docs_diff(299)], False),
+    "300 files and a diff that does not parse": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], "not a diff"], False),
+    "a workflow the listing hides past 300": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], _docs_diff(300) + _WORKFLOW_DIFF], False),
+    "a held path inside the diff past 300": ([_pushed([f"docs/{i}.md" for i in range(300)]), ["docs/7.md"], _docs_diff(301)], False),
     "a cut commit list": ([_pushed(["docs/a.md"], total_commits=251), []], False),
     "a diverged head": ([_pushed(["docs/a.md"], status="diverged", behind_by=1), []], False),
     "an unread compare": ([None, []], False),
@@ -1737,15 +1754,19 @@ class TheUngatedCarryIsTheGates(unittest.TestCase):
         )
         refuses, answers = json.loads(proc.stdout)
         self.assertEqual(tuple(refuses), policy.CARRY_REFUSES)
-        for (name, ((merges, hold_paths), expected)), js in zip(
+        for (name, ((merges, hold_paths, *diff), expected)), js in zip(
             Q10_CASES.items(), answers, strict=True
         ):
+            diff = diff[0] if diff else None
             with self.subTest(name):
                 self.assertEqual(js, expected)
-                self.assertEqual(policy.ungated_since(merges, hold_paths, floor=FLOOR), expected)
+                self.assertEqual(
+                    policy.ungated_since(merges, hold_paths, floor=FLOOR, diff=diff), expected
+                )
                 self.assertEqual(
                     policy.approval_carry(
-                        None, None, _OLD, set(), merges, None, None, None, hold_paths, floor=FLOOR),
+                        None, None, _OLD, set(), merges, None, None, None, hold_paths, floor=FLOOR,
+                        merge_diffs=[diff, None] if diff else None),
                     expected,
                 )
         docs = _pushed(["docs/a.md"])
