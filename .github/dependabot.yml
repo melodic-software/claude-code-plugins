@@ -126,6 +126,10 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 3
+    ignore:
+      - dependency-name: "tedious"
+        versions:
+          - "20.4.2"
     groups:
       npm-minor-patch:
         patterns:
