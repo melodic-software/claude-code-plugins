@@ -24,7 +24,8 @@ Two old files are still read while they exist:
 
 - `~/.claude/bugs.md`: its `## Gotchas` while the `gotchas_file` file is absent, since that file
   supplies only gotchas; its `areas` and `filing_posture` until it is deleted, since no new
-  per-user layer holds them.
+  per-user layer holds them. A `lanes` key there is the retired name for `areas`: it is no longer
+  read, and `apply` moves it as `areas`.
 - `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md`, retirement record `bugs-r001`
   ([`retirements.yaml`](../retirements.yaml)): the whole file while `docs/conventions/bugs.local.md`
   is absent.
@@ -39,7 +40,7 @@ reported.
 | What the old file holds | New home |
 |---|---|
 | `## Gotchas` in `~/.claude/bugs.md` (prose the model reads in every repository) | a Markdown file of the user's own outside `~/.claude`, named by the `gotchas_file` option |
-| `areas` in `~/.claude/bugs.md` (globs about one repository) | the personal override `docs/conventions/bugs.local.md` of the repository it was meant for, or the team file |
+| `areas`, or a retired `lanes` key, in `~/.claude/bugs.md` (globs about one repository) | the personal override `docs/conventions/bugs.local.md` of the repository it was meant for, or the team file |
 | `filing_posture` in either old file | `docs/conventions/work-items.yaml` ([Filing posture](#filing-posture)) |
 | anything in `.claude/bugs.local.md` | `docs/conventions/bugs.local.md`, as it is |
 

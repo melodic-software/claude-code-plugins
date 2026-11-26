@@ -5,10 +5,10 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { publishGate } from "../lib/publish-gate.mjs";
 import { render, ViewBuildError } from "../lib/view-builder.mjs";
-import { laneOf, MEDIUMS, mediumOf, NO_PAGE, NO_PREFERENCE, reportLines } from "../lib/view-registry.mjs";
+import { producerOf, MEDIUMS, mediumOf, NO_PAGE, NO_PREFERENCE, reportLines } from "../lib/view-registry.mjs";
 import { findRoot, gateExplicit, resolveMedium } from "../lib/view-settings.mjs";
 
-export const LANE = "planning";
+export const PRODUCER = "planning";
 
 const insideWorkingTree = (dir) => {
   for (let at = dir; ; at = dirname(at)) {
@@ -78,7 +78,7 @@ export function deliverView({ kind, record, resolution, visibility = "UNKNOWN", 
       shown = { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}`, notices };
     }
   }
-  const path = entry.id === NO_PAGE ? null : write(render(LANE, kind, record), kind);
+  const path = entry.id === NO_PAGE ? null : write(render(PRODUCER, kind, record), kind);
   const delivery = entry.deliver({ kind, path }, context);
   return { delivery: path ? { ...delivery, page: path } : delivery, report: reportLines(shown) };
 }
@@ -101,7 +101,7 @@ function main(argv, env = process.env) {
     !(has("--option") && has("--connect")) &&
     (has("--option") || !(has("--argument") || has("--visibility"))) &&
     (!has("--argument") || flags["--argument"] === NO_PREFERENCE || Boolean(mediumOf(flags["--argument"])));
-  if (!laneOf(LANE).kinds.includes(kind) || !flagsOk) {
+  if (!producerOf(PRODUCER).kinds.includes(kind) || !flagsOk) {
     process.stderr.write(USAGE);
     return 2;
   }
@@ -118,7 +118,7 @@ function main(argv, env = process.env) {
       const argument = flags["--argument"] === NO_PREFERENCE ? null : (flags["--argument"] ?? null);
       const interactive = !env.CI || env.CI === "false";
       const resolution = resolveMedium(
-        { lane: LANE, argument, userConfig: flags["--option"], projectRoot: findRoot() },
+        { producer: PRODUCER, argument, userConfig: flags["--option"], projectRoot: findRoot() },
         { dataDir: env.CLAUDE_PLUGIN_DATA || null, interactive },
       );
       const visibility = (flags["--visibility"] ?? "UNKNOWN").toUpperCase();
@@ -126,7 +126,7 @@ function main(argv, env = process.env) {
       process.stdout.write(`${JSON.stringify(delivery)}\n${report.join("\n")}\n`);
       return 0;
     }
-    const page = render(LANE, kind, record, { connect: flags["--connect"] ?? null });
+    const page = render(PRODUCER, kind, record, { connect: flags["--connect"] ?? null });
     const out = flags["--out"];
     if (!out) {
       console.log(writePrivate(page, kind));

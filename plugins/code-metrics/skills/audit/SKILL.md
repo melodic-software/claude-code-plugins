@@ -27,9 +27,9 @@ multi-repository run adds.
 
 | Argument | Measures | Script | Full process |
 |---|---|---|---|
-| `size` | Lines per file, every text file in every lane | `${CLAUDE_SKILL_DIR}/scripts/audit-size.sh` | `actions/size.md` |
+| `size` | Lines per file, every text file in every language | `${CLAUDE_SKILL_DIR}/scripts/audit-size.sh` | `actions/size.md` |
 | `complexity` | Per-function cyclomatic and cognitive complexity and Halstead difficulty | `${CLAUDE_SKILL_DIR}/scripts/audit-complexity.sh` | `actions/complexity.md` |
-| `type-debt` | Typed-code percentage per file and per lane (TypeScript, Python) | `${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh` | `actions/type-debt.md` |
+| `type-debt` | Typed-code percentage per file and per language (TypeScript, Python) | `${CLAUDE_SKILL_DIR}/scripts/audit-type-debt.sh` | `actions/type-debt.md` |
 
 With no action word, take the action from the request: file length or lines is `size`,
 complexity is `complexity`, typing or `any` is `type-debt`. When the request names none of them,
@@ -47,7 +47,7 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
   "Check mode").
 - Run the action's bundled script; never count, estimate or grep the measure by hand.
 - Scope is the change by default (the merge-base diff plus uncommitted files); explicit paths or
-  `--all` widen it, and `--json` prints the `code-metrics/v2` document instead of markdown.
+  `--all` widen it, and `--json` prints the `code-metrics/v3` document instead of markdown.
 - A target form (`--repo <repo>` and the others) runs the action once per repository, as
   `${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says; each repository gets its own
   section. `size --check` is a gate for one repository's hook or CI step, so it takes no target

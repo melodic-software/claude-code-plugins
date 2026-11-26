@@ -1,17 +1,17 @@
 {
   "pass": [
     {
-      "answer": "**Round 2.** A production address check before payment, for shoppers and support.\nScope check: 3 of 12 questions registered; round 1 added 2, settled 2\n\n❓ Q3: **Is a second address-validation provider known, a category, or speculative?**",
+      "answer": "Round 2\nScope check: 3 questions asked so far\n\n❓ Q3 (second provider): **Is a second address-validation provider known, a category, or speculative?**",
       "why": "the round header carries the Scope check: line"
     }
   ],
   "fail": [
     {
-      "answer": "**Round 2.** A production address check before payment.\n\n❓ Q3: **Is a second address-validation provider known, a category, or speculative?**",
+      "answer": "Round 2\n\n❓ Q3 (second provider): **Is a second address-validation provider known, a category, or speculative?**",
       "why": "no Scope check: line in the header"
     },
     {
-      "answer": "**Round 2.** We should scope check this later.\n\n❓ Q3: **Is a second provider coming?**",
+      "answer": "Round 2\nWe should scope check this later.\n\n❓ Q3 (second provider): **Is a second provider coming?**",
       "why": "the words appear mid-sentence, not as the header label"
     }
   ]

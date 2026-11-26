@@ -78,7 +78,7 @@ class ShellmetricsAdapterTests(unittest.TestCase):
             self.assertIsNone(row["end_line"])
             self.assertEqual(row["labels"], ["start-line-only"])
             self.assertEqual(row["collector"], "shellmetrics")
-            self.assertEqual(row["lane"], "bash")
+            self.assertEqual(row["language"], "bash")
 
     def test_collect_reports_unparsable_output_as_exit_3(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

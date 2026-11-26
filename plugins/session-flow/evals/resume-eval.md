@@ -124,6 +124,8 @@ stamp every carried entry UNVERIFIED.
 
 Re-run the before and after arms on any change to how session-flow writes or reads a
 handoff, and on a Claude Code release that changes compaction, Read or context behavior.
+No CI lane, schedule or skill action runs the harness; it stays committed, by the owner's
+exception to the root `AGENTS.md` rule for harnesses, because these triggers re-run it by hand.
 Run from a plain `claude` session (not `--worktree`), with every directory outside any
 repository and a short `TMPDIR` (a long one breaks the sandbox's Bash bridge sockets):
 

@@ -1,4 +1,4 @@
 # Fixture notes
 
-A markdown file inside the fixture tree, so lane detection has a file that
-belongs to no lane and must be left out of every measure.
+A markdown file inside the fixture tree, so language detection has a file that
+belongs to no language and must be left out of every measure.

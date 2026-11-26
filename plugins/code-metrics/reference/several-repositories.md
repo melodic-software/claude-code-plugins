@@ -39,9 +39,9 @@ With no target form, nothing here applies: each skill runs exactly as its own bo
 
 - **One document per repository.** A `--json` run keeps each repository's document as its own
   file or fenced block, labeled with its `owner/name`, never run together on one stream, and adds
-  no field to either schema. A `code-metrics/v2` document carries its own `root.path`; a
+  no field to either schema. A `code-metrics/v3` document carries its own `root.path`; a
   `code-metrics/suppressions/v1` document has no root field, so its label is what ties it to its
-  repository. Basis: every path in a `code-metrics/v2` document is relative to its `root.path`
+  repository. Basis: every path in a `code-metrics/v3` document is relative to its `root.path`
   (`report-schema.md`, "Path relativity"), the clone trend compares a document with an earlier one
   of the same project, and `/verification:measure metrics` compares two documents. A merged
   document would need a second root and would break all three.

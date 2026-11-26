@@ -776,7 +776,7 @@ The second half of the defect 9.0.1 closed, recorded open at the time and now cl
   table cell as the same shape in the same file, needing its own pass. It is the same failure for
   the same reason: the link resolves only inside this marketplace checkout, and a lane running with
   `source-control` installed has no such path on disk.
-  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  ADR 0018
   makes the plugin the encapsulation boundary for citation. The cell now reads "merge lane over
   `/source-control:babysit-prs`", which resolves for an installed reader and still names the skill
   the lane wraps. The table is still a live consumer list; nothing about the lane, its tier, or its
@@ -792,8 +792,8 @@ by its public invocation instead of by a filesystem path into another plugin's t
   `../../../plugins/claude-ops/skills/lanes/SKILL.md` for the "Never pass a body as an `@path`
   string" section. That link resolves only inside this marketplace checkout; a lane running with
   `claude-ops` installed has no such path on disk, and the rule the paragraph declares itself bound
-  by was unreachable exactly where it binds. [ADR
-  0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md) makes
+  by was unreachable exactly where it binds. ADR
+  0018 makes
   the plugin the encapsulation boundary for citation: name the public invocation, never a path into
   another plugin's private tree. The citation is now `/claude-ops:lanes` plus the same section name,
   which resolves for an installed reader and still locates the section for a reader in this

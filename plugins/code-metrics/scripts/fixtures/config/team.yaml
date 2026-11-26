@@ -4,7 +4,7 @@
 complexity:
   cyclomatic:
     reference: 15
-lanes:
+languages:
   typescript:
     collectors:
       cyclomatic: [lizard]

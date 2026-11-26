@@ -3,7 +3,7 @@ name: audit-boundary-uncovered
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: names-owner-lane
+  - name: names-owner-skill
     type: regex
     pattern: 'harness-config:audit\b(?!-)'
     flags: 'i'

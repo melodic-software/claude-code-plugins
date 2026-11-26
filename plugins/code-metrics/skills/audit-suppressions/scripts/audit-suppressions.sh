@@ -118,8 +118,8 @@ if [[ "$MODE" == change && "$BASE_SET" -eq 0 && "$CFG_DEFAULT" == all ]]; then M
 [[ "$BASE_SET" -eq 1 ]] || BASE="$CFG_BASE"
 
 bash "$DISPATCH" audit-suppressions --measures file_lines --print-scope --config "$CM_CONFIG" \
-  "${CM_PASS_ARGS[@]}" >"$WORK/lanes" || exit 2
-cut -f2- "$WORK/lanes" >"$WORK/scope"
+  "${CM_PASS_ARGS[@]}" >"$WORK/languages" || exit 2
+cut -f2- "$WORK/languages" >"$WORK/scope"
 
 BASE_SHA=""
 SCAN_ARGS=(--paths-from "$WORK/scope")

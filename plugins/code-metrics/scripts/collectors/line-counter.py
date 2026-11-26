@@ -5,10 +5,10 @@ Adapter contract (design/contracts.md section 3), four verbs:
 
   probe                   prints "bundled" and exits 0; exits 1 when the
                           environment variable CODE_METRICS_DISABLE_BUNDLED is
-                          set (a suite uses it to prove the all-lanes-unavailable
+                          set (a suite uses it to prove the all-languages-unavailable
                           path).
-  measures                prints the lane/measure pairs it produces.
-  collect <lane> <measure> <file>...
+  measures                prints the language/measure pairs it produces.
+  collect <language> <measure> <file>...
                           prints one `measures[]` row per file as JSON lines.
   install_hint            prints one line.
 
@@ -56,7 +56,7 @@ def measures() -> None:
     print("*/file_lines")
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != "file_lines":
         print(f"line-counter.py: cannot collect {measure}", file=sys.stderr)
         return 2
@@ -69,7 +69,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         row = {
             "file": path.replace("\\", "/"),
             "function": None,
-            "lane": lane,
+            "language": language,
             "values": values,
             "collector": NAME,
             "labels": ["comment-agnostic"],

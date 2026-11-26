@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Round 7\nScope check: 20 questions asked so far\nWayfind: the last two rounds each opened more questions than they settled; /planning:wayfind chart can map what is left.\nNext round (over the cap of 4): currency\n\n❓ Q14 (tax rules): **Which tax rules apply when one customer was billed by two services?**\n\nContext:\n1. Two of the three services bill the same customers today (your answer to Q13, customer ids)\n\n➡️ My recommendation: **The rules of the service that issued the invoice**\n\n---\n\n❓ Q15 (credit notes): **Do credit notes issued by the retired services stay valid?**\n\nIs there something else that would change these recommendations?",
+      "why": "the Wayfind: line round.sh printed sits right after the Scope check: line"
+    },
+    {
+      "answer": "- Scope check: 20 questions asked so far\n- Wayfind: the last two rounds each opened more questions than they settled; /planning:wayfind chart can map what is left.\n\n❓ Q14 (tax rules): **Which tax rules apply when one customer was billed by two services?**\n\nContext:\n1. Two of the three services bill the same customers today (your answer to Q13, customer ids)\n\n➡️ My recommendation: **The rules of the service that issued the invoice**",
+      "why": "list markers before both labels still count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Round 7\nScope check: 20 questions asked so far\n\n❓ Q14 (tax rules): **Which tax rules apply when one customer was billed by two services?**\n\nContext:\n1. Two of the three services bill the same customers today (your answer to Q13, customer ids)\n\n➡️ My recommendation: **The rules of the service that issued the invoice**\n\nIs there something else that would change these recommendations?\n\nThe last two rounds opened more questions than they closed; /planning:wayfind chart could map what is left.",
+      "why": "wrong: wayfind suggested in prose after the questions, not as the header's Wayfind: line"
+    },
+    {
+      "answer": "Round 7\nScope check: 20 of 27 questions registered; round 6 added 4, settled 1\nWayfind: the last two rounds each opened more questions than they settled; /planning:wayfind chart can map what is left.\n\n❓ Q14 (tax rules): **Which tax rules apply when one customer was billed by two services?**\n\nContext:\n1. Two of the three services bill the same customers today (your answer to Q13, customer ids)\n\n➡️ My recommendation: **The rules of the service that issued the invoice**",
+      "why": "wrong: the old Scope check: line, hand-written with a question-count threshold"
+    },
+    {
+      "answer": "Round 7\nScope check: 20 questions asked so far\n\n❓ Q14 (tax rules): **Which tax rules apply when one customer was billed by two services?**\n\nContext:\n1. Two of the three services bill the same customers today (your answer to Q13, customer ids)\n\n➡️ My recommendation: **The rules of the service that issued the invoice**\n\nIs there something else that would change these recommendations?",
+      "why": "wrong: the Scope check: line with the Wayfind: line dropped"
+    }
+  ]
+}

@@ -36,11 +36,11 @@ runs one pass per repository and also lists files copied between them: identical
 of one name whose copies drifted apart, leaving out copies a sync manifest, a vendoring registry or
 a generated-file header already owns. Changes still ship as one pull request per repository.
 
-Two lanes keep the skill honest:
+Two steps keep the skill honest:
 
-- **Apply lane.** Mechanical, contained, behavior-preserving reductions, applied under a
+- **Apply step.** Mechanical, contained, behavior-preserving reductions, applied under a
   scope budget and verified against the project's own build and tests.
-- **Route lane.** Cross-file and architectural findings are surfaced and routed to humans
+- **Route step.** Cross-file and architectural findings are surfaced and routed to humans
   and design tooling, never auto-applied.
 
 The remediation catalog carries an explicit counterweight per mechanism: decoupling's own

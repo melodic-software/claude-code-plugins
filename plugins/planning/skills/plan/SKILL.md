@@ -148,7 +148,7 @@ Prefer the simplest plan that works and keep each step's changes surgical. Befor
 
 | Tier | Signals | Requirement |
 |------|---------|-------------|
-| **A. Design-significant** | New types/contracts, new module or library, package topology change, cross-module integration, data model change, multi-tenant posture | **Blocking:** full or light `/planning:design` + its handoff gate (`design-threads.md` all RESOLVED / directional / TAGGED-DEFERRED) |
+| **A. Design-significant** | New types/contracts, a public setting or a file format another skill reads, new module or library, package topology change, cross-module integration, data model change, multi-tenant posture | **Blocking:** full or light `/planning:design` + its handoff gate (`design-threads.md` all RESOLVED / directional / TAGGED-DEFERRED) |
 | **B. Light design** | 2–5 files, one new type, localized contract tweak | **Blocking:** `design/design-resolution.md` with `outcome: early-exit`, `tier: B`, and its type sketch (a `type-inventory.md` alone is not the gate artifact) |
 | **C. No design** | Single-file bugfix, config/doc/markdown, rename, hook text, pure test addition | **Blocking:** `design/design-resolution.md` with `outcome: early-exit` + reason (gate always evaluated) |
 

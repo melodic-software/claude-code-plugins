@@ -121,7 +121,7 @@
     {"from":"claude-code-plugins","to":"in-toto/attestation","type":"cites","relation":"external","count":1,"files":["docs/out-of-scope/agent-run-artifact-attestation.md"]},
     {"from":"claude-code-plugins","to":"istanbuljs/nyc","type":"cites","relation":"external","count":1,"files":["plugins/code-metrics/skills/audit-suppressions/SKILL.md"]},
     {"from":"claude-code-plugins","to":"je-can-code/rmmz-plugins","type":"cites","relation":"external","count":1,"files":["plugins/pixel-art/reference/engine-layouts.md"]},
-    {"from":"claude-code-plugins","to":"jendrikseipp/vulture","type":"cites","relation":"external","count":3,"files":["plugins/code-tidying/skills/audit-dead-code/SKILL.md","plugins/code-tidying/skills/audit-dead-code/context/adjudication.md","plugins/code-tidying/skills/audit-dead-code/context/lanes.md"]},
+    {"from":"claude-code-plugins","to":"jendrikseipp/vulture","type":"cites","relation":"external","count":3,"files":["plugins/code-tidying/skills/audit-dead-code/SKILL.md","plugins/code-tidying/skills/audit-dead-code/context/adjudication.md","plugins/code-tidying/skills/audit-dead-code/context/analyzers.md"]},
     {"from":"claude-code-plugins","to":"jest-community/eslint-plugin-jest","type":"cites","relation":"external","count":2,"files":["plugins/corrections/skills/codify/reference/finding-classes.md","plugins/testing/skills/setup/SKILL.md"]},
     {"from":"claude-code-plugins","to":"jlfwong/speedscope","type":"cites","relation":"external","count":1,"files":["plugins/debugging/skills/analyze-profile/reference/formats/other-formats.md"]},
     {"from":"claude-code-plugins","to":"joelparkerhenderson/architecture-decision-record","type":"cites","relation":"external","count":1,"files":["plugins/architecture/skills/adr/SKILL.md"]},

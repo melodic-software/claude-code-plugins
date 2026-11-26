@@ -202,10 +202,10 @@ class SizeCheckTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("needs the change scope", result.stderr)
 
-    def test_an_unmeasured_lane_cannot_decide(self) -> None:
+    def test_an_unmeasured_language_cannot_decide(self) -> None:
         run = [
             {
-                "lane": "other",
+                "language": "other",
                 "measure": "file_lines",
                 "status": "unavailable",
                 "reason": "no collector",
@@ -218,7 +218,7 @@ class SizeCheckTests(unittest.TestCase):
     def test_an_empty_change_passes(self) -> None:
         run = [
             {
-                "lane": "*",
+                "language": "*",
                 "measure": "*",
                 "status": "not-applicable",
                 "reason": "no measurable files in scope",

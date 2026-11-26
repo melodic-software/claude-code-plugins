@@ -105,7 +105,7 @@ class JscpdAdapterTests(unittest.TestCase):
             row = rows[0]
             self.assertIsNone(row["file"])
             self.assertIsNone(row["function"])
-            self.assertEqual(row["lane"], "bash")
+            self.assertEqual(row["language"], "bash")
             self.assertEqual(row["collector"], "jscpd")
             self.assertEqual([i["file"] for i in row["instances"]], [ALPHA, BETA])
             self.assertEqual(

@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: audit-duplication-runs-the-entry-script
+description: on a scaffolded repository whose uncommitted change copies one function into a second file, the duplication report runs the bundled entry script
+tags: [audit-duplication, duplication, change-scope]
+expected_outcome: 'Runs the bundled audit-duplication.sh against the change and presents its clone report (or the unavailable-collector line when no clone detector resolves), with no pass/fail verdict.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-metrics:audit-duplication
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-the-entry-script
+    type: tool_used
+    tool: Bash
+    input_match: audit-duplication\.sh

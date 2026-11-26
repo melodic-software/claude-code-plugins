@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Adapter for `gocyclo` (fzipp/gocyclo), the Go lane's native collector.
+"""Adapter for `gocyclo` (fzipp/gocyclo), the Go language's native collector.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `gocyclo -over 0 <files>` prints one line per function,
 
@@ -36,7 +36,7 @@ from adapter_paths import (
 )
 
 NAME = "gocyclo"
-LANE = "go"
+LANGUAGE = "go"
 MEASURE = "cyclomatic"
 
 
@@ -57,7 +57,7 @@ def probe() -> int:
     return 0
 
 
-def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, wanted: list[str]) -> list[dict]:
     """Rows for the requested files. Raises ValueError when no line parsed."""
     wanted_norm = {normalize(p): p for p in wanted}
     rows: list[dict] = []
@@ -83,7 +83,7 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
                 "function": " ".join(fields[2:-1]),
                 "start_line": start,
                 "end_line": None,
-                "lane": lane,
+                "language": language,
                 "values": {MEASURE: complexity},
                 "collector": NAME,
                 "labels": ["start-line-only"],
@@ -96,9 +96,9 @@ def translate(raw: str, lane: str, wanted: list[str]) -> list[dict]:
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    if lane != LANE or measure != MEASURE:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+def collect(language: str, measure: str, files: list[str]) -> int:
+    if language != LANGUAGE or measure != MEASURE:
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = shutil.which(NAME)
     if not exe:
@@ -108,7 +108,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         [exe, "-over", "0", *files], capture_output=True, text=True, check=False
     )
     try:
-        rows = translate(result.stdout, lane, files)
+        rows = translate(result.stdout, language, files)
     except ValueError as exc:
         print(
             f"{NAME}.py: no parseable {NAME} output ({exc}); "
@@ -122,7 +122,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    print(f"{LANE}/{MEASURE}")
+    print(f"{LANGUAGE}/{MEASURE}")
 
 
 INSTALL_HINT = "gocyclo: https://github.com/fzipp/gocyclo (go install github.com/fzipp/gocyclo/cmd/gocyclo@latest)"

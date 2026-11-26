@@ -1,16 +1,16 @@
-# The collector ladder: which tool measures which measure in which lane, in
-# order of preference (design thread T1). Tab-separated: lane, measure, tool,
+# The collector ladder: which tool measures which measure in which language, in
+# order of preference (design thread T1). Tab-separated: language, measure, tool,
 # note. The dispatcher reads this file and never a directory listing; a tool
 # listed here whose adapter (scripts/collectors/<tool>.py) does not exist is
 # reported as `unavailable` with the reason `adapter not shipped`.
 #
 # Three reserved tool names carry a status instead of a collector:
 #   none      no maintained collector exists; the note is the reason
-#   n/a       the measure does not apply to the lane; the note is the reason
-#   deferred  the lane is planned but not shipped; the note is the reason
-# A measure of `*` matches every measure not listed explicitly for that lane.
+#   n/a       the measure does not apply to the language; the note is the reason
+#   deferred  the language is planned but not shipped; the note is the reason
+# A measure of `*` matches every measure not listed explicitly for that language.
 #
-# lane	measure	tool	note
+# language	measure	tool	note
 typescript	cyclomatic	lizard
 typescript	cyclomatic	eslint-complexity
 typescript	cognitive	sonarjs
@@ -58,7 +58,7 @@ dotnet	file_lines	line-counter
 dotnet	duplication	jscpd
 dotnet	duplication	cpd
 dotnet	type_coverage	n/a	no tool produces a comparable percentage for C#; a dynamic/object occurrence count is not comparable to a ratio
-dotnet	*	deferred	C# lane deferred; research tag probe:dotnet-metrics-linux
+dotnet	*	deferred	C# language deferred; research tag probe:dotnet-metrics-linux
 other	file_lines	scc
 other	file_lines	line-counter
-other	*	n/a	files outside every language lane carry a line count and nothing else
+other	*	n/a	files outside every language carry a line count and nothing else

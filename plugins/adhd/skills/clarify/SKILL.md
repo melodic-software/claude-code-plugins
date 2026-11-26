@@ -86,7 +86,7 @@ passed `--medium`, with the value they gave. `<option>` is this plugin's `medium
 each option value from this text; never put a `${user_config.*}` string in a shell command.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane adhd:clarify --option "<option>" [--argument <medium>]
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer adhd:clarify --option "<option>" [--argument <medium>]
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line

@@ -2,10 +2,10 @@
 """Adapter for `dupl`, the Go-only suffix-tree clone detector (mibk/dupl).
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `dupl` is the second rung of `go/duplication` on the collector ladder, behind
-`jscpd`. It parses Go only, so every other lane exits 3 with that reason.
+`jscpd`. It parses Go only, so every other language exits 3 with that reason.
 
 Output shape, read from mibk/dupl's text printer (printer/text.go, 2026-09-05)
 and unverified against a live run: the default text printer writes one
@@ -56,7 +56,7 @@ from adapter_paths import (
 )
 
 NAME = "dupl"
-LANE = "go"
+LANGUAGE = "go"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
 GROUP_RE = re.compile(r"^found\s+\d+\s+clones:")
@@ -71,13 +71,13 @@ def probe() -> int:
     return 0
 
 
-def _row(instances: list[dict], lane: str) -> dict:
+def _row(instances: list[dict], language: str) -> dict:
     start, end = instances[0]["start_line"], instances[0]["end_line"]
     lines = end - start + 1 if start is not None and end is not None else None
     return {
         "file": None,
         "function": None,
-        "lane": lane,
+        "language": language,
         "instances": instances,
         "values": {"lines": lines, "tokens": None},
         "collector": NAME,
@@ -85,14 +85,14 @@ def _row(instances: list[dict], lane: str) -> dict:
     }
 
 
-def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
+def translate(raw: str, language: str, min_lines: int) -> list[dict]:
     rows: list[dict] = []
     instances: list[dict] = []
 
     def close() -> None:
         if len(instances) < 2:
             return
-        row = _row(instances, lane)
+        row = _row(instances, language)
         lines = row["values"]["lines"]
         if lines is None or lines >= min_lines:
             rows.append(row)
@@ -115,12 +115,12 @@ def translate(raw: str, lane: str, min_lines: int) -> list[dict]:
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != "duplication":
         print(f"dupl.py: cannot collect {measure}", file=sys.stderr)
         return 2
-    if lane != LANE:
-        print(f"dupl.py: dupl parses Go only, not the {lane} lane", file=sys.stderr)
+    if language != LANGUAGE:
+        print(f"dupl.py: dupl parses Go only, not the {language} language", file=sys.stderr)
         return 3
     exe = shutil.which(NAME)
     if not exe:
@@ -140,7 +140,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         text=True,
         check=False,
     )
-    rows = translate(result.stdout, lane, min_lines)
+    rows = translate(result.stdout, language, min_lines)
     if not rows and "clone" not in result.stdout:
         print(
             f"dupl.py: no parseable clone report; stderr: {result.stderr.strip()}",
@@ -153,7 +153,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    print(f"{LANE}/duplication")
+    print(f"{LANGUAGE}/duplication")
 
 
 INSTALL_HINT = "dupl: https://github.com/mibk/dupl (go install github.com/mibk/dupl@latest); this plugin never installs it"

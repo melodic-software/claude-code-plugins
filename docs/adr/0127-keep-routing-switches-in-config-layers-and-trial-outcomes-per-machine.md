@@ -5,7 +5,7 @@
 - Related: [#18345](https://github.com/melodic-software/claude-code-plugins/pull/18345) and
   [#18395](https://github.com/melodic-software/claude-code-plugins/pull/18395) (the change);
   owner interview and answers, 2026-11-22 and 2026-11-23 (Q42, Q50, Q51, Q55, Q66, Q6 of
-  2026-11-23); [ADR 0126](0126-route-vendors-on-a-consensus-of-independent-current-benchmarks.md)
+  2026-11-23); [`reference/vendors.md`](../../plugins/multi-agent/reference/vendors.md)
   (what routing decides)
 
 ## Context

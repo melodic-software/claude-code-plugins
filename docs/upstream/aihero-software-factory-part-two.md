@@ -12,7 +12,7 @@ producers to a long unattended build of a whole spec. Our counterparts are the
 [ADR 0049](../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
 [ADR 0062](../adr/0062-allow-api-keys-from-the-operator-s-own-linked-console-orgs.md),
 [ADR 0085](../adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md),
-[ADR 0096](../adr/0096-choose-the-pull-request-branch-update-method-from-shared-criteria.md) and
+[branch-update criteria](../../plugins/source-control/reference/branch-update-criteria.md) and
 [ADR 0111](../adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md).
 Rows hold our decisions and our own descriptions of each idea, under the upstream-drift
 convention's [What a row may describe](../contracts/upstream-drift/README.md#what-a-row-may-describe).
@@ -120,8 +120,8 @@ are paid and not linked.
 | Idea | What it does | Upstream problem | Our problem | Disposition | Landed |
 |---|---|---|---|---|---|
 | Update every open pull request nightly | Brings each branch up to date before the working day | Inference: stale branches conflict when someone returns to them | Each update costs a CI run | **reject** here: each push to main [dispatches an update](../../.github/workflows/pr-unblock-dispatch.yml) only for conflicting pull requests; **deferred** as a ci-workflows option for a repository without a merge queue | none |
-| A script first, an agent only on conflict | Spends no tokens when a scripted update works | Inference: most updates need no judgment | Same | **already have**: ADR 0096, and the behind-only update pins the expected head | none |
-| A force push to finish the update | Rewrites the branch, protected by a lease | Inference: a rebase needs a rewrite | Unattended runs must not rewrite a pushed head | **reject**: ADR 0096 keeps unattended runs off rewrites | none |
+| A script first, an agent only on conflict | Spends no tokens when a scripted update works | Inference: most updates need no judgment | Same | **already have**: the branch-update criteria, and the behind-only update pins the expected head | none |
+| A force push to finish the update | Rewrites the branch, protected by a lease | Inference: a rebase needs a rewrite | Unattended runs must not rewrite a pushed head | **reject**: the branch-update criteria keep unattended runs off rewrites | none |
 | Filter to out-of-date, unblocked pull requests | Skips anything labeled blocked | Inference: a blocked item should not consume runs | Same | **already have**: the [dispatcher](../../.github/scripts/pr-unblock/dispatch.mjs) re-queries an unknown merge state, then skips it for a later run | none |
 | One runner per pull request | Isolates each update | Inference: one failure should not stop the rest | Same | **already have**: pr-unblock is dispatched per pull request | none |
 | A label as a second trigger | Starts an update between scheduled runs | Inference: a nightly run is sometimes too slow | The push-to-main event reaches these sooner | **already have** in effect | none |
