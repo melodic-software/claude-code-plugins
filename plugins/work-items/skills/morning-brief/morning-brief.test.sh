@@ -48,6 +48,8 @@ NOW="2026-07-20T08:00Z"
 FIXTURE_REPO="example/test-repo"
 
 printf '{}\n' >"$TMP/lanes-empty.json"
+printf '{"laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 0, "pageInfo": {"hasNextPage": false}, "nodes": []}}}]}\n' \
+  >"$TMP/agent-decided-empty.json"
 
 cat >"$TMP/counts.json" <<'EOF'
 {"needs-triage": 28, "status: ready": 44, "needs-owner-decision": 3, "needs-human": 7}
@@ -400,7 +402,7 @@ OUT2="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "missing telemetry degrades gracefully" "$OUT2" "no telemetry issue found"
 
 OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -425,7 +427,7 @@ assert_contains "partial taxonomy keeps another existing label" "$OUT_PARTIAL_QL
 assert_not_contains "partial taxonomy drops absent default labels" "$OUT_PARTIAL_QL" "needs-triage"
 
 OUT_CUSTOM_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --queue-labels "bug, enhancement" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
@@ -437,7 +439,7 @@ assert_contains "pinned queue labels are honored" "$OUT_CUSTOM_QL" "bug"
 assert_contains "pinned queue labels include the second entry" "$OUT_CUSTOM_QL" "enhancement"
 
 OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -446,7 +448,7 @@ OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "missing decision label degrades gracefully" "$OUT_NO_DEC" "decision label not found in this repo"
 
 OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -456,7 +458,7 @@ OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "empty label inventory degrades queue section" "$OUT_EMPTY_LABELS" "no queue labels found in this repo"
 
 OUT_EMPTY_LABELS_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -594,7 +596,7 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
 assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
-assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "2 of 10 sections unreadable: stranded landed"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "2 of 11 sections unreadable: stranded landed"
 
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
@@ -681,7 +683,7 @@ OUT_STUCK_ERR="$(run_stuck --stuck-json "$TMP/stuck-error.json")"
 RC_STUCK_ERR=$?
 assert_exit "stuck: an error document exits 6" 6 "$RC_STUCK_ERR"
 assert_contains "stuck: an error document is UNREADABLE" "$(section "$OUT_STUCK_ERR" "== Stuck")" "UNREADABLE: boom stuck"
-assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 10 sections unreadable: stuck"
+assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 11 sections unreadable: stuck"
 printf '[]\n' >"$TMP/stuck-array.json"
 assert_contains "stuck: a fixture that is not a label map is UNREADABLE" "$(section "$(run_stuck --stuck-json "$TMP/stuck-array.json")" "== Stuck")" \
   "UNREADABLE: --stuck-json is not an object"
@@ -799,7 +801,7 @@ assert_contains "touches: no operator login is UNREADABLE" \
 printf '{"errors": [{"message": "boom touches"}]}\n' >"$TMP/touch-error.json"
 OUT_TOUCH_ERR="$(run_touch --touch-json "$TMP/touch-error.json")"
 assert_exit "touches: an error document exits 6" 6 "$?"
-assert_contains "touches: the header counts the unreadable section" "$OUT_TOUCH_ERR" "1 of 10 sections unreadable: touches"
+assert_contains "touches: the header counts the unreadable section" "$OUT_TOUCH_ERR" "1 of 11 sections unreadable: touches"
 assert_contains "touches: no repo and no fixture is an empty state" "$(section "$OUT3" "== Owner touches")" \
   "(no repo resolved — pass --repo or --touch-json)"
 bash "$BRIEF" --touch-days 0 >/dev/null 2>&1
@@ -1036,6 +1038,7 @@ run_stub() {
   [[ -n "${MB_NO_DATA_DIR:-}" ]] && data=()
   [[ "$mode" == gql && -z "${MB_STUCK_LIVE:-}" ]] && stuck=(--stuck-json "$TMP/stuck-empty.json")
   [[ "$mode" == gql && -z "${MB_TOUCH_LIVE:-}" ]] && stuck+=(--touch-json "$TMP/touch-empty.json")
+  [[ "$mode" == gql && -z "${MB_AGENT_DECIDED_LIVE:-}" ]] && stuck+=(--agent-decided-json "$TMP/agent-decided-empty.json")
   PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
     bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" ${data[@]+"${data[@]}"} \
     "${COST_ARGS[@]}" ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
@@ -1048,7 +1051,7 @@ OUT_FAIL="$(run_stub fail)"
 RC_FAIL=$?
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
-assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "10 of 10 sections unreadable"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "11 of 11 sections unreadable"
 assert_contains "blocked: stuck is UNREADABLE" "$(section "$OUT_BLOCKED" "== Stuck")" "UNREADABLE:"
 assert_not_contains "blocked: stuck never renders an all-clear" "$OUT_BLOCKED" "no open item has held a queue label"
 COST_BLOCKED="$(section "$OUT_BLOCKED" "== Cost")"
@@ -1079,11 +1082,11 @@ OUT_ONE="$(run_stub blocked \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
-  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --lane-runs-json "$TMP/lanes-empty.json")"
 RC_ONE=$?
 assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
-assert_contains "partial: header names the lost section" "$OUT_ONE" "2 of 10 sections unreadable: stranded landed"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "2 of 11 sections unreadable: stranded landed"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
 cat >"$TMP/merged-message-error.json" <<'EOF'
@@ -1113,7 +1116,7 @@ if have git; then
   assert_exit "git remote fallback: renders (exit 6, five of nine unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
-  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "6 of 10 sections unreadable: telemetry stranded landed lanes touches cost"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "7 of 11 sections unreadable: telemetry stranded landed agent-decided lanes touches cost"
 fi
 
 REST="$TMP/rest"
@@ -1238,7 +1241,7 @@ assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issu
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z UTC  age=1h 30m"
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
 assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
-assert_contains "rest: header counts the four lost sections" "$OUT_REST" "4 of 10 sections unreadable: stuck stranded landed touches"
+assert_contains "rest: header counts the five lost sections" "$OUT_REST" "5 of 11 sections unreadable: stuck stranded landed agent-decided touches"
 
 mkdir -p "$TMP/cfg-lanes" "$TMP/cfg-no-lanes"
 cat >"$TMP/cfg-lanes/work-items.yaml" <<'EOF'
@@ -1300,7 +1303,7 @@ cat >"$TMP/same-telemetry.json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
 OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
-  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" \
+  --stuck-json "$TMP/stuck-empty.json" --touch-json "$TMP/touch-empty.json" --agent-decided-json "$TMP/agent-decided-empty.json" \
   --repo-labels-json "$TMP/same-labels.json" \
   --counts-json "$TMP/same-counts.json" \
   --pr-json "$TMP/same-pr.json" \
@@ -1357,7 +1360,7 @@ OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 RC_BAD=$?
 assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
-assert_contains "unparsable: the header counts the five lost sections" "$OUT_BAD" "5 of 10 sections unreadable: merge-ready decisions telemetry stranded landed"
+assert_contains "unparsable: the header counts the five lost sections" "$OUT_BAD" "5 of 11 sections unreadable: merge-ready decisions telemetry stranded landed"
 assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
 assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
 assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
@@ -1546,6 +1549,104 @@ printf '2026-07-10T08:00Z\n' >"$TMP/data-fail/morning-brief/$FIXTURE_REPO/landed
 OUT_LANDED_FAIL="$(MB_GH_FIXTURES="$TMP/gql-none" MB_DATA_DIR="$TMP/data-fail" run_stub gql "${FIX_ARGS[@]}")"
 assert_contains "landed live: a failed read renders UNREADABLE" "$(section "$OUT_LANDED_FAIL" "== Landed")" "UNREADABLE:"
 assert_eq "landed live: a failed read leaves landed_at where it was" "2026-07-10T08:00Z" "$(landed_of "$TMP/data-fail")"
+
+cat >"$TMP/agent-decided.json" <<'EOF'
+{"laneIdentity": "lanes-app[bot]", "pages": [{"data": {"search": {"issueCount": 4, "pageInfo": {"hasNextPage": false}, "nodes": [
+  {"number": 602, "title": "no opener", "url": "https://github.com/o/r/issues/602",
+   "timelineItems": {"nodes": [{"createdAt": "2026-07-20T01:00:00Z", "label": {"name": "agent-decided"}}]},
+   "comments": {"nodes": [{"url": "https://github.com/o/r/issues/602#issuecomment-1", "createdAt": "2026-07-20T00:00:00Z", "author": {"login": "someone"}, "body": "a note"}]}},
+  {"number": 601, "title": "picked a store", "url": "https://github.com/o/r/issues/601",
+   "timelineItems": {"nodes": [{"createdAt": "2026-07-19T20:00:00Z", "label": {"name": "agent-decided"}}, {"createdAt": "2026-07-19T20:00:00Z", "label": {"name": "agent-ready"}}]},
+   "comments": {"nodes": [
+     {"url": "https://github.com/o/r/issues/601#issuecomment-1", "createdAt": "2026-07-19T19:00:00Z", "author": {"login": "lanes-app"}, "body": "**Agent decision recorded.**\n1. Older."},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-2", "createdAt": "2026-07-19T21:00:00Z", "author": {"login": "lanes-app"}, "body": "**Agent decision recorded.**\r\n1. Newest."},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-3", "createdAt": "2026-07-19T22:00:00Z", "author": {"login": "mallory"}, "body": "**Agent decision recorded.**\n1. Spoof."},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-4", "createdAt": "2026-07-19T23:00:00Z", "author": {"login": "lanes-app"}, "body": "Quoting **Agent decision recorded.**"},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-5", "createdAt": "2026-07-19T23:10:00Z", "author": {"login": "lanes-app"}, "body": "**Agent decision recorded.** (draft)"},
+     {"url": "https://github.com/o/r/issues/601#issuecomment-6", "createdAt": "2026-07-19T23:20:00Z", "author": {"login": "lanes-app"}, "body": ""}]}},
+  {"number": 603, "title": "old decision", "url": "https://github.com/o/r/issues/603",
+   "timelineItems": {"nodes": [{"createdAt": "2026-07-15T10:00:00Z", "label": {"name": "agent-decided"}}]}, "comments": {"nodes": []}},
+  {"number": 604, "title": "label event unread", "url": "https://github.com/o/r/issues/604",
+   "timelineItems": {"nodes": []}, "comments": {"nodes": []}}
+]}}}]}
+EOF
+run_agent_decided() {
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" \
+    --decisions-json "$TMP/empty.json" --telemetry-json "$TMP/empty.json" "${CLEAR_COST_ARGS[@]}" \
+    --agent-decided-json "$TMP/agent-decided.json" "$@" 2>&1
+}
+AGD_SEC="$(section "$(run_agent_decided)" "== Agent-decided")"
+assert_contains "agent-decided: a first read covers the last day" "$AGD_SEC" \
+  "== Agent-decided (labeled agent-decided since 2026-07-19T08:00Z UTC: first read on this machine: last 1d) =="
+assert_contains "agent-decided: a listed issue links the lanes App's newest opener" "$AGD_SEC" \
+  "  #601 picked a store  labeled 2026-07-19T20:00:00Z
+    https://github.com/o/r/issues/601#issuecomment-2"
+assert_not_contains "agent-decided: another author's opener is not linked" "$AGD_SEC" "issuecomment-3"
+assert_not_contains "agent-decided: a comment that only quotes the opener is not linked" "$AGD_SEC" "issuecomment-4"
+assert_not_contains "agent-decided: a first line with more than the opener is not linked" "$AGD_SEC" "issuecomment-5"
+jq '.pages[0].data.search.issueCount = 9' "$TMP/agent-decided.json" >"$TMP/agent-decided-capped.json"
+assert_contains "agent-decided: a search that read fewer issues than it counted is PARTIAL" \
+  "$(section "$(run_agent_decided --agent-decided-json "$TMP/agent-decided-capped.json")" "== Agent-decided")" \
+  "PARTIAL: a search read fewer issues than it counted"
+assert_contains "agent-decided: an issue with no opener is listed without a link" "$AGD_SEC" \
+  "  #602 no opener  labeled 2026-07-20T01:00:00Z
+    no lanes App **Agent decision recorded.** comment found; listed without a link"
+assert_eq "agent-decided: issues are listed by the labeled event, oldest first" "#601#602" \
+  "$(printf '%s\n' "$AGD_SEC" | grep -oE '^  #[0-9]+' | tr -d ' \n')"
+assert_not_contains "agent-decided: a label applied before the window is not listed" "$AGD_SEC" "#603"
+assert_contains "agent-decided: an issue with no labeled event read is PARTIAL, not dropped" "$AGD_SEC" \
+  "PARTIAL: no agent-decided labeled event among the last 100 label events of #604"
+assert_contains "agent-decided: the section says how the owner overrides" "$AGD_SEC" \
+  "to override one: a **Decision recorded.** comment from the owner sends the issue back to triage"
+assert_contains "agent-decided: --lane-identity decides whose opener is linked" \
+  "$(section "$(run_agent_decided --lane-identity mallory)" "== Agent-decided")" "issuecomment-3"
+AGD_NONE="$(section "$(run_agent_decided --agent-decided-json "$TMP/agent-decided-empty.json")" "== Agent-decided")"
+assert_contains "agent-decided: an empty window says so" "$AGD_NONE" "(none — no issue was labeled agent-decided in the window)"
+assert_not_contains "agent-decided: an empty window prints no override line" "$AGD_NONE" "to override one"
+printf '{"errors": [{"message": "boom agent"}]}\n' >"$TMP/agent-decided-error.json"
+OUT_AGD_ERR="$(run_agent_decided --agent-decided-json "$TMP/agent-decided-error.json")"
+assert_contains "agent-decided: an error document is UNREADABLE" "$(section "$OUT_AGD_ERR" "== Agent-decided")" "UNREADABLE: boom agent"
+assert_contains "agent-decided: the header counts the unreadable section" "$OUT_AGD_ERR" "1 of 11 sections unreadable: agent-decided"
+assert_contains "agent-decided: no repo and no fixture is an empty state, not UNREADABLE" "$(section "$OUT3" "== Agent-decided")" \
+  "(no repo resolved — pass --repo or --agent-decided-json)"
+
+AGD_LIVE="$TMP/gql-agent-decided"
+mkdir -p "$AGD_LIVE" "$TMP/data-agd-mark/morning-brief/$FIXTURE_REPO" "$TMP/data-agd-partial/morning-brief/$FIXTURE_REPO" \
+  "$TMP/data-agd-fail/morning-brief/$FIXTURE_REPO"
+jq '.pages[0] | .data.search.nodes |= map(select(.number != 604)) | .data.search.issueCount = 3' "$TMP/agent-decided.json" \
+  >"$AGD_LIVE/api-graphql-stuck-agent-decided-first.json"
+agd_of() { cat "$1/morning-brief/$FIXTURE_REPO/agent-decided-at" 2>/dev/null; }
+run_agd_live() {
+  MB_AGENT_DECIDED_LIVE=1 MB_GH_FIXTURES="${AGD_FIXTURES:-$AGD_LIVE}" MB_GH_LOG="$TMP/log-agd" run_stub gql "${FIX_ARGS[@]}" \
+    --merged-json "$TMP/merged-clean.json" --lane-identity "lanes-app[bot]"
+}
+AGD_FIRST="$(section "$(MB_DATA_DIR="$TMP/data-agd" run_agd_live)" "== Agent-decided")"
+assert_eq "agent-decided live: one search for open issues and one for issues closed in the window" "2" \
+  "$(grep -c 'api-graphql-stuck-agent-decided-first' "$TMP/log-agd")"
+: >"$TMP/log-agd-base"
+MB_DATA_DIR="$TMP/data-agd-base" MB_GH_FIXTURES="$AGD_LIVE" MB_GH_LOG="$TMP/log-agd-base" run_stub gql "${FIX_ARGS[@]}" \
+  --merged-json "$TMP/merged-clean.json" --lane-identity "lanes-app[bot]" >/dev/null
+assert_eq "agent-decided live: the section makes no call beyond its read searches, so it writes nothing to the tracker" "" \
+  "$(grep -vxF -f "$TMP/log-agd-base" "$TMP/log-agd" | grep -vx 'api-graphql-stuck-agent-decided-first')"
+assert_contains "agent-decided live: a first read lists the issues labeled in the last day" "$AGD_FIRST" "#601 picked a store"
+assert_eq "agent-decided live: a full read saves agent_decided_at as this run's clock" "2026-07-20T08:00Z" "$(agd_of "$TMP/data-agd")"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-agd-mark/morning-brief/$FIXTURE_REPO/agent-decided-at"
+AGD_MARK="$(section "$(MB_DATA_DIR="$TMP/data-agd-mark" run_agd_live)" "== Agent-decided")"
+assert_contains "agent-decided live: the window starts at agent_decided_at" "$AGD_MARK" \
+  "labeled agent-decided since 2026-07-10T08:00Z UTC: since agent_decided_at"
+assert_contains "agent-decided live: a label applied after agent_decided_at is listed" "$AGD_MARK" "#603 old decision"
+assert_eq "agent-decided live: a full read advances agent_decided_at" "2026-07-20T08:00Z" "$(agd_of "$TMP/data-agd-mark")"
+mkdir -p "$TMP/gql-agd-partial"
+jq '.pages[0]' "$TMP/agent-decided.json" >"$TMP/gql-agd-partial/api-graphql-stuck-agent-decided-first.json"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-agd-partial/morning-brief/$FIXTURE_REPO/agent-decided-at"
+AGD_PARTIAL="$(section "$(AGD_FIXTURES="$TMP/gql-agd-partial" MB_DATA_DIR="$TMP/data-agd-partial" run_agd_live)" "== Agent-decided")"
+assert_contains "agent-decided live: a partial read says agent_decided_at was not advanced" "$AGD_PARTIAL" \
+  "agent_decided_at not advanced: this read is PARTIAL"
+assert_eq "agent-decided live: a partial read leaves agent_decided_at where it was" "2026-07-10T08:00Z" "$(agd_of "$TMP/data-agd-partial")"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-agd-fail/morning-brief/$FIXTURE_REPO/agent-decided-at"
+AGD_FAIL="$(section "$(AGD_FIXTURES="$TMP/gql-none" MB_DATA_DIR="$TMP/data-agd-fail" run_agd_live)" "== Agent-decided")"
+assert_contains "agent-decided live: a failed read renders UNREADABLE" "$AGD_FAIL" "UNREADABLE:"
+assert_eq "agent-decided live: a failed read leaves agent_decided_at where it was" "2026-07-10T08:00Z" "$(agd_of "$TMP/data-agd-fail")"
 
 mkdir -p "$TMP/gql-trunc" "$TMP/data-trunc/morning-brief/$FIXTURE_REPO"
 jq '.[0] | .data.repository.pullRequests.nodes[0].updatedAt = "2026-07-19T17:00:00Z"' "$TMP/merged-truncated.json" >"$TMP/gql-trunc/api-graphql-first.json"
@@ -2164,7 +2265,7 @@ OUT_COST_403="$(cost_brief --billing-usage-json "$TMP/billing-403.json" --billin
 RC_COST_403=$?
 COST_403="$(section "$OUT_COST_403" "== Cost")"
 assert_exit "cost 403: a billing read refused for want of an org admin counts the section as lost" 6 "$RC_COST_403"
-assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 10 sections unreadable: cost"
+assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 11 sections unreadable: cost"
 assert_contains "cost 403: the usage line is UNREADABLE with the fix" "$COST_403" \
   "UNREADABLE GitHub usage 2026-07: org admin needed: run gh auth login with an org admin account"
 assert_contains "cost 403: the minutes line is UNREADABLE too" "$COST_403" \
@@ -2202,7 +2303,7 @@ OUT_COST_ONE="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" 
 RC_COST_ONE=$?
 COST_ONE="$(section "$OUT_COST_ONE" "== Cost")"
 assert_exit "cost one unreadable: the brief exits 6" 6 "$RC_COST_ONE"
-assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 10 sections unreadable: cost"
+assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 11 sections unreadable: cost"
 assert_contains "cost one unreadable: the failed read is its own UNREADABLE line" "$COST_ONE" "UNREADABLE Azure Defender plans: no pricings in --azure-json"
 assert_contains "cost one unreadable: the reads beside it still print" "$COST_ONE" "OK         Azure budget budget-example: spent 1.5, forecast 3.25"
 printf '{"usageItems": "not a list"}\n' >"$TMP/billing-usage-bad.json"
@@ -2214,8 +2315,8 @@ assert_contains "cost unparsable: a usage response of the wrong shape is UNREADA
 OUT_COST_ONLY="$(run_stub blocked)"
 RC_COST_ONLY=$?
 assert_exit "cost only: a brief whose cost lines read is never exit 5" 6 "$RC_COST_ONLY"
-assert_contains "cost only: the header counts the nine lost sections" "$OUT_COST_ONLY" \
-  "9 of 10 sections unreadable: queues stuck merge-ready decisions telemetry stranded landed lanes touches"
+assert_contains "cost only: the header counts the ten lost sections" "$OUT_COST_ONLY" \
+  "10 of 11 sections unreadable: queues stuck merge-ready decisions telemetry stranded landed agent-decided lanes touches"
 
 OUT_FIXTURE_RUN="$(cost_brief)"
 RC_FIXTURE_RUN=$?
@@ -2296,7 +2397,7 @@ OUT_429="$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azur
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "defender: a throttled cost query is UNREADABLE with the error" "$(section "$OUT_429" "== Cost")" \
   "UNREADABLE Azure Defender charges, month to date: Too Many Requests(Too many requests. Please retry.)"
-assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "5 of 10 sections unreadable: stuck stranded landed touches cost"
+assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "6 of 11 sections unreadable: stuck stranded landed agent-decided touches cost"
 jq '.defenderCost = {"properties": {"columns": [{"name": "ServiceName"}], "rows": []}}' "$TMP/azure-clear.json" >"$TMP/azure-cost-bad.json"
 assert_contains "defender: a cost response without its columns is UNREADABLE" "$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
   --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-cost-bad.json")" "== Cost")" \
