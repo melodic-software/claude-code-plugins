@@ -72,9 +72,6 @@ function newLeg(id, legName, ctx, s, outcome, launcher) {
   if (legName !== "fallback") {
     const next = wf.step(id, "next");
     assert.equal(next.if, "${{ always() }}", `${id} hands on whatever failed after its credential`);
-    // A job that hit its own timeout after the leg is cancelled: only a step
-    // whose if: still holds then runs. The job outputs the old shape read
-    // survived it.
     const nextCtx = { ...stepCtx, "cancelled()": s.failAt === "timeout" };
     const decided = runs(next.if, nextCtx) ? S.next({ state: value(next.inputs.state, stepCtx), handoff: value(next.inputs.handoff, stepCtx), handoffReason: value(next.inputs["handoff-reason"], stepCtx) }) : {};
     const jobOutputs = wf.outputs(id);

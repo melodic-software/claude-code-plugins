@@ -791,6 +791,7 @@ lib/yaml-subset.awk plugins/skill-quality/lib/yaml-subset.awk
 lib/resolve-convention-home.sh plugins/skill-quality/lib/resolve-convention-home.sh
 lib/one-way-doors.md plugins/planning/reference/one-way-doors.md
 lib/one-way-doors.md plugins/review/reference/one-way-doors.md
+lib/one-way-doors.md plugins/architecture/reference/one-way-doors.md
 lib/issue-house-style.md plugins/bugs/reference/issue-house-style.md
 lib/issue-house-style.md plugins/code-tidying/reference/issue-house-style.md
 lib/issue-house-style.md plugins/docs-hygiene/reference/issue-house-style.md

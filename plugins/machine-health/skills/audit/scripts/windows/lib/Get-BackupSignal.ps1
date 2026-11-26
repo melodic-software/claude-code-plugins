@@ -126,8 +126,6 @@ function Get-SystemImageSignal {
     $lastSuccess = $newestSuccess ? (Get-BackupEventTime -Record $newestSuccess) : $null
     $lastResult = $events.Count -gt 0 ? $events[0].Id : $null
     $wbadminNote = "wbadmin exit $exitCode, $count version id(s)"
-    # wbadmin lists every backup still on disk, so its versions outweigh failed runs in the
-    # retained channel: an older success may have aged out of the log.
     if ($succeeded -or $versions) {
         return New-BackupSource -Source $id -State 'present' -Signal ($succeeded ? 'backup-event' : 'wbadmin-count') `
             -LastSuccess $lastSuccess -LastResultEvent $lastResult -Count $count `
@@ -184,7 +182,6 @@ function Get-RestorePointSignal {
     } catch {
         return New-BackupSource -Source $id -State 'unknown' -Signal 'cim' -Basis 'restore point read failed'
     }
-    # A text value (an error string some hosts return as data) is not a restore point.
     if (@($read | Where-Object { $_ -is [string] }).Count -gt 0) {
         return New-BackupSource -Source $id -State 'unknown' -Signal 'cim' `
             -Basis 'restore point read returned text, not restore points'

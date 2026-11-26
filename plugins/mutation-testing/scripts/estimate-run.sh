@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# estimate-run.sh --mutants <n> --seconds <s>: the audit's wall-clock estimate.
-#
-# Prints one line:
-#
-#   Estimated wall-clock: <h>h <m>m (<n> mutants x <s>s per build-and-test)
-#
-# <n> is the mutant count, a whole number. <s> is the timed wall-clock of one
-# build plus test run of the selected scope, above zero, a whole number or a
-# decimal with up to three places. Both are printed as given and read as
-# decimal, a leading zero included. The total is <n> x <s>
-# rounded up to the next whole minute, so a run with any work never reads as
-# 0h 0m. <s> is scaled to whole milliseconds, so the arithmetic is integer and
-# exact, with no float error to push an exact minute up to the next one.
-#
-# Exit 0: printed. 2: usage error, a missing, repeated or malformed value, or
-# a zero <s>; nothing is printed on stdout.
 set -uo pipefail
 
 self=estimate-run.sh
@@ -41,7 +25,6 @@ while (($#)); do
 done
 [[ -n "$n" && -n "$s" ]] || usage
 
-# The digit caps keep <n> x <s in ms> inside 64-bit arithmetic.
 if [[ ! "$n" =~ ^[0-9]{1,9}$ ]]; then
   printf '%s: --mutants must be a whole number of at most 9 digits, got %s\n' "$self" "$n" >&2
   exit 2

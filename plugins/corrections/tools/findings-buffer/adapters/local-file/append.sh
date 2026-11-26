@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# local-file findings buffer: append.sh < rows.jsonl
 # Exit: 0 every row durable, 1 storage failure, 2 usage, 3 not in a repository or jq missing.
 set -uo pipefail
 

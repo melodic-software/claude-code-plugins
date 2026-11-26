@@ -53,7 +53,6 @@ public static extern bool DestroyEnvironmentBlock(IntPtr environment);
         throw [System.ComponentModel.Win32Exception]::new([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())
     }
     try {
-        # Null-terminated "name=value" strings, ending with an empty one.
         $variables = @{}
         $offset = 0
         while ($true) {
@@ -61,7 +60,6 @@ public static extern bool DestroyEnvironmentBlock(IntPtr environment);
             if ([string]::IsNullOrEmpty($entry)) { break }
             $offset += ($entry.Length + 1) * 2
             $separator = $entry.IndexOf('=')
-            # A name starting with '=' is a drive's current directory, not a variable.
             if ($separator -gt 0) { $variables[$entry.Substring(0, $separator)] = $entry.Substring($separator + 1) }
         }
         return $variables
@@ -86,12 +84,10 @@ function Get-ElevatedPassEnvironment {
         [Parameter(Mandatory = $true)] [string] $ProgramFilesPath
     )
 
-    # Path always, since a user value can reach it from outside HKCU\Environment too.
     $pinned = [ordered]@{ Path = $SystemVariable['Path'] }
     foreach ($name in $UserVariableName) {
         if ($name -ne 'PSModulePath') { $pinned[$name] = $SystemVariable[$name] }
     }
-    # PowerShell 7's AllUsers and $PSHOME folders, then the system value's own folders; never a user folder.
     $folders = [System.Collections.Generic.List[string]]::new()
     $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $candidates = @([System.IO.Path]::Join($ProgramFilesPath, 'PowerShell\Modules'), [System.IO.Path]::Join($PSHomePath, 'Modules')) +
@@ -129,7 +125,6 @@ function New-ElevatedStagingFolder {
                 [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
                 [System.Security.AccessControl.PropagationFlags]::None, [System.Security.AccessControl.AccessControlType]::Allow))
     }
-    # The folder is created with this security descriptor, so it is never open to the standard token.
     $folder = [System.IO.FileSystemAclExtensions]::CreateDirectory($security, $path)
     $owner = [System.IO.FileSystemAclExtensions]::GetAccessControl($folder).GetOwner([System.Security.Principal.SecurityIdentifier])
     if ($owner -ne $admins -or $folder.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint)) {
@@ -154,11 +149,9 @@ function Invoke-ElevatedBootstrap {
         [Parameter(Mandatory = $true)] [string] $StateBase,
         [Parameter(Mandatory = $true)] [string] $ResultPath,
         [Parameter(Mandatory = $true)] [string] $ResultFileId,
-        # Test seam: returns a new folder in place of New-ElevatedStagingFolder. The launcher never passes it.
         [scriptblock] $NewStagingFolder = { New-ElevatedStagingFolder }
     )
 
-    # Module folders first, through .NET alone, so the cmdlets below load from $PSHOME only.
     [Environment]::SetEnvironmentVariable('PSModulePath', [System.IO.Path]::Join($PSHOME, 'Modules'))
     $pinned = Get-ElevatedPassEnvironment -SystemVariable (Get-SystemEnvironmentVariable) -PSHomePath $PSHOME `
         -UserVariableName ([string[]]@([Environment]::GetEnvironmentVariables([EnvironmentVariableTarget]::User).Keys)) `
@@ -191,7 +184,6 @@ function Invoke-ElevatedBootstrap {
 
     $staging = [string](& $NewStagingFolder)
     try {
-        # The verified bytes themselves are written, so a later change to the source reaches nothing.
         foreach ($file in $files) {
             $target = [System.IO.Path]::Join($staging, $file.Relative)
             [void][System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($target))

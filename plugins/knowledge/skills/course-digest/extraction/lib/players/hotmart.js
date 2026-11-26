@@ -371,7 +371,6 @@ export function installInterceptors(page, subtitleLang) {
         getOrCreateEntry(page).subtitleManifestBody = body;
       }
     } catch {
-      // Response body may not be available for all intercepted responses
     }
   });
 

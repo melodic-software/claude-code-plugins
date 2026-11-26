@@ -15,10 +15,6 @@ inputs:
 runs:
   using: composite
   steps:
-    # claude-code-action puts the OAuth token in Claude's env; without
-    # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB every Bash child inherits it. The
-    # scrub's sandbox needs bubblewrap and socat, and the action installs it
-    # only for allowed_non_write_users.
     - name: Install subprocess isolation
       if: inputs.install-subprocess-isolation == 'true'
       shell: bash
@@ -70,9 +66,6 @@ runs:
           exit 1
         fi
 
-    # Removes the documented route from head code to the job's secrets in
-    # runner memory (harden-runner's disable-sudo does the same): the docker
-    # socket becomes root-only, then the runner user's sudoers entry goes.
     - name: Remove sudo and docker access
       shell: bash
       run: |

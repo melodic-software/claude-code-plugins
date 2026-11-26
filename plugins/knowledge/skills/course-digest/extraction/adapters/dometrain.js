@@ -35,7 +35,6 @@ const VISIBLE_DATE_PATTERNS = [
   /published[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
   /released[:\s]+(\w+\s+\d{1,2},?\s+\d{4})/i,
 ];
-// Dometrain also publishes its dates through non-og meta properties.
 const DOMETRAIN_META_SUBSTRINGS = ["date", "time", "modified", "published"];
 
 export const defaults = {

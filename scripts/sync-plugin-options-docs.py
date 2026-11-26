@@ -86,7 +86,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             typ = f"{typ}<br>*{', '.join(bounds)}*"
         default = spec.get("default", "")
         # MD049: this repo's markdownlint requires asterisk emphasis, not underscore.
-        default = "*(none)*" if default == "" else f"`{json.dumps(default)}`"
+        default = "*(none)*" if default == "" else "`" + json.dumps(default).replace("|", "\\|") + "`"
         desc = " ".join(str(spec.get("description", spec.get("title", ""))).split())
         # A description is arbitrary prose from the manifest and lands inside a table
         # cell. Escape the characters that would otherwise be read as markdown: a pipe

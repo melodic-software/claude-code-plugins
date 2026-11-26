@@ -1,41 +1,4 @@
 #!/usr/bin/env bash
-# remove-shims.sh — take the `@AGENTS.md` CLAUDE.md shims out of one repository.
-#
-# The only mutating script in this skill, and it refuses far more often than it
-# acts. In order, and every gate fails closed:
-#
-#   1. It prints what removal costs: the decision and pointer of the pointer
-#      record headed "What shim removal costs" in reference/sources.md. With a nested AGENTS.md it
-#      also prices the nested write-trigger loss, and prints it again with
-#      cutover-check's probe result once that has run.
-#   2. It refuses without --confirm. There is no blanket-yes and no all-repos
-#      mode: one repository per run, one confirmation per run.
-#   3. It refuses unless the INSTALLED harness-memory and instruction-placement
-#      carry the corrected shim doctrine. An older cached build tells a
-#      de-shimmed repository to put the shim back.
-#   4. It refuses unless cutover-check.sh reports every graded condition [MET]
-#      in this same run.
-#   5. It refuses unless every instruction directory is already at the target
-#      shape. A CLAUDE.md still carrying content, or an AGENTS.md of zero
-#      bytes, is a migration that is not finished, and a zero-byte AGENTS.md
-#      cannot be canaried at all.
-#   6. It resolves a canary line and a trigger file for every directory BEFORE
-#      it removes anything, so a repository that cannot be verified is never
-#      left unverified.
-#
-# Root and nested shims come out together or not at all: a lone nested
-# AGENTS.md never attaches while a root CLAUDE.md exists. After removal it runs
-# one canary per de-shimmed directory against that directory's own existing
-# text, with no token inserted into a real repository. Any miss, and any canary
-# that could not measure, restores every shim it removed.
-#
-# Usage:
-#   remove-shims.sh --root <dir> --confirm [options]
-#   remove-shims.sh --help
-#
-# Exit: 0 shims removed and every canary passed; 1 refused, or removed and
-# restored; 2 usage error, or a missing scripts/lib/version.sh.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -257,17 +220,8 @@ on_exit() {
 }
 trap on_exit EXIT
 trap 'exit 1' INT TERM HUP
-# SIGPIPE is IGNORED rather than trapped. A trapped one still kills the shell
-# on the default disposition path, and a script killed mid-removal leaves the
-# repository de-shimmed and unverified with no trap run at all: `remove-shims
-# --confirm | head` did exactly that on Linux. Ignored, the write returns EPIPE,
-# this script has no errexit to trip over it, and the run finishes through its
-# own logic and its own EXIT trap. A reader that left does not get to decide
-# whether a repository keeps its instruction files.
 trap '' PIPE
 
-# Declared before the trap can read them, so an early exit sees an empty list
-# rather than an unbound variable.
 REMOVED=()
 CANARY_PASSED=0
 bash "$PLAN_MIGRATION" --root "$REPO" >"$PLAN" 2>/dev/null ||
@@ -308,17 +262,6 @@ index_file() {
 build_line_index() {
   local file up find_out find_rc=0
   : >"$AGENTS_LINES"
-  # Every AGENTS.md ON DISK inside the repository, not the plan's DIR rows.
-  # The plan lists tracked files, and Claude Code loads by filesystem: a
-  # gitignored `mid/AGENTS.md` carrying the same line as `mid/svc/AGENTS.md`
-  # is invisible to `git ls-files`, so the nested line scored unique and the
-  # untracked ancestor answered its probe. The index keys on the file's own
-  # path so a directory compares against itself and nothing else.
-  #
-  # `-type f -o -type l` so a SYMLINKED AGENTS.md is indexed: the above-root
-  # walk tests with `-f`, which follows symlinks, and an in-repo file the
-  # walk could not see is a line that scores unique. Directory symlinks are
-  # not followed (no `-L`), so the walk cannot loop.
   find_out="$(agents_walk)" || find_rc=$?
   ((find_rc == 0)) || {
     refuse "the AGENTS.md walk failed (find exited $find_rc); without it every canary line scores unique and the check is worthless."
@@ -326,12 +269,6 @@ build_line_index() {
   while IFS= read -r file; do
     [[ -f "$file" ]] && index_file "$file"
   done <<<"$find_out"
-  # An AGENTS.md ABOVE the repository root loads in every session inside it and
-  # is in no DIR row, so a line it shares would go unseen by an index built
-  # from the plan alone.
-  # The walk includes the root it stops at (`/AGENTS.md`, `D:/AGENTS.md`): a
-  # file there loads in every session below it, and stopping one level short
-  # left the one ancestor nobody would think to look in.
   up="$(dirname "$REPO")"
   while :; do
     [[ -f "$up/AGENTS.md" ]] && index_file "$up/AGENTS.md"
@@ -355,11 +292,6 @@ canary_line() {
     esac
     ((${#line} >= 45)) || continue
     ((${#line} > ${#best})) || continue
-    # The candidate travels through the ENVIRONMENT, never through `awk -v`,
-    # which interprets backslash escapes: a line holding `C:\tools\new\bin`
-    # arrives at awk as one holding a newline and a backspace, matches nothing,
-    # and scores as unique while an identical ancestor line answers its probe.
-    # `index()` is a fixed-string search, so regex metacharacters are literal.
     seen="$(WANT="$line" SELF="$self" awk -F'\t' '
       $1 != ENVIRON["SELF"] && index($2, ENVIRON["WANT"]) > 0 { n++ }
       END { print n + 0 }' "$AGENTS_LINES")"
@@ -400,8 +332,6 @@ restore_all() {
     target="$REPO/$path"
     printf '%s\n' "$SHIM_LINE" >"$target" 2>/dev/null
     got="$(cat "$target" 2>/dev/null)"
-    # Byte count as well as content: `$(...)` strips trailing newlines, so the
-    # text comparison alone would accept a file missing the one this writes.
     size="$(wc -c <"$target" 2>/dev/null | tr -d ' \t\r')"
     if [[ "$got" == "$SHIM_LINE" && "$size" == "$((${#SHIM_LINE} + 1))" ]]; then
       printf '%s\n' "  restored $path"
@@ -416,12 +346,6 @@ restore_all() {
 
 for dir in "${SHIM_DIRS[@]}"; do
   target="$REPO/$(shim_path "$dir")"
-  # Listed BEFORE the file is touched, never after. Bash defers a trap until
-  # the foreground command finishes, so a TERM landing during `rm` ran the
-  # exit path with this directory still unlisted: the shim was gone and the
-  # restore did not know about it. Restoring one that was never removed is
-  # harmless, because gate 5 proved every one of these files is exactly the
-  # import line.
   REMOVED+=("$dir")
   if ! rm -f "$target"; then
     echo "could not remove $target; restoring every shim this run removed:"

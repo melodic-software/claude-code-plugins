@@ -22,7 +22,6 @@ if (!DIFF_BASE) {
     next: 'Resolve the review diff base (/review:fanout "Shared inputs") and launch again with args.diffBase.',
   }
 }
-// The base reaches each leaf's own `git diff`, so only a ref-shaped value passes.
 if (!/^[A-Za-z0-9._\/@^~:{}-]+$/.test(DIFF_BASE) || DIFF_BASE.startsWith('-')) {
   log('diffBase ' + JSON.stringify(DIFF_BASE.slice(0, 80)) + ' is not a git ref: nothing was dispatched')
   return { error: 'bad-diff-base', next: 'Pass the resolved ref or commit id as args.diffBase.' }
@@ -83,8 +82,6 @@ if (input.loosenedSettings != null && !LOOSENED_SETTINGS) log('loosenedSettings 
 const SETTINGS_BLOCK = LOOSENED_SETTINGS
   ? '\n\nThe resolved settings of the criterion "Fail a change that loosens a check":\n' + LOOSENED_SETTINGS
   : ''
-// The spec reaches a leaf only when loosenedSettings carries exactly one loosened_check_spec: line
-// and it says counts, so an issue the resolver did not trust never gives a loosening its reason.
 const SPEC_LINES = typeof input.loosenedSettings === 'string' ? input.loosenedSettings.match(/^loosened_check_spec: .*$/gm) || [] : []
 const SPEC_COUNTS = LOOSENED_SETTINGS !== '' && SPEC_LINES.length === 1 &&/^loosened_check_spec: counts(?: \(.*\))?$/.test(SPEC_LINES[0])
 const SPEC_IN = typeof input.spec === 'string' ? input.spec.trim() : ''
@@ -120,11 +117,6 @@ if (passedExtract && !isVariant(passedExtract)) log('roles.retrieval.single is n
 const EXTRACT = isVariant(passedExtract) ? passedExtract : { model: 'sonnet', effort: 'medium' }
 if (!input.roles) log('no roles in args: built-in fallbacks apply')
 
-// Fan-out models: the distinct fan-out models in the role map, first seen first, deduped by the
-// model each resolves to. `inherit` is the session model, args.session's alias; with no known
-// alias it counts as frontier, as /multi-agent:route counts an unknown session. The frontier
-// aliases stay out, as every fan-out stage does: `fable`, and `best`, which names Fable on
-// Claude Code before v2.1.321 (https://code.claude.com/docs/en/model-config#version-history).
 const SESSION = typeof input.session === 'string' && MODELS.includes(input.session.trim()) &&
   input.session.trim() !== 'inherit' ? input.session.trim() : ''
 const FANOUT_MODELS = []
@@ -182,7 +174,6 @@ const TIER2_AGENTS = [{ label: 'doc-drift-detector', agentType: 'review:doc-drif
 const TIER2_SLICES = SLICES.map(s => ({ label: 'slice:' + s, slice: s }))
 const SLICE_AGENT = 'review:brief-reviewer'
 
-// SKILL.md "Dispatch contract": every finding-producing leaf prompt carries this clause verbatim.
 const COVERAGE_CLAUSE =
   ' Your goal at this stage is coverage: it is better to surface a finding that later gets filtered ' +
   'out than to silently drop a real bug. Report every issue you find, including ones you are ' +

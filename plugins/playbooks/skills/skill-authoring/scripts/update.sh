@@ -1,26 +1,8 @@
 #!/usr/bin/env bash
-# /playbooks:update (skill-authoring pack) — drift detection + vendor sync.
-#
-# Maintainer-facing: run against a working-tree checkout of this plugin (the
-# marketplace clone, or a directory loaded via --plugin-dir), never against an
-# installed marketplace copy. Consumers receive updates through
-# `/plugin marketplace update`.
-#
-# Modes:
-#   --check  (default) read-only: report upstream version + vendor SHA delta
-#   --apply  fetch latest upstream, replace vendor/upstream-skill.md (self-update block stripped), bump
-#            frontmatter metadata (upstream-version, synced, upstream-sha). Does NOT
-#            rewrite the distilled SKILL.md body — integration is a manual,
-#            reviewed step (the update action is advisory).
-#
 # Exit codes:
 #   0  no drift OR --apply completed successfully
 #   1  drift detected in --check mode (no mutations)
 #   2  prerequisite missing (curl) or network failure
-#
-# Idempotency: re-running --check on a no-drift state produces identical output.
-# Upstream version is read from the remote file's own YAML frontmatter
-# `version:` field (no separate version API).
 
 set -uo pipefail
 
@@ -78,14 +60,6 @@ fetch_upstream() {
 
 STRIP_MARKER='> upstream self-update instructions removed; we vendor a reviewed snapshot'
 
-# Intentional divergence from a verbatim copy: upstream embeds an "UPDATE CHECK"
-# blockquote telling an agent to curl a self-update into ~/.claude/skills/. That
-# is a remote-code supply-chain hook bypassing marketplace versioning, so the
-# vendored baseline never carries it. Both --apply (what is written) and --check
-# (what is compared) apply this same strip, so the block is not reported as
-# drift. Replaces the whole blockquote paragraph that opens with the marker
-# line, and normalizes CRLF to LF. scripts/update.test.sh fails if any
-# self-update or install instruction survives in vendor/.
 strip_upstream() {
   local src="$1" dst="$2"
   awk -v marker="$STRIP_MARKER" '
@@ -199,7 +173,6 @@ run_apply() {
   today=$(date -u +%Y-%m-%d)
   replace_metadata_field "upstream-version" "${upstream_ver:-$prev_ver}"
   replace_metadata_field "synced" "$today"
-  # upstream-sha: SHA256 of vendor/upstream-skill.md as committed (post-strip, LF).
   set_metadata_field "upstream-sha" "$upstream_sha"
   log "metadata.upstream-version: ${prev_ver:-<unset>} → ${upstream_ver:-<unchanged>}"
   log "metadata.synced:           ${prev_synced:-<unset>} → $today"

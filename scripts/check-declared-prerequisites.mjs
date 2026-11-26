@@ -73,7 +73,7 @@ function shellMatcher(tools) {
 // it is data (a pattern, a message), not a run.
 const literalsBlanked = (line) => line.replace(/'[^']*'/g, "''");
 
-const CASE_LABEL = /^\s*[\w.*"'-]+(\s*\|\s*[\w.*"'-]+)*\s*\)/;
+const CASE_LABEL = /^\s*[\w.*?[\]"'-]+(\s*\|\s*[\w.*?[\]"'-]+)*\s*\)/;
 
 function callMatcher(tools) {
   return new RegExp(

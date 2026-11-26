@@ -1,7 +1,3 @@
-// pr-run-plugin-evals.yml's pull request path keeps the eval credential out
-// of what a pull request's prompts can read or publish: a root-owned managed
-// policy denies reads of process and runner state before sudo is removed,
-// the summary is redacted, and no results artifact is uploaded.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -26,7 +22,6 @@ test("a pull request run denies reads of /proc and runner state before sudo is r
   for (const rule of ["Read(//proc/**)", "Read(//sys/**)", "Read(//home/runner/runners/**)", "Read(//home/runner/actions-runner/**)"]) {
     assert.ok(deny.includes(`"${rule}"`), rule);
   }
-  // The runner's own directory comes from the Runner.Worker process, and _temp and _actions sit beside the workspace.
   assert.match(deny, /case "\$exe" in \*\/bin\/Runner\.Worker\) runner_root=/);
   assert.match(deny, /--arg runner "Read\(\/\$runner_root\/\*\*\)" --arg temp "Read\(\/\$work\/_temp\/\*\*\)" --arg actions "Read\(\/\$work\/_actions\/\*\*\)"/);
   assert.match(deny, /if \[ -z "\$runner_root" \]; then\n\s+echo "::error::[^"]+"\n\s+exit 1/);
@@ -44,11 +39,9 @@ test("a pull request run proves the policy denies the reads before any case runs
   const judge = 'reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?';
   assert.ok(probe.includes(judge), "the judge runs from the base checkout without the credential");
   assert.match(probe, /\n {10}case \$judged in\n {12}0\) echo "\$reason" ;;\n {12}3\) echo "::error::[^\n]*"; exit 1 ;;\n {12}\*\) echo "::error::[^\n]*"; exit 1 ;;\n {10}esac\n/);
-  // The leak check looks for the leg's own credential, whichever leg runs.
   assert.match(probe, /credential=\$\{ANTHROPIC_API_KEY:-\$\{CLAUDE_CODE_OAUTH_TOKEN:-\}\}\n {10}\[ -n "\$credential" \] \|\| /);
   assert.match(probe, /if grep -qF "\$credential" "\$out"; then\n[^\n]*\n {14}exit 1/);
   assert.match(probe, /trap 'rm -f "\$out"' EXIT/);
-  // A probe the credential's own stop ended hands off before the denial checks, never past them.
   assert.ok(probe.indexOf("eval-handoff.mjs") < probe.indexOf("policy-probe.mjs"));
   assert.ok(probe.indexOf('if grep -qF "$credential"') < probe.indexOf("eval-handoff.mjs"), "the leak check runs before the classifier");
   assert.match(probe, /env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="\$out"/, "the classifier runs without the credential");
@@ -68,10 +61,8 @@ test("each summary also reaches the job log and the results folder, with workflo
 test("a red summary names the failed cases or the suite that did not run in one ::error", () => {
   const summarize = step("Summarize the results");
   assert.match(summarize, /summarize\.mjs "\$results" [^\n]*--annotation "\$annotation" >"\$summary"/);
-  // The annotation prints after the stop-commands block ends, so the runner reads it.
   assert.ok(summarize.indexOf('echo "::$token::"') < summarize.indexOf('head -n 1 "$annotation"'));
   assert.match(summarize, /echo "::error title=Plugin eval did not run%3A \$\{name\/\/\[\$'\\r\\n%:,'\]\/_\}::No result was written/);
-  // A result summarize.mjs cannot read (exit 2) writes no file, and still annotates.
   assert.match(summarize, /elif \[ ! -e "\$annotation" \]; then\n\s+echo "::error title=Plugin eval did not run%3A [^\n]*::The result could not be read\."/);
 });
 
@@ -80,8 +71,6 @@ test("a dispatched run writes the validity bash ran and verdict lines and the no
   assert.match(summarize, /DISPATCHED: \$\{\{ github\.event_name == 'workflow_dispatch' \}\}\n/);
   assert.match(summarize, /RUNS: \$\{\{ inputs\.runs \}\}\n/);
   assert.match(summarize, /if \[ "\$DISPATCHED" = true \]; then\n\s+validity=\$\(python3 \.base\/plugins\/evals\/skills\/plugin-eval\/scripts\/run-validity\.py "\$results" --runs "\$RUNS" --scaffolded\) \|\| true\n/);
-  // Only the count-only bash ran line and the last line leave the runner:
-  // run-validity's detail lines can quote a trace.
   assert.match(summarize, /bash_ran=\$\(printf '%s\\n' "\$validity" \| tail -n 2 \| head -n 1 \| grep -xE 'bash ran: \(n\/a\|\[a-z-\]\+ /);
   assert.match(summarize, /\(, unknown \[0-9\]\+\)\?\)\(, absent tool \[0-9\]\+\)\?' \|\| true\)\n/);
   assert.match(summarize, /verdict=\$\(printf '%s\\n' "\$validity" \| tail -n 1\)\n/);
@@ -105,8 +94,6 @@ test("both legs of a dispatched suite run keep each run's final reply beside its
 test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'workflow_run' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
-  // Only a dispatched run scans and uploads, and the upload needs the scan's clean output.
-  // A leg that handed off to the next credential uploads nothing.
   const scan = step("Scan the upload for credentials");
   assert.match(scan, /if: >-\n {10}always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch' && steps\.judge\.outputs\.handoff != 'true'\n/);
   assert.match(scan, /\n {8}id: scan-upload\n/);

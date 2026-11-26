@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { rateLimitLatch, refusedForLimit, RESEND, SERVER_RETRY_BUDGET_MS } from "../../actions/log-api-budget/rate-guard.mjs";
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -12,17 +15,6 @@ export class GitHubError extends Error {
   }
 }
 
-// Why GitHub refused a call, from the answer already in hand, so it costs no
-// request: the status, the x-ratelimit-remaining, -reset and -resource
-// headers ("none" when absent), retry-after when sent, and the body's first
-// 200 characters. x-ratelimit-resource names "the rate limit resource that the
-// request counted against", and a secondary limit's 403 or 429 carries "an
-// error message that indicates that you exceeded a secondary rate limit"
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api);
-// retry-after, x-ratelimit-remaining and x-ratelimit-reset say when to call
-// again (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
-// The body is JSON-quoted and % escaped, so it cannot end or re-encode the
-// annotation line it goes in. A body already read is "".
 export async function responseDetail(response) {
   const header = (name) => response.headers?.get?.(name) ?? null;
   let text = "";
@@ -189,7 +181,90 @@ export function retryServerErrors(
   };
 }
 
-/** The key createGitHub keeps an answer's ETag under; a 304 still throws GitHubError. */
+/**
+ * The GET answers conditionalReads keeps: per key, the URL, its ETag, body and
+ * headers. In memory for the process; with `dir`, each entry is also a file
+ * there, so a later step of the same job that names the same directory starts
+ * with it. Name a directory under RUNNER_TEMP, and only on steps that run
+ * before any step that runs pull request or model code: a 304 replays the
+ * file as GitHub's answer. A file that cannot be read, or names another URL,
+ * counts as absent, and a write that fails keeps the entry in memory only.
+ */
+export function readStore(dir = "") {
+  const kept = new Map();
+  const file = (key) => join(dir, `${key}.json`);
+  return {
+    get(key, url) {
+      if (!kept.has(key) && dir) {
+        try {
+          const entry = JSON.parse(readFileSync(file(key), "utf8"));
+          new Headers(entry.headers);
+          if (entry.url === url && typeof entry.etag === "string" && typeof entry.body === "string") {
+            kept.set(key, entry);
+          }
+        } catch {}
+      }
+      return kept.get(key);
+    },
+    set(key, entry) {
+      kept.set(key, entry);
+      if (dir) {
+        try {
+          mkdirSync(dir, { recursive: true });
+          const temp = `${file(key)}.${process.pid}.tmp`;
+          writeFileSync(temp, JSON.stringify(entry), { mode: 0o600 });
+          renameSync(temp, file(key));
+        } catch {}
+      }
+    },
+  };
+}
+
+const headerOf = (headers, name) =>
+  typeof headers?.get === "function" ? (headers.get(name) ?? undefined) : Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === name)?.[1];
+const withHeader = (headers, name, value) => {
+  if (typeof headers?.get !== "function") {
+    return { ...headers, [name]: value };
+  }
+  const next = new Headers(headers);
+  next.set(name, value);
+  return next;
+};
+
+/**
+ * Wraps a fetch so a GET of a URL whose answer `store` keeps, under the same
+ * Authorization header, is sent with that answer's ETag as If-None-Match, and
+ * a 304 to it returns the kept body and headers as a 200, with the 304's
+ * x-ratelimit-* headers. GitHub answers 304 only while the data has not
+ * changed, and a 304 to an authorized request does not count against the
+ * primary rate limit
+ * (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
+ * Every other answer is returned as it came. A GET 200 with an ETag and a
+ * body retryServerErrors would not resend is kept. A GET that carries its own
+ * If-None-Match passes through untouched, so its 304 reaches the caller.
+ */
+export function conditionalReads(send, store = readStore()) {
+  return async function read(url, init = {}) {
+    const key =
+      (init.method ?? "GET") === "GET" && headerOf(init.headers, "if-none-match") === undefined
+        ? createHash("sha256").update(`${headerOf(init.headers, "authorization") ?? ""}\n${url}`).digest("hex")
+        : null;
+    const kept = key === null ? undefined : store.get(key, String(url));
+    const response = await send(url, kept === undefined ? init : { ...init, headers: withHeader(init.headers, "If-None-Match", kept.etag) });
+    if (kept !== undefined && response.status === 304) {
+      const headers = new Headers(kept.headers);
+      response.headers?.forEach?.((value, name) => name.startsWith("x-ratelimit-") && headers.set(name, value));
+      return new Response(kept.body, { status: 200, headers });
+    }
+    const etag = response.headers?.get?.("etag");
+    if (key !== null && etag && response.status === 200 && !(await brokenBody(response))) {
+      store.set(key, { url: String(url), etag, body: await response.clone().text(), headers: [...response.headers] });
+    }
+    return response;
+  };
+}
+
+/** The key createGitHub keeps an answer's ETag under; a 304 to a caller's own If-None-Match still throws GitHubError. */
 export const ETAG = Symbol.for("github.etag");
 
 /**
@@ -201,6 +276,9 @@ export const ETAG = Symbol.for("github.etag");
  * `resendOnce: true` only for a write that is safe to send twice
  * (RESEND_ONCE). A success with no body returns null; a list keeps its Link
  * header under Symbol.for("github.link"), and an object its ETag under ETAG.
+ * A repeated GET is a conditional read (conditionalReads) on `store`, by
+ * default kept for this client, and in the GITHUB_READ_STORE directory too
+ * when that is set.
  */
 export function createGitHub({
   token,
@@ -214,8 +292,9 @@ export function createGitHub({
   now,
   attemptTimeoutMs,
   latch,
+  store = readStore(process.env.GITHUB_READ_STORE ?? ""),
 }) {
-  const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch, resendLimited: true });
+  const send = conditionalReads(retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs, latch, resendLimited: true }), store);
   return async function github(method, apiPath, body, headers = {}, { signal, resendOnce = false } = {}) {
     const response = await send(`${apiUrl}${apiPath}`, {
       [RESEND_ONCE]: resendOnce,

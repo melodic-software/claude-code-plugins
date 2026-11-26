@@ -112,10 +112,6 @@ LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == 
 # STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
 # the step's own --jq, each artifact's id ten times its run's; a run read
 # prints that id's entry of STUB_RUNS, or answers 404. An artifact archive
-# holds STUB_RECORD as its verdict.json (one judging #1, closing, by
-# default), or answers 404 when STUB_NO_RECORD is set and 503 on its first
-# STUB_ZIP_503 calls; the closing-issues
-# query answers STUB_CLOSING (#1 of o/r by default) through the step's --jq.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -125,23 +121,6 @@ discussion() {
   [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
 }
 case "$*" in
-"api graphql "*closingIssuesReferences*)
-  closing=${STUB_CLOSING:-}
-  [[ -n "$closing" ]] || closing='{"totalCount":1,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}}]}'
-  jq -c --argjson closing "$closing" \
-    '{data: {repository: {pullRequest: {closingIssuesReferences: $closing}}}}' <<<null | jq -c "${*: -1}"
-  ;;
-*/actions/artifacts/*/zip)
-  [[ -z "${STUB_NO_RECORD:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  [[ "$(grep -c '/zip$' "$STUB_LOG")" -gt "${STUB_ZIP_503:-0}" ]] || { echo 'gh: HTTP 503' >&2; exit 1; }
-  record=${STUB_RECORD:-}
-  [[ -n "$record" ]] || record='{"linked_issues":[{"number":1}],"spec_kind":"closes"}'
-  python3 -c 'import io, sys, zipfile
-buffer = io.BytesIO()
-with zipfile.ZipFile(buffer, "w") as archive:
-    archive.writestr("verdict.json", sys.argv[1])
-sys.stdout.buffer.write(buffer.getvalue())' "$record"
-  ;;
 "api graphql "*)
   echo '{"data":{}}'
   ;;
@@ -210,7 +189,44 @@ if not os.environ.get("STUB_NO_LISTING"):
                     {"name": name + "-i1", "id": 110, "expired": False, "workflow_run": {"id": 11}}]
     with open(os.environ["BABYSIT_VERIFY_LISTING"], "w") as out:
         json.dump({"fetchedAt": "2026-10-25T10:00:00+00:00", "artifacts": listing}, out)
-print(os.environ.get("STUB_EVIDENCE") or json.dumps({"refusal": None, "head": sys.argv[-1], "detail": None}))
+evidence = os.environ.get("STUB_EVIDENCE") or json.dumps({"refusal": None, "head": sys.argv[-1], "detail": None})
+if "--pass-out" in sys.argv and os.environ.get("STUB_PASS_OUT") != "none":
+    import copy, subprocess
+    def sample(name):
+        with open(os.path.join(os.environ["STUB_SAMPLES"], name)) as f:
+            return json.load(f)
+    def jq(doc, program):
+        return subprocess.run(["jq", "-rc", program], input=json.dumps(doc), capture_output=True, text=True, check=True).stdout
+    head = sys.argv[-1]
+    try:
+        allowed = json.loads(evidence.splitlines()[-1])
+    except (ValueError, IndexError):
+        allowed = None
+    sent = sample("refusal.json") | {"head": head}
+    if isinstance(allowed, dict) and allowed.get("refusal") is None and allowed.get("head") == head:
+        base, notes = sample("allow-pass.json"), sample("allow-pass-and-pass-notes.json")
+        order = [v["verdict"] for v in notes["verdicts"]]
+        kinds = {v["verdict"]: v for v in notes["verdicts"] + base["verdicts"]}
+        runs = json.loads(os.environ.get("STUB_RUNS") or "{}")
+        prefix = f"pr-verify-7-{head}-"
+        sent = base | {"head": head, "verdicts": []}
+        for name, ids in json.loads(os.environ.get("STUB_ARTIFACTS") or "{}").items():
+            kind = name[len(prefix):] if name.startswith(prefix) else None
+            for run in ids if kind in kinds else ():
+                read = runs.get(str(run))
+                ran = None if read is None else {k: read.get(k, v) for k, v in kinds[kind]["run"].items()}
+                sent["verdicts"].append(kinds[kind] | {"name": name, "runId": run, "artifact": run * 10, "run": ran})
+        sent["verdicts"].sort(key=lambda v: order.index(v["verdict"]))
+        record = copy.deepcopy(base["record"]) | {"pr": 7, "head_sha": head}
+        for issue in record["linked_issues"]:
+            issue["number"] = 1
+        sent["record"] = None if not sent["verdicts"] or os.environ.get("STUB_NO_RECORD") else json.loads(jq(record, os.environ.get("STUB_RECORD") or "."))
+        node = base["closing"]["nodes"][0]
+        closing = [node | {"number": n, "repository": {"nameWithOwner": "o/r"}} for n in json.loads(os.environ.get("STUB_CLOSING") or "[1]")]
+        sent["closing"] = {"totalCount": len(closing), "nodes": closing}
+    with open(sys.argv[sys.argv.index("--pass-out") + 1], "w") as out:
+        out.write(jq(sent, os.environ.get("STUB_PASS_OUT") or "."))
+print(evidence)
 EOF
 mkdir -p "$TMP_ROOT/pr-merge"
 cat >"$TMP_ROOT/pr-merge/head-ref-map.mjs" <<'EOF'
@@ -289,6 +305,7 @@ expect() {
 
 export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
 export STUB_ACTORS="$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"
+export STUB_SAMPLES="$ROOT/scripts/fixtures/verify-pass-out"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
@@ -549,7 +566,7 @@ EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS
   expect "after the author step, the queued step answers from its read" 0 0 "not the lanes App's"
 expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-for gated in "$(step_of "List main's tip for the carry readers")" "$restore" "$carry"; do
+for gated in "$restore" "$carry"; do
   if [[ "$gated" == *'steps.queued_author.outputs.verify_judged != '"'false'"* ]]; then
     ok "$(sed -n 's/^      - name: //p' <<<"$gated") skips a queued pull request whose author the author step proved pr-verify does not judge"
   else
@@ -750,7 +767,6 @@ run() { jq -nc --argjson id "$1" --arg path "${2:-.github/workflows/pr-verify.ym
   --arg branch "${4:-main}" --arg status "${5:-completed}" --arg conclusion "${6:-success}" \
   '{id: $id, path: $path, event: $event, head_branch: $branch, status: $status, conclusion: $conclusion,
     repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"}}'; }
-DIGEST="$(printf '%s' work-resolve-issue/issue-1 | sha256sum | cut -c1-16)"
 OLD=fedcba9876543210fedcba9876543210fedcba98
 lookups() { grep -c 'actions/artifacts?name=' "$TMP_ROOT/log"; }
 readers() { grep -c '^reader ' "$TMP_ROOT/log"; }
@@ -786,12 +802,14 @@ STUB_PULL="$(pull 'Closes #1')"
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA"
 export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 expect "in the merge queue, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 1 ]]; then
-  ok "the pass comes from the reader's listing, with no lookup by name and one run read"
+zips() { grep -c '/zip$' "$TMP_ROOT/log"; }
+closings() { grep -c 'closingIssuesReferences' "$TMP_ROOT/log"; }
+if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 && "$(zips)" -eq 0 && "$(closings)" -eq 0 ]]; then
+  ok "the pass, its run, its record and the closing issues come from the reader's pass file, with no read of the step's own"
 else
-  fail "a plain-named pass took $(lookups) lookups and $(runs) run reads"
+  fail "a pass took $(lookups) lookups, $(runs) run reads, $(zips) record downloads and $(closings) closing-issues reads"
 fi
-if [[ "$(readers)" -eq 1 ]] && grep -qxF "reader evidence --repo o/r --base-sha $SHA 7 $SHA" "$TMP_ROOT/log"; then
+if [[ "$(readers)" -eq 1 ]] && grep -qxF "reader evidence --pass-out $TMP_ROOT/verify-pass.json --repo o/r --base-sha $SHA 7 $SHA" "$TMP_ROOT/log"; then
   ok "the queue runs the verdict reader once, for the pull request at its head, with the group's base for the FAIL cap"
 else
   fail "the verdict reader ran as: '$(grep '^reader ' "$TMP_ROOT/log")'"
@@ -822,7 +840,9 @@ for refusal in verify:fail verify:earlier-fail verify:repeated-fail verify:unrea
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
 done
 STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a stale pass holds until pr-verify judges the head again" 1 3 "#7: pr-verify's pass on this head is stale (verify:spec-changed)"
-STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:untrusted-spec)."
+STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal holds with no pass to judge" 1 3 "#7: pr-verify's reader refuses this head's pass (verify:untrusted-spec)"
+STUB_EVIDENCE="$(evidence verify:untrusted-spec)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, a trusted approval of the head lifts another pass refusal" 0 3 "no verifier hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
   expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
@@ -836,23 +856,23 @@ for refusal in verify:unreadable verify:too-old; do
   STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
     expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
 done
-STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
-  expect "in the merge queue, a reader that allows a head with no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
+NO_PASS_FILE="::error::the verdict reader left no readable pass file for #7 at $SHA; re-run this run."
+for sent in none '"not json"' ".head = \"$OLD\"" '.verdicts = {}' 'del(.record)'; do
+  STUB_PASS_OUT="$sent" expect "in the merge queue, a pass file that does not read fails closed ($sent)" 1 3 "$NO_PASS_FILE"
+done
 : >"$TMP_ROOT/verify-legacy-fails.json"
-STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
-  expect "a legacy FAILs file beside the reader, with none at BABYSIT_VERIFY_LEGACY_FAILS, is not FAIL index mode" 1 3 "::error::the verdict reader read no artifact listing for #7"
+STUB_COLD=1 STUB_RATE='' expect "a legacy FAILs file beside the reader, with none at BABYSIT_VERIFY_LEGACY_FAILS, is not FAIL index mode" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
 rm -f "$TMP_ROOT/verify-legacy-fails.json"
 mkdir -p "$TMP_ROOT/base/.github"
 : >"$TMP_ROOT/base/.github/verify-legacy-fails.json"
 STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-if [[ "$(lookups)" -ge 1 && "$(lookups)" -le 4 ]]; then
-  ok "in FAIL index mode the pass names are read by exact name ($(lookups) reads)"
+if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 && "$(zips)" -eq 0 && "$(closings)" -eq 0 ]]; then
+  ok "in FAIL index mode the step reads no pass, run, record or closing issues of its own"
 else
-  fail "in FAIL index mode the pass names took $(lookups) reads"
+  fail "in FAIL index mode the step took $(lookups) lookups, $(runs) run reads, $(zips) record downloads and $(closings) closing-issues reads"
 fi
-STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify"
-STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence verify:unreadable)" \
-  expect "in the merge queue in FAIL index mode, a refusal's notice names index mode, not a refusal before listing" 1 3 "::notice::the verdict reader refused #7 in FAIL index mode, which saves no listing"
+STUB_COLD=1 STUB_RATE='' STUB_NO_LISTING=1 expect "in FAIL index mode no cold gate runs" 0 3 "#7: no verifier hold: pr-verify passed this head."
+STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify has not passed this head"
 rm -f "$TMP_ROOT/base/.github/verify-legacy-fails.json"
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
 STUB_COLD=1 STUB_RATE="$(rate 2239)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
@@ -879,46 +899,31 @@ export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' S
 unset STUB_RULES STUB_CARRIED STUB_TOTAL STUB_LISTED_FAILS
 # The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
 # after arming to close or name another issue holds the group.
-NO_CLOSING='{"totalCount":0,"nodes":[]}'
+NO_CLOSING='[]'
 export STUB_CLOSING STUB_RECORD STUB_NO_RECORD
-STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
+STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='.spec_kind = "refs"'
 expect "in the merge queue, a Refs pull request whose pass judged that issue passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":1,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}}]}'
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2]'
 expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Closes #2" 1 3 "its link changed since pr-verify passed it: it closes #2, and the pass judged #1 (refs)"
-STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
+STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='.spec_kind = "refs"'
 expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 3 "its link changed since pr-verify passed it"
 STUB_PULL="$(pull $'Refs: #1\nRefs: #3')" STUB_CLOSING="$NO_CLOSING"
 expect "in the merge queue, a body naming two Refs issues passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
 STUB_PULL="$(pull '## Summary')"
 expect "in the merge queue, a body that drops its link holds" 1 3 "its link changed since pr-verify passed it: it refs no issue, and the pass judged #1 (refs)"
-STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='{"totalCount":2,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
+STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='[1,3]'
 expect "in the merge queue, a body closing the judged issue and another passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":2,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2,3]'
 expect "in the merge queue, a body closing two issues but not the judged one holds" 1 3 "it closes #2, #3, and the pass judged #1"
-STUB_CLOSING='' STUB_RECORD='{"verdict":"pass"}'
+STUB_CLOSING='' STUB_RECORD='del(.linked_issues)'
 expect "in the merge queue, a record with no linked issues holds" 1 3 "its verifier pass's record could not be read"
 STUB_RECORD='' STUB_NO_RECORD=1
-expect "in the merge queue, a record that does not download fails closed" 1 3 "could not read the verdict of artifact 110"
-zips() { grep -c '/zip$' "$TMP_ROOT/log"; }
-if [[ "$(zips)" -eq 1 ]]; then ok "a record download a 404 answers is not read again"; else fail "a 404 record download was sent $(zips) times"; fi
-STUB_NO_RECORD=''
-# GitHub answered three record downloads 503 over 26 s (13:37:11 to 13:37:37)
-# in merge_group run 41063238235: a 5xx is read again after each of 5, 15 and
-# 30 s, so an outage that long passes.
-STUB_ZIP_503=3 expect "in the merge queue, three 503s on the record download are read again" 0 3 "#7: no verifier hold: pr-verify passed this head."
-waits="$(sed -n 's/^sleep //p' "$TMP_ROOT/log" | paste -sd' ')"
-if [[ "$(zips)" -eq 4 && "$waits" == "5 15 30" ]]; then
-  ok "the record download waits 5, 15 and 30 s between 5xx reads"
-else
-  fail "the record download was sent $(zips) times with waits '$waits'"
-fi
-STUB_ZIP_503=4 expect "in the merge queue, a record download that answers 503 four times fails closed" 1 3 "::error::could not read the verdict of artifact 110; re-run this run."
-if [[ "$(zips)" -eq 4 ]]; then ok "the record download is sent at most four times"; else fail "the record download was sent $(zips) times"; fi
-STUB_NO_RECORD='' STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
+expect "in the merge queue, a record the reader could not read holds" 1 3 "its verifier pass's record could not be read"
+STUB_NO_RECORD='' STUB_RECORD='.linked_issues[].number = 9' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
 expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no member veto and no hold path."
 STUB_RECORD='' STUB_REVIEWS=''
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes-$DIGEST\":[11]}"
-expect "in the merge queue, a digest-named pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes\":[11]}"
+expect "in the merge queue, a pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
 STUB_ARTIFACTS='{}'
 expect "in the merge queue, no verdict fails the group" 1 3 "::error title=pr-verify hold::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
 if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 ]]; then
@@ -930,30 +935,14 @@ STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11],\"pr-verify-7-$SHA-fail\":[11]}"
 expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 3 "pr-verify has not passed this head"
 STUB_ARTIFACTS="{\"pr-verify-8-$SHA-pass\":[11]}"
 expect "in the merge queue, another pull request's pass fails the group" 1 3 "pr-verify has not passed this head"
-for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 17:another-run-s-record 99:an-unreadable-run; do
+for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 17:another-run-s-record 99:an-unread-run; do
   STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[${bad%%:*}]}"
-  if [[ ${bad%%:*} == 99 ]]; then
-    expect "in the merge queue, a pass from ${bad#*:} fails closed" 1 3 "could not read run 99"
-  else
-    expect "in the merge queue, a pass from ${bad#*:} fails the group" 1 3 "pr-verify has not passed this head"
-  fi
+  expect "in the merge queue, a pass from ${bad#*:} fails the group" 1 3 "pr-verify has not passed this head"
 done
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[16],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
-expect "in the merge queue, a failed run's pass does not hide a later name's good one" 0 3 "pr-verify passed this head"
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[17],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
-expect "in the merge queue, another run's record does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
-if [[ "$(runs)" -eq 2 ]]; then
-  ok "a record whose run id differs from its artifact's does not end the lookup"
-else
-  fail "a mismatched run record ended the lookup after $(runs) run read(s)"
-fi
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[13],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
-expect "in the merge queue, another workflow's successful run does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
-if [[ "$(runs)" -eq 2 ]]; then
-  ok "the lookup ends at the first name holding a pr-verify pass"
-else
-  fail "the lookup took $(runs) run reads"
-fi
+for bad in 16 17 13; do
+  STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[$bad],\"pr-verify-7-$SHA-pass-notes\":[11]}"
+  expect "in the merge queue, a pass from run $bad does not hide a pass-notes from a counted run" 0 3 "pr-verify passed this head"
+done
 STUB_ARTIFACTS='{}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
 expect "in the merge queue, a trusted approval of the head lifts a missing pass" 0 3 "no verifier hold: kyle-sexton approved this head"
 STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]"
@@ -987,7 +976,7 @@ for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:u
   STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports $refusal for $SHA."
 done
 STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 1 "$NOT_HELD"
-STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
+STUB_RECORD='.linked_issues[].number = 9' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
 STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
 STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 1 "$NOT_HELD"

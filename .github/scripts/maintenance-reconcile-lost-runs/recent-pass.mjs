@@ -1,11 +1,3 @@
-// One full pass (one that uploaded SETTLED_ARTIFACT) per token window
-// (https://github.com/melodic-software/claude-code-plugins/issues/17460).
-// A scheduled tick that finds its window's full pass downloads that pass's
-// artifact by the id the listing gave, and when its waiting_reviews hold any
-// row writes them to FOLLOWUP_PATH with followup=true, for the review-only
-// follow-up (followup.mjs). A carry that cannot be read or parsed queues
-// nothing.
-
 import { appendFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

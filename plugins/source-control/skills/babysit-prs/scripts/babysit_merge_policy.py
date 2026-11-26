@@ -3729,6 +3729,33 @@ def lane_change(compare: Any) -> str | None:
     return None
 
 
+# https://docs.github.com/en/rest/repos/contents#get-repository-content
+_DIRECTORY_CAP = 1000
+
+
+def _workflow_shas(owner: str, name: str, ref: str, env: Any) -> dict[str, str] | None:
+    status, entries = _get(f"repos/{owner}/{name}/contents/.github/workflows?ref={ref}", env)
+    if status != 200 or not is_json_array(entries) or len(entries) >= _DIRECTORY_CAP:
+        return None
+    return {str(json_object(e).get("name")): str(json_object(e).get("sha")) for e in entries}
+
+
+def _lane_change_in(owner: str, name: str, compare: Any, head: str, env: Any) -> str | None:
+    """`lane_change` for a compare of any size (merge-holds.mjs `laneChangeIn`)."""
+    why = lane_change(compare)
+    if why != "too many files":
+        return why
+    base = str(json_object(json_object(compare).get("merge_base_commit")).get("sha") or "")
+    if not SHA_RE.fullmatch(base) or not SHA_RE.fullmatch(head):
+        return why
+    ends = [_workflow_shas(owner, name, ref, env) for ref in (base, head)]
+    if ends[0] is None or ends[1] is None:
+        return why
+    if any(ends[0].get(file) != ends[1].get(file) for file, _ in REVIEW_LANES):
+        return "a review-lane workflow"
+    return None
+
+
 def cost_notices(annotations: Any, head: str, at: Any) -> list[tuple[str, Any]]:
     """The cost hold notices among one status job's `annotations`, as (sha,
     at) with `at` the job's completion: only those naming `head`, the head its
@@ -3855,7 +3882,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
                 status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
                 if status != 200:
                     raise PolicyReadError(f"the changes of {head} are unreadable")
-                if lane_change(compare) is not None:
+                if _lane_change_in(owner, name, compare, head, env) is not None:
                     return None
                 vetted.add(head)
             jobs = _paginated(
@@ -4136,8 +4163,11 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/formal-verification/schemas/**",
     "plugins/code-metrics/scripts/**",
     _skill_scripts("code-metrics:audit"),
+    _skill_scripts("work-items:triage"),
+    "plugins/work-items/skills/triage/schemas/**",
     "plugins/guardrails/git-hooks/reference-verify.sh",
     "plugins/bash-format/git-hooks/lint-full.sh",
+    "plugins/code-tidying/git-hooks/comment-lint-ci.sh",
 )
 
 
@@ -4278,14 +4308,48 @@ def base_parents(compare: Callable[[str], Any], tip: str, then: Any, now: Any) -
     }
 
 
+def listed_tip(owner: str, name: str, base: str) -> str | None:
+    """`base`'s tip from one unauthenticated `git ls-remote` of github.com,
+    which spends no REST quota, by pr-require-checks.yml's ls-remote rule:
+    the SHA only when the listing succeeded, names refs/heads/<base> once as
+    40 hex and holds no tag named `base`. None otherwise, and when GH_HOST
+    names another host."""
+    if os.environ.get("GH_HOST", "github.com").casefold() != "github.com":
+        return None
+    if not is_owner_repo_pair(owner, name):
+        return None
+    head, tag = f"refs/heads/{base}", f"refs/tags/{base}"
+    try:
+        proc = run_command(
+            ["git", "-c", "credential.helper=", "ls-remote"]
+            + [f"https://github.com/{owner}/{name}", head, tag],
+            allowed_executables=("git",),
+            timeout_seconds=gh_timeout_seconds(),
+            check=False,
+            cwd=tempfile.gettempdir(),
+            env_overrides={"GIT_TERMINAL_PROMPT": "0"},
+        )
+    except (RuntimeError, ValueError, OSError):
+        return None
+    if proc.returncode != 0:
+        return None
+    rows = [line.split("\t") for line in proc.stdout.splitlines()]
+    if any(row[-1] in (tag, f"{tag}^{{}}") for row in rows):
+        return None
+    shas = [row[0] for row in rows if len(row) == 2 and row[1] == head]
+    return shas[0] if len(shas) == 1 and SHA_RE.fullmatch(shas[0]) else None
+
+
 def base_tip(owner: str, name: str, base: str) -> str:
     """The tip commit of the base branch `base`, read once by its full ref so
     no tag or other ref of the same name stands in for it; PolicyReadError
     when it does not read as a commit SHA (merge-holds.mjs `baseTip`)."""
-    status, answer = _get(f"repos/{owner}/{name}/git/ref/heads/{base}")
-    sha = json_object(json_object(answer).get("object")).get("sha")
-    if status != 200 or not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
-        raise PolicyReadError(f"the base branch {base} did not resolve")
+    sha = listed_tip(owner, name, base)
+    if sha is None:
+        status, answer = _get(f"repos/{owner}/{name}/git/ref/heads/{base}")
+        sha = json_object(json_object(answer).get("object")).get("sha")
+        if status != 200 or not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
+            raise PolicyReadError(f"the base branch {base} did not resolve")
     if _BASE_TIPS is not None:
         _BASE_TIPS[f"{owner}/{name}@{base}"] = sha
     return sha

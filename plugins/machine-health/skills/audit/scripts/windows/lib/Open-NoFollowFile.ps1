@@ -50,7 +50,6 @@ public static extern bool GetFileInformationByHandleEx(SafeFileHandle hFile, int
 '@
 }
 
-# FILE_FLAG_OPEN_REPARSE_POINT | SECURITY_SQOS_PRESENT; SECURITY_ANONYMOUS is 0.
 $script:NoFollowOpenFlags = [uint32](0x00200000 -bor 0x00100000)
 
 function Test-FileIdFormat {
@@ -71,13 +70,10 @@ function Open-NoFollowFile {
     [OutputType([Microsoft.Win32.SafeHandles.SafeFileHandle])]
     param(
         [Parameter(Mandatory = $true)] [string] $Path,
-        # Attributes: identity reads only, every sharing mode allowed.
-        # ReadWrite: the writer's handle; other handles may only read meanwhile.
         [ValidateSet('Attributes', 'ReadWrite')] [string] $Access = 'Attributes'
     )
 
     $fullPath = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
-    # The extended-length form, so a path past MAX_PATH opens as it does through .NET.
     $nativePath = if ($fullPath.StartsWith('\\?\') -or $fullPath.StartsWith('\\.\')) {
         $fullPath
     } elseif ($fullPath.StartsWith('\\')) {

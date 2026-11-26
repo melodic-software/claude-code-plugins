@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Walks a page's focusable elements in sequential focus order and flags where the path goes wrong,
-// printing JSON: {"order": [names], "issues": [...]}.
-// Each stop is {name, tabIndex, domIndex, rect: {x, y, width, height}}, rect in page coordinates.
-// Order follows the HTML tabindex rules: a negative tabIndex is left out; positive values come first,
-// lowest first, equal values in document order (domIndex); zero comes after them in document order.
-// Issues, in the order focus reaches them:
-//   {"kind": "positive-tabindex", "step", "name", "tabIndex"}: a positive tabindex reorders focus.
-//   {"kind": "backward", "step", "from", "to"}: focus moves against the reading order. Two stops
-//   share a row when their vertical extents overlap or their tops are level, so zero-height stops
-//   on one line share it; extents that only touch (one ends where the next begins) are two rows.
-//   Within a row, ltr reading moves right, so a stop whose left edge sits left of the previous
-//   stop's is backward (rtl mirrors it: a right edge further right). Across rows, a stop whose top
-//   sits above the previous stop's is backward.
-// step is the 1-based position in the order of the stop the issue is about. A flag marks a place to
-// look: a deliberate order (a column-wise form) can be right and still be flagged.
-// Usage: focus-path.mjs --input FILE, where FILE holds {"direction": "ltr"|"rtl", "stops": [...]}
-// (direction optional, default ltr). Exit 0 with no issues, 1 with issues, 2 on bad input.
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -24,7 +7,6 @@ const finite = (value) => typeof value === "number" && Number.isFinite(value);
 
 function check(stops, direction) {
   if (!Array.isArray(stops)) throw new TypeError("stops must be an array");
-  // Values from the input are JSON-quoted in messages, so control characters cannot reach the terminal raw.
   const quote = (value) => JSON.stringify(value) ?? String(value);
   if (direction !== "ltr" && direction !== "rtl") throw new RangeError(`direction must be ltr or rtl, got ${quote(direction)}`);
   const seen = new Set();

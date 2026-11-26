@@ -1,24 +1,3 @@
-// Whether the human-gated label holds one activity on a pull request, for a
-// base-code job before the activity's model turn (pr-unblock.yml's
-// resolve-conflicts-select, pr-refine.yml's select-passes,
-// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#refine-before-review). The label holds
-// unless another lane's escalation put it on (gate-source.mjs prHold); other
-// hold labels stay with the activity's applies-when. Writes to GITHUB_OUTPUT:
-// held=true|false, and lane-escalated=true when the label is on and the
-// activity works past it, which lets the write runner push past it too.
-//
-// A read that meets a GitHub fault (readFault) leaves the hold unknown, so the
-// step holds (outage posture element 2): one notice, `unread=true` and neither
-// held nor lane-escalated, and exit 0. Each caller proceeds only on
-// held=false and posts its skip only on held=true, so nothing after it runs
-// and nothing lands on the head: pr-refine.yml's fix-docs-head-held marks the
-// run, and the next dispatcher tick sends the PR again. Any other error, a 404
-// or a 403 among them, still ends the step red.
-//
-// Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, PR_NUMBER,
-// APP_SENDER_ID, ACTIVITY, TRACKER_CONFIG (default .base/docs/conventions/work-items.yaml),
-// ARTIFACT_READ_TOKEN (actions: read; the review lanes' comment records).
-
 import { appendFileSync } from "node:fs";
 
 import { runAsScript } from "../lib/run-main.mjs";
@@ -29,8 +8,6 @@ import { prHold, reviewReader } from "./gate-source.mjs";
 
 const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
-// A GitHub fault: isFault, or a 5xx or 429 from createGitHubApi, whose errors
-// carry the status on a plain Error. What the read found is unknown, not wrong.
 export const readFault = (error) => isFault(error) || error?.status >= 500 || error?.status === 429;
 
 export async function main(env, { api, actions, log = (line) => console.log(line) } = {}) {

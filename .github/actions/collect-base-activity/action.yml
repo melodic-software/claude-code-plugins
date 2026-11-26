@@ -178,6 +178,7 @@ runs:
         FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
         DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
         SCHEMA_DIR: ${{ runner.temp }}/lane-dependency-schema
+        VERDICT_SCHEMA_DIR: ${{ runner.temp }}/lane-verdict-schema
         CI_DIR: ${{ runner.temp }}/lane-ci
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -517,6 +518,32 @@ runs:
               denied+=("Edit(./.lane/verify/**)" "Write(./.lane/verify/**)" "NotebookEdit(./.lane/verify/**)")
               preamble="$preamble The runner's repository scripts, base copies the pull request cannot change, each run by exactly its wrapper path with the script's own arguments: ${verify_wrappers[*]}. Run one of these scripts only through its wrapper, never the checkout's copy."
             fi
+          fi
+          # Verdict mode (applied-by.triage-verdict): an issue lane's read
+          # skill with no prepare mode keeps the read tool set above and adds
+          # no rule. Its verdict is the launcher's structured output, held to
+          # the skill's own schemas/ci-verdict.schema.json with each issue
+          # dimension narrowed to the option keys the base's dimension map
+          # (models.issue-dimensions.fields, the block set-dimensions.sh reads)
+          # holds; the runner adds the Issue Types with the issue file, and the
+          # post job checks the verdict again. The issue file is in scratch/.
+          # The copy drops $schema: the launcher compiles --json-schema as
+          # draft-07 and refuses the skill file's 2020-12 meta-schema ref.
+          if jq -e '.selected["applied-by"]["triage-verdict"] // empty' "$RESOLVED" >/dev/null; then
+            { [ "$edits" = read ] && [ -z "$PREPARE" ] && [ -n "${ISSUE_NUMBER:-}" ]; } ||
+              fail "triage-verdict: only an issue lane's read skill with no prepare mode hands on a verdict"
+            verdict_schema=$BASE_PATH/plugins/$plugin/skills/${SKILL#*:}/schemas/ci-verdict.schema.json
+            { [ -f "$verdict_schema" ] && [ ! -L "$verdict_schema" ]; } || fail "triage-verdict: the skill ships no schemas/ci-verdict.schema.json"
+            [[ $VERDICT_SCHEMA_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the verdict schema directory has a name a rule cannot carry"
+            dimensions=$(yq -o=json -I=0 '.models."issue-dimensions".fields // {} | with_entries(.value = ([.value.options[]] | unique))' \
+              "$BASE_PATH/docs/conventions/pr-pipeline.yaml") || fail "triage-verdict: the base's dimension map does not parse"
+            jq -e '(keys == ["complexity", "size", "uncertainty"]) and all(.[]; length > 0 and all(.[]; type == "string" and test("^[A-Za-z][A-Za-z0-9-]*$")))' \
+              <<<"$dimensions" >/dev/null || fail "triage-verdict: the base's dimension map does not give size, complexity and uncertainty option keys"
+            mkdir -p "$VERDICT_SCHEMA_DIR"
+            jq --argjson dimensions "$dimensions" \
+              'del(."$schema") | .properties += ($dimensions | with_entries(.value = {type: "string", enum: .value}))' \
+              "$verdict_schema" >"$VERDICT_SCHEMA_DIR/verdict.schema.json" || fail "triage-verdict: cannot write the verdict schema"
+            preamble="$preamble Your scratchpad directory is $lane/scratch, and the issue file is $lane/scratch/issue.json. Your verdict is your structured output; a later job checks it and posts it, and you post nothing."
           fi
           # A skill that hands on a patch with no prepare mode (fix-docs) gets
           # Bash, which runs only what an allow rule below names: the lane

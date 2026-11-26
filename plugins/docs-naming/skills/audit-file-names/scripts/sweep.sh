@@ -1,52 +1,6 @@
 #!/usr/bin/env bash
-# sweep.sh — find every reference to the files a rename plan would move.
-#
-# Read-only. For each `old<TAB>new` pair it locates every tracked line naming the
-# old file, classifies the SHAPE of each reference, resolves the TIER the citing
-# file belongs to, and derives the ACTION the tier's form table allows.
-#
-# THE FORMS, most specific first. A line is recorded ONCE PER FORM it carries,
-# not once per line: the same name can appear twice in two shapes whose tier
-# verdicts differ.
-#   raw-url         a raw.githubusercontent.com URL
-#   github-url      any other github.com URL
-#   md-link         a markdown link target, `](...name...)`
-#   backtick-path   the name inside a code span
-#   table-or-key    a table cell or a `key: value` line
-#   plain           the basename in running prose
-#   bare-stem       the stem with no extension, anchored so a hyphenated sibling
-#                   is never matched inside
-#
-# WHY THE BARE STEM IS ANCHORED AND OFTEN ONLY REVIEWED. A word boundary treats
-# a hyphen as a boundary, so `\bCATALOG\b` matches inside `CATALOG-TAXONOMY` and
-# rewriting it produces a link to nothing. The pattern here consumes the
-# surrounding character instead, and maps are applied longest old name first. A
-# stem that is one dictionary-shaped word (no hyphen, no digit) is reported as
-# `review` rather than edited, because such a stem also appears as an ordinary
-# English word in prose that has nothing to do with the file.
-#
-# Every single-quoted `${...}` below is a jq or awk program argument, never a
-# shell expansion.
+# Every single-quoted `${...}` below is a jq or awk program argument, never a shell expansion.
 # shellcheck disable=SC2016
-#
-# Usage:
-#   sweep.sh --pairs <tsv|-> [--config <json>] [--root <dir>]
-#   sweep.sh --help
-#
-#   --pairs   a file of `old<TAB>new` lines, or `-` for standard input. The
-#             OFFENDER rows of inventory.sh, with the tag column removed.
-#
-# Output, tab-separated:
-#   REF   <old>  <file>  <line>  <form>  <tier>  <action>  <excerpt>
-#   TIER  <name> <forms> <files matched>
-#   SITES <count>
-#
-# Actions: `edit` (the tier's form table allows this shape), `report` (a site the
-# tier freezes), `review` (an ambiguous bare stem, for a human), `skip` (a
-# sweep_exclude_sites entry), `regenerate` (a generated file, never text-edited).
-#
-# Exit: 0 the sweep ran, 2 usage, a missing prerequisite, or an unreadable
-#       configuration.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -60,7 +14,14 @@ die() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+Find every reference to the files a rename plan would move.
+Usage: sweep.sh --pairs <tsv|-> [--config <json>] [--root <dir>]
+  --pairs <tsv|->  old<TAB>new lines, or - for standard input
+  --config <json>  a resolved configuration document
+  --root <dir>     repository to sweep
+Exit: 0 the sweep ran; 2 usage, a missing prerequisite, or an unreadable configuration.
+EOF
 }
 
 CONFIG_FILE=""

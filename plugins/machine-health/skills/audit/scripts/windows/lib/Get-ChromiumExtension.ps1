@@ -30,9 +30,6 @@ $script:ChromiumBrowser = @{
     edge   = [pscustomobject]@{ UserData = @('Microsoft', 'Edge', 'User Data'); Exe = 'msedge.exe' }
 }
 
-# Chromium's ManifestLocation enum (extensions/common/mojom/manifest.mojom).
-# EXTERNAL_COMPONENT (10) installs through the component updater into the
-# profile, not the browser install, so it is treated as external.
 $script:ChromiumLocationKind = @{
     1  = 'store'
     2  = 'external'
@@ -91,7 +88,6 @@ function Test-ChromiumEnabled {
     param([AllowNull()] $DisableReasons)
 
     if ($null -eq $DisableReasons) { return $true }
-    # Newer builds store a list of reasons; older ones a bitmask integer.
     if ($DisableReasons -is [array]) { return $DisableReasons.Count -eq 0 }
     $mask = 0L
     if ([long]::TryParse([string]$DisableReasons, [ref]$mask)) { return $mask -eq 0 }
@@ -182,7 +178,6 @@ function Get-ChromiumExtension {
     foreach ($profileDir in @($infoCache.Keys | Sort-Object)) {
         $state = 'ok'
         try {
-            # A profile name is data from Local State: it must name a folder, not a path.
             if ($profileDir -match '[\\/:]' -or $profileDir -in @('.', '..')) { throw "Profile name is not a folder name." }
             $merged = @{}
             foreach ($file in @('Preferences', 'Secure Preferences')) {

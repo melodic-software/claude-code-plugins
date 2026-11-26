@@ -33,8 +33,6 @@ function runCli(env, script = SCRIPT) {
   }
 }
 
-// A GET /rate_limit answer in the shape GitHub's REST docs give: a body with
-// resources.core, and x-ratelimit-* headers on the response.
 function rateLimitResponse({ headers = {}, core = null, status = 200 } = {}) {
   const body = core ? { resources: { core }, rate: core } : {};
   return new Response(JSON.stringify(body), { status, headers });
@@ -96,7 +94,6 @@ test("the budget stops under the share of the limit while the reset is ahead", (
 });
 
 test("the budget read decides from the headers when they carry limit, remaining and reset", async () => {
-  // The body has plenty left; the headers, which GitHub says win, do not.
   const answer = rateLimitResponse({ headers: headersOf(5000, 499, RESET), core: { limit: 5000, remaining: 4000, reset: RESET, used: 1000 } });
   const { calls, fetchImpl } = recordingFetch(answer);
   const result = await checkBudget({ token: "t", api: "https://api.example", share: 0.1, now: NOW_S, fetchImpl });
@@ -137,9 +134,6 @@ test("the budget read falls back to the body's resources.core when a header is m
   assert.match(result.line, /headers limit=5000 remaining=na /);
 });
 
-// GitHub answers an exhausted token with 403 or 429, x-ratelimit-remaining 0
-// and, for a secondary limit, retry-after in seconds; another call would be
-// refused too, so each stops with a reset still ahead.
 const REFUSED_READS = [
   ["a 403 with the window's reset", () => rateLimitResponse({ status: 403, headers: headersOf(5000, 0, RESET) }), RESET],
   ["a 429 with retry-after 30", () => rateLimitResponse({ status: 429, headers: { "retry-after": "30" } }), NOW_S + 30],
@@ -696,9 +690,6 @@ function splitTop(text, separator) {
   return parts.map((part) => part.trim());
 }
 
-// Whether a step `if:` is false on a budget stop: every top-level disjunct
-// has a conjunct that needs the gate to proceed, the cause not to be budget,
-// or a success or a non-empty output from a step that was skipped.
 function falseOnBudget(condition, skipped, cause = "budget", gate = "kill") {
   const falseAtom = (atom) => {
     if (/^\(.*\)$/.test(atom)) return falseOnBudget(atom.slice(1, -1), skipped, cause, gate);

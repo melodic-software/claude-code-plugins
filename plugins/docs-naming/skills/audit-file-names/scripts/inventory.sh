@@ -1,46 +1,6 @@
 #!/usr/bin/env bash
-# inventory.sh — list the file names in a tree that break the configured rule.
-#
-# Read-only. Walks the tracked files under the configured roots, applies the
-# exemptions, checks each basename against the casing regex, proposes a new name
-# for each offender, and refuses the whole run when any proposed name would
-# collide with an existing path by case alone.
-#
-# WHY THE COLLISION PASS IS SEPARATE AND FATAL. On a case-insensitive checkout
-# (the macOS and Windows defaults) two paths differing only by case cannot
-# coexist: checking out both writes the second over the first. A rename plan that
-# would produce such a pair is not a plan to review, it is a corrupted tree, so
-# it is reported and nothing is proposed. The fold-and-intersect algorithm is
-# pre-commit's `check-case-conflict`: fold every tracked path AND every parent
-# directory, then intersect.
-#
-# EXISTENCE IS ASKED OF THE INDEX, NEVER THE FILESYSTEM. `[[ -e docs/foo.md ]]`
-# is true on a case-insensitive checkout while only `docs/Foo.md` exists, so a
-# filesystem test would refuse every case-only rename on exactly the platforms
-# the rule protects.
-#
-# Every single-quoted `${...}` below is a jq program argument, substituted by jq
-# from --arg/--argjson, never by the shell.
+# Every single-quoted `${...}` below is a jq program argument, never a shell expansion.
 # shellcheck disable=SC2016
-#
-# Usage:
-#   inventory.sh [--config <json>] [--root <dir>]
-#   inventory.sh --help
-#
-#   --config  a resolved configuration document. Omitted, the sibling
-#             resolve-config.sh resolves it for the same root.
-#   --root    the repository to inventory. Default: the git toplevel of the
-#             working directory, never the directory this script lives in.
-#
-# Output, tab-separated, one record per line:
-#   OFFENDER   <old path>       <proposed path>
-#   COLLISION  <proposed path>  <the existing path it would collide with>
-#   EXEMPT     <path>           <the exemption that covered it>
-#   SCANNED    <count>          <roots>
-#
-# A run that scans zero files still prints SCANNED and exits 0, and also warns
-# on stderr that the roots are empty rather than clean.
-#
 # Exit: 0 the inventory ran (offenders are findings, not failures),
 #       2 usage, a missing prerequisite, an unreadable configuration, or an
 #         unimplemented rule.
@@ -58,7 +18,14 @@ die() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+List the file names in a tree that break the configured rule.
+Usage: inventory.sh [--config <json>] [--root <dir>]
+  --config <json>  a resolved configuration document (default: resolve-config.sh for the root)
+  --root <dir>     repository to inventory (default: git toplevel of the working directory)
+Exit: 0 the inventory ran (offenders are findings, not failures); 2 usage, a missing prerequisite,
+an unreadable configuration, or an unimplemented rule.
+EOF
 }
 
 CONFIG_FILE=""

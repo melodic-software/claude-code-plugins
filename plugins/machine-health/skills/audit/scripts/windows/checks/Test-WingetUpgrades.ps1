@@ -30,9 +30,6 @@ $commands = @(
     'winget upgrade --include-unknown --accept-source-agreements  # fallback'
 )
 
-# Correlate KEV on the structured winget Id, never display names: a name substring match
-# floods false positives (Microsoft.WSL's "Windows" name matches every Windows CVE).
-
 $FailureSummary = 'winget upgrade check failed.'
 $PassThru = $false
 $CheckBody = {
@@ -77,7 +74,6 @@ $CheckBody = {
             }
 
             $kev = Get-CisaKevCache -CachePath $kevPath -LogPath $LogPath -MaxAgeDays 7
-            # Read the _cache_* annotations by name: StrictMode throws on a missing property.
             $kevCount = 0
             if ($null -ne $kev) {
                 $kevProps = $kev.PSObject.Properties

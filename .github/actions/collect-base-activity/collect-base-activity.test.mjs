@@ -9,6 +9,8 @@
 // test-scope: .github/actions/resolve-config/* .github/scripts/intake-triage/* .github/scripts/pr-unblock/*
 // test-scope: .github/scripts/pr-verify/* .github/scripts/work-resolve-issue/package.json docs/upstream/*
 // test-scope: .github/actions/check-born-triaged/check-born-triaged.mjs .github/actions/check-wip-cap/check-wip-cap.mjs
+// test-scope: plugins/work-items/skills/triage/schemas/ci-verdict.schema.json
+// test-scope: plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -1521,6 +1523,52 @@ test("run-claude-cli: a read skill without ci-context gets no Bash, Edit or Writ
   assert.ok(!run.allowedTools.some((rule) => /^(Bash|Edit|Write)/.test(rule)), run.allowedTools.join(" | "));
   for (const rule of ["Read(//proc/**)", ...GIT_DENIED]) assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   assert.doesNotMatch(run.preamble, /context file/);
+});
+
+function verdictBase() {
+  const dir = mkdtempSync(path.join(root, "verdict-base-"));
+  cpSync(base, dir, { recursive: true });
+  cpSync(path.join(REPO_ROOT, "plugins/work-items/skills/triage/schemas"), path.join(dir, "plugins/work-items/skills/triage/schemas"), { recursive: true });
+  mkdirSync(path.join(dir, "docs/conventions"), { recursive: true });
+  cpSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), path.join(dir, "docs/conventions/pr-pipeline.yaml"));
+  return dir;
+}
+const VERDICT = { "applied-by": { "triage-verdict": "post-triage" } };
+
+test("run-claude-cli: a verdict-mode skill keeps exactly the read tools and writes its schema with the base's dimension keys", () => {
+  const schemaDir = path.join(mkdtempSync(path.join(root, "verdict-schema-")), "lane-verdict-schema");
+  const run = launch({ BASE_PATH: verdictBase(), SKILL: "work-items:triage", ISSUE_NUMBER: "7", RESOLVED: launchResolved({ args: "--ci", ...VERDICT }), VERDICT_SCHEMA_DIR: schemaDir });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Glob", "Grep", "Read", "Skill"]);
+  assert.deepEqual(run.allowedTools.toSorted(), ["Glob", "Grep", "Skill(work-items:triage)"]);
+  assert.ok(!run.allowedTools.some((rule) => /^(Bash|Edit|Write|Agent|WebFetch|WebSearch)/.test(rule)), run.allowedTools.join(" | "));
+  const schema = JSON.parse(readFileSync(path.join(schemaDir, "verdict.schema.json"), "utf8"));
+  assert.deepEqual(schema.properties.size, { type: "string", enum: ["small", "medium", "large"] });
+  assert.deepEqual(schema.properties.complexity, { type: "string", enum: ["low", "medium", "high"] });
+  assert.deepEqual(schema.properties.uncertainty, { type: "string", enum: ["known", "knowable", "unknown"] });
+  assert.equal(schema.additionalProperties, false);
+  const { default: Ajv } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("ajv");
+  assert.equal(typeof new Ajv({ strict: true }).compile(schema), "function");
+  assert.ok(run.preamble.includes(`the issue file is ${WORKSPACE}/.lane/scratch/issue.json`), run.preamble);
+  assert.match(run.preamble, /Your verdict is your structured output/);
+  assert.equal(run.promptFile, "Call the Skill tool with skill work-items:triage and args --issue 7 --ci, then follow the skill instructions to the end.\n");
+});
+
+test("run-claude-cli: verdict mode fails red outside an issue lane's read skill, or with no schema or dimension map", () => {
+  const schemaDir = path.join(mkdtempSync(path.join(root, "verdict-schema-")), "lane-verdict-schema");
+  const verdictRun = (overrides, extra = {}) =>
+    launch({ BASE_PATH: verdictBase(), SKILL: "work-items:triage", ISSUE_NUMBER: "7", RESOLVED: launchResolved({ args: "--ci", ...VERDICT, ...extra }), VERDICT_SCHEMA_DIR: schemaDir, ...overrides });
+  for (const [overrides, extra] of [[{ ISSUE_NUMBER: "" }, {}], [{}, { "applied-by": { "triage-verdict": "post-triage", patch: "apply-patch" } }]]) {
+    const run = verdictRun(overrides, extra);
+    assert.notEqual(run.status, 0);
+    assert.match(run.stdout, /::error::triage-verdict: only an issue lane's read skill with no prepare mode hands on a verdict/);
+  }
+  const noSchema = verdictBase();
+  rmSync(path.join(noSchema, "plugins/work-items/skills/triage/schemas"), { recursive: true });
+  assert.match(verdictRun({ BASE_PATH: noSchema }).stdout, /::error::triage-verdict: the skill ships no schemas\/ci-verdict\.schema\.json/);
+  const noMap = verdictBase();
+  writeFileSync(path.join(noMap, "docs/conventions/pr-pipeline.yaml"), "models: {}\n");
+  assert.match(verdictRun({ BASE_PATH: noMap }).stdout, /::error::triage-verdict: the base's dimension map does not give size, complexity and uncertainty option keys/);
 });
 
 function launchResolved(extra) {

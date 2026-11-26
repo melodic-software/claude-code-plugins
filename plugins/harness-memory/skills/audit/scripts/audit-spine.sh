@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# audit-spine.sh — the audit's deterministic spine in one run.
-# One invocation feeds both the skill's header and the report's spine rows, so they
-# cannot disagree. A check that fails to run reports `?` rather than aborting the block.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

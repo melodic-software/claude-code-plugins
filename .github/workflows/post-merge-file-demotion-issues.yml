@@ -1,138 +1,11 @@
 name: Post Merge File Demotion Issues
 
-# Files the unattended-merge demotion issue when a post-merge signal fails on
-# main, so a human hears of it while no babysit lane runs. The signals are a
-# scheduled or dispatched pr-require-checks run (the whole-tree run) and a
-# canary push run. The issue is the demotion record the babysit post-merge
-# check files under the agent identity and the merge-policy reader holds the
-# rung off on: first body line `<!-- babysit-merge-demotion sha=<S>
-# signal=<name> -->`, one per (signal, SHA). A record that already exists
-# gets a comment naming the run attempt instead. Records from both filers
-# (github-actions[bot] and merge.agent-identity) are read, so a sighting of
-# either filer's record comments on it, and any record holds the rung off. A
-# record is a state marker, never lane work: it is not sent to intake triage,
-# since the fix issues below carry the work. A schedule or dispatch record
-# carries no label: it clears itself once main is green at a later commit
-# (babysit_merge_policy.py `_recovered_at`). A canary record gets Work status
-# needs-human, since a green main does not clear it: it carries a lift block
-# (babysit_lift.py canary-block) naming the lines the canary found deleted,
-# and lifts once they are back on main or a referencing pull request merges
-# with them (`_lift`), when the close-cleared job closes it, which ends its
-# hold. A canary record with no block (the push's commits were not all read,
-# the scan could not run, or the block was too large) clears only on a person's
-# close. A fix issue not delivered to intake gets a hidden marker comment on
-# it and on its record, a quarantine issue one on the issue, and a check whose
-# fix issue could not be filed or reopened one on the record; each alert run
-# retries what a marker names until it succeeds (handoff.bash). A record gets
-# Work status needs-human when a failing check got no fix issue because it was
-# over the cap or outside the name charset, which no retry can file. A record
-# is filed with no status label, then its Work status field is set (the job's
-# token); a failed field write fails the run.
-# The close-cleared job, on each completed scheduled full run, closes each
-# open, never-edited schedule or dispatch record (either filer's) that a
-# later green full run on main has cleared, by the rule
-# babysit_merge_policy.py `_recovered_at` applies. This workflow merges,
-# reverts and dequeues nothing.
-#
-# Only a failure whose merges include one the lanes App put in the merge queue
-# demotes. When every merge in the failing range was enqueued by someone else
-# (a person, a release App), the issue's first line is `<!-- post-merge-failure
-# sha=<S> signal=<name> -->` instead, and no reader treats it as a demotion. A
-# full-run one is held as a full-run record above, and the close-cleared
-# job closes it too; a canary one gets Work status needs-human, since a canary
-# files no fix issue, and lifts as a canary demotion record does. Anything the
-# lookup cannot prove demotes.
-#
-# A push to main that reverts a pull request the lanes App put in the merge
-# queue files a `revert` record. Every canary push run, whatever it concluded
-# and on every attempt, reads the commits the push brought, a merge-queue
-# batch included: main's first-parent range since the previous canary push
-# run's head, at most 20 commits, and the newest 20 when that head cannot be
-# read or is not an ancestor, read from main's full history. A revert commit
-# any revert record already lists is skipped, so overlapping runs and re-runs
-# file it once and never again after a person closes its record. A failed
-# canary still files its canary record too. A revert of a pull request someone
-# else enqueued files nothing; an unproven one demotes, a reverted commit whose
-# pull request cannot be read included. The file-demotion-issue job finds the revert and hands
-# the record to the file-revert job, whose token holds issues: write alone,
-# through its outputs; that job re-reads the records first and files nothing
-# when one already lists every revert commit. A revert record gets Work status
-# needs-human and carries a lift block of the lines its revert commits
-# deleted; it holds the rung off until those lines are back on main, a pull
-# request that references it merges into main (babysit_merge_policy.py
-# `_lift`), or a person closes it. The close-cleared job closes a lifted
-# canary, revert or read-back record, which ends its Work status hold, and
-# removes a legacy needs-human label if one is left.
-#
-# The canary push run also labels the push's merges on a record-mode path of
-# pr-pipeline.yaml's post-merge.paths (an agent session's merge through the
-# owner login), and the pull requests it reverts on one, and nothing else:
-# merge-path.mjs; README.md, "Merge paths".
-#
-# A red full run files only after one re-run of its failed jobs, which the
-# job waits up to 20 minutes for, fails again or does not finish, and only for
-# checks that were not already failing on main's newest completed run of the
-# same event at an earlier SHA (babysit_postmerge.py applies the same rule). A
-# check is a failed job, or one gate the hygiene aggregator names in a titled
-# annotation; the lane aggregator ci-status adds nothing beside another failed
-# job, and the gitleaks gate, which scans every branch on these events, counts
-# against no merge. Of those, a run whose every newly failing test-leg suite
-# is outside the affected set of the merges since main's last green full run,
-# or quarantined, with a failure on a re-run also having passed on an earlier
-# attempt or failed at green, files nothing but each suite's quarantine issue
-# (babysit_postmerge.py --judge-run, run from main's tip), each locked and
-# sent to intake triage as a fix issue is.
-#
-# Beside a new record of a full run, it files one fix issue per newly failing
-# check (at most 5) and dispatches intake-triage.yml for each, so an agent can
-# fix main once the owner ratifies it. First body line `<!-- post-merge-fix
-# check=<name> -->`, no label, fixed text only; one issue per check across
-# SHAs, reopened when the check fails again, keeping agent-ready and with no
-# second intake dispatch. Closing a fix issue changes nothing on the record.
-#
-# A full run pr-merge.yml starts for main's merges uses GITHUB_TOKEN, so its
-# completion raises no workflow_run event. pr-merge's dispatch-post-merge-runs job
-# sends a red one here on its next scheduled run, through workflow_dispatch
-# with its run id and head SHA, instead; the first step reads that run and
-# refuses anything but a red pr-require-checks run on this repository's main
-# that github-actions[bot] dispatched, at that head SHA. Red is any conclusion
-# in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run inside a lane merge's
-# attribution window, or one that demotes by the affected-set rule, gets its
-# one re-run from pr-merge's dispatch-post-merge-runs job, and any other gets none,
-# so the file-demotion-issue waits for a re-run as long as the report job does
-# (red-main.confirm-wait-minutes) and starts none itself. Once a newer
-# pr-require-checks run on this repository's main has passed, main already
-# recovered: no record, fix issue or report is filed. The wait checks for one
-# at each poll while the re-run is pending and ends early on a hit; a lookup
-# that fails keeps waiting.
-# After the wait (the re-run failed or did not finish) it checks once more.
-#
-# After a failed scheduled or dispatched full run, the report-red-main job
-# applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
-# main"): it waits for the run's one re-run, confirms the red, pins the
-# culprit merge and names the revert the bot would open, in its step summary
-# and one log issue. While `red-main.dry-run` is true it pushes, opens and
-# merges nothing.
-#
-# Test: scripts/post-merge-demotion-alert.test.sh runs the file-demotion-issue's retry and
-# filing step bodies;
-# .github/scripts/post-merge-demotion-alert/ tests the report job.
-
 on:
-  # Both jobs check out main's tip and run its scripts; the file-demotion-issue's --judge-run
-  # also runs scripts/plan-test-lanes.sh from main's last green full run's
-  # commit (never the failing one, which the judged merges wrote), with every
-  # *TOKEN* variable removed from its environment. No code from outside main
-  # executes here. Each step reads the event's fields through env and acts
-  # only on runs of this repository's main branch.
+  # Both jobs check out main's tip and run its scripts; no code from outside main executes here.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [PR Require Checks, Post Merge Detect Silent Revert]
     types: [completed]
     branches: [main]
-  # pr-merge.yml's dispatch-post-merge-runs job, with GITHUB_TOKEN, or a listed
-  # human (trusted-actors.json on main) names a red full run that raised no
-  # workflow_run event. Both inputs are checked before use, and the head SHA
-  # must be the run's own.
   workflow_dispatch:
     inputs:
       run-id:
@@ -159,9 +32,6 @@ env:
 jobs:
   file-demotion-issue:
     name: File Demotion Issue
-    # The file step's early exits, read from the event before any checkout: a
-    # workflow_run event that is not a signal, a full run's pass on attempt 1
-    # or action_required, or a run off this repository's main starts no job.
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.close-cleared != 'true')
       || (github.event.workflow_run.head_branch == 'main'
@@ -178,12 +48,6 @@ jobs:
       checks: read # read the hygiene aggregator's annotations
       contents: read # read merge.agent-identity from main's pr-pipeline.yaml
       pull-requests: read # read each merged PR's merge-queue event
-    # One group per signal and SHA, as records are one per signal and SHA,
-    # found by a read before a create: two attempts of one run, two runs of
-    # one SHA, and a dispatch and a workflow_run event of the same run cannot
-    # both find no record and file two. A dispatch is always a
-    # pr-require-checks workflow_dispatch run and names its head SHA, which
-    # the Read step checks against the run.
     concurrency:
       group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'PR Require Checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs['head-sha'] }}
       cancel-in-progress: false
@@ -198,20 +62,12 @@ jobs:
       id: ${{ steps.run.outputs.id }}
       workflow-id: ${{ steps.run.outputs.workflow-id }}
       created: ${{ steps.run.outputs.created }}
-      # 'true' when a dispatched run stayed red and main recovered since.
       recovered: ${{ steps.file.outputs.recovered }}
-      # 'true' when every newly failing suite was outside the merges'
-      # affected set or quarantined: no record, and no red-main report.
       excused: ${{ steps.file.outputs.excused }}
-      # The revert record the file-revert job files, when the push reverted
-      # a pull request: its title, body, revert commits and the agent
-      # identity whose records it re-reads.
       revert-title: ${{ steps.file.outputs.revert-title }}
       revert-body: ${{ steps.file.outputs.revert-body }}
       revert-commits: ${{ steps.file.outputs.revert-commits }}
       revert-filer: ${{ steps.file.outputs.revert-filer }}
-      # The canary push's merges and the pull requests it reverts, and the
-      # main tip checked out, for the label-paths job.
       merged-prs: ${{ steps.file.outputs.merged-prs }}
       reverted-prs: ${{ steps.file.outputs.reverted-prs }}
       tip: ${{ steps.tip.outputs.sha }}
@@ -242,14 +98,6 @@ jobs:
           drop-in-file: .base/.github/source-control-settings.json
           drop-in-name: 50-source-control
 
-      # A workflow_run event's fields pass through as they are. A dispatch's
-      # run id is read back from the API, as attempt 1 of the run: accepted
-      # only from github-actions[bot] (actor id 41898282) or a listed human,
-      # never the lanes App, and only for attempt 1 of a pr-require-checks.yml
-      # run on this repository's main that github-actions[bot] dispatched and
-      # that concluded red: failure, timed_out, cancelled, startup_failure or
-      # action_required, babysit_postmerge.py's FAILED_CONCLUSIONS, at the
-      # head SHA the dispatch named. Anything else writes no output and fails.
       - name: Read the failed run
         id: run
         env:
@@ -349,10 +197,6 @@ jobs:
             echo "$delimiter"
           } >>"$GITHUB_OUTPUT"
 
-      # Before filing, re-send what an earlier run could not hand to intake. It
-      # shares main's scripts with the step below, whose run it never stops; a
-      # failure here fails the job at that step's end, so the failure stays
-      # visible and the next run retries it.
       - name: Retry undelivered hand-offs to intake triage
         id: retry
         continue-on-error: true
@@ -393,12 +237,6 @@ jobs:
         with:
           tokens: github-token
 
-  # A canary push's merges on a record-mode post-merge path get
-  # merge-path: <path>, and the pull requests it reverts on one also
-  # post-merge: reverted (merge-path.mjs; README.md, "Merge paths"). Record
-  # only: no issue, comment, demotion or hold, and GITHUB_TOKEN's label
-  # writes start no workflow run. It runs whatever the file-demotion-issue job concluded,
-  # as file-revert does, from the main tip that job checked out.
   label-paths:
     name: Label The Merge Paths
     needs: [file-demotion-issue]
@@ -453,10 +291,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The revert record the file-demotion-issue job found for a canary push run, filed under
-  # a token that holds issues: write alone. It runs whatever the file-demotion-issue job
-  # concluded, since that job can fail after it handed the record over (a
-  # canary record or hand-off that did not file). It checks out nothing.
   file-revert:
     name: File The Revert Demotion Issue
     needs: [file-demotion-issue]
@@ -467,8 +301,6 @@ jobs:
     timeout-minutes: 5
     permissions:
       issues: write # read the records and file the revert record
-    # One group per SHA, as the file-demotion-issue's: a pending filer another of the same
-    # SHA replaces carries the same revert commits.
     concurrency:
       group: post-merge-demotion-alert-revert-${{ needs.file-demotion-issue.outputs.sha }}
       cancel-in-progress: false
@@ -549,14 +381,6 @@ jobs:
           fi
           echo "filed the revert demotion issue for ${RUN_SHA:0:12}"
 
-  # The red-main report. It runs after the file-demotion-issue job, so a re-run the file-demotion-issue
-  # started is already under way, and only for a full run on main that
-  # concluded failure: a cancelled, timed-out or not-started run, and the
-  # canary, never trigger it. It holds the job's own GITHUB_TOKEN, never a
-  # lanes App token, writes only its log issue, and skips an event the lanes
-  # App sent. It reads the run from the file-demotion-issue job's outputs, which a refused
-  # dispatch leaves empty, and skips a dispatched run the file-demotion-issue found main
-  # already recovered from, and a run the file-demotion-issue excused by suite.
   report-red-main:
     name: Report The Red-Main Culprit
     needs: [file-demotion-issue]
@@ -578,9 +402,6 @@ jobs:
       contents: read # check out main; compare the failing range
       issues: write # file and comment on the log issue
       pull-requests: read # read each merge's merge-queue entry
-    # One report at a time, repository-wide, so two runs cannot both read the
-    # log before either writes: one cap slot, one decision per culprit, one log
-    # issue. A later attempt's event waits, then finds its run logged.
     concurrency:
       group: red-main-report
       cancel-in-progress: false
@@ -656,14 +477,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Each completed scheduled full run on main, whatever it concluded, closes
-  # the records main has cleared since they were filed, by the rule
-  # babysit_merge_policy.py `_recovered_at` applies. A green run that clears
-  # a record may be a github-actions[bot] dispatch, which raises no
-  # workflow_run event, so the step lists the runs itself. The record is a
-  # state marker: `_recovered_at` still decides whether it holds, and a
-  # record this closes that main has not cleared holds all the same
-  # (closed-by-non-human).
   close-cleared:
     name: Close The Records Main Cleared
     if: >-
@@ -689,7 +502,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
-      # main's tip, for babysit_lift.py close; no code from outside main runs.
       - name: Check out the default branch tip
         uses: actions/checkout@v7
         with:

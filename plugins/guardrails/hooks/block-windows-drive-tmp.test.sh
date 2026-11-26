@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-windows-drive-tmp.sh (guardrails plugin).
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash/PowerShell
-# JSON on stdin, asserts on exit code (2 = blocked, 0 = allowed). The Windows
-# lane is forced via OSTYPE=msys so Linux CI exercises the same matcher the
-# Git Bash host would. Self-contained — no host-repo assertion library.
 # test-scope: plugins/guardrails/hooks/hooks.json
 
 set -uo pipefail
@@ -17,8 +11,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# Force the Windows host gate even on Linux CI.
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 SKIPPED=0
 skip() {
   SKIPPED=$((SKIPPED + 1))
@@ -106,12 +98,6 @@ notebook_path_json() {
     '{tool_name:"NotebookEdit",tool_input:{notebook_path:$fp,new_source:"x"}}'
 }
 
-# Command payload builders that PRESERVE an MSYS `/<drive>/tmp` spelling.
-# A native Windows jq run under Git Bash gets its argv rewritten: an argument that
-# is a POSIX-absolute path, and on some builds a `/usr/bin/...` command word inside
-# a longer string, becomes a Windows path before jq reads it. The command travels
-# on jq's stdin instead, which no argv rewriting reaches, so every fixture arrives
-# byte for byte and run_win / run_win_pwsh need no host-gated variant.
 msys_command_json() {
   printf '%s' "$1" | MSYS_NO_PATHCONV=1 jq -Rs '{tool_name:"Bash",tool_input:{command:.}}'
 }
@@ -296,10 +282,6 @@ run_win "python open(sys.argv[1]) read beside open(/tmp) read (allowed)" \
   "python3 -c \"import sys; print(open(sys.argv[1]).read(), open('/tmp/x').read())\"" 0
 run_win "python open(/tmp) read beside a spaced path read (allowed)" \
   "python3 -c \"print(open('/tmp/x').read(), open('/c/Users/a b/y.txt').read())\"" 0
-# A read call's argument must be a plain path. Ruby's Kernel#open runs an argument
-# that starts with `|` as a subprocess, and `%x[...]` and `"#{...}"` run code. The
-# drive-root path sits inside the accepted call, where neither the leftover-tmp
-# check nor the redirect check (the `>` is quoted) sees it.
 run_win "ruby open('|echo hi > /c/tmp/x').read() runs a subprocess (blocked)" \
   "ruby -e \"open('|echo hi > /c/tmp/x').read()\"" 2
 run_win "ruby JSON.load(open('|echo hi > /c/tmp/x')) (blocked)" \
@@ -595,9 +577,6 @@ run_win "gh body mention with a real redirect to /tmp (blocked)" \
   "gh issue create --body \"open('/tmp/x','w')\" > /tmp/out" 2
 run_win "gh body mention with tee to /tmp (blocked)" \
   "gh issue create --body \"open('/tmp/x','w')\" | tee /tmp/x" 2
-# Git for Windows resolves /usr/bin/mkdir to mkdir.exe under Program Files.
-# The verb regex stops at a space, so neither spelling matched and the write
-# was allowed (#4527). C:/tmp stays a drive root on a usertemp /tmp host.
 run_win "/usr/bin/mkdir.exe C:/tmp/x (blocked)" '/usr/bin/mkdir.exe -p C:/tmp/x' 2
 run_win "quoted Program Files mkdir.exe C:/tmp (blocked)" \
   '"C:/Program Files/Git/usr/bin/mkdir.exe" -p C:/tmp/x' 2
@@ -613,7 +592,6 @@ run_win_pwsh "PS: New-Item /c/tmp/x (blocked)" 'New-Item -Path /c/tmp/x -ItemTyp
 run_win_pwsh "PS: Add-Content C:/tmp/x (blocked)" 'Add-Content -Path C:/tmp/x -Value hi' 2
 run_win_pwsh "PS: [IO.File]::Open(C:/tmp/x, Create) (blocked)" "[IO.File]::Open('C:/tmp/x', 'Create')" 2
 
-# --- Legitimate platform temp / POSIX variants (allowed) ---------------------
 # Literal $TEMP / $env:TEMP in fixture strings must not expand in this test process.
 # shellcheck disable=SC2016
 run_win "redirect >\$TEMP/x (allowed)" 'echo x > $TEMP/x' 0

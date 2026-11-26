@@ -100,6 +100,7 @@ jobs:
       node_legs: ${{ steps.plan.outputs.node_legs }}
       node_plan: ${{ steps.plan.outputs.node_plan }}
       selection_suites: ${{ steps.suites.outputs.list }}
+      selection_shards: ${{ steps.shards.outputs.list }}
       playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
@@ -601,6 +602,10 @@ expect "the matrix sized from bash_legs with its one-leg default is allowed" 0 "
 f="$scratch/data-matrix-python.yml"
 xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.python_legs || '[0]') }}" "$f"
 expect "the matrix sized from python_legs with its one-leg default is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/data-matrix-shards.yml"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        shard: \${{ fromJSON(needs.select-tests.outputs.selection_shards || '[0]') }}" "$f"
+expect "the matrix sized from selection_shards with its one-shard default is allowed" 0 "scope resolved once" --check "$f"
 
 f="$scratch/data-matrix-no-default.yml"
 xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.bash_legs) }}" "$f"

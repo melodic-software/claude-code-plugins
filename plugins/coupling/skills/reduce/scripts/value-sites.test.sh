@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Regression tests for value-sites.py (assertions from test-helpers.sh beside
-# this file; both ship with the plugin). Every fixture is a throwaway git repo
-# under one mktemp -d root, isolated from any inherited git environment.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Git Bash rewrites POSIX arguments for native programs; the suite turns that
-# off per call with MSYS_NO_PATHCONV=1, so the script and every fixture root
-# are handed over in the host's own spelling up front. `slashes` normalizes
-# separators in printed paths. Both are the identity on a host that needs
-# neither.
 host_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 slashes() { printf '%s' "${1//\\//}"; }
 SCRIPT="$(host_path "$SCRIPT_DIR/value-sites.py")"
@@ -63,11 +55,9 @@ sites() {
       '$1 != "skip" && $2 == p && $3 == l { print $2 ":" $3 ":" $4 ":" $7 }'
   done
 }
-# control_bytes FILE: count bytes below 0x20 other than tab, LF, CR.
 control_bytes() { LC_ALL=C tr -d '\t\n\r\040-\377' <"$1" | wc -c | tr -d ' '; }
 untracked() { git -C "$1" status --porcelain --untracked-files=all | grep '^??' || true; }
 
-# --- forms -------------------------------------------------------------------
 FX=$(new_fixture forms)
 put "$FX" README.md 'Data lives in D:\data\cfg for now.'
 put "$FX" setup.sh 'DATA=D:/data/cfg'
@@ -104,7 +94,6 @@ assert_eq "find leaves the tree unchanged" "$BEFORE" "$AFTER"
 OUT=$(vs find --old 'D:\data\cfg' --root "$ROOT" run.sh)
 assert_eq "a PATH argument restricts the file set" "1" "$(site_count "$OUT")"
 
-# --- bare drive letter ---------------------------------------------------------
 FX=$(new_fixture bare)
 put "$FX" notes.md 'Drive D: holds the data.' 'ID: 42' 'See https://example.com/d/page'
 put "$FX" conf.yaml 'd: true'
@@ -119,7 +108,6 @@ assert_not_contains "bare D: creates no MSYS form" "$OUT" "run.sh"
 assert_contains "YAML d: key only as a case row" "$OUT" $'setup\tconf.yaml\t1\t1\tcase:exact\tdefault'
 assert_eq "bare D: yields exactly two sites" "2" "$(site_count "$OUT")"
 
-# --- classes -------------------------------------------------------------------
 FX=$(new_fixture classes)
 put "$FX" README.md 'v Q:\vol\one'
 put "$FX" CHANGELOG.md 'v Q:\vol\one'
@@ -156,7 +144,6 @@ assert_contains "summary fixture count" "$SUM" $'class\tfixture\t2'
 assert_contains "summary generated count" "$SUM" $'class\tgenerated\t1'
 assert_contains "summary total" "$SUM" "sites: 9"
 
-# --- filename rules ignore case --------------------------------------------------
 FX=$(new_fixture casenames)
 put "$FX" plan.md 'v Q:\vol\one'
 put "$FX" Tests/x.sh 'v Q:\vol\one'
@@ -166,7 +153,6 @@ OUT=$(slashes "$(vs find --old 'Q:\vol\one' --root "$ROOT")")
 assert_contains "plan.md is a contract" "$OUT" $'contract\tplan.md\t1\t3\texact\tname:PLAN.md'
 assert_contains "Tests/ is a fixture" "$OUT" $'fixture\tTests/x.sh\t1\t3\texact\tsegment:tests'
 
-# --- overlapping forms -------------------------------------------------------------
 FX=$(new_fixture overlap)
 put "$FX" app.json '{"dir": "D:\\data"}'
 put "$FX" cfg.json '{"dir": "cfg\\"}'
@@ -179,7 +165,6 @@ OUT=$(vs find --old $'cfg\\' --root "$ROOT")
 assert_eq "exact and doubled overlap at one start: one row, the longer form" \
   $'setup\tcfg.json\t1\t10\tdoubled\tdefault\t'"$(anchor '{"dir": "cfg\\"}')"$'\t{"dir": "cfg\\\\"}' "$OUT"
 
-# --- exits ---------------------------------------------------------------------
 rc=0
 vs find --old 'Z:\absent' --root "$ROOT" >/dev/null || rc=$?
 assert_exit "no match exits 1" 1 "$rc"
@@ -196,7 +181,6 @@ rc=0
 vs --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
-# --- apply: backslash value, no control bytes --------------------------------
 FX=$(new_fixture apply)
 put "$FX" README.md 'Data lives in D:\data\cfg for now.' 'Second copy D:\data\cfg stays.'
 put "$FX" app.json '{"dir": "D:\\data\\cfg"}'
@@ -216,7 +200,6 @@ assert_eq "JSON gets the doubled-backslash form" '{"dir": "E:\\data\\cfg\\curren
 assert_eq "shell file gets the slash form" 'DATA=E:/data/cfg/current' "$(cat "$FX/setup.sh")"
 assert_eq "F5: a successful apply leaves no temp file" "" "$(untracked "$FX")"
 
-# --- apply: CRLF and BOM -------------------------------------------------------
 FX=$(new_fixture crlf)
 {
   printf '\xef\xbb\xbf'
@@ -242,7 +225,6 @@ else
   fail "apply keeps CRLF and the UTF-8 BOM" "bytes differ from expected"
 fi
 
-# --- apply: refusals -----------------------------------------------------------
 FX=$(new_fixture refuse)
 put "$FX" README.md 'v Q:\vol\one'
 put "$FX" CHANGELOG.md 'v Q:\vol\one'
@@ -297,7 +279,6 @@ vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" --allow-fixture "$
 assert_exit "fixture site applied with --allow-fixture" 0 "$rc"
 assert_eq "fixture file changed" 'v Q:\vol\two' "$(cat "$FX/tests/x.sh")"
 
-# --- apply: every form keeps its spelling ------------------------------------------
 FX=$(new_fixture forms-apply)
 put "$FX" README.md 'Data lives in D:\data\cfg for now.'
 put "$FX" run.sh 'cd /d/data/cfg'
@@ -322,7 +303,6 @@ assert_eq "WSL site gets the WSL spelling" 'cd /mnt/e/data/new' "$(cat "$FX/wsl.
 assert_eq "case:doubled site gets doubled backslashes" '{"dir": "E:\\data\\new"}' "$(cat "$FX/case.json")"
 assert_eq "case:msys site gets the MSYS spelling" 'cd /e/data/new' "$(cat "$FX/case.sh")"
 
-# --- apply: sites are confined to tracked files under the root ---------------------
 FX=$(new_fixture confine)
 put "$FX" README.md 'v Q:\vol\one'
 stage "$FX"
@@ -343,7 +323,6 @@ assert_contains "untracked refusal names the site" "$ERR" "notes.md:1"
 assert_eq "the untracked file is unchanged" 'v Q:\vol\one' "$(cat "$FX/notes.md")"
 assert_eq "untracked refusal writes nothing else" 'v Q:\vol\one' "$(cat "$FX/README.md")"
 
-# --- apply: one file named two ways is one write -----------------------------------
 FX=$(new_fixture dedup)
 put "$FX" dup.md 'one Q:\vol\one' 'two Q:\vol\one'
 put "$FX" docs/keep.md 'kept'
@@ -365,7 +344,6 @@ else
   skip "apply with two casings of one file" "case-sensitive filesystem"
 fi
 
-# --- a dot scope means the whole repository -----------------------------------------
 FX=$(new_fixture dotscope)
 put "$FX" README.md 'v Q:\vol\one'
 put "$FX" docs/guide.md 'v Q:\vol\one'
@@ -374,7 +352,6 @@ ROOT=$(host_path "$FX")
 assert_eq "scope . finds every site" "2" "$(site_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" .)")"
 assert_eq "scope ./ finds every site" "2" "$(site_count "$(vs find --old 'Q:\vol\one' --root "$ROOT" ./)")"
 
-# --- protected surfaces: CI, agent settings, hooks, lint configs, migrations ---------
 FX=$(new_fixture protected)
 put "$FX" .github/workflows/ci.yml 'pin: Q:\vol\one'
 put "$FX" .claude/settings.json '{"dir": "Q:\\vol\\one"}'
@@ -410,7 +387,6 @@ vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/nu
 assert_exit "apply refuses a protected site" 3 "$rc"
 assert_eq "protected refusal writes nothing" 'v Q:\vol\one' "$(cat "$FX/README.md")"
 
-# --- a target that cannot be written stops the run before any write -------------------
 if [[ "$(id -u 2>/dev/null)" != "0" ]]; then
   FX=$(new_fixture readonly)
   put "$FX" a.md 'v Q:\vol\one'
@@ -428,7 +404,6 @@ else
   skip "an unwritable target is refused" "running as root"
 fi
 
-# --- F1: a site is path:line:col:anchor, checked at write time -----------------------
 FX=$(new_fixture swap)
 put "$FX" README.md 'Install to D:/data' 'We once used D:/data (keep)'
 put "$FX" same.md 'new: D:/data' 'old: D:/data (keep)'
@@ -467,7 +442,6 @@ assert_exit "F1: applying the first column exits 0" 0 "$rc"
 assert_eq "F1: only the confirmed column changes" 'E:/work to D:/data-archive and D:/data.old' "$(cat "$FX/README.md")"
 assert_eq "F1: one applied row for one site" "1" "$(row_count "$OUT")"
 
-# --- F2: classification additions and default-deny for unknown kinds -----------------
 FX=$(new_fixture classes2)
 PROT=(azure-pipelines.yaml .drone.yml AppVeyor.yml .woodpecker.yml cloudbuild.yaml
   .azure-pipelines/build.yml .gitlab/ci/build.yml
@@ -510,7 +484,6 @@ rc=0
 vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/null 2>&1 || rc=$?
 assert_exit "F2: apply refuses the added protected kinds" 3 "$rc"
 
-# --- F3: binary and UTF-16/UTF-32 files are skip rows and never written --------------
 FX=$(new_fixture unreadable)
 put "$FX" README.md 'v Q:\vol\one'
 printf '\xff\xfe%s\n' 'v Q:\vol\one' >"$FX/u16.md"
@@ -533,7 +506,6 @@ for f in u16.md blob.md; do
   assert_eq "F3: $f is unchanged" "$BEFORE_BYTES" "$(od -An -tx1 "$FX/$f")"
 done
 
-# --- F4: a match does not end before ~digit (8.3 short names) -------------------------
 FX=$(new_fixture tilde)
 put "$FX" README.md 'short D:/data~1 name' 'plain D:/data here'
 stage "$FX"
@@ -542,7 +514,6 @@ OUT=$(vs find --old 'D:/data' --root "$ROOT")
 assert_not_contains "F4: D:/data~1 is a different directory" "$OUT" $'README.md\t1\t'
 assert_eq "F4: only the plain line is a site" "1" "$(site_count "$OUT")"
 
-# --- F5: hardlinks, resolved paths, and atomic writes ---------------------------------
 FX=$(new_fixture hardlink)
 put "$FX" linked.md 'v Q:\vol\one'
 stage "$FX"
@@ -607,7 +578,6 @@ vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "$(sites "$OUT" run.sh:1
 assert_exit "F5: apply on an executable script exits 0" 0 "$rc"
 assert_not_contains "F5: the atomic write keeps the file mode" "$(git -C "$FX" diff --summary)" "mode change"
 
-# --- G1: tool default names, other forges, lock files, and records -------------------
 FX=$(new_fixture classes3)
 PROT3=(.appveyor.yml lefthook.yaml .lefthook.yml biome.jsonc .golangci.toml .golangci.json
   stylelint.config.js lint-staged.config.js .mypy.ini .woodpecker.yaml .woodpecker/build.yml
@@ -648,7 +618,6 @@ vs apply --old 'Q:\vol\one' --new 'Q:\vol\two' --root "$ROOT" "${S[@]}" >/dev/nu
 assert_exit "G1: apply refuses the added protected and record kinds" 3 "$rc"
 assert_eq "G1: that refusal writes nothing" 'v Q:\vol\one' "$(cat "$FX/db/notes.md")"
 
-# --- G1: the documented rule table equals the enforced rules -------------------------
 DOC="$SCRIPT_DIR/../reference/change-mode.md"
 DOC_RULES=$(tr -d '\r' <"$DOC" | awk -F'|' '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
@@ -688,7 +657,6 @@ DOC_ORDER=$(tr -d '\r' <"$DOC" | awk -F'|' '
 RULES_ORDER=$(printf '%s\n' "$RULES_RAW" | tr -d '\r' | awk -F'\t' '$2 != "extension-allow"')
 assert_eq "G4: the doc table lists the rules in the order classify applies them" "$RULES_ORDER" "$DOC_ORDER"
 
-# --- G2: the anchor covers the line and its two neighbors ---------------------------
 FX=$(new_fixture moved)
 put "$FX" README.md 'p D:/data' '> historical, keep:' 'p D:/data'
 put "$FX" other.md 'o D:/data'
@@ -718,7 +686,6 @@ vs apply --old 'D:/data' --new 'E:/work' --root "$ROOT" "${S[@]}" >/dev/null || 
 assert_exit "G2: a CRLF-to-LF conversion after find still applies" 0 "$rc"
 assert_eq "G2: the converted file gets the edit" $'first\nv E:/work\nlast' "$(cat "$FX/eol.md")"
 
-# --- G3: control bytes in the text column are escaped --------------------------------
 FX=$(new_fixture shown)
 printf 'a\rv D:/data \x1b[0m\x7f end\\x\tt\r\n' >"$FX/ctl.md"
 stage "$FX"
@@ -729,7 +696,6 @@ assert_eq "G3: CR, ESC and DEL show as \\xNN, tab as \\t, a backslash as is" \
 assert_not_contains "G3: no raw CR in find output" "$OUT" $'\r'
 assert_not_contains "G3: no raw ESC in find output" "$OUT" $'\x1b'
 
-# --- G4: Unicode line breaks and bidi controls in the text column are escaped -------
 FX=$(new_fixture shownu)
 printf 'a\xc2\x85b\xe2\x80\xa8c\xe2\x80\xa9d\xe2\x80\xaee\xe2\x81\xa6f v D:/data\n' >"$FX/u.md"
 stage "$FX"

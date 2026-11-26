@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for inventory.sh (no external test lib; ships with the plugin).
-# Every location flag is passed explicitly and HOME points at a fixture directory,
-# so no run reads the real ~/.claude.json or managed policy.
 set -uo pipefail
 
 unset CLAUDE_PROJECT_DIR CLAUDE_CONFIG_DIR
@@ -63,9 +60,6 @@ run_inv() {
   ERR="$(<"$FIX/stderr.txt")"
   ALL+="$OUT$ERR"
 }
-# find_row <scope> <name>: set FIELDS to the tab-split fields of the first row matching scope
-# and name (empty when none). Pure parameter expansion: no subshell or external process, which
-# keeps the suite fast where process creation is slow (Git Bash on Windows).
 FIELDS=()
 find_row() {
   local rest="$OUT"$'\n' line
@@ -300,7 +294,6 @@ assert_eq "user row shadowed by a managed-settings row" "shadowed-by:managed-set
 assert_eq "secret-shaped name redacted, still matched by disabledMcpServers" "disabled" \
   "$(cell user 'redacted-name(16)' 3)"
 
-# Local-scope key matching: C:\Work\Proj key matches the lowercase forward-slash --project.
 assert_eq "local key matched case-insensitively" "localonly@1.0.0" "$(cell local localonly 6)"
 assert_not_contains "other project's local servers not read" "$OUT" "otherproj"
 assert_contains "user source line" "$OUT" "# source user $FIX/claude.json found"
@@ -314,7 +307,6 @@ assert_contains "managed-settings.d drop-in source line" "$OUT" \
 assert_contains "absent --config reported, not an error" "$OUT" "# source file $FIX/nope.json absent"
 assert_eq "plugin.json inline mcpServers read" "plug-mcp@1.0.0" "$(cell file plug 6)"
 
-# managed-settings.d: later file wins per name.
 assert_eq "managed-settings.d later file wins" "https://c.example.com" "$(cell managed-settings override 6)"
 
 assert_contains "not read: MDM" "$OUT" "# not read: MDM/registry/plist policy"
@@ -360,7 +352,6 @@ assert_eq "format-char name redacted by raw length" "bidi@1.0.0" "$(cell file 'r
 assert_not_contains "no RLO char in output" "$OUT" $'\xe2\x80\xae'
 assert_contains "source with a server map is found" "$OUT" "# source file $FIX/probe cases.json found"
 
-# Control characters in a server name are never printed; the name is redacted.
 assert_not_contains "no ESC byte in output" "$OUT" $'\e'
 assert_eq "control-char name redacted by raw length" "ctl@1.0.0" "$(cell user 'redacted-name(15)' 6)"
 
@@ -601,9 +592,6 @@ check_row npxcmdwin npx pkg floating-unversioned unscoped
 check_row npmexec npm-exec pkg@2 floating-range unscoped
 check_row yarn yarn-dlx pkg@1.0.0 exact unscoped
 
-# --- Run 7: re-attack fixture (every ZQX token must stay out of all output) ------
-# One server per case; ZQX062 is a managed-settings.d drop-in.
-
 mkdir -p "$FIX/managed five/managed-settings.d"
 cat >"$FIX/managed five/managed-settings.d/50-x.json" <<'JSON'
 {"managedMcpServers": {"s": {"type":"http","url":"https://u:ZQX062@h.example.com/mcp?k=ZQX062#ZQX062","headers":{"X":"ZQX062"},"oauth":{"clientSecret":"ZQX062"}}}}
@@ -781,11 +769,6 @@ assert_eq "file-configured sdk entry is skipped by the client" "skipped-by-clien
 check_row q-key remote https://h.example.com n/a h.example.com
 check_row q-userinfo remote https://h.example.com n/a h.example.com
 
-# --- Run 9: second re-attack (value filter, env options, path elision) ---------
-# Withheld cases carry ZQX; the .cfg extension keeps them out of the *.json grep, and the
-# planted loop below collects them separately. Residual cases carry RSD instead: they are
-# not secret-shaped under the value filter, so they still print (asserted below).
-
 mkdir -p "$FIX/managed six/managed-settings.d"
 cat >"$FIX/managed six/managed-settings.d/50-n.json" <<'JSON'
 {"managedMcpServers": {"RSDsecret123": {"type": "http", "url": "https://h.example.com"}}}
@@ -893,7 +876,6 @@ assert_eq "1 MB unbalanced wrapper finishes in under 60 s" "yes" "$([[ $((SECOND
 check_row big local - unparsed -
 check_row many npx - unparsed -
 
-# Secret prefixes match only at the start of a value or after a non-alphanumeric character.
 cat >"$FIX/prefix cases.json" <<'JSON'
 {"mcpServers": {
   "p-task": {"command": "npx", "args": ["task-runner@1.0.0"]},
@@ -920,15 +902,11 @@ check_row p-asian npx @acme/asian-food@1.0.0 exact @acme
 check_row p-sk npx - unparsed -
 check_row p-ghp npx - unparsed -
 assert_eq "AKIA after a space redacts the name" "plain@1.0.0" "$(cell file 'redacted-name(12)' 6)"
-# A UUID or a 32+ hex run is withheld; a git #<40 hex> commit and an @sha256 digest are not
-# (both covered by npx-gitcommit and docker-digest in run 1).
 check_row u-npm-uuid npx - unparsed -
 check_row u-img-hex docker - unparsed -
 assert_eq "UUID name redacted" "uuidname@1.0.0" "$(cell file 'redacted-name(36)' 6)"
 check_row u-ok npx pkg@1.2.3 exact unscoped
-# PowerShell env assignments, -Command, cmd /C and SET are matched case-insensitively.
 check_row pw-Env npx pkg@1.0.0 exact unscoped
-# An unquoted pwsh value runs as a command, so the unquoted form is unparsed.
 check_row pw-ENV local - unparsed -
 check_row pw-brace local - unparsed -
 check_row cmd-upper npx pkg@1.0.0 exact unscoped
@@ -945,10 +923,6 @@ run_inv --claude-json "$FIX/nope.json" --project "$FIX/proj" --mcp-json "$FIX/no
   --managed-dir "$FIX/no managed" --config "$FIX/a"$'\n'"ZQXLINEPATH.json" --date 2026-01-02
 assert_eq "control character in a source path exits 2" 2 "$RC"
 assert_not_contains "control-character path not echoed" "$OUT$ERR" "ZQXLINEPATH"
-
-# --- Run 11: re-gate fixtures (wrapper whitespace, URL backslash, custom index) -----
-# Tokens are lower-case zqx; the planted loop collects them, plus the zq/xaNN halves of
-# tokens split by a quote, space, or percent escape.
 
 cat >"$FIX/gate3 adv3.json" <<'JSON'
 {"mcpServers": {
@@ -1116,10 +1090,6 @@ assert_eq "managed-settings row behind managed-mcp.json" "shadowed-by:managed" "
 assert_eq "user row suppressed by managed-mcp.json" "suppressed-by-managed" "$(cell user all 3)"
 assert_eq "project row suppressed by managed-mcp.json" "suppressed-by-managed" "$(cell project up 3)"
 
-# --- Run 13: conservative wrapper parsing (fourth re-attack sample, zqyNNN tokens) --
-# Every leaking case plus every eighth held case; c320 (a GitHub-token-shaped name) and
-# c336 (a 5000-character padding case) are left out.
-
 cat >"$FIX/reattack4 cases.json" <<'JSON'
 {"mcpServers": {
   "c008":{"command":"env","args":["-S","TOKEN=ab\nzqy008 node s.js"]},
@@ -1231,11 +1201,6 @@ check_row ok-cmd-opts npx pkg@1.0.0 exact unscoped
 check_row ok-env-chain npx pkg@1.0.0 exact unscoped
 check_row ok-bash-assign npx pkg@1.0.0 exact unscoped
 
-# --- Run 14: assignment value classes, invisible characters, drop-in bytes (zqg tokens) --
-# A pwsh or cmd assignment value holding anything outside [A-Za-z0-9._/:+~@,-] (plus space
-# inside single quotes) leaves the whole wrapper unparsed. d15 is the control case: a POSIX
-# value may hold a mid-word ~, so the package after it prints.
-
 cat >"$FIX/gate5 adv5.json" <<'JSON'
 {"mcpServers": {
  "d01": {"command":"pwsh","args":["-c","$env:K=zq`;npx zqgleak1"]},
@@ -1309,8 +1274,6 @@ check_row d15 npx okpkg floating-unversioned unscoped
 check_row c73 npx - unparsed -
 check_row u-uvx uvx - unparsed -
 check_row dd-ok npx pkg@1.0.0 exact unscoped
-# pwsh accepts only the single-quoted $env:NAME='value'; form (an unquoted right-hand side
-# runs as a command), and a pwsh program must start with a letter, . or / and hold no +.
 for wrapped in c001 c082 c090 c091 c092 pp-digit pp-plus; do
   check_row "$wrapped" local - unparsed -
 done
@@ -1325,7 +1288,6 @@ for invisible in i034f i061c i115f i1160 i17b4 i180e i2028 i2065 i206f i3164 ife
   assert_eq "managed-settings $invisible rejected" "rejected-by-client" "$(cell managed-settings "$invisible" 3)"
 done
 
-# A drop-in file name holding a non-ASCII byte prints as redacted-file under LC_ALL=C.
 BIDI=$'\342\200\256'
 mkdir -p "$FIX/gate5 drop/managed-settings.d"
 printf '%s\n' '{"managedMcpServers": {}}' >"$FIX/gate5 drop/managed-settings.d/a${BIDI}zqgdrop.json"
@@ -1341,8 +1303,6 @@ assert_contains "non-ASCII drop-in file name prints as redacted-file" "$OUT" \
   "# source managed-settings $FIX/gate5 drop/managed-settings.d/redacted-file found"
 assert_not_contains "non-ASCII drop-in bytes not echoed" "$OUT$ERR" "$BIDI"
 assert_not_contains "non-ASCII drop-in name not echoed" "$OUT$ERR" "zqgdrop"
-
-# --- Exit 2 cases --------------------------------------------------------------
 
 printf '%s\n' '{not json' >"$FIX/bad.json"
 printf '%s\n' '{"mcpServers": "./x.json"}' >"$FIX/string-servers.json"
@@ -1387,10 +1347,6 @@ ERR="$(<"$FIX/stderr.txt")"
 ALL+="$OUT$ERR"
 assert_eq "jq missing exits 2" 2 "$RC"
 assert_contains "jq missing names jq" "$ERR" "jq"
-
-# --- Planted secrets never reach stdout or stderr of any run -------------------
-# Every LEAK*/SECRET* token and every ZQXnnn id planted in any fixture is checked
-# against the combined stdout and stderr of every run above.
 
 planted="$(grep -rhoE '(LEAK|SECRET)[A-Z0-9_]*|ZQX[0-9]{3}' --include='*.json' "$FIX" | LC_ALL=C sort -u)"
 assert_eq "planted secret tokens were collected" "yes" "$([[ -n "$planted" ]] && echo yes)"

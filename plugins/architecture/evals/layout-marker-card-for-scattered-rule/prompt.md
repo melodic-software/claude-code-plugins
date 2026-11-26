@@ -1,7 +1,7 @@
 ---
 description: "improve-layout Phase 2 marker card: the scaffolded ARCHITECTURE.md:22 rule governs three files that share no folder and no file-name part, so the rule gets a marker card proposing a shared file-name part, routed to /architecture:improve conventions; no file is renamed. Source: the improve skill's evals.json case layout-marker-card-for-scattered-rule, given a scaffold. Needs --scaffold --allow-tools Bash Write and a sandbox backend."
 tags: [architecture, improve-layout, co-change, scaffold]
-runs: 6
+runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

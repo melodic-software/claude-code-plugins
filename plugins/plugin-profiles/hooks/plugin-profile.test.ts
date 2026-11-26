@@ -97,7 +97,6 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
   })
   on('command.run', ($: unknown, e: { command: string }) => {
     w.commands.push(e.command)
-    // A reload that unloads this module never answers the call that queued it.
     if (cli.reloadHangs) return new Promise(() => undefined)
     return { text: `ran ${e.command}` }
   })

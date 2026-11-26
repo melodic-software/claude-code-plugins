@@ -30,9 +30,6 @@ scopes, so the line stops a caller's $PassThru from leaking in and suppressing
 the write. Test-Drivers declares -PassThru as a parameter instead.
 #>
 
-# Variable lookups go through the session state, not Test-Path: check suites
-# mock Test-Path, and a mocked Test-Path would read every optional variable as
-# unset and every result as missing.
 $envelopeVars = $ExecutionContext.SessionState.PSVariable
 $FailureNeedsAdmin = [bool]$envelopeVars.GetValue('FailureNeedsAdmin')
 $PassThru = [bool]$envelopeVars.GetValue('PassThru')

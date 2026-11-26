@@ -239,7 +239,6 @@ test("ci-mode.md keys native drift per item: its example passes, and two items o
   const [, drift, example] = /drift key `(native-drift:[^`]+)` gives `(changelog:[^`]+)`/.exec(doc) ?? [];
   assert.equal(drift, "native-drift:recheck:code-review:review:code-reviewer@agent", "ci-mode.md gives a native-drift example");
   assert.equal(example, "changelog:2.1.319..2.1.319:native-drift:recheck/code-review/review-code-reviewer-agent");
-  // The stated rule: <kind>/<surface>/<component>, each character outside [A-Za-z0-9_./-] made `-`.
   const planKey = (kind, surface, component) => `changelog:2.1.300..2.1.300:native-drift:${`${kind}/${surface}/${component}`.replace(/[^A-Za-z0-9_./-]/g, "-")}`;
   const keys = [planKey("candidate", "code-review", "review:code-reviewer@agent"), planKey("candidate", "code-review", "code-tidying:simplify")];
   assert.deepEqual(keys, [
@@ -301,13 +300,6 @@ test("the done marker uploads only when publish says the release is done", () =>
   assert.match(step[0], /\n {8}if: steps\.publish\.outcome == 'success' && steps\.publish\.outputs\.done == 'true'\n/);
 });
 
-// ci-workflows select-model-credential's start call (check-key-credit's
-// gate.cjs at the pinned SHA): next-leg is `subscription` only while the
-// newest marker named by its `marker` output,
-// `key-credit-stop-<workflow file>-<key-job>`, is inside the window; the
-// apply-changelog job uploads that name after a credit-stop handoff.
-// credential-legs.test.mjs holds every leg's start and credential to the
-// expressions before the action.
 const WORKFLOW = readFileSync(new URL("../../workflows/upstream-apply-changelog.yml", import.meta.url), "utf8");
 const wf = workflowText(WORKFLOW);
 const jobOf = wf.job;
@@ -316,7 +308,6 @@ const indexIn = (id, name) => wf.steps(id).findIndex((s) => s.name === name);
 const ifOf = (step) => ifOfIndented(step, 8);
 const MARKER = "key-credit-stop-ISSUE_LANE_CLAUDE_API_KEY";
 
-// The scrub probe (#12836): capture-probe.mjs on run-claude-cli, on the release.
 const PROBE_JOB = "verify-env-scrub";
 const PROBE_STEP = "Probe what a Bash child can reach";
 const CHECK_STEP = "Check the probe";
@@ -581,7 +572,6 @@ test("a setup failure before the leg still writes a start record, so the cap bou
       assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": models })), true, `${job} resolve ${models}, no leg`);
     }
     assert.equal(evalIf(write, leg({ ...noLeg, "steps.models.outcome": "skipped" })), false, `${job} kill switch`);
-    // The scan the record needs comes from the trusted checkout, which runs on the same condition.
     for (const step of ["Clear the trusted checkout path", "Check out the base for the sealer"]) {
       assert.equal(ifOf(stepIn(job, step)), "always() && steps.models.outcome != 'skipped'", `${job} ${step}`);
     }
@@ -730,7 +720,6 @@ test("a diff touching the security review skill or the risk scorer changes a hol
   assert.equal(changesHoldPath(raw(SECURITY_SKILL)), true);
   assert.equal(changesHoldPath(raw(RISK_SCORER)), true);
   assert.equal(changesHoldPath(raw("plugins/Review/Skills/Security-Review/skill.md")), true);
-  // Either side of a rename counts.
   assert.equal(changesHoldPath(`:100644 100644 1 2 R100\t${SECURITY_SKILL}\tplugins/review/skills/x.md`), true);
   assert.equal(changesHoldPath(raw("plugins/discovery/skills/explore/SKILL.md")), false);
   assert.equal(changesHoldPath(raw("plugins/review/skills/code-review/SKILL.md")), false);
@@ -879,7 +868,6 @@ test("the net change reads each file once at its head content, whatever the comm
   const numstat = git("diff", "--numstat", base, "HEAD");
   assert.throws(() => refuseBinary(numstat, 2), (e) => /branches\[2\] changes a binary file/.test(e.message) && !e.message.includes("img.bin"));
   assert.doesNotThrow(() => refuseBinary(git("diff", "--numstat", base, "HEAD~1"), 2));
-  // A merge commit's change shows in the net diff, so the path check sees it.
   git("checkout", "-qb", "side", base);
   git("checkout", "-q", "main", "--", "new.md");
   git("commit", "-qm", "side");

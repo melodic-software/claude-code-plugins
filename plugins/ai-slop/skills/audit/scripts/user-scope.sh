@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Surfaces follow the claude-directory "File reference" table (https://code.claude.com/docs/en/claude-directory#file-reference,
-# as of 2026-10-11; recheck when it adds, moves or drops a global-scope markdown file).
 # Exit: 0 ok, including an empty list; 2 on a usage error or a missing root.
 set -u
 export LC_ALL=C
@@ -37,7 +35,6 @@ if [[ -z "$root" ]]; then
   root="$HOME/.claude"
 fi
 [[ -d "$root" ]] || { echo "$ME: config root not found: $root" >&2; exit 2; }
-# Windows form (C:/...) under MSYS, where `pwd -W` exists; plain pwd elsewhere.
 root="$(CDPATH='' cd -- "$root" && { pwd -W 2>/dev/null || pwd; })" ||
   { echo "$ME: cannot enter config root: $root" >&2; exit 2; }
 realroot=""

@@ -87,8 +87,6 @@ function Get-ReviewedCheckId {
 }
 
 function Get-ServiceExclusion {
-    # Service names from check_overrides.services.service_exclusions; @() when any
-    # level of that path is absent, since StrictMode 3.0 throws on a missing property.
     [CmdletBinding()]
     [OutputType([string[]])]
     param([Parameter(Mandatory = $true)] [AllowNull()] $State)

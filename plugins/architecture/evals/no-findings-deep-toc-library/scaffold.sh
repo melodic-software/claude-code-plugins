@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# A small JavaScript library whose one export, buildToc(markdown, options), hides heading parsing,
-# slug de-duplication and nesting. The internals are imported only by index.js, and the tests call
-# only buildToc.
 set -euo pipefail
 
 git init -q -b main

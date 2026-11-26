@@ -57,7 +57,7 @@ CLEAN='{
 out="$(run --help 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
-  grep -q 'Fixture resolution (Q4)' <<<"$out" &&
+  grep -q 'Q1-Q4 FAIL' <<<"$out" &&
   ! grep -q 'set -uo pipefail' <<<"$out"; then
   pass "--help prints the full header and stops before code"
 else
@@ -519,10 +519,6 @@ else
   fail "Q9 should warn on a set with no negative-behavior case (rc=$rc): $out"
 fi
 
-# 15. Multi-file run: findings stay per-file, one failing file fails the run,
-#     and the summary counts every input.
-# Findings are asserted by path SUFFIX: on Git Bash the msys layer hands
-# jq.exe a Windows-form path, so the absolute prefix differs from $TMP.
 clean_f="$TMP/clean/evals/evals.json"
 bad_f="$TMP/dup-id/evals/evals.json"
 out="$(run "$clean_f" "$bad_f" 2>&1)"

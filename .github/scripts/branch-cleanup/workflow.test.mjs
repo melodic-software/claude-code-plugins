@@ -39,9 +39,6 @@ test("only the plan stage reads issue and pull request text; the delete stage ta
   assert.match(job("delete"), /needs: select-stale-branches\n/);
 });
 
-// Re-running only a failed delete job keeps the select-stale-branches job's outputs from the
-// attempt that uploaded the list, so the download names that attempt's
-// artifact, never the re-run's own attempt.
 test("the delete job downloads the artifact name the select-stale-branches job uploaded", () => {
   const name = "branch-cleanup-candidates-${{ github.run_id }}-${{ github.run_attempt }}";
   assert.ok(job("select-stale-branches").includes(`\n      candidates: ${name}\n`));

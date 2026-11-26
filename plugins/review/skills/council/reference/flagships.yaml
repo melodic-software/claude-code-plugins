@@ -1,15 +1,3 @@
-# What `<provider>/flagship` resolves to, per provider. `unresolved` means the
-# member is skipped until its adapter can resolve one.
-#
-# claude
-#   Pointer: https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison
-#   As of: 2026-11-09. Recheck when that table lists a new top model.
-# codex
-#   Unresolved: the Codex adapter reads no model list. Recheck when the Codex
-#   plugin's review commands document one.
-# antigravity
-#   Unresolved: the adapter reads no model list. Recheck when the runner
-#   resolves one from `agy models`.
 claude: fable
 codex: unresolved
 antigravity: unresolved

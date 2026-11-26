@@ -1,65 +1,4 @@
 #!/usr/bin/env bash
-# Mechanical validator for an arid-node suppression record
-# (`.claude/mutation-testing-arid.md` and its layers).
-#
-# It performs the two derivations the suppression contract publishes, over
-# every entry in a record, so that neither is transcribed by hand:
-#
-#   1. `finding_id` is re-derived from the entry's own `(check, claim, sites)`
-#      and compared against the key the entry is filed under. The constituents
-#      are authoritative and the key is derived from them, so a hand-edited
-#      constituent beside a stale key is a malformed entry that silently stops
-#      suppressing. The recipe is the convention's, unchanged:
-#      `sha256(US.join([check, claim, surface, anchor, ...]))[:16]` with
-#      `US = "\x1f"` and the sites sorted on the encoded bytes of
-#      `(surface, anchor)`.
-#   2. `claim` is `arid(kind=<node-kind>)` with `<node-kind>` a MEMBER of the
-#      closed vocabulary table. Membership, never shape: a single-word kind
-#      outside the table is indistinguishable from prose that happens to be one
-#      word, and accepting it would make every suppression self-justifying.
-#      The vocabulary is read from the table at run time rather than copied
-#      here, because that table is the list and is extended only by a change
-#      to it.
-#
-# It also reports the five required keys (`check`, `claim`, `sites`, `reason`,
-# `date`), because an entry missing one does not suppress and printing `ok`
-# over it would invite exactly the trust the contract refuses. `date` is a
-# calendar ISO-8601 value `YYYY-MM-DD` that names a real day: a nonempty
-# placeholder such as `yesterday`, and an ISO-shaped impossibility such as
-# `2026-02-31`, are malformed, not accepted.
-#
-# It does NOT derive an `anchor/v<N>` discriminator: that needs the mutated
-# node's enclosing scope path, which the record does not carry. It does not
-# validate an anchor's internal shape either, which is published only as a
-# placeholder. Anchors are taken as written.
-#
-# Usage:
-#   bash suppression-lint.sh <record> [<record> ...]
-#   bash suppression-lint.sh --kinds <file> <record> [<record> ...]
-#   bash suppression-lint.sh --help
-#
-# A record of `-` is read from stdin, which is how a PROPOSED entry is graded
-# without writing it anywhere. Every record given is graded in one run.
-#
-# `--kinds <file>` overrides the vocabulary source. The default is this
-# plugin's `skills/principles/reference/scaling-and-suppression.md`, resolved
-# from this script's own location rather than the working directory.
-#
-# Output (stdout, greppable), one `record <path>` line per input followed by
-# one line per entry:
-#
-#   ok <finding_id>
-#   malformed <finding_id> missing required key(s): check, claim
-#   mismatch <finding_id> constituents hash to <derived>
-#   unknown-kind <finding_id> claim binds kind=<k>, not in the vocabulary
-#   absent <path>
-#
-# An entry failing more than one check gets ONE line whose verdict is the first
-# failure in the order malformed, mismatch, unknown-kind, and whose detail lists
-# every failure, so a second problem is never hidden behind the first. A run
-# with any unknown kind prints the accepted kinds once, before the summary
-# line `suppression-lint: entries=<n> ok=<n> failed=<n>`.
-#
 # Exit 0 = every entry passed both derivations and carries all five keys. An
 #          ABSENT record and a record whose `suppressions:` mapping is empty are
 #          both exit 0: no suppressions is a valid state for this surface.
@@ -78,7 +17,22 @@ US=$'\037'
 TAB=$'\t'
 
 usage() {
-  sed -n '2,71{s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Validate an arid-node suppression record: re-derive each entry's finding_id and check its kind against the vocabulary table.
+
+Usage:
+  bash suppression-lint.sh <record> [<record> ...]
+  bash suppression-lint.sh --kinds <file> <record> [<record> ...]
+  bash suppression-lint.sh --help
+
+  <record>        a record file; `-` reads stdin
+  --kinds <file>  vocabulary table (default: skills/principles/reference/scaling-and-suppression.md)
+  --help          print this help
+
+Exit 0 = every entry passed, or no suppressions; 1 = an entry is malformed, mismatched or
+binds an unknown kind; 2 = usage error, a record with no `suppressions:` mapping, an
+unreadable vocabulary table, or no digest tool.
+EOF
 }
 
 die() {
@@ -86,9 +40,6 @@ die() {
   exit 2
 }
 
-# True when $1 is a real Gregorian day written YYYY-MM-DD. Field ranges alone
-# accept 2026-02-31; month length (including leap February) is the rest of the
-# calendar check. Portable arithmetic, no GNU date(1).
 is_calendar_iso_date() {
   local y m d max
   [[ "$1" =~ ^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || return 1
@@ -110,8 +61,6 @@ is_calendar_iso_date() {
   ((d >= 1 && d <= max))
 }
 
-# GNU coreutils ships sha256sum; macOS ships shasum. Emits the first 16 hex
-# characters of the digest of its argument, with no trailing newline fed in.
 digest16() {
   local out
   if command -v sha256sum >/dev/null 2>&1; then
@@ -142,12 +91,6 @@ read_kinds() {
   ' "$1"
 }
 
-# Normalizes one record into a flat stream the shell can consume:
-#   E<TAB><finding_id>            an entry begins
-#   K<TAB><key><TAB><value>       an entry-level scalar
-#   S<TAB><surface><TAB><anchor>  one site, anchor resolved to its greatest version
-#   X<TAB><message>               a parse defect inside the current entry
-#   F<TAB><message>               the record itself is not readable as a record
 parse_record() {
   awk -v tab="$TAB" '
     BEGIN { entry_indent = -1 }

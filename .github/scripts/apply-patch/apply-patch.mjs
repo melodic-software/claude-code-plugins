@@ -1,71 +1,4 @@
 #!/usr/bin/env node
-// apply-patch.mjs: the one script that applies a read model job's patch and
-// commits it, with no model and no producer code run. Its target picks the row
-// of patch-rules.json, read from the trusted base checkout (BASE_DIR), never
-// from the head: a pull request target takes the producer's prepare-mode row
-// (`default` for none) and moves the PR branch on from the gated head; the
-// issue target takes the `issue` row and makes a new lane branch at the commit
-// the producer started from. A lane changes what is admitted by registering a
-// row or a predicate, never by a branch here.
-//
-//   select  before the mint and the head checkout, with no token: checks the
-//           downloaded artifact (exactly one regular patch.diff, at most 1 MiB,
-//           with the model job's SHA-256 and no credential shape) and reads the
-//           row's producer report. An empty, invalid or credential-shaped patch
-//           stops with the row's reason, and the lane's routes for that reason
-//           decide whether it retries or a person holds it.
-//   (none)  after the checkout of the start commit, with the lane token:
-//           checks the row and builds its allow predicates (an unknown name
-//           throws before any write), checks the row's requirements and the
-//           patch again, applies it to the index with git's hooks and config
-//           off, and refuses the whole patch when any change matches a
-//           refusal, exceeds max-files, fails an allow predicate or the row's
-//           content rule, or a new blob carries a credential shape. A row
-//           whose content rule is a drop rule (protected-content) then leaves
-//           protected content out, with a warning per part, and applies the
-//           rest. On a PR, a head that moved since
-//           the model job skips superseded-sha under a skip-moved-head row,
-//           and otherwise takes the patch with --3way only when the moved
-//           commits touch no patched path, else it skips superseded-sha; an
-//           issue patch applies only to the commit it was made on. It then
-//           re-reads the holds (a PR's labels and draft state, or an issue's
-//           hold and required labels), commits the tree through the Git Data
-//           API, checks the tree hash, and moves the PR branch with
-//           force: false or creates the new branch, which fails if it exists.
-//           A PR branch another push moved past the gated head, before the
-//           write or by the write's 422, skips superseded-sha.
-//           Under a merge row (parents [head, base]) the checkout holds the
-//           merge of the pinned base the write runner just ran (prepare.sh):
-//           the patch applies to the conflict tree T0, never the head; only
-//           its own changes face the refusals, max-files, merge-result and
-//           the credential and size checks, while the merge's base-side
-//           changes pass through. Every originally conflicted path must be
-//           left marker-free, a workflow change must be exactly the base's,
-//           and the commit has the head and the base as parents. A clean
-//           merge needs no patch.
-//
-// Environment, both: BASE_DIR, PATCH_PREPARE (empty for none), PATCH_TARGET
-// (pr, the default, or issue). Select: GITHUB_OUTPUT, PATCH_STATE,
-// PATCH_SHA256, PATCH_HEAD_SHA, HEAD_SHA, PATCH_DIR, REPORT_DIR. Script step:
-// GH_TOKEN, GITHUB_REPOSITORY, PR_NUMBER (pr) or ISSUE_NUMBER,
-// REQUIRED_LABELS (a JSON list) and PATCH_BASE_SHA (the default-branch commit
-// the refusals measure from) (issue), HEAD_SHA, PATCH_HEAD_SHA, HEAD_REF (the
-// PR branch, or the new `<lane>/issue-<n>-<run id>-<attempt>` branch), LANE,
-// PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
-// ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (the select
-// job's threads.json, whose threads' path and named_paths the kept-threads
-// predicate reads), PATCH_REPLIES_FILE (a thread-trailer row's scanned
-// replies.jsonl, whose VALID replies name the kept threads the commit's
-// Lane-Thread lines name), DEPENDENCY_VERDICT (the scanned verdict the
-// dependency-verdict requirement reads) and GITHUB_OUTPUT (gets commit=<sha>
-// and branch=<ref>). A row that allows dependency-manifests reads the
-// [ecosystem, directory] pairs from BASE_DIR's .github/dependabot.yml. A merge
-// row: select reads MERGE_STATE (clean or conflicted); the script step also
-// MERGE_BASE_SHA (the pinned base, the second parent), CONFLICT_TREE (T0,
-// which the runner checked against the select job's), BASE_REF, and
-// TREE_ENTRIES_SCRIPT with TREE_ENTRIES_SHA256 (the base copy of
-// tree-entries.sh); it reads the conflicted paths from the checkout's index.
-
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
@@ -89,8 +22,6 @@ import { retryFetch } from "../lib/retry-fetch.mjs";
 export { segments } from "./protected-paths.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
-// A compressed binary patch inflates: any one patched blob, and all of them
-// together, are capped once leakedBlob has scanned them.
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024;
 export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
 export const MAX_TREE_ENTRIES_PER_REQUEST = 100;
@@ -109,23 +40,15 @@ const lefthookConfigs = (...stems) => new Set(stems.flatMap((stem) => ["yml", "y
 const LEFTHOOK_ROOT_CONFIGS = lefthookConfigs("lefthook", ".lefthook", "lefthook-local", ".lefthook-local");
 const LEFTHOOK_DOT_CONFIGS = lefthookConfigs("lefthook", "lefthook-local");
 
-// Path refusals a row may add to the universal set, in any case and through
-// any .. segment; rename-into-refused does not read them.
 const ROW_PATH_RULES = {
   skills: (s) => s.slice(0, -1).includes("skills"),
   "skill-md": (s) => s.at(-1) === "skill.md",
-  // Files that change what git, or a hook it runs, does on the next checkout
-  // or commit on any machine.
   gitattributes: (s) => s.at(-1) === ".gitattributes",
   husky: (s) => s[0] === ".husky",
   lefthook: (s) => s[0] === ".lefthook" || s[0] === ".lefthook-local" || (s.length === 1 && LEFTHOOK_ROOT_CONFIGS.has(s[0])) || (s.length === 2 && s[0] === ".config" && LEFTHOOK_DOT_CONFIGS.has(s[1])),
 };
 const rowPathRule = (name) => (entry) => ROW_PATH_RULES[name](segments(entry.path));
 
-// The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed, and the `optional` ones, which apply only
-// to a row that names them; any match refuses the whole patch, and `kind`
-// picks the row's escalation reason.
 export const ALWAYS = ["backslash"];
 export const REFUSALS = {
   backslash: PROTECTED_REFUSALS.backslash,
@@ -143,29 +66,17 @@ export const REFUSALS = {
   husky: { kind: "protected-path", optional: true, test: rowPathRule("husky") },
   lefthook: { kind: "protected-path", optional: true, test: rowPathRule("lefthook") },
   "claude-protected": PROTECTED_REFUSALS["claude-protected"],
-  // A mode that gains the executable bit: a new file at 100755, or a change
-  // to it. Optional, so the issue row's script-exec-bit and the ci-context
-  // row's script fixes keep working.
   "new-exec-bit": { kind: "protected-path", optional: true, test: (entry) => entry.newMode === EXECUTABLE && entry.oldMode !== EXECUTABLE },
 };
 
-// The names of the refusals that match one changed entry; by default all but
-// the optional ones, which apply only to a row that names them.
 export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
-// Credential shapes: any match in the patch or a patched blob refuses it all.
-// The source is lib/publish-gate.mjs CREDENTIAL_SHAPES, the read runner's scan
-// job's list. This script runs from a staged copy that cannot reach root lib/,
-// so it keeps this copy; apply-patch.test.mjs fails when the two differ.
 export const CREDENTIAL_SHAPES = Object.freeze([
   ["GitHub token", /\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{22,})/],
   ["Anthropic key", /sk-ant-[A-Za-z0-9_-]{20,}/],
 ]);
 export const credentialIn = (text) => CREDENTIAL_SHAPES.find(([, pattern]) => pattern.test(text))?.[0] ?? "";
 
-// The whole file is scanned in chunks that overlap by far more than the
-// shortest text `find` matches (a shape's prefix and minimum run, at most 40
-// bytes, or a binary hunk's line), so no match is cut at a chunk's edge.
 const SCAN_CHUNK_BYTES = MAX_PATCH_BYTES;
 const SCAN_OVERLAP_BYTES = 4096;
 function findInFile(file, find) {
@@ -182,11 +93,6 @@ function findInFile(file, find) {
   }
 }
 
-// A binary hunk's bytes are compressed in the patch text, so only the file the
-// hunk makes shows them. A patch refused or unapplied before that file exists
-// is therefore not proven clear when it holds a binary hunk: `kind` becomes
-// `credential`. A text-only patch keeps `kind`, since every added byte of it
-// was scanned as text.
 const BINARY_HUNK = /^GIT binary patch$/m;
 const unscannedKind = (file, kind) => (existsSync(file) && lstatSync(file).isFile() && findInFile(file, (text) => BINARY_HUNK.test(text)) ? "credential" : kind);
 
@@ -194,8 +100,6 @@ const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED = new RegExp(`^(.+?): escalated (${REASONS})(?: |$)`);
 const RUNG_UP_REASONS = new Set(["unfixed", "not-reproducible"]);
 
-// A report's `<check>: escalated <reason> <sentence>` lines, as { check,
-// reason }. The report is model output: only this shape is read.
 const escalations = (text) =>
   String(text).split("\n").flatMap((line) => {
     const match = ESCALATED.exec(line.replace(/\r$/, ""));
@@ -203,37 +107,25 @@ const escalations = (text) =>
   });
 const escalatedReasons = (text) => escalations(text).map(({ reason }) => reason);
 
-// The checks a report escalated.
 export function escalatedChecks(text) {
   return escalations(text).map(({ check }) => check);
 }
 
-// Whether a report escalated at least one check and every escalation is one
-// a stronger model may answer.
 export function rungUpEscalation(text) {
   const reasons = escalatedReasons(text);
   return reasons.length > 0 && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
 }
 
-// An escalation the lane cannot settle, and the reason it stops with: a fix
-// that needs a path the lane token may not push, or one that would weaken a
-// required check after its fresh fixer round (weakenStop; escalation-routes.json
-// routes both to the session-builder queue).
 const HELD_ESCALATIONS = [
   ["protected-path", "ci-fix-protected-path"],
   ["weaken-required", "ci-fix-weaken-required"],
 ];
 
-// The held reason a report's escalations name, or "".
 export function heldEscalation(text) {
   const reasons = escalatedReasons(text);
   return HELD_ESCALATIONS.find(([reason]) => reasons.includes(reason))?.[1] ?? "";
 }
 
-// The first weaken-required stop on a head stops for one fresh fixer round
-// instead of the session-builder queue: a fail-routed reason, whose lane-stopped check the
-// fix-ci dispatcher retries on the same head with the no-weaken brief
-// (fix-ci-context.mjs). The guard itself stays: the round still may not weaken.
 export const WEAKEN_RETRY = "ci-fix-weaken-retry";
 const weakenStop = (held, weakenRetry) => (held === "ci-fix-weaken-required" && weakenRetry ? WEAKEN_RETRY : held);
 
@@ -254,15 +146,10 @@ const REQUIREMENTS = {
   "dependency-verdict: fix": (context) => context.dependencyVerdict === "fix",
 };
 
-// git's raw status letter as the REST file listing names it.
 const STATUS = { M: "modified", A: "added", D: "removed", T: "changed" };
 
-// A blob's text from the local objects, or null for the zero id of a side
-// with no file.
 const blobText = (git, sha) => (ZERO.test(sha) ? null : git(["cat-file", "blob", sha]).toString("utf8"));
 
-// The mode of `path` in the tree `treeSha`, walked one directory at a time
-// through the Git trees API; null when it is absent.
 async function entryAt(api, treeSha, path) {
   const parts = path.split("/");
   let sha = treeSha;
@@ -284,13 +171,7 @@ async function modeAt(api, treeSha, path) {
   return item?.type === "blob" ? item.mode : null;
 }
 
-// A row's content rule: what each changed file's bytes must also meet, read
-// from the local objects. It returns the first refusal, or null.
 export const CONTENT_RULES = {
-  // A file mode changes only back to the one the path has at the merge base
-  // of the PR head and its base: a mode the PR itself introduced is reverted,
-  // and no other is changed; a file the PR added may drop to 100644, the
-  // default mode. Content-only changes read nothing.
   "pr-mode-revert": async ({ entries, api, pr, headSha }) => {
     const changed = entries.filter((entry) => [REGULAR, EXECUTABLE].includes(entry.oldMode) && [REGULAR, EXECUTABLE].includes(entry.newMode) && entry.oldMode !== entry.newMode);
     if (changed.length === 0) {
@@ -312,9 +193,6 @@ export const CONTENT_RULES = {
     }
     return null;
   },
-  // A version change of a regular npm or pip manifest or lock file modified in
-  // place, as dependency-classify.mjs's fixRefusal decides; the verdict job
-  // runs the same rule again on what landed.
   "dependency-version-change": async ({ entries, git, context }) => {
     const byPath = new Map(entries.map((entry) => [entry.path, entry]));
     return fixRefusal(
@@ -353,10 +231,6 @@ export const CONTENT_RULES = {
       rmSync(root, { recursive: true, force: true });
     }
   },
-  // The root package.json alone, modified in place, with one install-script
-  // pin moved to the version the manifest pins and nothing else
-  // (dependency-classify.mjs installScriptPinRefusal): review-dependency
-  // select's patch, made with no model.
   "install-script-pin": async ({ entries, git, context }) => {
     if (entries.length !== 1 || entries[0].path !== "package.json") {
       return `the patch changes ${entries.map((entry) => entry.path).join(", ") || "nothing"}, not package.json alone`;
@@ -379,11 +253,6 @@ export const CONTENT_RULES = {
   },
 };
 
-// The released and historical tiers' paths in docs/conventions/docs-naming.yaml,
-// the repository's definition of content that stays as written: a CHANGELOG.md
-// the release tooling writes from .changes/ fragments, and the ADR, upstream
-// and unhobble records. This script reads no YAML, so it keeps this copy;
-// apply-patch.test.mjs fails when the two differ.
 export const FROZEN_TIERS = Object.freeze({
   historical: Object.freeze(["docs/adr/**", "docs/upstream/**", ".claude/unhobble/**"]),
   released: Object.freeze(["**/CHANGELOG.md"]),
@@ -392,8 +261,6 @@ const FROZEN_WHY = {
   historical: "a historical record (docs/conventions/docs-naming.yaml tier historical) whose narrative stays as written",
   released: "a released changelog (docs/conventions/docs-naming.yaml tier released) the release tooling writes",
 };
-// A tier glob is `**/<name>` or `<directory>/**`, read through segments() as
-// every path rule is: in any case and through any .. segment.
 const tierGlob = (glob) => {
   const parts = segments(glob);
   if (parts.length === 2 && parts[0] === "**" && parts[1] !== "**") {
@@ -410,15 +277,9 @@ const frozenTier = (path) => FROZEN_MATCHERS.find(([, tests]) => tests.some((mat
 
 const BEGIN_GENERATED = /^[ \t]*<!-- BEGIN GENERATED:(.*)-->[ \t]*$/;
 const END_GENERATED = /^[ \t]*<!-- END GENERATED:.*-->[ \t]*$/;
-// A blob's lines, each with its line end, as latin1 so they rebuild to the same bytes.
 const linesOf = (bytes) => (bytes.length === 0 ? [] : bytes.toString("latin1").split(/(?<=\n)/));
 const markerText = (line) => line.replace(/\r?\n$/, "");
 
-// The generated regions of a blob, each { begin, end, generator }: the line
-// indices of its BEGIN and END GENERATED lines and the text after the BEGIN
-// line's `GENERATED:`. The END line's text may be shorter than the BEGIN's, so
-// markers pair by order alone; a BEGIN inside a region, an END outside one, or
-// a BEGIN never closed is { error }.
 export function generatedRegions(bytes) {
   const regions = [];
   let open = null;
@@ -440,8 +301,6 @@ export function generatedRegions(bytes) {
   return open ? { error: "its generated-region markers do not pair" } : { regions };
 }
 
-// What workflow commands read: a message escapes %, CR and LF, a property
-// also : and , (actions/toolkit command.ts escapeData and escapeProperty).
 const commandText = (text, property = false) => {
   const escaped = String(text)
     .replace(/[\x00-\x09\x0b\x0c\x0e-\x1f\x7f]+/g, " ")
@@ -463,20 +322,12 @@ function lineStarts(bytes) {
   return starts;
 }
 
-// git's own -U0 hunks of one blob against another, as 0-based { oldStart,
-// oldCount, newStart, newCount }; a pure insertion's oldStart is the index of
-// the line it goes before. An added or deleted file is one hunk.
 function hunksOf(git, entry, oldCount, newCount) {
   if (ZERO.test(entry.oldSha) || ZERO.test(entry.newSha)) {
     return [{ oldStart: 0, oldCount, newStart: 0, newCount }];
   }
-  // Two blob ids carry no path, so no .gitattributes text, eol, diff or
-  // binary setting applies, and core.autocrlf does not touch diff output;
-  // every option a repository config could change is given here.
   const diff = git(["diff", "-U0", "--inter-hunk-context=0", "-a", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", entry.oldSha, entry.newSha]).toString("latin1");
   const at = (start, count) => (count === 0 ? start : start - 1);
-  // A header is a whole line from LF to LF: a CR inside a content line never
-  // starts one.
   return diff.split("\n").flatMap((line) => {
     const header = line.startsWith("@@ -") ? /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line) : null;
     if (!header) {
@@ -489,18 +340,6 @@ function hunksOf(git, entry, oldCount, newCount) {
 
 const regionBytes = (lines, regions) => JSON.stringify(regions.map((region) => lines.slice(region.begin, region.end + 1).join("")));
 
-// One entry's change with its protected content left out: the blob and mode
-// to keep and a warning per dropped hunk, or one for the file. A hunk is
-// dropped when its head lines meet a head region, BEGIN through END lines
-// included, when it inserts lines strictly between a BEGIN and its END, or
-// when the lines it writes hold a marker line; an insertion right before a
-// BEGIN line or right after an END line is outside and kept. The whole change
-// is left out for a frozen tier's file, for markers that do not pair in
-// either blob, and whenever the rebuilt blob's regions are not byte for byte
-// the head's, and the deletion of a file whose head holds a region is left
-// out whole. Patched bytes are kept only when their regions are the head's
-// byte for byte, whatever the hunk list says. A mode change is kept unless
-// the whole change is left out. `hunks` is hunksOf, or a list a test injects.
 export function protectedRegions(git, entry, hunks = hunksOf) {
   const restore = (why) => ({ sha: entry.oldSha, mode: entry.oldMode, warnings: [fileWarning(entry.path, why)] });
   const tier = frozenTier(entry.path);
@@ -563,9 +402,6 @@ export function protectedRegions(git, entry, hunks = hunksOf) {
   return { sha: git(["hash-object", "-w", "--no-filters", "--stdin"], { input: rebuilt, stdio: ["pipe", "pipe", "pipe"] }).toString("utf8").trim(), mode: entry.newMode, warnings };
 }
 
-// Content rules that leave content out rather than refuse the patch. Each
-// returns the index entries to set, as `git update-index -z --index-info`
-// reads them, and a warning line per dropped part.
 export const CONTENT_DROPS = {
   "protected-content": ({ entries, git }) => {
     const updates = [];
@@ -576,8 +412,6 @@ export const CONTENT_DROPS = {
         warnings.push(warning);
       }
       if (outcome.sha !== entry.newSha || outcome.mode !== entry.newMode) {
-        // --index-info reads mode 0 as a removal whatever the id, so a kept
-        // blob must carry a file mode.
         if (!ZERO.test(outcome.sha) && ![REGULAR, EXECUTABLE].includes(outcome.mode)) {
           throw new Error(`protected-content would set ${entry.path} to blob ${outcome.sha} at mode ${outcome.mode}`);
         }
@@ -597,12 +431,6 @@ export function loadRules(baseDir) {
 
 const movedFrom = (head, tip) => `the PR branch moved from ${head} to ${tip}; the patch is superseded`;
 
-// Where a target's commit goes. `row` names the row it reads; `number` the
-// push argument that names its PR or issue, and `env` the script step
-// variables it needs past the shared ones (its number first); `held` re-reads
-// what stops the commit; `ready` checks the ref before any write and answers
-// why the patch is superseded when another push moved it, else nothing; `write`
-// moves or makes it.
 export const TARGETS = {
   pr: {
     row: (prepare) => prepare || "default",
@@ -610,9 +438,6 @@ export const TARGETS = {
     env: ["PR_NUMBER"],
     movedHead: true,
     checkRef: () => "",
-    // The push goes to this repository's branch only: a fork head throws.
-    // A body hold (merge-holds.mjs BODY_HOLD) stops a push to a PR the lanes
-    // App did not open; on the App's own PR it holds the merge, not a fix.
     async held(api, number, { holds, repository }) {
       const [pull, labels] = [await api.getPull(number), await api.listLabels(number)];
       if (pull.head?.repo?.full_name !== repository) {
@@ -628,7 +453,6 @@ export const TARGETS = {
       }
       return tip === head ? "" : movedFrom(head, tip);
     },
-    // force: false refuses anything but a fast-forward from the gated head.
     write: (api, ref, commit) => api.updateRef(`heads/${ref}`, commit, false),
   },
   issue: {
@@ -637,24 +461,15 @@ export const TARGETS = {
     env: ["ISSUE_NUMBER", "REQUIRED_LABELS", "PATCH_BASE_SHA"],
     movedHead: false,
     checkRef: (ref, { lane, issue }) => (laneBranchPattern(lane, issue).test(String(ref)) ? "" : `${ref} is not a ${laneBranch(lane, issue, "<run id>", "<attempt>")} branch`),
-    // A hold label added, or a required label (agent-ready) removed, while
-    // the model worked stops the commit.
     async held(api, number, { holds, required }) {
       const names = new Set((await api.listLabels(number)).map((label) => label.name));
       return [...names].some((name) => holds.has(name)) || required.some((name) => !names.has(name));
     },
-    // The branch is new: creating it fails when it exists, so nothing is read first.
     ready: async () => {},
     write: (api, ref, commit) => api.createRef(`refs/heads/${ref}`, commit),
   },
 };
 
-// Writes the commit to the target's ref: true once the ref reads it, false,
-// logged, when another push superseded the patch. On a target whose ref can
-// move, a 422 is superseded only when a re-read shows another commit on the
-// branch, and the line keeps GitHub's answer, which may be more than the race;
-// any other refusal, a re-read that fails or names no commit, or a ref that
-// reads another commit after the write throws.
 async function landed(target, api, ref, commit, head, log) {
   try {
     await target.write(api, ref, commit);
@@ -676,8 +491,6 @@ async function landed(target, api, ref, commit, head, log) {
   return true;
 }
 
-// The producer's row: the target's, which for a PR is its prepare mode's, or
-// `default` when it has none.
 export function rowFor(rules, { prepare = "", target = "pr" } = {}) {
   if (!Object.hasOwn(TARGETS, target)) {
     throw new Error(`unknown patch target ${target}`);
@@ -693,8 +506,6 @@ export function rowFor(rules, { prepare = "", target = "pr" } = {}) {
   return { name, target, ...rules[name] };
 }
 
-// Every name the row uses is known and the universal refusals are all there;
-// otherwise it throws, before anything is applied or written.
 export function checkRow(row) {
   const unknown = (names, known) => names.filter((name) => !Object.hasOwn(known, name));
   const fail = (message) => {
@@ -723,7 +534,6 @@ export function checkRow(row) {
   if (row["content-rule"] !== undefined && !Object.hasOwn(CONTENT_RULES, String(row["content-rule"])) && !Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
     fail(`names an unknown content rule: ${row["content-rule"]}`);
   }
-  // pushMerge runs no drop rule, so a merge row naming one would push what it should drop.
   if (isMerge(row) && Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
     fail(`names the drop rule ${row["content-rule"]} on a merge row`);
   }
@@ -772,20 +582,13 @@ export function checkRow(row) {
   return row;
 }
 
-// A merge row commits with the head and the base as parents.
 export const isMerge = (row) => row.commit?.parents?.length === 2;
 
-// The row's reason for a kind of outcome, else its -invalid reason.
 export const reasonFor = (row, kind) =>
   row.escalations.find((reason) => reason.endsWith(`-${kind}`)) ?? row.escalations.find((reason) => reason.endsWith("-invalid"));
 
-// The reason the push writes to the escalation file for a kind: a patch that
-// applies but changes nothing is the row's empty-at-push kind (ci-context:
-// invalid, since the producer said it wrote a change), else its empty reason.
 export const pushReason = (row, kind) => reasonFor(row, kind === "empty" ? (row["empty-at-push"] ?? "empty") : kind);
 
-// The commit message with the row's placeholders filled, then a Lane-Thread
-// line for each of `threads`; a placeholder with no value throws.
 export function commitMessage(row, values, threads = []) {
   const fill = (text) =>
     text.replace(/\{(ref|base|lane|activity|issue)\}/g, (_, key) => {
@@ -809,13 +612,6 @@ function readCapped(file, cap) {
   }
 }
 
-// The first written blob of `entries` that carries a credential shape, or
-// undefined. Each blob is read whole, so the size refusals come after it, as
-// does every invalid refusal once the patch applies (a symlink, a path count,
-// a blob's size, a patch made on another commit), so a fault beside a
-// credential never turns its hold into a retry. A blob too large for the
-// runner's buffer cannot be cleared, so it counts as leaked (`unread`). A
-// gitlink names a commit, not a blob, and is skipped.
 export function leakedBlob(git, entries) {
   for (const entry of entries) {
     if (ZERO.test(entry.newSha) || entry.newMode === GITLINK) continue;
@@ -830,12 +626,6 @@ export function leakedBlob(git, entries) {
 }
 const leakWhy = (leaked) => `the patched ${leaked.path} ${leaked.unread ? "is too large to scan, so it may carry" : "carries"} a credential shape`;
 
-// Why the patch file is not to be applied, as {kind, why}, or null when it is:
-// a regular file of at most MAX_PATCH_BYTES with the SHA-256 given and no
-// credential shape. A credential shape anywhere in a regular file's bytes,
-// past the size cap included, is kind `credential` whatever else is wrong with
-// it, and so is any refusal of a patch with a binary hunk (unscannedKind);
-// anything else is `invalid`.
 export function patchProblem(file, expected) {
   const invalid = (why) => ({ kind: "invalid", why });
   if (!existsSync(file)) {
@@ -859,11 +649,6 @@ export function patchProblem(file, expected) {
   return sha256Of(bytes) === expected ? null : refused("the patch does not match its SHA-256");
 }
 
-// `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
-// report escalated only checks a stronger model may answer skips rung-up, and
-// the caller runs the producer once more at rung 1, instead of escalating.
-// `weakenRetry` is true when the head has had no lane stop yet, so a
-// weaken-required stop there takes its one fresh fixer round (weakenStop).
 export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, weakenRetry = false, mergeState = "" }) {
   checkRow(row);
   const decide = (proceed, skipReason, escalationReason) => ({
@@ -912,7 +697,6 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   } catch {
     names = [];
   }
-  // A patch.diff not proven clear holds even with another file beside it.
   const patch = join(patchDir, "patch.diff");
   const found = names.includes("patch.diff") ? patchProblem(patch, patchSha256) : null;
   const problem = found?.kind === "credential" ? found : names.length === 1 && names[0] === "patch.diff" ? found : { kind: unscannedKind(patch, "invalid") };
@@ -922,10 +706,6 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   return decide(true, "", "");
 }
 
-// git with an allowlisted environment, so nothing the job's env or the
-// checkout's config names runs. `extra` adds variables: a merge row reads
-// attributes from the base tree and works in a scratch index, never the
-// merge's own.
 function gitRunner(cwd, gitBin, extra = {}) {
   const env = {
     PATH: "/usr/bin:/bin",
@@ -940,8 +720,6 @@ function gitRunner(cwd, gitBin, extra = {}) {
   return (args, options = {}) => execFileSync(gitBin, [...flags, ...args], { cwd, env, maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "pipe"], ...options });
 }
 
-// `git diff-tree -r -z` raw output: one entry per changed path, with the old
-// path of a rename when rename detection ran.
 function changes(raw) {
   const fields = raw.toString("utf8").split("\0");
   const entries = [];
@@ -958,12 +736,8 @@ function changes(raw) {
   return entries;
 }
 
-// The entries `git diff-tree` lists from one tree-ish to another; with no
-// rename detection unless `flags` asks for it.
 const diffEntries = (git, from, to, flags = ["--no-renames"]) => changes(git(["diff-tree", "-r", "-z", ...flags, from, to]));
 
-// A `<fields>\t<path>` record, as git ls-tree, git ls-files and
-// tree-entries.sh print it: its space-separated fields, then its path.
 const fieldsAndPath = (record) => {
   const tab = record.indexOf("\t");
   return [record.slice(0, tab).split(" "), record.slice(tab + 1)];
@@ -1000,9 +774,6 @@ function applyOnto(git, sha, patchFile, threeWay) {
   }
 }
 
-// A script by the exec-bit rule: a regular file that ends in .sh or whose
-// blob starts with #!. The mode is checked first, so no gitlink's commit or
-// symlink is read as a blob.
 const isScript = (git, entry) =>
   [REGULAR, EXECUTABLE].includes(entry.newMode) &&
   (entry.path.endsWith(".sh") || git(["cat-file", "blob", entry.newSha]).subarray(0, 2).toString("latin1") === "#!");
@@ -1016,9 +787,6 @@ const hasCommit = (git, sha) => {
   }
 };
 
-// Marker lines in order, any length from seven (conflict-marker-size): a run of
-// <, then a run of =, then a run of >, the outer two followed by a space or the
-// line end. prepare.sh holds the same rule as an awk program.
 export function hasConflictMarkers(text) {
   let state = 0;
   for (const line of String(text).replaceAll("\r", "").split("\n")) {
@@ -1034,7 +802,6 @@ export function hasConflictMarkers(text) {
 }
 
 const WORKFLOWS = ".github/workflows/";
-// git ls-tree -r -z records under .github/workflows/ as "<mode> <oid> <path>".
 const workflowEntries = (git, tree) =>
   git(["ls-tree", "-r", "-z", tree, "--", WORKFLOWS])
     .toString("utf8")
@@ -1045,10 +812,6 @@ const workflowEntries = (git, tree) =>
       return `${mode} ${oid} ${path}`;
     });
 
-// A merge tree whose workflows differ from the head's is admitted only when
-// the PR's own diff against every merge base touches no workflow and the
-// workflows are exactly the base's. A head workflow the base deleted or
-// renamed is then dropped with the base's own change.
 function workflowsAreBaseOwn(git, headSha, baseSha, tree) {
   const head = workflowEntries(git, headSha);
   const merged = workflowEntries(git, tree);
@@ -1162,8 +925,6 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (!workflowsAreBaseOwn(git, headSha, merge.baseSha, tree)) {
       return reason("workflow-staged", "the merge changes .github/workflows/ by more than the base's own workflows");
     }
-    // The tree as entries against the head, from the base's tree-entries.sh:
-    // only a blob neither parent holds is uploaded, at most max-blobs.
     const script = readFileSync(merge.treeEntries.script);
     if (sha256Of(script) !== merge.treeEntries.sha256) {
       throw new Error("tree-entries.sh does not match the SHA-256 recorded when it was copied from the base");
@@ -1429,10 +1190,6 @@ export async function push({
     return { outcome: "superseded" };
   }
   if (moved && !target.movedHead) {
-    // Refused, but only once its blobs on the commit it was made on are
-    // scanned. With that commit missing, or the patch not applying to it, a
-    // binary hunk's blob cannot be read, so, as leakedBlob counts an unread
-    // blob, it holds.
     const elsewhere = `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`;
     const atProducer = SHA.test(String(patchHeadSha)) && hasCommit(git, patchHeadSha) ? applyOnto(git, patchHeadSha, patchFile, false) : "";
     if (!atProducer) {
@@ -1473,10 +1230,6 @@ export async function push({
   if (leaked) {
     return escalate("credential", leakWhy(leaked));
   }
-  // A start commit that is not on the default branch (a resumed lane
-  // branch's tip) brings its own commits to the new branch, so the refusals
-  // also cover what the final tree changes since the default-branch commit it
-  // forked from, the diff the pull request shows.
   let from = headSha;
   if (refusalBase && refusalBase !== headSha) {
     if (!SHA.test(String(refusalBase)) || !hasCommit(git, refusalBase)) {
@@ -1507,9 +1260,6 @@ export async function push({
   if (oversize) {
     return escalate("invalid", oversize);
   }
-  // A drop rule leaves protected content out of the tree only after every
-  // check above passed on the whole patch, so nothing it drops escapes one;
-  // the blobs it rebuilds face the credential and size checks again.
   if (Object.hasOwn(CONTENT_DROPS, String(row["content-rule"]))) {
     const { updates, warnings } = CONTENT_DROPS[row["content-rule"]]({ entries, git });
     for (const warning of warnings) {
@@ -1539,9 +1289,6 @@ export async function push({
   if (contentRefusal) {
     return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
   }
-  // The model's tools set no file mode, so under script-exec-bit each new or
-  // changed script, a .sh file or one starting with #!, is made executable
-  // here, in the index the patch was applied to.
   if (row["script-exec-bit"] === true) {
     const scripts = blobs.filter(({ entry }) => entry.newMode !== EXECUTABLE && isScript(git, entry));
     if (scripts.length > 0) {
@@ -1591,10 +1338,6 @@ export async function buildTree(api, baseTree, entries, max = MAX_TREE_ENTRIES_P
   return built;
 }
 
-// What GitHub answered a failed call, for its error: the JSON body's message
-// and errors, else the text, with the token and any credential shape
-// redacted, control characters dropped (it lands in one ::error:: line), and
-// capped. An unreadable body is empty.
 const MAX_ANSWER = 500;
 export async function failedAnswer(response, token) {
   let text = await response.text().catch(() => "");
@@ -1614,12 +1357,6 @@ export async function failedAnswer(response, token) {
   return text.replace(/[\x00-\x1f\x7f]+/g, " ").trim().slice(0, MAX_ANSWER);
 }
 
-// The REST calls apply-patch makes. GitHub signs a commit made with no author
-// or committer as the App. A read, and a write marked safeToResend, is sent
-// again after a network error or a 5xx (retry-fetch.mjs). A blob, a tree and
-// a commit are used only by the sha their answer names, and a ref update
-// carries the sha it sets, so each repeats to the same state. createRef is
-// sent once: a resend after a create that landed answers 422.
 export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch, sleep }) {
   if (typeof rawFetch !== "function") {
     throw new TypeError("createGitHubApi needs a fetch: an importer run from a checkout passes the rate guard's");
@@ -1643,7 +1380,6 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch, sl
   const refPath = (ref) => ref.split("/").map(encodeURIComponent).join("/");
   return {
     getPull: async (pr) => (await request(`pulls/${pr}`)).data,
-    // The merge base and a tree, for the pr-mode-revert content rule (contents read).
     compare: async (base, head) => (await request(`compare/${base}...${head}`)).data,
     getTree: async (sha) => (await request(`git/trees/${sha}`)).data,
     getCommit: async (sha) => (await request(`git/commits/${sha}`)).data,
@@ -1655,7 +1391,6 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch, sl
       }
       return data;
     },
-    // From git/ref, which GET /pulls can lag behind after a push.
     readBranch: async (ref) => (await request(`git/ref/heads/${refPath(ref)}`)).data.object.sha,
     createBlob: async (content) => (await request("git/blobs", "POST", { content, encoding: "base64" }, true)).data.sha,
     createTree: async (baseTree, tree) => (await request("git/trees", "POST", { base_tree: baseTree, tree }, true)).data.sha,
@@ -1663,7 +1398,6 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch, sl
     async updateRef(ref, sha, force) {
       await request(`git/refs/${refPath(ref)}`, "PATCH", { sha, force }, true);
     },
-    // GitHub answers 422 when the ref already exists.
     async createRef(ref, sha) {
       await request("git/refs", "POST", { ref, sha });
     },
@@ -1677,11 +1411,6 @@ function need(env, keys) {
   }
 }
 
-// The kept threads of a threads.json: each a path and, when a fix request
-// named files, its named_paths; the files the PR already changes, its
-// pr_paths; the shared copies of canonicals it changes, its copy_paths; and the thread ids of the select job's shape, in its order. A
-// pr-verify note of an earlier FAIL (verify_notes) counts as a thread on its
-// path, by its note id.
 export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
@@ -1714,13 +1443,8 @@ export function keptThreadsFrom(file) {
   };
 }
 
-// replies.jsonl's cap, as publish-feedback.mjs reads it.
 const MAX_REPLIES_BYTES = 49152;
 
-// The kept threads (keptThreadsFrom's ids, in their order) that a VALID reply
-// in the scanned replies.jsonl names: only those ids, never text copied from a
-// reply, reach the commit message. A line that is not a reply names nothing;
-// publish-feedback.mjs judges the whole file.
 export function fixedThreadsFrom(file, kept) {
   if (!file) {
     return undefined;
@@ -1742,8 +1466,6 @@ export function fixedThreadsFrom(file, kept) {
   return (kept?.ids ?? []).filter((id) => valid.has(id));
 }
 
-// The copies the base checkout's scripts/shared-copies.txt registers: the
-// second field of each sharedCopyPairs pair.
 export function sharedCopiesFrom(baseDir) {
   if (!baseDir) {
     throw new Error("BASE_DIR is not set; the shared-copies allow reads the base registry");
@@ -1760,8 +1482,6 @@ export function cdnPinsFrom(baseDir) {
   }
 }
 
-// The base dependabot.yml's [ecosystem, directory] pairs, or null when the
-// file does not read; the dependency-manifests predicate then throws.
 export function dependabotPairs(baseDir) {
   try {
     return parseConfig(readFileSync(join(baseDir, DEPENDABOT_PATH), "utf8"));
@@ -1770,8 +1490,6 @@ export function dependabotPairs(baseDir) {
   }
 }
 
-// A merge row's inputs: the step's own, and the paths the checkout's merge left
-// conflicted, read from its index (`git ls-files -u`), which no model touched.
 export function mergeFrom(env, { cwd = process.cwd(), gitBin = "/usr/bin/git" } = {}) {
   need(env, ["MERGE_BASE_SHA", "CONFLICT_TREE", "MERGE_STATE", "TREE_ENTRIES_SCRIPT", "TREE_ENTRIES_SHA256"]);
   const raw = gitRunner(cwd, gitBin)(["ls-files", "-u", "-z"]).toString("utf8");
@@ -1793,8 +1511,6 @@ function labelList(env, key) {
   return labels;
 }
 
-// The producer's model rung from MODEL_RUNG: empty or 0 is the route's own
-// profile, 1 the rung above it; anything else is refused.
 function modelRung(value = "") {
   if (!["", "0", "1"].includes(value)) {
     throw new Error("MODEL_RUNG must be empty, 0 or 1");
@@ -1802,8 +1518,6 @@ function modelRung(value = "") {
   return value === "1" ? 1 : 0;
 }
 
-// WEAKEN_RETRY from fix-ci-context's weaken-retry output: `true`, or empty or
-// `false`; anything else is refused.
 function weakenRetryFrom(value = "") {
   if (!["", "true", "false"].includes(value)) {
     throw new Error("WEAKEN_RETRY must be empty, true or false");
@@ -1867,7 +1581,6 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       keptThreads,
       fixedThreads: row["thread-trailer"] === true ? fixedThreadsFrom(env.PATCH_REPLIES_FILE, keptThreads) : undefined,
       dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
-      // Read from the trusted base copy, and only for a row that needs it.
       dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,
       baseDir: env.BASE_DIR,
       cdnPins: row.allow.includes("cdn-pins") ? cdnPinsFrom(env.BASE_DIR) : undefined,

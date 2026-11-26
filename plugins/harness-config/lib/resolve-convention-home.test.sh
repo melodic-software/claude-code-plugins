@@ -23,8 +23,6 @@ assert_contains() {
 BEGIN='<!-- BEGIN GENERATED: convention-home -->'
 END='<!-- END GENERATED: convention-home -->'
 
-# A fixed identity and no global config, so commits in the throwaway repos work anywhere;
-# an inherited GIT_DIR would otherwise send the fixture's writes to the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
