@@ -250,7 +250,7 @@
         },
         "inspect_playback_rate": {"type": "number", "minimum": 0, "maximum": 1, "description": "The slowed playback rate for checking motion by eye."},
         "skip_frequency": {"type": "integer", "minimum": 0, "description": "Uses per day above which an action takes no animation."},
-        "cleanup_order": {"type": "array", "items": {"enum": ["removal", "review", "opportunities", "performance"]}, "minItems": 1, "maxItems": 4, "description": "The passes the motion lane's cleanup sub-mode of /user-interface:audit runs, in order, one per value; review is the lane's review pass with no sub-mode."}
+        "cleanup_order": {"type": "array", "items": {"enum": ["removal", "review", "opportunities", "performance"]}, "minItems": 1, "maxItems": 4, "description": "The passes the motion concern's cleanup sub-mode of /user-interface:audit runs, in order, one per value; review is the concern's review pass with no sub-mode."}
       }
     },
     "color": {

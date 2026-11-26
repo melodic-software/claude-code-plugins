@@ -6,8 +6,8 @@
           "tool": "Edit",
           "input": {
             "file_path": "docs/conventions/bugs.yaml",
-            "old_string": "lanes:",
-            "new_string": "lanes:"
+            "old_string": "areas:",
+            "new_string": "areas:"
           }
         }
       ]
@@ -32,8 +32,8 @@
           "tool": "Edit",
           "input": {
             "file_path": "/opt/eval/ws/docs/conventions/bugs.yaml",
-            "old_string": "lanes:",
-            "new_string": "output_dir: docs/bug-reports/\nlanes:"
+            "old_string": "areas:",
+            "new_string": "output_dir: docs/bug-reports/\nareas:"
           }
         }
       ]

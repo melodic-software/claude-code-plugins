@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".claude/tidy-areas/core.md"
+      ],
+      "why": "a tracked-name focus area is fine"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/tidy-areas/web.local.md"
+      ],
+      "why": "local variant"
+    },
+    {
+      "answer": [
+        "CLAUDE.local.md"
+      ],
+      "why": "local variant"
+    }
+  ]
+}
