@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Gate: a skill whose ## Pre-computed context block contains a git command AND
-# more than one inline `!`command`` injection line is refused in worktree-
-# isolated agents (#1619). Adding a second precompute line silently breaks
-# such skills — CI stays green, normal sessions render fine, only isolated
-# agents fail.
-#
-#   scripts/check-skill-precompute-compose.sh --all
-#   scripts/check-skill-precompute-compose.sh <base-ref>
-#   scripts/check-skill-precompute-compose.sh --paths FILE...
-#
-# Default mode is warn-only (exit 0, prints violations) until the #1619
-# remediation wave graduates the gate to --strict. Pass --strict to fail closed.
-#
 # Exit 0 = clean or warn-only violations; 1 = violations in --strict mode;
 # 2 = usage / environment error.
 set -uo pipefail
@@ -88,13 +75,6 @@ scan_skill() {
   return 0
 }
 
-# Mode dispatch, the parent-shell base-ref check, and the diff all live in
-# scripts/lib/gate-entry.sh. A `mapfile` fed from a process substitution sees
-# only the READ's status, so an `exit 2` inside it used to die with the
-# subshell and the parent scanned zero files at exit 0 (#3377). The shared
-# entry exits 2 from this shell instead, including when discovery itself is
-# invoked from a subshell. A failed diff is its own non-zero return rather
-# than an empty scope.
 targets=()
 if ! gate_entry::classify ${POSITIONAL[@]+"${POSITIONAL[@]}"}; then
   usage
@@ -107,15 +87,11 @@ paths)
   targets=("${GE_PATHS[@]}")
   ;;
 base)
-  # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
-  # git pathspec does not match under git's default (non-pathname) globbing.
   changed=()
   gate_entry::collect_changed changed "$GE_REF" -- 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
     case "$f" in
     plugins/*/skills/*/SKILL.md)
-      # A `case` glob's `*` spans `/`, so re-check the depth: only a SKILL.md
-      # exactly at plugins/<plugin>/skills/<skill>/ is a target.
       rest_path="${f#plugins/}"
       rest_path="${rest_path#*/skills/}"
       [[ "$rest_path" == "${rest_path%%/*}/SKILL.md" ]] || continue

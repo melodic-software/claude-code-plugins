@@ -28,8 +28,6 @@ CHECKER="${CHECK_SKILL_BIN:-plugins/skill-quality/scripts/check-skill.sh}"
 if ((lane)); then
   # shellcheck disable=SC2310  # the non-zero return IS the handled case
   if ! changed_files::resolve_base BASE; then
-    # Only a shallow checkout's HEAD is the base the work started from; in a
-    # full history a missing base ref would pass every committed change.
     if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" != true ]]; then
       printf 'Error: no origin/main, origin/master, main or master in a full checkout.\n' >&2
       exit 2
@@ -44,7 +42,6 @@ if ((lane)); then
     export CHECK_SKILL_SETTINGS_TOKEN_BASELINE="$st_baseline"
   fi
 fi
-# A branch behind $BASE must not inherit $BASE's own newer commits (#7014).
 if merge_base="$(git merge-base "$BASE" HEAD 2>/dev/null)" && [[ -n "$merge_base" ]]; then
   BASE="$merge_base"
 else
@@ -89,24 +86,8 @@ if [[ -f "$EXEMPTIONS" ]]; then
   ((evals_stale == 0)) || exit 1
 fi
 
-# Changed skill dirs, mapped from any touched path (including vendor/ subtrees)
-# to the owning plugins/<plugin>/skills/<skill> dir and de-duplicated.
-#
-# --include-deleted is deliberate and is NOT the portability scanners' setting.
-# Those open each path and need a file on disk; this gate maps a path to its
-# owning skill DIRECTORY and then re-runs the skill checker over that directory.
-# A commit that only deletes files from a skill (dropping a reference/ page, say)
-# still changed that skill and must still be re-checked — filtering deletions out
-# would silently stop selecting it, an under-selection in the unsafe direction.
-# The skill that was deleted OUTRIGHT is handled below by the SKILL.md guard.
-#
-# The mapping runs in bash rather than through `sed` because the shared resolver
-# hands back NUL-safe paths; piping them into a line-oriented sed would C-quote
-# them.
 changed_paths=()
 changed_files::into changed_paths "$BASE" --include-deleted -- 'plugins/' || exit 2
-# A lane run's edits are uncommitted, so a skill it adds is untracked, which
-# git diff does not list.
 declare -A untracked=()
 out_dir="$(mktemp -d)" || exit 2
 trap 'rm -rf "$out_dir"' EXIT
@@ -120,10 +101,6 @@ fi
 changed=()
 declare -A seen_dirs=()
 for path in ${changed_paths[@]+"${changed_paths[@]}"}; do
-  # Segment-exact equivalent of the `^(plugins/[^/]+/skills/[^/]+)/.*` this
-  # replaced. A `case` glob will NOT do: `*` matches `/` too, so
-  # `plugins/*/skills/*/*` would also accept a nested `plugins/a/b/skills/...`
-  # the anchored regex rejected.
   rest="${path#plugins/}"
   [[ "$rest" != "$path" ]] || continue
   plugin="${rest%%/*}"

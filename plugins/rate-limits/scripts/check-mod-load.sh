@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# check-mod-load.sh
-# Read-only. Prints TSV rows `check<TAB>PASS|FAIL|INFO<TAB>detail`: Claude Code
-# against the mods floor in prerequisites.json, then how to read this session's
-# state. Exits 1 when a row fails. Installs nothing. Takes no arguments.
-# The tool's full name: https://code.claude.com/docs/en/plugins/mods/api#add-a-tool
-# (as of 2026-10-03; recheck when the full tool name form changes).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

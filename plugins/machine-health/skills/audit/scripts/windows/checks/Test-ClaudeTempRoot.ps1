@@ -8,18 +8,8 @@ See reference/windows/check-catalog.md#17-claude-code-temp-root for rubric.
 [CmdletBinding()]
 param(
     [switch]$Human,
-    # The overrides below exist for tests and manual scratch-tree runs; the
-    # orchestrator dispatches argument-less (Get-CheckArgument default) and the
-    # defaults are the rubric's figures.
     [long]$TaskOutputWarnBytes = 1GB,
-    # Walk budget. The orchestrator kills a check at 90s and check-result.schema.json
-    # caps duration_ms at 90000, so an unbounded walk of a multi-gigabyte tree does not
-    # merely time out -- it emits a schema-invalid result. Stop at 60s, keep the partial
-    # figures, and report UNKNOWN per the rubric's timeout row.
     [int]$BudgetSeconds = 60,
-    # The task-output listing runs first on the same clock and stops at its own cap,
-    # so a tree too large to walk still gets its largest files named and the walk
-    # keeps the rest of the budget.
     [int]$TaskOutputBudgetSeconds = 20
 )
 
@@ -68,9 +58,6 @@ function Resolve-ClaudeTempRoot {
     foreach ($c in $candidates) {
         $item = Get-Item -LiteralPath $c.Path -Force -ErrorAction SilentlyContinue
         if ($item -is [System.IO.DirectoryInfo]) {
-            # FullName over the raw candidate: %TEMP% commonly carries an 8.3 short
-            # name (KYLESE~1), which a human cannot match against what Explorer shows
-            # and which compares unequal to the long form.
             return [pscustomobject]@{ Path = $item.FullName; Source = $c.Source; Exists = $true }
         }
     }
@@ -116,9 +103,6 @@ function Measure-SessionTree {
         [Parameter(Mandatory = $true)] [int] $BudgetSeconds
     )
 
-    # Only reparse points are skipped: the default also skips Hidden and System
-    # entries, which -Force counted. IgnoreInaccessible is off so an unreadable
-    # directory throws and is counted, as Get-ChildItem's error record was.
     $options = [System.IO.EnumerationOptions]::new()
     $options.AttributesToSkip = [System.IO.FileAttributes]::ReparsePoint
     $options.IgnoreInaccessible = $false
@@ -274,9 +258,6 @@ function Find-LargestTaskOutput {
     )
 
     $reparse = [System.IO.FileAttributes]::ReparsePoint
-    # Only reparse points are skipped: the default also skips Hidden and System
-    # entries, which -Force listed. IgnoreInaccessible keeps its default of true,
-    # because the walk counts unreadable paths itself.
     $options = [System.IO.EnumerationOptions]::new()
     $options.AttributesToSkip = $reparse
 

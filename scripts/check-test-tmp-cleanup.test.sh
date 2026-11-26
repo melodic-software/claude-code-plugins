@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-test-tmp-cleanup.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway git repository with
-# fixture *.test.sh files, runs the checker against it, and
-# asserts on exit code and output. The SUT resolves the repository root
-# relative to its own location, so the fixture carries a copy of it under
-# scripts/ and every case commits its files so `git ls-files` sees them.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,8 +25,6 @@ write_js_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\ncons
 write_js_bare_beside_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\nconst d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
 write_js_under_root() { printf 'after(() => {});\nconst d = join(mkdtempSync(join(root, "x-")), "f");\n' >"$1"; }
 
-# mk_repo <out-var>: a repo with one clean suite and one comment-only suite.
-# The builder assigns through a nameref, which shellcheck cannot follow.
 mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --git || return 1

@@ -24,7 +24,7 @@ const KEY_CALL = `          leg: key
           credential-set: \${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}
           key-off: \${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}`;
 const API_KEY = "          api-key: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}";
-const HANDOFF = /^ {10}handoff: \$\{\{ steps\.review-\d\.outputs\.handoff \}\}$/gm;
+const HANDOFF = /^ {10}handoff: \$\{\{ steps\.review-(?:1|chunks)\.outputs\.handoff \}\}$/gm;
 const FALLBACK_REASON = "          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}";
 
 const leg = (suffix, route, { drop = [], comments = {}, replace }) => ({
@@ -75,9 +75,9 @@ export default {
           reason: \${{ matrix.reason }}`,
           1,
         ],
-        [API_KEY, "          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}", 4],
-        ['          leg-timeout-minutes: "15"', '          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}\n          leg-timeout-minutes: "15"', 4],
-        [HANDOFF, `$&\n${FALLBACK_REASON}`, 4],
+        [API_KEY, "          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}", 2],
+        ['          leg-timeout-minutes: "15"', '          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}\n          leg-timeout-minutes: "15"', 2],
+        [HANDOFF, `$&\n${FALLBACK_REASON}`, 2],
       ],
     }),
     leg("Fallback", "collect-subscription-handoffs", {
@@ -110,8 +110,8 @@ export default {
       - name: Isolate the runner\n`,
           1,
         ],
-        [API_KEY, "          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}", 4],
-        [HANDOFF, FALLBACK_REASON, 4],
+        [API_KEY, "          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}", 2],
+        [HANDOFF, FALLBACK_REASON, 2],
         [" && steps.handoff.outcome != 'success'", "", 1],
       ],
     }),

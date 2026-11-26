@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 19, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A bare run with an open map lists the frontier by title, recommends one item and waits for the user's pick, claiming and resolving nothing (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

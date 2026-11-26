@@ -61,10 +61,6 @@ DEFAULT_MODEL = 'eleven_v4'
 # The voice_settings fields of the request body (VoiceSettingsResponseModel in https://api.elevenlabs.io/openapi.json,
 # as of 2026-10-04); recheck when the spec changes that schema.
 VOICE_SETTINGS = ('stability', 'similarity_boost', 'style', 'speed', 'use_speaker_boost')
-# model -> characters per request, the voice settings the script may send, and whether the with-timestamps endpoint is
-# confirmed for it. Limits read from https://elevenlabs.io/docs/overview/models (as of 2026-10-04). That page lists
-# eleven_v4 for Text to Dialogue only, but a live with-timestamps call with eleven_v4 succeeded on 2026-10-10. Recheck
-# when that page changes a limit or lists eleven_v4 under Text to Speech.
 MODELS = {
     'eleven_multilingual_v2': {'limit': 10000, 'settings': VOICE_SETTINGS, 'timestamps': True},
     'eleven_flash_v2_5': {'limit': 40000, 'settings': VOICE_SETTINGS, 'timestamps': True},

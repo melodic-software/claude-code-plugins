@@ -8,9 +8,6 @@ BeforeAll {
     . $script:ScriptPath
 }
 
-# Pester 5 mocks do not reach ScheduledTasks cmdlets inside `&`-invoked scripts, so the
-# never-run filter is covered through the extracted Test-IsNeverRunScheduledTask helper.
-
 Describe 'Test-ScheduledTasks -- baseline' -Tag 'check' {
     It 'emits a schema-valid CheckResult when Get-ScheduledTask returns no tasks' {
         Mock Get-ScheduledTask { @() }
@@ -75,8 +72,6 @@ Describe 'Test-IsNeverRunScheduledTask -- helper' -Tag 'check' {
     }
 
     It 'returns $false for SCHED_S_TASK_TERMINATED (267014) with real LastRunTime' {
-        # 267014 = terminated by user. Intentionally NOT filtered: termination
-        # is a real event worth surfacing.
         $info = [pscustomobject]@{
             LastTaskResult = 267014
             LastRunTime    = (Get-Date).AddDays(-2)

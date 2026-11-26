@@ -1,162 +1,28 @@
 #!/usr/bin/env bash
-# Static, deterministic report of the SHARED skill-listing character budget
-# across one or more skills roots — the aggregate limit `check-skill.sh` never
-# checks (see its header: check 2 is a PER-SKILL entry cap, not this).
-#
-# Claude Code loads a listing of every skill's name + description into context
-# each turn. Two independent limits apply to it:
-#   - Per-entry cap (skillListingMaxDescChars): check-skill.sh check 2 already
-#     guards this, and the comment above `DESC_CHAR_CAP=` in check-skill.sh
-#     owns that constant (a script, so no section anchor).
-#   - Shared/aggregate cap (skillListingBudgetFraction): NOTHING checks this
-#     before now. An overflowing aggregate degrades some skills'
-#     auto-invocation with no local signal that it happened.
-# Pointer: for both limits, their defaults, and what an overflow drops, fetch
-# https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction,
-# https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars
-# and https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short
-# live.
-#
-# What counts, and what deliberately does not:
-#   - This models DESCRIPTION characters only. Names are a floor this report
-#     does not estimate; it takes the budget as spent on description +
-#     when_to_use text, which is what is summed here (pointer above).
-#   - Skills with `disable-model-invocation: true` are SKIPPED: this report
-#     treats such a skill's description as outside the listing, so counting
-#     it would overstate the aggregate. Pointer: for which skills'
-#     descriptions reach the listing, fetch
-#     https://code.claude.com/docs/en/skills#control-who-invokes-a-skill live.
-#   - A consumer's `skillOverrides` can free further description characters
-#     (pointer: https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
-#     That is consumer settings.json state, not repository content, so
-#     a static check cannot observe it; this report is therefore an UPPER
-#     bound for any consumer who sets it.
-#
-# The aggregate budget is inherently a MACHINE-DEPENDENT estimate: it scales
-# with the live model's context window and the resolved
-# skillListingBudgetFraction, which a consumer's settings.json can override.
-# Two modes, and the script always exits 0 on a report (advisory only, never
-# blocking CI or a pre-commit hook):
-#   - Default-consumer mode (no flag): reads no settings and no
-#     SLASH_COMMAND_TOOL_CHAR_BUDGET, and reports against the documented
-#     default, so the same tree gives the same report on any machine. This is
-#     what CI measures.
-#   - Configured-machine mode (--from-settings): reports the budget THIS
-#     machine resolves. SLASH_COMMAND_TOOL_CHAR_BUDGET, when set in the
-#     environment, is the budget. Otherwise skillListingBudgetFraction is read
-#     from the first settings file that sets it, in precedence order: project
-#     .claude/settings.local.json, project .claude/settings.json (project =
-#     CLAUDE_PROJECT_DIR, else the git root), then
-#     ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json. Managed policy and a
-#     settings `env` block are NOT read; the report says so.
-# The context window is per model and not on disk, so unless
-# CHECK_SKILL_LISTING_CONTEXT_TOKENS pins one, a resolved fraction is reported
-# as a band: the budget at a 200000-token and a 1000000-token window, with a
-# verdict per row. `/doctor` is the live, authoritative source for the
-# resolved value and biggest contributors on a given machine and model; this
-# script is the static, reproducible proxy that runs without a live session.
-#
-# The default budget (8000 chars) is the harness's own documented fallback —
-# SLASH_COMMAND_TOOL_CHAR_BUDGET's schema description: "The budget scales
-# dynamically at 1% of the context window, with a fallback of 8000
-# characters." That fallback is exactly contextTokens(200000, the
-# non-extended-context default) x ~4 chars/token x skillListingBudgetFraction
-# (0.01) — the derivation is reconstructed only when an operator supplies a
-# context-window override (below); the default asserts nothing beyond the one
-# documented number.
-#
-# Four-part record for every upstream constant this script encodes (1536
-# per-entry cap, 0.01 budget fraction, 8000-char fallback, the " - " joiner
-# and drop order): pointer
-# https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars,
-# https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction,
-# https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short and
-# https://code.claude.com/docs/en/env-vars (SLASH_COMMAND_TOOL_CHAR_BUDGET; that
-# page has no per-variable anchor). As of: 2026-10-11 for the settings and
-# skills sections; the env-vars basis was last derived 2026-08-31 and is
-# deferred until that page gains an anchor. Recheck trigger: any of those
-# sections moving a default re-derives the matching constant here and in
-# check-skill.sh; each fleet audit re-runs this record.
-#
-# Record for the --from-settings inputs. The file order read above is this
-# script's decision, derived from the documented settings precedence; that
-# the env var outranks the fraction is inferred from the docs calling it an
-# override, since no page states the order. The 200000 and 1000000 band
-# windows and 4 chars/token are this script's assumptions, not documented
-# values. Pointer: when re-deriving the scopes, their order, or where a
-# setting may live, fetch
-# https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect,
-# https://code.claude.com/docs/en/settings#settings-precedence and
-# https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction
-# live; CLAUDE_CONFIG_DIR and SLASH_COMMAND_TOOL_CHAR_BUDGET are on
-# https://code.claude.com/docs/en/env-vars, which has no per-variable anchor.
-# As of: 2026-10-11. Recheck trigger: any of those sections changing a scope,
-# its order, an env var's meaning, or the budget's basis.
-#
-# Usage:
-#   check-listing-budget.sh [--from-settings] [<skills-root> ...]
-#   check-listing-budget.sh --help
-#
-# No args: resolves ONE root via the same convention ladder as check-skill.sh
-#   (CHECK_SKILL_SKILLS_ROOT, then ${CLAUDE_PROJECT_DIR}/.claude/skills, then
-#   <git-root>/.claude/skills when cwd is inside a git repo) — the shape a
-#   single consumer project has. Outside a git repo with no override, that is
-#   an environment error (exit 2) naming the missing root, not a silent skip.
-#   A resolved root that does not exist is reported as "no skills root found".
-# One or more args: EVERY explicit root must exist — a missing one is an
-#   environment error (exit 2), never a silent skip, because skipping it
-#   would omit a whole plugin subtree and report a falsely low aggregate.
-#   Explicit roots do not require a git repository (plugin-cache installs are
-#   plain directory trees).
-# One or more args: each is scanned as an independent skills root and every
-#   skill under every root is pooled into ONE shared aggregate. This is how a
-#   consumer who installs multiple plugins actually experiences the listing
-#   (every loaded skill shares one budget in a live session) — the intended
-#   way to gate a marketplace repo, where each plugin owns its own
-#   plugins/<plugin>/skills/ root: e.g. `check-listing-budget.sh plugins/*/skills`.
-#
-# Overrides (never hardcode a resolved value as ground truth — a consumer's
-# settings.json can diverge from every documented default below):
-#   CHECK_SKILL_LISTING_BUDGET_CHARS    - fixed aggregate budget in characters
-#                                          (default 8000; skips the
-#                                          token/fraction reconstruction below)
-#   CHECK_SKILL_LISTING_CONTEXT_TOKENS  - reconstructs the budget as
-#                                          TOKENS x CHARS_PER_TOKEN x FRACTION
-#                                          instead of the flat default; set
-#                                          this to match a machine's actual
-#                                          model context window (e.g. 1000000
-#                                          for a 1M-context model)
-#   CHECK_SKILL_LISTING_BUDGET_FRACTION - default 0.01 (skillListingBudgetFraction's
-#                                          documented default) — set to match
-#                                          a machine's configured value; it
-#                                          outranks settings files, and set
-#                                          without a window it reports the
-#                                          200000/1000000-token band
-#   CHECK_SKILL_LISTING_CHARS_PER_TOKEN - default 4 — set only if a more
-#                                          precise ratio is known
-#   CHECK_SKILL_LISTING_MAX_DESC_CHARS  - per-entry truncation cap applied
-#                                          before summing (default 1536,
-#                                          matching skillListingMaxDescChars'
-#                                          documented default) — the harness
-#                                          truncates each entry to this cap
-#                                          before the aggregate ever sees it
-#   CHECK_SKILL_SKILLS_ROOT              - single-root resolution override,
-#                                          only consulted in the no-args form
-#
-# Every numeric override above is validated as a positive number before use.
-# A nonnumeric value is an environment error (exit 2) — never a silent
-# coercion to zero, which would fabricate a zero-character budget and an
-# overflow WARN out of a typo. An accepted integer override is then forced to
-# base 10, so a zero-padded value means what it reads as: `08` is 8, not an
-# octal error, and `0123` is 123, not 83.
-#
-# Exit 0 always (report-only), except a usage/env error (exit 2) — this is an
-# advisory rollup, not a pass/fail gate; see the "reported aggregate" framing
-# in the issue this script closes.
 set -uo pipefail
 
 usage() {
-  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Report the shared skill-listing character budget across one or more skills roots (advisory).
+
+Usage:
+  check-listing-budget.sh [--from-settings] [<skills-root> ...]
+  check-listing-budget.sh --help
+
+  --from-settings                      report the budget this machine resolves instead of the documented default:
+                                       SLASH_COMMAND_TOOL_CHAR_BUDGET, else skillListingBudgetFraction from the
+                                       first of .claude/settings.local.json, .claude/settings.json and
+                                       ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json that sets it
+  <skills-root>                        pooled into one aggregate; with none, one root resolves as check-skill.sh does
+  CHECK_SKILL_LISTING_BUDGET_CHARS     fixed aggregate budget in characters (default 8000)
+  CHECK_SKILL_LISTING_CONTEXT_TOKENS   context window to derive the budget from
+  CHECK_SKILL_LISTING_BUDGET_FRACTION  budget fraction (default 0.01)
+  CHECK_SKILL_LISTING_CHARS_PER_TOKEN  characters per token (default 4)
+  CHECK_SKILL_LISTING_MAX_DESC_CHARS   per-entry cap applied before summing (default 1536)
+  CHECK_SKILL_SKILLS_ROOT              single-root override for the no-argument form
+
+Exit 0 always (report-only), except a usage/env error (exit 2).
+EOF
 }
 
 FROM_SETTINGS=0
@@ -181,11 +47,6 @@ if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
   HAVE_GIT=1
 fi
 
-# Reject a nonnumeric override up front. Without this, `awk` coerces a typo to
-# 0 and the report exits 0 announcing a zero-character budget and a bogus
-# overflow, while the bash-arithmetic call sites die with an undocumented
-# exit 1. Both failure modes are routed into the documented env error (exit 2).
-# `kind` is `int` for counts and `num` for ratios/fractions, which are decimal.
 require_positive_number() {
   local name="$1" val="$2" kind="${3:-int}"
   local pattern='^[0-9]+$'
@@ -196,12 +57,6 @@ require_positive_number() {
   fi
 }
 
-# Force a validated integer to base 10 before anything treats it as a number.
-# `^[0-9]+$` accepts a zero-padded override, which bash arithmetic and
-# `printf %d` then read as OCTAL: `0123` silently becomes 83, and `08` is not a
-# number at all — it renders the budget as 0 and reports a bogus OK. Applies to
-# integer overrides only; the ratio/fraction overrides are decimal (`0.01` is
-# the documented default fraction) and reach only awk, which has no octal input.
 to_decimal() {
   printf '%s' "$((10#$1))"
 }
@@ -349,53 +204,6 @@ if ((${#SKILL_ENTRIES[@]} > 0)); then
   printf '%s\n' "${SKILL_ENTRIES[@]}" >"$FILE_LIST"
 fi
 
-# --- One awk pass over every SKILL.md ---------------------------------------
-#
-# WHY THIS IS ONE PROCESS. A per-file bash loop spends at least eleven forked
-# subshells and five external process execs (4x awk, 1x tr) on EVERY SKILL.md,
-# on the order of 2,000 spawns for this repo's ~200 skills. Process creation
-# costs roughly two orders of magnitude more on Windows than on Linux, so that
-# shape takes `check-listing-budget.sh plugins/*/skills` to 289s there and gets
-# it KILLED at the 180s foreground limit with zero output, while CI
-# (ubuntu-24.04) never surfaces it. That command is verbatim what #2023's
-# procedure and .github/recurring-schedule.json instruct an operator to run
-# each cycle, so a report-only drift watch would silently produce nothing on
-# the one machine where the routine is actually driven (#2216).
-#
-# PARITY, NOT A REWRITE. The program below reimplements, behavior for
-# behavior, the four `skill-frontmatter.sh` helpers:
-# `skill_frontmatter::extract`, `::field` (including block-scalar unfolding for
-# `|` and `>`, and the quote-aware trailing-comment strip with its
-# doubled-single-quote case), `::strip_quotes` (ONE outer layer, double OR
-# single, never both), and `normalize_bool`/`trim_ws`. Output is byte-identical
-# to composing those helpers per file over this repo's tree — aggregate, entry
-# count, every per-file contribution row, and the report text — which is the
-# property the test suite pins.
-#
-# Two command-substitution behaviors a shell caller of those helpers gets for
-# free are reproduced EXPLICITLY here, because they are load-bearing rather
-# than incidental:
-#   - `fm="$(skill_frontmatter::extract ...)"` strips trailing NEWLINES from
-#     the extracted frontmatter, so trailing blank lines can never append a
-#     separator inside a block scalar. Hence the trailing-empty-line drop after
-#     collection, and hence an all-blank block counting as no frontmatter.
-#   - `"$(skill_frontmatter::field ...)"` strips trailing newlines from the
-#     FIELD's value. Hence strip_trailing_nl() on each result. A folded (`>`)
-#     scalar joins with SPACES, which command substitution does not strip, so
-#     only newlines are removed — not whitespace generally.
-#
-# The file list arrives on awk's input rather than as operands: awk treats an
-# operand containing `=` as a variable assignment, so a path with `=` in it
-# would be silently swallowed instead of read.
-#
-# `disable-model-invocation: true` keeps a skill's description out of the
-# model-visible listing entirely, so it spends none of the shared budget —
-# counting it would overstate the aggregate. See the header.
-# A pragmatic normalizer for one known field, not a YAML parser. FM_TRUE holds
-# the true spellings of a boolean field. Pointer: for what a boolean field
-# accepts, fetch https://code.claude.com/docs/en/skills#frontmatter-reference
-# live. As of: 2026-11-04. Recheck trigger: that section changing its accepted
-# spellings.
 if ! AWK_RESULT="$(awk -F'\t' \
   -v max="$MAX_DESC_CHARS" -v joiner_chars="$JOINER_CHARS" -v out="$CONTRIB_FILE" '
   BEGIN { FM_TRUE["true"]; FM_TRUE["yes"]; FM_TRUE["on"]; FM_TRUE["1"] }

@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- The repo-sweep hygiene catalog records coupling's route-step findings, not route-lane ones.
+- The repo-sweep hygiene catalog names coupling's route-step findings by that word.

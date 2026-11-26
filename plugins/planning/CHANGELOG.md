@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.19.1] - 2026-11-26
+
+### Changed
+
+- **`/planning:brainstorm`, `/planning:prd`, `/planning:interview` and `/planning:design` name one successor per `## Next` bullet.** The interview's spec bullet splits into a PRD bullet and a design-stage bullet, the design's handoff bullet names only `/planning:design-handoff`, and the "unsure where this leaves the work" bullet is gone.
+
 ## [5.19.0] - 2026-11-25
 
 ### Changed

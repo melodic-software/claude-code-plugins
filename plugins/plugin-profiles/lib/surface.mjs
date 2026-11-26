@@ -1,14 +1,3 @@
-// The Claude Code surface a run sits under, and the apply targets that work there.
-//
-//   detectSurface(env) -> {id, name, targets: ["session" | "folder" | "initial"]}
-//   refusal(surface, target, profile) -> null, or the reason an apply or clear for target is refused
-//
-// CLAUDE_CODE_REMOTE=true marks a cloud session (https://code.claude.com/docs/en/env-vars). The values of
-// CLAUDE_CODE_ENTRYPOINT are not documented: cli, sdk-cli (claude -p), claude-vscode and
-// claude-desktop are the values Claude Code 2.1.325 sets. CLAUDECODE=1 marks a process Claude Code
-// started, so a run with neither variable is a terminal, where `claude --settings` is the CLI.
-// Only the CLI is known to honor `claude --settings`; an undetected surface allows the folder
-// level alone.
 const ALL = ["session", "folder", "initial"];
 const LOCAL = ["folder", "initial"];
 

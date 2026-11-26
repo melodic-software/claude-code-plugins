@@ -103,7 +103,14 @@ scripts/check-shell-portability.sh --awk-probe path/to/changed.test.sh
 It needs gawk and mawk installed; `SHELL_PORTABILITY_AWKS` overrides the candidate list. Exit `0` is
 no divergence, `1` is DIVERGENT, `2` is fewer than two distinct awks or a missing suite. A suite that
 fails under every awk also exits `0`; it still needs the normal test run. CI does not run it.
-The rationale is in [`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.sh).
+POSIX gives an `awk -v name=value` assignment escape processing, and implementations disagree on
+an escape they do not know: gawk drops the backslash, so `\]\([^)]*$` reaches the program as
+`]([^)]*$` and gawk dies on the unmatched paren, while mawk passes it through. `ENVIRON["name"]`
+carries the value byte for byte everywhere. The dangerous value sits in a shell variable, not on
+the source line, so no token check can see it; running the suite once per awk can.
+[`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.sh) runs each suite once per distinct
+awk (candidates deduplicated by version banner) through an `awk` symlink first on `PATH`; a suite
+that calls an awk by absolute path or implementation name bypasses that shim.
 
 ## Deferred, not rejected
 

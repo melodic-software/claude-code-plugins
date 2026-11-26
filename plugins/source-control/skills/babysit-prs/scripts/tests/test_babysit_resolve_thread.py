@@ -132,9 +132,6 @@ def _raw_run(record: dict[str, object], argv: list[str]) -> dict[str, object]:
 
 class HumanThreadsActedCounter(unittest.TestCase):
     def test_bot_opened_thread_with_human_reply_is_not_a_human_thread(self) -> None:
-        # #512: authorType "Bot", botOnly False (a human replied). Eligible under
-        # --include-human, so it is acted on -- but the OPENING author is a bot,
-        # so it must not count toward humanThreadsActed.
         result = _run(
             [_thread("T_bot", "codex[bot]", "Bot", bot_only=False)],
             ["owner/repo#1", "--allowed-owners", "owner", "--include-human"],
@@ -324,9 +321,6 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         self.assertTrue(projected["botOnly"])
 
     def test_self_only_thread_is_not_bot_only(self) -> None:
-        # self_logins is neutral, not a bot substitute: a thread with no
-        # ACTUAL bot participant is not botOnly just because every comment
-        # happens to be self-authored.
         record = {
             "id": "T1",
             "comments": [_comment("worker-bot", "User")],
@@ -349,9 +343,6 @@ class SelfLoginsNeutralizeOwnReply(unittest.TestCase):
         self.assertFalse(projected["botOnly"])
 
     def test_truncated_page_still_fails_closed_regardless_of_self_logins(self) -> None:
-        # self_logins narrows WHICH non-bot authors are neutral; it must not
-        # loosen the independent truncation guard, since an undisclosed page
-        # could hide a genuine third-party human beyond it.
         record = {
             "id": "T1",
             "comments": [_comment("codex[bot]", "Bot")],
@@ -497,9 +488,6 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
         self.assertTrue(projected["botOnly"])
 
     def test_self_opened_with_bot_reply_is_not_bot_only(self) -> None:
-        # The hole the opposite direction: the caller's own thread, joined by
-        # a bot. Every comment is bot-or-self, but the thread is the caller's
-        # OWN -- "NEVER resolve your OWN threads" (review-discipline.md D7.5).
         record = {
             "id": "T1",
             "comments": [_comment("worker-bot", "User"), _comment("codex[bot]", "Bot")],
@@ -509,8 +497,6 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
         self.assertFalse(projected["botOnly"])
 
     def test_bot_opened_with_third_party_human_reply_is_not_bot_only(self) -> None:
-        # A bot opener is necessary, never sufficient: a genuine third party
-        # anywhere in the thread still disqualifies it.
         record = {
             "id": "T1",
             "comments": [_comment("codex[bot]", "Bot"), _comment("alice", "User")],
@@ -536,14 +522,10 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
         self.assertFalse(rt.project_thread(record)["botOnly"])
 
     def test_no_comments_is_not_bot_only(self) -> None:
-        # Fail closed: with no opening comment there is nothing to prove a bot
-        # authored it.
         record = {"id": "T1", "comments": [], "comments_truncated": False}
         self.assertFalse(rt.project_thread(record)["botOnly"])
 
     def test_opener_with_no_author_is_not_bot_only(self) -> None:
-        # A deleted/ghost account leaves the opener's author null -- the
-        # opening authorship is undeterminable, so it cannot be a bot's.
         record = {
             "id": "T1",
             "comments": [{"author": None}, _comment("codex[bot]", "Bot")],
@@ -552,8 +534,6 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
         self.assertFalse(rt.project_thread(record)["botOnly"])
 
     def test_truncated_page_is_not_bot_only_even_with_a_bot_opener(self) -> None:
-        # Truncation stays an independent fail-closed guard on top of the
-        # opener test: an undisclosed page could hide a third-party human.
         record = {
             "id": "T1",
             "comments": [_comment("codex[bot]", "Bot")],
@@ -562,9 +542,6 @@ class BotOnlyRequiresABotOpener(unittest.TestCase):
         self.assertFalse(rt.project_thread(record)["botOnly"])
 
     def test_end_to_end_self_opened_thread_is_skipped_under_autonomous(self) -> None:
-        # The exploit path end to end, through the REAL projection: an
-        # outdated self-opened thread with a bot reply, under the worker
-        # tier's own flags, must be refused without --include-human.
         record = {
             "id": "T1",
             "isResolved": False,
@@ -822,9 +799,6 @@ class SeverityProjection(unittest.TestCase):
 
 class NoAbbreviatedFlags(unittest.TestCase):
     def test_include_human_abbreviation_is_rejected(self) -> None:
-        # The permission grants state conditions as literal flag text; an
-        # abbreviation resolving to --include-human while the text lacks it
-        # would let the written command and resolved behavior diverge.
         with (
             mock.patch.object(
                 sys,
@@ -878,8 +852,6 @@ def _linked_pr_payload(
     )
 
 
-# The verbatim shapes `gh` writes to stderr (gh 2.95.0), because the HTTP status
-# it carries is the only signal separating a negative answer from an outage.
 GH_404 = "gh: Not Found (HTTP 404)\n"
 GH_403 = "gh: Forbidden (HTTP 403)\n"
 GH_500 = "gh: Internal Server Error (HTTP 500)\n"
@@ -976,8 +948,6 @@ class IndependentResolverUsageGates(unittest.TestCase):
         self.assertIn("--independent-resolver", str(payload["error"]))
 
     def test_autonomous_combination_is_refused(self) -> None:
-        # The two modes answer for different actors; combining them would let the
-        # merging worker wear the independent resolver's evidence exemption.
         payload = self._usage(
             [
                 "owner/repo#1",
@@ -1134,8 +1104,6 @@ class IndependentResolverBrightLines(unittest.TestCase):
     """The guards the third mode keeps: human threads and severity."""
 
     def test_human_thread_is_still_refused(self) -> None:
-        # Dropping isOutdated does not widen authorship. --include-human is
-        # refused in this mode, so nothing can lift the bot-only line here.
         code, payload = _run_independent(
             [
                 _thread(
@@ -1156,8 +1124,6 @@ class IndependentResolverBrightLines(unittest.TestCase):
         self.assertEqual(code, 10)
 
     def test_severity_marked_thread_is_still_refused(self) -> None:
-        # Still an unattended path: "never a security or P1 thread" is
-        # unconditional, so evidence cannot buy past it.
         code, payload = _run_independent(
             [_bot_thread(severity_flagged=True)],
             _independent_argv(
@@ -1299,8 +1265,6 @@ class IndependentResolverEvidence(unittest.TestCase):
         self.assertEqual(code, 10)
 
     def test_linked_pr_refuses_a_pr_from_a_fork(self) -> None:
-        # A fork's head branch is not a fix this repository controls, so citing
-        # one does not dispose of the finding.
         code, payload = self._linked_pr(
             "Fixed in #42.", _linked_pr_payload(head_repo="stranger/repo")
         )
@@ -1376,8 +1340,6 @@ class IndependentResolverEvidence(unittest.TestCase):
         self.assertEqual(code, 10)
 
     def test_incorrect_ignores_the_opening_comment(self) -> None:
-        # replyBodies excludes the opener, so the bot's own finding text can
-        # never satisfy the claim that the finding is wrong.
         code, payload = _run_independent(
             [_bot_thread(reply_bodies=[])],
             _independent_argv(
@@ -1449,10 +1411,6 @@ class OutageIsNotARejection(unittest.TestCase):
         )
 
     def test_tracker_item_owner_carrying_path_syntax_is_unverifiable(self) -> None:
-        # TRACKER_ITEM_RE admits an owner/repo SHAPE, not a valid one, so a `..`
-        # component builds a path that was never a GitHub endpoint. Reporting that
-        # as a missing item would name the wrong problem. A single scripted
-        # response would be reached only if the guard did not fire first.
         with mock.patch.object(rt, "gh_capture", side_effect=[]):
             self.assertEqual(
                 rt.verify_tracker_item("owner/repo", "validowner/..#1"),
@@ -1498,7 +1456,6 @@ class OutageIsNotARejection(unittest.TestCase):
         )
 
     def test_last_reported_status_wins_over_an_earlier_retry(self) -> None:
-        # gh prints one line per attempt; the final one is the outcome.
         self.assertEqual(rt.gh_http_status(_proc(1, stderr=GH_500 + GH_404)), 404)
 
     def test_no_status_at_all_reports_none(self) -> None:
@@ -1517,7 +1474,6 @@ class FixCommitReachability(unittest.TestCase):
             return rt.verify_fix_commit("owner/repo", 1, FIX_SHA)
 
     def test_identical_status_is_reachable(self) -> None:
-        # base=sha, head=head_oid: identical means the fix IS the head commit.
         self.assertEqual(
             self._compare_result({"status": "identical", "behind_by": 0}), (True, "")
         )
@@ -1588,18 +1544,6 @@ class CompareUrlFieldsAreValidated(unittest.TestCase):
     def test_a_dotted_repository_name_under_a_plain_owner_reaches_the_compare(
         self,
     ) -> None:
-        # Pins the ARGUMENT ORDER of the owner/repo validation, which nothing
-        # else here does. Every other head-repo fixture uses a name and an owner
-        # that both regexes accept or both reject, so passing the pair the wrong
-        # way round is invisible to them. A dot is legal in a repository name and
-        # illegal in an owner, so this shape clears validation only when the two
-        # are passed in the right order.
-        #
-        # The assertion is the inverse of the one `_with_pr_view` documents: with
-        # a single scripted response, reaching the compare call raises
-        # StopIteration, so the raise is what proves validation did NOT refuse.
-        # Transposed, the pair is rejected, no second call is made, and this
-        # raises nothing.
         with self.assertRaises(StopIteration):
             self._with_pr_view(
                 {
@@ -1693,7 +1637,6 @@ class CounterEvidenceExcludesTheFindingsAuthor(unittest.TestCase):
         self.assertEqual(projected["replyBodies"], [])
 
     def test_a_withheld_opener_login_admits_no_evidence(self) -> None:
-        # Independence cannot be established against an unknown opener.
         projected = rt.project_thread(
             {
                 "id": "T",
@@ -1770,8 +1713,6 @@ class MultiFindingThreadsAreRefused(unittest.TestCase):
         self.assertEqual(threads[0]["action"], "skipped-multi-finding-thread")
 
     def test_an_unknown_count_fails_closed(self) -> None:
-        # None is what the projection reports for a truncated comment page, where
-        # an unfetched comment could carry another finding.
         _, payload = _run_independent(
             [_bot_thread(finding_count=None)],
             _independent_argv("--disposition", "fixed", "--fix-commit", FIX_SHA),
@@ -1867,8 +1808,6 @@ class MultiFindingThreadsAreRefused(unittest.TestCase):
         self.assertIsNone(projected["findingCount"])
 
     def test_autonomous_mode_is_not_narrowed_by_the_guard(self) -> None:
-        # isOutdated is GitHub's own thread-level signal, so there is no
-        # per-finding claim there to under-cover.
         result = _run(
             [
                 _thread(
@@ -2220,8 +2159,6 @@ class OwnPrLaneAnsweredException(unittest.TestCase):
         resolver.assert_not_called()
 
     def test_owner_reply_inside_a_bot_thread_blocks_the_resolve(self) -> None:
-        # The self login is neutral as a reply elsewhere, but on an own PR it
-        # is the person who opened the PR, so their reply keeps the thread.
         record = _own_pr_record(
             _comment("github-actions", "Bot", "P2: rename this helper"),
             _comment(LANE, "Bot", FIXED),

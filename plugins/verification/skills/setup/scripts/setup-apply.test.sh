@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for setup-apply.mjs: the narrow write of docs/conventions/verification.yaml.
-# Each case builds its own repository root in a temp directory; expected values
-# come from the schema's allowed values (path, live, strict) and the script's stated
-# exit codes, not from the script's output.
 # test-scope: plugins/verification/lib/parse-concern-value.sh
 # test-scope: plugins/verification/lib/resolve-convention-home.sh
 # test-scope: plugins/verification/.claude-plugin/plugin.json plugins/verification/lib/yaml-subset.awk
@@ -62,7 +58,6 @@ leftover_temps() {
   printf '%d' "$n"
 }
 
-# --- Case 1: an absent file is created with the value -----------------------
 R1="$(new_root c1)"
 out="$(run --root "$R1" proof_level=live)"
 assert_eq "case 1: writing to an absent file exits 0" "0" "$?"
@@ -76,12 +71,10 @@ run --root "$R1B" proof_level=strict >/dev/null
 assert_eq "case 1: missing docs/conventions directories are created" "0" "$?"
 assert_contains "case 1: the created file holds the value" "$(settings "$(yaml_of "$R1B")")" "proof_level: strict"
 
-# --- Case 2: the same value again writes nothing ---------------------------
 out="$(run --root "$R1" proof_level=live)"
 assert_eq "case 2: a value already in place exits 0" "0" "$?"
 assert_contains "case 2: it says already configured" "$out" "already configured"
 
-# --- Case 3: a change to an existing file needs --yes ------------------------
 before="$(cat "$(yaml_of "$R1")")"
 out="$(run --root "$R1" proof_level=strict)"
 assert_eq "case 3: a change without --yes exits 3" "3" "$?"
@@ -92,7 +85,6 @@ assert_eq "case 3: the change with --yes exits 0" "0" "$?"
 assert_eq "case 3: the file holds the new value on its own line" "1" "$(grep -cx 'proof_level: strict' "$(yaml_of "$R1")")"
 assert_eq "case 3: no temp file is left behind" "0" "$(leftover_temps "$R1")"
 
-# --- Case 4: values and keys outside the schema are refused ------------------
 R4="$(new_root c4)"
 for bad in maybe Live STRICT true '' '""'; do
   run --root "$R4" "proof_level=$bad" >/dev/null
@@ -102,7 +94,6 @@ run --root "$R4" digest_policy=off >/dev/null
 assert_eq "case 4: a key outside the schema exits 1" "1" "$?"
 assert_eq "case 4: no refused value created the file" "0" "$([[ -e "$(yaml_of "$R4")" ]] && echo 1 || echo 0)"
 
-# --- Case 5: --check on absent, valid and invalid files ----------------------
 R5="$(new_root c5)"
 out="$(run --root "$R5" --check)"
 assert_eq "case 5: --check on an absent file exits 0" "0" "$?"
@@ -139,7 +130,6 @@ check_warns "a duplicate key" $'proof_level: strict\nproof_level: live\n'
 check_warns "a duplicate key after trimming" $'proof_level: strict\n"proof_level ": live\n'
 check_warns "an unknown key" $'proof_level: strict\nproof_levels: live\n'
 
-# --- Case 7: apply refuses a result that would not validate ------------------
 R7="$(new_root c7)"
 printf 'proof_level: strict\nproof_level: strict\n' >"$(yaml_of "$R7")"
 before="$(cat "$(yaml_of "$R7")")"
@@ -153,7 +143,6 @@ run --root "$R7B" --yes proof_level=live >/dev/null
 assert_eq "case 7: apply over a block list exits 1" "1" "$?"
 assert_eq "case 7: the block-list file is unchanged" "$before" "$(cat "$(yaml_of "$R7B")")"
 
-# --- Case 8: unsafe paths are refused ----------------------------------------
 R8="$(new_root c8)"
 OUTSIDE="$TEST_TMPDIR/outside.yaml"
 printf 'kept\n' >"$OUTSIDE"
@@ -184,7 +173,6 @@ HOME="$R8D/sub" node "$APPLY" --root "$R8D" proof_level=live >/dev/null 2>&1
 assert_eq "case 8: a root that is an ancestor of \$HOME exits 1" "1" "$?"
 assert_eq "case 8: neither \$HOME refusal wrote the file" "0" "$([[ -e "$(yaml_of "$R8D")" ]] && echo 1 || echo 0)"
 
-# --- Case 9: a failed write is one refusal line and leaves no temp -----------
 R9="$(new_root c9)"
 chmod 555 "$R9/docs/conventions"
 if [[ -w "$R9/docs/conventions" ]]; then
@@ -198,7 +186,6 @@ else
 fi
 chmod 755 "$R9/docs/conventions"
 
-# --- Case 10: a root path holding a command substitution is never run --------
 PWNED="$TEST_TMPDIR/pwned10"
 R10="$TEST_TMPDIR/\$(touch $PWNED)"
 mkdir -p "$R10/docs/conventions"
@@ -206,7 +193,6 @@ run --root "$R10" proof_level=live >/dev/null
 assert_eq "case 10: a substitution-shaped root still writes" "0" "$?"
 assert_eq "case 10: the substitution never ran" "0" "$([[ -e "$PWNED" ]] && echo 1 || echo 0)"
 
-# --- Case 11: usage errors ----------------------------------------------------
 run --root "$R5" >/dev/null
 assert_eq "case 11: no key=value exits 2" "2" "$?"
 run --root "$R5" --check proof_level=strict >/dev/null
@@ -220,9 +206,6 @@ one_line() {
 }
 exists() { [[ -e "$1" ]] && echo 1 || echo 0; }
 
-# --- Case 12: apply validates the existing file and refuses what it cannot overwrite
-# apply_refuses <label> <file body>: apply --yes exits 1 with one line and
-# leaves the file byte for byte as it was.
 apply_refuses() {
   local r f before out
   r="$(new_root "ar-$1")"
@@ -269,9 +252,6 @@ apply_refuses "a parse error on another line" $'proof_level: strict\nother: "ope
 apply_refuses "a parse error on the key's own line" $'proof_level: "open\n'
 apply_refuses "an unclosed flow list on the key's own line" $'proof_level: [true\n'
 
-# --- Case 13: apply overwrites an out-of-list, empty or null value -----------
-# apply_replaces <label> <file body>: apply --yes exits 0 and the file is the
-# single line the operator asked for.
 apply_replaces() {
   local r f
   r="$(new_root "rp-$1")"
@@ -287,8 +267,6 @@ apply_replaces "an empty value" $'proof_level:\n'
 apply_replaces "a null value" $'proof_level: null\n'
 apply_replaces "a tilde null" $'proof_level: ~\n'
 
-# --- Case 14: a key given twice on the command line is refused -----------------
-# pair_twice <label> <pair> <pair>: exits 1 with one line, file absent or present.
 pair_twice() {
   local r f out before
   r="$(new_root "pt-$1")"
@@ -308,7 +286,6 @@ pair_twice "the same pair twice" proof_level=live proof_level=live
 pair_twice "two values for one key" proof_level=live proof_level=strict
 pair_twice "a key repeated after trimming" proof_level=live ' proof_level =false'
 
-# --- Case 15: every other refusal is one line ---------------------------------
 R15="$(new_root c15)"
 for bad in maybe '' '""'; do
   out="$(run --root "$R15" "proof_level=$bad")"
@@ -343,7 +320,6 @@ assert_eq "case 15: a write over the file-size limit exits 1" "1" "$?"
 one_line "case 15: a failed write" "$out"
 assert_eq "case 15: a failed write leaves no temp file" "0" "$(leftover_temps "$R15W")"
 
-# --- Case 16: an unreadable target is one line, apply and --check alike --------
 R16="$(new_root c16)"
 printf 'proof_level: strict\n' >"$(yaml_of "$R16")"
 chmod 000 "$(yaml_of "$R16")"
@@ -359,8 +335,6 @@ else
 fi
 chmod 644 "$(yaml_of "$R16")"
 
-# Preloads stand in for failures the file system will not produce on demand.
-# Each patches node:fs before the script's ESM imports bind.
 preload() { # preload <name> <body lines...>
   local p="$TEST_TMPDIR/$1.cjs"
   shift
@@ -368,9 +342,6 @@ preload() { # preload <name> <body lines...>
   printf '%s' "$p"
 }
 
-# --- Case 17: a realpath failure is one line ----------------------------------
-# Node resolves its own module paths through realpathSync too, so the preload
-# fails only for paths under this case's root.
 R17="$(new_root c17)"
 P17="$(preload realpath-fails \
   'const rp = fs.realpathSync;' \
@@ -380,10 +351,6 @@ assert_eq "case 17: a failed realpath exits 1" "1" "$?"
 one_line "case 17: a failed realpath" "$out"
 assert_eq "case 17: a failed realpath writes nothing" "0" "$(exists "$(yaml_of "$R17")")"
 
-# --- Case 18: the path is checked again before each mkdir ---------------------
-# After docs/ is created, the preload swaps it for a symlink to a directory
-# outside the root. The check before the docs/conventions mkdir must refuse,
-# so nothing is created outside.
 OUT18="$TEST_TMPDIR/outside18"
 mkdir -p "$OUT18"
 P18="$(preload swap-docs \
@@ -396,7 +363,6 @@ assert_eq "case 18: a docs/ swapped for a symlink after mkdir exits 1" "1" "$?"
 one_line "case 18: a swapped docs/" "$out"
 assert_eq "case 18: nothing was created outside the root" "0" "$(exists "$OUT18/conventions")"
 
-# --- Case 19: rename and close failures, and a temp this run did not create ----
 P19R="$(preload rename-fails \
   'fs.renameSync = () => { throw Object.assign(new Error("EXDEV: cross-device link, rename"), { code: "EXDEV" }); };')"
 R19="$(new_root c19)"
@@ -436,10 +402,6 @@ one_line "case 19: a failed rename and a failed cleanup" "$out"
 assert_contains "case 19: a failed rename and cleanup names the rename error" "$out" "EXDEV"
 assert_eq "case 19: a failed rename and cleanup leaves no target" "0" "$(exists "$(yaml_of "$R19X")")"
 
-# --- Case 18W: the path is checked again before the write ---------------------
-# When docs/conventions is created, the preload swaps it for a symlink to a
-# directory outside the root. No mkdir follows, so only the check before the
-# write can refuse; without it the temp file lands outside.
 OUT18W="$TEST_TMPDIR/outside18w"
 mkdir -p "$OUT18W"
 P18W="$(preload swap-conventions \
@@ -453,7 +415,6 @@ one_line "case 18W: a swapped docs/conventions" "$out"
 assert_eq "case 18W: no verification.yaml outside the root" "0" "$(exists "$OUT18W/verification.yaml")"
 assert_eq "case 18W: no temp file outside the root" "" "$(ls -A "$OUT18W")"
 
-# --- Case 20: proof_level takes path, live or strict (the schema's enum) ------
 for level in path live strict; do
   R20="$(new_root "c20-ok-$level")"
   run --root "$R20" "proof_level=$level" >/dev/null
@@ -481,10 +442,6 @@ out="$(run --root "$R20W" --check)"
 assert_eq "case 20: --check on proof_level: maybe exits 1" "1" "$?"
 assert_contains "case 20: the WARN names the key and the value" "$out" "proof_level=maybe"
 
-# --- Case 21: --check --ref reads the file as committed at a ref --------------
-# The fixture's origin/main commits proof_level: strict; the working tree
-# (standing in for a pull request's head) lowers it to path. The ref read must report
-# the committed value and the commit it read.
 g() { git -C "$1" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "${@:2}"; }
 R21="$TEST_TMPDIR/c21"
 mkdir -p "$R21/docs/conventions"
@@ -529,7 +486,6 @@ out="$(run --root "$R21" --check --ref origin/main)"
 assert_eq "case 21: a committed symlink exits 1" "1" "$?"
 assert_contains "case 21: a committed symlink is a WARN" "$out" "WARN"
 
-# --- Case 22: --ref accepts only a commit id or origin/<name> -----------------
 PWNED22="$TEST_TMPDIR/pwned22"
 for bad in main HEAD~1 'origin/a..b' 'origin/-x' '--output=x' "origin/\$(touch $PWNED22)" 'origin/main:docs' ''; do
   out="$(run --root "$R21" --check --ref "$bad")"
@@ -544,10 +500,6 @@ assert_eq "case 22: --ref without --check exits 2" "2" "$?"
 run --root "$R21" --check --ref >/dev/null
 assert_eq "case 22: --ref with no value exits 2" "2" "$?"
 
-# --- Case 23: origin/<name> reads refs/remotes/origin/<name>, never a same-named ref
-# A pull request's head can be checked out as a local branch, or tagged, under
-# the name origin/main. Each shadow below commits proof_level: path; the
-# remote-tracking ref commits strict, and only strict may come back.
 R23="$TEST_TMPDIR/c23"
 mkdir -p "$R23/docs/conventions"
 g "$R23" init -q
@@ -558,8 +510,6 @@ SHA23="$(g "$R23" rev-parse HEAD)"
 g "$R23" update-ref refs/remotes/origin/main "$SHA23"
 printf 'proof_level: path\n' >"$(yaml_of "$R23")"
 g "$R23" commit -q -a -m head
-# has_ref <root> <full ref>: 1 when the ref exists, else 0. Shadows are made
-# with update-ref, so a host setting such as tag.gpgsign cannot skip one.
 has_ref() { g "$1" show-ref --verify --quiet "$2" && echo 1 || echo 0; }
 for shadow in refs/heads/origin/main refs/tags/origin/main refs/origin/main; do
   g "$R23" update-ref "$shadow" HEAD
@@ -570,10 +520,6 @@ for shadow in refs/heads/origin/main refs/tags/origin/main refs/origin/main; do
   assert_contains "case 23: with $shadow named origin/main, the commit read is the remote-tracking one" "$out" "$SHA23"
 done
 
-# --- Case 25: with refs/remotes/origin/main absent, no look-alike ref stands in
-# Each shadow below would satisfy git's short-name lookup of
-# refs/remotes/origin/main. The documented result is exit 2: the layer cannot
-# be read and is skipped.
 R25="$TEST_TMPDIR/c25"
 mkdir -p "$R25/docs/conventions"
 g "$R25" init -q
@@ -592,10 +538,6 @@ for shadow in refs/heads/refs/remotes/origin/main refs/tags/refs/remotes/origin/
   g "$R25" update-ref -d "$shadow"
 done
 
-# --- Case 24: an invalid proof_level leaves no PASS line to read --------------
-# ADR 0064 Decision 7: the reading skill names the file, key and value and
-# drops the layer. The skill reads the value only from a PASS line, so an
-# invalid value must print a WARN naming it and no PASS proof_level line.
 bad_value() {
   local r out
   r="$(new_root "bv-$1")"
@@ -643,9 +585,6 @@ assert_contains "case 24: a committed bad value is named" "$out" "proof_level=ma
 assert_eq "case 24: a valid working-tree value does not stand in for the committed one" "0" \
   "$(printf '%s\n' "$out" | grep -c '^PASS proof_level')"
 
-# --- Case 26: live_workers takes an unquoted whole number of at least 1 --------
-# The schema gives live_workers type integer and minimum 1, so 1, 2 and 12 are
-# valid and the file holds them as written.
 for n in 1 2 12; do
   R26="$(new_root "c26-$n")"
   run --root "$R26" "live_workers=$n" >/dev/null
@@ -669,9 +608,6 @@ assert_eq "case 26: adding live_workers beside proof_level exits 0" "0" "$?"
 assert_eq "case 26: proof_level is kept and live_workers added" $'proof_level: strict\nlive_workers: 2' \
   "$(settings "$(yaml_of "$R26U")")"
 
-# --- Case 27: a command-line live_workers that is not such a number is refused --
-# A quoted number, a decimal, a sign, 0, a leading zero, a word and an empty or
-# empty-quoted value: one line, no file created, an existing file untouched.
 for bad in 0 00 02 -1 +2 2.5 2.0 1e3 abc ' 2' '"2"' "'2'" '' '""'; do
   r="$(new_root "c27-$(printf '%s' "$bad" | od -An -tx1 | tr -dc '0-9a-f')")"
   f="$(yaml_of "$r")"
@@ -687,9 +623,6 @@ for bad in 0 00 02 -1 +2 2.5 2.0 1e3 abc ' 2' '"2"' "'2'" '' '""'; do
   assert_eq "case 27: live_workers=$bad leaves the file untouched" "$before" "$(od -c "$f")"
 done
 
-# --- Case 28: --check names an invalid live_workers and drops only that key -----
-# ADR 0064 Decision 7: the WARN names the key and the value, no PASS live_workers
-# line is printed, and a valid proof_level beside it still gets its PASS line.
 lw_warns() {
   local r out
   r="$(new_root "lw-$1")"
@@ -712,7 +645,6 @@ lw_warns "an empty quoted string" $'live_workers: ""\n' 'live_workers=""'
 lw_warns "a flow list" $'live_workers: [2]\n' "live_workers=[2]"
 lw_warns "a block list" $'live_workers:\n  - 2\n' "live_workers"
 
-# --- Case 29: apply overwrites an out-of-range or non-integer live_workers -------
 lw_replaces() {
   local r f
   r="$(new_root "lr-$1")"
@@ -753,7 +685,6 @@ assert_eq "case 29: apply beside an unknown key keeps its line" $'live_workers: 
 lw_refuses "an invalid proof_level it is not writing" $'proof_level: maybe\nlive_workers: 2\n'
 pair_twice "live_workers twice" live_workers=2 live_workers=3
 
-# --- Case 30: --check --ref reads live_workers as committed ------------------------
 R30="$TEST_TMPDIR/c30"
 mkdir -p "$R30/docs/conventions"
 g "$R30" init -q
@@ -767,9 +698,6 @@ assert_eq "case 30: --check --ref with a committed live_workers exits 0" "0" "$?
 assert_contains "case 30: the committed live_workers is read, not the working tree's" "$out" "PASS live_workers: 4"
 assert_contains "case 30: proof_level is unset in the committed file" "$out" "PASS proof_level: (unset)"
 
-# --- Case 31: --check reports verification and verification_skills -------------
-# The schema lists off, light, standard and strict for both keys
-# (docs/contracts/verification-level/README.md).
 R31="$(new_root c31)"
 printf 'proof_level: live\nverification: light\nverification_skills:\n  confirm: strict\n' >"$(yaml_of "$R31")"
 out="$(run --root "$R31" --check)"
@@ -785,7 +713,6 @@ assert_contains "case 31: the WARN names the skill entry's value" "$out" "max"
 assert_eq "case 31: no PASS line for either invalid key" "0" "$(printf '%s\n' "$out" | grep -c '^PASS verification')"
 assert_contains "case 31: proof_level keeps its PASS line" "$out" "PASS proof_level: live"
 
-# --- The writer's record: written_against from plugin.json, one entry per key ---
 VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
 R="$(new_root record-chosen)"
 out="$(run --root "$R" proof_level=live)"

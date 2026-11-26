@@ -1,127 +1,4 @@
 #!/usr/bin/env bash
-# Push the current (or named) branch to its resolved push remote, setting
-# upstream tracking (`-u`) ONLY for a branch that has no existing upstream and
-# whose fetch and push remotes resolve to the same name.
-#
-# Push destination and fetch/rebase remote are resolved independently by the
-# sibling resolve-remote.sh (Git lets them differ in a triangular fork flow):
-#   PUSH_REMOTE  = resolve-remote.sh --push   (pushRemote -> pushDefault -> fetch order)
-#   FETCH_REMOTE = resolve-remote.sh          (branch.<name>.remote -> origin -> sole other)
-#
-# `-u` is CONDITIONAL because `git push -u` rewrites the branch's ENTIRE upstream
-# — both branch.<name>.remote AND branch.<name>.merge (to refs/heads/<name>). Two
-# distinct ways that silently corrupts where the branch fetches/rebases from:
-#
-#   1. Retarget the remote. On a triangular fork (push to a fork via
-#      pushRemote/pushDefault, fetch from origin/upstream) `-u` would repoint
-#      branch.<name>.remote to the fork, so the next rebase targets the wrong
-#      base. The trap is the shape where the fetch remote is NOT literally
-#      configured but resolves via fallback: remote.pushDefault=fork with
-#      branch.<name>.remote unset fetches from `origin` (fallback) yet pushes to
-#      the fork.
-#   2. Overwrite an existing upstream. The upstream is TWO keys —
-#      branch.<name>.remote AND branch.<name>.merge — and `-u` rewrites both.
-#      Any of these partial or full configs is an upstream the user chose that a
-#      bootstrap must not clobber:
-#        - both set to a real remote/ref (an ordinary tracked branch);
-#        - branch.<name>.remote="." (a deliberate local-only upstream, e.g.
-#          `git branch --track . <ref>`), merge naming the tracked local ref;
-#        - branch.<name>.merge set with branch.<name>.remote UNSET — valid: Git
-#          defaults the missing remote to `origin`, so the branch tracks
-#          `origin/<merge-ref>`. `-u` here replaces the chosen merge ref with
-#          refs/heads/<name>, the same clobber family as (1).
-#
-# The gate therefore fires `-u` only when BOTH hold:
-#   * the branch has NO existing upstream — branch.<name>.remote AND
-#     branch.<name>.merge are BOTH literally unset (a genuinely fresh feature
-#     branch, nothing to preserve), AND
-#   * FETCH_REMOTE == PUSH_REMOTE (bootstrapping tracking cannot misdirect the
-#     fetch remote, because it can only be set to what fetch already resolves to).
-# Any existing upstream — full, ".", or merge-only — is preserved by a plain
-# push, which never writes branch config. An ambiguous fetch (FETCH_REMOTE empty:
-# 2+ non-origin remotes, no origin) is unequal to any push remote -> plain push
-# -> no write.
-#
-# The upstream-absent check reads both keys raw (no "." or CRLF normalization):
-# any non-empty value -> "has an upstream" -> plain push preserves it; only the
-# truly-unset (empty) keys are a bootstrap candidate. That normalized "."
-# handling lives once, in resolve-remote.sh, and is not duplicated here.
-#
-# Push resolution must be determinate (it names the destination), so a failed
-# --push resolution aborts; a failed fetch resolution does not.
-#
-# `--pr <number>` pushes that pull request's head branch, read from
-# `gh pr view`, whatever worktree the caller runs in. Branch refs are shared
-# across worktrees, so the push carries the commits made in the PR's worktree.
-# A head branch with no local ref, a name starting with '-', or a push remote
-# any of whose push URLs is not the PR's head repository on github.com (https,
-# ssh:// or scp-style) exits non-zero rather than pushing.
-#
-# `--dir <checkout>` runs from that checkout and pushes its HEAD, detached
-# included, to the branch by refspec, never with `-u`; with `--pr` the head
-# branch needs no local ref. A babysit worker's worktree pushes this way.
-#
-# The branch it would push (named, current, or the --pr head) refuses when it is
-# main, master, or the push remote's default branch as `git ls-remote --symref`
-# reports it; a read that fails or names no default refuses too. A --pr head in
-# a fork of the base repository is exempt: that push goes to the fork. `--check` runs only that check
-# (create.md calls it before opening a PR) and pushes nothing.
-#
-# `--preflight` runs the checks a rebase needs before the caller's own force
-# push: the default-branch refusal, the head-repository URL check and the lane
-# refusal. It prints `<push-remote><TAB><branch>`, pushes nothing, never syncs
-# and holds no force push: the caller runs the literal
-# `git push --force-with-lease=<branch>:<sha>`, so the permission system sees
-# it. A branch name or --pr is required, since a rebase runs on a detached HEAD;
-# every push URL must be the PR's head repository with --pr, and without it the
-# repository `gh repo view` reports, a failed read refusing. A fork head is refused,
-# and so is any session whose acting login cannot be read or ends in `[bot]`:
-# a lane's only pushes go through lane-push.sh, which never rewrites a branch.
-#
-# Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
-# above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
-# block below), and --pr for a fork head needs --dir.
-#
-# sync-stale-base: on the operator path, just before the push, a branch behind
-# its base on overlapping paths gets the base merged in, so a pre-push hook
-# that refuses a stale base with overlapping paths does not bounce a push that
-# waited in a rate gate while the base moved. The base is the PR's base branch
-# (--pr's own read, else `gh pr view <branch>`), or the fetch remote's default
-# branch when the branch has no PR yet. It is fetched from the remote whose URL
-# is the PR's base repository on github.com (the fetch remote when there is no
-# PR); with no such remote the step is skipped. Nothing the pushed head holds
-# decides the step or runs in it: ../../../scripts/stale-base-overlap.sh, run
-# against <remote>/<base>, is the overlap rule (`yes` merges, `no` does not,
-# `unknown` skips), comparing paths only unless the remote reports <base> as its
-# default branch.
-# The merge is `git merge --no-edit`, never a rebase, signed when
-# commit.gpgsign is true (git's own setting) or HEAD is signed (-S). It is
-# skipped, with a note, when the base cannot be read or fetched, the branch is
-# checked out in no worktree, tracked files have uncommitted edits, or a merge
-# is in progress. A conflict aborts the merge and exits 4 without pushing.
-# On: sync_stale_base: true in docs/conventions/source-control.yaml at the
-# base repository's default branch, as this clone last fetched it (no network
-# read; without --pr the base repository is asked of the forge only when some
-# fetched remote turns the setting on), or --sync-stale-base;
-# --no-sync-stale-base
-# turns it off. Off by default. A lane (below) never syncs. --check never syncs.
-#
-# Stale reviewer media: on the operator path, once the push succeeds, a
-# reviewer-media section in the PR body that shows a commit other than the one
-# pushed gets the line `Out of date: shows commit <sha>` (media.py stale,
-# ../reference/media.md). The PR is --pr, else the open PR whose head is the
-# branch (`gh pr list --head`); with none, nothing is edited. It needs
-# python3, edits nothing when the body has no such section, and never changes
-# the push's exit status. A lane's push skips it; `monitor` and `ready` make
-# the same check.
-#
-# Exit: 0 pushed (or --check or --preflight passed); 1 refused or the push failed; 4 the
-# sync-stale-base merge conflicted and was aborted, nothing pushed.
-#
-# Usage: push-branch.sh [--check | --preflight] [--dir <checkout>] [--sync-stale-base | --no-sync-stale-base]
-#                       [branch-name | --pr <number>]
-#   (options in any order; defaults to the current branch; any other argument
-#   refuses)
 set -uo pipefail
 
 # portability-scope: --pr resolves the pull request's head branch and head repository through gh, and a lane its base repository and identity.
@@ -238,16 +115,8 @@ worktree_of() {
   done < <(git worktree list --porcelain 2>/dev/null)
 }
 
-# refuse_default <remote> <branch>: exit 1 when <branch> is main, master, or
-# <remote>'s default branch. The default is read from the remote itself
-# (`ls-remote --symref`), never the local <remote>/HEAD, which can be unset or
-# stale. A failed read refuses, and so does a read that names no default (an
-# empty remote, a server that does not advertise the symref, a detached HEAD).
 refuse_default() {
   local default="" what="'$2'"
-  # A fork head pushes to the contributor's fork, never the base repository, so
-  # its default branch may be pushed (lane-push.sh's is_fork rule). An unread
-  # base repository counts as no fork.
   if [[ -n "$PR" ]]; then
     if [[ -n "${PR_BASE_REPO:-}" && "${HEAD_REPO,,}" != "${PR_BASE_REPO,,}" ]]; then
       return 0
@@ -279,19 +148,6 @@ if [[ -n "$CHECK" ]]; then
   exit 0
 fi
 
-# Inside a lane, hand the push to lane-push.sh (loop-lane convention, "Lane
-# write identity"). A lane is a session whose acting gh login is a GitHub App
-# login (`<slug>[bot]`): the identity contract requires one, and an operator
-# never acts as one. The push goes to the lane's base repository as the
-# merge.agent-identity that repository's pr-pipeline.yaml names on its default
-# branch: babysit-prs' identity preflight reads it and refuses unless the
-# session acts as it and holds no other account, and lane-push.sh, given it as
-# --login, refuses unless the token still acts as it at push time. With --pr,
-# lane-push.sh reads the PR's head repository and branch itself; no remote or
-# URL of this checkout is read. lane-push.sh pushes HEAD of --dir, else of the
-# worktree holding the branch. This check is advisory: a lane that skips this
-# script is held only by the credentials its host gives it. A failed login read
-# keeps the operator path (residual R4).
 ACTING=$(gh api --hostname github.com graphql -f 'query=query{viewer{login}}' \
   --jq .data.viewer.login 2>/dev/null | tr -d '\r')
 if [[ -n "$PRE_PUSH" ]]; then
@@ -323,8 +179,6 @@ if [[ "$ACTING" == *"[bot]" ]]; then
     echo "$PREFLIGHT" >&2
     exit 1
   fi
-  # A fork head's name can match a local branch of the base repository, which
-  # is not the PR's head: a fork PR pushes only the checkout --dir names.
   if [[ -n "$PR" && -z "$DIR" && "${HEAD_REPO,,}" != "${BASE_REPO,,}" ]]; then
     echo "push-branch.sh: PR '$PR' head repository '$HEAD_REPO' is not '$BASE_REPO'; a lane pushes a fork head only with --dir; not pushing" >&2
     exit 1
@@ -348,12 +202,7 @@ if [[ -n "$PRE_PUSH" && -z "$BRANCH" ]]; then
   exit 1
 fi
 PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
-# Never push main, master or the push remote's default branch (a cwd that reset
-# to the main checkout would otherwise push main).
 [[ -z "$BRANCH" ]] || refuse_default "$PUSH_REMOTE" "$BRANCH"
-# A same-named local branch is not the PR's head unless every URL the push
-# writes to is the PR's head repository on github.com (a fork PR's head lives
-# on the fork). The URLs are read after insteadOf rewriting, as git pushes them.
 URL_TARGET="PR '$PR' head repository '${HEAD_REPO:-}'"
 if [[ -n "$PRE_PUSH" && -z "$PR" ]]; then
   HEAD_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r')
@@ -404,11 +253,6 @@ setting_at() {
   echo "$on"
 }
 
-# sync_stale_base <checkout>: the sync-stale-base step of the header. Returns
-# 0 to push; exits 4 on a conflict. Nothing the pushed head holds decides
-# whether it runs or is run by it: the setting is read from the base
-# repository's default branch and the overlap script from the base ref. With
-# the setting unset everywhere this clone has fetched, it makes no network call.
 sync_stale_base() {
   local wd="$1" on="$SYNC" base="${PR_BASE_REF:-}" base_repo="${PR_BASE_REPO:-}" remote="$FETCH_REMOTE"
   local out err ref r sign=() flags=(--paths-only)
@@ -444,7 +288,6 @@ sync_stale_base() {
   git -C "$wd" fetch --quiet "$remote" "+refs/heads/$base:refs/remotes/$ref" || { sync_skip "git fetch of $ref failed"; return 0; }
   git -C "$wd" diff --quiet HEAD -- || { sync_skip "tracked files in $wd have uncommitted edits"; return 0; }
   ! git -C "$wd" rev-parse -q --verify MERGE_HEAD >/dev/null || { sync_skip "a merge is in progress in $wd"; return 0; }
-  # Only a base the remote reports as its default branch may run its own rule.
   [[ "$base" != "$(cd "$wd" && remote_default "$remote")" ]] || flags=()
   out=$(bash "$SCRIPT_DIR/../../../scripts/stale-base-overlap.sh" ${flags[@]+"${flags[@]}"} "$wd" "$ref")
   case "$out" in

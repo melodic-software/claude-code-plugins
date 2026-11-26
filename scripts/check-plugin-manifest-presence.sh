@@ -1,33 +1,4 @@
 #!/usr/bin/env bash
-# Gate: every plugin directory the catalog references must carry a readable
-# .claude-plugin/plugin.json whose own "name" matches the catalog key, and
-# every plugins/*/ directory must be registered in the catalog.
-#
-#   scripts/check-plugin-manifest-presence.sh   run the gate (no flags)
-#
-# Why: #1547 -- a routine merge can silently drop a plugin's
-# .claude-plugin/plugin.json, with no conflict markers, while
-# .claude-plugin/marketplace.json still points the catalog key at that
-# directory. Consequences of a missing manifest are otherwise all deferred to
-# install time: a fresh install or marketplace update cannot load the plugin,
-# and the version the CHANGELOG claims is never published.
-#
-# Not covered by scripts/check-manifest-duplicate-keys.py (#1506/#1498): that
-# validates the CONTENTS of a manifest that exists. This is about one that
-# does not.
-#
-# Three checks, all static and repo-wide:
-#   1. FORWARD  -- for every .claude-plugin/marketplace.json entry, the
-#      directory its "source" names must contain a readable
-#      .claude-plugin/plugin.json, and that manifest's own "name" must equal
-#      the catalog key. A missing manifest and a name/key mismatch are
-#      reported as distinct failure classes.
-#   2. INVERSE  -- every plugins/*/ directory must be named by some catalog
-#      entry's "source". Lower severity (an orphaned directory cannot break an
-#      install the way a missing manifest can) but the same class of drift in
-#      the other direction, so it is cheap to catch here too.
-#   3. NO BIN   -- no plugins/*/ directory may carry a top-level bin/:
-#      claude.ai organization plugin sync rejects the plugin (#5850).
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -47,27 +18,8 @@ fi
 
 errors=0
 
-# name<TAB>source, one per catalog entry. CRLF tolerance: on Windows (Git
-# Bash) jq can emit \r\n line endings, which a bare herestring `read` loop
-# would otherwise leak into $source (as a trailing \r invisible in most
-# terminal output) and turn every directory/file lookup below into a false
-# MISSING failure.
 entries="$(jq -r '.plugins[] | [.name, .source] | @tsv' "$MARKETPLACE" | tr -d '\r')"
 
-# Canonical spelling of a repo-relative path, so the forward and inverse
-# checks key on the same string for every equivalent way of writing one
-# directory. `./plugins/alpha/`, `plugins//alpha` and `plugins/./alpha` all
-# resolve and glob identically on the filesystem, so a catalog entry spelled
-# any of those ways would register a key the inverse check's
-# `"$PLUGINS_ROOT"/*/` expansion ('plugins/alpha') could never match, and the
-# gate would report a correctly-registered directory as UNREGISTERED.
-#
-# Empty and "." segments are dropped; ".." is deliberately KEPT VERBATIM. This
-# function must never resolve a parent reference -- doing so would launder
-# 'plugins/../../etc' into 'etc' and walk it straight past the out-of-tree
-# guard below, which is why normalization runs BEFORE that guard rather than
-# after it. A leading "/" is preserved for the same reason: the guard has to
-# still see an absolute path as absolute.
 normalize_rel_path() {
   local raw="$1" out="" seg prefix=""
   local -a parts=()
@@ -86,14 +38,6 @@ while IFS=$'\t' read -r name source; do
   [[ -n "$name" ]] || continue
   rel="$(normalize_rel_path "$source")"
 
-  # Trust boundary: "source" is catalog data, not free-form input -- but a
-  # marketplace entry is still something a PR diff could carry, so treat it
-  # the same as check-hook-userconfig-argv.sh's manifest-pointed hooks path:
-  # reject an absolute path or a ".." segment before it is ever used to build
-  # a filesystem path, rather than letting a stray "../../etc" probe outside
-  # the repository root. Unlike that script's silent skip, an out-of-tree
-  # catalog entry is itself invalid content, so this fails the gate loudly
-  # instead of quietly ignoring the entry.
   if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* ]]; then
     printf 'UNSAFE CATALOG SOURCE: %s entry %s has source %s, which resolves outside the repository -- refusing to probe it.\n' \
       "$MARKETPLACE" "$name" "$source" >&2
@@ -144,9 +88,6 @@ if [[ -d "$PLUGINS_ROOT" ]]; then
     fi
   done
 
-  # Third check: no plugin carries a top-level bin/. claude.ai organization
-  # plugin sync rejects one (#5850). A bin/ with nothing in it is leftover
-  # from a checkout, not content (git tracks no empty directory), so it passes.
   for plugin_dir in "$PLUGINS_ROOT"/*/; do
     [[ -d "$plugin_dir" ]] || continue
     bin_path="${plugin_dir%/}/bin"

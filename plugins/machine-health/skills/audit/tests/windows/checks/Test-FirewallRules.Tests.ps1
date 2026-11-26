@@ -22,7 +22,6 @@ BeforeAll {
         }
     }
 
-    # Mock bodies reach the fake inventory by closure, not through $script:.
     $script:Fake = @{}
     $fake = $script:Fake
     Set-Item -Path function:Get-FakeInventory -Value ({ $fake['inv'] }.GetNewClosure())

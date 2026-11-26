@@ -1,31 +1,6 @@
 #!/usr/bin/env bash
-# Self-contained tests for detect-ecosystems.sh (no external test lib, since
-# this ships with the plugin; fixtures are built inline in a tmpdir).
-#
-# What this suite is for. The detector is the preamble command both prototype
-# skills run before anything else, through the `!` backtick form in their
-# SKILL.md. It therefore has two contracts a reader of the 18-line script would
-# not guess:
-#
-#   1. It must ALWAYS exit 0 and always print something. The skill bodies wrap
-#      it as `... 2>/dev/null || echo "none detected"`, so a nonzero exit is
-#      survivable but a nonzero exit that also printed a partial list would
-#      show the user a truncated ecosystem set with no signal that it was cut.
-#      "none detected" on stdout, exit 0, is the empty answer.
-#   2. An unmatched glob must never leak its own pattern. `*.sln` with no match
-#      stays the literal string `*.sln` under bash's default (no nullglob), and
-#      the whole reason this script exists rather than an `ls *.sln` is that the
-#      literal must not reach the output. That is the case a reader is most
-#      likely to break by "simplifying" the loop.
-#
-# Anchoring is the third contract: markers live at the project ROOT, and the
-# preamble may run from any cwd, so the script resolves a root itself. The
-# precedence chain is CLAUDE_PROJECT_DIR, then the git toplevel, then the cwd,
-# and a nonexistent CLAUDE_PROJECT_DIR must degrade to the cwd rather than abort.
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -84,9 +59,6 @@ multi_expected="$(printf '%s\n' App.slnx App.sln package.json pyproject.toml Car
 assert_equals "multi-ecosystem tree reports every marker in glob order" "$multi_expected" "$multi_out"
 assert_not_contains "a populated tree never prints the empty answer" "$multi_out" "none detected"
 
-# A partial tree exercises the same loop with FAILING tests interleaved between
-# passing ones. `[[ -e … ]] && found+=(…)` leaves a nonzero status behind on
-# every miss, including the final iteration, and the script runs under `set -e`.
 PARTIAL="$(mkfixture partial App.slnx)"
 partial_exit=0
 partial_out="$(run_in "$PARTIAL")" || partial_exit=$?
@@ -96,10 +68,6 @@ assert_exit "trailing misses under set -e do not abort the script" 0 "$partial_e
 MANY_SLN="$(mkfixture many-sln Zebra.sln Alpha.sln Middle.slnx)"
 many_expected="$(printf '%s\n' Middle.slnx Alpha.sln Zebra.sln)"
 assert_equals "every glob match is listed, sorted within its glob" "$many_expected" "$(run_in "$MANY_SLN")"
-
-# --- 5. Filenames the loop could mangle ---------------------------------------
-# The found list is an ARRAY expanded as "${found[@]}". A space-bearing glob
-# match is the case that a `for f in $(...)` or an unquoted expansion splits.
 
 SPACED="$(mkfixture spaced)"
 : >"$SPACED/My Big App.sln"
@@ -135,9 +103,6 @@ DECOY="$(mkfixture anchor-decoy package.json)"
 anchor_out="$(cd "$DECOY" && CLAUDE_PROJECT_DIR="$WINS" bash "$DETECT" 2>/dev/null)"
 assert_equals "CLAUDE_PROJECT_DIR outranks the cwd" "Cargo.toml" "$anchor_out"
 
-# An EMPTY CLAUDE_PROJECT_DIR is the unset case: the script uses `:-`, so an
-# exported-but-blank variable falls through to the git/cwd chain instead of
-# anchoring on the filesystem root.
 blank_out="$(cd "$DECOY" && env CLAUDE_PROJECT_DIR= GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$DETECT" 2>/dev/null)"
 assert_equals "an empty CLAUDE_PROJECT_DIR is treated as unset" "package.json" "$blank_out"
 
@@ -150,18 +115,9 @@ git_out="$(cd "$GITREPO/deep/nested" && env -u CLAUDE_PROJECT_DIR bash "$DETECT"
 assert_equals "without CLAUDE_PROJECT_DIR the git toplevel is the root" "Cargo.toml" "$git_out"
 assert_not_contains "the cwd's own marker is not reported from a subdirectory" "$git_out" "package.json"
 
-# --- 9. Root anchoring: the cwd fallback ---------------------------------------
-# GIT_CEILING_DIRECTORIES makes this deterministic: without it the case would
-# pass or fail on whether the machine's TMPDIR happens to sit inside a checkout.
-
 NOGIT="$(mkfixture nogit pyproject.toml)"
 nogit_out="$(cd "$NOGIT" && env -u CLAUDE_PROJECT_DIR GIT_CEILING_DIRECTORIES="$TEST_TMPDIR" bash "$DETECT" 2>/dev/null)"
 assert_equals "outside a repo and with no override, the cwd is the root" "pyproject.toml" "$nogit_out"
-
-# --- 10. A CLAUDE_PROJECT_DIR that does not exist -------------------------------
-# The `cd … || true` is load-bearing: under `set -e` a failed cd would abort with
-# no output at all, and the skill preamble would show the user nothing. The
-# documented degradation is "stay in the cwd and answer from there", quietly.
 
 GHOST="$(mkfixture ghost-cwd go.mod)"
 ghost_exit=0
@@ -176,11 +132,6 @@ args_exit=0
 args_out="$(run_in "$MULTI" --bogus extra)" || args_exit=$?
 assert_equals "unread arguments do not change the answer" "$multi_expected" "$args_out"
 assert_exit "unread arguments do not fail the script" 0 "$args_exit"
-
-# --- 12. Output shape ----------------------------------------------------------
-# One marker per line, newline-terminated, nothing else on stdout. A consumer
-# pipes this into `head`, so a trailing-newline regression would join the last
-# marker to whatever follows.
 
 raw="$(run_in "$SLN_ONE" | od -c | tr -s ' ')"
 assert_contains "output is newline-terminated" "$raw" 'M y A p p . s l n \n'

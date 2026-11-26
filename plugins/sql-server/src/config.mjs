@@ -1,6 +1,3 @@
-// Loads the one config file a registration names with --config, per ADR 0086
-// section 5: the file sits outside the project directory, carries a known
-// schemaVersion, holds no literal credential and matches the published schema.
 import { readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, relative, sep } from 'node:path';
 import { compileSchema } from './schema-validate.mjs';
@@ -30,8 +27,6 @@ function isInside(child, dir) {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-// Throws on the first literal credential found. The message names where it
-// sits, never the value.
 function refuseLiterals(node, path) {
   if (Array.isArray(node)) {
     node.forEach((item, i) => refuseLiterals(item, `${path}/${i}`));
@@ -78,7 +73,6 @@ export function loadConfig(configPath, { projectDir = process.cwd() } = {}) {
   try {
     config = JSON.parse(readFileSync(file, 'utf8'));
   } catch {
-    // JSON.parse's message quotes the input, which may hold a credential.
     throw new ConfigError(`cannot parse --config ${configPath}: it is not valid JSON`);
   }
   if (typeof config !== 'object' || config === null || Array.isArray(config)) {

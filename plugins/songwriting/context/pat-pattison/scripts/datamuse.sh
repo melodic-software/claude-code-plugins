@@ -1,36 +1,6 @@
 #!/usr/bin/env bash
 # Datamuse API helper for /songwriting:rhyme (Pat Pattison method).
 # Free, no auth, no key. https://www.datamuse.com/api/
-#
-# Why this exists: AI rhyme/syllable/semantic recall is unreliable. Pat's
-# identity-vs-rhyme check (pre-vowel consonants MUST differ) is hard to apply
-# without word-by-word data. This helper compensates.
-#
-# Usage:
-#   datamuse.sh rhyme    <word>          # rel_rhy perfect rhymes
-#   datamuse.sh near     <word>          # rel_nry near rhymes
-#   datamuse.sh cons     <word>          # rel_cns consonance
-#   datamuse.sh syn      <word>          # rel_syn synonyms
-#   datamuse.sh ant      <word>          # rel_ant antonyms
-#   datamuse.sh trg      <word>          # rel_trg semantic-field triggers
-#   datamuse.sh jja      <noun>          # adjectives describing the noun
-#   datamuse.sh jjb      <adj>           # nouns described by the adj
-#   datamuse.sh means    <phrase>        # ml reverse-dictionary
-#   datamuse.sh sounds   <word>          # sl sounds-like
-#   datamuse.sh pattern  <pattern>       # sp letter pattern, e.g. t???t
-#   datamuse.sh syllables <word>         # syllable count via numSyllables
-#   datamuse.sh family   <word>          # near + cons combined for family rhyme
-#
-# All modes return TSV (word\tscore\tnumSyllables\ttags) sorted by score desc.
-# Default limit: 25 results. Override with LIMIT=<n>.
-#
-# Examples:
-#   datamuse.sh rhyme lonely
-#   datamuse.sh family stranger
-#   datamuse.sh trg winter | head -30
-#   datamuse.sh jja moon | head -20
-#   datamuse.sh syllables disappointment
-#   LIMIT=50 datamuse.sh near grief
 
 set -euo pipefail
 
@@ -39,8 +9,32 @@ shift || true
 ARG="${*:-}"
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
-    "${BASH_SOURCE[0]}" >&2
+  cat >&2 <<'EOF'
+Datamuse API helper for /songwriting:rhyme: word lists as TSV (word, score, syllables, tags) by score.
+API: https://www.datamuse.com/api/ (free, no key).
+
+Usage:
+  datamuse.sh rhyme    <word>       perfect rhymes
+  datamuse.sh near     <word>       near rhymes
+  datamuse.sh cons     <word>       consonance
+  datamuse.sh syn      <word>       synonyms
+  datamuse.sh ant      <word>       antonyms
+  datamuse.sh trg      <word>       semantic-field triggers
+  datamuse.sh jja      <noun>       adjectives describing the noun
+  datamuse.sh jjb      <adj>        nouns described by the adjective
+  datamuse.sh means    <phrase>     reverse dictionary
+  datamuse.sh sounds   <word>       sounds-like
+  datamuse.sh pattern  <pattern>    letter pattern, e.g. t???t
+  datamuse.sh syllables <word>      syllable count
+  datamuse.sh family   <word>       near rhymes and consonance combined
+  LIMIT=<n>                         results per request (default 25)
+
+Examples:
+  datamuse.sh rhyme lonely
+  LIMIT=50 datamuse.sh near grief
+
+Exit 0 on success; 1 on a usage error; nonzero on a failed request or unparsable reply.
+EOF
 }
 
 emit_tsv() { jq -r '.[] | [.word, (.score // 0), (.numSyllables // 0), ((.tags // []) | join(","))] | @tsv'; }

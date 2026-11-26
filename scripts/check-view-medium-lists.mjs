@@ -23,15 +23,12 @@ export const producerDir = (producerId) => {
   return skill ? `plugins/${plugin}/skills/${skill}` : `plugins/${plugin}`;
 };
 
-// mediaIn(text, mediums) -> the distinct medium ids `text` holds as backticked code spans.
 export function mediaIn(text, mediums) {
   const ids = new Set();
   for (const m of text.matchAll(/`([^`\n]+)`/g)) if (mediums.has(m[1])) ids.add(m[1]);
   return [...ids];
 }
 
-// listings(rel, text, mediums) -> [{ line, ids }] for each line, or JSON string in
-// evals.json, naming two or more medium ids.
 export function listings(rel, text, mediums) {
   const found = [];
   const isEvals = path.basename(rel) === "evals.json";
@@ -146,8 +143,6 @@ export function main(argv, out = { log: console.log, error: console.error }) {
   return 0;
 }
 
-// Node loads the entry module from its real path, so a checkout reached through a
-// symlink must compare real paths, or the gate never runs and exits 0.
 const self = realpathSync(fileURLToPath(import.meta.url));
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === self) {
   process.exitCode = main(process.argv.slice(2));

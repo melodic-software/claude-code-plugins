@@ -1,12 +1,3 @@
-// Validates a value against the JSON Schema keywords reference/routing.schema.json uses.
-//
-//   validate(schema, value, at = "$") -> ["<path>: <message>", ...], empty when the value fits
-//
-// Honored: const, enum, type (object, array, string, integer), required, properties,
-// additionalProperties: false, minItems, uniqueItems, items, minLength, pattern, minimum, allOf,
-// if/then/else and not. Object, array and string keywords apply to any value of that shape, whether
-// or not the sub-schema states `type`.
-
 /** A found value as JSON, clipped: file contents are data. */
 const show = (value) => {
   const text = JSON.stringify(value) ?? String(value);

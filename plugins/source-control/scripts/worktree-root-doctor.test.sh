@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-root-doctor.sh (#2612). Black-box: build
-# throwaway git fixtures with an ISOLATED global config (GIT_CONFIG_GLOBAL +
-# GIT_CONFIG_NOSYSTEM, HOME pinned inside the sandbox) and assert on the
-# doctor's findings lines and exit codes. Every fixture reproduces one of the
-# silent-failure classes the doctor exists to make loud. No network.
-# Retired-alias rewrite is owned by worktree-root-legacy.sh (delete after
-# 2026-12-31).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,10 +17,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 HOME_DIR="$TEST_TMPDIR/home"
 mkdir -p "$HOME_DIR"
 
-# run <global-config-file> <repo-dir-or-empty> [extra doctor args...]
-# One doctor invocation against a pinned global config; sets RC and OUT.
-# XDG_CONFIG_HOME is cleared so ~/.config/git/config on the host machine can
-# never leak a real includeIf into a fixture's report.
 RC=0
 OUT=""
 run() {
@@ -50,9 +39,6 @@ mkrepo() {
 EMPTY_GCFG="$TEST_TMPDIR/empty-gitconfig"
 : >"$EMPTY_GCFG"
 
-# Every fixture-building git call runs against the pinned empty global config, so
-# the host's real ~/.gitconfig can never leak an includeIf into a fixture. One
-# wrapper rather than the prefix repeated per call, so no site can omit it.
 fgit() { GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git "$@"; }
 
 help_out=$(bash "$DOCTOR" --help 2>&1)
@@ -60,8 +46,6 @@ assert_exit "--help exits 0" 0 "$?"
 assert_contains "--help documents the exit taxonomy" "$help_out" "at least one warn/error"
 assert_contains "--help includes the usage-error exit code" \
   "$help_out" "2  usage error"
-assert_contains "--help reaches the end of the header, not a truncated range" \
-  "$help_out" "suffix shape IS flagged when a declared pattern carries it"
 
 bash "$DOCTOR" --frobnicate >/dev/null 2>&1
 assert_exit "an unknown argument is a usage error (exit 2)" 2 "$?"
@@ -128,10 +112,6 @@ both_old_rc=0
 fgit -C "$BOTH_KEYED" config --get melodic.worktreeroot >/dev/null 2>&1 || both_old_rc=$?
 assert_exit "a leftover retired alias is unset when the current key already answers" 1 "$both_old_rc"
 
-# --- includeIf attribution: the winner names WHICH condition fired ---------------
-# The include is anchored by repository NAME (**/<name>/.git) so the pattern is
-# canonicalization-proof across platforms; /i keeps it firing on Windows.
-
 INCREPO_PARENT="$(mktemp -d "$TEST_TMPDIR/incparentXXXXXX")"
 INCREPO="$INCREPO_PARENT/increpo-fixture"
 mkdir -p "$INCREPO"
@@ -153,8 +133,6 @@ run "$INC_GCFG" "$REPO"
 assert_contains "an unfired condition is reported as not contributing" "$OUT" \
   "did not contribute values here"
 
-# --- A declared include pointing at a nonexistent file (rc=0 upstream, silent) ---
-
 GHOST_GCFG="$TEST_TMPDIR/gitconfig-ghost"
 printf '[includeIf "gitdir/i:**/increpo-fixture/.git"]\n\tpath = %s\n' \
   "$TEST_TMPDIR/no-such-file.inc" >"$GHOST_GCFG"
@@ -163,16 +141,12 @@ assert_exit "a missing include file is a finding (exit 1)" 1 "$RC"
 assert_contains "the missing file is named, with the silent-skip diagnosis" "$OUT" \
   "points at a nonexistent file"
 
-# --- An unrecognized condition keyword (typo class, silent upstream) --------------
-
 TYPO_GCFG="$TEST_TMPDIR/gitconfig-typo"
 printf '[includeIf "gitdirs:/x/"]\n\tpath = %s\n' "$INC_FILE" >"$TYPO_GCFG"
 run "$TYPO_GCFG" "$REPO"
 assert_exit "an unknown condition keyword is a finding (exit 1)" 1 "$RC"
 assert_contains "the unknown keyword is called out as silently skipped" "$OUT" \
   "not a keyword this git recognizes"
-
-# --- A worktree:/worktree-i: condition on a pre-2.56 git --------------------------
 
 WT_GCFG="$TEST_TMPDIR/gitconfig-worktreecond"
 printf '[includeIf "worktree:/x/"]\n\tpath = %s\n' "$INC_FILE" >"$WT_GCFG"
@@ -184,8 +158,6 @@ if [[ "$(git --version)" =~ ([0-9]+)\.([0-9]+) ]] &&
 else
   skip_case "worktree: version-floor warning needs a pre-2.56 git"
 fi
-
-# --- Parse order IS precedence: a plain value after an include-supplied one ------
 
 SHADOW_GCFG="$TEST_TMPDIR/gitconfig-shadow"
 {

@@ -110,7 +110,6 @@ class CostHold(_Finding):
         self.assertNotIn(COST_CODE, _codes(_cost([docs])))
 
     def test_a_new_schedule_holds_unless_public(self):
-        # A schedule runs hosted minutes, billed off a public repository.
         wf = _file(WORKFLOW, patch=_patch("+    - cron: '0 3 * * *'"))
         self.assertNotCost(_cost([wf], public=True))
         for public in (False, None):
@@ -211,8 +210,6 @@ class ModelSpendDetections(_Finding):
                 self.assertReported(_cost([reported], public=True))
 
     def test_a_turn_share_line_as_in_10224_is_reported_not_held(self):
-        # #10224 added a tidy activity whose `turn-share: 25` moves only
-        # subscription spend; it was held as a cost.
         config = "docs/conventions/pr-pipeline.yaml"
         patch = _patch(
             "+    tidy:",
@@ -255,7 +252,6 @@ class ModelSpendDetections(_Finding):
         ):
             with self.subTest(patch=patch):
                 wf = _file(WORKFLOW, patch=patch, contents=("", MODEL_WORKFLOW))
-                # Free minutes on a public repository; billed ones elsewhere.
                 self.assertNotCost(_cost([wf], public=True))
                 for public in (False, None):
                     self.assertIn(COST_CODE, _codes(_cost([wf], public=public)))
@@ -273,15 +269,12 @@ class ModelSpendDetections(_Finding):
         wf = _file(WORKFLOW, patch=raised, contents=None)
         result = _cost([wf], public=True)
         self.assertNotCost(result)
-        # Unread text cannot show the token did not widen: a person's hold.
         self.assertIn(
             PERMISSION_WIDENING_CODE, [r.code for r in person_reasons(holding(result))]
         )
         self.assertIn(COST_CODE, _codes(_cost([wf], public=None)))
 
     def test_a_raised_artifact_retention_holds_unless_public(self):
-        # Artifact storage past the free quota bills on a private repository;
-        # Actions use on a public one is free.
         for patch in (
             _patch("+          retention-days: 120"),
             _patch("-          retention-days: 5", "+          retention-days: 30"),
@@ -293,7 +286,6 @@ class ModelSpendDetections(_Finding):
                 self.assertNotCost(_cost([wf], public=True))
 
     def test_an_added_retention_within_the_default_does_not_count(self):
-        # GitHub keeps artifacts 90 days by default, so 7 stores less.
         wf = _file(
             WORKFLOW,
             patch=_patch("+          retention-days: 7"),
@@ -864,7 +856,6 @@ class LowRatedShapes(_Finding):
             ("+  K: >-", "+    ${{ secrets", "+    .LANE_TOKEN }}"),
             ("+  K: ${{", "+    secrets.LANE_TOKEN }}"),
             ("+  ALL: ${{ toJSON(secrets.*) }}",),
-            # A `}}` inside a string literal does not end the expression.
             ("+    if: ${{ '}}' || contains(secrets, 'LANE_TOKEN') }}",),
             ("+  K: >-", "+    ${{ secrets", *("+",) * 8, "+    .LANE_TOKEN }}"),
             ("+    if: ${{ contains(secrets, 'LANE_TOKEN')",),
@@ -879,8 +870,6 @@ class LowRatedShapes(_Finding):
             ("+  K: ${{ format('{0}{1}', secrets, '${{') }}",),
             ("+  # ${{ '",),
             ("+  K: ${{ 'a", "+  # ${{ x }}"),
-            # An `if:` value is an expression without `${{ }}`, at job and
-            # step level, quoted or as a block scalar.
             ("+    if: contains(secrets, 'LANE_TOKEN')",),
             ("+      - if: contains(secrets, 'LANE_TOKEN')",),
             ("+        if: format('{0}{1}', secrets, 'x') != ''",),
@@ -1155,7 +1144,6 @@ class WorkflowPrivilegeHolds(_Finding):
                 self.assertHeld(self._change(READ_ONLY, head), PERMISSION_WIDENING_CODE)
 
     def test_dropping_the_permissions_block_holds(self):
-        # The job then runs on the repository default, which may write.
         self.assertHeld(
             self._change(READ_ONLY, _workflow("")), PERMISSION_WIDENING_CODE
         )
@@ -1205,7 +1193,6 @@ class WorkflowPrivilegeHolds(_Finding):
             "on:\n  push:\n  issue_comment:\n    types: [created]\n",
             "on: [push, issues]\n",
             "on:\n  - push\n  - issues\n",
-            # The mapping form, whose key `issues` is also a permissions scope.
             "on:\n  push:\n  issues:\n    types: [opened]\n",
             "on:\n  push:\n  pull_request_review_comment:\n",
             "on:\n  push:\n  discussion:\n",

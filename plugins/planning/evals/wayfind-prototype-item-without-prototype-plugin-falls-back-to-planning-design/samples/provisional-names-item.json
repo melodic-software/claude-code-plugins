@@ -1,14 +1,14 @@
 {
   "pass": [
-    {
-      "answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://github.com/acme/shop/issues/504): Knock (provisional until [Prove Knock sends email and in-app from one call](https://github.com/acme/shop/issues/504))",
-      "why": "meets the rule"
-    }
+    {"answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://example.com/acme/shop/issues/504): Knock (provisional until [Prove Knock sends email and in-app from one call](https://example.com/acme/shop/issues/504))", "why": "the template line"},
+    {"answer": "- Vendor: Knock, provisional until #504 runs as a real prototype.", "why": "number form"},
+    {"answer": "Recorded as **provisional** on [Prove Knock sends email and in-app from one call](https://example.com/acme/shop/issues/504).", "why": "provisional on the item"}
   ],
   "fail": [
-    {
-      "answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://github.com/acme/shop/issues/504): Knock.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://example.com/acme/shop/issues/504): Knock.", "why": "final, not provisional"},
+    {"answer": "Decisions-so-far: Knock (provisional).", "why": "provisional without naming the item"},
+    {"answer": "Knock is provisional until the vendor contract is signed.", "why": "provisional on something else"},
+    {"answer": "Decisions-so-far: [Prove Knock sends email and in-app from one call](https://example.com/acme/shop/issues/504): Knock (final; no longer provisional on #504, the design discussion settled it).", "why": "wrong: records the decision as final while naming the item"}
   ]
 }

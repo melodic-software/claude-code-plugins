@@ -11,7 +11,7 @@ if [[ -n "${LONG_LINE_BYTES+set}" ]]; then
   wrap=(--wrap "$LONG_LINE_BYTES")
 fi
 
-MAX_CHUNKS=${MAX_CHUNKS:-12}
+MAX_CHUNKS=${MAX_CHUNKS:-75}
 
 chunking="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../diff-chunking/diff_chunking.py"
 mkdir "$DATA/diff"

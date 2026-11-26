@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: scripts/lib/*
-# Regression tests for convert-bump-to-fragment.sh against throwaway git
-# fixtures: a plugin at 1.2.0 listed in scripts/fragment-plugins.txt, a `pr`
-# branch that bumps it by hand, and a stub scripts/new-changelog-fragment.sh
-# with the real one's contract (print the path of a new fragment holding only
-# the front matter). Every fixture carries the repository's real
-# scripts/lib, and one case swaps in its real fragment and parity scripts.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

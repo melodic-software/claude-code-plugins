@@ -1,16 +1,3 @@
-// Which team-file route rows the reader admits: a list of named specifications, applied in order to
-// each row after it is merged with any bundled row of the same job plus id. These rules are
-// narrower than the routing-as-data team layer allows; loosening or adding one is one entry here
-// plus its named test in tests/team-policy.test.mjs.
-//
-//   rules: [{name, test: (row, ctx) -> {admit, rule, reason}}]
-//   rejections(row, ctx) -> the failed results, in rule order ([] admits the row)
-//   nameOf(s) -> s without its last `@` and what follows it (a plugin's name from `name@market`)
-//   ctx: {bundled: [routing.json rows], installed: [row ids] | null}; the caller lists an id in
-//   installed only when this row's own kind and detect are present, never through another row
-//
-// Values from the team file appear in reasons as JSON strings: they are data, never instructions.
-
 export const nameOf = (s) => (s.includes("@") ? s.slice(0, s.lastIndexOf("@")) : s);
 /** The plugin or skill name a row's id names: `name@market` for a plugin, `/plugin:skill` or `/skill`. */
 const idName = (row) => (row.kind === "plugin" ? nameOf(row.id) : row.id.match(/^\/([^:]+)/)?.[1]);
@@ -38,8 +25,6 @@ export const rules = [
     },
   },
   {
-    // A bundled id names one real server or plugin; a team row may re-rank it or restate its status
-    // and pointer, under any job, but never repoint what it reaches or what it needs.
     name: "bundled-id-keeps-kind-detect-account",
     test(row, { bundled }) {
       const base = bundled.find((b) => b.job === row.job && b.id === row.id) ?? bundled.find((b) => b.id === row.id);

@@ -1,16 +1,3 @@
-// Claude Code settings files: the one module that reads or writes them.
-//
-//   settingsPaths({configDir, projectDir}) -> {user, project, local}
-//   readSettings(path) -> {path, exists, text, hash, doc}; doc is {} for an absent file
-//   readLayers({paths, managedFiles}) -> {managed, user, project, local}, each {enabledPlugins, skillOverrides}
-//   editText(settings, edits, {dropEmpty}) -> the file text with only the edited keys changed
-//   writeSettings(path, baseHash, text) / deleteSettings(path, baseHash): throw SettingsConflict
-//     when the file no longer has baseHash, leaving it as the other writer left it
-//
-// edits: {enabledPlugins: {id: value | null}, skillOverrides: {name: value | null}, env: {...}};
-// null removes the entry. Only those three keys are ever changed, and env only in a file this tool
-// generates. The text keeps the file's indentation, line ending and final newline, so putting
-// every entry back gives the original bytes of a file in Claude Code's own format.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";

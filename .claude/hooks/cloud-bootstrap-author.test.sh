@@ -19,7 +19,7 @@ trap 'rm -rf "$TMP"' EXIT
 BLOCK="$TMP/author-block.sh"
 {
   printf '#!/usr/bin/env bash\nset -euo pipefail\n'
-  awk '/^# --- Git author/ {p = 1} /^# --- Report/ {p = 0} p' "$BOOTSTRAP"
+  awk '/^gh_user=/ {p = 1} /^hook_safe_path=/ {p = 0} p' "$BOOTSTRAP"
 } >"$BLOCK"
 if ! grep -q 'author.email' "$BLOCK" || grep -q 'Report' "$BLOCK"; then
   echo "FAIL: could not extract the git-author block between its anchors in $BOOTSTRAP"

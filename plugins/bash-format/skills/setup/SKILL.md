@@ -299,8 +299,9 @@ That reply states the words "already configured" as written here, beside any sum
 ## Gotchas
 
 - **`ENAMETOOLONG` when grepping the plugin cache.** Installed plugins run from a
-  deeply nested, cache-isolated path. Piping a `grep`/`rg` over the long absolute
-  path to `hooks/hook-utils.sh` (or another bundled file) can spawn-fail with
+  long, nested cache path (its layout:
+  [find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)).
+  Piping a `grep`/`rg` over the long absolute path to `hooks/hook-utils.sh` (or another bundled file) can spawn-fail with
   `ENAMETOOLONG` on some hosts. Read the file directly rather than passing the full
   cache path on the command line.
 - **`check` PASS ≠ every shell edit is covered.** When `CLAUDE_PROJECT_DIR` is set

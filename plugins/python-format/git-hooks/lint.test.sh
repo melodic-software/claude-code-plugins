@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Expected values are Ruff's documented output: F821 is "Undefined name".
 # test-scope: plugins/python-format/git-hooks/entries.json plugins/python-format/git-hooks/adapters.sh
 # test-scope: plugins/python-format/lib/git-hooks/check-lib.sh plugins/python-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # record commands are literal text

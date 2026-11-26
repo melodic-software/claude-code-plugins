@@ -41,9 +41,9 @@ function Get-CheckLastRun {
         if ($null -eq $entry -or -not $entry.PSObject.Properties['checks_ran']) { continue }
         if (@($entry.checks_ran) -contains $CheckId -and
             $entry.PSObject.Properties['run_id'] -and $entry.run_id) {
-            # ConvertFrom-Json coerces the ISO run_id string to [datetime]; normalize
-            # back to ISO 8601 so downstream parsing is locale-independent.
             $runId = $entry.run_id
+            # ConvertFrom-Json turns an ISO timestamp string into [datetime]; normalize back to ISO 8601:
+            # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/convertfrom-json
             if ($runId -is [datetime]) { return ([datetimeoffset]$runId).ToString('o') }
             if ($runId -is [datetimeoffset]) { return $runId.ToString('o') }
             return "$runId"

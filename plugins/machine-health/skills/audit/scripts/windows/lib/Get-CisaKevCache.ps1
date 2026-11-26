@@ -39,8 +39,6 @@ Downloads to a temp file first, then validates JSON and atomically replaces
 the cache. Partial/corrupt downloads do not clobber a previously-good cache.
 #>
 
-# Write egress lines only through Write-EgressLogLine: a hand-rolled line gets
-# double-stamped and breaks Read-EgressLog's urls_called ingestion.
 . (Join-Path $PSScriptRoot 'Invoke-AllowlistedWeb.ps1')
 
 $script:CisaKevUrl = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json'

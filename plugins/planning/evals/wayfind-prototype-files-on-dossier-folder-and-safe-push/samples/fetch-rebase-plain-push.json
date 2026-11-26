@@ -1,14 +1,16 @@
 {
   "pass": [
-    {
-      "answer": "git fetch; git rebase origin/<dossier>; git push. Rejected? Fetch, rebase and push again.",
-      "why": "meets the rule"
-    }
+    {"answer": "git fetch; git rebase origin/<dossier>; git push. Rejected? Fetch, rebase and push again.", "why": "the skill's sequence with the retry"},
+    {"answer": "```\ngit fetch origin dossier/500-map-notification-vendor\ngit rebase origin/dossier/500-map-notification-vendor\ngit push origin dossier/500-map-notification-vendor\n```\nIf the push is rejected because the other session pushed first, fetch again, rebase again, and retry the plain push.", "why": "command block plus prose retry"},
+    {"answer": "Push sequence: `git pull --rebase` then `git push` (no force). On a rejection (non-fast-forward), `git pull --rebase` again and push.", "why": "pull --rebase is fetch plus rebase"},
+    {"answer": "1. **Fetch** the dossier branch. 2. **Rebase** my commit onto it. 3. **Push** without force. 4. If the push is **rejected**: re-fetch, rebase, push again.", "why": "bold numbered steps"}
   ],
   "fail": [
-    {
-      "answer": "git push origin <dossier>.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "git push origin <dossier>.", "why": "no fetch or rebase"},
+    {"answer": "git fetch; git rebase origin/dossier/500-map-notification-vendor; git push. Done.", "why": "no retry on rejection"},
+    {"answer": "git fetch; git rebase origin/dossier; git push. If rejected, just retry the push.", "why": "retry without a fresh fetch and rebase"},
+    {"answer": "Resolution comment posted on #504 and the item closed.", "why": "a different part of the work"},
+    {"answer": "Push: `git push origin dossier/500-map-notification-vendor`. If the push is rejected because the other session pushed first, fetch, rebase and push again.", "why": "wrong: skips the first fetch and rebase, only uses them on the retry"}
   ]
 }

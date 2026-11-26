@@ -1,20 +1,7 @@
 #!/usr/bin/env bash
-#
-# Interactive setup wizard written by /wizard:generate. A person runs it to get
-# through setup work that needs them at a browser or console.
-#
-# Two parts: the shared library, which ends at the "STAGES" marker and is never
-# edited by hand, and the stages after the marker, one per task the person does.
-#
-# Only a person starts this script, from a real terminal; the agent that wrote
-# it does not. Without a controlling TTY the library exits at once, so no pipe
-# or pasted block can answer its prompts.
-
 set -euo pipefail
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
-  # `|| true`: a terminfo entry may lack a capability, and tput then exits
-  # nonzero, which set -e would turn into a silent exit before any prompt.
   BOLD=$(tput bold || true)
   DIM=$(tput dim || true)
   RESET=$(tput sgr0 || true)
@@ -31,17 +18,12 @@ fatal() {
   exit 1
 }
 
-# Every prompt reads from the controlling terminal (fd 3 ← /dev/tty), never
-# stdin. Fail closed when no TTY exists: a wizard driven by piped input would
-# let a multi-line paste blow through its confirmation gates.
 if ! { exec 3</dev/tty; } 2>/dev/null; then
   fatal "no interactive terminal (/dev/tty unavailable); run this wizard from a real terminal, not a pipe or CI"
 fi
 
 TOTAL_STAGES=0
 
-# --dry-run: walk every stage and print what it would write, writing nothing.
-# Any other argument stops the wizard, so a mistyped flag never starts a real run.
 _WIZARD_DRY_RUN=0
 for __wiz_arg in "$@"; do
   case "$__wiz_arg" in
@@ -51,9 +33,6 @@ for __wiz_arg in "$@"; do
 done
 unset __wiz_arg
 
-# dry_run: true during a --dry-run. A stage that changes state itself (a cli
-# command, a file edit) does it inside `if dry_run; then say "would ..."; else
-# ...; fi`, or through attempt, which already skips its command in a dry run.
 # shellcheck disable=SC2329  # library API; the example stage does not call it
 dry_run() { ((_WIZARD_DRY_RUN)); }
 
@@ -69,19 +48,10 @@ _WIZARD_TEMPORARY=()
 _WIZARD_FIXED=()
 _WIZARD_SECRET_KEYS=()
 
-# Temp-file hygiene: write_env stages its rewrite in a mktemp file alongside
-# ENV_FILE (same filesystem, so the final mv of a regular file is an atomic
-# rename); the trap removes it if the wizard dies mid-write.
 _WIZARD_TMP=""
-# if-form, not `[[ ]] &&`: a false condition must not leave a nonzero status
-# for the EXIT trap under set -e, which would turn a successful run into exit 1.
 # shellcheck disable=SC2329  # invoked by the EXIT trap below
 _cleanup() { if [[ -n "$_WIZARD_TMP" && -f "$_WIZARD_TMP" ]]; then rm -f -- "$_WIZARD_TMP"; fi; }
 
-# on_exit FUNC: register FUNC to run when the wizard ends, however it ends (the
-# end of run_wizard, fatal, Ctrl-C, a TERM or HUP). Handlers run in reverse
-# order of registration, each given the exit status as $1, then _cleanup runs.
-# A handler's own failure is ignored, and the wizard's exit status is kept.
 _WIZARD_EXIT_HANDLERS=()
 # shellcheck disable=SC2310,SC2329  # fatal exits the script directly; library API, run_wizard calls it
 on_exit() {
@@ -98,32 +68,19 @@ _run_exit() {
   _cleanup
 }
 trap _run_exit EXIT
-# 128 plus the signal number, so each signal keeps its conventional status and
-# the EXIT trap above runs the handlers.
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
-# _valid_key KEY — keys and secret/variable names must be valid identifiers.
-# Anything else (spaces, '=', metacharacters) is an authoring bug: fail fast
-# before it reaches the env file or a gh call.
 _valid_key() {
   [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || fatal "invalid key name: '$1' (must match ^[A-Za-z_][A-Za-z0-9_]*$)"
 }
 
-# _clear: blank the screen before a new stage. Skipped when stdout is not a
-# terminal, which keeps a captured log free of escape codes. Best effort: a
-# terminal without a clear capability (TERM=dumb, no terminfo) makes tput exit
-# nonzero, and that must never stop the wizard.
 _clear() {
   [[ -t 1 ]] || return 0
   if command -v tput >/dev/null 2>&1; then tput clear 2>/dev/null || true; else printf '\033[2J\033[3J\033[H'; fi
 }
 
-# banner "Title" ["intro line" ...]: the first screen, with the title, the stage
-# count and the intro lines. With no intro lines it prints a default that fits
-# any wizard; pass lines that mention a browser or saved answers only when the
-# stages open pages or capture values.
 banner() {
   local title="$1" noun=stages line
   shift
@@ -144,7 +101,6 @@ banner() {
   pause "Ready to start?"
 }
 
-# stage "Name": new screen, then the stage header with its number and the total.
 stage() {
   _clear
   _STAGE_INDEX=$((_STAGE_INDEX + 1))
@@ -152,18 +108,11 @@ stage() {
     "$BOLD" "$BLUE" "$_STAGE_INDEX" "$TOTAL_STAGES" "$1" "$RESET"
 }
 
-# say "...": an unmarked line of explanation.
 say() { printf '  %s\n' "$1"; }
-# step "...": a bulleted thing for the person to do; note is dim, warn is yellow.
 step() { printf '  %s•%s %s\n' "$BLUE" "$RESET" "$1"; }
 note() { printf '  %s%s%s\n' "$DIM" "$1" "$RESET"; }
 warn() { printf '  %s⚠ %s%s\n' "$YELLOW" "$1" "$RESET"; }
 
-# open_url URL: hand the page to the first opener found (wslview, explorer.exe,
-# xdg-open, open). Only https:// is accepted; other schemes get a warning (this also
-# keeps a crafted file:// or UNC path away from the explorer.exe branch on
-# Windows, where it could trigger an SMB/NTLM credential leak). The full URL
-# is printed BEFORE dispatch so the human sees exactly what is being opened.
 # shellcheck disable=SC2310  # warn always succeeds; the || branch is the handled fallback
 open_url() {
   local url="$1"
@@ -176,8 +125,6 @@ open_url() {
     return 0
   fi
   printf '  %s↗ opening%s %s\n' "$GREEN" "$RESET" "$url"
-  # explorer.exe exits 1 even on success, so its status must not trip the
-  # manual-fallback warning on the supported Git Bash path.
   {
     if command -v wslview >/dev/null 2>&1; then
       wslview "$url"
@@ -191,18 +138,12 @@ open_url() {
   } >/dev/null 2>&1 || warn "the browser did not open; open this address yourself: $url"
 }
 
-# _drain_tty — discard tty input already buffered (a multi-line paste into an
-# earlier prompt) so a gate only ever consumes a line the human typed at it.
-# Without this, pasted `value\ny\n` would silently answer the next gate.
 _drain_tty() {
   while read -r -t 0 -u 3; do
     IFS= read -r -u 3 _ || break
   done
 }
 
-# pause "msg": hold until the person presses Enter after the off-screen work.
-# A read failure (terminal closed) is fatal, never silently skipped: a pause
-# that falls through at EOF would fail open.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 pause() {
   _drain_tty
@@ -210,9 +151,6 @@ pause() {
   read -r -u 3 _ || fatal "terminal closed at a pause gate, aborting"
 }
 
-# confirm "question": a yes/no gate whose default is no. Fail-closed: only an
-# explicit y/Y answers yes, a read failure aborts the wizard, and buffered
-# paste is drained first so a leftover line can never answer the gate.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 confirm() {
   local reply=""
@@ -222,10 +160,6 @@ confirm() {
   [[ "$reply" =~ ^[Yy] ]]
 }
 
-# gate "Question?" "what is unchanged if you stop": confirm, and on anything but
-# yes end the wizard with that message. A bare `confirm` statement also ends the
-# wizard on "no", but silently, under set -e; use gate for a step that must not
-# go on without a yes, and `if confirm` when "no" has its own branch.
 # shellcheck disable=SC2310  # confirm's no-branch is the handled stop; fatal exits directly
 gate() {
   confirm "$1" || fatal "stopped: $2"
@@ -243,9 +177,6 @@ _offer_fix() {
   fi
 }
 
-# attempt "the one manual step" CMD [ARG...]: run CMD, and when it fails offer
-# the manual step that finishes the stage (_offer_fix). In a dry run CMD is not
-# run, and only its name is printed, never its arguments.
 # shellcheck disable=SC2329  # library API; the example stage does not call it
 attempt() {
   local fix="$1" rc=0
@@ -258,13 +189,6 @@ attempt() {
   ((rc == 0)) || _offer_fix "$1 failed (exit $rc)" "$fix"
 }
 
-# _existing KEY: the value ENV_FILE already holds for KEY (none: status 1), one matched
-# pair of surrounding quotes stripped (write_env stores values single-quoted,
-# so re-run defaults must offer the value back, not the quoting). For a
-# single-quoted line, write_env's escaping ('\'' for an embedded ') is also
-# reversed, so Enter-keeps-current never re-escapes an already-escaped value. A
-# double-quoted value holding a backslash, $, ` or " cannot be decoded safely,
-# so it returns status 1 and the prompt asks again.
 _existing() {
   _valid_key "$1"
   [[ -f "$ENV_FILE" ]] || return 1
@@ -296,9 +220,6 @@ _ask_prompt() {
   fi
 }
 
-# _resolve_link PATH — print PATH's final target, following every symlink hop,
-# as an absolute physical path. Portable to older macOS: plain readlink (no
-# -f) and `cd -P`/`pwd -P`, never realpath.
 _resolve_link() {
   local path="$1" link dir hops=0
   while [[ -L "$path" ]]; do
@@ -314,17 +235,6 @@ _resolve_link() {
   printf '%s/%s' "$dir" "$(basename -- "$path")"
 }
 
-# _check_env_target — an ENV_FILE that resolves outside the project, through a
-# symlinked file or a symlinked parent directory (a hostile repo can ship
-# `.env -> ~/.bashrc` or `sub -> ~`), is written to only after the human sees
-# the real destination and says yes; like open_url, the destination is printed
-# before anything is dispatched. A target inside the project under any .git
-# directory (`.env -> .git/config`, a nested repo's metadata) gets the same gate:
-# a secret appended there sits in a world-readable file, and a key name of the
-# repo's choosing is read as git configuration. Runs before any value is
-# prompted for. The path is re-resolved on every call and the yes is remembered
-# for that resolved target only, so a link repointed mid-run asks again. A
-# decline or an unanswerable gate aborts with nothing written.
 _ENV_TARGET_CONFIRMED=""
 # shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
 _check_env_target() {
@@ -334,7 +244,6 @@ _check_env_target() {
     return 0 # its directory does not exist, so nothing can be written there
   fi
   [[ "$target" != "$_ENV_TARGET_CONFIRMED" ]] || return 0
-  # Lowercased: on a case-insensitive filesystem .GIT/config is the git config.
   rel=$(printf '/%s/' "${target#"$_WIZARD_PROJECT_DIR"/}" | LC_ALL=C tr '[:upper:]' '[:lower:]')
   if [[ "$target" != "$_WIZARD_PROJECT_DIR"/* ]]; then
     warn "$ENV_FILE resolves to a file outside this project: $target"
@@ -347,17 +256,6 @@ _check_env_target() {
   _ENV_TARGET_CONFIRMED="$target"
 }
 
-# _assignable_key KEY — ask, ask_secret and write_env assign $KEY in the
-# library's own shell, so KEY must not name the library's state (ENV_FILE,
-# SKIPPED, ...), a helper local (__wiz_*), or a variable the shell itself sets
-# or reads (PATH, IFS, PS4, BASH_ENV, ...: the "Shell Variables" list in the
-# bash manual), whose new value would change how the rest of the wizard runs.
-# LD_* and DYLD_* are refused too: when already exported, the dynamic loader
-# reads them in every command the wizard starts (gh, git, mktemp).
-# A key the shell already exports (GH_TOKEN, BROWSER, GIT_SSH_COMMAND, ...) is
-# refused: printf -v keeps the export flag, so the assigned value would reach
-# gh, git and the browser opener.
-# Gate KEY with _valid_key first.
 _assignable_key() {
   local __wiz_decl
   case "$1" in
@@ -380,7 +278,6 @@ _assignable_key() {
     ;;
   *) ;;
   esac
-  # declare -p prints the attribute flags first (declare -x, -rx, ...).
   __wiz_decl=$(declare -p -- "$1" 2>/dev/null) || return 0
   __wiz_decl=${__wiz_decl#declare -}
   if [[ "${__wiz_decl%% *}" == *x* ]]; then
@@ -388,14 +285,6 @@ _assignable_key() {
   fi
 }
 
-# ask, ask_secret and write_env assign $KEY with printf -v, which writes the
-# innermost variable of that name: a helper local spelled like the key would
-# take the value instead of the caller. Their locals carry a __wiz_ prefix, a
-# name _assignable_key refuses as a key.
-
-# ask KEY "Prompt": store the typed answer in the shell variable named KEY.
-# Input is shown on screen, for public values; readline (-e) gives arrow-key
-# editing. A value already in .env is the default, and Enter accepts it.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 ask() {
   local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
@@ -414,21 +303,11 @@ ask() {
   printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
 
-# A terminal in line mode drops what is typed or pasted past this many bytes on
-# one line, with no error. Pointers: Linux termios(3), "Canonical and
-# noncanonical mode" (https://man7.org/linux/man-pages/man3/termios.3.html);
-# macOS MAX_INPUT in xnu bsd/sys/syslimits.h, enforced in bsd/kern/tty.c
-# (https://github.com/apple-oss-distributions/xnu). As of 2026-11-11. Recheck
-# trigger: either source changes its line limit.
 case "${OSTYPE:-}" in
 darwin*) _WIZARD_LINE_MAX=1023 ;;
 *) _WIZARD_LINE_MAX=4095 ;;
 esac
 
-# ask_secret KEY "Prompt": the ask contract with nothing echoed. No readline
-# here, because -e would echo and -s has to take effect. An answer as long as
-# _WIZARD_LINE_MAX was probably cut off, so the human may give a file to read the
-# whole value from instead. A .env value is one line, so that file must be too.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 ask_secret() {
   local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input __wiz_path __wiz_bytes
@@ -463,8 +342,6 @@ ask_secret() {
   printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
 
-# _check_env_ignored — warn loudly (once) when ENV_FILE is not gitignored in a
-# git repo: a captured secret must never be one `git add .` from a commit.
 _ENV_IGNORE_WARNED=0
 _check_env_ignored() {
   ((_ENV_IGNORE_WARNED)) && return 0
@@ -477,17 +354,6 @@ _check_env_ignored() {
   fi
 }
 
-# write_env KEY VALUE: leave exactly one KEY='VALUE' line in ENV_FILE, creating
-# the file when absent, and set $KEY in the shell, as ask does; running it twice
-# changes nothing. Single quotes wrap the value, with embedded single quotes
-# escaped, so shells and dotenv loaders read it back verbatim. A regular file is
-# replaced by an atomic rename of a 0600 temp file. A symlinked ENV_FILE (a
-# shared secret store) is written through instead, so the link survives, its
-# target gets the key and keeps its own mode; that write is not atomic. A link
-# pointing outside the project is written through only after _check_env_target's
-# confirmation. After the write the key is read back from ENV_FILE and
-# compared, printing only its name and length; a mismatch offers the manual
-# step (_offer_fix). In a dry run nothing is written or read back.
 # shellcheck disable=SC2310  # a failed _existing is the handled read-back mismatch
 write_env() {
   local __wiz_key="$1" __wiz_value="$2" __wiz_escaped __wiz_tmp __wiz_back
@@ -508,7 +374,6 @@ write_env() {
   if [[ -f "$ENV_FILE" ]]; then grep -vE "^${__wiz_key}=" "$ENV_FILE" >"$__wiz_tmp" || true; fi
   printf "%s='%s'\n" "$__wiz_key" "$__wiz_escaped" >>"$__wiz_tmp"
   if [[ -L "$ENV_FILE" ]]; then
-    # umask 077: a dangling link's newly created target is owner-only too.
     (umask 077 && cat -- "$__wiz_tmp" >"$ENV_FILE") || fatal "couldn't write through the symlink $ENV_FILE"
     rm -f -- "$__wiz_tmp"
   else
@@ -528,17 +393,11 @@ write_env() {
 }
 
 # portability-ok: storing a secret or variable for GitHub Actions is inherently
-# a GitHub-forge capability — these helpers exist only for stages whose
-# declared destination is GitHub CI, degrade to SKIPPED when gh is absent,
-# and nothing else in this library touches a forge.
 
 _gh_ready() {
   command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1
 }
 
-# _resolve_repo — resolve the target repo ONCE, echo it, and get explicit
-# confirmation before the first CI write. Every later gh call passes it via
-# --repo so a write can never land in whatever repo the cwd happens to imply.
 GH_REPO=""
 GH_REPO_DECLINED=0
 # shellcheck disable=SC2310  # confirm's no-branch is the handled decline path; fatal exits directly
@@ -562,9 +421,6 @@ _resolve_repo() {
   GH_REPO="$repo"
 }
 
-# _gh_read_back KIND NAME VALUE: true when the repository holds what was just
-# set. A secret cannot be read, so its name must be listed; a variable's value
-# must match. Nothing read is printed.
 _gh_read_back() {
   local kind="$1" name="$2" value="$3" got nl=$'\n'
   if [[ "$kind" == secret ]]; then
@@ -614,21 +470,11 @@ _gh_set() {
   fi
 }
 
-# set_secret NAME VALUE: store a repository secret for GitHub Actions through gh,
-# passing the value on stdin, never as an argument. Empty values are refused; gh errors surface into
-# the closing summary instead of vanishing into /dev/null.
 set_secret() { _gh_set secret "$1" "$2"; }
 
-# set_var NAME VALUE: the same for a plain (non-secret) Actions variable, value
-# on stdin (gh reads standard input when --body is omitted), never
-# argv. Same refusals as set_secret.
 # shellcheck disable=SC2329  # library API; the example stage does not call it
 set_var() { _gh_set variable "$1" "$2"; }
 
-# record KEY VALUE: keep a value for the record only, such as an account name
-# or a region. It goes to no file and no secret store; the closing summary
-# prints it, value included, so it is for public values only. A key captured
-# with ask_secret is refused.
 # shellcheck disable=SC2329  # library API; the example stage does not call it
 record() {
   local k
@@ -640,19 +486,12 @@ record() {
   printf '  %s✓ recorded%s %s (shown in the closing summary)\n' "$GREEN" "$RESET" "$1"
 }
 
-# temporary KEY "where to delete it": flag a credential as temporary. The
-# closing summary lists it for deletion, by name, with that place.
 # shellcheck disable=SC2329  # library API; the example stage does not call it
 temporary() {
   _valid_key "$1"
   _WIZARD_TEMPORARY+=("$1: $2")
 }
 
-# prove_credential KEY "the one manual step" CMD [ARG...]: prove the credential
-# in $KEY works with one harmless read-only call. CMD gets the value on stdin,
-# never as an argument, and all of its output is discarded, so a response that
-# echoes the secret never reaches the screen or a log; only pass or fail shows.
-# A failure offers the manual step (_offer_fix). In a dry run nothing is called.
 prove_credential() {
   local __wiz_key="$1" __wiz_fix="$2" __wiz_rc=0
   shift 2
@@ -669,12 +508,6 @@ prove_credential() {
   fi
 }
 
-# finish ["Title"]: last screen. The title defaults to "Done" and gains ", with
-# items left to do by hand" when SKIPPED is not empty. Lists what was saved and
-# what is left to the person, by name; no captured value is ever printed, only
-# the values given to record. Lists the steps finished by hand and the
-# temporary credentials to delete. Warns when the stage count the author set
-# does not match the stages that ran. A dry run says it wrote nothing.
 finish() {
   local title="${1:-Done}" mark="✓" color="$GREEN" s
   if ((_WIZARD_DRY_RUN)); then title="Dry run of $title: nothing was written"; fi
@@ -718,7 +551,6 @@ finish() {
   printf '\n'
 }
 
-# ──────────────────────────────────────────────────────────────────────────
 # STAGES: the part you write. Delete the example stage below, add one stage()
 # call per row of the confirmed stage plan, in plan order, and make
 # TOTAL_STAGES equal the number of stage() calls. Pass banner intro lines and
@@ -727,7 +559,6 @@ finish() {
 # Keep every stage inside run_wizard, ahead of its closing `finish` and `exit`,
 # and keep the last line as is: bash then parses the whole file before the
 # first prompt, so editing the script while it runs cannot re-run a step.
-# ──────────────────────────────────────────────────────────────────────────
 
 run_wizard() {
   TOTAL_STAGES=1
@@ -751,8 +582,6 @@ run_wizard() {
   # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
   write_env MAIL_API_TOKEN "$MAIL_API_TOKEN"
   set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN"
-  # The check reads the token on stdin and makes one read-only call, so the
-  # token is never a command argument. It runs after the token's last write.
   # shellcheck disable=SC2329  # prove_credential calls it by name
   _check_mail_token() {
     local token=""
@@ -763,7 +592,6 @@ run_wizard() {
   prove_credential MAIL_API_TOKEN \
     "Create a new token with only the Send scope and save it as MAIL_API_TOKEN in $ENV_FILE and in the repository's CI secrets" \
     _check_mail_token
-  # ── END EXAMPLE STAGE ───────────────────────────────────────────────────
 
   finish "Mail provider setup complete"
   exit

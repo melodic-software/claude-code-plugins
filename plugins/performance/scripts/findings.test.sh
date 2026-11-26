@@ -106,8 +106,6 @@ doc "$WORK/conf.json" "$(measured git-1 git elapsed-ms 10 '"confidence":"measure
 run validate "$WORK/conf.json"
 assert_contains "an unknown confidence label fails" "git-1: confidence must be one of" "$RUN_OUT"
 
-# --- 9. R1: a `now` finding must be measured at E1/E2 with a guard and a revert condition ---
-# A case that sets its own confidence after $NOW overrides this one: the JSON's last key wins.
 NOW='"horizon":"now","confidence":"HIGH","guard_metric":"tool errors per turn","revert_if":"a tool error after adoption"'
 doc "$WORK/now-ok.json" "$(measured session-work-1 session-work elapsed-ms 5000 "$NOW,\"effect\":\"batching\"" | sed 's/"horizon":"later",//')"
 run validate "$WORK/now-ok.json"
@@ -419,7 +417,6 @@ DR="$WORK/data/runs-test"
 capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DR" --session s1 --mode unattended --session-evidence false
 assert_eq "run-start exits 0" "0" "$RUN_RC"
 RUN_DIR="$RUN_OUT"
-# The interpreter prints the native spelling of the path, so compare the part it owns.
 assert_contains "run-start prints a per-run directory under runs/" "runs-test/runs/20260921T141320Z" "$RUN_DIR"
 assert_contains "the run header records the mode" '"mode": "unattended"' "$(cat "$RUN_DIR/findings.json")"
 capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$RUN_DIR" <<<"$(measured git-1 git elapsed-ms 120)"
@@ -443,7 +440,6 @@ assert_contains "the report reflects the header" "No session evidence yet: setup
 
 capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$WORK/data/runs-json" --session s1 --mode unattended --session-evidence false
 JSON_RUN="$RUN_OUT"
-# Single-quoted as the sweeper writes it: \u0027 is a JSON escape the shell passes through untouched.
 JSON_FINDING='[{"id":"git-1","key":"git/status-time","area":"git","title":"git status isn\u0027t cached","status":"measured","tier":"E1","unit":"elapsed-ms","value":120,"command":"git --no-optional-locks status --porcelain","fix_owner":"/performance:goal","horizon":"later","route":"next-run","conditions":'"$COND"'}]'
 run add --run "$JSON_RUN" --json "$JSON_FINDING"
 assert_eq "add --json adds the finding" "0" "$RUN_RC"
@@ -527,10 +523,6 @@ run lint-catalog "$CAT/bad.md"
 assert_eq "a row with area all passes" "0" "$RUN_RC"
 rm -f "$CAT/bad.md"
 
-# --- 23. ci-timing / pr-timing: gh runs inside findings.py, which prints the numbers (R4) ---
-# A fake gh first on PATH answers from fixtures. It refuses unless GH_CONFIG_DIR carries the
-# caller's value, so a pass shows the environment was inherited. gh.cmd is the Windows entry
-# point, since a Windows interpreter cannot start an extensionless script.
 SHIM="$WORK/gh-shim"
 FIX="$WORK/gh-fixtures"
 GHCWD="$WORK/gh-cwd"
@@ -575,8 +567,6 @@ listed_run() {
   printf '{"databaseId":%s,"attempt":%s,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"success","workflowName":"CI"}' \
     "$1" "$2" "$(T "$3")" "$(T "$3")" "$(T "$3")"
 }
-# Six completed runs, newest first as gh lists them; three are re-runs (attempt above 1). Jobs
-# exist only for the five newest, so fetching the sixth's would fail the run.
 printf '[%s,%s,%s,%s,%s,%s]\n' "$(listed_run 106 1 10:00:00)" "$(listed_run 105 2 09:00:00)" \
   "$(listed_run 104 1 08:00:00)" "$(listed_run 103 3 07:00:00)" "$(listed_run 102 1 06:00:00)" \
   "$(listed_run 101 2 05:00:00)" >"$FIX/runs.json"
@@ -823,10 +813,6 @@ run transcript-counts "$PA"
 assert_eq "overlapping waits of one tool count the wall clock once" "3 330000" \
   "$(q '"\(.tools.Agent.calls) \(.tools.Agent.wait_ms)"')"
 
-# --- 29. a data folder that cannot be written is its own exit code, never "in flight" ---
-# The data folder sits under a regular file, so no folder can be made there on any platform. Git
-# Bash cannot convert a path through a regular file and would hand Python the raw POSIX spelling,
-# which Windows Python reads as another folder, so the file's own path is converted first.
 : >"$WORK/blocker"
 BLOCKED="$(cygpath -m "$WORK/blocker" 2>/dev/null || printf '%s' "$WORK/blocker")/data"
 run lock acquire --data "$BLOCKED" --session s1
@@ -838,9 +824,6 @@ run run-start --data "$BLOCKED" --session s1 --mode attended --session-evidence 
 assert_eq "an unwritable data folder exits 3 on run-start" "3" "$RUN_RC"
 assert_contains "run-start names the file it could not write" "findings.json" "$RUN_OUT"
 
-# --- 30. every write findings.py makes reports a denied write the same way: exit 3, one line ---
-# The target is a directory where a file belongs, which refuses the write on Windows and on Linux
-# alike, as any user. Every path goes to Python in its native spelling, so nothing lands outside $WORK.
 native() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 denied() {
   assert_eq "$1 exits 3" "3" "$RUN_RC"
@@ -958,9 +941,6 @@ assert_eq "adopt refuses a citation dated before the run" "1" "$RUN_RC"
 assert_contains "adopt names both dates" "session-work-1: citation as_of 2026-04-30 is not this run's date 2026-05-01" "$RUN_OUT"
 assert_eq "a refused adoption writes no adopted.jsonl line" "absent" "$([[ -e "$DAC/adopted.jsonl" ]] && echo present || echo absent)"
 
-# --- 35. CI job and step names are a fork's text: they leave findings.py as bounded code spans ---
-# One run, one job whose name is 100 j's, one step named with backticks and a newline. A span is
-# at most 60 characters inside its backticks; a longer name keeps 57 and ends in "...".
 FIX="$WORK/gh-fixtures-names"
 mkdir -p "$FIX"
 printf '[%s]\n' "$(listed_run 301 1 10:00:00)" >"$FIX/runs.json"
@@ -1005,9 +985,6 @@ assert_eq "failed and cancelled runs' jobs are never fetched" "0" \
 assert_eq "re-runs are counted per workflow over its listed runs" "0 4" \
   "$(wf CI '"\(.reruns.value) \(.reruns.samples)"')"
 
-# --- 35c. ruleset workflows: no workflowName, so runs group on workflowDatabaseId ---
-# Two ruleset workflows (ids 7 and 8) and one run with no workflow id or name at all; none of
-# them may merge with another.
 rs_run() {
   printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"failure","workflowDatabaseId":%s}' \
     "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3"
@@ -1027,14 +1004,9 @@ assert_contains "a multi-line title and reason render as one line" \
   '- **slow ## injected end** (git, `git-1`): why # heading' "$RUN_OUT"
 assert_not_contains "a title cannot open a heading of its own" $'\n## injected' "$RUN_OUT"
 
-# --- 37. transcript-counts: a repeated command keeps its count, never its secrets ---
-# Plain commands keep their text. One with a secret shape, or past 60 characters, shows the
-# redacted or cut text plus " #" and the first 8 hex digits of the redacted text's SHA-256, so the
-# tag cannot be used to test guesses at a secret.
 h8() { printf '%s' "$1" | sha256sum | cut -c1-8; }
 tagged() { printf '%s #%s' "$1" "$(h8 "$1")"; }
 count_of() { jq -r --arg k "$1" '.repeated_commands[$k]' <<<"$RUN_OUT"; }
-# Each fake credential pair is split with '' so this file holds no literal a secret scanner matches.
 BEARER='curl -H "Authorization: Bearer abc1''23def456" https://api.example.com/x'
 EXPORT='export GITHUB_TOKEN=ghp_AbCd''Ef1234567890'
 USERINFO='git clone https://kyle:''hunter2@github.com/o/r'
@@ -1107,9 +1079,6 @@ doc "$WORK/loosen-flag.json" '{"id":"permissions-1","key":"permissions/ask","are
 run validate "$WORK/loosen-flag.json"
 assert_eq "a flag-only finding that loosens a guard passes" "0" "$RUN_RC"
 
-# --- 40. transcript-counts: more secret shapes, backticks, and linear time on long text ---
-# Token prefixes and credential pairs are joined at run time so this file holds no literal
-# credential shape.
 TR3="$WORK/secrets2.jsonl"
 : >"$TR3"
 n=0
@@ -1205,8 +1174,6 @@ assert_eq "an identical command with no result in the transcript is unverified, 
   '{"make lint":2}' "$(q '.unverified_repeated_commands | tojson')"
 assert_eq "no read is unverified when every result is held" '{}' "$(q '.unverified_repeated_reads | tojson')"
 
-# A whole-file re-read of an unchanged file returns a file_unchanged stub, never the same text:
-# that is a repeat. A tool call whose input is not an object is counted, never a crash.
 UC="$WORK/unchanged.jsonl"
 {
   use 1 u1 s1 Read '{"file_path":"x.py"}' 5

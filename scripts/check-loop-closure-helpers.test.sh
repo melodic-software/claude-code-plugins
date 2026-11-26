@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the shared helpers carried by the loop-closure snippet
-# reference, plugins/visualization/reference/html-loop-closure.html.
-#
-#   bash scripts/check-loop-closure-helpers.test.sh
-#
-# WHY THIS EXISTS. That asset is a SNIPPET surface: every skill that adopts a
-# loop-closure or export pattern copies its helpers verbatim, so a helper that
-# silently loses a case is inherited by every copy and caught by nothing. The
-# html-assets gate lints the file's MARKUP; markup linting says nothing about
-# whether esc still escapes the single quote or whether safeHref still refuses
-# a javascript: URL. This suite is the discriminating check on the behavior.
-#
-# The helpers are extracted from the live asset between the two comment
-# markers the file uses to bound them, so this suite tests the shipped text
-# rather than a copy. Losing a marker fails the suite loudly.
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing, markers missing).
 set -uo pipefail
 

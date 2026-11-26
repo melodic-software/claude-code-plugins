@@ -101,6 +101,7 @@ never claim a command did not run when it did.
 - Never edit the user's `.mcp.json` without their consent: their MCP configuration is theirs.
 - Never write `CONTEXT7_API_KEY` into the repository, Claude Code settings or any config file, and
   never print it.
-- Never write the plugin cache, Claude Code user settings or `pluginConfigs`: the cache is
-  replaced on the next plugin update, and machine-wide Claude Code state belongs to the user.
+- Never write the plugin cache, Claude Code user settings or `pluginConfigs`: machine-wide Claude
+  Code state belongs to the user. What an update does to the cached copy:
+  [cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions).
 - Library lookups belong to `/context7:lookup`.

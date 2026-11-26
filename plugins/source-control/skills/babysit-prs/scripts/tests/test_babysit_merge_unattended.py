@@ -510,8 +510,6 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         self.assertEqual(result["blockers"], [])
 
     def test_an_empty_review_after_the_veto_does_not_lift_it(self) -> None:
-        # GitHub records an inline-only review, or an Approve with no text, as a
-        # review summary with an empty body and a later submittedAt.
         def empty_review(state: str) -> dict[str, Any]:
             return {
                 "author": {"login": "maintainer"},
@@ -730,8 +728,6 @@ PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), 
 PROCEED = policy.KillSwitch(True, "proceed")
 REAL_ASYNC_MERGE = merge.async_merge
 
-# Flags with which `gh api` sends something: a method, or fields or a body
-# (which turn the request into a POST).
 WRITE_FLAGS = frozenset(
     {"-X", "--method", "-f", "-F", "--field", "--raw-field", "--input"}
 )
@@ -828,7 +824,6 @@ class Unattended(unittest.TestCase):
         self.base_reads: list[tuple[Any, ...]] = []
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_head_ref = "feat"
-        # REST `mergeable_state`; "dirty" is a conflict with the base.
         self.pr_mergeable_state: str | None = None
         self.pr_rest_state: tuple[str, bool] | None = None
         self.pr_commits: list[dict[str, Any]] | None = None
@@ -1455,8 +1450,6 @@ class LaneMode(Unattended):
         self.assertEqual(out["merge"]["api"], "graphql")
 
     def test_no_write_runs_under_the_read_token(self) -> None:
-        # The job hands the gate its read-only token for reads; the pin
-        # comment and the enqueue must still go out under the lane token.
         self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
         tokens: list[tuple[list[str], str | None]] = []
         record = self._capture
@@ -1497,8 +1490,6 @@ class LaneMode(Unattended):
                 )
 
     def test_the_lane_judges_only_its_own_merges(self) -> None:
-        # #7481: the post-merge check and the in-flight rule skip another
-        # App's merge on main.
         self.lane()
         self.assertIs(self.post_check.call_args.kwargs["lane_merges_only"], True)
         self.assertIs(self.in_flight.call_args.kwargs["lane_merges_only"], True)
@@ -1552,7 +1543,6 @@ class LaneMode(Unattended):
         )
 
     def test_a_hold_on_the_closing_issue_at_the_enqueue_refuses(self) -> None:
-        # #7783: a hold the issue gained since eligibility stops the enqueue.
         self.closing_issue_now(["needs-human"])
         code, out = self.lane()
         self.assert_no_merge(code)
@@ -1932,8 +1922,6 @@ class AllInputsGood(Unattended):
                     )
 
     def test_a_head_that_moved_after_scoring_is_not_enqueued(self) -> None:
-        # The policy scored one head; the gate's later read sees another that
-        # still matches the --expected-head prefix. That head was never scored.
         self.scored_head = HEAD[:12] + "d" * 28
         code, out = self.run_main()
         self.assertEqual(code, 10)
@@ -2236,7 +2224,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
         )
 
     def test_an_opt_in_gone_at_the_pre_enqueue_read_refuses(self) -> None:
-        # #7339 comment 2: the opt-in is read again beside the kill switch.
         self.opt_in_recheck = "opt-in-label:labeler-not-human"
         code, out = self.run_main()
         self.assert_no_merge(code)
@@ -2438,7 +2425,6 @@ class EachRefusalMakesNoMergeCall(Unattended):
     )
 
     def test_a_med_on_path_reasons_alone_merges(self) -> None:
-        # #9270: both lanes bound and clean, the only reason a path's.
         self.files = ((self.BINARY,), True)
         code, out = self.run_main()
         self.assertEqual(code, 0, out["blockers"])
@@ -2693,7 +2679,6 @@ class CheckInputsChangedOnTheBase(Unattended):
             self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
 
     def test_an_unreadable_standards_sync_label_holds(self) -> None:
-        # Neither updated nor enqueued: a stale head fails the queue's merge.
         def read(owner: str, name: str, **kwargs: Any) -> str:
             if kwargs.get("role") == "standards-sync":
                 raise postmerge.PostMergeReadError("tracker: HTTP 502")
@@ -2798,7 +2783,6 @@ class CheckInputsChangedOnTheBase(Unattended):
                 self.assertIsNone(read["updated"])
 
     REBASE_COMMENT = f"write:api -X POST repos/owner/repo/issues/{PR}/comments"
-    # The command on line one; the marker names the base tip it was asked at.
     REBASE_BODY = f"@dependabot rebase\n<!-- babysit-dependabot-rebase base={BASE} -->"
     RECREATE_BODY = (
         f"@dependabot recreate\n<!-- babysit-dependabot-rebase base={BASE} -->"
@@ -2825,8 +2809,6 @@ class CheckInputsChangedOnTheBase(Unattended):
         )
 
     def test_a_stray_base_merge_gets_a_recreate(self) -> None:
-        # Dependabot refuses a rebase once anyone else committed; a merge of
-        # the base GitHub made carries nothing a recreate would lose.
         self.dependabot_head(DEPENDABOT_COMMIT, STRAY_MERGE)
         code, out = self.run_main()
         self.assert_no_merge(code)
@@ -2866,7 +2848,6 @@ class CheckInputsChangedOnTheBase(Unattended):
                     self.assertEqual(self.log, [])
 
     def test_an_outsiders_marker_does_not_suppress_the_request(self) -> None:
-        # Anyone can comment on a public repository.
         self.dependabot_head()
         self.comments = [
             {
@@ -3131,10 +3112,6 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertEqual(out["unattended"]["writes"]["holds"], {"5": "do-not-merge"})
 
     def test_a_queued_entry_this_run_finds_ineligible_dequeues_itself(self) -> None:
-        # claude-security-review on #7335: the fresh eligibility read of the
-        # queued pull request itself refuses (a non-human restored its opt-in
-        # label), so its own entry leaves the queue even though no entry hold
-        # fired.
         self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
         self.queued = [PR]
         self.eligible = policy.Eligibility(False, "opt-in-label:labeler-not-human")
@@ -3202,7 +3179,6 @@ class OneUnattendedMergeInFlight(Unattended):
                 )
 
     def test_a_queued_entry_this_run_scores_above_low_dequeues_itself(self) -> None:
-        # #7339 comment 2: an eligible entry rescored MED stayed queued.
         self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
         self.queued = [PR]
         self.lanes = UNBOUND
@@ -3212,7 +3188,6 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertEqual(out["unattended"]["writes"]["holds"], {str(PR): "risk:MED"})
 
     def test_a_queued_entry_on_a_non_default_base_dequeues_itself(self) -> None:
-        # #7339 comment 2: base-not-default refused but left its own entry.
         self.default_branch = "trunk"
         self.queued = [PR]
         code, out = self.run_main()
@@ -3223,7 +3198,6 @@ class OneUnattendedMergeInFlight(Unattended):
         )
 
     def test_an_unproven_head_pusher_refuses_and_dequeues_its_entry(self) -> None:
-        # #7339 item 3: an unlinked commit author on a non-force push.
         self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
         self.queued = [PR]
         self.lane_error = merge.HeadPusherUnproven("head-pusher-unproven:aaaaaaaaaaaa")
@@ -3341,8 +3315,6 @@ class GateReviewFixes(Unattended):
         }
 
     def test_a_refused_credential_reruns_no_review(self) -> None:
-        # A wrongly launched lane holding the operator's token must not re-run a
-        # workflow as the operator.
         self.credentials = "other-account-listed"
         code, _ = self.run_main()
         self.assertEqual(code, 10)
@@ -3420,7 +3392,6 @@ class CostHold(Unattended):
         read = mock.Mock(return_value=decision)
         with mock.patch.object(policy, "cost_decision", read):
             code, out = self.run_main(merge_flag=False)
-        # A refusal exits 10, as every refused unattended check does.
         self.assertEqual(code, 0 if out["unattended"]["reason"] is None else 10)
         return read, out["unattended"]
 
@@ -3473,8 +3444,6 @@ class CostHold(Unattended):
                 self.assertEqual("cost-review-required" in codes, held)
 
     def test_a_record_without_visibility_reads_as_not_public(self) -> None:
-        # The harness record carries no base.repo.private: a standard runner
-        # charges until the repository is known to be public.
         workflow = ChangedFile(
             ".github/workflows/x.yml",
             None,
@@ -3732,9 +3701,6 @@ class ReasonsComment(Unattended):
         return posts[0]
 
     def test_escalating_posts_a_new_comment_before_the_label(self) -> None:
-        # An edit notifies no one and keeps the old date, so the escalation
-        # is a new comment, created beside the label the head-moved clear
-        # pairs it with.
         body = self.body()
         self.setUp()
         self.earlier_sweep(body)
@@ -3796,11 +3762,9 @@ class ReasonsComment(Unattended):
             out["unattended"]["writes"]["riskEscalation"],
             {"label": "lifted", "comment": "unchanged"},
         )
-        # The trusted list is read at the default branch's tip, never the head.
         self.assertEqual(self.trusted_refs, [self.tips["main"]])
 
     def test_the_trusted_list_is_read_at_the_default_branch(self) -> None:
-        # The pull request's base is main; a retarget cannot pick the list.
         self.escalated_earlier()
         self.repo_default = "trunk"
         self.timeline = [
@@ -3813,9 +3777,6 @@ class ReasonsComment(Unattended):
         )
 
     def test_an_unresolved_default_branch_tip_is_no_lift(self) -> None:
-        # The list is never read by the branch's name, which a tag of the
-        # same name could answer. The run's own default branch head read
-        # resolved; only the lift's later tip read does not.
         self.escalated_earlier()
         head = self.main_head
         del self.tips["main"]
@@ -3848,7 +3809,6 @@ class ReasonsComment(Unattended):
         )
 
     def test_a_person_removing_through_an_app_is_no_lift(self) -> None:
-        # An agent driving a person's token through an App is not the person.
         self.escalated_earlier()
         removal = self.unlabeled(
             "owner-person", "User", self.WRITTEN + timedelta(minutes=30)
@@ -3881,7 +3841,6 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.log, [self.LABEL])
 
     def test_a_write_user_off_the_trusted_list_is_no_lift(self) -> None:
-        # A model-driven User account can hold write access.
         self.escalated_earlier()
         self.timeline = [
             self.unlabeled(
@@ -4064,11 +4023,6 @@ class ReasonsComment(Unattended):
         self.assertNotIn("riskEscalation", out["unattended"]["writes"])
 
     def test_a_second_sweep_at_the_same_head_labels_only_a_person_hold(self) -> None:
-        # A refusal a person clears (a security finding) on two sweeps at one
-        # head is labeled, the reasons comment first extended to say so. One
-        # the lanes clear (review evidence not bound, MED) keeps its comment
-        # and gets no label however long it stands (owner rule 2026-10-26),
-        # and so does a high path (owner decision 2026-10-30, #11020).
         for name, want, files, lanes, person in (
             ("unbound", "MED", ((LOW_FILE,), True), UNBOUND, False),
             (
@@ -4143,8 +4097,6 @@ class ReasonsComment(Unattended):
     def test_a_stored_escalation_differing_only_in_whitespace_writes_nothing(
         self,
     ) -> None:
-        # GitHub can return a body with CRLF endings or trailing spaces; a
-        # re-post would notify on every run.
         body = self.body()
         self.setUp()
         stored = f"{body}\n\n{merge.RISK_ESCALATION_LINE}".replace("\n", "  \r\n")
@@ -4225,8 +4177,6 @@ class ReasonsComment(Unattended):
         self.assertEqual(self.comment_writes(), [])
 
     def test_a_low_score_leaves_an_escalated_comment_stored_with_crlf(self) -> None:
-        # GitHub can return the escalation with CRLF and trailing spaces; it
-        # is still escalated, so the label it explains keeps its line.
         body = self.body()
         self.setUp()
         self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}  \r\n")
@@ -4776,8 +4726,6 @@ class HeadPushers(unittest.TestCase):
                 )
 
     def test_a_head_longer_than_the_commits_list_is_unproven(self) -> None:
-        # The pull request commits endpoint lists at most 250 commits; a
-        # pusher of commit 251 is in no list, so the head cannot be judged.
         bot = {"login": IDENTITY}
         listed = [
             {"sha": f"{n:040x}", "author": bot, "committer": bot} for n in range(250)
@@ -5143,8 +5091,6 @@ class CandidateReadsOnce(unittest.TestCase):
         self.assertEqual(self.counts(endpoints), (3, 1, 1))
 
     def test_a_moved_head_at_the_cap_is_refused_on_a_live_count(self) -> None:
-        # The record counted 249 at the head; the head moved to 260 commits
-        # and the list stops at 250. The old count would pass the cap check.
         rows = self.signed(*(f"{n:040x}" for n in range(250)))
         with (
             gh.candidate_reads(),
@@ -5175,7 +5121,6 @@ class CandidateReadsOnce(unittest.TestCase):
 
 class QueueRead(unittest.TestCase):
     def test_the_branch_is_a_raw_string_variable(self) -> None:
-        # #7339 comment 2: `-F` reads `@path` and turns `123` into a number.
         queue = {
             "data": {
                 "repository": {
@@ -5734,8 +5679,6 @@ class DependabotMajorEscalation(unittest.TestCase):
         )
 
     def test_the_first_line_is_the_attend_queue_escalation_marker(self) -> None:
-        # The grammar and kinds come from the work-items reference, so a
-        # change there fails here.
         reference = (
             pathlib.Path(__file__).resolve().parents[6]
             / "plugins/work-items/reference/escalation-marker.md"

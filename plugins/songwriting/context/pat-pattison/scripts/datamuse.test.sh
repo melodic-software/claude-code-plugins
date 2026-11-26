@@ -1,41 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for datamuse.sh. Fully offline: `curl` is replaced by a
-# PATH-stub that records the full request argv and serves a canned body, so
-# nothing here reaches api.datamuse.com and the suite is deterministic on a
-# laptop with no network.
-#
-# Coverage:
-#   - argument validation (no mode, no word, unknown mode) exits 1, prints the
-#     usage banner, and issues NO request
-#   - the usage banner still spans the modes and the LIMIT override, so a
-#     banner that stops short of either end is caught
-#   - curl is invoked with the flags the script documents (-sS), since silent
-#     mode without -S swallows the transport error this suite relies on
-#   - happy-path response parsing: one TSV row per result, four tab-separated
-#     fields, tags joined with commas, missing score/numSyllables defaulting to
-#     0 and missing tags to an empty field
-#   - API result order is preserved (the non-family modes do not re-sort)
-#   - the mode -> query-parameter table (rel_rhy, rel_nry, rel_cns, rel_syn,
-#     rel_ant, rel_trg, rel_jja, rel_jjb, ml, sl, sp), which is where a typo
-#     silently returns the wrong relation
-#   - LIMIT default 25, LIMIT override, and `syllables` pinning max=5
-#   - a multi-word argument reaching the query as '+'-joined
-#   - empty results are exit 0 with no output, never an error
-#   - a nonzero curl exit propagates through the pipe (pipefail) with no rows
-#     on stdout
-#   - malformed JSON fails loudly instead of emitting partial TSV
-#   - `family` merges near-rhyme and consonance: two requests, EACH carrying
-#     md=s, deduped by word rather than by whole object, re-sorted by score
-#     across BOTH sources
-#
-# Prerequisite: jq, which datamuse.sh itself requires. Absent, this suite fails
-# loudly rather than skipping, because every parsing assertion below would be
-# vacuous without it.
-#
-# Self-contained assertion helpers, per
-# docs/contracts/shell-test-helpers/README.md: per-plugin duplication of this
-# shape is the accepted default, not an opt-in.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -210,8 +173,6 @@ assert_eq "a sparse entry defaults score and syllables to 0 and tags to empty" \
   "slowly${TAB}0${TAB}0${TAB}" "$(row 3)"
 assert_not_contains "no JSON null leaks into the TSV" "$OUT" "null"
 assert_eq "one request per invocation" "1" "$(request_count)"
-# -sS, not -s: silent WITHOUT show-error swallows the transport diagnostic the
-# caller needs, and this suite asserts that diagnostic further down.
 assert_eq "curl is invoked with -sS" "1" "$(requests_matching '-sS')"
 assert_contains "the rhyme relation is requested" "$(requests)" "rel_rhy=lonely"
 assert_contains "metadata flag md=s is requested" "$(requests)" "md=s"

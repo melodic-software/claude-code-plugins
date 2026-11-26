@@ -1,34 +1,5 @@
 #!/usr/bin/env node
 
-// Generates the stage-grouped skill cheat sheet block in
-// docs/skill-cheat-sheet.md from each in-scope SKILL.md's `metadata:`
-// frontmatter (`workflow-stage`, `summary`, `cadence`), its `argument-hint`
-// (the Actions and Arguments columns) and its `## Next` section (the Next
-// column), the Task kinds table in the workflow skill's steps.md (the By kind
-// of task table), the attribution tables of the configured upstream records
-// (the Upstream column), plus the hand-curated grouping layer in
-// scripts/cheatsheet-config.mjs.
-// Sibling of generate-catalog.mjs: the block between the markers is
-// generated, never hand-edited; run with no argument to rewrite it, with
-// --check to fail on drift (CI gate). --root <dir> points every input and the
-// output at another tree so a fixture can drive the enforcement tests.
-//
-// Enforcement (each failure exits 1 naming the skill): an in-scope skill must
-// carry `workflow-stage` XOR match an exclusion entry; exclusion entries
-// must name existing plugins/skills; stage and cadence values must be in the
-// config enums; `cadence` is required with `workflow-stage:
-// operator` and forbidden otherwise; summaries must pass the shared guard
-// (plain YAML scalar, <=100 codepoints); a Task kinds row naming a stage
-// steps.md does not define fails naming the kind and the stage, and a missing
-// Task kinds table or upstream attribution table fails. A `## Next` token naming no skill is
-// rendered as written; scripts/check-next-graph.py fails on it. Swept values are plain scalars, and
-// this reader takes the literal text after the key: it strips a trailing
-// `#`-comment but never strips quotes, because a quoted value is a rejection
-// here rather than a value to unwrap. skill-quality's
-// skill_frontmatter::metadata_field reads the same way, and
-// scripts/check-summary-reader-parity.test.sh holds the two readers to one
-// value on a shared case table and on every SKILL.md in the tree.
-
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -84,9 +55,6 @@ for (const plugin of listDirs(join(root, "plugins"))) {
   }
 }
 
-// Minimal frontmatter reader with no dependencies. Frontmatter is the block
-// between a line-1 `---` fence and the next `---` fence; `metadata:` sits at
-// column 0 with its keys indented one level.
 function readCheatsheetMeta(path) {
   const lines = readFileSync(path, "utf8").split(/\r?\n/);
   if (lines[0]?.trim() !== "---") return {};
@@ -104,9 +72,6 @@ function readCheatsheetMeta(path) {
       continue;
     }
     if (inMetadata) {
-      // A blank line inside the block does not end it — the shell reader
-      // (skill_frontmatter::metadata_field) matches indented keys anywhere in
-      // the frontmatter, so ending here would silently diverge from it.
       if (line.trim() === "") continue;
       if (!/^\s/.test(line)) {
         inMetadata = false;
@@ -115,7 +80,6 @@ function readCheatsheetMeta(path) {
       const m = line.match(/^\s+([A-Za-z0-9-]+):\s*(.*)$/);
       if (!m) continue;
       raw[m[1]] = m[2].trim();
-      // Trailing-comment strip mirrors skill_frontmatter::metadata_field.
       values[m[1]] = m[2].replace(/\s+#.*$/, "").trim();
     }
   }
@@ -134,13 +98,6 @@ function unquote(value) {
   return value;
 }
 
-// The actions are the bare-word alternatives of the hint's first bracketed
-// group: `[audit|fix] [target]` yields audit and fix, and a required
-// `<fetch|diff>` group's choices are read the same way. Only a lone `<name>` is
-// a placeholder, so `<<role>|all>` yields all. Flags, `key=value` choices and
-// multi-word alternatives are not actions; a group with no `|` is an argument, and one led by a flag and its value
-// (`[--output a|b]`) chooses that flag's value, so neither yields actions. A
-// group whose first choice is a bare flag (`[--ledger|fix]`) still yields fix.
 function actionWords(hint) {
   const open = hint.search(/[[<]/);
   if (open === -1) return [];
@@ -314,11 +271,6 @@ for (const entry of STAGE_COMMANDS) {
 
 if (errors.length > 0) fail(errors);
 
-// --- Spine-drift assertion ---------------------------------------------------
-// Each workflow-stage heading must prefix-match its H2 in the session-flow
-// workflow stage definitions, same order — a stage rename upstream fails this
-// gate instead of silently stranding the copy. The Task kinds H2 in the same
-// file is the kind-to-stages table, not a stage.
 const TASK_KINDS_HEADING = "Task kinds";
 const stepsPath = join(
   root, "plugins", "session-flow", "skills", "workflow", "context", "steps.md",
@@ -347,21 +299,12 @@ if (stepHeadings.length !== workflowStages.length) {
 }
 if (spineErrors.length > 0) fail(spineErrors);
 
-// --- Task kinds ---------------------------------------------------------------
-// steps.md's Task kinds table is the one statement of which stages each kind of
-// task enters and skips. A stage is named by its steps.md heading without the
-// number and without anything after a colon or an opening parenthesis
-// ("## 11. Verify outcome" is "Verify outcome", "## Ship: PR lifecycle ..." is
-// "Ship"). An unknown name fails, so the table cannot rot silently.
 const stageByName = new Map(
   workflowStages.map((s, i) => [
     stepHeadings[i].replace(/^\d+\.\s+/, "").split(/:|\s\(/)[0].trim(),
     s,
   ]),
 );
-// A conditional stage's trigger is the text after "conditional:" in its
-// heading; the by-kind lead-in quotes steps.md's own sentences on conditional
-// stages and detours, so neither rule is restated here.
 const conditionBySlug = new Map(
   workflowStages.map((s, i) => [s.slug, stepHeadings[i].match(/\(conditional: ([^)]*)\)/)?.[1]]),
 );
@@ -399,11 +342,6 @@ const kinds = kindRows.map(([kind, enters = "", skips = "", why = ""]) => {
   return { kind, enters: resolve(enters), skips: resolve(skips), why };
 });
 if (kindErrors.length > 0) fail(kindErrors);
-
-// --- Upstream equivalents -----------------------------------------------------
-// Each configured upstream record's "## Attribution table" is read for the
-// skills its Ours column names; a listed skill links that table, named by the
-// row's upstream skill. No other table in the record is read.
 
 const upstreamBySkill = new Map(); // "plugin/skill" -> [markdown link]
 for (const record of UPSTREAM_RECORDS) {
@@ -444,10 +382,6 @@ for (const s of mapped) {
 }
 if (errors.length > 0) fail(errors);
 
-// GitHub's GFM heading slugger: lowercase, drop everything but word
-// characters / spaces / hyphens, then spaces become hyphens. The offline
-// lychee lane resolves these anchors with include_fragments, so this must
-// match GitHub exactly for the heading shapes used here.
 function slugify(heading) {
   return heading
     .toLowerCase()
@@ -459,8 +393,6 @@ function cell(text) {
   return text.replace(/\|/g, "&#124;");
 }
 
-// Inside a code span the HTML entity would render literally; GFM tables honor
-// a backslash-escaped pipe there instead.
 function codeCell(text) {
   return text ? `\`${text.replace(/\|/g, "\\|")}\`` : "";
 }

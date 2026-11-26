@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.60.1] - 2026-11-26
+
+### Fixed
+
+- The comment lint treats a TypeScript triple-slash directive written with a space, `/// <reference path="..." />`, as a directive; before, only `///<reference` matched.
+
+- The comment lint no longer judges a changed line whose trailing comment text is byte-identical to that of the base line it replaces, so a formatter that respaces or rewraps the code before an existing comment passes. A comment whose text changed, a new trailing comment and a full-line comment still fail. Lines pair in order within a hunk that adds as many lines as it removes; in any other hunk, a line pairs only with the one removed code line carrying the same comment, and otherwise it is judged.
+
 ## [0.60.0] - 2026-11-25
 
 ### Added

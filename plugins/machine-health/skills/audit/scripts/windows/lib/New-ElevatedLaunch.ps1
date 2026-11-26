@@ -50,7 +50,6 @@ function Get-TokenElevationType {
     [OutputType([string])]
     param()
 
-    # TokenElevationType is TOKEN_INFORMATION_CLASS 18; the enum starts at 1.
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
     try {
         $type = 0
@@ -64,7 +63,6 @@ function Get-TokenElevationType {
     return @('Default', 'Full', 'Limited')[$type - 1]
 }
 
-# Control characters and the five characters PowerShell reads as a single quote.
 $script:LaunchForbiddenCharacters = '[\p{Cc}''\u2018\u2019\u201A\u201B]'
 
 function ConvertTo-SingleQuotedLiteral {
@@ -86,7 +84,6 @@ function Get-ElevatedLaunchArgument {
         [Parameter(Mandatory = $true)] [ValidatePattern('^[0-9A-F]{64}\z')] [string] $ScriptSha256
     )
 
-    # Reads the bytes once, exits 3 on a hash mismatch, else runs those same bytes.
     $block = ('$b = [IO.File]::ReadAllBytes({0}); ' +
         'if ([Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($b)) -cne ''{1}'') {{ exit 3 }}; ' +
         '& ([scriptblock]::Create([Text.UTF8Encoding]::new($false).GetString($b))); exit $LASTEXITCODE') -f
@@ -114,7 +111,6 @@ function Get-ElevatedPassManifest {
     }
     foreach ($folder in $listed.Keys) {
         foreach ($file in @(Get-ChildItem -LiteralPath ([System.IO.Path]::Join($SkillRoot, $folder)) -File -Force -ErrorAction SilentlyContinue)) {
-            # Compared exactly: the -Filter wildcard also matches longer extensions such as .ps1xml.
             if ($file.Extension -eq $listed[$folder]) { $paths.Add($file.FullName) }
         }
     }
@@ -124,7 +120,6 @@ function Get-ElevatedPassManifest {
     $manifest = [ordered]@{}
     foreach ($path in $sorted) {
         $relative = $path.Substring($SkillRoot.Length + 1)
-        # The bootstrap's own rule, applied here so the pass fails before the owner's yes, not after.
         if (-not (Test-ElevatedPassPath $relative)) {
             throw "Refused '$relative': the elevated pass copies no file whose name holds characters other than letters, digits, '.', '_' and '-', or starts with one of the last three."
         }
@@ -232,7 +227,6 @@ function Get-ElevatedLaunch {
         $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
         if ([System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($bytes)) -cne $ScriptSha256) { continue }
 
-        # The bytes hash to the shown value, so this is the command the owner read.
         $ast = [System.Management.Automation.Language.Parser]::ParseInput(
             [System.Text.UTF8Encoding]::new($false).GetString($bytes), [ref]$null, [ref]$null)
         $elements = @($ast.FindAll({ param($n)
@@ -266,14 +260,12 @@ function Start-ElevatedLaunch {
     [OutputType([int])]
     param(
         [Parameter(Mandatory = $true)] [pscustomobject] $Launch,
-        # Test seam: receives the pwsh path and argument string in place of the elevated Start-Process.
         [scriptblock] $Launcher = {
             param($FilePath, $ArgumentString)
             (Start-Process -FilePath $FilePath -Verb RunAs -Wait -PassThru -ArgumentList $ArgumentString).ExitCode
         }
     )
 
-    # This session's own pwsh, never a PATH or App Paths lookup the standard user can redirect.
     $pwsh = Join-Path $PSHOME 'pwsh.exe'
     if (-not [System.IO.File]::Exists($pwsh)) { throw "Refused: '$pwsh' does not exist." }
 

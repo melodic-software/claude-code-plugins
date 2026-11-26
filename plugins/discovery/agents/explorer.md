@@ -221,8 +221,10 @@ return summary**, not silently adopted.
 
 ## Write early; reserve your last turns
 
-Your limit is `maxTurns: 40`, from this definition's frontmatter. A run that reaches it stops where
-it stands, and whatever is not on disk by then is invisible to the parent's gate. Count your own
+Your limit is `maxTurns: 40`, from this definition's frontmatter. What the harness does at that
+limit: the `maxTurns` row of
+[subagents: frontmatter reference](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+Whatever is not on disk when the run stops is invisible to the parent's gate. Count your own
 turns as you go: one assistant turn may hold several parallel tool calls, and it still counts once.
 Stop gathering by turn 30, or earlier when your dispatch prompt's `Turn budget:` line names a lower
 turn, and spend the turns after that writing and handing back. The reserve also covers a miscount.

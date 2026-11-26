@@ -59,9 +59,8 @@ import re
 import sys
 from pathlib import Path
 
-# `from __future__ import annotations` is a SyntaxError below 3.7, before any
-# runtime check here could run, so the sibling .test.sh parses this tuple as
-# text to pick a qualifying interpreter BEFORE invoking this file.
+# `from __future__ import annotations` needs Python 3.7:
+# https://docs.python.org/3/library/__future__.html
 MIN_PYTHON = (3, 7)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

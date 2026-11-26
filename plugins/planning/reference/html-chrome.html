@@ -14,10 +14,17 @@ edit the canonical source, then rerun the script. -->
   derived file is distributed under this repository's MIT license with that
   attribution.
 
+  Tokens: the palette, the type stacks, the border, the radii and the
+  per-scheme roles come from lib/html-tokens.css. The style element below
+  opens with its rules, re-indented and otherwise verbatim, and
+  lib/html-tokens.test.sh fails when the two differ.
+
   Theme: one system/light/dark toggle, system by default, is the only theme
-  choice a page offers. No team or user theme override, accent picker or palette
-  picker. `data-theme` on the root pins light or dark; with none, the page
-  follows prefers-color-scheme. A built view's runtime (view-runtime.js) binds
+  control a page offers, with no accent or palette picker. ADR 0133 lets a
+  consumer override the palette, type and logo through configuration read when
+  a page is built, never through a control on the page. `data-theme` on the
+  root pins light or dark; with none, the page follows prefers-color-scheme.
+  A built view's runtime (view-runtime.js) binds
   the toggle's `data-rv-theme` buttons; this page binds them with its own
   inline script so it works opened alone.
 
@@ -59,6 +66,7 @@ edit the canonical source, then rerun the script. -->
     --fg: var(--slate);
     --panel: var(--white);
     --muted: var(--gray-500);
+    --accent: var(--clay);
     --link: var(--clay-deep);
     --focus: var(--clay-deep);
     color-scheme: light;
@@ -69,6 +77,7 @@ edit the canonical source, then rerun the script. -->
       --fg: var(--ivory);
       --panel: var(--gray-700);
       --muted: var(--gray-300);
+      --accent: var(--clay);
       --border: 1.5px solid var(--gray-500);
       --link: var(--clay-soft);
       --focus: var(--clay-soft);
@@ -80,6 +89,7 @@ edit the canonical source, then rerun the script. -->
     --fg: var(--ivory);
     --panel: var(--gray-700);
     --muted: var(--gray-300);
+    --accent: var(--clay);
     --border: 1.5px solid var(--gray-500);
     --link: var(--clay-soft);
     --focus: var(--clay-soft);

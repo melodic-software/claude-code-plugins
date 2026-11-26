@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for the Stop row (markdown_format_end_of_turn), launched
-# exactly as hooks.json registers it: unset (the default), an uncommitted
-# finding exits 0 with the finding in a systemMessage; true, it exits 2 with the
-# finding on stderr; either way nothing is rewritten; stop_hook_active keeps it
-# from blocking twice in one turn; false and the plugin kill switch run no
-# check. The spawn budget case fences the cost of a Stop with the option false:
-# the node launcher only.
 # test-scope: plugins/markdown-format/hooks/hooks.json plugins/markdown-format/git-hooks/lint.sh plugins/markdown-format/.claude-plugin/plugin.json
 # test-scope: plugins/markdown-format/hooks/exec-bash.mjs
 set -uo pipefail
@@ -99,10 +92,6 @@ report CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false
 expect "default: the plugin kill switch runs no check" "0||" "$REPORT_RC|$REPORT_OUT|$REPORT_ERR"
 expect "true: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=false)"
-# Without markdownlint-cli2 the check script fails an agent (git-hooks test);
-# the row turns that one failure into a silent pass, since the SessionStart
-# probe already reports the missing tool. CLAUDECODE=1 makes the run an agent's,
-# so these cases reach that failure rather than a person's notice.
 NOTOOL="$WORK/no-markdownlint"
 mkdir -p "$NOTOOL"
 for t in node git bash sed awk cat mktemp rm dirname grep tr jq mkdir ln sh; do
@@ -126,7 +115,6 @@ expect "default: a clean work tree prints nothing" "0||" "$REPORT_RC|$REPORT_OUT
 expect "true: a clean work tree passes" "0|" "$(stop false CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=true)"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" markdown-format Stop markdown-format.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' \

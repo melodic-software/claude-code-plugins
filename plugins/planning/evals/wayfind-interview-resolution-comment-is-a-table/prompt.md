@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 25, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "An interview item's resolution comment gives the agreed result as a table and lists the deferred item, the glossary change and what later items inherit (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

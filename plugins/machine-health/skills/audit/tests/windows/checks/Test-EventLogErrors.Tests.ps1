@@ -66,8 +66,6 @@ Describe 'Test-EventLogErrors -- benign noise allowlist' -Tag 'check' {
         Mock Get-WinEvent { $events }.GetNewClosure()
 
         $result = Invoke-EventLogAsObject
-        # DCOM 10016 is allowlisted noise, so all 20 identical entries are filtered
-        # from the severity calc despite exceeding the repeat threshold.
         $result.severity | Should -Be 'OK'
         $result.detail.filtered_noise_count | Should -Be 20
     }
@@ -153,7 +151,6 @@ Describe 'Test-EventLogErrors -- query scopes window and level in the log query'
         Invoke-EventLogAsObject | Out-Null
 
         Should -Invoke Get-WinEvent -Times 1 -Exactly -ParameterFilter {
-            # -FilterHashtable binds as Hashtable[]; unwrap the single entry.
             $h = @($FilterHashtable)[0]
             $h['LogName'] -eq 'System' -and
             ($h['Level'] -contains 1) -and ($h['Level'] -contains 2) -and
@@ -172,8 +169,6 @@ Describe 'Test-EventLogErrors -- failure modes' -Tag 'check' {
     }
 
     It 'treats a localized no-match error as OK via the error id, not the message' {
-        # Healthy non-English host: NoMatchingEventsFound carries a localized message, so the
-        # FullyQualifiedErrorId check, not the English text, must keep it OK.
         Mock Get-WinEvent {
             $ex = [System.Exception]::new('Es wurden keine Ereignisse gefunden, die den angegebenen Kriterien entsprechen.')
             throw [System.Management.Automation.ErrorRecord]::new(

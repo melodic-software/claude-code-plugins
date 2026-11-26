@@ -12,10 +12,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# FIXTURE ISOLATION: `git init` and `git add` below must never reach the
-# caller's repository through an inherited git environment. The variable list
-# mirrors scripts/test-git-helpers.sh; scripts/check-fixture-git-isolation.sh
-# keeps it true.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -868,6 +864,12 @@ ALLOWLIST = [
         "plugins/code-tidying/skills/audit-dead-code/evals/fixtures/**",
         "plugins/code-tidying/skills/audit-dead-code/evals/fixtures/standalone.mjs",
         "// Standalone-module control for the grep lane.",
+    ),
+    path(
+        "lane-hunt-scope",
+        "plugins/evals/skills/plugin-eval/scripts/test_select_cases_no_run.py",
+        "plugins/evals/skills/plugin-eval/scripts/test_select_cases_no_run.py",
+        "Hunt one rotated lane at a time.",
     ),
 ]
 
