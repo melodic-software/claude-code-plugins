@@ -23,27 +23,11 @@ const isQueued = (names) => {
   return labels.includes("agent-ready") && !labels.some((name) => ISSUE_HOLDS.has(name));
 };
 const NAMES_ISSUE = /^(?:Closes|Refs:) #([1-9][0-9]*)$/;
-// The search API returns at most 1000 results, 100 per page; the queued
-// listing stops at the same 10 pages.
+// Search returns at most 1,000 results (10 pages of 100): https://docs.github.com/en/rest/search/search#about-search
 const PAGE = 100;
 const MAX_PAGES = 10;
-// The most blocker-list reads one check makes for queued issues.
 export const BLOCKER_READS = 30;
 
-// The Work status reader for a loop that can visit more issues than a
-// per-issue read limit (read-status.mjs statusReader's `limit`) allows: one
-// resolve-config.mjs issuesByStatus listing over every state (config.order),
-// read on first use, gives each issue's state to statusLabels, so no issue
-// past a limit is skipped. An unset models.issue-status leaves the names; a
-// failed listing makes every call throw StatusReadError. `config` and
-// `trustedActors` default to the base config's and the trusted-actor list;
-// `sleep` is issuesByStatus's.
-//
-// Its `queued()` is the same listing's agent-ready issues, oldest first, each
-// {number, names}: the names as statusLabels folds the field in, so a
-// field-only agent-ready counts and a stale agent-ready label under another
-// state does not, and an issue the listing holds (`held`) counts as queued.
-// null with models.issue-status unset; a failed listing throws.
 export function listedStatusOf({ env = {}, github, repository, config, trustedActors, sleep }) {
   let listing;
   const load = async () => {
@@ -87,8 +71,6 @@ export function listedStatusOf({ env = {}, github, repository, config, trustedAc
   return statusOf;
 }
 
-// A hold label matches in any case, as pr-merge's holdReason matches it; the
-// body line matches exactly.
 export const isHeld = (pr) =>
   (pr?.labels ?? []).some((label) => typeof label?.name === "string" && HOLD_LABELS.has(label.name.toLowerCase())) ||
   String(pr?.body ?? "")
@@ -103,14 +85,6 @@ const namedIssue = (pr) => {
 const isoSecond = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 
-// The open lane PRs as { createdAt, held, issue }, the merged and opened
-// counts in the window, and the queued issues' numbers; each null when its
-// read fails. `searchIncomplete` is whether any answer said incomplete_results
-// true, which a degraded search answers with a false empty. Reads run one at a time, and
-// none starts once `remaining()` (the last x-ratelimit-remaining seen) is 0 or less.
-// `pauseOnly` stops after the open listing and the merged count. `statusOf(number,
-// names)` gives a listed issue's label names with its Work status field's say
-// (listedStatusOf); by default the labels as listed.
 export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null, pauseOnly = false, statusOf = async (number, names) => names, routing = ROUTING_DEFAULTS }) {
   const author = `author:app/${bot.replace(/\[bot\]$/, "")}`;
   const since = isoSecond(now - windowHours * HOUR_MS);
@@ -171,18 +145,6 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     return { open, merged, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete, pauseOnly };
   }
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
-  // The queued issues come from the issues listing, not the search index,
-  // whose results carry no recency guarantee: admit.mjs counts its racing
-  // admissions against this count. The listing holds pull requests too and
-  // takes no label exclusion, so both are left out here; a full last page
-  // leaves at least one unlisted. A failed page or one that is not a list
-  // leaves the count unread.
-  // With a Work status listing (listedStatusOf's `queued`), the field decides
-  // which issues are agent-ready and the label listing is not read; a failed
-  // listing leaves the count unread.
-  // A map or map item (check-born-triaged.mjs routingLabel) is its filing
-  // skill's to route: the lanes never build, re-fire or hand it off, so it is
-  // no queued work even with agent-ready.
   const routed = (names) => routingLabel(names.filter((name) => typeof name === "string"), routing) !== null;
   const listQueued = async () => {
     const numbers = [];
@@ -218,9 +180,6 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     }
   };
   const queued = await listQueued();
-  // A search item carries no head ref, so a lane PR whose first body line
-  // names no issue (a person edited it) costs one pull request read for its
-  // lane branch. One that fails leaves the PR unmatched.
   for (const pr of queued?.items?.length ? (open ?? []) : []) {
     if (pr.issue === null && Number.isSafeInteger(pr.number) && pr.number > 0) {
       pr.issue = await github("GET", `/repos/${repo}/pulls/${pr.number}`).then(
@@ -245,8 +204,6 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
 
 const round = (value, places) => (value === null ? null : Number(value.toFixed(places)));
 
-// The status as one flat object; the field names are a published contract
-// (README.md, WIP cap).
 export function wipStatus(
   { open, merged, admitted, queued = null, queuedUnlisted = 0, blocked = [], searchIncomplete = false, pauseOnly = false },
   { limits, wip, now, configError = false },
@@ -324,15 +281,11 @@ export function wipStatus(
   };
 }
 
-// The status from the lanes App's PRs in `repo`, for the issue lane's check
-// and work-unblock's sweep alike.
 export async function checkWip(github, { repo, bot, now, limits, wip, remaining, pauseOnly = false, configError = false, statusOf, routing }) {
   const reads = await readLaneWip(github, { repo, bot, now, windowHours: wip["merge-rate-window-hours"], remaining, pauseOnly, statusOf, routing });
   return wipStatus(reads, { limits, wip, now, configError });
 }
 
-// The last x-ratelimit-remaining a search response carried, for readLaneWip's
-// stop; a response counted against another rate-limit resource leaves it as is.
 export function searchRateLimit() {
   let left = null;
   return {
@@ -346,7 +299,6 @@ export function searchRateLimit() {
   };
 }
 
-// The machine-readable line for paused admissions.
 export const admissionLine = (s) =>
   `admission paused: reason=${s.admission_reason} queued=${s.queued_issues} held=${s.held_lane_prs} cap=${s.queued_cap}`;
 

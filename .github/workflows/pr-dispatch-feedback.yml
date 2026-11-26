@@ -1,93 +1,5 @@
 name: PR Dispatch Feedback
 
-# Starts pr-unblock's address-feedback activity when a review lane finishes on
-# a lanes App PR: .github/scripts/pr-unblock/feedback-dispatch.mjs dispatches
-# pr-unblock.yml once both lanes have reviewed the PR's current head and an
-# unresolved thread exists that the reviewer bot left alone or a trusted
-# person answered after the lane escalated it. The write runner denies the
-# lanes App as a workflow_run actor, so the lane cannot run on this event
-# directly; the gate and the broker accept this dispatcher's runs only
-# through the review run its record names, at the PR's current head.
-#
-# No model and no App token: the job's GITHUB_TOKEN can only read and start
-# workflow runs. The script takes the upstream run's own facts (path, event,
-# head SHA, start time) from the event file and reads every PR fact back from
-# the API; no event field reaches a shell but the run id, checked below. The
-# dispatched lane runs its own trigger gate, kill switch, config and round cap.
-#
-# A completed pr-verify run starts it too. When that run uploaded a fail
-# verdict for a lanes App PR still at the head it judged, the
-# post-verify-notes job posts the verdict's summary and notes on the PR as
-# review comments, as github-actions[bot]
-# (.github/scripts/pr-unblock/verify-notes.mjs), which address-feedback works
-# like the reviewer bot's threads. The dispatch job then decides as for a
-# review run, with the newest completed review run at that head as its
-# upstream, so the gate and the broker check the same kind of run either way.
-# When the run uploaded a pass or pass-notes verdict instead, for a lanes App
-# PR still at the head it judged, the job posts nothing and resolves nothing:
-# it reads the PR's review threads, and when a fail-note thread from an
-# earlier head is still open (address-feedback.mjs staleVerifyNotes) it names
-# the head, and the dispatch job sends a pass-only round, whose
-# publish-feedback job resolves those threads as the lanes App (resolving a
-# thread takes more than this job's token holds). A pass with no such thread
-# dispatches nothing. On a PR a person opened, a fail is one PR comment and
-# the pr-verify-failed label, which ci-status holds in the merge queue, and a
-# pass at its head removes the label; neither dispatches. A verdict the lanes
-# kill switch stops is applied late, not dropped: see post-verify-notes'
-# `Stop on the kill switch` and `Name the deferred verdict` steps.
-#
-# A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
-# starts the dispatch job too, which sweeps the open lanes App PRs for a head
-# whose last address-feedback round had no model turn, or left an adjudicated
-# finding standing with the head unmoved, and dispatches one such head again,
-# through its newest completed review run, at most once per tick
-# (feedback-dispatch.mjs sweepReleased). That round released the head only
-# for a next review or pr-verify completion, which may never come. With no
-# such head, it dispatches one head whose pr-unblock/address-feedback status
-# still fails though no review thread is left unresolved, once per stop, so
-# the run finds nothing to fix and report-stop-status clears the status
-# (sweepStale). With neither, it dispatches one head with an unresolved thread
-# and no address-feedback round, whose review completion skipped on a cause
-# that may clear, such as an unreadable pr-verify FAIL cap (sweepUnsent). Taking
-# the tick's completion rather than a schedule of this file's own keeps
-# every dispatch a workflow_run dispatcher's, the one kind the gate and the
-# broker trust with a review run as its upstream.
-#
-# A completed pull_request_target run of pr-merge.yml on a lane branch starts
-# the dispatch job too. That workflow wakes when a label comes off a PR, and
-# both writers that take needs-human off a lanes App PR (a person, and
-# clear-escalations with the lanes App token) start it. A head the human gate
-# skipped at its review completion has no other trigger, so the job decides
-# that head again, through its newest completed review run, with every gate as
-# before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
-# waits in that head's concurrency group.
-#
-# A completed pr-review-comment-relay.yml run, which a person's new review
-# comment on a lane branch starts, starts the dispatch job too, so a listed
-# human's reply on a thread the lane escalated leads to an address-feedback
-# round without waiting for the next review (ADR 0088). The relay run is the
-# upstream the record names: the gate and the broker accept it by path, event
-# pull_request_review_comment and a listed human as its actor and re-runner.
-# GitHub runs no such event on a conflicted PR; the review run after
-# resolve-conflicts' push picks that reply up.
-#
-# A completed review run on any same-repository PR also starts the
-# rerun-ci-status job, which re-runs the head's ci-status once the head's
-# last review lane has finished, so it reads both reviews, and records each
-# re-run for pr-verify's trigger gate (see that job). So does a completed
-# pr-review-approved.yml run, a trusted person's approval that lifts a
-# ci-status hold. An approval has no event of its own here: a review event
-# would run the PR's copy of this file.
-#
-# The token's rate-limit readings are logged at the end of each job
-# (.github/actions/log-api-budget).
-
-# API_BUDGET_HOLD (outage posture element 2): no step here sets it: feedback-dispatch.mjs is not yet
-# shown to hold green on every refused read.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -96,12 +8,6 @@ on:
 
 permissions: {}
 
-# Both review lanes finish on the same head; one listing at a time per head.
-# A pr-verify run's head is main's, so each such run has a group of its own;
-# the sweeps share one. Runs at a head wait in line (`queue: max`): GitHub
-# otherwise keeps one pending run per group and cancels it for a newer one,
-# so a pr-merge completion, or a review re-run's, could drop the later review
-# lane's run and with it the one rerun-ci-status after both lanes.
 concurrency:
   group: >-
     pr-dispatch-feedback-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
@@ -117,9 +23,6 @@ env:
   BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
 
 jobs:
-  # A pr-verify run of main, which only steps of that run could upload to.
-  # A run GitHub skipped (pr-require-checks did not pass) ran no judgment and
-  # uploaded nothing, so it starts no runner.
   post-verify-notes:
     name: Post Verify Notes
     if: >-
@@ -243,9 +146,7 @@ jobs:
 
       - name: Name the deferred verdict
         id: deferred
-        # The actor test here only saves a write: recoverDeferred re-reads the
-        # uploading run through the API and drops a record whose triggering
-        # actor is not github-actions[bot], so a spoofed name records nothing.
+        # The actor test only saves a write: recoverDeferred re-reads the uploading run's actor.
         if: github.run_attempt != '1' && github.triggering_actor == 'github-actions[bot]' && (steps.post.outputs.head-sha != '' || steps.post.outputs.pass-head-sha != '') # zizmor: ignore[bot-conditions]
         env:
           FAIL_HEAD: ${{ steps.post.outputs.head-sha }}
@@ -289,23 +190,6 @@ jobs:
           tokens: github-token
 
   dispatch:
-    # A review run GitHub skipped (a draft PR) has reviewed nothing, and a
-    # cancelled one (most often superseded by a newer push) finished no review.
-    # A review run on any same-repository branch but Dependabot's starts it:
-    # the script serves lanes App PRs and adopted owner PRs (`adoption`,
-    # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline.yaml).
-    # A pr-verify run dispatches only once its
-    # notes are on the PR, or, for a pass, once its job found a stale fail-note
-    # thread to resolve; a pr-unblock-dispatch.yml run sweeps only when its
-    # schedule started it on main. A pr-merge.yml run counts whatever its
-    # conclusion: it skips the lanes App's own unlabel, which still took the
-    # label off. A pr-verify run's re-run by github-actions[bot] (the
-    # reconciler applying a verdict the kill switch stopped) dispatches
-    # nothing: check-trusted-trigger trusts a dispatcher only at attempt 1 or
-    # re-run by a listed human. A pr-review-comment-relay.yml run dispatches
-    # only when it succeeded on a lane branch of this repository and a person,
-    # not a bot, started it; feedback-dispatch.mjs checks its actors against
-    # the list. A job skipped here starts no runner.
     name: Dispatch
     if: >-
       ${{ !cancelled()
@@ -432,13 +316,11 @@ jobs:
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The review lanes' comment records (actions: read).
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
-          # The reader's gh calls, with this job's read scopes.
           GH_TOKEN: ${{ github.token }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
@@ -452,12 +334,6 @@ jobs:
           export REVIEWER_IDS
           node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
 
-      # The record of the run this run dispatched and the review run that
-      # started it: an artifact only steps of this run can upload, read by the
-      # gate and the broker with one list call and no download. A sweep tick
-      # sends up to five rounds (feedback-dispatch.mjs SWEEP_TICK_CAP), each
-      # recorded by its own numbered steps below. A round sent again after a
-      # workflow-modified refusal also names the refused run (refire_of_run_id).
       - name: Name the dispatched-run record
         id: record
         if: always() && steps.dispatch.outputs.run-id != ''
@@ -661,62 +537,6 @@ jobs:
         with:
           tokens: github-token
 
-  # ci-status's `Require both review lanes on this head` step reads the
-  # newest pull_request run of each review lane on the head when it runs, and
-  # a review usually finishes after it. So when either review caller
-  # completes on a pull request of this repository, this job re-runs the
-  # ci-status job of the newest pr-require-checks run on that head, which
-  # reads both lanes and the live labels again. Every PR's review starts it,
-  # not only a lanes App PR's. A run GitHub skipped (a draft) reviewed
-  # nothing, and a fork's review never runs, so neither starts it.
-  #
-  # One re-run per head, after the last lane: ci-status fails while the
-  # other lane's newest run has not finished, so a re-run before then can
-  # only be red, and that lane's own completion starts this job again. Each
-  # run of this job starts after its own lane completed, so the later lane's
-  # run finds the earlier lane finished. The earlier lane's run can run after
-  # both finished too (it waits in the per-head queue), so it leaves the
-  # re-run to the later lane's run after that one read: only the lane that
-  # finished last acts, and a ci-status re-run inside the 60 s margin below
-  # is not re-run again. The per-head concurrency group keeps the two from
-  # running at once, and a last read of the run's attempt comes just before
-  # the re-run. A head with no run of the
-  # other lane (one lane only) re-runs on this lane alone. A head the PR has
-  # moved past, or a closed PR, is left alone. A ci-status job not started
-  # yet, or one that began reading the reviews more than 60 s after both
-  # lanes finished (the margin covers a lagging read), reads them anyway, so
-  # it is left alone too. So is one that passed, having begun that read at or
-  # after both lanes finished: it counted both finished reviews, so a re-run
-  # can only pass again, and still starts pr-verify on the head again. The
-  # read's start is ci-status's `Require both review lanes on this head`
-  # step's, else the job's, which is earlier: the jobs API can list a job's
-  # steps empty. One that started earlier and is still in progress waits for
-  # its run, polled every
-  # 60 s for at most 10 minutes, then is re-run. No model, and no checkout
-  # but the trusted-actors list and the api-budget library: the token can
-  # only read contents, runs and the PR and re-run a job. Each call's
-  # rate-limit reading is logged at the end of the job
-  # (.github/actions/log-api-budget).
-  #
-  # The re-run's attempt is started by github-actions[bot], which pr-verify's
-  # trigger gate does not list, so just before the re-run the job uploads
-  # rerun-ci-status-<run id>-<attempt>-<head sha>, naming the attempt the
-  # re-run starts; the gate's ci-status-rerun-workflow input accepts that
-  # attempt through it (check-trusted-trigger's README). Only a review run at
-  # its first attempt, re-run by a human on the default branch's
-  # trusted-actors list, or re-run by the lost-run reconciler at attempt 2
-  # under a record the gate accepts (reconciler-record.mjs), is recorded;
-  # another re-runner's re-run of ci-status goes ahead unrecorded, and the
-  # gate refuses it.
-  #
-  # One more upstream changes what ci-status reads, and is judged as a finished
-  # lane is, with both review lanes as the other lanes: a pr-review-approved.yml
-  # run (an approving review, relayed), re-run only when its triggering actor,
-  # the reviewer, is a listed human, checked before any API call, and recorded.
-  # ci-status still judges the review.
-  # A pr-unblock.yml run is no upstream: ci-status reads no pr-unblock/* status,
-  # and the labels that run writes start their own pull_request run.
-  # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs the find body.
   rerun-ci-status:
     name: Rerun CI Status
     if: >-
@@ -775,9 +595,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
 
-      # While either switch is on, ci-status fails every lanes App PR, so its
-      # re-run would fail too. A failed checkout or check emits no proceed,
-      # which the find step reads as on.
       - name: Check the kill switch
         id: kill
         continue-on-error: true
@@ -809,9 +626,6 @@ jobs:
           RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs
         run: bash .base/.github/scripts/pr-dispatch-feedback/rerun-ci-status.sh
 
-      # Uploaded last before the re-run, so the record names the attempt the
-      # re-run starts; a re-run someone else lands in between takes that
-      # attempt, and this one's next attempt has no record and is refused.
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
@@ -831,7 +645,6 @@ jobs:
           path: ${{ runner.temp }}/rerun-ci-status-record.json
           retention-days: 1
           if-no-files-found: error
-          # A re-run of this job after a failed POST records the same name.
           overwrite: true
 
       - name: Re-run ci-status

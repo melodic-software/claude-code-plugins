@@ -1,7 +1,4 @@
 // test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/skills/babysit-prs/scripts/babysit_lane_binding.py plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py
-// The main-run review verdict: the counts the merge gate reads
-// (babysit_review_evidence `_main_review_counted`), from the model's checked
-// output and the job's own reads, and nothing written on doubt.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -94,10 +91,8 @@ test("a verdict counts only when every diff part was read whole", () => {
 });
 
 test("a diff line past the cap writes no verdict, and the verdict records the longest", () => {
-  // Read may cut a 2,500-byte line short; a 1,000-byte one is read whole.
   assert.equal(longestLine([`+${"x".repeat(1000)}\n`, " ok\n"]), 1000);
   assert.throws(() => longestLine([" ok\n", `+${"x".repeat(2500)}\n`]), /2500 bytes/);
-  // Bytes, not characters: 700 euro signs are 2,100 bytes.
   assert.throws(() => longestLine([`+${"\u20ac".repeat(700)}`]));
   assert.equal(buildVerdict(args({ findings: [], summary: "s" }, { maxLineBytes: 1000 })).max_line_bytes, 1000);
   for (const bad of [2500, LONG_LINE_BYTES + 1, undefined, "10", -1]) {

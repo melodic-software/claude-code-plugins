@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# compare-arms.sh: the two arm patches of a pr-run-plugin-evals.yml compare
-# run, each against the default branch tip MAIN_SHA, built from git objects in
-# the pull request clone REPO and never from its working tree. Only the
-# plugin's skills/, agents/, context/ and evals/ paths the pull request changes
-# since its merge base, with its reference/ and README.md changes when there is
-# at least one of those (https://github.com/melodic-software/architecture/blob/60608e8446b08ff6320e3272a1c041e521258794/docs/owner-decisions.md#L421),
-# and only once select-plugins.mjs lets
-# them all through, reach a patch; every other file of the plugin stays the
-# default branch's (the data-only rule of https://github.com/melodic-software/claude-code-plugins/issues/17854).
-#   after   each changed path as the head has it
-#   before  each changed evals/ path as the head has it, so both arms run the
-#           same cases, and every other changed path as the merge base has it
-# Reads REPO, MAIN_SHA, HEAD_SHA, PLUGIN (a name) and OUT; writes
-# OUT/before/edit.patch and OUT/after/edit.patch (empty when the arm is the
-# default branch as is), and merge-base, before-sha256 and after-sha256 to
-# GITHUB_OUTPUT (an empty patch has an empty sum).
 # Exit codes:
 #   0  both patches written
 #   1  bad input, or no changed path under the plugin (a wrong target)

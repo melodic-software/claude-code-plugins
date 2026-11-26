@@ -1,38 +1,6 @@
-// infra-failure.mjs: whether a failed CI run's failures are all ones an outside
-// outage (npm, GitHub, a runner) explains, so a re-run, not a code change, is
-// the fix. reconcile.mjs re-runs such a run's failed jobs, and any other failed
-// run's once (firstFailure); pr-unblock's fix-ci dispatcher waits only on a
-// re-run that is going, or due for an infra-only first failure (reconcilerOwns).
-// Deterministic, no model.
-//
-// A job is a REST job record of the run's latest attempt
-// (GET /repos/{owner}/{repo}/actions/runs/{id}/jobs?filter=latest): its name,
-// conclusion, and steps with their names and conclusions. A failed job is
-// infra when:
-// - it ended cancelled or timed_out: a job past its timeout-minutes ends
-//   cancelled inside a run that ends failure (pr-require-checks run
-//   39710654665, its check-plugins and test-node jobs). A matrix leg fail-fast
-//   cancelled is infra too, but the leg that failed first classifies itself;
-// - its first stopped step (cancelled or timed_out) installs a toolchain or
-//   dependency, or is the runner's own "Set up job" (action downloads). An
-//   install step that concluded failure exited non-zero, as `npm ci` does on a
-//   stale lockfile, so it is real;
-// - it failed with no failed step: the runner was lost mid-step.
-// Anything else is a real failure. The ci-status aggregate fails whenever a
-// lane does, so it is set aside when another job failed; alone, it is real.
-// The jobs API can list a job that ran with no steps, or with steps cut out,
-// so a failed job whose list is not whole (stepsKnown) is neither infra nor
-// real: the reconciler leaves its run for a later pass.
-
-// The gate job's check name, CI Status. Its alias job reports CI Status's
-// conclusion under the old required context, ci-status, until the ruleset
-// requires CI Status; a run from before the rename has only ci-status, the gate.
 export const GATE_CHECK = "CI Status";
 export const GATE_ALIAS = "ci-status";
 export const AGGREGATE_JOBS = new Set([GATE_CHECK, GATE_ALIAS]);
-// The gate's own entries in a listing of jobs or check runs: CI Status's, else
-// ci-status's. Never the alias's beside CI Status's: a re-run of the alias
-// replays its old `needs` result, and its steps and output are not the gate's.
 export const gateEntries = (entries) => {
   const list = Array.isArray(entries) ? entries : [];
   const gate = list.filter((entry) => entry?.name === GATE_CHECK);
@@ -46,32 +14,16 @@ export const INFRA_BACKOFF_MINUTES = 15;
 export const LOOKBACK_HOURS = 24;
 const inLookback = (run, now) => Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
 
-// True for a failed run whose failed jobs the reconciler re-runs, once its
-// backoff has passed, when its failures are infra only; fix-ci leaves exactly
-// these heads to it.
 export const reconcilerRetries = (run, now) =>
   run?.status === "completed" && run.conclusion === "failure" && run.run_attempt === 1 && inLookback(run, now);
 
-// True for a failed run at attempt 1 inside the lookback with a failed lane
-// job: when its failures are not infra only, the reconciler re-runs its failed
-// jobs once, whatever the status pages show, so a flaky test the diff did not
-// cause spends no model run. The attempt number is the cap: one re-run per run
-// and head. A run where only ci-status failed (a title or hold label) would
-// fail the same way, so it gets none.
 export const firstFailure = (run, jobs, now) =>
   reconcilerRetries(run, now) && Array.isArray(jobs) && jobs.some((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
 
-// Run statuses that mean a run, or a re-run of it, is queued or going.
 const IN_FLIGHT = new Set(["queued", "in_progress", "waiting", "requested", "pending"]);
 const RECONCILER_TICK_MINUTES = 60;
 export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES + 2 * RECONCILER_TICK_MINUTES;
 
-// Why fix-ci waits on a tested run ({ run, jobs } from testedRun), or "" when
-// it may take the head: a re-run of the run is queued or going, or a lost or
-// infra-only first attempt's one re-run, or a re-read of failed jobs whose
-// steps did not list, is still due. A real failure (a test, lint or typecheck
-// step) waits on nothing else, and neither does a run or field that cannot be
-// read.
 export function reconcilerOwns({ run, jobs }, now) {
   if (IN_FLIGHT.has(run?.status) && inLookback(run, now)) {
     return `run ${run.id} attempt ${run.run_attempt} is ${run.status}; its result decides`;
@@ -80,9 +32,6 @@ export function reconcilerOwns({ run, jobs }, now) {
   if (!(now < due)) {
     return "";
   }
-  // A lost first attempt gets the reconciler's one re-run (reconcile.mjs
-  // isLost), as an infra-only failure does; a job past its time limit is infra
-  // there too.
   if (run.status === "completed" && LOST.has(run.conclusion) && run.run_attempt === 1 && inLookback(run, now)) {
     return `run ${run.id} attempt 1 ended ${run.conclusion}, re-run job re-runs it once`;
   }
@@ -95,12 +44,6 @@ export function reconcilerOwns({ run, jobs }, now) {
   return infraOnly(jobs) ? "infra failure, re-run job re-runs it once" : "";
 }
 
-// True when the job's step list shows what ran: empty for a job no runner
-// took, else opening with "Set up job" and, where steps carry numbers, numbered
-// 1, 2, 3... up to the post steps ("Post ...", "Complete job"), which follow
-// after a gap. A finished job's list must also end with "Complete job" and
-// show every step completed, so a list cut at its tail, or read before it
-// caught up with the job, is not whole.
 export function stepsKnown(job) {
   const steps = job?.steps;
   if (!Array.isArray(steps) || steps.length === 0) {
@@ -128,29 +71,17 @@ export function setupFailed(job) {
   );
 }
 
-// A runner that dies cuts its job's list as the API can, so it is told apart
-// by the job's check-run annotations (job.annotations, read by the caller):
-// GitHub's own failure message, as maintenance-monitor-signals matches it.
 const LOST_RUNNER = /lost communication with the server|runner has received a shutdown signal/i;
 const failureNoted = (annotations, pattern) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && pattern.test(String(a.message ?? "")));
 export const lostRunnerNoted = (job) => failureNoted(job?.annotations, LOST_RUNNER);
 
-// A job past its timeout-minutes ends cancelled, like a fail-fast matrix
-// sibling or a person's cancel; only GitHub's own failure annotation on its
-// check run tells it apart (#9828's check run 120950643531). The message is
-// matched from its start, so an annotation that only quotes it does not count;
-// a step can still emit it, which gains nothing a failing test does not.
 const TIME_LIMIT = /^The job has exceeded the maximum execution time of /;
 export const timeLimitNoted = (annotations) => failureNoted(annotations, TIME_LIMIT);
 
-// True when a failed lane job's steps cannot be read, so whether the run's
-// failures are infra is unknown.
 export const stepsUnread = (jobs) =>
   Array.isArray(jobs) && jobs.some((job) => job?.conclusion === "failure" && !AGGREGATE_JOBS.has(job.name) && !stepsKnown(job));
 
-// Why the failed job is infra ("time limit", "install", "lost runner"), or ""
-// when it is real or its steps did not list.
 export function infraCause(job) {
   if (STOPPED.has(job?.conclusion)) {
     return "time limit";
@@ -175,8 +106,6 @@ export function infraCause(job) {
   return steps.some((step) => step?.conclusion === "failure") ? "" : "lost runner";
 }
 
-// True for a contract-only run, which a label or edit event starts: every lane
-// skipped and the aggregate alone ran (pr-require-checks run 39716948399).
 export function contractOnly(jobs) {
   if (!Array.isArray(jobs)) {
     return false;
@@ -185,12 +114,6 @@ export function contractOnly(jobs) {
   return lanes.length > 0 && lanes.length < jobs.length && lanes.every((job) => job?.conclusion === "skipped");
 }
 
-// A failed contract-only run can land on the head seconds after the run that
-// tested it, so the run whose failures count is the newest one that is not a
-// failed contract-only run. runs is one workflow's runs on the head, newest
-// first; readJobs(run) reads a run's latest jobs. Returns { run, jobs } (jobs
-// read only for a run that ended failure, else null), or undefined when the
-// STEP_BACK newest runs are all failed contract-only runs.
 export const STEP_BACK = 5;
 export async function testedRun(runs, readJobs) {
   for (const run of runs.slice(0, STEP_BACK)) {

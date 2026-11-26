@@ -1,10 +1,3 @@
-// policy-probe.mjs proves the managed policy denied the probe's four reads,
-// and a session that never makes them is unproven, never a policy failure:
-// the workflow step stops the leg on both, so no case runs on a policy nobody
-// proved. The stream shapes are stream-json's: tool_use blocks in assistant
-// messages and the result's permission_denials (code.claude.com/docs/en/
-// agent-sdk/typescript, "SDKResultMessage"). The step itself runs end to end
-// in callers.test.mjs.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { judgeProbe } from "./policy-probe.mjs";

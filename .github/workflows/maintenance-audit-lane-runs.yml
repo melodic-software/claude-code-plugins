@@ -1,44 +1,5 @@
 name: Maintenance Audit Lane Runs
 
-# The lane sweep: once a day, audits the last 24 hours of this repository's
-# lane runs and open pull requests and writes what it finds into one rolling
-# digest issue. It never labels an issue agent-ready, and takes agent-ready
-# off the digest whenever it rewrites it, so nothing it writes starts work. docs/conventions/pr-pipeline/README.md, "The lane sweep", has
-# the rules.
-#
-# The audit jobs:
-# - collect: a script with the job's read-only token writes one data file per
-#   unit of model work (at most 8) within a budget of 350 REST calls.
-# - assess-units: one model leg per unit on ci-workflows' run-claude-cli as the
-#   automations role, on its API key. Read permissions only; it reads its
-#   unit file and the main checkout with Read, Grep and Glob, has no shell,
-#   and returns structured findings. CI logs and titles reach it as data.
-#   A unit whose key leg hands off (a credit stop, a 401 or 402, or an empty
-#   key) is judged by assess-units-subscription on the role's subscription token, and
-#   with FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, a unit that leg hands off (a
-#   limit stop, a credit stop, a 401 or 402) by assess-units-fallback on that token:
-#   one leg per unit judges. Each leg is its own job on a new VM holding one
-#   credential. A matrix job's outputs are not per unit, so a leg that hands
-#   off uploads a marker artifact, and collect-key-handoffs and
-#   collect-subscription-handoffs, which hold no secret, turn the markers into
-#   the next leg's matrix (handoff.mjs).
-# - file: a script with no model checks every quoted line against main,
-#   fingerprints each finding, and replaces the digest issue's body with the
-#   open findings, within 50 calls. It writes with the job's own token, so
-#   the digest comes from github-actions[bot] and starts no workflow.
-#
-# One more job, triage-sweep, runs alone every hour (and with the daily run):
-# it dispatches intake-triage.yml for open issues intake never reached and
-# no routing label routes elsewhere, at most 5 a pass, and labels
-# needs-triage, with a comment on the issue, an issue 2 dispatches in one
-# triage cycle left untriaged. It uses the job's own
-# token, never the lanes App.
-#
-# How to stop it: set the organization or repository lanes kill-switch
-# variable to anything but "false"; every job checks it first.
-#
-# 06:33 UTC sits clear of the other scheduled runs here.
-
 on:
   schedule:
     - cron: "33 6 * * *"
@@ -120,11 +81,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/maintenance-audit-lane-runs/collect.mjs
 
-      # The key-credit gate (ci-workflows select-model-credential, its start
-      # call: check-key-credit's one artifact-list call for the marker
-      # collect-key-handoffs uploads after a key leg's credit stop). A credit stop
-      # inside the window names the subscription leg and skips the key leg.
-      # Every failure runs the key. Probing is off.
       - name: Read the key's credit history
         id: credit
         if: steps.collect.outputs.units != '' && steps.collect.outputs.units != '[]'
@@ -181,8 +137,6 @@ jobs:
   assess-units:
     name: Assess Units
     needs: collect
-    # A key the credit gate skipped runs nothing here; collect-key-handoffs routes
-    # every unit to assess-units-subscription.
     if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.next-leg != 'subscription'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -249,7 +203,6 @@ jobs:
           output-path: ${{ runner.temp }}/lane-sweep-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set reaches the action, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -260,8 +213,6 @@ jobs:
           credential-set: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -272,9 +223,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both. A `default` model
-      # resolves to an empty model, which the launcher cannot pass. started-at
-      # lets the outcome step tell a step timeout from other failures.
       - name: Write the prompt and schema
         id: prompt
         if: steps.models.outcome == 'success'
@@ -297,20 +245,6 @@ jobs:
           jq -c . .base/.github/scripts/maintenance-audit-lane-runs/lane-sweep.schema.json >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      # continue-on-error keeps a launcher failure, which run-claude-cli
-      # reports by failing this step, from ending the job before the outcome
-      # step; "Fail without findings" carries the red. A handoff skips the
-      # findings steps; the outcome step records the leg as handed off, and
-      # assess-units-subscription judges the unit.
-      # One leg of leg-timeout-minutes and the CLI install fit in
-      # timeout-minutes, which the outcome step repeats, and that fits in the
-      # job's 30. The launcher's --restricted keeps the file tools inside the
-      # working directory, which holds the data and the checkout; the allow
-      # rules name those two, and under dontAsk nothing else is readable. The
-      # deny rules keep the process environment, the home directory's dot
-      # files (the workspace is under home, so not all of it) and the runner's
-      # temp files out if the tools or the working directory change
-      # (code.claude.com/docs/en/permissions, "Read and Edit").
       - name: Judge the unit
         id: judge
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
@@ -318,7 +252,6 @@ jobs:
         timeout-minutes: 25
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: lane-sweep
@@ -369,9 +302,6 @@ jobs:
           job-id: ${{ github.job }}-${{ matrix.unit }}
           otel-file: ${{ steps.judge.outputs.otel-file }}
 
-      # After a handoff, the denial check: a leg that hit a permission denial
-      # hands nothing on; continue-on-error lets the report record the stop,
-      # and "Fail without findings" carries the red.
       - name: Check the key leg
         id: key-leg
         if: steps.judge.outputs.handoff == 'true'
@@ -396,9 +326,6 @@ jobs:
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outputs.clean == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
-      # A matrix job's outputs are not per unit, so the handoff is a marker
-      # artifact the route job reads: the unit and the launcher's reason,
-      # each checked against a closed set.
       - name: Record the handoff
         id: handoff
         if: steps.next.outputs.next-leg == 'subscription'
@@ -445,9 +372,6 @@ jobs:
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}
 
-      # The structured output is untrusted model text: read from the
-      # launcher's file and checked by the script, never interpolated into a
-      # command.
       - name: Write the findings
         id: findings
         if: steps.judge.outcome == 'success'
@@ -490,8 +414,6 @@ jobs:
           echo "::error::the judgment left no findings for this unit"
           exit 1
 
-  # The units the key leg handed on, as assess-units-subscription's matrix. It holds
-  # no secret and reads only the markers' names and closed-set values.
   collect-key-handoffs:
     name: Collect Key Handoffs
     needs: [collect, assess-units]
@@ -551,10 +473,6 @@ jobs:
           UNITS: ${{ needs.collect.outputs.units }}
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs route-skipped
 
-      # Read by the next runs' credit gate (collect's "Read the key's credit
-      # history"): uploaded only when a key leg's marker says credit-stop. It
-      # holds the run id, no model text. A forged marker only moves later
-      # runs to the subscription leg.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: steps.route.outputs.credit-stop == 'true'
@@ -586,13 +504,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The subscription leg, one per unit the key leg handed on, on a new VM:
-  # the key leg's processes, files and environment do not reach it. Its steps
-  # repeat the key leg's from a fresh checkout but for the credential, the
-  # leg check and the fallback reason (workflow.test.mjs holds them equal).
-  # Only this job references the subscription token. matrix.reason reaches
-  # only the credential call's reason input, which the action checks against
-  # its closed list of fallback reasons.
   assess-units-subscription:
     name: Assess Units Subscription
     needs: collect-key-handoffs
@@ -661,9 +572,6 @@ jobs:
           output-path: ${{ runner.temp }}/lane-sweep-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether each secret is set reaches the action, never its value.
-      # matrix.reason is checked there against the closed list of fallback
-      # reasons.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -675,8 +583,6 @@ jobs:
           fallback-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ matrix.reason }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -687,9 +593,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both. A `default` model
-      # resolves to an empty model, which the launcher cannot pass. started-at
-      # lets the outcome step tell a step timeout from other failures.
       - name: Write the prompt and schema
         id: prompt
         if: steps.models.outcome == 'success'
@@ -712,21 +615,6 @@ jobs:
           jq -c . .base/.github/scripts/maintenance-audit-lane-runs/lane-sweep.schema.json >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      # continue-on-error keeps a launcher failure, which run-claude-cli
-      # reports by failing this step, from ending the job before the outcome
-      # step; "Fail without findings" carries the red. With the fallback
-      # token set, a limit stop, a credit stop or a 401 or 402 hands off, which
-      # skips the findings steps; the outcome step records the leg as handed
-      # off, and assess-units-fallback judges the unit.
-      # One leg of leg-timeout-minutes and the CLI install fit in
-      # timeout-minutes, which the outcome step repeats, and that fits in the
-      # job's 30. The launcher's --restricted keeps the file tools inside the
-      # working directory, which holds the data and the checkout; the allow
-      # rules name those two, and under dontAsk nothing else is readable. The
-      # deny rules keep the process environment, the home directory's dot
-      # files (the workspace is under home, so not all of it) and the runner's
-      # temp files out if the tools or the working directory change
-      # (code.claude.com/docs/en/permissions, "Read and Edit").
       - name: Judge the unit
         id: judge
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
@@ -734,7 +622,6 @@ jobs:
         timeout-minutes: 25
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: lane-sweep
@@ -786,9 +673,6 @@ jobs:
           job-id: ${{ github.job }}-${{ matrix.unit }}
           otel-file: ${{ steps.judge.outputs.otel-file }}
 
-      # After a handoff, the denial check: a leg that hit a permission denial
-      # hands nothing on; continue-on-error lets the report record the stop,
-      # and "Fail without findings" carries the red.
       - name: Check the subscription leg
         id: sub-leg
         if: steps.judge.outputs.handoff == 'true'
@@ -810,9 +694,6 @@ jobs:
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outputs.clean == 'true' }}
           handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
 
-      # A matrix job's outputs are not per unit, so the handoff is a marker
-      # artifact the route job reads: the unit and the launcher's reason,
-      # each checked against a closed set.
       - name: Record the handoff
         id: handoff
         if: steps.next.outputs.next-leg == 'fallback'
@@ -858,12 +739,8 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The structured output is untrusted model text: read from the
-      # launcher's file and checked by the script, never interpolated into a
-      # command.
       - name: Write the findings
         id: findings
         if: steps.judge.outcome == 'success'
@@ -1024,9 +901,6 @@ jobs:
           output-path: ${{ runner.temp }}/lane-sweep-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set reaches the action, never its value.
-      # matrix.reason is checked there against the closed list of fallback
-      # reasons.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -1037,8 +911,6 @@ jobs:
           credential-set: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           reason: ${{ matrix.reason }}
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
@@ -1049,9 +921,6 @@ jobs:
         with:
           install-subprocess-isolation: true
 
-      # Files, not step outputs: run-claude-cli reads both. A `default` model
-      # resolves to an empty model, which the launcher cannot pass. started-at
-      # lets the outcome step tell a step timeout from other failures.
       - name: Write the prompt and schema
         id: prompt
         if: steps.models.outcome == 'success'
@@ -1074,19 +943,6 @@ jobs:
           jq -c . .base/.github/scripts/maintenance-audit-lane-runs/lane-sweep.schema.json >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      # continue-on-error keeps a launcher failure, which run-claude-cli
-      # reports by failing this step, from ending the job before the outcome
-      # step; "Fail without findings" carries the red. The fallback leg
-      # never hands off.
-      # One leg of leg-timeout-minutes and the CLI install fit in
-      # timeout-minutes, which the outcome step repeats, and that fits in the
-      # job's 30. The launcher's --restricted keeps the file tools inside the
-      # working directory, which holds the data and the checkout; the allow
-      # rules name those two, and under dontAsk nothing else is readable. The
-      # deny rules keep the process environment, the home directory's dot
-      # files (the workspace is under home, so not all of it) and the runner's
-      # temp files out if the tools or the working directory change
-      # (code.claude.com/docs/en/permissions, "Read and Edit").
       - name: Judge the unit
         id: judge
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
@@ -1094,7 +950,6 @@ jobs:
         timeout-minutes: 25
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
         env:
-          # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: lane-sweep
@@ -1160,12 +1015,8 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this leg ran, for its lane record.
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      # The structured output is untrusted model text: read from the
-      # launcher's file and checked by the script, never interpolated into a
-      # command.
       - name: Write the findings
         id: findings
         if: steps.judge.outcome == 'success'
@@ -1294,13 +1145,6 @@ jobs:
         with:
           tokens: github-token
 
-  # A dispatch sent with this token starts a run as github-actions[bot]
-  # (41898282), which intake-triage.yml admits; intake itself uses its own
-  # GITHUB_TOKEN and the Claude OAuth secret, no App token. At most 120 REST
-  # calls, of the token's 1,000 an hour per repository: up to 15 issue pages,
-  # then for at most 20 candidates up to 3 comment pages and the latest run,
-  # at most 5 dispatches (2 calls) and 5 filings (4 calls); the pass stops
-  # before an action the calls left cannot finish.
   triage-sweep:
     name: Triage Sweep
     if: github.ref == 'refs/heads/main'

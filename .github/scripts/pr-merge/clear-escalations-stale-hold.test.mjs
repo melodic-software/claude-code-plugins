@@ -1,11 +1,3 @@
-// Expected values come from the owner's needs-human brief, Part A2
-// (2026-10-29): a review-lane hold recorded against an older head clears once
-// a new head's review lanes pass with no CRITICAL finding, stays when the new
-// head still carries the finding or the lanes have not passed there, and a
-// lanes App push alone never clears it (only a trusted move does). Only a
-// CRITICAL finding holds; an IMPORTANT one is reported (owner decision
-// 2026-10-30, #11020). Notice and comment shapes are the ones the review lanes
-// post (#10743's security lane comments).
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -161,7 +153,6 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
     throw new Error(`unexpected checks ${method} ${path}`);
   };
   const reader = async (method, path) => {
-    // Pages of 100 by the Link cursor, as GitHub serves the activity API.
     const page = /^(.*?)(?:&after=c(\d+))?$/.exec(path);
     if (method === "GET" && page[1] === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&direction=desc&per_page=100`) {
       const n = Number(page[2] ?? 0);

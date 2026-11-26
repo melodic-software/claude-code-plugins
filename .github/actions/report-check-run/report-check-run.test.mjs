@@ -237,8 +237,6 @@ test("no lane record POSTs no annotations or text, and still names its run in ex
   assert.equal(calls[0].body.external_id, "pr-refine:simplify:123:1");
 });
 
-// The check run 122864732692 on #10583 posted: a run job the broker refused,
-// with no lane record. Its run is what refire-refused.mjs links back to.
 test("a run job that failed before the skill names its run in external_id", async () => {
   const { calls } = await run({
     LANE: "pr-unblock",
@@ -399,8 +397,6 @@ test("a skip reason in the base schema's enum POSTs neutral", async () => {
   assert.match(calls[0].body.output.summary, /not-applicable-paths/);
 });
 
-// #7732: request-lane-token's skip for a workflow file the PR changes ends the
-// run job green with the act step skipped and this skip reason.
 test("a workflow-modified skip from a run job that succeeded POSTs neutral", async () => {
   const verdict = { ...JSON.parse(readFileSync(fixture("verdict-skipped.json"), "utf8")), "skip-reason": "workflow-modified", outcome: "skipped" };
   const verdictPath = path.join(dir, "verdict.json");

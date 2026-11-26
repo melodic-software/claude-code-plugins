@@ -1,40 +1,7 @@
 name: Maintenance File Dead Links
 
-# Routes the dead links the weekly online link check finds to one rollup
-# issue, so each is repaired by the demotion path in
-# plugins/attribution/skills/audit/reference/dispositions.md ("The demotion
-# path when a pointer later dies"). This repository owns that trigger; the
-# plugin owns the repair.
-#
-# The link check (maintenance-check-links-online.yml) is a
-# sync-managed caller of the ci-workflows reusable workflow, which uploads the
-# run's broken links as the link-check-online-dead-links artifact. A
-# reusable workflow's outputs reach only its own caller, so this workflow reads
-# the artifact instead, in two jobs that each hold one scope:
-#
-# - download-dead-links: actions: read, to download the artifact from the link-check run. It
-#   checks the shape, keeps at most MAX_LINKS links, and hands them on through
-#   its outputs, an empty list included. A run that uploaded no artifact (a
-#   scheduled run the repository property turned off) hands on nothing, so
-#   the rollup is left as it is.
-# - file: issues: write alone, no checkout. It finds the rollup, an issue
-#   github-actions[bot] filed whose first body line is
-#   `<!-- link-check-dead-pointer rollup -->`, and rewrites its list of dead
-#   links. With none it closes an open rollup as completed, with a comment. A
-#   rollup closed as completed is reopened when links are dead again; one
-#   closed as not planned is left alone. With no rollup it opens one with
-#   no status label and sets its Work status to needs-triage (a failed write
-#   fails the run): its token starts no workflow, so intake-triage.yml never
-#   sets that floor state on open, and the hourly triage sweep leaves
-#   github-actions[bot] issues out (triage-sweep.mjs), so the field is what
-#   puts the issue in the untriaged queue. A reopened rollup keeps its state.
-#
-# The trigger names the link-check workflow by its `name:`, which the
-# standards component owns: a rename there disconnects this workflow.
-
 on:
-  # Runs this file from the default branch and executes no code from the
-  # link-check run: the artifact is data, checked before use.
+  # Runs this file from the default branch and executes no code from the link-check run.
   workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [Maintenance Check Links Online]
     types: [completed]

@@ -15,9 +15,9 @@ ${gate}      && needs.${key}-handoff.outputs.posted != 'true' }}`,
   });
 
 export default [
-  call("resolve-conflicts", "resolve-conflicts-select", 2),
-  call("address-feedback", "address-feedback-select", 1),
-  call("review-dependency", "review-dependency-select", 1),
-  call("fix-ci", "fix-ci-context", 1),
+  call("resolve-conflicts", "resolve-conflicts-select", 0),
+  call("address-feedback", "address-feedback-select", 0),
+  call("review-dependency", "review-dependency-select", 0),
+  call("fix-ci", "fix-ci-context", 0),
   call("fix-ci-rung-up", "fix-ci-context", 0, "      && needs.fix-ci-rung-up.result != 'skipped'\n"),
 ];

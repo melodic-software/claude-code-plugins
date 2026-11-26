@@ -216,7 +216,6 @@ test("a person's comment since the label went on holds every activity; one befor
   assert.equal(allows(after, "resolve-conflicts"), false);
   assert.equal(allows(before, "fix-ci"), true);
   assert.equal(allows(bot, "fix-ci"), true, "a bot's comment is no one asking to wait");
-  // GitHub's REST timeline: a review carries submitted_at, an inline comment sits under line-commented.
   const review = [...base, { event: "reviewed", user: OWNER, submitted_at: "2026-10-18T11:00:00Z", state: "changes_requested" }];
   const inline = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T11:00:00Z" }] }];
   assert.equal(allows(review, "fix-ci"), false, "a person's review");
@@ -241,8 +240,6 @@ test("a person's timeline comment with no updated_at counts as written since the
   assert.equal(allows(inline, "fix-ci"), false, "an inline comment");
 });
 
-// GitHub's REST pulls/<n>/comments: a reply inside an existing review thread
-// carries in_reply_to_id and has no event on the issue timeline (#10526, #10533).
 const reply = (user, at, extra = {}) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: at, updated_at: at, ...extra });
 
 test("a person's inline reply in a review thread, seen only in the review comments, holds every activity", () => {
@@ -319,8 +316,6 @@ test("prHold reads the timeline only for the human-gated label, and holds on any
   assert.equal((await hold_(["needs-human"], { gateLabel: null })).held, true, "with no readable human-gated label it holds");
 });
 
-// check-signed-commits' escalation comment, posted with its report job's
-// GITHUB_TOKEN; its label write adds no `labeled` event when the label is on.
 const noReviews = async () => ({ comments: [], reviews: [] });
 const signedHold = (user, at) =>
   commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${OLD}\``, at);
@@ -443,7 +438,6 @@ test("listLabelEvents maps GraphQL label events to timeline items across pages",
     {
       nodes: [
         { __typename: "UnlabeledEvent", createdAt: "2026-10-18T11:00:00Z", label: { name: "needs-human" }, actor: { __typename: "User", login: OWNER.login, databaseId: OWNER.id } },
-        // GraphQL names a Bot without the `[bot]` REST gives it.
         { __typename: "LabeledEvent", createdAt: "2026-10-18T12:00:00Z", label: { name: "needs-human" }, actor: { __typename: "Bot", login: "github-actions", databaseId: ACTIONS.id } },
       ],
       pageInfo: { hasNextPage: false, endCursor: null },

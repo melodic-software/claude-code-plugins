@@ -1,72 +1,6 @@
 #!/usr/bin/env bash
-# report-escalation.sh: the pr-unblock lane's report-escalation leaf. Ends a
-# lane run that stopped, on the route escalation-routes.json (beside this
-# script, the one routing table) gives its reason. Run from the base copy; it
-# reads only the trusted base checkout and the GitHub API, never a PR head
-# file, and never writes to the branch.
-#
-# - route `hold` (only the owner's three reasons: an intent or design
-#   question, a CRITICAL security risk or a billing risk, a person's own
-#   thread or hold): hands the PR to a person with one machine-marked comment
-#   holding the reason, the resume key and how to resume, plus the
-#   human-gated role label; a PR the label goes on while it sits in the merge
-#   queue leaves it (leave_queue). Every hold row's `owner-reason` adds the
-#   ../lib/stop-reason.mjs marker and line naming which owner reason it is.
-#   A reason the table does not list holds
-#   too, with no activity to resume (fail-safe).
-# - route `fail` (a stop the lane's own bounded retries did not mend): no
-#   human-gated label; the entry's `label` (needs-session), when it names one,
-#   puts the PR in the session-builder queue for a change the lane cannot
-#   make, written before the comment. One lanes App comment per activity, marked LANE_STOPPED, is posted
-#   once and edited in place after, naming the reason and the head; status
-#   mode (below) puts a failing commit status on that head. A new head carries
-#   no status, so the lane's next run there starts clean.
-#
-# Environment:
-#   GH_TOKEN            token with pull-requests: write and issues: write
-#                       (statuses: write in status mode)
-#   GITHUB_REPOSITORY   owner/repo
-#   PR_NUMBER           the pull request
-#   HEAD_SHA            the gated head; it is the resume key
-#   ESCALATION_REASON   a key of escalation-routes.json; any other well-formed
-#                       reason holds for a person
-#   TRACKER_CONFIG      the base tracker binding: the `tracker` mapping of a
-#                       .yaml file, else a JSON file
-#                       (default .base/docs/conventions/work-items.yaml)
-#   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
-#                       counts (default melodic-automation-lanes[bot])
-#
-# The role label is config.role_labels["human-gated"]. A missing file or entry
-# means needs-human; a present entry that is not a non-empty string fails.
-# Hold is idempotent: with the label on the PR and a LANES_BOT_LOGIN marker
-# for this resume key and reason, it writes nothing; another reason on the
-# same head gets its own comment, so gate-source.mjs reads every reason the
-# label holds for. Without the label (a person removed it to resume), it
-# escalates again. The label is written before the comment, so a retry after a
-# failure between the two finds the label and posts at most one comment. The
-# comment write, a POST that is not idempotent, goes out once: when it fails,
-# the job fails with the label on, and the next run, finding no marker, posts
-# the explanation. Fail writes nothing when its comment already reads as it
-# would.
-#
-# With the argument `clear` (below), it reads ACTIVITY in place of the reason.
-#
-# With the argument `status`, it instead posts one failing commit status on
-# HEAD_SHA for a fail-routed reason, and nothing for a held one: context
-# `pr-unblock/conflict` for resolve-conflicts (GitHub starts no pull_request
-# workflow on a conflicted PR, so this status is also what shows the head why
-# its CI is missing), else `pr-unblock/<activity>`. That mode needs GH_TOKEN
-# with statuses: write and reads TARGET_URL (optional, the run). For
-# feedback-publish-failed it posts nothing when the reply job's lane token was
-# refused in a way a retry takes the head on (retried_refusal), which also
-# reads GITHUB_RUN_ID with actions: read and checks: read, and writes
-# `status-withheld=true` to GITHUB_OUTPUT, so the caller's report-escalation
-# job posts no lane-stopped comment either.
-#
 # Exit: 0 when escalated or already escalated; 1 on bad input or API failure.
 set -euo pipefail
-# In a job, each gh call keeps its rate-limit reading for the job-end
-# api-budget notice (.github/actions/log-api-budget).
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
@@ -115,18 +49,6 @@ leave_queue() {
   echo "::notice title=hold-label-dequeue::pr=$number label=$1 outcome=$outcome"
 }
 
-# Status mode, feedback-publish-failed: whether this run's reply job failed at
-# its lane token for a reason a retry takes the head on, read from this run's
-# jobs (actions: read) and that job's annotations (checks: read) by
-# ../pr-merge/refire-refused.mjs tokenRefusal, the one copy of those reasons.
-# A workflow-modified refusal, which the feedback sweep sends again with no
-# lane-file, branch or author filter (feedback-dispatch.mjs sweepRefused),
-# prints its path and returns 0. A transient refusal returns 1: pr-merge's
-# re-fire skips a PR that changes a lane file, a skip branch or one that fails
-# qualifies (refire-refused.mjs), so it is no proof of a retry. Anything else,
-# a failed read included, returns 1 and the status goes on: only positive
-# evidence withholds it. A head with SWEEP_HEAD_CAP address-feedback rounds,
-# which the sweep skips, returns 1 too, so a refusal it will not resend posts.
 retried_refusal() {
   local jobs ids id notes annotations='{}'
   [[ ${GITHUB_RUN_ID:-} =~ ^[1-9][0-9]*$ ]] || return 1
@@ -152,17 +74,10 @@ retried_refusal() {
     process.stdout.write(`workflow-modified, ${why.path}`);' 2>/dev/null
 }
 
-# `clear`: an attempt of ACTIVITY on HEAD_SHA ended without a stop (a same-head
-# retry landed). When the newest status of the activity's context on the
-# head, by github-actions[bot], is a failure or error, it posts success over it, so a
-# stop the retry mended no longer fails the head. Needs statuses: write.
 if [[ ${1:-} == clear ]]; then
   need_head_and_repo
   jq -e --arg a "${ACTIVITY:-}" 'any(.[]; .activity == $a)' "$routes" >/dev/null || die "ACTIVITY is not an activity the table routes"
   set_context "$ACTIVITY"
-  # Every page, newest first, and failure or error, as ci-status reads the same context.
-  # A refused read prints its JSON error on stdout, which jq would die on with
-  # no annotation, so the read is checked before jq sees it.
   gh_error=$(mktemp)
   trap 'rm -f "$gh_error"' EXIT
   if ! statuses=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100" 2>"$gh_error"); then
@@ -266,24 +181,14 @@ if [[ $route == hold ]]; then
     fi
   fi
 else
-  # gate-source.mjs LANE_STOPPED: one per activity, edited in place.
   marker="<!-- pr-unblock:lane-stopped activity=$activity -->"
   set_context "$activity"
   existing=$(gh api --paginate "$issue/comments?per_page=100" | jq -sc --arg bot "$bot" --arg m "$marker" \
     '[add[] | select(.user.login == $bot and ((.body // "") | split("\n")[0] | rtrimstr("\r")) == $m)] | last // {} | {id, body}')
 fi
 
-# For a review that is not converging: each open review thread. The count
-# of rounds is select's (address-feedback.mjs, round markers and model check
-# runs), shown on the neutral checks, so the comment gives none of its own. A
-# path is data: backticks, line breaks and angle brackets are dropped so it
-# stays one code span and cannot open an HTML comment (a marker line).
 details=''
 if [[ $ESCALATION_REASON == feedback-not-converging || $ESCALATION_REASON == feedback-question-* ]]; then
-  # Page by page, as address-feedback.mjs listThreads reads them: an open
-  # thread past the first 100 can be the one that stopped the lane. Anyone
-  # who can comment can add threads, so the read stops at MAX_THREAD_PAGES
-  # pages and the comment says so.
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
   query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
     author { login } reviewThreads(first: 100, after: $endCursor) { nodes { isResolved path line comments(first: 1) { nodes { url } } } pageInfo { hasNextPage endCursor } } } } }'
@@ -298,8 +203,6 @@ if [[ $ESCALATION_REASON == feedback-not-converging || $ESCALATION_REASON == fee
       read_ok=false
       break
     fi
-    # The first page names the author: GraphQL gives an App's login without
-    # the [bot] suffix. One that does not read is not the lanes App's.
     if ((page_n == 1)) && [[ $(jq -r '.data.repository.pullRequest.author.login // ""' <<<"$page") == "${bot%\[bot\]}" ]]; then
       lane_pr=true
     fi
@@ -325,11 +228,6 @@ if [[ $ESCALATION_REASON == feedback-not-converging || $ESCALATION_REASON == fee
     details=$'\n<details>\n<summary>Open review threads: the disputed finding is one of them</summary>\n\n'"$threads"$'\n\n</details>'
   fi
 elif [[ $ESCALATION_REASON == feedback-incomplete ]]; then
-  # Each kept thread with no disposition, as publish-feedback.mjs named it
-  # (undisposedLines) in the newest lanes App round marker on this head. Only
-  # a line of that exact shape is copied, rebuilt from its id and comment id.
-  # When this round's marker failed to post, an earlier round's on the same
-  # head is the newest; the run's publish-feedback log names this round's.
   round_marker='<!-- pr-unblock:address-feedback-round -->'
   discussion="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/$PR_NUMBER#discussion_r"
   # shellcheck disable=SC2016  # jq string interpolation, not shell expansions
@@ -351,12 +249,6 @@ body=$(mktemp)
 trap 'rm -f "$body"' EXIT
 
 if [[ $route == fail ]]; then
-  # The rounds already run keep counting for a capped reason, so a new head
-  # meets the cap again; a write-access fix request, or a person resolving
-  # the threads, moves a review that is not converging.
-  # The run that stopped: each stop names its own, so the comment's last edit
-  # is the newest stop's time (the monitoring lane's stalled-PR signal reads
-  # it).
   run_line=''
   if [[ ${GITHUB_RUN_ID:-} =~ ^[1-9][0-9]*$ ]]; then
     run_line="- Run: ${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"$'\n'

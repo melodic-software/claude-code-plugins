@@ -13,7 +13,6 @@ const SPLIT_UNBOUNDED = "1000000";
 // https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit
 const DEFAULT_SUBAGENTS = 20;
 
-// Each path the diff changes, once, renames by their new path.
 export function changedFiles(diff) {
   return [...new Set(Array.from(String(diff).matchAll(/^diff --git a\/.+? b\/(.+)$/gm), (match) => match[1]))];
 }

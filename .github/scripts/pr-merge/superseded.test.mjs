@@ -1,15 +1,3 @@
-// Expected values come from pr-merge.yml: a job waiting in its concurrency
-// group starts after the running one, and it sweeps every candidate when its
-// run is scheduled or a listed human started it (the "Check who started the
-// run" step). superseded.mjs counts the starter and any re-runner as listed
-// humans only by account id, since a login can pass to another account. Only
-// schedule runs re-fire refused lane runs, and
-// pull_request_target runs start no full CI run, so a merge job is superseded
-// only by one that does at least what it does. Every enable-auto-merge run
-// disarms on a hold, and only a scheduled or hand-started one arms. GitHub
-// lists a run as pending while any one of its jobs waits on a group: run
-// 40113925144 (schedule) read pending at 17:19Z on 2026-10-24 with its merge
-// job completed at 17:14:54Z and its enable-auto-merge job pending.
 import assert from "node:assert/strict";
 import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
