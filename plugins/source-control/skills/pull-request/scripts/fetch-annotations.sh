@@ -1,31 +1,4 @@
 #!/usr/bin/env bash
-# fetch-annotations.sh — Fetch GitHub Actions check-run annotations for a PR.
-#
-# Annotations carry path/line/level/title/message data the agent uses to
-# locate fix sites without grepping log files. Output is JSONL (one
-# annotation per line) for easy programmatic consumption + cheap to scan
-# visually.
-#
-# The agent uses this when classifying CI failures (see
-# reference/monitor.md §3.2 of the pull-request skill).
-#
-# Usage:
-#   fetch-annotations.sh <pr-number>           # all check-runs on PR head SHA
-#   fetch-annotations.sh <pr-number> --failed  # only failure-conclusion check-runs
-#   fetch-annotations.sh <pr-number> --dir <checkout>
-#
-# --dir names any checkout of the PR's repository, resolved with target-repo.sh
-# (which honors GH_REPO). Default: `gh repo view` in the current directory.
-#
-# Env overrides:
-#   FETCH_ANNOT_REPO    owner/name; wins over --dir and the default
-#
-# Exit codes:
-#   0  success (zero or more annotations emitted)
-#   1  invalid argument, or --dir names no directory
-#   2  gh api call failed
-#   5  prerequisite missing (gh, jq)
-
 # portability-scope: reads GitHub check-run annotations through the GitHub REST API with gh; the script is the GitHub provider's annotation read.
 set -uo pipefail
 
@@ -35,7 +8,22 @@ FAILED_ONLY=0
 CHECKOUT=""
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+fetch-annotations.sh: fetch the GitHub Actions check-run annotations for a PR's head as JSONL.
+
+Usage:
+  fetch-annotations.sh <pr-number> [--failed] [--dir <checkout>]
+
+  --failed  only failure-conclusion check runs
+  --dir     any checkout of the PR's repository (default: the current directory)
+  FETCH_ANNOT_REPO=owner/name wins over --dir and the default.
+
+Exit codes:
+  0  success (zero or more annotations emitted)
+  1  invalid argument, or --dir names no directory
+  2  gh api call failed
+  5  prerequisite missing (gh, jq)
+EOF
   exit 0
 }
 
@@ -80,11 +68,8 @@ fi
 HEAD_SHA=$(gh pr view "$PR_NUMBER" -R "$REPO" --json headRefOid -q .headRefOid 2>/dev/null | tr -d '\r\n')
 [[ -n "$HEAD_SHA" ]] || die 2 "gh pr view $PR_NUMBER failed (no head SHA)"
 
-# Returns list of check_run records: id, name, conclusion, status. Apply jq
-# client-side (avoids gh's --jq flag for stubbing simplicity). `--paginate`
-# walks all pages so PRs with >100 check-runs aren't silently truncated. A
-# failed `gh api` (transport, auth, rate limit) exits 2 instead of falling
-# through the empty-output branch as a misleading success.
+# `--paginate`: a page holds at most 100 check runs:
+# https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference
 CHECK_RUNS_RAW=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null) ||
   die 2 "gh api check-runs failed (exit $?)"
 
@@ -97,27 +82,16 @@ FILTERED=$(printf '%s' "$CHECK_RUNS_RAW" |
     ')
 
 if [[ -z "$FILTERED" ]]; then
-  # Empty is not an error — the PR may have no check-runs yet, and --failed can
-  # legitimately match none.
   exit 0
 fi
-
-# Output schema (one JSON object per line):
-#   {"check_run_id":N,"check_run_name":"x","level":"failure|warning|notice",
-#    "path":"x","start_line":N,"end_line":N,"title":"x","message":"x"}
 
 while IFS= read -r cr; do
   cr_id=$(jq -r '.id' <<<"$cr")
   cr_name=$(jq -r '.name' <<<"$cr")
   [[ -z "$cr_id" || "$cr_id" == "null" ]] && continue
 
-  # `--paginate` walks all annotation pages — large lint/test failures can
-  # exceed the 100/page cap and silently drop diagnostics otherwise. Per-page
-  # response is `[...]`; jq's `if type == "array" then .[] else . end`
-  # already flattens the multi-array stream paginate emits. A failed `gh api`
-  # (403, 429 and the like) exits 2 instead of silently emitting partial
-  # JSONL. The trailing `|| true` on jq still tolerates benign per-record
-  # decode quirks without aborting the whole walk.
+  # `--paginate`: a page holds at most 100 annotations:
+  # https://docs.github.com/en/rest/checks/runs#list-check-run-annotations
   ANNOT_RAW=$(gh api --paginate "repos/$REPO/check-runs/$cr_id/annotations?per_page=100" 2>/dev/null) ||
     die 2 "gh api annotations for check-run $cr_id failed (exit $?)"
   printf '%s' "$ANNOT_RAW" |

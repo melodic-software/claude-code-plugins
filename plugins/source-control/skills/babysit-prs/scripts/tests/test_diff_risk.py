@@ -278,12 +278,6 @@ class HighReasonTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("security-finding",))
 
     def test_floor_paths_are_high_whatever_the_switch(self):
-        # Owner decisions Q-FLOOR (B) and Q-ENFORCE (A): the narrow floor,
-        # with the files that enforce it, holds with high-path-floor off too.
-        # Owner decision Q26 option B: each glob's class; a person clears a
-        # `trust` or `gate` path, a clean security review an `enforcement` one.
-        # The rows are what test_merge_holds_sync.py's closure checks and the
-        # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
             {"trust": 26, "gate": 73, "enforcement": 70},
@@ -384,8 +378,6 @@ class HighReasonTests(unittest.TestCase):
             "package.json",
             "plugins/foo/package-lock.json",
             "plugins/foo/requirements.txt",
-            # Workflows with no write token, secret or lane token; one that
-            # holds any is a `gate` path.
             ".github/workflows/pr-test-platforms.yml",
             ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
@@ -720,8 +712,6 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertEqual(_codes(result), ("files-incomplete",))
 
     def test_file_modes_other_than_regular_are_high_any_path(self):
-        # Spec: a missing or malformed mode, a symlink (120000) or submodule
-        # (160000), or a previous_mode of another type rates HIGH.
         for name, changes in (
             ("mode None", dict(mode=None)),
             ("mode empty", dict(mode="")),
@@ -750,8 +740,6 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.LOW)
 
     def test_two_sided_change_needs_a_previous_mode(self):
-        # Spec: modified, changed, renamed or copied with previous_mode None, malformed
-        # or '000000' (absent) is HIGH.
         for status in ("modified", "changed", "renamed", "copied"):
             for previous_mode in (None, "777", "000000"):
                 with self.subTest((status, previous_mode)):
@@ -1621,8 +1609,6 @@ class PersonReasonsTests(unittest.TestCase):
         self.assertEqual(diff_risk.person_reasons(holding(result)), [])
 
     def test_a_file_no_review_could_read_holds_for_a_person(self):
-        # git calls a script with an early NUL byte binary, so the files API
-        # sends no patch and no review read what node or bash would run.
         for path in (".github/scripts/pr-unblock/x.mjs", "scripts/x.sh", "data.bin"):
             with self.subTest(path):
                 result = score(_input(files=(_file(path, has_patch=False),)))
@@ -1666,8 +1652,6 @@ class PersonReasonsTests(unittest.TestCase):
         self.assertNotIn(f"unreviewed-patch:{path}", _codes(result))
 
     def test_a_no_patch_file_with_no_unread_content_is_a_mergeable_med(self):
-        # The files API lists a pure rename and an empty file as it lists a
-        # binary one; the blob ids tell them apart.
         blob = "a" * 40
         no_patch = {"has_patch": False, "additions": 0, "deletions": 0}
         for name, changed in (
@@ -1990,8 +1974,6 @@ def _credentialed(text: str) -> bool:
         job.get("permissions") for job in (data.get("jobs") or {}).values()
     ]
     oidc = any(isinstance(p, dict) and p.get("id-token") == "write" for p in perms)
-    # `actions: write` dispatches the gated credentialed workflows; write-all
-    # grants it and id-token both.
     dispatch = any(
         p == "write-all" or (isinstance(p, dict) and p.get("actions") == "write")
         for p in perms
@@ -2055,19 +2037,15 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         self.assertLess(held_count, len(found))
 
     def test_ci_status_holds_after_its_authors_clean_review(self):
-        # It posts ci-status and holds the hold step: a model verdict, or a
-        # trusted author's own commits, never clear it.
         path = ".github/workflows/pr-require-checks.yml"
         self.assertEqual(dict(FLOOR.classes).get(path), "gate")
         result = score(_input(files=(_file(path),), author_reviewed=frozenset({path})))
         self.assertIn(f"high-path:{path}", _codes(result))
         self.assertTrue(holds(result))
         self.assertNotIn(f"review-path:{path}", _codes(result))
-        # Named by file, so trimming its permissions keeps it gated.
         self.assertTrue(diff_risk.gated_workflow("pr-require-checks", "on: push\n"))
 
     def test_actions_write_moves_an_ungated_workflow_into_the_gate(self):
-        # It can dispatch a gated credentialed workflow.
         text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
         self.assertFalse(diff_risk.gated_workflow("x", text))
         for added in (
@@ -2096,15 +2074,12 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         for added in (
             "      - run: echo ${{ secrets.DEPLOY_KEY }}\n",
             "      - run: echo ${{ toJSON(secrets) }}\n",
-            # The object filter form.
             "      - env:\n          ALL: ${{ secrets.* }}\n",
             "      - run: echo ${{ secrets['DEPLOY'] }}\n",
             "      - run: echo ${{ format('{0}', secrets.DEPLOY_KEY) }}\n",
             "      - run: echo ${{ github.x == '}' || secrets.DEPLOY_KEY }}\n",
             "      - run: |\n          echo ${{ format('{0}',\n            secrets.DEPLOY_KEY) }}\n",
-            # An `if:` reads the context without `${{ }}`.
             "    if: toJSON(secrets) != ''\n",
-            # write-all sets every permission, id-token among them.
             "    permissions: write-all\n",
             "      - uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[x]\n",
             "    permissions:\n      id-token: write\n",
@@ -2127,7 +2102,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         )
 
     def test_a_quoted_secrets_inherit_is_gated_and_held(self):
-        # YAML reads a quoted key or value as the same string as the bare one.
         text = "name: x\non: push\njobs:\n  a:\n    uses: o/r/.github/workflows/y.yml@abc\n"
         self.assertFalse(diff_risk.gated_workflow("x", text))
         for added in (
@@ -2237,9 +2211,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 )
 
     def test_what_agents_may_do_or_reviews_judge_against_holds(self):
-        # Coordinator decision 2026-10-28 on #10743: these change what agents
-        # may do unattended (AGENTS.md: ask the owner first) or what later
-        # reviews judge against, so an AI review alone does not clear them.
         for path in (
             ".claude/settings.json",
             "plugins/foo/.claude/settings.local.json",
@@ -2269,8 +2240,6 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 )
 
     def test_the_main_run_reviews_own_scripts_hold(self):
-        # Its verdict writer sets the counts the gate trusts, so a change to
-        # it is not one a review it produces may clear.
         for path in (
             ".github/scripts/pr-review-main/write-verdict.mjs",
             ".github/scripts/pr-review-main/prompt.md",
@@ -2363,8 +2332,6 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 self.assertTrue(holds(result))
 
     def test_a_review_caller_workflow_change_holds(self):
-        # A review caller is a gate path: the review cannot judge the file
-        # that runs it, whatever a main-run review says.
         import babysit_review_evidence
 
         path = B + "babysit_verify_evidence.py"
@@ -2391,15 +2358,12 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
 
     GATE = ".github/scripts/pr-merge/who.mjs"
     TRUST = ".github/actions/request-lane-token/action.yml"
-    # What the token broker loads to scope a lane token: never the lift's.
     TOKEN_SCOPE = (
         ".github/actions/resolve-config/resolve.mjs",
         ".github/actions/resolve-config/effect-grants.json",
         ".github/actions/resolve-config/lane-rules.json",
         ".github/actions/resolve-config/activity-rules.json",
     )
-    # Its activities' `effect:` values and lane slots decide what the broker
-    # mints, so it is token scope too.
     PIPELINE = "docs/conventions/pr-pipeline.yaml"
 
     def _score(self, path, security, reviewed=_UNSET, **changes):
@@ -2417,9 +2381,6 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         self.assertFalse(holds(result))
 
     def test_a_token_scope_path_holds_for_a_person_after_a_clean_review(self):
-        # Owner decision 2026-10-28: an agent commits as the trusted owner,
-        # so a PR that widens a lane token's scope must still wait for a
-        # person, whatever author_reviewed says.
         paths = (self.GATE, *self.TOKEN_SCOPE)
         result = score(
             _input(
@@ -2440,8 +2401,6 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         self.assertTrue(holds(result))
 
     def test_the_lift_and_hold_table_code_holds_for_a_person_after_a_clean_review(self):
-        # An owner-signed PR could otherwise widen the lift or drop a floor
-        # row on a clean review, and the next PR would take the wider lift.
         for path in (
             B + "diff_risk.py",
             B + "babysit_review_evidence.py",
@@ -2456,9 +2415,6 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
                 self.assertTrue(holds(result))
 
     def test_the_hold_applying_scripts_hold_for_a_person_after_a_clean_review(self):
-        # An owner-signed PR could otherwise weaken a hold these scripts
-        # apply on a clean review, and the weakened script would judge every
-        # later PR.
         for name in (
             "enable-auto-merge",
             "superseded",
@@ -2518,10 +2474,6 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         )
 
     def test_the_reviews_own_surface_never_takes_the_lift(self):
-        # Owner decision Q11 (A): a person approves a PR that edits a review
-        # or credentialed workflow, the main-run review's scripts, or an agent
-        # settings or instruction file, whoever wrote it and whatever its
-        # review found.
         paths = (
             ".github/workflows/pr-review-main.yml",
             ".github/workflows/pr-merge.yml",

@@ -1,59 +1,4 @@
 #!/usr/bin/env bash
-# reap-project-plugin-records.sh — remove the project- and local-scope plugin
-# install records Claude Code recorded for the directory this script is standing in,
-# through the documented plugin CLI and nothing else.
-#
-# WHY THIS EXISTS. Claude Code records a project-scope install in
-# `~/.claude/plugins/installed_plugins.json` keyed by a literal `projectPath`,
-# and nothing reaps that record when the path goes away. A worktree this plugin
-# creates and later destroys therefore leaves one record per installed plugin
-# behind, forever. Teardown is the only moment at which those records are both
-# identifiable and provably dead, so teardown is where they are removed.
-#
-# THE BOUNDARY, RENDERED IN CODE RATHER THAN IN PROSE. `claude plugin uninstall
-# <id> -s project` has NO path flag: it resolves strictly against the current
-# directory (measured for project scope only — see skills/worktree/fixtures/README.md).
-# Local scope is unmeasured: this script assumes the same behavior and gives it the
-# same directory handling, so a differing local-scope CLI is what to recheck. This
-# script therefore resolves `--worktree-path` to one directory and enters it itself,
-# so the caller's cwd does not matter (a worktree-isolated session cannot `cd`
-# between commands) and the script acts on that one path only. It refuses a main
-# working tree (its `.git` is a directory, or git reports its git dir equal to its
-# common dir) before entering, so the main checkout's records are out of reach. A
-# record for a live repository on an unmounted network share or a detached external
-# volume is indistinguishable from a dead worktree to a bare existence check, which
-# is why the trigger is a teardown the caller is performing, never path liveness.
-#
-# TWO CALLS IT NEVER MAKES.
-#   * `-s user` — the CLI's own failure text for an id with no project record
-#     at this path reads "installed in user scope, not project. Use --scope
-#     user to uninstall." Following that hint would uninstall the plugin
-#     fleet-wide. A non-zero exit here is a no-op to report, never an
-#     escalation.
-#   * `--prune` — it reaches past project scope into auto-installed
-#     dependencies shared with every other scope.
-#
-# ONE FLAG IT ALWAYS PASSES.
-#   * `--keep-data` — this script reaps stale *records*. Uninstalling from the
-#     last remaining scope deletes that plugin's `${CLAUDE_PLUGIN_DATA}`
-#     directory by default. The reap never wants that side effect.
-#
-# It never edits `installed_plugins.json`. That file is Claude Code's internal
-# state, not a published contract; every mutation goes through the CLI.
-#
-# IT LEAVES THE TRACKED SETTINGS FILE AS IT FOUND IT. The uninstall call also
-# rewrites `.claude/settings.json` in this directory: it drops the reaped ids'
-# `enabledPlugins` entries, and was observed to reorder keys and drop unrelated
-# settings. When that file is tracked by git here and unmodified before the
-# pass, it is restored from git afterwards and an `info:` line names it, so the
-# plain `git worktree remove` that follows does not refuse a tree the reap
-# dirtied. Untracked, already modified, or outside a git work tree: the file is
-# never touched, and a `warn:` line names it if the CLI changed it.
-#
-# Usage:
-#   reap-project-plugin-records.sh --worktree-path <dir> [--dry-run]
-#
-# Output: one finding per line — `ok:` / `info:` / `warn:` / `error:`.
 # Exit codes:
 #   0  pass complete (including "no records recorded here")
 #   1  at least one record for this directory survived the pass
@@ -75,8 +20,23 @@ have() { command -v "$1" >/dev/null 2>&1; }
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../hooks/hook-utils.sh" || exit 2
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
-    "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+reap-project-plugin-records.sh: remove the project- and local-scope plugin records Claude Code holds for one worktree.
+
+Usage:
+  reap-project-plugin-records.sh --worktree-path <dir> [--dry-run]
+
+  --worktree-path  the linked worktree whose records to reap (never a main working tree)
+  --dry-run        list what would be reaped, change nothing
+
+Output: one finding per line, `ok:` / `info:` / `warn:` / `error:`.
+
+Exit codes:
+  0  pass complete (including "no records recorded here")
+  1  at least one record for this directory survived the pass
+  2  usage error, or --worktree-path is unresolvable or a main working tree
+  3  prerequisite missing (claude CLI, jq), or an enumeration failed
+EOF
 }
 
 worktree_path=""
@@ -112,11 +72,6 @@ if [[ -z "$worktree_path" ]]; then
   exit 2
 fi
 
-# On MSYS/Git Bash `pwd -W` yields the native long form (`D:/worktrees/x`),
-# which is the form Claude Code records. `$PWD` there is a POSIX mount path and
-# an inherited value can also carry an 8.3 short component (`ALICE~1` where the
-# directory is really `AliceExample`), which compares unequal to the long form
-# the CLI writes. Resolve, never compare raw.
 native_pwd() {
   local p
   p="$(pwd -W 2>/dev/null)" || p=""
@@ -130,23 +85,8 @@ MINGW* | MSYS* | CYGWIN*) windows_shell=true ;;
 *) ;;
 esac
 
-# norm_path <path> — comparison key: separators unified, trailing slash
-# dropped, case folded only where the filesystem is case-insensitive.
 norm_path() {
   local p="$1"
-  # `tr`, not `${p//\\//}` — that parameter expansion does not replace a
-  # backslash in bash, and Claude Code records every Windows projectPath with
-  # backslashes, so the mistake silently matches nothing on the only platform
-  # where it matters.
-  # `join("\t")` in list_ids, not `@tsv`: @tsv escapes each backslash to `\\`, which
-  # would survive into the key as a doubled separator. The squeeze below is the
-  # second belt on that same class, applied to BOTH sides. It is not a perfect
-  # injection: a UNC `//server/share/x` squeezes to `/server/share/x`, so in
-  # principle two spellings could merge. No valid Windows path spells the latter,
-  # and the directory change below confines the ACTION regardless of what the matcher
-  # returns — a false match can only ever produce a reported no-op.
-  # `\134` is tr's octal for a backslash — written that way because the literal
-  # forms are a quoting minefield here.
   p="$(printf '%s' "$p" | tr -d '\r' | tr "\134" '/' | tr -s '/')"
   while [[ "$p" == */ && ${#p} -gt 1 ]]; do p="${p%/}"; done
   if [[ "$windows_shell" == "true" ]]; then
@@ -173,13 +113,7 @@ refuse_main_tree() {
   exit 2
 }
 
-# A main working tree keeps `.git` as a directory; a linked worktree, a husk and
-# an empty orphan do not. The refusal comes before the directory change so the
-# main checkout's records are unreachable from here.
 [[ -d "$arg_native/.git" ]] && refuse_main_tree "its .git is a directory"
-# A `.git` file is a main checkout too when git reports its git dir equal to its
-# common dir (`git init --separate-git-dir`, a submodule). Skipped when git
-# cannot resolve the path, as for a husk whose gitdir is gone.
 if [[ -f "$arg_native/.git" ]] && have git; then
   git_dirs="$(hook::git_untrusted -C "$arg_native" rev-parse --path-format=absolute --git-dir --git-common-dir 2>/dev/null)" || git_dirs=""
   if [[ -n "$git_dirs" && "${git_dirs%%$'\n'*}" == "${git_dirs#*$'\n'}" ]]; then
@@ -187,8 +121,6 @@ if [[ -f "$arg_native/.git" ]] && have git; then
   fi
 fi
 
-# The project scope has no path flag, so the script enters the named directory
-# itself; the caller's cwd does not matter.
 cd "$arg_native" 2>/dev/null || {
   printf 'error: could not enter --worktree-path: %s\n' "$arg_native"
   exit 2
@@ -206,19 +138,10 @@ have jq || {
   exit 3
 }
 
-# enumerate — id and scope of each project- or local-scope record whose
-# projectPath is this directory (user scope is never listed). `claude plugin list --json` reports every project-scope record on
-# the machine regardless of cwd — measured, and re-checkable:
-# skills/worktree/fixtures/README.md § project-scope-reap-probe.sh arm 2,
-# Claude Code 2.1.240, re-run unchanged on 2.1.241 — so enumeration is
-# cwd-independent and the directory change above is what confines the ACTION.
 list_ids() {
   local raw
   raw="$(claude plugin list --json 2>/dev/null)" || return 1
   [[ -n "$raw" ]] || return 1
-  # `| tr -d '\r'` is not decoration: jq on Git Bash terminates each line with
-  # CRLF, and a trailing CR on the projectPath field compares unequal to the
-  # same path resolved locally — the field would silently never match.
   printf '%s' "$raw" | jq -r '
     (if type == "object" then (.installed // .plugins // []) else . end)
     | map(select(.scope == "project" or .scope == "local"))
@@ -228,7 +151,6 @@ list_ids() {
   ' 2>/dev/null | tr -d '\r' || return 1
 }
 
-# collect_matches — `<id><TAB><scope>` rows, deduplicated.
 collect_matches() {
   local rows id path scope
   rows="$(list_ids)" || return 1
@@ -263,9 +185,6 @@ if [[ "$dry_run" -eq 1 ]]; then
   exit 0
 fi
 
-# The settings file the uninstall CLI rewrites. Relative on purpose: the
-# script has already entered the directory being reaped, and git resolves a
-# relative pathspec against the cwd.
 SETTINGS_REL=".claude/settings.json"
 
 file_fingerprint() {
@@ -276,10 +195,6 @@ file_fingerprint() {
   fi
 }
 
-# settings_git_state — `clean` (tracked; worktree and index match HEAD),
-# `modified`, `flagged` (assume-unchanged or skip-worktree), `untracked`, or
-# `nogit` (no git, or not inside a work tree: the orphaned-directory and
-# recreated-directory cases).
 settings_git_state() {
   have git || {
     printf 'nogit'
@@ -293,8 +208,6 @@ settings_git_state() {
     printf 'untracked'
     return
   }
-  # assume-unchanged (lowercase tag) or skip-worktree (S) hides local edits from
-  # both diffs below, so the file would read clean and the restore would drop them.
   case "$(hook::git_untrusted ls-files -v -- "$SETTINGS_REL" 2>/dev/null)" in
     [a-z]\ * | S\ *)
       printf 'flagged'
@@ -302,8 +215,6 @@ settings_git_state() {
       ;;
     *) ;;
   esac
-  # Both halves: `git diff HEAD` alone compares only the worktree to HEAD, so a
-  # staged-only change would read clean and the restore's --staged would drop it.
   if hook::git_untrusted diff --quiet -- "$SETTINGS_REL" 2>/dev/null &&
     hook::git_untrusted diff --cached --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
     printf 'clean'
@@ -342,10 +253,6 @@ reaped=0
 noop=0
 while IFS=$'\t' read -r id scope; do
   [[ -n "$id" ]] || continue
-  # The record's own scope: project or local, never another (the enumeration
-  # yields no other). Never -s user (the CLI's own failure text suggests it and
-  # that suggestion is fleet-wide). Never --prune. Always --keep-data: this
-  # script reaps stale records, never a plugin's persistent data directory.
   out="$(claude plugin uninstall "$id" -s "$scope" --keep-data 2>&1)"
   rc=$?
   if [[ "$rc" -eq 0 ]]; then

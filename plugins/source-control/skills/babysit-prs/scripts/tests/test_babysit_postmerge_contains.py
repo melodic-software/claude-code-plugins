@@ -20,9 +20,6 @@ import tempfile
 import unittest
 from unittest import mock
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -136,7 +133,6 @@ class Contains(unittest.TestCase):
         )
         cls.empty = pathlib.Path(cls.tmp.name) / "empty"
         cls.empty.mkdir()
-        # A full clone whose graft file cuts c3 off from c2.
         cls.grafted = pathlib.Path(cls.tmp.name) / "grafted"
         subprocess.run(
             ["git", "clone", "-q", root.as_uri(), str(cls.grafted)],
@@ -145,7 +141,6 @@ class Contains(unittest.TestCase):
         )
         (cls.grafted / ".git" / "info").mkdir(exist_ok=True)
         (cls.grafted / ".git" / "info" / "grafts").write_text(f"{cls.c3}\n")
-        # A full clone whose replace ref makes c3 parentless.
         cls.replaced = pathlib.Path(cls.tmp.name) / "replaced"
         subprocess.run(
             ["git", "clone", "-q", root.as_uri(), str(cls.replaced)],
@@ -211,20 +206,16 @@ class Contains(unittest.TestCase):
         self.assertEqual(len(api.calls), 1)
 
     def test_a_shallow_clone_falls_back(self) -> None:
-        # In the shallow clone c3's parent c2 is cut off, so local git alone
-        # would call c2 no ancestor of c3.
         ctx, api = self.context([self.shallow])
         self.assertTrue(ctx.contains(self.c2, self.c3))
         self.assertEqual(len(api.calls), 1)
 
     def test_a_graft_file_is_ignored(self) -> None:
-        # Grafted, git would call c2 no ancestor of c3; the real ancestry wins.
         ctx, api = self.context([self.grafted])
         self.assertTrue(ctx.contains(self.c2, self.c3))
         self.assertEqual(api.calls, [])
 
     def test_a_replace_ref_is_ignored(self) -> None:
-        # Replaced, git would call c2 no ancestor of c3; the real ancestry wins.
         ctx, api = self.context([self.replaced])
         self.assertTrue(ctx.contains(self.c2, self.c3))
         self.assertEqual(api.calls, [])
@@ -344,7 +335,6 @@ class FirstParentChain(unittest.TestCase):
         cls.second_parent = [f1, f2, h1]
         cls.unmerged = g1
         cls.shas = [*cls.chain, *cls.second_parent, g1]
-        # A full clone whose graft file cuts M2 off from m2.
         cls.grafted = pathlib.Path(cls.tmp.name) / "grafted"
         subprocess.run(
             ["git", "clone", "-q", root.as_uri(), str(cls.grafted)],
@@ -423,8 +413,6 @@ class FirstParentChain(unittest.TestCase):
         self.assertEqual(len(listed), 1)
 
     def test_a_graft_file_does_not_shape_the_chain(self) -> None:
-        # Grafted, M2's first parent would be h1, putting h1 on the chain and
-        # m2 off it; the real chain still holds m2 and not h1.
         ctx, spawned = self.context([self.grafted])
         m2, big_m2, h1 = self.chain[2], self.chain[1], self.second_parent[2]
         self.assertTrue(ctx._local_contains(m2, big_m2))
@@ -659,7 +647,6 @@ class GreenMainAncestry(unittest.TestCase):
         local, local_calls = self.green([self.root], self.c3)
         self.assertEqual(self.answers(local), expected)
         self.assertEqual(expected.count(True), 4)
-        # A commit against itself is the API's `identical`, never asked locally.
         self.assertEqual(
             local_calls,
             [

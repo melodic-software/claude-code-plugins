@@ -41,15 +41,10 @@ RECORD_PREFIX = "claude-lane-comments-"
 RECORD_FILE = "comments.jsonl"
 MAX_RECORD_BYTES = 4 << 20
 LEGACY_CUTOFF: str | None = "2026-11-13T22:24:32Z"
-# A REST comment carries no edit time, only updated_at, which a review's
-# batch sets up to a second after created_at; a gap past this counts as an
-# edit (GraphQL's lastEditedAt is exact and wins when present).
 EDIT_SLACK_SECONDS = 60
 
 FOOTER = re.compile(r"`?claude-lane: (claude-review|claude-security-review)`?")
 BINDING = re.compile(r"<!-- claude-lane-run id=([1-9][0-9]{0,19}) sha=([0-9a-f]{40}) -->")
-# The field a caller sets on a footed comment it checked: True when the
-# checker accepted it, False when not.
 VERDICT = "lane_bound"
 
 

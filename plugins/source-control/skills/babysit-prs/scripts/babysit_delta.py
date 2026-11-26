@@ -44,10 +44,6 @@ from babysit_util import (
     parse_timestamp,
 )
 
-# Merge states a worker can actually act on (merge-gate check, possible merge).
-# Used only for a *directional* transition check (into, not any diff) since
-# GitHub recomputes mergeStateStatus asynchronously and flaps e.g.
-# UNKNOWN<->CLEAN without any real change to react to.
 ACTIONABLE_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 HEAD_REF_ALIAS_ERROR_MARKER = "head-ref alias check:"
 DEFAULT_MAX_QUIET_RECHECK_SECONDS = 4 * 60 * 60
@@ -494,15 +490,6 @@ def classify_pr(
     refresh_status = (
         str(refresh_for_head.get("status") or "attempted") if refresh_for_head else ""
     )
-    # `reference/freshness.md`'s runbook, step 3: once the branch-refresh CLI's
-    # `202 Accepted` is recorded for this exact head (`refresh_for_head` is
-    # keyed by `requested_source_sha`, so this is scoped to that one head, not
-    # any refresh ever attempted), the orchestrator must "end work on that PR
-    # until a later snapshot observes a different head SHA... even if merge
-    # state transiently changes". Consulted below to freeze the entire
-    # fan-out gate -- not just `pr_clean_ready_for_direct_gate` (which the
-    # "awaiting a new head" blocker already handles) -- while this holds; see
-    # `needs_worker`'s definition for why the blocker alone is not enough.
     refresh_accepted_awaiting_head = refresh_status == "accepted"
     prev_blocking_ids = set(prev.get("blocking_feedback_ids") or [])
     prev_material_ids = set(prev.get("material_feedback_ids") or [])
@@ -516,11 +503,6 @@ def classify_pr(
     new_blocking_feedback = [
         item for item in feedback["blocking"] if item["id"] not in prev_blocking_ids
     ]
-    # An id already seen as blocking or material is not new: a ledger dispose
-    # reclassifies a blocking item to material at the same id and head. GitHub
-    # can also reuse a comment id for different content on a new head, so a
-    # seen id counts as new again once the head changed, unless a disposition
-    # recorded at the current head covers it (an older-head one does not).
     new_material_feedback = [
         item
         for item in feedback["material"]
@@ -636,11 +618,6 @@ def classify_pr(
         material.append("merge state unknown")
     elif merge_state not in {"BEHIND", "CLEAN", "HAS_HOOKS"}:
         material.append(f"merge state {merge_state}")
-    # Report-only escalation signal: a non-required check degrading
-    # mergeStateStatus to UNSTABLE without completing. Deliberately material,
-    # never a blocker -- a blocker would re-pin the PR active and re-dispatch a
-    # worker every cycle for a check no branch action clears. The runbook routes
-    # remediation (branch CI vs org/settings); the engine only reports.
     if checks["stuck"]:
         material.append(
             f"{len(checks['stuck'])} check(s) holding mergeStateStatus at "
@@ -694,13 +671,6 @@ def classify_pr(
         if item["id"] not in dispositions_at_current_head
     ]
 
-    # A clean, non-draft PR with zero blockers goes straight to the merge gate
-    # (`SKILL.md`, "Fan Out"): a worker would have nothing to do. Drafts always
-    # route through a worker to assess completeness. `ACTIONABLE_MERGE_STATES`
-    # is the set the merge gate treats as merge-ready, HAS_HOOKS (GHES)
-    # included. Untriaged material feedback keeps the PR out too, since the
-    # merge gate never reads bot feedback; a known untriaged item still waits
-    # for `quiet_recheck_due` rather than forcing `needs_worker`.
     pr_clean_ready_for_direct_gate = bool(
         not pr.get("isDraft")
         and merge_state in ACTIONABLE_MERGE_STATES
@@ -757,9 +727,6 @@ def classify_pr(
     resolved_blocking_feedback = (
         bool(genuinely_cleared_blocking_ids) and not feedback["blocking"]
     )
-    # Draft-to-ready shows only in `updatedAt`, so it needs its own delta. A
-    # legacy `prev` with no `is_draft` key counts as a draft, failing safe
-    # toward one extra worker dispatch over a missed completeness check.
     prev_was_draft = bool(prev.get("is_draft")) if "is_draft" in prev else bool(prev)
     became_ready_for_review = bool(prev_was_draft and not pr.get("isDraft"))
     last_worker_checkin_head_sha = str(prev.get("last_worker_checkin_head_sha") or "")
@@ -787,17 +754,6 @@ def classify_pr(
         and (prev_pending_dispatch_unsuppressible or not pr_clean_ready_for_direct_gate)
         and not dispatch_confirmed_by_checkin
     )
-    # Delta arms split into two groups against `pr_clean_ready_for_direct_gate`.
-    #
-    # Suppressible: each of these is fully re-validated by the direct merge
-    # gate itself (mergeStateStatus already integrates required checks,
-    # approvals, and conversation resolution), so a worker dispatched for one
-    # of them on a cycle where the PR is clean, non-draft, and zero-blocker
-    # would find nothing left to do -- whether the PR is newly-seen already
-    # clean, its head SHA changed on a routine push while it stayed clean, or
-    # a blocker/check/merge-state/human-review delta just resolved into this
-    # same clean state (that resolution is exactly what makes
-    # `pr_clean_ready_for_direct_gate` newly true this cycle).
     suppressible_delta = bool(
         new_to_state
         or head_sha_changed
@@ -833,33 +789,6 @@ def classify_pr(
             )
         )
     )
-    # `refresh_accepted_awaiting_head` overrides every delta and the quiet
-    # fallback alike, not just the suppressible group
-    # `pr_clean_ready_for_direct_gate` already gates: the "awaiting a new
-    # head" blocker (above) correctly keeps this PR out of
-    # `pr_clean_ready_for_direct_gate`, but that same falseness is exactly
-    # what lets the suppressible-delta group's
-    # `not pr_clean_ready_for_direct_gate` clause escape suppression -- so
-    # `checks_changed` reporting transiently while GitHub settles the refresh,
-    # `worker_checkin_head_unconfirmed` (no check-in was ever recorded for
-    # this stale, about-to-be-replaced head), `merge_state_became_actionable`
-    # flickering, or even a stale `dispatch_pending_unconfirmed` obligation
-    # from before the refresh was requested, would all still fan out a
-    # worker to a PR the runbook says must sit idle
-    # (`reference/freshness.md`, step 3: "end work on that PR until a
-    # later snapshot observes a different head SHA... even if merge state
-    # transiently changes"). `quiet_recheck_due`'s periodic fallback must be
-    # suppressed the same way -- it is itself a worker dispatch, and waiting
-    # out GitHub's async update is not "quiet", it is expected. This lifts on
-    # its own the moment the head actually changes: `refresh_for_head` is
-    # keyed by the exact requested source SHA, so a new head either finds no
-    # entry at all or one for a distinct, unrelated refresh.
-    #
-    # `foreign_activity` suppresses the same way, for a different reason: the
-    # mutation ledger proves another driver is already working this PR under
-    # our own login, so dispatching our own worker on top of it would
-    # double-act. The suppression is reported as a contention finding above,
-    # never silently.
     needs_worker = bool(
         (worker_actionable_delta or quiet_recheck_due)
         and not refresh_accepted_awaiting_head
@@ -912,10 +841,6 @@ def classify_pr(
         "head_ref": pr.get("headRefName"),
         "head_sha": head_sha,
         "base_ref": pr.get("baseRefName"),
-        # False when this PR was hydrated over REST because the session is not
-        # served GraphQL: thread resolution is unproven for it, so the merge
-        # gate will hold it as readiness UNPROVEN. Absent key means the record
-        # predates the fallback, which was always a GraphQL read.
         "graphql_available": bool(pr.get("_graphql_available", True)),
         "head_repository": mutation_policy["head_repo"],
         "head_repository_owner": mutation_policy["head_owner"],

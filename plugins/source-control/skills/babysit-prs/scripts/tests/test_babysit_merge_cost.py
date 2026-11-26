@@ -416,7 +416,6 @@ class CostDecision(unittest.TestCase):
             with self.subTest(name):
                 self.assertIsNone(self.decide(**change))
 
-    # The carry rule (#9436 Q18 d): the decided head is OLD, the head HEAD.
     def later(self, compares: dict[str, Any], **change: Any) -> str | None:
         return self.decide(runs=[_run(OLD)], compares=compares, **change)
 
@@ -593,10 +592,6 @@ class CostDecision(unittest.TestCase):
                 runs = [_run(OLD, "2026-10-22T10:40:00Z"), _run(HEAD)]
                 self.assertIsNone(self.decide(runs=runs, compares={OLD: answer}))
 
-    # #10437: a deleted lane run of a head pushed after the decided head,
-    # before the decision, would make an older notice the decided head. The
-    # branch's push history, which deleting a run leaves, shows that head, and
-    # it must have a run of every review lane started before the decision.
     def test_a_head_pushed_since_the_decided_head_with_no_run_of_every_lane_keeps_the_hold(
         self,
     ) -> None:
@@ -654,9 +649,6 @@ class CostDecision(unittest.TestCase):
         self.assertIsNone(carried(both, pushed, unreadable="activity"))
         self.assertIsNone(carried(both, {"message": "Not Found"}))
 
-    # A branch name recreated for each sync (chore/standards-sync, #10990)
-    # keeps its whole history in the activity API, so the decided head's push
-    # can sit past the first page of 100.
     def test_the_push_history_is_read_past_its_first_page(self) -> None:
         new = "1" * 40
         same = {OLD: _net(TF), HEAD: _net(TF)}
@@ -691,7 +683,6 @@ class CostDecision(unittest.TestCase):
         self.assertEqual(
             policy.branch_activity([full(), [{"id": 100}]]), [*full(), {"id": 100}]
         )
-        # gh stops at an answer with no next link; a full one may not be the end.
         for pages in ([full()], [full(), full(100)]):
             with self.assertRaisesRegex(
                 policy.PolicyReadError, "full page with no next link"
@@ -751,7 +742,6 @@ class CostDecision(unittest.TestCase):
         result, reads = self.pages(bodies, ["Y3Vy+MQ==", "c2", None])
         self.assertEqual(result[0], 200)
         self.assertEqual([len(page) for page in result[1]], [100, 100, 3])
-        # The cursor as the link spells it, a `+` included, after the endpoint.
         self.assertEqual(
             reads,
             [

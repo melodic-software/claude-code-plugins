@@ -116,9 +116,6 @@ assert_contains "an unreadable baseline: the watch completes" "$out" "PR #5 MERG
 assert_not_contains "an unreadable baseline file falls back to record-only (a)" "$out" "a: pass"
 assert_not_contains "an unreadable baseline file falls back to record-only (b)" "$out" "b: pass"
 
-# A readable baseline the script did not write: rows in `gh pr checks` shape, and correct-looking
-# lines with no snapshot marker. Either must fail closed to record-only plus a full scan, never
-# re-emit finished checks as new.
 printf 'a\tpass\t1m\thttps://x/1\nb\tpass\t1m\thttps://x/2\n' >"$TEST_TMPDIR/malformed"
 out=$(run_poll --baseline "$TEST_TMPDIR/malformed")
 assert_exit "a malformed baseline: the watch runs to the merge and exits 0" 0 "$?"

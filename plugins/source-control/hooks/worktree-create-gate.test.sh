@@ -14,8 +14,6 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# native_path <path> -> the mixed-mode spelling on Windows Git Bash, the path
-# itself everywhere else.
 native_path() {
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -m "$1"
@@ -33,11 +31,6 @@ mkrepo() {
     git -C "$repo" init -q -b main
     git -C "$repo" config user.email t@t.t
     git -C "$repo" config user.name t
-    # Repo-local, on a throwaway repo this function just created. A machine with
-    # commit.gpgsign=true globally has no secret key for the fixture identity, so
-    # without this every `git commit` below fails and the suite reports its
-    # SUCCESS cases as failures while its refusal cases still pass, a shape that
-    # reads as a real regression.
     git -C "$repo" config commit.gpgsign false
     printf 'seed\n' >"$repo/README.md"
     git -C "$repo" add README.md
@@ -46,7 +39,6 @@ mkrepo() {
   printf '%s' "$repo"
 }
 
-# payload <name> <cwd> — the exact shape 2.1.224 sends, field order included.
 payload() {
   printf '{"session_id":"s1","transcript_path":"t","cwd":"%s","hook_event_name":"WorktreeCreate","name":"%s"}' \
     "$2" "$1"
@@ -94,13 +86,6 @@ OUT="$(payload "feat/gate-token" "$REPO3" |
     CLAUDE_PLUGIN_DATA="$DATA_DIR_NATIVE" bash "$HOOK" 2>/dev/null)"
 assert_not_contains "an unexpanded placeholder is not used as a directory" "$OUT" 'user_config'
 assert_contains "an unexpanded placeholder falls through to the data dir" "$OUT" "worktrees"
-# --------------------------------------------------------------------------
-# The plugin option rides the FALLBACK rung: a repository carrying the
-# worktreeroot.path git config key wins over it (#2610/#2612). This is the
-# hook-level proof that the option is passed as --fallback-root, not --root —
-# both spellings place identically when the key is absent, so only a keyed
-# repository discriminates.
-# --------------------------------------------------------------------------
 
 REPO_KEYED="$(mkrepo)"
 KEY_ROOT="$TEST_TMPDIR_NATIVE/gate-key-root"
@@ -144,11 +129,6 @@ assert_contains "another live session's worktree is named in the refusal" "$ERR"
 assert_contains "the exit-4 text covers a held target" "$ERR" "held by another worktree or session"
 
 REPO4="$(mkrepo)"
-# CLAUDE_PLUGIN_DATA is unset explicitly, not merely left alone: in a general
-# subprocess it is NOT scoped to the invoking plugin — this machine's carries an
-# unrelated plugin's data directory — so an inherited value would silently satisfy
-# the fallback and make this case unfalsifiable. A real hook process gets the
-# correctly-scoped value; a test harness does not.
 OUT="$(payload "feat/gate-noroot" "$REPO4" | env -u CLAUDE_PLUGIN_DATA bash "$HOOK" 2>/dev/null)"
 STATUS=$?
 assert_exit "no root and no data dir refuses" 1 "$STATUS"

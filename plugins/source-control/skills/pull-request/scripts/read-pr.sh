@@ -1,34 +1,31 @@
 #!/usr/bin/env bash
-# read-pr.sh — Read pull-request facts for the `view` and `list` actions.
-#
-# Other skills ask for these reads through `/source-control:pull-request view`
-# and `list`, so the forge commands and their field lists live here once.
-#
-# Usage:
-#   read-pr.sh view [<pr>] [--repo <owner/repo>]          # facts as one JSON object
-#   read-pr.sh view [<pr>] [--repo <owner/repo>] --diff   # the unified diff
-#   read-pr.sh list [--head <branch>] [--head-match <ERE>] [--search <text>]
-#                   [--state open|closed|merged|all] [--repo <owner/repo>]   # JSON array, open by default
-#   Either action takes --out <file> to write its output there instead of stdout.
-#
-# <pr> is a number, a pull request URL, or a head branch; with none, `view`
-# reads the current branch's pull request. --repo also takes HOST/OWNER/REPO.
-# `view` reads over REST only and adds
-# `visibility` (PUBLIC, PRIVATE, INTERNAL, or UNKNOWN when the lookup fails).
-# `list --head-match` keeps the pull requests whose head branch matches the ERE.
-# `list --search` keeps the pull requests the forge's text search matches.
-#
-# Exit codes:
-#   0  success
-#   1  invalid argument
-#   2  gh call failed (no pull request for the branch included)
-#   5  prerequisite missing (gh, jq)
-
 # portability-scope: the GitHub implementation of the view and list reads; every read is a gh call.
 set -uo pipefail
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+read-pr.sh: read pull-request facts for the `view` and `list` actions.
+
+Usage:
+  read-pr.sh view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]
+  read-pr.sh list [--head <branch>] [--head-match <ERE>] [--search <text>]
+                  [--state open|closed|merged|all] [--repo <owner/repo>] [--out <file>]
+
+  <pr>          a number, URL or head branch (default: the current branch's PR)
+  --repo        OWNER/REPO or HOST/OWNER/REPO
+  --diff        print the unified diff instead of the facts
+  --head        list PRs from this head branch
+  --head-match  list PRs whose head branch matches the ERE
+  --search      list PRs the forge's text search matches
+  --state       list state (default: open)
+  --out         write the output to this file
+
+Exit codes:
+  0  success
+  1  invalid argument
+  2  gh call failed (no pull request for the branch included)
+  5  prerequisite missing (gh, jq)
+EOF
   exit 0
 }
 
@@ -86,7 +83,6 @@ command -v jq >/dev/null 2>&1 || die 5 "jq not found on PATH"
 repo_args=()
 [[ -n "$REPO" ]] && repo_args=(--repo "$REPO")
 
-# Written by the script, not copied out of tool output, so a large diff arrives whole.
 if [[ -n "$OUT" ]]; then
   exec >"$OUT" || die 1 "cannot write $(printf '%q' "$OUT")"
 fi
@@ -95,7 +91,6 @@ if [[ "$ACTION" == list ]]; then
   head_args=()
   [[ -n "$HEAD" ]] && head_args=(--head "$HEAD")
   [[ -n "$SEARCH" ]] && head_args+=(--search "$SEARCH")
-  # gh pr list returns 30 pull requests unless --limit says otherwise.
   out=$(gh pr list --state "$STATE" --limit 1000 ${head_args[@]+"${head_args[@]}"} ${repo_args[@]+"${repo_args[@]}"} --json "$LIST_FIELDS") ||
     die 2 "gh pr list failed"
   printf '%s' "$out" | jq --arg re "$HEAD_MATCH" '[.[] | select($re == "" or (.headRefName | test($re)))]' ||
@@ -103,8 +98,6 @@ if [[ "$ACTION" == list ]]; then
   exit 0
 fi
 
-# `view` reads over REST only, never `gh pr view` or `gh pr diff`. `{owner}/{repo}`
-# is gh's placeholder for the current repository, filled from its git remotes.
 api_repo='{owner}/{repo}' api_host=""
 if [[ -n "$REPO" ]]; then
   if [[ "$REPO" =~ ^([^/]+)/([^/]+/[^/]+)$ ]]; then
@@ -127,8 +120,6 @@ else
   [[ -n "$branch" ]] || die 2 "no pull request number and no current branch"
 fi
 if [[ "$api_repo" == '{owner}/{repo}' ]]; then
-  # gh fills the placeholder from the remote but sends it to github.com, so a
-  # checkout on another host gh is logged in to must name that host.
   remote_url=$(git remote get-url origin 2>/dev/null | tr -d '\r')
   remote_host=""
   if [[ "$remote_url" =~ ^[a-z+]+://([^@/]*@)?([^/:]+) ]]; then
@@ -147,7 +138,6 @@ fi
 [[ -z "$api_host" || "$api_host" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?$ ]] ||
   die 1 "not a valid host: $(printf '%q' "$api_host")"
 api_host_args=()
-# Always named, so GH_HOST cannot send a github.com read to another forge.
 [[ -n "$api_host" ]] && api_host_args=(--hostname "$api_host")
 
 api() {
@@ -156,7 +146,6 @@ api() {
 
 if [[ -z "$num" ]]; then
   owner="${api_repo%%/*}"
-  # A native Windows jq ends its lines in CRLF; the carriage return is dropped.
   head=$(jq -rn --arg b "$branch" '$b | @uri' | tr -d '\r')
   num=$(api "repos/$api_repo/pulls?head=$owner:$head&state=all&per_page=100" |
     jq -r '((map(select(.state == "open")) + .)[0].number) // empty' | tr -d '\r') ||
@@ -180,16 +169,13 @@ if [[ "$DIFF" == 1 ]]; then
   exit 0
 fi
 api "repos/$api_repo/pulls/$num" >"$work/pull.json" || die 2 "pull request read failed"
-# The files endpoint pages at 100 and stops at 3000 files.
 for page in $(seq 1 30); do
-  # Zero-padded so the glob below keeps page order.
   page_file="$work/files-$(printf %02d "$page").json"
   api "repos/$api_repo/pulls/$num/files?per_page=100&page=$page" >"$page_file" ||
     die 2 "pull request files read failed"
   (($(jq length "$page_file" | tr -d '\r') < 100)) && break
 done
 
-# The same field names and value shapes `gh pr view --json` prints.
 facts=$(cat "$work"/files-*.json | jq -n --slurpfile pull "$work/pull.json" '
   $pull[0] as $p | [inputs | .[]] as $files | {
     number: $p.number,
@@ -217,9 +203,6 @@ if [[ "$url" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/[0-9]+$ ]]; then
   host="${BASH_REMATCH[1]}" repo_path="${BASH_REMATCH[2]}"
 fi
 visibility=UNKNOWN
-# A host gh is not logged in to could be anyone's server, answering "public" for a private
-# repository, so it is never asked. An enterprise token in the environment would vouch for any
-# host, so only gh's stored logins count.
 if [[ -n "$repo_path" ]] && { [[ "$host" == github.com ]] ||
   env -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN gh auth status --hostname "$host" >/dev/null 2>&1; }; then
   v=$(gh api --hostname "$host" "repos/$repo_path" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')

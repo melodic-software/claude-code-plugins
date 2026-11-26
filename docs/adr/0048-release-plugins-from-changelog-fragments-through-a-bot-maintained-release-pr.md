@@ -26,11 +26,11 @@ Main moves those two files faster than a pull request can merge. Measured on `or
 Two concurrent pull requests that bump one plugin conflict on both files. The current repair is
 `plugins/source-control/scripts/resolve-version-bump-conflict.sh`, which recomputes the version as
 main's version plus one bump at the PR's level and re-heads the PR's changelog entry
-(`resolve-version-bump-conflict.sh:7-14`). Four skill documents tell lanes to run it
+([Plugin version-bump collisions](../../plugins/source-control/skills/pull-request/reference/ready-for-review.md#plugin-version-bump-collisions)). Four skill documents tell lanes to run it
 (`resolve-conflicts/SKILL.md:77`, `babysit-loop/SKILL.md:417`, `babysit-prs/reference/loop.md:334`,
 `babysit-prs/reference/orchestration.md:544`). Each conflict still costs a merge of main, a new
 commit and a fresh CI run, and the resolver handles only the shape it recognizes; anything else is
-left for manual resolution (`resolve-version-bump-conflict.sh:12-14`).
+left for manual resolution (same section).
 
 A merge queue does not fix this. `ci.yml:48-61` wires the `merge_group` event, and a queue tests
 each pull request against the ones ahead of it, so two queued pull requests that bump one plugin

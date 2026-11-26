@@ -27,7 +27,6 @@ WORKFLOWS = {
 
 
 BRANCH = "feature/x"
-# The cutoff the JavaScript port holds: both ports must name the same one.
 JS_CUTOFF = re.search(
     r'^export const LEGACY_CUTOFF = (?:null|"([^"]+)");$',
     (pathlib.Path(__file__).resolve().parents[6] / ".github/scripts/lib/lane-binding.mjs").read_text(encoding="utf-8"),
