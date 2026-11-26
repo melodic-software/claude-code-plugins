@@ -44,7 +44,8 @@ if (($# == 0)); then
 fi
 status=0
 for f in "$@"; do
-  p=${f#./}
+  p=${f#"$PWD"/}
+  p=${p#./}
   ok=1
   if ! head -n 1 "$f" | grep -q '^# '; then
     printf 'lint-md: %s: first line is not an ATX heading\n' "$p" >&2
