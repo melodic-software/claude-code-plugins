@@ -1,3 +1,2 @@
 policy: on-request
-# This organization's plan raises GitHub's attachment limit.
 upload_limit_mb: 100

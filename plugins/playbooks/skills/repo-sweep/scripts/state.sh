@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Find this repo's sweep PR and report where the sweep stands.
-#
-#   state.sh     run anywhere inside the repo; no arguments
-#
-# Sweep PR: on a chore/repo-sweep-* branch, that branch's PR (the open one, else the
-# newest). On any other branch, the open PRs whose head branch starts with chore/repo-sweep-.
-# Checklist grammar: ../SKILL.md "Formats"; body lines are
-# read with \r stripped.
-#
-# Output, "key value" lines in this order, each only when it applies:
-#   pr <number>
-#   branch <head-branch>
-#   pr-state OPEN|MERGED|CLOSED
-#   mergeable CONFLICTING  a warning: printed only when the open PR conflicts with its base
-#   playbook <name>
-#   dirty yes|no           any change, tracked or untracked, outside .work/
-#   untick-committed <id> <sha> <skill@version>...
-#       a "[ ]", "[~]", or bare "[x]" line whose exact skill set carries Playbook-Step
-#       trailers in one commit on the branch (after origin/<base>): tick it with tick.sh
-#       committed <sha> <skill@version>..., do not rerun it
-#   done-unverified <id>   a bare "[x]" line (no versions: ticked in the web UI) no trailer backs
-#   next <id> in-progress|pending   the first "[~]" line, else the first "[ ]" line
-#   sweep <number> <branch>         one per open sweep PR (exit 15 only)
-#
 # Exit:
 #   0  next step found; under an in-progress step a dirty tree means resume
 #   1  error: no markers in the body, or the open-PR listing reached its limit; any other
@@ -36,9 +12,6 @@
 #   15 several open sweep PRs: listed, pick one
 set -euo pipefail
 
-# Under Git Bash or Cygwin, run jq with -b: every "key value" line must reach the caller with no
-# CR, since a caller pastes it into a branch name or command.
-# Pointer: https://jqlang.org/manual/#invoking-jq (--binary). REPO_SWEEP_OSTYPE is the test seam for the platform.
 case ${REPO_SWEEP_OSTYPE:-${OSTYPE-}} in
 msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
 *) ;;
@@ -46,12 +19,7 @@ esac
 
 prefix=chore/repo-sweep-
 fields=number,state,mergeable,headRefName,baseRefName,body,isCrossRepository
-# Off a sweep branch every open PR is listed, unsearched, and filtered by head branch here: a
-# degraded search can answer a false empty with no signal gh passes on, and a false empty here
-# files a duplicate sweep. A listing that fills its limit may be missing one, so it is an error.
 limit=1000
-# Branch names, playbook names, and step ids reach commands the agent builds, so all three are
-# restricted to safe characters, and fork PRs never count as a sweep.
 safe_branch='^chore/repo-sweep-[A-Za-z0-9._-]+$'
 top=$(git rev-parse --show-toplevel)
 cd "$top"

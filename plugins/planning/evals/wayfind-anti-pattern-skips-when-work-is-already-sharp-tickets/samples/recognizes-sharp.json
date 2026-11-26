@@ -1,14 +1,50 @@
 {
   "pass": [
     {
-      "answer": "All three are clear tickets with nothing foggy, so wayfind does not fit.",
-      "why": "meets the rule"
+      "answer": "All three pieces are already sharp, answerable tickets rather than fog, so wayfind does not fit.",
+      "why": "the skill's own words"
+    },
+    {
+      "answer": "No-fog bail-out: every uncertainty here is already sharp. Route to /work-items:decompose.",
+      "why": "names the no-fog bail-out"
+    },
+    {
+      "answer": "These are **sharp tickets**: an endpoint, an email send and a confirmation endpoint. Nothing here is foggy.",
+      "why": "bold form, plus no fog"
+    },
+    {
+      "answer": "The work isn't foggy at all; it is three clear, scoped tickets.",
+      "why": "says it is not foggy"
+    },
+    {
+      "answer": "This looks like three sharp tickets, not a foggy effort.",
+      "why": "looks-like phrasing"
     }
   ],
   "fail": [
     {
       "answer": "There is a lot of fog here; let's chart it.",
-      "why": "breaks the rule"
+      "why": "treats it as fog"
+    },
+    {
+      "answer": "These are not sharp yet: the token lifetime and the email provider are open.",
+      "why": "negated sharp"
+    },
+    {
+      "answer": "Fog test: each sharp question becomes a decision item, each foggy worry a Not-yet-specified bullet. Items: 'Pick the token store'.",
+      "why": "charting reply that only explains the fog test"
+    },
+    {
+      "answer": "Use /work-items:decompose.",
+      "why": "routes out but never says the work is sharp"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Even though you call them already sharp tickets, the token lifetime and email provider are still foggy, so I'll chart a map first.",
+      "why": "wrong: quotes the user's sharp claim, then treats the work as fog"
     }
   ]
 }

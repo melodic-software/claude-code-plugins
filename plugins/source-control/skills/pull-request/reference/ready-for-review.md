@@ -323,9 +323,10 @@ This repository's one scripted exception. When the conflicted paths include a pl
 `bash "<plugin-root>/scripts/resolve-version-bump-conflict.sh"` from the repository root before
 resolving them by hand. It sets the version to the default branch's current version plus one bump
 at the PR's level (a number neither side wrote), keeps the default branch's changelog entries,
-re-heads the PR's entry under the new version, and stages both files. Exit 0 means every such pair
-was resolved; exit 1 names a plugin it left untouched, which you resolve by hand under the steps
-above. A plugin listed in the repository's `fragment-plugins.txt` (under `scripts/`) is in
+re-heads the PR's entry under the new version, three-way merges every other edit to the two files,
+and stages both. Exit 0 means every such pair was resolved; exit 1 names a plugin it left untouched
+because that merge conflicted or the pair did not have this shape, which you resolve by hand under
+the steps above. A plugin listed in the repository's `fragment-plugins.txt` (under `scripts/`) is in
 changelog-fragment mode and gets no version from a pull request: the script leaves it untouched,
 and the resolution is the default branch's `plugin.json` and `CHANGELOG.md` with the PR's entry
 moved into a changelog fragment. `<plugin-root>/scripts/convert-bump-to-fragment.sh` makes that

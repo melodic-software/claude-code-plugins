@@ -9,8 +9,6 @@ SUT_SRC="$SCRIPT_DIR/check-skill-leaf-names.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-vars here is what tells it (SC2154) the names are written.
 TMP="" CLEAN=""
 
 fixture_tree::build TMP --sut "$SUT_SRC" --plugins
@@ -96,8 +94,6 @@ else
   fail "bare-name entry should fail (rc=$rc): $out"
 fi
 
-# 5e. `*` accepts any owner set — and must reach the comparison as a literal
-#     rather than being pathname-expanded against the cwd.
 printf 'shared *\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -107,9 +103,6 @@ else
   fail "wildcard entry should pass (rc=$rc): $out"
 fi
 
-# 5f. A leaf name registered twice fails, even when one entry matches. The
-#     merge that keeps both sides leaves two lines when two branches each
-#     change one entry, and neither may silently win.
 printf 'shared alpha,beta\nshared alpha,beta,gamma\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -128,8 +121,6 @@ else
   fail "unsorted registry should fail (rc=$rc): $out"
 fi
 
-# 6. Stale guard: a registry entry that no longer collides fails, under the one
-#    STALE BASELINE prefix scripts/lib/read-list.sh owns for every list gate.
 printf 'shared\nvanished\n' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -144,10 +135,6 @@ else
   fail "stale diagnostic should carry the shared prefix: $out"
 fi
 
-# 6b. A FINAL ENTRY WITH NO TRAILING NEWLINE is loaded. The hand-rolled reader
-#     this replaced used a bare `while IFS= read -r`, whose last iteration
-#     returns non-zero even after filling the variable, so the entry was
-#     silently dropped and the collision it registers reported as unregistered.
 printf 'shared alpha,beta,gamma' >"$REGISTRY"
 out="$(run --check)"
 rc=$?
@@ -168,10 +155,6 @@ else
   fail "new collision should fail (rc=$rc): $out"
 fi
 
-# 7b. The zero-collision end state succeeds. Under `set -u` an associative array
-#     declared but never assigned is unbound, so a bare ${#a[@]}/${!a[@]} aborts
-#     here — and this is precisely the state the stale-entry guard exists to
-#     shepherd the repo into, so it must not be the one state that crashes.
 fixture_tree::build CLEAN --sut "$SUT_SRC" --plugins
 mkdir -p "$CLEAN/plugins/solo/skills/only"
 printf -- '---\nname: only\ndescription: "fixture"\n---\n' >"$CLEAN/plugins/solo/skills/only/SKILL.md"

@@ -95,9 +95,6 @@ def is_review_bot_item(item: dict[str, Any], config: ReviewTriggerConfig) -> boo
     login = author_login(item)
     if login.casefold().removesuffix("[bot]") not in reviewer_logins:
         return False
-    # `is_bot` reads GraphQL's `__typename` only, so the REST `type` key is
-    # normalized into it here: the reaction and review-comment paths carry raw
-    # REST author objects that have no `__typename` at all.
     return author.get("is_bot") is True or is_bot(
         login,
         str(author.get("__typename") or author.get("type") or ""),
@@ -329,8 +326,6 @@ def review_gate_state(
         for check in all_checks
         if ci_gateway_context and check["name"].casefold() == ci_gateway_context
     ]
-    # The gate StatusContext is the one check excluded here -- a gate CheckRun of
-    # the same name is an ordinary check for this rollup.
     non_review_checks = [
         check for check in all_checks if not is_gate(check, "StatusContext")
     ]
@@ -455,10 +450,6 @@ def classify_review_request(
         and not branch_behind
         and mergeable != "CONFLICTING"
         and not current_head_review
-        # Only reactions tied to THIS head gate candidacy. Reactions carry no
-        # commit SHA, so an earlier-head reaction persists across pushes; gating
-        # on the raw `reactions` would let it suppress the new head's window
-        # forever. `associated_reactions` is the current-head-scoped subset.
         and not associated_reactions
         and not human_stop_required
         and check_state["gate_state"] == "pending"

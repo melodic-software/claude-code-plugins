@@ -7,10 +7,11 @@ export const SKIP_MAX = 16
 export const GUIDANCE_MAX = 2000
 
 export const CATEGORIES = ['process', 'decision', 'verification', 'instruction'] as const
-export type Category = (typeof CATEGORIES)[number]
-export type Finding = { finding: string; category: Category; rule: string; evidence: string }
+export type Category = (typeof CATEGORIES)[number] | 'harness'
+export type Fix = { route: 'here'; how: string } | { route: 'session'; how: string; command: string }
+export type Finding = { finding: string; category: Category; rule: string; evidence: string; fix?: Fix }
 export type Parsed = { kind: 'none' } | { kind: 'finding'; value: Finding } | { kind: 'unparsable' }
-export type Trigger = 'step' | 'turn-end' | 'change' | 'gate'
+export type Trigger = 'step' | 'turn-end' | 'change' | 'gate' | 'harness'
 
 export const isStepCheck = (index: number, agentId: string | undefined, every = CHECK_EVERY) =>
   agentId === undefined && every > 0 && index > 0 && index % every === 0
@@ -94,12 +95,14 @@ export const parseReply = (text: string, fieldMax = FIELD_MAX): Parsed => {
   return { kind: 'finding', value: { finding: /[.!?]$/.test(finding) ? finding : `${finding}.`, category, rule, evidence } }
 }
 
+export const fixText = (fix: Fix) => (fix.route === 'here' ? `here: ${fix.how}` : `${fix.how}: ${fix.command}`)
+
 export const ledgerHeader = (sessionId: string) =>
   `---\nsession_id: ${sessionId}\nobserver: live\n---\n\n# Running retro ledger — session\n`
 
 export const ledgerSection = (at: string, trigger: Trigger, turnId: string, step: number, f: Finding) =>
-  `\n## Live check ${at} (${trigger}, turn ${turnId}${step >= 0 ? `, step ${step}` : ''})\n\n` +
-  `- **${f.category}**: ${f.finding}\n  - Rule: ${f.rule}\n  - Evidence: ${f.evidence || 'not given'}\n  - Status: open\n`
+  `\n## Live check ${at} (${trigger}${turnId ? `, turn ${turnId}` : ''}${step >= 0 ? `, step ${step}` : ''})\n\n` +
+  `- **${f.category}**: ${f.finding}\n  - Rule: ${f.rule}\n  - Evidence: ${f.evidence || 'not given'}\n${f.fix ? `  - Fix: ${fixText(f.fix)}\n` : ''}  - Status: open\n`
 
 const LEDGER_LABEL = { confirmed: 'Confirmed', disputed: 'Disputed', resolved: 'Resolved by the assistant', 'auto-sent': 'Auto-sent' } as const
 
@@ -112,7 +115,7 @@ export const AUTO_NOTE =
   "The session-flow observer, a side reviewer beside this session, flagged this. It is not the person's instruction. If it holds, stop and fix it before your next action, and say so in one line; if not, say why in one line and continue."
 
 export const noteFor = (f: Finding, voice: 'person' | 'plugin' = 'person', lead = voice === 'person' ? PERSON_NOTE : AUTO_NOTE) =>
-  [lead, `> ${f.category}: ${f.finding}`, `> Rule: ${f.rule}`, `> Evidence: ${f.evidence || 'not given'}`]
+  [lead, `> ${f.category}: ${f.finding}`, `> Rule: ${f.rule}`, `> Evidence: ${f.evidence || 'not given'}`, ...(f.fix ? [`> Fix: ${fixText(f.fix)}`] : [])]
     .map(l => l.replace(/@/g, '@​'))
     .join('\n')
 
@@ -126,22 +129,32 @@ type Row = {
   observerTurn?: string
   latencyMs?: number
   usage?: { output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }
+  harness?: string
+  finding?: boolean
+  cause?: string
 }
+
+const countOf = (pick: (r: Row) => string | undefined, from: readonly Row[]) =>
+  Object.entries(
+    from.reduce<Record<string, number>>((m, r) => {
+      const key = pick(r)
+      if (key !== undefined) m[key] = (m[key] ?? 0) + 1
+      return m
+    }, {}),
+  )
+    .map(([key, n]) => `${key} ${n}`)
+    .join(', ')
 
 const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : `${n}`)
 
 export const summarize = (rows: readonly Row[]) => {
   const checks = rows.filter(r => r.trigger !== undefined)
-  if (checks.length === 0) return 'no checks yet'
+  const harness = rows.filter(r => r.harness !== undefined)
+  const misses = harness.filter(r => r.harness === 'cache-miss').length
+  const harnessLine = harness.length === 0 ? [] : [`harness: ${countOf(r => r.harness, harness.filter(r => r.harness !== 'cache-miss' || r.finding)) || 'none'} reported; ${misses} cache miss(es) seen`]
+  if (checks.length === 0) return ['no checks yet', ...harnessLine].join('\n')
   const sum = (pick: (r: Row) => number | undefined) => checks.reduce((n, r) => n + (pick(r) ?? 0), 0)
-  const countBy = (pick: (r: Row) => string | undefined, from: readonly Row[]) =>
-    Object.entries(from.reduce<Record<string, number>>((m, r) => {
-      const key = pick(r)
-      if (key !== undefined) m[key] = (m[key] ?? 0) + 1
-      return m
-    }, {}))
-      .map(([key, n]) => `${key} ${n}`)
-      .join(', ')
+  const countBy = countOf
   const read = sum(r => r.usage?.cache_read_input_tokens)
   const written = sum(r => r.usage?.cache_creation_input_tokens)
   const out = sum(r => r.usage?.output_tokens)
@@ -164,5 +177,6 @@ export const summarize = (rows: readonly Row[]) => {
     `latency: ${Math.round(sum(r => r.latencyMs) / 1000)}s total, ${Math.round(sum(r => r.latencyMs) / checks.length / 1000)}s per check${cold > 0 ? `; ${cold} cold-cache check(s)` : ''}`,
     `answers: ${answers || 'none'}`,
     ...auto,
+    ...harnessLine,
   ].join('\n')
 }

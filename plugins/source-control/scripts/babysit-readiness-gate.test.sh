@@ -28,9 +28,9 @@ mkjson() {
 
 help_out=$(bash "$GATE" --help 2>&1)
 assert_exit "--help exit 0" 0 "$?"
-assert_contains "--help describes the gate" "$help_out" "readiness pre-gate"
+assert_contains "--help describes the gate" "$help_out" "block readiness"
 assert_contains "--help documents the env-var override" "$help_out" "FETCH_COMMENTS_OWNER"
-assert_contains "--help documents --repo" "$help_out" "--repo owner/repo"
+assert_contains "--help documents --repo" "$help_out" "--repo <owner/repo>"
 
 bash "$GATE" 123 --bogus >/dev/null 2>&1
 assert_exit "unknown flag exit 3" 3 "$?"
@@ -153,9 +153,6 @@ assert_contains "self-classification -> READINESS_OK" "$r" "READINESS_OK"
 bash "$GATE" 123 --comments-json >/dev/null 2>&1
 assert_exit "--comments-json missing arg exit 3" 3 "$?"
 
-# --- Case: portable whole-word matching, no \b (BSD grep) --------------------
-# BSD grep on macOS does not support the `\b` escape; the gate must use POSIX
-# `-w` whole-word matching, which works on GNU + BSD.
 GATE_BODY=$(cat "$GATE")
 if [[ "$GATE_BODY" == *'grep -owE'* ]]; then
   pass "portability: uses POSIX grep -ow whole-word matching"
@@ -163,14 +160,6 @@ else
   fail "portability: uses POSIX grep -ow" "present" "missing"
 fi
 
-# --- Case: PYTHONUTF8=1 exported before invoking babysit_python (#597) --------
-# Matches the convention the scripts/ babysit wrappers already apply
-# (source-control-babysit-merge, source-control-babysit-resolve-thread): this
-# gate is the third babysit_python caller and the one that parses
-# fetch-all-pr-comments.sh-shaped JSON, which commonly carries non-ASCII bytes
-# (bot badges, reaction emoji) that choke a Python code path relying on the
-# interpreter's default I/O encoding on Windows (cp1252) instead of pinning
-# encoding="utf-8" itself.
 if [[ "$GATE_BODY" == *'export PYTHONUTF8=1'* ]]; then
   pass "#597: exports PYTHONUTF8=1"
 else
@@ -295,14 +284,6 @@ r=$(run_gate "$F")
 assert_contains "out-of-range [P-num] -> findings=0" "$r" "findings=0"
 assert_contains "out-of-range [P-num] -> OK" "$r" "READINESS_OK"
 
-# --- Case: #465 lifetime findings in resolved/outdated threads are discounted -
-# A severity marker carried in a thread GitHub reports resolved or outdated is a
-# lifetime artifact of an already-addressed round, not a live finding. The shared
-# Python classifier (babysit_findings.py) discounts it (open-state aware) so a
-# fully-classified PR with re-review history does not false-BLOCK. The bash
-# degrade cannot see thread state and counts lifetime markers, so this enriched
-# behavior is asserted only when a Python 3.11+ interpreter is present -- the same
-# path the gate itself prefers. Three lifetime markers, only one open: findings=1.
 probe_py() {
   "$@" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 11) else 1)' \
     >/dev/null 2>&1
@@ -472,12 +453,6 @@ assert_exit "live-fetch-failure exit 4" 4 "$fetch_rc"
 fetch_err=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>&1 1>/dev/null)
 assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FETCH_COMMENTS_OWNER"
 
-# --- READINESS_UNPROVEN: no exit path leaves stdout without a verdict --------
-# A stderr-only failure path shows a caller that greps stdout for a verdict
-# NOTHING, which reads identically to a run that was never attempted — the
-# ambiguity that lets a blocked gate be reported as readiness (#787). Every
-# non-verdict exit must carry the fail-closed third token.
-
 verdict_lines() { printf '%s\n' "$1" | grep -c '^READINESS_' || true; }
 
 unp_out=$(bash "$GATE" 123 --bogus 2>/dev/null)
@@ -522,12 +497,6 @@ unp_out=$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' \
 assert_contains "missing-checklist stdout carries UNPROVEN" "$unp_out" \
   "READINESS_UNPROVEN reason=bad-args pr=789"
 
-# A checklist that exists but cannot be READ is UNPROVEN, never clean. grep exits
-# 1 for "no match" and 2 for a read error; `|| true` collapsed both to an empty
-# count that normalized to zero unticked boxes, so an I/O error reported
-# `checklist=clean` — a fail-open in the merge gate. The error is injected with a
-# grep stub because no file mode reproduces it everywhere: a root CI container
-# reads a 000-mode file, and Windows ignores the mode entirely.
 BADGREP_BIN="$TEST_TMPDIR/bin-badgrep"
 mkdir -p "$BADGREP_BIN"
 REAL_GREP=$(command -v grep)
@@ -560,11 +529,6 @@ ok_out=$(PATH="$BADGREP_BIN:$PATH" bash "$GATE" 791 --comments-json "$F" --self 
   --checklist "$CK2" 2>/dev/null)
 assert_contains "badgrep stub leaves a readable checklist clean" "$ok_out" "checklist=clean"
 
-# The jq prerequisite is asserted at the source, not by nuking PATH: a PATH that
-# hides jq also hides the interpreter (both live in the same bin dir on the CI
-# image), so the subprocess would report its own 127 rather than the gate's
-# verdict. Assert instead that the jq check routes through unproven — the same
-# source-level contract style as the POSIX-matching assertion above.
 assert_contains "jq prerequisite emits UNPROVEN prereq-missing" "$GATE_BODY" \
   "unproven prereq-missing 4"
 bare_exits=$(grep -cE '^[[:space:]]*exit [34]$' "$GATE" || true)
@@ -711,9 +675,7 @@ assert_contains "--help documents READINESS_UNPROVEN" "$help_out" "READINESS_UNP
 help_verdicts=$(verdict_lines "$help_out")
 assert_eq "--help emits no verdict line" 0 "$help_verdicts"
 
-assert_contains "--help still reaches the end of the header" "$help_out" \
-  "reason=prereq-missing|fetch-failed|comments-unreadable"
-assert_not_contains "--help never spills code past the header" "$help_out" \
-  "set -uo pipefail"
+assert_contains "--help lists the exit codes" "$help_out" \
+  "or the checklist could not be read"
 
 [[ $FAILED -eq 0 ]] || exit 1

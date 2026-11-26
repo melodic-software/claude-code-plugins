@@ -42,6 +42,7 @@ plugins/docs-naming/schemas/docs-naming.schema.json	melodic-software/claude-code
 plugins/domain-driven-design/schemas/domain-driven-design.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/education/reference/config.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/education/schemas/education.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
+plugins/engineering-concepts/schemas/engineering-concepts.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/event-storming/schemas/event-storming.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/explainer-video/schemas/explainer-video.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/external-agents/schemas/external-agents.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema

@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.4] - 2026-11-26
+
+### Changed
+
+- The README and the scenarios reference name a machine side by host and platform instead of *lane*, matching the fleet plugin.
+
 ## [0.13.3] - 2026-11-24
 
 ### Fixed

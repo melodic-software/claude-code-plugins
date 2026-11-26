@@ -64,21 +64,15 @@ export function treeHash(repo) {
     const index = join(scratch, "index");
     try {
       copyFileSync(repo.index, index);
-      // The copy keeps the original's mtime, which git compares entry times against to find
-      // racily clean entries; a fresh mtime would hide a same-size edit made in that second.
       const { atime, mtime } = statSync(repo.index);
       utimesSync(index, atime, mtime);
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
     const env = { GIT_INDEX_FILE: index };
-    // An untracked nested repository is listed as `dir/`, which update-index refuses; the tree
-    // leaves it out.
     const listed = git(repo.top, ["ls-files", "-z", "--modified", "--deleted", "--others", "--exclude-standard"], env)
       .split("\0")
       .filter((path) => path !== "" && !path.endsWith("/"));
-    // A tracked file that is now a directory is listed by its old path, which update-index refuses
-    // even with --replace; its entry is removed first. A submodule entry is a directory by design.
     const nowDirs = listed.filter((path) => {
       try {
         return lstatSync(join(repo.top, path)).isDirectory();
@@ -98,7 +92,6 @@ export function treeHash(repo) {
       }
       updateIndex(repo.top, ["--force-remove"], [...removed], env);
     }
-    // --replace lets a tracked directory that is now a file drop the entries under it.
     updateIndex(
       repo.top,
       ["--add", "--remove", "--replace", "--info-only"],

@@ -44,8 +44,6 @@ $PassThru = $false
 $CheckBody = {
     $read = Get-ListenerOwner
 
-    # Folders a standard user can write to: a listener binary there can be
-    # swapped without elevation (judgment).
     $writableRoots = @($env:LOCALAPPDATA, $env:APPDATA, $env:TEMP,
         $(if ($env:USERPROFILE) { Join-Path $env:USERPROFILE 'Downloads' })) |
         Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') + '\' }

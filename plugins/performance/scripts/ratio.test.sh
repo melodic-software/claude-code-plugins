@@ -36,16 +36,11 @@ run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAI
 assert_eq "a serial run exits 0" "0" "$RUN_RC"
 assert_contains "the paired ratio is reported" "median_paired_ratio=4.00x" "$RUN_OUT"
 assert_contains "p95 is refused below its floor" "ratio_of_p95=REFUSED(n=4<20)" "$RUN_OUT"
-# A gate that can be quietly relaxed is not a gate.
 # discriminating-skip-required: without this assertion a lowered floor is
 # indistinguishable in the report from a ratio drawn from a full sample set.
 assert_contains "a lowered floor records itself on the reported line" \
   "OVERRIDE: min_pairs=4 (default 20)" "$RUN_OUT"
 
-# --- 1b. the headline ratio has a floor of its own ---
-# Two IDENTICAL arms measured on this class of host spread 0.78x to 17.12x at
-# five pairs. A median of a handful of ratios is a number the data does not
-# support, and this line already refuses two weaker statistics.
 # discriminating-skip-required: the minimum-pairs refusal is the only thing this
 # case proves.
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1
@@ -55,9 +50,6 @@ assert_contains "the headline ratio is refused by name" \
 assert_not_contains "no ratio is printed below the floor" "median_paired_ratio=4.00x" "$RUN_OUT"
 assert_contains "the raw per-pair ratios replace it" "raw per-pair ratios:" "$RUN_OUT"
 assert_contains "the refusal cites the measured spread" "0.78x to 17.12x" "$RUN_OUT"
-# The SUBORDINATE ratios are gated by the same floor. Gating only the headline
-# left two quotable numbers beside an honest one, which is the same defect
-# wearing a smaller label.
 # discriminating-skip-required: without these two assertions an ungated
 # ratio_of_p50 can still be quoted off a line whose headline is refused.
 assert_contains "ratio_of_p50 is refused below the floor too" \
@@ -70,10 +62,6 @@ else
   pass "no numeric subordinate ratio prints below the floor"
 fi
 
-# --- 1c. a zero denominator is refused, never clamped to 1ms ---
-# `max(percentile(new, p), 1.0)` turned an arm the clock could not resolve into
-# a 1ms denominator and manufactured a ratio out of the clamp. That is where a
-# 12.08x between two identical arms actually came from.
 # discriminating-skip-required: this case is the only cover for the clamp.
 write_samples "$WORK/subms" 0 0 0 0
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/subms" BENCH_CONC=1 BENCH_MIN_PAIRS=1
@@ -92,15 +80,7 @@ else
   pass "a clamped ratio is never printed"
 fi
 
-# --- 1d. paired median and ratio-of-p50 disagreeing is flagged ---
-# The docstring predicts a drift spike moves one and not the other. Predicting
-# it is not enough: the reader cannot tell which number is the noise.
 # discriminating-skip-required: the disagreement flag has no other cover.
-# The two statistics only diverge when the PAIRING carries information the
-# per-arm percentiles throw away. Here each arm has the identical distribution
-# (so ratio_of_p50 is 1.00x) while every pair is lopsided in alternating
-# directions (so the paired median is ~50x). That is the drift shape the
-# docstring predicts, reproduced deterministically.
 write_samples "$WORK/dis_old" 100 1 100 1
 write_samples "$WORK/dis_new" 1 100 1 100
 run_ratio BENCH_OLD="$WORK/dis_old" BENCH_NEW="$WORK/dis_new" BENCH_CONC=1 BENCH_MIN_PAIRS=1
@@ -111,7 +91,6 @@ assert_contains "the flag says which number to trust" "Trust the paired median" 
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAIRS=4
 assert_not_contains "agreeing ratios are not flagged" "DISAGREEMENT:" "$RUN_OUT"
 
-# --- 2. concurrency SUPPRESSES the ratio ---
 # discriminating-skip-required: this case is the whole proof that the
 # concurrency suppression exists.
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=4
@@ -134,10 +113,6 @@ run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/zeros" BENCH_CONC=1
 assert_eq "an all-zero comparison arm is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the clock resolution" "clock resolution" "$RUN_OUT"
 
-# --- 6. a spliced row is refused HERE, not only in summarize.py ---
-# This file promises that a caller invoking it directly cannot lose the
-# concurrency suppression. A row guard living only in its sibling would be a
-# hole in exactly that promise, and a spliced row parses as a plausible number.
 # discriminating-skip-required: nothing else here proves the row shape is
 # enforced by this file rather than inherited from its caller.
 printf '120\n130 0\n' >"$WORK/spliced"
@@ -148,12 +123,6 @@ assert_contains "the refusal names the concurrent-append cause" "concurrent appe
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAIRS=lots
 assert_eq "a non-integer BENCH_MIN_PAIRS is refused" "2" "$RUN_RC"
 
-# --- 8. the disagreement check inspects EVERY printed ratio, not just p50 ---
-# A tail spike in one arm moves ratio_of_p95 while the paired median and
-# ratio_of_p50 both sit at 1.00x. Excluding p95 from the check would leave a
-# quotable 5.95x beside two 1.00x figures with nothing saying they disagree: a
-# statistic excluded from the check is a statistic that can be quoted while the
-# rest of the line silently contradicts it.
 # discriminating-skip-required: this is the only case covering p95 in the
 # disagreement check; without it the flag can regress to p50-only and every
 # other assertion here still passes.

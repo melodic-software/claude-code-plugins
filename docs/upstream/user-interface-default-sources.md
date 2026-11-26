@@ -4,10 +4,10 @@ The `user-interface` plugin's defaults in
 [`reference/defaults.yaml`](../../plugins/user-interface/reference/defaults.yaml) take their
 number, in order, from the course record ([`aiforui-course.md`](aiforui-course.md)), then Emil
 Kowalski's latest source ([`emilkowalski-skills.md`](emilkowalski-skills.md)), then the
-independent sources below. A key with none of these is labeled heuristic in the defaults file's
-comments. This page names, per key, the independent sources its default rests on; each source is
-read live, and the value lives only in `defaults.yaml`. A team changes any of these keys through
-its config, and a project's own tokens beat them.
+independent sources below. A key with none of these is a heuristic, listed under
+[Heuristic keys](#heuristic-keys). This page names, per key, the independent sources its
+default rests on; each source is read live, and the value lives only in `defaults.yaml`. A team
+changes any of these keys through its config, and a project's own tokens beat them.
 
 | Key | Sources |
 |---|---|
@@ -26,3 +26,16 @@ its config, and a project's own tokens beat them.
   linked, a commit to a linked file on its default branch, a revision of the linked article, or a
   new Python or GNU Coreutils release that changes the linked section. A changed source moves the
   key's default, its copies and this row together, and the change is listed for the owner.
+
+## Heuristic keys
+
+These defaults have no upstream source:
+
+- `animation.easing.in`
+- `color.subtle_mix_percent`
+- `icon.size_px` (the size ladder), `icon.label_gap_em`
+- `layout.breakout_width`, `layout.grid_track_min_width`, `layout.media_aspect_ratio`,
+  `layout.media_small`, `layout.panel_max_height`, `layout.sidebar_width`
+- `radius.l`
+- `spacing.control_padding`, `spacing.section`, the heading parts of `spacing.flow`
+- `typography.fluid_body`, `typography.fluid_scale`, `typography.fluid_max_ratio`

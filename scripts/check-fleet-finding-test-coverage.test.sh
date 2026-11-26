@@ -11,8 +11,6 @@ SCRIPT="$SELF_DIR/check-fleet-finding-test-coverage.sh"
 # shellcheck source=lib/changed-files.sh
 . "$SELF_DIR/lib/changed-files.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-vars here is what tells it (SC2154) the names are written.
 repo="" hist=""
 
 mk_tree() {
@@ -110,10 +108,6 @@ else
 fi
 rm -rf "$repo"
 
-# A FINAL BASELINE ENTRY WITH NO TRAILING NEWLINE is loaded. The hand-rolled
-# reader this replaced used a bare `while IFS= read -r`, whose last iteration
-# returns non-zero even after filling the variable, so the entry was dropped and
-# the gap it grandfathers reported as UNCOVERED.
 mk_tree repo 'uncovered-kind'
 write_collector "$repo" covered-one uncovered-kind
 write_suite "$repo" covered-one
@@ -198,8 +192,6 @@ else
 fi
 rm -rf "$repo"
 
-# Historical proof (#2656): the gate must go red against the two commits that
-# shipped the coverage gap. Point FLEET_FINDING_* at trees extracted from git.
 if changed_files::verify_base cc58cbc5 &&
   changed_files::verify_base 6f0a3110; then
   fixture_tree::build hist --sut "$SCRIPT"
@@ -238,9 +230,6 @@ if changed_files::verify_base cc58cbc5 &&
   fi
   rm -rf "$hist"
 else
-  # Historical proof-of-red must fail closed when the anchors are unavailable —
-  # scoring the skip as ok would let a shallow clone or rewritten history
-  # report green while proving nothing (#2807).
   fail "historical proof unavailable (cc58cbc5/6f0a3110 not in this clone)"
 fi
 

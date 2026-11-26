@@ -1,35 +1,4 @@
 #!/usr/bin/env bash
-# worktree-create.sh — shared worktree-creation helper (Phase A).
-#
-# Consumers:
-#   - Phase A (now): the `/worktree create` skill routes through this helper,
-#     then calls EnterWorktree(path:) on the printed path to enter the worktree.
-#   - Phase B (gated on two upstream Claude Code behaviors still being verified):
-#     the `WorktreeCreate` hook becomes a thin stdin adapter (parse `.name`) that
-#     calls this same helper.
-# The flag CLI is the stable seam both consumers share.
-#
-# Root-resolution contract, most specific first (#2610/#2612):
-#   1. an explicit --root/--root-file — a per-invocation caller decision;
-#   2. `worktreeroot.path`, read from the
-#      TARGET repository with includes on, so git's own includeIf machinery
-#      supplies per-identity and per-repository answers
-#      (reference/worktree-root-convention.md is the convention's owner doc);
-#   3. --fallback-root/--fallback-root-file — the machine-global worktree_root
-#      plugin option, which only this plugin can read and therefore ranks below
-#      the key every consumer can read;
-#   4. the plugin data directory supplied via --data-root-file, yielding
-#      <data-dir>/worktrees;
-#   5. absent all of those, the helper refuses (exit 3).
-# It never falls back to Claude Code's in-repo `.claude/worktrees/`, whose nested
-# placement is what the nesting invariant forbids. That claim is owned, measured
-# and dated in exactly one place and is not restated here:
-# skills/worktree/reference/nesting-invariant.md § "The nesting invariant, dated measurement". The data dir is
-# never read from the environment — see the resolution block.
-#
-# Output contract: on success the created worktree path is the SOLE stdout line
-# (machine-parseable); all diagnostics go to stderr.
-#
 # Exit codes:
 #   0  success — worktree created, or an existing one this session may claim
 #      reused (see "Reuse" below); path on stdout. A failed, skipped or timed-out
@@ -59,21 +28,9 @@ PROG=${0##*/}
 
 # shellcheck source=worktree-root-resolve.sh
 source "$HELPER_DIR/worktree-root-resolve.sh" || { echo "error: cannot load worktree-root-resolve.sh" >&2; exit 4; }
-# Lexical path collapse, shared inside this plugin with the worktree gates and
-# the claim helper. Sourced for worktree_path_normalize alone: the file defines
-# functions only and pulls in no library of its own.
 # shellcheck source=../hooks/worktree-path-lib.sh
 source "$HELPER_DIR/../hooks/worktree-path-lib.sh" || { echo "error: cannot load hooks/worktree-path-lib.sh" >&2; exit 4; }
 
-# --- same-drive helpers (begin) — sourced by worktree-create.test.sh for unit tests ---
-# windows_drive_letter <path> — echo the drive letter (A–Z) when <path> is
-# drive-anchored; otherwise return non-zero. Recognized shapes (#2764):
-#   - `X:/...` — git / Windows absolute
-#   - `/cygdrive/x/...` — Cygwin (unambiguous on every host)
-#   - `/x/...` — MSYS/Git Bash single-letter drive form, only when uname is
-#     MINGW*/MSYS*/CYGWIN* (same gate as landed-work.sh path_key). On POSIX a
-#     `/d/...` path is an ordinary directory and must stay inert so `/usr` is
-#     never mistaken for drive U:.
 windows_drive_letter() {
   local path="$1"
   if [[ "$path" =~ ^([A-Za-z]):(/|$) ]] || [[ "$path" =~ ^/cygdrive/([A-Za-z])(/|$) ]]; then
@@ -92,19 +49,6 @@ windows_drive_letter() {
   return 1
 }
 
-# check_same_drive <repo-toplevel> <worktree-path> — enforce the
-# same-drive-on-Windows invariant for worktree placement (#2764, #2806).
-#
-# `git worktree move` is `rename()` and cannot cross a volume boundary on
-# Windows (EXDEV / "Invalid cross-device link" / "Improper link"). Every
-# resolution rung refuses (return 3), including rung 4 — the unconfigured
-# plugin-data-dir default. Warn-and-proceed at rung 4 left unconfigured
-# cross-drive machines creating worktrees that `git worktree move` cannot
-# relocate; a non-zero exit is also the only channel that surfaces on the
-# WorktreeCreate hook path (exit-0 stderr is dropped to the debug log).
-# Inert when either path lacks a drive letter.
-#
-# Returns 0 to proceed, 3 to refuse. Caller exits on non-zero.
 check_same_drive() {
   local repo_path="$1" wt_path="$2" repo_drive wt_drive
   repo_drive=$(windows_drive_letter "$repo_path") || return 0
@@ -125,13 +69,7 @@ is the per-repository remedy:
 EOF
   return 3
 }
-# --- same-drive helpers (end) ---
 
-# run_capped <seconds> <command...> — run <command> in the background and stop
-# waiting after <seconds>: return its status, or kill it and return 124 at the
-# cap. Polls with `kill -0` because `timeout` is not on macOS by default. `set -m`
-# starts the command in its own process group, so the cap kills the whole group
-# (npm's lifecycle scripts included), not just the top pid; setsid is not on macOS.
 run_capped() {
   local cap="$1" pid ticks=0
   shift
@@ -335,9 +273,6 @@ remove_input_files_on_exit() {
   done
 }
 
-# need_value <flag> — guard against a value-taking flag given as the last token
-# with no argument. Without this, `shift 2` on a single remaining positional
-# fails and leaves $# unchanged, spinning the loop forever.
 need_value() {
   if [[ $# -lt 2 ]]; then
     printf '%s: %s requires a value\n' "$PROG" "$1" >&2
@@ -431,28 +366,6 @@ if ((fallback_root_given && fallback_root_file_given)); then
   exit 2
 fi
 
-# --root-file: read the root from the file rather than a process argument. This
-# is the out-of-band handoff a skill uses when it cannot place the
-# raw-substituted ${user_config.worktree_root} value in shell source safely (see
-# the --root-file usage text above) — the file's bytes are the root (or, when
-# unset, the literal unexpanded ${user_config...} token), placed there through a
-# non-shell channel so no expansion, quote-processing, or heredoc-delimiter
-# matching touches it before it lands here.
-#
-# The whole file is the value, byte for byte: a single quote, `$`, or a backtick
-# passes through unchanged, and no line terminator is assumed or stripped. A
-# newline anywhere — trailing included — is therefore a rejection, not a trim.
-# Reading a "first line" instead would silently proceed with a root the caller
-# never asked for, and a trailing newline is indistinguishable from a root whose
-# own last byte is a newline, so neither can be forgiven without guessing.
-# read_path_file <flag-name> <path> — read a path a caller handed over out-of-band
-# through a file, with every byte intact, into the global PATH_FILE_VALUE. Shared
-# by --root-file and --data-root-file so the second channel cannot drift from the
-# first's guards. Exits 2 on anything that is not a usable single-line path.
-#
-# Assigns to a global rather than echoing: the guards below must terminate the
-# SCRIPT, and an `exit` inside a `$( )` capture kills only the subshell — the
-# caller would sail on with an empty root. Verified, not assumed.
 read_path_file() {
   local flag="$1" file="$2" value
   PATH_FILE_VALUE=""
@@ -460,11 +373,6 @@ read_path_file() {
     printf '%s: %s not found: %s\n' "$PROG" "$flag" "$file" >&2
     exit 2
   fi
-  # A NUL byte has to be caught BEFORE the value reaches a shell variable: command
-  # substitution drops NULs (with a warning on stderr the caller may never see),
-  # which would turn `/root-<NUL>suffix` into `/root-suffix` and create a worktree
-  # at a path nobody supplied. Compare the byte count with and without NULs rather
-  # than matching on one, since the variable can never hold it.
   if (($(wc -c <"$file") != $(tr -d '\000' <"$file" | wc -c))); then
     printf '%s: %s %s contains a NUL byte; the file holds the path verbatim and no pathname can contain NUL\n' \
       "$PROG" "$flag" "$file" >&2
@@ -492,12 +400,6 @@ if ((fallback_root_file_given)); then
   fallback_root="$PATH_FILE_VALUE"
 fi
 
-# Validate the name up front against the EnterWorktree schema: max 64 chars, and
-# each '/'-separated segment contains only letters, digits, dots, underscores,
-# and dashes. Reject invalid names loudly (exit 2) here rather than let
-# `git worktree add` fail opaquely downstream. The directory slug always comes
-# from the name; the branch is the name unless worktree_branch_naming derives
-# one (see "Branch naming" below).
 if ((${#name} > 64)); then
   printf '%s: --name %q exceeds 64 characters\n' "$PROG" "$name" >&2
   exit 2
@@ -507,50 +409,17 @@ if [[ ! "$name" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]]; then
   exit 2
 fi
 
-# Same grammar as worktree-claim.sh valid_session_id. Empty is omitted, not
-# invalid: the lock reason then carries no session token (see usage). A value
-# outside this class could break the `session <id> since` match, so refuse
-# before creating anything.
 if [[ -n "$session_id" ]] && [[ ! "$session_id" =~ ^[A-Za-z0-9._:-]{1,128}$ ]]; then
   printf '%s: --session-id must match ^[A-Za-z0-9._:-]{1,128}$\n' "$PROG" >&2
   exit 2
 fi
-# The remaining name check — git's own ref grammar — needs a healthy repository
-# to run in, so it waits until $toplevel is resolved below.
 
-# root_is_unset <value> — an empty value or an unexpanded ${user_config.*}
-# token (what Claude Code leaves when the key is unset) counts as unset. Shared
-# by the explicit root and the fallback root so the two channels cannot drift.
-#
-# SC2016: the single-quoted ${user_config token is matched literally on purpose —
-# we are detecting the UNexpanded placeholder, so expansion here would be a bug.
+# The ${user_config token is matched literally: the unexpanded placeholder is what is detected.
 # shellcheck disable=SC2016
 root_is_unset() {
   [[ -z "$1" || "$1" == *'${user_config'* ]]
 }
 
-# canonicalize_root <value> <source-label> — apply the two Windows-path guards
-# every root source must pass through, whichever rung supplied it, into the
-# global CANONICAL_ROOT. A global, not an echo: the drive-relative refusal must
-# terminate the SCRIPT, and an exit inside a $( ) capture kills only the subshell.
-#
-# 1. Canonicalize a Windows backslash root to the forward-slash grammar git
-#    emits. On a Windows shell `\` is a path separator `git worktree add`
-#    resolves, but the containment guard below cannot: the ancestor walk splits
-#    on `/`, so an all-backslash `${probe%/*}` never changes (parent == probe),
-#    the loop breaks on its first iteration, and the whole guard block is
-#    skipped — a backslash root then sails through and git lands the checkout
-#    inside the repo/.git. Swapping `\`→`/` up front routes a backslash root
-#    through the SAME anchor + worktree_path_normalize + walk as a fwd-slash root
-#    (one code path, not a parallel one). Gated to Windows shells via $OSTYPE —
-#    off-Windows `\` is a legal filename byte and must be left untouched.
-#    (cygpath is intentionally avoided: it resolves relative paths against the
-#    CWD, not $toplevel, and rewrites MSYS `/tmp` paths — both diverge from this
-#    helper's contract; a pure separator swap defers all resolution to the
-#    existing machinery.)
-# 2. Reject drive-relative roots (`C:foo` with no separator after the colon).
-#    Git for Windows resolves them against the drive's per-directory CWD, which
-#    bypasses the containment ancestor walk (#962).
 canonicalize_root() {
   local value="$1" source="$2"
   if [[ "$value" == *\\* && ("$OSTYPE" == msys || "$OSTYPE" == cygwin) ]]; then
@@ -579,26 +448,8 @@ if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   exit 4
 fi
 
-# Rung 2 (#2610): worktreeroot.path — the machine truth for worktree
-# placement, readable by anything that can run `git config --get`, and the
-# layer where git's own includeIf machinery supplies per-identity and
-# per-repository answers (#2612). Owner doc:
-# reference/worktree-root-convention.md. Resolution lives in
-# worktree-root-resolve.sh so every consumer shares last-wins and empty-last
-# fallthrough.
-#
-# Three reading rules, each load-bearing:
-#   * Read from $toplevel — the TARGET repository — so an includeIf condition
-#     evaluates against that repository's gitdir, never this process's CWD.
-#   * NO scope flag. git-config(1): includes default OFF "when a specific file
-#     is given (e.g., using --file, --global, etc)" and ON when searching all
-#     files. A scoped read silently skips every includeIf, which is the
-#     per-identity layer working by accident or not at all.
-#   * The dubious-ownership gate is the successful `rev-parse --show-toplevel`
-#     above: under dubious ownership (safe.directory) that resolution FAILS
-#     (exit 4 above), so this read can never mistake the global default for the
-#     repository's answer — the silent rc=0 fallback the convention doc warns
-#     about.
+# No scope flag: git-config(1) turns includes off when a specific file is given:
+# https://git-scm.com/docs/git-config
 if ((root_unset)); then
   worktree_root_resolve "$toplevel" || true
   if [[ -n "${WORKTREE_ROOT_VALUE:-}" ]]; then
@@ -610,48 +461,18 @@ if ((root_unset)); then
   fi
 fi
 
-# Rung 3: the machine-global plugin option, handed over as --fallback-root or
-# --fallback-root-file. Below the git key on purpose: the key is per-repo capable
-# and readable by every consumer; the option is machine-wide and plugin-only.
 if ((root_unset)) && ! root_is_unset "$fallback_root"; then
   canonicalize_root "$fallback_root" --fallback-root
   root="$CANONICAL_ROOT"
   root_unset=0
 fi
 
-# Rung 4: the plugin's own data directory, delivered by the caller through
-# --data-root-file.
-#
-# The value cannot be read from the environment here. In a general Bash-tool
-# subprocess — which is what every caller of this helper runs in — CLAUDE_PLUGIN_DATA
-# is not scoped to the invoking plugin; the repository's probe recorded it naming an
-# unrelated installed plugin's data directory (docs/extensibility-contract-smoke-tests.md,
-# Test B). It IS reliable inside a plugin's own declared command, so a future
-# WorktreeCreate hook passes it as a --root process argument instead.
-#
-# What the skill CAN do is substitute ${CLAUDE_PLUGIN_DATA} into its own SKILL.md
-# body, where it renders per-plugin (same probe, Test D), and hand the rendered
-# value over through the existing non-shell file channel. That is this flag.
-#
-# A repository-derived default was considered and rejected: a sibling of the
-# checkout lands inside a repository-discovery tree under a layout like
-# <root>/github.com/<owner>/<repo>, where `ghq list` then enumerates each worktree
-# as a repository of its own (a leading dot does not hide it) — the very pollution
-# the worktree skill tells users to keep their configured root clear of.
-#
-# Fail-closed by construction: if substitution ever regresses, the file carries the
-# literal token, which is detected below and refused rather than turned into a
-# relative path inside the repository. The containment guard further down still
-# validates whatever root wins.
 if ((root_unset)); then
   data_root=""
   if ((data_root_file_given)); then
     read_path_file --data-root-file "$data_root_file"
     data_root="$PATH_FILE_VALUE"
-    # A caller whose substitution did not fire hands over the literal token. That
-    # is not a directory, and treating it as one would create `${CLAUDE_PLUGIN_DATA}`
-    # as a relative path in the repository — the nesting this helper exists to
-    # prevent. Detect it and fall through to the refusal below.
+    # A caller whose substitution did not fire hands over this literal token, matched as text.
     # shellcheck disable=SC2016
     [[ "$data_root" == *'${CLAUDE_PLUGIN_DATA'* ]] && data_root=""
   fi
@@ -680,31 +501,11 @@ EOF
 
   root="${data_root%/}/worktrees"
   printf '%s: worktree_root is not configured; defaulting to %s\n' "$PROG" "$root" >&2
-  # SC2016: the backticks are literal markdown in guidance text, not a command
-  # substitution — expansion is exactly what must NOT happen here.
+  # The backticks are literal markdown in guidance text, not a command substitution.
   # shellcheck disable=SC2016
   printf '%s: set the plugin'\''s `worktree_root` directory key to place worktrees elsewhere.\n' "$PROG" >&2
 fi
 
-# --- Branch naming ---------------------------------------------------------------
-# worktree_branch_naming in the repository's tracked
-# docs/conventions/source-control.yaml picks how the new branch is named from
-# --name; reference/config-resolution.md "YAML keys" owns the values:
-#   verbatim (default)    the branch is --name itself;
-#   conventional-commits  <type>/<description>. Only a `/` marks a type: the first
-#                         segment, matched in any case, is a Conventional Commits
-#                         type, an alias of one, or an entry of
-#                         worktree_branch_extra_prefixes, and the rest is the
-#                         description. Any other name goes whole under
-#                         worktree_branch_default_type (default chore).
-# A value the helper cannot use, an untracked file, or a YAML the parser rejects
-# keeps the name verbatim with a note on stderr, and so does a name that
-# sanitizes to nothing. A configuration error never refuses a worktree: the
-# WorktreeCreate hook has no fallback, so a refusal would fail every isolated
-# spawn in the repository. The derivation is many-to-one (feat/x and feature/x),
-# so a second name can meet its branch checked out elsewhere; "Reuse" below
-# refuses that, naming the holder. --existing-branch names a branch that already
-# exists, so it is never derived.
 CONVENTION_YAML_REL="docs/conventions/source-control.yaml"
 branch_naming="verbatim"
 branch_default_type="chore"
@@ -755,10 +556,6 @@ read_branch_naming() {
   fi
 }
 
-# branch_ref_segment <text> — <text> as one ref-safe segment, into the global
-# BRANCH_SEGMENT (a global, so no subshell is forked): every character outside
-# [A-Za-z0-9._-], `/` included, becomes `-`; runs of `.` and of `-` collapse;
-# leading and trailing `-`, `.` and `_` go; then a trailing `.lock` goes.
 branch_ref_segment() {
   local s="${1//[^A-Za-z0-9._-]/-}"
   while [[ "$s" == *..* ]]; do s="${s//../.}"; done
@@ -818,27 +615,6 @@ if ((!existing_branch)); then
   fi
 fi
 
-# Second half of name validation: the character class checked above is NOT a
-# subset of git's ref grammar, so it alone cannot uphold the exit-2-for-an-
-# invalid-name contract. `feat/foo..bar` (`..`), `.foo` and `feat/.` (component
-# starting/ending with `.`), `foo.lock` (reserved suffix), `HEAD`, and `-lead`
-# all sit inside the class yet are illegal refs, and would otherwise fail inside
-# `git worktree add` as environment exit 4 — which a caller cannot tell from a
-# genuinely broken environment. Ask git rather than reimplementing its rules.
-#
-# Runs HERE, not beside the character check, and scoped with `-C "$toplevel"`:
-# `--branch` takes a branchname-shorthand and so performs repository discovery,
-# which fails outright when the process's CWD is a stale checkout (a `.git` file
-# naming a gitdir that no longer exists — precisely what this plugin's own
-# worktree cleanup deals with). Inheriting that CWD would turn a perfectly valid
-# name into a false exit 2, and the documented invocation omits `--repo-dir`, so
-# the CWD is the default. Deferring past the exit-4 repository probe guarantees a
-# healthy repo to run in and makes a non-zero exit mean the NAME, nothing else.
-# Both streams are discarded: on success `--branch` echoes the name to stdout,
-# which would corrupt the sole-stdout-line output contract, and on failure git's
-# message is superseded by ours. An option-shaped name is read as a ref because
-# git parses no further options after `--branch`. A derived branch is checked
-# instead of the name, since it is the one git will create.
 if ! git -C "$toplevel" check-ref-format --branch "$branch" >/dev/null 2>&1; then
   if [[ "$branch" == "$name" ]]; then
     printf '%s: --name %q is not a valid git branch name (see: git help check-ref-format)\n' "$PROG" "$name" >&2
@@ -849,19 +625,10 @@ if ! git -C "$toplevel" check-ref-format --branch "$branch" >/dev/null 2>&1; the
   exit 2
 fi
 
-# parse_owner_repo <url> — derive an `owner<TAB>repo` pair from a remote URL for
-# the directory name. Sets globals `owner` and `repo`. Handles the shapes we see:
-#   git@host:owner/repo.git · https://host/owner/repo.git · ssh://git@host/owner/repo
-#   GitLab subgroups (group/subgroup/repo → owner=subgroup)
-#   Azure DevOps (…/org/project/_git/repo and v3/org/project/repo → owner=project)
-# It never fails: with fewer than two usable path segments, owner is left empty
-# and the caller falls back to the repo-dir name.
 parse_owner_repo() {
   local url="$1" path
   owner=""
   repo=""
-  # Reduce to the path portion. Scheme URLs (scheme://host/path) and scp syntax
-  # (git@host:path) delimit the host differently, so branch on which is present.
   path="$url"
   if [[ "$path" == *"://"* ]]; then
     path="${path#*://}" # strip scheme://
@@ -872,8 +639,6 @@ parse_owner_repo() {
   path="${path%.git}"
   path="${path%/}"
 
-  # Split into non-empty segments, dropping Azure's `_git` marker and a leading
-  # `v3` (Azure SSH) so the meaningful org/project/repo tail remains.
   local -a seg=() parts
   IFS='/' read -r -a parts <<<"$path"
   local p
@@ -915,40 +680,10 @@ else
 fi
 worktree_path="${root%/}/${dirname}"
 
-# `git -C "$toplevel" worktree add` resolves a relative target against the repo
-# top level, so a relative root (e.g. `worktrees`) always lands inside the repo.
-# Anchor it to $toplevel up front so the containment check below sees the real
-# target rather than an unrooted string whose ancestor walk never reaches the repo.
-# A drive-letter path counts as absolute only when the colon is followed by a
-# separator (`C:/foo`); `C:foo` is drive-relative and is refused above (#962).
 [[ "$worktree_path" != /* && ! "$worktree_path" =~ ^[A-Za-z]:/ ]] && worktree_path="$toplevel/$worktree_path"
 
-# Collapse `.`/`..` before the containment walk. A root with `..` after a
-# nonexistent component (e.g. `<root>/missing/../<repo>/.claude/worktrees`) would
-# otherwise defeat the walk: it stops at the nonexistent `missing` string and
-# never probes the real `<repo>` ancestor, so the guard passes and `git worktree
-# add` creates `missing`, resolves `..`, and lands the checkout inside the repo.
-# Normalizing first makes the walk see the true landing path.
 worktree_path=$(worktree_path_normalize "$worktree_path")
 
-# Reject placement inside any git repository — a working tree, a normal repo's
-# .git directory, or a bare clone. Keeping worktrees OUT of every repository is
-# the helper's core purpose — see skills/worktree/reference/nesting-invariant.md § "The nesting
-# invariant, dated measurement" for the measured claim, and note that a worktree dropped
-# inside a .git or bare directory additionally mixes the checkout into git
-# metadata, which is a separate and undisputed reason to refuse. The root
-# resolution above does not catch a root explicitly pointed inside a repository
-# (e.g. the old .claude/worktrees/ path, a root under a sibling clone, or a path
-# beneath a .git directory), so ask git about the target's location: walk up
-# from the target's parent to the nearest existing ancestor. Probing the parent,
-# never the target itself, keeps an already-created worktree at $worktree_path
-# from matching its own top level — that case is the "already exists" error
-# below. `--show-toplevel` catches work-tree ancestors (and by top-level
-# equality tells the source repo from a foreign clone);
-# `--is-inside-git-dir` catches .git and bare-repo ancestors, which have no work
-# tree and so report no top level. Both come from `rev-parse`, so the check is
-# immune to path-format differences (drive-letter spelling, symlinks) that defeat
-# a raw string prefix test.
 probe="${worktree_path%/*}"
 while [[ ! -e "$probe" ]]; do
   parent="${probe%/*}"
@@ -989,27 +724,8 @@ EOF
   fi
 fi
 
-# Same-drive-on-Windows invariant (#2764/#2806). Stated in plugin.json and the
-# containment message above; enforced here. Path-shape gate (both sides must
-# match <letter>:/) so POSIX and UNC stay inert. Every rung refuses, including
-# the unconfigured plugin-data-dir default.
 check_same_drive "$toplevel" "$worktree_path" || exit $?
 
-# --- Reuse: an existing worktree at the target, or an existing branch -----------
-# A relaunched `claude -w <name>`, and two names that derive one branch, meet a
-# worktree or branch an earlier run left. The claim rules worktree-claim.sh
-# enforces decide whether this session may take it:
-#   * a worktree at exactly the target path, on the branch this run would use, is
-#     returned as it is when its lock names --session-id, when it is unlocked (it
-#     is claimed first), or when its lock names another session that
-#     `worktree-claim.sh stale` proves stale (the claim is handed over). It is
-#     left alone: no .worktreeinclude copy over the tree's edits, no npm ci;
-#   * anything else at the target path, a live or session-less claim, or no
-#     --session-id to prove ownership with, refuses (exit 4);
-#   * an existing branch checked out in no worktree is checked out without -b,
-#     keeping its commits, and --base-ref does not apply; one checked out in
-#     another worktree refuses, naming that worktree.
-# Worktree facts are read once, only when the target or the branch exists.
 worktree_facts_read=0
 read_worktree_facts() {
   ((worktree_facts_read)) && return 0
@@ -1017,7 +733,6 @@ read_worktree_facts() {
   worktree_facts_parse_z <(git -C "$toplevel" worktree list --porcelain -z 2>/dev/null)
 }
 
-# reuse_refuse <line>... — print each line on stderr and exit 4.
 reuse_refuse() {
   local line
   for line in "$@"; do printf '%s: %s\n' "$PROG" "$line" >&2; done
@@ -1026,9 +741,6 @@ reuse_refuse() {
 
 reuse_existing_target() {
   local top i idx=-1 reason held_branch old_sid claim="$HELPER_DIR/worktree-claim.sh"
-  # git's own spelling of the target's top level is the one `worktree list`
-  # prints, on every platform. Whole-path equality, never a prefix test: a
-  # registered feat-login-form must not answer for feat-login.
   top="$(git -C "$worktree_path" rev-parse --show-toplevel 2>/dev/null)" || top=""
   if [[ -n "$top" ]]; then
     read_worktree_facts
@@ -1084,36 +796,10 @@ if git -C "$toplevel" show-ref --verify --quiet "refs/heads/$branch"; then
   done
 fi
 
-# resolve_default_remote <repo-toplevel> — echo the repository's effective
-# default remote name, or return non-zero when none can be resolved. `origin` is
-# only a convention, not a guarantee: `git clone -o upstream` produces a repo
-# with no `origin` at all, so probing that one name mistakes a healthy repo for a
-# remoteless one. Rungs, highest priority first:
-#   1. the current branch's configured remote (`branch.<name>.remote`)
-#   2. `origin`, when it exists
-#   3. the sole remote, when the repository has exactly one
-# Every rung is a NAME lookup only — the caller probes the resolved remote's
-# cached HEAD symref, so nothing here hardcodes a default branch.
 resolve_default_remote() {
   local repo_top="$1" branch cfg r
   local -a remotes=()
 
-  # Rung 1. A detached HEAD has no branch, so symbolic-ref yields nothing and
-  # this rung is skipped. Two values must not be accepted: `.` is git's sentinel
-  # for "tracks a local branch" rather than a remote name (`refs/remotes/./HEAD`
-  # is nonsense), and a name whose remote no longer exists is stale config that
-  # must not shadow a healthy `origin` below — so require it to resolve.
-  #
-  # The `--` before the name is load-bearing: `git remote get-url` takes options
-  # (`[--push] [--all] <name>`) and a remote name may legally begin with `-`
-  # (`git clone -o -foo <url>` creates exactly that, and writes it straight into
-  # `branch.<name>.remote`). Without the terminator git reads `-foo` as switches,
-  # this rung fails on a remote that is perfectly healthy, and resolution falls
-  # silently through to `origin` — the one outcome "fresh" must never produce.
-  #
-  # Every git read here is piped through `tr -d '\r'`: under git.exe on an MSYS
-  # or Cygwin shell the output carries CRLF, and an untrimmed `upstream\r` makes
-  # every downstream lookup miss while looking correct in an error message.
   branch=$(git -C "$repo_top" symbolic-ref --quiet --short HEAD 2>/dev/null | tr -d '\r')
   if [[ -n "$branch" ]]; then
     cfg=$(git -C "$repo_top" config --get "branch.$branch.remote" 2>/dev/null | tr -d '\r')
@@ -1123,19 +809,11 @@ resolve_default_remote() {
     fi
   fi
 
-  # Rung 2.
   if git -C "$repo_top" remote get-url origin >/dev/null 2>&1; then
     printf 'origin'
     return 0
   fi
 
-  # Rung 3. Exactly one remote makes the choice unambiguous whatever it is
-  # named; two or more with neither a branch-configured nor an `origin` default
-  # is a genuine ambiguity, and guessing one would be worse than the caller-
-  # visible HEAD fallback. (`checkout.defaultRemote` settles exactly that
-  # ambiguity for git's own branch-name disambiguation and is a candidate rung
-  # here; it is deliberately not consulted yet, because it would widen the
-  # resolution order beyond the one this helper's callers were specified against.)
   while IFS= read -r r; do
     r=${r%$'\r'}
     [[ -n "$r" ]] && remotes+=("$r")
@@ -1148,37 +826,14 @@ resolve_default_remote() {
   return 1
 }
 
-# FETCH_CAP_SECONDS — the cap on the default-branch fetch a `fresh` base runs,
-# the same cap Claude Code's native `fresh` uses (see refresh_remote_branch).
 FETCH_CAP_SECONDS=5
 
-# refresh_remote_branch <repo-toplevel> <remote> <branch> — bring
-# refs/remotes/<remote>/<branch> current before `fresh` bases on it: fetch the
-# default branch under the cap on every run, and keep the cached ref if the
-# fetch fails. Claude Code's native `fresh` skips the fetch when the repository
-# was fetched in the last 24 hours; this script deliberately does not, because a
-# busy default branch moves many times inside that window, and a base that
-# missed those moves is not fresh.
-#   Pointer: <https://code.claude.com/docs/en/worktrees#choose-the-base-branch>
-#   As-of: 2026-11-10.
-#   Recheck trigger: that section changes how a "fresh" base refreshes the
-#   remote default branch, the cap it names, or its fallback to local HEAD.
-#   A change to its 24-hour window does not apply here.
-# Returns 0 when the fetch succeeded, 1 when it failed or hit the cap. Prompts
-# are disabled so a credential helper cannot stall the cap waiting on input
-# nobody will type.
 refresh_remote_branch() {
   local repo_top="$1" remote="$2" branch="$3"
   GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never run_capped "$FETCH_CAP_SECONDS" \
     git -C "$repo_top" fetch --quiet --no-tags -- "$remote" "$branch" </dev/null >/dev/null 2>&1
 }
 
-# Base-ref resolution. The caller owns policy: pass --base-ref (fresh|head),
-# defaulting to fresh when omitted. Claude Code's `worktree.baseRef` lives in
-# settings.json (not git config), so the helper does not probe it — the skill
-# reads the effective setting and passes it through this flag.
-# --existing-branch checks out a branch that already exists instead of creating
-# one. It does not consult --base-ref.
 if ((existing_branch)); then
   if [[ -n "$base_ref" ]]; then
     printf '%s: --existing-branch cannot be combined with --base-ref\n' "$PROG" >&2
@@ -1201,26 +856,12 @@ else
     base_commit="HEAD"
     ;;
   fresh)
-    # Resolve the default REMOTE first, then that remote's default BRANCH
-    # symbolically (never hardcode origin/main — the portability lint forbids
-    # it), refreshing that branch first (refresh_remote_branch). When the symref
-    # is not cached locally, fall back to local HEAD (matching Claude Code's
-    # documented behavior, which is itself origin-centric; see the pointer record on refresh_remote_branch) but warn loudly: "fresh"
-    # promises the remote default branch, so a silent fall-through to HEAD could
-    # carry unpushed local commits the caller did not want.
-    #
-    # The HEAD probe deliberately does NOT cascade back down the remote rungs.
-    # "fresh" means the EFFECTIVE remote's default branch; quietly substituting a
-    # different remote's default branch is a worse failure than the HEAD
-    # fallback, because the caller cannot see it happen.
     default_remote=$(resolve_default_remote "$toplevel") || default_remote=""
     head_ref=""
     if [[ -n "$default_remote" ]]; then
       head_ref=$(git -C "$toplevel" symbolic-ref -q "refs/remotes/$default_remote/HEAD" 2>/dev/null | tr -d '\r')
     fi
     if [[ -n "$head_ref" ]]; then
-      # The symref names the default branch; `git worktree add` resolves it after
-      # the refresh, so the base is whatever the fetch left behind.
       if ! refresh_remote_branch "$toplevel" "$default_remote" "${head_ref#"refs/remotes/$default_remote/"}"; then
         printf '%s: warning: --base-ref fresh could not refresh %s within %ss (fetch failed or timed out); basing on the cached ref, which may be behind the remote.\n' \
           "$PROG" "${head_ref#refs/remotes/}" "$FETCH_CAP_SECONDS" >&2
@@ -1254,11 +895,6 @@ if git -C "$toplevel" grep -q -E -e '^[^#]*[[:space:]]filter=lfs([[:space:]]|$)'
   lfs_skipped=1
 fi
 
-# --no-track on fresh: the base is <remote>/<default>, and git would otherwise
-# record it as the new branch's upstream, so a bare `git push` fails under
-# push.default=simple and push-branch.sh, which sets -u only when no upstream
-# exists, keeps the wrong one. head stays as it was. push.default:
-# https://git-scm.com/docs/git-config#Documentation/git-config.txt-pushdefault
 if ((branch_exists)); then
   env ${checkout_env[@]+"${checkout_env[@]}"} git -C "$toplevel" worktree add "$worktree_path" "$branch" >&2
 elif [[ "$base_ref" == fresh ]]; then
@@ -1279,23 +915,6 @@ if ((lfs_skipped)); then
     "$PROG" "$worktree_path" >&2
 fi
 
-# Arm the removal guard the moment the worktree exists: a locked worktree makes
-# `git worktree remove` refuse (a single --force included) and its record
-# survives `git worktree prune`, so another session's cleanup sweep cannot
-# delete a lane's worktree mid-operation. `git status --porcelain` cannot carry
-# this signal — an interactive rebase paused at a `break` leaves it completely
-# empty — and before this helper armed it, no lane ever ran `git worktree lock`,
-# so the `locked` flag the cleanup skill already honors was structurally always
-# absent (#2257). The owning lane (or cleanup, after explicit confirmation)
-# disarms with `git worktree unlock <path>`.
-#
-# The reason speaks worktree-claim.sh's dialect. claim_reason writes
-# `session <id> since`, and reason_is_ours matches that token only. With
-# --session-id, this helper emits the same token under its own prefix so
-# check-enter for that id exits 0. Without one, the reason stays host and
-# time only: no session token, so it matches no session and check-enter
-# reports a foreign claim. Do not put the host name where the session id
-# goes; that would make every helper lock look owned by every session.
 lock_reason="$(worktree_lock_reason worktree-create.sh "$session_id")"
 lock_failed=0
 if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >&2; then
@@ -1304,17 +923,6 @@ if ! git -C "$toplevel" worktree lock --reason "$lock_reason" "$worktree_path" >
   printf '%s: lock_failed=1\n' "$PROG" >&2
 fi
 
-# This helper copies the .worktreeinclude files itself, since nothing else
-# copies them into a worktree it makes, whether the WorktreeCreate hook or the
-# skill runs it. It copies one-way only a file that is untracked (`ls-files -o`),
-# so a tracked file is never duplicated, matches a .worktreeinclude pattern
-# (`-i --exclude-from`) and is gitignored (`check-ignore -q`). It has no special
-# case for a `**/` pattern inside a wholly ignored directory, so its result can
-# differ from the native copy there.
-# NUL-delimited (`-z` / `read -d ''`) so paths with spaces, newlines, or
-# quote-triggering characters are not dropped or mangled.
-#   Pointer: when the native copy's rules matter, fetch
-#   <https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees> live.
 include_file="$toplevel/.worktreeinclude"
 copied=0
 copy_failed=0
@@ -1340,11 +948,6 @@ if [[ -f "$include_file" ]]; then
   fi
 fi
 
-# Carry `.claude/settings.local.json` from the main checkout's git common dir
-# into the new worktree. Claude Code documents worktree resolution for settings,
-# but env overrides such as `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS` only load when
-# the file is present locally — worktree sessions otherwise inherit the hook
-# defaults (#2119).
 common_dir="$(git -C "$toplevel" rev-parse --git-common-dir)"
 if [[ "$common_dir" != /* ]]; then
   common_dir="$toplevel/$common_dir"

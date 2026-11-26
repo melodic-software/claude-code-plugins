@@ -1,103 +1,4 @@
 #!/usr/bin/env bash
-# Fail when an instruction surface this repository has already purged of em
-# dashes grows a new one.
-#
-#   scripts/check-purged-em-dashes.sh            report violations, exit 1 if any
-#   scripts/check-purged-em-dashes.sh --check    same (explicit form, matches sibling gates)
-#   scripts/check-purged-em-dashes.sh --list     list every declared path and its verdict
-#
-# Exit: 0 clean, 1 a violation, a stale allowlist entry, or a declared path the
-# tracked config puts out of enforcement, 2 usage or a prerequisite this gate
-# cannot verify around.
-#
-# WHY. The de-slop campaign rewrites prose surface by surface, and each shard is
-# paid for by hand: a mechanical em-dash split changes meaning often enough that
-# a shard needs a rationale-withheld reviewer to catch clauses the automated
-# passes wave through. Without a lane enforcing the policy, nothing stops the
-# next contributor from reintroducing one.
-# A one-time purge with no gate is a purge that silently rots. This gate is the
-# ratchet: what the campaign has already cleaned stays clean.
-#
-# ALLOWLIST, NOT A REPO-WIDE RULE, and the distinction is the whole design.
-# Much of the tracked markdown still carries em-dash prose lines, so a
-# repo-wide check would fail nearly every pull request on contact and would have to be merged disabled, which is not a gate.
-# Enforcing only DECLARED-CLEAN paths inverts that: blast radius at adoption is
-# zero, because every listed path already passes. Enforcement then grows with
-# the campaign instead of waiting for it. A shard that purges a surface adds
-# its lines here in the same pull request, and the surface is defended from that
-# moment on.
-#
-# This is the same shape, and the same argument, as scripts/docs-only-paths.txt:
-# a positive list fails safe, because a path NOT listed is simply unenforced
-# rather than wrongly declared clean. The failure mode of a blocklist here would
-# be the reverse and much worse: a surface silently dropping out of enforcement
-# the day someone widened an exclusion.
-#
-# A STALE ENTRY IS A FAILURE, not a skip. An allowlist entry matching no tracked
-# file means the surface was renamed or deleted and the declaration outlived it;
-# left as a no-op, the list would accumulate dead lines and quietly enforce less
-# than it claims. That is the #1513 shape, a gate that enforces nothing and
-# still exits 0, so a zero-match entry fails, naming itself. For the same
-# reason an unreadable or entirely inactive allowlist is exit 2 rather than a
-# clean run.
-#
-# THE TRACKED DETECTOR CONFIG IS NOT MODIFIED, and must not be. This gate does
-# not touch docs/conventions/ai-slop.yaml, and running it changes nothing about
-# what /ai-slop:audit reports. It instead builds a THROWAWAY config for its own
-# detector invocation: the tracked config copied unchanged as the team layer,
-# under a personal layer that clears every switch that can quiet rule-em-dash
-# and disables every other detector rule. The
-# tracked config runs rule-em-dash at its shipped zero-tolerance default, so the
-# removal is a no-op today; it stays because the gate's verdict must never
-# depend on a config edit, in either direction. Copying rather than synthesizing
-# is deliberate: excluded_paths and every threshold stay whatever the tracked
-# file says, so the vendor and eval-fixture exclusions that exist precisely
-# because they contain em dashes as DATA keep applying here, and keep applying
-# without a second copy of that list to drift.
-#
-# THE GATE ONLY JUDGES rule-em-dash. The rest of the roster is wasted work here:
-# each enabled rule greps every declared file, and this script ignores those
-# findings. A several-hundred-file allowlist is only affordable when this invocation is a one-rule run. Slugs are read from the
-# detector's own rule tables so a newly shipped rule is disabled here without a
-# second roster to drift.
-#
-# WHAT THE THROWAWAY LAYER DOES OVERRIDE is exactly the set of keys that would
-# let a declared path pass without being judged: rule-em-dash's entry in
-# disabled_rules, em_dash_allowed_paths, and rule_allowed_paths["rule-em-dash"].
-# A path on the allowlist is a claim that the surface is purged; a per-rule
-# exemption on the same path is the opposite claim, and honoring it would let
-# the gate report the surface clean while no finding on it was ever possible,
-# because such a file is still opened and still counted as scanned.
-# excluded_paths is the one exclusion left standing, because its files are
-# never opened at all and are therefore visible in the run as declines that the
-# verdict names and fails on, rather than folded silently into the clean count.
-# A file on this allowlist that genuinely carries the character as data still
-# has the detector's in-file exemptions, an ignore marker or a code fence, and
-# failing those it belongs off the allowlist with the reason.
-#
-# REUSES THE DETECTOR RATHER THAN GREPPING. A bare grep for the em-dash byte
-# sequence would fire inside fenced code blocks, inline code spans, and
-# ignore-marked regions, all of which legitimately carry the character. Prose
-# extraction is exactly what plugins/ai-slop/skills/audit/scripts/detect.sh
-# already implements and tests, so this gate drives that script and reads its
-# findings instead of growing a second, less-tested notion of what prose is.
-#
-# LIVENESS IS ASSERTED, NOT ASSUMED. detect.sh exits 0 on every audit path by
-# design (a read-only audit must never fail its caller), so an exit code proves
-# nothing here. Worse, the failure this gate is most exposed to is silent: if the
-# throwaway config ever stopped taking effect, rule-em-dash would be disabled,
-# the detector would report no em-dash findings, and this gate would pass
-# everything forever. So the run is only believed when the detector's own summary
-# line for rule-em-dash is present AND reports disabled=0, and when the files it
-# accounts for are exactly the files handed to it. Any other shape is exit 2.
-# That second count is derived rather than added up from the two summary
-# totals, which overlap; see the comment above the arithmetic.
-#
-# Test injection, all defaulting to this repository:
-#   EM_DASH_PURGED_ROOT      repository root to scan
-#   EM_DASH_PURGED_PATHS     allowlist file (relative to the root, or absolute)
-#   EM_DASH_SLOP_CONFIG      tracked detector config to copy
-#   EM_DASH_DETECT           detect.sh to drive
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -151,25 +52,9 @@ if ((${#GLOBS[@]} == 0)); then
   exit 2
 fi
 
-# --- Expand the allowlist ---------------------------------------------------
-# `:(glob)` pathspec magic, not git's default wildmatch: without it `*` matches
-# across directory separators, so `plugins/*/README.md` would silently pull in
-# `plugins/a/b/README.md`. An allowlist whose entries claim more surface than
-# they name is a declaration nobody can audit by reading it.
-#
-# One `git ls-files -z -- "${pathspecs[@]}"` expands the union, rather than a
-# process per allowlist entry: Cygwin's fork is a non-copy-on-write Win32
-# CreateProcess (Cygwin User's Guide, Process Creation). Attribution of the
-# union back onto each glob (stale detection and `--list` counts) is in-process
-# and component-wise, so `*` cannot include `/`, the same `:(glob)` contract.
-# Live allowlist entries do not use `**`.
-
 TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
 
-# glob_matches_path <glob> <path>
-# Return 0 when <path> matches <glob> under `:(glob)` rules: split on `/`,
-# then `[[` pattern-match each component so `*` cannot swallow a slash.
 glob_matches_path() {
   local glob="$1" path="$2"
   local -a gparts pparts
@@ -182,8 +67,7 @@ glob_matches_path() {
       [[ -z "${pparts[i]}" ]] || return 1
       continue
     fi
-    # Unquoted RHS is the glob; quoting would compare literals and let `*`
-    # match across the slash we just split on. SC2053/SC2254 warn about that.
+    # The unquoted right side is a glob on purpose; quoting would compare literals.
     # shellcheck disable=SC2053,SC2254
     [[ "${pparts[i]}" == ${gparts[i]} ]] || return 1
   done
@@ -218,8 +102,6 @@ for idx in "${!UNION[@]}"; do
     BUCKET["$n|$((k + 1))|$prefix"]+=" $idx"
   done
 done
-# Any character that can start a pattern, extglob included (bash enables
-# extglob for `[[ == ]]`). A component holding one is not treated as literal.
 pattern_char='[][*?+@!(\]'
 
 stale=0
@@ -262,13 +144,8 @@ if [[ "$MODE" == list ]]; then
 fi
 
 mkdir -p "$TMP/root/docs/conventions" "$TMP/home" || exit 2
-# The detector reads a team layer only under a git working tree. GIT_DIR and its
-# siblings are unset for this call: a hook that exports one would otherwise make
-# `git init` reinitialize the repository they name.
 env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git init -q "$TMP/root" || exit 2
 
-# Table rows in detect.sh are `  "rule-<slug>|...`. Reading them from $DETECT
-# keeps this list identical to the roster the invocation will actually run.
 mapfile -t DETECT_SLUGS < <(sed -n 's/^  "\(rule-[a-z0-9-]*\)|.*/\1/p' "$DETECT")
 if ((${#DETECT_SLUGS[@]} == 0)); then
   echo "check-purged-em-dashes: could not read the detector rule roster from $DETECT" >&2
@@ -321,14 +198,6 @@ if ((enabled_rules != 1)); then
   exit 2
 fi
 
-# The detector's two counters OVERLAP, and reading them as disjoint is how this
-# assertion misfires. "files scanned" counts every file the detector opened,
-# which includes one it opened and then declined on an in-file marker; that file
-# is counted a second time under "files declined". Only a file excluded by a
-# config glob is never opened, so only that cause is missing from the scanned
-# count. Unique files handled is therefore the scanned count plus the
-# excluded-glob declines alone, and the detector names the cause on every
-# decline row, so the gate reads those rather than inferring them.
 scanned="$(sed -n 's/^Summary total: [0-9]* findings across \([0-9]*\) files scanned ([0-9]* files declined)$/\1/p' "$OUT")"
 if [[ -z "$scanned" ]]; then
   echo "check-purged-em-dashes: detector emitted no total summary; cannot confirm coverage" >&2

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-drive-root-litter.sh.
-#
-# Self-contained and cwd-independent: builds throwaway mount-root fixtures,
-# points the SUT at them through DRIVE_ROOT_LITTER_MOUNT_ROOT, and asserts on
-# exit code + output. Mutates only its own mktemp dir. Runs identically on every
-# host: the SUT's Windows branch is reached by exporting a Windows OSTYPE into
-# the child shell (an inherited OSTYPE survives bash startup), and the fixture
-# supplies the "drives", so a Linux runner exercises the DETECTION logic rather
-# than skipping it. The no-op branch is exercised with a POSIX OSTYPE the same
-# way, so both directions are covered from either host.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,22 +9,9 @@ SUT="$SCRIPT_DIR/check-drive-root-litter.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TMP=""
 fixture_tree::build TMP --label drive-root-litter
 
-# run <ostype> <mount-root|-> [args...] — sets OUT (stdout+stderr) and RC.
-# Deliberately NOT called through a command substitution: that would fork a
-# subshell and the exit code would never reach the caller.
-#
-# HERMETIC against the invoking environment: every env var the SUT reads is set
-# explicitly here. DRIVE_ROOT_LITTER_IGNORE_SINKS is a documented operator
-# opt-out an operator may export in a shell profile; inherited into these
-# invocations it would silently flip the sink-detection assertions into false
-# failures unrelated to the code under test. Empty is equivalent to unset for
-# both seams (the SUT reads them with ${...:-}). The two opt-out tests set a
-# live value per-call, on top of this baseline.
 run() {
   local ostype="$1" root="$2"
   shift 2
@@ -45,14 +22,8 @@ run() {
 
 export DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp
 
-# --- Fixtures ---------------------------------------------------------------
-# A "mount root" is what Git Bash exposes as `/`: every mounted drive appears as
-# a single-letter directory under it.
-
 mkdir -p "$TMP/clean/c/data" "$TMP/clean/d/repos" "$TMP/clean/d/worktrees"
 
-# litter: the defect's fingerprint — <drive>:\d\ , a `/d/...` literal resolved
-# against the current drive's root instead of against D:.
 mkdir -p "$TMP/litter/c/data" "$TMP/litter/d/repos"
 mkdir -p "$TMP/litter/d/d/worktrees/harness" "$TMP/litter/c/d/worktrees"
 
@@ -63,15 +34,9 @@ mkdir -p "$TMP/nodrives/usr" "$TMP/nodrives/opt"
 
 mkdir -p "$TMP/checkout/c/data" "$TMP/checkout/d/c/work/repo"
 
-# sink: the temp-sink fingerprint — C:\tmp, a POSIX /tmp literal resolved
-# against the current drive's root. The inner mktemp-named entry mirrors the
-# real instance this class was added for.
 mkdir -p "$TMP/sink/c/data" "$TMP/sink/d/repos"
 mkdir -p "$TMP/sink/c/tmp/tmp.rSFIkHm5DO"
 
-# sinkupper: the same fingerprint in uppercase — Windows filesystems are
-# case-insensitive, so C:\TMP is C:\tmp and must be caught even on the
-# case-sensitive filesystem this fixture lives on.
 mkdir -p "$TMP/sinkupper/c/data" "$TMP/sinkupper/d/repos" "$TMP/sinkupper/c/TMP"
 
 mkdir -p "$TMP/sinkcheckout/c/data" "$TMP/sinkcheckout/c/tmp/work/repo"
@@ -130,9 +95,6 @@ if grep -qi 'may have measured something other than what' <<<"$OUT"; then
 else
   fail "failure output should flag the run's results as suspect: $OUT"
 fi
-# A phantom tree can hold a REGISTERED worktree. Deleting it first strands the
-# registry entry, so the remediation text must send the reader to
-# deregistration before removal.
 if grep -qi 'registered git worktree' <<<"$OUT"; then
   ok "the remediation warns that the tree may hold a registered worktree"
 else
@@ -183,7 +145,6 @@ if ! grep -q "$TMP/sink/c/data" <<<"$OUT" && ! grep -q "$TMP/sink/d/repos" <<<"$
 else
   fail "non-sink directory reported as litter: $OUT"
 fi
-# Windows filesystems fold case, so an uppercase TMP is the same sink.
 run msys "$TMP/sinkupper"
 if ((RC == 1)) && grep -q "$TMP/sinkupper/c/TMP" <<<"$OUT"; then
   ok "an uppercase drive-root TMP is detected (case-insensitive match)"

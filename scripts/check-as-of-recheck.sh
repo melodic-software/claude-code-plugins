@@ -1,43 +1,4 @@
 #!/usr/bin/env bash
-# Check that every as-of date in a skill, agent or reference file sits in a
-# paragraph that also carries a recheck trigger.
-#
-#   scripts/check-as-of-recheck.sh          list every offender
-#   scripts/check-as-of-recheck.sh --check  same, explicit form matching the
-#                                           sibling gates (exit 1 on any offender)
-#
-# The rule (.claude/rules/skill-bodies-state-current-rules.md): a stored value,
-# a number or string copied or measured from upstream, keeps an as-of date and a
-# recheck trigger; a pointer carries neither. So an as-of date alone is always a
-# defect: either the trigger is missing or the date should not be there.
-#
-# What is read: every *.md under plugins/*/skills/, plugins/*/agents/ and
-# plugins/*/reference/, minus evals/ and fixtures/ trees, whose samples hold the
-# defect on purpose. A file scripts/shared-copies.txt lists as a generated copy
-# is read through its canonical source instead, the one file to edit.
-# docs/upstream/ is not read: the rule binds what a skill or agent loads. Those
-# records are checked by scripts/check-upstream-drift.sh (a pinned page against
-# its upstream) and /attribution:audit's check-stamps.sh (stamp expiry) instead:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-drift-check
-#
-# A paragraph is a run of non-blank lines outside a code fence; a heading, a
-# table row and a list item each stand alone. It is an offender when it holds
-# `as of YYYY-MM-DD` (also `as-of`, `As of:`, `**As of**:`, bold or italic
-# around the date, the date on the next line) and no `recheck` / `re-check`,
-# unless the very next paragraph opens with one (an `As of:` line followed by a
-# `Recheck when:` line). The stamp forms:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#required-parts
-#
-# A file with offenders fails unless scripts/as-of-recheck-baseline.txt lists it
-# as `<path> <count>` and it holds exactly <count>. A count above the baseline is
-# a new offender; a count below it, or a listed file that is gone or clean, is
-# stale. Either way the entry must be updated or removed, so the baseline only
-# shrinks.
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): one finding per line on stderr, each naming the fix first; the
-# clean-run statement on stdout. Exit: 0 clean, 1 any offender, 2 environment or
-# usage (bad argument, unreadable baseline, malformed entry, failed scan).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -96,7 +57,6 @@ fi
 
 found=""
 if ((${#files[@]} > 0)); then
-  # One `<file>\t<line>` per offending paragraph, keyed by its first line.
   found="$(LC_ALL=C awk '
     function opens_with_trigger(t) { return t ~ ("^[ \t]*(#+[ \t]*)?([-*+]|[0-9]+[.)])?[ \t]*[*_]*(" trig ")") }
     function flush(   t) {

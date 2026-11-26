@@ -142,9 +142,6 @@ assert_eq "--partial with filed" "0 - [x] four: p:q@2.0, filed https://github.co
 run four in-progress
 assert_eq "filed line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
 
-# A native jq.exe without -b writes text-mode stdout: every LF leaves as CRLF. The fake below
-# does that unless called with -b, so on a Windows platform tick.sh must pass -b to keep a
-# CRLF body byte for byte.
 mkdir -p "$TMP/textjq"
 # shellcheck disable=SC2016 # the fake's own source: its $-expansions run when it does
 {

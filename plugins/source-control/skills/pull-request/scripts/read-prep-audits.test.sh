@@ -34,14 +34,12 @@ out=$(read_doc $'pre_ready:\n  - step: verify\n    enabled: "false"\nprep_audits
 assert_eq "a quoted enabled under another key does not fail this list" \
   $'source\tconfig\nmarkdown\tdefault\nrenames\tdefault\nskills\tdefault\nrules\toff\ntests\tdefault' "$out"
 
-# The parser accepts a uniform base indent and a byte-order mark, so the text scan must too.
 RULES_ONLY_OFF=$'source\tconfig\nmarkdown\tdefault\nrenames\tdefault\nskills\tdefault\nrules\toff\ntests\tdefault'
 out=$(read_doc $'  pr_open_state: ready\n  prep_audits:\n    - class: rules\n      enabled: false\n  other: 1\n')
 assert_eq "a document indented two spaces is read" "$RULES_ONLY_OFF" "$out"
 out=$(read_doc $'\xef\xbb\xbfprep_audits:\n  - class: rules\n    enabled: false\n')
 assert_eq "a byte-order mark before the key is read" "$RULES_ONLY_OFF" "$out"
 
-# Names the reader uses inside must not be read from the environment it inherits.
 out=$(printf '' | env audit_rules=off bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
 assert_eq "an inherited audit_rules does not turn the rules audit off" $'source\tdefault\n'"$ALL_DEFAULT" "$out"
 out=$(printf 'prep_audits:\n  - class: markdown\n    enabled: true\n' | env item_0_skill=/evil:skip bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
@@ -102,7 +100,6 @@ check_fail_closed "an only, empty list item" \
 check_fail_closed "a file the parser rejects" \
   $'prep_audits:\n\t- class: rules\n' "docs/conventions/source-control.yaml does not parse: line 2: tab indentation"
 
-# The list is honored only on the default branch: any other base is one the author may have pushed unreviewed.
 RULES_OFF=$'prep_audits:\n  - class: rules\n    enabled: false\n'
 out=$(printf '%s' "$RULES_OFF" | bash "$SCRIPT" --base stack/layer-2 --default-branch main - 2>/dev/null)
 assert_eq "a base other than the default branch fails closed and runs every default audit" \
@@ -111,7 +108,6 @@ out=$(printf '%s' "$RULES_OFF" | bash "$SCRIPT" --base main --default-branch '' 
 assert_eq "an unread default branch fails closed and runs every default audit" \
   $'source\tfail-closed\tthe repository\'s default branch could not be read\n'"$ALL_DEFAULT" "$out"
 
-# A NUL byte would vanish in a shell variable, turning `fal\0se` into `false`.
 out=$(printf 'prep_audits:\n  - class: rules\n    enabled: fal\000se\n' | bash "$SCRIPT" "${ON_DEFAULT[@]}" - 2>/dev/null)
 assert_eq "a NUL byte in the document fails closed and runs every default audit" \
   $'source\tfail-closed\tthe input holds a NUL byte\n'"$ALL_DEFAULT" "$out"

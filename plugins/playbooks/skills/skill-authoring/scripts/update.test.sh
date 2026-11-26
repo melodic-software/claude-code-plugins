@@ -34,10 +34,6 @@ unknown_exit=$?
 assert_exit "unknown flag exits 2" 2 "$unknown_exit"
 assert_contains "unknown flag mentions expected modes" "$unknown_out" "expected"
 
-# --- 3. Source-guard: helpers callable when sourced ------------------------------
-
-# Sourcing installs the script's own EXIT trap (cleanup of its TMPDIR_RUN); the
-# trap set after it replaces that one and removes both directories.
 # shellcheck source=update.sh
 source "$SCRIPT" 2>/dev/null
 SOURCED_TMPDIR="$TMPDIR_RUN"
@@ -135,11 +131,6 @@ cp "$VENDOR_FILE" "$UPSTREAM_COPY"
 stub_fetch=fail
 out=$(run_check 2>&1)
 assert_exit "upstream unreachable: exit 2" 2 "$?"
-
-# --- 9. Self-update strip and vendor hazard scan (stay-loud) -------------------------
-# The vendored baseline must never carry an instruction that fetches and runs or
-# installs remote code. vendor_hazards prints each offending line; the exact
-# strip marker line is the one sanctioned mention of self-update.
 
 vendor_hazards() {
   grep -niE \

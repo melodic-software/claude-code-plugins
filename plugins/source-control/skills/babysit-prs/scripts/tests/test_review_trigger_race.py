@@ -220,16 +220,11 @@ class ReviewBotItemTests(unittest.TestCase):
         self.assertFalse(review_trigger.is_review_bot_item(item, config))
 
     def test_rest_user_typed_reviewer_is_recognized_when_declared(self) -> None:
-        # REST payloads carry `type`, not `__typename`.
         item = {"author": {"type": "User", "login": "reviewbot"}}
         self.assertTrue(
             review_trigger.is_review_bot_item(item, declared_non_structural()))
 
     def test_rest_bot_typed_reviewer_is_recognized_undeclared(self) -> None:
-        # Delegating bot-ness to `is_bot` is only safe because the REST `type`
-        # key is normalized into the `__typename` slot first -- `is_bot` reads
-        # `__typename` alone. Reactions and review comments carry only `type`,
-        # so losing that normalization would silently blind both paths.
         item = {"author": {"type": "Bot", "login": "reviewbot"}}
         self.assertTrue(review_trigger.is_review_bot_item(item, configured()))
 
@@ -367,8 +362,6 @@ class ClassifyReviewRequestTests(unittest.TestCase):
         self.assertTrue(result["request_eligible"])
 
     def test_a_head_the_snapshot_reports_behind_is_no_candidate(self) -> None:
-        # A loose base reports a behind head CLEAN; `request_review.py` rejects
-        # it live, so candidacy must not spend the window on it first (#5955).
         prior = {"review_trigger": {"missing_head_sha": HEAD,
                                     "missing_first_seen_at": "2026-07-10T00:00:00Z",
                                     "missing_observations": 1}}
@@ -389,9 +382,6 @@ class ClassifyReviewRequestTests(unittest.TestCase):
         self.assertEqual(result["missing_head_sha"], "")
 
     def test_stale_earlier_head_reaction_does_not_suppress_new_window(self) -> None:
-        # A reviewer reaction left on an earlier head carries no commit SHA,
-        # so it persists onto the new head. With no prior reaction bound to this
-        # head it is not current-head-associated and must not block candidacy.
         stale = [_reaction("1")]
         result = review_trigger.classify_review_request(
             self._pr(), self._gate(), {}, "2026-07-10T00:00:00Z",

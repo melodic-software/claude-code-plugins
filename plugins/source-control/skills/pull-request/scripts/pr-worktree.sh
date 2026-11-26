@@ -1,32 +1,23 @@
 #!/usr/bin/env bash
-# pr-worktree.sh: print the worktree that has a pull request's head branch checked out.
-#
-# The `ready` action's verify gate checks the PR's tree and records that tree's HEAD, whatever
-# checkout the session's shell sits in: a session in the main checkout running `ready <pr>` for a
-# PR built in a worktree would otherwise check the main checkout. The head branch and commit come
-# from `gh pr view`, and the worktree is the one `git worktree list` shows on that branch, matched
-# by local branch name as push-branch.sh --pr matches it, whose HEAD contains the PR's head
-# commit. A name alone can match the wrong tree, such as a fork PR opened from the contributor's
-# main beside this repository's main checkout. A shell already in the PR's worktree gets its own
-# top level back.
-#
-# Usage:
-#   pr-worktree.sh --pr <number> [--dir <checkout>]
-#
-# --dir names any checkout of the PR's repository; both the head read and the worktree list run
-# against it. Default: the current directory.
-#
-# Exit codes:
-#   0  the worktree's absolute path is on stdout
-#   1  invalid argument, or --dir names no directory
-#   2  the head branch or commit could not be read, or no worktree has the branch checked out
-#      with the head commit in its history
-
 # portability-scope: the head branch is read through gh; the worktree list is local git.
 set -uo pipefail
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+pr-worktree.sh: print the worktree that has a pull request's head branch checked out.
+
+Usage:
+  pr-worktree.sh --pr <number> [--dir <checkout>]
+
+  --pr   the pull request number
+  --dir  any checkout of the PR's repository (default: the current directory)
+
+Exit codes:
+  0  the worktree's absolute path is on stdout
+  1  invalid argument, or --dir names no directory
+  2  the head branch or commit could not be read, or no worktree has the branch checked out
+     with the head commit in its history
+EOF
   exit 0
 }
 

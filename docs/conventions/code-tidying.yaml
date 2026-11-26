@@ -9,6 +9,10 @@ comment_lint: block
 comment_lint_allow:
   - '^#[[:space:]]*test-scope:'
   - '^//[[:space:]]*test-scope:'
+  - '^#[[:space:]]*fixture-isolation-scope:[[:space:]]*[^[:space:]]'
+  - '^#[[:space:]]*discriminating-skip-required:[[:space:]]*[^[:space:]]'
+  - '^#[[:space:]]*slow-shape-ok:[[:space:]]*[^[:space:]]'
+  - '^(#|//)[[:space:]]*cant-fail-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*(BEGIN|END) hold-floor[[:space:]]'
 comment_lint_exclude:
   - plugins/planning/shared/web/web-vitals.attribution.iife.js

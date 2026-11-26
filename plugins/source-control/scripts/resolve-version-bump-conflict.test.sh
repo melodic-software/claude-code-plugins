@@ -23,8 +23,6 @@ write_plugin() {
   printf '# Changelog\n\nIntro.\n\n%s' "$4" >"$1/$P/CHANGELOG.md"
 }
 
-# entry <version> <day> <text> — one changelog section into $E. printf -v,
-# because a command substitution would strip its trailing blank line.
 entry() { printf -v E '## [%s] - 2026-09-2%s\n\n- %s\n\n' "$1" "$2" "$3"; }
 entry 1.2.0 1 'Base release.' && BASE=$E
 entry 1.1.0 0 'Older release.' && BASE+=$E && OLDER=$E

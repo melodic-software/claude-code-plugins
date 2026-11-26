@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Require both review lanes on this head` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# On a ready pull request, ci-status passes only when the newest pull_request
-# run of each review caller on the head has a successful status job whose
-# `Apply the hold` step ran, or whose no-change skip record leads back to such
-# a review on the pull request. Pending, failed, skipped or missing reviews fail
-# with the cause named, a lane the kill switch stopped among them; Dependabot, the
-# release App and the standards-sync App are exempt by numeric author id, but
-# not from a trust-gate path (with merge.diff-check.path-holds false, only
-# Dependabot is held for one, unless it only bumps actions of owners in the
-# base's merge.dependabot.trusted-action-owners) unless a person on the base's
-# trusted-actor list approves the head, and neither is a pull request an agent App
-# (merge.trust-path-hold-apps at the base) opened, wrote a commit of or pushed
-# to. It fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
@@ -122,8 +106,6 @@ else
   fail "exempt author ids '$got_ids' are not the trusted-actor list's Dependabot, release App and standards-sync App '$want_ids'"
 fi
 
-# Each review caller publishes comments with a hold label, the only runs whose
-# `Apply the hold` step runs, and keeps the job id the check name starts with.
 for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-review-security:'; do
   read -r file job <<<"$pair"
   caller="$ROOT/.github/workflows/$file"
@@ -134,8 +116,6 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   else
     fail "$file lost its job id, publish: comments, hold-label or @main ref"
   fi
-  # pr-review-cli's check-key-credit job requests actions: read; a caller that
-  # does not grant it fails at startup.
   if awk -v job="  $job" '$0 == job { on = 1; next } on && /^  [^ ]/ { exit } on && /^      actions: read( |$)/ { found = 1 } END { exit !found }' "$caller"; then
     ok "$file grants actions: read to job ${job%:}"
   else
@@ -158,9 +138,6 @@ else
   fail "the review callers run pr-review-cli at different or no refs: ${pins//$'\n'/ }"
 fi
 
-# The trust-gate paths in bash form, as sync-hold-floor.py writes them:
-# `**/X` is X or */X, a trailing `**` is `*`. The security review's own files
-# in hold-paths are scrutiny only.
 want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$want_patterns" && "$got_patterns" == "$want_patterns" ]]; then
@@ -168,9 +145,6 @@ if [[ -n "$want_patterns" && "$got_patterns" == "$want_patterns" ]]; then
 else
   fail "exempt-author hold patterns '$got_patterns' are not the trust-gate paths '$want_patterns'"
 fi
-# Owner decisions Q21 and Q24 (2026-10-29): with merge.diff-check.path-holds
-# false a generated guard empties the list for every author but Dependabot,
-# whose action-pin bumps bring in third-party code; true holds them all.
 dependabot_id="$(jq -r '.actors[] | select(.login == "dependabot[bot]") | .id' "$ACTORS")"
 guard="[ \"\$AUTHOR_ID\" = $dependabot_id ] || hold_patterns=()"
 guards="$(grep -cxF "  $guard" "$TMP_ROOT/body.sh")"
@@ -421,9 +395,6 @@ JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progres
 expect "a newer run still reviewing is pending" 1 "::error::'$CODE_CHECK' has not finished on $HEAD (https://github.com/o/r/actions/runs/11)."
 RUNS_CODE="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")" JOBS_11="$(jobs "$(kill_job success skipped)")"
 expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_CHECK' has not finished"
-# The wait (#12447): a run not completed is polled by id until it completes,
-# then judged as before; one still running at the cap fails as before, saying
-# no manual re-run is needed.
 export RUN_11 RUNS_CODE_LATER
 RUN_11="$(run 11 $CODE in_progress)"
 expect "a review still running at the cap fails pending, naming the automatic re-run" 1 \
@@ -494,7 +465,6 @@ fi
 RUNS_CODE_LATER='' RUN_11=''
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 11 $CODE completed "${HEAD//0/f}")" "$(run 12 pr-review-shadow.yml)" "$(run 13 $CODE completed "$HEAD" push)")"
 expect "runs on another head, of another file or event do not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
-# A fork's run on the same commit is newest; only this repository's head counts.
 RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")"
 expect "a newer run from a fork's head with the same commit does not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
@@ -511,8 +481,6 @@ RUNS_CODE="$(runs)"
 expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet. ci-status does not wait for a lane with no run" "Waited"
 if [[ "$(listings head) $(listings file)" == "1 0" && ! -s "$TMP_ROOT/log.sleeps" ]]; then ok "a lane with no run is not waited for"; else fail "a lane with no run was polled: $(listings head) head and $(listings file) file run-list reads"; fi
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
-# A listing GitHub cut short (total_count above the runs on the page) is not
-# trusted to show a lane missing: each lane's own runs are read and judged.
 STUB_HIDE_SEC=1 expect "a lane left off a cut-short listing is read from its own runs, not called missing" 0 \
   "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20)." "is missing"
 if [[ "$(listings head)" == 1 ]] && grep -qxF "api repos/o/r/actions/workflows/$SEC/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
@@ -540,9 +508,6 @@ else
   fail "a skipped hold step did not read the annotations: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
-# The jobs API can list a finished job's steps empty or cut short; then the
-# status job's review-complete notice for this lane and head decides.
-# listed <name> <id> <steps json>: a green status job with the given steps.
 listed() { jq -cn --arg n "$1" --argjson id "$2" --argjson steps "$3" '{id: $id, name: $n, status: "completed", conclusion: "success", steps: $steps}'; }
 note() { jq -cn --arg l "$1" --arg t "$2" --arg m "$3" '{annotation_level: $l, title: $t, message: $m}'; }
 notes() { local IFS=,; printf '[%s]'"\n" "$*"; }
@@ -815,13 +780,6 @@ STUB_STANDARDS="$TMP_ROOT/bare-config" AUTHOR_ID=49699333 expect "an unreadable 
 STUB_STANDARDS='' AUTHOR_ID=49699333 expect "with no standards checkout the hold config's copy is never read, and the hold stays" 1 "A person merges it; $CLEAR" "approved $HEAD"
 STUB_REVIEWS='[]'
 AUTHOR_ID=49699333 expect "with no approval the hold stays" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: CODEOWNERS. A person merges it; $CLEAR"
-# Owner decision Q-ANTHROPIC-DEPS: a Dependabot PR whose every change block
-# only swaps the ref of an action by an owner the base lists in
-# merge.dependabot.trusted-action-owners skips the trust-gate hold; any other
-# line, file, status, owner or ref keeps it, and so does an unread patch. Each
-# new ref must be a 40-hex SHA a tag of the action's repository points to; the
-# git stub answers `ls-remote --tags` with STUB_TAGS, or fails with
-# STUB_LSREMOTE_FAIL set; STUB_UNTAGGED_REPO names a repository with no tags.
 cat >"$TMP_ROOT/bin/git" <<'EOF'
 #!/usr/bin/env bash
 printf 'git %s\n' "$*" >>"$STUB_LOG"
@@ -832,7 +790,6 @@ EOF
 chmod +x "$TMP_ROOT/bin/git"
 SHA_OLD=1111111111111111111111111111111111111111 SHA_NEW=2222222222222222222222222222222222222222
 SHA_BASE=4444444444444444444444444444444444444444 SHA_UNTAGGED=3333333333333333333333333333333333333333
-# The new SHA is the peeled commit of an annotated tag; SHA_BASE a lightweight one.
 export STUB_TAGS="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v1.0.266
 $SHA_NEW	refs/tags/v1.0.266^{}
 $SHA_BASE	refs/tags/v2.0.0
@@ -1063,11 +1020,8 @@ STUB_COMMENTS='[]'
 STUB_FILES='[]' STUB_CHANGED=0
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
-# A trust-gate path an agent App touched waits for a person, whoever opened
-# the pull request; with no App on it the review lanes decide, as before.
 APP='melodic-agent[bot]'
 SHA_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa SHA_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-# commit <sha> <author login> <committer login> <email>: "" is an unlinked account.
 commit() { jq -cn --arg sha "$1" --arg a "$2" --arg c "$3" --arg e "$4" \
   '{sha: $sha, author: (if $a == "" then null else {login: $a} end), committer: (if $c == "" then null else {login: $c} end),
     commit: {author: {email: $e}, committer: {email: $e}}}'; }
@@ -1103,8 +1057,6 @@ STUB_COMMITS="$(list "$(commit $SHA_B '' '' "1234+$APP@users.noreply.github.com"
 STUB_COMMITS_FAIL=1 expect "an unreadable commit list is held" 1 "::error::could not read the commits of #77; re-run this run."
 STUB_COMMIT_COUNT=2 expect "a commit list shorter than the pull request is held" 1 "::error::GitHub listed fewer commits than #77 has"
 STUB_PUSHES_FAIL=1 expect "an unreadable push history is held" 1 "::error::could not read the push history of feature/x; re-run this run."
-# The activity API keeps a branch name's history across deletions, so a
-# reused name passes a page of 100; every page is read, up to 20.
 export STUB_PUSHES_2 STUB_PUSHES_3 STUB_PUSHES_ENDLESS
 page() { jq -cn --argjson p "$(push "$1" $SHA_A)" --argjson n "$2" '[range($n) | $p]'; }
 STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(page kyle-sexton 50)" \
@@ -1150,10 +1102,6 @@ for link in 'repositories/1/activity?ref=refs%2Fheads%2Ffeature%2Fx&after={owner
 done
 STUB_PUSHES_3="$(page kyle-sexton 1)" STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2='{"message":"Conflict"}' \
   expect "a non-array page before a readable one is held" 1 "is unreadable"
-# yq failing or missing leaves no list: held, also on a file list at GitHub's
-# 3000-file cap that names no trust-gate path, where held is empty.
-# yq-fails prints a list and then fails, so only pipefail catches it, whatever
-# jq does with empty input.
 mkdir -p "$TMP_ROOT/yq-fails" "$TMP_ROOT/yq-missing"
 printf '#!/usr/bin/env bash\necho "[]"\necho "Error: boom" >&2\nexit 1\n' >"$TMP_ROOT/yq-fails/yq"
 printf '#!/usr/bin/env bash\necho "yq: command not found" >&2\nexit 127\n' >"$TMP_ROOT/yq-missing/yq"

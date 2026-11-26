@@ -1,60 +1,9 @@
 #!/usr/bin/env bash
-# Parse the work-item reference from a branch name. The default convention is
-# `<type>/<N>-<slug>` (or the cloud-routine variant
-# `<type>/routine-issue-<N>-<slug>`), but the grammar is configurable so a
-# consumer whose branches place the reference differently, e.g. a
-# username-scoped scheme `alice/1234-slug`, a trailing-number scheme
-# `feat/add-widget-1234`, or a tracker key `feat/SW2-1234-slug`, is not
-# silently unparsable.
-#
-# Usage:
-#   parse-branch-issue.sh [branch-name] [pattern] [--no-default] [--explain]
-#
-# With no branch arg, falls back to `git branch --show-current`.
-# `--no-default` is for a caller bound to a work-item tracker, whose adapter
-# owns the default branch grammar: when no consumer pattern (step 1 or 2 below)
-# is set, the script prints nothing and exits 3 instead of applying step 3, so
-# the caller asks the adapter.
-# The grammar is an ERE whose LAST capture group holds the reference: an issue
-# number (`1234`) or a tracker key (`SW2-1234`, `ENG-12`); the caller turns it
-# into link text. A pattern with no capture group, or a capture of any other
-# shape, yields no output and exit 1. It resolves, first hit wins:
-#   1. The layered `branch_issue_pattern` key (reference/config-resolution.md):
-#      In a markdown layer the value is the `## branch_issue_pattern` section's
-#      first non-blank line, surrounding backticks
-#      stripped, or, when that line opens a code fence, the first non-blank line
-#      inside the fence. Headings inside fenced blocks are ignored. A leading
-#      UTF-8 BOM, trailing whitespace, and a closing `#` sequence on the heading
-#      are accepted. Repo root: CLAUDE_PROJECT_DIR, else
-#      `git rev-parse --show-toplevel`. When that root is the home directory
-#      (or an ancestor of it), team and personal override layers are not applicable. A
-#      root outside any git working tree skips both layers too. A personal override
-#      path that physically equals the user-global file is skipped even when
-#      the root is not home.
-#   2. The deprecated branch_issue_pattern userConfig: `pattern` (unless it is the
-#      literal `${user_config...}` placeholder), then
-#      CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN. Using it prints a deprecation
-#      note on stderr.
-#   3. The built-in default (skipped with `--no-default`: exit 3).
-# A layer whose section exists but yields no usable pattern stops resolution:
-# the script prints nothing and exits 1, so a lower layer, the userConfig, or
-# the default never supplies an issue number the author did not intend. That
-# covers a near-miss H2 (one whose text contains `branch_issue_pattern` but is
-# not the exact heading, e.g. `## branch_issue_pattern:`), a section with no
-# value, a first value line that is a heading or an HTML comment, an empty or
-# unterminated fence, and a pattern that breaks a limit (see usable_pattern).
-# A higher layer that already supplied a valid pattern still wins, since the
-# lower layer is never read. A userConfig value that breaks a limit is
-# reported and ignored, so the default applies. Notes name the source and the
-# reason, never the pattern text.
-# Prints the captured reference on stdout and exits 0 on match.
 # Exits 1 with no stdout if the branch does not match.
 set -uo pipefail
 
 KEY="branch_issue_pattern"
 
-# `--explain` prints the layer that supplied the pattern on stderr; it is not a
-# positional argument, so strip it wherever it appears.
 EXPLAIN=0
 ARGS=()
 for arg in "$@"; do
@@ -66,8 +15,6 @@ BRANCH="${1:-}"
 [[ -n "$BRANCH" ]] || BRANCH="$(git branch --show-current 2>/dev/null || true)"
 [[ -n "$BRANCH" ]] || exit 1
 
-# Notes name the source and the reason only, never the pattern text, so a
-# repo-controlled value is not echoed into the caller's context.
 note() { echo "parse-branch-issue: $*" >&2; }
 
 # shellcheck source=../../../lib/config-root.sh
@@ -80,17 +27,8 @@ STOP="resolution stopped, no issue id emitted"
 FENCE_OPEN='^(```+|~~~+)'
 FENCE_CLOSE='^(```+|~~~+)$'
 
-# Print the value of the `## branch_issue_pattern` section of file $1: its first
-# non-blank line, surrounding whitespace and backticks stripped, or, when that
-# line opens a code fence, the first non-blank line inside the fence. Headings
-# inside fenced blocks are ignored. Prints nothing and returns 0 when the file
-# or the section is absent. Returns 1 (with a note, nothing printed) when the
-# section exists but yields no value, which stops resolution: a near-miss H2
-# anywhere outside a fence, a section with no value, an empty or unterminated
-# fence, or a first value line that is a heading or an HTML comment.
 section_value() {
   local file="$1" line state=0 fence="" value="" first=1
-  # state: 0 before the section, 1 inside it awaiting the value, 2 done.
   [[ -f "$file" ]] || return 0
   while IFS= read -r line || [[ -n "$line" ]]; do
     if ((first)); then
@@ -161,12 +99,6 @@ section_value() {
   return 0
 }
 
-# Print the first limit pattern $1 breaks, or nothing. A coarse scan that runs
-# before the pattern is ever compiled, since compiling a large bounded
-# repetition alone can exhaust memory: at most 200 characters, every `{m,n}`
-# bound at most 16, and no quantifier applied to a group whose body already
-# holds a quantifier (`(a+)+`, `(x{0,5}){0,5}`). Escaped characters and bracket
-# expressions are skipped.
 pattern_limit() {
   local p="$1" i j c d b depth=0 inner rest
   local n=${#p}
@@ -231,10 +163,6 @@ pattern_limit() {
   done
 }
 
-# True when pattern $2 from source $1 is usable: it keeps within the limits
-# pattern_limit checks, holds no backreference, and compiles as an ERE (bash's
-# =~ returns 2 on a bad pattern). Otherwise reports the source, the reason,
-# and outcome $3.
 usable_pattern() {
   local src="$1" value="$2" outcome="$3" limit reason=""
   limit="$(pattern_limit "$value")"
@@ -289,7 +217,6 @@ if [[ -n "${HOME:-}" && -f "$USER_LAYER" ]]; then
     "${CONVENTION_KEY_YAML_REL} (team) or ${CONVENTION_KEY_LOCAL_REL} (personal) in each repository that needs it"
 fi
 
-# The layer a resolved pattern came from, as reported by --explain.
 layer_label() {
   case "$1" in
     "${TEAM_YAML:-}") echo "$CONVENTION_KEY_YAML_REL" ;;
@@ -321,8 +248,6 @@ for layer in ${LAYERS[@]+"${LAYERS[@]}"}; do
 done
 
 if [[ -z "$PATTERN" ]]; then
-  # A surviving literal `${user_config...}` placeholder means the key is unset;
-  # treat it as absent so the default applies rather than a bogus pattern.
   LEGACY="${2:-}"
   # shellcheck disable=SC2016  # matching the literal placeholder text, not expanding it
   [[ "$LEGACY" == *'${user_config'* ]] && LEGACY=""
@@ -340,9 +265,6 @@ fi
 
 [[ "$BRANCH" =~ $PATTERN ]] || exit 1
 
-# Issue id = the last (rightmost) capture group, so the default pattern's
-# optional leading group still resolves to the trailing number, and a custom
-# single-group pattern resolves to its one group.
 n=${#BASH_REMATCH[@]}
 if [[ "$n" -lt 2 ]]; then
   note "${SOURCE}: ${KEY} has no capture group; no issue id emitted"

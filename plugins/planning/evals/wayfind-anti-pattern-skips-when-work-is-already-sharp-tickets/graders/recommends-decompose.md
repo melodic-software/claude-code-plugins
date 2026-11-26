@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '(?:^|[.!?;:,\n—–])(?:(?!\b(?:not|never|skip|instead of|rather than|unless|normally|usually|ordinarily|otherwise|later)\b|n''t\b|\bno need\b)[^.!?;:,\n—–])*?(?:/?work-items:decompose\b|/work-items\b(?!:))(?![^.!?;\n]{0,40}\b(?:later|afterwards|after (?:the|this|a) map|once (?:the|this) map)\b)'
+flags: i
 ---
-
-The user asked wayfind to chart a 'forgot password' email flow and said it is exactly three clear tickets: a reset-token request endpoint, an email send, and a reset-confirmation endpoint. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply recommends /work-items:decompose (or /work-items) as the better fit instead of charting.
-
-FAIL if it recommends no /work-items skill as the route for these tickets.

@@ -183,6 +183,12 @@ generate ai-briefing,wizard
 # structural fix to its owning lane rather than repeating architecture's lens.
 improve architecture,improvement
 
+# Fixed verb meaning: read-only lookup in the namespace's own reference. The
+# namespace supplies the object: context7:lookup reads library documentation,
+# engineering-concepts:lookup reads the built-in concept catalog. A qualifier
+# such as `lookup-concept` would repeat the namespace.
+lookup context7,engineering-concepts
+
 # Noun reserved for knowledge routers (plugin-philosophy.md, Naming). Each
 # routes its own domain's method literature: event-storming:methodology the
 # EventStorming practice, evals:methodology Anthropic's evaluation guidance.

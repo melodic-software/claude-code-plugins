@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# Gate tests that cannot fail: /testing:audit's deterministic scan in --check mode.
-#
-#   scripts/check-cant-fail-scan.sh           scan the whole tree
-#   scripts/check-cant-fail-scan.sh <base>    scan only the files changed since <base>
-#
-# Exit codes and streams follow scripts/README.md, "The check-script contract".
-#
-# With a base, every added, copied, modified or renamed file goes through the
-# scanner's `--check --file`. The scanner decides what a test file is: a file it
-# reports `adapter: none` for (no adapter claims it, its adapter is off, or
-# paths.exclude drops it) is skipped, and any other exit 2 fails the gate. The
-# whole-tree walk prunes some directories that `--file` does not, so a file under
-# one of them is skipped here too; PRUNED mirrors collect_files() in the scanner,
-# and this script's suite fails when the two differ. A diff with no test file in
-# it exits 0 and reports the gate not applicable with the count of files it
-# looked at: a change that adds no test cannot add a test that cannot fail. An
-# empty diff while HEAD is not the base exits 2, since it checked nothing, the
-# rule scripts/check-affected.sh follows; HEAD at the base has no change and
-# exits 0 (scripts/README.md, "The check-script contract").
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

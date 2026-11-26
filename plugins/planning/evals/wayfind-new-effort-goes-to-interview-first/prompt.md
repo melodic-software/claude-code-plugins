@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 10, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "Chart on an effort never interviewed offers /planning:interview first, preloaded with what the user said, and waits, creating no map or items (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

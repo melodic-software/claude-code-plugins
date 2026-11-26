@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/lib/test-harness.sh.
-#
-# The load-bearing property is the exit contract: a suite that recorded a
-# failed assertion and then called test_harness::report cannot exit 0. The
-# other cases pin the print format, the sourced-only guard, the last-line
-# discipline the called shape depends on, EXIT-trap interaction with the
-# two suites that already occupy that slot, and re-source idempotency.
-#
-# This file sources the library it tests, so it cannot trust the library's
-# own counters or report return as the process exit. Parent assertions go
-# through self_ok/self_fail, which keep a tally the harness functions do
-# not write. After test_harness::report, a non-zero independent tally
-# forces exit 1 even if report was sabotaged. A throwaway-copy mutation
-# regression pins both defects: deleting report's return 1, and removing
-# fail()'s increment.
 # test-scope: scripts/*.test.sh
 set -uo pipefail
 

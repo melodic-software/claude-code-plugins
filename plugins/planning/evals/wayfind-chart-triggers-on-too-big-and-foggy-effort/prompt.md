@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 1, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Chart asked for by name on a too-big, foggy effort enters chart mode and sorts it by the fog test, without claiming an item, refusing, or routing back to /planning:interview or /planning:plan (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

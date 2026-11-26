@@ -31,8 +31,6 @@ function ConvertFrom-CheckOutput {
     [CmdletBinding()]
     param([Parameter(Position = 0)] $RawOutput)
     $json = Join-CheckOutput $RawOutput
-    # '' | ConvertFrom-Json is a parameter-binding failure, so a script that
-    # emitted nothing reads back as an empty collection instead.
     if (-not $json) { return @() }
     return $json | ConvertFrom-Json
 }

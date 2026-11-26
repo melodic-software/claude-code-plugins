@@ -1055,6 +1055,21 @@
       ]
     },
     {
+      "name": "engineering-concepts",
+      "source": "./plugins/engineering-concepts",
+      "defaultEnabled": false,
+      "category": "design",
+      "tags": [
+        "engineering-concepts",
+        "principles",
+        "patterns",
+        "practices",
+        "architecture",
+        "catalog",
+        "skill"
+      ]
+    },
+    {
       "name": "naming",
       "source": "./plugins/naming",
       "category": "design",

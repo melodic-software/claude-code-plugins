@@ -73,7 +73,6 @@ class ApiBudgetTests(unittest.TestCase):
     def test_the_leading_header_block_becomes_a_reading_and_the_body_is_kept_byte_for_byte(
         self,
     ) -> None:
-        # A body line shaped like a status line is body, never a second block.
         body = "keep1\nHTTP/1.1 200 x\nflagged()\n\nafter"
         env = {"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "lanes-app"}
         proc = self.run_gh(
@@ -158,10 +157,6 @@ class ApiBudgetTests(unittest.TestCase):
     def test_without_a_token_name_or_for_a_non_api_call_no_reading_is_written(
         self,
     ) -> None:
-        # Every `api` call but a paginated one still runs with -i, for the
-        # guard, and a `--paginate --slurp` read goes page by page with -i
-        # (`_run_pages`); only a named token writes a reading. A non-api call
-        # writes `request` lines only for the trace its stderr carries, none here.
         self.run_gh(
             "{}", ["api", "x"], env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": ""}
         )
@@ -200,9 +195,6 @@ class ApiBudgetTests(unittest.TestCase):
     def test_a_call_without_a_header_block_counts_each_api_request_it_traces(
         self,
     ) -> None:
-        # api-budget.bash's api_budget_traced: GH_DEBUG=1 head lines become
-        # `request <route>` lines, a redirect to a download host is not one,
-        # and stderr comes back without what the debug level added.
         trace = (
             "* Request at 2026-11-04 04:00:00\n"
             "* Request to https://api.github.com/repos/o/r/actions/runs/7/artifacts?per_page=100\n"

@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 7, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "Work mode reports the frontier by item title rather than bare numbers, then picks and claims one item instead of resolving all of them (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

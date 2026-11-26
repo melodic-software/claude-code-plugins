@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for ai-slop-report.sh.
-#
-#   bash scripts/ai-slop-report.test.sh
-#
-# Black box through the CLI against throwaway git repositories under a mktemp
-# directory, with the REAL ai-slop detector: the annotation shape is the
-# contract between the detector's `Finding:` rows and what GitHub renders on a
-# changed line, and a stubbed detector would pin this suite to a format the
-# detector no longer emits.
-#
-# The discriminating cases: a changed markdown file with a finding annotates
-# the line it is on, a changed markdown file without one annotates nothing, an
-# event that is not a pull request declines before touching git, and every one
-# of them exits 0, because this reporter runs in a lint job that its findings
-# must never turn red.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -92,6 +77,14 @@ exits "a finding exits 0" 0 "$RUN_CODE"
 contains "a finding is annotated as a warning on its file and line" "$RUN_OUT" \
   "::warning file=docs.md,line=1::ai-slop/audit/rule-em-dash:"
 contains "the total is reported" "$RUN_OUT" "1 ai-slop finding(s) in 1 changed markdown file(s)"
+
+ESC_REPO="$(mkfixture)"
+printf 'An em dash %s then %%0A::error::forged in the same line.\n' "$EM_DASH" >"$ESC_REPO/esc.md"
+git_test_config "$ESC_REPO" add -A >/dev/null
+git_test_config "$ESC_REPO" commit -qm esc >/dev/null
+run "$ESC_REPO" main
+contains "a %-escape in an excerpt is encoded" "$RUN_OUT" "%250A::error::forged"
+lacks "a %-escape in an excerpt cannot start a workflow command" "$RUN_OUT" " %0A::error::forged"
 
 CLEAN_REPO="$(mkfixture)"
 printf 'A plain sentence with nothing to report in it at all.\n' >"$CLEAN_REPO/clean.md"

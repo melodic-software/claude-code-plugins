@@ -11,6 +11,7 @@
 // test-scope: .github/actions/resolve-config/package.json
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/scripts/pr-unblock/read-pr-head.bash
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
+// test-scope: scripts/check-docs-only-gate.sh
 // test-scope: .github/scripts/maintenance-audit-lane-runs/file-findings.mjs .github/scripts/maintenance-monitor-signals/monitor.mjs .github/scripts/post-merge-demotion-alert/handoff.bash
 // test-scope: plugins/work-items/skills/triage/context/ci-mode.md docs/conventions/work-items.md .github/lane-funding.json
 // test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
@@ -2169,14 +2170,14 @@ function claudeSecretJobs(files = workflowFiles(), load = workflow) {
   }
   return jobs;
 }
-const LAUNCHER_ACTION = {
-  "run-claude-cli": "melodic-software/ci-workflows/.github/actions/run-claude-cli@",
-  "claude-code-action": "anthropics/claude-code-action@",
+const LAUNCHER_ACTIONS = {
+  "run-claude-cli": ["melodic-software/ci-workflows/.github/actions/run-claude-cli@", "melodic-software/ci-workflows/.github/actions/run-review-chunks@"],
+  "claude-code-action": ["anthropics/claude-code-action@"],
 };
 const isLauncherStep = (step, launcher) =>
   launcher === "claude-cli"
     ? typeof step.run === "string" && step.uses === undefined && /^\s*claude\s+\S/m.test(step.run)
-    : String(step.uses ?? "").startsWith(LAUNCHER_ACTION[launcher]);
+    : (LAUNCHER_ACTIONS[launcher] ?? []).some((prefix) => String(step.uses ?? "").startsWith(prefix));
 // A value that is only whether a secret is set, ${{ secrets.NAME != '' }}, carries no credential.
 const PRESENCE_ONLY = /^\s*(?:\$\{\{\s*)?secrets\.[\w-]+\s*[!=]=\s*''\s*(?:\}\})?\s*$/;
 const withoutPresenceChecks = (node) =>
@@ -2452,6 +2453,10 @@ test("the stray-reader check names an extra step and an env that reaches every s
   assert.deepEqual(check({}, { steps: [launcher, extra] }), ["step extra"]);
   const other = { ...launcher, name: "other-owner", uses: "someone-else/ci-workflows/.github/actions/run-claude-cli@abc" };
   assert.deepEqual(check({}, { steps: [other] }), ["step other-owner"], "the launcher is pinned to its owner");
+  const chunks = { ...launcher, name: "chunks", uses: "melodic-software/ci-workflows/.github/actions/run-review-chunks@abc" };
+  assert.deepEqual(check({}, { steps: [launcher, chunks] }), [], "run-review-chunks runs run-claude-cli's leg per chunk");
+  assert.deepEqual(check({}, { steps: [{ ...chunks, uses: "someone-else/ci-workflows/.github/actions/run-review-chunks@abc" }] }), ["step chunks"]);
+  assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [chunks] } }, "claude-code-action"), ["step chunks"], "only a run-claude-cli lane takes it");
   assert.deepEqual(check({ env: { ANTHROPIC_AUTH_TOKEN: "x" } }, { steps: [launcher] }), ["workflow env"]);
   assert.deepEqual(check({}, { env: { ANTHROPIC_API_KEY: "x" }, steps: [launcher] }), ["job env"]);
   const cli = { name: "eval", run: "set -e\nclaude plugin eval x", env: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } };
@@ -2668,6 +2673,28 @@ test("every run-claude-cli step pin in this repo's workflows passes --permission
 });
 
 const STATUS_WRITE_RETRY_SECONDS = 7;
+
+test("aggregate-results' contract-only default at ci-status's pin is the docs-only gate's CONTRACT_ONLY_PREDICATE, and no caller overrides it", async () => {
+  const job = workflow("pr-require-checks.yml").jobs["ci-status"];
+  const composite = ".github/actions/pr-require-checks/report-ci-status";
+  const step = job.steps.find((s) => String(s.uses ?? "").startsWith(`melodic-software/ci-workflows/${composite}@`));
+  assert.ok(step, "ci-status runs report-ci-status");
+  const pin = step.uses.split("@")[1];
+  assert.equal(step.with?.["contract-only"], undefined, "ci-status passes no contract-only to report-ci-status");
+  const report = parse(await fetchAtPin(pin, `${composite}/action.yml`));
+  const aggregateStep = report.runs.steps.find((s) => s.uses === "$/.github/actions/pr-require-checks/aggregate-results");
+  assert.ok(aggregateStep, `report-ci-status at ${pin} runs aggregate-results`);
+  const passed = aggregateStep.with?.["contract-only"];
+  const resolved = passed === undefined ? undefined : String(passed).match(/^\$\{\{\s*inputs\.contract-only\s*\}\}$/) ? report.inputs?.["contract-only"]?.default : passed;
+  const aggregate = parse(await fetchAtPin(pin, ".github/actions/pr-require-checks/aggregate-results/action.yml"));
+  const expected = resolved ?? aggregate.inputs?.["contract-only"]?.default;
+  assert.ok(expected, `aggregate-results at ${pin} declares a contract-only default`);
+  const gate = readFileSync(fileURLToPath(new URL("../../../scripts/check-docs-only-gate.sh", import.meta.url)), "utf8");
+  const literal = gate.match(/^CONTRACT_ONLY_PREDICATE="((?:[^"\\]|\\.)*)"$/m)?.[1]?.replace(/\\(.)/g, "$1");
+  assert.ok(literal, "check-docs-only-gate.sh sets CONTRACT_ONLY_PREDICATE");
+  const unwrapped = String(expected).trim().replace(/^\$\{\{\s*([\s\S]*?)\s*\}\}$/, "$1");
+  assert.equal(unwrapped, literal, `aggregate-results' contract-only at ${pin} drifted from CONTRACT_ONLY_PREDICATE: a drifted copy turns all-skipped lanes into a pass`);
+});
 
 test("report-ci-status's waits at ci-status's pin fit WAIT_BUDGET_SECONDS.step each and GH_READ_MARGIN_SECONDS together", async () => {
   const job = workflow("pr-require-checks.yml").jobs["ci-status"];

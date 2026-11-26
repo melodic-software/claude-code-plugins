@@ -1085,3 +1085,9 @@ lib/pr-verify-run.jq plugins/guardrails/hooks/pr-verify-run.jq
 lib/pr-verify-run.jq plugins/source-control/skills/pull-request/scripts/pr-verify-run.jq
 lib/merge-guard-option.mjs plugins/source-control/skills/pull-request/scripts/merge-guard-option.mjs
 lib/plugin-options.mjs plugins/source-control/skills/pull-request/scripts/plugin-options.mjs
+lib/config-cascade.mjs plugins/engineering-concepts/scripts/lib/config-cascade.mjs
+lib/yaml-subset.mjs plugins/engineering-concepts/scripts/lib/yaml-subset.mjs
+lib/resolve-convention-home.sh plugins/engineering-concepts/lib/resolve-convention-home.sh
+lib/prerequisites.mjs plugins/engineering-concepts/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/engineering-concepts/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/engineering-concepts/lib/prerequisites.ps1

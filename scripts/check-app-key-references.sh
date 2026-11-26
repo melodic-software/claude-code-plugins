@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# Check that no workflow or action references the lanes App key or mints as the lanes App.
-#
-#   scripts/check-app-key-references.sh          discover: list every offender
-#   scripts/check-app-key-references.sh --check  same, explicit form matching the
-#                                                sibling gates (exit 1 on any offender)
-#
-# Scope: .github/workflows/** and .github/actions/** lines naming
-# AUTOMATION_LANES_APP_PRIVATE_KEY, app-private-key or AUTOMATION_LANES_APP_CLIENT_ID
-# (case-insensitive); other Apps' mints and docs are out of scope.
-# A regression guard for literal references only: the control is deleting the
-# AUTOMATION_LANES_APP_PRIVATE_KEY secret at go-live, not this check.
-#
-# WHY. Lane jobs get their App token from the lanes token broker, which holds
-# the key; a key referenced anywhere in a workflow run must be assumed to reach
-# every job of that run, and a lanes client id in a workflow means a mint that
-# bypasses the broker. Contract: docs/conventions/pr-pipeline/pr-run-activity.md,
-# "The lane token broker"; ADR 0058.
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): one `path:line: finding` per offender on stderr, the clean-run
-# statement on stdout. Exit: 0 clean, 1 any offender, 2 usage or environment.
 set -euo pipefail
 
 case "${1:-}" in

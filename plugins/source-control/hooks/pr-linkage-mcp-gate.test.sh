@@ -3,8 +3,6 @@
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -81,7 +79,6 @@ OPTOUT=$'No linked issue'"$SECTIONS"
 OPTOUT_ALIAS=$'No related issue: tracked in the profile file itself.'"$SECTIONS"
 PAST_TENSE=$'Fixed #31'"$SECTIONS"
 CROSS_REPO=$'Resolves other/repo#9'"$SECTIONS"
-# #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
 ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
 BAD=$'Refs: #12\n\nThis does not close #12.'"$SECTIONS"
 
@@ -126,10 +123,6 @@ CLAUDE_PLUGIN_OPTION_LINKAGE_GATE_USES_PATTERN="" run 2 "the team YAML alone tur
 printf "linkage_gate_uses_pattern: 'no-such-step'\n" >"$YAML_REPO/docs/conventions/source-control.yaml"
 run 0 "the team YAML wins over the userConfig value" "$(payload "$YAML_REPO" $CREATE $OWNER $REPO "$BAD")"
 
-# A GitHub server bundled by a plugin names its tools
-# mcp__plugin_<plugin>_github__<tool>. Both the hooks.json matcher and the
-# gate's own tool-name list must admit that shape, or a plugin-bundled server
-# opens PRs past the gate.
 SCOPED_CREATE=mcp__plugin_github_github__create_pull_request
 SCOPED_UPDATE=mcp__plugin_my-plugin_github__update_pull_request
 run 2 "scoped create with a failing body blocks" "$(payload "$GATED" $SCOPED_CREATE $OWNER $REPO "$BAD")"
@@ -202,9 +195,6 @@ printf '#!/usr/bin/env bash\ncat > "%s"\n' "$CAPTURE" >"$SINK"
 chmod +x "$SINK"
 HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$GATED" \
   bash "$HOOK" <<<"$(payload "$GATED" $CREATE $OWNER $REPO "$BAD")" >/dev/null 2>&1 || true
-# The sink is fire-and-forget (backgrounded); poll in 20ms steps like the
-# established wait_for_sink helper (markdown-format.test.sh) — a coarse sleep
-# races variable process-spawn latency, notably on Windows Git Bash.
 for _ in $(seq 1 150); do
   [[ -s "$CAPTURE" ]] && break
   sleep 0.02

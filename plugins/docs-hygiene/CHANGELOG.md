@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.6] - 2026-11-26
+
+### Changed
+
+- `/docs-hygiene:audit-derivability` keeps its rule that a spot-test never runs in a `fork` subagent, and its Sources section now points at the subagent and skills docs for what a fork and a `context: fork` skill start with, instead of the body describing either.
+
 ## [4.4.5] - 2026-11-25
 
 ### Changed

@@ -511,6 +511,6 @@ if (offenders.length === 0) {
 const unique = [...new Set(offenders)].sort();
 process.stderr.write(`${unique.join("\n")}\n`);
 process.stderr.write(
-  `check-read-caller-keys: ${unique.length} offender(s); a run that reaches the read workflow references no App key and passes no secret it cannot name, and a lane mixing read and write activities waits for the token broker (see the header of scripts/check-read-caller-keys.sh).\n`,
+  `check-read-caller-keys: ${unique.length} offender(s); a run that reaches the read workflow references no App key and passes no secret it cannot name, and a lane mixing read and write activities waits for the token broker (see docs/conventions/pr-pipeline/pr-run-activity.md, "Secrets and the two files").\n`,
 );
 process.exit(1);

@@ -1,56 +1,4 @@
 #!/usr/bin/env bash
-# Gate: a hook that skips because a CLI prerequisite is absent must make the
-# skip visible. The prerequisite-visibility doctrine classifies absence as
-# required (stop with remediation), optional (visible warn + skip), or
-# not-applicable (quiet) — a quiet skip is only ever a deliberate,
-# documented classification, never a default.
-#
-#   scripts/check-silent-skips.sh          fail if any hook entry script
-#                                          silently skips on a missing CLI,
-#                                          or if a scripts/*.test.sh scores
-#                                          an unlisted skip as PASS
-#
-# Two shapes are flagged in plugins/*/hooks/*.sh (entry scripts only —
-# hook-utils.sh lib copies have their own sync gate and review; *.test.sh
-# files under hooks/ exercise these patterns as fixtures):
-#
-#   1. same-line guard:   command -v X ... || exit 0    (also `return 0`, or
-#                         a skip-named helper such as `|| emit_skipped`)
-#   2. block guard:       if ! command -v X ...; then ... fi   where the block
-#                         reaches `exit 0` / `return 0`
-#
-# A third shape is flagged in scripts/*.test.sh (self-tests that own
-# load-bearing historical proofs — #2807):
-#
-#   3. skip-scored-as-pass:  ok "skip ..." / ok 'skip ...'
-#      A test that cannot run its assertion must fail (or declare the soft
-#      path in the exemption list), never report PASS for the skip.
-#
-# A flagged site passes when the skip is visible — the guard line or block
-# carries one of the sanctioned visibility calls (hook::emit_skip_notice,
-# hook::emit_system_message, hook::notice_once, hook::require jq) — or when
-# scripts/silent-skip-exemptions.txt records it as a quiet classification.
-# An entry names the file and the guard (the tool after `command -v`, or the
-# quoted ok "skip ..." message) with its reason; its format is in that file's
-# header. An entry that matches no flagged site fails as stale.
-#
-# A bare stderr write (`>&2`) is not a sanctioned visibility call: every site
-# this gate inspects is, by construction, an exit-0 skip path, and per the
-# official Claude Code hooks reference
-# (https://code.claude.com/docs/en/hooks#exit-code-0, re-fetched 2026-08-10,
-# docs/contracts/hook-observability/) "Stderr from a hook that exits 0 goes
-# to the debug log only, never the transcript, and Claude never sees it" — so
-# it reaches neither the user nor the agent on any path this gate inspects.
-# A `>&2`-only notice on such a path is invisible regardless of intent.
-# Recheck when the hooks reference says exit-0 stderr reaches the transcript or
-# the model.
-#
-# This is a grep-level tripwire, not a semantic proof: it does not chase
-# helper-function bodies and does not flag a positive-form
-# `if command -v X; then ... else exit 0` (the current corpus uses the
-# else-branch for its visible notice). Its job is to stop the historical
-# regression — a new hook quietly no-op'ing when an optional CLI is absent,
-# or a self-test quietly scoring an unrun proof as PASS.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -215,11 +163,6 @@ fi
 
 test_files=()
 for test_file in scripts/*.test.sh; do
-  # An unmatched glob arrives as its own literal text, which is not a file, so
-  # the same `-f` guard the hook loop above uses covers the empty case here too.
-  # The silent-skip unit suite embeds shape-3 fixtures as quoted strings in its
-  # own body; scanning it would false-positive on those embeddings. Shape 3 is
-  # still exercised via the suite's throwaway fixtures under /tmp.
   [[ -f "$test_file" && "$test_file" != scripts/check-silent-skips.test.sh ]] || continue
   test_files+=("$test_file")
 done

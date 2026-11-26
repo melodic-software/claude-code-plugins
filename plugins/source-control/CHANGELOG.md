@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.4] - 2026-11-26
+
+### Fixed
+
+- The babysit merge gate's cost-decision lane vetting (`babysit_merge_policy._noticed_head`) no longer holds every lane run on a head whose compare lists 300 files or more: past the compare API's cap it compares the review-lane workflows' blobs at the compare's merge base and the head, and still holds when either listing cannot be read.
+
 ## [13.21.3] - 2026-11-25
 
 ### Changed

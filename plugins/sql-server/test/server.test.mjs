@@ -1,3 +1,4 @@
+// test-scope: plugins/sql-server/.claude-plugin/plugin.json
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -30,7 +31,6 @@ function fakeExecutor() {
   };
 }
 
-// A stream may deliver a written chunk on a later tick; wait one turn.
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 const modernMeta = { 'io.modelcontextprotocol/protocolVersion': PROTOCOL_VERSION, 'io.modelcontextprotocol/clientCapabilities': {} };

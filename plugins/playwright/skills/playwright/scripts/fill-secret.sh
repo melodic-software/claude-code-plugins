@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Reads the value from the named environment variable, so the secret is never
-# on the command line an agent prints. playwright-cli echoes the code it ran,
-# fill text included, so its stdout and stderr are discarded; a failure is
-# reported by exit status alone.
 set -uo pipefail
 set +x
 

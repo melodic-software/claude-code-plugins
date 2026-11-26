@@ -1,52 +1,4 @@
 #!/usr/bin/env bash
-# Description-driven auto-invocation probe harness (#3526).
-#
-# Measures whether a skill's listing text would win the requests it should
-# (and stay quiet on the ones it should not). Default method is a
-# deterministic lexical listing-overlap floor that runs without a model.
-# Model-graded `claude plugin eval` cases are emitted on demand; a
-# replayed model run uses the same report shape so `compare` can show a
-# rewrite delta.
-#
-# Exit 0 = success (WARN lines allowed); 1 = FAIL findings; 2 = usage /
-# environment error (no jq, missing file).
-#
-# Usage:
-#   bash measure-invocation.sh validate [--copy-span N] [--verbose] <probes-dir>
-#   bash measure-invocation.sh score [--method listing-overlap] <probes-dir>
-#   bash measure-invocation.sh compare <baseline.json> <treatment.json>
-#   bash measure-invocation.sh emit-plugin-eval [--runs N] <probes-dir> <out-dir>
-#   bash measure-invocation.sh --help
-#
-# validate WARNs when a should-trigger probe shares N or more consecutive
-# words (default 4) with the target listing, and once per probe file naming
-# every competitor whose id does not start with the file's plugin and a colon
-# (--verbose: one WARN per competitor, plus each skill's listing and query
-# split; the warning count is the same either way). emit-plugin-eval writes N runs
-# per case: --runs, else the plugin_eval_runs setting (skill-quality.yaml, then
-# skill-quality.local.yaml, in the convention home), else 3, the CLI's own
-# default. compare adds a 95% paired
-# normal-approximation interval on each trigger-rate delta, from per-probe
-# outcomes matched by id, and an INFO line that says "within noise" when the
-# interval contains 0.
-#
-# Probe files: <probes-dir>/*.json (not baselines/). Each file is one skill:
-#   skill, plugin, skill_dir (repo-relative), competitors[], queries[]
-#   query: id, split (train|validation), expect_trigger (bool), request
-# A competitor's directory is plugins/<plugin>/skills/<skill> from its
-# plugin:skill id; an optional competitor_dirs entry overrides it for a rival
-# outside the plugins/ tree. skill_dir and competitor directories resolve
-# against the repo root (MEASURE_INVOCATION_REPO_ROOT, else the
-# git toplevel of this script, else $PWD). The shipped seed probes name this
-# marketplace's own skills; `score` exits 2 when none of them resolve.
-# Roughly 20 labeled queries per skill, both polarities, both splits.
-#
-# listing-overlap is a FLOOR, not a model-graded auto-invocation rate. It
-# ranks the request against the target description and named competitors by
-# quoted-trigger hits plus content-token overlap. The live method is
-# emit-plugin-eval + `claude plugin eval`; each emitted case lists the target
-# plugin and its competitors' plugins under `plugins:`, and emit exits 2 when
-# one of those is not under plugins/. Replay the results through compare.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,7 +6,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/skill-frontmatter.sh"
 
 usage() {
-  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Description-driven auto-invocation probe harness: would a skill's listing text win the requests it should?
+
+Usage:
+  bash measure-invocation.sh validate [--copy-span N] [--verbose] <probes-dir>
+  bash measure-invocation.sh score [--method listing-overlap] <probes-dir>
+  bash measure-invocation.sh compare <baseline.json> <treatment.json>
+  bash measure-invocation.sh emit-plugin-eval [--runs N] <probes-dir> <out-dir>
+  bash measure-invocation.sh --help
+
+  --copy-span N  validate WARNs on N or more words shared with the target listing (default 4)
+  --verbose      one WARN per competitor
+  --method       score method; listing-overlap is a FLOOR, not a model-graded rate
+  --runs N       runs per emitted case (default: plugin_eval_runs setting, else 3)
+
+Exit 0 = success (WARN lines allowed); 1 = FAIL findings; 2 = usage /
+environment error (no jq, missing file).
+EOF
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -673,7 +642,6 @@ expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires
 ${request}
 " >"$case_dir/prompt.md" || return 2
       # portability-ok: \s is read by the eval grader's own regex engine, never
-      # shell grep/sed; kept out of the emitted YAML so the grader files stay clean.
       local match_re="\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\""
       if [[ "$expect" == "true" ]]; then
         printf '%s\n' "---

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for ready's wait, guarded flip and ready-run confirmation (the "Wait for the
-# push's CI run", "Flip to ready" and "Confirm a ready run" blocks of the GitHub ready reference)
-# against a forge that lags one read behind a push: its first head read still returns the
-# pre-push commit. Black-box, with the
-# blocks extracted from the reference and run in a fixture repository against a stubbed `gh`.
 # test-scope: plugins/source-control/skills/pull-request/scripts/pr-worktree.sh
 
 set -uo pipefail
@@ -58,11 +53,6 @@ PUSHED=$(git -C "$REPO" rev-parse HEAD)
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUB_DIR/sleep"
-# The forge's first head read returns STUB_STALE, later reads STUB_FORGE (default: the pushed
-# commit); pr-worktree.sh's head read returns STUB_BRANCH and STUB_OID. Runs exist only for the pushed commit, and a new one only once the PR is flipped. Each
-# run list logs the commit it asked about; `pr ready` logs the flip. A call that names neither
-# `-R acme/tool` nor GH_REPO=acme/tool fails, as gh does outside a checkout, so a read the
-# reference leaves untargeted cannot pass by the stub's grace.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 if [[ "${GH_REPO:-}" != acme/tool && " $* " != *" -R acme/tool "* ]]; then
@@ -230,8 +220,6 @@ out=$(FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "
 assert_contains "from outside every checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
 assert_contains "from outside every checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
 
-# The same shell without GH_REPO: the untargeted reads fail as gh fails outside a checkout, so the
-# case above passes only because the reads follow the exported repository.
 new_state "$PUSHED"
 out=$(FLOW_GH_REPO='' FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
 [[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no

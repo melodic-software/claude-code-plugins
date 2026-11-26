@@ -25,7 +25,6 @@ out=$(build --reason "usage exhausted" --step verify --step base-merge)
 assert_eq "several steps are listed in run order" \
   $'- `base-merge` skipped by octocat for this run: `usage exhausted`\n- `verify` skipped by octocat for this run: `usage exhausted`' "$out"
 
-# The reason is data: it must not link, close, hold, mention or hide.
 out=$(build --reason $'fixes #99 don\'t merge <!-- `x` @team\nnext' --step code-review)
 # shellcheck disable=SC2016
 assert_eq "the reason is neutralized inside one code span" \

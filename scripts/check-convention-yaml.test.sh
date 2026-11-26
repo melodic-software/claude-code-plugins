@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Black-box test for check-convention-yaml.sh.
-#
-# Each case builds a throwaway git repository holding a copy of the script,
-# commits the YAML and schema files it needs, and runs the script against it.
-# The validator is a stub named through CHECK_JSONSCHEMA_BIN: it records the
-# arguments it was given and rejects any file holding a `reject: true` line, so
-# the cases assert what the script owns (which schema it picks, which files it
-# reads, how a rejection or a missing schema is reported) and not what
-# check-jsonschema owns. The expected schema paths come from ADR 0064 Decision 6.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,13 +53,11 @@ run_sut() {
 
 state() { printf 'rc=%s stdout=%s stderr=%s log=%s' "$RC" "$OUT" "$ERR" "$LOG"; }
 
-# 1. No YAML under docs/conventions: clean, and the validator is never run.
 label="no YAML files exits 0 without running the validator"
 new_repo && put docs/conventions/source-control.md '# prose only'
 run_sut
 if [[ $RC -eq 0 && -n "$OUT" && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
-# 2. A plugin concern validates against plugins/<concern>/schemas/<concern>.schema.json.
 label="plugin concern uses the plugin schema"
 new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'
 run_sut
@@ -78,7 +67,6 @@ else
   fail "$label: $(state)"
 fi
 
-# 3. A cross-plugin convention validates against docs/conventions/<name>/<name>.schema.json.
 label="cross-plugin convention uses the convention-folder schema"
 new_repo && put docs/conventions/beta.yaml 'mode: on' && put docs/conventions/beta/beta.schema.json '{}'
 run_sut
@@ -88,7 +76,6 @@ else
   fail "$label: $(state)"
 fi
 
-# 4. With both schemas present, the plugin schema wins.
 label="plugin schema wins over a convention-folder schema"
 new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}' &&
   put docs/conventions/alpha/alpha.schema.json '{}'
@@ -99,8 +86,6 @@ else
   fail "$label: $(state)"
 fi
 
-# 4b. A plugin's further concern (a stem that is not a plugin name) validates
-#     against the schema that plugin ships; the first two lookups still win.
 label="a plugin's further concern uses the schema the plugin ships"
 new_repo && put docs/conventions/alpha-extra.yaml 'mode: on' && put plugins/alpha/schemas/alpha-extra.schema.json '{}'
 run_sut
@@ -119,7 +104,6 @@ else
   fail "$label: $(state)"
 fi
 
-# 5. A YAML file with no schema is a finding, and the validator is not run for it.
 label="missing schema exits 1 naming the file on stderr"
 new_repo && put docs/conventions/gamma.yaml 'mode: on'
 run_sut
@@ -129,8 +113,6 @@ else
   fail "$label: $(state)"
 fi
 
-# 6. A file the validator rejects is a finding naming the file and the schema,
-#    with the validator's report forwarded; a valid sibling does not hide it.
 label="rejected file exits 1 with the validator report on stderr"
 new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put plugins/delta/schemas/delta.schema.json '{}' &&
   put docs/conventions/alpha.yaml 'reject: true' && put docs/conventions/delta.yaml 'mode: on'
@@ -142,22 +124,17 @@ else
   fail "$label: $(state)"
 fi
 
-# 7. Only tracked files directly under docs/conventions/ are read: a folder's
-#    examples and an untracked file are not team layers.
 label="nested and untracked YAML are not read"
 new_repo && put docs/conventions/beta/examples/sample.yaml 'reject: true'
 printf 'mode: on\n' >"$repo/docs/conventions/untracked.yaml"
 run_sut
 if [[ $RC -eq 0 && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
-# 8. A missing validator is an environment failure, not a finding.
 label="missing validator exits 2"
 new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'
 run_sut CHECK_JSONSCHEMA_BIN="$repo/.stub/absent"
 if [[ $RC -eq 2 && -n "$ERR" && -z "$OUT" ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
-# 9. A file name carrying a command substitution is data, never evaluated, also
-#    under bash 5.1 expansion rules.
 label="hostile file name is reported, not executed"
 # shellcheck disable=SC2016  # the literal $(...) is the hostile file name
 hostile='docs/conventions/$(touch PWNED).yaml'
@@ -187,13 +164,6 @@ for i in "${!names[@]}"; do
   fi
 done
 
-# 10b. A control or line-separator character the unattended merge policy refuses
-#      in a value (babysit_merge_policy.py `_SEPARATOR`: C0 and C1 controls,
-#      U+2028, U+2029) is a finding even where the parser accepts the file,
-#      a tab or a CR inside a value included; LF and a line-ending CR, which
-#      the reader strips, are not. The policy reads only pr-pipeline.yaml, so
-#      no other file is held to it. Bytes are written with printf so the
-#      fixture holds the raw UTF-8.
 names=('C0 control' 'C1 control' 'line separator' 'paragraph separator' 'tab inside a value' 'CR inside a value')
 bodies=($'a: x\001y' $'a: x\302\205y' $'a: x\342\200\250y' $'a: x\342\200\251y' $'a: "x\ty"' $'a: x\ry')
 for i in "${!names[@]}"; do
@@ -209,8 +179,7 @@ for i in "${!names[@]}"; do
   fi
 done
 label="CRLF line endings and plain UTF-8 text are not a separator finding"
-# spellchecker:ignore-next-line
-new_repo && put plugins/pr-pipeline/schemas/pr-pipeline.schema.json '{}' && put docs/conventions/pr-pipeline.yaml $'a: "x y"\r\nb: caf\303\251\r\n'
+new_repo && put plugins/pr-pipeline/schemas/pr-pipeline.schema.json '{}' && put docs/conventions/pr-pipeline.yaml $'a: "x y"\r\nb: ca\x66\303\251\r\n'
 run_sut
 if [[ $RC -eq 0 && "$LOG" == *pr-pipeline.yaml* ]]; then ok "$label"; else fail "$label: $(state)"; fi
 label="a tab in a file the policy does not read is not a separator finding"
@@ -218,9 +187,6 @@ new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/convent
 run_sut
 if [[ $RC -eq 0 && "$LOG" == *alpha.yaml* ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
-# 10c. The source-control schema's pre_ready list, against the real validator:
-#      a list of {step, enabled} mappings passes; an unknown step, a non-boolean
-#      enabled, a missing enabled and a mapping keyed by step each fail.
 if command -v check-jsonschema >/dev/null 2>&1; then
   schema_src="$SCRIPT_DIR/../plugins/source-control/schemas/source-control.schema.json"
   label="a valid pre_ready list validates against the source-control schema"
@@ -249,15 +215,12 @@ else
   printf 'skip: check-jsonschema not on PATH; the pre_ready schema cases did not run\n'
 fi
 
-# 11. A missing runtime parser is an environment failure.
 label="missing lib/yaml-subset.awk exits 2"
 new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'
 rm "$repo/lib/yaml-subset.awk"
 run_sut
 if [[ $RC -eq 2 && "$ERR" == *yaml-subset.awk* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
-# 11b. The convention home is the one the pointer region binds (ADR 0075 fix 3).
-#      The expected paths follow from the region grammar in
 #      lib/resolve-convention-home.sh: the first backticked token inside the
 #      region is the home, and a declined or absent region leaves docs/conventions.
 region_for() {
@@ -316,10 +279,6 @@ if [[ $RC -eq 1 && "$ERR" == *"pointer target directory missing: Documentation"*
 else
   fail "$label: $(state)"
 fi
-# 11c. The home is read from the merge base with the base branch, not from the
-#      head: a head commit that moves the pointer away from a rejected file
-#      still has that file checked, on a pull request (GITHUB_BASE_REF) and
-#      locally (origin's default branch).
 for base_env in GITHUB_BASE_REF=main GITHUB_BASE_REF=; do
   label="a head-only pointer change does not move the checked home ($base_env)"
   new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml 'reject: true'
@@ -333,8 +292,6 @@ for base_env in GITHUB_BASE_REF=main GITHUB_BASE_REF=; do
     fail "$label: $(state)"
   fi
 done
-# 11d. The home the working tree binds is checked beside the merge base's.
-#      Each case commits a base, points origin/main at it, then commits the head.
 base_here() { git_test_config "$repo" update-ref refs/remotes/origin/main HEAD; }
 label="B3: a head that adds a region has its new home checked"
 new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && base_here &&
@@ -368,9 +325,6 @@ if [[ $RC -eq 0 && "$ERR" == *"merge base"*"pointer target directory missing"* &
 else
   fail "$label: $(state)"
 fi
-# 11e. A root holding .claude-plugin/marketplace.json (the marketplace
-#      repository itself) must bind a home in its working tree; the merge base
-#      may still bind none, so the change that adds the region passes.
 new_marketplace() { new_repo && put .claude-plugin/marketplace.json '{}' && put plugins/alpha/schemas/alpha.schema.json '{}'; }
 label="a marketplace root with no convention-home region exits 1 naming the unbound home"
 new_marketplace && put docs/conventions/alpha.yaml 'mode: on'
@@ -410,7 +364,6 @@ rm "$repo/lib/resolve-convention-home.sh"
 run_sut
 if [[ $RC -eq 2 && "$ERR" == *resolve-convention-home.sh* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
-# 12. An unknown argument is a usage error.
 label="unknown argument exits 2"
 new_repo
 OUT="$(bash "$repo/scripts/check-convention-yaml.sh" --fix 2>/dev/null)"

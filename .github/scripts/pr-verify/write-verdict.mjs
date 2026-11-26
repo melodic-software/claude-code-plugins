@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -293,6 +293,26 @@ const positions = (value) =>
 
 const fileList = (value) => positions(value).filter(Boolean);
 
+export function laterRuns(env) {
+  if (!env.CHUNK_OUTCOMES) return [];
+  requireEnv(env, ["CHUNKS_DIR"]);
+  const outcomes = env.CHUNK_OUTCOMES.split(",");
+  let classes = null;
+  try {
+    classes = JSON.parse(env.CHUNK_CLASSES ?? "");
+  } catch {}
+  const classed = Array.isArray(classes) && classes.length === outcomes.length && classes.every((name) => typeof name === "string");
+  return outcomes.map((outcome, i) => {
+    const dir = path.join(env.CHUNKS_DIR, `chunk-${i + 2}`);
+    const ran = outcome === "success" || outcome === "failure";
+    const scanStop = outcome === "failure" && classed && (classes[i] === "credential-stop" || classes[i] === "");
+    const execution = path.join(dir, "execution.json");
+    return { outcome: ran ? outcome : "", execution: (outcome === "success" || scanStop) && existsSync(execution) ? execution : "", log: ran ? path.join(dir, "log.jsonl") : "" };
+  });
+}
+
+const withLater = (value, later, key) => [...positions(String(value ?? "").replace(/\n$/, "")), ...later.map((run) => run[key])];
+
 function requireEnv(env, keys) {
   for (const key of keys) {
     if (!env[key]) {
@@ -322,8 +342,9 @@ const checkLog = (file) => earlierDenials(readLog(file));
 export function checkKeyLeg(env = process.env) {
   requireEnv(env, ["LOG_FILES", "GITHUB_OUTPUT"]);
   const lines = env.LOG_FILES.replace(/\n$/, "").split("\n");
-  const logs = fileList(env.LOG_FILES);
-  if (logs.length !== (env.CHUNKS ? Number(env.CHUNKS) + 1 : lines.length)) {
+  const later = laterRuns(env).filter((run) => run.outcome !== "");
+  const logs = [...fileList(env.LOG_FILES), ...later.map((run) => run.log)];
+  if (logs.length !== (env.CHUNKS ? Number(env.CHUNKS) + 1 : lines.length + later.length)) {
     throw new Error("the run log is unreadable");
   }
   logs.forEach(checkLog);
@@ -445,15 +466,29 @@ export function checkChunk(env = process.env) {
   appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
 }
 
+export function checkLaterChunks(env = process.env) {
+  requireEnv(env, ["GITHUB_OUTPUT", "CHUNKS", "DIFF_DIR", "MANIFEST_DIR"]);
+  const count = Number(env.CHUNKS);
+  const fail = laterRuns(env).some((run, i) => {
+    try {
+      return run.execution !== "" && countedOutput(readJudgment(run.execution, run.log, run.outcome), chunkFiles(env, i + 2, count)).verdict === "fail";
+    } catch {
+      return false;
+    }
+  });
+  appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
+}
+
 function judgedChunks(env) {
   const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9][0-9]?$/.test(name));
   const count = Number(env.CHUNKS);
   if (!/^[1-9][0-9]?$/.test(env.CHUNKS) || chunkDirs.length !== count) {
     throw new Error(`the chunk count does not match ${chunkDirs.length} chunk(s) of the diff`);
   }
-  const executions = positions(env.EXECUTION_FILES);
-  const logs = positions(env.LOG_FILES);
-  const outcomes = positions(env.JUDGE_OUTCOMES);
+  const later = laterRuns(env);
+  const executions = withLater(env.EXECUTION_FILES, later, "execution");
+  const logs = withLater(env.LOG_FILES, later, "log");
+  const outcomes = withLater(env.JUDGE_OUTCOMES, later, "outcome");
   const results = Array.from({ length: count }, (_, i) => {
     const k = i + 1;
     try {
@@ -498,7 +533,9 @@ function headOutput(env, count, results) {
   );
 }
 
-const RESULT_BYTES_MAX = 300000;
+export const RESULT_BYTES_MAX = 300000;
+
+export const chunkBudget = (count) => Math.floor(RESULT_BYTES_MAX / count / 3);
 
 export function writeChunkResults(env = process.env) {
   requireEnv(env, ["EXECUTION_FILES", "LOG_FILES", "JUDGE_OUTCOMES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "PART_BYTES", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]);
@@ -507,14 +544,19 @@ export function writeChunkResults(env = process.env) {
     throw new Error("PART_BYTES is not a part size");
   }
   const { count, results } = judgedChunks(env);
+  if (results.some(({ output }) => output?.verdict === "fail")) {
+    requireEnv(env, ["GITHUB_OUTPUT"]);
+    appendFileSync(env.GITHUB_OUTPUT, "fail=true\n");
+    return;
+  }
   const error = firstError(results, count);
   if (error) {
     throw error;
   }
-  const chunkParts = results.map(({ k, output: { verdict, summary, notes } }) => [`chunk-${k}`, readParts(JSON.stringify({ chunk: k, of: count, verdict, summary, notes }), partBytes)]);
-  const resultParts = chunkParts.flatMap(([, parts]) => parts).length;
-  if (resultParts * partBytes > RESULT_BYTES_MAX) {
-    throw new Error(`the chunk results take ${resultParts} parts, more than the final judge reads`);
+  const resultParts = readParts(results.map(({ k, output: { verdict, summary, notes } }) => JSON.stringify({ chunk: k, of: count, verdict, summary, notes })).join("\n"), partBytes);
+  const resultBytes = resultParts.reduce((sum, part) => sum + Buffer.byteLength(part), 0);
+  if (resultBytes > RESULT_BYTES_MAX) {
+    throw new Error(`the chunk results take ${resultBytes} bytes in ${resultParts.length} parts, more than the ${RESULT_BYTES_MAX} the final judge reads`);
   }
   const specText = readFileSync(env.SPEC_TEXT_FILE, "utf8");
   const refs = JSON.parse(specText).some?.((entry) => entry?.spec_kind === "refs");
@@ -525,7 +567,7 @@ export function writeChunkResults(env = process.env) {
       writeFileSync(file, part);
       return file;
     });
-  const resultFiles = chunkParts.flatMap(([stem, parts]) => writeParts(stem, parts));
+  const resultFiles = writeParts("results", resultParts);
   const partFiles = writeParts("spec", readParts(specText, partBytes));
   const contextFiles = refs ? writeParts("context", readParts(readFileSync(env.CONTEXT_FILE, "utf8"), partBytes)) : [env.CONTEXT_FILE];
   const listed = (files) => files.map((file) => `  - \`${file}\``).join("\n");
@@ -607,6 +649,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       checkKeyLeg();
     } else if (process.argv[2] === "chunk-fail") {
       checkChunk();
+    } else if (process.argv[2] === "later-fail") {
+      checkLaterChunks();
     } else if (process.argv[2] === "chunk-results") {
       writeChunkResults();
     } else {

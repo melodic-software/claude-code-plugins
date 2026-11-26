@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "`/work-items:track add --parent 200 --label 'wayfind: design' --body-file storage.md \"Choose per-tenant invoice storage\"`",
+      "why": "a typed create of the sharpened item"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: add --parent 200 --label 'wayfind: research' --body-file storage.md \"Choose per-tenant invoice storage\"\n```",
+      "why": "skill-and-arguments form"
+    },
+    {
+      "answer": "```\n/work-items:track add --parent 200 \\\n  --label 'wayfind: design' \\\n  --body-file storage.md \\\n  \"Choose per-tenant invoice storage\"\n```",
+      "why": "a command split over continuation lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`/work-items:track add --parent 200 --body-file storage.md \"Choose per-tenant invoice storage\"`",
+      "why": "no type label"
+    },
+    {
+      "answer": "Create 'Choose per-tenant invoice storage' later, once the table is revisited.",
+      "why": "no create written out"
+    },
+    {
+      "answer": "`/work-items:track add --parent 200 --label 'wayfind: design' --body-file revisit.md \"Revisit the invoice table design\"`",
+      "why": "a different item"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    },
+    {
+      "answer": "Map body edit: Not-yet-specified bullet becomes '- **Choose per-tenant invoice storage**: sharpened by #44, chart once #39 is revisited.'",
+      "why": "wrong: keeps it as a fog bullet instead of charting a typed item"
+    }
+  ]
+}

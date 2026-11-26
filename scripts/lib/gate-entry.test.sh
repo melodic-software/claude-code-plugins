@@ -247,8 +247,6 @@ else
   fail "populated discovery returned the wrong paths"
 fi
 
-# The commit object still resolves; its tree does not. That is a failed
-# discovery, and it must not come back as an empty set at exit 0.
 base="$(git -C "$repo" rev-parse HEAD)"
 subtree="$(git -C "$repo" rev-parse "HEAD^{tree}")"
 rm -f "$repo/.git/objects/${subtree:0:2}/${subtree:2}"
@@ -261,12 +259,6 @@ else
 fi
 rm -rf "$repo"
 
-# --- no gate hand-rolls the commit-existence predicate --------------------
-
-# Every rev-parse in a script that verifies or peels to a commit is either
-# changed_files::verify_base or one of these, each keyed by "<file>|<fixed
-# substring of the line>|<why it is not the existence predicate>". An entry whose
-# line is gone fails, so the list cannot outlive what it excuses.
 BASE_REF_ALLOW=(
   'check-silent-revert.sh|sha="$(git rev-parse --verify "${commit}^{commit}"|captures the resolved sha'
   'check-silent-revert.sh|git rev-parse --verify "${sha}^1"|captures the first parent'

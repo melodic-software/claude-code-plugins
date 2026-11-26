@@ -1,24 +1,3 @@
-// The profile planner: what applying one profile at one target writes, and what it reports.
-// Pure: every input arrives as an argument and nothing here reads or writes a file.
-//
-//   plan({catalog, profile, inventory, layers, current, target}) -> Plan, or throws PlanError
-//
-// catalog    ProfileCatalog from profile-files.mjs: {alwaysOn, profiles: Map<name, profile>}, each
-//            profile {name, description, plugins, optional, exclude, hideSkills} as Sets.
-// inventory  Map<id, {id, dependsOn: [id], ships: {hooks, mod, mcp, lsp}}> of installed plugins.
-// layers     {managed, session, local, project, user}, each {enabledPlugins, skillOverrides} as
-//            plain objects; a missing level is empty. The target's own level holds what the file
-//            would hold with this tool's earlier entries put back (record.mjs baseline).
-// current    the same levels as the files hold now, which enabled and disabled are measured
-//            against; defaults to layers.
-// target     "session" (a --settings file), "folder" (.claude/settings.local.json) or "initial"
-//            (user settings.json).
-//
-// Plan: {target, profile, writes: {id: boolean}, skillWrites: {name: "off"}, enabled, disabled,
-//        pinned: [{id, by: "managed" | "folder" | "repository", value}], missing: [{id, optional,
-//        install}], untouched, mcpOrLspOn, hookPluginsOff, ignored, repositoryOn, repositorySkills};
-//        the last three name what the profiles' repository files were refused and what only they add
-
 import { profileNamed, sourcesOf } from "./profile-files.mjs";
 
 /** @typedef {"session" | "folder" | "initial"} Target */
