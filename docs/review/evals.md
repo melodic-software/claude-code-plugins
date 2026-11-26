@@ -60,7 +60,11 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   swap in a skill's `name`, or a rename of a skill or agent, renames what people invoke and runs its
   cases. A script file gets no swap exemption, a change with no hunks is never exempt, and a
   plugin-wide file (hooks, `.mcp.json`, `plugin.json`) is always listed. A hunk with any other
-  change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions per ADR 0110).
+  change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions per ADR 0110). A swap
+  may also drop a rejected word left after its decided one (`concern lane` to `concern`), and mix
+  number across the two sides (owner, 2026-11-25, Q2217). A comment deletion in an eval case's own
+  files (anything under `evals/`) still runs that case, since the model running it may read them;
+  a swap there stays exempt (owner, 2026-11-25, Q2218).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that

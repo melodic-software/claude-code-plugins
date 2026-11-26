@@ -25,7 +25,9 @@ block scalar, or triple-quoted or backtick string). Decided terms come from the 
 directive comment (`//go:build`, `/// <reference`, `# shellcheck`, `# coding:` and the like), a
 comment in a cgo file, a `/*` opener deleted without its `*/` and a PowerShell `#>` closer are
 never deletable comments; a swap in a skill's `name` or a skill or agent rename always runs; a script gets no swap exemption; a change with no hunks is never exempt; a
-plugin-wide file is always listed. A hunk with any other change keeps the rules above.
+plugin-wide file is always listed. A comment deletion under `evals/` runs its case, since the
+model running the case may read it; a swap there stays exempt. A hunk with any other change keeps
+the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
 removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),

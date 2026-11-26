@@ -402,24 +402,28 @@ class SelectCasesNoRunTest(unittest.TestCase):
         self.assertEqual("control-no-fire one-basic one-trigger", block.get("affected-no-run"))
         self.assertEqual("0", block["agent-runs"])
 
-    def test_scaffold_header_comment_deletion_is_no_run(self):
+    def test_scaffold_comment_deletion_runs_its_case(self):
         self._base_with_comments()
         scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
         block = self._edit_and_select(scaffold, "# Seeds the shared fixture.\n", "")
-        self.assertNotIn("cases", block, "a scaffold header comment deletion runs nothing")
-        self.assertEqual("one-basic", block.get("affected-no-run"))
-        self.assertEqual("0", block["agent-runs"])
-
-    def test_comment_shaped_line_in_a_heredoc_still_runs(self):
-        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
-        scaffold.write_text(
-            scaffold.read_text(encoding="utf-8") + "cat > status.md <<'MD'\n# Project status\nMD\n",
-            encoding="utf-8",
+        self.assertEqual(
+            "one-basic", block.get("cases"), "the model running a case may read its comments"
         )
-        _commit_all(self.repo, "seed a heredoc")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        block = self._edit_and_select(scaffold, "# Project status\n", "")
-        self.assertEqual("one-basic", block.get("cases"), "a heredoc line is fixture content")
+
+    def _deletion_is_no_run(self, name, text, deleted):
+        """Whether deleting the consecutive `deleted` lines from `text` in a skill file counts as
+        a comment-only deletion."""
+        import no_run_text
+
+        lines = text.splitlines()
+        old = deleted.splitlines()
+        start = next(i for i in range(len(lines)) if lines[i : i + len(old)] == old) + 1
+        style = no_run_text.comment_style("plugins/alpha/skills/one/" + name, text)
+        return no_run_text._hunk_is_no_run(old, [], (), style, start)
+
+    def test_comment_shaped_line_in_a_heredoc_is_content(self):
+        text = "cat > status.md <<'MD'\n# Project status\nMD\n"
+        self.assertFalse(self._deletion_is_no_run("seed.sh", text, "# Project status"))
 
     def _base_with_block_scalar(self):
         self._base_with_comments()
@@ -442,15 +446,13 @@ class SelectCasesNoRunTest(unittest.TestCase):
         block = self._edit_and_select(config, "  # Heading the model reads\n", "")
         self.assertEqual("control-no-fire one-basic one-trigger", block.get("cases"))
 
-    def _assert_string_line_runs(
-        self, rel, base_text, line, cases="control-no-fire one-basic one-trigger"
-    ):
+    def _assert_string_line_runs(self, rel, base_text, line):
         path = self.repo / rel
         _write(self.repo, rel, base_text)
         _commit_all(self.repo, "seed a multi-line string")
         _git(self.repo, "branch", "-f", "base", "HEAD")
         block = self._edit_and_select(path, line, "")
-        self.assertEqual(cases, block.get("cases"))
+        self.assertEqual("control-no-fire one-basic one-trigger", block.get("cases"))
 
     def test_comment_shaped_line_in_a_toml_string_still_runs(self):
         self._assert_string_line_runs(
@@ -465,16 +467,9 @@ class SelectCasesNoRunTest(unittest.TestCase):
         text = '# Seeds it.\n$text = @"\n# Heading the model reads\nbody\n"@\n'
         self.assertEqual(("hash", frozenset({3, 4, 5})), no_run_text.comment_style("a.ps1", text))
 
-    def test_directive_comment_deletion_still_runs(self):
-        scaffold = self.repo / "plugins/alpha/evals/one-basic/scaffold.sh"
-        scaffold.write_text(
-            scaffold.read_text(encoding="utf-8") + "# shellcheck disable=SC2086\n",
-            encoding="utf-8",
-        )
-        _commit_all(self.repo, "add a directive")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        block = self._edit_and_select(scaffold, "# shellcheck disable=SC2086\n", "")
-        self.assertEqual("one-basic", block.get("cases"), "a directive comment changes behavior")
+    def test_directive_comment_deletion_is_not_a_comment_deletion(self):
+        text = "# shellcheck disable=SC2086\necho hi\n"
+        self.assertFalse(self._deletion_is_no_run("seed.sh", text, "# shellcheck disable=SC2086"))
 
     def test_markdown_html_comment_deletion_still_runs(self):
         self._base_with_comments()
@@ -513,36 +508,19 @@ class SelectCasesNoRunTest(unittest.TestCase):
             "one-basic", block.get("cases"), "a whitespace change beside a swap is not swap-only"
         )
 
-    def test_block_comment_with_trailing_code_still_runs(self):
-        _write(
-            self.repo,
-            "plugins/alpha/evals/one-basic/seed.js",
-            '/* setup */ console.log("seed");\n// plain comment\n',
-        )
-        _commit_all(self.repo, "add seed.js")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        seed = self.repo / "plugins/alpha/evals/one-basic/seed.js"
-        block = self._edit_and_select(seed, '/* setup */ console.log("seed");\n', "")
-        self.assertEqual(
-            "one-basic",
-            block.get("cases"),
-            "a line with code after its comment is not a whole-line comment",
+    def test_block_comment_with_trailing_code_is_not_a_comment_deletion(self):
+        text = '/* setup */ console.log("seed");\n// plain comment\n'
+        self.assertFalse(
+            self._deletion_is_no_run("seed.js", text, '/* setup */ console.log("seed");')
         )
 
-    def test_js_comment_lines_and_closed_block_deletion_is_no_run(self):
-        _write(
-            self.repo,
-            "plugins/alpha/evals/one-basic/seed.js",
-            '/* one-line */\n/*\n * block\n */\n// plain\nconsole.log("seed");\n',
+    def test_js_comment_lines_and_closed_block_deletion_is_a_comment_deletion(self):
+        text = '/* one-line */\n/*\n * block\n */\n// plain\nconsole.log("seed");\n'
+        self.assertTrue(
+            self._deletion_is_no_run(
+                "seed.js", text, "/* one-line */\n/*\n * block\n */\n// plain"
+            )
         )
-        _commit_all(self.repo, "add seed.js")
-        _git(self.repo, "branch", "-f", "base", "HEAD")
-        seed = self.repo / "plugins/alpha/evals/one-basic/seed.js"
-        block = self._edit_and_select(
-            seed, '/* one-line */\n/*\n * block\n */\n// plain\n', ""
-        )
-        self.assertNotIn("cases", block, "deleting only JS comment lines runs nothing")
-        self.assertEqual("one-basic", block.get("affected-no-run"))
 
     def test_decided_term_swap_in_a_skill_name_still_runs(self):
         self._write_glossary()
@@ -584,13 +562,9 @@ class SelectCasesNoRunTest(unittest.TestCase):
             "renaming a skill directory renames the skill",
         )
 
-    def test_powershell_block_comment_closer_deletion_still_runs(self):
-        self._assert_string_line_runs(
-            "plugins/alpha/evals/one-basic/seed.ps1",
-            "<#\nWrite-Output seed\n#>\nWrite-Output done\n",
-            "#>\n",
-            "one-basic",
-        )
+    def test_powershell_block_comment_closer_is_not_a_comment(self):
+        text = "<#\nWrite-Output seed\n#>\nWrite-Output done\n"
+        self.assertFalse(self._deletion_is_no_run("seed.ps1", text, "#>"))
 
     def test_comment_shaped_line_in_a_sequence_block_scalar_still_runs(self):
         self._assert_string_line_runs(
@@ -599,37 +573,23 @@ class SelectCasesNoRunTest(unittest.TestCase):
             "    # Heading the model reads\n",
         )
 
-    def test_triple_slash_directive_deletion_still_runs(self):
-        self._assert_string_line_runs(
-            "plugins/alpha/evals/one-basic/seed.ts",
-            '/// <reference types="node" />\nconsole.log("seed");\n',
-            '/// <reference types="node" />\n',
-            "one-basic",
+    def test_triple_slash_directive_is_not_a_comment(self):
+        text = '/// <reference types="node" />\nconsole.log("seed");\n'
+        self.assertFalse(
+            self._deletion_is_no_run("seed.ts", text, '/// <reference types="node" />')
         )
 
-    def test_deleting_only_a_block_comment_opener_still_runs(self):
-        self._assert_string_line_runs(
-            "plugins/alpha/evals/one-basic/seed.js",
-            '/*\nconsole.log("seed");\n//*/\n',
-            "/*\n",
-            "one-basic",
-        )
+    def test_deleting_only_a_block_comment_opener_is_not_a_comment_deletion(self):
+        text = '/*\nconsole.log("seed");\n//*/\n'
+        self.assertFalse(self._deletion_is_no_run("seed.js", text, "/*"))
 
-    def test_comment_shaped_line_in_a_js_backtick_string_still_runs(self):
-        self._assert_string_line_runs(
-            "plugins/alpha/evals/one-basic/seed.js",
-            "const prompt = `\n// Heading the model reads\nbody\n`;\n",
-            "// Heading the model reads\n",
-            "one-basic",
-        )
+    def test_comment_shaped_line_in_a_js_backtick_string_is_content(self):
+        text = "const prompt = `\n// Heading the model reads\nbody\n`;\n"
+        self.assertFalse(self._deletion_is_no_run("seed.js", text, "// Heading the model reads"))
 
-    def test_comment_shaped_line_in_a_python_triple_quoted_string_still_runs(self):
-        self._assert_string_line_runs(
-            "plugins/alpha/evals/one-basic/seed_text.py",
-            'PROMPT = """\n# Heading the model reads\nbody\n"""\n',
-            "# Heading the model reads\n",
-            "one-basic",
-        )
+    def test_comment_shaped_line_in_a_python_triple_quoted_string_is_content(self):
+        text = 'PROMPT = """\n# Heading the model reads\nbody\n"""\n'
+        self.assertFalse(self._deletion_is_no_run("seed.py", text, "# Heading the model reads"))
 
     def test_decided_term_swap_in_a_script_still_runs(self):
         self._write_glossary()
@@ -663,7 +623,9 @@ class SelectCasesNoRunTest(unittest.TestCase):
         )
 
     def test_comment_deletion_in_a_plugin_wide_file_is_still_listed(self):
-        _write(self.repo, "plugins/alpha/hooks/guard.sh", "#!/usr/bin/env bash\n# Guards.\nexit 0\n")
+        _write(
+            self.repo, "plugins/alpha/hooks/guard.sh", "#!/usr/bin/env bash\n# Guards.\nexit 0\n"
+        )
         _commit_all(self.repo, "add hook")
         _git(self.repo, "branch", "-f", "base", "HEAD")
         hook = self.repo / "plugins/alpha/hooks/guard.sh"
