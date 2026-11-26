@@ -3,6 +3,12 @@ name: compress-runs-repo-lint-script
 context:
   scaffold_script: scaffold.sh
 graders:
+  - name: edited-target
+    type: tool_used
+    tool: Edit
+    input_match: 'onboarding\.md'
+    min: 1
+    arm: with-only
   - name: ran-repo-lint
     type: tool_used
     tool: Bash

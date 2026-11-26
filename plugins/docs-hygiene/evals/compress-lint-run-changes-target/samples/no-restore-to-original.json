@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md"}}, {"tool": "Edit", "input": {"file_path": "docs/onboarding.md", "old_string": "merge your own pull request.\n\nLast checked by lint-md.\n", "new_string": "merge your own pull request.\n"}}], "why": "removes only the linter's line, keeping the compression"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git status --porcelain"}}, {"tool": "Bash", "input": {"command": "git hash-object docs/onboarding.md"}}], "why": "reads state only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "git checkout -- docs/onboarding.md"}}], "why": "restores the committed original, discarding the compression"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git restore docs/onboarding.md"}}], "why": "restores the committed original"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git stash"}}], "why": "stashes the compressed edit away"}
+  ]
+}
