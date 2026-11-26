@@ -52,7 +52,7 @@ resolve_default_hours() {
          // .pluginConfigs["source-control"].options.worktree_reap_after_hours
          // empty) | tostring' "$settings" 2>/dev/null)" || val=""
     elif command -v python3 >/dev/null 2>&1; then
-      val="$(python3 -c '
+      val="$(python3 -I -c '
 import json, sys
 try:
     d = json.load(open(sys.argv[1]))
@@ -259,7 +259,7 @@ if [[ -f "$installed_plugins" && -r "$installed_plugins" ]]; then
           and (.projectPath | type == "string") and (.projectPath | length > 0))
         | .projectPath' "$installed_plugins" 2>/dev/null || true
     elif command -v python3 >/dev/null 2>&1; then
-      python3 -c '
+      python3 -I -c '
 import json, sys
 d = json.load(open(sys.argv[1]))
 for entries in (d.get("plugins") or {}).values():

@@ -8,7 +8,6 @@ import base64
 import ctypes
 import datetime as dt
 import fnmatch
-import functools
 import hashlib
 import json
 import os
@@ -41,7 +40,7 @@ import policy_cascade  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 import deep_inventory  # noqa: E402  (path set above; sibling module)
 import ranking_signals  # noqa: E402  (sibling module; a rank orders review only)
-import yaml_subset  # noqa: E402  (path set above; plugin-bundled module)
+import yaml_subset  # noqa: E402, F401  (re-exported for callers/tests)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -410,7 +409,7 @@ def close_clean_runs(ended: Path | None = None) -> None:
             info = marker.lstat()
             if not stat.S_ISREG(info.st_mode):
                 return
-            close = time.time() - info.st_mtime >= RUN_IDLE_TIMEOUT_SECONDS
+            close = time.time() - info.st_mtime >= data_root_state.RUN_IDLE_TIMEOUT_SECONDS
             if not close and ended is not None:
                 recorded = json.loads(marker.read_text(encoding="utf-8"))["ends_with"]
                 close = isinstance(recorded, str) and os.path.normcase(

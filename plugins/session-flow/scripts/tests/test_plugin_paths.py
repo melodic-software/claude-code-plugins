@@ -8,6 +8,9 @@ from pathlib import Path
 
 for _git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_git_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+del _git_var
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import plugin_paths  # noqa: E402
