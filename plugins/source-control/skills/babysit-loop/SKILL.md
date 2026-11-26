@@ -440,8 +440,7 @@ re-invocation of the subagent that already commented on the blocker, never quali
 ## Pacing and session budget
 
 Launch via `/loop` with the interval omitted (self-paced). At the end of every cycle that does not
-stop, schedule the next with `ScheduleWakeup` (the delay range a self-paced loop allows:
-[let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)). When the
+stop, schedule the next with `ScheduleWakeup` (the delay range a self-paced loop allows: [let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)). When the
 babysit-prs engine snapshot supplies `recommended_cadence`, map it per the cadence table in the
 babysit-prs [loop reference](../babysit-prs/reference/loop.md) §5.3, which owns the
 seconds. Idle backs off toward that range's ceiling (standing mode's one-hour wakeups), and a genuine

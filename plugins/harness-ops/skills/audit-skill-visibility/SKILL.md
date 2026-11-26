@@ -37,9 +37,7 @@ therefore never takes effect; `harness-config:audit`, when installed, reports th
 - **Pointer**: when deciding whether `skillOverrides` can affect a plugin skill, fetch [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings) live.
 
 Claude Code budgets the model-visible skill listing in characters, at
-`window x bytes-per-token x skillListingBudgetFraction` (our binary reading; the docs' account,
-which differs on the drop order:
-[skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)), and, when it
+`window x bytes-per-token x skillListingBudgetFraction` (our binary reading; the docs' account, which differs on the drop order: [skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)), and, when it
 overflows, **sheds descriptions from the lowest-scoring skills first**. Names always survive,
 descriptions do not. A skill at zero usage scores zero, so it loses its description, loses the
 keywords a request would match against, and stays at zero. Unused is partly self-causing.
@@ -141,8 +139,7 @@ excluded and reported rather than counted. Current project comes from
 
 A marketplace whose source is a local `directory` loads from that **checkout**,
 not from either cached `installPath`. Verified by a skill executing out of the
-marketplace directory; the docs' account:
-[in-place and copied plugins](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins). For those, the plugin's root comes from the catalog's
+marketplace directory; the docs' account: [in-place and copied plugins](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins). For those, the plugin's root comes from the catalog's
 declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
 Whether each resolved plugin actually loads is read from `enabledPlugins` in the

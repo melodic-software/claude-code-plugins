@@ -110,9 +110,7 @@ Read-only suites run anywhere: `Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, 
 validator's `READ_ONLY_TOOLS`). `suite_tools` is `read-only` when every case's `allowed_tools` sits
 inside that set; otherwise it lists the gated tools, which are exactly the ones needing an
 `--allow-tools` grant. Grant each gated tool with `--allow-tools`, never relying on a case's or a
-skill's own `allowed-tools` for it (why:
-[trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory);
-how an ungranted tool is reported: [grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)).
+skill's own `allowed-tools` for it (why: [trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory); how an ungranted tool is reported: [grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)).
 
 ### Route per environment
 
@@ -171,7 +169,7 @@ is "this plugin versus no plugin".
 | An agent definition | `wrapped-agent` | Ship it in the wrapping plugin's `agents`, list `Agent` in the case's `allowed_tools`, assert `tool_used` on `Agent`. No first-party text describes this route; it composes documented parts, so treat a null result as a route defect before a plugin defect |
 | Hooks and slash commands | component of `plugin` | Loaded as plugin components. We treat a score for hooks you did not write as advisory unless the run is in a container or a CI runner (why: [trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory)). Nothing first-party grades command invocation as such |
 | MCP servers | component of `plugin` | Mocked by default from `evals/mocks/<server>/<tool>.md`; a real server needs `--allow-real-servers` or `--mocks off` plus an `--allow-tools "mcp__plugin_<plugin>_<server>__*"` grant, and runs as you, outside the sandbox |
-| `CLAUDE.md`, `.claude/rules`, user settings, memory | `rules` | **Refused.** A run loads none of these ([how runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)), so a shim that re-injects the rule measures the shim, not the rule |
+| `CLAUDE.md`, `.claude/rules`, user settings, memory | `rules` | **Refused.** Every run starts from a throwaway home and loads none of these ([how runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)), so a shim that re-injects the rule measures the shim, not the rule |
 
 A skill or agent that is not yet wrapped is not a target: report the wrap route, print it, and stop.
 The next preflight sees `wrapped-skill` or `wrapped-agent` and proceeds.
