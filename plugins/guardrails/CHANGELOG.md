@@ -3,6 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.0] - 2026-11-26
+
+### Changed
+
+- The shared `session-attended.env`, `session-attended.sh` and `session-attended.mjs` copies gain a reader for `CLAUDE_CODE_EXECPATH`, which the fleet peer list uses; the attended predicate and guardrails' ask-or-deny behavior do not change.
+
+### Removed
+
+- **`block-body-format-violation` no longer judges a `## Loosened checks` section.** It reads no
+  linked issue and refuses no body for a loosened check, so a pull request with
+  `No related issue: <reason>` and a reasoned section opens. Review and pr-verify judge the
+  section by the review plugin's loosened-check rule. The hook's section, opener and issue-format
+  checks are unchanged ([#19312](https://github.com/melodic-software/claude-code-plugins/issues/19312)).
+
 ## [5.4.1] - 2026-11-26
 
 ### Changed

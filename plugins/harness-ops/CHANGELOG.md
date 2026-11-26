@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.0] - 2026-11-26
+
+### Added
+
+- behavior-probes: a case's `turns` (user messages such as `/clear`) run before its prompt over stream-json input, and outcome `reply` judges the run's last reply against `reply_match`, where `<session8>` stands for the answering session's id prefix.
+- behavior-probes: `session-start` cases check that a SessionStart hook's context reaches the model on startup, after `/clear` and after `/compact`.
+
+- `remote/` top-level surface classification in the shared `lib/plugin_cache_versions.py` `SURFACE_TABLE` and stat-only `projects_audit` orphan summary via `lib/claude_projects.py` (`NullTranscriptCwdAdapter`).
+
+- `audit-install-state` reads `managed-settings.d/*.json` drop-in files alongside the base `managed-settings.json` through a dedicated `managed_settings.py` module matching `lib/managed-scope.sh` platform paths.
+
+### Changed
+
+- behavior-probes: a run whose stream reports a rejected rate limit (the usage limit) is inconclusive and skips every case after it; an `allowed` rate-limit event is ignored.
+
+- `install_state.py` consumes shared `lib/plugin_cache_versions.py` (`resolve_claude_dir`, `SURFACE_TABLE`, `NEVER_READ_GLOBS`, strict UTF-8 `AllowlistGuardedReader` preserving all four read guards, and `classify_cache_relpath`).
+
+### Fixed
+
+- `unreferenced_versions` and `node_modules_bucket` exclude depth-1 `plugins/cache/temp_git_*` staging clones instead of misclassifying nested `.git/objects` directories as plugin versions.
+- Invalid UTF-8 bytes in `settings.json` or `installed_plugins.json` now fail closed instead of substituting replacement characters.
+
+- `read_retention` merges `cleanupPeriodDays` across base and alphabetical drop-in files (later file wins), withdraws `settings-unparsable-pauses-sweep` when a valid drop-in supplies `cleanupPeriodDays`, and emits `managed-settings-unparsable-refuses-start` on any unparsable base or drop-in file.
+
 ## [11.0.0] - 2026-11-26
 
 ### Changed
