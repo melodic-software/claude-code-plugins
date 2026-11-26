@@ -79,58 +79,58 @@ load_registry() {
 render() {
   local src="$1" prefix first="" close=""
   case "$src" in
-  *.json)
-    cat "$src"
-    return 0
-    ;;
-  *.css)
-    printf '/* GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
-    printf '   edit the canonical source, then rerun the script. */\n'
-    cat "$src"
-    return 0
-    ;;
-  *.mjs | *.cjs | *.js | *.ts) prefix='//' ;;
-  *.sh | *.bash | *.py | *.ps1 | *.psm1 | *.awk | *.jq | *.env) prefix='#' ;;
-  *.html)
-    IFS= read -r first <"$src" || true
-    shopt -s nocasematch
-    if [[ "$first" == '<!doctype '* ]]; then
-      printf '%s\n' "$first"
-      close=1
-    fi
-    shopt -u nocasematch
-    printf '<!-- GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
-    printf 'edit the canonical source, then rerun the script. -->\n'
-    if [[ -n "$close" ]]; then
-      tail -n +2 "$src"
-    else
+    *.json)
       cat "$src"
-    fi
-    return 0
-    ;;
-  *.md)
-    IFS= read -r first <"$src" || true
-    if [[ "$first" == '---' ]]; then
-      close="$(awk 'NR > 1 && /^---$/ { print NR; exit }' "$src")"
-    fi
-    if [[ -n "$close" ]]; then
-      head -n "$close" "$src"
-      printf '\n'
-    fi
-    printf '<!-- GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
-    printf 'edit the canonical source, then rerun the script. -->\n'
-    if [[ -n "$close" ]]; then
-      tail -n +"$((close + 1))" "$src"
-    else
-      printf '\n'
+      return 0
+      ;;
+    *.css)
+      printf '/* GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
+      printf '   edit the canonical source, then rerun the script. */\n'
       cat "$src"
-    fi
-    return 0
-    ;;
-  *)
-    echo "error: no comment syntax known for $src; teach $self its extension." >&2
-    return 2
-    ;;
+      return 0
+      ;;
+    *.mjs | *.cjs | *.js | *.ts) prefix='//' ;;
+    *.sh | *.bash | *.py | *.ps1 | *.psm1 | *.awk | *.jq | *.env) prefix='#' ;;
+    *.html)
+      IFS= read -r first <"$src" || true
+      shopt -s nocasematch
+      if [[ "$first" == '<!doctype '* ]]; then
+        printf '%s\n' "$first"
+        close=1
+      fi
+      shopt -u nocasematch
+      printf '<!-- GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
+      printf 'edit the canonical source, then rerun the script. -->\n'
+      if [[ -n "$close" ]]; then
+        tail -n +2 "$src"
+      else
+        cat "$src"
+      fi
+      return 0
+      ;;
+    *.md)
+      IFS= read -r first <"$src" || true
+      if [[ "$first" == '---' ]]; then
+        close="$(awk 'NR > 1 && /^---$/ { print NR; exit }' "$src")"
+      fi
+      if [[ -n "$close" ]]; then
+        head -n "$close" "$src"
+        printf '\n'
+      fi
+      printf '<!-- GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
+      printf 'edit the canonical source, then rerun the script. -->\n'
+      if [[ -n "$close" ]]; then
+        tail -n +"$((close + 1))" "$src"
+      else
+        printf '\n'
+        cat "$src"
+      fi
+      return 0
+      ;;
+    *)
+      echo "error: no comment syntax known for $src; teach $self its extension." >&2
+      return 2
+      ;;
   esac
   IFS= read -r first <"$src" || true
   if [[ "$first" == '#!'* ]]; then
@@ -275,35 +275,35 @@ if ((outside)) && [[ "$mode" == --check-bump ]]; then
   exit 2
 fi
 case "$mode" in
-sync)
-  load_registry
-  each_copy write_copy
-  ;;
---check)
-  load_registry
-  each_copy check_copy
-  if ((drifted)); then
-    echo "Run $self and commit the result." >&2
-    exit 1
-  fi
-  echo "All ${#src_of[@]} registered copies match their canonical sources."
-  ;;
---check-bump)
-  base="${2:?usage: sync-shared-copies.sh --check-bump <base-ref>}"
-  load_registry
-  check_bump "$base"
-  ;;
---print-manifest)
-  load_registry
-  for src in "${srcs[@]}"; do
-    printf 'src\t%s\n' "$src"
-    while IFS= read -r copy; do
-      [[ -z "$copy" ]] || printf 'copy\t%s\n' "$copy"
-    done <<<"${copies_of[$src]}"
-  done
-  ;;
-*)
-  echo "usage: sync-shared-copies.sh [--check | --check-bump <base-ref> | --print-manifest]" >&2
-  exit 2
-  ;;
+  sync)
+    load_registry
+    each_copy write_copy
+    ;;
+  --check)
+    load_registry
+    each_copy check_copy
+    if ((drifted)); then
+      echo "Run $self and commit the result." >&2
+      exit 1
+    fi
+    echo "All ${#src_of[@]} registered copies match their canonical sources."
+    ;;
+  --check-bump)
+    base="${2:?usage: sync-shared-copies.sh --check-bump <base-ref>}"
+    load_registry
+    check_bump "$base"
+    ;;
+  --print-manifest)
+    load_registry
+    for src in "${srcs[@]}"; do
+      printf 'src\t%s\n' "$src"
+      while IFS= read -r copy; do
+        [[ -z "$copy" ]] || printf 'copy\t%s\n' "$copy"
+      done <<<"${copies_of[$src]}"
+    done
+    ;;
+  *)
+    echo "usage: sync-shared-copies.sh [--check | --check-bump <base-ref> | --print-manifest]" >&2
+    exit 2
+    ;;
 esac
