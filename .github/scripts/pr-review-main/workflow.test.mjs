@@ -1397,6 +1397,7 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
       "with no org index, the org's citations are still listed",
     );
     rmSync(data, { recursive: true, force: true });
+    writeFileSync(path.join(dir, ".base", "REVIEW.md"), "review, see `docs/review/local.md#local-rule`\n");
     const missing = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], {
       cwd: dir,
       encoding: "utf8",
@@ -1404,6 +1405,12 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
     });
     assert.equal(missing.status, 0, `a missing org checkout still copies: ${missing.stderr}`);
     assert.deepEqual(readdirSync(orgCopy), ["citations.tsv"], "a missing org checkout copies no org file");
+    assert.equal(
+      readFileSync(path.join(orgCopy, "citations.tsv"), "utf8"),
+      `docs/review/local.md#local-rule\t${data}/standards/review/local.md#local-rule\n`,
+      "a missing org checkout still lists the repository's citations, pointing at the lane's copies",
+    );
+    assert.equal(composed(), "review, see `docs/review/local.md#local-rule`\n", "a missing org checkout leaves the repository's criteria alone");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
