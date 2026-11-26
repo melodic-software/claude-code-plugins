@@ -3,6 +3,14 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.7] - 2026-11-26
+
+### Changed
+
+- **`/user-interface:audit` runs one concern at a time.** The skill, its references and its schema
+  descriptions say "concern" where they said "concern lane", since "lane" now means only a worker
+  that serves one pipeline stage. The arguments and the concern table are unchanged.
+
 ## [0.28.6] - 2026-11-24
 
 ### Changed
