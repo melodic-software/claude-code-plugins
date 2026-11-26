@@ -1,108 +1,4 @@
 #!/usr/bin/env bash
-#   scripts/check-affected.sh                 the lint checks
-#   scripts/check-affected.sh --tests         ... and scripts/affected-tests.sh --run
-#   scripts/check-affected.sh --jobs N        run up to N selected shell suites at
-#                                             once (default: $CHECK_AFFECTED_JOBS,
-#                                             else one less than the core count,
-#                                             at most 8 and at most one per 2 GiB
-#                                             of free memory)
-#   scripts/check-affected.sh --budget S      with --tests, end the run S seconds
-#                                             after it starts (default:
-#                                             $CHECK_AFFECTED_BUDGET, else 120): no
-#                                             suite starts after that, those that
-#                                             run finish, and tests is a SKIP
-#                                             naming each suite left to CI; a suite
-#                                             over its share is a warning, not a
-#                                             failure (scripts/run-plugin-tests.sh
-#                                             BUDGET, DEADLINE)
-#   scripts/check-affected.sh --base <ref>    diff against <ref> (default: origin/main)
-#   scripts/check-affected.sh --no-fetch      skip refreshing <ref> before the
-#                                             run resolves it to a commit
-#   scripts/check-affected.sh --uncommitted   check the work tree as the commit
-#                                             it would make (default base: HEAD)
-#
-# --uncommitted is for a run that commits through an API from the files on
-# disk rather than in the checkout, such as the issue lane: it commits the work
-# tree, untracked files and file modes included, through a temporary index and
-# object directory, checks that commit out in a scratch repository, and runs
-# the checks there. Nothing is written under .git, so the checkout's HEAD,
-# index and worktree list stay as they are. With CHECK_AFFECTED_SCRIPT_EXEC_BIT=1
-# (the issue lane's patch run) that commit makes each new or changed .sh or #!
-# file executable, as apply-patch will. --tests runs the suites from this tree,
-# whose work tree holds the same edits, not the scratch one, which has no
-# node_modules.
-#
-# Each check calls the script or tool CI calls; none restates a check's logic
-# but machine-specific-paths, whose entry script is in ci-workflows, not here:
-# it repeats that script's scan and exemptions over the same patterns file.
-# The changed set is <merge-base of HEAD and the base>..HEAD, committed work
-# only, because that is what a push sends. The checks read the working tree,
-# so when a changed file has uncommitted edits every check SKIPs rather than
-# judge content the push would not send; CI checks the pushed commit.
-#
-#   - markdown:            markdownlint-cli2 on changed .md
-#   - shellcheck:          shellcheck --rcfile .shellcheckrc on changed .sh/.bash
-#   - shell-portability:   scripts/check-shell-portability.sh <merge-base>
-#   - exec-bit:            a changed file starting with #! is 100755 in the index
-#   - changelog-fragments: scripts/check-changelog-fragments.sh --check and
-#                          --check-required <base>
-#   - stale-base-overlap:  scripts/check-stale-base-overlap.sh --check <base>
-#   - validate-plugins:    scripts/validate-plugins.sh --only <touched plugins>
-#   - ruff:                scripts/run-ruff.sh check on changed .py
-#   - typos:               typos --config _typos.toml on the changed files
-#   - comment-hygiene:     scripts/check-comment-hygiene.sh <merge-base> on the
-#                          changed files, which runs the pinned ci-workflows
-#                          action's own patterns library over their comments
-#   - machine-specific-paths: the check-machine-paths composite's scan, git grep
-#                          of each regex body in the guardrails plugin's
-#                          machine-path-patterns.sh, on the changed files
-#   - spoke-plugin-root:   scripts/check-spoke-plugin-root.sh --check
-#   - as-of-recheck:       scripts/check-as-of-recheck.sh --check
-#   - cost-figures:        scripts/check-cost-figures.sh --check
-#   - cross-plugin-source-drift: scripts/check-cross-plugin-source-drift.sh
-#                          --check, when a plugins/ file, that script or its
-#                          registry scripts/cross-plugin-source-registry.txt
-#                          changed
-#   - plugin-imports:      scripts/check-plugin-imports.sh
-#   - plugin-options-docs: python3 scripts/sync-plugin-options-docs.py --check
-#   - changelog-parity:    scripts/check-changelog-parity.sh in the --check,
-#                          --check-bump, --check-preserved and --check-order
-#                          modes the pull_request run uses
-#   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
-#                          file changed; without --tests it sets
-#                          CHECK_SKILL_SKIP_SCRIPT_TESTS=1, so the skills'
-#                          scripts/*.test.sh are left to the test tier; with
-#                          --tests the budget ends them, and one left makes
-#                          changed-skills a SKIP naming it
-#   - tests (--tests):     scripts/affected-tests.sh --run --jobs <N>
-#                          --budget <S> --base <base>, after
-#                          scripts/setup-env.sh --node installs any missing or
-#                          stale locked npm packages, then the selected Node
-#                          suites of scripts/outside-node-packages.txt through
-#                          scripts/run-outside-node-suites.sh --paths; any
-#                          other selected suite left unrun, or left past the
-#                          budget, makes tests a SKIP
-#
-# validate-plugins, changed-skills and tests are the slow checks; they run last,
-# and only when every other check passed. When one of those failed they are
-# SKIPs naming that, so a static finding is reported at once.
-#
-# Every hygiene gate the CI jobs run that this does not is printed as
-# `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
-# is covered, and scripts/check-affected-gates.test.sh fails when a gate in
-# the workflow's hygiene jobs is in neither column.
-#
-# CI is still the gate that decides: this covers the diff-scoped LINT tier and
-# the plugin and skill contract checks above, not CI's whole-repo scanners, and
-# it does not widen shellcheck to the files that
-# source a changed library the way CI's lint-shell job does.
-#
-# A missing tool, a failed fetch, or a check that exits 2 (could not run) is a
-# SKIP with its reason, never a failure. Exit 0 every check passed or skipped;
-# 1 a check failed, with each failure and its reproduce command on stderr; 2
-# usage or a git state the changed set cannot be read from, an empty changed
-# set while HEAD is not the base among them. That is the
-# check-script family contract stated in README.md.
 set -uo pipefail
 
 usage() {
@@ -111,18 +7,6 @@ usage() {
 }
 
 run_tests=0
-# The selected suites run through run-plugin-tests.sh's job pool, which keeps
-# the suites in scripts/run-plugin-tests-serial.txt off the parallel group.
-# One less than the core count: on a 4-vCPU runner, 3 is the proven ceiling
-# (scripts/affected-tests.sh, #3694). At most 8: past 8 the wall time is the
-# longest suite's (#10534), and on a host where several sessions run suites at
-# once, 23 jobs failed suites that passed at 4 and 6 (#10719). At most one per
-# 2 GiB of free memory: a browser suite needs about that (8 planning surface
-# jobs peaked at 15 GiB and the kernel killed chrome at the session slice's
-# cap). Free memory is MemAvailable, or less where a cgroup above this shell
-# caps it: its memory.max less memory.current, inactive file cache counted free.
-# Every ancestor is read: a cgroup whose parent does not delegate the memory
-# controller has no memory.* files, yet the parent's cap still applies to it.
 mem_free_kib() {
   local free dir="${CHECK_AFFECTED_CGROUP_DIR:-/sys/fs/cgroup$(sed -n 's/^0:://p' /proc/self/cgroup 2>/dev/null)}" max cur inactive
   free="$(awk '/^MemAvailable:/ { print $2 }' "${CHECK_AFFECTED_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
@@ -202,9 +86,6 @@ if ((uncommitted)); then
     echo "check-affected: cannot resolve the base to a commit" >&2
     exit 2
   }
-  # Nothing is written under .git, which the lane's sandbox can make read-only:
-  # new objects go to $snap/objects, and the commit is checked out in a scratch
-  # repository whose alternates borrow every other object from this one.
   snap="$(mktemp -d)" || exit 2
   trap 'rm -rf "$snap"' EXIT
   objects="$(cd "$(git rev-parse --git-common-dir)/objects" && pwd -P)" || exit 2
@@ -213,9 +94,6 @@ if ((uncommitted)); then
   [[ ! -f "$index" ]] || cp "$index" "$snap/index" || exit 2
   mkdir "$snap/objects" || exit 2
   export GIT_INDEX_FILE="$snap/index" GIT_OBJECT_DIRECTORY="$snap/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objects"
-  # The lane's sandbox masks dotfiles with /dev/null, a device git will not
-  # add, so only files, symlinks, repositories and deletions are staged.
-  # An empty pathspec would make add -A stage everything, so none means no add.
   paths=()
   while IFS= read -r -d '' f; do
     if [[ -f "$f" || -L "$f" || -d "$f" || ! -e "$f" ]]; then paths+=("$f"); fi
@@ -239,13 +117,10 @@ if ((uncommitted)); then
   unset GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
   git -c init.defaultBranch=snapshot init --quiet --template= "$snap/tree" || exit 2
   printf '%s\n' "$snap/objects" "$objects" >"$snap/tree/.git/objects/info/alternates" || exit 2
-  # A shallow clone's boundary, so history walks stop where the clone does.
   [[ ! -f "$shallow" ]] || cp "$shallow" "$snap/tree/.git/shallow" || exit 2
   git -C "$snap/tree" -c core.hooksPath=/dev/null checkout --quiet --detach "$commit" || exit 2
   args=(--base "$base" --no-fetch --jobs "$jobs" --budget "$budget")
   ((run_tests)) && args+=(--tests)
-  # A snapshot of this tree's own work tree is no foreign code, so the inner
-  # run's tests run here, where the selector reads the same uncommitted edits.
   own=
   [[ "$(pwd -P)" != "$tools" ]] || own="$tools"
   rc=0
@@ -262,7 +137,8 @@ foreign=0
 if [[ "$(pwd -P)" != "$tools" ]]; then
   foreign=1
   export CHECK_DATA_ROOT="$PWD"
-  # uvx would otherwise read a uv.toml or [tool.uv] index from the checked tree.
+  # UV_NO_CONFIG stops uv reading uv.toml or [tool.uv] from the checked tree's directories.
+  # https://docs.astral.sh/uv/reference/environment/#uv_no_config
   export UV_NO_CONFIG=1
 else
   unset CHECK_DATA_ROOT
@@ -304,13 +180,10 @@ fail_check() {
   } >>"$out.failures"
 }
 
-# run_check <name> <reproduce-command> <command...>: a 2 from a check script
-# means it could not look, which is a skip; 127 is a tool that is not there.
 run_check() {
   local name="$1" repro="$2" rc=0
   shift 2
   "$@" >"$out" 2>&1 || rc=$?
-  # A check that skips part of itself says so on a `SKIP <part> (<why>)` line.
   local line
   while IFS= read -r line; do
     skip "$name: ${line#SKIP }" "reported by the check"
@@ -327,9 +200,6 @@ fetched=1
 if ((fetch)) && [[ "$base" == */* ]]; then
   git fetch --quiet "${base%%/*}" "${base#*/}" 2>/dev/null || fetched=0
 fi
-# Then resolved to a commit once, so every check judges the base the run
-# started from: every worktree shares the remote-tracking refs, and another
-# session's fetch can move one mid-run. Later drift is CI's and the merge queue's.
 base_name="$base"
 base="$(git rev-parse --verify --quiet "$base^{commit}")" || {
   echo "check-affected: cannot compute the merge-base of HEAD and $base_name: it names no commit" >&2
@@ -392,10 +262,6 @@ elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
 elif [[ -z "$md_config" ]]; then
   no_std_config markdown .markdownlint-cli2.jsonc
 elif ((foreign)); then
-  # Lint HEAD's copy of each file beside the tooling tree's configs, overlaid
-  # with each markdownlint config the branch changed that the tooling tree's
-  # scripts/lib/markdownlint-config-data.mjs proves is data. Any other changed
-  # config is refused with a SKIP line saying why, leaving the tooling tree's.
   markdown_staged() {
     local stage f kind mode data rc=0
     stage="$out.md"
@@ -484,12 +350,6 @@ else
   run_check ruff "scripts/run-ruff.sh check --force-exclude ${py[*]}" "$tools/scripts/run-ruff.sh" check --force-exclude "${py[@]}"
 fi
 
-# step_input <step id> <input>: the words of that input of the checked tree's
-# hygiene workflow step, one per line, written on the key's line or as a block
-# scalar below it. Both composites that read one (typos, check-machine-paths)
-# split the value on whitespace, so every form yields the same words. The scan
-# covers only the step: its keys sit at the indent of its `id:` line, and the
-# first non-blank line indented less ends the step.
 hygiene_workflow=.github/workflows/pr-require-checks.yml
 step_input() {
   awk -v id="$1" -v key="$2" '
@@ -542,9 +402,6 @@ else
   run_check typos "typos --config $typos_rel ${changed[*]}" typos_check "$typos_config"
 fi
 
-# comment-hygiene: the patterns come from the ci-workflows SHA the merge-base's
-# workflow pins, fetched on each run; a failed fetch is the script's exit 2, a
-# SKIP with its reason. Run through bash, so a copy without the exec bit runs.
 if ((${#changed[@]} == 0)); then
   skip comment-hygiene "no changed files"
 else
@@ -624,16 +481,6 @@ else
   run_check vocabulary "python3 -I scripts/check-vocabulary.py ${vocabulary_files[*]}" vocabulary_staged
 fi
 
-# machine-specific-paths: the scan the workflow's check-machine-paths composite
-# (melodic-software/ci-workflows) runs, over the changed files of the types it
-# scans. The regex bodies come from the merge-base's guardrails plugin copy of
-# the patterns file the composite sources; no second copy of them is written
-# here. The exclusions and the types are the `exclude:` and `extensions:` inputs
-# of the workflow's machine-paths step, read as data like typos'; with no
-# `extensions:` the types are the composite's default for that input. The
-# boundary, the five scans and the exemptions repeat the composite's entry
-# script. check-affected.test.sh fetches the composite at the workflow's pin and
-# fails when the default, the patterns file or the entry script's verdicts differ.
 machine_paths_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 machine_paths_default_types='*.cs *.csproj *.json *.jsonc *.js *.jsx *.md *.props *.ps1 *.psm1 *.py *.sh *.slnx *.targets *.tmpl *.toml *.ts *.tsx *.yaml *.yml'
 declare -a machine_paths_types=() machine_paths_excludes=() machine_paths_files=()
@@ -643,7 +490,6 @@ for f in ${changed[@]+"${changed[@]}"}; do
   for g in "${machine_paths_types[@]}"; do
     # shellcheck disable=SC2053 # $g is a glob on purpose.
     if [[ "$f" == $g ]]; then
-      # literal, so a name holding * or a leading : is that file alone.
       machine_paths_files+=(":(literal)$f")
       break
     fi
@@ -658,11 +504,6 @@ machine_paths_load() {
     -n "${HPP_WIN_REPO_BODY-}" && -n "${HPP_ESCAPED_WIN_REPO_BODY-}" ]]
 }
 
-# machine_paths_exempt <pattern> <macos> <content>: 0 when the line holds a
-# span and every span is a placeholder, a last segment of punctuation or an
-# ellipsis alone (`<user>` never matches), or, under the macOS body, the
-# shared folder of /Users ending a sentence. A line with no span is a finding,
-# as in CI.
 machine_paths_exempt() {
   local span child rest trimmed n=0
   while IFS= read -r span; do
@@ -681,8 +522,6 @@ machine_paths_exempt() {
   ((n))
 }
 
-# machine_paths_scan <label> <macos> <pattern>: prints each changed line the
-# pattern finds that no exemption covers; 0 none, 1 some, 2 git grep failed.
 machine_paths_scan() {
   local matches line content rc=0 found=0
   matches="$(git grep -nIE -e "$3" -- "${machine_paths_files[@]}" "${machine_paths_excludes[@]}")" || rc=$?
@@ -700,9 +539,6 @@ machine_paths_scan() {
   return "$found"
 }
 
-# machine_paths_check: the composite's five scans, in its order. The
-# slash-rooted bodies take its boundary prefix; the Windows ones anchor on the
-# drive letter.
 machine_paths_check() {
   local boundary i g rc found=0 errored=0
   if [[ ! -f "$hygiene_workflow" ]]; then
@@ -710,7 +546,6 @@ machine_paths_check() {
     return 1
   fi
   while IFS= read -r g; do
-    # Anything but an exclusion would widen the scan past the changed files.
     if [[ "$g" != ':(exclude)'* && "$g" != ':!'* && "$g" != ':^'* ]]; then
       echo "machine-specific-paths: $hygiene_workflow's machine-paths step excludes '$g', which is not an exclusion pathspec"
       return 1
@@ -795,9 +630,6 @@ else
     python3 "$tools/scripts/sync-plugin-options-docs.py" --check
 fi
 
-# The modes the pull_request run of the changelog-parity gates uses. The bump
-# check's collision findings are advisory there too: a branch only behind its
-# base trips them, and the merge queue enforces them.
 parity() {
   local p="$tools/scripts/check-changelog-parity.sh"
   "$p" --check &&
@@ -857,16 +689,6 @@ elif ((run_tests)); then
     npm_failed=1
     fail_check npm-deps "$rc" "bash scripts/setup-env.sh --node"
   fi
-  # affected-tests exits 3 when it ran every shell suite it selected but also
-  # selected suites it does not run, which it writes to the --write-not-run
-  # file. One under a package of scripts/outside-node-packages.txt runs here as
-  # CI's test-node lane runs it, through run-outside-node-suites.sh and the
-  # package's own npm test, and a failing one fails tests. A Node suite beside
-  # a <stem>.test.sh ran through that wrapper (affected-tests' rule R9), and a
-  # path under scripts/outside-node-exclusions.txt is no suite. Any other is
-  # left to its own CI lane, so tests is a SKIP counting it, never a pass:
-  # exit 2, whose last line run_check puts in the skip. A suite the budget left is
-  # the same SKIP, and also gets its own SKIP line, so the report names it.
   affected() {
     local rc=0 node_rc=0 s pkg ex t n=0 missing='' now
     local -a pkgs=() exclusions=() node=() unrun=() left=()
@@ -951,9 +773,6 @@ elif ((run_tests)); then
 fi
 
 for s in ${skipped[@]+"${skipped[@]}"}; do echo "check-affected: SKIP $s" >&2; done
-# Every hygiene gate CI runs that this runner does not, so none is left out
-# silently. The same file is what check-affected-gates.test.sh holds to the
-# workflow.
 if [[ -f "$gates_file" ]]; then
   while read -r gate kind reason; do
     [[ "$kind" == ci-only ]] && echo "check-affected: CI only: $gate ($reason)" >&2

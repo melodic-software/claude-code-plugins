@@ -5,6 +5,7 @@ Owns branch-freshness classification, the trust-boundary mutation policy, the
 per-PR classifier with its suppressible/unsuppressible worker-dispatch deltas,
 the head-ref uniqueness guard, and cadence recommendation.
 """
+
 from __future__ import annotations
 
 import math
@@ -506,10 +507,7 @@ def classify_pr(
     new_material_feedback = [
         item
         for item in feedback["material"]
-        if (
-            item["id"] not in prev_material_ids
-            and item["id"] not in prev_blocking_ids
-        )
+        if (item["id"] not in prev_material_ids and item["id"] not in prev_blocking_ids)
         or (head_sha_changed and item["id"] not in dispositions_at_current_head)
     ]
     new_human_feedback = [
@@ -524,9 +522,7 @@ def classify_pr(
         if item["id"] not in prev_human_blocking_ids
         and not is_self_login(item.get("author"), self_logins)
     ]
-    changed = head_sha_changed or (
-        bool(prev) and prev.get("updated_at") != updated_at
-    )
+    changed = head_sha_changed or (bool(prev) and prev.get("updated_at") != updated_at)
     new_to_state = not prev
 
     blockers: list[str] = []

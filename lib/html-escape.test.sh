@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for lib/html-escape.mjs, driven through view-builder's report
-# profile as a page that renders pull-request text.
-#
-#   bash lib/html-escape.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 

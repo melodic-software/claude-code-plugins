@@ -22,6 +22,9 @@ already stops. Each read logs one
 `start-gate` notice with the body's core block and the response's rate-limit headers, so the two
 can be compared.
 
+[`budget-policy.mjs`](budget-policy.mjs) makes every budget verdict and its notice line: this
+gate's start and defer decisions and the pacer's. The gate and the pacer keep only the reads.
+
 With `project: "true"` as well (the issue lane's first call only), the same reading also stops the
 lane, with cause `budget` and the window's reset, while the pacer's projection
 ([`projection.mjs`](projection.mjs), the arithmetic

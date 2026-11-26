@@ -137,18 +137,8 @@ KNOWN_KEYS = frozenset(
     ]
 )
 
-# Read-only tools, granted without --allow-tools: the validator's
-# READ_ONLY_TOOLS. Skill must be listed, or no skill can load.
 ALLOWED_TOOLS = ("Read", "Glob", "Grep", "Skill")
 
-# A pre-computed context line (!`command`) runs through Bash when the skill
-# loads; without Bash the slash command fails to load and the run ends at 0
-# turns. So does a body that tells Claude to run something through Bash.
-# - Pointer: when what loads a pre-computed line may have changed, fetch
-#   https://code.claude.com/docs/en/skills#inject-dynamic-context live; the
-#   observed basis is run #8635, INVALID at 0 turns.
-# - As of: 2026-11-01
-# - Recheck trigger: that section names a tool other than Bash for the line.
 PRECOMPUTED = re.compile(r"!`[^`\n]+`")
 BASH_IN_BODY = re.compile(r"\b(?:through|via|with|using|the) Bash\b|\bBash tool\b")
 NEGATION = re.compile(r"\b(?:not|never|don['’]t|do not|avoid|without)\b", re.IGNORECASE)
@@ -163,8 +153,6 @@ def body_needs_bash(text):
                 return True
     return False
 
-# One tool in an allowed-tools value; a permission pattern in parentheses after
-# the name is consumed with it, so the words inside are not read as tools.
 TOOL_TOKEN = re.compile(r"([A-Za-z][\w.:-]*)\s*(?:\([^)]*\))?")
 
 NO_TRIGGER = re.compile(
@@ -174,13 +162,8 @@ NO_TRIGGER = re.compile(
     re.IGNORECASE,
 )
 
-# A slash command at the start of the prompt, which loads a skill with no Skill
-# call. A path such as /srv/app is not one.
 SLASH_COMMAND = re.compile(r"^\s*/[\w.-]+(?::[\w.-]+)?(?=[\s:,.;]|$)")
 
-# Characters a one-line YAML scalar cannot carry here: control characters, the
-# ones Python's splitlines() breaks a line on, which the validator uses, and the
-# non-printable ones a YAML loader rejects.
 UNWRITABLE = re.compile(
     "[%s]"
     % "".join(
@@ -194,15 +177,6 @@ UNWRITABLE = re.compile(
 )
 REGEX_SPECIAL = frozenset(".^$*+?()[]{}|\\/")
 
-# Expectation wording that maps to a deterministic grader. Each pattern must
-# match the whole expectation, so a qualifier ("for the why part", "and reports
-# the result") keeps it an llm judgment. Grader fields are the Grader types
-# table's.
-# - Pointer: when a field or its default may have changed, fetch
-#   https://code.claude.com/docs/en/plugin-evals#grader-types live.
-# - As of: 2026-11-01
-# - Recheck trigger: that table renames a field of regex, tool_used or
-#   file_exists, or changes how tool_used matches input_match.
 SKILL_REF = r"(the `?[\w-]+`? skill|`?/?[\w-]+:[\w-]+`?)"
 SKILL_INVOKED = re.compile(
     r"^(?:Invokes|Loads|Triggers|Calls) %s(?: (?:via|through) the Skill tool)?\.?$"
@@ -238,7 +212,6 @@ FILE_CREATED = re.compile(
 )
 NOT_LITERAL = re.compile(r"[<>…\"\\]|\.\.\.")
 STOCK_REPLIES = ("The reply names nothing in particular.", "Done.", "0", "-")
-# Tools that let a run create a file; Edit only changes one.
 CREATES_FILES = frozenset(["Write", "Bash"])
 
 
@@ -417,15 +390,6 @@ def own_skill(ref, plugin, skills):
     return name if name in skills else None
 
 
-# The two directions err opposite ways. A must-run grader credits only a
-# command that starts the value or follows a separator, after an optional
-# interpreter and a quoted or absolute directory, so a mention never passes it.
-# A must-not-run guard counts the words anywhere a run could hide them (sudo,
-# env, time, bash -c, a subshell, xargs), unless the segment since the last
-# separator starts with a command that only shows text, such as echo or grep,
-# and is not the guarded command itself. TEXT_ONLY lists commands that print
-# or search and never run their arguments; sed, awk and find can run or write
-# (sed's e command and -i, awk's system(), find -exec), so a guard counts them.
 TEXT_ONLY = (
     "echo", "printf", "cat", "grep", "rg", "git grep", "head", "tail", "less", "more"
 )

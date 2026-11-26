@@ -409,9 +409,7 @@ def _loop_value(key: str, value: str, where: str) -> str:
     allowed = LOOP_KEYS[key]
     if allowed is None:
         if not re.fullmatch(r"[1-9][0-9]*", value):
-            raise RepoConfigError(
-                f"{where}: {key} {value!r} is not a positive integer"
-            )
+            raise RepoConfigError(f"{where}: {key} {value!r} is not a positive integer")
     elif value not in allowed:
         raise RepoConfigError(f"{where}: {key} {value!r} is not one of {allowed}")
     return value

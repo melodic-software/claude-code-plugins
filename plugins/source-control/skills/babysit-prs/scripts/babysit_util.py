@@ -7,6 +7,7 @@ floor, and the single subprocess core every script funnels through. Splitting
 these tiny concerns into separate modules would cost more coupling than it buys
 cohesion.
 """
+
 from __future__ import annotations
 
 import math
