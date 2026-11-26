@@ -34,14 +34,16 @@ ROUTING_SEGMENT_RE = re.compile(
     re.IGNORECASE,
 )
 DIRECTIVE_RE = re.compile(
-    r"^(?://\s*(?:go:|@ts-|eslint|prettier|istanbul|c8|biome|#region|#endregion)"
+    r"^(?:///\s*<|//\s*(?:go:|\+build|@ts-|eslint|prettier|istanbul|c8|biome|#region|#endregion)"
     r"|/\*\s*(?:eslint|istanbul|c8|@ts-)"
     r"|#\s*(?:shellcheck|type:|noqa|pylint|pyright|mypy|ruff|fmt:|-\*-|nosec|nosemgrep"
-    r"|gitleaks|yamllint|requires|region|endregion|pragma))",
+    r"|gitleaks|yamllint|requires|region|endregion|pragma|(?:vim?:.*)?coding[:=]))",
     re.IGNORECASE,
 )
 HEREDOC_RE = re.compile(r"(?<!<)<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
-BLOCK_SCALAR_RE = re.compile(r"^(\s*)\S[^#]*:[ \t]*[|>][-+0-9]*[ \t]*(?:#.*)?$")
+BLOCK_SCALAR_RE = re.compile(
+    r"^(\s*)(?:-[ \t]+|\S[^#]*:[ \t]*)(?:[!&]\S*[ \t]+)*[|>][-+0-9]*[ \t]*(?:#.*)?$"
+)
 HERE_STRING_RE = re.compile(r"@([\"'])\s*$")
 STRING_QUOTES = {".py": ('"""', "'''"), ".toml": ('"""', "'''"), ".cs": ('"""',), ".go": ("`",)}
 STRING_QUOTES.update(dict.fromkeys([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"], ("`",)))
@@ -242,17 +244,21 @@ def _string_block_lines(ext, text):
 def comment_style(path, text=""):
     """(`hash` or `slash`, the lines of `text` inside a heredoc, block scalar or multi-line
     string) for a code, YAML or shell file; None for markdown and any other type, whose comments
-    a model may read as instructions."""
+    a model may read as instructions, and for a cgo file, whose preamble comment is C code."""
     ext = os.path.splitext(path)[1].lower()
     kind = "hash" if ext in HASH_COMMENT_EXTS else "slash" if ext in SLASH_COMMENT_EXTS else None
+    if ext == ".go" and 'import "C"' in text:
+        return None
     return (kind, _string_block_lines(ext, text)) if kind else None
 
 
 def _comment_line_mask(lines, style):
     """Per line, whether a comment (or nothing) fills it. A `/*` line that does not close opens a
-    block whose lines count until one ends with `*/`; code after a comment never counts."""
+    block whose lines count only when a later line in `lines` ends it with `*/`; code after a
+    comment never counts."""
     mask = []
     in_block = False
+    opened = 0
     for line in lines:
         stripped = line.strip()
         if style == "hash":
@@ -266,12 +272,15 @@ def _comment_line_mask(lines, style):
         elif stripped.startswith("/*"):
             rest = stripped[2:]
             if "*/" not in rest:
+                opened = len(mask)
                 mask.append(True)
                 in_block = True
             else:
                 mask.append(rest.endswith("*/") and rest.count("*/") == 1)
         else:
             mask.append(False)
+    if in_block:
+        mask[opened:] = [False] * (len(mask) - opened)
     return [m and not DIRECTIVE_RE.match(line.strip()) for m, line in zip(mask, lines)]
 
 

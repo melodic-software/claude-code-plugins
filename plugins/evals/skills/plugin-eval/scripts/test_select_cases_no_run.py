@@ -544,6 +544,29 @@ class SelectCasesNoRunTest(unittest.TestCase):
         self.assertNotIn("cases", block, "deleting only JS comment lines runs nothing")
         self.assertEqual("one-basic", block.get("affected-no-run"))
 
+    def test_comment_shaped_line_in_a_sequence_block_scalar_still_runs(self):
+        self._assert_string_line_runs(
+            "plugins/alpha/skills/one/steps.yaml",
+            "steps:\n  - |\n    # Heading the model reads\n    body\n",
+            "    # Heading the model reads\n",
+        )
+
+    def test_triple_slash_directive_deletion_still_runs(self):
+        self._assert_string_line_runs(
+            "plugins/alpha/evals/one-basic/seed.ts",
+            '/// <reference types="node" />\nconsole.log("seed");\n',
+            '/// <reference types="node" />\n',
+            "one-basic",
+        )
+
+    def test_deleting_only_a_block_comment_opener_still_runs(self):
+        self._assert_string_line_runs(
+            "plugins/alpha/evals/one-basic/seed.js",
+            '/*\nconsole.log("seed");\n//*/\n',
+            "/*\n",
+            "one-basic",
+        )
+
     def test_comment_shaped_line_in_a_js_backtick_string_still_runs(self):
         self._assert_string_line_runs(
             "plugins/alpha/evals/one-basic/seed.js",

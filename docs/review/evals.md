@@ -53,9 +53,11 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
   fixture or sample, and a renamed file whose path and content differ only by such changes.
   The decided terms are read from the glossary at the merge base, so a row the branch adds
-  exempts nothing on that branch. A directive comment (`//go:build`, `// @ts-ignore`,
-  `# shellcheck`, `# type: ignore`, `# noqa`, `# -*- coding`, `#requires` and the like) is
-  never a deletable comment. A script file gets no swap exemption, a change with no hunks is
+  exempts nothing on that branch. A directive comment (`//go:build`, `// +build`,
+  `/// <reference`, `// @ts-ignore`, `# shellcheck`, `# type: ignore`, `# noqa`, `# coding:`,
+  `#requires` and the like) is never a deletable comment, nor is any comment in a Go file that
+  imports `"C"` (its preamble is C code), nor a `/*` opener whose closing `*/` the same hunk
+  keeps. A script file gets no swap exemption, a change with no hunks is
   never exempt, and a plugin-wide file (hooks, `.mcp.json`, `plugin.json`) is always listed.
   A hunk with any other change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions
   per ADR 0110).
