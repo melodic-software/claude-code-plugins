@@ -114,3 +114,27 @@ titles already ban both words ([plugin-option-naming](../plugin-option-naming/RE
 A plugin conforms when each hook it ships has its own `<name>_enabled` option and its script
 resolves both layers. Plugins that ship hooks with no such option are listed in
 [#18921](https://github.com/melodic-software/claude-code-plugins/issues/18921).
+
+### The adoption check
+
+`bash scripts/list-hook-enablement-gaps.sh` prints, one per line, each plugin whose
+`hooks/hooks.json` declares a hook and whose `plugin.json` `userConfig` declares no boolean option
+ending in `_enabled`. A hook here is an event handler under `hooks` or an entry under `modules`, so a
+plugin that ships only a module is listed too. The script exits `2` when a `hooks.json` or
+`plugin.json` is empty or not valid JSON, naming the file, and when no plugin declares a hook. Its
+suite, `scripts/list-hook-enablement-gaps.test.sh`, runs in CI's shell test lane, on every change to
+a `hooks.json` or `plugin.json` under `plugins/`, and fails when the repository's list differs from
+the suite's `PENDING` list. A plugin that adopts its option leaves
+both lists in the same change. A new plugin that ships a hook ships its option with it.
+
+A hook maps to its key by [the key rule](#the-per-hook-setting): a hook named after its plugin maps to
+the plugin's name in snake_case plus `_enabled` (`bash-format` to `bash_format_enabled`), and any
+other hook maps to its own name in snake_case plus `_enabled` (`hooks/block-no-verify.sh` to
+`block_no_verify_enabled`). The check reads plugins, not single hooks: one such option takes a
+plugin off the list. To verify a per-plugin change, check that the plugin left the list, then check
+by hand each hook in its `hooks.json` against the key rule, and confirm its script resolves both
+layers. The check does not read `git-hooks/`.
+
+The retrofit tracked in
+[#18921](https://github.com/melodic-software/claude-code-plugins/issues/18921) is accepted when the
+script lists no plugin.
