@@ -592,6 +592,36 @@ for (const [name, labels, user, body] of statuslessQuiet) {
   });
 }
 
+test("an owner's decision on an agent-decided issue sends it back to triage, where the agent-ready one alone stays", async () => {
+  for (const labels of [["agent-decided", "agent-ready"], ["agent-decided", "status: ready", "agent-ready"], ["agent-decided", "admission-deferred"]]) {
+    const w = world({ labels, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+    assert.equal(await run(w, 1), 0);
+    assert.ok(!w.labels().includes("agent-decided"), `${labels}: the agent's decision is overridden`);
+    assert.equal(w.field(), "needs-triage", `${labels}: triage again`);
+    expectDispatched(w);
+  }
+});
+
+test("an agent-decided issue does not re-enter on the agent's own opener, an unlisted person, or an edited decision", async () => {
+  for (const [name, comment, editors] of [
+    ["the agent opener", { id: 1, user: OWNER, body: "**Agent decision recorded.**\n1. Yes." }, {}],
+    ["an unlisted person", { id: 1, user: STRANGER, body: DECISION }, {}],
+    ["the lanes App", { id: 1, user: LANES_APP, body: DECISION }, {}],
+    ["a decision a bot edited", { id: 1, user: OWNER, body: DECISION }, { 1: LISTED_BOT.id }],
+  ]) {
+    const w = world({ labels: ["agent-decided", "agent-ready"], comments: [comment], editors });
+    assert.equal(await run(w, 1), 0);
+    assert.equal(w.dispatches().length, 0, name);
+    assert.deepEqual(w.labels(), ["agent-decided", "agent-ready"], name);
+  }
+});
+
+test("a failed re-entry of an agent-decided issue puts the agent-decided label back", async () => {
+  const w = world({ labels: ["agent-decided", "agent-ready"], comments: [{ id: 1, user: OWNER, body: DECISION }], fail: `POST /repos/${REPO}/actions/workflows/intake-triage.yml/dispatches` });
+  assert.equal(await run(w, 1), 1);
+  assert.ok(w.labels().includes("agent-decided"), w.labels().join());
+});
+
 test("a bot's decision on an issue with no status label changes nothing", async () => {
   const w = world({ labels: [], comments: [{ id: 1, user: LISTED_BOT, body: DECISION }] });
   assert.equal(await run(w, 1), 0);

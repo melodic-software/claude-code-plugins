@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
+import { AGENT_DECIDED, authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, isStatusLabel, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -58,6 +58,12 @@ export async function classify({ github, repository, issue, comment, humans, ids
     const { kept: list } = await selectTrustedIssueComments({ github, repository, issueNumber: issue.number, ids });
     return list.find((item) => item.comment.id === comment.id) ?? null;
   };
+  if (labels.includes(AGENT_DECIDED) && humans.has(user.id)) {
+    const item = await kept();
+    if (item && isDecisionComment(item, humans)) {
+      return "agent";
+    }
+  }
   if (!labels.some((name) => isStatusLabel(name))) {
     if (!humans.has(user.id) || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY, DEFERRED].some((name) => labels.includes(name))) {
       return null;
@@ -279,6 +285,7 @@ async function restore({ set, client, base, number, state, label, log, next = ";
 
 const ANSWERED = {
   decision: [DECISION_LABELS, "needs-owner-decision"],
+  agent: [[AGENT_DECIDED], null],
   parked: [[CONFIRMED], "confirmed"],
   info: [INFO_LABELS, "needs-reporter-info"],
   statusless: [[], null],
@@ -368,7 +375,7 @@ export async function main({ env = process.env, github, log = console.log, statu
       }
       await dispatch(client, repository, issue);
     } catch (error) {
-      if (prior) {
+      if (prior || took) {
         await restore({ set, client, base, number, state: prior, label: took ? status : null, log });
       }
       throw error;

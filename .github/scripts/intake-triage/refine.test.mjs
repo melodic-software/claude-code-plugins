@@ -13,7 +13,8 @@ import { GitHubError } from "../lib/github-client.mjs";
 
 import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
-import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
+import { agentAnswered } from "./admit.mjs";
+import { agentSettled, DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 import { STOP_REASONS } from "../lib/stop-reason.mjs";
 
@@ -1757,6 +1758,93 @@ describe("an instruction in issue text is not followed", () => {
     assert.ok(!comment.includes("@owner"), "the mention is broken");
     assert.equal(refinementExact(comment), false);
   });
+});
+
+describe("agent decision", () => {
+  const SETTLED = {
+    ...INEXACT,
+    outcome: "The README states the plugin's nineteen skills.",
+    criteria: ["`plugins/session-flow/README.md` line 3 says nineteen."],
+    related: [],
+    questions: [
+      { question: "Does line 3 count the bundled skills?", recommended: "Yes, all nineteen.", basis: "plugins/session-flow/skills/: nineteen folders", stop_reason: "none" },
+      { question: "Is the changelog fragment patch?", recommended: "Patch.", basis: "docs/conventions/changelog.md:12", stop_reason: "none" },
+    ],
+  };
+  const withReason = (stop_reason) => ({ ...SETTLED, questions: [SETTLED.questions[0], { ...SETTLED.questions[1], stop_reason }] });
+  const apply = (fake, output) =>
+    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(output, new Set()), context: { issue: { title: issueOf().title, body: issueOf().body } }, setStatus: fake.setStatus, statusOf: fake.statusOf, log: () => {} });
+  const shown = (calls) => writes(calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`);
+  const ready = () => issueOf({ labels: [{ name: "status: ready" }] });
+
+  test("validateOutput keeps criteria beside questions only when every question's stop reason is none", () => {
+    assert.deepEqual(validateOutput(SETTLED, new Set()).criteria, SETTLED.criteria);
+    for (const reason of ["intent", "design", "security", "cost"]) {
+      const output = validateOutput(withReason(reason), new Set());
+      assert.deepEqual(output.criteria, [], `${reason}: criteria are dropped`);
+      assert.deepEqual(output.external, { state: "none", repo: "", class: "", what: "" }, `${reason}: no external state`);
+      assert.equal(agentSettled(output), false, reason);
+    }
+    assert.throws(() => validateOutput({ ...SETTLED, external: { state: "manual", repo: "", class: "nope", what: "x" } }, new Set()), /attended classes/, "a settled refinement's external state is checked like an exact one's");
+  });
+
+  test("render prints a settled refinement's criteria and the override footer, and no owner reply", () => {
+    const body = render(validateOutput(SETTLED, new Set()), { body: issueOf().body });
+    assert.ok(body.includes("\n- [ ] `plugins/session-flow/README.md` line 3 says nineteen.\n"), body);
+    assert.ok(body.includes("\nExternal state: none\n"), body);
+    assert.ok(!body.includes(DECISION_REPLY), "no copyable owner reply");
+    assert.ok(body.trimEnd().split("\n").at(-1).includes("To override it, post a comment whose first line is `**Decision recorded.**`"), body);
+    assert.equal(agentAnswered(body), true);
+    assert.equal(refinementExact(body), false);
+    const held = render(validateOutput(withReason("design"), new Set()), { body: issueOf().body });
+    assert.ok(held.includes(DECISION_REPLY) && !held.includes("- [ ] "), "one design question asks the owner and lists no criteria");
+    assert.equal(agentAnswered(held), false);
+  });
+
+  test("an all-none refinement posts the App opener, then the refinement, and sets no needs-owner-decision", async () => {
+    const fake = fakeGitHub({ issue: ready(), comments: [laneComment()], events: [] });
+    assert.deepEqual(await apply(fake, SETTLED), { outcome: "agent-decided", redispatch: true });
+    assert.deepEqual(shown(fake.calls), ["STATUS #7 needs-triage", "POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/comments"]);
+    const [opener, refinement] = writes(fake.calls).slice(1).map((call) => call.body.body.split("\n"));
+    assert.equal(opener[0], "**Agent decision recorded.**");
+    assert.equal(opener[1], bodyVersion(issueOf().body));
+    assert.deepEqual(
+      opener.filter((row) => /^\d+\. /.test(row)),
+      ["1. Does line 3 count the bundled skills?", "2. Is the changelog fragment patch?"],
+      "one answer per question",
+    );
+    assert.ok(opener.includes("   ANSWER: Yes, all nineteen. Basis: plugins/session-flow/skills/: nineteen folders"), opener.join("\n"));
+    assert.equal(refinement[0], REFINE_MARKER);
+    assert.ok(refinement.includes("- [ ] `plugins/session-flow/README.md` line 3 says nineteen."));
+  });
+
+  test("an all-none refinement lifts the App's needs-owner-decision instead of keeping it", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: APP } }] });
+    assert.deepEqual(await apply(fake, SETTLED), { outcome: "agent-decided", redispatch: true });
+    assert.deepEqual(shown(fake.calls), ["STATUS #7 needs-triage", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision", "POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/comments"]);
+  });
+
+  for (const reason of ["intent", "design", "security", "cost"]) {
+    test(`one ${reason} question gives today's needs-decision outcome and no opener`, async () => {
+      const fake = fakeGitHub({ issue: ready(), comments: [laneComment()], events: [] });
+      assert.deepEqual(await apply(fake, withReason(reason)), { outcome: "needs-decision", redispatch: false });
+      assert.deepEqual(shown(fake.calls), ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"]);
+      assert.ok(!writes(fake.calls)[1].body.body.includes("**Agent decision recorded.**"));
+    });
+  }
+
+  for (const [name, setup] of [
+    ["a person's needs-reporter-info", { issue: issueOf({ labels: [{ name: "status: ready" }, { name: "needs-reporter-info" }] }), events: [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id: HUMAN } }] }],
+    ["a person's needs-owner-decision", { issue: issueOf(), events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: HUMAN } }] }],
+    ["an issue the App filed, whose refinement admission never counts", { issue: ready(), events: [], spec: { ...specOf(), author: actor(APP) } }],
+    ["an issue at the spec comment cap", { issue: ready(), events: [], spec: { ...specOf(), comments: { totalCount: 99, nodes: [] } } }],
+  ]) {
+    test(`an all-none refinement of ${name} posts no opener and waits for the owner`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()] });
+      assert.equal((await apply(fake, SETTLED)).outcome, "needs-decision");
+      assert.ok(!writes(fake.calls).some((call) => String(call.body?.body ?? "").startsWith("**Agent decision recorded.**")), JSON.stringify(writes(fake.calls)));
+    });
+  }
 });
 
 test("a split child's title keeps a Conventional Commits scope unescaped and still breaks mentions and links", () => {

@@ -22,7 +22,8 @@ import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, deferredAhead, refineDue, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
-import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
+import { agentDecisionBody, REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
+import { AGENT_DECIDED, agentDecision, AGENT_UNSETTLED } from "./admit.mjs";
 import { checkRun, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { main as checkBlockers } from "../work-resolve-issue/check-blockers.mjs";
 import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
@@ -4279,5 +4280,91 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
     assert.match(driftSpecText("mattpocock/sandcastle"), /the run stops with `design-change`/);
     assert.equal(stopRoute(runCode("design-change: the take rewrites a skill's flow")), "hold");
     assert.equal(decide(facts({ issue: filed({ labels: [{ name: "needs-human" }] }), spec: graphSpec() })).verdict, "skip", "a held drift issue is never admitted");
+  });
+});
+
+describe("agent decision", () => {
+  const thin = issueOf({ body: "The README skill count is wrong." });
+  const SETTLED = validateOutput(
+    {
+      exact: false,
+      outcome: "The README states the plugin's nineteen skills.",
+      criteria: ["`plugins/session-flow/README.md` line 3 says nineteen."],
+      dependencies: [],
+      related: [],
+      questions: [{ question: "Does line 3 count the bundled skills?", recommended: "Yes, all nineteen.", basis: "plugins/session-flow/skills/: nineteen folders", stop_reason: "none" }],
+      sources: [],
+      split: [],
+      external: { state: "none", repo: "", class: "", what: "" },
+    },
+    new Set(),
+  );
+  const node = (author, body, extra = {}) => ({ body, author, editor: null, lastEditedAt: null, ...extra });
+  const openerBy = (author, body = thin.body, extra = {}) => node(author, agentDecisionBody(SETTLED, body), extra);
+  const refinement = node(APP_ACTOR, render(SETTLED, { body: thin.body }));
+  const ownerDecision = node(USER(HUMAN), "**Decision recorded.** Eighteen: one skill is retired.");
+  const specWith = (comments) => humanSpec(thin, comments);
+  const decideWith = (comments) => decide(facts({ issue: thin, spec: specWith(comments) }));
+  const REFUSED = { verdict: "refuse", reasons: [AGENT_UNSETTLED], hold: true, reason: "intent" };
+
+  test("the App's unedited opener for this body admits the issue and marks it agent-decided", () => {
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement]), { verdict: "admit", reasons: [], agentDecided: true });
+    assert.equal(agentDecision(specWith([openerBy(APP_ACTOR), refinement]), APP, humans)?.body.split("\n")[0], "**Agent decision recorded.**");
+  });
+
+  for (const [name, opener] of [
+    ["another bot", openerBy({ __typename: "Bot", databaseId: 999 })],
+    ["a person", openerBy(USER(HUMAN))],
+    ["an edited comment", openerBy(APP_ACTOR, thin.body, { lastEditedAt: "2026-10-21T00:00:00Z", editor: APP_ACTOR })],
+    ["a stale body version", openerBy(APP_ACTOR, "The README is wrong in an older way.")],
+  ]) {
+    test(`the opener from ${name} is refused and the owner decides`, () => {
+      assert.equal(agentDecision(specWith([opener, refinement]), APP, humans), null);
+      assert.deepEqual(decideWith([opener, refinement]), REFUSED);
+    });
+  }
+
+  test("a listed human's newer Decision recorded suppresses the opener, and an older one does not", () => {
+    assert.equal(agentDecision(specWith([openerBy(APP_ACTOR), refinement, ownerDecision]), APP, humans), null);
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, ownerDecision]), REFUSED);
+    assert.deepEqual(decideWith([ownerDecision, openerBy(APP_ACTOR), refinement]), { verdict: "admit", reasons: [], agentDecided: true });
+    const outsider = node(USER(OUTSIDER), "**Decision recorded.** No.");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, outsider]), { verdict: "admit", reasons: [], agentDecided: true }, "only a listed human overrides");
+  });
+
+  test("a refinement that asks the owner is never agent-decided, opener or not", () => {
+    const asks = validateOutput({ ...SETTLED, criteria: SETTLED.criteria, questions: [{ ...SETTLED.questions[0], stop_reason: "design" }] }, new Set());
+    const owned = node(APP_ACTOR, render(asks, { body: thin.body }));
+    assert.equal(decideWith([openerBy(APP_ACTOR), owned]).agentDecided, undefined);
+    assert.equal(decideWith([openerBy(APP_ACTOR), owned]).verdict, "refuse", "its questions hold no criteria to admit on");
+  });
+
+  const LABEL = `/repos/o/r/labels/${AGENT_DECIDED}`;
+  const ADD = `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_DECIDED] })}`;
+  test("admission adds agent-decided after agent-ready on the admitted path", async () => {
+    const fake = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]), elsewhere: { [LABEL]: { name: AGENT_DECIDED } } });
+    assert.equal((await go(fake)).outcome, "admitted");
+    assert.deepEqual(writes(fake.calls).slice(-2), [STATUS(AGENT_READY), ADD]);
+  });
+
+  test("admission adds no agent-decided when it defers, refuses, or the label is not declared", async () => {
+    const deferred = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]), elsewhere: { [LABEL]: { name: AGENT_DECIDED } } });
+    assert.equal((await go(deferred, { status: { ...open, admission_open: false, admission_reason: "closed" } })).outcome, "deferred");
+    assert.ok(!writes(deferred.calls).includes(ADD), "deferred: no label");
+    const stale = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR, "older body"), refinement]), elsewhere: { [LABEL]: { name: AGENT_DECIDED } } });
+    assert.equal((await go(stale)).outcome, "refused");
+    assert.ok(!writes(stale.calls).includes(ADD), "refused: no label");
+    const missing = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]) });
+    const github = async (method, path, body) => {
+      if (path === LABEL) {
+        missing.calls.push({ method, path, body });
+        throw Object.assign(new Error("Not Found"), { status: 404 });
+      }
+      return missing.github(method, path, body);
+    };
+    const logs = [];
+    assert.equal((await admit({ ...goArgs(missing), github, log: (line) => logs.push(line) })).outcome, "admitted");
+    assert.ok(!writes(missing.calls).includes(ADD), "an undeclared label is never created");
+    assert.ok(logs.some((line) => line.startsWith("::warning title=admit::") && line.includes(AGENT_DECIDED)), logs.join("\n"));
   });
 });
