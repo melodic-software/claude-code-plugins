@@ -43,24 +43,24 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - A decided-term swap or a comment-line deletion runs nothing, wherever `select` looks. A hunk is
   not a cut when it only swaps a term for the word [`docs/glossary.md`](../glossary.md) "Rejected
   terms" decided (or that word's last word, so `--lane` becomes `--area` for **focus area**), in
-  either number, so that old and new are byte-identical once each swap is replaced, or only
-  deletes lines a comment fills in a code, YAML or shell file (`#` for YAML, shell, Python, TOML
-  and PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; code before or after the
-  comment disqualifies the line, and markdown is excluded because an HTML comment can carry instructions a model reads; so is a
-  line inside a shell heredoc, PowerShell here-string, YAML block scalar, Python, TOML or C#
-  triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped line is content).
-  That holds for a skill body, reference or agent hunk, a frontmatter value such as
-  `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
-  fixture or sample, and a renamed file whose path and content differ only by such changes.
-  The decided terms are read from the glossary at the merge base, so a row the branch adds
-  exempts nothing on that branch. A directive comment (`//go:build`, `// +build`,
-  `/// <reference`, `// @ts-ignore`, `# shellcheck`, `# type: ignore`, `# noqa`, `# coding:`,
-  `#requires` and the like) is never a deletable comment, nor is any comment in a Go file that
-  imports `"C"` (its preamble is C code), nor a `/*` opener whose closing `*/` the same hunk
-  keeps. A script file gets no swap exemption, a change with no hunks is
-  never exempt, and a plugin-wide file (hooks, `.mcp.json`, `plugin.json`) is always listed.
-  A hunk with any other change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions
-  per ADR 0110).
+  either number, so that old and new are byte-identical once each swap is replaced, or only deletes
+  lines a comment fills in a code, YAML or shell file (`#` for YAML, shell, Python, TOML and
+  PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; code before or after the comment
+  disqualifies the line, and markdown is excluded because an HTML comment can carry instructions a
+  model reads; so is a line inside a shell heredoc, PowerShell here-string, YAML block scalar,
+  Python, TOML or C# triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped
+  line is content). That holds for a skill body, reference or agent hunk, a frontmatter value such
+  as `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
+  fixture or sample, and a renamed file whose path and content differ only by such changes. The
+  decided terms are read from the glossary at the merge base, so a row the branch adds exempts
+  nothing on that branch. A directive comment (`//go:build`, `// +build`, `/// <reference`,
+  `// @ts-ignore`, `# shellcheck`, `# type: ignore`, `# noqa`, `# coding:`, `#requires` and the like) is
+  never a deletable comment, nor is any comment in a Go file that imports `"C"` (its preamble is C
+  code), nor a `/*` opener whose closing `*/` the same hunk keeps, nor a PowerShell `#>` closer. A
+  swap in a skill's `name`, or a rename of a skill or agent, renames what people invoke and runs its
+  cases. A script file gets no swap exemption, a change with no hunks is never exempt, and a
+  plugin-wide file (hooks, `.mcp.json`, `plugin.json`) is always listed. A hunk with any other
+  change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions per ADR 0110).
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that

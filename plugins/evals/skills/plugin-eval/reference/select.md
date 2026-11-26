@@ -23,7 +23,8 @@ Go and C#; with no code before or after it; never markdown, whose HTML
 comments a model can read, nor a line inside a shell heredoc, PowerShell here-string, YAML
 block scalar, or triple-quoted or backtick string). Decided terms come from the glossary at the merge base; a
 directive comment (`//go:build`, `/// <reference`, `# shellcheck`, `# coding:` and the like), a
-comment in a cgo file and a `/*` opener deleted without its `*/` are never deletable comments; a script gets no swap exemption; a change with no hunks is never exempt; a
+comment in a cgo file, a `/*` opener deleted without its `*/` and a PowerShell `#>` closer are
+never deletable comments; a swap in a skill's `name` or a skill or agent rename always runs; a script gets no swap exemption; a change with no hunks is never exempt; a
 plugin-wide file is always listed. A hunk with any other change keeps the rules above.
 
 A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three

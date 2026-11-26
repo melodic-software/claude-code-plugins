@@ -384,6 +384,9 @@ def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
     pairs = decided_term_pairs(repo_root, merge_base)
     if os.path.splitext(new_path)[1].lower() in SCRIPT_EXTENSIONS:
         pairs = ()
+    old_id, new_id = old_path.split("/")[:4], new_path.split("/")[:4]
+    if old_id != new_id and old_id[2:3] in (["skills"], ["agents"], ["commands"]):
+        return False
     if old_path != new_path and not no_run_text.is_term_swap_only(old_path, new_path, pairs):
         return False
     done = _git(
@@ -431,7 +434,7 @@ def _classify_description_change(base_fm, head_fm, pairs=(), plugins=frozenset()
 
 
 def _classify_other_frontmatter(base_fm, head_fm, pairs=()):
-    """An added key, or a value changed only by decided-term swaps, is additive."""
+    """An added key, or a non-`name` value changed only by decided-term swaps, is additive."""
     base_other = {k: v for k, v in base_fm.items() if k not in DESCRIPTION_KEYS}
     head_other = {k: v for k, v in head_fm.items() if k not in DESCRIPTION_KEYS}
     if base_other == head_other:
@@ -440,6 +443,7 @@ def _classify_other_frontmatter(base_fm, head_fm, pairs=()):
         new_val = head_other.get(key)
         if new_val != old_val and (
             new_val is None
+            or key == "name"
             or not no_run_text.is_term_swap_only(_value_text(old_val), _value_text(new_val), pairs)
         ):
             return "cut"

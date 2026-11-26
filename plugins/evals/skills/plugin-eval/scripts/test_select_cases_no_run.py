@@ -544,6 +544,54 @@ class SelectCasesNoRunTest(unittest.TestCase):
         self.assertNotIn("cases", block, "deleting only JS comment lines runs nothing")
         self.assertEqual("one-basic", block.get("affected-no-run"))
 
+    def test_decided_term_swap_in_a_skill_name_still_runs(self):
+        self._write_glossary()
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "---\ndescription", "---\nname: one-lane\ndescription"
+            ),
+            encoding="utf-8",
+        )
+        _commit_all(self.repo, "name the skill")
+        _git(self.repo, "branch", "-f", "base", "HEAD")
+        block = self._edit_and_select(path, "name: one-lane", "name: one-area")
+        self.assertEqual(
+            "control-no-fire one-basic one-trigger",
+            block.get("cases"),
+            "a skill's name is what people invoke, so a swap there is a cut",
+        )
+
+    def test_swap_only_rename_of_a_skill_directory_is_not_no_run(self):
+        import select_mapping
+
+        self._write_glossary()
+        _write(self.repo, "plugins/alpha/skills/lane-check/SKILL.md", "# Check one lane\n")
+        _commit_all(self.repo, "add skill")
+        base = _git(self.repo, "rev-parse", "HEAD").strip()
+        _git(
+            self.repo, "mv", "plugins/alpha/skills/lane-check", "plugins/alpha/skills/area-check"
+        )
+        _write(self.repo, "plugins/alpha/skills/area-check/SKILL.md", "# Check one focus area\n")
+        _commit_all(self.repo, "rename skill")
+        self.assertFalse(
+            select_mapping.is_no_run_file_change(
+                str(self.repo),
+                base,
+                "plugins/alpha/skills/lane-check/SKILL.md",
+                "plugins/alpha/skills/area-check/SKILL.md",
+            ),
+            "renaming a skill directory renames the skill",
+        )
+
+    def test_powershell_block_comment_closer_deletion_still_runs(self):
+        self._assert_string_line_runs(
+            "plugins/alpha/evals/one-basic/seed.ps1",
+            "<#\nWrite-Output seed\n#>\nWrite-Output done\n",
+            "#>\n",
+            "one-basic",
+        )
+
     def test_comment_shaped_line_in_a_sequence_block_scalar_still_runs(self):
         self._assert_string_line_runs(
             "plugins/alpha/skills/one/steps.yaml",

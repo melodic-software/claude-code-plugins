@@ -262,7 +262,12 @@ def _comment_line_mask(lines, style):
     for line in lines:
         stripped = line.strip()
         if style == "hash":
-            mask.append(not stripped or stripped.startswith("#") and not stripped.startswith("#!"))
+            mask.append(
+                not stripped
+                or stripped.startswith("#")
+                and not stripped.startswith(("#!", "#>"))
+                and not stripped.endswith("#>")
+            )
         elif in_block:
             closes = "*/" in stripped
             mask.append(not closes or stripped.endswith("*/") and stripped.count("*/") == 1)
