@@ -11,7 +11,7 @@ metadata:
 
 ## Purpose
 
-Find code nothing has touched in a long time, which a rotated tidying analyzer and a diff-scoped
+Find code nothing has touched in a long time, which a rotated tidying focus area and a diff-scoped
 simplification pass cannot see, and answer *what here is no longer reachable, and how confident are
 we?* Every candidate is adjudicated against the dynamic-usage patterns static analyzers miss, so the
 report is a list of decisions a human can act on, not an analyzer dump to re-verify.

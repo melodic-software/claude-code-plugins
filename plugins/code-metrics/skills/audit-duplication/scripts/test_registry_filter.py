@@ -21,7 +21,7 @@ FIXTURE_REGISTRY = (
 
 def document(*instance_sets: list[str]) -> dict:
     return {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-duplication",
         "measures": [
             {

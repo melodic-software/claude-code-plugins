@@ -133,7 +133,7 @@ class AssembleTests(unittest.TestCase):
             ],
             [self.THRESHOLD],
         )
-        self.assertEqual(doc["schema"], "code-metrics/v2")
+        self.assertEqual(doc["schema"], "code-metrics/v3")
         self.assertEqual(doc["status"], "complete")
         self.assertEqual(doc["measures"][0]["over_reference"], ["file_lines"])
         self.assertEqual(doc["measures"][1]["over_reference"], [])
@@ -506,7 +506,7 @@ class AssembleTests(unittest.TestCase):
 class RenderTests(unittest.TestCase):
     def test_empty_status_headline_and_tables(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "empty",
             "scope": {"mode": "change", "base": "abc", "files": 0, "excluded": 0},
@@ -540,7 +540,7 @@ class RenderTests(unittest.TestCase):
 
     def test_an_empty_all_scope_carries_no_widening_hint(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "empty",
             "scope": {"mode": "all", "base": None, "files": 0, "excluded": 0},
@@ -556,7 +556,7 @@ class RenderTests(unittest.TestCase):
 
     def _size_doc(self, rows: list[dict]) -> dict:
         return {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "complete",
             "scope": {"mode": "all", "base": None, "files": len(rows), "excluded": 0},
@@ -791,7 +791,7 @@ class RenderTests(unittest.TestCase):
 
     def test_measures_table_lists_value_keys_and_over_reference(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 1, "excluded": 0},
@@ -876,7 +876,7 @@ class RenderTests(unittest.TestCase):
         ]
         measures = filler + files + [null_crap, top]
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-coverage",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 253, "excluded": 0},
@@ -939,7 +939,7 @@ class RenderTests(unittest.TestCase):
 
     def test_a_collect_failed_row_puts_an_exit_3_line_in_the_summary(self) -> None:
         base = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
             "thresholds": [],
             "measures": [],
@@ -1007,7 +1007,7 @@ class RenderTests(unittest.TestCase):
 
     def test_a_no_artifact_run_ends_with_the_first_artifact_pointer(self) -> None:
         base = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-coverage",
             "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},
             "thresholds": [],
@@ -1110,7 +1110,7 @@ class CloneGroupRowTests(unittest.TestCase):
 
     def test_render_shows_instances_and_the_duplicated_total(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-duplication",
             "status": "complete",
             "scope": {"mode": "paths", "base": None, "files": 2, "excluded": 0},
@@ -1242,7 +1242,7 @@ def clone_row(language: str, first: str, second: str, lines: int, tokens: int = 
 
 def duplication_doc(measures: list[dict], **overrides: object) -> dict:
     doc = {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-duplication",
         "status": "complete",
         "scope": {"mode": "all", "base": None, "files": 4, "excluded": 0},
@@ -1534,7 +1534,7 @@ class DuplicationRenderTests(unittest.TestCase):
 
     def test_a_size_document_renders_as_before(self) -> None:
         doc = {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-size",
             "status": "partial",
             "scope": {"mode": "all", "base": None, "files": 1, "excluded": 0},
@@ -1593,7 +1593,7 @@ class DuplicationRenderTests(unittest.TestCase):
 
 def render_doc(measures: list[dict], thresholds_: list[dict] | None = None, **scope):
     return {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-complexity",
         "status": "partial",
         "scope": {"mode": "paths", "base": None, "files": 1, "excluded": 0, **scope},
@@ -1764,7 +1764,7 @@ class JoinedRenderTests(unittest.TestCase):
 
 def cwd_relative_doc() -> dict:
     return {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-coverage",
         "status": "partial",
         "scope": {"mode": "all", "base": None, "files": 3, "excluded": 0},

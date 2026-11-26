@@ -4,7 +4,7 @@ set -uo pipefail
 USAGE="$(
   cat <<'EOF'
 The code-metrics dispatcher: resolve the scope, detect languages, walk the collector ladder,
-and print one code-metrics/v2 document.
+and print one code-metrics/v3 document.
   dispatch.sh <skill> --measures <m1,m2,...> [options] [--] [<path>...]
   --measures <list>          measures to collect. Required.
   --all                      every tracked or untracked-but-not-ignored file under the paths

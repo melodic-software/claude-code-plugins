@@ -44,7 +44,7 @@ SQLite row of that file. Run `coverage json` or `coverage lcov` and point this s
 "${CLAUDE_SKILL_DIR}/scripts/audit-coverage.sh"                                  # the change, with the artifact auto-discovered
 "${CLAUDE_SKILL_DIR}/scripts/audit-coverage.sh" --artifacts build/lcov.info src/ # an explicit artifact and an explicit scope
 "${CLAUDE_SKILL_DIR}/scripts/audit-coverage.sh" --all --artifacts coverage.xml --artifacts cover.out
-"${CLAUDE_SKILL_DIR}/scripts/audit-coverage.sh" --json --all                     # the code-metrics/v2 document instead of markdown
+"${CLAUDE_SKILL_DIR}/scripts/audit-coverage.sh" --json --all                     # the code-metrics/v3 document instead of markdown
 ```
 
 Append `--user-file '${user_config.config_file}'` to every script call, exactly as written:

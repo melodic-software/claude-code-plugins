@@ -10,7 +10,7 @@
 Prints `{"measures": [...], "run": [...]}` to stdout; the two `--*-out`
 options write the same rows as JSON lines for `report.py assemble`.
 
-`--complexity` is one `code-metrics/v2` document from the `audit` skill's
+`--complexity` is one `code-metrics/v3` document from the `audit` skill's
 complexity action. Its per-function rows supply the cyclomatic
 complexity and the line range; `--artifacts` are the mappings the parsers
 under `../../../scripts/parsers/` print, each tagged with the format it came

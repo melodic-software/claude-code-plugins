@@ -18,7 +18,7 @@ fails a changed file below `size.file_lines` at the base and at or above it
 now, and `crossing-or-growth` also fails a file already at or above it that
 grew. It needs the change scope, so it takes no `--all` and no paths.
 
-Prints the markdown report; `--json` prints the `code-metrics/v2` document
+Prints the markdown report; `--json` prints the `code-metrics/v3` document
 instead. Scope, languages, and the collector ladder are the dispatcher's
 (scripts/dispatch.sh in the plugin root); this script owns its own options
 and the size mode: `size.mode: file-lines` (default) measures `file_lines`;

@@ -28,7 +28,7 @@ other does; `languages.other.enabled: false` opts it out.
 "<skill-dir>/scripts/audit-size.sh"                      # the change: diff from the merge-base plus uncommitted files
 "<skill-dir>/scripts/audit-size.sh" src/ lib/util.py     # explicit paths (a missing one is a usage error)
 "<skill-dir>/scripts/audit-size.sh" --all                # every tracked or untracked-but-not-ignored file
-"<skill-dir>/scripts/audit-size.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
+"<skill-dir>/scripts/audit-size.sh" --json --all src/    # the code-metrics/v3 document instead of markdown
 "<skill-dir>/scripts/audit-size.sh" --file-lines 300     # count against the repository's own limit for this run
 "<skill-dir>/scripts/audit-size.sh" --all --commits-since "1 year ago"   # add commits per file at or above the reference
 "<skill-dir>/scripts/audit-size.sh" --check              # the opt-in check mode (below)

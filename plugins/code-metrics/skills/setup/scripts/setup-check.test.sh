@@ -70,6 +70,18 @@ assert_row "reference from the team layer" "$out" "reference file_lines +500 \(l
 (cd "$repo" && git add docs && git commit -q -m config)
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 assert_row "committed team file passes" "$out" "PASS  layer team tracked +committed"
+if grep -q "key lanes" <<<"$out"; then
+  fail "no lanes key, no lanes row" "no key lanes row" "$(printf '%s' "$out" | head -c 600)"
+else
+  pass "no lanes key, no lanes row"
+fi
+
+lanes_repo="$(mktemp -d)"
+mkdir -p "$lanes_repo/docs/conventions"
+printf 'lanes:\n  go:\n    enabled: false\n' >"$lanes_repo/docs/conventions/code-metrics.yaml"
+out="$(bash "$SCRIPT" --repo-root "$lanes_repo" --home "$home")"
+rm -rf "$lanes_repo"
+assert_row "a leftover lanes key warns" "$out" "WARN  key lanes +a config layer sets the retired top-level lanes key"
 
 retired_repo="$(mktemp -d)"
 mkdir -p "$retired_repo/.claude"

@@ -162,6 +162,24 @@ class SetupApplyTests(unittest.TestCase):
                 resolved("--home", str(home), "--repo-root", str(root)), before
             )
 
+    def test_a_claude_file_written_with_lanes_keeps_its_opt_out(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".claude").mkdir()
+            (root / ".claude" / "code-metrics.yaml").write_text(
+                "lanes:\n  go:\n    enabled: false\n    collectors: [gocyclo]\n",
+                encoding="utf-8",
+            )
+            result = run("--dir", tmp, "size.mode=file-lines")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("dropped lanes", result.stderr)
+            target = root / "docs" / "conventions" / "code-metrics.yaml"
+            doc = yaml_subset.parse(target.read_text(encoding="utf-8"))
+            self.assertNotIn("lanes", doc)
+            self.assertEqual(
+                doc["languages"], {"go": {"enabled": False, "collectors": ["gocyclo"]}}
+            )
+
     def test_with_no_key_a_claude_file_is_moved_and_nothing_else_is_an_error(
         self,
     ) -> None:

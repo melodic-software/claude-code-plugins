@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble and render `code-metrics/v2` report documents (design thread T5).
+"""Assemble and render `code-metrics/v3` report documents (design thread T5).
 
 Four subcommands, all standard library:
 
@@ -61,7 +61,7 @@ from typing import Any
 from pathglob import root_relative
 
 MIN_PYTHON = (3, 9)
-SCHEMA = "code-metrics/v2"
+SCHEMA = "code-metrics/v3"
 ROOT_KINDS = ("repository", "directory")
 RUN_STATUSES = ("ok", "partial", "unavailable", "not-applicable", "deferred")
 MAX_RENDERED_ROWS = 200

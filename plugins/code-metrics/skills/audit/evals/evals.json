@@ -17,7 +17,7 @@
       "id": 3,
       "name": "size-json-feeds-a-comparison-through-the-gated-pointer",
       "prompt": "/code-metrics:audit size --json --all src/ so I can compare it after the refactor",
-      "expected_output": "Produces the code-metrics/v2 JSON document, keeps it for the comparison, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explains the manual comparison and that an empty status is inconclusive.",
+      "expected_output": "Produces the code-metrics/v3 JSON document, keeps it for the comparison, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explains the manual comparison and that an empty status is inconclusive.",
       "files": [],
       "expectations": [
         "Runs audit-size.sh with --json and keeps the document for the later comparison",
@@ -42,7 +42,7 @@
       "id": 6,
       "name": "complexity-json-feeds-a-comparison-through-the-gated-pointer",
       "prompt": "/code-metrics:audit complexity --json --all src/ so I can compare it after the refactor",
-      "expected_output": "Produces the code-metrics/v2 JSON document, keeps it for the comparison, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explains the manual comparison and that an empty status is inconclusive.",
+      "expected_output": "Produces the code-metrics/v3 JSON document, keeps it for the comparison, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explains the manual comparison and that an empty status is inconclusive.",
       "files": [],
       "expectations": [
         "Runs audit-complexity.sh with --json and keeps the document for the later comparison",
@@ -66,7 +66,7 @@
       "id": 9,
       "name": "type-debt-absent-type-coverage-is-visible-not-silent",
       "prompt": "/code-metrics:audit type-debt --json --all so I can compare it after the typing sweep (type-coverage is not installed here)",
-      "expected_output": "Produces the code-metrics/v2 JSON document, reports the typescript language as unavailable with its install hint and the requirement that typescript also resolves, installs nothing, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explaining the manual comparison.",
+      "expected_output": "Produces the code-metrics/v3 JSON document, reports the typescript language as unavailable with its install hint and the requirement that typescript also resolves, installs nothing, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explaining the manual comparison.",
       "files": [],
       "expectations": [
         "Runs audit-type-debt.sh with --json and keeps the document for the later comparison",

@@ -128,8 +128,8 @@ assert_doc "a language measured in part keeps the document off complete" "$out" 
   'd["status"]=="partial"'
 
 out="$(run_json lcov-1x.info lcov-2.2.info cobertura.xml coverage-py.json go-cover.out)"
-assert_doc "--json is one code-metrics/v2 document for audit-coverage" "$out" \
-  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-coverage"'
+assert_doc "--json is one code-metrics/v3 document for audit-coverage" "$out" \
+  'd["schema"]=="code-metrics/v3" and d["skill"]=="audit-coverage"'
 assert_doc "the four measurable languages are all covered" "$out" \
   'sorted({r["language"] for r in d["run"] if r["measure"]=="coverage" and r["status"] in ("ok","partial")})==["bash","go","python","typescript"]'
 assert_doc "only the language matched in part is partial" "$out" \

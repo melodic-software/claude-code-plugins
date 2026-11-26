@@ -78,7 +78,7 @@ out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all 
 rc=$?
 assert_eq "exit 0 with the bundled counter" 0 "$rc"
 assert_doc "schema, skill, and status complete" "$out" \
-  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-size" and d["status"]=="complete"'
+  'd["schema"]=="code-metrics/v3" and d["skill"]=="audit-size" and d["status"]=="complete"'
 assert_doc "every language row is ok on line-counter" "$out" \
   'all(r["status"]=="ok" and r["collector"].startswith("line-counter") for r in d["run"]) and len(d["run"])==6'
 assert_doc "rows carry comment-agnostic label and non-blank counts" "$out" \
@@ -215,7 +215,7 @@ assert_doc "--all from a subdirectory measures the whole repository, paths relat
 repo_top="$(cd "$repo" && git rev-parse --show-toplevel)"
 from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
 assert_doc "a run from the repository root records the repository root and its own scan root" "$from_root" \
-  'd["root"]=={"kind": "repository", "path": "'"$repo_top"'"} and d["scan_root"]=="." and d["schema"]=="code-metrics/v2"'
+  'd["root"]=={"kind": "repository", "path": "'"$repo_top"'"} and d["scan_root"]=="." and d["schema"]=="code-metrics/v3"'
 assert_doc "a run from a subdirectory records the same root and names the subdirectory as scan root" "$out" \
   'd["root"]=={"kind": "repository", "path": "'"$repo_top"'"} and d["scan_root"]=="sub"'
 same_files="$(printf '%s\n\x1e%s' "$from_root" "$out" | "$PY" -c '

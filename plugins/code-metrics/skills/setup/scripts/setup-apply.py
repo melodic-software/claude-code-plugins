@@ -593,6 +593,8 @@ def main(argv: list[str]) -> int:
         return 2
     known = known_keys()
     if carried_from is not None:
+        if "lanes" in doc and "languages" not in doc:
+            doc["languages"] = doc.pop("lanes")
         for dotted in drop_unknown(doc, known):
             print(
                 f"setup-apply.py: dropped {dotted} from {carried_from}: not a key the contract declares",

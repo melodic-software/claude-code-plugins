@@ -47,7 +47,7 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
   "Check mode").
 - Run the action's bundled script; never count, estimate or grep the measure by hand.
 - Scope is the change by default (the merge-base diff plus uncommitted files); explicit paths or
-  `--all` widen it, and `--json` prints the `code-metrics/v2` document instead of markdown.
+  `--all` widen it, and `--json` prints the `code-metrics/v3` document instead of markdown.
 - A target form (`--repo <repo>` and the others) runs the action once per repository, as
   `${CLAUDE_PLUGIN_ROOT}/reference/several-repositories.md` says; each repository gets its own
   section. `size --check` is a gate for one repository's hook or CI step, so it takes no target

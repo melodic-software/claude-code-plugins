@@ -182,6 +182,9 @@ LIVE="$(mktemp -d)"
 trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
 resolved_ok=0
 "${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" --user-file "$USER_OPTION" >"$RESOLVED" 2>"$RESOLVED.err" && resolved_ok=1
+if [[ $resolved_ok -eq 1 ]] && "${PY[@]}" -I -c 'import json, sys; sys.exit(0 if "lanes" in json.load(open(sys.argv[1])) else 1)' "$RESOLVED"; then
+  row WARN "key lanes" "a config layer sets the retired top-level lanes key, which is not read; rename it to languages"
+fi
 
 ecos=()
 languages=()

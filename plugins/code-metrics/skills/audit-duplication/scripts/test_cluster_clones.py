@@ -36,7 +36,7 @@ def pair(
 
 def document(*rows: dict) -> dict:
     return {
-        "schema": "code-metrics/v2",
+        "schema": "code-metrics/v3",
         "skill": "audit-duplication",
         "measures": list(rows),
         "excluded": [],

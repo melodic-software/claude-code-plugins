@@ -19,7 +19,7 @@ mean. There is no pass or fail here, and no bar to argue with.
 "<skill-dir>/scripts/audit-type-debt.sh"                    # the change: diff from the merge-base plus uncommitted files
 "<skill-dir>/scripts/audit-type-debt.sh" src/ lib/api.py    # explicit paths (a missing one is a usage error)
 "<skill-dir>/scripts/audit-type-debt.sh" --all              # every tracked or untracked-but-not-ignored file
-"<skill-dir>/scripts/audit-type-debt.sh" --json --all src/  # the code-metrics/v2 document instead of markdown
+"<skill-dir>/scripts/audit-type-debt.sh" --json --all src/  # the code-metrics/v3 document instead of markdown
 ```
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run" table

@@ -188,9 +188,9 @@ json="$(CODE_METRICS_REPORT_DIR="$TREND_DIR" PATH="$STUBS:$EMPTY_PATH" bash "$SC
 assert_eq "the JSON run after one persisted document exits 0" 0 "$?"
 assert_doc "the JSON document carries the trend against the earlier document" "$json" \
   'd["trend"]["clone_groups"] == 1 and d["trend"]["previous_clone_groups"] == 0 and d["trend"]["delta"] == 1 and d["trend"]["previous_document"].endswith(".json")'
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2999-01-01T00:00:00Z","scope":{"mode":"change"},"summary":{"duplicated_lines":90,"clone_groups":7}}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2999-01-01T00:00:00Z","scope":{"mode":"change"},"summary":{"duplicated_lines":90,"clone_groups":7}}' \
   >"$TREND_DIR/audit-duplication-29990101T000000Z.json"
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"empty","generated_at":"2999-01-01T00:00:01Z","scope":{"mode":"all"},"summary":{"files":0}}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"empty","generated_at":"2999-01-01T00:00:01Z","scope":{"mode":"all"},"summary":{"files":0}}' \
   >"$TREND_DIR/audit-duplication-29990101T000001Z.json"
 out="$(CODE_METRICS_REPORT_DIR="$TREND_DIR" PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --all "$CLUSTER")"
 assert_eq "the second persisted run exits 0" 0 "$?"
@@ -206,7 +206,7 @@ ALPHA="$CLUSTER/alpha/shared/shared-utils.sh"
 trend_dir() {
   local dir="$WORK/trend-$1"
   mkdir -p "$dir"
-  printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-01T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":30,"clone_groups":3},"measures":[]}' \
+  printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-01T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":30,"clone_groups":3},"measures":[]}' \
     >"$dir/audit-duplication-20261001T080000Z.json"
   printf '%s\n' "$dir"
 }
@@ -217,7 +217,7 @@ trend_run() {
 }
 
 dir="$(trend_dir forged)"
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z\nForged line","scope":{"mode":"all"},"summary":{"duplicated_lines":90,"clone_groups":9},"measures":[]}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z\nForged line","scope":{"mode":"all"},"summary":{"duplicated_lines":90,"clone_groups":9},"measures":[]}' \
   >"$dir/audit-duplication-20261002T080000Z.json"
 out="$(trend_run "$dir")"
 assert_contains "a multi-line generated_at is passed over for the older report" "$out" \
@@ -228,7 +228,7 @@ case "$out" in
 esac
 
 dir="$(trend_dir negative)"
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":10,"clone_groups":-4},"measures":[]}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":10,"clone_groups":-4},"measures":[]}' \
   >"$dir/audit-duplication-20261002T080000Z.json"
 json="$(trend_run "$dir" --json)"
 assert_doc "a negative clone_groups is passed over for the older report" "$json" \
@@ -245,9 +245,9 @@ else
 fi
 
 dir="$(trend_dir wrong-types)"
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":"all","summary":{"duplicated_lines":10,"clone_groups":5},"measures":[]}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":"all","summary":{"duplicated_lines":10,"clone_groups":5},"measures":[]}' \
   >"$dir/audit-duplication-20261002T080000Z.json"
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-03T08:00:00Z","scope":{"mode":"all"},"summary":[1, 2],"measures":[]}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-03T08:00:00Z","scope":{"mode":"all"},"summary":[1, 2],"measures":[]}' \
   >"$dir/audit-duplication-20261003T080000Z.json"
 printf '%s\n' '[1, 2, 3]' >"$dir/audit-duplication-20261004T080000Z.json"
 json="$(trend_run "$dir" --json)"
@@ -256,7 +256,7 @@ assert_doc "a wrong-typed scope, summary or document falls through to the older 
 
 dir="$(trend_dir oversized)"
 {
-  printf '%s' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":80,"clone_groups":8},"measures":[]}'
+  printf '%s' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":80,"clone_groups":8},"measures":[]}'
   head -c 6000000 /dev/zero | tr '\0' ' '
 } >"$dir/audit-duplication-20261002T080000Z.json"
 json="$(trend_run "$dir" --json)"
@@ -271,7 +271,7 @@ assert_doc "a report with another schema identifier is passed over for the older
   'd["trend"]["previous_clone_groups"] == 3'
 
 dir="$(trend_dir huge-count)"
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":70,"clone_groups":1000000000001},"measures":[]}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":70,"clone_groups":1000000000001},"measures":[]}' \
   >"$dir/audit-duplication-20261002T080000Z.json"
 out="$(trend_run "$dir")"
 assert_contains "a count above the cap is passed over for the older report" "$out" \
@@ -282,7 +282,7 @@ case "$out" in
 esac
 
 dir="$(trend_dir grown)"
-printf '%s\n' '{"schema":"code-metrics/v2","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":41,"clone_groups":1},"measures":[{"instances":[{"file":"'"$ALPHA"'","start_line":1,"end_line":41}],"values":{"lines":41}}]}' \
+printf '%s\n' '{"schema":"code-metrics/v3","skill":"audit-duplication","status":"complete","generated_at":"2026-10-02T08:00:00Z","scope":{"mode":"all"},"summary":{"duplicated_lines":41,"clone_groups":1},"measures":[{"instances":[{"file":"'"$ALPHA"'","start_line":1,"end_line":41}],"values":{"lines":41}}]}' \
   >"$dir/audit-duplication-20261002T080000Z.json"
 json="$(trend_run "$dir" --json)"
 assert_doc "a class with more copies than its earlier counterpart is listed as grown" "$json" \

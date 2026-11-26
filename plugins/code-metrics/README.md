@@ -94,7 +94,7 @@ plugins: [config locations](reference/config-locations.md).
 
 ## The report
 
-Every audit prints one `code-metrics/v2` JSON document (`--json`) or its markdown rendering. The
+Every audit prints one `code-metrics/v3` JSON document (`--json`) or its markdown rendering. The
 document opens with a "Coverage of this run" table naming, per language and measure, the collector
 used or the reason none did, and a `status` of `complete`, `partial`, or `empty`, so a run that
 measured nothing can never read as green. The markdown table shows each function once with every

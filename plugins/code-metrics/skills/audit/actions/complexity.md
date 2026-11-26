@@ -29,7 +29,7 @@ carry `function: null`, and are labeled `file-level`. Its Bash cyclomatic figure
 "<skill-dir>/scripts/audit-complexity.sh"                    # the change: merge-base diff plus uncommitted files
 "<skill-dir>/scripts/audit-complexity.sh" src/ lib/parse.py  # explicit paths (a missing one is a usage error)
 "<skill-dir>/scripts/audit-complexity.sh" --all              # every tracked or untracked-but-not-ignored file
-"<skill-dir>/scripts/audit-complexity.sh" --json --all src/  # the code-metrics/v2 document instead of markdown
+"<skill-dir>/scripts/audit-complexity.sh" --json --all src/  # the code-metrics/v3 document instead of markdown
 ```
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
@@ -38,7 +38,7 @@ provenance and layer, then one row per function or file: every collector's numbe
 sit on that one line, a Labels column carries `start-line-only`, `file-level`, and
 `multimetric-approximation` where they apply, and rows over a reference come first, the furthest
 past it at the top. The table stops at 200 rows; its last line and the summary name the file the
-whole `code-metrics/v2` document was written to (under
+whole `code-metrics/v3` document was written to (under
 `<CLAUDE_PLUGIN_DATA>/reports/<state-key>/` when that value names code-metrics, else `~/.claude/plugins/data/code-metrics/reports/<state-key>/`), so the numbers past the cap are on disk without a
 second run. Pass that document, or a `--json` run's output, to `/verification:measure metrics`
 when the `verification` plugin is enabled, treating `status: empty` on either side as

@@ -1,4 +1,4 @@
-# The `code-metrics/v2` report
+# The `code-metrics/v3` report
 
 Every audit skill in this plugin prints exactly one JSON document on stdout (its `audit-size.sh --json`)
 and renders markdown from it; diagnostics go to stderr. Other tools read the document, so its
@@ -8,7 +8,7 @@ shape is stable within the `v2` schema string.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `schema` | string | `code-metrics/v2` |
+| `schema` | string | `code-metrics/v3` |
 | `skill` | string | The producing skill, for example `audit-size` |
 | `root` | object | `kind` (`repository` or `directory`) and `path`: the directory every measured path is relative to, see "Path relativity" |
 | `scan_root` | string | Where the run started, relative to `root.path` (`.` when equal); never affects paths |
@@ -27,9 +27,11 @@ shape is stable within the `v2` schema string.
 
 A reader ignores keys it does not know: fields are added within the current version (the rollups
 and the run row's `hint` were), never renamed or removed. A change to what an existing field means
-mints a new schema identifier. `v2` is that case: in `v1` a measured path was relative to the
-working directory the audit ran from, and in `v2` it is relative to `root.path`. A `v1` document
-and a `v2` document are not comparable path-for-path.
+mints a new schema identifier, and so does a renamed field. `v2` was the first case: in `v1` a
+measured path was relative to the working directory the audit ran from, and in `v2` it is relative
+to `root.path`. `v3` is the second: the row field `language`, the summary's `by_language` and the
+type-debt row label `language-total` replaced their `v2` names. Documents of two versions are not
+comparable.
 
 A schema identifier change carries no dual-emission window. The one reader of persisted reports is
 `audit-duplication`'s own clone trend ("Clone trend"), which compares only reports carrying the
@@ -106,7 +108,7 @@ of these hold:
 
 - it is a regular file (not a link, FIFO or device) of at most 5 MB holding one JSON object;
 - `generated_at` is a one-line `YYYY-MM-DDTHH:MM:SSZ` string;
-- `schema` equals this run's (`code-metrics/v2`);
+- `schema` equals this run's (`code-metrics/v3`);
 - `scope` is an object whose `mode` matches this run's;
 - it measured something: `status` is not `empty` and `summary` is an object carrying
   `duplicated_lines`;
