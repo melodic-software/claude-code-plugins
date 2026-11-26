@@ -38,10 +38,29 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 GIT_TIMEOUT=${ORG_STANDARDS_GIT_TIMEOUT:-60}
 [[ "$GIT_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || GIT_TIMEOUT=60
 net_git() {
-  local limit=()
+  local limit=() ssh=${GIT_SSH_COMMAND:-}
   command -v timeout >/dev/null 2>&1 && limit=(timeout "$GIT_TIMEOUT")
-  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh} -o BatchMode=yes" \
+  [[ -n "$ssh" ]] || ssh=$(git config --get core.sshCommand 2>/dev/null) || true
+  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${ssh:-ssh} -o BatchMode=yes" \
     ${limit[@]+"${limit[@]}"} git -c credential.helper= "$@"
+}
+checkout_git() {
+  local dir=$1 d off=(-c core.hooksPath=/dev/null)
+  shift
+  while IFS= read -r d; do
+    d=${d#filter.}; d=${d%.*}
+    off+=(-c "filter.$d.smudge=" -c "filter.$d.process=" -c "filter.$d.required=false")
+  done < <(git -C "$dir" config --name-only --get-regexp '^filter\.' 2>/dev/null | sort -u || true)
+  GIT_LFS_SKIP_SMUDGE=1 net_git -C "$dir" "${off[@]}" "$@"
+}
+place() {
+  local tmp=$1 dest=$2 leaf
+  mv -T "$tmp" "$dest" 2>/dev/null && return 0
+  leaf=$(basename "$tmp")
+  if [[ ! -e "$dest" ]] && mv "$tmp" "$dest" 2>/dev/null && [[ -e "$dest/$leaf" ]]; then
+    rm -rf "${dest:?}/$leaf"
+  fi
+  [[ ! -e "$tmp" ]] || rm -rf "${tmp:?}"
 }
 REPO_RE='^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*$'
 SHA_RE='^[0-9a-f]{40}([0-9a-f]{24})?$'
@@ -68,7 +87,7 @@ org_dir() {
       printf '%s\n' "$cache"; return 0
     fi
     if net_git -C "$cache" fetch --quiet --depth=1 origin main 2>/dev/null \
-      && git -C "$cache" checkout --quiet --force --detach FETCH_HEAD 2>/dev/null; then
+      && checkout_git "$cache" checkout --quiet --force --detach FETCH_HEAD 2>/dev/null; then
       printf '%s\n' "$now" >"$stamp"
     else
       printf 'org-standards: refreshing %s failed; using the copy cached at %s\n' "$repo" "$cache" >&2
@@ -78,14 +97,14 @@ org_dir() {
   mkdir -p "$(dirname "$cache")"
   local tmp
   tmp=$(mktemp -d "$(dirname "$cache")/.clone.XXXXXX")
-  if ! net_git clone --quiet --depth=1 --branch main "$url" "$tmp/c" 2>/dev/null; then
+  if ! net_git clone --quiet --no-checkout --depth=1 --branch main "$url" "$tmp" 2>/dev/null \
+    || ! checkout_git "$tmp" checkout --quiet --force main 2>/dev/null; then
     rm -rf "${tmp:?}"
     printf 'org-standards: cannot clone %s; no org layer this run\n' "$url" >&2
     return 4
   fi
-  printf '%s\n' "$now" >"$tmp/c/.git/org-standards-fetched"
-  [[ -e "$cache" ]] || mv "$tmp/c" "$cache" 2>/dev/null || true
-  rm -rf "${tmp:?}"
+  printf '%s\n' "$now" >"$tmp/.git/org-standards-fetched"
+  place "$tmp" "$cache"
   printf '%s\n' "$cache"
 }
 
@@ -115,12 +134,17 @@ inside() {
   [[ "$path" == "$base" || "$path" == "$base"/* ]]
 }
 
+trim() { local s=$1; s=${s#"${s%%[![:space:]]*}"}; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
+
 path_problem() {
-  case "$1" in
-    /*) printf 'is absolute' ;;
-    ..|../*|*/..|*/../*) printf "has a '..' segment" ;;
-    *) [[ "$1" =~ ^[A-Za-z0-9._@+/\ -]*$ ]] && return 1; printf 'is not a relative forward-slash path' ;;
-  esac
+  local seg segs
+  [[ "$(trim "$1")" != /* ]] || { printf 'is absolute'; return 0; }
+  IFS=/ read -ra segs <<<"$1"
+  for seg in ${segs[@]+"${segs[@]}"}; do
+    [[ "$(trim "$seg")" != .. ]] || { printf "has a '..' segment"; return 0; }
+  done
+  [[ "$1" =~ ^[A-Za-z0-9._@+/\ -]*$ ]] && return 1
+  printf 'is not a relative forward-slash path'
 }
 
 within() {
@@ -172,15 +196,14 @@ state == 1 {
   else { state = 0; print NR "\037junk" }
   next
 }
-{ f = C[4]; if (f ~ /^`[^`]+`$/) f = substr(f, 2, length(f) - 2); print NR "\037row\037" C[2] "\037" f }'
-# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
-EMIT="$TABLE_CELLS"'
-BEGIN { m = split(ENVIRON["KEEP"], K, "\n"); for (i = 1; i <= m; i++) if (K[i] != "") { t = index(K[i], "\t"); keep[substr(K[i], 1, t - 1)] = substr(K[i], t + 1) } }
-index($0, "|") == 0 { print; next }
-!(FNR in keep) { next }
-keep[FNR] == "" { print; next }
-{ cells($0); print "| " C[2] " | " C[3] " | " keep[FNR] " |" }'
+{
+  f = C[4]
+  if (f ~ /^`[^`]+`$/) f = substr(f, 2, length(f) - 2)
+  gsub(/^[ \t]+|[ \t]+$/, "", f)
+  print NR "\037row\037" C[2] "\037" C[3] "\037" f
+}'
 BAD_CELL='[[:cntrl:]|`]'
+SURFACE_RE='^[A-Za-z0-9._-]+$'
 
 locate() {
   local root=$1 sdir=$2 f=$3 why cand
@@ -195,56 +218,102 @@ locate() {
 }
 
 confine() {
-  local root=$1 index=$2 topics=$3 sdir line kind id f path keep="" key out
+  local root=$1 index=$2 topics=$3 sdir line kind id when f path version text key out
+  version=$(yaml_value "$index" standards-contract)
+  if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+    note "$index: standards-contract $(printable "$version") is not a version; no usable index"; return 1
+  fi
+  text=$(printf -- '---\nstandards-contract: %s\n---\n\n| Surface | Applies when | File |\n|---|---|---|' "$version")
   sdir=$(dirname "$index")
-  while IFS="$US" read -r line kind id f; do
+  while IFS="$US" read -r line kind id when f; do
     case "$kind" in
-      head) keep+="$line"$'\t\n' ;;
+      head) ;;
       row)
-        if ! path=$(locate "$root" "$sdir" "$f"); then
+        if ! [[ "$id" =~ $SURFACE_RE ]]; then
+          note "$index:$line: Surface $(printable "$id") is not an id; row dropped"
+        elif ! path=$(locate "$root" "$sdir" "$f"); then
           note "$index:$line: File $(printable "$f") $path; row dropped"
         elif [[ -z "$topics" || " $topics " == *" $id "* ]]; then
-          keep+="$line"$'\t'"$path"$'\n'
+          text+=$'\n'"| $id | $(printable "$when") | $path |"
         fi ;;
       *) note "$index:$line: not a row of the index table; line dropped" ;;
     esac
   done < <(awk "$CLASSIFY" "$index")
   key=$(tr ' ' '\n' <<<"$topics" | sort -u | paste -sd+ -)
   out="$STATE/confined/$(printf '%s' "$index" | git hash-object --stdin).${key:-@all}.md"
-  KEEP=$keep awk "$EMIT" "$index" | write_atomic "$out" || return 1
+  printf '%s\n' "$text" | write_atomic "$out" || return 1
   printf '%s\n' "$out"
 }
 
 surfaces() {
-  awk "$CLASSIFY" "$1" | awk -F"$US" '$2 == "row" { print $3 "\t" $4 }' | sort -u
+  awk "$CLASSIFY" "$1" | awk -F"$US" '$2 == "row" { print $3 "\t" $5 }' | sort -u
 }
 
-# Prints a REVIEW.md, dropping each line whose `<path>.md#<heading>` citation leaves the checkout.
 # shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
 CITATIONS='
+function unescape(s,    out, v) {
+  out = ""
+  while (match(s, /%[0-9A-Fa-f][0-9A-Fa-f]/)) {
+    v = HEX[tolower(substr(s, RSTART + 1, 2))]
+    out = out substr(s, 1, RSTART - 1) (v >= 32 && v < 127 ? sprintf("%c", v) : substr(s, RSTART, 3))
+    s = substr(s, RSTART + 3)
+  }
+  return out s
+}
+function check(cite,    n, P, i, p) {
+  sub(/^[ \t]+/, "", cite); sub(/[ \t.,;:!?]+$/, "", cite)
+  if (cite ~ /^[Hh][Tt][Tt][Pp][Ss]?:\/\//) return
+  n = split(cite, P, "#")
+  for (i = 1; i <= n; i++) {
+    p = P[i]; sub(/[ \t]+$/, "", p)
+    if (tolower(p) ~ /\.md$/) print NR "\037" cite "\037" unescape(p)
+  }
+}
+function tokens(s,    n, W, i) {
+  n = split(s, W, /[ \t`()<>"\047\[\]]+/)
+  for (i = 1; i <= n; i++) check(W[i])
+}
+BEGIN { for (i = 0; i < 256; i++) HEX[sprintf("%02x", i)] = i }
 {
   line = $0
-  while (match(line, /`[^`]*`/)) {
-    s = substr(line, RSTART + 1, RLENGTH - 2)
-    if (index(s, ".md#")) print NR "\037" s
-    line = substr(line, 1, RSTART - 1) " " substr(line, RSTART + RLENGTH)
+  gsub(/<[A-Za-z0-9_-]+>/, "x", line)
+  rest = line
+  while (match(rest, /`+/)) {
+    n = RLENGTH; after = substr(rest, RSTART + n); tail = after; off = 0; endp = 0
+    while (match(tail, /`+/)) {
+      if (RLENGTH == n) { endp = off + RSTART; break }
+      off += RSTART + RLENGTH - 1; tail = substr(tail, RSTART + RLENGTH)
+    }
+    if (!endp) { rest = after; continue }
+    check(substr(after, 1, endp - 1))
+    rest = substr(after, endp + n)
   }
-  n = split(line, W, /[ \t()<>"\047\[\]]+/)
-  for (i = 1; i <= n; i++) if (index(W[i], ".md#")) print NR "\037" W[i]
+  tokens(line)
+  gsub(/<[^<>]*>/, "", line)
+  tokens(line)
+}'
+# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
+ESCAPE_CONTROLS='
+BEGIN { for (i = 1; i < 32; i++) if (i != 9) C[sprintf("%c", i)] = sprintf("\\x%02x", i); C[sprintf("%c", 127)] = "\\x7f" }
+{
+  sub(/\r$/, ""); out = ""; s = $0
+  while (match(s, /[\001-\010\013-\037\177]/)) { out = out substr(s, 1, RSTART - 1) C[substr(s, RSTART, 1)]; s = substr(s, RSTART + 1) }
+  print out s
 }'
 confine_review() {
-  local root=$1 file=$2 line cite path why drop=""
-  while IFS="$US" read -r line cite; do
-    path=${cite%#*}
+  local root=$1 file=$2 line cite path why drop=" "
+  while IFS="$US" read -r line cite path; do
+    [[ "$drop" != *" $line "* ]] || continue
     if why=$(path_problem "$path"); then :
     elif ! within "$root" "$root/$path"; then why="resolves outside the org checkout"
     else continue
     fi
     note "$file:$line: citation $(printable "$cite") $why; line dropped"
-    drop="$drop $line"
-  done < <(awk "$CITATIONS" "$file")
-  awk -v drop="$drop" 'BEGIN { n = split(drop, D, " "); for (i = 1; i <= n; i++) gone[D[i]] = 1 } !(FNR in gone)' "$file"
+    drop+="$line "
+  done < <(LC_ALL=C awk "$CITATIONS" "$file")
+  awk -v drop="$drop" 'BEGIN { n = split(drop, D, " "); for (i = 1; i <= n; i++) gone[D[i]] = 1 } !(FNR in gone)' "$file" | show
 }
+show() { LC_ALL=C awk "$ESCAPE_CONTROLS" "$@"; }
 
 drift() {
   awk -F'\t' '
@@ -327,14 +396,13 @@ version_lt() {
 }
 
 layer_checkout() {
-  local repo=$1 sha=$2 verify=$3 dest tmp leaf peeled="$STATE/$1@$2.commit" commit=""
+  local repo=$1 sha=$2 verify=$3 dest tmp peeled="$STATE/$1@$2.commit" commit=""
   [[ -f "$peeled" ]] && read -r commit <"$peeled" || true
   [[ "$commit" =~ $SHA_RE ]] && sha=$commit
   dest="$CACHE/$repo@$sha"
   [[ -d "$dest/.git" ]] && { printf '%s\n' "$dest"; return 0; }
   mkdir -p "$(dirname "$dest")"
   tmp=$(mktemp -d "$(dirname "$dest")/.build.XXXXXX")
-  leaf=$(basename "$tmp")
   if ! { git init -q "$tmp" && git -C "$tmp" remote add origin "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"; }; then
     rm -rf "${tmp:?}"; return 4
   fi
@@ -348,31 +416,35 @@ layer_checkout() {
       rm -rf "${tmp:?}"; return 6
     fi
     if [[ "$commit" != "$sha" ]]; then
-      mkdir -p "$(dirname "$peeled")" && printf '%s\n' "$commit" | write_atomic "$peeled"
+      printf '%s\n' "$commit" | write_atomic "$peeled"
       sha=$commit; dest="$CACHE/$repo@$sha"
       [[ ! -d "$dest/.git" ]] || { rm -rf "${tmp:?}"; printf '%s\n' "$dest"; return 0; }
     fi
   elif ! net_git -C "$tmp" fetch --quiet --depth=1 origin "$sha" 2>/dev/null; then
     rm -rf "${tmp:?}"; return 4
   fi
-  if ! net_git -C "$tmp" -c core.symlinks=false -c advice.detachedHead=false checkout --quiet --detach "$sha" >/dev/null 2>&1; then
+  if ! checkout_git "$tmp" -c core.symlinks=false -c advice.detachedHead=false checkout --quiet --detach "$sha" >/dev/null 2>&1; then
     rm -rf "${tmp:?}"; return 4
   fi
-  mv "$tmp" "$dest" 2>/dev/null || rm -rf "${tmp:?}"
-  [[ ! -e "$dest/$leaf" ]] || rm -rf "${dest:?}/$leaf"
+  place "$tmp" "$dest"
   [[ -d "$dest/.git" ]] && printf '%s\n' "$dest"
 }
 
-write_atomic() {
-  local dir p tmpf
-  dir=$(dirname "$1")
-  [[ "$1" == "$STATE"/* ]] || { note "$1 is outside the reader's state; not written"; return 1; }
-  mkdir -p "$dir" 2>/dev/null || true
-  p=$1
+no_link_below_cache() {
+  local p=$1
   while [[ "$p" != "$CACHE" && "$p" != / && "$p" != . ]]; do
     [[ ! -L "$p" ]] || { note "$p is a symbolic link; not written"; return 1; }
     p=$(dirname "$p")
   done
+}
+
+write_atomic() {
+  local dir tmpf
+  dir=$(dirname "$1")
+  [[ "$1" == "$STATE"/* ]] || { note "$1 is outside the reader's state; not written"; return 1; }
+  no_link_below_cache "$1" || return 1
+  mkdir -p "$dir" 2>/dev/null || true
+  no_link_below_cache "$1" || return 1
   tmpf=$(mktemp "$dir/.tmp.XXXXXX") || return 1
   cat >"$tmpf" && mv -f "$tmpf" "$1" && return 0
   rm -f "$tmpf"; return 1
@@ -395,7 +467,6 @@ live_sha() {
     note "refreshing $repo failed; using its main as cached at ${sha:0:12}"
     printf '%s\n' "$sha"; return 0
   fi
-  mkdir -p "$(dirname "$stamp")"
   printf '%s %s\n' "$fresh" "$now" | write_atomic "$stamp"
   printf '%s\n' "$fresh"
 }
@@ -446,7 +517,7 @@ subscription() {
       done < <(drift "$old" "$index")
     fi
   fi
-  [[ "$last" == "$sha" ]] || { mkdir -p "$(dirname "$laststate")" && printf '%s\n' "$sha" | write_atomic "$laststate"; }
+  [[ "$last" == "$sha" ]] || printf '%s\n' "$sha" | write_atomic "$laststate" || true
   if [[ -n "$topics" ]]; then
     local t ids
     ids=$(surfaces "$index" | cut -f1)
@@ -544,7 +615,7 @@ case "$cmd" in
     first=""
     [[ -f "$local_file" ]] && first=$(first_line "$local_file")
     if [[ "$first" = "$REPLACE_MARKER" ]]; then
-      cat "$local_file"; exit 0
+      show "$local_file"; exit 0
     fi
     status=0
     org=$(org_dir) || status=$?
@@ -557,10 +628,10 @@ case "$cmd" in
       confine_review "$org" "$org/REVIEW.md"
       if [[ -f "$local_file" ]] && ! cmp -s "$org/REVIEW.md" "$local_file"; then
         printf '\n<!-- The repository REVIEW.md follows: its criteria add to the organization criteria above. -->\n\n'
-        cat "$local_file"
+        show "$local_file"
       fi
     elif [[ -f "$local_file" ]]; then
-      cat "$local_file"
+      show "$local_file"
     else
       exit 3
     fi ;;

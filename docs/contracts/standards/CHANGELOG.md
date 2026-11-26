@@ -18,13 +18,18 @@ read from another repository (the org layer and each subscription) is confined t
 a `standards_dir` or `File` value that is absolute, has a `..` segment or resolves (symbolic links
 included) outside the checkout is reported and dropped, as are an org `REVIEW.md` or
 `.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose
-`<path>.md#<heading>` citation does. `index` and `subscriptions` now print a copy of each index
-written under the reader's cache state, never inside a checkout: it keeps only well-formed rows of
-the `Surface | Applies when | File` table (every other line holding a `|` is reported and
-dropped), and each kept row's `File` is the absolute path it resolves to inside the checkout.
-Consumers read another repository's index only through that copy, never by running the ladder at
-its checkout. Every clone, fetch, `ls-remote` and lazy object fetch gives up after
-`ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), never prompts and uses no credential helper. A `ref` naming an annotated tag object reads the commit it tags. Reader
+`<path>.md#<heading>` citation does; every `.md` token on a line is checked as a reader would
+resolve it (code-span padding trimmed, percent-escapes decoded, any case), and control characters
+in the printed criteria are escaped. `index` and `subscriptions` now print a new index written
+under the reader's cache state, never inside a checkout, built only from the `standards-contract`
+version, the table header and each well-formed row of the `Surface | Applies when | File` table
+rebuilt from its cells (no prose or other line is copied; every other line holding a `|` is
+reported and dropped), with a `Surface` that is an id and each kept row's `File` the absolute path
+it resolves to inside the checkout. Consumers read another repository's index only through that
+copy, never by running the ladder at its checkout. Every clone, fetch, `ls-remote`, checkout and
+lazy object fetch gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), never prompts
+and uses no credential helper, and no checkout runs a filter driver (git-lfs included) or a hook.
+A `ref` naming an annotated tag object reads the commit it tags. Reader
 state moves to `.state/` in the cache directory. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but
 the version.

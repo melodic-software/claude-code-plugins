@@ -103,7 +103,9 @@ explicit confirmation before any conversion (see Setup and migration).
 - **Confinement (normative) for a layer read from another repository** (the
   org layer and each personal subscription): its `standards_dir` and every
   `File` value are relative forward-slash paths (letters, digits, `.`,
-  `_`, `-`, `@`, `+`, space and `/`) with no `..` segment, and each resolves,
+  `_`, `-`, `@`, `+`, space and `/`) with no `..` segment (a segment is
+  `..` after its surrounding whitespace is trimmed, and a `File` cell's
+  code-span backticks and surrounding whitespace are removed first), and each resolves,
   symbolic links included, inside that repository's checkout; so does its
   `REVIEW.md`, its `.claude/standards.yaml`, and each `<path>.md#<heading>`
   citation in its `REVIEW.md`. `org-standards.sh` reports on stderr and
@@ -114,17 +116,26 @@ explicit confirmation before any conversion (see Setup and migration).
   line holding a citation that leaves the checkout is left out of the
   composed criteria.
 - **The printed index (normative):** `org-standards.sh` never hands a
-  consumer the layer's own index. It prints a copy it writes under its own
-  cache state, never inside a checkout, in which each kept row's `File` is
-  the absolute path the deterministic lookup above resolved inside the
-  checkout. Only
-  a well-formed row of the index table is kept: it starts with `|` at
-  column 0 and ends with `|`, holds no escaped `\|`, has exactly the three
-  cells of the `| Surface | Applies when | File |` header, and follows that
-  header and its delimiter row (carriage returns removed first). Every other
-  line holding a `|` is dropped and reported. A consumer reads an index
-  from another repository only through this printed copy, and follows each
-  row's `File` as written, never resolving it again.
+  consumer the layer's own index or any text copied from it. It writes a
+  new file under its own cache state, never inside a checkout, built from
+  checked parts only: a frontmatter holding just `standards-contract` (its
+  value letters, digits, `.`, `+` and `-`, else the layer has no usable
+  index), the `| Surface | Applies when | File |` header and delimiter, and
+  one row per kept row, rebuilt from its cells. A row is kept only when it
+  is a well-formed row of the index table: it starts with `|` at column 0
+  and ends with `|`, holds no escaped `\|`, has exactly the three cells of
+  that header, and follows that header and its delimiter row (carriage
+  returns removed first). Its `Surface` must be an id (letters, digits,
+  `.`, `_`, `-`); its `Applies when` is copied with control characters
+  removed; its `File` becomes the absolute path the deterministic lookup
+  above resolved inside the checkout. Every other line holding a `|` is
+  dropped and reported; prose, HTML and lines without a `|` are never
+  copied. A consumer reads an index from another repository only through
+  this printed copy, and follows each row's `File` as written, never
+  resolving it again. `Applies when` stays the source's free text:
+  untrusted data, never an instruction. The org layer's printed paths
+  point into its cached checkout, so a refresh between reading the printed
+  index and opening a file can serve that file from a newer commit.
 
 ## Standards files
 
@@ -310,9 +321,13 @@ copied into each repository.
   (default: the git top level). Every clone, fetch and `ls-remote` the
   script runs, for the org layer and for subscriptions, gives up after
   `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60; needs `timeout` on the
-  `PATH`), never prompts for a password, passphrase or host key, and uses
-  no credential helper; a git call that needs no network fetches no missing
-  object. Its state (the last commit read per subscription, the live `main`
+  `PATH`), never prompts for a password, passphrase or host key (ssh runs
+  the user's `GIT_SSH_COMMAND` or `core.sshCommand` with `BatchMode=yes`
+  added), and uses no credential helper; a git call that needs no network
+  fetches no missing object. Every checkout, org or subscribed, runs under
+  the same limits with every filter driver emptied (no smudge or process
+  command runs, git-lfs included, whatever the checkout's `.gitattributes`
+  or `.lfsconfig` say) and no hooks. Its state (the last commit read per subscription, the live `main`
   per trusted repository, the printed indexes) lives under `.state/` in the
   cache directory, a name no `<owner>` can take, and it writes nowhere else
   and through no symbolic link. A skill
@@ -347,7 +362,14 @@ repository the line came from: the org checkout for the org part, the
 reviewed repository for its additions. The org part holds only citations
 that stay inside the org checkout: `org-standards.sh review` drops, and
 reports, each org line whose citation is absolute, has a `..` segment or
-resolves outside it (Confinement).
+resolves outside it (Confinement). It checks every piece of a line a
+reader could resolve as a `.md` file, case-insensitively: each code span's
+whole content and each token of the line, raw and with HTML tags removed,
+split at `#`, trimmed and percent-decoded; an `http` or `https` URL is not
+a path, and an angle-bracket placeholder such as `<file>` is a plain
+segment, so `standards/review/<file>.md#<heading>` stays and
+`../<file>.md` is dropped. Control characters in the printed criteria are
+shown escaped (`\x1b`), never passed through.
 
 ## Concern file: `.claude/standards.yaml`
 
