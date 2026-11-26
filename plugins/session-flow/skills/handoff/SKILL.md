@@ -335,8 +335,9 @@ that ends on anything else can run out of room before the rails prompt appears: 
 file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
 not the rails block (plus its below-rail notes) is a failed handoff even when every box above is
 ticked. Emit the rails block before ending the turn, always. Except: a turn ended before `new`
-to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet. A
-markdown surface (`surface` probe) keeps that order, shaped per engine doc "Markdown surfaces".
+to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet. On a
+surface other than the terminal (`surface` probe), read `reference/surface/<surface>.md` and draw
+the panel, the checklist and the prompt as it says, in this same order.
 
 **Full path:**
 
@@ -428,8 +429,8 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
   `UNVALIDATED: <validator output>` banner sits above the copy instruction (outside the copy
   region), and the rails are still emitted from the file's `## Resume prompt` section (engine
   doc, full-path block). Never green-silent, never a withheld prompt
-- [ ] Resume prompt is the `save_point.py emit <file>` output (`--format markdown` on a markdown
-  surface) pasted verbatim, copy line through the below-rail `claude --resume` line, never retyped
+- [ ] Resume prompt is the `save_point.py emit <file>` output (with the `--format` the surface
+  file names) pasted verbatim, copy line through the below-rail `claude --resume` line, never retyped
   or regenerated. Include the launch command above the copy instructions when present. `Next:` holds 1 to 5 plain
   headlines from `Remaining actions, in order` (or, for a closing handoff, the `next` value
   `Next: none (closed)` exactly, which `fill` moves onto the `Next:` line), with `Then: /<skill>`
@@ -463,6 +464,7 @@ markdown surface (`surface` probe) keeps that order, shaped per engine doc "Mark
 
 | File | Load when |
 |------|-----------|
+| [reference/surface/](reference/surface/) `<surface>.md` | The `surface` probe resolved `desktop`, `web` or `mobile`: read that one file only. |
 | [reference/settle-in-flight.md](reference/settle-in-flight.md) | Off-thread work is still running before `save_point.py new` or the prompt-only rails prompt. |
 | [reference/prompt-only-checklist.md](reference/prompt-only-checklist.md) | Ticking the post-write checklist on the prompt-only path. |
 | [reference/tracker-short-form.md](reference/tracker-short-form.md) | A tracker item may already hold the session's state: eligibility, the two lines, and which checks still apply. |

@@ -128,6 +128,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import textwrap
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -388,10 +389,13 @@ GOAL_COPY_LINE = (
     "is missing, redo it:"
 )
 MD_COPY_LINE = "Run `/clear`, then paste this:"
-MD_GOAL_COPY_LINE = (
-    "Type `/goal ` (with a trailing space), then paste this. Confirm the `◎ /goal active` "
-    "indicator appears after you send it; if it is missing, redo it:"
+MD_GOAL_LEAD = "Type `/goal ` (with a trailing space), then paste this."
+MD_GOAL_CONFIRM = (
+    "Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, "
+    "redo it"
 )
+MD_GOAL_COPY_LINE = f"{MD_GOAL_LEAD} {MD_GOAL_CONFIRM}:"
+MOBILE_WIDTH = 38
 GOAL_CONDITION_MAX = 4000
 DIRECTIVE_CLAUSE = "invoke /session-flow:handoff via the Skill tool"
 DIRECTIVE_TAIL = (
@@ -3051,7 +3055,8 @@ def cmd_emit(args: argparse.Namespace) -> int:
                 )
                 line = line.replace("@" + stored, "@" + real, 1)
         out.append(line)
-    markdown = getattr(args, "format", "rails") == "markdown"
+    mode = getattr(args, "format", "rails")
+    markdown = mode in ("markdown", "mobile")
     launch_error = None
     try:
         _emit_launch(out, doc, getattr(args, "shell", None), markdown)
@@ -3060,7 +3065,9 @@ def cmd_emit(args: argparse.Namespace) -> int:
         out[:0] = [f"No launch command: {exc}. Start the new session by hand with the copy region below."]
     for notice in notices:
         print(notice, file=sys.stderr)
-    if markdown:
+    if mode == "mobile":
+        out = _mobile_prompt(out)
+    elif mode == "markdown":
         out = _markdown_prompt(out)
     sys.stdout.write("\n".join(out) + "\n")
     return _die(1, launch_error) if launch_error else 0
@@ -3086,6 +3093,46 @@ def _markdown_prompt(lines: list[str]) -> list[str]:
         out.append(swap.get(line, line))
         i += 1
     return out
+
+
+def _mobile_prompt(lines: list[str]) -> list[str]:
+    kept = [line for line in lines if not line.startswith(REOPEN_PREFIX)]
+    wrapped: list[str] = []
+    inside = headlines = False
+    for line in kept:
+        if RAIL_RE.match(line):
+            inside, headlines = not inside, False
+            wrapped.append(line)
+            continue
+        headlines = headlines or (inside and line == "Next:")
+        wrapped += _mobile_wrap(line) if inside and not headlines else [line]
+    out: list[str] = []
+    confirm_pending = False
+    for line in _markdown_prompt(wrapped):
+        if line == MD_GOAL_COPY_LINE:
+            out.append(MD_GOAL_LEAD)
+            confirm_pending = True
+            continue
+        out.append(line)
+        if confirm_pending and len(out) > 2 and re.fullmatch(r"`{3,}", line):
+            out += ["", f"{MD_GOAL_CONFIRM}."]
+            confirm_pending = False
+    return out
+
+
+def _mobile_wrap(line: str) -> list[str]:
+    if "://" in line or line.startswith(("Prior session:", "Handoff origin:")):
+        return [line]
+    head: list[str] = []
+    ref = re.search(r"@\S+", line)
+    if ref:
+        head, line = [line[: ref.end()]], line[ref.end() :].strip()
+        if not line:
+            return head
+    parts = textwrap.wrap(
+        line, MOBILE_WIDTH, break_long_words=False, break_on_hyphens=False
+    )
+    return head + (parts or [line])
 
 
 def _locate_ref(
@@ -5283,7 +5330,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_amend.add_argument("--now", help="ISO-8601 UTC timestamp override (tests)")
     p_amend.add_argument(
         "--format",
-        choices=("rails", "markdown"),
+        choices=("rails", "markdown", "mobile"),
         default="rails",
         help="the format of the prompt printed after the verdict, as emit takes it",
     )
@@ -5309,9 +5356,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_emit.add_argument("--shell", choices=("posix", "powershell"), help="override the platform's launch shell")
     p_emit.add_argument(
         "--format",
-        choices=("rails", "markdown"),
+        choices=("rails", "markdown", "mobile"),
         default="rails",
-        help="markdown: fenced blocks for a surface that renders markdown (Desktop, web); the file is untouched",
+        help="markdown: fenced blocks for a surface that renders markdown (Desktop, web); mobile: markdown with region lines wrapped for a phone and no terminal-only note; the file is untouched",
     )
     p_emit.set_defaults(func=cmd_emit)
 

@@ -693,6 +693,50 @@ def test_emit_markdown_fences_a_goal_region_and_outruns_backticks_inside(tmp_pat
     assert rail_lines("\n".join(md)) == 0
 
 
+def test_emit_mobile_wraps_region_prose_and_keeps_keyed_lines_whole(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    rails = out(run("emit", str(handoffs / HOP2))).split("\n")
+    result = run("emit", "--format", "mobile", str(handoffs / HOP2))
+    assert result.returncode == 0, err(result)
+    md = out(result).split("\n")
+    assert md[0] == "Run `/clear`, then paste this:"
+    top = md.index("```text")
+    bottom = md.index("```", top + 1)
+    region = md[top + 1 : bottom]
+    read = [line for line in region if line.startswith("Read @")]
+    assert len(read) == 1 and read[0].endswith(".md,")
+    headlines = region[region.index("Next:") + 1 :]
+    rail_next = rails[rails.index("Next:") + 1 : rails.index("Next:") + 1 + len(headlines)]
+    assert headlines == rail_next
+    for line in region[: region.index("Next:")]:
+        keyed = line.startswith(("Read @", "Prior session:", "Handoff origin:"))
+        assert keyed or len(line) <= 38, line
+    first, last = [i for i, line in enumerate(rails) if line.startswith("──")]
+    assert " ".join(region).split() == " ".join(rails[first + 1 : last]).split()
+    assert not any(line.startswith("Or reopen the producing session") for line in md)
+
+
+def test_emit_mobile_moves_the_goal_confirm_below_its_block(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP2
+    text = target.read_text(encoding="utf-8")
+    rail = "─" * 58
+    goal = (
+        "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. "
+        "Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n"
+        f"{rail}\nEvery call site of OrderReader uses the retry policy and the test command exits 0.\n{rail}\n\n"
+    )
+    marker = "`/clear`, then copy everything between the dashed lines:"
+    target.write_text(text.replace(marker, goal + marker, 1), encoding="utf-8")
+    md = out(run("emit", "--format", "mobile", str(target))).split("\n")
+    assert md[0] == "Type `/goal ` (with a trailing space), then paste this."
+    close = md.index("```", md.index("```text") + 1)
+    assert md[close + 2].startswith("Confirm the `◎ /goal active` indicator appears")
+    assert md[close + 2].endswith("redo it.")
+    assert "Run `/clear`, then paste this:" in md
+    assert rail_lines("\n".join(md)) == 0
+
+
 def test_emit_shape1_legacy_says_so_and_exits_one(tmp_path):
     handoffs = materialize(tmp_path, "legacy-14")
     result = run("emit", str(handoffs / LEGACY))
