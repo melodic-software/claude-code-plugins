@@ -39,6 +39,11 @@ check(
   style !== undefined && flat(style).startsWith(flat(rules)),
   "copy lib/html-tokens.css's rules into lib/html-chrome.html, then rerun scripts/sync-shared-copies.sh",
 );
+check(
+  "the chrome's header no longer forbids a team or user theme override",
+  !/no[ \t\n]+team[ \t\n]+or[ \t\n]+user[ \t\n]+theme[ \t\n]+override/i.test(chrome),
+  "ADR 0133 allows a configured override; restore the header's Theme paragraph",
+);
 
 const block = (re) => re.exec(rules)?.[1];
 const schemes = {
