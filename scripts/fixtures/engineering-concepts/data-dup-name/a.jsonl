@@ -1,2 +1,2 @@
-{"id":"fx-one","name":"Same Name","aliases":[],"owner":"fx:real"}
-{"id":"fx-two","name":"same name","aliases":[],"owner":"fx:real"}
+{"id":"fx-one","name":"Same Name","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-two","name":"same name","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}

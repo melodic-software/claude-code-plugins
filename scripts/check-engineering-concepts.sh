@@ -14,6 +14,7 @@ indexes=()
 
 usage() {
   printf 'usage: %s [--check] [--data-dir DIR] [--plugins-dir DIR] [--index FILE]...\n' "${0##*/}" >&2
+  printf 'Each record is validated by the rules the lookup applies; id, name and alias collisions and a missing owner skill are checked here only, since the lookup tolerates them.\n' >&2
   exit 2
 }
 
@@ -33,8 +34,8 @@ while (($# > 0)); do
   esac
 done
 
-command -v jq >/dev/null 2>&1 || {
-  printf 'check-engineering-concepts: jq is required\n' >&2
+command -v node >/dev/null 2>&1 || {
+  printf 'check-engineering-concepts: node is required\n' >&2
   exit 2
 }
 for index in ${indexes[@]+"${indexes[@]}"}; do
@@ -50,84 +51,21 @@ finding() {
   findings=$((findings + 1))
 }
 
-# Rows are tab-separated: R <at> <id> <owner>, N <at> <id> <name>, A <at> <id> <alias>, E <at> <reason>.
-# shellcheck disable=SC2016 # $f and $r are jq variables
-JQ_ROWS='
-  select(test("\\S"))
-  | (sub("\r$"; "") | try fromjson catch null) as $r
-  | ($f + ":" + (input_line_number | tostring)) as $at
-  | if ($r | type) != "object" then ["E", $at, "line is not a JSON object"]
-    elif ($r.id | type) != "string" or ($r.id | length) == 0 then ["E", $at, "id is missing"]
-    elif ($r.id | test("^[a-z0-9]+(-[a-z0-9]+)*$") | not) then ["E", $at, "id \"" + $r.id + "\" is not a kebab-case slug"]
-    else ["R", $at, $r.id, ($r.owner // "" | tostring)],
-      (if ($r.name | type) == "string" and ($r.name | length) > 0 then ["N", $at, $r.id, $r.name] else empty end),
-      (($r.aliases // [])[]? | ["A", $at, $r.id, tostring])
-    end
-  | @tsv'
-
-rows=""
-records=0
-shopt -s nullglob
-if [[ -d "$data_dir" ]]; then
-  for file in "$data_dir"/*.jsonl; do
-    rows+="$(jq -R -r --arg f "$file" "$JQ_ROWS" "$file")"$'\n' || exit 2
-  done
-fi
-shopt -u nullglob
-
 set +e
-dup_findings="$(awk -F'\t' '
-  $1 == "E" { print $2 ": " $3; bad = 1 }
-  $1 == "R" {
-    key = tolower($3)
-    if (key in id_at) { print $2 ": id \"" $3 "\" already has a record at " id_at[key]; bad = 1 }
-    else id_at[key] = $2
-    ids[key] = $3
-  }
-  $1 == "A" || $1 == "N" {
-    n++
-    c_kind[n] = ($1 == "N" ? "name" : "alias"); c_at[n] = $2; c_rid[n] = tolower($3)
-    c_key[n] = tolower($4); c_text[n] = $4
-  }
-  END {
-    for (i = 1; i <= n; i++) {
-      key = c_key[i]
-      if (key in ids && c_rid[i] != key) {
-        print c_at[i] ": " c_kind[i] " \"" c_text[i] "\" is the id of another record"; bad = 1
-      }
-      if ((key in claim_of) && claim_of[key] != c_rid[i]) {
-        print c_at[i] ": " c_kind[i] " \"" c_text[i] "\" is also claimed by record \"" claim_of[key] "\" at " claim_at[key]; bad = 1
-      } else if (!(key in claim_of)) {
-        claim_of[key] = c_rid[i]; claim_at[key] = c_at[i]
-      }
-    }
-    exit bad
-  }' <<<"$rows")"
-dup_status=$?
+records="$(node "$SCRIPT_DIR/check-engineering-concepts.mjs" --data-dir "$data_dir" --plugins-dir "$plugins_dir")"
+records_status=$?
 set -e
-if ((dup_status != 0)); then
-  while IFS= read -r line; do
-    finding "$line"
-  done <<<"$dup_findings"
-fi
-
-while IFS=$'\t' read -r kind at id owner; do
-  [[ "$kind" == R ]] || continue
-  records=$((records + 1))
-  if [[ "$owner" == https://* ]]; then
-    continue
-  elif [[ "$owner" =~ ^/?([a-z0-9-]+):([a-z0-9-]+)$ ]]; then
-    skill="$plugins_dir/${BASH_REMATCH[1]}/skills/${BASH_REMATCH[2]}/SKILL.md"
-    [[ -f "$skill" ]] || finding "$at: owner \"$owner\" of \"$id\" names no skill: $skill does not exist"
-  else
-    finding "$at: owner \"$owner\" of \"$id\" is neither an https URL nor a <plugin>:<skill> name"
-  fi
-done <<<"$rows"
+case "$records_status" in
+0) ;;
+1) findings=$((findings + 1)) ;;
+*) exit 2 ;;
+esac
 
 for index in ${indexes[@]+"${indexes[@]}"}; do
   set +e
   index_findings="$(awk -v f="$index" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    { sub(/\r$/, "") }
     NR == 1 && $0 != "---" { print f ": no frontmatter: the first line must be ---"; bad = 1; fm = 2 }
     NR == 1 && $0 == "---" { fm = 1; next }
     fm == 1 && $0 == "---" { fm = 2; if (!seen) { print f ": frontmatter lacks the standards-contract key"; bad = 1 }; next }

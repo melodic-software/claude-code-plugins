@@ -91,7 +91,7 @@ REGISTRY=(
   "check-docs-only-gate.sh|-|-|-"
   "check-docs-only.sh|-|-|-"
   "check-drive-root-litter.sh|-|-|-"
-  "check-engineering-concepts.sh|jq|-|-"
+  "check-engineering-concepts.sh|node|-|-"
   "check-fixture-git-isolation.sh|-|-|-"
   "check-fleet-audit-doc-grammar.sh|-|-|-"
   "check-fleet-finding-test-coverage.sh|-|-|-"

@@ -1,2 +1,2 @@
-{"id":"fx-one","name":"Fixture One","aliases":["fx-two"],"owner":"fx:real"}
-{"id":"fx-two","name":"Fixture Two","aliases":[],"owner":"fx:real"}
+{"id":"fx-one","name":"Fixture One","aliases":["fx-two"],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-two","name":"Fixture Two","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}

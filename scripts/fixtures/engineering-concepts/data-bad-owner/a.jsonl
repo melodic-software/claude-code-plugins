@@ -1,1 +1,1 @@
-{"id":"fx-plain","name":"Fixture Plain","aliases":[],"owner":"http://example.com/not-https"}
+{"id":"fx-plain","name":"Fixture Plain","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"http://example.com/not-https"}

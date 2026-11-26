@@ -84,13 +84,35 @@ function rejection(record) {
   return null;
 }
 
+export function recordLines(path) {
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/u)
+    .map((text, i) => ({ line: i + 1, text }))
+    .filter(({ text }) => text.trim());
+}
+
+export function parseRecord(text) {
+  let record;
+  try {
+    record = JSON.parse(text);
+  } catch (e) {
+    return { reason: `not JSON: ${e.message}` };
+  }
+  const reason = record && typeof record === "object" ? rejection(record) : "not a JSON object";
+  return reason ? { reason } : { record };
+}
+
+export function dataFiles(dataDir) {
+  return readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
+}
+
 /** `shipped` marks the plugin's own data/, which is absent or empty until curated records ship. */
 export function loadIndex(dataDir, err, { shipped = false } = {}) {
   const byId = new Map();
   const byName = new Map();
   let files = [];
   try {
-    files = readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
+    files = dataFiles(dataDir);
   } catch (e) {
     if (!(shipped && e.code === "ENOENT")) {
       err(JSON.stringify({ level: "error", event: "data directory unreadable", dir: dataDir, code: e.code }));
@@ -102,23 +124,15 @@ export function loadIndex(dataDir, err, { shipped = false } = {}) {
   for (const file of files) {
     const path = join(dataDir, file);
     const topic = basename(file, ".jsonl");
-    readFileSync(path, "utf8")
-      .split(/\r?\n/u)
-      .forEach((text, i) => {
-        if (!text.trim()) return;
-        const reject = (reason) =>
-          err(JSON.stringify({ level: "error", event: "record rejected", at: `${path}:${i + 1}`, file: path, line: i + 1, reason }));
-        let record;
-        try {
-          record = JSON.parse(text);
-        } catch (e) {
-          return reject(`not JSON: ${e.message}`);
-        }
-        const reason = record && typeof record === "object" ? rejection(record) : "not a JSON object";
-        if (reason) return reject(reason);
-        byId.set(record.id, { aliases: [], counterweights: [], conflicts_with: [], ...record, topic });
-        for (const name of [record.name, ...(record.aliases ?? [])]) byName.set(name.toLowerCase(), record.id);
-      });
+    for (const { line, text } of recordLines(path)) {
+      const { record, reason } = parseRecord(text);
+      if (reason) {
+        err(JSON.stringify({ level: "error", event: "record rejected", at: `${path}:${line}`, file: path, line, reason }));
+        continue;
+      }
+      byId.set(record.id, { aliases: [], counterweights: [], conflicts_with: [], ...record, topic });
+      for (const name of [record.name, ...(record.aliases ?? [])]) byName.set(name.toLowerCase(), record.id);
+    }
   }
   return { byId, byName };
 }

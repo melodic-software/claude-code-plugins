@@ -1,2 +1,2 @@
-{"id":"fx-one","name":"Fixture One","aliases":["Shared Term"],"owner":"fx:real"}
-{"id":"fx-two","name":"Fixture Two","aliases":["shared term"],"owner":"fx:real"}
+{"id":"fx-one","name":"Fixture One","aliases":["Shared Term"],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-two","name":"Fixture Two","aliases":["shared term"],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}

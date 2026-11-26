@@ -1,3 +1,3 @@
-{"id":"fx-a","name":"Fixture A","aliases":[],"owner":"fx:real"}
-{"id":"fx-a ","name":"Fixture A Trailing","aliases":[],"owner":"fx:real"}
-{"id":" fx-a","name":"Fixture A Leading","aliases":[],"owner":"fx:real"}
+{"id":"fx-a","name":"Fixture A","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":"fx-a ","name":"Fixture A Trailing","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}
+{"id":" fx-a","name":"Fixture A Leading","aliases":[],"concern":"c","kind":"practice","stage":"any","reversibility":"unrated","source_url":"https://example.com/s","owner":"fx:real"}

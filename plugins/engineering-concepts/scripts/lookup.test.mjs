@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { main } from "./lookup.mjs";
+import { main, parseRecord, recordLines } from "./lookup.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -288,4 +288,24 @@ test("a term that names no record exits 1 with nothing on stdout", async () => {
   const { code, records } = await run(["no-such-concept"]);
   assert.equal(code, 1);
   assert.deepEqual(records, []);
+});
+
+test("parseRecord returns a valid record and names the reason for each rejected one", () => {
+  assert.deepEqual(parseRecord(JSON.stringify(SOLO)), { record: SOLO });
+  assert.match(parseRecord('{"id":').reason, /^not JSON: /u);
+  assert.equal(parseRecord("[1]").reason, "id is not a kebab-case slug");
+  assert.equal(parseRecord("null").reason, "not a JSON object");
+  assert.equal(parseRecord(JSON.stringify({ ...SOLO, id: "p24\n" })).reason, "id is not a kebab-case slug");
+  assert.equal(parseRecord(JSON.stringify({ ...SOLO, aliases: "x" })).reason, "aliases is not a list of strings");
+  assert.equal(parseRecord(JSON.stringify({ ...SOLO, source_url: "http://example.com" })).reason, "source_url is not an https URL");
+});
+
+test("recordLines numbers lines from 1 across LF and CRLF, skips blank lines and keeps a last line with no newline", () => {
+  const file = join(scratch, "record-lines.jsonl");
+  writeFileSync(file, 'a\r\n\r\n  \nb\nc');
+  assert.deepEqual(recordLines(file), [
+    { line: 1, text: "a" },
+    { line: 4, text: "b" },
+    { line: 5, text: "c" },
+  ]);
 });
