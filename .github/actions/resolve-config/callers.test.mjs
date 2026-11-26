@@ -1032,6 +1032,51 @@ test("pr-run-activity-read.yml: every artifact a model run uploads is named by i
   }
 });
 
+const modelJobs = () =>
+  workflowFiles().flatMap((file) =>
+    Object.entries(workflow(file).jobs ?? {})
+      .map(([id, job]) => ({ where: `${file} ${id}`, steps: job?.steps ?? [] }))
+      .filter(({ steps }) => steps.some((s) => String(s.uses ?? "").includes("/run-claude-cli@"))),
+  );
+
+test("a model job's run scripts expand no expression, so a hostile reply reaches the shell only as data", () => {
+  const expanded = modelJobs().flatMap(({ where, steps }) =>
+    steps.filter((s) => typeof s.run === "string" && s.run.includes("${{")).map((s) => `${where}: ${s.name}`),
+  );
+  assert.deepEqual(expanded, []);
+  const reply = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.name === "Write the skill's final reply");
+  const dir = tempDir("hostile-reply-");
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const hostile = "$(touch pwned-1) `touch pwned-2`; touch pwned-3 \"$HOME\"";
+  writeFileSync(join(dir, "execution.json"), JSON.stringify([{ type: "result", result: hostile }]));
+  const run = spawnSync("bash", ["-c", reply.run], {
+    cwd: dir,
+    encoding: "utf8",
+    env: { ...process.env, EXECUTION_FILE: join(dir, "execution.json"), REPLY_DIR: join(dir, "reply") },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(readFileSync(join(dir, "reply", "reply.txt"), "utf8"), `${hostile.replaceAll("`", "'")}\n`);
+  assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith("pwned")), []);
+});
+
+test("every model launcher sits behind a runner isolation that fails closed: a failed isolation runs no launcher", () => {
+  const open = [];
+  for (const { where, steps } of modelJobs()) {
+    steps.forEach((step, at) => {
+      if (!String(step.uses ?? "").includes("/run-claude-cli@")) return;
+      const isolate = steps.slice(0, at).findLast((s) => String(s.uses ?? "").includes("/setup-runner-isolation"));
+      const name = `${where}: ${step.name}`;
+      if (!isolate) open.push(`${name}: no isolation before it`);
+      else if (isolate["continue-on-error"] !== true) {
+        if (/\b(always|failure|cancelled)\(\)/.test(String(step.if ?? ""))) open.push(`${name}: runs after a failed step`);
+      } else if (!new RegExp(`^steps\\.${isolate.id}\\.outcome == 'success'(?: && [^|]*)?$`).test(String(step.if ?? "").trim())) {
+        open.push(`${name}: runs without its continue-on-error isolation's success`);
+      }
+    });
+  }
+  assert.deepEqual(open, []);
+});
+
 test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and the dispatcher counts it", async () => {
   const head = "d".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
