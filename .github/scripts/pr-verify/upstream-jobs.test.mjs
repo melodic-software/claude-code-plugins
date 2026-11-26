@@ -1,12 +1,3 @@
-// Expected values come from docs/conventions/pr-pipeline/README.md ("Verifier
-// verdict", upstream-jobs.json): each judging job writes the jobs of the
-// pr-require-checks attempt it was started by, each with its name, conclusion
-// and job page (the API's html_url), and a list read short writes nothing. The
-// list endpoint pages at most 100 jobs and reports total_count
-// (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt).
-// Which Node suites run in test-bash comes from scripts/plan-test-lanes.sh's
-// rule: a *.test.js, .mjs or .cjs with a sibling <stem>.test.sh runs only
-// through that wrapper, where <stem> drops the last `.test.` and what follows.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -26,7 +17,6 @@ const eventFile = (dir, run = UPSTREAM) => {
   return file;
 };
 
-// A GitHub that serves `all` in pages of 100 and records each path.
 const paged = (all, total = all.length) => {
   const paths = [];
   const github = async (method, apiPath) => {
@@ -66,7 +56,6 @@ test("a list read short of its total_count, with no job list, or for a payload r
 
 test("a Node suite with a sibling .test.sh at the head is listed with its wrapper, and no other path is", () => {
   const listed = wrappedNodeSuites([
-    // The suite pr-verify called unrun on pull request #11863: test-bash ran its wrapper.
     "plugins/review/tests/explain-change.test.mjs",
     "plugins/review/tests/explain-change.test.sh",
     "a/b.test.js",
@@ -92,7 +81,6 @@ test("a Node suite with a sibling .test.sh at the head is listed with its wrappe
 test("main writes the list to JOBS_FILE, and writes nothing when the read fails", async () => {
   const dir = tempDir("pr-verify-upstream-jobs-");
   const headPaths = path.join(dir, "head-paths");
-  // git ls-tree -z: each path ends in a NUL, and a path may hold a space or a newline.
   writeFileSync(headPaths, "x/a b.test.mjs\0x/a b.test.sh\0x/new\nline.test.mjs\0README.md\0");
   const env = {
     GITHUB_TOKEN: "t",

@@ -14,7 +14,6 @@ const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const RUN_ATTEMPT = /^[1-9][0-9]{0,4}$/;
 const ENV_ID = /^[1-9][0-9]{0,14}$/;
-// github-actions[bot], the sender of every GITHUB_TOKEN workflow dispatch.
 const ACTIONS_BOT_ID = 41898282;
 const DISPATCHER_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
 const RELAY_EVENT = "pull_request_review_comment";
@@ -28,24 +27,14 @@ const TARGET_DISPATCHED = ".github/workflows/pr-refine.yml";
 const TARGET_RECORD_NAME = /^pr-unblock-target-dispatched-([0-9a-f]{40})-([1-9][0-9]{0,14})$/;
 const RECORD_WAIT_MS = 5000;
 const RECORD_MAX_PAGES = 10;
-// Candidate runs read per check: anyone's run can upload a record of the
-// predictable name, so each forged one costs a run read (judgment).
 const RECORD_MAX_CANDIDATES = 20;
 const RECORD_MAX_SLEEPS = 24;
 const RERUN_ATTEMPT = 2;
-// The highest attempt the reconciler records: it re-runs a passed checks run
-// whose spec changed again after its last recorded re-run (owner decision
-// Q-RERUN3), so it may record attempts 2 to this one.
 export const RECONCILER_ATTEMPT_CAP = 3;
 const RECONCILER_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 
-// The artifact the reconciler run uploads before it re-runs a run: the run,
-// the attempt the re-run starts, and the run's head SHA.
 export const rerunRecordName = (runId, attempt, headSha) => `reconcile-rerun-${runId}-${attempt}-${headSha}`;
 
-// The artifact pr-dispatch-feedback.yml's rerun-ci-status job uploads just
-// before it re-runs a ci-status job: the run, the attempt the re-run starts,
-// and the run's head SHA.
 export const ciStatusRerunRecordName = (runId, attempt, headSha) => `rerun-ci-status-${runId}-${attempt}-${headSha}`;
 
 const reconcilerRecorder = (workflow) => ({
@@ -55,7 +44,6 @@ const reconcilerRecorder = (workflow) => ({
   started: (run, isListedHuman) => RECONCILER_EVENTS.has(run.event) && (run.event === "schedule" || isListedHuman(run.actor)),
   fromRecord: false,
 });
-// A workflow_run run runs the default branch's file, whoever's run started it.
 const ciStatusRerunRecorder = (workflow) => ({
   workflow,
   attempts: (attempt) => attempt >= RERUN_ATTEMPT,
@@ -72,8 +60,6 @@ function isPlainObject(value) {
 
 export const loadTrustedActors = (listPath) => loadTrustedList(listPath).ids;
 
-// Parses a comma- or space-separated list of positive integer ids. Anything
-// else throws, so a malformed denial never reads as an empty one.
 export function parseDeniedIds(value = "") {
   const tokens = value.split(/[\s,]+/).filter(Boolean);
   if (!tokens.every((token) => /^[1-9][0-9]{0,15}$/.test(token))) {
@@ -94,15 +80,9 @@ class Stop extends Error {
   }
 }
 
-// The reason a stop that a read fault caused writes when the caller sets
-// fault-reason (FAULT_REASON=true): proceed stays false, so it accepts nothing
-// a refusal stops, and the caller can mark the run held (pr-verify.yml's
-// `Note the hold`). A refusal on an answer GitHub gave keeps its own reason.
 export const FAULT_REASON = "read-fault";
 
 export const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
-// GET /pulls can lag a push by minutes, so the PR is re-read until its head
-// matches the branch ref, after each of these waits in turn (60 s in all).
 const HEAD_READ_DELAYS_MS = [5000, 10_000, 20_000, 25_000];
 
 async function headRefSha(github, pull) {
@@ -123,8 +103,6 @@ async function headRefSha(github, pull) {
   }
 }
 
-// The PR, re-read until its head SHA is the branch ref's. `headConfirmed` is
-// false when they never agree, or at once for a PR `confirmable` rejects.
 export async function readPull(github, base, prNumber, sleep, confirmable = () => true) {
   for (let read = 0; ; read += 1) {
     const pull = await github("GET", `${base}/pulls/${prNumber}`);
@@ -156,8 +134,6 @@ async function fetchPull(github, repository, number, sleep) {
   return read.pull;
 }
 
-// The PR a workflow_run belongs to. An empty `pull_requests` array is not a
-// fork signal, so the PR is always looked up from the run's head SHA.
 async function resolveRunPull(github, repository, run, attemptTimeoutMs) {
   if (!SHA.test(run.head_sha ?? "")) {
     throw new Stop("no-pr");
@@ -201,11 +177,6 @@ async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
   return body;
 }
 
-// The account that started this run attempt, read by id from this run's own
-// record, since a login can be released and registered by someone else. A
-// re-run keeps the event, so a stop here could otherwise turn an earlier red
-// check on the same SHA neutral: untrusted-rerunner has no skip mapping, and
-// a failed or malformed read stops with it too.
 export async function readRerunner(github, repository, runId, runAttempt) {
   const refuse = "untrusted-rerunner";
   if (!RUN_ID.test(runId) || !RUN_ATTEMPT.test(runAttempt)) {
@@ -225,9 +196,6 @@ async function checkRerunner({ github, repository, runId, runAttempt, pool, deni
   }
 }
 
-// The default branch's tip, read only while no tag shares the branch's name
-// (a run on that tag would report the same head_branch; only a 404 proves it
-// absent).
 export async function readDefaultBranchTip(github, repository, defaultBranch, reason) {
   let tagAbsent = false;
   let fault = false;
@@ -247,7 +215,6 @@ export async function readDefaultBranchTip(github, repository, defaultBranch, re
   return tip.object.sha;
 }
 
-// headSha is the tip `tipSha` or behind it.
 export async function requireBehindTip(github, repository, headSha, tipSha, reason) {
   const comparison = await readOrRefuse(github, `/repos/${repository}/compare/${headSha}...${tipSha}`, reason);
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
@@ -356,17 +323,12 @@ async function verifyDispatcher({
   const created = timeOf(own.created_at);
   const started = timeOf(dispatcher.run_started_at);
   const attempt = dispatcher.run_attempt;
-  // A workflow_run run reports the default branch and its tip as head_branch
-  // and head_sha, so the branch and ancestry checks below hold for it too.
   const viaRun = dispatcher.event === "workflow_run";
   const viaTarget = dispatcher.event === TARGET_EVENT;
   const windowStart = viaRun ? await dispatchJobStart(github, repository, dispatcherRunId, attempt) : started;
   const expectedPath = viaRun ? runDispatcherWorkflow : dispatcherWorkflow;
   const vouches = (user) =>
     Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
-  // A pull_request_target run reports the PR's branch and head as head_branch
-  // and head_sha. One pull_requests entry must bind every term; an empty or
-  // missing list refuses. Entries carry repository ids, not names.
   const repositoryId = event.repository?.id;
   const onThisPull = () =>
     Number.isInteger(repositoryId) &&
@@ -418,9 +380,6 @@ async function verifyDispatcher({
   const kind = viaRun ? "run" : viaTarget ? "target" : "push";
   const found = await requireRecorded({ github, repository, dispatcherRunId, runId, kind, sleep });
   if (viaTarget) {
-    // Since 2025-12-08 a pull_request_target run takes its workflow file and
-    // checkout from the default branch, so only that branch's dispatcher
-    // writes this record, and the commit it names is what must be on it.
     await requireOnDefaultBranch(github, repository, defaultBranch, found, "untrusted-actor");
   }
   if (viaRun) {
@@ -533,10 +492,6 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
   }
   const isListedHuman = listedHuman(list, deniedIds);
   const readListing = (apiPath) => readOrRefuse(github, apiPath, refuse);
-  // Anyone's run can upload an artifact of this name, so each candidate's run
-  // is read and judged, at most RECORD_MAX_CANDIDATES of them per record name;
-  // one that cannot be read does not vouch. A name past its cap returns null:
-  // the next recorder's name is still read, and past the last one it refuses.
   const candidates = new Map();
   const vouches = async (artifact, recorder, name) => {
     const recorded = timeOf(artifact?.created_at);
@@ -614,14 +569,6 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
   throw new Stop(refuse);
 }
 
-// Whether the lost-run reconciler's record vouches for its re-run of runId,
-// read at attempt RERUN_ATTEMPT by verifyRecordedRerun with the reconciler as
-// the only recorder: the rules the trigger check applies, unchanged. Only
-// attempt 2: the reconciler re-runs a hosted review once, as the merge gate
-// binds only that attempt. For a workflow that records an attempt the
-// reconciler's re-run causes
-// (pr-dispatch-feedback.yml rerun-ci-status, through reconciler-record.mjs).
-// Any refusal is false; an unexpected error throws.
 export async function reconcilerRecordVouches({ github, repository, defaultBranch, list, deniedIds, reconcilerWorkflow, runId, sleep = defaultSleep }) {
   if (reconcilerWorkflow === "") {
     return false;
@@ -866,12 +813,6 @@ export async function evaluateTrigger({
   };
 }
 
-// The base SHA a lane may trust, or "" when the PR is on no trusted base. A PR
-// into the default branch gives its own base SHA. A layer of a native stack
-// targets the layer below, an unmerged branch, so it is trusted only when
-// GitHub's stack record names the default branch as the stack's base, and it
-// gives that stack base's SHA, a default-branch commit, never the lower
-// layer's head. check-trusted-base then proves the SHA is on the default branch.
 function trustedBaseSha(pull, defaultBranch) {
   if (typeof defaultBranch !== "string" || !HEAD_REF.test(defaultBranch)) {
     return "";

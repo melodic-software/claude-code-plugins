@@ -34,13 +34,9 @@ const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const STANDARDS_VOCABULARY_PATH = "components/github-actions-conventions/vocabulary.json";
 const STANDARDS_TRUSTED_ACTORS_PATH = "components/trusted-actors/trusted-actors.json";
 const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
-// pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
-// Reads of GET /pulls/{n} while mergeability is unknown, and the wait between
-// them; then the activity skips with prerequisite-missing and the next trigger
-// retries.
 const MERGEABLE_READS = 3;
 const MERGEABLE_WAIT_MS = 5000;
 
@@ -91,9 +87,7 @@ const standardsFiles = (standardsPath) =>
       }
     : {};
 
-// The REST version that documents issue-field-values.
 const FIELD_API_VERSION = "2026-03-10";
-// The field event selection; the REST timeline names the actor but not the field.
 const FIELD_EVENT_TYPES = "[ISSUE_FIELD_ADDED_EVENT, ISSUE_FIELD_CHANGED_EVENT, ISSUE_FIELD_REMOVED_EVENT]";
 const FIELD_EVENT_NODES = `nodes {
         __typename
@@ -118,13 +112,6 @@ const graphqlFailure = (answer, what) =>
     ? new Error(`${what} could not be read: ${answer.errors.map((e) => e?.message).join("; ")}`)
     : null;
 
-// The issue's newest 100 single-select field events, oldest first, each
-// {field, removed, actorId, actorLogin, actorType, at, from, to}: `field` the
-// field id as a string, `actorId` null for an actor with no id, `actorLogin`
-// as GraphQL names it (a bot's without `[bot]`), `actorType` `User` or `Bot`,
-// `at` the event time, and `from` and `to` the option names before and after
-// (null for none). An add or a removal names no earlier value, so its `from`
-// is what the earlier events left.
 export async function fieldEvents(github, repository, number) {
   const [owner, name] = repository.split("/");
   const answer = await github("POST", "/graphql", { query: FIELD_EVENTS, variables: { owner, name, number } });
@@ -171,8 +158,6 @@ function eventsFrom(nodes) {
   return events;
 }
 
-// Field id -> the account id that last set it (null after a removal or for an
-// actor with no id), from fieldEvents.
 export async function fieldSetters(github, repository, number) {
   return settersOf(await fieldEvents(github, repository, number));
 }
@@ -185,18 +170,9 @@ function settersOf(events) {
   return setters;
 }
 
-// Open issues per issuesByStatus page. On pages of 100 GitHub answered stale
-// nested field events: for 162 of 210 open issues the newest listed Work
-// status event disagreed with the value or none was listed. On pages of 25
-// every issue's value matched its newest event, at the same GraphQL points.
 export const ISSUE_PAGE_SIZE = 25;
-// Pages issuesByStatus reads before it throws: 2,000 open issues.
 export const MAX_ISSUE_PAGES = 80;
 const LISTED_FIELD_EVENTS = 100;
-// Issues per listing whose Work status disagrees in the listing and is read
-// again alone (read-status.mjs fieldStatusSetter): 10. Each re-read costs two
-// calls, or four and a 3 s wait when it disagrees once more; an eleventh
-// disagreeing issue is left out unread.
 export const MAX_STATUS_REREADS = 10;
 const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $since: DateTime) {
   repository(owner: $owner, name: $name) {
@@ -216,25 +192,6 @@ const OPEN_ISSUES = `query($owner: String!, $name: String!, $cursor: String, $si
 }
 ${FIELD_FRAGMENTS}`;
 
-// The open issues whose Work status is one of `states`, oldest page first,
-// each {number, created_at, labels, state}: `labels` the label names, `state`
-// the trusted field state (issue-status.mjs issueStatus with `config` and
-// `trustedActors`), or null for an issue whose field no counted account set
-// and that carries one of those states' labels, which decide until the field
-// is set. `since` (ISO time, optional) keeps only issues updated at or after
-// it. A field value is read by its option name, a state name; a counted name
-// `config` does not map throws `unmapped-status`. More than MAX_ISSUE_PAGES
-// pages, a GraphQL error, a malformed answer or a Work status value whose
-// setter falls outside LISTED_FIELD_EVENTS throws. An issue whose listed value
-// and events disagree (StatusDisagreement), or whose value is one of `states`
-// with no Work status event listed, since the listing's events can lag, is
-// read again alone (fieldStatusSetter, which waits with `sleep`) and
-// that read decides; a re-read that fails otherwise throws. One that still
-// disagrees, a write still landing, or any past MAX_STATUS_REREADS (not read
-// again) is left out of the result, logged as a ::notice::, and named in the
-// result's non-enumerable `held`, each {number, created_at, reason}, so one
-// issue mid-write fails only itself; a caller that must not undercount reads
-// `held`.
 export async function issuesByStatus(github, repository, states, { since, config, trustedActors, sleep = wait } = {}) {
   const [owner, name] = repository.split("/");
   const option = Object.fromEntries(Object.entries(config.options).map(([id, state]) => [state, Number(id)]));
@@ -333,9 +290,6 @@ async function gatherFacts(
   };
   const fetchPull = async () => pull ?? (await readPull());
   if (needed.includes("mergeable")) {
-    // GitHub computes mergeability in the background and answers null until
-    // it is done; a read at another head describes another commit. Only the
-    // gated head's answer counts, and the payload's never does.
     if (!SHA.test(headSha ?? "")) {
       throw new Error(
         "a mergeable predicate needs the gated head-sha, and none was given",
@@ -358,10 +312,6 @@ async function gatherFacts(
   }
   const issue = eventName === "issues" ? event.issue : undefined;
   if (issue !== undefined) {
-    // The issue's org field values: REST answers the integer field and
-    // option ids the config maps (GraphQL answers only node ids). Each read
-    // once, shared by the dimensions and the Work status; a Work status
-    // disagreement reads both again for both.
     let values;
     let events;
     const readValues = async () => {
@@ -513,7 +463,6 @@ function outputsFor({ lane, selected }) {
   };
 }
 
-// Workflow-command escaping, so a message cannot start a second command.
 const escapeCommand = (text) =>
   String(text)
     .replaceAll("%", "%25")
@@ -550,10 +499,6 @@ function filesUnderBase({ basePath, configPath, standardsPath }, readRules = rea
 
 const modelRung = (value) => (value === undefined || value === "" ? undefined : /^[01]$/.test(value) ? Number(value) : value);
 
-// The ResolvedConfig for the request env names, or a throw: a Rejection
-// (with its code) for a config or request the resolver refuses. `event` is the
-// payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
-// config whose lane holds no slot for the activity resolves to null.
 export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false, readRules }) {
   const paths = pathsOf(env);
   const { basePath, configPath } = paths;
@@ -595,15 +540,11 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
   return resolved;
 }
 
-// The base config's resolved `limits`, for a script that resolves no lane
-// slot; a config the resolver refuses throws.
 export function limitsFromBase(env) {
   const paths = pathsOf(env);
   return resolveLimits(filesUnderBase(paths), paths);
 }
 
-// The base config's resolved limits and its wip leaf as set, read once, for
-// the WIP cap check.
 export function wipFromBase(env) {
   const paths = pathsOf(env);
   const { configPath } = paths;
@@ -611,14 +552,11 @@ export function wipFromBase(env) {
   return { limits: resolveLimits(files, { configPath }), wip: resolveWipLeaf(files, { configPath }) };
 }
 
-// The base config's resolved `loop` caps, likewise.
 export function loopFromBase(env) {
   const paths = pathsOf(env);
   return resolveLoop(filesUnderBase(paths), paths);
 }
 
-// The base config's `adoption` section as set, after the same file checks as
-// resolve(), for fix-ci-dispatch.mjs, which applies its defaults.
 export function adoptionFromBase(env) {
   return configFromBase(env).adoption ?? {};
 }
@@ -627,75 +565,50 @@ export function testScopeFromBase(env) {
   return { apply: configFromBase(env)["test-scope"]?.apply === true };
 }
 
-// The base config's `merge.refire-skip-branches`, the head branches a workflow
-// owns and rebuilds, after the same file checks as resolve(), for the fix-ci
-// dispatcher and context job, which never run fix-ci on one.
 export function ownedBranchesFromBase(env) {
   return configFromBase(env).merge?.["refire-skip-branches"] ?? [];
 }
 
-// The base config as resolve() loads it, after the same file checks, for
-// pr-refine's select-passes job and the readers below.
 export function configFromBase(env) {
   const paths = pathsOf(env);
   return loadConfig(filesUnderBase(paths), paths);
 }
 
-// resolve-issue's `tidy.cutoffs` as set, or null when it does not tidy, for the
-// fix-docs dispatcher, which skips a lane PR tidied in its own run.
 export function tidyCutoffsFromBase(env) {
   return configFromBase(env).activities["resolve-issue"]?.tidy?.cutoffs ?? null;
 }
 
-// `refine-dispatch.activities` as set, or [], for the refine event dispatcher,
-// which checks each id against its own allowlist.
 export function refineDispatchActivitiesFromBase(env) {
   return configFromBase(env)["refine-dispatch"]?.activities ?? [];
 }
 
-// The base config's `models.issue-dimensions` leaf as set, or null, after the
-// same file checks as resolve(), for intake triage's verdict writer.
 export function issueDimensionsFromBase(env) {
   return configFromBase(env).models?.["issue-dimensions"] ?? null;
 }
 
-// The base config's `models.issue-status` leaf as set, or null, after the
-// same file checks as resolve(), for the label writers' Work status mirror.
 export function issueStatusFromBase(env) {
   return configFromBase(env).models?.["issue-status"] ?? null;
 }
 
-// The base config's `red-main` leaf as set and `merge.agent-identity`, after
-// the same file checks as resolve(), for the post-merge red-main report. The
-// leaf's defaults have one copy, in
-// .github/scripts/post-merge-demotion-alert/red-main.mjs, which applies them.
 export function redMainFromBase(env) {
   const doc = configFromBase(env);
   return { redMain: doc["red-main"] ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
 }
 
-// The base config's `post-merge.paths` as set and `merge.agent-identity`,
-// likewise, for .github/scripts/post-merge-demotion-alert/merge-path.mjs,
-// which applies them.
 export function postMergeFromBase(env) {
   const doc = configFromBase(env);
   return { paths: doc["post-merge"]?.paths ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
 }
 
-// The hosts the issue lane (resolve-issue) may read, for intake admission:
-// its web-access domains, "any", or [] when web access is off.
 export function issueLaneWebHostsFromBase(env) {
   const web = configFromBase(env).activities?.["resolve-issue"]?.["web-access"];
   return web?.enabled ? web.domains : [];
 }
 
-// The base config's attended classes, {name: meaning}, or {} when unset.
 export function attendedClassesFromBase(env) {
   return configFromBase(env).attended?.classes ?? {};
 }
 
-// The base config's `branch-cleanup` leaf as set, likewise; its defaults have
-// one copy, in .github/scripts/branch-cleanup/rules.mjs.
 export function branchCleanupFromBase(env) {
   return configFromBase(env)["branch-cleanup"] ?? {};
 }
