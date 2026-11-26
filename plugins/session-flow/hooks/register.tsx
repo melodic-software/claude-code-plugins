@@ -2,7 +2,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import { askedRow, band } from './observer-band.tsx'
 import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, readOptions, step } from './observer-machine.ts'
-import { buildPrompt, type Finding, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
+import { buildPrompt, type Finding, isKnown, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
+import { commandKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform } from './observer-harness.ts'
 
 const DAY_MS = 86_400_000
 const USAGE = `Usage: /observer [on|off]. Bare /observer shows this session's and the last day's checks.`
@@ -12,9 +13,10 @@ const PLUGIN = 'session-flow'
 
 type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
 
-const fresh = () => ({ sid: '', dataDir: '', liveFile: '', ledgerDir: '', icon: '◆', rows: [] as object[] })
+const fresh = () => ({ sid: '', dataDir: '', liveFile: '', ledgerDir: '', projectDir: '', platform: 'unknown' as Platform, icon: '◆', rows: [] as object[] })
 let st = fresh()
 let m = initial()
+let hs = harnessInitial()
 let opts: Options
 
 const list = async ($: EngineInterface, key: string) => {
@@ -212,6 +214,7 @@ const syncSession = async ($: EngineInterface) => {
   if (sid === st.sid) return
   st.sid = sid
   st.liveFile = `${st.dataDir}/live-${sid}.jsonl`
+  hs = harnessInitial()
   await run($, { kind: 'session-changed' })
   st.rows = parseRows(await readOr($, st.liveFile))
 }
@@ -241,9 +244,28 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   }
 }
 
+const runHarness = async ($: EngineInterface, e: HarnessEvent) => {
+  const r = harness(hs, e, opts, { repo: st.projectDir, platform: st.platform })
+  hs = r.state
+  for (const row of r.rows) await record($, { at: await iso($), ...row }).catch(() => undefined)
+  if (r.findings.length === 0 || !m.on || (await $.store.get('paused')) === true) return
+  const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
+  for (const { check, finding } of r.findings) {
+    const perSession = check === 'context' || check === 'rate-limit'
+    if (isKnown(finding.finding, ...(perSession ? [] : [seen]), disputed, notRelevant)) continue
+    await accept($, { trigger: 'harness', turnId: '', step: -1, gen: m.gen, open: null, source: check }, finding).catch(() => undefined)
+  }
+}
+
+const hookLog = () => {
+  const dir = /^([\\/]|[A-Za-z]:)/.test(opts.hookLogDir) ? opts.hookLogDir : `${st.projectDir}/${opts.hookLogDir}`
+  return `${dir}/sessions/${st.sid}.jsonl`
+}
+
 export const register: Register = (on, options) => {
   st = fresh()
   m = initial()
+  hs = harnessInitial()
   if (options.observer_enabled !== true) return
   const read = readOptions(options)
   opts = read.options
@@ -253,6 +275,8 @@ export const register: Register = (on, options) => {
     if (!e.isInteractive || (await $.env.get('SESSION_FLOW_OBSERVER_ANALYSIS'))) return result
     const env = await $.process.hookEnv()
     st.dataDir = `${env.CLAUDE_PLUGIN_DATA}/session-flow-observer`
+    st.projectDir = env.CLAUDE_PROJECT_DIR || e.cwd
+    if (opts.harnessCheck) st.platform = (await $.session.info().catch(() => undefined))?.platform ?? 'unknown'
     st.sid = ''
     await syncSession($)
     st.ledgerDir = `${await mainCheckout($, env.CLAUDE_PROJECT_DIR || e.cwd)}/.work/running-retros`
@@ -274,7 +298,7 @@ export const register: Register = (on, options) => {
     const paused = (await $.store.get('paused')) === true
     return {
       text: [
-        `live checks: ${paused ? 'paused (/observer on)' : 'on'}; step ${opts.stepCheck ? 'on' : 'off'}, turn end ${opts.turnEndCheck ? 'on' : 'off'}`,
+        `live checks: ${paused ? 'paused (/observer on)' : 'on'}; step ${opts.stepCheck ? 'on' : 'off'}, turn end ${opts.turnEndCheck ? 'on' : 'off'}, harness ${opts.harnessCheck ? 'on' : 'off'}`,
         '',
         'This session:',
         summarize(st.rows),
@@ -292,6 +316,7 @@ export const register: Register = (on, options) => {
 
   on('turn.start', async ($, e, next) => {
     await run($, { kind: 'turn-started', main: e.agentId === undefined, turnId: e.turnId, text: e.text ?? '', paused: (await $.store.get('paused')) === true })
+    if (e.agentId === undefined && opts.harnessCheck) await runHarness($, { kind: 'turn-started', at: await $.clock.now() })
     return next(e)
   })
 
@@ -313,8 +338,37 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     await run($, { kind: 'turn-completed', main: e.agentId === undefined, turnId: e.turnId, isAborted: e.isAborted, durationMs: e.durationMs, usage: e.usage })
+    if (e.agentId === undefined && opts.harnessCheck) {
+      await runHarness($, { kind: 'turn-completed', at: await $.clock.now(), usage: e.usage })
+      await runHarness($, { kind: 'hook-runs', runs: hookRunsFrom(await readOr($, hookLog()).catch(() => '')) })
+    }
     return next(e)
   })
+
+  if (opts.harnessCheck) {
+    on('tool.run', async ($, e, next) => {
+      if (e.agentId !== undefined) return next(e)
+      const started = await $.clock.now()
+      const result = await next(e)
+      const command = (e as { command?: unknown }).command
+      const key = commandKey(e.tool, typeof command === 'string' ? command : undefined)
+      void $.clock
+        .now()
+        .then(end => runHarness($, { kind: 'tool-ran', key, ms: end - started }))
+        .catch(() => undefined)
+      return result
+    })
+
+    on('session.measure', async ($, e, next) => {
+      await runHarness($, { kind: 'measured', tokens: e.context.tokens, percent: e.context.percent, rateLimits: e.rateLimits })
+      return next(e)
+    }).catch(($, e, next) => next(e))
+
+    on('session.compact', async ($, e, next) => {
+      await runHarness($, { kind: 'compacted' })
+      return next(e)
+    }).catch(($, e, next) => next(e))
+  }
 
   on('prompt.submit', async ($, e, next) => {
     const ours = e.origin.kind === 'plugin' && e.origin.name === PLUGIN

@@ -18,8 +18,9 @@ import {
   parseReply,
   remember,
 } from './observer-live.ts'
+import type { HarnessOptions } from './observer-harness.ts'
 
-export type Options = {
+export type Options = HarnessOptions & {
   stepCheck: boolean
   turnEndCheck: boolean
   stepEvery: number
@@ -88,6 +89,15 @@ export const readOptions = (raw: Readonly<Record<string, unknown>>): { options: 
     gatePattern: new RegExp(pick('observer_gate_pattern', GATE_PATTERN, regex)),
     gateTimeoutMs: int('observer_gate_timeout_seconds', 30, 1) * 1000,
     gateRefusals: int('observer_gate_refusals', 1, 0),
+    harnessCheck: bool('observer_harness_check', false),
+    hookLogDir: text('observer_hook_log_dir', '.observability/claude'),
+    hookP95Ms: int('observer_hook_p95_ms', 1000, 1),
+    hookMinRuns: int('observer_hook_min_runs', 5, 1),
+    cacheMissTokens: int('observer_cache_miss_tokens', 50_000, 1),
+    toolSlowMs: int('observer_tool_slow_seconds', 60, 1) * 1000,
+    toolRepeat: int('observer_tool_repeat', 3, 1),
+    contextPercents: pick('observer_context_percents', [50, 75], v => typeof v === 'string' && /^\s*\d+(\s*,\s*\d+)*\s*$/.test(v), (v: string) => [...new Set(v.split(',').map(Number))].sort((a, b) => a - b)),
+    rateLimitPercent: int('observer_rate_limit_percent', 80, 1),
   }
   return { options, invalid }
 }
@@ -140,7 +150,7 @@ export const initial = (): State => ({
   refused: {},
 })
 
-export type CheckRequest = { trigger: Trigger; turnId: string; step: number; gen: number; open: Card | null }
+export type CheckRequest = { trigger: Trigger; turnId: string; step: number; gen: number; open: Card | null; source?: string }
 export type Reply = { isAnswered: true; text: string } | { isAnswered: false; reason: string }
 export type LedgerKind = 'confirmed' | 'disputed' | 'resolved' | 'auto-sent'
 export type Rate = 'helpful' | 'not_relevant' | 'unclear' | 'turned_off' | 'closed'
@@ -293,10 +303,11 @@ export const step = (s: State, e: Event, o: Options): Result => {
       return replied(s, e, o)
     case 'finding-accepted': {
       if (e.ledger === undefined) return { state: s, effects: [{ kind: 'finish', req: e.req, outcome: 'unsafe_memory_root' }] }
-      const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source: e.req.trigger === 'turn-end' ? 'turn end' : `${e.req.trigger} ${e.req.step}`, promptsSurvived: 0, isOpen: false }
+      const source = e.req.source ?? (e.req.trigger === 'turn-end' ? 'turn end' : `${e.req.trigger} ${e.req.step}`)
+      const card: Card = { id: s.nextCard, finding: e.finding, ledger: e.ledger, source, promptsSurvived: 0, isOpen: false }
       const state = { ...s, card, nextCard: s.nextCard + 1 }
       const effects: Effect[] = [{ kind: 'invalidate' }]
-      if (o.autoSend && s.on) {
+      if (o.autoSend && s.on && e.finding.fix?.route !== 'session') {
         const delivery: Delivery = !s.turnRunning && !s.submitWaiting && !s.lastTurnWasObserver ? 'submit' : 'append'
         const text = noteFor(card.finding, 'plugin', o.autoNote)
         if (delivery === 'submit') Object.assign(state, { submitWaiting: true, pendingSubmit: text })
