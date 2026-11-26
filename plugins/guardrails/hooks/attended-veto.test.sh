@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/hooks.json
+# test-scope: plugins/guardrails/hooks/*  # copies the whole hooks directory
 
 set -uo pipefail
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json
 # test-scope: plugins/session-flow/hooks/observer-catchup.sh
+# test-scope: plugins/session-flow/hooks/session-attended.env
+# test-scope: plugins/session-flow/hooks/session-attended.sh
 # test-scope: plugins/session-flow/lib/python-probe.sh
 
 from __future__ import annotations
