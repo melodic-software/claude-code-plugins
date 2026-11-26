@@ -24,7 +24,8 @@ Two old files are still read while they exist:
 
 - `~/.claude/bugs.md`: its `## Gotchas` while the `gotchas_file` file is absent, since that file
   supplies only gotchas; its `areas` and `filing_posture` until it is deleted, since no new
-  per-user layer holds them.
+  per-user layer holds them. A `lanes` key there is the retired name for `areas` and is no longer
+  read: rename it.
 - `${CLAUDE_PROJECT_DIR}/.claude/bugs.local.md`, retirement record `bugs-r001`
   ([`retirements.yaml`](../retirements.yaml)): the whole file while `docs/conventions/bugs.local.md`
   is absent.

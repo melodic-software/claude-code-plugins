@@ -90,7 +90,8 @@ merged result:
 5. **Unknown keys.** Report them as inert, naming their layer, including `output_dir`, which is not a
    recognized key here.
 6. **Old paths.** For each old file the reference's "Old paths (dual-read window)" section names
-   that exists, report its path, what it holds (gotchas, `areas`, `filing_posture`), which of its
+   that exists, report its path, what it holds (gotchas, `areas`, `filing_posture`, or a retired `lanes` key, which is no longer
+   read and moves as `areas`), which of its
    settings the new files already supply and so win, the new home of each setting from that
    section's table, and `apply` as the command that moves it. The `gotchas_file` option is
    `${user_config.gotchas_file}` in this text; an empty or unexpanded value is unset.
