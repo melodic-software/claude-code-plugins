@@ -123,9 +123,9 @@ async function main() {
   const problem = partsProblem(part);
   if (problem) { console.log(`FAIL: ${problem}`); return 1; }
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: align.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: align.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; }
   let browser;
-  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; }
   const t0 = Date.now();
   const s = suite("align"), shots = fs.mkdtempSync(path.join(os.tmpdir(), "align-shots-"));
   const sizes = list(process.env.ALIGN_SIZES).map(x => x.split("x").map(Number));

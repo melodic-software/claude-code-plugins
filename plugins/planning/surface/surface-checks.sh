@@ -528,7 +528,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
 else
   browser=0
   for grp in $groups; do browser=$((browser + CHECKS[$grp])); done
-  echo "SKIP: $browser browser checks of groups ${groups# } not run (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  echo "SKIP: $browser browser checks of groups ${groups# } not run (playwright-cli not found)" # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi
 

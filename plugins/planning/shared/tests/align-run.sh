@@ -11,7 +11,7 @@ command -v node >/dev/null || {
     echo "FAIL: node is not on PATH" >&2
     exit 1
   }
-  echo "SKIP: node is not on PATH" # silent-skip-ok: a browser suite needs node locally
+  echo "SKIP: node is not on PATH"
   exit 0
 }
 out=$(ALIGN_PART=$part node "$here/align.js" 2>&1)
