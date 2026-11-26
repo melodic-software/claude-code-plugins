@@ -383,8 +383,9 @@ export function refinementSpec(comments, appId) {
   return newest?.lastEditedAt == null ? newest : undefined;
 }
 
-export const appRefinement = (comment, appId) =>
-  appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+export const appAuthored = (comment, appId) => appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId;
+
+export const appRefinement = (comment, appId) => appAuthored(comment, appId) && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
 export const humanActor = (humans) => (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
 

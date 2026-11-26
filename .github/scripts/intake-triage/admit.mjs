@@ -14,7 +14,7 @@ import { PERSON_REASONS, personReasonLines } from "../lib/stop-reason.mjs";
 import { SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 import { splitParentClosed, splitParentOf } from "./size-split.mjs";
-import { appRefinement, bodyVersion, countedRefinement, driftIssue, driftShape, fenceBlocks, here, INVISIBLE, LANES_APP_IDENTITY, names, OWN_AGENT_DEFAULTS, ownAgentText, PAID_EVAL, parentOf, personChecks, plainText, RECURRING, repoOf, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_ITEMS, splitChildBody, taskItems, trustedSpecTexts, unrunnableCriteria, withoutItems, writtenBy } from "./issue-spec.mjs";
+import { appAuthored, appRefinement, bodyVersion, countedRefinement, driftIssue, driftShape, fenceBlocks, here, INVISIBLE, LANES_APP_IDENTITY, names, OWN_AGENT_DEFAULTS, ownAgentText, PAID_EVAL, parentOf, personChecks, plainText, RECURRING, repoOf, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, SPLIT_ITEMS, splitChildBody, taskItems, trustedSpecTexts, unrunnableCriteria, withoutItems, writtenBy } from "./issue-spec.mjs";
 
 export { actionsBotOnly, baseAdmissionRules, bodyVersion, countedRefinement, DRIFT_TITLE, driftIssue, driftLead, driftSpecText, EVAL_RUN, here, humanActor, issueUnrunnableRules, LANES_APP_IDENTITY, loadRules, names, OWN_AGENT_DEFAULTS, ownAgentText, ownedLines, PAID_EVAL, parentOf, personChecks, RECURRING, refinementSpec, repoOf, SPEC_COMMENTS, specOf, taskItems, taskLinesOf, trustedDriftSpec, trustedSpecTexts, trustedTaskLines, unrunnableCriteria, unrunnableRulesOf, vendoredDriftLead, vendoredDriftSpecText, vendoredRows, withoutItems } from "./issue-spec.mjs";
 export { ACTIONS_BOT_ID, ADMIT_MARKER, AGENT_READY, ATTENDED, HOST_RUN, NEEDS_DECISION, READY, REFINE_MARKER, refusalText };
@@ -36,7 +36,13 @@ export const REFINE_FOOTERS = {
   retriage: "<sub>Automated refinement by the lanes App. Intake triages the issue again with it.</sub>",
   confirm:
     "<sub>Automated refinement by the lanes App. Admission counts only criteria a listed human wrote: to confirm these, post them as your own comment whose first line is `**Decision recorded.**`, which sends the issue back through intake.</sub>",
+  agent:
+    "<sub>Automated refinement by the lanes App. No open question needs a person, so the lanes App answered each one in its `**Agent decision recorded.**` comment and admission reads these criteria. To override it, post a comment whose first line is `**Decision recorded.**`; intake triages the issue again with your answers.</sub>",
 };
+export const AGENT_DECISION = "**Agent decision recorded.**";
+export const AGENT_DECIDED = "agent-decided";
+export const AGENT_UNSETTLED =
+  "its refinement's open questions were answered by an agent, but no lanes App `**Agent decision recorded.**` comment for this body stands: it must be the App's, unedited, name this body's version, and have no newer listed human's `**Decision recorded.**`";
 export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
 export const VERDICT_CLEAR = "The latest triage verdict holds nothing: ";
 export const CLEAR_READY = "the issue is at `";
@@ -683,6 +689,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
+  const agentAnswers = agentAnswered(countedRefinement(spec, humans, appId)?.body);
+  const overridden = agentAnswers && agentOverridden(spec, appId, humans);
+  if (overridden) {
+    spec = { ...spec, comments: spec.comments.filter((comment) => !appRefinement(comment, appId)) };
+  }
   const ownSpec = ownAgent ? ownIds : undefined;
   const texts = trustedSpecTexts(spec, humans, appId, taskList, ownSpec);
   const moved = personChecks(spec, humans, appId, taskList, webHosts);
@@ -691,6 +702,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (!hasTrustedCriteria(spec, humans, taskList, appId, ownSpec)) {
     refuse.push(noTrustedSpec(taskList));
+    if (overridden) holdFor("intent");
+  }
+  const agentDecided = agentAnswers && !overridden && agentDecision(spec, appId, humans) !== null;
+  if (agentAnswers && !overridden && !agentDecided) {
+    refuse.push(AGENT_UNSETTLED);
+    holdFor("intent");
   }
   const criteria = unrunnableCriteria(texts.join("\n"), taskList, webHosts);
   const unrunnable = unrunnableReason(criteria);
@@ -817,7 +834,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls, ...(retriage.length > 0 && pulls.length === 0 && { retriage }) };
   }
-  return { verdict: "admit", reasons: [] };
+  return { verdict: "admit", reasons: [], ...(agentDecided && { agentDecided }) };
 }
 
 export function judgedSince(events, trusted) {
@@ -926,6 +943,29 @@ export const refinementExact = (body) => {
   const last = String(body ?? "").trimEnd().split("\n").at(-1);
   return last === REFINE_FOOTERS.retriage || last === REFINE_FOOTERS.confirm;
 };
+
+export const agentAnswered = (body) => String(body ?? "").trimEnd().split("\n").at(-1) === REFINE_FOOTERS.agent;
+
+const restComment = (node) => ({
+  comment: { user: { id: node?.author?.__typename === "User" ? node.author.databaseId : undefined }, performed_via_github_app: null, body: node?.body },
+  lastEditedAt: node?.lastEditedAt ?? null,
+  lastEditorId: node?.editor?.__typename === "User" ? node.editor.databaseId : null,
+});
+
+const openerAt = (spec, appId) => (spec?.comments ?? []).findLastIndex((comment) => appAuthored(comment, appId) && String(comment.body ?? "").split("\n")[0] === AGENT_DECISION);
+
+export const agentOverridden = (spec, appId, humans) => {
+  const at = openerAt(spec, appId);
+  return at >= 0 && spec.comments.slice(at + 1).some((comment) => isDecisionComment(restComment(comment), humans));
+};
+
+export function agentDecision(spec, appId, humans) {
+  const opener = spec?.comments?.[openerAt(spec, appId)];
+  if (opener === undefined || opener.lastEditedAt != null || String(opener.body).split("\n")[1] !== bodyVersion(spec.body)) {
+    return null;
+  }
+  return agentOverridden(spec, appId, humans) ? null : opener;
+}
 
 export async function parentDecisionOpen({ github, repository, parent, humans, appId, events }) {
   if (appId === undefined || !here(parent?.repository_url, repository) || !Number.isInteger(parent?.number)) {
@@ -1297,6 +1337,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
+  await markAgentDecided(github, base, decision, issue.labels);
   const record = () => writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
   const checkedAt = Date.now();
   const s = await status();
@@ -1345,4 +1386,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
   }
   log(`admit: #${number} set to ${AGENT_READY}`);
   return { outcome: "admitted", reasons: [] };
+}
+
+export async function markAgentDecided(github, base, decision, labels) {
+  if (decision.verdict === "admit" && decision.agentDecided && !names(labels).includes(AGENT_DECIDED)) {
+    await github("POST", `${base}/labels`, { labels: [AGENT_DECIDED] });
+  }
 }

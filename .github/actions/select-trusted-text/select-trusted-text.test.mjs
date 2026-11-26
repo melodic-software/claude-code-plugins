@@ -538,6 +538,13 @@ test("a Decision recorded comment from the agent App's bot, or posted through an
   assert.equal(isDecisionComment(decision(OWNER, VIA_AGENT), humans), false);
 });
 
+test("the agent's own opener is never an owner decision, even from a listed human", () => {
+  const humans = new Set([153232337]);
+  const owner = (body) => ({ comment: { user: { id: 153232337, type: "User" }, performed_via_github_app: null, body }, lastEditedAt: null, lastEditorId: null });
+  assert.equal(isDecisionComment(owner("**Decision recorded.**\nAdmit it."), humans), true, "the owner's opener is a decision");
+  assert.equal(isDecisionComment(owner("**Agent decision recorded.**\nAdmit it."), humans), false, "the agent opener is not");
+});
+
 const specNode = (api, { renames = true } = {}) => {
   const refs = api.closingIssues.data.repository.pullRequest.closingIssuesReferences;
   return {
