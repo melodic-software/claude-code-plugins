@@ -1907,7 +1907,10 @@ the rules that only tighten in
 - **Stale check inputs.** `merge.check-inputs` lists git pathspecs the pull request checks read.
   When the base changed one since a pull request's merge base, the wrapper updates the branch from
   the base (`update-branch`, a merge) instead of enqueuing it; the new head enqueues on a later run
-  once its checks pass. The answer comes from the local full-history clone of the base (never a
+  once its checks pass. The hosted review lanes run no model on that head: a head whose every commit
+  since the lane's last review merges a base commit with an empty remerge diff records
+  `skip=no-change` through that review (ci-workflows `resolve-review-scope`), as `monitor.md` B2
+  carries it. The answer comes from the local full-history clone of the base (never a
   shallow or partial one) with no API read; a head the clone lacks is fetched by SHA. The shared-copy registry (`scripts/shared-copies.txt`) counts
   only for a pull request whose own changes since the merge base touch the registry or a canonical
   or copy path it registers at the base tip, since a pull request touching none of them merges
