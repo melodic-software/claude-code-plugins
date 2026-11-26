@@ -21,13 +21,20 @@ die() {
   exit 2
 }
 
+# shellcheck disable=SC2329  # invoked by sourced fleet-discovery.sh
+fail() { die "$1"; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../../scripts/fleet-discovery.sh
+source "$SCRIPT_DIR/../../../scripts/fleet-discovery.sh"
+
 [[ "${1:-}" == "apply" ]] || {
   usage
   exit 2
 }
 shift
 
-config="" project_dir="${CLAUDE_PROJECT_DIR:-$PWD}" max_depth=""
+config="" project_dir="${CLAUDE_PROJECT_DIR:-}" max_depth=""
 roots=() repos=() skips=() extends=()
 while (($#)); do
   [[ $# -ge 2 ]] || die "$1 needs a value"
@@ -62,7 +69,7 @@ for d in ${repos[@]+"${repos[@]}"}; do
   git -C "$d" rev-parse --git-dir >/dev/null 2>&1 || die "repo is not a Git working tree: $d"
 done
 
-[[ -n "$config" ]] || config="$project_dir/.claude/repo-fleet-hygiene.conf"
+[[ -n "$config" ]] || config="$(fleet_default_config_path "$project_dir")"
 [[ ! -L "$config" ]] || die "refusing to write through a symlink: $config"
 ((${#roots[@]} + ${#repos[@]} + ${#skips[@]} + ${#extends[@]})) || [[ -n "$max_depth" ]] ||
   die "nothing to apply: pass at least one of --root, --repo, --skip, --extend-skip, --max-depth"

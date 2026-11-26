@@ -134,6 +134,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from typing import NamedTuple
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
@@ -3685,6 +3686,27 @@ def _next_span(doc: Doc) -> tuple[int, int] | None:
     return start + 1 + at, start + 1 + end
 
 
+class HandoffChainMeta(NamedTuple):
+    chain_root: str
+    closed: bool
+    names: frozenset[str]
+    shape: int | None
+
+
+def handoff_chain_meta(path: Path) -> HandoffChainMeta:
+    """Public chain-membership and closure summary for one handoff document."""
+    try:
+        doc = parse_doc(path)
+    except (OSError, UnicodeDecodeError):
+        return HandoffChainMeta("", False, frozenset(), None)
+    root = doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
+    span = _next_span(doc)
+    closed = span is not None and doc.lines[span[0]] == NEXT_CLOSED
+    names = {root, doc.frontmatter.get("previous_handoff", ""), *doc.chain}
+    shape = doc.shape if isinstance(doc.shape, int) else None
+    return HandoffChainMeta(root, closed, frozenset(n for n in names if n), shape)
+
+
 def _held_heading(doc: Doc) -> str | None:
     hop = _fm_int(doc, "hop")
     moved = (
@@ -4156,18 +4178,11 @@ def _git_stdout(directory: Path, *args: str) -> str | None:
 
 
 def _git_toplevel(start: Path) -> Path | None:
-    probe = start
-    while not probe.exists() and probe.parent != probe:
-        probe = probe.parent
-    top = _git_stdout(probe, "rev-parse", "--show-toplevel")
-    return Path(top).resolve() if top else None
+    return plugin_paths.git_toplevel(start)
 
 
 def _default_memory_dir() -> Path | None:
-    if _git_toplevel(Path.cwd()) is not None:
-        return Path(".work")
-    data_root = plugin_paths.data_root(os.environ, _SCRIPTS_DIR.parent)
-    return data_root / "artifacts" if data_root is not None else None
+    return plugin_paths.default_memory_dir(Path.cwd(), os.environ, _SCRIPTS_DIR.parent)
 
 
 def _git_origin(repo_root: Path) -> str | None:
@@ -4959,13 +4974,7 @@ def cmd_new(args: argparse.Namespace) -> int:
             f"Invalid memory_dir: {memory_dir.as_posix()} must resolve to a dedicated directory below the repository root {repo_root.as_posix()}",
         )
     guard = memory_dir / ".gitignore"
-    try:
-        guarded = guard.is_file() and any(
-            line.strip() == "*" for line in _read_lines(guard)
-        )
-    except (OSError, UnicodeDecodeError):
-        guarded = False
-    if not guarded:
+    if not plugin_paths.is_self_ignored(memory_dir):
         return _die(
             1,
             f"memory root {memory_dir.as_posix()} lacks the self-ignore guard: create {guard.as_posix()} containing the single line '*' (the skill's guard step: the Write tool, or the Edit tool when the file exists, never a shell redirect), then re-run; this script never writes it",

@@ -294,4 +294,45 @@ else
   skip_case "zsh not available: the status block's zsh run is not exercised"
 fi
 
+RESOLVE="$SCRIPT_DIR/worktree-root-resolve.sh"
+OUTSIDE_HOME="$T/inc-home"
+CHEZMOI_REPO="$OUTSIDE_HOME/.local/share/chezmoi"
+CHEZMOI_WT_ROOT="$OUTSIDE_HOME/.local/share/chezmoi-worktrees"
+REL_WT_ROOT="$T/rel-wt-root"
+mkdir -p "$OUTSIDE_HOME/.config/git" "$CHEZMOI_WT_ROOT" "$REL_WT_ROOT"
+mkrepo "$CHEZMOI_REPO"
+CHEZMOI_TOP="$(top "$CHEZMOI_REPO")"
+git -C "$CHEZMOI_TOP" worktree add -q -b feat/chezmoi-wt "$CHEZMOI_WT_ROOT/chezmoi-wt1" >/dev/null 2>&1
+
+printf '[worktreeroot]\n\tpath = ~/.local/share/chezmoi-worktrees\n' >"$OUTSIDE_HOME/.config/git/chezmoi.gitconfig"
+printf '[worktreeroot]\n\tpath = %s\n' "$REL_WT_ROOT" >"$OUTSIDE_HOME/.config/git/rel.gitconfig"
+INC_GLOBAL="$OUTSIDE_HOME/.config/git/config"
+{
+  printf '[worktreeroot]\n\tpath = %s\n' "$ROOT"
+  printf '[includeIf "gitdir:~/.local/share/chezmoi/"]\n\tpath = ~/.config/git/chezmoi.gitconfig\n'
+  printf '[includeIf "gitdir:/nonexistent-repo/"]\n\tpath = rel.gitconfig\n'
+  printf '[includeIf "gitdir:/missing-file/"]\n\tpath = does-not-exist.gitconfig\n'
+} >"$INC_GLOBAL"
+
+ALL_ROOTS="$(cd "$UNRELATED" && HOME="$OUTSIDE_HOME" GIT_CONFIG_GLOBAL="$INC_GLOBAL" GIT_CONFIG_NOSYSTEM=1 \
+  bash "$RESOLVE" --all)"
+assert_exit "worktree-root-resolve --all exits 0" 0 "$?"
+assert_contains "--all includes the global root" "$ALL_ROOTS" "$ROOT"
+assert_contains "--all includes the tilde-expanded includeIf root" "$ALL_ROOTS" "$CHEZMOI_WT_ROOT"
+assert_contains "--all includes the relative-path includeIf root" "$ALL_ROOTS" "$REL_WT_ROOT"
+
+bash "$RESOLVE" --all --repo-dir "$A" >/dev/null 2>&1
+assert_exit "--all combined with --repo-dir is usage (exit 2)" 2 "$?"
+
+OUT="$(cd "$UNRELATED" && HOME="$OUTSIDE_HOME" GIT_CONFIG_GLOBAL="$INC_GLOBAL" GIT_CONFIG_NOSYSTEM=1 \
+  REPO_FLEET_GHQ_BIN="$T/bin/no-ghq" bash "$DISCOVER" 2>"$T/err")"
+RC=$?
+assert_exit "discover with includeIf root outside ghq exits 0" 0 "$RC"
+assert_eq "discover emits the conditional includeIf root" \
+  $'root\t'"$CHEZMOI_WT_ROOT"$'\tgit-config' "$(rows root "$CHEZMOI_WT_ROOT")"
+assert_eq "discover finds the worktree under the conditional root" \
+  $'worktree\t'"$CHEZMOI_WT_ROOT/chezmoi-wt1"$'\t'"$CHEZMOI_TOP" "$(rows worktree "$CHEZMOI_WT_ROOT/chezmoi-wt1")"
+assert_eq "discover registers the outside-ghq owning repo" \
+  $'repo\t'"$CHEZMOI_TOP"$'\t1' "$(rows repo "$CHEZMOI_TOP")"
+
 [[ $FAILED -eq 0 ]] || exit 1

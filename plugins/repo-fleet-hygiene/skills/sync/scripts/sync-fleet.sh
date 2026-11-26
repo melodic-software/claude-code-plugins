@@ -145,16 +145,13 @@ done
 [[ -z "$WT_CREATE" ]] || [[ -f "$WT_CREATE" && "${WT_CREATE##*/}" == worktree-create.sh ]] ||
   fail "--worktree-create must name an existing file called worktree-create.sh: $WT_CREATE"
 
-[[ -z "$CONFIG" || -f "$CONFIG" ]] || fail "--config file not found: $CONFIG"
-
-if [[ -z "$CONFIG" && -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
-  CONFIG="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
-elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
-  CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
-fi
+PROJECT_DIR="$(fleet_clean_project_dir "$PROJECT_DIR")"
+fleet_resolve_config "$CONFIG" "$PROJECT_DIR"
+CONFIG="$FLEET_CONFIG_FILE"
+CONFIG_DIR="$FLEET_CONFIG_DIR"
 if [[ -n "$CONFIG" ]]; then
   if scope_empty; then
-    fleet_load_config_scope "$CONFIG" "$(cd "$(dirname "$CONFIG")" && pwd)"
+    fleet_load_config_scope "$CONFIG" "$CONFIG_DIR"
     add_scope config FLEET_CONFIG_ROOTS FLEET_CONFIG_REPOS
   fi
   fleet_load_config_skip "$CONFIG"
@@ -175,7 +172,8 @@ if scope_empty; then
     if [[ -n "$CONFIG" ]]; then
       config_probe="$CONFIG has no fleet.root or fleet.repo entry"
     else
-      config_probe="${PROJECT_DIR:+$PROJECT_DIR/.claude/repo-fleet-hygiene.conf, }${HOME:-}/.claude/repo-fleet-hygiene.conf: neither exists"
+      home_dir="${HOME:-${USERPROFILE:-}}"
+      config_probe="${PROJECT_DIR:+$PROJECT_DIR/.claude/repo-fleet-hygiene.conf, }${home_dir}/.claude/repo-fleet-hygiene.conf: neither exists"
     fi
     cat >&2 <<EOF
 Error: no scope resolved. Probed, in order:

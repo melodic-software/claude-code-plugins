@@ -538,6 +538,21 @@ expect "a skipped plan line carries the rung" "$r_skip" has "$r_skip" $'skip\t'"
 r_skipped="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir" --apply --yes)"
 expect "a skipped result line ends with the rung" "$r_skipped" has "$r_skipped" $'\tremedy=check the path, then fix or remove it in the fleet config or the --repo and --root arguments\trung=repo'
 
+printf '[fleet\n\trepo = %s\n' "$clone" >"$TMP/malformed.conf"
+bash "$SCRIPT" --config "$TMP/malformed.conf" >/dev/null 2>"$TMP/malformed.err"
+mal_code=$?
+expect "malformed --config fails closed with exit 2" "code=$mal_code err=$(cat "$TMP/malformed.err")" is "$mal_code" 2
+
+mkdir -p "$TMP/win-user/.claude"
+printf '[fleet]\n\trepo = %s\n' "$clone" >"$TMP/win-user/.claude/repo-fleet-hygiene.conf"
+r_win="$(env -u HOME USERPROFILE="$TMP/win-user" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
+expect "USERPROFILE fallback without HOME resolves user-global config" "$r_win" \
+  is "$(rung_of "$r_win" "$clone")" "rung=config"
+
+r_ph="$(HOME="$TMP/win-user" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --project-dir '${CLAUDE_PROJECT_DIR}')"
+expect "literal \${CLAUDE_PROJECT_DIR} placeholder is stripped and falls back to user-global config" "$r_ph" \
+  is "$(rung_of "$r_ph" "$clone")" "rung=config"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'
   exit 0

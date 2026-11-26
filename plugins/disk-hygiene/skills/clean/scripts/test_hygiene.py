@@ -17663,7 +17663,14 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
         monitor = load_module("guard_launch_monitor", "guard_launch_monitor.py")
         log = guard.guard_decision_log
         self.assertEqual(
-            {log.LOG_DIRNAME, monitor._MARKER_DIRNAME, "clean-runs", "inventory"},
+            {
+                log.LOG_DIRNAME,
+                monitor._MARKER_DIRNAME,
+                "clean-runs",
+                "inventory",
+                "clean-invoked",
+                "guard-no-interpreter",
+            },
             set(grammar.ENGINE_OWNED_DIRS),
         )
         self.assertEqual("clean-runs", guard._run_marker_path("/r", "s").parent.name)
@@ -18047,7 +18054,9 @@ class InventoryCommandTests(unittest.TestCase):
             reason="tool-managed",
         )
         with mock.patch.object(
-            hygiene.deep_inventory, "category_rows", return_value={str(bad): row}
+            hygiene.deep_inventory,
+            "_default_classifiers",
+            return_value=(hygiene.deep_inventory.DictClassifierAdapter({str(bad): row}),),
         ):
             code, summary = self.run_inventory("--deep")
         self.assertEqual(hygiene.INVENTORY_VALIDATION_FAILED, code)
@@ -18085,6 +18094,103 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("--data-root", output.getvalue())
         self.assertEqual([], list(self.data_root.iterdir()))
+
+    def test_inventory_does_not_mutate_clean_run_markers(self) -> None:
+        self.write("a.txt")
+        runs = self.data_root / hygiene.engine_grammar.RUN_MARKER_DIRNAME
+        runs.mkdir(parents=True, exist_ok=True)
+        marker = runs / hygiene.engine_grammar.run_marker_filename("sess-inv-1")
+        marker.write_text(json.dumps({"ends_with": "/tmp/plan.json"}), encoding="utf-8")
+        old_stamp = time.time() - hygiene.engine_grammar.RUN_IDLE_TIMEOUT_SECONDS - 60
+        os.utime(marker, (old_stamp, old_stamp))
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": "sess-inv-1"}):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertTrue(
+            marker.exists(),
+            "read-only inventory must not run close_clean_runs() and mutate clean-runs markers",
+        )
+
+
+class ApplyPlanSnapshotExactNamesRegressionTests(unittest.TestCase):
+    def test_apply_plan_inner_loop_honors_snapshot_protected_exact_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            target = root / "target"
+            target.mkdir()
+            victim_dir = target / "parent"
+            victim_dir.mkdir()
+            protected_child = victim_dir / "SnapshotCustomKeep"
+            protected_child.write_text("precious", encoding="utf-8")
+
+            policy = hygiene.baseline_policy()
+            snapshot = hygiene.scan_tree(target, policy)
+            snapshot["policy"]["protected_exact_names"] = [
+                *snapshot["policy"]["protected_exact_names"],
+                "SnapshotCustomKeep",
+            ]
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [
+                    {
+                        "path": "parent",
+                        "tier": "high",
+                        "provenance": "fixture",
+                        "reason": "fixture",
+                        "evidence": ["fixture"],
+                        "why_not_work_product": "fixture",
+                        "risk": "low",
+                        "owner": "unmanaged",
+                    }
+                ],
+            }
+            fake_preview = {
+                "status": "ready-for-explicit-approval",
+                "candidates": [{"path": "parent", "blockers": []}],
+            }
+            with (
+                mock.patch.object(hygiene, "preview", return_value=fake_preview),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            ):
+                report = hygiene.apply_plan(snapshot, plan)
+            self.assertTrue(
+                protected_child.exists(),
+                "apply_plan inner loop must honor snapshot policy protected_exact_names",
+            )
+            skipped_paths = {item["path"]: item for item in report["skipped"]}
+            self.assertIn("parent/SnapshotCustomKeep", skipped_paths)
+            self.assertEqual("protected", skipped_paths["parent/SnapshotCustomKeep"]["outcome"])
+            self.assertIn(
+                "baseline-protected-name",
+                skipped_paths["parent/SnapshotCustomKeep"]["detail"],
+            )
+
+    def test_scan_tree_reads_baseline_policy_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp).resolve() / "scan-target"
+            for i in range(5):
+                sub = target / f"dir-{i}" / "nested"
+                sub.mkdir(parents=True)
+                (sub / f"file-{i}.tmp").write_text("x", encoding="utf-8")
+                (sub / f"disk-{i}.vhdx").write_text("y", encoding="utf-8")
+
+            policy = hygiene.policy_cascade.baseline_policy()
+            hygiene.policy_cascade.load_baseline_snapshot.cache_clear()
+            real_read_text = Path.read_text
+            baseline_reads = 0
+
+            def spy(path_self: Path, *args: object, **kwargs: object) -> str:
+                nonlocal baseline_reads
+                if path_self.name == "baseline-policy.json":
+                    baseline_reads += 1
+                return real_read_text(path_self, *args, **kwargs)  # type: ignore[arg-type]
+
+            with mock.patch.object(Path, "read_text", spy):
+                hygiene.scan_tree(target, policy)
+            self.assertEqual(1, baseline_reads)
 
 
 if __name__ == "__main__":
