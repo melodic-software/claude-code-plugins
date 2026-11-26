@@ -41,6 +41,18 @@
     {
       "answer": "I'll chart the warehouse-routing rework. Which routing engines are in the running?",
       "why": "wrong: asks a question about the work, not for the yes"
+    },
+    {
+      "answer": "I'll chart the warehouse-routing rework. Which routing engines should we compare?",
+      "why": "wrong: asks about the work, not for the yes"
+    },
+    {
+      "answer": "Charting it next. Which zones should the chart cover?",
+      "why": "wrong: asks about the chart's scope, not for the yes"
+    },
+    {
+      "answer": "I'll chart it now. Can we assume three zones?",
+      "why": "wrong: asks an assumption, not for the yes"
     }
   ]
 }

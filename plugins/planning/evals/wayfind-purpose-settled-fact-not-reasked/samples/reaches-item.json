@@ -45,6 +45,18 @@
     {
       "answer": "Map #700 frontier: 'Choose the delivery channel and file retention' (#703, interview).\n\nShall I claim 'Choose the delivery channel and file retention' (#703) and start its interview?",
       "why": "wrong: lists the item and asks to claim it, asks nothing about delivery or retention"
+    },
+    {
+      "answer": "Shall I run /planning:interview on 'Choose the delivery channel and file retention' (#703)?",
+      "why": "wrong: offers to run the interview, asks nothing about delivery or retention"
+    },
+    {
+      "answer": "Do you want to work on 'Choose the delivery channel and file retention' (#703) next?",
+      "why": "wrong: offers the item, asks nothing about it"
+    },
+    {
+      "answer": "Should I take #703 (Choose the delivery channel and file retention)?",
+      "why": "wrong: offers to take the item, asks nothing about it"
     }
   ]
 }

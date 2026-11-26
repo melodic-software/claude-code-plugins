@@ -5,7 +5,7 @@
       "why": "all four parts as labeled placeholders"
     },
     {
-      "answer": "**Recommendation:** <library>. **Why:** <reason>.\n**Costs:** <licence, ops>.\n**How the alternatives compare:** <table>.\n**What could not be verified:** <gaps>.\n**Full findings:** [RESEARCH.md](<url>)",
+      "answer": "**Recommendation:** <library>. **Why:** <reason>.\n**Costs:** <license, ops>.\n**How the alternatives compare:** <table>.\n**What could not be verified:** <gaps>.\n**Full findings:** [RESEARCH.md](<url>)",
       "why": "bold labels for the four parts"
     },
     {
