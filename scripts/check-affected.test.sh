@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for scripts/check-affected.sh: how it runs the checks and reads
-# their exits, against a fixture repository whose check scripts are stubs. What
-# each check finds is that check's own suite's business.
-#
-#   bash scripts/check-affected.test.sh
-#
 # The cases hold shell source as literal data on purpose.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -25,22 +19,18 @@ cp "$SELF_DIR/check-affected.sh" "$repo/scripts/"
 patterns_lib=plugins/guardrails/lib/path-detection/machine-path-patterns.sh
 mkdir -p "$repo/${patterns_lib%/*}"
 cp "$SELF_DIR/../$patterns_lib" "$repo/$patterns_lib"
-# Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
   check-spoke-plugin-root check-as-of-recheck check-cost-figures check-cross-plugin-source-drift check-plugin-imports check-changelog-parity check-changed-skills \
   check-comment-hygiene setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran: $*" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
-# The changed-skills stub also echoes whether the skills' script tests are skipped.
 printf '#!/usr/bin/env bash\necho "check-changed-skills ran: $* skip-script-tests=${CHECK_SKILL_SKIP_SCRIPT_TESTS-unset} deadline=${PLUGIN_TEST_DEADLINE-unset}" >&2\n[[ -z "${STUB_SKILL_SKIP_LINE:-}" ]] || echo "$STUB_SKILL_SKIP_LINE"\nexit "${STUB_CHECK_CHANGED_SKILLS:-0}"\n' \
   >"$repo/scripts/check-changed-skills.sh"
 size_entry=plugins/code-metrics/skills/audit/scripts/audit-size.sh
 mkdir -p "$repo/${size_entry%/*}"
 printf '#!/usr/bin/env bash\necho "audit-size ran: $* in $PWD root=${CLAUDE_PLUGIN_ROOT-unset}" >&2\nexit "${STUB_AUDIT_SIZE:-0}"\n' \
   >"$repo/$size_entry"
-# The affected-tests stub also writes STUB_NOT_RUN to its --write-not-run file,
-# as the real one lists the selected suites it did not run.
 cat >"$repo/scripts/affected-tests.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "affected-tests ran" >&2
@@ -70,8 +60,6 @@ printf '# fixture\npkg/demo\npkg/other\n' >"$repo/scripts/outside-node-packages.
 printf '# fixture\nfixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 printf '# fixture\npkg/sub pkg/sub/\n' >"$repo/scripts/node-subprojects.txt"
 : >"$repo/_typos.toml"
-# The workflow typos and machine-specific-paths read their exclusions from: the
-# `exclude:` input of their steps, on the key's line or as a folded block.
 mkdir -p "$repo/.github/workflows"
 cat >"$repo/.github/workflows/pr-require-checks.yml" <<'YAML'
 jobs:
@@ -90,8 +78,6 @@ jobs:
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
 YAML
 chmod +x "$repo"/scripts/*.sh
-# A typos stand-in on every run's PATH, so a typos on the machine never sees the
-# fixture's missing config. It echoes its arguments and exits STUB_TYPOS.
 mkdir -p "$tmp/bin"
 printf '#!/usr/bin/env bash\necho "typos ran: $*" >&2\nexit "${STUB_TYPOS:-0}"\n' >"$tmp/bin/typos"
 chmod +x "$tmp/bin/typos"
@@ -112,7 +98,6 @@ printf 'data\n' >"$repo/notes.txt"
 git_test_config "$repo" add notes.txt
 git_test_config "$repo" commit -q -m change
 
-# run <env...> -- <args...>: sets RC, OUT, ERR.
 run() {
   local -a envs=()
   while [[ "$1" != -- ]]; do
@@ -143,13 +128,9 @@ check "a gate the runner runs is not named CI only" \
 check "a diff with no file of a scanned type skips machine-specific-paths" \
   '[[ $ERR == *"SKIP machine-specific-paths (no changed file of a type it scans)"* ]]'
 
-# The tree checked is the one holding the script, whatever the working
-# directory: run by path from another checkout whose HEAD is at its base (a main
-# checkout beside a worktree), it still lists the branch's one change, notes.txt.
 other="$tmp/other"
 git_test_config "$tmp" clone -q --branch base "$repo" "$other"
 git_test_config "$other" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse HEAD)"
-# run_from <dir> <args...>: runs the fixture repo's script from <dir>; sets RC, OUT, ERR.
 run_from() {
   local dir="$1"
   shift
@@ -160,9 +141,6 @@ run_from() {
 run_from "$other" --base base --tests
 check "run from another checkout, it lists the script's own branch's change" \
   '[[ $RC == 0 && $OUT == *"over 1 changed files"* && $ERR != *"SKIP tests"* ]]'
-# The ready step names the script's own tree in CHECK_DATA_ROOT from another
-# checkout. The suites build fixture repositories of their own, so the variable
-# must not reach them, or each one reads this tree in place of its fixture.
 RC=0
 OUT="$(cd "$other" && CHECK_DATA_ROOT="$repo" STUB_ENV_LOG="$tmp/env.log" \
   bash "$repo/scripts/check-affected.sh" --base base --tests 2>"$tmp/err")" || RC=$?
@@ -290,8 +268,6 @@ check "a changed registry runs cross-plugin-source-drift" \
   '[[ $RC == 1 && $ERR == *"FAIL cross-plugin-source-drift"* ]]'
 git_test_config "$repo" reset -q --hard "$pre_drift"
 
-# machine-specific-paths scans the changed files with the committed patterns
-# file. Each home path is built at run time, so this file holds none.
 pre_paths="$(git_test_config "$repo" rev-parse HEAD)"
 printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
 git_test_config "$repo" add settings.json
@@ -365,7 +341,6 @@ else
   bad "the guardrails patterns file is the composite's"
 fi
 labels=("Windows user path" "macOS user path" "Linux user path" "Windows repo path" "Escaped Windows repo path")
-# Paths are assembled from H, U and R so this file holds none.
 H=home U=Users R=repos
 while IFS='|' read -r file content; do
   printf '%b\n' "$content" >"$repo/$file"
@@ -490,8 +465,6 @@ if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 && command 
   run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\neco/test_x.py\n' -- --base base --tests
   check "--tests runs the Node package suites and still skips, counting, the ones left unrun" \
     '[[ $RC == 0 && $ERR == *"SKIP tests (could not run, exit 2: 1 selected suite(s) not run here"* ]]'
-  # Past the deadline the package's npm test does not start. Its suite fails, so
-  # a run that started it would fail tests.
   # shellcheck disable=SC2059 # the format is the suite template above.
   printf "$node_suite" 2 >"$repo/pkg/demo/x.test.mjs"
   run STUB_AFFECTED_TESTS=3 STUB_AFFECTED_SLEEP=2 STUB_NOT_RUN=$'pkg/demo/x.test.mjs\n' -- --base base --tests --budget 1
@@ -524,9 +497,6 @@ run STUB_SETUP_ENV=127 -- --base base --tests
 check "--tests skips npm-deps and still runs the suites when setup-env --node could not run" \
   '[[ $RC == 0 && $ERR == *"SKIP npm-deps (could not run, exit 127"* && $OUT == *"passed"* ]]'
 
-# A fresh worktree has lockfiles but no node_modules: --tests installs each
-# through the real setup-env.sh --node. The npm stand-in logs its arguments and
-# creates the node_modules its --prefix names, or exits STUB_NPM.
 cp "$repo/scripts/setup-env.sh" "$tmp/setup-env.stub"
 cp "$SELF_DIR/setup-env.sh" "$repo/scripts/setup-env.sh"
 mkdir -p "$tmp/npmbin" "$repo/scripts/ci-deps"
@@ -627,10 +597,6 @@ run PATH="$tmp/bin:$PATH" --
 check "a failed fetch skips the stale-base check only" \
   '[[ $RC == 0 && $ERR == *"SKIP stale-base-overlap (git fetch of origin/main failed)"* && $OUT$ERR == *"validate-plugins (no plugin changed)"* ]]'
 
-# A copy outside the checked tree (the pre-push hook's merge-base copy) checks
-# the tree CHECK_DATA_ROOT names: every check script comes from the copy and is
-# told which tree to read; the checked tree's own scripts and its test code
-# never run.
 tools="$tmp/tools"
 mkdir -p "$tools/scripts/lib"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
@@ -735,8 +701,6 @@ rm -f "$tools/scripts/validate-plugins.sh"
 check "the contract validator imports no local module, so check-affected's list of its files is whole" \
   '[[ -f $SELF_DIR/validate-plugin-contracts.mjs ]] && ! grep -qE "(from|import|import\(|require\() *[\"'"'"']\.\.?/" "$SELF_DIR/validate-plugin-contracts.mjs"'
 
-# machine-specific-paths loads the merge-base's patterns file, never the
-# branch's, whose own edit here would make a home path pass.
 printf '{"root": "/%s/alice/project"}\n' home >"$repo/settings.json"
 printf "HPP_LINUX_USER_BODY='never-matches'\n" >>"$repo/$patterns_lib"
 git_test_config "$repo" add -A
@@ -778,14 +742,11 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
     '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"MD022"* ]]'
   check "a copy run elsewhere says why it refused a JavaScript markdownlint config" \
     '[[ $ERR == *"SKIP markdown: config docs/.markdownlint-cli2.cjs (refused:"* ]]'
-  # The staged markdown copy is removed on a normal exit and when the run is
-  # terminated while markdownlint runs in it.
   md_tmp="$tmp/md-tmp"
   mkdir -p "$md_tmp" "$tmp/md-term"
   RC=0
   ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" TMPDIR="$md_tmp" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
   check "a copy run's markdown stage leaves nothing in TMPDIR" '[[ $ERR == *"FAIL markdown"* && -z $(ls -A "$md_tmp") ]]'
-  # The stub terminates its nearest check-affected.sh ancestor.
   printf '%s\n' '#!/usr/bin/env bash' 'p=$PPID' \
     'while ((p > 1)) && [[ "$(ps -o args= -p "$p")" != *check-affected.sh* ]]; do p=$(ps -o ppid= -p "$p"); p=${p// /}; done' \
     '((p > 1)) && kill -TERM "$p"' 'exit 1' >"$tmp/md-term/markdownlint-cli2"
@@ -806,8 +767,6 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
   check "a copy run elsewhere honors a branch-only nested markdownlint config that is data" \
     '[[ $ERR != *"FAIL markdown"* && $ERR != *"SKIP markdown ("* && $ERR != *"config legacy/"* ]]'
 
-  # A config naming a custom rule, reaching one through __proto__, or extending
-  # another file is refused whole, so its exemption is not applied either.
   printf '{ "customRules": ["./rule.cjs"], "config": { "default": false } }\n' >"$repo/legacy/.markdownlint-cli2.jsonc"
   git_test_config "$repo" add -A
   git_test_config "$repo" commit -q -m custom-rule
@@ -834,9 +793,6 @@ else
   ok "SKIP markdown copy cases (markdownlint-cli2 not installed)"
 fi
 
-# --uncommitted: the issue lane commits the files on disk through an API, with
-# each file's mode taken from disk, so the checks judge the work tree as that
-# commit, and the checkout itself is left untouched.
 state() {
   git_test_config "$repo" rev-parse HEAD
   git_test_config "$repo" status --porcelain --untracked-files=all
@@ -848,8 +804,6 @@ printf '#!/usr/bin/env bash\necho hi\n' >"$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted checks an untracked #! file's mode on disk" \
   '[[ $RC == 1 && $ERR == *"FAIL exec-bit"* && $ERR == *"new-tool starts with #!"* ]]'
-# The issue lane's wrapper sets CHECK_DATA_ROOT to the checkout; the snapshot,
-# not the checkout's committed state, is still what gets checked.
 run CHECK_DATA_ROOT="$repo" -- --uncommitted
 check "--uncommitted under the lane's CHECK_DATA_ROOT still checks the work tree" \
   '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* ]]'
@@ -875,8 +829,6 @@ run PATH="$tmp/bin:$PATH" -- --uncommitted
 check "--uncommitted validates a plugin that only untracked files touch" \
   '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
 rm -rf "$repo/plugins/demo" "$repo/scripts/validate-plugins.sh"
-# The lane's sandbox masks dotfiles in the checkout with /dev/null, a device git
-# refuses to add; it is skipped and the regular untracked file still checked.
 if bwrap --bind / / --dev /dev true 2>/dev/null; then
   chmod -x "$repo/new-tool"
   : >"$repo/.bash_profile"
@@ -887,7 +839,6 @@ if bwrap --bind / / --dev /dev true 2>/dev/null; then
   check "--uncommitted skips untracked and tracked device nodes and still checks the regular file beside it" \
     '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"can only add regular files"* ]]'
   rm -f "$repo/.bash_profile"
-  # The lane's sandbox can leave .git read-only; the snapshot must not write there.
   RC=0
   OUT="$(cd "$repo" && bwrap --bind / / --dev /dev --ro-bind "$repo/.git" "$repo/.git" \
     bash scripts/check-affected.sh --uncommitted --base base 2>"$tmp/err")" || RC=$?
@@ -898,8 +849,6 @@ else
   ok "SKIP device-node and read-only .git cases (bwrap cannot start here)"
 fi
 rm -rf "$repo/new-tool"
-# The inner run lints from the scratch repository, with the rcfile beside the
-# outer copy of the script; an optional check the rcfile enables proves it read it.
 if grep -q -- --rcfile <<<"$(shellcheck --help 2>&1)"; then
   printf 'enable=require-double-brackets\n' >"$repo/.shellcheckrc"
   printf '#!/usr/bin/env bash\nif [ -n "${1:-}" ]; then echo hi; fi\n' >"$repo/lint-me.sh"
@@ -922,9 +871,6 @@ check "--uncommitted leaves HEAD, the index and the worktree list as they were" 
 run -- --uncommitted
 check "--uncommitted with no edits passes with nothing to check" '[[ $RC == 0 && $OUT == *"over 0 changed files"* ]]'
 
-# The default job count is one less than the core count, at most 8 and at most
-# one per 2 GiB of free memory, on a host whatever nproc and the memory files
-# report; CHECK_AFFECTED_JOBS and --jobs still set it outright.
 unset CHECK_AFFECTED_JOBS
 mkdir -p "$tmp/nprocbin" "$tmp/cg/slice/scope/leaf"
 printf '#!/usr/bin/env bash\necho "$STUB_NPROC"\n' >"$tmp/nprocbin/nproc"
@@ -932,8 +878,6 @@ chmod +x "$tmp/nprocbin/nproc"
 printf 'MemTotal: 100663296 kB\nMemAvailable: 67108864 kB\n' >"$tmp/meminfo-64g"
 printf 'MemAvailable: 6291456 kB\n' >"$tmp/meminfo-6g"
 printf 'MemAvailable: 1048576 kB\n' >"$tmp/meminfo-1g"
-# A slice capped at 10 GiB holding 6 GiB, 1 GiB of it inactive file cache: 5 GiB
-# free under it. The scope below sets no cap of its own.
 echo 10737418240 >"$tmp/cg/slice/memory.max"
 echo 6442450944 >"$tmp/cg/slice/memory.current"
 printf 'anon 5368709120\ninactive_file 1073741824\n' >"$tmp/cg/slice/memory.stat"
@@ -961,10 +905,6 @@ check "CHECK_AFFECTED_JOBS sets the job count past the default cap" '[[ $RC == 0
 run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_JOBS=16 -- --base base --tests --jobs 12
 check "--jobs sets the job count over CHECK_AFFECTED_JOBS and the cap" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 12 "* ]]'
 
-# The stale-base check judges the base as resolved at the start of the run,
-# not a remote-tracking ref another worktree's fetch moves while it runs. The
-# real check runs; the shell-portability stub, which runs before it, moves
-# origin/main to a commit that touches the branch's notes.txt.
 cp "$SELF_DIR/check-stale-base-overlap.sh" "$repo/scripts/"
 cp "$SELF_DIR/lib/changed-files.sh" "$SELF_DIR/lib/gate-entry.sh" "$repo/scripts/lib/"
 moved="$(git_test_config "$repo" commit-tree "HEAD^{tree}" -p base -m moved)"

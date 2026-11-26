@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: su-check-missing-section
-description: check FAILs a custom lane missing a required section, but passes a bundled-name override whose Merge semantics adopts the bundled declaration and reports what it inherits; edits neither file
+description: check FAILs a custom focus area missing a required section, but passes a bundled-name override whose Merge semantics adopts the bundled declaration and reports what it inherits; edits neither file
 tags: [setup, check, read-only, hard]
-expected_outcome: api.md (custom name, no Merge semantics, no Verification commands section) is FAIL naming the missing Verification commands section with a remediation line. docs-prose.md omits five sections but shares a bundled lane name and declares Merge semantics by reference, so it is not FAIL and the report says it inherits the omitted sections from the bundled lane. Neither lane file is edited and no file is created.
+expected_outcome: api.md (custom name, no Merge semantics, no Verification commands section) is FAIL naming the missing Verification commands section with a remediation line. docs-prose.md omits five sections but shares a bundled focus area name and declares Merge semantics by reference, so it is not FAIL and the report says it inherits the omitted sections from the bundled focus area. Neither focus area file is edited and no file is created.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -11,7 +11,7 @@ execution:
   max_turns: 40
   timeout_seconds: 900
 graders:
-  - name: api-lane-fails
+  - name: api-area-fails
     type: regex
     pattern: 'FAIL[^\n]{0,300}\bapi(\.md)?\b|\bapi(\.md)?\b[^\n]{0,300}FAIL'
   - name: missing-section-named
@@ -25,18 +25,18 @@ graders:
     type: regex
     pattern: 'docs-prose[\s\S]{0,300}inherit|inherit[\s\S]{0,300}docs-prose'
     flags: i
-  - name: api-lane-not-repaired
+  - name: api-area-not-repaired
     type: regex
     pattern: '^## Verification commands'
     flags: m
     match: not_contains
-    target: { source: file, path: .claude/tidy-lanes/api.md }
+    target: { source: file, path: .claude/tidy-areas/api.md }
   - name: merge-override-not-expanded
     type: regex
     pattern: '^## '
     flags: m
     match: "count:2"
-    target: { source: file, path: .claude/tidy-lanes/docs-prose.md }
+    target: { source: file, path: .claude/tidy-areas/docs-prose.md }
   - name: no-write
     type: tool_used
     tool: Write

@@ -19,6 +19,7 @@ defaults:
 
 env:
   SHARED_TEXT_MAX_AGE_MINUTES: "20"
+  CHUNK_PARALLELISM: "8"
   BABYSIT_VERIFY_LEGACY_FAILS: ${{ github.workspace }}/.base/.github/verify-legacy-fails.json
 
 jobs:
@@ -601,7 +602,7 @@ jobs:
             route: review-security
             switch: CLAUDE_SECURITY_REVIEW_DISABLED
     runs-on: ubuntu-24.04
-    timeout-minutes: 100
+    timeout-minutes: 197
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
@@ -786,7 +787,7 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
           MAX_DIFF_BYTES: "300000"
-          MAX_CHUNKS: "4"
+          MAX_CHUNKS: "75"
           # One Read returns at most 25,000 tokens by default: https://code.claude.com/docs/en/tools-reference#large-files
           PART_BYTES: "15000"
           PART_LINES: "1000"
@@ -941,17 +942,19 @@ jobs:
           SKILL: ${{ matrix.skill }}
           MODEL: ${{ steps.models.outputs.model }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
-          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompt
+          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompts/prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
+          LEG_MINUTES: "15"
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+          if ! [[ $CHUNKS =~ ^[1-9][0-9]?$ ]]; then
             echo "::error::the chunk count is malformed"
             exit 1
           fi
+          mkdir -p "${PROMPT_STEM%/*}"
           template=$(<.base/.github/scripts/pr-review-main/prompt.md)
           for k in $(seq "$CHUNKS"); do
             prompt=$template
@@ -971,7 +974,10 @@ jobs:
             prompt=${prompt//CHUNK_NOTE/"$note"}
             printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
           done
-          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+          # The later chunks' step limit: one leg and a minute for each round
+          # of CHUNK_PARALLELISM legs, and 3 minutes to install the CLI.
+          rounds=$(((CHUNKS - 1 + CHUNK_PARALLELISM - 1) / CHUNK_PARALLELISM))
+          { echo "started-at=$(date +%s)"; echo "loop-minutes=$((3 + rounds * (LEG_MINUTES + 1)))"; } >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
       - name: Review chunk 1
@@ -985,7 +991,7 @@ jobs:
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-1.md
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompts/prompt-1.md
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -1039,23 +1045,26 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}
 
-      - name: Time chunk 2
-        id: time-2
+      - name: Time the later chunks
+        id: time-chunks
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      - name: Review chunk 2
-        id: review-2
+      - name: Review the later chunks
+        id: review-chunks
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        timeout-minutes: ${{ fromJSON(steps.prompt.outputs.loop-minutes || '1') }}
+        uses: melodic-software/ci-workflows/.github/actions/run-review-chunks@main
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-2.md
+          prompt-dir: ${{ runner.temp }}/pr-review-main-prompts
+          chunk-first: "2"
+          chunk-last: ${{ steps.diff.outputs.chunks }}
+          parallelism: ${{ env.CHUNK_PARALLELISM }}
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -1081,173 +1090,33 @@ jobs:
           json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
           leg-timeout-minutes: "15"
 
-      - name: Report chunk 2's outcome
-        if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
+      - name: Report the later chunks' outcome
+        if: steps.review-chunks.outcome == 'success' || steps.review-chunks.outcome == 'failure'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
         with:
-          outcome: ${{ steps.review-2.outcome }}
-          execution-file: ${{ steps.review-2.outputs.execution-file }}
-          log-file: ${{ steps.review-2.outputs.log-file }}
+          outcome: ${{ steps.review-chunks.outcome }}
+          execution-file: ${{ steps.review-chunks.outputs.execution-file }}
+          log-file: ${{ steps.review-chunks.outputs.log-file }}
           lane: pr-review-main
           lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-2.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-2.outputs.credential }}
+          step-started-at: ${{ steps.time-chunks.outputs.started-at }}
+          step-timeout-minutes: ${{ steps.prompt.outputs.loop-minutes }}
+          credential: ${{ steps.review-chunks.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
-          handoff: ${{ steps.review-2.outputs.handoff }}
+          known-failure-class: ${{ steps.review-chunks.outputs.lane-class }}
+          handoff: ${{ steps.review-chunks.outputs.handoff }}
 
-      - name: Upload chunk 2's sealed transcript
-        if: always() && steps.review-2.outputs.execution-file != ''
+      - name: Upload the later chunks' sealed transcript
+        if: always() && steps.review-chunks.outputs.transcript-file != ''
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
-          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          execution-file: ${{ steps.review-chunks.outputs.transcript-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-2
-
-      - name: Time chunk 3
-        id: time-3
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
-        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
-
-      - name: Review chunk 3
-        id: review-3
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
-        continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: pr-review-main
-          role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-3.md
-          preamble: >-
-            You run unattended; return only the findings the schema asks for;
-            nothing you write is posted.
-          api-key: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: Read
-          allowed-tools: Read(./pr-review-main-data/**)
-          disallowed-tools: |
-            Read(./.base/**)
-            Glob
-            Grep
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
-          leg-timeout-minutes: "15"
-
-      - name: Report chunk 3's outcome
-        if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
-        with:
-          outcome: ${{ steps.review-3.outcome }}
-          execution-file: ${{ steps.review-3.outputs.execution-file }}
-          log-file: ${{ steps.review-3.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-3.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-3.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
-          handoff: ${{ steps.review-3.outputs.handoff }}
-
-      - name: Upload chunk 3's sealed transcript
-        if: always() && steps.review-3.outputs.execution-file != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
-        with:
-          gate-path: .base/lib/publish-gate.mjs
-          hide-trace-ids: "true"
-          execution-file: ${{ steps.review-3.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-3
-
-      - name: Time chunk 4
-        id: time-4
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
-        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
-
-      - name: Review chunk 4
-        id: review-4
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
-        continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: pr-review-main
-          role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-4.md
-          preamble: >-
-            You run unattended; return only the findings the schema asks for;
-            nothing you write is posted.
-          api-key: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: Read
-          allowed-tools: Read(./pr-review-main-data/**)
-          disallowed-tools: |
-            Read(./.base/**)
-            Glob
-            Grep
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
-          leg-timeout-minutes: "15"
-
-      - name: Report chunk 4's outcome
-        if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
-        with:
-          outcome: ${{ steps.review-4.outcome }}
-          execution-file: ${{ steps.review-4.outputs.execution-file }}
-          log-file: ${{ steps.review-4.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-4.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-4.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
-          handoff: ${{ steps.review-4.outputs.handoff }}
-
-      - name: Upload chunk 4's sealed transcript
-        if: always() && steps.review-4.outputs.execution-file != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
-        with:
-          gate-path: .base/lib/publish-gate.mjs
-          hide-trace-ids: "true"
-          execution-file: ${{ steps.review-4.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-4
+          job-id: ${{ github.job }}-${{ matrix.lane }}-chunks
 
       - name: Pick the next leg
         id: next
@@ -1257,8 +1126,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           state: ${{ steps.credential.outputs.state }}
-          handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
-          handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
+          handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-chunks.outputs.handoff == 'true' }}
+          handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-chunks.outputs.handoff-reason }}
 
       - name: Hand the lane on
         id: handoff
@@ -1276,13 +1145,10 @@ jobs:
 
       - name: Write the verdict
         id: verdict
-        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-chunks.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-chunks.outputs.handoff != 'true'
         env:
-          EXECUTION_FILES: |
-            ${{ steps.review-1.outputs.execution-file }}
-            ${{ steps.review-2.outputs.execution-file }}
-            ${{ steps.review-3.outputs.execution-file }}
-            ${{ steps.review-4.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.review-1.outputs.execution-file }}
+          CHUNKS_DIR: ${{ steps.review-chunks.outputs.results-dir }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
@@ -1296,7 +1162,7 @@ jobs:
 
       - name: Record a failed chunk
         id: chunk-stop
-        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
+        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-chunks.outputs.handoff != 'true' }}
         env:
           LANE: ${{ matrix.lane }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
@@ -1432,7 +1298,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.review-handoffs.outputs.matrix) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 100
+    timeout-minutes: 197
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
@@ -1607,7 +1473,7 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
           MAX_DIFF_BYTES: "300000"
-          MAX_CHUNKS: "4"
+          MAX_CHUNKS: "75"
           # One Read returns at most 25,000 tokens by default: https://code.claude.com/docs/en/tools-reference#large-files
           PART_BYTES: "15000"
           PART_LINES: "1000"
@@ -1763,17 +1629,19 @@ jobs:
           SKILL: ${{ matrix.skill }}
           MODEL: ${{ steps.models.outputs.model }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
-          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompt
+          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompts/prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
+          LEG_MINUTES: "15"
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+          if ! [[ $CHUNKS =~ ^[1-9][0-9]?$ ]]; then
             echo "::error::the chunk count is malformed"
             exit 1
           fi
+          mkdir -p "${PROMPT_STEM%/*}"
           template=$(<.base/.github/scripts/pr-review-main/prompt.md)
           for k in $(seq "$CHUNKS"); do
             prompt=$template
@@ -1793,7 +1661,10 @@ jobs:
             prompt=${prompt//CHUNK_NOTE/"$note"}
             printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
           done
-          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+          # The later chunks' step limit: one leg and a minute for each round
+          # of CHUNK_PARALLELISM legs, and 3 minutes to install the CLI.
+          rounds=$(((CHUNKS - 1 + CHUNK_PARALLELISM - 1) / CHUNK_PARALLELISM))
+          { echo "started-at=$(date +%s)"; echo "loop-minutes=$((3 + rounds * (LEG_MINUTES + 1)))"; } >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
       - name: Review chunk 1
@@ -1807,7 +1678,7 @@ jobs:
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-1.md
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompts/prompt-1.md
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -1863,23 +1734,26 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}
 
-      - name: Time chunk 2
-        id: time-2
+      - name: Time the later chunks
+        id: time-chunks
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      - name: Review chunk 2
-        id: review-2
+      - name: Review the later chunks
+        id: review-chunks
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        timeout-minutes: ${{ fromJSON(steps.prompt.outputs.loop-minutes || '1') }}
+        uses: melodic-software/ci-workflows/.github/actions/run-review-chunks@main
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-2.md
+          prompt-dir: ${{ runner.temp }}/pr-review-main-prompts
+          chunk-first: "2"
+          chunk-last: ${{ steps.diff.outputs.chunks }}
+          parallelism: ${{ env.CHUNK_PARALLELISM }}
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -1906,178 +1780,34 @@ jobs:
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "15"
 
-      - name: Report chunk 2's outcome
-        if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
+      - name: Report the later chunks' outcome
+        if: steps.review-chunks.outcome == 'success' || steps.review-chunks.outcome == 'failure'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
         with:
-          outcome: ${{ steps.review-2.outcome }}
-          execution-file: ${{ steps.review-2.outputs.execution-file }}
-          log-file: ${{ steps.review-2.outputs.log-file }}
+          outcome: ${{ steps.review-chunks.outcome }}
+          execution-file: ${{ steps.review-chunks.outputs.execution-file }}
+          log-file: ${{ steps.review-chunks.outputs.log-file }}
           lane: pr-review-main
           lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-2.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-2.outputs.credential }}
+          step-started-at: ${{ steps.time-chunks.outputs.started-at }}
+          step-timeout-minutes: ${{ steps.prompt.outputs.loop-minutes }}
+          credential: ${{ steps.review-chunks.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
-          handoff: ${{ steps.review-2.outputs.handoff }}
+          known-failure-class: ${{ steps.review-chunks.outputs.lane-class }}
+          handoff: ${{ steps.review-chunks.outputs.handoff }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      - name: Upload chunk 2's sealed transcript
-        if: always() && steps.review-2.outputs.execution-file != ''
+      - name: Upload the later chunks' sealed transcript
+        if: always() && steps.review-chunks.outputs.transcript-file != ''
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
-          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          execution-file: ${{ steps.review-chunks.outputs.transcript-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-2
-
-      - name: Time chunk 3
-        id: time-3
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
-        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
-
-      - name: Review chunk 3
-        id: review-3
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
-        continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: pr-review-main
-          role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-3.md
-          preamble: >-
-            You run unattended; return only the findings the schema asks for;
-            nothing you write is posted.
-          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: Read
-          allowed-tools: Read(./pr-review-main-data/**)
-          disallowed-tools: |
-            Read(./.base/**)
-            Glob
-            Grep
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
-          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
-          leg-timeout-minutes: "15"
-
-      - name: Report chunk 3's outcome
-        if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
-        with:
-          outcome: ${{ steps.review-3.outcome }}
-          execution-file: ${{ steps.review-3.outputs.execution-file }}
-          log-file: ${{ steps.review-3.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-3.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-3.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
-          handoff: ${{ steps.review-3.outputs.handoff }}
-          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
-
-      - name: Upload chunk 3's sealed transcript
-        if: always() && steps.review-3.outputs.execution-file != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
-        with:
-          gate-path: .base/lib/publish-gate.mjs
-          hide-trace-ids: "true"
-          execution-file: ${{ steps.review-3.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-3
-
-      - name: Time chunk 4
-        id: time-4
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
-        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
-
-      - name: Review chunk 4
-        id: review-4
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
-        continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: pr-review-main
-          role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-4.md
-          preamble: >-
-            You run unattended; return only the findings the schema asks for;
-            nothing you write is posted.
-          subscription-token: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: Read
-          allowed-tools: Read(./pr-review-main-data/**)
-          disallowed-tools: |
-            Read(./.base/**)
-            Glob
-            Grep
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
-          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
-          leg-timeout-minutes: "15"
-
-      - name: Report chunk 4's outcome
-        if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
-        with:
-          outcome: ${{ steps.review-4.outcome }}
-          execution-file: ${{ steps.review-4.outputs.execution-file }}
-          log-file: ${{ steps.review-4.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-4.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-4.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
-          handoff: ${{ steps.review-4.outputs.handoff }}
-          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
-
-      - name: Upload chunk 4's sealed transcript
-        if: always() && steps.review-4.outputs.execution-file != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
-        with:
-          gate-path: .base/lib/publish-gate.mjs
-          hide-trace-ids: "true"
-          execution-file: ${{ steps.review-4.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-4
+          job-id: ${{ github.job }}-${{ matrix.lane }}-chunks
 
       - name: Pick the next leg
         id: next
@@ -2087,8 +1817,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/select-model-credential@main
         with:
           state: ${{ steps.credential.outputs.state }}
-          handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-2.outputs.handoff == 'true' || steps.review-3.outputs.handoff == 'true' || steps.review-4.outputs.handoff == 'true' }}
-          handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-2.outputs.handoff-reason || steps.review-3.outputs.handoff-reason || steps.review-4.outputs.handoff-reason }}
+          handoff: ${{ steps.review-1.outputs.handoff == 'true' || steps.review-chunks.outputs.handoff == 'true' }}
+          handoff-reason: ${{ steps.review-1.outputs.handoff-reason || steps.review-chunks.outputs.handoff-reason }}
 
       - name: Hand the lane on
         id: handoff
@@ -2106,13 +1836,10 @@ jobs:
 
       - name: Write the verdict
         id: verdict
-        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-chunks.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-chunks.outputs.handoff != 'true'
         env:
-          EXECUTION_FILES: |
-            ${{ steps.review-1.outputs.execution-file }}
-            ${{ steps.review-2.outputs.execution-file }}
-            ${{ steps.review-3.outputs.execution-file }}
-            ${{ steps.review-4.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.review-1.outputs.execution-file }}
+          CHUNKS_DIR: ${{ steps.review-chunks.outputs.results-dir }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
@@ -2126,7 +1853,7 @@ jobs:
 
       - name: Record a failed chunk
         id: chunk-stop
-        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
+        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-chunks.outputs.handoff != 'true' }}
         env:
           LANE: ${{ matrix.lane }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
@@ -2239,7 +1966,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.collect-subscription-handoffs.outputs.matrix) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 100
+    timeout-minutes: 197
     cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
@@ -2410,7 +2137,7 @@ jobs:
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
           MAX_DIFF_BYTES: "300000"
-          MAX_CHUNKS: "4"
+          MAX_CHUNKS: "75"
           # One Read returns at most 25,000 tokens by default: https://code.claude.com/docs/en/tools-reference#large-files
           PART_BYTES: "15000"
           PART_LINES: "1000"
@@ -2572,17 +2299,19 @@ jobs:
           SKILL: ${{ matrix.skill }}
           MODEL: ${{ steps.models.outputs.model }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
-          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompt
+          PROMPT_STEM: ${{ runner.temp }}/pr-review-main-prompts/prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-review-main-schema.json
+          LEG_MINUTES: "15"
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the review profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+          if ! [[ $CHUNKS =~ ^[1-9][0-9]?$ ]]; then
             echo "::error::the chunk count is malformed"
             exit 1
           fi
+          mkdir -p "${PROMPT_STEM%/*}"
           template=$(<.base/.github/scripts/pr-review-main/prompt.md)
           for k in $(seq "$CHUNKS"); do
             prompt=$template
@@ -2602,7 +2331,10 @@ jobs:
             prompt=${prompt//CHUNK_NOTE/"$note"}
             printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
           done
-          echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+          # The later chunks' step limit: one leg and a minute for each round
+          # of CHUNK_PARALLELISM legs, and 3 minutes to install the CLI.
+          rounds=$(((CHUNKS - 1 + CHUNK_PARALLELISM - 1) / CHUNK_PARALLELISM))
+          { echo "started-at=$(date +%s)"; echo "loop-minutes=$((3 + rounds * (LEG_MINUTES + 1)))"; } >>"$GITHUB_OUTPUT"
           printf '%s\n' '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"enum":["CRITICAL","IMPORTANT","SUGGESTION"]},"path":{"type":"string"},"line":{"type":"integer","minimum":0},"title":{"type":"string"},"body":{"type":"string"}},"required":["severity","path","line","title","body"],"additionalProperties":false}},"summary":{"type":"string"}},"required":["findings","summary"],"additionalProperties":false}' >"$SCHEMA_FILE"
 
       - name: Review chunk 1
@@ -2616,7 +2348,7 @@ jobs:
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-1.md
+          prompt-file: ${{ runner.temp }}/pr-review-main-prompts/prompt-1.md
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -2670,23 +2402,26 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-${{ matrix.lane }}
 
-      - name: Time chunk 2
-        id: time-2
+      - name: Time the later chunks
+        id: time-chunks
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
-      - name: Review chunk 2
-        id: review-2
+      - name: Review the later chunks
+        id: review-chunks
         if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.review-1.outcome == 'success' && steps.review-1.outputs.handoff != 'true'
         continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
+        timeout-minutes: ${{ fromJSON(steps.prompt.outputs.loop-minutes || '1') }}
+        uses: melodic-software/ci-workflows/.github/actions/run-review-chunks@main
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-review-main
           role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-2.md
+          prompt-dir: ${{ runner.temp }}/pr-review-main-prompts
+          chunk-first: "2"
+          chunk-last: ${{ steps.diff.outputs.chunks }}
+          parallelism: ${{ env.CHUNK_PARALLELISM }}
           preamble: >-
             You run unattended; return only the findings the schema asks for;
             nothing you write is posted.
@@ -2712,183 +2447,40 @@ jobs:
           json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
           leg-timeout-minutes: "15"
 
-      - name: Report chunk 2's outcome
-        if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
+      - name: Report the later chunks' outcome
+        if: steps.review-chunks.outcome == 'success' || steps.review-chunks.outcome == 'failure'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
         with:
-          outcome: ${{ steps.review-2.outcome }}
-          execution-file: ${{ steps.review-2.outputs.execution-file }}
-          log-file: ${{ steps.review-2.outputs.log-file }}
+          outcome: ${{ steps.review-chunks.outcome }}
+          execution-file: ${{ steps.review-chunks.outputs.execution-file }}
+          log-file: ${{ steps.review-chunks.outputs.log-file }}
           lane: pr-review-main
           lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-2.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-2.outputs.credential }}
+          step-started-at: ${{ steps.time-chunks.outputs.started-at }}
+          step-timeout-minutes: ${{ steps.prompt.outputs.loop-minutes }}
+          credential: ${{ steps.review-chunks.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-chunks.outputs.lane-class }}
           fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
 
-      - name: Upload chunk 2's sealed transcript
-        if: always() && steps.review-2.outputs.execution-file != ''
+      - name: Upload the later chunks' sealed transcript
+        if: always() && steps.review-chunks.outputs.transcript-file != ''
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
         with:
           gate-path: .base/lib/publish-gate.mjs
           hide-trace-ids: "true"
-          execution-file: ${{ steps.review-2.outputs.execution-file }}
+          execution-file: ${{ steps.review-chunks.outputs.transcript-file }}
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-2
-
-      - name: Time chunk 3
-        id: time-3
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
-        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
-
-      - name: Review chunk 3
-        id: review-3
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.review-2.outcome == 'success' && steps.review-2.outputs.handoff != 'true'
-        continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: pr-review-main
-          role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-3.md
-          preamble: >-
-            You run unattended; return only the findings the schema asks for;
-            nothing you write is posted.
-          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: Read
-          allowed-tools: Read(./pr-review-main-data/**)
-          disallowed-tools: |
-            Read(./.base/**)
-            Glob
-            Grep
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
-          leg-timeout-minutes: "15"
-
-      - name: Report chunk 3's outcome
-        if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
-        with:
-          outcome: ${{ steps.review-3.outcome }}
-          execution-file: ${{ steps.review-3.outputs.execution-file }}
-          log-file: ${{ steps.review-3.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-3.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-3.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
-          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
-
-      - name: Upload chunk 3's sealed transcript
-        if: always() && steps.review-3.outputs.execution-file != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
-        with:
-          gate-path: .base/lib/publish-gate.mjs
-          hide-trace-ids: "true"
-          execution-file: ${{ steps.review-3.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-3
-
-      - name: Time chunk 4
-        id: time-4
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
-        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
-
-      - name: Review chunk 4
-        id: review-4
-        if: steps.prompt.outcome == 'success' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.review-3.outcome == 'success' && steps.review-3.outputs.handoff != 'true'
-        continue-on-error: true
-        timeout-minutes: 22
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@main
-        env:
-          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
-        with:
-          lane: pr-review-main
-          role: reviews
-          prompt-file: ${{ runner.temp }}/pr-review-main-prompt-4.md
-          preamble: >-
-            You run unattended; return only the findings the schema asks for;
-            nothing you write is posted.
-          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
-          model: ${{ steps.models.outputs.model }}
-          effort: ${{ steps.models.outputs.effort }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          permission-mode: dontAsk
-          tools: Read
-          allowed-tools: Read(./pr-review-main-data/**)
-          disallowed-tools: |
-            Read(./.base/**)
-            Glob
-            Grep
-            Bash
-            Edit
-            Write
-            NotebookEdit
-            WebFetch
-            WebSearch
-            Agent
-            mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-review-main-schema.json
-          leg-timeout-minutes: "15"
-
-      - name: Report chunk 4's outcome
-        if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@main
-        with:
-          outcome: ${{ steps.review-4.outcome }}
-          execution-file: ${{ steps.review-4.outputs.execution-file }}
-          log-file: ${{ steps.review-4.outputs.log-file }}
-          lane: pr-review-main
-          lane-id: pr-review-main-${{ matrix.lane }}
-          step-started-at: ${{ steps.time-4.outputs.started-at }}
-          step-timeout-minutes: 22
-          credential: ${{ steps.review-4.outputs.credential }}
-          max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
-          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}
-
-      - name: Upload chunk 4's sealed transcript
-        if: always() && steps.review-4.outputs.execution-file != ''
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/upload-lane-transcript@main
-        with:
-          gate-path: .base/lib/publish-gate.mjs
-          hide-trace-ids: "true"
-          execution-file: ${{ steps.review-4.outputs.execution-file }}
-          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-          job-id: ${{ github.job }}-${{ matrix.lane }}-4
+          job-id: ${{ github.job }}-${{ matrix.lane }}-chunks
 
       - name: Write the verdict
         id: verdict
-        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.review-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.review-4.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.review-chunks.outcome == 'success') && steps.review-1.outputs.handoff != 'true' && steps.review-chunks.outputs.handoff != 'true'
         env:
-          EXECUTION_FILES: |
-            ${{ steps.review-1.outputs.execution-file }}
-            ${{ steps.review-2.outputs.execution-file }}
-            ${{ steps.review-3.outputs.execution-file }}
-            ${{ steps.review-4.outputs.execution-file }}
+          EXECUTION_FILE: ${{ steps.review-1.outputs.execution-file }}
+          CHUNKS_DIR: ${{ steps.review-chunks.outputs.results-dir }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
           PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
@@ -2902,7 +2494,7 @@ jobs:
 
       - name: Record a failed chunk
         id: chunk-stop
-        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
+        if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-chunks.outputs.handoff != 'true' }}
         env:
           LANE: ${{ matrix.lane }}
           HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}

@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "#47 closes as moot with no index line.",
-      "why": "meets the rule"
+      "why": "no Decisions-so-far line for #47"
+    },
+    {
+      "answer": "Decisions-so-far:\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44): per-tenant numbering\n\nSweep: [Pick the global invoice sequence store](https://example.com/acme/billing/issues/47) closes as moot.",
+      "why": "the only pointer added is #44's; #47 is named outside the index"
+    },
+    {
+      "answer": "No Decisions-so-far line for [Pick the global invoice sequence store](https://example.com/acme/billing/issues/47); a moot item gets none.",
+      "why": "negated mention"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply adds no line"
     }
   ],
   "fail": [
     {
       "answer": "Decisions-so-far: '- [Pick the global invoice sequence store](URL): moot'.",
-      "why": "breaks the rule"
+      "why": "adds a pointer for #47"
+    },
+    {
+      "answer": "Decisions-so-far: - [Pick the global invoice sequence store](URL): not needed now that numbering is per tenant",
+      "why": "a pointer for #47 whose text holds a negation"
+    },
+    {
+      "answer": "## Decisions-so-far\n\n- [Share one invoice table across tenants](https://example.com/acme/billing/issues/39)\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44)\n- [Pick the global invoice sequence store](https://example.com/acme/billing/issues/47): moot after numbering went per tenant",
+      "why": "the rewritten index lists #47"
+    },
+    {
+      "answer": "Decisions-so-far gains:\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44)\n- [Global sequence store](https://example.com/acme/billing/issues/47): closed",
+      "why": "a pointer to #47 under another title"
+    },
+    {
+      "answer": "## Decisions-so-far\n\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44): per-tenant numbering\n- #47 Pick the global invoice sequence store: moot",
+      "why": "wrong: an index line for #47 written without a link"
     }
   ]
 }

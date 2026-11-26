@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# Deterministic consumer-repo simulation for the plugin-quality convention-doc
-# pilot (ADR 0018). Exercises the SHIPPED helper copies
-# (plugins/plugin-quality/lib/*) and the plugin's retirements.yaml against a
-# fixture consumer repository:
-#
-#   1. resolver exit 1 before any pointer region exists
-#   2. apply's region write appends to a POPULATED AGENTS.md; the surrounding
-#      prose stays byte-identical and the resolver then resolves the home
-#   3. the manifest detects the retired tracked file and the retired personal override
-#      (exit 1, exact TSV rows)
-#   4. --clean on the migrate record refuses without --i-migrated
-#   5. --clean with --i-migrated cleans; the delete record cleans; re-run clean
-#   6. a CRLF-authored AGENTS.md also resolves
-#
-# This scripts the deterministic halves of the pilot's license; the
-# model-judgment halves (interview, migration prose, gating) are covered by the
-# setup and audit eval cases. Per-script assertion helpers are deliberately
-# duplicated, not shared: docs/contracts/shell-test-helpers/README.md.
-#
 # shellcheck disable=SC2016 # single-quoted backticks are the pointer grammar under test
 set -uo pipefail
 
@@ -28,14 +9,9 @@ MANIFEST="$ROOT/plugins/plugin-quality/retirements.yaml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
-# The builder clears the inherited git environment for the whole suite: an
-# inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect `git init` into the
-# caller's repository.
 # shellcheck source=lib/fixture-tree.sh
 . "$ROOT/scripts/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TEST_TMPDIR=""
 fixture_tree::build TEST_TMPDIR --label plugin-quality-sim
 
@@ -65,8 +41,6 @@ assert_files_eq() {
 
 TAB=$(printf '\t')
 
-# run_resolver <root> — OUT/ERR/RC via globals (a command substitution for RC
-# would run in a subshell and keep the previous case's value).
 OUT=""
 ERR=""
 RC=0

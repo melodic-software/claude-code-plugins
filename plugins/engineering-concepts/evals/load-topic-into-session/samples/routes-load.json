@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:load", "args": "modularity"}}],
+      "why": "qualified name with args"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "load"}}],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: the likely no-plugin run"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:lookup", "args": "modularity"}}],
+      "why": "the sibling skill"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:loader"}}],
+      "why": "a different skill whose name starts with load"
+    }
+  ]
+}

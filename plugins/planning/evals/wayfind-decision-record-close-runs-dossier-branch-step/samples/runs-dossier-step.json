@@ -2,13 +2,49 @@
   "pass": [
     {
       "answer": "Before the closing comment: /work-items:track dossier-branches #800. Closing comment: decisions ... Dossier branch dossier/800-session-token-storage: report from the dossier-branch step.",
-      "why": "meets the rule"
+      "why": "the step for map 800"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: dossier-branches 800\n```\nIts report goes in the closing comment.",
+      "why": "args-block form"
+    },
+    {
+      "answer": "1. `/work-items:track dossier-branches https://github.com/acme/auth/issues/800`\n2. Post the closing comment with that report.",
+      "why": "map given by URL"
+    },
+    {
+      "answer": "A decision record has no container, so map close runs /work-items:track dossier-branches 800 before the closing comment.",
+      "why": "reason with no in front, then the call"
+    },
+    {
+      "answer": "The user is present, so without --unattended: /work-items:track dossier-branches 800",
+      "why": "without names the dropped flag, not the step"
     }
   ],
   "fail": [
     {
       "answer": "Closing comment posted; the dossier branch stays until the destination's container closes.",
-      "why": "breaks the rule"
+      "why": "keeps the branch for a container"
+    },
+    {
+      "answer": "/work-items:track dossier-branches 801",
+      "why": "wrong map"
+    },
+    {
+      "answer": "Running git push origin --delete dossier/800-session-token-storage, then closing #800.",
+      "why": "no dossier-branch step"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Skipping `/work-items:track dossier-branches 800`: the branch stays until a container closes.",
+      "why": "wrong: names the call only to skip it"
+    },
+    {
+      "answer": "Closing comment posted. `/work-items:track dossier-branches 800` can run later, once a container closes.",
+      "why": "wrong: defers the step to a container close"
     }
   ]
 }

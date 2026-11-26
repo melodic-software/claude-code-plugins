@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for telemetry-upsert.sh against a PATH-stub `gh` that keeps the issue's
-# comments in a JSON file and applies the script's own --jq programs with real jq.
-# SKIPs (exit 0) when jq is unavailable.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,7 +64,6 @@ cat >"$TMP/bin/getent" <<'GETENT'
 printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
 GETENT
 chmod +x "$TMP/bin/getent"
-# A version-manager shim for node needs the real HOME; check 95 runs with another one.
 cat >"$TMP/bin/node" <<NODE
 #!/usr/bin/env bash
 HOME="$HOME" exec "$(command -v node)" "\$@"
@@ -121,7 +117,6 @@ setup "[$(c 41 "$OLD")]"
 STUB_READBACK="$SENT"$'\n''cycle: 6 old body here' run
 check "stale read-back: exit 6" 6 "$?"
 
-# 4. Read-back that differs only by CRLF line endings still verifies.
 setup '[]'
 STUB_READBACK="$(printf '%s\n%s\n' "$SENT" "$PAYLOAD" | sed 's/$/\r/')" run
 check "CRLF read-back: exit 0" 0 "$?"
@@ -170,8 +165,6 @@ run
 check "pre-prefixed body: exit 0" 0 "$?"
 check "pre-prefixed body: one sentinel" "$SENT"$'\n'"$PAYLOAD" "$(body_of 101)"
 
-# 13. An unsubstituted ${user_config.…} placeholder falls back to a random id kept
-# in the body dir, stable across runs, and never the hostname: the marker is public.
 setup '[]'
 # shellcheck disable=SC2016 # the literal placeholder is the input under test
 INST='${user_config.lane_instance}' run
@@ -214,8 +207,6 @@ check "foreign only: exit 0" 0 "$?"
 check "foreign only: own comment 4 created" "$SENT"$'\n'"$PAYLOAD" "$(body_of 4)"
 check "foreign only: foreign comment untouched" "$FOREIGN" "$(body_of 3)"
 
-# 19. App installation token: GET user fails and --app-slug names the writer; a
-#     lower-id sentinel comment by a user account is foreign to it.
 setup "[$(c 3 "$FOREIGN" lane-op), $(c 41 "$OLD" 'lane-app[bot]')]"
 STUB_USER=fail STUB_AUTHOR='lane-app[bot]' run --app-slug lane-app
 check "app token: exit 0" 0 "$?"
@@ -241,7 +232,6 @@ STUB_USER=fail STUB_AUTHOR='real-app[bot]' STUB_FAIL=delete run --app-slug wrong
 check "wrong slug, delete fails: exit 5" 5 "$?"
 check "wrong slug, delete fails: says remove by hand" 1 "$(grep -c 'deleting comment 101 failed' "$STUB_DIR/err")"
 
-# 21. GET user reports a bot: its [bot] login is the identity.
 setup "[$(c 3 "$FOREIGN"), $(c 41 "$OLD" 'lane-app[bot]')]"
 STUB_USER='{"login":"lane-app","type":"Bot"}' run
 check "bot user: exit 0" 0 "$?"
@@ -271,8 +261,6 @@ run --app-slug 'bad"slug'
 check "invalid slug: exit 3" 3 "$?"
 check "invalid slug: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 25b. A surviving ${user_config.lane_app_slug} placeholder or an empty slug is
-#      absent: with GET user failing, the identity stays unresolved (exit 5).
 # shellcheck disable=SC2016 # the literal placeholder is the input under test
 for slug in '${user_config.lane_app_slug}' ''; do
   setup "[$(c 41 "$OLD")]"
@@ -287,7 +275,6 @@ run --app-slug '${user_config.lane_app_slug}'
 check "placeholder slug, user token: exit 0" 0 "$?"
 check "placeholder slug, user token: comment 41 updated" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 
-# 26. An Enterprise Managed User login (underscore shortcode) is a valid identity.
 setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD" 'jane_acme')]"
 STUB_USER='{"login":"jane_acme","type":"User"}' run
 check "EMU login: exit 0" 0 "$?"
@@ -343,7 +330,6 @@ check "body-dir that is a home-dir ancestor: exit 3" 3 "$?"
 check "body-dir that is a home-dir ancestor: names the rule" 1 "$(grep -q 'home dir' "$STUB_DIR/err" && echo 1)"
 check "body-dir refusals: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 20. CDPATH cannot redirect a relative body path to a same-named dir in the safe dir.
 setup '[]'
 mkdir -p "$TMP/cwd/sub" "$STUB_DIR/sub"
 cp "$STUB_DIR/body.txt" "$TMP/cwd/sub/body.txt"
@@ -371,7 +357,6 @@ check "home path in body: names the rule" 1 "$(grep -q "names a machine path or 
 check "home path in body: no rotation advice" 0 "$(grep -c rotate "$STUB_DIR/err")"
 check "home path in body: path never printed" 0 "$(grep -cF -- "$FAKE_HOME" "$STUB_DIR/err")"
 
-# 23. A GitHub-hosted runner's home path reveals nothing, so it is posted.
 setup '[]' "cycle: 7 log=/ho""me/runner/work/app/app/run.log"
 run
 check "hosted-runner home path: exit 0" 0 "$?"

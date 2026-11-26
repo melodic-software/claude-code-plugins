@@ -120,6 +120,7 @@ function fakeApi({
   config = CONFIG,
   pins = PINS,
   activity = pushedOneByOne(commits),
+  wholeCommits = null,
 } = {}) {
   const calls = { comments: [], closed: [], issues: [], activity: [] };
   const pull = { number: 7, state, head: { sha: head, ref: "dependabot/npm_and_yarn/x-2.0.0" }, commits: commits.length, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
@@ -129,9 +130,9 @@ function fakeApi({
     failClose,
     getPull: async () => ({ ...pull }),
     listIssueComments: async () => comments,
-    compare: async () => compare,
+    compareWhole: async (base, head) => (base === BASE ? { commits: wholeCommits ?? commits } : compare),
     listPullFiles: async () => files,
-    listPullCommits: async () => commits,
+    listPullCommits: async () => (commits.length >= 250 ? commits.slice(0, 250) : commits),
     listActivity: async (ref) => {
       calls.activity.push(ref);
       return activity;
@@ -292,8 +293,6 @@ test("a fix whose comparison is not listed whole is invalid", async () => {
     "no files key": landed({ files: undefined }),
     "a files value that is not a list": landed({ files: { filename: "x" } }),
     "no commits key": landed({ commits: undefined }),
-    "300 files, the listing's limit": landed({ files: many(300) }),
-    "250 commits, the listing's limit": landed({ total_commits: 250, commits: Array.from({ length: 250 }, () => laneCommit()) }),
     "fewer commits listed than the total": landed({ total_commits: 2 }),
     "no total": landed({ total_commits: undefined }),
   };
@@ -306,9 +305,12 @@ test("a fix whose comparison is not listed whole is invalid", async () => {
   assert.equal((await go(under, fix())).escalationReason, "", "299 files is a whole listing");
 });
 
-test("a .github/ path in the 300th file of a capped listing is still invalid", async () => {
-  const files = Array.from({ length: 300 }, (_, i) => ({ filename: i === 299 ? ".github/workflows/x.yml" : `f${i}.js` }));
-  assert.equal((await go(fakeApi({ head: FIX, compare: landed({ files }) }), fix())).escalationReason, "dependency-invalid");
+test("a fix read whole past the compare listing's 300 files and 250 commits is judged on every file and commit", async () => {
+  const lane = Array.from({ length: 251 }, () => laneCommit());
+  const files = Array.from({ length: 301 }, () => modified("package.json"));
+  assert.deepEqual(await go(fakeApi({ head: FIX, compare: landed({ files, commits: lane, total_commits: 251 }) }), fix()), { escalationReason: "", skipReason: "" });
+  const workflow = [...files.slice(0, 300), modified(".github/workflows/x.yml")];
+  assert.equal((await go(fakeApi({ head: FIX, compare: landed({ files: workflow, commits: lane, total_commits: 251 }) }), fix())).escalationReason, "dependency-fix-refused", "a .github/ path in the 301st file");
 });
 
 test("a fix commit's date is bounded by the run.json start time, with no Actions API read", async () => {
@@ -840,6 +842,16 @@ test("a merge verdict whose commits are not listed whole is refused", async () =
   const stale = fakeApi({ head: FIX, commits: [dependabotCommit(HEAD)] });
   await refused(stale, "a listing whose last commit is not the head");
   await refused(fakeApi({ head: FIX, commits: [] }), "no commits");
+});
+
+test("a merge verdict on more commits than the pull request listing's 250 reads them all from the comparison", async () => {
+  const commits = Array.from({ length: 251 }, (_, i) => dependabotCommit(i === 250 ? HEAD : (i + 1).toString(16).padStart(40, "0")));
+  const api = fakeApi({ commits });
+  assert.deepEqual(await go(api, runOf()), { escalationReason: "", skipReason: "" });
+  assert.match(api.calls.comments.join("\n"), /verdict=merge/);
+  const short = fakeApi({ commits, wholeCommits: commits.slice(1) });
+  assert.equal((await go(short, runOf())).escalationReason, "dependency-fix-refused", "a comparison that lists fewer commits than the pull request holds");
+  assert.doesNotMatch(short.calls.comments.join("\n"), /verdict=merge/);
 });
 
 test("a merge verdict reads the base's dependabot.yml itself", async () => {

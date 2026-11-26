@@ -15,15 +15,8 @@ LIB="$REPO/plugins/session-telemetry/hooks/session-log-lib.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder and slog_category_to assign through a nameref or printf -v, and
-# the linter cannot follow either; declaring the out-vars here is what tells it
-# (SC2154) the names are written.
 f="" c=""
 
-# The block the saved table must produce, written out by hand: the table's 33
-# events minus the five the generator excludes (WorktreeCreate, MessageDisplay,
-# FileChanged, PreToolUse, PostToolUse), in byte order, one hook per event,
-# each behind its category's wants() but SessionEnd, which carries retention.
 EXPECTED_BLOCK="  if (wants('config')) on('classic.ConfigChange', record).catch(passThrough)
   if (wants('config')) on('classic.CwdChanged', record).catch(passThrough)
   if (wants('config')) on('classic.DirectoryAdded', record).catch(passThrough)
@@ -130,8 +123,6 @@ else
   fail "register.ts outside the markers changed"
 fi
 
-# hooks.json: the seeded event-log rows are gone and nothing else moved. The
-# real hooks.json carries no event-log row (ADR 0065), so it is the oracle.
 if [[ "$(hooks_of "$H/hooks.json")" == "$(hooks_of "$REAL_HOOKS_JSON")" ]]; then
   ok "hooks.json keeps no event-log or retention row and every other handler"
 else

@@ -27,9 +27,6 @@ else
   fail "fixture commit under a signing host config: rc=$rc output: $out"
 fi
 
-# `timeout --foreground` signals only its direct child, the runner (without it,
-# timeout signals its whole process group), so the runner must forward the
-# signal to the test it started rather than leave it running.
 printf '%s\n' 'echo $$ >"$(dirname "$0")/sleep.pid"' 'exec sleep 30' >"$c/tests/sleep.test.sh"
 for sig in TERM INT HUP; do
   rm -f "$c/tests/sleep.pid"

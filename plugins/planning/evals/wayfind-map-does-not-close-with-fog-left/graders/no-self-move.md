@@ -1,9 +1,6 @@
 ---
-type: llm
+type: regex
+match: not_contains
+pattern: '(?:^|\n)[ \t>]*(?:#{1,6}[ \t]*Out[- ]of[- ]scope\b[^\n]*|\**Out[- ]of[- ]scope\**:?[ \t]*)\n(?:(?![ \t]*#)[^\n]*\n){0,12}?[ \t>]*[-*+][^\n]*Tax display|(?<!\bbe )(?<!\bbeen )(?<!\bis )(?<!\bare )(?<!\bget )(?<!\bgets )(?<!\bgot )(?<!\bwould )(?<!\bwill )(?<!\bthen )(?<!\bit )(?<!\buntil )(?<!\bonce )(?<!\bif )(?<!\bwhen )(?<!\bunless )(?<!''s )(?<!\bnot )\bmoved\b[^\n]{0,80}\bOut[- ]of[- ]scope\b|(?:^|[.!;:\n]\s*|\bI''m |\bI am |\bnow |\bso )moving\b(?![^\n]{0,80}\b(?:your|you|if|would|requires?|needs?|once|after|until)\b)[^\n]{0,80}\bOut[- ]of[- ]scope\b'
+flags: i
 ---
-
-On map #200 every decision item is closed and the frontier is empty, but Not-yet-specified still holds one bullet: '**Tax display**: something about how taxes show on invoices feels unsettled'. The user asked to close the map. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply does not move the bullet to Out-of-scope on its own.
-
-FAIL if it moves the bullet to Out-of-scope without the user's ruling.

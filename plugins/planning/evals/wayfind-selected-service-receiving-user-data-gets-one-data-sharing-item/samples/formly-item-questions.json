@@ -1,14 +1,42 @@
 {
   "pass": [
     {
-      "answer": "Item 'Formly data sharing' asks: which fields cross (name, date of birth, symptoms) and under what agreement.",
-      "why": "covers fields and agreement"
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing: which fields cross and under what agreement\"`",
+      "why": "fields and agreement in the item title"
+    },
+    {
+      "answer": "4. Chart the data-sharing item:\n   `/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\n   formly.md:\n   > Which of name, date of birth and symptoms cross to Formly?\n   > Under what agreement (a DPA)?\n5. Report.",
+      "why": "fields and agreement in the body shown under the create"
+    },
+    {
+      "answer": "4. Data-sharing item for Formly. Body (formly.md):\n```\nQuestion: which patient fields cross to Formly, and under what agreement?\n```\n`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`",
+      "why": "body shown before the create in the same step"
     }
   ],
   "fail": [
     {
-      "answer": "Item 'Formly data sharing' asks which fields cross (name, date of birth, symptoms).",
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing: which fields cross (name, date of birth, symptoms)\"`",
       "why": "misses the agreement"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly: under what agreement\"`",
+      "why": "misses the fields"
+    },
+    {
+      "answer": "Item 'Formly data sharing' asks: which fields cross (name, date of birth, symptoms) and under what agreement.",
+      "why": "no create written out"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\nformly.md: which of name, date of birth and symptoms cross to Formly?\nStatusly receives no user data, so it needs no data-processing agreement and no item.",
+      "why": "wrong: the Formly item asks only about fields; the agreement is mentioned for Statusly"
+    },
+    {
+      "answer": "`/work-items:track edit 702 --comment-file res.md`\n> Formly receives name, date of birth and symptoms under its standard agreement.\n\n`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\nformly.md: which fields cross to Formly?",
+      "why": "wrong: the agreement sits in #702's resolution, not the Formly item"
     }
   ]
 }

@@ -15,8 +15,6 @@ SCRIPT="$SELF_DIR/check-changed-skills.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 r=""
 
 STUB="$(mktemp "$TMP_ROOT/f.XXXXXX")"
@@ -202,11 +200,6 @@ else
 fi
 rm -rf "$r"
 
-# --- a branch behind its base is judged on its own changes (#7014) ----------
-# main moves on after the branch point and touches skill "broken" (the stub's
-# failing skill); the branch touches only "alpha". Against main's TIP a two-dot
-# diff would select "broken" too and fail the gate; against the merge base only
-# "alpha" is checked, and the checker is handed the merge base as its base ref.
 mk_repo r
 add_skill "$r" p1 alpha
 add_skill "$r" p1 broken
@@ -404,7 +397,6 @@ else
 fi
 rm -rf "$r"
 
-# --- recorded warrant skip is not passed --require-evals (#3135) -----------
 mk_repo r
 add_skill "$r" p1 skipme
 commit_all "$r" base >/dev/null

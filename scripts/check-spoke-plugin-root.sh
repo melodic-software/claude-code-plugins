@@ -1,35 +1,7 @@
 #!/usr/bin/env bash
-# Check that no skill spoke names a bundled path through ${CLAUDE_PLUGIN_ROOT}
-# or ${CLAUDE_SKILL_DIR}.
-#
-#   scripts/check-spoke-plugin-root.sh          discover: list every offender
-#   scripts/check-spoke-plugin-root.sh --check  same, explicit form matching the
-#                                               sibling gates (exit 1 on any offender)
-#
-# The rule: a file under plugins/*/skills/*/{context,reference,references,actions}/
-# (recursive) that contains the literal ${CLAUDE_PLUGIN_ROOT} or
-# ${CLAUDE_SKILL_DIR} is an offender unless scripts/spoke-plugin-root-baseline.txt
-# lists it as `<path> <count>` and the file holds exactly <count> occurrences of
-# the two tokens combined. A count above the baseline is a new hit; a count
-# below it, or a file that is gone or no longer holds either token, is stale.
-# Either way the entry must be updated or removed, so the baseline only shrinks.
-#
-# WHY. The Read tool substitutes no variables. A spoke is read, not executed, so
-# a ${CLAUDE_PLUGIN_ROOT}/skills/... or ${CLAUDE_SKILL_DIR}/scripts/... path in
-# it reaches the model verbatim and resolves against nothing. SKILL.md is
-# expanded by the harness, so it renders <skill-dir> from ${CLAUDE_SKILL_DIR} and
-# its spokes cite <skill-dir>/scripts/... (plugins/harness-memory is the working
-# pattern).
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): one finding per offending file on stderr, the clean-run statement
-# on stdout. Exit: 0 clean, 1 any offender, 2 environment or usage (bad
-# argument, unreadable baseline, malformed entry, failed search).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
-# script (the pre-push hook runs a merge-base copy against the branch).
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 
 case "${1:-}" in
@@ -71,7 +43,6 @@ if ((${#dirs[@]} > 0)); then
     printf 'check-spoke-plugin-root: grep failed (rc=%d) while searching the spokes\n' "$rc" >&2
     exit 2
   fi
-  # -o -H prints one `<file>:<token>` line per occurrence.
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
     f="${line%:*}"
@@ -107,6 +78,6 @@ if ((${#offenders[@]} == 0)); then
 fi
 
 printf '%s\n' "${offenders[@]}" | LC_ALL=C sort -u >&2
-printf 'check-spoke-plugin-root: %d offender(s); see the header of %s for the fix pattern.\n' \
-  "${#offenders[@]}" "scripts/${0##*/}" >&2
+printf 'check-spoke-plugin-root: %d offender(s); the Read tool expands no variables, so cite the path as <skill-dir>/... (SKILL.md renders <skill-dir>), or update a stale scripts/spoke-plugin-root-baseline.txt entry.\n' \
+  "${#offenders[@]}" >&2
 exit 1

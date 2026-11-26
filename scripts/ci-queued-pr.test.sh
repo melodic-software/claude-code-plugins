@@ -2,13 +2,6 @@
 # test-scope: .github/actions/log-api-budget/api-budget.bash
 # test-scope: .github/scripts/pr-merge/retry-call.bash
 # test-scope: .github/scripts/pr-merge/rate-stop.bash
-# Runs the `Resolve the queued pull request` step body of
-# .github/workflows/pr-require-checks.yml under bash -e, against stub `gh` and
-# `git`.
-#
-# The merge group's head ref is gh-readonly-queue/<base>/pr-<number>-<base sha>.
-# The step must take the head commit from the pull request, never the ref's
-# SHA: the Dependabot fragment exemption reads the commits up to that head.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -26,8 +19,6 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 NAME='Resolve the queued pull request'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 
-# gh prints STUB_PR for any call, after a rate-limit header block when called
-# with -i, as the step's api-budget wrapper calls it; git logs its arguments.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash

@@ -1,0 +1,74 @@
+/*
+  html-tokens.css: the shipped token layer for the marketplace's rendered HTML
+  views. It holds the palette, the type stacks (--serif, --sans, --mono), the
+  border and radii, and the per-scheme palette roles (--bg, --fg, --panel,
+  --muted, --accent, --link, --focus) for the light scheme and for the dark
+  scheme, which applies under prefers-color-scheme unless data-theme pins light,
+  and whenever data-theme pins dark.
+
+  Provenance: token values are derived from the "Unreasonable Effectiveness of
+  HTML" example gallery pages (Copyright 2026 Anthropic PBC, published under
+  Apache-2.0 SPDX headers); the official anthropics/html-effectiveness template
+  repo mirrors the same templates under MIT with no per-file headers. This
+  derived file is distributed under this repository's MIT license with that
+  attribution.
+
+  Sharing contract: this is the canonical copy of the token values.
+  lib/html-chrome.html opens its style element with the rules below,
+  re-indented and otherwise verbatim, and lib/html-tokens.test.sh fails when
+  the two differ. Edit the values here,
+  copy them into the chrome, then rerun scripts/sync-shared-copies.sh. The
+  design is ADR 0133 (docs/adr/0133-let-a-consumer-brand-rendered-pages-through-one-shared-token-layer.md).
+*/
+:root {
+  --ivory: #FAF9F5;
+  --slate: #141413;
+  --clay: #D97757;
+  --oat: #E3DACC;
+  --olive: #788C5D;
+  --white: #FFFFFF;
+  --gray-100: #F0EEE6;
+  --gray-300: #D1CFC5;
+  --gray-500: #87867F;
+  --gray-700: #3D3D3A;
+  --serif: ui-serif, Georgia, serif;
+  --sans: system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --clay-deep: #A0512E;
+  --clay-soft: #E89B7E;
+  --radius-panel: 12px;
+  --radius-row: 8px;
+  --border: 1.5px solid var(--gray-300);
+  --bg: var(--ivory);
+  --fg: var(--slate);
+  --panel: var(--white);
+  --muted: var(--gray-500);
+  --accent: var(--clay);
+  --link: var(--clay-deep);
+  --focus: var(--clay-deep);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: var(--slate);
+    --fg: var(--ivory);
+    --panel: var(--gray-700);
+    --muted: var(--gray-300);
+    --accent: var(--clay);
+    --border: 1.5px solid var(--gray-500);
+    --link: var(--clay-soft);
+    --focus: var(--clay-soft);
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+  --bg: var(--slate);
+  --fg: var(--ivory);
+  --panel: var(--gray-700);
+  --muted: var(--gray-300);
+  --accent: var(--clay);
+  --border: 1.5px solid var(--gray-500);
+  --link: var(--clay-soft);
+  --focus: var(--clay-soft);
+  color-scheme: dark;
+}

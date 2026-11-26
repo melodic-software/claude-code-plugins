@@ -1,143 +1,6 @@
 #!/usr/bin/env bash
-# Run every shell test suite in the repository and fail if any fails: the
-# plugin contract tests (plugins/**/*.test.sh), the repo-local hook tests
-# (.claude/hooks/*.test.sh), and the suites of the repository's own scripts and
-# shared libraries (scripts/**/*.test.sh, lib/**/*.test.sh, .github/**/*.test.sh). The repo-local
-# hooks are tracked policy with the same test conventions as plugin hooks, and
-# a gate's self-test is a suite like any other: CI reaches it through the
-# affected-suite selector, not through a step of its own.
-#
-#   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]
-#                               [--suites-from FILE] [--budget SECONDS]
-#                               [--timings FILE] [SUITE ...]
-#   scripts/run-plugin-tests.sh --list [--root DIR]
-#
-# Each test is self-contained and cwd-independent; an individual test SKIPs
-# (exit 0) when an optional tool it needs (shellcheck, shfmt, ...) is absent, so
-# this runner gates on real failures without requiring every tool to be present.
-#
-# Skips are never silent: the summary names every suite that skipped and why,
-# so "exit 0 with skips" reads differently from "all green" (a suite whose
-# only coverage skipped would be indistinguishable from a pass).
-# --strict-skips turns any optional SKIP into a failure, for callers that have
-# provisioned the full toolchain and want a skip to mean the environment
-# regressed rather than that a tool is optional.
-#
-# PARALLELISM. --jobs N (default 1, or $PLUGIN_TEST_JOBS) runs up to N suites
-# at once. The suites are spawn-bound: on a 4-vCPU Linux runner four at a time
-# is the shape that pays, while on Windows Git Bash a parallel run measured
-# sublinear (the box saturates on process creation; see the foot of
-# scripts/affected-tests.sh), which is why the default stays 1 and CI passes the
-# count explicitly. The suites named in scripts/run-plugin-tests-serial.txt
-# assert wall-clock ceilings or drive concurrency probes of their own and fail
-# spuriously under load, so they run one at a time, before the parallel group,
-# and never overlap anything. An entry there that matches no discovered suite
-# is an error rather than an ignored line: an allowlist must not outlive what
-# it excuses. The parallel group starts longest first by
-# scripts/suite-seconds.txt ($PLUGIN_TEST_SECONDS_LIST overrides it), so a long
-# suite never starts late and outlasts the rest of its leg; a suite the file
-# does not list counts 0 and keeps its sorted place after the listed ones.
-#
-# BUDGET. --budget SECONDS is the wall clock a run is timed against, for the
-# local affected-only run (scripts/check-affected.sh --tests). A run over it
-# reports the overrun and its three slowest suites, and does not fail. It ends
-# nothing by itself: only PLUGIN_TEST_DEADLINE, below, stops a suite launching.
-# Each suite gets a share, and a suite that takes longer than its share fails
-# by name, unless PLUGIN_TEST_SHARE_WARN_ONLY=1 (below): the share is its scripts/suite-seconds.txt median times
-# $PLUGIN_TEST_SHARE_MARGIN (default 3), and never less than
-# $PLUGIN_TEST_SHARE_DEFAULT seconds (default 30), the share of a suite the file
-# does not list. The medians are CI runner measurements, so the margin covers a
-# slower host and a loaded job pool. Each selected suite the file does not list
-# is named on stderr with the default share it gets. With
-# PLUGIN_TEST_SHARE_WARN_ONLY=1, which scripts/check-affected.sh sets for the
-# local gate, a suite over its share is a warning instead, so a suite that
-# passes on a loaded host does not fail the run; a suite that fails still does.
-# Without --budget no suite is timed against a share, which is how CI runs.
-#
-# DEADLINE. PLUGIN_TEST_DEADLINE=<epoch seconds> ends a run at that time: a suite
-# not started by then never starts, and suites already running finish. Each
-# suite left prints `LEFT TO CI: <suite>`, and goes on a line of the file
-# PLUGIN_TEST_LEFT_FILE names. A suite left is neither a pass nor a failure, so
-# it changes the exit code only by not failing. Only scripts/check-affected.sh
-# sets these, because CI's test lanes run every suite they select. No suite
-# inherits them, so a run a suite starts for itself keeps every suite it selects.
-#
-# SUITE BUDGET. On GitHub Actions (GITHUB_ACTIONS=true) every suite is timed
-# against a per-suite threshold and ceiling: over the threshold it prints
-# `SLOW:` and a warning annotation and the run still passes; over the ceiling
-# it fails by name. PLUGIN_TEST_SUITE_BUDGET=1 turns the check on anywhere, 0
-# off. The numbers and their basis are in scripts/README.md "Per-suite time budget in
-# CI"; PLUGIN_TEST_SUITE_WARN and PLUGIN_TEST_SUITE_CEILING override them. A
-# suite with a row in scripts/suite-budget-exceptions.txt
-# ($PLUGIN_TEST_SUITE_EXCEPTIONS overrides it) has that row's ceiling instead;
-# an entry there gets the serial list's stale guard.
-#
-# SHARDING. --shard I/N keeps leg I of N of the sorted discovered suites, by
-# index modulo N, with scripts/affected-tests.sh's semantics: the union of legs
-# 0..N-1 is the whole corpus and no two legs share a suite, so N runners run it
-# once between them. The allowlist's stale guard still reads the full discovery,
-# each leg runs its own serial subset first, and a leg that draws nothing exits 0.
-#
-# Output stays readable under parallelism. Every suite's output is captured to
-# a file and replayed as one block under a lock (`=== path ===`, the suite's own
-# lines, `PASS:` or `FAIL:`, then `TIME: path <seconds>s`), so blocks from
-# concurrent suites never interleave and the per-suite markers that CI log
-# tooling reads survive. The block is printed the moment its suite finishes, so
-# progress stays visible. The TIME line prints on every run, with or without
-# --budget, so a CI log shows each suite's wall seconds. A failed suite's
-# annotation in the summary is followed by a `    | `-prefixed excerpt of its capture:
-# its FAIL and `not ok` lines, then its last 80 lines.
-#
-# ADVISORY SUITES. With PLUGIN_TEST_ADVISORY=1 a failing suite named in
-# scripts/run-plugin-tests-advisory.txt prints a ::warning:: and its FAIL block
-# but does not fail the run. CI sets the variable only for runs on main, so a
-# pull request or merge group still fails on it. Without the variable the list
-# changes nothing. Its entries get the serial list's stale guard. The warning
-# carries a per-run nonce printed before any suite block (`Advisory nonce:`).
-#
-# --list prints the discovered corpus, one repo-relative path per line, and
-# runs nothing. scripts/selection-audit.sh reads it to learn which suites the
-# full-corpus fallback runs.
-#
-# --root DIR discovers suites under DIR instead of the repository (test
-# injection for this runner's own suite, scripts/run-plugin-tests.test.sh).
-#
-# --suites-from FILE runs exactly the newline-delimited suite paths in FILE
-# instead of the discovered corpus. This is how scripts/affected-tests.sh hands
-# its SELECTION here rather than carrying a second parallel runner of its own:
-# the worker, the print lock, the summary and the serial allowlist are this
-# file's, and there is one place where a suite is spawned concurrently. The
-# allowlist's stale guard still reads the FULL discovery, exactly as it does
-# under --shard, so a serial entry that the selection did not draw is still
-# matched. An empty file is not an error -- "this selection had nothing to
-# run" is a real answer. A SUITE argument is a repo-relative suite path that
-# joins that selection, so `run-plugin-tests.sh <suite>` runs that suite alone.
-#
-# TIMINGS. --timings FILE writes one tab-separated row per suite that reported,
-# in corpus order, once every suite has finished: the suite path, its wall
-# seconds (the number its TIME line prints) and its exit code. FILE is
-# overwritten. Linux and Git Bash write the same format, and the baseline built
-# from it is docs/test-wall-clock-baseline.md. Without the flag
-# nothing is written and nothing else changes.
 set -uo pipefail
 
-# Fixture isolation. `-C` only changes directory, while an exported
-# ABSOLUTE GIT_DIR overrides repository DISCOVERY, and `git config`'s default
-# --local scope follows whatever gitdir that resolves to. A suite spawned with
-# those inherited writes its throwaway fixture identity into the CALLER's
-# .git/config — shared by every worktree of the clone — instead of into its
-# fixture. What exported them does not matter, so this runner clears them
-# unconditionally and isolates every suite it spawns, whatever idiom that suite
-# uses internally.
-#
-# GIT_CONFIG is cleared here too and is a DISTINCT path rather than another
-# spelling of the same one: it replaces the file the `git config` subcommand
-# reads and writes, so a fixture identity write follows it regardless of -C, of
-# GIT_DIR, and of the working directory.
-#
-# CLAUDE_PLUGIN_DATA is cleared with them. A Bash-run caller can inherit
-# another plugin's value, and a hook suite would then write its digest or
-# skip-notice into that directory. A suite that needs a data dir sets its own.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG CLAUDE_PLUGIN_DATA
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -158,20 +21,6 @@ usage() {
   exit 2
 }
 
-# --worker <NNNNNN:suite>: internal. Runs ONE suite with its output captured
-# under $PLUGIN_TEST_LOG_DIR, records its exit status and wall seconds beside
-# the capture, then prints the whole block under the print lock. Reached only from the dispatch
-# below; it exits 0 regardless of the suite's result so xargs never stops
-# early, and the summary reads the recorded status instead.
-#
-# The capture is keyed on the suite's INDEX, not on its path. A path-derived
-# key (slashes rewritten to a separator) collides whenever a path segment
-# already contains that separator: plugins/foo__bar/baz.test.sh and
-# plugins/foo/bar__baz.test.sh flatten to the same name, and two suites in one
-# parallel batch would then overwrite each other's capture and exit status.
-# The index is unique by construction, so no path shape can collide. It is
-# fixed-width and colon-terminated, which also keeps a path containing a colon
-# from being split at the wrong separator.
 if [[ "${1:-}" == "--worker" ]]; then
   keyed="${2:?--worker needs an indexed suite path}"
   key="${keyed%%:*}"
@@ -196,9 +45,6 @@ if [[ "${1:-}" == "--worker" ]]; then
   secs=$((SECONDS - start))
   printf '%s\n' "$secs" >"$log.secs"
   printf '%s\n' "$rc" >"$log.rc"
-  # noclobber opens the lock with O_EXCL inside bash itself. `mkdir` is not a
-  # safe lock everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both
-  # succeed.
   until (set -o noclobber && : >"$log_dir/.print-lock") 2>/dev/null; do sleep 0.02; done
   echo "=== $suite ==="
   cat "$log.out"
@@ -468,9 +314,6 @@ else
   echo "Runner git: unavailable"
 fi
 echo "Suites: ${#tests[@]} (${#serial_suites[@]} serial, ${#parallel_suites[@]} across up to $jobs job(s))"
-# A fresh nonce, printed before any suite runs and repeated in each advisory
-# warning, so babysit_postmerge.py credits only the runner's own warnings. It
-# is never exported: no suite can print it.
 advisory_nonce=''
 if ((${#is_advisory[@]} > 0)); then
   advisory_nonce="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
@@ -486,10 +329,6 @@ if [[ ${#parallel_suites[@]} -gt 0 ]]; then
 fi
 run_seconds=$((SECONDS - run_start))
 
-# suite_annotate <error|warning> <suite> <message>: one annotation titled by the
-# suite, so a log reader can group results by suite. Escapes follow actions/toolkit
-# packages/core/src/command.ts (escapeProperty, escapeData): % \r \n in both,
-# and : , in the title property, since a suite path may contain either.
 suite_annotate() {
   local level="$1" title="$2" msg="$3"
   title="${title//%/%25}"
@@ -503,12 +342,6 @@ suite_annotate() {
   echo "::$level title=$title::$msg"
 }
 
-# fail_excerpt <suite> <capture>: a failed suite's FAIL and `not ok` lines (the
-# first 20) and its last 80 lines, printed again under its annotation, since its
-# block can sit thousands of lines above the summary. Every line starts with
-# `    | `: the runner trims leading spaces before it looks for `::`, so the bar
-# keeps a reprinted workflow command from running again, and keeps a runner
-# marker (`FAIL: <suite>`, `=== <suite> ===`) from being read again.
 fail_excerpt() {
   if grep -q -E '^(FAIL|not ok)' "$2"; then
     printf '  Failing lines of %s:\n' "$1"
@@ -529,8 +362,6 @@ left=()
 for i in "${!tests[@]}"; do
   t="${tests[$i]}"
   log="$log_dir/${suite_keys[$i]}"
-  # A suite can reach this marker, so it never outranks a recorded result, and it
-  # means nothing on a run with no deadline.
   if [[ ! -f "$log.rc" && -n "${PLUGIN_TEST_DEADLINE:-}" && -f "$log.left" ]]; then
     left+=("$t")
     continue
@@ -568,7 +399,6 @@ for i in "${!tests[@]}"; do
   if ((suite_budget)); then
     ceiling="${exception_ceiling[$t]:-$suite_ceiling}"
     if ((secs > ceiling)); then
-      # `FAIL: <suite>` alone on its line, the shape log readers attribute.
       printf 'FAIL: %s\n  took %ss, over its %ss per-suite ceiling\n' "$t" "$secs" "$ceiling" >&2
       suite_annotate error "$t" "$t took ${secs}s, over its ${ceiling}s per-suite ceiling (scripts/README.md, Per-suite time budget in CI)"
       failed=1

@@ -1,28 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: .claude-plugin/marketplace.json
-# Black-box contract test for the check-only carve-out assertions in
-# validate-plugin-contracts.mjs.
-#
-# Self-contained: builds a throwaway plugins/ tree plus a fixture
-# config-cascade registry in an mktemp dir and runs the real validator with
-# that dir as cwd, which is the only root the validator knows (it reads
-# process.cwd() and resolves nothing relative to its own location, so no copy
-# of the script is needed). Mutates only its own mktemp dir.
-#
-# A green run on the current repo tree is not evidence these assertions work:
-# no shipping plugin violates them. The fixtures below prove the gate goes red
-# on the four failure classes #3137 named -- a plugin taking the carve-out
-# while owning a registered tracked-config surface, a carve-out-shaped skill
-# that never declares the carve-out, a userConfig-only claim from a manifest
-# declaring no userConfig, and a registry the gate can no longer read -- and
-# the paired inverses prove it stays green for the two conforming shapes.
-#
-# A fixture root always trips the unrelated repo-wide checks (the shared
-# lifecycle artifact protocol and its five plugin copies), so every assertion
-# here is on the presence or absence of a SPECIFIC failure line, never on the
-# aggregate exit code. The one exit-code assertion is the closing real-corpus
-# case.
-#
 # test-scope: plugins/*/retirements.yaml plugins/*/skills/*/evals/evals.json plugins/*/evals/*/case.yaml plugins/*/evals/*/prompt.md plugins/*/evals/*/graders/*.md plugins/*/reference/artifact-protocol.md
 # shellcheck disable=SC2016  # fixture rows are literal markdown; the backticks they carry are content, never expansion
 set -uo pipefail
@@ -37,15 +14,9 @@ fi
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
-# The builder clears the inherited git environment for the whole suite: the
-# append-only cases below run `git init` in the fixture, and an inherited
-# GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would redirect those writes into the
-# caller's repository.
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TMP=""
 fixture_tree::build TMP --label plugin-contracts
 
@@ -57,8 +28,6 @@ REGISTRY_MISSING='the consumer-config registry is required'
 REGISTRY_UNSTRUCTURED='must carry an "## Implementers" section'
 REGISTRY_EMPTY='named no surfaces'
 
-# fail() prints `- <path>: <message>`. A warn-only path would still contain
-# the message substring but would not carry the leading `- ` bullet.
 has_fail_line() {
   local needle="$1"
   grep -qE "^- .*: .*${needle}" <<<"$out"
@@ -173,8 +142,6 @@ for spelling in false no maybe '"true"'; do
   fi
 done
 
-# --- 2. #3137's own failure class: the same skill, but the plugin owns a
-#        tracked consumer config the registry records. ---------------
 reset_fixture
 write_registry alpha
 make_plugin alpha alpha_api_key
@@ -517,8 +484,6 @@ action: remove-line
 note: one line
 YAML
 
-# Process substitution, not a pipe: a piped malformed_case runs in a subshell
-# and its ok/fail counts never reach the report.
 malformed_case "a separator with trailing whitespace is not a record break" 'not a "key: value" line' < <({
   cat <<'YAML'
 id: alpha-r001
@@ -1538,7 +1503,6 @@ write_arg_body() {
   } >"$TMP/plugins/$plugin/skills/$skill/SKILL.md"
 }
 
-# --- 8c. Unescaped $N in a skill that admits arguments (#3543). -------------
 ARG_DOC='skill-authoring/SKILL.md'
 
 reset_fixture
@@ -1592,10 +1556,6 @@ else
   ok "\$ARGUMENTS without an indexed placeholder passes"
 fi
 
-# --- 8d. argument-hint house style (#3542). --------------------------------
-# Empty fails; over budget and malformed warn without a failure bullet; a
-# conforming hint is silent. write_arg_body's "-" omits the key, so empty
-# hints are written as the literal quoted string.
 HINT_DOC='docs/contracts/argument-hint/README.md'
 HINT_MALFORMED='argument-hint is malformed'
 
@@ -1606,7 +1566,6 @@ hint_case() {
   out="$(run_fixture)"
 }
 
-# The first three are built-in command hints from code.claude.com/docs/en/commands.
 for good in "[on|off]" \
   "[low|medium|high|xhigh|max|ultra] [--fix] [--comment] [pr#|branch|path]" \
   "[reconnect <server>|enable|disable [<server>|all]]" \

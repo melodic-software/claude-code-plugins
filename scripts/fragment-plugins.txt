@@ -38,6 +38,7 @@ docs-naming
 domain-driven-design
 dometrain
 education
+engineering-concepts
 eol-normalizer
 evals
 event-storming

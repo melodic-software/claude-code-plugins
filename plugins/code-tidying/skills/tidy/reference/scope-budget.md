@@ -2,7 +2,7 @@
 
 How tidy applies the PR scope budget. The target, the hard cap, and what counts toward them belong to the shared PR scope budget convention, shipped with this plugin as [`<plugin-root>/reference/pr-scope-budget.md`](../../../reference/pr-scope-budget.md); read the numbers there. This file holds what the convention leaves to each adopter: tidy's overflow priority order and its deferred-items template.
 
-If a lane consistently overflows the cap, the lane scope is too coarse. Split the lane, don't raise the cap.
+If a focus area consistently overflows the cap, the focus area scope is too coarse. Split the focus area, don't raise the cap.
 
 ---
 
@@ -53,7 +53,7 @@ Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt fou
 - Tidying: <one of the named tidyings from reference/tidyings.md, e.g., "Beck 5: Reading Order">
 - Files: `<path/to/file1.ext>` (<estimated LOC delta>), `<path/to/file2.ext>` (<estimated LOC delta>)
 - Estimated scope: ~<N> LOC across <M> files; should fit the scope budget's target as a future tidy run.
-- Lane: `<lane-name>`
+- Focus area: `<area-name>`
 
 ## Acceptance criteria
 
@@ -69,12 +69,12 @@ Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt fou
 ### Labels (when supported by the issue tracker)
 
 - `type:refactor` / `type:docs` / `type:chore` / `type:test` (matches the Conventional Commits type)
-- `area:<lane-name>`
+- `area:<area-name>`
 - `tidy-deferred` (umbrella label so all tidy-deferred issues are findable)
 
 ### Frequency
 
-No upper bound on deferred issues per run. If a single run defers >10 items, that's worth noting to the user. The lane may be scope-creep'd or the watch-for list may be too aggressive.
+No upper bound on deferred issues per run. If a single run defers >10 items, that's worth noting to the user. The focus area may be scope-creep'd or the watch-for list may be too aggressive.
 
 ---
 

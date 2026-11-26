@@ -3,6 +3,26 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **`/code-tidying:tidy` hunts focus areas, not lanes.** "Lane" now means only a worker that serves
+  one pipeline stage, so the glob-scoped slice tidy rotates through is a focus area. Project focus
+  areas live in `.claude/tidy-areas/<area>.md` (move any `.claude/tidy-lanes/` files there), the
+  required section `## Lane-specific extra exclusions` is now `## Area-specific extra exclusions`,
+  the bundled focus areas are under `skills/tidy/areas/`, and the templates are
+  `templates/*-area.template.md`. `/code-tidying:setup` checks and scaffolds the new paths, and
+  `batch-simplify` and `audit-dead-code` use the same word.
+
+## [0.60.1] - 2026-11-26
+
+### Fixed
+
+- The comment lint treats a TypeScript triple-slash directive written with a space, `/// <reference path="..." />`, as a directive; before, only `///<reference` matched.
+
+- The comment lint no longer judges a changed line whose trailing comment text is byte-identical to that of the base line it replaces, so a formatter that respaces or rewraps the code before an existing comment passes. A comment whose text changed, a new trailing comment and a full-line comment still fail. Lines pair in order within a hunk that adds as many lines as it removes; in any other hunk, a line pairs only with the one removed code line carrying the same comment, and otherwise it is judged.
+
 ## [0.60.0] - 2026-11-25
 
 ### Added

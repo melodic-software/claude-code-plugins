@@ -158,7 +158,6 @@ class ScriptRoutesTests(unittest.TestCase):
         for path in SCRIPTS.glob("*.py"):
             for match in self.ROUTE_RE.finditer(path.read_text(encoding="utf-8")):
                 route = match.group(1)
-                # A single `{repo}` after `repos/` holds owner and name.
                 route = re.sub(r"^repos/\{[^{}]+\}(?=/(?!\{)|$)", "repos/x/x", route)
                 found.add(re.sub(r"\{[^{}]*\}", self.SENTINEL, route))
         return sorted(found)

@@ -3,6 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.1.2] - 2026-11-26
+
+### Changed
+
+- Shared `html-chrome.html` synced: its palette, type stacks and per-scheme roles are now kept equal to the marketplace's shared token layer, it gains an `--accent` role set to the existing clay value, and its header no longer rules out a team or user theme override. Pages look the same; no other change to this plugin.
+
+## [6.1.1] - 2026-11-26
+
+### Changed
+
+- `/architecture:principles` gotchas point at the subagent docs' available-tools section for which tools a subagent holds, instead of stating that a subagent may lack the Skill tool.
+
 ## [6.1.0] - 2026-11-25
 
 ### Added

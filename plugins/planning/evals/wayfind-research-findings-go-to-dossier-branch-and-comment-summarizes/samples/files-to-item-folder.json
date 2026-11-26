@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Create dossier/300-map-search-rewrite from the default branch, link it in Notes, copy the findings and sidecars to 305-pick-the-index-library/.",
+      "why": "findings and sidecars go into the item's folder"
+    },
+    {
+      "answer": "```\ncp .work/pick-the-index-library/RESEARCH.md .work/pick-the-index-library/*.sidecar.md 305-pick-the-index-library/\ngit add 305-pick-the-index-library/\n```\nThe findings file and its sidecars now sit in the item's folder.",
+      "why": "shell form of the copy into the item folder"
+    },
+    {
+      "answer": "Copy RESEARCH.md and its sidecars into the `305-pick-the-index-library` folder on the branch.",
+      "why": "names the folder in backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Paste the findings into the map body.",
+      "why": "no item folder"
+    },
+    {
+      "answer": "Create dossier/305-pick-the-index-library/ and push RESEARCH.md and its sidecars there.",
+      "why": "a branch per item, not a folder on the map's branch"
+    },
+    {
+      "answer": "Copy RESEARCH.md into 305-pick-the-index-library/.",
+      "why": "the sidecars are left out"
+    },
+    {
+      "answer": "Copy RESEARCH.md and its sidecars to the root of dossier/300-map-search-rewrite.",
+      "why": "not the item's own folder"
+    },
+    {
+      "answer": "Research returned RESEARCH.md plus two sidecars. Copy RESEARCH.md into 305-pick-the-index-library/ on dossier/300-map-search-rewrite.",
+      "why": "wrong: mentions the sidecars but copies only the findings file"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    }
+  ]
+}

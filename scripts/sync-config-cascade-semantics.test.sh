@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for sync-config-cascade-semantics.py.
-#
-# Every case runs the generator against a fixture README under a mktemp dir, passed
-# as the positional override, so the real README is only ever read (last case).
 # shellcheck disable=SC2016  # fixture rows are literal markdown table text with backticks, never expanded
 set -uo pipefail
 
@@ -34,7 +30,6 @@ write_readme() {
 
 run() { python3 "$SUT" "$@" "$readme" 2>&1; }
 
-# edit_readme <sed-expression>: in-place edit that also works with BSD sed.
 edit_readme() { sed "$1" "$readme" >"$readme.tmp" && mv "$readme.tmp" "$readme"; }
 
 expect() {

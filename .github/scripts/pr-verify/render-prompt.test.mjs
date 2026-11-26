@@ -57,6 +57,7 @@ const REPLACED_BASH_STEP = [
   "    note=${note//DATA_DIR/$DATA}",
   "    note=${note//CHUNK_INDEX/$k}",
   "    note=${note//CHUNK_COUNT/$CHUNKS}",
+  "    note=${note//CHUNK_BUDGET/$((300000 / CHUNKS / 3))}",
   "    note=$'\\n'$note",
   "  fi",
   '  prompt=${prompt//CHUNK_NOTE/"$note"}',
@@ -64,7 +65,7 @@ const REPLACED_BASH_STEP = [
   "done",
 ].join("\n");
 
-for (const chunks of [1, 3, 12]) {
+for (const chunks of [1, 3, 12, 75]) {
   test(`pin: writePrompts over the real prompt.md and chunk-note.md matches the bash step byte for byte, ${chunks} chunk(s)`, (t) => {
     const dir = tempDir(t);
     const data = path.join(dir, "data");

@@ -52,7 +52,6 @@ class JsComplexityShareTest(unittest.TestCase):
         posix = self.stubs / "lizard"
         posix.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{fake}" "$@"\n')
         posix.chmod(0o755)
-        # Windows finds the fake through PATHEXT.
         (self.stubs / "lizard.cmd").write_text(f'@"{sys.executable}" "{fake}" %*\n')
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
 
@@ -94,7 +93,6 @@ class JsComplexityShareTest(unittest.TestCase):
         self.write("plugins/b/lib/shared.mjs", "// cc=30\n// cc=1\n")
         self.write("tools/canon.js", "// cc=2\n")
         self.write("plugins/a/tools/canon.js", "// cc=40\n")
-        # A name that reads as a lizard option is still a file.
         self.write("src/-oevil.js", "// cc=22\n")
         self.write("plugins/evals/lib/prod.mjs", "// cc=5\n")
         self.write("plugins/a/evals/case.js", "// cc=50\n")

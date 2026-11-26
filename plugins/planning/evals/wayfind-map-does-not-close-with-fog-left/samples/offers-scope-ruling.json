@@ -2,13 +2,49 @@
   "pass": [
     {
       "answer": "Or rule it out of scope; it then moves to Out-of-scope with your reason.",
-      "why": "meets the rule"
+      "why": "offers the ruling"
+    },
+    {
+      "answer": "3. You can rule **Tax display** out of scope; I'd move it to Out-of-scope with the reason you give.",
+      "why": "user rules it"
+    },
+    {
+      "answer": "- **Out of scope**: only by your explicit ruling, with a reason.",
+      "why": "label first"
+    },
+    {
+      "answer": "If you decide it is out of scope, it moves to Out-of-scope with your reason.",
+      "why": "decide paraphrase"
     }
   ],
   "fail": [
     {
       "answer": "Option: a mop-up interview item.",
-      "why": "breaks the rule"
+      "why": "no ruling"
+    },
+    {
+      "answer": "Fog never moves into Out-of-scope for being unphrasable, so the map stays open.",
+      "why": "quotes the rule without offering the ruling"
+    },
+    {
+      "answer": "I can't rule it out of scope.",
+      "why": "negated"
+    },
+    {
+      "answer": "Your ruling isn't needed here: Tax display is plainly out of scope, so it goes to Out-of-scope.",
+      "why": "wrong: waves off the user's ruling and decides scope itself"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "You asked me to close the map, so I've decided Tax display is out of scope.",
+      "why": "wrong: the model rules scope itself"
+    },
+    {
+      "answer": "You called it fog; I'm calling it out of scope.",
+      "why": "wrong: the model makes the scope call"
     }
   ]
 }

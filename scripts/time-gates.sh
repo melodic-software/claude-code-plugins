@@ -1,33 +1,4 @@
 # shellcheck shell=bash
-# Time the five gate scripts a change usually pays for locally, each once in its
-# typical single-diff invocation, and write one tab-separated row per gate in
-# the scripts/run-plugin-tests.sh --timings format: the gate path, its wall
-# seconds and its exit code. The baseline built from it is
-# docs/test-wall-clock-baseline.md.
-#
-#   bash scripts/time-gates.sh --timings FILE [--base REF]
-#
-# It has no #! line and runs through bash, so it needs no executable bit.
-#
-# The invocations, each run from the repository root:
-#   scripts/check-purged-em-dashes.sh --check
-#   scripts/check-changed-skills.sh <base>
-#   scripts/check-changelog-parity.sh --check-bump <base>
-#   plugins/skill-quality/scripts/check-skill.sh check, with
-#     CHECK_SKILL_SKILLS_ROOT at plugins/skill-quality/skills,
-#     CHECK_SKILL_BASE_REF at <base> and CHECK_SKILL_SKIP_MARKDOWNLINT=1
-#   plugins/planning/scripts/check-open-questions.sh --ledger <a register of two
-#     answered rows, written to a temporary file>
-# <base> is --base REF, default origin/main.
-#
-# Seconds carry milliseconds (from EPOCHREALTIME; whole seconds where the shell
-# lacks it), since a gate can finish in under a second on Linux. A gate's exit
-# code is recorded, not judged: a gate that fails on this tree still took that
-# long. Exit 0 once every row is written; 2 usage, a missing gate, or an
-# unwritable FILE. A gate's own output goes to stderr.
-#
-# TIME_GATES_ROOT runs the gates under another tree (test injection for
-# scripts/time-gates.test.sh).
 set -uo pipefail
 
 usage() {
@@ -89,9 +60,6 @@ printf '%s\n' '# /interview Checklist' '' '## Steps' '' '- [x] Step 1' '' \
   '- Q2 | answered | round 1 | What format? | markdown' \
   '' '## Decision tree' '' '- [ ] something' >"$ledger"
 
-# now_us: sets `now` to the wall clock in microseconds, in this shell rather
-# than a command substitution, so the reading costs no process spawn.
-# EPOCHREALTIME's decimal point follows the locale, so both separators go.
 now=0
 now_us() {
   if [[ -n "${EPOCHREALTIME:-}" ]]; then

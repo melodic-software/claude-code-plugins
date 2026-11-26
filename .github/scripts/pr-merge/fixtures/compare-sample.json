@@ -1,0 +1,46 @@
+{
+  "status": "ahead",
+  "ahead_by": 150,
+  "behind_by": 0,
+  "total_commits": 150,
+  "merge_base_commit": {
+    "sha": "f9c1cdef0be239947b97d476b5fe488f537e3577"
+  },
+  "commits": [
+    {
+      "sha": "0f5a9cab9bad5c72012e995e96488881253686eb",
+      "parents": [
+        {
+          "sha": "f9c1cdef0be239947b97d476b5fe488f537e3577"
+        }
+      ]
+    },
+    {
+      "sha": "0c1bda8345331d0d6082b6e80b5dc0a67fb6a733",
+      "parents": [
+        {
+          "sha": "0f5a9cab9bad5c72012e995e96488881253686eb"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "filename": ".changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md",
+      "status": "added"
+    },
+    {
+      "filename": ".changes/user-interface/chore-comment-sweep-v060-a9938050.md",
+      "status": "removed"
+    },
+    {
+      "filename": ".github/actions/resolve-config/resolve-config.mjs",
+      "status": "modified"
+    },
+    {
+      "filename": ".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json",
+      "status": "renamed",
+      "previous_filename": ".github/standards/github-actions-conventions/vocabulary.json"
+    }
+  ]
+}

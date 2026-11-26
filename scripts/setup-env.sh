@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Install what this repository's tests and lane work need, on demand:
-#   - Python at .python-version in a venv, with pytest and the rest of the
-#     hash-pinned wheels in .github/requirements-ci.txt (as pr-require-checks.yml
-#     installs them);
-#   - ShellCheck at the release CI lints with, in the venv's bin, when the one
-#     on PATH is another version (Linux x86_64 only; elsewhere it says so);
-#   - the locked Node packages (npm ci at the root and in scripts/ci-deps);
-#   - Playwright's Chromium, only with --playwright or SETUP_ENV_PLAYWRIGHT=1
-#     (https://playwright.dev/docs/ci: install browsers on each run, no cache).
-#
-#   bash scripts/setup-env.sh [--playwright] [--node] [--root DIR]
-#
-# --node runs only the Node step (scripts/check-affected.sh --tests uses it).
-#
-# Re-running is cheap: each step records the hash of the file it installed
-# from and skips while that hash matches. The venv goes to SETUP_ENV_VENV, else
-# <root>/.work/venv. Under GitHub Actions the venv and node_modules/.bin are
-# added to GITHUB_PATH for later steps.
 set -euo pipefail
 
 playwright=${SETUP_ENV_PLAYWRIGHT:-0}
@@ -31,7 +13,17 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h | --help)
-      sed -n '2,20p' "$0"
+      cat <<'EOF'
+Install what this repository's tests and lane work need: the Python venv, ShellCheck, the locked Node packages.
+
+  bash scripts/setup-env.sh [--playwright] [--node] [--root DIR]
+
+  --playwright  also install Playwright's Chromium (or SETUP_ENV_PLAYWRIGHT=1)
+  --node        run only the Node step
+  --root DIR    repository root (default: the current git top level)
+
+Exit: 0 installed; 2 an unknown argument; any other nonzero is a failed install step.
+EOF
       exit 0
       ;;
     *)
@@ -100,9 +92,6 @@ else
   echo "setup-env: installed .github/requirements-ci.txt into $venv"
 fi
 
-# ShellCheck: scripts/check-affected.sh passes --rcfile, which the runner
-# image's ShellCheck predates, and .shellcheckrc enables checks only the
-# release CI pins knows.
 shellcheck_version=0.11.0
 shellcheck_sha256=b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
 have=""
@@ -134,7 +123,6 @@ fi
 
 node_packages
 
-# Playwright: --with-deps installs the browser's system libraries and needs sudo.
 if [[ "$playwright" = 1 ]]; then
   if sudo -n true 2>/dev/null; then
     node node_modules/playwright/cli.js install --with-deps chromium

@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 5, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "Unattended work mode with only needs-human items left reports the empty frontier and stops instead of resolving an item for the human it was asked to (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: td-dry-run-no-side-effects
-description: 'dry-run on the shell-tooling lane presents prioritized findings for a script with obvious tidyings but edits nothing, creates no branch or commit, and files no tracker item'
+description: 'dry-run on the shell-tooling focus area presents prioritized findings for a script with obvious tidyings but edits nothing, creates no branch or commit, and files no tracker item'
 tags: [tidy, dry-run, side-effects]
 expected_outcome: 'The final message presents a findings table naming the unused legacy_mode variable (and other candidates) in scripts/build-report.sh plus a proposed PR scope; no file changed, no Edit or Write call, no branch, commit, push, or gh issue/PR call.'
 context:

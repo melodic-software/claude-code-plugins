@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Charting the notification overhaul. Labels: `/work-items:track wayfind-labels`; open maps: `/work-items:track list --label 'wayfind: map' --state open` returned none.",
+      "why": "start-of-action lookups only"
+    },
+    {
+      "answer": "Destination first: a PRD for the notification overhaul? Nothing is created until you say yes.",
+      "why": "asks the destination"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply claims nothing"
+    },
+    {
+      "answer": "Charting the overhaul. Once the map exists, working its first item starts with a claim.",
+      "why": "describes later work, claims nothing"
+    },
+    {
+      "answer": "After you say yes, run /planning:wayfind work to pick up the first item.",
+      "why": "names the later work step, claims nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "/work-items:track start 41\nWorking 'Choose the delivery channels'.",
+      "why": "claims an existing item"
+    },
+    {
+      "answer": "```\nSkill: work-items:track\nargs: start <first-frontier-item>\n```",
+      "why": "claims an item, args block"
+    },
+    {
+      "answer": "I won't chart this; it needs an interactive session.",
+      "why": "refuses to chart"
+    },
+    {
+      "answer": "Working the first frontier item of the open notifications map: claiming it now.",
+      "why": "wrong: claims an item in prose"
+    },
+    {
+      "answer": "This is too big to chart in one go; narrow it first.",
+      "why": "wrong: refuses to chart"
+    }
+  ]
+}

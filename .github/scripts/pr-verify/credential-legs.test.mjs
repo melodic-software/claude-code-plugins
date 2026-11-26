@@ -64,6 +64,10 @@ function legSteps(ran, at, end, legStep) {
   });
   if (handoff) Object.assign(ctx, { [`steps.${legStep}${at}.outcome`]: end.clean ? "success" : "failure", [`steps.${legStep}${at}.outputs.clean`]: end.clean ? "true" : "" });
   if (end.kind === "verdict") ctx["steps.verdict.outcome"] = "success";
+  for (const [k, v] of Object.entries(ctx)) {
+    const later = /^steps\.(judge|key-leg|sub-leg)-\d+\.(.*)$/.exec(k);
+    if (later) ctx[`steps.${later[1]}-chunks.${later[2]}`] = v;
+  }
   return ctx;
 }
 

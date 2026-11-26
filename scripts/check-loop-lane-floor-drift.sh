@@ -1,108 +1,6 @@
 #!/usr/bin/env bash
-# Gate: the rate-limits "operable floor" block must stay identical across
-# every surface that inlines it.
-#
-#   scripts/check-loop-lane-floor-drift.sh            report drift, exit 1 if any
-#   scripts/check-loop-lane-floor-drift.sh --check    same (explicit form, matches sibling gates)
-#   scripts/check-loop-lane-floor-drift.sh --list     list the source and every registered consumer
-#
 # Exit: 0 every consumer matches the source, 1 drift or a stale registration,
 # 2 usage or a prerequisite this gate cannot verify around.
-#
-# WHY. docs/contracts/loop-lane/README.md section 6 orders every consuming
-# lane body to INLINE the floor, because an installed plugin cannot read a
-# sibling plugin's files at runtime: the values have to be in the lane body or
-# the lane cannot apply them. Inlining is therefore the design, not a defect,
-# and deduplicating into lib/ with a sync script would break exactly the
-# installed-plugin isolation the inlining exists to preserve. What the design
-# needs instead is a CHECK.
-#
-# WHY NOT check-cross-plugin-source-drift.sh. That gate is blind here twice
-# over, and neither blindness is a bug in it. It skips SKILL.md by basename
-# (a per-plugin skill body is not a shared-source copy), and it clusters on
-# identical path-within-plugin, whereas these copies sit at six unrelated
-# paths in five directories. Path-shaped clustering structurally cannot find
-# this set, so the consumer list below is explicit and hand-maintained.
-#
-# TWO CONFORMANCE MODES, declared per consumer, because the copies are not all
-# free to be byte-identical:
-#
-#   exact   the extracted block must equal the source block byte for byte.
-#           Every prose consumer is in this mode.
-#   values  the block must match after normalization (blockquote markers,
-#           backticks and emphasis stripped, whitespace runs flattened). This
-#           is for the launch-prompt templates under prompts/loops/, which
-#           carry the floor inside a blockquote re-wrapped to a narrower
-#           column. Their VALUES are still asserted; only the wrapping is free.
-#
-# A consumer is never silently downgraded to `values`: the mode is written next
-# to the path, so widening one is a reviewable edit rather than a lucky match.
-#
-# THE REGISTRY IS NOT THE CORPUS. A gate that only ever looks where it is told
-# cannot see the copy nobody told it about: a new lane inlines the floor, its
-# author does not add the entry, the six registered paths still agree, CI is
-# green, and the next contract change strands that seventh copy. That is the
-# same blindness that produced the drift this gate exists for, one level up,
-# and it is the false-green shape docs/contracts/liveness-assertion/ names.
-#
-# So before comparing anything, every TRACKED file is scanned for the floor's
-# opening bullet and any carrier outside the registry FAILS. Discovery uses the
-# same anchored marker the comparison does, so the blockquoted launch-prompt
-# shape is not a hole in the scan. Tracked, not on-disk, is deliberate and is
-# the corpus every sibling gate in scripts/ reads: a scratch file in someone's
-# working tree ships to nobody, and staging it is what makes it a copy this
-# repository carries.
-#
-# Discovery does not REPLACE the registry, it bounds it. The registry still
-# carries each consumer's comparison mode, which no scan can infer, and still
-# fails on an entry pointing at nothing.
-#
-# WHAT THE TWO DIRECTIONS ACTUALLY GUARANTEE, stated exactly. Every tracked
-# file carrying the floor is either a registered consumer, compared here, or a
-# member of the DATA_CARRIERS list below. Both lists live in this file, both are
-# printed on every run, and both fail on an entry that has gone stale. So the
-# checked set equals the carried set minus a finite, enumerated, reviewed
-# exception list — not "provably equal" with an unbounded escape hatch hiding
-# in the phrasing, which is the shape this whole gate exists to refuse.
-#
-# LIVENESS IS ASSERTED, NOT ASSUMED. The extractor keys on a marker line, and a
-# marker that stops matching would make every block empty and every comparison
-# trivially equal — a gate that passes forever over surfaces it no longer
-# reads. So the source block is checked against the bullet labels the floor
-# is made of before any consumer is compared, an empty extraction fails,
-# and a marker occurring more than once in a file fails as ambiguous rather
-# than resolving to the first hit. The repo-wide scan carries the same burden
-# of proof, and a search that silently returned nothing would report a clean
-# corpus over a scan that never ran: the source carries the marker by
-# definition, so a discovery pass that does not find the source is a broken
-# scan and exits 2.
-#
-# KNOWN LIMIT, and it is shared by both halves rather than a discovery-only
-# hole. The marker test anchors at column 1, allowing exactly one optional
-# `> ` blockquote prefix. A copy indented under an outer list (three spaces), or
-# nested two blockquote levels deep (`> > `), matches neither discovery nor
-# comparison: it is invisible to the scan AND, if such a path were registered,
-# it would fail as MISSING FLOOR rather than being compared. The second half of
-# that is the saving grace — the limit cannot produce a silent pass on a
-# registered consumer, only on an unregistered copy written in a shape no
-# existing carrier uses. Widening the anchor to arbitrary leading whitespace
-# would let a prose quotation of the bullet register as a carrier, so the
-# narrow anchor is the deliberate trade. A consumer that needs a nested shape
-# adds the shape to the anchor here, in the same change.
-#
-# LIVENESS-ASSERTION CONVENTION, taxonomy row **Gate / classifier**
-# (docs/contracts/liveness-assertion/README.md). That row requires the verdict
-# to reflect the state actually read, and fail-closed on ambiguity rather than
-# green on a misread signal. This gate satisfies it through the core contract's
-# **fail loud** limb, not the agent-readable one: it blocks. Every input it
-# cannot resolve exits 2 (no git, no work tree, unreadable source, a marker that
-# matches zero or many times, a source block missing a floor bullet, a discovery
-# pass that cannot even find the source), every finding exits 1, and findings go
-# to stderr on a blocking exit where CI and an agent both read them. There is no
-# path on which this script reports success over a comparison it did not make.
-#
-# Test injection, defaulting to this repository:
-#   LOOP_LANE_FLOOR_ROOT   repository root to read
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -169,10 +67,6 @@ extract_block() {
   ' marker="$MARKER" "$1"
 }
 
-# How many times the marker opens a block in $1. More than one is ambiguous.
-# awk with index() rather than grep: the marker is a literal containing `*`,
-# `(` and `)`, which a regex engine would read as syntax, and -F would give up
-# the line anchor this needs.
 count_markers() {
   awk '
     index($0, marker) == 1 || index($0, "> " marker) == 1 { n++ }
@@ -188,10 +82,6 @@ discover_carriers() {
   done < <(git grep -I --name-only -z --fixed-strings -e "$MARKER" -- . 2>/dev/null)
 }
 
-# Print the listed reason this file is a data carrier, if it is one. Exit
-# status 0 means listed, 1 means not. Nothing in the file under test is read:
-# the answer comes only from DATA_CARRIERS above, so a file cannot exempt
-# itself by containing any particular text.
 carrier_exemption() {
   local candidate="$1" entry
   for entry in "${DATA_CARRIERS[@]}"; do

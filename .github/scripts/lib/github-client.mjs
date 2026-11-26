@@ -233,7 +233,7 @@ const withHeader = (headers, name, value) => {
 
 /**
  * Wraps a fetch so a GET of a URL whose answer `store` keeps, under the same
- * Authorization header, is sent with that answer's ETag as If-None-Match, and
+ * Authorization and Accept headers, is sent with that answer's ETag as If-None-Match, and
  * a 304 to it returns the kept body and headers as a 200, with the 304's
  * x-ratelimit-* headers. GitHub answers 304 only while the data has not
  * changed, and a 304 to an authorized request does not count against the
@@ -247,7 +247,7 @@ export function conditionalReads(send, store = readStore()) {
   return async function read(url, init = {}) {
     const key =
       (init.method ?? "GET") === "GET" && headerOf(init.headers, "if-none-match") === undefined
-        ? createHash("sha256").update(`${headerOf(init.headers, "authorization") ?? ""}\n${url}`).digest("hex")
+        ? createHash("sha256").update(`${headerOf(init.headers, "authorization") ?? ""}\n${headerOf(init.headers, "accept") ?? ""}\n${url}`).digest("hex")
         : null;
     const kept = key === null ? undefined : store.get(key, String(url));
     const response = await send(url, kept === undefined ? init : { ...init, headers: withHeader(init.headers, "If-None-Match", kept.etag) });
@@ -274,7 +274,9 @@ export const ETAG = Symbol.for("github.etag");
  * with resendLimited. A call while the rate guard's latch holds its pool past
  * the wait budget throws RateLimitStop without a request. Pass
  * `resendOnce: true` only for a write that is safe to send twice
- * (RESEND_ONCE). A success with no body returns null; a list keeps its Link
+ * (RESEND_ONCE). An `Accept` header naming a media type that is not JSON (such
+ * as application/vnd.github.diff) returns the answer's text. Otherwise a
+ * success with no body returns null; a list keeps its Link
  * header under Symbol.for("github.link"), and an object its ETag under ETAG.
  * A repeated GET is a conditional read (conditionalReads) on `store`, by
  * default kept for this client, and in the GITHUB_READ_STORE directory too
@@ -314,6 +316,9 @@ export function createGitHub({
       throw new GitHubError(response.status, `${method} ${apiPath}`, await responseDetail(response));
     }
     const text = await response.text();
+    if (headers.Accept !== undefined && !headers.Accept.includes("json")) {
+      return text;
+    }
     if (text === "") {
       return null;
     }

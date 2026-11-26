@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-plugin-imports.sh, against a throwaway git tree with two
-# plugins, alpha and beta, per case.
-#
-#   bash scripts/check-plugin-imports.test.sh
-#
 # The cases hold shell, JS, Python and PowerShell source as literal data.
 # shellcheck disable=SC2016
 set -uo pipefail

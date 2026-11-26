@@ -647,22 +647,118 @@ export async function branchActivity(read, repo, branch) {
 
 const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastEditedAt === null;
 
-export function sameNetChange(decided, current) {
-  const net = (compare) => {
-    const files = compare?.files;
-    if (!Array.isArray(files) || files.length >= 300) return null;
+export function sameNetChange(decided, current, diffs = null) {
+  const net = (files, capped) => {
+    if (!Array.isArray(files) || (capped && files.length >= COMPARE_FILES)) return null;
     const byName = new Map();
     for (const f of files) {
       if (typeof f?.filename !== "string" || typeof f.patch !== "string" || byName.has(f.filename)) return null;
-      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch]));
+      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch, f.modes ?? null]));
     }
     return byName;
   };
-  const [then, now] = [net(decided), net(current)];
+  let [then, now] = [net(decided?.files, true), net(current?.files, true)];
+  if (Array.isArray(diffs) && diffs.length === 2) {
+    const parsed = diffs.map(diffFiles);
+    if (!diffCovers(decided, parsed[0]) || !diffCovers(current, parsed[1])) return false;
+    [then, now] = parsed.map((files) => net(files, false));
+  }
   return then !== null && now !== null && then.size === now.size && [...then].every(([name, value]) => now.get(name) === value);
 }
 
-const listedCommits = (compare) =>
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+export const COMPARE_FILES = 300;
+
+export const needsDiff = (compare) =>
+  Array.isArray(compare?.files) && (compare.files.length >= COMPARE_FILES || compare.files.some((f) => typeof f?.patch !== "string"));
+
+export const DIFF = "application/vnd.github.diff";
+
+export function diffCovers(compare, files) {
+  if (!Array.isArray(files) || !Array.isArray(compare?.files) || files.length < compare.files.length) return false;
+  const byName = new Map(files.map((f) => [f.filename, f]));
+  return compare.files.every((f) => byName.has(f?.filename) && (f.previous_filename ?? null) === (byName.get(f.filename).previous_filename ?? null));
+}
+
+export async function wholeCompare(read, readDiff, path) {
+  const whole = { ...(await read(`${path}?per_page=100&page=1`)) };
+  if (Array.isArray(whole.commits)) {
+    whole.commits = [...whole.commits];
+    for (let page = 2; whole.commits.length < whole.total_commits && whole.commits.length === (page - 1) * 100; page += 1) {
+      const more = (await read(`${path}?per_page=100&page=${page}`))?.commits;
+      if (Array.isArray(more)) whole.commits.push(...more);
+    }
+  }
+  if (readDiff && Array.isArray(whole.files) && whole.files.length >= COMPARE_FILES) {
+    const files = diffFiles(await readDiff(path));
+    if (files === null) throw new Error(`the diff of ${path} does not parse`);
+    if (!diffCovers(whole, files)) throw new Error(`the diff of ${path} names fewer files than its listing`);
+    whole.files = files;
+  }
+  return whole;
+}
+
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+export const wholeCommits = async (read, path, answer) =>
+  Array.isArray(answer?.commits) && Number.isInteger(answer.total_commits) && answer.commits.length < answer.total_commits ? wholeCompare(read, null, path) : answer;
+
+const capDiffs = async (github, repo, ranges, compares) =>
+  compares.some(needsDiff) ? Promise.all(ranges.map((range) => github("GET", `/repos/${repo}/compare/${range}`, undefined, { Accept: DIFF }))) : null;
+
+export function diffFiles(text) {
+  if (typeof text !== "string") return null;
+  const lines = text.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  const sections = [];
+  for (const line of lines) {
+    if (line.startsWith("diff --git ")) sections.push([line.slice("diff --git ".length)]);
+    else if (sections.length) sections.at(-1).push(line);
+    else return null;
+  }
+  const files = [];
+  for (const [names, ...rest] of sections) {
+    const file = { status: "modified", modes: [] };
+    const sides = {};
+    let at = 0;
+    for (; at < rest.length && !rest[at].startsWith("@@"); at += 1) {
+      const line = rest[at];
+      const [, key, value] = /^(old mode|new mode|new file mode|deleted file mode|rename from|rename to|copy from|copy to|similarity index|dissimilarity index|index|---|\+\+\+|Binary files|GIT binary patch)(?: (.*))?$/.exec(line) ?? [];
+      if (key === undefined) return null;
+      if (key.endsWith("mode")) file.modes.push(line);
+      if (key === "new file mode") file.status = "added";
+      if (key === "deleted file mode") file.status = "removed";
+      if (/^(rename|copy) /.test(key)) {
+        if (!value || value.startsWith('"')) return null;
+        file.status = key.startsWith("rename") ? "renamed" : "copied";
+        sides[key.endsWith("from") ? "from" : "to"] = value;
+      }
+      if (key === "---" || key === "+++") {
+        const path = value?.includes(" ") ? value.replace(/\t$/, "") : value;
+        const prefix = key === "---" ? "a/" : "b/";
+        if (path !== "/dev/null" && !path?.startsWith(prefix)) return null;
+        if (path !== "/dev/null") sides[key === "---" ? "old" : "new"] = path.slice(2);
+      }
+      if (key === "Binary files" || key === "GIT binary patch") {
+        at = rest.length;
+        file.binary = true;
+      }
+    }
+    const half = (names.length - 5) / 2;
+    const same = names.slice(2, 2 + half);
+    const symmetric = names === `a/${same} b/${same}` && !same.startsWith('"') ? same : undefined;
+    file.filename = sides.to ?? sides.new ?? sides.old ?? symmetric;
+    if (typeof file.filename !== "string") return null;
+    if (sides.from !== undefined) file.previous_filename = sides.from;
+    const hunks = file.binary ? [] : rest.slice(at);
+    if (!file.binary) file.patch = hunks.join("\n");
+    if (!hunks.length && file.status === "modified" && file.modes.length) file.status = "changed";
+    delete file.binary;
+    files.push(file);
+  }
+  return files;
+}
+
+export const listedCommits = (compare) =>
   Array.isArray(compare?.commits) && Number.isInteger(compare.total_commits) && compare.total_commits === compare.commits.length ? compare.commits : null;
 
 function newCommits(then, now) {
@@ -686,13 +782,14 @@ export function baseMergesOnly(then, now, from, inBase = new Set()) {
   );
 }
 
-export function baseMergeCarry(then, now, from, inBase = []) {
-  return baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now);
+export function baseMergeCarry(then, now, from, inBase = [], diffs = null, changed = undefined) {
+  const whole = diffs === null || (Array.isArray(diffs) && Number.isInteger(changed) && diffFiles(diffs[1])?.length === changed);
+  return whole && baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now, diffs);
 }
 
-export function exactBaseCarry(merges, based, trees = null) {
+export function exactBaseCarry(merges, based, trees = null, diffs = null) {
   const forward = (compare, statuses) => statuses.includes(compare?.status) && compare.behind_by === 0 && listedCommits(compare) !== null;
-  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based) && sameModes(merges, trees);
+  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based, diffs) && sameModes(diffs === null ? merges : { files: diffFiles(diffs[0]) }, trees);
 }
 
 function sameModes(merges, trees) {
@@ -704,7 +801,7 @@ function sameModes(merges, trees) {
     }
     return byPath;
   };
-  if (!Array.isArray(trees) || trees.length !== 2) return false;
+  if (!Array.isArray(trees) || trees.length !== 2 || !Array.isArray(merges?.files)) return false;
   const [head, base] = trees.map(modes);
   if (head === null || base === null) return false;
   return merges.files.every((f) => {
@@ -714,17 +811,19 @@ function sameModes(merges, trees) {
   });
 }
 
-export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined) {
+export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined, diffs = null, mergeDiffs = null) {
   const pushed = (commits) => dismissal === null || (commits ?? []).some((c) => c?.sha === dismissal);
-  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now) || exactBaseCarry(merges, based, trees));
-  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths) && pushed(listedCommits(merges)));
+  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now, diffs) || exactBaseCarry(merges, based, trees, mergeDiffs));
+  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths, mergeDiffs?.[0] ?? null) && pushed(listedCommits(merges)));
 }
 
 export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/work-items/skills/triage/scripts/**", "plugins/work-items/skills/triage/schemas/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh", "plugins/code-tidying/git-hooks/comment-lint-ci.sh"]);
 
-export function ungatedSince(merges, holdPaths) {
-  const files = merges?.files;
-  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(files) || files.length >= 300) return false;
+export function ungatedSince(merges, holdPaths, diff = null) {
+  const listed = merges?.files;
+  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(listed)) return false;
+  const files = listed.length >= COMPARE_FILES ? diffFiles(diff) : listed;
+  if (files !== listed && !diffCovers(merges, files)) return false;
   if (!files.every((f) => typeof f?.filename === "string")) return false;
   const paths = files.flatMap((f) => [f.filename, ...(typeof f.previous_filename === "string" ? [f.previous_filename] : [])]);
   const loaded = [...REVIEW_FLOOR, ...CARRY_REFUSES];
@@ -796,6 +895,7 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
       if (!compares.has(range)) compares.set(range, await github("GET", `/repos/${repo}/compare/${range}`));
       return compares.get(range);
     };
+    const whole = async (range) => wholeCommits((path) => github("GET", path), `/repos/${repo}/compare/${range}`, await compare(range));
     const treeReads = new Map();
     const tree = async (sha) => {
       if (!treeReads.has(sha)) treeReads.set(sha, await github("GET", `/repos/${repo}/git/trees/${sha}?recursive=1`));
@@ -809,23 +909,29 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
         continue;
       }
       if (!carrying) continue;
-      const [then, now] = [await compare(`${tip}...${sha}`), await compare(`${tip}...${head}`)];
-      if (!Array.isArray(now?.files) || now.files.length !== pull.changed_files) continue;
+      const [then, now] = [await whole(`${tip}...${sha}`), await whole(`${tip}...${head}`)];
+      const diffs = await capDiffs(github, repo, [`${tip}...${sha}`, `${tip}...${head}`], [then, now]);
+      const listed = diffs ? diffFiles(diffs[1])?.length : now?.files?.length;
+      if (!Array.isArray(now?.files) || listed !== pull.changed_files) continue;
       const inBase = await baseParents(compare, tip, then, now);
-      let [merges, based, trees] = [null, null, null];
+      let [merges, based, trees, mergeDiffs] = [null, null, null, null];
       const [from, to] = [sha40(then?.merge_base_commit?.sha), sha40(now?.merge_base_commit?.sha)];
-      if (baseMergesOnly(then, now, sha, inBase) && !sameNetChange(then, now) && from && to) {
-        [merges, based] = [await compare(`${sha}...${head}`), await compare(`${from}...${to}`)];
+      if (baseMergesOnly(then, now, sha, inBase) && !sameNetChange(then, now, diffs) && from && to) {
+        [merges, based] = [await whole(`${sha}...${head}`), await whole(`${from}...${to}`)];
+        mergeDiffs = await capDiffs(github, repo, [`${sha}...${head}`, `${from}...${to}`], [merges, based]);
         trees = [await tree(head), await tree(to)];
       }
-      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees)) {
+      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, undefined, diffs, mergeDiffs)) {
         lifters.add(login);
         continue;
       }
       if (holdPaths !== undefined && merges === null) {
-        merges = await compare(`${sha}...${head}`).catch(() => null);
+        merges = await whole(`${sha}...${head}`).catch(() => null);
       }
-      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths)) lifters.add(login);
+      if (holdPaths !== undefined && mergeDiffs === null && merges !== null) {
+        mergeDiffs = await capDiffs(github, repo, [`${sha}...${head}`], [merges]).catch(() => null);
+      }
+      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths, diffs, mergeDiffs)) lifters.add(login);
     }
     return { lifters: [...lifters].sort() };
   } catch {
@@ -848,7 +954,7 @@ async function pages(github, path, key = null) {
   }
 }
 
-async function carries(github, actions, repo, comment, head, base, branch) {
+async function carries(github, actions, repo, comment, head, base, branch, number) {
   try {
     if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
@@ -862,9 +968,12 @@ async function carries(github, actions, repo, comment, head, base, branch) {
       return true;
     }
     const compare = (range) => github("GET", `/repos/${repo}/compare/${range}`);
-    const then = await compare(`${tip}...${decided}`);
-    const now = await compare(`${tip}...${head}`);
-    return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now));
+    const whole = async (range) => wholeCommits((path) => github("GET", path), `/repos/${repo}/compare/${range}`, await compare(range));
+    const then = await whole(`${tip}...${decided}`);
+    const now = await whole(`${tip}...${head}`);
+    const diffs = await capDiffs(github, repo, [`${tip}...${decided}`, `${tip}...${head}`], [then, now]);
+    const changed = diffs ? (await github("GET", `/repos/${repo}/pulls/${number}`))?.changed_files : undefined;
+    return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now), diffs, changed);
   } catch {
     return false;
   }
@@ -938,15 +1047,19 @@ export async function costDecision(github, repo, number, body, humans, head, act
   const decision = newest(true) ?? newest(false);
   const gaps = decision ? decisionGaps(decision.comment.body) : [];
   missing?.push(...gaps);
-  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
+  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName, number)) ? decision.link : null;
 }
 
-const fetchGitHub = (env) => async (method, path, body) => {
+const fetchGitHub = (env) => async (method, path, body, headers = {}) => {
   const response = await fetch(`${env.GITHUB_API_URL || "https://api.github.com"}${path}`, {
     method,
-    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GH_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
+    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GH_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28", ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (headers.Accept === DIFF) {
+    if (!response.ok) throw new Error(`${method} ${path} failed with status ${response.status}`);
+    return response.text();
+  }
   const json = response.ok ? await response.json() : null;
   if (json === null || json.errors?.length) {
     throw new Error(`${method} ${path} failed with status ${response.status}`);
