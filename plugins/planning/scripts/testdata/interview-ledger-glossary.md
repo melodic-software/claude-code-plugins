@@ -138,6 +138,7 @@ Glossary lookup (round 8): docs/terms.md holds none of: digest, highlight block,
 ## ADR outcomes
 
 Checked with the decision-record admission test (round 17); records are written in the implementation change, in docs/decisions.
+
 - Q6 (item limit default 5) | declined: a configurable default, easy to reverse; no trigger beyond the weighed alternative
 - Q32 (one digest form) | record: removes the public short-digest option (an interface of the product)
 - Q31 (link style setting) | record: adds a public setting and fixes the plain default for every team (interface)

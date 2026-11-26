@@ -16,7 +16,7 @@ Every other section is added when its first entry is written, never as an empty 
 - `## Reopened answers`: `Q<N> | round <N> | was: <old answer> | fact: <the fact and its source>`, written by `round.sh reopen` (`context/lookups.md`).
 - `**Session shorthand:**`: one `<term>: <definition>` line per coinage ("Session-shorthand glossary").
 
-Each line in those sections is an unfenced `- ` list item.
+Each line in those sections is an unfenced list item that starts with a hyphen and a space.
 
 Planning version: <the `version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`>
 

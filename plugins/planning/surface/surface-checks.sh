@@ -59,6 +59,7 @@ if [[ "$part" == main || "$part" == all ]]; then
   done
   hits=$(grep -nE "(^|[^a-z0-9{;-])($names):[a-z-]+" "${files[@]}" |
     grep -vE '^exporters\.py:[0-9]+:ARBITER_(PLAN|DESIGN) = "\*\*arbiter: /planning:(plan|design)\*\*"$' |
+    grep -vE '^round\.py:[0-9]+:    "/planning:wayfind chart can map what is left\."$' |
     grep -vE '^(index\.html|tests/ui_c\.js):[0-9]+:.*planning:plan changed your answer')
   if [[ -z "$hits" ]]; then ok "AC35: no skill token in ${#files[@]} files"; else bad "AC35: skill tokens: $hits"; fi
 

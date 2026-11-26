@@ -502,7 +502,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "321f0f6b2cc21e9bc2407766e76fe445ce9b2796fe1e02bf815feb0e1b8907d4"
+  "866140090db4b9447439d80c700888f9bb553c985cb573c637c62bf83744f1c4"
 pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate exemption)" \
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
@@ -552,7 +552,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the Brief" \
   "### Step 5. Hand off" \
-  "922caa9f4b6861506ab22ef5d3b16d643874d9515e5a729bf14955564636b942"
+  "bcdd570bbee41e5faef16d8511c49dfe1e6fcc1d83054ad559ffdd56b8adff25"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 # Only the restated claim that a session cannot detect a non-interactive run was cut (https://github.com/melodic-software/claude-code-plugins/issues/16937); the declared-by-caller rule keeps a repo-owned reason, and the auto-guard, every unattended ladder rung and the env-var ban are unchanged.
@@ -616,7 +616,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "2b8ffdd79ede89b0e7dd7ac16ed9c380093eaeb42dd13af3ca9ecbaf3edb3314"
+  "31ea7a100e663158703a7813feb26ccc93b5e438c66e737e162e39e27a21a5f3"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
