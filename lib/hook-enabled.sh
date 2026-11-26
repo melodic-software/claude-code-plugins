@@ -83,24 +83,47 @@ hook_enabled::_install_to() {
 hook_enabled::_option_to() {
   local __he_out
   command -v jq >/dev/null 2>&1 || return 1
-  __he_out="$(jq -j --arg id "$2" --arg k "$3" '
-    (.pluginConfigs[$id].options[$k])?
-    | if type == "boolean" then "v:" + tostring
-      elif type == "string" then "v:" + .
-      else empty end' 2>/dev/null)" || return 1
+  __he_out="$(jq -j --arg id "$2" --arg k "$3" --arg name "${4-}" '
+    [ (.pluginConfigs? // empty) | objects | to_entries[]
+      | select(if $id != "" then .key == $id else (.key | startswith($name + "@")) end)
+      | (.value.options[$k])?
+      | if type == "boolean" then tostring elif type == "string" then . elif type == "null" then empty else tojson end ]
+    | unique
+    | if length == 1 then "v:" + .[0] elif length > 1 then "x:" else empty end' 2>/dev/null)" || return 1
   __he_out="${__he_out%$'\r'}"
+  if [[ "$__he_out" == x: ]]; then
+    printf 'hook-enabled: %s: skipped %s; entries for more than one marketplace set different values\n' "$3" "${5-}" >&2
+    return 1
+  fi
   [[ "$__he_out" == v:* ]] || return 1
   printf -v "$1" '%s' "${__he_out#v:}"
 }
 
+hook_enabled::_user_settings_to() {
+  local __he_dir="${CLAUDE_CONFIG_DIR:-}"
+  printf -v "$1" '%s' ""
+  if [[ -z "$__he_dir" ]]; then
+    [[ -n "${HOME:-}" ]] || return 1
+    __he_dir="$HOME/.claude"
+  fi
+  __he_dir="${__he_dir//\\//}"
+  printf -v "$1" '%s' "${__he_dir%/}/settings.json"
+}
+
 hook_enabled::_settings_value_to() {
-  local __he_key="$3" __he_id __he_file
+  local __he_key="$3" __he_name="${4-}" __he_id="" __he_file __he_from
   printf -v "$1" '%s' ""
   printf -v "$2" '%s' ""
-  hook_enabled::_install_to __he_id __he_file || return 1
+  if [[ -n "$__he_name" ]]; then
+    hook_enabled::_user_settings_to __he_file || return 1
+    __he_from="pluginConfigs[\"$__he_name@*\"] in $__he_file"
+  else
+    hook_enabled::_install_to __he_id __he_file || return 1
+    __he_from="pluginConfigs[\"$__he_id\"] in $__he_file"
+  fi
   [[ -f "$__he_file" && -r "$__he_file" ]] || return 1
-  hook_enabled::_option_to "$1" "$__he_id" "$__he_key" <"$__he_file" || return 1
-  printf -v "$2" '%s' "pluginConfigs[\"$__he_id\"] in $__he_file"
+  hook_enabled::_option_to "$1" "$__he_id" "$__he_key" "$__he_name" "$__he_from" <"$__he_file" || return 1
+  printf -v "$2" '%s' "$__he_from"
 }
 
 readonly _HOOK_ENABLED_MANAGED_DARWIN="/Library/Application Support/ClaudeCode/managed-settings.json"
@@ -140,14 +163,14 @@ hook_enabled::_managed_read_to() {
   printf -v "$2" '%s' 1
   [[ -f "$__he_file" && -r "$__he_file" ]] || return 1
   if ! ((_HOOK_ENABLED_MANAGED_OWNER_CHECK)); then
-    hook_enabled::_option_to "$1" "$4" "$5" <"$__he_file"
+    hook_enabled::_option_to "$1" "$4" "$5" "${6-}" "${7-}" <"$__he_file"
     return
   fi
   # shellcheck disable=SC2094 # both stats only read: the descriptor's file, then the path's own inode
   {
     __he_open="$(stat -L -c '%d:%i %u %a' /dev/fd/9 2>/dev/null)" || __he_open="" # portability-ok: GNU stat, reached only when uname -s is Linux
     __he_path="$(stat -c '%d:%i' -- "$__he_file" 2>/dev/null)" || __he_path=""    # portability-ok: GNU stat, reached only when uname -s is Linux
-    hook_enabled::_option_to "$1" "$4" "$5" <&9 || return 1
+    hook_enabled::_option_to "$1" "$4" "$5" "${6-}" "${7-}" <&9 || return 1
   } 9<"$__he_file"
   read -r __he_rest __he_uid __he_mode <<<"$__he_open"
   if [[ -n "$__he_path" && "$__he_rest" == "$__he_path" && "$__he_uid" == 0 && "$__he_mode" =~ ^[0-7]+$ ]] &&
@@ -158,13 +181,18 @@ hook_enabled::_managed_read_to() {
 }
 
 hook_enabled::_managed_value_to() {
-  local __he_key="$3" __he_id __he_user __he_f __he_v __he_trusted __he_have=1
+  local __he_key="$3" __he_name="${4-}" __he_id="" __he_entry __he_user __he_f __he_v __he_trusted __he_have=1
   printf -v "$1" '%s' ""
   printf -v "$2" '%s' ""
-  hook_enabled::_install_to __he_id __he_user || return 1
+  if [[ -n "$__he_name" ]]; then
+    __he_entry="$__he_name@*"
+  else
+    hook_enabled::_install_to __he_id __he_user || return 1
+    __he_entry="$__he_id"
+  fi
   hook_enabled::_managed_files
   for __he_f in ${_HOOK_ENABLED_MANAGED_FILES[@]+"${_HOOK_ENABLED_MANAGED_FILES[@]}"}; do
-    hook_enabled::_managed_read_to __he_v __he_trusted "$__he_f" "$__he_id" "$__he_key" || continue
+    hook_enabled::_managed_read_to __he_v __he_trusted "$__he_f" "$__he_id" "$__he_key" "$__he_name" "pluginConfigs[\"$__he_entry\"] in $__he_f" || continue
     case "$__he_v" in
       true) ;;
       false)
@@ -174,12 +202,12 @@ hook_enabled::_managed_value_to() {
         fi
         ;;
       *)
-        hook_enabled::_drop "$__he_key" "$__he_v" "pluginConfigs[\"$__he_id\"] in $__he_f"
+        hook_enabled::_drop "$__he_key" "$__he_v" "pluginConfigs[\"$__he_entry\"] in $__he_f"
         continue
         ;;
     esac
     printf -v "$1" '%s' "$__he_v"
-    printf -v "$2" '%s' "pluginConfigs[\"$__he_id\"] in $__he_f"
+    printf -v "$2" '%s' "pluginConfigs[\"$__he_entry\"] in $__he_f"
     __he_have=0
   done
   return "$__he_have"
@@ -195,7 +223,7 @@ hook_enabled::_no_repository_layer() {
 }
 
 hook_enabled::resolve() {
-  local security=0 root="${CLAUDE_PROJECT_DIR:-}" home="docs/conventions" plugin key default option user file repo setting setting_from
+  local security=0 git_hook=0 root="${CLAUDE_PROJECT_DIR:-}" root_given=0 home="docs/conventions" plugin key default option user file repo setting setting_from name=""
   local -a positional=()
   while (($# > 0)); do
     case "$1" in
@@ -203,12 +231,21 @@ hook_enabled::resolve() {
         security=1
         shift
         ;;
+      --git-hook)
+        git_hook=1
+        shift
+        ;;
       --root | --home)
         if (($# < 2)); then
           echo "hook-enabled: $1 requires a value" >&2
           return 2
         fi
-        if [[ "$1" == --root ]]; then root="$2"; else home="$2"; fi
+        if [[ "$1" == --root ]]; then
+          root="$2"
+          root_given=1
+        else
+          home="$2"
+        fi
         shift 2
         ;;
       *)
@@ -218,7 +255,7 @@ hook_enabled::resolve() {
     esac
   done
   if ((${#positional[@]} != 3)); then
-    echo "hook-enabled: usage: hook_enabled::resolve [--security] [--root DIR] [--home DIR] <plugin> <key> <true|false>" >&2
+    echo "hook-enabled: usage: hook_enabled::resolve [--security] [--git-hook] [--root DIR] [--home DIR] <plugin> <key> <true|false>" >&2
     return 2
   fi
   plugin="${positional[0]}" key="${positional[1]}" default="${positional[2]}"
@@ -235,12 +272,17 @@ hook_enabled::resolve() {
     return 2
   fi
 
-  if ((security)) && hook_enabled::_managed_value_to setting setting_from "$key"; then
+  if ((git_hook)); then
+    name="$plugin"
+    ((root_given)) || root="$(git rev-parse --show-toplevel 2>/dev/null)" || root=""
+  fi
+
+  if ((security)) && hook_enabled::_managed_value_to setting setting_from "$key" "$name"; then
     [[ "$setting" == true ]]
     return
   fi
 
-  if ((security)) && hook_enabled::_settings_value_to setting setting_from "$key"; then
+  if ((security || git_hook)) && hook_enabled::_settings_value_to setting setting_from "$key" "$name"; then
     case "$setting" in
       true) return 0 ;;
       false) return 1 ;;
@@ -248,14 +290,16 @@ hook_enabled::resolve() {
     esac
   fi
 
-  hook_enabled::_map_to option "CLAUDE_PLUGIN_OPTION_$key" "$_HOOK_ENABLED_LOWER" "$_HOOK_ENABLED_UPPER"
-  user="${!option:-}"
-  case "$user" in
-    "") ;;
-    true) return 0 ;;
-    false) ((security)) || return 1 ;;
-    *) hook_enabled::_drop "$key" "$user" "$option" ;;
-  esac
+  if ! ((git_hook)); then
+    hook_enabled::_map_to option "CLAUDE_PLUGIN_OPTION_$key" "$_HOOK_ENABLED_LOWER" "$_HOOK_ENABLED_UPPER"
+    user="${!option:-}"
+    case "$user" in
+      "") ;;
+      true) return 0 ;;
+      false) ((security)) || return 1 ;;
+      *) hook_enabled::_drop "$key" "$user" "$option" ;;
+    esac
+  fi
 
   if ! hook_enabled::_no_repository_layer "$root"; then
     file="${root%/}/${home%/}/$plugin.yaml"
