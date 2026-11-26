@@ -50,8 +50,9 @@ A SessionStart hook adds the live Claude Code sessions on every fleet lane to th
 context on startup, resume, `/clear`, compaction and fork, at no model-turn cost. It reads
 `~/.config/fleet/fleet.json` (contract: [fleet-manifest](../../docs/contracts/fleet-manifest/README.md))
 and runs each lane's `claude agents --json`: on this lane directly, through WSL interop or
-`wsl.exe -d <distro> --exec`, or over ssh in batch mode with strict host keys and no forwarding.
-It runs no other program and starts no local shell.
+`wsl.exe -d <distro> --exec`, or over ssh in batch mode with strict host keys and no forwarding (from WSL, the Windows OpenSSH
+client, since the distro holds no fleet key).
+It starts no local shell and runs no other program itself; ssh still follows your ssh config.
 
 - The list opens with a line saying it is data, that same-lane peers take SendMessage by name and
   other lanes take `/fleet:reach`; it is at most 25 lines.

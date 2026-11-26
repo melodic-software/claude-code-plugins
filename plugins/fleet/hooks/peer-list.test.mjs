@@ -102,7 +102,7 @@ const manifestFile = (text) => (path) => {
 const payload = { session_id: 'self-0000', cwd: `${HOME}/repos/repo-a`, source: 'startup', hook_event_name: 'SessionStart' }
 const OWN = '/opt/claude/bin/claude agents --json'
 const INTEROP = '/mnt/c/Tools/claude/claude.exe agents --json'
-const sshTo = (alias, path) => ['/usr/bin/ssh', ...SSH_OPTIONS, alias, path, 'agents', '--json'].join(' ')
+const sshTo = (alias, path) => ['/mnt/c/Windows/System32/OpenSSH/ssh.exe', ...SSH_OPTIONS, alias, path, 'agents', '--json'].join(' ')
 const HOST_A_WSL = sshTo('host-a-wsl', '/opt/claude/bin/claude')
 const HOST_A_WIN = sshTo('host-a-wsl', '/opt/claude/bin/claude-windows')
 const withLane = (patch) => {
@@ -264,8 +264,10 @@ test('pickLanes: with no manifest, CLAUDE_CODE_EXECPATH must name claude, claude
 test('ssh option list', () => {
   const [, , lane] = pickLanes(readManifest(contractExample), makeCtx())
   const cmd = buildCommand(lane, makeCtx())
-  assert.deepEqual(cmd, { file: '/usr/bin/ssh', args: [...SSH_OPTIONS, 'host-a-wsl', '/opt/claude/bin/claude-windows', 'agents', '--json'], cwd: HOME })
+  assert.deepEqual(cmd, { file: '/mnt/c/Windows/System32/OpenSSH/ssh.exe', args: [...SSH_OPTIONS, 'host-a-wsl', '/opt/claude/bin/claude-windows', 'agents', '--json'], cwd: HOME })
   assert.ok(buildCommand(lane, makeCtx({ timeout: '7' })).args.includes('ConnectTimeout=7'))
+  assert.equal(buildCommand(lane, makeCtx({ env: { WSL_DISTRO_NAME: '' } })).file, '/usr/bin/ssh', 'plain Linux')
+  assert.equal(buildCommand(lane, makeCtx({ platform: 'darwin', env: { WSL_DISTRO_NAME: '' } })).file, '/usr/bin/ssh', 'macOS')
   const win = buildCommand(lane, makeCtx({ platform: 'win32', env: { SystemRoot: 'C:\\Windows' } }))
   assert.equal(win.file, 'C:\\Windows\\System32\\OpenSSH\\ssh.exe')
 })

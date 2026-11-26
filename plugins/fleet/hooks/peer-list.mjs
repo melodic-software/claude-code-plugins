@@ -23,6 +23,8 @@ export const OS_OF_KIND = { wsl: 'windows', windows: 'windows', linux: 'linux', 
 const OSES = new Set(Object.values(OS_OF_KIND))
 const LABEL = { wsl: 'WSL', windows: 'Windows', linux: 'Linux', macos: 'macOS' }
 export const ROUTES = ['local', 'interop', 'wsl-exe', 'ssh']
+/** A WSL distro holds no fleet key or aliases; the Windows client on the same machine does. */
+const WSL_SSH = '/mnt/c/Windows/System32/OpenSSH/ssh.exe'
 export const TOP_KEYS = ['version', 'self', 'hosts']
 export const HOST_KEYS = ['key', 'os', 'role', 'lanes']
 export const LANE_KEYS = ['kind', 'route', 'alias', 'distro', 'claudePath']
@@ -153,7 +155,7 @@ export function buildCommand(lane, ctx) {
   if (route === 'ssh') {
     const t = Math.max(1, Math.ceil(timeoutSeconds(ctx.timeout)))
     const root = windowsDir(ctx.env, 'SystemRoot')
-    const file = ctx.platform !== 'win32' ? '/usr/bin/ssh' : root && `${root}\\System32\\OpenSSH\\ssh.exe`
+    const file = ctx.platform === 'win32' ? root && `${root}\\System32\\OpenSSH\\ssh.exe` : ownKind(ctx) === 'wsl' ? WSL_SSH : '/usr/bin/ssh'
     if (!file) return null
     const options = ['BatchMode=yes', 'StrictHostKeyChecking=yes', `ConnectTimeout=${t}`, 'ForwardAgent=no', 'ForwardX11=no', 'ClearAllForwardings=yes', 'PermitLocalCommand=no', 'RemoteCommand=none']
     return { file, args: ['-n', '-T', ...options.flatMap((o) => ['-o', o]), '--', alias, ...agents], cwd }
