@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/schema/*.schema.json
 """Live prototypes on the wire: liveserve.py (the static server), the build-folder walk add-live and the start run,
 and server.py's QuickTunnelStarter with the fake cloudflared (support.FAKE): Approve starts one tunnel and one static
 server, a restart brings a new address without a new Approve, the port refusals, Stop, and the server restart.
