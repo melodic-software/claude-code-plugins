@@ -76,6 +76,7 @@ detector-findings-crosswalk ci-only whole-repo scanner, scripts/check-detector-f
 discriminating-test-skips ci-only whole-repo scanner, scripts/check-discriminating-test-skips.sh
 docs-naming ci-only whole-repo scanner, scripts/check-docs-naming.sh --check
 docs-only-contract ci-only whole-repo scanner, scripts/check-docs-only-gate.sh --check
+engineering-concepts ci-only whole-repo scanner, scripts/check-engineering-concepts.sh --check
 exec-form-windows-probe ci-only whole-repo scanner, scripts/check-exec-form-windows-probe.sh
 fixture-git-isolation ci-only whole-repo scanner, scripts/check-fixture-git-isolation.sh --check
 fleet-audit-doc-grammar ci-only whole-repo scanner, scripts/check-fleet-audit-doc-grammar.sh --check
