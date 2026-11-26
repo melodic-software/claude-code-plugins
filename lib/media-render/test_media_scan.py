@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-import media_scan as ms   # needs redact.py importable: media-render.test.sh puts lib/ on PYTHONPATH
+import media_scan as ms
 
 HERE = Path(__file__).resolve().parent
 RULES = next((p for p in (HERE / 'vendor' / 'gitleaks' / 'gitleaks-rules.json',
@@ -19,7 +19,7 @@ class ScanTest(unittest.TestCase):
 
     def test_secret_home_path_and_host_are_found_with_their_source(self):
         token = 'ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8'
-        home = '/' + 'home/' + 'octo/repo/x.py'   # assembled at run time, as the redact tests do
+        home = '/' + 'home/' + 'octo/repo/x.py'
         r = self.scan({'m1': f'token {token}', 'm2': f'see {home}', 'm3': 'ran on buildbox-7'})
         self.assertEqual(sorted({f['source'] for f in r.findings}), ['m1', 'm2', 'm3'])
         self.assertIn({'source': 'm2', 'kind': 'home-path'}, r.findings)

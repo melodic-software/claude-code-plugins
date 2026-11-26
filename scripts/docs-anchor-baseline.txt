@@ -62,7 +62,6 @@ plugins/harness-ops/skills/audit-native-overlap/SKILL.md 1
 plugins/harness-ops/skills/audit-performance/SKILL.md 1
 plugins/harness-ops/skills/audit-performance/reference/known-performance-issues.md 6
 plugins/harness-ops/skills/changelog/context/read-actions.md 1
-plugins/harness-ops/skills/inventory/SKILL.md 4
 plugins/harness-ops/skills/lanes/SKILL.md 2
 plugins/harness-ops/skills/observability/SKILL.md 1
 plugins/harness-ops/skills/observability/context/otel-queries.md 1

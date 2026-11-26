@@ -21,10 +21,6 @@ assert_eq "valid nested path resolves under project" "$PROJECT/telemetry/skills"
 for case_name in posix_absolute windows_drive windows_drive_relative unc traversal backslash_traversal; do
   case "$case_name" in
   posix_absolute) value="/tmp/skills" ;;
-  # The backslashes in these arms are Windows path fixtures, not GNU grep \s
-  # classes; they are the input these cases exist to normalize, so the construct
-  # cannot be spelled away. Each marker rides its own arm rather than this block,
-  # so reordering the arms cannot silently detach an exemption from its site.
   windows_drive) value='C:\\temp\\skills' ;; # portability-ok: Windows drive path fixture
   windows_drive_relative) value='C:skills' ;;
   unc) value='\\\\server\\share\\skills' ;; # portability-ok: UNC share path fixture
@@ -52,12 +48,6 @@ if ln -s "$OUTSIDE" "$PROJECT/escape" 2>/dev/null && [[ -L "$PROJECT/escape" ]];
   fi
 fi
 
-# --- Ancestor walk terminates at a dirname fixed point -----------------------
-# `dirname C:` answers `C:` on Git Bash, so a walk-up from a drive path whose
-# ancestors do not exist never reaches `/` or `.`. The shim reproduces that fixed
-# point on hosts whose own dirname answers `.`, so the case discriminates
-# everywhere rather than only on Windows. Gated on `timeout` per the precedent in
-# fleet-state.test.sh; stock macOS ships `gtimeout` and skips.
 if command -v timeout >/dev/null 2>&1; then
   SHIM_DIR="$TEST_TMPDIR/shim"
   mkdir -p "$SHIM_DIR"
@@ -116,8 +106,7 @@ assert_eq "repo_slug is stable across calls" "$slug" "$(harness_ops::repo_slug "
 
 assert_eq "normalize_rel_segments drops ./ and //" ".claude/observability" \
   "$(harness_ops::normalize_rel_segments './.claude//observability/')"
-# portability-ok: 'telemetry\skills' is a backslash-separated path fixture, not
-# a GNU grep \s class — folding it is what this case asserts.
+# portability-ok: 'telemetry\skills' is a backslash-separated path fixture
 assert_eq "normalize_rel_segments folds backslashes" "telemetry/skills" \
   "$(harness_ops::normalize_rel_segments 'telemetry\skills')"
 
@@ -180,9 +169,6 @@ if git -C "$REPO" init -q 2>/dev/null; then
   else
     ok "skill_usage_git_exclude=false suppresses the exclude write"
   fi
-  # Glob-metachar configured dir writes a LITERAL exclude pattern (no dir
-  # created — * is illegal in a filename on Windows; the string path is the
-  # subject here).
   REPO4="$TEST_TMPDIR/repo4"
   mkdir -p "$REPO4"
   git -C "$REPO4" init -q 2>/dev/null
@@ -192,7 +178,6 @@ if git -C "$REPO" init -q 2>/dev/null; then
   else
     bad "glob-metachar configured dir written as literal exclude pattern"
   fi
-  # skill_usage_dir=. → store is a bare file at the repo root; exclude the FILE.
   REPO5="$TEST_TMPDIR/repo5"
   mkdir -p "$REPO5"
   git -C "$REPO5" init -q 2>/dev/null
@@ -211,12 +196,6 @@ if git -C "$REPO" init -q 2>/dev/null; then
     bad "repo-root store, its lock and its rotated copy invisible to git status"
   fi
 fi
-# --- The skill-usage store record -------------------------------------------
-# One writer for the row: harness_ops::record_skill_use formats it through
-# session-log-lib.sh, so the row's escaping is the plugin's one escaping path
-# and costs no jq process. The store keeps its OWN key set (`event:
-# "SkillUse"`), read by skills/audit-skill-visibility; it is not a hook event
-# record, and the schema below is its contract, asserted per emitted row.
 SU_PROJ="$TEST_TMPDIR/su"
 mkdir -p "$SU_PROJ"
 SU_SCHEMA='(.ts|type)=="string" and .event=="SkillUse"

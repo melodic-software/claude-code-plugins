@@ -1,21 +1,4 @@
 #!/usr/bin/env node
-// Build the triage board page from work items read on stdin.
-//
-//   {"repo":"","generated":"","items":[{"number":1,"title":"","kind":"issue","state":"","labels":[""],"blockedBy":[2]}]}
-//
-// state is the attention-view bucket (unlabeled, raw marker, needs-info reply, blocked by
-// won't-do); omit blockedBy when blockers were not read.
-//
-//   build-board.mjs --out <file>      writes the page, prints its path
-//   build-board.mjs --out <data_dir>/page.html --connect http://127.0.0.1:<port>
-//                                     the Claude-interactive page view-bridge serves
-//
-// The page's row id items-N names the Nth input item; nothing else identifies an item.
-//
-// Item text is tracker text (K2): it reaches the page only as JSON data that the
-// shared runtime renders as text. The markup is templates/board.html and nothing else.
-// Exit 0 built, 1 the page or the input fails its profile, 2 usage or environment.
-
 import { readFileSync, writeFileSync } from "node:fs";
 import { buildView, ViewBuildError } from "../../../lib/view-builder.mjs";
 

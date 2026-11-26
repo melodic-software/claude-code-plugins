@@ -506,14 +506,6 @@
       closeMention: () => closeMention(),
     });
 
-    // ---------- read aloud and dictation: the browser's own Web Speech API, each off until the person turns it on ----------
-    // Read aloud speaks what this person's page shows of the question: its text, then the option labels on screen, read
-    // from the page itself, never from state, so nothing hidden from them is spoken. Dictate fills its own box for review
-    // and never sends. Where the browser offers on-device recognition (processLocally), a press asks for it first; words
-    // heard that way confirm it, and a device that cannot take the language falls back at once to the browser's own
-    // service, which the settings line discloses until on-device is confirmed. SpeechRecognition.available() is never
-    // called: a Chromium build without Chrome's handler for it ends the page's process. No language pack is installed
-    // from here either: that would be a download the page starts.
     const TTS = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function" ? window.speechSynthesis : null;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     const SPEECH = { reading: false, qid: null, rec: null, btn: null, dq: null, local: null };
@@ -540,7 +532,6 @@
       if (SPEECH.reading) return stopReading();
       const parts = spokenParts(); if (!parts.length) return;
       TTS.cancel();
-      // a voice on the device first, so the words are not sent to a voice service either
       const lang = speechLang().toLowerCase().split("-")[0];
       const voice = TTS.getVoices().find(v => v.localService && v.lang.toLowerCase().startsWith(lang)) || null;
       SPEECH.reading = true; SPEECH.qid = ui.cur;
@@ -658,8 +649,6 @@
       scrollInto(sc, r.top, r.bottom, band);
     }
 
-    // ---------- toast ----------
-    // The toast is a live region from load; text goes in a frame after it is cleared, so screen readers announce it.
     const toast = E("div", "vf-toast"); toast.setAttribute("role", "status");
     const toastTxt = E("span"), toastAct = btn("vf-toast-act"), toastX = ibtn("vf-toast-x", "x", "Close this pop-up");
     toastAct.hidden = true; toastX.hidden = true;
@@ -1427,10 +1416,6 @@
     mScroll.append(mList, mEmpty);
     const mNew = btn("vf-mnew"); mNew.hidden = true;
     mNew.onclick = () => { mScroll.scrollTo({ top: mScroll.scrollHeight, behavior: smooth() }); mNew.hidden = true; ui.mNewFrom = null; };
-    // A reader at the newest message stays there when the list or its box changes size: an on-screen keyboard opening
-    // or closing, the message field growing a line, a message arriving. Only a scroll that moves up leaves the newest
-    // message: the pin's own scroll event can arrive after the box shrank again (the keyboard still rising), and its
-    // gap then is the box's doing, not the reader's.
     const mGap = () => mScroll.scrollHeight - mScroll.scrollTop - mScroll.clientHeight;
     let mStick = true, mTop = 0;
     on(mScroll, "scroll", () => {
@@ -1458,7 +1443,6 @@
       const was = anchor?.getBoundingClientRect().top;
       try {
         const n = await Core.chatEarlier(id);
-        // Hold the anchor for a few frames: messages drawn as they come into view (content-visibility) settle their height.
         for (let f = 0, still = 0; f < 12 && still < 3 && anchor?.isConnected; f++) {
           const d = anchor.getBoundingClientRect().top - was;
           still = Math.abs(d) < 0.5 ? still + 1 : 0;
@@ -1617,7 +1601,6 @@
     }
     function openDecisions(anchor) { fillDecisions(dpList, Core.state.decisions, true); dpEmpty.hidden = Core.state.decisions.length > 0; openSurface(decPop, anchor); }
 
-    // Host Health: the owner's view of what the server log adds up to, the sections `share.sh logs --summary` prints.
     const healthPop = E("div", "vf-pop vf-healthpop"); healthPop.setAttribute("role", "dialog"); healthPop.setAttribute("aria-labelledby", "vf-healthpop-h"); healthPop.hidden = true;
     const hpH = E("h2", "vf-pop-title", "Host Health"); hpH.id = "vf-healthpop-h";
     const hpRefresh = btn("vf-btn vf-btn-ghost vf-btn-sm vf-health-refresh", "Refresh");
@@ -2270,8 +2253,6 @@
     function setChat(open) {
       ui.chatOpen = open; chat.hidden = !open; fab.setAttribute("aria-expanded", String(open));
       fab.setAttribute("aria-label", open ? "Close chat" : "Open chat");
-      // On a touch screen, focus goes to the close button, not the message box: focusing the box would raise the phone
-      // keyboard before anyone asked to type. The keyboard comes up when the box is tapped.
       if (open) { ui.bumped = false; closePop(); render(); mScroll.scrollTop = mScroll.scrollHeight; (coarse.matches ? chatClose : mInput).focus({ preventScroll: true }); }
       else render();
       syncModal();
@@ -3285,8 +3266,6 @@
       return p;
     };
     const localPics = new Map();
-    // upload id -> the promise of its first frame as a PNG data: URL when it is an animated GIF, else null. An animated
-    // GIF shows still until someone presses Play (WCAG 2.2.2): canvas draws an animated image's first frame.
     const gifStills = new Map();
     function prunePics() {
       for (const id of [...upPics.keys()]) if (!fileOf({ upload: id })?.image) upPics.delete(id);
@@ -3634,7 +3613,6 @@
           const l = slot.get().slice(); l.splice(i, 1); slot.put(l); (slot.chips.querySelector(".vf-ref-x") || slot.btn).focus();
           const mine = (Core.state.myUploads || []).find(u => u.id === a.upload), st2 = mine?.status;
           if (a.pasted && mine && !mine.carried && ["offered", "accepted", "uploading", "done"].includes(st2)) {
-            // draftOnly: a page that has not yet seen a send carry it never takes the file off what was sent (#8615)
             Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw", true).then(() => forget(a.upload))
               .catch(e => { if (e?.status !== "carried") fail(e); });
           }
@@ -3648,7 +3626,6 @@
       return { get: () => by[ui.cur] || [], set: l => { by[ui.cur] = l; }, getFor: q => by[q] || [], setFor: (q, l) => { by[q] = l; } };
     };
 
-    // ---------- QR code: byte mode, error correction M, versions 1 to 10, built here with no library ----------
     function qrMatrix(text) {
       const data = new TextEncoder().encode(text);
       const ECC = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26], BLK = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5];
@@ -4046,7 +4023,6 @@
       const PL = { placed: "became a question", merged: "was merged into", suggested: "became a suggested change on", later: "was parked for later", notplaced: "was not placed", question: "became a question" };
       for (const i of S.ideas || []) if (isMe(i.cid)) note("i:" + i.id, i.status, PL[i.status] ? `Your proposal ${PL[i.status]}${i.qid && i.status !== "later" && i.status !== "notplaced" ? " " + i.qid : ""}${i.reason ? `: ${i.reason}` : "."}` : "", null, "proposal");
       if (Core.me.isOwner) {
-        // #8386: a file offered to the host pops up once while its switch is on (merge requests do through hostAlerts).
         for (const u of S.uploads || []) if (u.status === "offered" && !isMe(u.cid) && !(("uo:" + u.id) in seen)) {
           seen["uo:" + u.id] = "seen";
           if (!first && popsUp("upload")) flash(`${disp(u.by)} offered a file: ${u.file}.`, { label: "Open Host", run: () => { setMode("host"); if (phone.matches) setTab("host"); } });
@@ -4211,10 +4187,6 @@
       ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer(); stopAdvance();
       if (cForm.classList.contains("vf-composer-sheet") && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
     });
-    // Triage 18: on a phone, writing opens the answer as a full-height sheet: the text pre-filled, Cancel and Save on
-    // top, and the field filling the visual viewport, so the keyboard never covers it. Not when Tab brought focus here:
-    // the sheet keeps Tab inside it, so the controls after the field (Pass, Claude, Discussion) would be out of reach
-    // (WCAG 2.1.1); a keyboard user writes in the field where it is. Capture, as Tab traps stop propagation.
     let tabbedIn = false;
     on(document, "keydown", e => { if (e.key === "Tab") tabbedIn = true; }, true);
     on(document, "pointerdown", () => { tabbedIn = false; }, true);
@@ -4301,9 +4273,6 @@
     on(window, "resize", () => { edges(); if (toast.classList.contains("vf-on")) placeToast(); if (ui.pop === PP.pop) placePanel(ui.pop); measureAll(); });
     const toastPane = new ResizeObserver(() => { if (toast.classList.contains("vf-on")) placeToast(); });
     toastPane.observe(center); offs.push(() => toastPane.disconnect());
-    // in the modal chat the toast stands on the typing line, which moves when it wraps or when what is under it
-    // changes height: the message box growing or emptying (#9202), the counter, the reply bar, the attached files;
-    // the chat itself keeps its size
     const toastChat = new ResizeObserver(() => { if (toast.classList.contains("vf-on") && activeSheet() === chat) placeToast(); });
     for (const el of [mTyping, mCount, mReply, chatSlot.chips, mForm]) toastChat.observe(el);
     offs.push(() => toastChat.disconnect());
@@ -4676,7 +4645,6 @@
       const fact = (k, v) => facts.append(E("dt", null, k), E("dd", null, v));
       fact("Now", here ? `${here.away ? `Away${awayFor(here)}. ` : ""}${q ? `${q.id}: ${q.text}` : "Here, between questions"}` : "Offline: not here right now");
       if (joined) fact("Joined", since(joined));
-      // what they said about themselves: the people row drops it once the list goes compact (#8698)
       if (ab) fact("Tech comfort", COMFORT[ab.techComfort]);
       if (ab?.note) { fact("Their note", ab.note); facts.lastChild.className = "vf-pc-note"; }
       const parts = [head, facts];
@@ -6533,7 +6501,6 @@
       const lastCtx = {}, lastTs = {};
       for (const r of [...Object.values(S.answers).flat(), ...Object.values(S.suggestions || {}).flat()]) if (r.ctx && !(lastTs[r.cid] > r.ts)) { lastCtx[r.cid] = r.ctx; lastTs[r.cid] = r.ts; }
       const pres = p => (gone.has(p.pid) ? "removed" : presState(here.get(p.pid)));
-      // #7852: how many of the open round's questions each guest still owes (the server's count, moderators only)
       const behind = S.behind || {}, owes = p => (gone.has(p.pid) ? 0 : behind[p.pid] || 0);
       const inFilter = { all: () => true, active: p => pres(p) === "active", away: p => pres(p) === "away", offline: p => pres(p) === "offline",
         behind: p => owes(p) > 0, removed: p => pres(p) === "removed" };
@@ -6545,8 +6512,6 @@
         b.hidden = (k === "removed" && noRemoved) || (k === "behind" && noBehind);
       }
       pFind.hidden = ppl.length <= 12;
-      // #8698: past 12 people (the search box's cutoff) each person is one compact line: dot, name, state, and a menu
-      // button opening their card with the host's actions
       peopleList.classList.toggle("vf-hpeople-compact", !pFind.hidden);
       const find = pFind.hidden ? "" : ui.peopleFind.trim().toLowerCase();
       const pShown = ppl.filter(p => inFilter[ui.peopleFilter](p) && (!find || disp(p.name).toLowerCase().includes(find)));
@@ -6715,7 +6680,6 @@
         b.dataset.role = role;
         b.dataset.presence = presState(p);
         b.title = p.away ? `${disp(p.name)}: away${awayFor(p)}` : "";
-        // data-pid on the button itself, so Enter and Space (which click the button, not the avatar) open the card
         b.dataset.pid = p.cid; b.dataset.name = p.name;
         b.classList.toggle("vf-person-me", isMe(p.cid));
         const a = b.firstChild;

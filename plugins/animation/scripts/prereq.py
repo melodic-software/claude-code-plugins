@@ -27,7 +27,7 @@ import pydeps
 HERE = Path(__file__).resolve().parent
 FFMPEG_MIN = (5, 1)
 FFMPEG_URL = 'https://ffmpeg.org/download.html'
-PACKAGES = {   # the pinned distribution first; any of the others also provides the module (cv2)
+PACKAGES = {
     'numpy': ('numpy',),
     'opencv': ('opencv-python-headless', 'opencv-python', 'opencv-contrib-python-headless', 'opencv-contrib-python'),
 }
@@ -82,7 +82,7 @@ def _row(name, playwright_core):
         have = f'{v[0]}.{v[1]}'
         return (name, 'PASS', have, '') if v >= FFMPEG_MIN else \
             (name, 'FAIL', f'{have} is older than {need} (-fps_mode)', f'install ffmpeg {need} or later ({FFMPEG_URL})')
-    if name == 'playwright_core':   # the userConfig option, when set, must name playwright-core itself
+    if name == 'playwright_core':
         d = Path(playwright_core)
         pkgs = [d / 'package.json', d / 'node_modules/playwright-core/package.json']
         ok = any(p.is_file() and json.loads(p.read_text(encoding='utf-8')).get('name') == 'playwright-core' for p in pkgs)

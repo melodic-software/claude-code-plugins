@@ -23,6 +23,7 @@ setting, with a note on stderr.
 
     babysit_merge_settings.py show   # print the resolved settings as JSON
 """
+
 from __future__ import annotations
 
 import argparse

@@ -1,15 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/instruction-placement/scripts/lib/discover.sh plugins/instruction-placement/scripts/render-index.sh
-# No git-hook file the plugins install reaches bash by name. Every entry script a
-# plugin's git-hooks/entries.json names, the check lib (canonical and copies),
-# the plain dispatcher install.mjs writes, the convention resolver (canonical
-# and copy) and the lefthook remote's .lefthook/ wrappers start with #!/bin/sh
-# and name bash nowhere as a command, and the lefthook remote runs its scripts
-# with sh: on Windows a bash looked up by name can be System32's WSL launcher,
-# and a git may ship sh with no bash beside it. Under dash, each entry
-# runs outside a repository and exits 0, and a probe that sources the check lib
-# reruns under the first bash on PATH outside System32, or with none follows the
-# check-placement contract's missing-tool rule.
 # test-scope: plugins/*/git-hooks/* plugins/*/lib/git-hooks/check-lib.sh lib/git-hooks/install.mjs lib/git-hooks/check-lib.sh lib/resolve-convention-pattern.sh plugins/guardrails/hooks/resolve-convention-pattern.sh .lefthook/* plugins/guardrails/hooks/*.sh plugins/guardrails/lib/*/*.sh plugins/code-tidying/scripts/comment-settings.sh plugins/code-tidying/lib/parse-concern-value.sh plugins/code-tidying/lib/resolve-convention-home.sh
 # shellcheck disable=SC2016 # single-quoted $ text is shell source written to files or matched literally
 set -uo pipefail
@@ -33,11 +23,6 @@ expect() {
   fi
 }
 
-# bash where a command goes: at the start of a line or after ; & | ( ) { ! `
-# or $(, behind any run of words that run the next one (then, do, else, if,
-# elif, while, until, exec, env, time, xargs, nohup, command, or feed, the
-# dispatcher's helper) and of NAME=value assignments. Comment lines are
-# skipped. A path ending in /bash or a message naming bash is not a command.
 CMD_BASH='(^|[;&|(){!`]|\$\()[[:space:]]*((then|do|else|if|elif|while|until|exec|env|time|xargs|nohup|command|feed|[[:alnum:]_]+=[^[:space:]]*)[[:space:]]+)*bash([[:space:]]|;|\)|$)'
 COMMENT='^[[:space:]]*#'
 
@@ -170,9 +155,6 @@ expect "the dispatcher was read from install.mjs" yes "$(grep -q 'checks-dispatc
 sh_only "plain dispatcher" "$WORK/dispatcher"
 expect "the dispatcher runs each entry with sh" yes "$(grep -qF 'feed sh "$base/$rel"' "$WORK/dispatcher" && echo yes)"
 
-# A probe entry beside a copy of the check lib, a child script, stand-ins for
-# System32's bash (the WSL launcher), a real bash outside System32, and bash
-# under the name sh, which starts it in POSIX mode: a sh that is bash.
 mkdir -p "$WORK/outside" "$WORK/probe" "$WORK/Windows/System32" "$WORK/c/WINDOWS/system32" \
   "$WORK/good" "$WORK/tools" "$WORK/as-sh"
 export GIT_CEILING_DIRECTORIES="$WORK"
@@ -223,8 +205,6 @@ if ! DASH="$(command -v dash)"; then
   exit
 fi
 
-# Each entry under dash, outside any repository: its sh header sources the
-# check lib, which reruns it under bash, and checks_init finds no repository.
 for manifest in "$TOP"/plugins/*/git-hooks/entries.json; do
   dir="${manifest%/entries.json}"
   while IFS= read -r script; do
@@ -255,8 +235,6 @@ probe_run "$SYS32:$WORK/tools" CLAUDECODE=1 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=
 expect "checks.skipmissing names bash: SKIPPED, exit 0" "0||yes" \
   "$RUN_EXIT|$RUN_OUT|$(has_err '^SKIPPED: bash (missing)')"
 
-# A `bash` on PATH that is not bash (dash under that name) is rerun once, then
-# counts as missing; timeout bounds the run should the guard ever fail.
 if TIMEOUT="$(command -v timeout)"; then
   mkdir -p "$WORK/notbash"
   ln -s "$DASH" "$WORK/notbash/bash"

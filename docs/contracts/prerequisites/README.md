@@ -236,6 +236,31 @@ dash and PowerShell.
 `hook::require_jq_blocking` stays separate. It denies the call, so it prints its reason every time
 and does not latch.
 
+### The jq gate: two postures
+
+A hook that cannot parse its payload either lets the call through (fail open) or denies it (fail
+closed), and the calling hook chooses by which function it calls
+([#2146](https://github.com/melodic-software/claude-code-plugins/issues/2146)):
+
+- `hook::require jq` fails open, after the notice. It is the default, for advisory and cosmetic
+  hooks, whose finding is a prompt and is worth less than the call it would stop.
+- `hook::require_jq_blocking` fails closed, for a guard that blocks an irreversible operation. A
+  guard a missing dependency switches off guards only the machines configured for it.
+
+The fail-closed class is the guards that already fail closed on another unparsable input: each
+carries a `MAX_COMMAND_LEN` ceiling above which a command is denied unread.
+`plugins/guardrails/hooks/require-jq-posture.test.sh` derives the class from that ceiling, so a
+guard joins it by adding the ceiling, never by a list. `block-noncanonical-commit` also exits 2 but
+stays fail-open: it guards a reversible message shape and has no ceiling.
+
+The postures are two functions, not one with a flag, because an omitted flag would default to fail
+open and silently reintroduce the defect #2146 reports. Two names make the posture greppable and
+the fail-closed path impossible to reach by accident.
+
+Without jq, a fail-closed guard cannot read any command, so it denies every Bash and PowerShell
+call until jq is installed or the guard's own `*_enabled` option is set to false;
+`hook::check_enabled` honors that switch before the gate runs.
+
 ## When a check fails: offer the fix, run it on a yes
 
 A notice or a failed `check` tells the person what is missing; it does not leave them to run the

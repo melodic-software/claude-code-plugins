@@ -1,31 +1,4 @@
 #!/usr/bin/env bash
-# Copy the legacy JSON tracker binding (.work-item-tracker.json) and its personal
-# override (.work-item-tracker.local.json) into the `tracker` mapping of
-# <home>/work-items.yaml and <home>/work-items.local.yaml, for /work-items:setup
-# apply (SKILL.md "Provider binding"). The JSON files are left in place: older
-# installed plugin versions and a repository's own tooling may still read only them.
-#
-# Each layer is copied only when its YAML file has no `tracker` key. Both layers are
-# checked before either is written: once the YAML binding exists the seam reads only
-# the YAML personal override, so a binding copied without its personal override would
-# drop it silently. The YAML text is appended to the file (created when absent), parsed
-# back with the seam's own reader and compared with the JSON before it is written, so a
-# copy that would read differently is never written. The personal override is copied
-# only to a path a repository .gitignore rule covers and the index does not hold.
-#
-# Usage: migrate-binding.sh [--root <repo-root>]
-#
-# Stdout, one line per layer: `binding: <outcome> <detail>` then
-# `override: <outcome> <detail>`. Outcomes: copied, already-yaml, no-json, empty
-# (the JSON file is `{}`), not-ignored and tracked (personal override only, nothing
-# written).
-#
-# Exit: 0 done; 1 a file does not parse, holds a value the YAML subset cannot carry
-#       or the seam reads differently, or the copy did not read back the same;
-#       2 usage; 3 the personal override's YAML path is not gitignored or is tracked;
-#       4 no convention home applies (declined, $HOME, not a git work tree, or a
-#       broken pointer, which the resolver names on stderr). Exits 1, 3 and 4 write
-#       nothing.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -146,16 +119,10 @@ write() {
     return 0
   fi
   mkdir -p "$(dirname "$yaml")" || return 1
-  # cat, not mv: an existing file keeps its mode, a new one takes the umask.
   cat "$detail" >"$yaml" || return 1
   printf '%s: copied %s -> %s\n' "$label" "$json" "$yaml"
 }
 
-# gitignored <path>: a repository .gitignore rule ignores the path, as
-# reference/personal-override-ignore-probes.md decides it (info/exclude and core.excludesFile
-# protect no teammate). git prints a repository .gitignore source relative to the
-# work tree and an excludes file as an absolute path, so a global excludes file
-# named ~/.gitignore is refused before the .gitignore name test.
 gitignored() {
   local match
   git -C "$ROOT" check-ignore --no-index -q -- "$1" || return 1

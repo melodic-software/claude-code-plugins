@@ -43,14 +43,12 @@ def _version(text):
 
 _CONFIG = json.loads((Path(__file__).resolve().parent / 'pydeps.json').read_text(encoding='utf-8'))
 PLUGIN = _CONFIG['plugin']
-# Either an explicit set of supported versions, or a floor with no ceiling.
 PYTHONS = tuple(_version(v) for v in _CONFIG.get('pythons', ()))
 MIN_PYTHON = _version(_CONFIG['python_min']) if 'python_min' in _CONFIG else None
 ALLOW_FREE_THREADED = bool(_CONFIG.get('allow_free_threaded', False))
 CANDIDATES = (*(f'python{a}.{b}' for a, b in reversed(PYTHONS)), 'python3', 'python')
 REQUIREMENTS = Path(__file__).resolve().parent.parent / 'requirements.txt'
 PROBE = tuple(_CONFIG['probe'])
-# Packages that may build from their hash-pinned source archive; every other package installs from wheels only.
 BUILD_FROM_SOURCE = frozenset(n.lower() for n in _CONFIG.get('build_from_source', ()))
 BUILD_HINT = _CONFIG.get('build_hint')   # {"match": regex over pip's stderr, "text": the hint}
 PIP_TIMEOUT_S = int(_CONFIG['pip_timeout_s'])   # under the hook's timeout, so this one fires first
@@ -58,7 +56,6 @@ STALE_PARTIAL_S = 2 * PIP_TIMEOUT_S
 CHECK_LABEL = _CONFIG.get('check', {}).get('label', 'Python packages')
 CHECK_TOOLS = dict(_CONFIG.get('check', {}).get('tools', {}))   # tool -> what to do when it is missing
 HANDED_OVER = re.sub(r'[^A-Z0-9]', '_', PLUGIN.upper()) + '_PYDEPS_INTERPRETER'
-# The hook's own candidate list, in its order; the ready stamp records what each resolves to.
 HOOK_CANDIDATES = ('python3.13', 'python3.12', 'python3', 'python')
 STAMP_TAG = 'pydeps-hook-ready 1'
 
@@ -72,7 +69,6 @@ def supported(version):
     return version in PYTHONS if PYTHONS else version >= MIN_PYTHON
 
 
-# Read at import: sysconfig loads its data lazily, keyed by sys.platform.
 _FREE_THREADED = bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
 
 
@@ -249,7 +245,6 @@ def run(data, script_args, requirements=REQUIREMENTS):
         return 2
     code = subprocess.run([sys.executable, '-S', *script_args], env=_env(target)).returncode
     if code and ready_stamp(data).exists():
-        # The hook trusted the stamp and skipped the load probe, so the set may no longer import.
         drop_ready_stamp(data)
         sys.stderr.write(f'{PLUGIN}: the run failed; if the Python packages no longer load, the next Claude Code '
                          'session start re-probes them and rebuilds them, or run now: '
@@ -354,9 +349,6 @@ def main(argv=None):
     except Broken as e:
         sys.stderr.write(f'{PLUGIN}: {e}\nRepair with: {repair_line(data)}\n')
         return 1
-    # Only the plugin's own lock, and only an interpreter found through a name the hook checks: one the py launcher
-    # listed, or one named outside HOOK_CANDIDATES (python3.14 for a plugin allowing 3.14), could change without
-    # the hook seeing it, so no stamp, and the hook keeps its full path.
     if (a.requirements.resolve() == REQUIREMENTS and tuple(a.probe) == PROBE
             and chosen in {_which(name) for name in HOOK_CANDIDATES} - {None}):
         write_ready_stamp(data, env_dir(data, a.requirements))

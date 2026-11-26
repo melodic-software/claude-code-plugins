@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Owns lib/prerequisites.test.mjs for the plugin test lane, then tests the sh and
-# pwsh stubs: with node absent each prints one fixed line and exits 1; with node
-# present each hands its arguments and exit code to prerequisites.mjs.
-# scripts/run-outside-node-suites.sh treats a sibling .test.sh as the runner.
 # test-scope: plugins/*/prerequisites.json plugins/*/.claude-plugin/plugin.json
 # test-scope: lib/hook-utils.sh
 set -uo pipefail
@@ -59,7 +55,6 @@ else
 fi
 
 if PWSH="$(command -v pwsh)"; then
-  # A version-manager shim (mise, asdf) puts its tools, node included, back on PATH: run the real binary.
   real="$("$PWSH" -NoProfile -NonInteractive -Command '[Environment]::ProcessPath')"
   real="${real%$'\r'}"
   [[ -n "$real" ]] && PWSH="$real"
@@ -82,8 +77,6 @@ else
   printf 'NOTE: pwsh is not on PATH; the pwsh stub cases did not run.\n'
 fi
 
-# node-notice: the SessionStart mode that must work with node absent. The stub PATH
-# carries the coreutils the sh stub calls and no node.
 TOOLS="$WORK/tools-path"
 mkdir -p "$TOOLS" "$WORK/tmp" "$WORK/tmp-ps"
 for t in sed tr find mkdir cat rm; do ln -s "$(command -v "$t")" "$TOOLS/$t"; done

@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
-# Tests for watch.sh against a live server started through round.sh ensure-running.
-#   bash watch.test.sh
-# Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), the note: line for a
-# server recording another plugin version, a PORT that is not all digits (exit 2 naming the env
-# file), a delivery
-# (one JSON line carrying dataDir and next, .watch-seq stored, the same line alone in
-# .watch-wake.json), re-delivery bounds, the
-# skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
-# the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
-# (WAIT_FAILS=1), the one-watcher lease (a second watcher exits 3 naming the holder; a stale
-# lease is reclaimed after leaseTimeout), the fallback watcher id and a release mid-wait, and
-# round.sh stop ending the data dir's watch.sh (the lease records its pid).
 # test-scope: plugins/planning/surface/schema/*
 # test-scope: plugins/planning/.claude-plugin/plugin.json
 set -u
@@ -28,10 +16,7 @@ d="$tmp/data"
 mkdir -p "$d"
 fast_settle='"settleQuiet": 3, "settleBurst": 12'
 printf '{%s}\n' "$fast_settle" >"$d/settings.json"
-# The native absolute form watch.sh prints (C:/... under Git Bash, the plain path elsewhere).
 abs_dir() { (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; }); }
-# A data dir whose name carries shell syntax: $( ), a backtick and a single quote. It is built on
-# the native form, which a native Python takes as is.
 odd="$(abs_dir "$tmp")/odd \$(true) \`x\` it's"
 cleanup() {
   bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
@@ -45,7 +30,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Run a command in the background with a deadline; returns its exit code, or 124 on timeout.
 bounded() {
   local end=$((SECONDS + $1)) out=$2 err=$3 pid
   shift 3
@@ -186,10 +170,6 @@ print(" ".join(str(e["seq"]) for e in json.loads(open(sys.argv[1], encoding="utf
 ' "$1" 2>&1
 }
 
-# (e) AC8: the turn died before handling; the next arm re-delivers at once and records the replay.
-# A wait that did not re-deliver would hold the watcher for the whole WAIT_TIMEOUT, so the watcher
-# exiting inside a third of it proves "at once". The bound is on the watcher's exit, not on wall
-# seconds, which on a loaded Windows host mostly count Git Bash process spawns.
 wait_timeout=$(sed -n 's/^WAIT_TIMEOUT=//p' "$d/.interview-session.env" | tr -dc '0-9')
 bound=$((${wait_timeout:-90} / 3))
 bounded "$bound" "$tmp/e.out" "$tmp/e.err" bash "$here/watch.sh" "$d"
@@ -210,8 +190,6 @@ else
   bad "second arm returned: rc=$rc out=$(cat "$tmp/f.out") err=$(cat "$tmp/f.err")"
 fi
 
-# (g) a new event during the wait returns the old unhandled event and the new one; the watcher
-# runs with a dead proxy in http_proxy, which its curl call must bypass for 127.0.0.1.
 http_proxy=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 bash "$here/watch.sh" "$d" >"$tmp/g.out" 2>"$tmp/g.err" &
 wpid=$!
 until_waiting
@@ -472,8 +450,6 @@ else
   bad "takeover: not run (no lease server)"
 fi
 
-# (n) item 15 AC3: round.sh stop ends this data dir's watch.sh within 10 s, and a process that is
-# not a watch.sh survives it (a lease pid is never trusted without the command line).
 bash "$here/watch.sh" "$d" >"$tmp/n.out" 2>"$tmp/n.err" &
 wpid=$!
 lease_pid=''
@@ -502,7 +478,6 @@ if bash "$here/round.sh" --dir "$fast" ensure-running --port 0 >/dev/null 2>&1; 
   until_waiting "$(sed -n 's/^PORT=//p' "$fast/.interview-session.env" | tr -d '\r')"
   spid=$(sed -n 's/.*"pid": *\([0-9]*\).*/\1/p' "$fast/.interview-session.json")
   rm -f "$fast/.interview-session.env"
-  # On Windows $spid is a native pid, which Git Bash's kill does not know.
   case "$(uname -s)" in
     MINGW* | MSYS* | CYGWIN*) taskkill //F //PID "$spid" >/dev/null 2>&1 ;;
     *) kill "$spid" 2>/dev/null ;;

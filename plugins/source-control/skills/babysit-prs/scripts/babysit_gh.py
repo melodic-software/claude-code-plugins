@@ -2690,7 +2690,9 @@ def lane_binding_checker(
     carries a binding; a failed read raises."""
     return lane_binding.lane_checker(
         pr=number,
-        get_pull=lambda pr: json_object(_api_read(f"repos/{repo}/pulls/{pr}", env_overrides)),
+        get_pull=lambda pr: json_object(
+            _api_read(f"repos/{repo}/pulls/{pr}", env_overrides)
+        ),
         get_run=lambda run_id: json_object(
             _api_read(f"repos/{repo}/actions/runs/{run_id}", env_overrides)
         ),

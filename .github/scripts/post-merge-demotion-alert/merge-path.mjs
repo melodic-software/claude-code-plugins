@@ -7,7 +7,7 @@ import { DEMOTION, parseRecordMarker } from "./demotion-record.mjs";
 
 export const PATH_LABEL_PREFIX = "merge-path: ";
 export const REVERTED_LABEL = "post-merge: reverted";
-const PATH_LABEL_STEM = "merge-path:"; // both forms start with it
+const PATH_LABEL_STEM = "merge-path:";
 const LEGACY_REVERTED_LABEL = "post-merge:reverted";
 const isReverted = (labels) => labels.includes(REVERTED_LABEL) || labels.includes(LEGACY_REVERTED_LABEL);
 export const labelPath = (label) =>

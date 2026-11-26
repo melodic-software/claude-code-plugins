@@ -54,6 +54,25 @@ function fixtureRepo() {
 }
 
 describe("shallowCloneGitHubRepo", () => {
+  it("fails the clone without spawning git when its isolated home cannot be made", async () => {
+    const names = ["TMPDIR", "TMP", "TEMP"];
+    const saved = names.map((name) => process.env[name]);
+    const missing = path.join(sandbox(), "missing", "deeper");
+    const dest = path.join(sandbox(), "clone");
+    for (const name of names) process.env[name] = missing;
+    const calls = [];
+    try {
+      const result = await shallowCloneGitHubRepo("https://github.com/o/r", dest, (...args) => {
+        calls.push(args);
+        return allowFile(...args);
+      });
+      assert.equal(result, false);
+    } finally {
+      names.forEach((name, i) => (saved[i] === undefined ? delete process.env[name] : (process.env[name] = saved[i])));
+    }
+    assert.deepEqual(calls, []);
+  });
+
   it("clones only the head commit of the default branch", async () => {
     const { url, head } = fixtureRepo();
     const dest = path.join(sandbox(), "clone");

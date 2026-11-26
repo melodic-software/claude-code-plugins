@@ -2242,8 +2242,8 @@ class TestKernelObjectCensus(unittest.TestCase):
                     1_739,
                     3_811_482,
                     2_000,
-                ),  # 10-byte name, padded to 16
-                ("Key", 189_005, 189_011, 189_595, 190_000),  # 6-byte name, padded to 8
+                ),
+                ("Key", 189_005, 189_011, 189_595, 190_000),
                 ("EtwRegistration", 50_926, 50_926, 50_926, 50_926),
             ]
         )

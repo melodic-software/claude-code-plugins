@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# claim — Linear adapter. Acquire the lease on one item.
-#
-# ── How this differs from the GitHub adapter, and why ────────────────────────────────
-# The contract's claim sequence detects a race at step 2 by re-reading the ASSIGNEES and
-# backing off when another login is present. That works because GitHub's assignee field
-# is a LIST: both racers' assignments coexist, so both can see the collision.
-#
-# Linear's `Issue.assignee` is a SINGLE field. The second writer OVERWRITES the first and
-# then re-reads only itself — the collision is invisible from the assignee alone, and a
-# step-2 check would report "no race" to both racers.
-#
-# So arbitration rests on the lease COMMENT ordering instead, which the contract already
-# specifies for the same-login case: post the lease, re-read every lease comment, and the
-# earliest live one wins. Comments are durable and both racers see the same set, so this
-# is real arbitration rather than an emulation of one. The assignee is still written —
-# it is what makes the claim visible in Linear's own UI and what the frontier filter
-# reads — but it is NOT the race detector here.
-#
-# Ordering is total: handles are millisecond timestamps and ties break on the comment
-# UUID (see wit_linear_lease_comments). Without that tiebreak two same-millisecond
-# racers could each read themselves as earliest.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md "Lease protocol", "Exit codes".
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,48 +56,6 @@ done < <(jq -c '.[]' <<<"$EXISTING")
 
 wit_linear_set_assignee "$ISSUE_UUID" "$WIT_LINEAR_VIEWER_ID"
 
-# Guard the partial-claim window, exactly as the github adapter does. Any failure
-# between this successful assignment and a settled lease (step 4's arbitration) would
-# otherwise strand the issue ASSIGNED WITH NO LEASE — and that state is unrecoverable
-# through the seam: list-frontier excludes assigned items, and reclaim refuses an item
-# with no active lease, so nothing can hand it back. A transient API failure would park
-# the item indefinitely.
-#
-# It must be an EXIT trap, not ERR: every wit_linear_* helper's failure path calls
-# `exit` directly rather than returning, and an explicit `exit` inside a function does
-# not run the caller's ERR trap — only its EXIT trap.
-#
-# The rollback CLEARS ONLY IF THE ASSIGNEE IS STILL US. An unconditional clear could
-# strip a live claim from the rollback path: this trap stays armed across the update-comment write and the arbitration read below, both
-# of which exit on failure, and Linear's `assignee` is a SINGLE field (see the header).
-# So a concurrent session can legitimately win the claim inside that window — posting
-# its own lease and overwriting the assignee — and a blind clear would then strip that
-# live claim on our way out. Same re-fetch-and-compare the LOSER branch applies before
-# its own unassign.
-#
-# The whole body runs in ONE SUBSHELL, because every helper's failure path calls `exit`
-# and `|| true` does not contain an exit — only a subshell boundary does. Without it a
-# failing rollback would abort the trap and overwrite the script's exit status,
-# reporting a different failure than the one that actually happened.
-#
-# The test is "does ANY live lease exist", NOT "is the assignee still me". HOLDER is
-# `WIT_LINEAR_VIEWER` — the authenticated user's DISPLAY NAME, not a session identity —
-# so a name compare cannot tell my own assignment from another session of the same user,
-# and same-login racing is exactly what the handle arbitration exists for (the
-# conformance suite exercises it as "Second session, same identity"). Under a name
-# compare, session B rolling back would see its own login in the assignee slot, conclude
-# the assignment was its own, and clear session A's live claim.
-#
-# A live-lease test is identity-independent and targets the actual harm: `lib/frontier.sh`
-# selects on `assignees | length == 0` and never consults leases, so a wrongly-cleared
-# assignee puts an actively-worked item back on the frontier. Leaving a stale NAME in
-# that slot is cosmetic by comparison — the item stays correctly excluded either way.
-#
-# Our OWN lease is excluded from that test. The trap also covers the window after step 3
-# posted our lease, and counting it would make the rollback skip its own cleanup — the
-# opposite of the point. COMMENT_UUID is pre-set to empty so the trap is safe to fire
-# before step 3 has assigned it, which `set -u` would otherwise turn into an aborted
-# rollback that quietly cleans nothing.
 COMMENT_UUID=""
 
 _wit_linear_other_live_lease() {

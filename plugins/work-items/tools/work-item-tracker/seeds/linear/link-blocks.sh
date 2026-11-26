@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# link-blocks — Linear adapter.
-#
-# Direction, from Linear's own schema documentation: an IssueRelation's `issue` is "the
-# source issue whose relationship is being described" and `relatedIssue` is "the target
-# issue that the source issue is related to". So `{issueId: B, relatedIssueId: X, type:
-# "blocks"}` means **B blocks X** — i.e. X is blocked by B, which is what this verb
-# writes. Reversing the two would invert every dependency edge, and the frontier would
-# then release exactly the items it should hold.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "JSON output contract".
-#
 # shellcheck disable=SC2016  # single-quoted `$name` here is a GraphQL variable, not a shell one
 set -uo pipefail
 
@@ -41,8 +30,6 @@ wit_require_linear_id "$BLOCKED_BY" || wit_usage_error "not a linear item id: $B
 
 wit_need_linear_config
 
-# BOTH ends face the authorization boundary. Linear relations may cross teams
-# (features.cross_repo_edges=true), but not into a team this binding never declared.
 wit_linear_require_scoped_id "$ID"
 wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
 TARGET_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"

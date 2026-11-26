@@ -2,20 +2,10 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { projectedLeft } from "../check-kill-switch/projection.mjs";
-import { apiLimitsOrBuiltIn, countRequests } from "./rate-guard.mjs";
+import { budgetPolicy } from "../check-kill-switch/budget-policy.mjs";
+import { countRequests } from "./rate-guard.mjs";
 
-const round = (value) => Math.round(value * 100) / 100;
-
-export function paceDecision(reading, share, now) {
-  const projected = share > 0 ? projectedLeft(reading, now) : null;
-  return projected === null ? { paced: false, projected: null } : { paced: projected < share, projected: round(projected) };
-}
-
-export function paceShare(limits, file) {
-  const own = limits?.[`pace-${String(file ?? "").replace(/\.ya?ml$/, "")}`];
-  return limits?.pace > 0 && typeof own === "number" ? own : limits?.pace;
-}
+export { paceDecision, paceShare } from "../check-kill-switch/budget-policy.mjs";
 
 export function previousRun(runs, runId) {
   const own = /^[0-9]+$/.test(String(runId ?? "")) ? Number(runId) : Number.NaN;
@@ -38,7 +28,8 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
     try {
       const file = /\/\.github\/workflows\/([^/@]+)@/.exec(env.GITHUB_WORKFLOW_REF ?? "")?.[1];
       if (!file) throw new Error("GITHUB_WORKFLOW_REF names no workflow file");
-      const share = paceShare(apiLimitsOrBuiltIn({ resolvedPath: env.RESOLVED_CONFIG })["github-token"], file);
+      const policy = budgetPolicy({ resolvedPath: env.RESOLVED_CONFIG });
+      await policy.ready("pace");
       const api = env.GITHUB_API_URL ?? "https://api.github.com";
       const get = (path) =>
         countRequests(fetchImpl)(`${api}/repos/${env.GITHUB_REPOSITORY}${path}`, {
@@ -47,9 +38,9 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
       const response = await get(`/actions/workflows/${encodeURIComponent(file)}/runs?event=schedule&per_page=5`);
       const header = (name) => (response.headers.has(name) ? Number(response.headers.get(name)) : Number.NaN);
       const reading = { limit: header("x-ratelimit-limit"), remaining: header("x-ratelimit-remaining"), reset: header("x-ratelimit-reset") };
-      const decision = response.ok ? paceDecision(reading, share, now()) : { paced: false, projected: null };
+      const decision = response.ok ? policy.decide("pace", reading, now(), { workflow: file }) : { stop: false, projected: null };
       let why = "";
-      if (decision.paced) {
+      if (decision.stop) {
         const runs = (await response.json())?.workflow_runs;
         if (!Array.isArray(runs)) throw new Error("the scheduled-run listing has an unexpected shape");
         const previous = previousRun(runs, env.GITHUB_RUN_ID);
@@ -63,7 +54,7 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
         why = paced ? `; this tick skips its work, run ${previous.id} did the last` : `; this tick runs: ${reason}`;
       }
       if (decision.projected !== null) {
-        console.log(`::notice title=api-pace::github-token projected=${decision.projected} pace=${share} paced=${paced}${why}`);
+        console.log(`::notice title=api-pace::github-token projected=${decision.projected} pace=${decision.share} paced=${paced}${why}`);
       }
     } catch (error) {
       console.log(`::warning::the pacer could not read the GITHUB_TOKEN pool (${error.message}); the tick runs`);

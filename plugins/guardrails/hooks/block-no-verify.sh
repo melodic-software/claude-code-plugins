@@ -9,7 +9,7 @@ _HOOK_SELF="${BASH_SOURCE[0]%/*}"
 source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-no-verify PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
-source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_HOOK_SELF/hook-utils.sh" || exit 70
 
 start=${EPOCHREALTIME:-}
 
@@ -31,7 +31,7 @@ TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
 MAX_COMMAND_LEN=16384
 
-SUBJECT="" # predeclared: the _to helper assigns through a nameref (SC2154)
+SUBJECT=""
 hook::extract_bash_subject_to SUBJECT "$TOOL_NAME" "$COMMAND"
 
 HM_ALT=""
@@ -141,7 +141,7 @@ alias_expand() {
   shift 2
   ALIAS_HEAD=("${@:1:idx}")
   ALIAS_TAIL=("${@:idx+2}")
-  ((ALIAS_DEPTH < 5)) || return 0 # git itself refuses an alias loop
+  ((ALIAS_DEPTH < 5)) || return 0
   for ((i = ${#ALIAS_NAMES[@]} - 1; i >= 0; i--)); do
     [[ "${ALIAS_NAMES[i]}" == "$name" ]] || continue
     defs+=("${ALIAS_VALUES[i]}")
@@ -355,7 +355,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     _ps_rc=$?
   done
   case $_ps_rc in
-  1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct — not this guard's proven surface
+  1) exit 0 ;;
   *) COMMAND="$PS_SAFE_COMMAND" ;;
   esac
 fi

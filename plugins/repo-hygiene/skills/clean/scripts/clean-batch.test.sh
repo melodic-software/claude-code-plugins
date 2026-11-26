@@ -101,10 +101,6 @@ R3="$(mkrepo r3)"
 R4="$(mkrepo r4)"
 out="$(bash "$BATCH" --tier caches --repo "$R3" "$R4")"
 PLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-# Simulate a repo that vanished between dry-run and apply by renaming it away.
-# (Rename, not `rm -rf`: on Windows a git repo's packed objects can be transiently
-# locked, so `rm -rf` leaves a partial dir and flakes; a rename is atomic and
-# models a gone repo exactly — the plan's toplevel no longer resolves.)
 mv "$R4" "${R4}.gone"
 rc=0
 out="$(bash "$BATCH" --tier caches --apply --batch-plan "$PLAN2")" || rc=$?
@@ -122,9 +118,6 @@ assert_exit "de-gitted repo fails the batch closed (exit 1)" 1 "$rc"
 assert_contains "de-gitted repo reported failed" "$out" "Outcome: failed"
 assert_contains "aggregate summary counts the failure" "$out" "failed=1"
 
-# --- 4c. malformed plan record: a REPO line with an EMPTY manifest field must
-#         fail closed at apply, never pass --manifest "" to the child (which would
-#         re-walk the live repo and remove artifacts outside the gated plan). ---
 R7="$(mkrepo r7)"
 BADPLANFILE="$TEST_TMPDIR/badplan"
 printf 'REPO\t%s\tcaches\t\n' "$(git -C "$R7" rev-parse --show-toplevel)" >"$BADPLANFILE"
@@ -201,10 +194,6 @@ assert_contains "truncated GITDIR still reported as missing" "$out" "carries no 
 assert_not_contains "no apply banner on truncated-GITDIR refusal" "$out" "Fleet Clean (apply)"
 assert_file_exists "build dir NOT removed by truncated-GITDIR all apply" "$AR5/bin/b"
 
-# The mirror: a truncated REPO record must not satisfy the build half either. The
-# reachable truncation is a missing MANIFEST field (as in 4c) — tab is IFS
-# whitespace, so `read` collapses consecutive tabs and an empty leading field
-# cannot survive plan parsing.
 AR6="$(mkrepo allrepo6)"
 out="$(bash "$BATCH" --tier git --repo "$AR6")"
 GPLAN6="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
@@ -216,9 +205,6 @@ assert_contains "truncated REPO still reported as missing" "$out" "carries no we
 assert_not_contains "no apply banner on truncated-REPO refusal" "$out" "Fleet Clean (apply)"
 assert_file_exists "nothing pruned/removed by truncated-REPO all apply" "$AR6/bin/b"
 
-# The apply-loop half, on the path the `all` presence check does not gate: a
-# truncated GITDIR under --tier git must fail closed and count NO gitdir — never
-# exit 0 with gitdirs=1 for a prune that had no target.
 TRUNCPLAN="$TEST_TMPDIR/trunc-gitdir.plan"
 printf 'GITDIR\t\t\n' >"$TRUNCPLAN"
 rc=0
@@ -268,9 +254,6 @@ out="$(bash "$BATCH" --tier build --apply --batch-plan "$PLAN3")"
 assert_file_absent "build dir removed" "$R5/bin/b"
 assert_file_absent "cache removed by build tier (folds caches)" "$R5/.pytest_cache/x"
 
-# --- 6b. git tier dry-run counts only what apply acts on; all tier splits bytes per tier ---
-# `git gc --auto` does nothing below gc.auto or gc.autoPackLimit, so loose objects
-# under those limits are not planned work; above one they are.
 git_totals() { sed -n 's/.*planned=\([0-9]*\) bytes=\([0-9]*\).*/\1 \2/p' <<<"$1" | tail -1; }
 LR="$(mkrepo looserepo)"
 for n in 1 2 3; do echo "blob $n" | git -C "$LR" hash-object -w --stdin >/dev/null; done
@@ -359,10 +342,6 @@ assert_exit "scan with no repos exits 2" 2 "$rc"
 out="$(bash "$BATCH" --tier bogus --repo "$SC1" 2>&1)" || true
 assert_contains "unknown-tier message lists scan" "$out" "use scan|caches|build|git|all"
 
-# --- 9. --repos-from / --skip-from source-open contract (#3482) ---
-# A trailing blank is ordinary EOF success; only a missing/unopenable named
-# source is "file not found". Empty input is success at the helper and surfaces
-# as "no repos given", never as a missing file.
 RF="$(mkrepo rf)"
 printf '%s\n\n' "$RF" >"$TEST_TMPDIR/repos-trail.txt"
 rc=0
@@ -681,10 +660,6 @@ else
   fail "exactly the cap entries are listed" 1 "$entries"
 fi
 
-# --- 6. another plugin's data dir is never used ---
-# Another plugin's SessionStart hook can export its own data dir into every Bash
-# call under the name CLAUDE_PLUGIN_DATA. The plan, and the pruning of old run.*
-# directories beside it, must not land there.
 FOREIGN="$TEST_TMPDIR/codex-openai-codex"
 OWN="$TEST_TMPDIR/repo-hygiene-melodic-software"
 FR_REPO="$(mkrepo foreignrepo)"

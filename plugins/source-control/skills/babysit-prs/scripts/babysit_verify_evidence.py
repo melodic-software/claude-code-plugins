@@ -850,14 +850,18 @@ def admission_record(comments: list[Any], app_id: int) -> dict[str, Any] | None:
             parsed = None
         record = json_object(parsed)
         actor = record.get("actor_id")
-        canonical = ADMISSION_RECORD_MARKER + "\n" + json.dumps(
-            {
-                "v": 1,
-                "actor_id": actor,
-                "title_sha256": record.get("title_sha256"),
-                "body_sha256": record.get("body_sha256"),
-            },
-            separators=(",", ":"),
+        canonical = (
+            ADMISSION_RECORD_MARKER
+            + "\n"
+            + json.dumps(
+                {
+                    "v": 1,
+                    "actor_id": actor,
+                    "title_sha256": record.get("title_sha256"),
+                    "body_sha256": record.get("body_sha256"),
+                },
+                separators=(",", ":"),
+            )
         )
         at = _event_time(comment.get("createdAt"))
         edited = comment.get("lastEditedAt")
@@ -901,7 +905,9 @@ def briefed_issue(issue: Any, app_id: int | None) -> bool:
         or labels.get("totalCount") != len(nodes)
     ):
         return False
-    held = {name.lower() for name in (*merge_policy.HOLD_STATES, UNTRUSTED_PROVENANCE_LABEL)}
+    held = {
+        name.lower() for name in (*merge_policy.HOLD_STATES, UNTRUSTED_PROVENANCE_LABEL)
+    }
     body = issue.get("body") if isinstance(issue.get("body"), str) else ""
     title = issue.get("title") if isinstance(issue.get("title"), str) else ""
     if any(str(json_object(n).get("name")).lower() in held for n in nodes) or (
@@ -921,7 +927,9 @@ def briefed_issue(issue: Any, app_id: int | None) -> bool:
         record is not None
         and record["title_sha256"] == digest(title)
         and record["body_sha256"] == digest(body)
-    ) or triage_briefed(comments if is_json_array(comments) else [], app_id, title, body)
+    ) or triage_briefed(
+        comments if is_json_array(comments) else [], app_id, title, body
+    )
 
 
 def triage_briefed(comments: list[Any], app_id: int, title: str, body: str) -> bool:
@@ -949,7 +957,9 @@ def triage_briefed(comments: list[Any], app_id: int, title: str, body: str) -> b
         ),
         None,
     )
-    if own is None or (own.get("lastEditedAt") is not None and not app(own.get("editor"))):
+    if own is None or (
+        own.get("lastEditedAt") is not None and not app(own.get("editor"))
+    ):
         return False
     lines = own["body"].split("\n")
     stamp = JUDGED_RE.fullmatch(lines[-1])
@@ -958,7 +968,10 @@ def triage_briefed(comments: list[Any], app_id: int, title: str, body: str) -> b
         return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
 
     return (
-        any(lines[1].startswith(VERDICT_CLEAR + outcome) for outcome in VERDICT_CLEAR_OUTCOMES)
+        any(
+            lines[1].startswith(VERDICT_CLEAR + outcome)
+            for outcome in VERDICT_CLEAR_OUTCOMES
+        )
         and stamp is not None
         and stamp[1] == digest(title)
         and stamp[2] == digest(body)
@@ -1128,7 +1141,9 @@ def vendored_path(plugin: Any, name: Any) -> bool:
         return re.fullmatch(r"[^/]+\.md", name[len(fragment) :]) is not None
     parts = name.split("/")
     vendored = "vendor" in parts[4:-1]
-    procedure = (len(parts) > 3 and parts[3] == "update" and not vendored) or parts[-2:] == [
+    procedure = (len(parts) > 3 and parts[3] == "update" and not vendored) or parts[
+        -2:
+    ] == [
         "actions",
         "update.md",
     ]
@@ -1137,7 +1152,11 @@ def vendored_path(plugin: Any, name: Any) -> bool:
         and len(parts) > 4
         and all(part and part not in VENDORED_UNSAFE for part in parts)
         and not procedure
-        and (VENDOR_INERT_RE.fullmatch(parts[-1]) is not None if vendored else name.endswith(".md"))
+        and (
+            VENDOR_INERT_RE.fullmatch(parts[-1]) is not None
+            if vendored
+            else name.endswith(".md")
+        )
     )
 
 
@@ -1185,7 +1204,9 @@ def skill_text_safe(base: Any, head: Any) -> bool:
     return before is not None and before == _skill_surface(head)
 
 
-def _vendored_skill_safe(file: dict[str, Any], texts: dict[str, tuple[str, str]]) -> bool:
+def _vendored_skill_safe(
+    file: dict[str, Any], texts: dict[str, tuple[str, str]]
+) -> bool:
     """resolve-pr.mjs vendoredSkillSafe, with `texts` the base and head
     texts read per modified skill_file. Pure."""
     if skill_file(file.get("previous_filename")):
@@ -1194,7 +1215,9 @@ def _vendored_skill_safe(file: dict[str, Any], texts: dict[str, tuple[str, str]]
     if not skill_file(name):
         return True
     pair = texts.get(name)
-    return file.get("status") == "modified" and pair is not None and skill_text_safe(*pair)
+    return (
+        file.get("status") == "modified" and pair is not None and skill_text_safe(*pair)
+    )
 
 
 def vendored_scope(
@@ -2821,7 +2844,9 @@ class Reader:
                         )
                         path = Path(tmp) / "verdict.json"
                         if proc.returncode != 0 or not path.is_file():
-                            raise _Unreadable(f"{unread}: {(proc.stderr or '').strip()}")
+                            raise _Unreadable(
+                                f"{unread}: {(proc.stderr or '').strip()}"
+                            )
                         raw = path.read_bytes()
                 record = json.loads(raw.decode("utf-8"))
             except _Unreadable:
@@ -3260,7 +3285,9 @@ class Reader:
                 )
                 nodes = json_object(comments).get("nodes")
                 if not is_json_array(nodes) or len(nodes) != comments.get("totalCount"):
-                    raise _Unreadable(f"#{number}: the issue's comments could not be read")
+                    raise _Unreadable(
+                        f"#{number}: the issue's comments could not be read"
+                    )
                 node = node | {"comments": comments}
             self._briefed_issues[number] = (briefed_issue(node, app_id), tuple(taken))
         briefed, read_at = self._briefed_issues[number]
@@ -3312,7 +3339,8 @@ class Reader:
         if not names or len(names) > SKILL_READS_MAX or not isinstance(merge_base, str):
             return {}
         return {
-            name: (self._text_at(name, merge_base), self._text_at(name, head)) for name in names
+            name: (self._text_at(name, merge_base), self._text_at(name, head))
+            for name in names
         }
 
     def _text_at(self, path: str, ref: str) -> str:
@@ -3320,7 +3348,10 @@ class Reader:
         `_Unreadable`."""
         file = json_object(
             _read(
-                ["api", f"repos/{self.repo}/contents/{urllib.parse.quote(path)}?ref={ref}"],
+                [
+                    "api",
+                    f"repos/{self.repo}/contents/{urllib.parse.quote(path)}?ref={ref}",
+                ],
                 "skill text",
             )
         )
@@ -3666,9 +3697,7 @@ class Reader:
         try:
             kept = path.read_text(encoding="utf-8").strip()
         except OSError:
-            read = self._api_object(
-                self._named_path(EMPTY_ETAG_SEED_NAME, 1), deadline
-            )
+            read = self._api_object(self._named_path(EMPTY_ETAG_SEED_NAME, 1), deadline)
             self.index_reads += 1
             kept = ""
             if isinstance(read, tuple) and read[0] == EMPTY_NAMED:
@@ -5743,9 +5772,7 @@ def capped_close(
     read_status = issue_status and merge_policy.issue_status_reader(
         reader.repo, issue_status, reader.branch
     )
-    hold_states = (
-        issue_status.hold_states if issue_status else merge_policy.HOLD_STATES
-    )
+    hold_states = issue_status.hold_states if issue_status else merge_policy.HOLD_STATES
 
     states: dict[int, str | None] = {}
 
@@ -6981,7 +7008,12 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         return refusal.report() | link
     else:
         evidence = reader.evidence(args.number, args.head, pr)
-    if evidence.refusal is None and reader.saved and not args.shared_listing and not native_baseline:
+    if (
+        evidence.refusal is None
+        and reader.saved
+        and not args.shared_listing
+        and not native_baseline
+    ):
         reader.refresh()
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:

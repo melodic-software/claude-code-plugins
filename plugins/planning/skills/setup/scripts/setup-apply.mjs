@@ -1,12 +1,4 @@
 #!/usr/bin/env node
-// Write or check the repository layer of the planning plugin's settings,
-// <home>/planning.yaml, against schemas/planning.schema.json. <home> is the
-// repository's convention home.
-//
-// Each key is written exactly as the schema names it, so a quoted key with
-// spaces around its name is refused. The options, guarantees and exit codes
-// are in ../../../lib/setup-apply.mjs.
-
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { run, wholeFileReport } from "../../../lib/setup-apply.mjs";

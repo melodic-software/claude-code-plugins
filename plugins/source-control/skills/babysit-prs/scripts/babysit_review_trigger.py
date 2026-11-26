@@ -7,6 +7,7 @@ are ALL absent by default, leaving the module dormant (`gate_state ==
 "absent"`). The trigger phrase is defined exactly once -- the posted comment
 and the recognizer regex both derive from the same configured value.
 """
+
 from __future__ import annotations
 
 import re

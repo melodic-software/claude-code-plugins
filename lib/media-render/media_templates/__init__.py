@@ -58,7 +58,6 @@ def _diagram(d):
         nodes.append(f'<div class="node"><div class="label">{esc(n.get("label"))}</div>{detail}</div>')
     note = f'<p class="note">{esc(d["note"])}</p>' if d.get('note') else ''
     center = f'<div class="center">{esc(d["center"])}</div>' if d.get('center') else ''
-    # flow joins the nodes with arrows (a sequence); stack and group claim no order between them.
     layout = d.get('layout') if d.get('layout') in DIAGRAM_LAYOUTS else 'flow'
     joiner = '<div class=arrow>→</div>' if layout == 'flow' else ''
     return f'<section class="diagram">{center}<div class="{layout}">{joiner.join(nodes)}</div>{note}</section>'

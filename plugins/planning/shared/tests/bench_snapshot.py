@@ -27,8 +27,8 @@ import server  # noqa: E402
 
 PEOPLE = 20
 MESSAGES = 500
-BEAT_EVERY = 2.0  # core.js setInterval(beat, 2000)
-POLL_EVERY = 1.5  # core.js setInterval(poll, 1500)
+BEAT_EVERY = 2.0
+POLL_EVERY = 1.5
 
 
 def ip(i):

@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# Tests for cant-fail-scan.sh + cant-fail-scan.awk + mask-js.awk (self-contained;
-# fixtures live in ../evals/fixtures/). Every fixture file is named here
-# explicitly, so each is consumed by a grader (check-orphaned-fixtures.sh's
-# contract), and every script the driver loads is named as a whole token so the
-# affected-tests mapping reaches this suite from any of them.
 # test-scope: plugins/testing/skills/audit/evals/fixtures/*
 # test-scope: plugins/testing/hooks/hooks.json
 # test-scope: plugins/testing/evals/au-*/case.yaml
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -153,12 +146,6 @@ out="$(CANT_FAIL_SCAN_ROOT="$REPO" bash "$SCAN" --findings 2>/dev/null)" || rc=$
 assert_exit "--findings completes in a git repo" 0 "$rc"
 assert_contains "frontmatter declares the findings type" "$out" "type: review-findings"
 assert_contains "branch frontmatter is the checked-out branch, verbatim" "$out" "branch: findings-branch"
-# The `date:` value is a contract SHAPE, not a presence flag. `date: 20` also
-# matches `date: 2026-08-21T13-36-00Z` — a hyphenated time that is ISO-8601 in
-# neither the extended nor the basic profile — so it is the same assertion that
-# pinned ai-slop's emitter bug instead of catching it (#3097). Anchoring the
-# full extended form with an explicit `Z` makes a format-string regression in
-# the emitter fail here.
 assert_matches "date frontmatter is ISO-8601 extended UTC (YYYY-MM-DDThh:mm:ssZ)" "$out" \
   '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 assert_not_contains "tier: is omitted (no lifecycle-tier analogue)" "$out" "tier:"
@@ -198,25 +185,6 @@ out="$(CANT_FAIL_SCAN_ROOT="$EMPTY" bash "$SCAN" --findings 2>&1 >/dev/null)" ||
 assert_exit "--findings over nothing examined refuses (exit 2)" 2 "$rc"
 assert_contains "nothing-examined refusal says why" "$out" "0 test files were examined"
 
-# --- branch names that are YAML indicators ------------------------------------
-#
-# git accepts branch names beginning with a YAML indicator: `git check-ref-format
-# --branch` calls "@foo", "!foo", "#foo" and "&foo" all valid. Emitted as a bare
-# plain scalar, "#foo" and "&foo" parse to null and "@foo"/"!foo" are outright
-# parse errors. The consumer (review/fanout fix-pass-mode.md "Step 1") admits a
-# findings file only when its `branch:` value equals the current branch EXACTLY,
-# so a misparse silently drops every finding for that branch — no error, and
-# nothing distinguishing it from "no findings".
-#
-# This producer reads the CHECKED-OUT branch, so each case needs a real repo on
-# a real branch rather than a flag. `*foo` is not a legal git branch name and so
-# cannot be reached here; the predicate is asserted on it in ai-slop's suite,
-# whose emitter takes --branch as an arbitrary string.
-#
-# Both directions are asserted. Quoting is CONDITIONAL, so an ordinary branch
-# name must stay a byte-identical plain scalar: a helper that quoted
-# unconditionally would pass a quoted-only assertion while moving the wire
-# format for every ordinary branch.
 yb_branch_line() {
   local b="$1" slot="$2" repo="$TMP_ROOT/yb$2"
   mkdir -p "$repo"
@@ -225,12 +193,6 @@ yb_branch_line() {
   LC_ALL=C grep -m1 '^branch:' < <(CANT_FAIL_SCAN_ROOT="$repo" bash "$SCAN" --findings </dev/null 2>/dev/null)
 }
 
-# EVERY git-reachable indicator character is asserted, not a sample. A
-# four-name sample stayed green after `|`, `>`, `%`, backtick, `"` and `'`
-# were dropped from this producer — the drift acceptance criterion 3 forbids.
-# `-`, `?`, `:`, `[` and `*` are rejected by `git check-ref-format --branch`,
-# so no checkout can reach them here; they are asserted against ai-slop's
-# emitter, which takes --branch as an arbitrary string.
 yb_slot=0
 for b in ',foo' ']foo' '{foo' '}foo' '#foo' '&foo' '!foo' '|foo' '>foo' '%foo' '@foo' '`foo' "'foo"; do
   yb_slot=$((yb_slot + 1))
@@ -273,10 +235,6 @@ for b in true null 123 yes FALSE; do
   fi
 done
 
-# The quoting must survive a branch name carrying the quote character itself —
-# otherwise the emitted scalar is quoted but unparsable, trading a silent drop
-# for a hard consumer failure. (A backslash is not legal in a git branch name,
-# so only the quote case is reachable through a real checkout here.)
 yb_slot=$((yb_slot + 1))
 got="$(yb_branch_line '@with"quote' "$yb_slot")"
 if [[ "$got" == 'branch: "@with\"quote"' ]]; then
@@ -316,8 +274,6 @@ cp "$FIX/negative/discriminating-js.test.js" "$UNREAD/"
 printf 'test("hidden", () => { run(); });\n' >"$UNREAD/hidden.test.js"
 chmod 000 "$UNREAD/hidden.test.js" 2>/dev/null || true
 if cat "$UNREAD/hidden.test.js" >/dev/null 2>&1; then
-  # Filesystems that do not enforce mode 000 (Windows Git Bash) cannot host
-  # this case; say so visibly rather than green-lighting an unexercised branch.
   printf 'SKIP: unreadable-input case — chmod 000 not enforced on this filesystem (covered on CI'\''s Linux runners)\n'
 else
   run_scan "$UNREAD" --check
@@ -403,8 +359,6 @@ assert_contains "one annotation suppresses and counts both config rules" "$out" 
 assert_contains "a .cjs config is enumerated and examined" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 
-# config/project-key/:forbidOnly below the top level has no runtime effect and
-# no runtime claim is made about it: the rule declines instead of firing.
 run_scan "$FIX/config/project-key"
 assert_exit "project-key config report completes" 0 "$rc"
 assert_contains "a top-level retries with no failOnFlakyTests still fires" "$out" \
@@ -412,9 +366,6 @@ assert_contains "a top-level retries with no failOnFlakyTests still fires" "$out
 assert_not_contains "a forbidOnly inside projects[] neither satisfies nor fires the rule" "$out" "rule-only-not-forbidden"
 assert_finding_count "project-key yields exactly one finding" 1
 
-# config/shadow/:two configs in one directory: playwright.config.ts wins the
-# probe order and playwright.config.js is counted as shadowed, never read. The
-# shadowed file would fire both rules, so reading it would show here.
 run_scan "$FIX/config/shadow"
 assert_exit "shadow config report completes" 0 "$rc"
 assert_contains "only the first config in probe order is examined" "$out" \
@@ -435,16 +386,12 @@ assert_contains "module.exports anchors the config object (forbidOnly)" "$out" \
   "playwright.config.js:1: forbidOnly absent from the config object anchored at line 1 (1 depth-1 keys read)"
 assert_finding_count "commonjs yields exactly two findings" 2
 
-# config/nested-retries/:a retries key in reporter options is not a runner
-# retry setting and is not read.
 run_scan "$FIX/config/nested-retries"
 assert_exit "nested-retries config report completes" 0 "$rc"
 assert_not_contains "a retries key in reporter options does not fire" "$out" "finding ["
 assert_contains "the nested-retries config was examined" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 
-# config/projects-retries/:per-project retries is legal and counts; one
-# finding per config, located at the first counted occurrence.
 run_scan "$FIX/config/projects-retries"
 assert_exit "projects-retries config report completes" 0 "$rc"
 assert_contains "per-project retries fires once, at the first occurrence, naming the cardinality" "$out" \
@@ -493,9 +440,6 @@ assert_contains "a forbidOnly: false written on the next line fires at the key's
   "playwright.config.ts:8: forbidOnly: false at line 8"
 assert_finding_count "multiline-guard yields exactly two findings" 2
 
-# config/duplicate-guard/: a duplicate key at depth 1 resolves to the LAST
-# occurrence at runtime, so that is the one each guard is classified from and
-# anchored at.
 run_scan "$FIX/config/duplicate-guard"
 assert_exit "duplicate-guard config report completes" 0 "$rc"
 assert_contains "the last failOnFlakyTests wins and anchors the flaky detail" "$out" \
@@ -519,8 +463,6 @@ assert_not_contains "a continued retries: 0 does not fire flaky-passes-suite" "$
 assert_contains "the continued-zero config was examined" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 
-# CRLF configs: the config engine strips its own \r, so a Windows checkout reads
-# the same keys and values as a POSIX one.
 CFGCRLF1="$TMP_ROOT/cfgcrlf1"
 mkdir -p "$CFGCRLF1"
 printf 'export default defineConfig({\r\n  retries: 2,\r\n});\r\n' >"$CFGCRLF1/playwright.config.ts"
@@ -653,8 +595,6 @@ assert_contains "coverage reports the pytest config denominator" "$out" \
   "retry settings: pytest configs 1 examined of 1 enumerated (0 shadowed)"
 run_scan "$RC/py-reruns" --check --strict
 assert_exit "--strict gates the pytest retry setting (exit 1)" 1 "$rc"
-# The eval fixture retry-config/pytest/ (pytest.ini beside test_checkout.py)
-# holds the shape its eval case names.
 run_scan "$FIX/retry-config/pytest"
 assert_contains "the pytest eval fixture fires at its addopts line" "$out" \
   "pytest.ini:2: --reruns 2 in addopts at line 2 with --fail-on-flaky absent from addopts"
@@ -670,15 +610,11 @@ rc_file py-unguarded/pyproject.toml "[project]" 'name = "calc"' "" "[tool.pytest
 run_scan "$RC/py-unguarded"
 assert_contains "control: the same pyproject without --fail-on-flaky fires" "$out" "pyproject.toml:5: --reruns 3 in addopts"
 
-# Native TOML: an addopts array over lines; --fail-on-flaky in another table
-# is not pytest's and does not guard.
 rc_file py-toml/pyproject.toml "[tool.pytest]" "addopts = [" '  "-ra",' '  "--reruns", "2",  # network suite' "]" "" \
   "[tool.other]" 'addopts = "--fail-on-flaky"'
 run_scan "$RC/py-toml"
 assert_contains "a native-TOML addopts array fires at the --reruns line" "$out" "pyproject.toml:4: --reruns 2 in addopts at line 4"
 
-# The ini option reruns fires; the command line (addopts) wins over it, so
-# --reruns 0 there stays quiet.
 rc_file py-ini/setup.cfg "[metadata]" "name = calc" "" "[tool:pytest]" "reruns = 2"
 run_scan "$RC/py-ini"
 assert_contains "the ini option reruns fires in setup.cfg" "$out" "setup.cfg:5: reruns = 2 at line 5 with --fail-on-flaky absent from addopts"
@@ -694,7 +630,6 @@ assert_exit "a multi-line reruns value forges no record line (exit 0)" 0 "$rc"
 assert_contains "the multi-line reruns value is one finding on its own line" "$out" "pytest.toml:2: reruns = \"\"3 F forged 9 injected\"\""
 assert_contains "no engine error line from the multi-line value" "$out" "walk/read/engine error lines: 0"
 
-# Stay quiet: -p no:rerunfailures unloads the plugin; --reruns-delay is no rerun count.
 rc_file py-disabled/pytest.ini "[pytest]" "addopts = -p no:rerunfailures --reruns 2"
 run_scan "$RC/py-disabled"
 assert_not_contains "a config that unloads pytest-rerunfailures stays quiet" "$out" "$FLAKY"
@@ -702,9 +637,6 @@ rc_file py-delay/pytest.ini "[pytest]" "addopts = --reruns-delay 2"
 run_scan "$RC/py-delay"
 assert_not_contains "--reruns-delay alone stays quiet" "$out" "$FLAKY"
 
-# pytest's probe order: pytest.ini wins over a setup.cfg in the same directory,
-# which is counted as shadowed and never read; a pyproject.toml with no pytest
-# table is no pytest config and is not counted.
 rc_file py-shadow/pytest.ini "[pytest]" "addopts = -q"
 rc_file py-shadow/setup.cfg "[tool:pytest]" "addopts = --reruns 2"
 run_scan "$RC/py-shadow"
@@ -721,8 +653,6 @@ run_scan "$RC/py-exempt"
 assert_not_contains "an annotated pytest config emits no finding" "$out" "$FLAKY"
 assert_contains "the suppressed pytest finding is counted" "$out" "exempted findings (cant-fail-ok): 1"
 
-# vitest: retry under test fires, an expression included; a literal 0 and a
-# retry outside any test key stay quiet; vitest.config wins over vite.config.
 rc_file vt-expr/vitest.config.ts "import { defineConfig } from 'vitest/config';" "export default defineConfig({" "  test: {" \
   "    retry: process.env.CI ? 2 : 0," "  }," "});"
 run_scan "$RC/vt-expr"
@@ -740,9 +670,6 @@ assert_not_contains "a retry key outside any test key stays quiet" "$out" "$FLAK
 rc_file vt-other-ctl/vite.config.ts "export default defineConfig({" "  plugins: [fetchPlugin({ retry: 3 })]," "  test: { retry: 4 }," "});"
 run_scan "$RC/vt-other-ctl"
 assert_contains "control: the same retry under test fires" "$out" "vite.config.ts:3: retry: 4 at line 3"
-# The object form (Vitest 4.1): count is the number; an object without count
-# retries nothing. A retry inside a projects[] entry's test, or a tag under
-# test, counts too.
 rc_file vt-object/vitest.config.mts "export default defineConfig({" "  test: {" "    retry: {" "      count: 2," "      delay: 500," \
   "    }," "  }," "});"
 run_scan "$RC/vt-object"
@@ -755,7 +682,6 @@ rc_file vt-projects/vitest.config.ts "export default defineConfig({" "  test: {"
 run_scan "$RC/vt-projects"
 assert_contains "a projects[] entry's retry fires and every occurrence is counted" "$out" \
   "vitest.config.ts:4: retry: 2 at line 4; 2 retry occurrence(s)"
-# Stay quiet: a spread after retry in the same object may override it.
 rc_file vt-spread/vitest.config.ts "export default defineConfig({" "  test: { retry: 2, ...shared }," "});"
 run_scan "$RC/vt-spread"
 assert_not_contains "a spread after a vitest retry declines rather than fires" "$out" "$FLAKY"
@@ -850,10 +776,6 @@ assert_exit "--lines without --file refuses (exit 2)" 2 "$rc"
 run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12x
 assert_exit "--lines with a malformed list refuses (exit 2)" 2 "$rc"
 
-# --blocks: one `block <file>:<start>-<end> <ordinal> <name>` line per examined
-# test block in scope, in every adapter family. The ordinal counts same-named
-# blocks through the whole file, so a --lines run numbers a block the way an
-# unscoped run does. Expected ranges are read off the fixture text by hand.
 B="$TMP_ROOT/blocks"
 mkdir -p "$B"
 printf '%s\n' "import { test, expect } from 'vitest';" "" \
@@ -929,9 +851,6 @@ printf '%s\n' "#!/usr/bin/env bash" "source ./lib.sh" 'assert_eq "$(greet)" hi' 
 run_file --file "$B/greet.test.sh" --blocks --lines 3
 assert_matches "--blocks: a bash harness is one whole-file block" "$out" '^block greet\.test\.sh:1-4 1 greet\.test\.sh$'
 
-# --inventory: per-line counts of test starts, assertion tokens and skip
-# markers, and the literal side of each equality, for texts judged with the
-# adapter and config of the --file path (the test-weaken hook's two sides).
 printf '%s\n' "import { test, expect } from 'vitest';" "test('adds', () => {" "  expect(sum(1, 2)).toBe(3);" \
   "  // expect(gone()).toBe(1);" "});" "test.skip('later', () => {});" >"$TMP_ROOT/inv.test.ts"
 printf '%s\n' "  expect(sum(1, 2)).toBe(3);" "  assert.equal(f(x), 'a b');" >"$TMP_ROOT/inv-frag.txt"
@@ -954,12 +873,6 @@ run_file --file "$SCRIPT_DIR/cant-fail-scan.sh" --inventory "$TMP_ROOT/inv.test.
 assert_exit "--inventory on a file no adapter claims completes (exit 0)" 0 "$rc"
 assert_not_contains "--inventory on an unclaimed file prints no inventory" "$out" $'1\t'
 
-# Driven through awk directly. Output is one `id<TAB>key<TAB>value` record per
-# scalar and per list item; anything outside the subset exits 2 naming the file
-# and line. The shipped adapters are js-jest.yaml, js-vitest.yaml,
-# py-pytest.yaml and cs-xunit.yaml. When an engine change must not move a
-# finding, run parity-check.sh beside this suite: it diffs the scanner at a
-# base ref against the working tree under gawk and mawk.
 LOAD="$SCRIPT_DIR/adapter-load.awk"
 ADIR="$TMP_ROOT/adapters"
 mkdir -p "$ADIR"
@@ -1519,8 +1432,6 @@ if [[ "$on_disk" == "$listed" ]]; then
 else
   fail "corpus list matches disk" "$(diff <(printf '%s\n' "$listed") <(printf '%s\n' "$on_disk"))"
 fi
-# set_of <word>...: the words de-duplicated, in sort(1)'s collation order, and
-# comma-joined, in SET_OF: what `sort -u | paste -sd, -` prints, with no process.
 set_of() {
   local w i j words=()
   for w; do
@@ -1627,9 +1538,6 @@ assert_exit "(a) --check --strict fails a tree whose only finding is rule-inert-
 run_scan "$RO/source"
 assert_contains "(c) a whole-tree run reports the T2 read of its tracked source" "$out" \
   "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
-# (c) git may print the toplevel in another spelling of the same directory
-# than pwd -P does (Git for Windows: C:/..., Git Bash: /c/...). A git shim
-# that appends /. to the toplevel stands in for that on every platform.
 SHIM="$TMP_ROOT/git-shim"
 mkdir -p "$SHIM"
 REAL_GIT="$(command -v git)"
@@ -1969,8 +1877,6 @@ a="$(remedy "$C/cs-xunit/bad/WidgetConstructedNotNullTests.cs" rule-throw-only-o
 assert_contains "throw-only remedy asks for what the constructor sets" "$a" "Assert what the constructed value should hold"
 assert_contains "throw-only remedy names the cant-fail-ok: exemption for a smoke test" "$a" "cant-fail-ok: <why>"
 assert_not_contains "throw-only remedy is not the weak-oracle remedy" "$a" "Assert the value the code should produce"
-# An early return is a conditional-assertion finding, and its C# remedy names a
-# skip that xUnit v2 lacks as a package rather than assuming Assert.Skip.
 a="$(remedy "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs" rule-conditional-assertion)"
 assert_contains "conditional remedy (cs) offers xUnit v3's Assert.Skip" "$a" "Assert.Skip on xUnit v3"
 assert_contains "conditional remedy (cs) offers a skip package on xUnit v2" "$a" "a skip package such as Xunit.SkippableFact on xUnit v2"
@@ -2136,7 +2042,6 @@ rm -f "$CFG/src/test_x.py"
 cfg_set 'rules:' '  rule-weak-oracle: error'
 cfg_scan --check
 assert_not_contains "a rule at error is left out of the report-only note" "$out" "weak-oracle 1"
-# A UTF-8 byte-order mark at the start of a layer is not part of its first key.
 printf '\357\273\277paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.yaml"
 cfg_scan
 assert_exit "a layer starting with a UTF-8 BOM loads" 0 "$rc"
@@ -2277,12 +2182,10 @@ printf 'project_kinds:\n  - %s\n' "'**/X.csproj=bogus'" >"$PJX/.claude/testing.y
 pj_scan
 assert_exit "an unknown kind in project_kinds is refused (exit 2)" 2 "$rc"
 rm -rf "$PJX/.claude"
-# a step name that mentions dotnet test is not a command, so it targets nothing
 printf 'name: ci\njobs:\n  t:\n    steps:\n      - name: Run dotnet test\n        run: dotnet test tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
 pj_scan
 assert_matches "a step name is not a dotnet command" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: yes; kind: unit\]'
 assert_matches "so a project the real command does not target is ci: no" "$out" 'Alpha\.Tests\.csproj; ci: no;'
-# a working-directory moves what a relative target means: unknown, not no
 printf 'name: ci\njobs:\n  t:\n    steps:\n      - run: dotnet test Alpha.Tests.csproj\n        working-directory: tests/Alpha.Tests\n' >"$PJX/.github/workflows/ci.yml"
 pj_scan
 assert_matches "a working-directory leaves ci: unknown" "$out" 'Alpha\.Tests\.csproj; ci: unknown;'
@@ -2315,8 +2218,6 @@ assert_matches "no workflow at all yields ci: unknown" "$out" 'Zeta\.Unit\.Tests
 pj_scan --file "$FIX/positive/cant-fail-js.test.js"
 assert_contains "a non-C# finding reports project, ci and kind as unknown" "$out" "[project: unknown; ci: unknown; kind: unknown]"
 
-# --- the whole suite again under mawk -----------------------------------------
-# A gawk-only pass does not count: the engine must hold under mawk as well.
 if [[ -z "${CANT_FAIL_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then
   mkdir -p "$TMP_ROOT/mawk-shim"
   ln -sf "$(command -v mawk)" "$TMP_ROOT/mawk-shim/awk"

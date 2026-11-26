@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# create-item — CONTRACT.md "Verbs (core public surface)". Writes one markdown file
-# per item under storage_dir with JSON-valued frontmatter; --parent lands as a
-# frontmatter field, --blocked-by ids as "Blocked by:" body lines.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -69,9 +66,6 @@ fi
 
 wit_need_storage
 
-# Referenced parent/blockers must exist (parity with the GitHub adapter, whose gh
-# call rejects an unknown parent/blocker) — otherwise create-item would persist a
-# dead edge that get-item/list-frontier silently ignore.
 if [[ -n "$parent" ]]; then
   wit_item_exists "${parent##*#}" || {
     printf 'create-item: --parent %s not found\n' "$parent" >&2

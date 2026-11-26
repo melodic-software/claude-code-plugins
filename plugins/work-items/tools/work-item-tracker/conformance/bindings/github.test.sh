@@ -11,8 +11,6 @@ for fn in cb_setup cb_teardown; do
   assert_succeeds "github binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
-# No retained default: cb_setup refuses when the target is unset (the guard fires
-# before any network call, so this stays offline).
 if (
   unset WIT_CONFORMANCE_GITHUB_REPO
   cb_setup

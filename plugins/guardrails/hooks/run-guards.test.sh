@@ -122,7 +122,7 @@ run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/ctx2
 assert_exit "merge run exits 0" 0 "$RC"
 assert_eq "merged output is exactly one JSON document" "1" "$(jq -s 'length' <<<"$OUT")"
 merged_ctx=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$OUT")
-merged_ctx="${merged_ctx//$'\r'/}" # the Windows jq build writes CRLF
+merged_ctx="${merged_ctx//$'\r'/}"
 assert_eq "merged additionalContext carries both guards, in order" $'ctx one\n\nctx two' "$merged_ctx"
 assert_eq "merged hookEventName kept" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$OUT")"
 assert_eq "merged systemMessage carries the one guard that set it" "sys two" "$(jq -r '.systemMessage' <<<"$OUT")"
@@ -706,7 +706,7 @@ assert_exit "two real emitters: advisory lane still exits 0" 0 "$GUARD_RC"
 assert_eq "two real emitters: exactly one JSON document on stdout" \
   "1" "$(jq -s 'length' <<<"$GUARD_OUT")"
 POST_CTX=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT")
-POST_CTX="${POST_CTX//$'\r'/}" # the Windows jq build writes CRLF
+POST_CTX="${POST_CTX//$'\r'/}"
 assert_contains "two real emitters: the stale path is in the merged context" \
   "$POST_CTX" "  docs/gone.md"
 assert_contains "two real emitters: the unresolved skill is in the merged context" \

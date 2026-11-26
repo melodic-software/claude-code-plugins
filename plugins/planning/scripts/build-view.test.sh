@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for scripts/build-view.mjs: both views build through the
-# shared view builder, pass the interactive profile, keep hostile data as text,
-# and bind every key their template names. When a Chrome or Chromium binary is
-# found (CHROME, google-chrome, chromium, or Playwright's headless shell) the
-# pages are also opened from file:// to prove the runtime renders them.
-#
-#   bash plugins/planning/scripts/build-view.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 
