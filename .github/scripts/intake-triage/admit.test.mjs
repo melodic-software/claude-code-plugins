@@ -4301,7 +4301,7 @@ describe("agent decision", () => {
   );
   const node = (author, body, extra = {}) => ({ body, author, editor: null, lastEditedAt: null, ...extra });
   const openerBy = (author, body = thin.body, extra = {}) => node(author, agentDecisionBody(SETTLED, body), extra);
-  const refinement = node(APP_ACTOR, render(SETTLED, { body: thin.body }));
+  const refinement = node(APP_ACTOR, render(SETTLED, { body: thin.body, agent: true }));
   const ownerDecision = node(USER(HUMAN), "**Decision recorded.** Eighteen: one skill is retired.");
   const specWith = (comments) => humanSpec(thin, comments);
   const decideWith = (comments) => decide(facts({ issue: thin, spec: specWith(comments) }));
@@ -4334,7 +4334,7 @@ describe("agent decision", () => {
     const withCriteria = node(USER(HUMAN), "**Decision recorded.** Eighteen.\n\n- [ ] `plugins/session-flow/README.md` line 3 says eighteen.");
     assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, withCriteria]), { verdict: "admit", reasons: [] }, "the owner's criteria admit it, not agent-decided");
     assert.deepEqual(decideWith([openerBy(APP_ACTOR, "an older body"), refinement, withCriteria]), { verdict: "admit", reasons: [] }, "an override also supersedes a stale opener");
-    const hostOnly = node(APP_ACTOR, render({ ...SETTLED, criteria: ["Run `/machine-health:audit` on a Windows 11 host and confirm the report lists 27 check results."] }, { body: thin.body }));
+    const hostOnly = node(APP_ACTOR, render({ ...SETTLED, criteria: ["Run `/machine-health:audit` on a Windows 11 host and confirm the report lists 27 check results."] }, { body: thin.body, agent: true }));
     assert.equal(decideWith([openerBy(APP_ACTOR), hostOnly]).verdict, "refuse", "the agent's own host-run criterion counts while its decision stands");
     assert.deepEqual(decideWith([openerBy(APP_ACTOR), hostOnly, withCriteria]), { verdict: "admit", reasons: [] }, "after an override the agent's criteria are not judged beside the owner's");
     assert.deepEqual(decideWith([ownerDecision, openerBy(APP_ACTOR), refinement]), { verdict: "admit", reasons: [], agentDecided: true });

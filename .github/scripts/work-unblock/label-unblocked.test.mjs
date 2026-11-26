@@ -5217,7 +5217,7 @@ test("an issue admitted on the lanes App's agent-decision opener gets agent-deci
   );
   const app = { __typename: "Bot", databaseId: LANES_APP_ID };
   const node = (text) => ({ body: text, author: app, editor: null, lastEditedAt: null });
-  const spec = (opener) => ({ body, author: { __typename: "User", databaseId: OWNER.id }, editor: null, lastEditedAt: null, comments: [node(opener), node(render(settled, { body }))] });
+  const spec = (opener) => ({ body, author: { __typename: "User", databaseId: OWNER.id }, editor: null, lastEditedAt: null, comments: [node(opener), node(render(settled, { body, agent: true }))] });
   const ADD = `POST /repos/${REPO}/issues/25/labels {"labels":["agent-decided"]}`;
   const agent = markedWorld({ body, specs: { 25: spec(agentDecisionBody(settled, body)) } });
   assert.equal(await sweep({ github: agent.github, admission: admissionFor() }, PAUSING), 0);

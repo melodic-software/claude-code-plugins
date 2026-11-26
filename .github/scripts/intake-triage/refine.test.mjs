@@ -13,7 +13,7 @@ import { GitHubError } from "../lib/github-client.mjs";
 
 import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
-import { agentAnswered } from "./admit.mjs";
+import { agentAnswered, decide, loadRules } from "./admit.mjs";
 import { agentSettled, DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 import { STOP_REASONS } from "../lib/stop-reason.mjs";
@@ -1789,7 +1789,7 @@ describe("agent decision", () => {
   });
 
   test("render prints a settled refinement's criteria and the override footer, and no owner reply", () => {
-    const body = render(validateOutput(SETTLED, new Set()), { body: issueOf().body });
+    const body = render(validateOutput(SETTLED, new Set()), { body: issueOf().body, agent: true });
     assert.ok(body.includes("\n- [ ] `plugins/session-flow/README.md` line 3 says nineteen.\n"), body);
     assert.ok(body.includes("\nExternal state: none\n"), body);
     assert.ok(!body.includes(DECISION_REPLY), "no copyable owner reply");
@@ -1825,7 +1825,7 @@ describe("agent decision", () => {
   });
 
   const opener = { id: 20, user: { id: APP, type: "Bot" }, body: `**Agent decision recorded.**\n${bodyVersion(issueOf().body)}\n1. Yes.` };
-  const agentRefined = { id: 21, user: { id: APP, type: "Bot" }, body: render(validateOutput(SETTLED, new Set()), { body: issueOf().body }) };
+  const agentRefined = { id: 21, user: { id: APP, type: "Bot" }, body: render(validateOutput(SETTLED, new Set()), { body: issueOf().body, agent: true }) };
   const override = { id: 22, node_id: "C22", user: { id: HUMAN, type: "User" }, performed_via_github_app: null, body: "**Decision recorded.** Eighteen, not nineteen." };
   const select = (comments) => selectRefinement({ github: fakeGitHub({ issue: ready(), comments }).github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
 
@@ -1835,6 +1835,36 @@ describe("agent decision", () => {
     const stranger = { ...override, user: { id: OUTSIDER, type: "User" } };
     assert.equal((await select([opener, agentRefined, stranger, laneComment()])).refine, false, "only a listed human overrides");
     assert.equal((await select([opener, agentRefined, override, { ...agentRefined, id: 23 }, laneComment()])).refine, false, "a refinement after the override counts");
+  });
+
+  test("a person-held all-none refinement posts the needs-decision text, and the owner's Decision then admits it", async () => {
+    const fake = fakeGitHub({
+      issue: issueOf({ labels: [{ name: "status: ready" }, { name: "needs-reporter-info" }] }),
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id: HUMAN } }],
+    });
+    assert.equal((await apply(fake, SETTLED)).outcome, "needs-decision");
+    const posted = writes(fake.calls).at(-1).body.body;
+    assert.ok(posted.includes(DECISION_REPLY), "the owner is asked to answer");
+    assert.ok(!posted.split("\n").some((row) => row.startsWith("- [ ] ")), "no agent criteria without an opener");
+    assert.equal(agentAnswered(posted), false);
+    const node = (id, body) => ({ body, author: actor(id), editor: null, lastEditedAt: null });
+    const spec = { body: issueOf().body, author: actor(HUMAN), editor: null, lastEditedAt: null, commentCount: 2, comments: [node(APP, posted), node(HUMAN, "**Decision recorded.** Nineteen.\n\n- [ ] `plugins/session-flow/README.md` line 3 says nineteen.")] };
+    const decision = decide({
+      issue: { number: 7, state: "open", title: issueOf().title, body: issueOf().body, user: { id: HUMAN }, type: { name: "Task" }, labels: [{ name: "status: ready" }], sub_issues_summary: { total: 0 } },
+      verdict: { dimensions: { size: "small", complexity: "low", uncertainty: "known" } },
+      rules: loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname),
+      parent: null,
+      blockers: [],
+      trustedCloses: new Set(),
+      events: [],
+      humans,
+      appId: APP,
+      webHosts,
+      repository: "o/r",
+      spec,
+    });
+    assert.deepEqual(decision, { verdict: "admit", reasons: [] });
   });
 
   test("after an owner override an all-none refinement waits for the owner instead of posting a new opener", async () => {

@@ -529,7 +529,7 @@ export function titleLine(text) {
 
 export const DECISION_REPLY = "**Decision recorded.** <answer>";
 
-export function render(output, { body, checks = [], retriage = false } = {}) {
+export function render(output, { body, checks = [], retriage = false, agent: opened = false } = {}) {
   const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), ...(output.split.length > 0 ? [splitItemsLine(output.split)] : []), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. On an issue a listed human filed, it counts as the issue's spec once posted, while unedited; it is still model text, so check it.", ""];
   const section = (title, items) => {
     if (items.length > 0) {
@@ -543,7 +543,7 @@ export function render(output, { body, checks = [], retriage = false } = {}) {
     parts.push(`**Split.** ${movedLine(output.split)} This issue keeps the rest of its done-when.`, "");
     section("Not done by the lane: checks a person runs", checks.map(quoted));
   }
-  const agent = agentSettled(output);
+  const agent = opened && agentSettled(output);
   if (output.exact || agent) {
     section("Acceptance criteria", output.criteria.map((item) => `${TASK}${line(item)}`));
     if (output.external) {
@@ -641,19 +641,19 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (agent) {
       await github("POST", `${base}/comments`, { body: agentDecisionBody(output, issue.body) });
     }
-    return github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });
+    return github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage, agent }) });
   };
   const agentMay = async () => {
     if (carried(labels, DECISION_LABELS) && (await decisionStays(github, base, comments, appId, events)) !== null) {
       return false;
     }
     const spec = await specOf(github, repository, number);
-    const refinement = { body: render(output, { body: issue.body }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
+    const refinement = { body: render(output, { body: issue.body, agent: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
     return spec.commentCount + 2 <= SPEC_COMMENTS && countedRefinement({ ...spec, comments: [...spec.comments, refinement] }, humans, appId) === refinement;
   };
   const untrusted = async () => {
     const spec = await specOf(github, repository, number);
-    const refinement = { body: render(output, { body: issue.body, retriage: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
+    const refinement = { body: render(output, { body: issue.body, retriage: true, agent }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
     if (spec.commentCount < SPEC_COMMENTS && hasTrustedCriteria({ ...spec, comments: [...spec.comments, refinement] }, humans, rules["task-list"], appId)) {
       return false;
     }
