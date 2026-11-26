@@ -2,8 +2,8 @@
 
 The verdict is **Adopt**, recorded in [ADR 0052](../../adr/0052-adopt-claude-code-mods.md)
 and as the mods row under "Recorded gate runs" in
-[docs/plugin-philosophy.md](../../plugin-philosophy.md). ADR 0052 supersedes
-the 2026-09-19 Defer, whose five go criteria are in [go-no-go.md](go-no-go.md). This folder holds the
+[docs/plugin-philosophy.md](../../plugin-philosophy.md). ADR 0052 supersedes the 2026-09-19 Defer in
+[ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md). This folder holds the
 trail behind both.
 
 ## Reading order

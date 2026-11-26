@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-11-13
 - Refs: owner decisions of 2026-11-13 (Q22, Q35, Q49, Q59, Q75, Q84; design thread T7);
-  [evidence posting](../../plugins/source-control/skills/pull-request/reference/evidence.md)
+  [ADR 0056](0056-verify-ui-with-linux-side-playwright-and-attach-produced-demo-evidence-to-prs.md)
   (attach route)
 
 ## Context

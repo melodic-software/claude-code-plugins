@@ -5,7 +5,8 @@ Claude Code hook in `hooks/hooks.json` or a git hook in `git-hooks/`, has its ow
 `hook-*` family splits the rest: [hook-config-delivery](../hook-config-delivery/README.md) owns the
 channel that carries a `userConfig` value into a hook process, [config-cascade](../config-cascade/README.md)
 owns how layers resolve, and [plugin-option-naming](../plugin-option-naming/README.md) owns an
-option's title and description text.
+option's title and description text. The decision is
+[ADR 0131](../../adr/0131-give-every-hook-its-own-on-off-setting-at-the-user-and-repository-layers.md).
 
 ## Three levels
 

@@ -1,7 +1,9 @@
 # check-signed-commits
 
 After a lane's model step, check that every commit the lane added to the PR is GitHub-verified, so
-a lane never leaves a PR with an unverified commit. It escalates and never rewrites
+a lane never leaves a PR outside
+[ADR 0051](../../../docs/adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md)
+condition 2, which requires a verified signature on every commit. It escalates and never rewrites
 or force-pushes.
 
 ## Inputs

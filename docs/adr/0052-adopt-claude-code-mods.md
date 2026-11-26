@@ -3,6 +3,7 @@
 - Status: accepted; amended 2026-10-25 (where the guard is absent, and the mod reach it never
   covers, see the amendment below)
 - Date: 2026-10-03
+- Supersedes: [ADR 0035](0035-defer-claude-code-mods-with-five-go-criteria.md)
 - Superseded in part by `scripts/test-plugin-mods.sh`, run from `scripts/validate-plugins.sh`:
   "No CI check or other enforcement for mods" no longer holds. And by
   `plugins/context-usage/README.md` ("No part of the plugin denies a tool call."): the Consequences
@@ -15,7 +16,7 @@ the design, not on a probe ([Where the guard mods run](#where-the-guard-mods-run
 
 ## Context
 
-The [go/no-go record](../upstream/claude-code-mods/go-no-go.md) deferred mods on 2026-09-19 at
+[ADR 0035](0035-defer-claude-code-mods-with-five-go-criteria.md) deferred mods on 2026-09-19 at
 Claude Code 2.1.278, when all five of its go criteria failed. By 2.1.288 the official docs carry ten
 pages under `docs/en/plugins/mods/`, mods are on by default from 2.1.287, and the 2.1.288 changelog
 lists a fix matching the description of
@@ -231,7 +232,7 @@ amendment. The decision stands: no policy narrowing of what a mod may do.
   user's mod where the guard loads".
 - **Containment is unchanged.** No mod in this repository registers `tool.check`, and the CI write
   runner installs plugins only from the base copy
-  ([skill activities](../conventions/pr-pipeline/pr-run-activity.md#skill-activities)).
+  ([ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md), decision 3).
 
 These pointers are as of 2026-10-25, Claude Code 2.1.310, except the admin quotes in the third
 bullet, re-read 2026-11-22. Recheck when any quoted section changes, or when a CI lane adds a Claude

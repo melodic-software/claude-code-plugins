@@ -570,11 +570,8 @@ as of 2026-10-15). Without `web-access` the skill has no web tool and no `Bash` 
 so `dontAsk` refuses every fetch. Fetched pages are
 untrusted text, so the activity must set `reads-untrusted: true`. The skill holds no GitHub token and pushes nothing: its change leaves the run only as an artifact
 (a patch, replies, a verdict or a work outcome) that a script activity in the write file checks and
-applies, and the PR is the review step for what lands. A skill activity loads nothing from the PR
-head because Claude Code reads project settings, hooks, `CLAUDE.md`, `AGENTS.md`, `.mcp.json` and
-the marketplace declaration from the checkout, so a head checkout would let the PR replace the
-plugin or run a hook in the lane; only the default branch is a trusted base because a PR into any
-other branch would choose the actions, config and trusted-actor list it is judged by.
+applies, and the PR is the review step for what lands. Why a skill activity loads nothing from the
+PR head: [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 
 The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
@@ -1838,8 +1835,8 @@ the verdict (`continue-on-error`: a missing verdict is already decided below), r
 `git/ref` is readable, `GET /pulls/{n}` is re-read until its head matches it, at most 5 reads 2 s
 apart, since it can lag the promote step's push), and posts the check with
 [`report-check-run`](../../../.github/actions/report-check-run/README.md), passing that SHA as
-`pr-head-sha`. This job writes the check, not the run job, because any code the activity runs, not
-only the model, could forge a check the run job wrote.
+`pr-head-sha`. Why the check is written by this job and not the run job:
+[ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
 
 Last, when there is a PR, it writes the lane run report,
 [`lane-run-report/post.mjs`](../../../.github/scripts/lane-run-report/post.mjs). A clean report
@@ -1907,7 +1904,9 @@ What it trusts:
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
   check is a failure, and the report job adds `needs-human` when the repository has that label and
   posts a comment whose first line is `<!-- check-signed-commits hold -->`, which holds the lane
-  fixers and `clear-escalations.mjs` until the label is removed ([README](README.md)).
+  fixers and `clear-escalations.mjs` until the label is removed ([README](README.md)). Why signing is not also enforced by an
+  all-branch rule:
+  [ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
 
 The activity ran on exactly the commit the check is posted on: the run job checks out the gate's
 `head-sha`, not the branch, and fails before the activity if `HEAD` differs. A push after the gate

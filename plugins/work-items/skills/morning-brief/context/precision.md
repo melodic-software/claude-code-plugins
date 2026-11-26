@@ -1,7 +1,7 @@
 # Precision series
 
 What `precision` measures and how to read it. The series tunes each review lane's prompt, model,
-effort and what it reports; it gates nothing.
+effort and what it reports; it gates nothing (ADR 0002's 2026-10-30 addendum).
 
 ## Run it
 

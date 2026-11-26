@@ -3,7 +3,9 @@
 Gate a CI lane on what triggered it, before its model step. The lane proceeds only for a PR from
 this repository whose event actor, PR author and re-runner are all on the trusted-actor list
 ([ADR 0049](../../../docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)
-conditions 1 and 2).
+conditions 1 and 2,
+[ADR 0051](../../../docs/adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md)
+condition 1 and the actor and author parts of condition 2).
 
 ## Inputs
 
@@ -176,7 +178,7 @@ conditions 1 and 2).
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
   more than forks: exactly one open same-repository PR whose head is still that SHA, or `no-pr`.
   Actors are `sender`, `workflow_run.actor` and `workflow_run.triggering_actor`: all three must
-  be listed, because the actor that started the failed run must be trusted. The
+  be listed, because ADR 0051 requires the actor that started the failed run to be trusted. The
   one exception is the reconciler's re-run of the upstream run, below.
 - **Author.** The PR's `user.id` must be listed.
 - **Re-runner.** A re-run keeps the original event and its actors, so the account that started

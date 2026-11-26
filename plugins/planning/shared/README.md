@@ -506,13 +506,10 @@ for a free-form selector an earlier build took.
 
 ## Live transport
 
-A live prototype never rides the session tunnel: on Approve the server's live starter
-(`QuickTunnelStarter`) gives it its own quick tunnel, a trycloudflare.com host, which is a site of
-its own and so never reaches the interview page's storage. Its url must be such a host
-(`session.LIVE_URL`). A path on the session tunnel would put the prototype's scripts in the origin
-that holds the owner token, and a named-tunnel hostname needs a Cloudflare API credential at run
-time and gives the prototype the interview host's site; one gateway tunnel for every prototype
-would make them share one origin, and root-relative URLs break under a path prefix.
+[ADR 0083](../../../docs/adr/0083-expose-a-live-prototype-through-its-own-quick-tunnel.md). A live
+prototype never rides the session tunnel: on Approve the server's live starter (`QuickTunnelStarter`)
+gives it its own quick tunnel, a trycloudflare.com host, which is a site of its own and so never
+reaches the interview page's storage. Its url must be such a host (`session.LIVE_URL`).
 
 - **Folder (the default).** `add-live` refuses a build folder holding a link, a junction, a hidden
   name, a hard link or a special file, or more than 2000 files or 50 MB. Approve copies it again, with the same

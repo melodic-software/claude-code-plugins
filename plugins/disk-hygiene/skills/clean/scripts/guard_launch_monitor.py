@@ -31,7 +31,8 @@ This is a *detector*, not a guard, and it must never behave like one:
 Why ``Stop``, not ``PreToolUse``/``PostToolUse``
 =================================================
 This repo has already paid for a hook that runs on every matching tool call:
-a guardrails ``PreToolUse`` hook that cost 12-19s p50 on every
+``docs/adr/0004-rightsize-instruction-surfaces-by-incumbent-first-arbitration.md``
+documents D-12, a guardrails ``PreToolUse`` hook that cost 12-19s p50 on every
 single Bash call across roughly 1,464 runs in six days. A new hook wired to
 ``PreToolUse``/``PostToolUse`` with a Bash/PowerShell matcher would repeat
 that risk class on every guarded command, forever, to catch a failure that -

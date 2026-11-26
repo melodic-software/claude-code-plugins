@@ -320,7 +320,7 @@ def control_listener(port):
 
 
 class QuickTunnelStarter:
-    """The live starter (README "Live transport"): each live prototype the owner approved runs behind its own quick tunnel
+    """The live starter (ADR 0083): each live prototype the owner approved runs behind its own quick tunnel
     (tunnel.py), never the session's, to a copy of its build folder that liveserve.py serves, or to a port the owner
     runs and attested on Approve. `start(entry)` answers the tunnel's https origin or raises DomainError; `stop(entry)`
     ends what start began and never the owner's own server; `watch()`, once a second, restarts one whose tunnel or
@@ -337,7 +337,7 @@ class QuickTunnelStarter:
 
     def check_port(self, port):
         """Refuse a port that is the session's own guest or control port, or another session's control listener: the
-        control listener is never tunneled. Checked on every start and restart, as a port can be taken."""
+        control listener is never tunneled (ADR 0077). Checked on every start and restart, as a port can be taken."""
         if port in (self.app.guest_port, self.app.control_port):
             raise DomainError(400, "bad-field", "A live prototype never runs on the session's own guest or control port.", field="port")
         if control_listener(port):

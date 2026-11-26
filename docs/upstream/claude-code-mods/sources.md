@@ -6,8 +6,8 @@ Asked "what about mods?", do this in order:
 
 1. Read [ADR 0052](../../adr/0052-adopt-claude-code-mods.md). It holds the verdict (Adopt), the
    rule for choosing a mod, the packaging decisions, the replaced criterion 5, and the recheck
-   triggers. The five go criteria of the 2026-09-19 Defer it supersedes are in
-   [go-no-go.md](go-no-go.md).
+   triggers. [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md), which it
+   supersedes, holds the 2026-09-19 Defer and the five go criteria.
 2. Run [go-no-go.md](go-no-go.md). Criteria 1 to 3 and the replaced criterion 5 are the quick check
    for a Claude Code pin bump; the full run is on demand.
 3. Consult this index for every link the verdict and the runbook rest on, and re-fetch what the
@@ -71,17 +71,17 @@ Nothing in this repository relies on these yet. Recheck trigger: a
 
 | Link | What we used it for | As of | Used by |
 |---|---|---|---|
-| <https://github.com/anthropics/claude-code/tree/main/mods> | The published source of the four shipped mods, `types/`, `tsconfig.json`. The surface link for the gate-run row. | 2026-09-19 | go-no-go.md, `plugin-philosophy.md`, `research-what-mods-are.md` |
-| <https://github.com/anthropics/claude-code/blob/main/mods/README.md> | What a mod is, the four mods and their seating, the testing kit, noun contracts, and the early-access stability statement criterion 5 checks for. | 2026-09-19 | go-no-go.md (criterion 5), `research-what-mods-are.md` |
+| <https://github.com/anthropics/claude-code/tree/main/mods> | The published source of the four shipped mods, `types/`, `tsconfig.json`. The surface link for the gate-run row. | 2026-09-19 | ADR 0035, `plugin-philosophy.md`, `research-what-mods-are.md` |
+| <https://github.com/anthropics/claude-code/blob/main/mods/README.md> | What a mod is, the four mods and their seating, the testing kit, noun contracts, and the early-access stability statement criterion 5 checks for. | 2026-09-19 | ADR 0035 (criterion 5), go-no-go.md, `research-what-mods-are.md` |
 | <https://github.com/anthropics/claude-code/blob/92ec78f2/mods/README.md> | The same file pinned at the research commit, so a later diff is exact. | 2026-09-19 | go-no-go.md |
 | <https://github.com/anthropics/claude-code/blob/6160717d/mods/README.md> | The README pinned at the newest `mods/` commit on 2026-10-02, for the next diff. `main` was at `1c229fcd` when the run fetched it. | 2026-10-02 | go-no-go.md |
 | <https://github.com/anthropics/claude-code/commit/6160717d> | The newest commit touching `mods/` on 2026-10-02, dated 2026-10-01: the new criterion 5 pin. | 2026-10-02 | go-no-go.md |
 | <https://raw.githubusercontent.com/anthropics/claude-code/main/mods/README.md> | Raw form, for the greppable criterion-5 check. | 2026-09-19 | go-no-go.md |
 | <https://raw.githubusercontent.com/anthropics/claude-code/92ec78f2/mods/README.md> | Raw form pinned at the research commit. | 2026-09-19 | `research-what-mods-are.md` |
-| <https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts> | The declarations: the event and noun catalog, the tiers, `HookBudget`, `Registration.catch`. Our count: 12,990 lines; its first line names Claude Code 2.1.277 as the writer. | 2026-09-19 | go-no-go.md, `research-api-surface.md`, `research-what-mods-are.md` |
+| <https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts> | The declarations: the event and noun catalog, the tiers, `HookBudget`, `Registration.catch`. Our count: 12,990 lines; its first line names Claude Code 2.1.277 as the writer. | 2026-09-19 | ADR 0035, `research-api-surface.md`, `research-what-mods-are.md` |
 | <https://raw.githubusercontent.com/anthropics/claude-code/main/mods/types/claude-code.d.ts> | Raw form, for the regeneration check (first line names the CLI that wrote it). | 2026-09-19 | go-no-go.md |
 | <https://raw.githubusercontent.com/anthropics/claude-code/92ec78f2/mods/types/claude-code.d.ts> | Raw form pinned at the research commit; our counted catalog (38 + 54 events, 33 `classic.*`, 19 nouns). | 2026-09-19 | `research-api-surface.md` |
-| <https://raw.githubusercontent.com/anthropics/claude-code/92ec78f2/mods/agents-md/README.md> | The `instructionFiles` option, its modes and default, and when the plugin stays out of a project that already loads its own `CLAUDE.md`. | 2026-09-19 | go-no-go.md |
+| <https://raw.githubusercontent.com/anthropics/claude-code/92ec78f2/mods/agents-md/README.md> | The `instructionFiles` option, its modes and default, and when the plugin stays out of a project that already loads its own `CLAUDE.md`. | 2026-09-19 | ADR 0035 |
 | <https://github.com/anthropics/claude-code/blob/main/mods/sec-default/README.md> | How `sec-default` constrains, `prependPlugins` seating, and where `next.to` is allowed. | 2026-09-19 | `research-security-and-semantics.md`, `research-what-mods-are.md` |
 | <https://github.com/anthropics/claude-code/blob/92ec78f2/mods/sec-default/README.md> | The same, pinned. | 2026-09-19 | `research-security-and-semantics.md` |
 | <https://raw.githubusercontent.com/anthropics/claude-code/92ec78f2/mods/diff/hooks/hooks.json> | The manifest shape a mod-bearing `hooks.json` takes (the `modules` key). | 2026-09-19 | `research-authoring-and-testing.md`, `research-repo-fit.md` |
@@ -156,7 +156,7 @@ body is edited in place, so re-read the body as well as the comments.
 | <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5560100559> | Whether a `tool.call` hook sees tool calls made inside a subagent. | 2026-09-19 | `research-api-surface.md` |
 | <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5561046073> | `$.process.run` and `$.http.fetch` as non-TypeScript escape hatches. | 2026-09-19 | `research-api-surface.md` |
 | <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5574036379> | The `classic.*` bridge events and the tier list. | 2026-09-19 | `research-what-mods-are.md` |
-| <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5588686533> | Fourth position: the `.catch` proposal the Sep 9 cheat sheet then ships. | 2026-09-19 | go-no-go.md, `research-security-and-semantics.md` |
+| <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5588686533> | Fourth position: the `.catch` proposal the Sep 9 cheat sheet then ships. | 2026-09-19 | ADR 0035, `research-security-and-semantics.md` |
 | <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5607792448> | The intended scope of `prompt.submit`. | 2026-09-19 | `research-api-surface.md` |
 | <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5609917069> | What `/plugin-types` lists once the flag is enabled. | 2026-09-19 | `research-authoring-and-testing.md` |
 | <https://github.com/anthropics/claude-code/issues/91870#issuecomment-5618866247> | Concurrency of `tool.check` guards versus `tool.call` guards. | 2026-09-19 | `research-security-and-semantics.md` |
@@ -177,10 +177,10 @@ per-page fetch provenance differs between lanes.
 
 | Link | What we used it for | As of | Used by |
 |---|---|---|---|
-| <https://code.claude.com/docs/llms-full.txt> | Our sweep of all 197 English documentation pages, 9,590,632 bytes: **0 hits** for `function hook`, `hooks module`, `plugin-types`, `prependPlugins`, `appendPlugins`, `engine.create`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, `sec-default`, `next.to(`, `"modules"`. Live controls (`plugin-dir` 67) prove the sweep works. | 2026-09-19 | go-no-go.md (criterion 2), `plugin-philosophy.md` |
+| <https://code.claude.com/docs/llms-full.txt> | Our sweep of all 197 English documentation pages, 9,590,632 bytes: **0 hits** for `function hook`, `hooks module`, `plugin-types`, `prependPlugins`, `appendPlugins`, `engine.create`, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, `sec-default`, `next.to(`, `"modules"`. Live controls (`plugin-dir` 67) prove the sweep works. | 2026-09-19 | ADR 0035 (criterion 2), go-no-go.md, `plugin-philosophy.md` |
 | <https://code.claude.com/docs/llms.txt> | The curated index. Recorded so a later agent does not grep it by mistake: always grep `llms-full.txt`. | 2026-09-19 | go-no-go.md |
 | <https://code.claude.com/docs/sitemap.xml> | How the 197-page count was established. | 2026-09-19 | `research-enablement-and-distribution.md` |
-| <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> | Our sweep of 7,158 lines, `## 2.1.278` down to `## 0.2.21`: **0 hits** for the same terms, and word-bounded `mods?` → 0. | 2026-09-19 | go-no-go.md, `plugin-philosophy.md` |
+| <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md> | Our sweep of 7,158 lines, `## 2.1.278` down to `## 0.2.21`: **0 hits** for the same terms, and word-bounded `mods?` → 0. | 2026-09-19 | ADR 0035, `plugin-philosophy.md` |
 | <https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md> | Raw form, for the greppable criterion check. | 2026-09-19 | go-no-go.md |
 | <https://raw.githubusercontent.com/anthropics/claude-code/92ec78f2/CHANGELOG.md> | The same pinned at the research commit; the 2.1.277 AGENTS.md entry, which our grep found does not say "mod". | 2026-09-19 | `research-roadmap-and-staff-statements.md` |
 | <https://code.claude.com/docs/en/plugins-reference> | The plugin manifest reference: our sweep found no `modules` key; the plugin-root dependency install rule. | 2026-09-19 | `research-repo-fit.md` |
@@ -215,8 +215,8 @@ per-page fetch provenance differs between lanes.
 
 | Link | What we used it for | As of | Used by |
 |---|---|---|---|
-| <https://github.com/anthropics/claude-code/issues/91870> | The mods roadmap thread, opened 2026-09-03. OPEN, 203 comments. The body is edited in place and carries the self-dated "Sep 9, 2026" Community Update and the public `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` acknowledgement. | 2026-09-19 | go-no-go.md, `research-roadmap-and-staff-statements.md` |
-| <https://github.com/anthropics/claude-code/issues/92533> | **The blocking defect.** Registering any `tool.call` hook on Bash breaks `Agent(isolation: "worktree")`; a passthrough `next(e)` is enough. OPEN, filed 2026-09-06 on 2.1.263 (macOS), one independent Windows reproduction at 2.1.272 in the thread, and our second Windows reproduction run locally on 2026-09-19 at 2.1.278 (`experiments.md` E2); no staff reply. | 2026-09-19 | go-no-go.md (criterion 3), experiments.md, `plugin-philosophy.md`, `research-security-and-semantics.md` |
+| <https://github.com/anthropics/claude-code/issues/91870> | The mods roadmap thread, opened 2026-09-03. OPEN, 203 comments. The body is edited in place and carries the self-dated "Sep 9, 2026" Community Update and the public `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` acknowledgement. | 2026-09-19 | ADR 0035, go-no-go.md, `research-roadmap-and-staff-statements.md` |
+| <https://github.com/anthropics/claude-code/issues/92533> | **The blocking defect.** Registering any `tool.call` hook on Bash breaks `Agent(isolation: "worktree")`; a passthrough `next(e)` is enough. OPEN, filed 2026-09-06 on 2.1.263 (macOS), one independent Windows reproduction at 2.1.272 in the thread, and our second Windows reproduction run locally on 2026-09-19 at 2.1.278 (`experiments.md` E2); no staff reply. | 2026-09-19 | ADR 0035 (criterion 3), go-no-go.md, experiments.md, `plugin-philosophy.md`, `research-security-and-semantics.md` |
 | <https://github.com/anthropics/claude-code/issues/92675> | Plugin-native `PreToolUse` hooks auto-discovered via `hooks/hooks.json` reported not enforced in interactive sessions. OPEN, 0 comments. Gates the story that `hooks` and `modules` in one manifest both fire. | 2026-09-19 | go-no-go.md, `research-security-and-semantics.md` |
 | <https://github.com/anthropics/claude-code/pull/93215> | The pull request that added `mods/`, opened 2026-09-09T22:31:07Z and self-merged at 22:34:33Z: the evidence behind the disclosed staff-by-inference call on `poteat`. | 2026-09-19 | `research-roadmap-and-staff-statements.md` |
 | <https://github.com/anthropics/claude-code/issues/92469> | Generated-type incompleteness. OPEN. | 2026-09-19 | go-no-go.md, `research-api-surface.md` |

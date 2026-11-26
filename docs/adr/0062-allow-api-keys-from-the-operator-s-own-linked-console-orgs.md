@@ -3,11 +3,13 @@
 - Status: accepted; amended 2026-10-16 (decision 3) and 2026-11-11 (CI's credential order on
   `run-claude-cli` lanes, decisions 3 and 4), see the amendments below
 - Date: 2026-10-11
+- Amends: [ADR 0037](0037-seat-mandatory-reviews-on-the-operator-session-and-retire-the-oauth-lanes.md),
+  its premise that the operator cannot use API keys
 
 ## Context
 
-An earlier premise held that the operator cannot use API keys, so every review in CI drew on the
-same subscription window the interactive sessions use. Every lane here has since run on a subscription
+ADR 0037's Context says "the operator cannot use API keys, so every review in CI drew on the same
+subscription window the interactive sessions use." Every lane here has since run on a subscription
 token, so a lane that reaches its subscription limit stalls until the window resets.
 
 That premise no longer holds. Max and Team plans now include monthly credits for the Claude
@@ -49,6 +51,11 @@ map (#6958, resolved on #6959) and declined a paid backstop (#6966).
    the reset; no lane rotates between subscription accounts automatically.
 5. **The mechanisms are decided on the capacity map (#6958), not here:** which lanes fall back,
    how a limit is detected, and how keys are stored and selected.
+
+### What this changes in ADR 0037
+
+ADR 0037's statement that the operator cannot use API keys is withdrawn. Its other text stands as
+amended by ADR 0038 and its own addendum.
 
 ## Alternatives considered
 

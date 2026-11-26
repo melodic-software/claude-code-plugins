@@ -1,7 +1,7 @@
 """The Dependabot class: the tier both lanes share, the commit check, and the
 review activity's merge verdict.
 
-The tier rules are the owner's decision: major means the
+The tier rules are the owner's decision recorded in ADR 0073: major means the
 first numeric version component changes or, below 1.0, the second does; an
 Actions update is `auto` only from the `actions`, `github` or `anthropics`
 publisher; a red `ci-status` and anything unreadable are `review`. Commit

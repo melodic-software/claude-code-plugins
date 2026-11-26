@@ -1058,7 +1058,8 @@ announced operator step.
   self-enforce.
 
 - **Bot-review precision precondition (enabling).** Enable the tier only after the fleet's bot-review
-  lane has demonstrated recorded precision over a sustained window. The tier lets a
+  lane has demonstrated recorded precision over a sustained window, the same earned-promotion trigger
+  ADR 0002 sets for flipping an advisory review lane to a blocking gate. The tier lets a
   fleet-produced approval satisfy a required-review ruleset, which promotes that lane from advisory to
   merge-deciding, so it is earned on that same evidence bar: precision proven over a sustained window
   and ratified as a reviewed change citing that evidence. It is never a calendar flip, and operator
