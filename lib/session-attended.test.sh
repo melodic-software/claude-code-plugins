@@ -72,7 +72,7 @@ while IFS= read -r -d '' name && IFS= read -r -d '' want && IFS= read -r -d '' w
 const { pathToFileURL } = await import("node:url");
 const reader = await import(pathToFileURL(process.argv[1]).href);
 process.stdout.write(String(reader.sessionAttended(process.env)));
-if (process.argv[2]) process.stdout.write(` ${JSON.stringify(reader.sessionExecPath(process.env))}`);
+if (process.argv[2]) process.stdout.write(" " + JSON.stringify(reader.sessionExecPath(process.env)));
 ' "$dir/session-attended.mjs" "$wantexec" 2>"$scratch/node.err")"
   err="$(<"$scratch/node.err")"
   want="$want${wantexec:+ $wantexec}"
