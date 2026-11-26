@@ -96,6 +96,6 @@ if ((${#offenders[@]} == 0)); then
 fi
 
 printf '%s\n' "${offenders[@]}" | sort -u >&2
-printf 'check-docs-naming: %d offender(s); rename each to lower-kebab-case, or exempt it in the docs-naming file_names configuration and re-emit this gate.\n' \
+printf 'check-docs-naming: %d offender(s); rename each to lower-kebab-case, or add it to EXEMPT_NAMES in scripts/check-docs-naming.sh and to exempt_basenames in docs/conventions/docs-naming.yaml.\n' \
   "${#offenders[@]}" >&2
 exit 1

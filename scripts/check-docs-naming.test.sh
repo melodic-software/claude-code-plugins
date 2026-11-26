@@ -172,6 +172,8 @@ drift_norm() {
   s="${s//"under $roots is $rule."/under ROOTS is RULE.}"
   s="${s//"basename is not $rule (rule:"/basename is not RULE (rule:}"
   s="${s//"rename each to $rule,"/rename each to RULE,}"
+  s="${s//" or add it to EXEMPT_NAMES in SCRIPT and to exempt_basenames in docs/conventions/docs-naming.yaml."/ EXEMPT.}"
+  s="${s//" or exempt it in the docs-naming file_names configuration and re-emit this gate."/ EXEMPT.}"
   printf '%s' "$s"
 }
 
