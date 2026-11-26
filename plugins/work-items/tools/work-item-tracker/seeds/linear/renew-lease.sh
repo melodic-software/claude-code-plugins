@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# renew-lease — Linear adapter. Bump renewed_at on a LIVE lease, in place.
-#
-# Renew edits the existing marker rather than posting a new comment, so a long-running
-# claim leaves one lease comment rather than a renewal per heartbeat.
-#
-# An EXPIRED but still-active lease is refused (exit 7), never revived: a delayed holder
-# must not undo a TTL-based handoff that another session may already have acted on.
-# Recovery from an expired lease is a fresh claim or reclaim, not a renew.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md "Lease protocol", "Exit codes".
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -3,6 +3,28 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [10.8.4] - 2026-11-26
+
+### Changed
+
+- `/harness-ops:inventory`, `/harness-ops:audit-skill-visibility`, `/harness-ops:audit-native-overlap`, `/harness-ops:audit-performance`, `/harness-ops:behavior-probes` and `/harness-ops:control-claude-code` point at section-anchored Claude Code docs for WebFetch, `/doctor`, compaction hooks, bundled skills, the skill listing budget, in-place plugins and sign-in storage, instead of restating that behavior. The inventory's docs pointers drop their as-of dates and recheck triggers and gain section anchors ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [10.8.3] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [10.8.2] - 2026-11-25
 
 ### Changed

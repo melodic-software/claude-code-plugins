@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# get-item <id> — CONTRACT.md "Verbs (core public surface)". Read-only. Fetches one
-# Jira issue via GET /rest/api/3/issue/{key} and emits the normalized item object.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -13,17 +11,12 @@ wit_require_jira_id "$id" ||
   wit_usage_error "malformed or non-jira id: $id (expected jira:<site>/<PROJECTKEY>#<number>)"
 
 wit_need_jira_config
-# The id's site (owner segment) must match the bound site: this adapter holds one
-# site's credentials, so a cross-site id cannot be served. Reject loudly rather than
-# authenticate the wrong instance.
 [[ "$WIT_ID_OWNER" == "$WIT_JIRA_SITE" ]] ||
   wit_usage_error "id site '$WIT_ID_OWNER' does not match bound config.jira.site '$WIT_JIRA_SITE'"
 
 [[ "$WIT_ID_REPO" =~ $WIT_JIRA_PROJECT_KEY_RE ]] ||
   wit_usage_error "project key '$WIT_ID_REPO' is outside the allowed charset ($WIT_JIRA_PROJECT_KEY_RE)"
 
-# The binding's project_keys is the declared read scope: refuse an id whose project is
-# not in it, rather than fetch an unrelated project the token merely happens to see.
 wit_jira_project_in_scope "$WIT_ID_REPO" ||
   wit_usage_error "project '$WIT_ID_REPO' is not in the binding's config.jira.project_keys (declared read scope)"
 

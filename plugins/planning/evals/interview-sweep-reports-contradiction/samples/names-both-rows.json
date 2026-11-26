@@ -1,17 +1,17 @@
 {
   "pass": [
     {
-      "answer": "**Sweep round.** One conflict between answers.\n\n❓ Q7: **Q2 and Q5 cannot both hold: which wins?**\n\nContext:\n- Q2: only the finance role may export (round 1).\n- Q5: a support agent exports the file for a customer (round 2).",
+      "answer": "**Sweep round.** One conflict between answers.\n\n❓ Q7 (conflicting answers): **Q2 and Q5 cannot both hold: which wins?**\n\nContext:\n- Q2: only the finance role may export (round 1).\n- Q5: a support agent exports the file for a customer (round 2).",
       "why": "one question names both rows"
     }
   ],
   "fail": [
     {
-      "answer": "❓ Q7: **Should the export include a currency column?**\n\nContext:\n- Q4 settled decimal amounts.",
+      "answer": "❓ Q7 (currency column): **Should the export include a currency column?**\n\nContext:\n- Q4 settled decimal amounts.",
       "why": "no question names Q2 and Q5"
     },
     {
-      "answer": "Note: Q2 conflicts with Q5.\n\n❓ Q7: **Anything else?**",
+      "answer": "Note: Q2 conflicts with Q5.\n\n❓ Q7 (other concerns): **Anything else?**",
       "why": "the rows are named outside any question"
     }
   ]

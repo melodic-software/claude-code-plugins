@@ -5,7 +5,7 @@ plugin has no `medium` option, so `--option` is empty. Add `--argument` only whe
 `--medium`, with the value they gave; it is not part of the scope:
 
 ```bash
-node "<plugin-root>/lib/view-settings.mjs" resolve --lane prototype:explore-directions --option "" [--argument <the --medium value>]
+node "<plugin-root>/lib/view-settings.mjs" resolve --producer prototype:explore-directions --option "" [--argument <the --medium value>]
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line

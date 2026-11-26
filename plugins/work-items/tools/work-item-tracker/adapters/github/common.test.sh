@@ -2,8 +2,6 @@
 # test-scope: docs/conventions/work-items.yaml
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP GITHUB_ACTIONS
 
 TMP_ROOT="$(mktemp -d)"
@@ -218,9 +216,6 @@ EOF
   rm -rf "$WRAP_STUB"
 fi
 
-# Issue N carries one blocker whose state and close reason the stub fixes per N. The
-# `gh --json blockedBy` projection has no stateReason, so the reason is served only
-# by `gh api graphql` (nodes by id); GH_STUB_GRAPHQL_FAIL makes that query fail.
 if command -v jq >/dev/null 2>&1; then
   REASON_STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   cat >"$REASON_STUB/gh" <<'EOF'
@@ -289,7 +284,6 @@ EOF
   assert_eq "CLOSED+DUPLICATE blocker still blocks" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "CLOSED+DUPLICATE blocker counts as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 
-  # Issues closed before GitHub recorded reasons read back with a null stateReason.
   OUT="$(emit 5)"
   assert_eq "CLOSED with null stateReason unblocks" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "CLOSED with null stateReason is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
@@ -298,11 +292,6 @@ EOF
   assert_eq "failed close-reason query keeps the closed blocker blocking" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "failed close-reason query is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 
-  # A query that succeeds but returns no node, or a null node, for the blocker (a
-  # private cross-repo blocker, say) leaves its reason unread: it keeps blocking. So
-  # does a blank or unparsable body, which must not escape as a usage error (exit 2).
-  # Fixture item 6 has two closed blockers that come back as one node (I2, COMPLETED)
-  # and no node at all (I6): the answered one resolves, the missing one keeps blocking.
   OUT="$(emit 6)"
   assert_eq "a blocker missing from a partial graphql answer keeps blocking" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "a blocker missing from a partial graphql answer is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
@@ -369,8 +358,6 @@ ISSUES='[{"number":1,"title":"Fix Login Bug","state":"open"},{"number":2,"title"
 assert_eq "REST search filter drops PRs, matches case-insensitively" $'1\tFix Login Bug\topen' \
   "$(jq -r --arg q "LOGIN fix" "$FILTER" <<<"$ISSUES")"
 
-# The README's open-linked-PR reductions: only an open PR whose head branch lives in the
-# item's own repository is in flight. A fork's `Closes #N` must not park the item.
 eval "$(sed -n '/open-linked-prs-filter:start/,/open-linked-prs-filter:end/{/^[A-Z_]*=/p}' "$README")"
 assert_eq "README carries the open-linked-PR reductions" "1" \
   "$([[ -n "${PR_GATE:-}" && -n "${PR_READY_GATE:-}" && -n "${PR_REPORT:-}" ]] && echo 1 || echo 0)"

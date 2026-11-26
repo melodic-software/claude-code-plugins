@@ -21,6 +21,7 @@ import socket
 import stat
 import subprocess
 import sys
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -98,7 +99,6 @@ class TestEnsureRunning(Running):
         self.assertRegex(out["guestUrl"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=[A-Za-z0-9_-]{12}$")
         self.assertEqual(out["localUrl"], f"http://127.0.0.1:{self.guest_port()}/")
         self.assertEqual((out["tunnel"], out["resumed"], out["shareChanged"]), ("quick", False, False))
-        # share.py resolves --dir; a Windows temp folder may be named in its 8.3 short form.
         self.assertEqual(Path(out["ownerLinkFile"]), self.d.resolve() / ".owner-link")
         self.assertIn("watch.sh", out["watch"])
 
@@ -345,7 +345,6 @@ class TestLogsSummary(unittest.TestCase):
         'WARNING client pid=pidBo0001 kind=api message="Failed to fetch" route=/api/vote code=network ua="safari phone" fp=cccc3333',
         'WARNING client pid=pidAnn001 kind=layout message="anomaly=overflow at=vf-body w=320 sw=410" route=/ ua="chrome phone" fp=dddd4444',
         'WARNING client pid=pidAnn001 kind=layout message="sheet=vf-proposepop kb=344px" route=/ ua="chrome phone"',
-        # Two summary batches (README "Logs": [message, ua] pairs, each space written \\u0020); one summary missed the second.
         "INFO summary-batch summaries=3 dropped=0 data=["
         '["pv=p1\\u0020lat:/api/vote=0,3,1\\u0020rb:/api/vote=1\\u0020gap=900,12000\\u0020rep:aaaa1111=2\\u0020rep:dddd4444=1\\u0020inp=184:pointer:vf-vote\\u0020lcp=1200:vf-q","chrome\\u0020phone"],'
         '["pv=p1\\u0020lat:/api/vote=0,1\\u0020inp=240:pointer:vf-vote","chrome\\u0020phone"],'
@@ -387,7 +386,6 @@ class TestLogsSummary(unittest.TestCase):
         self.assertEqual(out["repeatsUnmatched"], 0)
 
     def test_text_reads_the_same_counts_and_share_sh_prints_it(self):
-        # A bare "bash" is found by CreateProcess on Windows, which searches System32 (the WSL relay) before PATH.
         bash = shutil.which("bash")
         p = subprocess.run([bash, str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, encoding="utf-8", timeout=60, env=env())
         self.assertEqual(p.returncode, 0, p.stderr)
@@ -617,6 +615,66 @@ class TestRestart(Running):
         _, _, snap = call(self.guest_port(), "GET", "/api/state", headers=a)
         self.assertEqual(sorted(p["name"] for p in snap["people"]), ["Ann", "Bo", "Host"])
         self.assertEqual(sorted(c["text"] for c in snap["cards"]["Q1"] if c["kind"] == "person"), ["Card", "Saved method"])
+
+    def _bind_after_stop(self, port, release_after=None):
+        """Return a stop_server wrapper that holds `port` open once the old server stops."""
+        real = share_cli.stop_server
+        held = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not WINDOWS:
+            held.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.addCleanup(held.close)
+        timers = []
+
+        def cancel_timers():
+            for t in timers:
+                t.cancel()
+                t.join(timeout=2)
+
+        self.addCleanup(cancel_timers)
+
+        def wrapped(d, s):
+            ok = real(d, s)
+            self.assertTrue(wait_for(lambda: share_cli.bridge.port_free(port), seconds=2.0, step=0.02))
+            held.bind(("127.0.0.1", port))
+            held.listen()
+            if release_after is not None:
+                t = threading.Timer(release_after, held.close)
+                timers.append(t)
+                t.start()
+            return ok
+
+        return wrapped, held
+
+    def test_restart_waits_for_a_busy_port_to_clear(self):
+        old, guest = self.session_record(), self.guest_port()
+        control = old["port"]
+        wrapped, held = self._bind_after_stop(guest, release_after=0.25)
+        a = share_cli.parser().parse_args(["--dir", str(self.d), "restart"])
+        with mock.patch.dict(os.environ, env()), mock.patch.object(share_cli, "stop_server", side_effect=wrapped):
+            out = share_cli.cmd_restart(self.d.resolve(), a)
+        self.assertEqual(held.fileno(), -1)
+        self.assertEqual((out["restarted"], out["localUrl"]), (True, f"http://127.0.0.1:{guest}/"))
+        now = self.session_record()
+        self.assertNotEqual(now["pid"], old["pid"])
+        self.assertEqual((self.guest_port(), now["port"]), (guest, control))
+        self.assertEqual(call(guest, "GET", "/api/state")[0], 200)
+
+    def test_restart_refuses_when_a_port_stays_busy_past_the_timeout(self):
+        guest = self.guest_port()
+        wrapped, _ = self._bind_after_stop(guest)
+        a = share_cli.parser().parse_args(["--dir", str(self.d), "restart"])
+        with (
+            mock.patch.dict(os.environ, env()),
+            mock.patch.object(share_cli, "PORT_FREE_SECONDS", 0.2),
+            mock.patch.object(share_cli, "stop_server", side_effect=wrapped),
+            mock.patch.object(share_cli, "start_server", wraps=share_cli.start_server) as start,
+        ):
+            with self.assertRaises(share_cli.Refused) as ctx:
+                share_cli.cmd_restart(self.d.resolve(), a)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn(str(guest), ctx.exception.message)
+        start.assert_not_called()
+        self.assertIsNone(share_cli.live(self.d.resolve()))
 
 
 class TestRestartFromE27acc5(ShareCase):
@@ -1053,7 +1111,6 @@ class TestNamedTunnelLease(ShareCase):
         self.assertEqual(cf.puts, [])
 
     def test_an_unexpanded_api_token_option_is_the_unset_default(self):
-        # An unset userConfig key can reach the skill as its literal token (#9886); the default is empty.
         cf = FakeCloudflare(self)
         port = free_port()
         args = ["ensure-running", "--guest-port", str(port), "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", "${user_config.tunnel_api_token_file}"]
@@ -1077,8 +1134,6 @@ class TestNamedTunnelLease(ShareCase):
         self.assertEqual((code, out["tunnel"]), (0, "named"), err)
 
     def test_the_route_changes_only_this_hostnames_service(self):
-        # Hand-built from the configurations get reference: two other hostnames, a per-rule and a tunnel-wide
-        # originRequest, warp-routing, and the catch-all.
         access = {"access": {"required": True, "teamName": "team", "audTag": ["aud1"]}}
         before = {
             "ingress": [
@@ -1141,7 +1196,6 @@ class TestNamedTunnelLease(ShareCase):
 
     def test_a_lone_connector_is_not_taken_as_ours_when_ours_logged_no_id(self):
         cf = FakeCloudflare(self, connections=[[], [connector("0a0a0a0a-0000-4000-8000-00000000000a")]])
-        # A Connector ID tunnel.CONNECTOR cannot read stands for a cloudflared whose log line changed.
         environ = env(FAKE_CF_ARGS=str(self.args), FAKE_CF_CONNECTOR="unreadable", SHARED_LEASE_ORIGIN=cf.url, SHARED_CF_API=cf.url)
         code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token), "--tunnel-api-token-file", str(self.api), environ=environ)
         self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
@@ -1233,7 +1287,6 @@ class TestLinkHolder(unittest.TestCase):
         self.assertEqual(self.holder((530, NO_CONNECTOR_PAGE)), (None, True))
 
     def test_the_plain_text_no_connector_answer_is_free(self):
-        # The whole body Cloudflare sent this client for a stopped tunnel's hostname (text/plain, 2026-10-29).
         self.assertEqual(self.holder((530, b"error code: 1033")), (None, True))
 
     def test_another_interview_session_holds_it_for_certain(self):

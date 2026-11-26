@@ -259,13 +259,13 @@ class TestEncodings(unittest.TestCase):
         self.assertEqual(titles, ["H"])
 
     def test_utf16_bom_rejected(self):
-        data = "<h1>Hi</h1>".encode("utf-16")  # LE with BOM
+        data = "<h1>Hi</h1>".encode("utf-16")
         with temp_snapshot(data, suffix=".html") as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"UTF-16", proc.stderr)
 
     def test_utf32_bom_rejected(self):
-        data = "# Hi\n".encode("utf-32")  # LE with BOM
+        data = "# Hi\n".encode("utf-32")
         with temp_snapshot(data) as path:
             proc = run_cli([path], expect_code=2)
             self.assertIn(b"UTF-32", proc.stderr)

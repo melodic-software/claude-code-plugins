@@ -1,37 +1,4 @@
 #!/usr/bin/env bash
-# nesting-invariant-probe.sh — adjudicate the nesting invariant's disputed arm.
-#
-# The claim: from a session inside a worktree nested in a checkout, a read
-# matching a path-scoped rule's glob ALSO loads the enclosing checkout's copy of
-# that rule. Measured once on 2.1.224 and not reproduced on 2.1.227 — and
-# NEITHER run recorded its fixture, which is why the dispute is unadjudicable
-# rather than settled. Every one of the following changes the outcome, and this
-# script pins all of them:
-#
-#   * how the worktree was CREATED (`claude --worktree` / `EnterWorktree` /
-#     plain `git worktree add`) — the harness's worktree-aware behavior attaches
-#     to a session it RECOGNIZES as a worktree session, and a bare `cd` into a
-#     `git worktree add` directory is not obviously one;
-#   * how the session was LAUNCHED into it;
-#   * the exact `paths:` glob AND the root it anchors against;
-#   * whether the parent's rule file was COMMITTED (an untracked rule file in a
-#     worktree's parent is not the same fixture as a tracked one);
-#   * placement: dot-prefixed `.claude/worktrees/` vs a plain subdirectory vs an
-#     UNRELATED repository — the three control arms are different claims.
-#
-# Instrument: an `InstructionsLoaded` hook, which NAMES the files loaded rather
-# than inferring them from token deltas. Registered in exec (`args`-array) form
-# per <https://code.claude.com/docs/en/hooks>: "Set `args` whenever the hook
-# references a path placeholder, since each element is passed as one argument
-# with no quoting." Both command forms are documented and neither is carved out
-# for this event; if you probe the shell form here, RECORD the result, because
-# whether it fires for `InstructionsLoaded` via `--settings` is unprobed.
-#
-# Passed via `claude -p --settings <file>` so the trace hook comes from this
-# script's own file, not from anything the fixture commits; which settings-file
-# hooks a `-p` session runs is at
-# <https://code.claude.com/docs/en/hooks#workspace-trust>.
-#
 # ─────────────────────────────────────────────────────────────────────────────
 # STATUS: RUN 2026-09-30 on Claude Code 2.1.285, authenticated, ADJUDICATED. The
 # owning-parent leak does not reproduce on dot-nested, plain-nested or external
@@ -40,10 +7,6 @@
 # loaded?" line checks the worktree's owner, so read the trace for that. See
 # fixtures/README.md for the record. A zero-event run is a fixture failure.
 # ─────────────────────────────────────────────────────────────────────────────
-#
-# Costs one `claude -p` turn per arm. Network and an authenticated CLI required.
-#
-# Usage: bash nesting-invariant-probe.sh [workdir]
 
 set -uo pipefail
 
@@ -61,8 +24,6 @@ CLAUDE_VERSION="$(claude --version 2>&1)"
 printf 'workdir: %s\n' "$WORKDIR"
 printf 'claude version: %s\n\n' "$CLAUDE_VERSION"
 
-# Pinned discriminators — recorded here so a README entry can cite them without
-# re-deriving from the script body. Changing any of these is a new probe run.
 printf 'Pinned discriminators:\n'
 printf '  creation:     plain git-worktree-add (not claude --worktree / EnterWorktree)\n'
 printf '  launch:       cd <worktree> && claude -p … --settings <file> (bare cd into git-worktree-add dir)\n'
@@ -71,8 +32,6 @@ printf '  parent rule:  COMMITTED in the parent checkout\n'
 printf '  hook form:    InstructionsLoaded exec (args-array) via --settings\n'
 printf '  placements:   dot-nested | plain-nested | external | unrelated-nested\n\n'
 
-# The instrument. Appends every InstructionsLoaded payload verbatim, so the
-# analysis reads what the harness said rather than what the probe inferred.
 HOOK="$WORKDIR/instructions-loaded-trace.sh"
 # SC2016: the single quotes are the point — these lines are the GENERATED hook's
 # source, so `$payload` must reach that script unexpanded and be evaluated when
@@ -87,7 +46,6 @@ HOOK="$WORKDIR/instructions-loaded-trace.sh"
 } >"$HOOK"
 chmod +x "$HOOK"
 
-# Exec form: `command` is the interpreter, `args` the argument vector.
 mksettings() {
   printf '{"hooks":{"InstructionsLoaded":[{"hooks":[{"type":"command","command":"bash","args":["%s"],"timeout":30}]}]}}\n' \
     "$HOOK" >"$1"
@@ -95,8 +53,6 @@ mksettings() {
 SETTINGS="$WORKDIR/trace-settings.json"
 mksettings "$SETTINGS"
 
-# A parent checkout carrying a path-scoped rule, COMMITTED — recorded because an
-# untracked rule file is a different fixture and was never disambiguated.
 mkparent() {
   local repo="$1" glob="$2"
   rm -rf "$repo"
@@ -117,9 +73,6 @@ mkparent() {
   printf '%s' "$repo"
 }
 
-# One arm = one placement. `git worktree add` is used deliberately for the
-# nested arms because the in-repo path is what is under test; the launch mode is
-# recorded separately since it is the discriminator the original runs omitted.
 arm() {
   local label="$1" repo="$2" wt="$3" readpath="$4"
   printf '=== %s ===\n' "$label"
@@ -164,21 +117,15 @@ arm() {
 GLOB="src/**"
 printf 'paths: glob under test: %s (anchored at each rule file own repo root)\n\n' "$GLOB"
 
-# Arm A — nested at the harness default, dot-prefixed.
 P1="$(mkparent "$WORKDIR/parentA" "$GLOB")"
 arm dot-nested "$P1" "$P1/.claude/worktrees/wt" "src/target.md"
 
-# Arm B — nested at a PLAIN subdirectory. Isolates dot-prefixing from nesting.
 P2="$(mkparent "$WORKDIR/parentB" "$GLOB")"
 arm plain-nested "$P2" "$P2/plainsub/wt" "src/target.md"
 
-# Arm C — the control: placed OUTSIDE every repository. Must show zero.
 P3="$(mkparent "$WORKDIR/parentC" "$GLOB")"
 arm external "$P3" "$WORKDIR/external-root/wt" "src/target.md"
 
-# Arm D — nested inside an UNRELATED repository. Claimed WORSE (all three
-# surfaces, not just scoped rules) and untested by anyone. Do not read a null
-# here as refuting arm A: they are different claims.
 P4="$(mkparent "$WORKDIR/parentD" "$GLOB")"
 UNREL="$(mkparent "$WORKDIR/unrelated" "$GLOB")"
 arm unrelated-nested "$P4" "$UNREL/nested/wt" "src/target.md"

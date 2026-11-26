@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -63,9 +61,6 @@ run_home() {
   HOME="$home" PREFLIGHT_FIXTURE_DIR="$fx" CLAUDE_CONFIG_DIR="$cfg" bash "$SCRIPT" "$@"
 }
 
-# write_settings <config-dir> <allow-json-array> [dir ...]
-# additionalDirectories entries are passed as plain path strings and JSON-encoded
-# by jq (--args), so backslash-bearing Windows paths never break the JSON.
 write_settings() {
   local cfg="$1" allow="$2"
   shift 2
@@ -75,7 +70,6 @@ write_settings() {
     --args "$@" >"$cfg/settings.json"
 }
 
-# commit_empty <repo> — a commit so `worktree add` has a HEAD to detach from.
 commit_empty() {
   git -C "$1" -c user.name=t -c user.email=t@t commit -q --allow-empty -F - --cleanup=verbatim <<'MSG'
 init
@@ -250,10 +244,6 @@ assert_contains "deny-only verb is a gap" "$OUT" "'git add'"
 assert_contains "deny-only gap has the DENIED message" "$OUT" "is DENIED"
 assert_eq "deny-only verb → exactly one gap" "1" "$(run "$REPO" "$CFG15" --count)"
 
-# Since Claude Code v2.1.211, "don't ask again" approvals save to the MAIN
-# checkout's settings.local.json and apply in every worktree of the repository —
-# so a grant there is real coverage for a fresh worker, and the autonomous path
-# reads it instead of dropping it.
 REPO3="$TEST_TMPDIR/local-mask"
 git init -q "$REPO3"
 PROJ3="$(git -C "$REPO3" rev-parse --show-toplevel)"
@@ -318,9 +308,6 @@ assert_contains "conventional worktree reports the main-local deny" "$OUT" "is D
 assert_not_contains "conventional worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
 assert_eq "conventional worktree → one gap" "1" "$(run "$TEST_TMPDIR/res-conv-wt" "$CFGRES" --count --worktree-root "$RESROOT")"
 
-# A submodule's common dir is <super>/.git/modules/<name>, which no parent-of-.git
-# arithmetic can invert. Git records the working tree in that dir's core.worktree,
-# which is what makes the shape resolvable at all.
 SUPER="$TEST_TMPDIR/res-super"
 SUBSRC="$TEST_TMPDIR/res-subsrc"
 git init -q "$SUPER"
@@ -336,15 +323,11 @@ plant_main_deny "$SUPER/sub"
 git -C "$SUPER/sub" worktree add -q --detach "$TEST_TMPDIR/res-sub-wt"
 OUT=$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --worktree-root "$RESROOT")
 assert_contains "submodule worktree reports the main-local deny" "$OUT" "is DENIED"
-# The header prints git's own spelling of the toplevel, which on Windows is the
-# native "C:/…" form rather than the shell's "/tmp/…" — compare against git.
 assert_contains "submodule worktree names the submodule checkout" "$OUT" \
   "$(git -C "$SUPER/sub" rev-parse --show-toplevel | tr -d '\r')"
 assert_not_contains "submodule worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
 assert_eq "submodule worktree → one gap" "1" "$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --count --worktree-root "$RESROOT")"
 
-# A config may hold core.worktree only via an include directive; `git config -f`
-# never processes includes, so the resolution must read with GIT_DIR context.
 SUBGITDIR="$(git -C "$SUPER/sub" rev-parse --git-common-dir | tr -d '\r')"
 INCWT="$(git config -f "$SUBGITDIR/config" --get core.worktree | tr -d '\r')"
 git config -f "$SUBGITDIR/config" --unset core.worktree
@@ -354,10 +337,6 @@ OUT=$(run "$TEST_TMPDIR/res-sub-wt" "$CFGRES" --worktree-root "$RESROOT")
 assert_contains "include-defined core.worktree still reports the deny" "$OUT" "is DENIED"
 assert_not_contains "include-defined core.worktree is not INCOMPLETE" "$OUT" "PREFLIGHT: INCOMPLETE"
 
-# --separate-git-dir under a name that is not "<something>/.git" leaves the main
-# working tree genuinely unrecoverable (git records no back-pointer to it). The
-# planted deny therefore cannot be read — so the run must say the layer is unread
-# instead of reporting a clean bill of health.
 SEP2="$TEST_TMPDIR/res-sep2"
 git init -q --separate-git-dir "$TEST_TMPDIR/res-sep2-gitdir" "$SEP2"
 commit_empty "$SEP2"
@@ -507,8 +486,6 @@ assert_contains "distinct project-root header names the source" "$OUT" "from --p
 assert_eq "no distinct project-root excludes local → one gap" "1" "$(run "$REPO" "$CFG17" --count --worktree-root "$POSIX_CHILD")"
 
 CFG18="$TEST_TMPDIR/cfg18"
-# MSYS_NO_PATHCONV stops git-bash rewriting the bare "/" argument to the Git
-# install root before jq sees it.
 MSYS_NO_PATHCONV=1 write_settings "$CFG18" "$FULL_ALLOW" "/"
 assert_eq "root additionalDirectories entry covers any worktree root" "0" "$(run "$REPO" "$CFG18" --count --worktree-root "$POSIX_CHILD")"
 

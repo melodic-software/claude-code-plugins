@@ -3,6 +3,18 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.17] - 2026-11-26
+
+### Changed
+
+- Shared `media_captions.py` synced where this plugin carries it, with trailing and inline comments outside the necessary posture removed; no behavior change.
+
+## [2.5.16] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [2.5.15] - 2026-11-25
 
 ### Changed

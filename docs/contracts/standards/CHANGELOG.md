@@ -1,5 +1,78 @@
 # Changelog for the standards convention
 
+## 1.3.1 - 2026-11-26
+
+Clarification. The Resolution ladder gains "Adopted shipped concepts": a consuming stage that loads
+a standards file citing shipped concept ids runs `/engineering-concepts:lookup` (if enabled) with
+`--counterweights-of` on those ids and keeps each printed counterweight or conflict line beside its
+entry. The planning, review, improvement and discovery plugins carry the binding, the discovery
+plugin newly, with its own `scripts/org-standards.sh`.
+
+## 1.3.0 - 2026-11-25
+
+Additive. A fifth layer, personal subscriptions: the user-global index's frontmatter may list
+`standards_repositories` (`repo`, `topics`, `ref`, `only_in`, `except_in`, in block style) and
+`trusted_owners`, both read from that index only. A trusted owner's repository is read live from
+its `main`; any other must be pinned to a full commit SHA reachable from one of its branches or
+tags, else it is refused. Subscribed layers add or tighten only, below the user-global layer's own
+files and below every team-tracked standard; a repository that is also the org layer is read once,
+there. Subscriptions add no `REVIEW.md`. `org-standards.sh subscriptions` prints each subscribed
+layer with its checkout and its (topic-filtered) index, reports malformed entries, refusals and
+index drift, and prints the index diff when a pin moves; `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
+skips them for a session. A user index that uses the list declares 1.3.0; one declaring an older
+version is still read and reported. Validation tightens:
+a repository name made only of dots (`.`, `..`) is not `<owner>/<repo>`, for `standards_repository`
+and for every subscription entry, so a cache path cannot resolve outside its cache root. A layer
+read from another repository (the org layer and each subscription) is confined to its checkout:
+a `standards_dir` or `File` value that is absolute, has a `..` segment or resolves (symbolic links
+included) outside the checkout is reported and dropped, as are an org `REVIEW.md` or
+`.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose
+`<path>.md#<heading>` citation does; every `.md` or `.markdown` token on a line, and every code
+span or `<...>` construct, including one that crosses a line break, is checked as a reader would
+resolve it (code-span padding trimmed, percent-escapes decoded, a `?query` cut, Unicode format and
+invisible separator characters removed, any case), a construct crossing a line break drops every
+line it covers, and C0, DEL and C1 control characters in the printed criteria are escaped. Every
+checkout, the org layer's clone and refresh included, writes a committed symbolic link as a plain
+file, and an org cache that holds one or allows them, from an earlier reader, is deleted without
+following a link and cloned again. A new `citations` command prints the citations in the composed
+criteria a consumer may open, in every composition (org and repository, override, no org layer):
+each single-backtick code span on one line shaped `<path>.md#<heading>` (letters, digits, `.`, `_`,
+`-`, `/`; no `..` segment) whose path resolves to a regular file inside its own checkout, printed
+as the citation, a tab, and `<absolute path>#<heading>`. `review` prints the criteria text alone,
+so no `REVIEW.md` text can add to the citations. Consumers open a `REVIEW.md` citation only from
+`citations`, never by resolving the criteria text.
+The `trusted_owners` and `standards_repositories` keys are found however YAML lets them be written
+(quoted, or with a space before the colon), in a repository layer too, where `trusted_owners` is
+reported as ignored; a `trusted_owners` that is not a block list trusts no owner and is reported,
+and either key nested under another key is reported and not read. `index` and
+`subscriptions` now print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract`
+version, the table header and each well-formed row of the `Surface | Applies when | File` table
+rebuilt from its cells (no prose or other line is copied; every other line holding a `|` is
+reported and dropped), with a `Surface` that is an id and each kept row's `File` the absolute path
+it resolves to inside the checkout. Consumers read another repository's index only through that
+copy, never by running the ladder at its checkout. Every clone, fetch, `ls-remote`, checkout and
+lazy object fetch gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60) and never
+prompts. Every git command the reader runs ignores the system and global git config, passing
+through only the user's proxy, CA, `core.sshCommand`, `url.<base>.insteadOf` and `credential.*`
+settings (their `include` and `includeIf` sections followed, a `gitdir:` or `onbranch:` condition
+matched against the `--root` repository), handed to git in `GIT_CONFIG_COUNT` environment
+variables rather than on a command line, so a private repository loads with the person's own
+credential helper or SSH key, never through a prompt, with hooks and fsmonitor off, so no hook,
+fsmonitor, filter driver (git-lfs included) or template from that config runs. No redirect is
+followed, so credentials go only to the configured host; a repository that answers with one is
+reported with a pointer to name its new location. A git command that needs no repository (clone, `ls-remote`) runs
+in the cache directory, reading no config of the repository the reader runs from or of one
+enclosing the cache, and no transport but `https`, `ssh`, `git` and `file` runs. A symbolic link at
+an owner directory or an entry of the cache is removed before the entry is read or built, so every
+checkout is built inside the cache. Every value the reader's reports quote, from a repository, the
+user-global index or the environment, shows each C0, DEL and C1 control character and each byte
+outside valid UTF-8 as `\xNN`, and a `STANDARDS_DIR` holding one is refused, as is a cache
+directory holding one when an org layer or a subscription needs it.
+A `ref` naming an annotated tag object reads the commit it tags. Reader
+state moves to `.state/` in the cache directory. An index at 1.2.0 is
+older than the bundled contract, so setup offers the guided migration, which changes nothing but
+the version.
+
 ## 1.2.0 - 2026-11-24
 
 Additive. A fourth layer, the org layer: the team layer of the repository a consumer's

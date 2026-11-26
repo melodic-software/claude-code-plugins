@@ -31,7 +31,7 @@
       "id": 3,
       "name": "apply-without-arguments-interviews-one-key-at-a-time-and-never-touches-gitignore",
       "prompt": "/code-metrics:setup apply",
-      "expected_output": "Runs check, then interviews one key at a time with a recommendation first (the cyclomatic reference with its ISO citation and the two alternatives, the file-length reference with its plugin-default label, exclusions, lanes), preserves keys the existing file carries, writes only the team file, and recommends the docs/conventions/**/*.local.* ignore line without editing .gitignore.",
+      "expected_output": "Runs check, then interviews one key at a time with a recommendation first (the cyclomatic reference with its ISO citation and the two alternatives, the file-length reference with its plugin-default label, exclusions, languages), preserves keys the existing file carries, writes only the team file, and recommends the docs/conventions/**/*.local.* ignore line without editing .gitignore.",
       "files": [],
       "expectations": [
         "Interviews one key at a time, leading with a recommendation and its provenance",

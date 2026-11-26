@@ -2,8 +2,8 @@
 
 - Status: accepted
 - Date: 2026-10-15
-- Related: [ADR 0003](0003-verification-guards-earn-default-on-by-measured-precision.md) (guard
-  defaults by measured precision), [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)
+- Related: [guard defaults by measured precision](../plugin-philosophy.md#classifying-a-hook),
+  [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)
   (vendored shared code), [ADR 0048](0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md) (changelog
   fragments). The rubric, the registration contract and the duration budgets are in
   [`docs/contracts/check-placement/README.md`](../contracts/check-placement/README.md).

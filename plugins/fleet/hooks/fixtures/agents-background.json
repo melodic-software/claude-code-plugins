@@ -1,0 +1,17 @@
+[
+  {
+    "pid": 41001,
+    "cwd": "/home/<user>/repos/github.com/example-org/repo-b",
+    "kind": "background",
+    "startedAt": 1795630000000,
+    "sessionId": "0b0b0b0b-0000-4000-8000-000000000006",
+    "status": "idle"
+  },
+  {
+    "pid": 41002,
+    "cwd": "/home/<user>/repos/github.com/example-org/repo-b",
+    "kind": "interactive",
+    "startedAt": 1795631000000,
+    "sessionId": "0c0c0c0c-0000-4000-8000-000000000007"
+  }
+]

@@ -64,7 +64,7 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
   [`dispatch.mjs`](../../.github/scripts/pr-unblock/dispatch.mjs), `DEFAULTS` and
   `dispatchConflicting`;
   `pr-unblock.yml`, the workflow `concurrency` group and each job's `queue: max`;
-  [`check-trusted-trigger.mjs:349-353`](../../.github/actions/check-trusted-trigger/check-trusted-trigger.mjs);
+  [`check-trusted-trigger.mjs:316-320`](../../.github/actions/check-trusted-trigger/check-trusted-trigger.mjs);
   the check run is posted only by the report job (`pr-run-activity-write.yml` job `report`,
   [`report-check-run.mjs:101`](../../.github/actions/report-check-run/report-check-run.mjs)).
 - The caller file is lane-power, and the broker checks it against the tip (`workflow-modified`).

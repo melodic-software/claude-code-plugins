@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# check-corpus-grid.sh: every adapter has a GRID.md row, and every `pair` cell
-# has a bad and a good corpus file for its rule.
-#
-# Usage: check-corpus-grid.sh [<corpus-dir> [<adapters-dir>]]
 # Exit: 0 the grid holds; 1 a missing row, file or malformed cell.
 set -uo pipefail
 

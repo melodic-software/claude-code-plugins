@@ -31,12 +31,12 @@ path would ask a question it is forbidden to register and then trip a gate deman
 never an item of the assumption sweep ([`assumption-sweep.md`](assumption-sweep.md)) either.
 
 **The exemption covers this prompt and nothing else.** It is not a license for a question asked
-beside it. A residue decision, a frontier round, a gap surfaced mid-synthesis, a `blocked` row from
+beside it. A residue decision, a round of ready questions, a gap surfaced mid-synthesis, a `blocked` row from
 an unattended run: any OTHER question is a register question as usual. It writes its row at
 ask-time and brings the gate into scope, whether or not the coverage prompt was asked in the same
 breath. One coverage check is exempt; a round that happens to contain one is not.
 
-Per action: `me`, `auto` routed to Q&A, and the Mixed path ask it inside a round. `auto` routed to
+Per action: `auto` routed to Q&A and the Mixed path ask it inside a round. `auto` routed to
 synthesize-directly asks it as the sole residue question. `lock` skips it, because invoking `lock`
 is the user saying stop asking, and reports it unexamined exactly as a non-interactive run does.
 The prompt is never itself a criterion.

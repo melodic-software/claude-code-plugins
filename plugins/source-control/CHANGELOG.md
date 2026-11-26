@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [14.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [13.21.10] - 2026-11-26
+
+### Changed
+
+- `/source-control:worktree`, `/source-control:setup`, `/source-control:pull-request` and `/source-control:babysit-prs` point at the Claude Code worktree docs, Microsoft's long-path page and GitHub's `pull_request` event and `PullRequestReviewThread` references for the `EnterWorktree`/`ExitWorktree` behavior, the Windows path limit, CI on a conflicted PR and the thread-resolution field with no REST equivalent, instead of restating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.9] - 2026-11-26
+
+### Changed
+
+- `/source-control:babysit-loop` points at the scheduled-tasks docs for the delay range a self-paced loop allows, instead of stating the `ScheduleWakeup` clamp in seconds ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+- The babysit-prs scripts are reformatted by the pinned Ruff (import sort and format); no behavior change.
+
+## [13.21.7] - 2026-11-26
+
+### Fixed
+
+- The merge gate's approval carry (`babysit_merge_policy.carried_lifters`) carries at any pull request size, as `merge-holds.mjs` does: its compares are read with commits paged past 250 (`_whole_commits`), `exact_base_carry` judges merges and base ranges at 300 files on their two diffs, and `ungated_since` judges a push of 300 files or more on the files of its diff. A page or diff that does not read, or a diff naming fewer files than its listing, carries nothing.
+
 ## [13.21.6] - 2026-11-26
 
 ### Fixed
@@ -7501,7 +7537,7 @@ Internal simplification, no behavior change.
   against nothing.** The autonomy-table pointer read
   `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
   real base is `reference/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. It now names the public invocation,
   `/source-control:babysit-prs`, keeping the section name.
 
@@ -7511,7 +7547,7 @@ Internal simplification, no behavior change.
   the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
   that does not exist there. This sentence is the doc's address for the autonomy
   obligation, which is the case
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   2026-08-28 amendment routes to the invocation rather than to a path whose
   meaning depends on which plugin fetched the document. Found by a third
   derivation over the plugin-level `reference/`, `context/` and `agents/` trees

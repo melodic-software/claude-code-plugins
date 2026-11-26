@@ -1,4 +1,3 @@
-# Records this process's argv, one base64 line per argument, then prints a marker.
 $exit = 0
 if ($null -ne $env:NATIVE_ARGV_EXIT -and $env:NATIVE_ARGV_EXIT -ne '') {
     $exit = [int]$env:NATIVE_ARGV_EXIT

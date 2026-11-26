@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# label-provenance <id> --label <name> [--label <name> ...] — CONTRACT.md "Verbs (core public
-# surface)". Read-only. For each named label, finds the most recent `labeled` timeline event,
-# reads that actor's repository permission, and trusts the label only when the permission is
-# `admin` or `write` (maintain maps to write, triage to read). It also reads when the item's
-# body was last edited. `admitted` is true only when every named label is trusted and the body
-# was not edited after the latest of those label events. A failed timeline read exits non-zero;
-# a missing event or a failed permission read is an untrusted entry with its reason, and a
-# failed edit-time read sets body_edit.after_admission null with its reason.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -41,11 +33,8 @@ events="$(jq -cs 'add // []' <<<"$WIT_GH_OUT")" || {
   exit "$EX_INTERNAL"
 }
 
-# A GitHub login, optionally an app's `[bot]` form. Anything else never reaches the API path.
 login_re='^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$'
 
-# entry <label> <actor> <permission> <role> <trusted> <reason> [<at>]: append one result row
-# to rows; empty strings become null so a reader can tell "not read" from a value.
 entry() {
   rows+="$(jq -nc --arg label "$1" --arg actor "$2" --arg permission "$3" --arg role "$4" \
     --argjson trusted "$5" --arg reason "$6" --arg at "${7:-}" \
@@ -94,11 +83,6 @@ for label in "${labels[@]}"; do
   esac
 done
 
-# Body edits after admission: a brief in the body that its author rewrote after a trusted
-# labeler admitted the item is not the brief the labeler admitted. REST carries no edit time
-# (https://docs.github.com/en/rest/using-the-rest-api/issue-event-types lists no body-edit
-# event), so this one read is GraphQL; a failed or unparsable read refuses, like any failed
-# read, and the work-loop escalates that refusal once.
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions
 read_gh api graphql \
   -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issueOrPullRequest(number:$number){... on Issue{lastEditedAt} ... on PullRequest{lastEditedAt}}}}' \

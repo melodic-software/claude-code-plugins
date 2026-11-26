@@ -22,6 +22,9 @@ already stops. Each read logs one
 `start-gate` notice with the body's core block and the response's rate-limit headers, so the two
 can be compared.
 
+[`budget-policy.mjs`](budget-policy.mjs) makes every budget verdict and its notice line: this
+gate's start and defer decisions and the pacer's. The gate and the pacer keep only the reads.
+
 With `project: "true"` as well (the issue lane's first call only), the same reading also stops the
 lane, with cause `budget` and the window's reset, while the pacer's projection
 ([`projection.mjs`](projection.mjs), the arithmetic
@@ -99,7 +102,7 @@ the two hosted review callers' gates, whose stop notice prints `cause=defer rese
 pr-verify's Check Intent, whose second gate runs after the resolver and the trigger gate (so a run
 that would skip never defers), with the switches already read, and whose `Note the deferral` step
 prints the same pair. The lost-run reconciler re-runs each such run once that reset is past
-(reconcile.mjs `DEFER_NOTE`, in its own `DEFER_MAX` band). Check Intent has no
+(it reads the stop through [`stop-record.mjs`](stop-record.mjs), in its own `DEFER_MAX` band). Check Intent has no
 `defer-run-minutes-check-intent` key, so its horizon is `defer-run-minutes`.
 There a low budget delays the work rather than throwing it away, which is the reason the paragraph
 above keeps the budget off. CI Status and pr-dispatch-feedback never defer. A budget or defer stop
@@ -120,6 +123,13 @@ and fails on one it does not know.
 
 The step always exits 0. A stopped lane is an expected outcome, not a failure. A step that
 reports the stop prints `cause` beside `reason`, so a budget stop is not read as a switch.
+
+Every stop also logs one stop record, a notice whose title is `stop-record` and whose message is
+JSON: `{"pool":"core","cause":"defer","reset":1800000000}` for a budget or defer stop,
+`{"pool":null,"cause":"switch","reset":null}` for a switch. A reader takes the stop from the job's
+check-run annotations through `readStop` or `deferResets` in [`stop-record.mjs`](stop-record.mjs),
+never from the notice text, which is for people. Those readers also accept the older
+`cause=defer reset=<epoch>` text, so runs from before the record still read.
 
 ## Job contract
 

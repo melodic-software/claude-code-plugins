@@ -10,7 +10,6 @@ import { ENTRIES_DIR, loadEntries, resolveSurface } from '../surfaces/registry.m
 const here = dirname(fileURLToPath(import.meta.url))
 const REGISTRY = join(here, '..', 'surfaces', 'registry.mjs')
 const SKILL = join(here, '..', 'skills', 'interview', 'SKILL.md')
-// What an unset userConfig key looks like in skill content: the literal token (lane-page.md).
 const UNSET = '${user_config.surface}'
 const made = []
 const tmp = () => made[made.push(mkdtempSync(join(tmpdir(), 'surface-registry-'))) - 1]
@@ -258,7 +257,7 @@ test('the gate sections name no surface value: each lane\'s part lives in its sp
   const gated = [
     ['## Gates', '## Action Router'],
     ['## Action Router', '## Stance: supportive, depth-first, opinionated'],
-    ['### Step 2. Drive the frontier-rounds loop', '### Step 3. Recognize the stop condition'],
+    ['### Step 2. Drive the rounds of ready questions', '### Step 3. Recognize the stop condition'],
     ['### Step 3. Recognize the stop condition', '### Step 4. Persist the Brief'],
     ['### Step 4. Persist the Brief', '### Step 5. Hand off'],
   ]

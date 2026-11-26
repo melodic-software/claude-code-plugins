@@ -32,7 +32,7 @@ test("the workflow grants nothing, its three jobs are the three legs, and each j
   assert.match(text, /\npermissions: \{\}\n/);
   assert.deepEqual(wf.ids, Object.values(LEGS));
   for (const id of Object.values(LEGS)) {
-    assert.match(job(id), /\n {4}cache-mode: read\n {4}permissions:\n {6}contents: read # [^\n]+\n {6}pull-requests: read # [^\n]+\n {6}actions: read # [^\n]+\n {4}(?:outputs|steps):/, id);
+    assert.match(job(id), /\n {4}cache-mode: read\n {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {6}actions: read\n {4}(?:outputs|steps):/, id);
   }
   assert.doesNotMatch(text, /^ +[a-z-]+: write\b/m);
   assert.doesNotMatch(text, /id-token|request-lane-token|create-github-app-token/);

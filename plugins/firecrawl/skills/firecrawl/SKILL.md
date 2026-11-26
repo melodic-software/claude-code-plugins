@@ -40,7 +40,7 @@ pages; a single small page or search read in full can go through the MCP tools
 | Situation | Command | Why |
 |---|---|---|
 | WebFetch returned 403/429 (Cloudflare, PerimeterX, rate limit) | `firecrawl scrape` | Managed IP rotation + headless browser |
-| Page is a SPA or requires JS rendering | `firecrawl scrape` | WebFetch is a plain HTTP client. No JS |
+| Page is a SPA or requires JS rendering | `firecrawl scrape` | Renders the page in a headless browser. How WebFetch reads a page: [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) |
 | Page needs clicks, form fills, or login | `firecrawl interact` | Full browser actions, not just fetch |
 | Need web search, not a known URL | `firecrawl search` | Search-and-scrape in one call |
 | Discovering all URLs on a site | `firecrawl map` | Cheap URL-only discovery |

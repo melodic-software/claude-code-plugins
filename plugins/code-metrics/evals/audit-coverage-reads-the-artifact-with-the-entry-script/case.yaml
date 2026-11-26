@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: audit-coverage-reads-the-artifact-with-the-entry-script
+description: on a scaffolded repository with a committed lcov artifact and an uncommitted change to the file it covers, the coverage report runs the bundled entry script
+tags: [audit-coverage, coverage, change-scope]
+expected_outcome: 'Runs the bundled audit-coverage.sh, which finds the lcov artifact on its own, and presents line coverage for the changed file read from that artifact, with no pass/fail verdict.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-metrics:audit-coverage
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-the-entry-script
+    type: tool_used
+    tool: Bash
+    input_match: audit-coverage\.sh

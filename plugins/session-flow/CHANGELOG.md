@@ -1,5 +1,31 @@
 # Changelog: session-flow plugin
 
+## [10.8.0] - 2026-11-26
+
+### Added
+
+- Observer `parse_failed` usage rows, check and gate, record why the reply was rejected (`reason`: `no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a finding, the `lengths` of its finding, rule and evidence; the reply text is never recorded.
+
+### Changed
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
+## [10.7.2] - 2026-11-26
+
+### Changed
+
+- `/session-flow:audit-sessions` and `/session-flow:recall` point at the Bash timeout limits, the `cleanupPeriodDays` setting and the plugin reference's saved-value section for the timeout ceiling, transcript retention and `${user_config.*}` substitution, instead of stating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [10.7.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+### Fixed
+
+- `reference/observer.md` now documents the harness checks: what each of the five checks reads and when it reports, how a finding names its fix, and the nine `observer_*` options that tune them.
+
 ## [10.7.0] - 2026-11-26
 
 ### Changed

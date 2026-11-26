@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.3] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [3.0.2] - 2026-11-25
 
 ### Changed
@@ -689,7 +695,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   keep-these-four-consistent sentence named `prosody.md` and `meter.md`, which are siblings and
   resolve, alongside `skills/meter-prosody/SKILL.md`, whose implied base is the plugin root while
   its real base is `context/pat-pattison/research/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md`, the
   anchored form this `research/` tree already uses for the Datamuse script. The sentence is the
   plugin's own prose, not printed Pat Pattison text, so the distilled-corpus exclusion does not

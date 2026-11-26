@@ -20,8 +20,8 @@ List every unknown the task depends on and sort each into exactly one kind:
 - **Decision question:** a choice with a live alternative, asked with a recommendation once the
   discovery answers and lookups it rests on are in.
 
-A decision the evidence leaves one viable answer is settled by evidence, not asked (SKILL.md "Name
-the evidence-settled decisions in the round header"), except the quality bar, which is always asked. An unknown that needs a fact before it is a
+A decision the evidence leaves one viable answer is settled by evidence, not asked (SKILL.md "Record
+the evidence-settled decisions as facts"), except the quality bar, which is always asked. An unknown that needs a fact before it is a
 choice is a lookup now and a decision question once the lookup returns.
 
 A doubt that a solution the request names, beside its stated problem, will cover that problem is
@@ -44,7 +44,7 @@ questions, asked in this round in discovery shape:
 - A request that names a solution and no problem: its problem question is the rethink-or-accept
   question of "Prescribed solution" there, asked open: its title asks what problem the work
   solves, its Context names the prescribed solution and states no inferred problem for the user
-  to confirm, and its `Discovery:` line says the answer decides whether to rethink the approach
+  to confirm, and its `Your answer settles:` line says the answer decides whether to rethink the approach
   against that problem or accept the named solution. This is how "an attended run always asks" is met under the intake round, never by a
   second question.
 - A stated problem whose evidence is only `reported`: one question asks the user to confirm the
@@ -57,7 +57,7 @@ Three things still go out in round 1 and are not intake questions:
   the wayfind question of [`routing.md`](routing.md) "Round 1". Each is one plain line after the
   round's questions and before the closing probe, naming the skill, why, with its evidence label
   and source, and what yes does: `Suggested next: /planning:prd, because who uses this and how
-  success is measured are not settled (user, round 1). Say yes to run it first.` It is never a
+  success is measured are not settled (your request). Say yes to run it first.` It is never a
   `My recommendation:` block, which an intake round shows only for the quality bar; the wayfind line is still
   registered at ask-time;
 - a candidate for an unknown Problem field, drawn from the repository, the conversation or a
@@ -108,11 +108,12 @@ that lookup returns. A lookup the user says is running elsewhere (another sessio
 checking) holds the same way. Ask every other question now: the hold never holds the round
 ([`loop.md`](loop.md) "Out-of-band drift").
 
-A held question takes its id and an `open` row whose resolution reads `waits on: <lookup>` when
-the round header's `Held:` line first names it (SKILL.md "Name the held questions in the round
-header"). It is not asked and gets no recommendation until the lookup returns; then it is asked in
-full in the next message that presents questions, which opens the next round, in the place
-[`loop.md`](loop.md) "Frontier rounds" item 2 gives it, and leaves the `Held:` line.
+A held question takes no id and no register row while it waits: the round header's `Open:` line
+names it in plain words with what it waits on (`Open: the alert threshold, waiting on the
+principle map`; SKILL.md "The round header"), in every round until the lookup returns. It is not
+asked and gets no recommendation until then; then it is asked in full in the next message that
+presents questions, which opens the next round, in the place [`loop.md`](loop.md) "Rounds" item 2
+gives it, taking its `Q<N>` and its `open` row there, and leaves the `Open:` line.
 
 A recommendation is never shown before its facts are in. A draft recommendation with no fact to
 cite, or a consequential one whose `Basis:` fails the re-grounding check (SKILL.md Step 2,

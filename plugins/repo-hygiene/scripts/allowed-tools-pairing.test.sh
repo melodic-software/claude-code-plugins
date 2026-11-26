@@ -1,51 +1,16 @@
 #!/usr/bin/env bash
-# Contract: every bundled-script `allowed-tools` grant in this plugin is PAIRED
-# with the invocation its skill body actually tells Claude to run.
-#
-# A Bash permission rule is matched against the literal command string, and
-# `bash` is NOT one of the wrappers Claude Code strips before matching
-# (the stripped set is timeout/time/nice/nohup/stdbuf/command/builtin/noglob).
-# So `Bash(bash <path>:*)` is interpreter-led, while a rule written without
-# `bash` stops matching the moment the body still says `bash <path>`. Only the
-# paired form — direct invocation in the body, direct path in the rule — is both
-# non-interpreter-led AND live. Quoting counts too: an unquoted rule does not
-# match a quoted body path, which is how one grant in this repo shipped dead.
-#
-# Requiring `${CLAUDE_SKILL_DIR}` in a grant is a repo convention, not a platform limit: no
-# grant ships on docs alone (`plugins/discovery/reference/parent-contract.md`).
-#
-# `SKILL.md` uses the paired `${CLAUDE_SKILL_DIR}/scripts/…` form; bundled `context/*.md`
-# files use the `bash <skill-dir>/scripts/…` placeholder form. See `skills/clean/reference/invocation-forms.md`.
-#
-# SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
-# fixed string searched for VERBATIM in markdown and frontmatter, where those
-# placeholders are substituted by Claude Code at load time. Letting the shell
-# expand any of them would make this gate silently match nothing.
 # test-scope: plugins/repo-hygiene/skills/*.md plugins/repo-hygiene/skills/*/scripts/*
+# Every single-quoted `${…}` here is a placeholder searched for verbatim in markdown, never a shell expansion.
 # shellcheck disable=SC2016
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
+# Claude Code strips only timeout, time, nice, nohup, stdbuf, command, builtin and noglob before matching a Bash rule, not bash:
+# https://code.claude.com/docs/en/permissions
+
 SKILLS=(clean)
 
-# Optional per-skill allowlist, space-separated and sorted. When a skill names
-# one, the granted set must equal it EXACTLY — this is the guard for a
-# deliberate narrowing decision, which the pairing checks below cannot catch on
-# their own: a script that is bundled, executable, and mentioned in the body
-# "pairs" fine, so a later edit could re-widen the grant to cover it and every
-# other assertion here would still pass green. A skill with no arm reports a
-# NOTE at the comparison site rather than comparing nothing.
-# `clean` names one because its grant scope carries real blast radius: only the
-# READ-ONLY scripts are pre-approved. The mutating ones (clean-caches,
-# clean-build, git-prune, git-tree-reset[-batch], remove-path, clean-batch) must
-# keep routing through the permission flow, which is the gate that actually
-# covers them: the PreToolUse destructive guard matches these scripts only in
-# their --apply spelling, so the grant stays withheld and the guard is a
-# second line, not the gate.
-# Every one of them is bundled, executable, and invoked in the skill's
-# markdown — so without this allowlist a grant added for any of them would
-# satisfy every other check here and land silently.
 expected_granted() {
   case "$1" in
   clean) echo "git-branch-audit.sh git-stash-audit.sh preflight.sh resolve-clean-action.sh scan.sh" ;;
@@ -59,8 +24,6 @@ fail() {
   echo "FAIL: $1" >&2
   fails=1
 }
-# Not `SKIP:`: scripts/run-plugin-tests.sh counts that prefix as an absent-tool
-# skip, and this path is a declared absence of an allowlist, not of a tool.
 note() { echo "NOTE: $1"; }
 
 allowed_tools() {
@@ -96,9 +59,6 @@ for skill in "${SKILLS[@]}"; do
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
     fi
-    # Bundled context files reach the model as plain bytes, so no `${…}` token in them is
-    # substituted. They name the skill directory as the `<skill-dir>` placeholder that
-    # SKILL.md's Spoke paths section defines.
     if [[ "$f" == skills/*/context/* ]]; then
       if grep -qF '${CLAUDE_SKILL_DIR}' "$f" || grep -qF '${CLAUDE_PLUGIN_ROOT}' "$f"; then
         fail "$f: context file must not use a \${…} token for a script path — use <skill-dir>/scripts/"

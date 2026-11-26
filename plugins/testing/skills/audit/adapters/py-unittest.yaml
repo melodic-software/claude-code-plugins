@@ -1,15 +1,9 @@
-# unittest: py-pytest's vocabulary plus unittest's skip forms, the
-# assert*Equal family and AsyncMock's await asserts. Claimed by a
-# TestCase subclass or a unittest.main() call, never by importing
-# unittest.mock alone. Schema and YAML subset: scripts/adapter-load.awk.
 id: py-unittest
 extends: py-pytest
 detect:
   any_regex:
     - '^[[:space:]]*class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(([^)]*,)?[[:space:]]*([A-Za-z_][A-Za-z0-9_]*[[:space:]]*\.[[:space:]]*)*(IsolatedAsyncio)?TestCase[[:space:]]*[,)]'
     - '^[[:space:]]*unittest[[:space:]]*\.[[:space:]]*main[[:space:]]*\('
-# Decorators on the lines above a test_start. expectedFailure is absent: the
-# test still runs, and an unexpected success fails the run.
 test_skip:
   - '^[[:space:]]*@[[:space:]]*(pytest[[:space:]]*\.[[:space:]]*mark[[:space:]]*\.[[:space:]]*)?skip(if)?([^A-Za-z0-9_]|$)'
   - '^[[:space:]]*@[[:space:]]*(unittest[[:space:]]*\.[[:space:]]*)?skip(If|Unless)?([^A-Za-z0-9_]|$)'

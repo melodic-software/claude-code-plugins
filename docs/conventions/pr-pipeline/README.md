@@ -743,9 +743,14 @@ unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-hu
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
-CI `fix-docs` runs on every pull request not tidied in its own run
-([ADR 0089](../../adr/0089-narrow-d100-to-pull-requests-tidied-in-their-own-run.md)). The skip
-reads the base config's tidy cutoffs when it dispatches, not the ones the lane run used.
+CI `fix-docs` runs on every pull request not tidied in its own run. That narrows the D100 floor
+([#7576](https://github.com/melodic-software/claude-code-plugins/issues/7576), CI `fix-docs` off),
+by the owner's approval, verbatim: "Approve D100 reversal: CI fix-docs on for PRs not tidied in
+their own run ([#13818](https://github.com/melodic-software/claude-code-plugins/issues/13818))".
+It skips a `work-resolve-issue` pull request whose head is still the lane run's one API commit and
+whose change is within the tidy cutoffs; D100 stays a fixed floor for that skip, which may only be
+tightened. The skip reads the base config's tidy cutoffs when it dispatches, not the ones the
+lane run used.
 `limits.fix-docs-per-run` is `2` here; each event offers one pull request, so any value from `1`
 up turns its dispatch on. At `0` the dispatcher logs
 `fix-docs is off (fix-docs-per-run: 0)`, sends nothing and makes no GitHub call for it.
@@ -1468,7 +1473,9 @@ the rules that only tighten in
   deleted line's SHA-256 and how often it was deleted (`babysit_lift.py`). The alert writes it into
   a revert record from the lines its revert commits deleted, and into a canary record from the
   lines `scripts/check-silent-revert.sh` attributes to a culprit in the pushed commits (its
-  `DELETED_SINK`); for a canary record `babysit_postmerge.py --remediate` filed first, the alert
+  `DELETED_SINK`). That same scan's `REMOVED_BY_SINK` lists the pushed commits whose scan fired,
+  and a canary record names their pull requests, not the push head's; when no scan names one and
+  the push holds more than one commit, it names none. For a canary record `babysit_postmerge.py --remediate` filed first, the alert
   posts the block as a comment, which counts when github-actions[bot] or the agent identity wrote
   it and nobody edited it. The one exception is a canary record with no block, because the pushed
   commits are not in main's checkout or were not all read (more than 20 since the previous canary

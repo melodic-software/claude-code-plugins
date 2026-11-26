@@ -382,11 +382,11 @@ printf '.work/keep.md\n.work/*/EXPLORE.md\n*.env\n' >"$repo/.worktreeinclude"
 git -C "$repo" add .gitignore .worktreeinclude
 git -C "$repo" commit -qm "ignore + include"
 mkdir -p "$repo/.work/task1"
-printf 'x\n' >"$repo/.work/keep.md"          # matched + gitignored -> copy
-printf 'x\n' >"$repo/.work/task1/EXPLORE.md" # matched (nested) + gitignored -> copy
-printf 'x\n' >"$repo/.work/task1/OTHER.md"   # gitignored, NOT matched  -> skip
-printf 'x\n' >"$repo/secrets.env"            # matched + gitignored -> copy
-printf 'x\n' >"$repo/loose.txt"              # neither -> skip
+printf 'x\n' >"$repo/.work/keep.md"
+printf 'x\n' >"$repo/.work/task1/EXPLORE.md"
+printf 'x\n' >"$repo/.work/task1/OTHER.md"
+printf 'x\n' >"$repo/secrets.env"
+printf 'x\n' >"$repo/loose.txt"
 root="$TEST_TMPDIR/wtroot6"
 out=$(bash "$HELPER" --name feat/inc --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "worktreeinclude: matched+ignored top-level copied" "$out/.work/keep.md"
@@ -402,12 +402,12 @@ printf '.work/.gitignore\n.work/**/INDEX.md\n.work/**/EXPLORE.md\n.work/**/INTEN
 git -C "$repo" add .gitignore .worktreeinclude
 git -C "$repo" commit -qm "recursive include"
 mkdir -p "$repo/.work/epic/slice" "$repo/.work/slice"
-printf 'x\n' >"$repo/.work/.gitignore"                     # self-ignore rides along
-printf 'x\n' >"$repo/.work/INDEX.md"                       # depth 1 (zero-dir `**`)
-printf 'x\n' >"$repo/.work/slice/INTENT.md"                # depth 2
-printf 'x\n' >"$repo/.work/epic/slice/EXPLORE.md"          # depth 3
-printf 'x\n' >"$repo/.work/epic/slice/review-checklist.md" # depth 3 ledger
-printf 'x\n' >"$repo/.work/slice/scratch-foo"              # gitignored, NOT matched
+printf 'x\n' >"$repo/.work/.gitignore"
+printf 'x\n' >"$repo/.work/INDEX.md"
+printf 'x\n' >"$repo/.work/slice/INTENT.md"
+printf 'x\n' >"$repo/.work/epic/slice/EXPLORE.md"
+printf 'x\n' >"$repo/.work/epic/slice/review-checklist.md"
+printf 'x\n' >"$repo/.work/slice/scratch-foo"
 root="$TEST_TMPDIR/wtroot-recursive"
 out=$(bash "$HELPER" --name feat/deep --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "worktreeinclude **: self-ignore carried" "$out/.work/.gitignore"

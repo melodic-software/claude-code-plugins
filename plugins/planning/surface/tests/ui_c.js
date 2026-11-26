@@ -51,11 +51,9 @@ async page => {
     await page.waitForSelector(".qbtn", {state: "attached"});
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"});
-    // #7970: with no stored choice a wide screen opens the side panels pinned; these phases were written for the overlay, so they store Unpin first
     await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(200);
     if ((await page.getAttribute("#pinBtn", "aria-pressed")) === "true") await page.click("#pinBtn");
     await page.click("#flyClose"); await page.waitForTimeout(150);
-    // The pill's history is recorded on a second tab, closed after: an init script runs in every frame, and Chrome logs each run it blocks in this page's sandboxed visual frames as a console error (AC37).
     const fresh = await page.context().newPage();
     await fresh.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const p = document.getElementById("pill"); if (window !== window.top || !p) return; window.__pills = [p.textContent]; new MutationObserver(() => window.__pills.push(p.textContent)).observe(p, {childList: true, characterData: true, subtree: true}); }));
     await fresh.goto(base); await fresh.waitForSelector(".qbtn", {state: "attached"});
@@ -134,7 +132,6 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     ok("AC16: Esc closes the sheet", await page.evaluate(() => !document.getElementById("keysDlg").open));
-    // #5915: the Show filter key, search and jump, the URL hash, and the rail button's accessible name
     await page.click("main.detail h3"); await page.keyboard.press("s");
     ok("#5915: s focuses the Show filter", (await focused()) === "filter");
     await page.keyboard.press("Escape");
@@ -229,7 +226,6 @@ async page => {
     await page.click('.rail-list .tree .qbtn[data-q="D0"]'); await page.waitForTimeout(200);
     const dBan = await banners();
     ok("#8087: an archived question with supersededBy shows one banner that names and links the replacement", await sel() === "D0" && dBan.length === 1 && /superseded by D1/i.test(dBan[0].text) && !/The old path left the plan/.test(dBan[0].text) && dBan[0].link.some(l => l.includes("D1")), JSON.stringify(dBan));
-    // #9715: archived D0 takes no decision: its choices, Save and Reopen are off, Ask still works, and a primary Go to names the end of its supersededBy chain
     const archOff = await page.evaluate(() => ({radios: [...document.querySelectorAll('#choices input[type="radio"]')].map(r => r.disabled), save: document.querySelector("[data-save]").disabled, reopen: !!document.querySelector('#decideRow [data-act="reopen"]'), go: [...document.querySelectorAll("#decideRow button[data-go]")].map(b => b.textContent + "|" + b.dataset.go + "|" + b.classList.contains("primary"))}));
     await page.click("#note"); await page.keyboard.type("Why was this replaced?"); await page.waitForTimeout(150);
     const askOn = await page.$eval('#talkRow [data-act="ask"]', el => !el.disabled);

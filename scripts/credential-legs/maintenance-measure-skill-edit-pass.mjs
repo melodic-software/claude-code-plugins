@@ -6,7 +6,6 @@ export default {
       job: "run-eval-subscription",
       drop: ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker", "Pick the next leg"],
       replace: [
-        ["      contents: read # check out the default branch; nothing in this job writes\n", "      contents: read\n", 1],
         [
           `  run-eval:
     name: Run Eval

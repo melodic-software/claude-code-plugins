@@ -1,0 +1,14 @@
+{
+  "claim": "A SessionStart hook's additionalContext reaches the model before the first prompt (source startup).",
+  "tags": ["SessionStart", "additionalContext", "session start", "hooks"],
+  "docs": ["https://code.claude.com/docs/en/hooks#sessionstart"],
+  "permission_mode": "auto",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "max_budget_usd": 1.0,
+  "target": {
+    "reply_match": "probe-nonce-startup-<session8>",
+    "example": "probe-nonce-startup-0d0d0d0d"
+  },
+  "outcome": "reply"
+}

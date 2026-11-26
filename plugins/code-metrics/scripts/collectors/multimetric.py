@@ -2,7 +2,7 @@
 """Adapter for `multimetric` (priv-kweihmann/multimetric), the Halstead rung.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 `multimetric <files>` prints one JSON document whose `files` object is keyed
 by absolute path (probed 2026-09-05 against multimetric 2.4.4; the capture in
@@ -13,7 +13,7 @@ mapped back to the paths the dispatcher passed by path-segment suffix.
 The numbers are per file, not per function, so every row carries
 `function: null`, `start_line: null`, `end_line: null` and the label
 `file-level` (design T12: multimetric has no per-function granularity, and it
-is the only cross-lane Halstead route the tooling corpus found).
+is the only cross-language Halstead route the tooling corpus found).
 
 It also serves `bash/cyclomatic` as the fallback below `shellmetrics`, with
 the label `multimetric-approximation`: its count under-reports against a
@@ -45,8 +45,8 @@ from adapter_paths import (
 )
 
 NAME = "multimetric"
-HALSTEAD_LANES = ("typescript", "python", "bash", "go")
-CYCLOMATIC_LANES = ("bash",)
+HALSTEAD_LANGUAGES = ("typescript", "python", "bash", "go")
+CYCLOMATIC_LANGUAGES = ("bash",)
 
 
 def probe() -> int:
@@ -104,7 +104,7 @@ def installed_version(exe: str) -> str | None:
     return value if out.returncode == 0 and value else None
 
 
-def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict]:
+def translate(raw: str, language: str, measure: str, wanted: list[str]) -> list[dict]:
     wanted_norm = {normalize(p): p for p in wanted}
     document = json.loads(raw)
     if not isinstance(document, dict) or not isinstance(document.get("files"), dict):
@@ -130,7 +130,7 @@ def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict
                 "function": None,
                 "start_line": None,
                 "end_line": None,
-                "lane": lane,
+                "language": language,
                 "values": values,
                 "collector": NAME,
                 "labels": labels,
@@ -139,12 +139,12 @@ def translate(raw: str, lane: str, measure: str, wanted: list[str]) -> list[dict
     return rows
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
-    served = (measure == "halstead" and lane in HALSTEAD_LANES) or (
-        measure == "cyclomatic" and lane in CYCLOMATIC_LANES
+def collect(language: str, measure: str, files: list[str]) -> int:
+    served = (measure == "halstead" and language in HALSTEAD_LANGUAGES) or (
+        measure == "cyclomatic" and language in CYCLOMATIC_LANGUAGES
     )
     if not served:
-        print(f"{NAME}.py: cannot collect {lane}/{measure}", file=sys.stderr)
+        print(f"{NAME}.py: cannot collect {language}/{measure}", file=sys.stderr)
         return 2
     exe = shutil.which(NAME)
     if not exe:
@@ -152,7 +152,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         return 3
     result = subprocess.run([exe, *files], capture_output=True, text=True, check=False)
     try:
-        rows = translate(result.stdout, lane, measure, files)
+        rows = translate(result.stdout, language, measure, files)
     except (ValueError, TypeError) as exc:
         print(
             f"{NAME}.py: no parseable {NAME} output ({exc}); "
@@ -166,10 +166,10 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
 
 
 def measures() -> None:
-    for lane in HALSTEAD_LANES:
-        print(f"{lane}/halstead")
-    for lane in CYCLOMATIC_LANES:
-        print(f"{lane}/cyclomatic")
+    for language in HALSTEAD_LANGUAGES:
+        print(f"{language}/halstead")
+    for language in CYCLOMATIC_LANGUAGES:
+        print(f"{language}/cyclomatic")
 
 
 INSTALL_HINT = "multimetric: https://github.com/priv-kweihmann/multimetric (pip install multimetric)"

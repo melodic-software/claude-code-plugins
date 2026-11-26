@@ -332,7 +332,7 @@ def main(argv=None) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # residual bug: documented exit 3, never a traceback
+    except Exception as exc:
         sys.stderr.write(
             f"check_linkmap: ERROR: internal failure {type(exc).__name__}: "
             f"{exc}. This is a gate bug; the run is NOT clean.\n"

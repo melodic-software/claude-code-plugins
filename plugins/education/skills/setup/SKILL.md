@@ -12,8 +12,10 @@ stored, where `/education:teach` roots its learning workspaces, and where `/educ
 starts. The plugin has two kinds of configuration:
 
 - **Native `userConfig`**: `quiz_policy`, `report_library_dir`, `workspace_root`,
-  `explain_starting_rung` and `medium`. Claude Code prompts for them when the plugin is enabled and
-  owns where they are stored. This skill reads their rendered values and never writes them. The
+  `explain_starting_rung` and `medium`. Claude Code owns asking for and storing them:
+  [user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
+  [where values are stored](https://code.claude.com/docs/en/plugins-reference#where-values-are-stored).
+  This skill reads their rendered values and never writes them. The
   shared medium resolver weighs `medium` against the repository's rendered-views files when
   `/education:illustrate` or `/education:teach` runs, so `check` does not report it.
 - **One tracked consumer file**: `docs/conventions/education.yaml`, the repository layer for

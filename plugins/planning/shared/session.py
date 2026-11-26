@@ -100,9 +100,6 @@ ASK_CLAUDE = re.compile(r"(?<![\w@])@claude(?![\w])", re.IGNORECASE)
 TAKEN_DOWN = "Taken down by the host."
 GENERAL = "session"
 COMMENT_ID = re.compile(r"D[1-9][0-9]{0,8}")
-# Presence (amendment "Presence", 2026-10-16; values are judgment). Offline after OFFLINE_AFTER with
-# no heartbeat, which outlasts hidden tabs whose timers browsers throttle to about once a minute.
-# Away when hidden, after IDLE_AFTER visible with no input, or by the person's own snooze.
 OFFLINE_AFTER = 90.0
 IDLE_AFTER = 300.0
 TYPING_TTL = 5.0
@@ -115,9 +112,6 @@ JOIN_WINDOW = 60.0
 JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60
-# Signing the owner in on another device: a code typed or scanned once. Its 8 characters from PAIR_ALPHABET (31, no
-# 0/O, 1/I/L) hold about 39.6 bits; after PAIR_MISSES wrong tries an address is refused that code, while other
-# addresses keep it, so a guesser gets PAIR_MISSES tries at 31**8 per address it holds.
 PAIR_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 PAIR_LENGTH = 8
 PAIR_SECONDS = 120.0
@@ -214,14 +208,6 @@ ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
 HTML_ASSET = re.compile(r"[0-9a-f]{16}\.html")
-# Live prototypes (`lives`): an entry's id; a live link's path on the prototype's own origin, RFC 3986 path-absolute
-# (so never "//", which would name another host) with an optional query, in URL characters only: no "#" (a fragment,
-# where the page's #me=, #join= and #owner= identities ride), no backslash, space or control character (the WHATWG URL
-# parser reads a backslash as "/" and drops tab and newline, so "/<backslash>x" or "/<tab>/x" would become "//x"); the
-# origin a started entry is opened at, only a quick tunnel's (https, one label under trycloudflare.com, no user, port,
-# path, query or fragment, never an IP literal or cloudflared's own api. host), which the Public Suffix List makes a
-# site apart from the interview's; and the build folder an entry serves, relative to the data folder, under staging/
-# (never the data folder itself, which holds the session's secrets and guests' files).
 LIVE_ID = re.compile(r"L[1-9][0-9]{0,5}")
 LIVE_PATH = re.compile(r"/(?!/)(?:[A-Za-z0-9._~!$&'()*+,;=:@/?-]|%[0-9A-Fa-f]{2})*")
 LIVE_URL = re.compile(r"https://(?!api\.)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.trycloudflare\.com")
@@ -231,25 +217,15 @@ MAX_LIVE_URL = 300
 MAX_LIVES = 20
 PORTS_FILE = ".shared-ports.json"
 VARIANT = re.compile(r"v-[1-9][0-9]?")
-# A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
-# image variant, else tag names from the variant's root down, each with its place among same-tag siblings,
-# joined by " > ". Data only: nothing evaluates it as script; inside the sandboxed variant the helper matches
-# it with querySelector.
 _SEL_STEP = r"[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}(?::nth-of-type\([1-9][0-9]{0,3}\))?"
 SELECTOR = re.compile(rf"{_SEL_STEP}(?: > {_SEL_STEP}){{0,31}}")
 
 
-# Uploads (Contracts, "Upload rules"). Every name on disk is the server's: a pending file is 32 hex digits under
-# uploads/pending/, a received one uploads/accepted/<date>-<upload id>.<ext>. The person's file name is display
-# text only. A state.json whose names stray from these patterns does not load (cross_field_errors).
 REPORT_ID = re.compile(r"F[1-9][0-9]{0,8}")
 UPLOAD_ID = re.compile(r"U[1-9][0-9]{0,8}-[0-9a-f]{8}")
 TMP_NAME = re.compile(r"[0-9a-f]{32}")
 STORED_NAME = re.compile(r"[0-9]{8}-U[1-9][0-9]{0,8}-[0-9a-f]{8}(?:\.[a-z0-9]{1,10})?")
 STORED_DIR = "uploads/accepted/"
-# A done record's `stored`: one plain name in uploads/accepted/. The server writes STORED_NAME; the v1 design fixture
-# (state-sample.json) holds an older shape that must still load, and no name here can leave the folder.
-# A Windows device name (CON, NUL, COM1, ...) with any extension is refused: opening one reaches the device.
 STORED_PATH = re.compile(r"uploads/accepted/(?!(?i:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?\Z)[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 FILE_EXT = re.compile(r"[a-z0-9]{1,10}")
 SHA256_HEX = re.compile(r"[0-9a-f]{64}")
@@ -316,7 +292,7 @@ DEFAULT_SETTINGS = {
     "claudeTake": "answerFirst",
     "theme": {"mode": "system", "accent": "teal"},
 }
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None, "roundCap": None}
 GUEST_POPUPS = ("request", "mention", "round")
 PROTOTYPE_TIERS = ("screenshot", "snapshot", "live")
 DEFAULT_PROTOTYPE_TIERS = ("screenshot", "snapshot")
@@ -544,7 +520,6 @@ def _live_path_error(path):
         return (f"A live link's path starts with one / (never //), is at most {MAX_LIVE_PATH} characters of URL path and query "
                 "characters, and holds no fragment (# or %23), scheme, space or backslash.")
     part, _, query = path.partition("?")
-    # "." and ".." segments (escaped too) collapse when a browser resolves the path, so "/.//x" would become "//x".
     if "//" in part or any(urllib.parse.unquote(seg) in (".", "..") for seg in part.split("/")):
         return "A live link's path holds no empty, . or .. segment."
     if any(k.lower() in ("me", "join", "owner") for k, _ in urllib.parse.parse_qsl(query, keep_blank_values=True)):
@@ -756,13 +731,6 @@ def _person_name(body, *, empty_ok=False):
     return name
 
 
-# What every text field drops: controls but tab and newline, every format character (Cf: the bidi controls of Trojan
-# Source, zero-width spaces, invisible operators, the soft hyphen, tags) but ZWJ and ZWNJ, surrogates, private use,
-# characters that render blank (_BLANK), and VS17-VS256. Tag characters stay only in the three RGI subdivision flags
-# (_RGI_FLAGS); any other run of them can spell hidden words for Claude. ZWJ, ZWNJ and VS1-VS16 stay one at a time
-# (emoji sequences and some scripts need them): a selector after a selector or a joiner, or a joiner after a joiner,
-# is dropped, so no run of them hides bytes after a visible character. Unassigned (Cn) stays: the interpreter's
-# Unicode tables trail new emoji, which read as unassigned until they catch up.
 _RGI_FLAGS = re.compile(
     "(" + "|".join("\U0001f3f4" + "".join(chr(0xE0000 + ord(c)) for c in code) + "\U000e007f" for code in ("gbeng", "gbsct", "gbwls")) + ")"
 )
@@ -818,8 +786,6 @@ def _bare(name):
     return unicodedata.normalize("NFKC", "".join(c for c in name if c not in _JOINERS and not "\U0000fe00" <= c <= "\U0000fe0f" and c not in _BLANK))
 
 
-# UTS #39 confusables.txt (18.0.0): every single character whose prototype is one of the letters of "claude", either
-# case. Only the reserved-name check reads this, so a name that looks like "Claude" in another script is refused.
 _CLAUDE_LOOKALIKES = {
     "c": (
         "\u03f2\u03f9\u0421\u0441\u1004\u105a\u13df\u1c83\u1d04\u2102\u212d\u216d\u217d\u2ca4\u2ca5\ua4da"
@@ -1031,9 +997,6 @@ def _plain_text(head):
 
 
 _ZIP, _OLE = _starts(b"PK\x03\x04"), _starts(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
-# The magic-byte allowlist: extension -> (the MIME type the server records, the check the first chunk must pass).
-# Guests offer only these kinds (zip aside); the owner and trusted guests may offer any extension, and a kind
-# outside this table is stored unchecked as application/octet-stream. Nothing here is ever served back.
 UPLOAD_KINDS = {
     "png": ("image/png", _starts(b"\x89PNG\r\n\x1a\n")),
     "jpg": ("image/jpeg", _starts(b"\xff\xd8\xff")),
@@ -2354,6 +2317,11 @@ class Session:
 
     def _round_size(self, n):
         return sum(1 for q in self.state["questions"] if q["round"] == n)
+
+    @property
+    def round_max(self):
+        """The most questions a round holds: the host's roundCap setting, never above MAX_ROUND."""
+        return min(self.state["session"]["settings"].get("roundCap", MAX_ROUND), MAX_ROUND)
 
     def _question(self, qid, field="qid"):
         if not isinstance(qid, str):
@@ -3684,8 +3652,8 @@ class Session:
             out = {}
             if action == "question":
                 n = self._next_round_n()
-                if self._round_size(n) >= MAX_ROUND:
-                    raise DomainError(409, "round-full", f"Round {n} already holds {MAX_ROUND} questions.")
+                if self._round_size(n) >= self.round_max:
+                    raise DomainError(409, "round-full", f"Round {n} already holds {self.round_max} questions.")
                 out = self._proposal_question(pid, prop, n)
             elif action == "park":
                 prop["status"] = {"kind": "parked", "by": pid}
@@ -3731,7 +3699,7 @@ class Session:
                 if prop["status"]["kind"] != "new":
                     raise DomainError(409, "wrong-status", f"Proposal {prop['id']} is {prop['status']['kind']}.", status=prop["status"]["kind"])
             n = self._next_round_n()
-            room = MAX_ROUND - self._round_size(n)
+            room = self.round_max - self._round_size(n)
             if len(props) > room:
                 raise DomainError(409, "round-full", f"Round {n} has room for {max(room, 0)} more questions, not {len(props)}.", room=max(room, 0))
             return {"round": n, "questions": [self._proposal_question(pid, prop, n)["question"] for prop in props]}
@@ -4598,7 +4566,6 @@ class Session:
         status = _choice(body or {}, "status", ("pending", "running", "declined", "done", "failed"), optional=True)
         with self._lock:
             me = self._person(pid)
-            # the requester's own Claude reads names as its page shows them: "@someone" where names are masked
             full = self.state["session"]["settings"]["names"] == "full" or me["role"] in ("owner", "leader")
             mine = [r for r in self.state["requests"] if r["pid"] == pid and r["runner"] == "self" and (status is None or r["status"]["kind"] == status)]
             return {"requests": [self._plain_all({**copy.deepcopy(r), "question": self._question(r["qid"])["text"]}, full) for r in mine]}
@@ -5545,7 +5512,6 @@ class Session:
     def _event(self, kind, **fields):
         log = self.state["log"]
         log["seq"] += 1
-        # Claude reads the log: a mention reaches it as "@Name", or "@someone" without digestNames, never as a token.
         ev = {"seq": log["seq"], "at": iso(self.now()), "kind": kind, **self._plain_all(fields, self.state["session"]["settings"]["digestNames"])}
         log["events"].append(ev)
         return ev
@@ -5921,8 +5887,8 @@ class Session:
             self._step("open-round", CLAUDE)
         required = self._digested_proposals(cur) if cur is not None and cur["status"]["kind"] == "working" else set()
         n = self._next_round_n()
-        if len(op["questions"]) > MAX_ROUND:
-            raise DomainError(400, "too-long", f"A round holds at most {MAX_ROUND} questions.", field="questions", max=MAX_ROUND)
+        if len(op["questions"]) > self.round_max:
+            raise DomainError(400, "too-long", f"A round holds at most {self.round_max} questions.", field="questions", max=self.round_max)
         known = {q["id"] for q in st["questions"]}
         made = []
         for i, qi in enumerate(op["questions"]):
@@ -5961,11 +5927,11 @@ class Session:
         return {"round": cur["n"], "placed": self._place(effects)}
 
     def _check_round_room(self, n, made):
-        """Refuse when round n or n + 1, with the questions `made` adds, would pass MAX_ROUND."""
+        """Refuse when round n or n + 1, with the questions `made` adds, would pass round_max."""
         for target in {n, n + 1}:
             size = self._round_size(target) + sum(1 for q in made if q["round"] == target)
-            if size > MAX_ROUND:
-                raise DomainError(409, "round-full", f"Round {target} would hold {size} questions; the most is {MAX_ROUND}.")
+            if size > self.round_max:
+                raise DomainError(409, "round-full", f"Round {target} would hold {size} questions; the most is {self.round_max}.")
 
     def _parse_placements(self, placements, required, n, known, made):
         """Check every placement before anything changes; returns the effects to apply."""
@@ -6061,10 +6027,6 @@ class Session:
                 raise _bad("qid", f"Request {req['id']} is {_on(req)}.")
         elif q is None:
             raise _bad("qid", "A result names its question, or the request about the whole session it answers.")
-        # The host's own request needs no review; a guest's needs the owner's Share only while the session reviews answers.
-        # Asked for everyone, the answer is shared now; asked Just me, it goes to its asker (and the owner) alone.
-        # Unreviewed sharing is for ask and research answers to an asker still in: explore, design and prototype read
-        # the linked project, so they wait for the owner.
         out = req is not None and (req["pid"] == HOST or (not self._review() and req["kind"] in ("ask", "research") and self._active(req["pid"])))
         me = req is not None and req.get("audience") == "me"
         res = self._new_result(q and q["id"], req, op, {"kind": "host-claude"}, out and not me)
@@ -6164,8 +6126,8 @@ class Session:
         n = self._next_round_n()
         known = {q["id"] for q in self.state["questions"]}
         q = self._parse_question(op["question"], round_n=n, origin={"kind": "host", "proposal": prop["id"], "by": HOST}, known=known, field="question")
-        if self._round_size(n) >= MAX_ROUND:
-            raise DomainError(409, "round-full", f"Round {n} already holds {MAX_ROUND} questions.")
+        if self._round_size(n) >= self.round_max:
+            raise DomainError(409, "round-full", f"Round {n} already holds {self.round_max} questions.")
         self._add_question(q)
         prop["status"] = {"kind": "question", "question": q["id"]}
         self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", qid=q["id"])
@@ -6695,6 +6657,9 @@ def _settings_patch(settings, patch):
         elif k in ordered:
             if not isinstance(v, list) or any(x not in ordered[k] for x in v) or len(set(v)) != len(v):
                 raise _bad(k, f"{k} is a list of {', '.join(ordered[k])}, each at most once.")
+        elif k == "roundCap":
+            if not (_is_int(v) and 1 <= v <= MAX_ROUND):
+                raise _bad(k, f"roundCap is the host's questions per round: a whole number from 1 to {MAX_ROUND}.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")

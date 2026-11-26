@@ -1,21 +1,21 @@
 {
   "pass": [
     {
-      "answer": "**Round 3.** Alerting for failed deliveries.\nScope check: 9 of 12 questions registered\n\n❓ Q8: **Who is alerted when one endpoint keeps failing?**\n\nContext:\n- The on-call rota is in PagerDuty (your notes).\n\n➡️ My recommendation: **Page on-call**. (verified, your notes)\n\n---\n\n❓ Q9: **What does an alert include?**\n\nContext:\n- x\n\n➡️ My recommendation: **The endpoint and its last status**.\n\nIs there something else that would change these recommendations?",
+      "answer": "Round 3\nScope check: 9 questions asked so far\n\n❓ Q8 (who is alerted): **Who is alerted when one endpoint keeps failing?**\n\nContext:\n- The on-call rota is in PagerDuty (your notes).\n\n➡️ My recommendation: **Page on-call**. (verified, your notes)\n\n---\n\n❓ Q9 (alert contents): **What does an alert include?**\n\nContext:\n- x\n\n➡️ My recommendation: **The endpoint and its last status**.\n\nIs there something else that would change these recommendations?",
       "why": "no new question takes Q1 to Q7"
     },
     {
-      "answer": "Q8: **Who is alerted?**\nContext:\n- Q4 settled five attempts (round 2).",
+      "answer": "Q8 (who is alerted): **Who is alerted?**\nContext:\n- Q4 settled five attempts (round 2).",
       "why": "citing an earlier id in Context is not a question title"
     }
   ],
   "fail": [
     {
-      "answer": "❓ Q1: **Who is alerted?**",
+      "answer": "❓ Q1 (who is alerted): **Who is alerted?**",
       "why": "the new question reuses Q1"
     },
     {
-      "answer": "❓ Q7: **What does an alert include?**",
+      "answer": "❓ Q7 (alert contents): **What does an alert include?**",
       "why": "the new question reuses Q7"
     }
   ]

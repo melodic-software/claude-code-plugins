@@ -178,8 +178,7 @@ that can decide the rule: a change that makes the mistake impossible first, then
 blocks it, then a test, and an instruction only when nothing a machine runs can decide it. Say
 that the `corrections` plugin was not available, so the proposal is unproven. A line that keeps
 getting missed means the file needs to be shorter. Bold is structure only: a list-item label
-or a defined term at its first use, never a whole sentence or a rule
-([ADR 0098](../../../../docs/adr/0098-state-instruction-rules-in-plain-words-without-emphasis-markers.md)).
+or a defined term at its first use, never a whole sentence or a rule.
 
 - **Pointer**: skill-creator,
   [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).

@@ -265,7 +265,7 @@ fi
 rm -rf "$ROOT8" "$OUT8"
 
 OUT9="$(mktemp)"
-rm -f "$OUT9" # ensure absent
+rm -f "$OUT9"
 export HOOK_TELEMETRY_SINK="relative/no/anchor/sink.sh"
 (
   unset CLAUDE_PROJECT_DIR 2>/dev/null || true
@@ -282,7 +282,7 @@ fi
 rm -f "$OUT9"
 
 OUT10="$(mktemp)"
-ABS10="$(make_sink "cat >\"$OUT10\"")" # mktemp path is absolute
+ABS10="$(make_sink "cat >\"$OUT10\"")"
 export HOOK_TELEMETRY_SINK="$ABS10"
 hook::emit_telemetry "sample-hook" "PostToolUse" "ok" "$EPOCHREALTIME" '{"tool":"Write","file":"x.py","findings":[]}' "/some/ignored/root" 2>/dev/null
 wait_for_sink "$OUT10" "$SINK_POLLS"
@@ -428,7 +428,7 @@ norm_as() { (
   hook::normalize_path_to __norm "$2"
   printf '%s' "$__norm"
 ); }
-assert_norm() { # <ostype> <input> <expected> <desc>
+assert_norm() {
   local got
   got="$(norm_as "$1" "$2")"
   if [[ "$got" == "$3" ]]; then
@@ -455,7 +455,7 @@ else
   fail "normalize_path[linux-gnu]: /c/Repo and /c/repo collapsed (membership-guard regression)"
 fi
 
-rfp() { # <project_dir> <file_path> → stdout: emitted path; rc: guard verdict
+rfp() {
   MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$2" '{tool_input: {file_path: $fp}}' |
     (
       # shellcheck disable=SC2030 # subshell-local by design: the override must not leak into the suite
@@ -463,7 +463,7 @@ rfp() { # <project_dir> <file_path> → stdout: emitted path; rc: guard verdict
       hook::read_file_path
     )
 }
-try_symlink() { # <target> <link> → rc 0 iff a REAL symlink now exists
+try_symlink() {
   MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null
   [[ -L "$2" ]]
 }
@@ -574,7 +574,7 @@ else
   ok "read_file_path: 8.3 short-form SKIPPED (non-Windows host or no cygpath — 8.3 names are a Windows volume feature)"
 fi
 
-rfp_tmp() { # <temp_root> <project_dir> <file_path> → stdout: path; rc: verdict
+rfp_tmp() {
   MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$3" '{tool_input: {file_path: $fp}}' |
     (
       # shellcheck disable=SC2030,SC2031 # subshell-local by design: the overrides must not leak into the suite
@@ -946,7 +946,7 @@ for s in "${corpus14b[@]}"; do
   fi
 done
 
-compact_is() { # <desc> <input> <want>
+compact_is() {
   local got=""
   if hook::json_compact_to got "$2" && [[ "$got" == "$3" ]]; then
     ok "json_compact_to: $1"
@@ -954,7 +954,7 @@ compact_is() { # <desc> <input> <want>
     fail "json_compact_to ($1): got [$got] want [$3]"
   fi
 }
-compact_refuses() { # <desc> <input>
+compact_refuses() {
   local got=""
   if hook::json_compact_to got "$2"; then
     fail "json_compact_to ($1): accepted [$got], must fall back to jq"
@@ -1059,7 +1059,7 @@ else
 fi
 rm -f "$SINK3B" "$SINK3B.err" "$STUB3B"
 
-fast_is_jq() { # <desc> <payload>
+fast_is_jq() {
   local got="" rc=0 want
   hook::_fast_file_path_to got "$2" || rc=$?
   want=$(printf '%s' "$2" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
@@ -1134,7 +1134,7 @@ if ((rc12g2 == 0)) && [[ "$got12g2" == $'c1\xc2\x85x.md' ]]; then
 else
   fail "fast file_path: raw C1 rc=$rc12g2 got=[$(printf '%q' "${got12g2:-}")] (want 0)"
 fi
-lc12g2_check() { # <label> <command...>
+lc12g2_check() {
   local label="$1" before_len mb='é日' lc_rc=0
   shift
   before_len=${#mb}
@@ -1176,7 +1176,7 @@ lc12g2_run() {
 )
 unset rc12g2 got12g2 lc12g2_ok lc12g2_bad
 
-dirname_is() { # <path> <want>
+dirname_is() {
   local got=""
   hook::dirname_to got "$1"
   if [[ "$got" == "$2" ]]; then
@@ -1635,7 +1635,7 @@ if [[ "$prereq17_got" == $'0\ndemo-hook: biome not found by the probe. '* &&
 else
   fail "prereq_notice_to: overrides" "got '$prereq17_got'"
 fi
-prereq17_err() { # the stderr of one due call
+prereq17_err() {
   local m u
   {
     CLAUDE_PLUGIN_ROOT="$ROOT17A" CLAUDE_PLUGIN_DATA="" PATH="/x/bin:$PATH" \
@@ -1728,7 +1728,7 @@ fi
 DATA17C="$(mktemp -d)"
 IN17C_A='{"session_id":"s17c","agent_id":"a1","hook_event_name":"PostToolUse"}'
 IN17C_B='{"session_id":"s17c","agent_id":"a2","hook_event_name":"PostToolUse"}'
-delta17() { # delta17 <input> <file> <output> [opts...] → the report, or "<none>"
+delta17() {
   local in="$1" file="$2" out="$3" r=""
   shift 3
   CLAUDE_PLUGIN_DATA="$DATA17C" hook::findings_to r "demo: $file:" "$out" "$@" --delta "$in" "$file"
@@ -2111,9 +2111,9 @@ ignores_is() {
 }
 ignores_is commit 0
 ignores_is status 0
-ignores_is whatchanged 1 # deprecated, so git still honors an alias for it
+ignores_is whatchanged 1
 ignores_is maintenance 1 # added after 2.25, so an older git may honor one
-ignores_is qc 1          # no builtin by that name at all
+ignores_is qc 1
 
 admit_is() {
   local desc="$1" want="$2" rc=0
@@ -2171,7 +2171,7 @@ else
 fi
 rm -f "$bs_rc_file" "$bs_err_file"
 
-bs_case() { # bs_case <label> <stdin> <want rc> <stderr has | -> <stderr lacks | ->
+bs_case() {
   local label="$1" stdin="$2" want="$3" has="$4" hasnt="$5" rc=0 err
   err=$(printf '%s' "$stdin" | hook::buffer_stdin 2>&1 >/dev/null) || rc=$?
   if [[ "$rc" == "$want" ]] &&
@@ -2434,7 +2434,7 @@ for bs_submin in "0.0000001" "0.000001"; do
   fi
   rm -f "$bs_rc_file" "$bs_out_file" "$bs_err_file"
 done
-resolve_timeout_under() { # <option-value>
+resolve_timeout_under() {
   (
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT="$1"
     local __t=""
@@ -2506,7 +2506,7 @@ else
 fi
 rm -f "$bs_rc_file"
 
-bs_time_stall() { # $1 = shell prelude; prints elapsed ms (empty if untimed)
+bs_time_stall() {
   local t_file
   t_file="$(mktemp)"
   {
@@ -2540,7 +2540,7 @@ if [[ "$bs_slices" == "0.900 4" ]] && [[ "$bs_slices_forced" == "3.6 1" ]]; then
 else
   fail "slice resolution: got '$bs_slices' / forced '$bs_slices_forced'; cases below are vacuous"
 fi
-bs_make_payload() { # $1 = exact payload length in bytes, $2 = destination file
+bs_make_payload() {
   local pad
   printf -v pad '%*s' "$(($1 - 8))" ''
   printf '{"p":"%s"}' "${pad// /a}" >"$2"
@@ -2593,10 +2593,10 @@ bs_probe_override='hook::json_complete() {
   fi
   return "$verdict"
 }'
-bs_probe_run() { # sets bs_rc, bs_len, bs_probe_last from one whole-payload run
+bs_probe_run() {
   : >"$bs_probe_file"
   {
-    printf '%s' "$bs_payload" # builtin: the first byte must not wait on a spawn
+    printf '%s' "$bs_payload"
     bs_hold_open
   } | {
     CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=1.2 bash -c '
@@ -2619,7 +2619,7 @@ for bs_attempt in 1 2 3; do
     break
   fi
   if [[ "$bs_rc" == "0" ]] && ((bs_len == 65536 && ${#bs_payload} == 65536)) && [[ "$bs_probe_last" == idle=0\ chunklen=* ]]; then
-    bs_engagement=fragmented # tells us nothing either way; try again
+    bs_engagement=fragmented
     continue
   fi
   bs_engagement=bad
@@ -2668,7 +2668,7 @@ rc19=$(
   HOOK_TELEMETRY_SINK="$sink19" hook::emit_telemetry "t" "PostToolUse" "ok" "$start" '{"tool":"x","file":"y","findings":[]}'
   echo $?
 )
-sleep 0.1 # allow any (erroneous) background dispatch to land before asserting empty
+sleep 0.1
 if [[ "$rc19" == "0" && ! -s "$tel19" ]]; then
   ok "emit_telemetry: EPOCHREALTIME-absent (empty start) → skip fail-open (rc 0, no envelope)"
 else
@@ -3813,7 +3813,7 @@ else
   fail "bash_parse_segments per-word quoting provenance: got [$bps_word_q], want [0 2 1]"
 fi
 
-bps_hd_case() { # <desc> <command> <want entries joined by |>
+bps_hd_case() {
   hook::bash_parse_segments "$2" bps_collect
   local got
   got=$(join_a ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"})
@@ -3831,7 +3831,7 @@ bps_hd_case "an opener inside double quotes is not one" $'echo "<<\'EOF\'"\nx\nE
 bps_hd_case "a multibyte body is counted in bytes" $'cat <<\'E\'\né\nE\n' '10 15 1 1 E'
 bps_hd_case "a closing parenthesis ends the delimiter" $'(cat <<\'E\')\nx\nE\necho done' '12 16 1 1 E'
 
-bps_mb_case() { # <desc> <command> <want words joined by |>
+bps_mb_case() {
   bps_last=()
   hook::bash_parse_segments "$2" bps_collect
   local got
@@ -3858,7 +3858,7 @@ bps_mb_run() {
     fail "bash_parse_segments: locale leaked, \${#mb} $before -> ${#mb}"
   fi
 }
-bps_mb_in() { # <LC_ALL value, empty for unset> -> bps_mb_run there, then the LC_ALL check
+bps_mb_in() {
   (
     # shellcheck disable=SC2030,SC2031
     if [[ -n "$1" ]]; then declare -x LC_ALL="$1"; else unset LC_ALL; fi
@@ -3877,7 +3877,7 @@ bps_mb_in() { # <LC_ALL value, empty for unset> -> bps_mb_run there, then the LC
 bps_mb_in ""
 bps_mb_in C.UTF-8
 
-bps_lin_ms() { # <command> -> best of three parse times, in microseconds
+bps_lin_ms() {
   local best=-1 t0 t1 d _r
   for _r in 1 2 3; do
     t0=$EPOCHREALTIME
@@ -4827,7 +4827,7 @@ WU_WORK="$(mktemp -d)"
 mkdir -p "$WU_WORK/repo/a/b/c"
 : >"$WU_WORK/repo/MARK"
 : >"$WU_WORK/repo/a/MARK"
-: >"$WU_WORK/MARK" # above the ceiling: never a legitimate answer
+: >"$WU_WORK/MARK"
 
 wu_calls=""
 wu_mark_here() {
@@ -4918,7 +4918,7 @@ fi
 rm -rf "$WU_WORK"
 
 FF_FILTERS=('.tool_input.command' '.tool_name' '.cwd' '.tool_input.file_path' '.tool_input.content' '.hook_event_name')
-fast_fields_is_jq() { # <desc> <payload>
+fast_fields_is_jq() {
   local desc="$1" payload="$2" rc=0 src=0 i same=1
   local -a fast=() slow=()
   hook::_fast_fields "$payload" "${FF_FILTERS[@]}" || rc=$?
@@ -5006,7 +5006,7 @@ else
   fail "jq_fields common payload: [$(printf '%q ' "${HOOK_JQ_FIELDS[@]}")] nul=$HOOK_JQ_FIELDS_NUL"
 fi
 
-ff_pair_check() { # <desc> <payload> <filter> <expected>
+ff_pair_check() {
   local desc="$1" payload="$2" filter="$3" want="$4" rc=0 src=0 slow
   hook::_fast_fields "$payload" "$filter" || rc=$?
   if ((rc != 0)); then

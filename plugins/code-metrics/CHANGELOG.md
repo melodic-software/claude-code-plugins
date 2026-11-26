@@ -3,6 +3,26 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **Code-metrics groups files by language, not by lane.** "Lane" now means only a worker that
+  serves one pipeline stage. The `docs/conventions/code-metrics.yaml` key is `languages` (rename a
+  `lanes:` key to `languages:`, with no alias), report rows carry `language`, the duplication
+  summary is `by_language`, the type-debt total row is labeled `language-total`, `unavailable`
+  lists `language/measure`, and `scripts/detect-lanes.sh` is `scripts/detect-languages.sh`. The
+  dispatcher's `--disable-lane` and `--lane-globs` are `--disable-language` and
+  `--language-globs`.
+- **Breaking: reports use `code-metrics/v3`.** The renamed fields mint a new schema identifier, so a
+  report or baseline written under `code-metrics/v2` is not compared with a new one; re-take it.
+
+## [1.8.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.8.0] - 2026-11-24
 
 ### Added

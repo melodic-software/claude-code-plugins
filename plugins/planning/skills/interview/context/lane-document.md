@@ -88,7 +88,7 @@ reading; a skipped question or an "I don't know" stays `open` and is restated. A
 deferred to a locked Brief moves to `answered` the same way, and the Brief's Deferred questions
 entry is updated to match. When the questions came from a PRD's open questions (the
 `/planning:prd` handoff), recommend `/planning:prd` next so the confirmed answers reach `PRD.md`;
-otherwise the interview goes on from SKILL.md Step 2 with the next frontier.
+otherwise the interview goes on from SKILL.md Step 2 with the next round's ready questions.
 
 ## After the document
 

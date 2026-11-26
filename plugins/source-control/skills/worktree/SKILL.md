@@ -209,16 +209,12 @@ basis or changing the placement rule. A routine `create` follows the rule withou
 When built-in worktree tools resolve in this session, a request to "make a worktree" can reach
 either a tool or this skill.
 
-- **`EnterWorktree` (built-in tool)**: creates a worktree by name in the in-repo
-  `.claude/worktrees/` and switches the session into it, or, given a `path`, switches into an
-  existing worktree. The model invokes it; the person does not.
-- **`ExitWorktree` (built-in tool)**: leaves a worktree session and restores the original
-  directory. `action: "keep"` leaves the worktree and its branch on disk; `action: "remove"`
-  deletes both, but the tool will not remove a worktree that was entered by `path`. Since
-  2.1.327, `remove` asks first when the worktree may hold unsaved work, and is refused in
-  don't-ask mode or with nobody to answer unless an allow rule, auto mode or bypass permissions
-  mode allows it (changelog item 2.1.327-131). Since 2.1.330, neither `remove` nor the worktree exit dialog deletes a worktree that another running
-  Claude Code session is working in (changelog item 2.1.330-012).
+- **`EnterWorktree` (built-in tool)**: creates an in-repo worktree by name or enters one by
+  `path` ([EnterWorktree tool behavior](https://code.claude.com/docs/en/tools-reference#enterworktree-tool-behavior)).
+  The model invokes it; the person does not.
+- **`ExitWorktree` (built-in tool)**: leaves a worktree session; Routing below says which `action`
+  this skill passes. What `remove` deletes, when it asks first and when it keeps a worktree another session uses:
+  [clean up worktrees](https://code.claude.com/docs/en/worktrees#clean-up-worktrees).
 - **This skill (marketplace plugin).** Creates the worktree at an external root through the
   shared helper, then enters it with `EnterWorktree(path:)`; checks the session claim before
   entering an existing worktree; owns `status`, `cleanup`, and `audit`.

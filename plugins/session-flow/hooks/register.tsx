@@ -2,7 +2,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import { askedRow, band } from './observer-band.tsx'
 import { type CheckRequest, type Effect, type Event, type Options, type Rate, initial, readOptions, step } from './observer-machine.ts'
-import { buildPrompt, type Finding, isKnown, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
+import { buildPrompt, type Finding, isKnown, type ParseFailure, ledgerHeader, ledgerLine, ledgerSection, remember, summarize, type Trigger } from './observer-live.ts'
 import { commandKey, type HarnessEvent, harness, harnessInitial, hookRunsFrom, type Platform } from './observer-harness.ts'
 
 const DAY_MS = 86_400_000
@@ -228,19 +228,23 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   const started = await $.clock.now()
   let outcome = 'error'
   let usage: Usage | undefined
+  let detail: ParseFailure | undefined
   try {
     const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
     const extra = { autoSend: opts.autoSend, guidance: opts.guidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
     const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, req.open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0, extra) })
     if (r.isAnswered) usage = r.usage
     const reply = r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: String(r.reason) }
-    outcome = (await run($, { kind: 'check-replied', req, reply, paused: (await $.store.get('paused')) === true, seen, disputed })) ?? 'error'
+    const done = await dispatch($, { kind: 'check-replied', req, reply, paused: (await $.store.get('paused')) === true, seen, disputed })
+    outcome = done.outcome ?? 'error'
+    const fin = done.effects.find(fx => fx.kind === 'finish')
+    if (fin?.kind === 'finish') detail = fin.detail
   } catch {
     outcome = 'error'
   } finally {
     m = step(m, { kind: 'check-finished' }, opts).state
     const latencyMs = (await $.clock.now()) - started
-    await record($, { at: await iso($), trigger, turnId, step: stepIndex, outcome, latencyMs, usage }).catch(() => undefined)
+    await record($, { at: await iso($), trigger, turnId, step: stepIndex, outcome, latencyMs, usage, ...detail }).catch(() => undefined)
   }
 }
 

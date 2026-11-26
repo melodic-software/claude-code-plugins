@@ -134,7 +134,7 @@ class JoinTests(unittest.TestCase):
                 "complexity.json",
                 json.dumps(
                     {
-                        "schema": "code-metrics/v2",
+                        "schema": "code-metrics/v3",
                         "skill": "audit-complexity",
                         "measures": [],
                         "run": [],

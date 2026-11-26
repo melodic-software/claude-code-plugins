@@ -38,7 +38,7 @@
   "suppressions": {
     "correctness_rules": []
   },
-  "lanes": {
+  "languages": {
     "typescript": { "enabled": true },
     "python": { "enabled": true },
     "bash": { "enabled": true },

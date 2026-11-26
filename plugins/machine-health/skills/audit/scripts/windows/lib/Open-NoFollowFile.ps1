@@ -83,11 +83,11 @@ function Open-NoFollowFile {
     }
     $openExisting = 3
     if ($Access -eq 'ReadWrite') {
-        $desired = 0xC0000000u          # GENERIC_READ | GENERIC_WRITE
-        $share = [uint32]1              # FILE_SHARE_READ
+        $desired = 0xC0000000u
+        $share = [uint32]1
     } else {
-        $desired = [uint32]0x80         # FILE_READ_ATTRIBUTES
-        $share = [uint32]7              # FILE_SHARE_READ | WRITE | DELETE
+        $desired = [uint32]0x80
+        $share = [uint32]7
     }
 
     $handle = [MachineHealth.NoFollowFileNative]::CreateFileW($nativePath, $desired, $share, [IntPtr]::Zero,

@@ -64,7 +64,7 @@ which stay the record. When the reader accepts:
    Read each option value from this text; never put a `${user_config.*}` string in a shell command.
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane discovery:blindspot --option "<option>"
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer discovery:blindspot --option "<option>"
    ```
 
    Take the medium from its JSON line only, never from a rendered-views settings file. The step is

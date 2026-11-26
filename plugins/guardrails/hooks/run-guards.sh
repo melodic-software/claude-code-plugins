@@ -25,7 +25,7 @@ fi
 guard::abort_boundary run-guards PreToolUse open 0 2
 [[ -z "${EXEC_BASH_VERDICT_FILE-}" ]] || guard::abort_boundary run-guards PreToolUse closed 0 2
 # shellcheck source=hook-utils.sh
-source "$_RG_DIR/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+source "$_RG_DIR/hook-utils.sh" || exit 70
 HOOK_BPS_MEMO=1
 
 case "$_RG_DIR" in
@@ -44,13 +44,13 @@ RUN_GUARDS_SEEDED=0
 while (($#)); do
   case "$1" in
   --max-substitutions)
-    [[ "${2-}" =~ ^[1-9][0-9]*$ ]] || exit 70 # not a chosen status: the boundary reports it
+    [[ "${2-}" =~ ^[1-9][0-9]*$ ]] || exit 70
     RUN_GUARDS_MAX_SUBST=$2
     RUN_GUARDS_OPTS+=("$1" "$2")
     shift 2
     ;;
   --max-command-len)
-    [[ "${2-}" =~ ^[1-9][0-9]*$ ]] || exit 70 # not a chosen status: the boundary reports it
+    [[ "${2-}" =~ ^[1-9][0-9]*$ ]] || exit 70
     RUN_GUARDS_MAX_CMD=$2
     RUN_GUARDS_OPTS+=("$1" "$2")
     shift 2

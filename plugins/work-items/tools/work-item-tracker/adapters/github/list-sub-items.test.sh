@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: docs/conventions/work-items.yaml
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: the skill-script contract (--help), the pre-I/O usage-error paths, and
-# the subIssues + intersect path against a gh stub that reproduces gh's real
-# `--json subIssues` projection. End-to-end behavior against the live provider
-# stays with the on-demand e2e-probe.
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -44,11 +40,6 @@ assert_usage_error "$S" "github:o/r#1" --state bogus
 assert_usage_error "$S" "not-an-id"
 assert_usage_error "$S" "local-markdown:o/r#1"
 
-# --- subIssues nodes carry no `repository`, so the filter reads `url` (#3825) ---
-# The stub emits exactly what gh's export path emits for `--json subIssues`:
-# id/number/title/url/state and nothing else. The old predicate selected on
-# `.repository.nameWithOwner`, which is absent there, so it matched no node and
-# every container came back childless — this case fails on that predicate.
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
@@ -79,13 +70,6 @@ if command -v jq >/dev/null 2>&1; then
   rm -rf "$STUB"
 fi
 
-# --- a node attributable to no repo is still dropped, but not silently (#3825) ---
-# gh always emits `url` today, so this is unreachable on well-formed input. A
-# projection change that dropped `url` too would re-blind every lane exactly the
-# way #3825 did, with an empty list and no signal. The drop itself stays: the
-# intersect is number-keyed and sub-issues CAN be cross-repo, so treating an
-# unattributable node as same-repo would pull in an unrelated same-numbered item.
-# What changes is that the drop now says so on stderr, leaving stdout parseable.
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
@@ -116,12 +100,6 @@ if command -v jq >/dev/null 2>&1; then
   rm -rf "$STUB"
 fi
 
-# --- the same-repo test is case-insensitive ---
-# GitHub owner and repo names are case-insensitive and the id grammar accepts
-# any case, so an id spelling the repo in lower case must still match nodes
-# whose url spells it in mixed case. A case-sensitive compare would call every
-# child foreign and return an empty list with no signal, which is the same
-# silent blindness (#3825) was, just reached by a different route.
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"

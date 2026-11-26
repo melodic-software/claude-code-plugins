@@ -51,7 +51,7 @@ class LizardAdapterTests(unittest.TestCase):
             result = run("probe", path_prefix=Path(tmp))
             self.assertEqual((result.returncode, result.stdout.strip()), (0, "1.24.0"))
 
-    def test_measures_lists_every_lane_and_measure_pair(self) -> None:
+    def test_measures_lists_every_language_and_measure_pair(self) -> None:
         pairs = sorted(run("measures").stdout.split())
         self.assertEqual(
             pairs,
@@ -85,7 +85,7 @@ class LizardAdapterTests(unittest.TestCase):
             self.assertEqual(outer["file"], f"{SOURCES}/cm_sample.py")
             self.assertEqual((outer["start_line"], outer["end_line"]), (9, 20))
             self.assertEqual(outer["values"], {"cyclomatic": 3})
-            self.assertEqual(outer["lane"], "python")
+            self.assertEqual(outer["language"], "python")
             self.assertEqual(outer["collector"], "lizard")
             self.assertEqual(outer["labels"], [])
             nested = next(r for r in rows if r["function"] == "classify.inner")

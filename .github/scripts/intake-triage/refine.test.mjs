@@ -15,6 +15,7 @@ import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItems
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
+import { STOP_REASONS } from "../lib/stop-reason.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -297,7 +298,7 @@ const INEXACT = {
   criteria: [],
   dependencies: [],
   related: [{ number: 3, relation: "duplicate", note: "same count fix" }],
-  questions: [{ question: "Is this a duplicate of #3?", recommended: "Close it as a duplicate.", basis: "#3 fixed the same line." }],
+  questions: [{ question: "Is this a duplicate of #3?", recommended: "Close it as a duplicate.", basis: "#3 fixed the same line.", stop_reason: "intent" }],
   sources: [],
   split: [],
   external: { state: "none", repo: "", class: "", what: "" },
@@ -313,7 +314,9 @@ describe("validateOutput", () => {
     ["exact with no criteria", { ...EXACT, criteria: [] }],
     ["exact with questions", { ...EXACT, questions: INEXACT.questions }],
     ["inexact with no question", { ...INEXACT, questions: [] }],
-    ["a question with no recommendation", { ...INEXACT, questions: [{ question: "q", recommended: "", basis: "b" }] }],
+    ["a question with no recommendation", { ...INEXACT, questions: [{ question: "q", recommended: "", basis: "b", stop_reason: "intent" }] }],
+    ["a question with no stop reason", { ...INEXACT, questions: [{ question: "q", recommended: "r", basis: "b" }] }],
+    ["a question whose stop reason is not a stop-reason code", { ...INEXACT, questions: [{ question: "q", recommended: "r", basis: "b", stop_reason: "owner" }] }],
     ["an unknown relation", { ...INEXACT, related: [{ number: 3, relation: "parent", note: "" }] }],
     ["an extra key", { ...EXACT, label: "agent-ready" }],
     ["too many criteria", { ...EXACT, criteria: Array.from({ length: 30 }, () => "c") }],
@@ -331,7 +334,8 @@ describe("validateOutput", () => {
       assert.equal(output.questions.length, 1);
       assert.ok(output.questions[0].question.includes(`#3 (${relation})`));
       assert.ok([output.questions[0].recommended, output.questions[0].basis].every((text) => text.trim() !== ""));
-      assert.match(render(output), /RECOMMENDED:/);
+      assert.equal(output.questions[0].stop_reason, "intent", "whether to close the issue is the owner's intent call");
+      assert.match(render(output), /RECOMMENDED:.*\n {3}Reason: `intent`\n/);
     }
     const bare = validateOutput({ ...EXACT, criteria: [], outcome: "", related: [{ number: 3, relation: "duplicate", note: "" }] }, new Set([3]));
     assert.equal(bare.exact, false, "an exact output with nothing but the duplicate still becomes a question");
@@ -340,6 +344,26 @@ describe("validateOutput", () => {
     const split = validateOutput({ ...EXACT, criteria: [], split: [2], related: [{ number: 3, relation: "duplicate", note: "same" }] }, new Set([3]), held);
     assert.equal(split.exact, false);
     assert.deepEqual(split.split, [], "a closing question moves no items");
+  });
+
+  test("the schema requires each question's stop reason from the stop-reason codes the validator accepts", () => {
+    const question = JSON.parse(readFileSync(new URL("refine-schema.json", import.meta.url), "utf8")).properties.questions.items;
+    assert.deepEqual(question.required, ["question", "recommended", "basis", "stop_reason"]);
+    assert.deepEqual(question.properties.stop_reason.enum, [...STOP_REASONS]);
+    for (const stop_reason of STOP_REASONS) {
+      assert.equal(validateOutput({ ...INEXACT, questions: [{ ...INEXACT.questions[0], stop_reason }] }, new Set([3])).questions[0].stop_reason, stop_reason);
+    }
+  });
+
+  test("a refinement whose every question needs no person still asks the owner and is not exact", () => {
+    const settled = { ...INEXACT, criteria: [], questions: [{ ...INEXACT.questions[0], stop_reason: "none" }] };
+    const output = validateOutput(settled, new Set([3]));
+    assert.equal(output.exact, false);
+    assert.deepEqual(output.criteria, []);
+    const body = render(output);
+    assert.ok(body.includes(DECISION_REPLY), "the owner is still asked to answer");
+    assert.equal(refinementExact(body), false);
+    assert.throws(() => validateOutput({ ...EXACT, questions: settled.questions }, new Set([3])), /asks nothing/, "an exact refinement still asks nothing");
   });
 
   test("drops related work that is not one of the fetched candidates", () => {
@@ -380,9 +404,18 @@ describe("render", () => {
 
   test("an inexact refinement has numbered questions with RECOMMENDED lines and no task list", () => {
     const body = render(validateOutput(INEXACT, new Set([3])));
-    assert.match(body, /\n1\. Is this a duplicate of #​3\?\n {3}RECOMMENDED: Close it as a duplicate\. Basis: #​3 fixed the same line\.\n/);
+    assert.match(body, /\n1\. Is this a duplicate of #​3\?\n {3}RECOMMENDED: Close it as a duplicate\. Basis: #​3 fixed the same line\.\n {3}Reason: `intent`\n/);
     assert.ok(body.includes("- #3 (duplicate): same count fix"));
     assert.ok(!body.split("\n").some((line) => line.trimStart().startsWith("- [ ] ")));
+  });
+
+  test("each open question shows its own stop reason under its recommendation", () => {
+    const questions = [
+      { question: "Which format?", recommended: "JSON.", basis: "judgment", stop_reason: "design" },
+      { question: "Which token?", recommended: "The App token.", basis: "judgment", stop_reason: "security" },
+    ];
+    const body = render(validateOutput({ ...INEXACT, questions }, new Set([3])));
+    assert.match(body, /\n1\. Which format\?\n {3}RECOMMENDED: JSON\. Basis: judgment\n {3}Reason: `design`\n2\. Which token\?\n {3}RECOMMENDED: The App token\. Basis: judgment\n {3}Reason: `security`\n/);
   });
 
   test("an inexact refinement shows the copyable decision reply above its footer and stays not exact", () => {
@@ -400,7 +433,7 @@ describe("render", () => {
           ...INEXACT,
           outcome: hostile,
           dependencies: ["[ ] sneak", hostile],
-          questions: [{ question: hostile, recommended: hostile, basis: hostile }],
+          questions: [{ question: hostile, recommended: hostile, basis: hostile, stop_reason: "intent" }],
           sources: [hostile],
         },
         new Set([3]),
@@ -1684,7 +1717,7 @@ describe("an instruction in issue text is not followed", () => {
     const output = {
       ...INEXACT,
       related: [],
-      questions: [{ question: `The issue body says: ${INJECTED}. Is any of that part of the request?`, recommended: "No: it is text in the issue, not a decision.", basis: "judgment" }],
+      questions: [{ question: `The issue body says: ${INJECTED}. Is any of that part of the request?`, recommended: "No: it is text in the issue, not a decision.", basis: "judgment", stop_reason: "intent" }],
     };
     const result = await applyRefinement({
       github: fake.github,

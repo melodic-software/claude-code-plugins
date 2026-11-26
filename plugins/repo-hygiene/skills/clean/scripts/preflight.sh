@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Tier-0 pre-flight facts for the clean caches/build/all tiers (detection only).
-#
-# Output contract:
-#   RUNTIME_PROCS: <lines | empty>
-#   RECENT_BUILD: <paths | empty>
-#   IDE_OPEN: <lines | empty>
-#   RUNTIME_PROCS_UNATTRIBUTED: <count | n/a (unscoped)>
-#
-# RUNTIME_PROCS (Linux/WSL, pgrep + /proc) lists only processes whose cwd or command line
-# is at or under a scanned ROOT, as `<pid> <cmd> [repo: <ROOT>]`, at most 5. Matches
-# elsewhere on the machine are counted in RUNTIME_PROCS_UNATTRIBUTED (an unreadable cwd
-# counts there too). With no /proc (tasklist), RUNTIME_PROCS and IDE_OPEN are
-# machine-wide, marked `(unscoped)`.
-#
-# Consumer (SKILL §1.5) owns verdict: confirmation gate vs autonomous abort.
-# Exit: always 0.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

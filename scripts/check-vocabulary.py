@@ -47,6 +47,7 @@ SELF_FILES = frozenset(
         DATA.name,
         "check-vocabulary.test.sh",
         "test_check_vocabulary.py",
+        "vocabulary_allowlist_table.py",
     )
 )
 TEXT_LIMIT = 200

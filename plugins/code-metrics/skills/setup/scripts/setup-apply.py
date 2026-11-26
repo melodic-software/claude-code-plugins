@@ -253,13 +253,13 @@ def known_keys() -> set[str]:
                 walk(value, dotted)
 
     walk({k: v for k, v in defaults.items() if k != "thresholds"}, "")
-    for lane in defaults.get("lanes") or {}:
-        keys.add(f"lanes.{lane}.collectors")
+    for language in defaults.get("languages") or {}:
+        keys.add(f"languages.{language}.collectors")
     return keys
 
 
 def _in_collectors(dotted: str, known: set[str]) -> bool:
-    """True for a per-lane `collectors` key or a key under one."""
+    """True for a per-language `collectors` key or a key under one."""
     return any(
         dotted == k or dotted.startswith(k + ".")
         for k in known
@@ -593,6 +593,8 @@ def main(argv: list[str]) -> int:
         return 2
     known = known_keys()
     if carried_from is not None:
+        if "lanes" in doc and "languages" not in doc:
+            doc["languages"] = doc.pop("lanes")
         for dotted in drop_unknown(doc, known):
             print(
                 f"setup-apply.py: dropped {dotted} from {carried_from}: not a key the contract declares",

@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/p/adhd/lib/view-settings.mjs\" resolve --lane adhd:clarify --option \"\"",
+            "command": "node \"/p/adhd/lib/view-settings.mjs\" resolve --producer adhd:clarify --option \"\"",
             "description": "Run command"
           }
         }

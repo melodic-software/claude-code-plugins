@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit-duplication/scripts/audit-duplication.sh\""}}],
+      "why": "the entry script, as the skill body runs it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "diff orders.py invoices.py"}}],
+      "why": "a hand comparison instead of the script"
+    },
+    {
+      "answer": [],
+      "why": "no shell call at all"
+    }
+  ]
+}

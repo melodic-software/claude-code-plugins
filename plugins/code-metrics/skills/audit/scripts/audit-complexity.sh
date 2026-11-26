@@ -6,7 +6,7 @@ USAGE="$(
 /code-metrics:audit complexity entry point: cyclomatic and cognitive complexity and Halstead
 difficulty for the files in scope.
   audit-complexity.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
-  --json                    print the code-metrics/v2 document instead of the report
+  --json                    print the code-metrics/v3 document instead of the report
   --all                     measure every file, not the change
   --base <ref>              measure the change from the merge-base with <ref>
   --config <resolved.json>  a resolved configuration

@@ -3,6 +3,65 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.0] - 2026-11-26
+
+### Added
+
+- `questions_per_round` caps how many questions an interview round holds (at most 8, the shared lane included); `citation_links` picks plain, `vscode` or file links for round citations.
+- Round titles take an optional topic, and rounds take the No recommendation, Your answer settles, Why, Gains, Costs and Evidence labels.
+- The terminal confirmation recap groups answers under Needs your eye, each topic, Changed after you first saw it, and Terms and ADRs, one uncut line per question.
+
+### Changed
+
+- The scope check prints the questions asked so far, records each round's opened and closed counts under `## Round counts`, and suggests `/planning:wayfind` when two rounds in a row open more questions than they close.
+- The procedure check fails a ledger with no `## Glossary lookup` line or an answered decision no `## ADR outcomes` line covers.
+- Interview eval cases grade the new round layout and the confirmation's part order, and invoke the skill without `me`; the `interview-wayfind-size-suggestion` case and ADR 0124, which numbered questions under the old layout, are retired.
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+### Removed
+
+- The interview's `me` action: the default interview now runs relentlessly; "interview me" still starts an interview.
+- The `wayfind_suggest_questions` setting and the scope check's `--limit` flag.
+
+## [5.21.0] - 2026-11-26
+
+### Added
+
+- `/planning:design` resolves the consumer's standards through the standards contract's Resolution ladder in Phase 1, so design threads start from the conventions the work will be reviewed against.
+- `/planning:interview`, `/planning:design` and `/planning:plan` follow the contract's new "Adopted shipped concepts" rule (standards contract 1.3.1): a loaded standards file that cites shipped concept ids has its counterweights and conflicts looked up with `/engineering-concepts:lookup` (if enabled) and kept beside each entry.
+- A loader test per stage runs the plugin's `scripts/org-standards.sh subscriptions` against a fixture subscription and checks the stage points at the ladder.
+
+## [5.20.1] - 2026-11-26
+
+### Changed
+
+- `/planning:plan` points at the permission modes page's plan mode section for what plan mode permits, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [5.20.0] - 2026-11-26
+
+### Added
+
+- Standards resolution reads personal subscriptions, standards contract 1.3.0: the repositories the user-global index lists in `standards_repositories`, each a personal layer beneath the user's own standards files and every team-tracked one. `scripts/org-standards.sh subscriptions` prints each layer with its checkout and its topic-filtered index; an untrusted owner's repository must be pinned to a commit one of its branches or tags reaches.
+
+### Fixed
+
+- `scripts/org-standards.sh` confines the org layer and every subscribed layer to its own checkout: a `standards_dir` or index `File` value that is absolute, has a `..` segment or resolves through a symbolic link outside the checkout is reported and dropped, and so are an org `REVIEW.md` or `.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose `<path>.md#<heading>` citation does. Every `.md` or `.markdown` citation on an org `REVIEW.md` line, a code span split across lines included, is checked as a reader would resolve it, and control characters, C1 included, in the printed criteria are escaped. A new `citations` command prints the citations a consumer may open, in every composition of the criteria: each single-backtick `<path>.md#<heading>` span that resolves to a regular file inside its own checkout, with its absolute path. `review` prints the criteria text alone, so no `REVIEW.md` text can add to them, and consumers open a `REVIEW.md` citation only from `citations`. Every org checkout writes a committed symbolic link as a plain file, so a path printed before a refresh never resolves outside the checkout afterwards, and an org cache that holds one or allows them is deleted without following a link and cloned again. `index` and `subscriptions` print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract` version, the table header and each well-formed table row rebuilt from its cells, each `File` rewritten to the absolute path it resolves to inside the checkout; no prose or HTML is copied. Its clones, fetches, checkouts, `ls-remote` calls and lazy object fetches give up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), and never prompt. Every git command it runs ignores the system and global git config except the user's proxy, CA, `core.sshCommand`, `url.<base>.insteadOf` and `credential.*` settings (their `include` and `includeIf` sections followed, a `gitdir:` condition matched against the `--root` repository), handed to git in environment variables rather than on a command line other users can list, so a private repository loads with the person's own credential helper or SSH key and no hook, fsmonitor, filter driver (git-lfs included) or template from that config runs, and a `trusted_owners` that is not a block list, however its key is quoted or spaced, trusts no owner and is reported, as is a repository layer's `trusted_owners` in any of those spellings and a `trusted_owners` or `standards_repositories` nested under another key. No redirect is followed, so credentials go only to the configured host; a repository that answers with one is reported with a pointer to name its new location. A git command that needs no repository runs in the cache directory, reading no config of the repository the reader runs from, and no transport but `https`, `ssh`, `git` and `file` runs; a symbolic link at an owner directory or an entry of the cache is removed before the entry is read or built; every value a report quotes, the printed criteria and each printed index cell show each control character and each byte outside valid UTF-8 as `\xNN`, so no control sequence reaches the terminal; a `STANDARDS_DIR` holding one is refused, and so is a cache directory holding one when an org layer or a subscription needs the cache. A user index with CRLF line endings is read like one with LF endings.
+
+- **A live-prototype restart no longer fails when the stopped server has not released its ports yet.** `restart` now waits up to 5 seconds for the kept guest and control ports to free (`SHARED_PORT_FREE_SECONDS` overrides), and refuses with a message naming the port when one stays busy ([#18551](https://github.com/melodic-software/claude-code-plugins/issues/18551)).
+
+## [5.19.3] - 2026-11-26
+
+### Changed
+
+- Tidied offers/offer-source.mjs: named the GitHub fetch and plugin-list timeouts as constants.
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [5.19.2] - 2026-11-26
 
 ### Changed

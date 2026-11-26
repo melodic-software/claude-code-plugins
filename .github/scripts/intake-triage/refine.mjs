@@ -15,6 +15,7 @@ import { bodyVersion, loadRules, ownedLines, SCOPE_PREFIX, SPEC_COMMENTS, specOf
 import { partitionProblem, renderSplitRecord, SIZE_SPLIT_MARKER, splitDigest, splitRecord, splitTaskLines, subsetProblem } from "./size-split.mjs";
 import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
 import { AGENT_READY, NEEDS_DECISION, NEEDS_HUMAN, READY } from "../lib/lane-vocabulary.mjs";
+import { reasonLine, STOP_REASONS } from "../lib/stop-reason.mjs";
 import { carried, DECISION_LABELS, INFO_LABELS, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 
@@ -446,7 +447,7 @@ export function validateOutput(output, known, split = null, classes = {}, monito
   let questions = list(
     output.questions,
     "questions",
-    (item) => item && [item.question, item.recommended, item.basis].every((text) => isText(text) && text.trim() !== "") && Object.keys(item).length === 3,
+    (item) => item && [item.question, item.recommended, item.basis].every((text) => isText(text) && text.trim() !== "") && STOP_REASONS.includes(item.stop_reason) && Object.keys(item).length === 4,
   );
   let moved = list(output.split, "split", Number.isInteger);
   let exact = output.exact;
@@ -463,6 +464,7 @@ export function validateOutput(output, known, split = null, classes = {}, monito
       question: `Should this issue close? The refinement found ${closing.map((item) => `#${item.number} (${item.relation})`).join(", ")}.`,
       recommended: "Close it if that change covers this issue; otherwise record what is still left to do.",
       basis: closing.map((item) => (item.note.trim() === "" ? `#${item.number}` : `#${item.number}: ${item.note}`)).join("; "),
+      stop_reason: "intent",
     };
     questions = [close, ...questions].slice(0, LIMITS.questions);
   } else if (questions.length === 0) {
@@ -529,7 +531,7 @@ export function render(output, { body, checks = [], retriage = false } = {}) {
   section("Related work", output.related.map((item) => `- #${item.number} (${item.relation}): ${line(item.note)}`));
   section(
     "Open questions",
-    output.questions.map((item, index) => `${index + 1}. ${line(item.question)}\n   RECOMMENDED: ${line(item.recommended)} Basis: ${line(item.basis)}`),
+    output.questions.map((item, index) => `${index + 1}. ${line(item.question)}\n   RECOMMENDED: ${line(item.recommended)} Basis: ${line(item.basis)}\n   ${reasonLine(item.stop_reason)}`),
   );
   section("Sources read", output.sources.map((item) => `- ${line(item)}`));
   if (!output.exact) {

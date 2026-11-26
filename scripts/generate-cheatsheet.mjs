@@ -343,7 +343,7 @@ const kinds = kindRows.map(([kind, enters = "", skips = "", why = ""]) => {
 });
 if (kindErrors.length > 0) fail(kindErrors);
 
-const upstreamBySkill = new Map(); // "plugin/skill" -> [markdown link]
+const upstreamBySkill = new Map();
 for (const record of UPSTREAM_RECORDS) {
   const recordPath = join(root, record.path);
   const lines = existsSync(recordPath) ? readFileSync(recordPath, "utf8").split(/\r?\n/) : [];

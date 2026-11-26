@@ -44,8 +44,6 @@ mk_git_shim() {
   chmod +x "$1/git"
 }
 
-# Create a reparse point at $1 pointing to dir $2 (junction on Windows, symlink
-# on Unix). Echoes kind, or nothing when no primitive is available.
 make_reparse() {
   local link="$1" target="$2"
   if command -v cygpath >/dev/null 2>&1 &&
@@ -81,7 +79,6 @@ assert_file_exists "default preserves .envrc" "$R/.envrc"
 assert_file_exists "default preserves node_modules" "$R/node_modules/x.js"
 assert_file_absent "default removes plain untracked" "$R/scratch.txt"
 
-# --- 4. reparse point into tracked dir, default preserve (node_modules not traversed) ---
 rm -rf "$R/pkg"
 mkdir -p "$R/pkg/node_modules"
 kind="$(make_reparse "$R/pkg/node_modules/link" "$R/shared")"
@@ -147,13 +144,6 @@ assert_not_contains "reset failure emits no clean success line" "$out" "AppliedC
 assert_contains "reset failure emits AppliedClean: none" "$out" "AppliedClean: none"
 assert_file_exists "reset failure skips clean (untracked survives)" "$R2/scratch.txt"
 
-# --- 10. unresolvable upstream gated before any destructive op (exit 6) ---
-# Upstream configured (branch.<name>.remote + .merge) but its remote-tracking ref
-# absent — a feature branch whose remote branch was deleted and pruned (squash-
-# merge aftermath). git rev-parse --abbrev-ref '@{u}' degrades to the literal
-# token @{u}; without the resolution gate that literal reaches git reset --hard.
-# Needs a real remote so the config points at an existing remote whose ref was
-# pruned (a config pointing at a non-existent remote gives empty output → exit 2).
 REMOTE="$TEST_TMPDIR/remote.git"
 git init --bare "$REMOTE" >/dev/null 2>&1
 R3="$TEST_TMPDIR/repo-upstream-gone"
@@ -213,14 +203,6 @@ assert_contains "clean failure emits RestoredTracked label" "$out" "RestoredTrac
 assert_contains "clean failure emits Unremovable label (uniform apply-path contract)" "$out" "Unremovable: 0"
 assert_file_exists "clean failure leaves untracked intact (clean did not silently succeed)" "$R4/scratch.txt"
 
-# --- 12. clean failure with restore-guard activity emits the RESTORED>0 warning ---
-# Parity fix (#605): on the exit-7 failure path, when the restore guard recovers a
-# tracked file (a clean that deleted tracked files via reparse-point traversal
-# before erroring), the human-visible `WARNING: restored N tracked file(s)` message
-# the success path prints must also appear — not just the machine-readable
-# RestoredTracked: N line. Simulate a partial clean via a shim that deletes a
-# tracked file and THEN exits non-zero, so `git ls-files --deleted` reports it and
-# the restore guard recovers it (RESTORED>0) on the failure path.
 R5="$TEST_TMPDIR/repo-clean-fail-restore"
 mk_feat_repo "$R5" feat/clean-fail-restore
 
@@ -244,7 +226,6 @@ assert_contains "clean failure reports a positive RestoredTracked count" "$out" 
 assert_contains "clean failure path emits the RESTORED>0 warning (parity with success path)" "$out" "WARNING: restored 1 tracked file(s) deleted via reparse-point traversal"
 assert_file_exists "restore guard recovered the tracked file on the failure path" "$R5/tracked.txt"
 
-# --- 13. mixed locked-file warning + unrelated clean error exits 7 (#602) ---
 R6="$TEST_TMPDIR/repo-mixed-clean-fail"
 mk_feat_repo "$R6" feat/mixed-clean-fail
 echo untracked >"$R6/scratch.txt"
@@ -269,7 +250,6 @@ assert_not_contains "mixed clean failure emits no clean success line" "$out" "Ap
 assert_contains "mixed clean failure preserves locked-path count" "$out" "Unremovable: 1"
 assert_file_exists "mixed clean failure leaves untracked intact" "$R6/scratch.txt"
 
-# --- 14. silent nonzero clean exit with empty stderr exits 7 (#602) ---
 R7="$TEST_TMPDIR/repo-silent-clean-fail"
 mk_feat_repo "$R7" feat/silent-clean-fail
 echo untracked >"$R7/scratch.txt"

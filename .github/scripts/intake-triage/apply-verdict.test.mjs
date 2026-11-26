@@ -342,7 +342,6 @@ describe("planWrites", () => {
         assert.deepEqual(result.remove, [hold]);
       });
 
-      // Owner decision on #9799's review: a flagged hold is not lifted by a later clean verdict.
       test(`${hold} the lanes App set after an earlier flagged verdict stays on a clean verdict`, () => {
         const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: ["security"] });
         assert.equal(result.ready, false);
@@ -368,8 +367,6 @@ describe("planWrites", () => {
     }
   }
 
-  // Owner decision on #9799's review, fail-closed: with no readable earlier
-  // verdict, the earlier run may have flagged, so the hold stays and says so.
   for (const hold of ["needs-reporter-info", NEEDS_DECISION]) {
     test(`${hold} the lanes App set with no readable earlier verdict stays on a clean verdict`, () => {
       const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: null });
@@ -387,10 +384,6 @@ describe("planWrites", () => {
     assert.deepEqual(result.reasons, []);
   });
 
-  // Owner decision on #9799's review: a clean verdict never lifts needs-human,
-  // whoever set it, except a same-run, no-flag needs-human on an otherwise
-  // ready plan (the owner's standing direction: a capability limit routes to
-  // host-run, never to a person).
   test("needs-human the lanes App set stays on a clean verdict", () => {
     const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": LANES_APP } });
     assert.equal(result.ready, false);
@@ -399,9 +392,6 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
-  // Run 41064812826 (#9953): the triage run applied needs-human for a host-run
-  // step. A capability limit is admission's to route (host-run), never a
-  // person's: needs-human this run's triage applied holds only beside a flag.
   test("needs-human this run's triage applied with no flag is refused and the verdict reaches ready", () => {
     const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
     assert.equal(result.ready, true);
@@ -492,9 +482,6 @@ describe("planWrites", () => {
     assert.ok(!result.remove.includes("needs-human"), result.remove.join(", "));
   });
 
-  // Run 41064812826 (#9953) also applied needs-owner-decision with no flag.
-  // Owner's standing direction §2: only a flag (intent, security, cost) stops
-  // for a person, so this run's flagless needs-decision gives way like needs-human.
   test("needs-owner-decision this run's triage applied with no flag is refused on an otherwise ready plan", () => {
     const result = plan(laneBody(), { labels: [NEEDS_DECISION], triageLabels: [NEEDS_DECISION] });
     assert.equal(result.ready, true);
@@ -1229,8 +1216,6 @@ describe("run", () => {
   });
 
   test("keeps an old class the lanes App added and replaces its own earlier field values given real-shaped ids", async () => {
-    // GraphQL answers databaseId as a number, here passed as a string to
-    // prove the type does not matter.
     const fake = fakeGitHub({
       issue: { labels: [{ name: "work-class: mechanical" }] },
       comments: [laneComment()],
@@ -1328,8 +1313,6 @@ describe("run", () => {
       post.body.issue_field_values.map(({ field_id }) => field_id),
       [48625720, 48625721],
     );
-    // Setting a field to an option leaves the same state when sent twice, so
-    // a 5xx on it is resent once (run 41814429466 failed on one 500).
     assert.deepEqual(post.options, { resendOnce: true });
   });
 
@@ -2276,7 +2259,6 @@ describe("run", () => {
       14: { id: 9014, number: 14, state: "closed", repository_url: REPO },
     };
     const edgePosts = (calls) => calls.filter(({ method, path }) => method === "POST" && path.endsWith("/dependencies/blocked_by")).map(({ body }) => body.issue_id);
-    // #8994's shape: the model's verdict names none, the body names one.
     const body = "## Problem\n\n#13 is related.\n\nBlocked by: #12\n\n## Depends on\n- #14\n\n<!-- work-items:born-triaged -->\n";
 
     test("get an edge before admission when the verdict's line names none", async () => {

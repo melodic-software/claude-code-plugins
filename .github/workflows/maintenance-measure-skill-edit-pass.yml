@@ -133,7 +133,7 @@ jobs:
     timeout-minutes: 60
     cache-mode: read
     permissions:
-      contents: read # check out the default branch; nothing in this job writes
+      contents: read
     outputs:
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
       manifest-sha256: ${{ steps.read.outputs.manifest-sha256 }}

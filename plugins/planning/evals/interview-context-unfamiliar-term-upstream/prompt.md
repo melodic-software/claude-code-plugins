@@ -8,7 +8,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent, Write]
 expected_outcome: "Every question in round 2 opens with a Context block that defines the dedupe fingerprint and the cluster step wherever the question uses them, says in each decision question what the upstream README does and what triage/intake.py does today, and cites a file:line or link on each line, so the user can answer every question without a follow-up"
 ---
 
-/planning:interview me Should our triage intake gain a cluster step like the upstream triage tool's? Its docs are vendored at vendor/upstream-triage/README.md, and our intake is triage/intake.py. This is a throwaway prototype.
+/planning:interview Should our triage intake gain a cluster step like the upstream triage tool's? Its docs are vendored at vendor/upstream-triage/README.md, and our intake is triage/intake.py. This is a throwaway prototype.
 
 Round 1 is answered: Q1, the problem is that one crash reported by many users opens many duplicate issues; Q2, the users are the two maintainers who triage those issues.
 

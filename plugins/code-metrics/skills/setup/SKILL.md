@@ -9,7 +9,7 @@ shell: bash
 
 ## Purpose
 
-Every reference the plugin prints, every lane's collector order, the scope exclusions, and the
+Every reference the plugin prints, every language's collector order, the scope exclusions, and the
 coverage artifact paths resolve through one consumer surface whose layers, per-key override and
 dual-read window `${CLAUDE_PLUGIN_ROOT}/reference/config.md` lists. The team file of earlier
 releases, `.claude/code-metrics.yaml`, is retired and never read; `apply` moves its keys. The old
@@ -60,12 +60,12 @@ Rows, each PASS, FAIL, WARN, or INFO:
 4. **layer local ignored**: the personal override is gitignored, else WARN with the recommended
    consumer line `docs/conventions/**/*.local.*` (`.claude/**/*.local.*` for an old personal file
    still read). Recommend the line; never edit the consumer's `.gitignore`.
-5. **ecosystem `<lane>.yaml`**: each consumer ecosystem file parses. PASS when its lane is in the
-   resolved `lanes` mapping (a bundled lane, or one a layer lists): its `globs` and `enabled`
-   override lane detection. WARN naming the missing `lanes.<lane>` entry when no layer lists the
-   lane: the resolver ignores that record. WARN asking for a rename when the file name is not a
-   lowercase kebab-case lane id, since no `lanes` entry can name it. WARN when the configuration
-   does not resolve, since the lane list is then unknown.
+5. **ecosystem `<language>.yaml`**: each consumer ecosystem file parses. PASS when its language is in the
+   resolved `languages` mapping (a bundled language, or one a layer lists): its `globs` and `enabled`
+   override language detection. WARN naming the missing `languages.<language>` entry when no layer lists the
+   language: the resolver ignores that record. WARN asking for a rename when the file name is not a
+   lowercase kebab-case language id, since no `languages` entry can name it. WARN when the configuration
+   does not resolve, since the language list is then unknown.
 6. **reference `<measure>`**: the resolved value with the layer that supplied it and its
    provenance, so a personal layer that changed a value is visible.
 7. **collector `<tool>`**: the adapter's probe, then one measure from the ladder run on a bundled
@@ -73,8 +73,8 @@ Rows, each PASS, FAIL, WARN, or INFO:
    when the probe passed but the measure exited non-zero or returned no rows, with the first
    stderr line (a tool that resolves but cannot measure); WARN `probe only: <reason>` when no
    bundled fixture can exercise it (a tool bound to the project's own configuration, or one with
-   no fixture for its lane); INFO `missing` with the install hint when the probe fails. Missing
-   is not a failure: the lane reports `unavailable` at audit time and the run continues.
+   no fixture for its language); INFO `missing` with the install hint when the probe fails. Missing
+   is not a failure: the language reports `unavailable` at audit time and the run continues.
 
 Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
 
@@ -87,7 +87,7 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
    provenance, in the subset; the key reference is `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
    the cyclomatic reference (20, ISO/IEC 5055 §8.2.117; 10 and 15 are the cited alternatives),
    the file-length reference (1000, the plugin's own number; 500 selectable) and `size.mode`,
-   scope exclusions, coverage artifact paths, per-lane opt-outs and collector order, duplication
+   scope exclusions, coverage artifact paths, per-language opt-outs and collector order, duplication
    registries. Offer every declared key, preserve every key the existing file carries, and never
    invent a key beyond the contract. A key outside the contract is written but reported, because
    unknown keys are inert to the plugin.

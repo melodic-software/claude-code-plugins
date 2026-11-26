@@ -61,9 +61,9 @@ import pydeps
 
 SAMPLE_RATE = 24000
 MODEL = 'onnx/model.onnx'
-MAX_TOKENS = 500             # the model reads 512 ids, two of them pads; each voice holds 510 style rows
+MAX_TOKENS = 500
 DEFAULT_VOICE = 'af_heart'
-LANGS = {'a': 'en-us', 'b': 'en-gb'}   # a voice name's first letter is its accent
+LANGS = {'a': 'en-us', 'b': 'en-gb'}
 SENTENCE_END = set('.!?…')
 SPACE = ' '
 
@@ -225,7 +225,7 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
 
 
 RETRY_DELAYS_S = (1, 2, 4)
-EDGE_RETRY_DELAYS_S = (5, 20, 60)   # the endpoint drops requests for a while, then recovers (rany2/edge-tts#473)
+EDGE_RETRY_DELAYS_S = (5, 20, 60)
 DEFAULT_TIMEOUT_S = 120.0
 TIMEOUT_GRACE_S = 1.0
 FLOOR_VAR = 'SPEECH_EGRESS_FLOOR'
@@ -246,7 +246,7 @@ class CallTimeout(Exception):
 @dataclass(frozen=True)
 class Backend:
     name: str
-    voice: Callable    # (script, out_dir, voice, timeout) -> (wav path, [{word, start, end}])
+    voice: Callable
     default_voice: str = ''
     online: bool = True
     paid: bool = False
@@ -386,7 +386,7 @@ def edge_backend():
             async for chunk in talk.stream():
                 if chunk['type'] == 'audio':
                     audio += chunk['data']
-                elif chunk['type'] == 'WordBoundary':   # offsets in 100 ns ticks
+                elif chunk['type'] == 'WordBoundary':
                     marks.append((chunk['text'], chunk['offset'] / 1e7, (chunk['offset'] + chunk['duration']) / 1e7))
             return bytes(audio), marks
         try:
@@ -425,7 +425,7 @@ def openai_backend(env):
             raise Unavailable(f'{OPENAI_HOST} answered HTTP {e.code}') from None
         except (urllib.error.URLError, OSError) as e:
             reason = getattr(e, 'reason', e)
-            if isinstance(reason, TimeoutError):   # a read timeout, or one while connecting (URLError)
+            if isinstance(reason, TimeoutError):
                 raise CallTimeout(f'{OPENAI_HOST} passed {timeout:g} s') from None
             raise RuntimeError(f'the request to {OPENAI_HOST} failed: {reason}') from None
         if not pcm or len(pcm) % 2:
@@ -462,7 +462,7 @@ def scan_script(text, extra=()):
     try:
         import media_scan
         result = media_scan.scan({'narration': text}, extra=extra)
-    except Exception as e:   # the floor fails closed on any error
+    except Exception as e:
         return [f'scan-error: {type(e).__name__}']
     return (['rules-failed-to-load'] if result.fail_closed else []) + sorted({f['kind'] for f in result.findings})
 

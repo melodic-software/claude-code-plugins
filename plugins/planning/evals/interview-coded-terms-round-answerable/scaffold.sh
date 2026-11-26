@@ -27,14 +27,4 @@ cat >.work/review-reruns/interview-checklist.md <<'MD'
 **Session shorthand:**
 - rerun: one more pass of both AI reviews on the PR's new head SHA
 - R-cap: the most reruns one PR gets before the pr-merge lane stops rerunning
-
-## Decision tree (`me` mode only)
-
-- [x] which lane reruns: the pr-merge lane (Q1)
-- [x] trigger: a new head SHA (Q2)
-- [x] blocking: advisory only (Q3)
-- [x] where results show: one edited PR comment (Q4)
-- [ ] R-cap value (Q5)
-- [ ] whether a force-push that keeps the same tree resets the R-cap (blocked by: Q5)
-- [ ] what the lane does when a rerun finds a new blocking issue it cannot block on (rests on Q3 and C1)
 MD

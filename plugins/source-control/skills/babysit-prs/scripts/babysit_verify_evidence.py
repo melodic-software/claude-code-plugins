@@ -2454,7 +2454,7 @@ class Reader:
                 try:
                     return json_object(json.loads(proc.stdout)), headers
                 except ValueError:
-                    pass  # A body cut short: read again.
+                    pass
             else:
                 detail = (proc.stderr or "").strip()
                 if conditional and NOT_MODIFIED_RE.search(detail):
