@@ -21,7 +21,7 @@ graders:
     focus: trace
   - name: expectation-2
     type: llm
-    criteria: 'Presents the Coverage of this run table naming the collector used (scc or the bundled counter) per lane'
+    criteria: 'Presents the Coverage of this run table naming the collector used (scc or the bundled counter) per language'
     focus: trace
   - name: expectation-3
     type: llm

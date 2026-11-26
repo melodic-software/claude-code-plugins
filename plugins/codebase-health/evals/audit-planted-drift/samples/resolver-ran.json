@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/p/codebase-health/lib/view-settings.mjs\" resolve --lane codebase-health:audit --option \"auto\"",
+            "command": "node \"/p/codebase-health/lib/view-settings.mjs\" resolve --producer codebase-health:audit --option \"auto\"",
             "description": "Run command"
           }
         }
@@ -16,7 +16,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cd /ws && node /p/lib/view-settings.mjs resolve --lane codebase-health:audit --option auto",
+            "command": "cd /ws && node /p/lib/view-settings.mjs resolve --producer codebase-health:audit --option auto",
             "description": "Run command"
           }
         }
@@ -42,19 +42,19 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node /p/lib/view-settings.mjs resolve --lane visualization:visualize --option auto",
+            "command": "node /p/lib/view-settings.mjs resolve --producer visualization:visualize --option auto",
             "description": "Run command"
           }
         }
       ],
-      "why": "another lane"
+      "why": "another producer"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "echo node view-settings.mjs resolve --lane codebase-health:audit",
+            "command": "echo node view-settings.mjs resolve --producer codebase-health:audit",
             "description": "Run command"
           }
         }

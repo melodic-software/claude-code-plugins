@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { configBlockBody, readLayers } from "./config-cascade.mjs";
-import { NO_PAGE, NO_PREFERENCE, SCHEMA, fallBack, laneOf, mediumOf, reportLines } from "./view-registry.mjs";
+import { NO_PAGE, NO_PREFERENCE, SCHEMA, fallBack, producerOf, mediumOf, reportLines } from "./view-registry.mjs";
 
 const CONCERN = "rendered-views";
 const HOME = "docs/conventions";
@@ -200,21 +200,21 @@ function retiredNotices(legacy, { plugin, hasMediumOption, root, userHome, dataD
 export const gateExplicit = ({ preferred, decidedBy }) => Boolean(mediumOf(preferred)?.publishes) && ["argument", "userConfig", "personal override"].includes(decidedBy);
 
 /**
- * @param {{lane: string, argument?: string|null, userConfig?: string|null, projectRoot?: string|null, teamRef?: string|null}} request
+ * @param {{producer: string, argument?: string|null, userConfig?: string|null, projectRoot?: string|null, teamRef?: string|null}} request
  * @param {{userHome?: string, dataDir?: string|null, interactive?: boolean}} [options]
  * @returns {{preferred: string|null, medium: string|null, decidedBy: string, notices: {kind: string, text: string}[]}}
  */
-export function resolveMedium({ lane, argument = null, userConfig = null, projectRoot = null, teamRef = null }, { userHome = homedir(), dataDir = null, interactive = true } = {}) {
-  const laneEntry = laneOf(lane);
-  if (!laneEntry) throw new Error(`view-settings: unknown lane ${JSON.stringify(lane)}`);
+export function resolveMedium({ producer, argument = null, userConfig = null, projectRoot = null, teamRef = null }, { userHome = homedir(), dataDir = null, interactive = true } = {}) {
+  const producerEntry = producerOf(producer);
+  if (!producerEntry) throw new Error(`view-settings: unknown producer ${JSON.stringify(producer)}`);
   const notices = [];
   const root = repoScopes(projectRoot, userHome) ? projectRoot : null;
   const team = root && typeof teamRef === "string" ? teamAt(root, teamRef, notices) : undefined;
   const { layers, legacy } = readLayers({ plugin: CONCERN, projectRoot: root, schema: SCHEMA, userConfig: { medium: userConfig ?? "" }, team, userHome });
-  notices.unshift(...retiredNotices(legacy, { plugin: lane.split(":")[0], hasMediumOption: laneEntry.hasMediumOption, root, userHome, dataDir }));
+  notices.unshift(...retiredNotices(legacy, { plugin: producer.split(":")[0], hasMediumOption: producerEntry.hasMediumOption, root, userHome, dataDir }));
   const finish = (preferred, decidedBy) => {
     if (!preferred) return { preferred: null, medium: null, decidedBy, notices };
-    const { medium, fell } = fallBack(preferred, laneEntry, { interactive });
+    const { medium, fell } = fallBack(preferred, producerEntry, { interactive });
     return { preferred, medium, decidedBy: fell ? `fell back: ${fell}` : decidedBy, notices };
   };
   if (mediumOf(argument)) return finish(argument, "argument");
@@ -249,22 +249,22 @@ export function resolveMedium({ lane, argument = null, userConfig = null, projec
   const teamValue = scopes.find(([name]) => name === "team")?.[1];
   if (teamValue) notices.push({ kind: "ignored", text: `team ${shown(layers.find((l) => l.name === "team").path)} sets medium: ${teamValue}; a team file never publishes, so it is ignored` });
   const trusted = scopes.find(([, , ok]) => ok);
-  return trusted ? finish(trusted[1], trusted[0]) : finish(laneEntry.default, "plugin default");
+  return trusted ? finish(trusted[1], trusted[0]) : finish(producerEntry.default, "plugin default");
 }
 
-const USAGE = "usage: view-settings.mjs resolve --lane <id> --option <user_config.medium> [--argument <medium>] [--team-ref <ref>]\n";
+const USAGE = "usage: view-settings.mjs resolve --producer <id> --option <user_config.medium> [--argument <medium>] [--team-ref <ref>]\n";
 
 /** CLI: the argument vector after the script path; returns the exit code. */
 export function main(argv, env = process.env) {
   const [action, ...rest] = argv;
-  const request = { lane: null, userConfig: undefined, argument: null, teamRef: null };
-  const flags = { "--lane": "lane", "--option": "userConfig", "--argument": "argument", "--team-ref": "teamRef" };
+  const request = { producer: null, userConfig: undefined, argument: null, teamRef: null };
+  const flags = { "--producer": "producer", "--option": "userConfig", "--argument": "argument", "--team-ref": "teamRef" };
   for (let i = 0; i < rest.length; i += 2) {
     const key = flags[rest[i]];
     if (!key || rest[i + 1] === undefined) return usage();
     request[key] = rest[i + 1];
   }
-  if (action !== "resolve" || !laneOf(request.lane) || request.userConfig === undefined) return usage();
+  if (action !== "resolve" || !producerOf(request.producer) || request.userConfig === undefined) return usage();
   if (request.argument === NO_PREFERENCE) request.argument = null;
   if (request.argument !== null && !mediumOf(request.argument)) return usage();
   const ci = Boolean(env.CI) && env.CI !== "false";

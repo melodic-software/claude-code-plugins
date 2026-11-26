@@ -24,7 +24,7 @@ Resolve the view medium once, in step 1, through the shared medium resolver. Thi
 `medium` option and the skill takes no medium argument, so `--option` is empty:
 
 ```bash
-CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane ai-briefing:generate --option ""
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer ai-briefing:generate --option ""
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one

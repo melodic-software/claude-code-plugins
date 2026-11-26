@@ -90,7 +90,8 @@ merged result:
 5. **Unknown keys.** Report them as inert, naming their layer, including `output_dir`, which is not a
    recognized key here.
 6. **Old paths.** For each old file the reference's "Old paths (dual-read window)" section names
-   that exists, report its path, what it holds (gotchas, `areas`, `filing_posture`), which of its
+   that exists, report its path, what it holds (gotchas, `areas`, `filing_posture`, or a retired `lanes` key, which is no longer
+   read and moves as `areas`), which of its
    settings the new files already supply and so win, the new home of each setting from that
    section's table, and `apply` as the command that moves it. The `gotchas_file` option is
    `${user_config.gotchas_file}` in this text; an empty or unexpanded value is unset.
@@ -129,7 +130,7 @@ home, never two. For each old file, one at a time:
      the section there, then have them set the option to that path through the native flow in
      `check` step A4. Re-run `check` in a fresh session before step 3, since a same-session value can
      be stale.
-   - `areas` from `~/.claude/bugs.md`: ask which repository it was for and write it to that
+   - `areas` from `~/.claude/bugs.md`, or a retired `lanes` key there, written as `areas`: ask which repository it was for and write it to that
      repository's `docs/conventions/bugs.local.md`. When the user says the team shares it, write it
      to the team YAML now, behind the same yes, scaffolded in the reference's format when absent and
      merged by focus area `name` when present.
@@ -139,7 +140,8 @@ home, never two. For each old file, one at a time:
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" --user-file "<gotchas_file>"`, with
    `<gotchas_file>` the option value from this text written out (empty when unset), never the
    `${user_config.…}` token itself. Confirm each gotcha line from the old file appears under the new
-   layer's block, and re-read the new file for each moved key. A missing value, such as a
+   layer's block, and re-read the new file for each moved key (a moved `lanes` key appears as
+   `areas`). A missing value, such as a
    `filing_posture` the work-items file does not set yet, stops the move for this file and keeps the
    old file.
 4. **Delete the old file** once step 3 passes, and say so: for `.claude/bugs.local.md` run

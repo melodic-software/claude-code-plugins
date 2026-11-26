@@ -242,11 +242,11 @@
       "id": 20,
       "name": "file-medium-drops-design-canvas-offer",
       "prompt": "Our web app already has a /settings page. Show me a few options for what that settings page could look like. (Fixture: the bundled design skill and the Artifact tool are available; the untracked, gitignored personal override docs/conventions/rendered-views.local.yaml contains only 'medium: file'; no other rendered-views scope or retired file exists; no --medium argument was given.)",
-      "expected_output": "Takes the HTML mockup host and runs the shared resolver (lib/view-settings.mjs resolve --lane prototype:explore-directions --option \"\") before any design-canvas offer. Its JSON reports a medium that does not publish, so it builds the local file:// mockup without offering the design canvas, since the canvas is published. The handover prints the resolver's report line as the source of the medium, and the skill reads no rendered-views file itself.",
+      "expected_output": "Takes the HTML mockup host and runs the shared resolver (lib/view-settings.mjs resolve --producer prototype:explore-directions --option \"\") before any design-canvas offer. Its JSON reports a medium that does not publish, so it builds the local file:// mockup without offering the design canvas, since the canvas is published. The handover prints the resolver's report line as the source of the medium, and the skill reads no rendered-views file itself.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Runs lib/view-settings.mjs resolve with --lane prototype:explore-directions before making any design-canvas offer",
+        "Runs lib/view-settings.mjs resolve with --producer prototype:explore-directions before making any design-canvas offer",
         "Builds the self-contained file:// mockup in a temp location",
         "Does not offer the design canvas or any other published surface",
         "Prints the resolver's report line in the handover as the source of the medium",

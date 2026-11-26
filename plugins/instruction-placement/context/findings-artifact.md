@@ -58,7 +58,7 @@ audit was never run".
   stable finding id rather than depositing a timestamped sibling; the run timestamp lives in
   frontmatter where a reader and a diff can both find it. `spine-baseline.md` is one stable filename
   for the same reason, overwritten by the next capture. A `spine-baseline.md` in a home is not
-  stray: deleting one leaves the delta lane with no comparison input and the next run reports a
+  stray: deleting one leaves the delta skill with no comparison input and the next run reports a
   first run.
 - **No branch identity, no home.** The branch is the `- Branch:` line of each skill's pre-compute
   block, which runs `git rev-parse --abbrev-ref HEAD`. On a detached checkout that command answers
@@ -110,7 +110,7 @@ as `—` rather than omitted, so a diff between runs stays aligned.
 ### IP-007 — `**/*.test.*` test file conventions
 
 - **Status:** pending
-- **Lane:** demote
+- **Direction:** demote
 - **Source:** `CLAUDE.md` lines 88–121, heading path `["Test conventions"]`
 - **Suppression key:** `check` `instruction-placement/audit/demote`; `claim`
   `narrower-scope:path-scoped-rule`; `anchor/v1` `958d10fb`; `finding_id` `866c7f4e04652643`
@@ -216,8 +216,8 @@ plugin's business and nobody else's.
 
 | Constituent | For a placement finding |
 |---|---|
-| `check` | `instruction-placement/audit/<lane>`, either `demote` or `promote`, the lane that raised it. |
-| `claim` | The canonical claim id with its destination bound: `narrower-scope:<destination>` on the demote lane, `unloaded-convention:<destination>` on the promote lane. Destinations are the rubric's ladder rungs (`path-scoped-rule`, `nested-agents-md`, `skill`, `linter`, `deletion`). Never free prose. |
+| `check` | `instruction-placement/audit/<direction>`, either `demote` or `promote`, the direction that raised it. |
+| `claim` | The canonical claim id with its destination bound: `narrower-scope:<destination>` on the demote direction, `unloaded-convention:<destination>` on the promote direction. Destinations are the rubric's ladder rungs (`path-scoped-rule`, `nested-agents-md`, `skill`, `linter`, `deletion`). Never free prose. |
 | `sites` | Exactly one: `surface` is the source file's repo-relative path, `anchor/v1` is the anchor below. A placement finding is about one section of one file, so a second site would describe a finding this plugin does not raise. |
 
 **`anchor/v1` is `sha256` of the `US`-joined ordered enclosing heading path of the section,
@@ -226,7 +226,7 @@ truncated to 8 hex**: for the section `### Release checklist` under `## Deployme
 never a positional ordinal.
 
 **`audit` and `delta` derive `anchor/v1` and `finding_id` by running
-`scripts/detect.sh identity --file <path> --start <n> --lane <lane> --destination <rung>`, and never
+`scripts/detect.sh identity --file <path> --start <n> --direction <direction> --destination <rung>`, and never
 compute them by hand.** The script implements the formulas on this page and prints the heading path
 it hashed.
 
@@ -262,10 +262,10 @@ constituents do not hash to its own key is reported as malformed and suppresses 
 **The trade this anchor makes, recorded so it is not re-litigated.** The marketplace contract's own
 anchor keeps a heading-path hash as a *duplicate discriminator* inside a larger anchor that also
 carries an excerpt hash; this plugin's `anchor/v1` is the heading-path hash alone. The cost is real:
-two sections in one file sharing an enclosing heading path, a lane, and a destination collapse to
+two sections in one file sharing an enclosing heading path, a direction, and a destination collapse to
 one `finding_id`, so declining one suppresses both. That is accepted rather than mitigated. Adding
 the excerpt half back would make every copy-edit inside a declined section mint a new id and
-resurrect a decision the operator already made, the failure this plugin's whole delta lane exists
+resurrect a decision the operator already made, the failure this plugin's whole delta skill exists
 to prevent, and the collision it avoids requires two same-named headings under the same parent,
 which is a malformed document a reader cannot navigate either. Revisit if a consumer demonstrates
 the collision on a document they consider correct; the fix would be `anchor/v2` with a
@@ -308,7 +308,7 @@ the classification depends on. That is what `changed` and `stale` are computed a
 `zero-match`, `bad-bracket`, `over-budget`, `over-broad`). `broken-glob` is a **transition**, not a
 state, and a transition cannot be computed from the current run alone. Without the stored verdict a
 re-run has two bad options and no way to tell them apart: report every currently-invalid glob every
-cycle, which is the standing noise this lane exists to remove, or report none of them, which loses
+cycle, which is the standing noise the delta skill exists to remove, or report none of them, which loses
 the one shape that most justifies running on a cadence. A glob whose rule file and glob text are
 both unchanged is exactly the case that needs it, because nothing else in the row moves when the
 code the glob described gets renamed somewhere else in the repository.

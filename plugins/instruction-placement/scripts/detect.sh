@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +13,7 @@ detect.sh — deterministic fact emitter for instruction-placement's audit.
 Usage:
   detect.sh [--root <dir>] [--tier core|expanded] [--] [<path>...]
   detect.sh identity [--root <dir>] --file <path> --start <n>
-                     --lane demote|promote --destination <rung>
+                     --direction demote|promote --destination <rung>
 
   --root <dir>       repository root (default: cwd)
   --tier core        instruction surfaces only; skip ordinary documentation
@@ -47,7 +48,7 @@ ROOT="$PWD"
 TIER="expanded"
 declare -a EXPLICIT=()
 IDENTITY=0
-ID_FILE="" ID_START="" ID_LANE="" ID_RUNG=""
+ID_FILE="" ID_START="" ID_DIRECTION="" ID_RUNG=""
 
 id_die() {
   printf 'ERROR: %s\n' "$1" >&2
@@ -64,7 +65,7 @@ if [[ "${1:-}" == "identity" ]]; then
     --root) ROOT="$2" ;;
     --file) ID_FILE="$2" ;;
     --start) ID_START="$2" ;;
-    --lane) ID_LANE="$2" ;;
+    --direction) ID_DIRECTION="$2" ;;
     --destination) ID_RUNG="$2" ;;
     *) id_die "unknown argument: $1" ;;
     esac
@@ -73,9 +74,9 @@ if [[ "${1:-}" == "identity" ]]; then
   [[ -n "$ID_FILE" ]] || id_die "--file is required"
   [[ "$ID_FILE" != /* ]] || id_die "--file must be a path relative to --root: $ID_FILE"
   [[ "$ID_START" =~ ^[0-9]+$ ]] || id_die "--start must be an integer"
-  case "$ID_LANE" in
+  case "$ID_DIRECTION" in
   demote | promote) ;;
-  *) id_die "--lane must be demote or promote" ;;
+  *) id_die "--direction must be demote or promote" ;;
   esac
   case "$ID_RUNG" in
   path-scoped-rule | nested-agents-md | skill | linter | deletion) ;;
@@ -403,8 +404,8 @@ emit_identity() {
     joined+="${joined:+$us}$e"
     display+="${display:+ > }$e"
   done
-  local check="instruction-placement/audit/$ID_LANE"
-  if [[ "$ID_LANE" == demote ]]; then
+  local check="instruction-placement/audit/$ID_DIRECTION"
+  if [[ "$ID_DIRECTION" == demote ]]; then
     claim="narrower-scope:$ID_RUNG"
   else
     claim="unloaded-convention:$ID_RUNG"

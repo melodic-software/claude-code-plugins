@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Exit:
-#   0  the scan ran (candidates or not, lanes healthy or not) — a read-only
+#   0  the scan ran (candidates or not, analyzers healthy or not) — a read-only
 #      audit must never fail its caller, so -e is omitted and no detector's
 #      exit code is ever propagated.
 #   2  a usage error, the status Bash builtins return for incorrect usage
 #      (https://www.gnu.org/software/bash/manual/html_node/Exit-Status.html):
 #      an unknown option, an option missing its value, a --max that is not a
-#      non-negative integer, a --lane outside the set, or a --root that is not
+#      non-negative integer, a --analyzer outside the set, or a --root that is not
 #      a directory; or no temp directory could be created.
 set -uo pipefail
 
@@ -25,7 +25,7 @@ dc_anchor_path() {
 }
 
 MAX=0
-LANE_SEL='all'
+ANALYZER_SEL='all'
 ROOT_SEL=''
 TARGETS=()
 
@@ -36,7 +36,7 @@ dead-code-scan.sh — emit dead-code candidates for /code-tidying:audit-dead-cod
 Usage:
   dead-code-scan.sh [target]...
   dead-code-scan.sh --max <n> [target]...
-  dead-code-scan.sh --lane <knip|vulture|gopls|grep|all> [target]...
+  dead-code-scan.sh --analyzer <knip|vulture|gopls|grep|all> [target]...
   dead-code-scan.sh --root <dir> [target]...
   dead-code-scan.sh --help
 
@@ -53,7 +53,7 @@ oldest-untouched first (0 = no cap). The detectors carry no usable confidence
 key to order by: vulture pins every symbol-level finding at 60 and knip has no
 confidence field at all.
 
-Exit: 0 on every scan path (findings or not, lanes healthy or not);
+Exit: 0 on every scan path (findings or not, analyzers healthy or not);
       2 on usage errors. A detector's own exit code is never propagated.
 EOF
 }
@@ -68,9 +68,9 @@ while [[ $# -gt 0 ]]; do
     MAX="$2"
     shift 2
     ;;
-  --lane)
+  --analyzer)
     require_opt_value dead-code-scan.sh "$@"
-    LANE_SEL="$2"
+    ANALYZER_SEL="$2"
     shift 2
     ;;
   --root)
@@ -104,10 +104,10 @@ if [[ ! "$MAX" =~ ^[0-9]+$ ]]; then
 fi
 MAX=$((10#$MAX))
 
-case "$LANE_SEL" in
+case "$ANALYZER_SEL" in
 all | knip | vulture | gopls | grep) ;;
 *)
-  echo "dead-code-scan.sh: --lane must be one of knip, vulture, gopls, grep, all" >&2
+  echo "dead-code-scan.sh: --analyzer must be one of knip, vulture, gopls, grep, all" >&2
   exit 2
   ;;
 esac
@@ -140,17 +140,17 @@ WORK="$(mktemp -d)" || {
 trap 'rm -rf "$WORK"' EXIT
 
 CAND="$WORK/candidates.tsv"
-LANES="$WORK/lanes.txt"
+ANALYZERS="$WORK/analyzers.txt"
 NOTES="$WORK/notes.txt"
 : >"$CAND"
-: >"$LANES"
+: >"$ANALYZERS"
 : >"$NOTES"
 
 NOW="$(date -u +%s 2>/dev/null || echo 0)"
 
-lane_line() {
-  printf 'Lane: %s | root=%s | state=%s | files=%s | detail=%s\n' \
-    "$1" "$2" "$3" "$4" "$5" >>"$LANES"
+analyzer_line() {
+  printf 'Analyzer: %s | root=%s | state=%s | files=%s | detail=%s\n' \
+    "$1" "$2" "$3" "$4" "$5" >>"$ANALYZERS"
 }
 
 note() {
@@ -181,23 +181,23 @@ dc_mark_uncovered() {
   done
 }
 
-dc_account_lane_files() {
+dc_account_analyzer_files() {
   local state="$1"
   shift
   case "$state" in
   ran) dc_mark_covered "$@" ;;
-  degraded) dc_mark_uncovered 'lane degraded' "$@" ;;
+  degraded) dc_mark_uncovered 'analyzer degraded' "$@" ;;
   skipped) dc_mark_uncovered 'tool not installed' "$@" ;;
   no-manifest) dc_mark_uncovered 'no manifest root' "$@" ;;
   *) ;;
   esac
 }
 
-lane_files() {
-  local lane="$1" root="$2" state="$3" detail="$4"
+analyzer_files() {
+  local analyzer="$1" root="$2" state="$3" detail="$4"
   shift 4
-  dc_account_lane_files "$state" "$@"
-  lane_line "$lane" "$root" "$state" "$#" "$detail"
+  dc_account_analyzer_files "$state" "$@"
+  analyzer_line "$analyzer" "$root" "$state" "$#" "$detail"
 }
 
 dc_repo_owned() {
@@ -359,7 +359,7 @@ project_roots() {
   printf '%s\n' "${roots[@]}" | LC_ALL=C sort -u
 }
 
-lane_knip() {
+analyzer_knip() {
   local root_rel root_abs bin cfg nfiles rows foreign detail k_path k_file k_line k_shape k_name
   # root_nested is read through a nameref, which shellcheck cannot see.
   # shellcheck disable=SC2034
@@ -368,7 +368,7 @@ lane_knip() {
   local owned_rel ts_left
   mapfile -t roots < <(project_roots package.json)
   if [[ ${#roots[@]} -eq 0 ]]; then
-    lane_files knip '-' no-manifest 'no package.json project root in this repository' \
+    analyzer_files knip '-' no-manifest 'no package.json project root in this repository' \
       ${TS_FILES[@]+"${TS_FILES[@]}"}
     return 0
   fi
@@ -383,25 +383,25 @@ lane_knip() {
     done < <(dc_repo_owned "$root_rel" ${owned_ts[@]+"${owned_ts[@]}"})
     nfiles="${#repo_owned[@]}"
     if [[ "$nfiles" -eq 0 ]]; then
-      lane_line knip "$root_rel" scanned-zero-files 0 \
+      analyzer_line knip "$root_rel" scanned-zero-files 0 \
         'no TS/JS file owned by this root in candidate scope (files under a nested project root belong to that root) — a scan of nothing, not a clean bill'
       continue
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
     if ! dc_find_nonempty_node_modules "$root_abs" "$REPO_ROOT" >/dev/null; then
-      lane_files knip "$root_rel" degraded \
+      analyzer_files knip "$root_rel" degraded \
         'node_modules absent or empty by direct ancestor-walk probe — an unrestored knip run manufactures false unused-file findings, so this root emits no records' \
         "${repo_owned[@]}"
       continue
     fi
     if ! bin="$(dc_locate_binary knip "$root_abs" "$REPO_ROOT")"; then
-      lane_files knip "$root_rel" skipped \
+      analyzer_files knip "$root_rel" skipped \
         'knip not resolvable in a repo-local node_modules/.bin nor on PATH — no package runner is invoked, so nothing was fetched' \
         "${repo_owned[@]}"
       continue
     fi
     if ! dc_binary_invocable "$bin" --version; then
-      lane_files knip "$root_rel" skipped \
+      analyzer_files knip "$root_rel" skipped \
         "located at $bin but invocation failed — presence is proven by invocation, never by command -v" \
         "${repo_owned[@]}"
       continue
@@ -411,13 +411,13 @@ lane_knip() {
     fi
     (cd "$root_abs" && "$bin" --reporter json --no-progress) >"$WORK/knip.out" 2>"$WORK/knip.err" || true
     if dc_knip_stderr_is_degraded "$WORK/knip.err"; then
-      lane_files knip "$root_rel" degraded \
+      analyzer_files knip "$root_rel" degraded \
         'knip wrote an ERROR: line to stderr, which --reporter json discards; such a run manufactures false positives, so this root emits no records' \
         "${repo_owned[@]}"
       continue
     fi
     if [[ ! -s "$WORK/knip.out" ]]; then
-      lane_files knip "$root_rel" ran 'no unused file, export, type, or enum member reported' "${repo_owned[@]}"
+      analyzer_files knip "$root_rel" ran 'no unused file, export, type, or enum member reported' "${repo_owned[@]}"
       continue
     fi
     if dc_parse_knip_json <"$WORK/knip.out" >"$WORK/knip.rows"; then
@@ -441,11 +441,11 @@ lane_knip() {
       if [[ "$foreign" -gt 0 ]]; then
         detail="$detail; $foreign finding(s) this root does not own dropped (a nested project root's file, or a path excluded from candidate scope) — each nested root reports its own, and only when its own run is healthy"
       fi
-      lane_files knip "$root_rel" ran "$detail" "${repo_owned[@]}"
+      analyzer_files knip "$root_rel" ran "$detail" "${repo_owned[@]}"
     else
       add_candidate "$root_rel" 0 detector-drift \
         'knip produced output no parser recognized — its JSON shape may have changed'
-      lane_files knip "$root_rel" ran 'output not recognized — recorded as T3 drift, never as clean' "${repo_owned[@]}"
+      analyzer_files knip "$root_rel" ran 'output not recognized — recorded as T3 drift, never as clean' "${repo_owned[@]}"
     fi
   done
   for ts_left in ${TS_FILES[@]+"${TS_FILES[@]}"}; do
@@ -454,23 +454,23 @@ lane_knip() {
   done
 }
 
-lane_vulture() {
+analyzer_vulture() {
   local bin rc=0 v_line row parsed=0 drift=0 unparsed=0
   local p_file p_line p_shape p_excerpt
   local ignore_decorators='@app.route,@*.route,@pytest.fixture,@property,@*.setter,@*.command,@*.task'
   if [[ ${#PY_FILES[@]} -eq 0 ]]; then
-    lane_line vulture '.' scanned-zero-files 0 \
+    analyzer_line vulture '.' scanned-zero-files 0 \
       'no .py file in candidate scope — a scan of nothing, not a clean bill'
     return 0
   fi
   if ! bin="$(dc_locate_binary vulture "$REPO_ROOT" "$REPO_ROOT")"; then
-    lane_files vulture '.' skipped \
+    analyzer_files vulture '.' skipped \
       'vulture not resolvable in a repo-local .venv/bin nor on PATH — no package runner is invoked, so nothing was fetched' \
       "${PY_FILES[@]}"
     return 0
   fi
   if ! dc_binary_invocable "$bin" --version; then
-    lane_files vulture '.' skipped \
+    analyzer_files vulture '.' skipped \
       "located at $bin but invocation failed — presence is proven by invocation, never by command -v" \
       "${PY_FILES[@]}"
     return 0
@@ -479,7 +479,7 @@ lane_vulture() {
     --ignore-decorators "$ignore_decorators" -- "${PY_FILES[@]}" \
     >"$WORK/vulture.out" 2>"$WORK/vulture.err" || rc=$?
   if dc_vulture_stderr_is_degraded "$WORK/vulture.err"; then
-    lane_files vulture '.' degraded \
+    analyzer_files vulture '.' degraded \
       "vulture wrote a non-input error to stderr (exit $rc) — its output is withheld" \
       "${PY_FILES[@]}"
     return 0
@@ -511,12 +511,12 @@ lane_vulture() {
       add_candidate '-' 0 detector-drift "vulture line not in the finding grammar: $v_line"
     fi
   done <"$WORK/vulture.out"
-  dc_account_lane_files ran ${parsed_files[@]+"${parsed_files[@]}"}
-  lane_line vulture '.' ran "${#PY_FILES[@]}" \
+  dc_account_analyzer_files ran ${parsed_files[@]+"${parsed_files[@]}"}
+  analyzer_line vulture '.' ran "${#PY_FILES[@]}" \
     "$parsed candidate(s), $drift unrecognized stdout line(s), $unparsed input file(s) skipped as unparsable"
 }
 
-lane_gopls() {
+analyzer_gopls() {
   local root_rel root_abs bin nfiles g_line row parsed=0 drift=0 degraded=0
   local foreign=0 detail g_path
   local p_file p_line p_shape p_excerpt
@@ -527,7 +527,7 @@ lane_gopls() {
   local owned_rel go_left
   mapfile -t roots < <(project_roots go.mod)
   if [[ ${#roots[@]} -eq 0 ]]; then
-    lane_files gopls '-' no-manifest 'no go.mod module root in this repository' \
+    analyzer_files gopls '-' no-manifest 'no go.mod module root in this repository' \
       ${GO_FILES[@]+"${GO_FILES[@]}"}
     return 0
   fi
@@ -546,17 +546,17 @@ lane_gopls() {
     done < <(dc_repo_owned "$root_rel" ${mod_files[@]+"${mod_files[@]}"})
     nfiles="${#repo_owned[@]}"
     if [[ "$nfiles" -eq 0 ]]; then
-      lane_line gopls "$root_rel" scanned-zero-files 0 \
+      analyzer_line gopls "$root_rel" scanned-zero-files 0 \
         'no .go file owned by this module in candidate scope (files under a nested go.mod belong to that module) — a scan of nothing, not a clean bill'
       continue
     fi
     if [[ "$root_rel" == "." ]]; then root_abs="$REPO_ROOT"; else root_abs="$REPO_ROOT/$root_rel"; fi
     if ! bin="$(dc_locate_binary gopls "$root_abs" "$REPO_ROOT")"; then
-      lane_files gopls "$root_rel" skipped 'gopls not resolvable on PATH' "${repo_owned[@]}"
+      analyzer_files gopls "$root_rel" skipped 'gopls not resolvable on PATH' "${repo_owned[@]}"
       continue
     fi
     if ! dc_binary_invocable "$bin" version; then
-      lane_files gopls "$root_rel" skipped \
+      analyzer_files gopls "$root_rel" skipped \
         "located at $bin but invocation failed — presence is proven by invocation, never by command -v" \
         "${repo_owned[@]}"
       continue
@@ -576,7 +576,7 @@ lane_gopls() {
       done <"$WORK/gopls.out"
     fi
     if [[ "$degraded" == '1' ]]; then
-      lane_files gopls "$root_rel" degraded \
+      analyzer_files gopls "$root_rel" degraded \
         'module graph or workspace did not load (import error on stdout or a non-empty stderr, always with exit 0); hints are suppressed, so this module produces false negatives and emits no records' \
         "${repo_owned[@]}"
       continue
@@ -604,11 +604,11 @@ lane_gopls() {
       add_candidate "$root_rel" 0 detector-drift \
         "$drift gopls stdout line(s) were not diagnostics in the file:line:col form"
     fi
-    detail="$parsed unexported candidate(s), $drift unrecognized line(s); exported symbols are outside this lane"
+    detail="$parsed unexported candidate(s), $drift unrecognized line(s); exported symbols are outside this analyzer"
     if [[ "$foreign" -gt 0 ]]; then
       detail="$detail; $foreign diagnostic(s) this module does not own dropped (a nested module's file, or a path excluded from candidate scope)"
     fi
-    lane_files gopls "$root_rel" ran "$detail" "${repo_owned[@]}"
+    analyzer_files gopls "$root_rel" ran "$detail" "${repo_owned[@]}"
   done
   for go_left in ${GO_FILES[@]+"${GO_FILES[@]}"}; do
     [[ -n "${GOPLS_SEEN[$go_left]:-}" ]] && continue
@@ -725,7 +725,7 @@ emit_unreferenced_files() {
   done <"$WORK/unreferenced.txt"
 }
 
-lane_grep() {
+analyzer_grep() {
   local f lang d_line d_name d_shape d_text cnt nm defs hits
   local inspected_n=0 emitted=0 sym_detail names_n cs_detail=''
   local -A INSPECTED=()
@@ -741,14 +741,14 @@ lane_grep() {
     inspected_n=$((inspected_n + 1))
   done
   if [[ "$inspected_n" -eq 0 ]]; then
-    lane_line grep '.' scanned-zero-files 0 \
+    analyzer_line grep '.' scanned-zero-files 0 \
       'no shell, PowerShell, C#, or other unreferenced-file input in candidate scope — a scan of nothing, not a clean bill'
     return 0
   fi
   printf 'dc_probe_symbol\n' >"$WORK/probe.txt"
   if ! grep -H -o -w -F -e 'dc_probe_symbol' -- "$WORK/probe.txt" >/dev/null 2>&1; then
-    dc_account_lane_files skipped ${DEF_FILES[@]+"${DEF_FILES[@]}"}
-    lane_line grep '.' skipped "$inspected_n" \
+    dc_account_analyzer_files skipped ${DEF_FILES[@]+"${DEF_FILES[@]}"}
+    analyzer_line grep '.' skipped "$inspected_n" \
       'grep -w -F did not run here — presence is proven by invocation, never by command -v'
     return 0
   fi
@@ -795,15 +795,15 @@ lane_grep() {
     [[ $f != *$'\t'* && $f != *$'\n'* ]] || continue
     if dc_ref_key_ok "${f##*/}" || dc_ref_key_ok "$f"; then searched_nolane+=("$f"); fi
   done
-  dc_account_lane_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"} ${searched_nolane[@]+"${searched_nolane[@]}"}
-  lane_line grep '.' ran "$inspected_n" \
+  dc_account_analyzer_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"} ${searched_nolane[@]+"${searched_nolane[@]}"}
+  analyzer_line grep '.' ran "$inspected_n" \
     "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)$cs_detail"
 }
 
-[[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'knip' ]] && lane_knip
-[[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'vulture' ]] && lane_vulture
-[[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'gopls' ]] && lane_gopls
-[[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'grep' ]] && lane_grep
+[[ "$ANALYZER_SEL" == 'all' || "$ANALYZER_SEL" == 'knip' ]] && analyzer_knip
+[[ "$ANALYZER_SEL" == 'all' || "$ANALYZER_SEL" == 'vulture' ]] && analyzer_vulture
+[[ "$ANALYZER_SEL" == 'all' || "$ANALYZER_SEL" == 'gopls' ]] && analyzer_gopls
+[[ "$ANALYZER_SEL" == 'all' || "$ANALYZER_SEL" == 'grep' ]] && analyzer_grep
 
 declare -A FILE_TS=()
 
@@ -828,24 +828,24 @@ awk -F"$TAB" -v m="$MAX" 'm <= 0 || $4 == "detector-drift" || ++n <= m' "$WORK/s
 EMITTED="$(wc -l <"$WORK/emitted.tsv" | tr -d ' ')"
 DROPPED=$((TOTAL_CAND - EMITTED))
 
-cat "$LANES"
+cat "$ANALYZERS"
 cat "$NOTES"
 
-lanes_ran=0
-lanes_skipped=0
-lanes_degraded=0
-lanes_zero=0
-lanes_nomanifest=0
+analyzers_ran=0
+analyzers_skipped=0
+analyzers_degraded=0
+analyzers_zero=0
+analyzers_nomanifest=0
 while IFS= read -r l_line; do
   case "$l_line" in
-  *'state=ran '*) lanes_ran=$((lanes_ran + 1)) ;;
-  *'state=skipped '*) lanes_skipped=$((lanes_skipped + 1)) ;;
-  *'state=degraded '*) lanes_degraded=$((lanes_degraded + 1)) ;;
-  *'state=scanned-zero-files '*) lanes_zero=$((lanes_zero + 1)) ;;
-  *'state=no-manifest '*) lanes_nomanifest=$((lanes_nomanifest + 1)) ;;
+  *'state=ran '*) analyzers_ran=$((analyzers_ran + 1)) ;;
+  *'state=skipped '*) analyzers_skipped=$((analyzers_skipped + 1)) ;;
+  *'state=degraded '*) analyzers_degraded=$((analyzers_degraded + 1)) ;;
+  *'state=scanned-zero-files '*) analyzers_zero=$((analyzers_zero + 1)) ;;
+  *'state=no-manifest '*) analyzers_nomanifest=$((analyzers_nomanifest + 1)) ;;
   *) ;;
   esac
-done <"$LANES"
+done <"$ANALYZERS"
 
 total_t1=0
 total_t2=0
@@ -897,8 +897,8 @@ for cov_file in ${SOURCE_FILES[@]+"${SOURCE_FILES[@]}"}; do
   cov_reason="${DC_UNCOVERED[$cov_file]:-}"
   if [[ -z "$cov_reason" ]]; then
     case "$(dc_lang_of_path "$cov_file")" in
-    nolane) cov_reason='no lane for the language' ;;
-    *) cov_reason='lane not selected' ;;
+    nolane) cov_reason='no analyzer for the language' ;;
+    *) cov_reason='analyzer not selected' ;;
     esac
   fi
   printf '%s\t%s\n' "$cov_file" "$cov_reason" >>"$WORK/uncovered.tsv"
@@ -908,8 +908,8 @@ if [[ -s "$WORK/uncovered.tsv" ]]; then
   LC_ALL=C sort -o "$WORK/uncovered.tsv" "$WORK/uncovered.tsv"
 fi
 
-printf 'Summary lanes: ran=%s skipped=%s degraded=%s scanned-zero-files=%s no-manifest=%s\n' \
-  "$lanes_ran" "$lanes_skipped" "$lanes_degraded" "$lanes_zero" "$lanes_nomanifest"
+printf 'Summary analyzers: ran=%s skipped=%s degraded=%s scanned-zero-files=%s no-manifest=%s\n' \
+  "$analyzers_ran" "$analyzers_skipped" "$analyzers_degraded" "$analyzers_zero" "$analyzers_nomanifest"
 printf 'Summary coverage: covered=%s uncovered=%s\n' "$covered_n" "$uncovered_n"
 printf 'Summary candidates: total=%s emitted=%s dropped-by-cap=%s cap=%s\n' \
   "$TOTAL_CAND" "$EMITTED" "$DROPPED" "$MAX"
@@ -922,10 +922,10 @@ if [[ "$uncovered_n" -gt 0 ]]; then
     printf 'Note: uncovered %s — %s\n' "$u_file" "$u_reason"
   done <"$WORK/uncovered.tsv"
 elif [[ "$TOTAL_CAND" -eq 0 ]]; then
-  if [[ "$lanes_ran" -eq 0 ]]; then
-    echo "Note: no lane ran — this is a scan of nothing, not a clean bill. Read the Lane lines above before reporting anything as clean."
+  if [[ "$analyzers_ran" -eq 0 ]]; then
+    echo "Note: no analyzer ran — this is a scan of nothing, not a clean bill. Read the Analyzer lines above before reporting anything as clean."
   else
-    echo "Note: no candidates from the lanes that ran — read their Lane lines for what each one actually covered."
+    echo "Note: no candidates from the analyzers that ran — read their Analyzer lines for what each one actually covered."
   fi
 fi
 

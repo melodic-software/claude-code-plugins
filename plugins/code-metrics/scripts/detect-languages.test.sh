@@ -3,7 +3,7 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="$SCRIPT_DIR/detect-lanes.sh"
+SCRIPT="$SCRIPT_DIR/detect-languages.sh"
 : "$SCRIPT_DIR/pathglob.py"
 
 FAILED=0
@@ -22,17 +22,17 @@ assert_eq() {
 }
 
 out="$(bash "$SCRIPT" a/one.ts b/two.py c/three.sh d/four.go e/Five.cs f/notes.md g/six.MJS h/Makefile i/data.JSON)"
-assert_eq "extension map classifies every language lane and the rest as other" \
+assert_eq "extension map classifies every language and the rest as other" \
   "$(printf 'typescript\ta/one.ts\npython\tb/two.py\nbash\tc/three.sh\ngo\td/four.go\ndotnet\te/Five.cs\nother\tf/notes.md\ntypescript\tg/six.MJS\nother\th/Makefile\nother\ti/data.JSON')" "$out"
 
 out="$(bash "$SCRIPT" --disable python a/one.ts b/two.py)"
-assert_eq "--disable drops the lane" "$(printf 'typescript\ta/one.ts')" "$out"
+assert_eq "--disable drops the language" "$(printf 'typescript\ta/one.ts')" "$out"
 
 out="$(bash "$SCRIPT" --disable other a/one.ts f/notes.md)"
-assert_eq "--disable other drops the catch-all lane" "$(printf 'typescript\ta/one.ts')" "$out"
+assert_eq "--disable other drops the catch-all language" "$(printf 'typescript\ta/one.ts')" "$out"
 
 out="$(bash "$SCRIPT" --globs 'bash=scripts/**/*.bats,*.zsh' scripts/x/y.bats top.zsh other.sh)"
-assert_eq "--globs replaces the extension map for that lane" \
+assert_eq "--globs replaces the extension map for that language" \
   "$(printf 'bash\tscripts/x/y.bats\nbash\ttop.zsh')" "$out"
 
 out="$(bash "$SCRIPT" $'dir\x5cwin.py')"

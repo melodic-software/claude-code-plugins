@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: adc-knip-missing-no-fetch
-description: A TypeScript package with no node_modules and no knip on PATH is reported as uncovered (lane degraded), never as clean, and no package runner or install is invoked to fill the gap
+description: A TypeScript package with no node_modules and no knip on PATH is reported as uncovered (analyzer degraded), never as clean, and no package runner or install is invoked to fill the gap
 tags: [audit-dead-code, coverage-honesty, never-fetch, knip-lane]
-expected_outcome: The knip lane is degraded (node_modules absent, so an unrestored run would manufacture findings), it emits no records, and src/index.ts and src/math.ts are named as uncovered. No lane reached ran, so the run is not a clean bill. The run invokes no npx, npm install, pnpm, yarn, bun, pip, uv or go install; at most it offers research or an install behind consent.
+expected_outcome: The knip analyzer is degraded (node_modules absent, so an unrestored run would manufacture findings), it emits no records, and src/index.ts and src/math.ts are named as uncovered. No analyzer reached ran, so the run is not a clean bill. The run invokes no npx, npm install, pnpm, yarn, bun, pip, uv or go install; at most it offers research or an install behind consent.
 context:
   scaffold_script: scaffold.sh
 execution:

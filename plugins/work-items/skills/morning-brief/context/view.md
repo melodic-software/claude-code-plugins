@@ -21,7 +21,7 @@ request, add `--argument <medium>`, `<medium>` being that word, and take the wor
 `$ARGUMENTS` before running either script below, since `morning-brief.sh` rejects it:
 
 ```bash
-node "<plugin-root>/lib/view-settings.mjs" resolve --lane work-items:morning-brief --option "<medium option>"
+node "<plugin-root>/lib/view-settings.mjs" resolve --producer work-items:morning-brief --option "<medium option>"
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line

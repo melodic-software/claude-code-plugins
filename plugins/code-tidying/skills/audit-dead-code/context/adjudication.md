@@ -92,9 +92,9 @@ Say so whenever you emit one; the consumer either excludes the file in `ruff.tom
 whitelist out of the linted tree.
 
 **Go** has **no native suppression.** Route every Go verdict to the human-report-only path
-below, the same as the shell lane.
+below, the same as the shell analyzer.
 
-The hint this lane reads comes from gopls's own `unusedfunc` analyzer, not from staticcheck, and
+The hint this analyzer reads comes from gopls's own `unusedfunc` analyzer, not from staticcheck, and
 **measured** (gopls v0.20.0 / go1.24.7, one unexported func per variant, `gopls check
 -severity=hint`), every candidate directive was still reported:
 
@@ -112,8 +112,8 @@ Recorded 2026-08-23 on the versions named above. Recheck trigger: a gopls minor 
 
 `gopls check` takes only `-severity`; the analyzer on/off switch is the editor-side [`analyses`
 setting](https://github.com/golang/tools/blob/master/gopls/doc/analyzers.md), which the CLI run this
-lane makes does not read. It would also disable `unusedfunc` for the whole workspace, not for one
-symbol. So the Go lane's `alive` verdicts live in the report and in a comment at the declaration,
+analyzer makes does not read. It would also disable `unusedfunc` for the whole workspace, not for one
+symbol. So the Go analyzer's `alive` verdicts live in the report and in a comment at the declaration,
 and the same candidate comes back next run. Say that plainly when you emit one.
 
 ```go
@@ -121,7 +121,7 @@ and the same candidate comes back next run. Say that plainly when you emit one.
 func deadHandler() {}
 ```
 
-**Shell / the grep lane** has no native suppression either. Record the decision in a comment
+**Shell / the grep analyzer** has no native suppression either. Record the decision in a comment
 at the definition, which is also what the next run's reader will see:
 
 ```bash

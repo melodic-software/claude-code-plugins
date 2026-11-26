@@ -4,11 +4,11 @@ set -euo pipefail
 
 USAGE="$(
   cat <<'EOF'
-Classify files into the plugin's lanes; prints one <lane><TAB><file> line per file.
-  detect-lanes.sh [--globs <lane>=<glob>[,<glob>...]]... [--disable <lane>]... [--paths-from <file>] [--] <file>...
-  --globs <lane>=<glob>  replace the lane's extension mapping with these globs
-  --disable <lane>       turn a lane off
-  --paths-from <file>    read the file list from a file, one path per line
+Classify files into the plugin's languages; prints one <language><TAB><file> line per file.
+  detect-languages.sh [--globs <language>=<glob>[,<glob>...]]... [--disable <language>]... [--paths-from <file>] [--] <file>...
+  --globs <language>=<glob>  replace the language's extension mapping with these globs
+  --disable <language>       turn a language off
+  --paths-from <file>        read the file list from a file, one path per line
 Exit: 0 classified (an empty result is still 0); 2 usage or environment error.
 EOF
 )"
@@ -25,18 +25,18 @@ source "$SCRIPT_DIR/python-resolve.sh"
 # shellcheck source=entry-common.sh
 source "$SCRIPT_DIR/entry-common.sh"
 
-lane_for_extension() {
+language_for_extension() {
   case "$1" in
-  ts | tsx | mts | cts | js | jsx | mjs | cjs) LANE=typescript ;;
-  py | pyi) LANE=python ;;
-  sh | bash) LANE=bash ;;
-  go) LANE=go ;;
-  cs) LANE=dotnet ;;
-  *) LANE=other ;;
+  ts | tsx | mts | cts | js | jsx | mjs | cjs) LANGUAGE=typescript ;;
+  py | pyi) LANGUAGE=python ;;
+  sh | bash) LANGUAGE=bash ;;
+  go) LANGUAGE=go ;;
+  cs) LANGUAGE=dotnet ;;
+  *) LANGUAGE=other ;;
   esac
 }
 
-declare -A LANE_GLOBS=()
+declare -A LANGUAGE_GLOBS=()
 declare -A DISABLED=()
 FILES=()
 while [[ $# -gt 0 ]]; do
@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 2
     }
-    LANE_GLOBS["${2%%=*}"]="${2#*=}"
+    LANGUAGE_GLOBS["${2%%=*}"]="${2#*=}"
     shift 2
     ;;
   --disable)
@@ -63,7 +63,7 @@ while [[ $# -gt 0 ]]; do
       exit 2
     }
     [[ -f "$2" ]] || {
-      printf 'detect-lanes.sh: path list does not exist: %s\n' "$2" >&2
+      printf 'detect-languages.sh: path list does not exist: %s\n' "$2" >&2
       exit 2
     }
     while IFS= read -r listed; do
@@ -94,41 +94,41 @@ done
 [[ ${#FILES[@]} -gt 0 ]] || exit 0
 
 PY=()
-if [[ ${#LANE_GLOBS[@]} -gt 0 ]]; then
+if [[ ${#LANGUAGE_GLOBS[@]} -gt 0 ]]; then
   set +e
   cm_resolve_python
   resolved_rc=$?
   set -e
   if [[ $resolved_rc -ne 0 ]]; then
-    echo "detect-lanes.sh: Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); needed for --globs matching" >&2
+    echo "detect-languages.sh: Python ${CM_PYTHON_FLOOR}+ not found (tried python3, python, py -3); needed for --globs matching" >&2
     exit 2
   fi
 fi
 
-declare -A GLOB_LANE_OF=()
+declare -A GLOB_LANGUAGE_OF=()
 GLOB_HITS="$(mktemp)"
 FILE_LIST="$(mktemp)"
 trap 'rm -f "$GLOB_HITS" "$FILE_LIST"' EXIT
 printf '%s\n' "${FILES[@]}" >"$FILE_LIST"
-for lane in "${!LANE_GLOBS[@]}"; do
-  IFS=',' read -r -a patterns <<<"${LANE_GLOBS[$lane]}"
+for language in "${!LANGUAGE_GLOBS[@]}"; do
+  IFS=',' read -r -a patterns <<<"${LANGUAGE_GLOBS[$language]}"
   for pattern in "${patterns[@]}"; do
     [[ -n "$pattern" ]] || continue
     if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$FILE_LIST" >"$GLOB_HITS"; then
-      printf 'detect-lanes.sh: lane %s: the glob %s could not be used (see the message above)\n' \
-        "$lane" "$pattern" >&2
+      printf 'detect-languages.sh: language %s: the glob %s could not be used (see the message above)\n' \
+        "$language" "$pattern" >&2
       exit 2
     fi
     while IFS= read -r hit; do
-      [[ -n "$hit" ]] && GLOB_LANE_OF["$hit"]="$lane"
+      [[ -n "$hit" ]] && GLOB_LANGUAGE_OF["$hit"]="$language"
     done <"$GLOB_HITS"
   done
 done
 
 for file in "${FILES[@]}"; do
   normalized="${file//\\//}"
-  if [[ -n "${GLOB_LANE_OF[$file]:-}" ]]; then
-    lane="${GLOB_LANE_OF[$file]}"
+  if [[ -n "${GLOB_LANGUAGE_OF[$file]:-}" ]]; then
+    language="${GLOB_LANGUAGE_OF[$file]}"
   else
     base="${normalized##*/}"
     ext=""
@@ -136,11 +136,11 @@ for file in "${FILES[@]}"; do
       ext="${base##*.}"
       ext="${ext,,}"
     fi
-    lane_for_extension "$ext"
-    lane="$LANE"
-    [[ -n "${LANE_GLOBS[$lane]:-}" ]] && lane=""
+    language_for_extension "$ext"
+    language="$LANGUAGE"
+    [[ -n "${LANGUAGE_GLOBS[$language]:-}" ]] && language=""
   fi
-  [[ -n "$lane" ]] || continue
-  [[ -n "${DISABLED[$lane]:-}" ]] && continue
-  printf '%s\t%s\n' "$lane" "$normalized"
+  [[ -n "$language" ]] || continue
+  [[ -n "${DISABLED[$language]:-}" ]] && continue
+  printf '%s\t%s\n' "$language" "$normalized"
 done

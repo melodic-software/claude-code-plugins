@@ -46,7 +46,7 @@ coupled several ways at once.
    setter calls); for a literal key, run `value-sites.py find --old '<key>'` and keep the rows
    whose code writes the value. Two or more write sites in different owners make the candidate;
    several writes inside the one owning module are one writer, and any number of readers is not a
-   finding. A duplicate writer is always a structural ledger entry in the route lane, never part
+   finding. A duplicate writer is always a structural ledger entry in the route step, never part
    of the apply batch: picking the owner changes who may write the value, so no consolidation is
    behavior-preserving.
 3. **External coupling**: units share an externally imposed format, protocol, or device
