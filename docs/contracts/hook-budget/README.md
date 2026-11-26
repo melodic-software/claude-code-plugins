@@ -442,7 +442,7 @@ shell, so it adds to the hook's k only the processes it starts:
 | --- | --- | --- |
 | No flag (a Claude Code hook) | 0 | None: the user layer is an environment variable and the repository file is read with shell builtins |
 | `--git-hook` | 1, or 2 when the user's `settings.json` exists | `git rev-parse --show-toplevel` (none with `--root`), then `jq` on `settings.json` |
-| `--security`, copy under `plugins/cache` | 1, or 2 when the install's `settings.json` exists, plus 1 per managed settings file (3 on Linux) | `uname -s`, then `jq` on `settings.json`; each managed file adds one `jq`, and on Linux two `stat`, each of which forks twice |
+| `--security`, copy under `plugins/cache` | 1, or 2 when the install's `settings.json` exists, plus 1 per managed settings file (on Linux 5 forks and 3 execs) | `uname -s`, then `jq` on `settings.json`; each managed file adds one `jq`, and on Linux two `stat`, each of which forks twice, since its `2>/dev/null` sits inside the `$(...)` |
 | `--security`, copy outside `plugins/cache` | 0 | None: with no install path it reads no settings layer |
 | `--git-hook --security` | 2, or 3 when the user's `settings.json` exists, plus each managed settings file as above | `git`, `uname -s` and `jq`, as in the rows above |
 
