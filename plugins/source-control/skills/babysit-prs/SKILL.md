@@ -348,7 +348,7 @@ switch APIs rather than to re-authenticate (the signal, the REST routes and the 
 provider reference "Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
 discovery, classification, and the branch-rule and freshness checks keep working unchanged.
 
-Review-thread **resolution** is the one fact the engine reads only over GraphQL (GitHub: [`resolveReviewThread`](https://docs.github.com/en/graphql/reference/pulls#mutation-resolvereviewthread)), and it is not approximated.
+Review-thread **resolution** is the one fact with no REST equivalent (GitHub: the `isResolved` field of [`PullRequestReviewThread`](https://docs.github.com/en/graphql/reference/pulls#object-pullrequestreviewthread)), and it is not approximated.
 The merge gate reports `threadResolutionProven: false` and `unresolvedThreadCount: null`, never `0`,
 and holds the PR with a blocker naming the restriction: an empty thread list would read as "zero
 unresolved threads", the false-clean signal [reference/safety.md](reference/safety.md) exists to
