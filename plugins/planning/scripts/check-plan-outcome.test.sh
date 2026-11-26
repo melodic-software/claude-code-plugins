@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-plan-outcome.sh.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir. Host
-# paths and the not-started phase tag in the fixtures are assembled at runtime
-# from pieces, so this file carries no literal machine path or deferred-work
-# marker for the repository's path and comment-hygiene lints to flag.
-#
-# SC2016 is disabled file-wide on purpose: the single-quoted `$HOME` and
-# backtick spans are literal fixture text, not expansions.
+# The single-quoted `$HOME` and backtick spans are literal fixture text, not expansions.
 # shellcheck disable=SC2016
 set -uo pipefail
 

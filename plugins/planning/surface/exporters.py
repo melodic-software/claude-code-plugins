@@ -163,9 +163,6 @@ PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
 HELD = re.compile(
     r"^(waits on|awaiting user): (.*?)(?:; answer: (.*)|; confirmed: (.*))?$"
 )
-# E() (module docstring) escapes backslash, `;`, `|`, newline, tab and CR,
-# and any other whitespace and a field's trailing spaces (the register strips a row's end) as
-# \uXXXX. Only these sequences unescape; any other backslash stays literal.
 ESCAPES = {"\\": "\\\\", ";": "\\;", "|": "\\|", "\n": "\\n", "\t": "\\t", "\r": "\\r"}
 UNESCAPES = {"n": "\n", "t": "\t", "r": "\r"}
 UNESCAPE = re.compile(r"\\(?:([\\;|])|([ntr])|u([0-9a-fA-F]{4}))")
@@ -183,9 +180,6 @@ NAMED = re.compile(
 )
 UNKNOWN_LEAD = re.compile(r"^([^:;]+)::(?: |$)")
 ALT = re.compile(r"^alt (\S+?)(?:: (.*))?$", re.DOTALL)
-# A row's last field: the constraints its recommendation was not checked against. The page derives
-# it, so parse_register drops it and an import never reads it as part of the answer.
-# The `; ` must be unescaped: an even run of backslashes before it is answer text.
 STALE_LIST = r"stale:: C[0-9]+(?:, C[0-9]+)*$"
 STALE_TAIL = re.compile(
     rf"(?:(?<=\] )|^){STALE_LIST}|((?:^|[^\\])(?:\\\\)*); {STALE_LIST}"
@@ -784,7 +778,6 @@ def register(doc, resp, pos=None, tails=None):
 
 def row_line(r):
     line = f"- {r['n']} | {r['status']} | {r['round']} | {r['title']} | {r['resolution']}".rstrip()
-    # A raw line break would start a continuation line, and one starting `- Q` forges a row.
     if len(line.splitlines()) != 1:
         raise ValueError(f"register row {r['n']} would span lines: {line!r}")
     return line
@@ -1544,10 +1537,6 @@ def export_brief(d, text=None):
         for r in rows
         if r["confirmed"] and r["status"] not in ("answered", "withdrawn")
     ]
-    # The stamp and page title the --brief gate reads; every page export carries both, so the
-    # gate tells it from a hand-written Brief. The gate judges confirmation by the stamp alone, so
-    # it cannot see a Brief edited after the Confirm; the skill's rule, not the gate, asks for a
-    # new restate.
     if latest is None:
         stamp = "UNCONFIRMED (no restatement posted)"
     elif restated and restated["rev"] == latest:
@@ -1641,7 +1630,6 @@ def export_brief(d, text=None):
 
 BRIEF_HEADING = re.compile(r"^##\s+brief\s*$", re.IGNORECASE)
 HEADING = re.compile(r"^(#{1,6})\s")
-# A fence delimiter and the rest of its line, read as scripts/check-open-questions.sh reads one.
 FENCE_RUN = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 
@@ -1654,7 +1642,6 @@ def merge_brief(plan, brief, where):
     character at least as long, with nothing after it. Refuses a file with no `## Brief` heading,
     more than one, or a fence that never closes, which would hide the headings after it."""
     section = brief[: brief.rindex("\n## Plan\n")].rstrip("\n").split("\n")
-    # Lines split on \n alone, as the gate's awk splits them.
     lines = [x for x in re.split(r"(?<=\n)", plan) if x]
     heads, fence = [], None
     for i, line in enumerate(lines):
@@ -1808,7 +1795,6 @@ table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccd;padding:4p
 section{border-top:1px solid #ccd;margin-top:16px}iframe{width:100%;height:320px;border:1px solid #ccd}
 pre{white-space:pre-wrap;background:#f4f5f8;padding:8px}.muted{color:#667}.withdrawn{text-decoration:line-through}
 """
-# No network source: the srcdoc iframes inherit this policy, so a visual cannot load remote content.
 REPORT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 SCRIPT_TAG = re.compile(r"<script\b", re.IGNORECASE)
 

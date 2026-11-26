@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Pins the page-protocol rule that a session-recorded ledger decision is mirrored
-# onto the interview page. The op already existed; the gap was that the protocol
-# required it only for a verbatim terminal answer (#5009).
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "$here/../../.." && pwd)

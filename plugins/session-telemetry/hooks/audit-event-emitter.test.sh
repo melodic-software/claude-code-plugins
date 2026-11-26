@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for audit-event-emitter.sh (session-telemetry plugin). Black-box.
-#
-# The emitter serves seven audit rows from one script, dispatching on the
-# payload's hook_event_name, so the suite is a table over those rows: each row's
-# telemetry `hook` id, `hook_event`, `status` and `data.subject` are asserted
-# from one loop, and so are its kill switch, its unwired behavior and its
-# missing-required-field skip. What a row does BEYOND that table — the
-# privacy reductions, the InstructionsLoaded session_start filter, and the
-# UserPromptExpansion second store — follows the table in its own section.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,17 +10,10 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/session-telemetry-test-helpers.sh"
 unset CLAUDE_PROJECT_DIR
 
-# A non-git project root, so hook::repo_root answers PROJ itself and the
-# InstructionsLoaded row's path reduction is deterministic. The
-# UserPromptExpansion row writes its second store under a per-case project.
 PROJ="$TEST_TMPDIR/proj"
 mkdir -p "$PROJ/.claude/rules"
 : >"$PROJ/.claude/rules/x.md"
 
-# --- The row table ----------------------------------------------------------
-# Tab-separated: id, switch suffix, payload, hook id, hook_event, status,
-# data.subject, and a payload that reaches the row with its required field
-# missing. `%PROJ%` expands to the fixture project root.
 ROWS=(
   $'api-error\tAPI_ERROR_AUDIT\t{"session_id":"sess-1","hook_event_name":"StopFailure","error":"rate_limit"}\tapi-error-audit\tStopFailure\terror\trate_limit\t{"hook_event_name":"StopFailure"}'
   $'config-change\tCONFIG_CHANGE_AUDIT\t{"session_id":"sess-1","hook_event_name":"ConfigChange","source":"project_settings"}\tconfig-change-audit\tConfigChange\tok\tproject_settings\t{"hook_event_name":"ConfigChange"}'
@@ -231,9 +215,6 @@ env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ2" \
 assert_eq "skill_usage_dir override used" "research" \
   "$(jq -r '.skill' "$PROJ2/telemetry/skills/skill-usage.jsonl" 2>/dev/null)"
 
-# An invalid override is visible and cannot escape the project. CLAUDE_PLUGIN_DATA
-# is isolated because the advisory goes through hook::notice_once, which persists
-# a once-per-session marker there.
 PROJB="$TEST_TMPDIR/exp-bad"
 mkdir -p "$PROJB"
 BADCFG_DATA="$TEST_TMPDIR/badcfg-data"

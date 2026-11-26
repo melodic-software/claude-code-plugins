@@ -1,44 +1,4 @@
 #!/usr/bin/env bash
-# delivery-metrics.sh: the five DORA delivery metrics for one repository's
-# default branch, as a team trend, read from git history alone.
-#
-# Deploy signal merge-to-default-branch: each commit on the branch's
-# first-parent history is one deployment, at its committer date: a merge commit
-# or a squash landing is one, and a rebase landing is one per commit it lands.
-# A deployment that a later first-parent
-# commit reverts is a failed deployment. A commit reverts a deployment when its
-# message carries `This reverts commit <sha>` for the deployment or for a
-# commit the deployment merged. With no such line, a commit whose subject is a
-# revert (`Revert "<subject>"`, `revert:` or `revert(<scope>):`) reverts the
-# deployment a `Reverts [<owner>/<repo>]#<n>` body line or a `(#<n>` subject
-# group names by its pull request number, else the one its quoted or remaining
-# subject matches. A merge's message includes the messages of the commits it
-# merges, so a revert that lands through a merge commit is seen. Every
-# deployment that reverts an earlier change is a rework deployment; a revert
-# subject that names no deployment is also counted in unresolved_reverts.
-#
-# Change lead time is from the earliest author date among the commits a
-# deployment brings in to the deployment's committer date. Failed deployment
-# recovery time is from a failed deployment to the first deployment that
-# reverts it; reverts after --until still count. The output carries counts,
-# medians and ratios only: no commit, subject, author or committer.
-#
-# Usage:
-#   delivery-metrics.sh [--repo <dir>] [--branch <ref>] [--since <YYYY-MM-DD>]
-#     [--until <YYYY-MM-DD>] [--bucket week|month]
-#     [--deploy-signal merge-to-default-branch]
-#
-#   --repo           repository directory (default: the current directory)
-#   --branch         the default branch ref (default: what origin/HEAD names)
-#   --since          first UTC day of the window (default: the 84 days ending with --until)
-#   --until          last UTC day of the window, inclusive (default: now)
-#   --bucket         trend period: week (ISO weeks, Monday start) or month
-#   --deploy-signal  what counts as a deployment; only merge-to-default-branch
-#
-# Output: one JSON document on stdout, with `totals` for the window and one
-# `trend` row per period, empty periods included. Times are hours, rates are
-# ratios from 0 to 1, and a metric with nothing to measure is null.
-#
 # Exit codes:
 #   0   report written
 #   2   usage: a missing, repeated or unknown argument, or a malformed value
@@ -48,7 +8,21 @@
 set -uo pipefail
 
 err() { printf 'delivery-metrics: %s\n' "$*" >&2; }
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'TXT'
+The five DORA delivery metrics for one repository's default branch, as a team trend, from git history alone.
+
+Usage: delivery-metrics.sh [--repo <dir>] [--branch <ref>] [--since <YYYY-MM-DD>] [--until <YYYY-MM-DD>] [--bucket week|month] [--deploy-signal merge-to-default-branch]
+  --repo           repository directory (default: the current directory)
+  --branch         the default branch ref (default: what origin/HEAD names)
+  --since          first UTC day of the window (default: the 84 days ending with --until)
+  --until          last UTC day of the window, inclusive (default: now)
+  --bucket         trend period: week (ISO weeks, Monday start) or month
+  --deploy-signal  what counts as a deployment; only merge-to-default-branch
+
+Exit 0 report written; 2 usage; 3 a git read failed; 8 git or jq not on PATH.
+TXT
+}
 
 REPO="." BRANCH="" SINCE="" UNTIL="" BUCKET="" SIGNAL="" SEEN=" "
 while (($#)); do
@@ -150,17 +124,12 @@ git -C "$REPO" rev-parse --verify --quiet "$BRANCH^{commit}" >/dev/null || {
 TMP="$(mktemp -d)" || exit 3
 trap 'rm -rf "$TMP"' EXIT
 
-# Every first-parent commit, newest first: sha, parents, author and committer
-# epochs, subject, body. Fields end in US (0x1f), records in RS (0x1e).
 git -C "$REPO" log --first-parent --format='%H%x1f%P%x1f%at%x1f%ct%x1f%s%x1f%b%x1e' \
   "$BRANCH" -- >"$TMP/deploys" || {
   err "git log failed on $BRANCH"
   exit 3
 }
 
-# The commits each merge in the window brought in: deploy sha, member sha,
-# member author epoch, tab-separated; and each member's message, so a revert
-# that lands through a merge commit is seen.
 git -C "$REPO" log --first-parent --merges --format='%H %ct %P' "$BRANCH" -- >"$TMP/merges" || {
   err "git log failed listing the merges on $BRANCH"
   exit 3
@@ -177,10 +146,6 @@ while read -r sha ct first rest; do
   fi
 done <"$TMP/merges"
 
-# Each `This reverts commit <sha>` a deployment's message (or a commit it merged)
-# names, kept only when the deployment's first parent reaches that sha: a
-# squash body that names a commit which only ever existed on its branch
-# reverts nothing on the default branch. Only deployments in the window are read.
 jq -rn --rawfile raw "$TMP/deploys" --rawfile member_msgs "$TMP/member_msgs" \
   --argjson since "$SINCE_EPOCH" '
   def records: split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f"));

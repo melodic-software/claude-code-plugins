@@ -22,8 +22,6 @@ async page => {
     await page.evaluate(() => localStorage.clear());
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
 
-    // #7970: with no stored Pin choice a 1280 px screen opens the side panels pinned, Pin labeled in view; a stored choice still wins.
-    // It stores Unpin, which the overlay checks below rely on.
     const pinState = () => page.evaluate(() => { const b = document.getElementById("pinBtn"); return {pinned: document.getElementById("layout").classList.contains("pinned"), pos: getComputedStyle(document.getElementById("fly")).position, pressed: b.getAttribute("aria-pressed"), label: b.innerText.trim(), shown: b.getClientRects().length > 0}; });
     await page.setViewportSize({width: 1280, height: 800}); await page.waitForTimeout(250);
     await page.click('.strip [data-panel="terms"]'); await page.waitForTimeout(300);
@@ -44,7 +42,6 @@ async page => {
     await pick("Q2");
     ok("G7: a later question of the round shows no restate card", await page.$("#roundRestate") === null);
 
-    // #7749: the Source text quote shows open and above the recommendation; a question without one renders as before
     for (const [w, h] of [[1440, 900], [390, 844]]) {
       await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
       await pick("Q1");
@@ -61,7 +58,6 @@ async page => {
     }
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
 
-    // #11014: an unanswered question shows Details open on first load, whatever moreOpen is stored; closing it holds for this load
     const details = () => page.evaluate(() => { const b = document.getElementById("moreBtn"), m = document.getElementById("more"); return {expanded: b && b.getAttribute("aria-expanded"), shown: !!m && !m.hidden}; });
     await pick("Q1");
     const d0 = await details();
@@ -74,14 +70,12 @@ async page => {
     const d2 = await details(), stored = await page.evaluate(() => Object.keys(localStorage).filter(k => /:moreOpen$/.test(k)).map(k => localStorage.getItem(k)));
     ok("#11014: after a reload with moreOpen stored false, Q1 shows Details open", stored.join() === "false" && d2.expanded === "true" && d2.shown, JSON.stringify({stored, d2}));
 
-    // #5815: the Rec choice carries the whole recommendation, not its first sentence
     await pick("Q1");
     const wide = await recRow();
     ok("the Rec choice shows every sentence of the recommendation at 1440 px", /Ship it on Monday\..*Watch the error logs.*Roll back on the first new error/.test(wide.text) && !wide.clipped, JSON.stringify(wide));
     await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(250);
     const narrow = await recRow();
     ok("the Rec choice shows every sentence of the recommendation at 390 px", /Roll back on the first new error/.test(narrow.text) && !narrow.clipped, JSON.stringify(narrow));
-    // #7755: at 390 px the named buttons and each Decide row are touch-sized, and the selected Rec label reads at 4.5:1 in the light theme
     await page.emulateMedia({colorScheme: "light"}); await page.waitForTimeout(100);
     const sizes = await page.evaluate(() => {
       const want = ["Save", "Ask Claude", "Rephrase", "Research this", "Clear"], bs = [...document.querySelectorAll("button.act")];
@@ -104,7 +98,6 @@ async page => {
     ok("the group Accept all list shows every sentence of the recommendation", /Ship it on Monday\..*Watch the error logs.*Roll back on the first new error/.test(listed), listed);
     await page.click("#dlgCancel"); await page.waitForTimeout(150);
 
-    // #5917: five prerequisites share one wrapped row, and a met one is marked by more than color
     await post({id: "Q2", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900); await pick("Q7");
     for (const w of [1440, 390]) {
       await page.setViewportSize({width: w, height: w > 400 ? 900 : 844}); await page.waitForTimeout(250);
@@ -118,7 +111,6 @@ async page => {
     }
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
 
-    // #8083: an unpinned Notes or Activity flyout stays off the note box, Ask Claude and Rephrase at 1440 px
     await pick("Q1");
     for (const panel of ["notes", "activity"]) {
       await page.click('.strip [data-panel="' + panel + '"]'); await page.waitForTimeout(400);
@@ -134,10 +126,8 @@ async page => {
       await page.click('.strip [data-panel="' + panel + '"]'); await page.waitForTimeout(250);
     }
 
-    // #8085: at phone widths an id chip in Activity or Notes keeps each id on one line, even beside long text
     const toggle = panel => page.evaluate(p => document.querySelector('.strip [data-panel="' + p + '"]').click(), panel);
     const onOneLine = () => page.evaluate(() => {
-      // Baseline-aligned boxes in two fonts have different tops on one line, so a rect starts a new line only below the last one's bottom.
       const lines = el => { const r = document.createRange(); r.selectNodeContents(el); let n = 0, bottom = -Infinity; for (const x of [...r.getClientRects()].sort((a, b) => a.top - b.top)) { if (x.top >= bottom - 1) n++; bottom = Math.max(bottom, x.bottom); } return n; };
       const chips = [...document.querySelectorAll("aside.fly.open .ref b, aside.fly.open .rrange")];
       return {n: chips.length, split: chips.filter(c => lines(c) > 1).map(c => c.textContent), page: document.scrollingElement.scrollWidth - innerWidth};
@@ -162,12 +152,10 @@ async page => {
     }
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
 
-    // #7970: the question pane shows the recommendation once, in the Rec row, with no auto "Claude asked" thread line
     await pick("Q1");
     const once = await page.evaluate(() => ({n: document.querySelector("main.detail").innerText.split("Roll back on the first new error").length - 1,
       rec: /Roll back on the first new error/.test(document.querySelector("#choices .choice.rec").innerText), asked: /Claude asked/.test(document.getElementById("thread").innerText)}));
     ok("#7970: the full recommendation text occurs once in the question pane, in the Rec row, and the Thread has no Claude asked line", once.n === 1 && once.rec && !once.asked, JSON.stringify(once));
-    // #7970: expanding Why leaves the Details control where it was
     await pick("Q8");
     const moreBox = () => page.$eval("#moreBtn", b => { const r = b.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); }).catch(() => "");
     await page.$eval("#whyBtn", b => b.scrollIntoView({block: "nearest"})).catch(() => {});
@@ -177,14 +165,11 @@ async page => {
     const b1 = await moreBox();
     ok("#7970: expanding Why shows its text and leaves the Details control's box unchanged", why.expanded === "true" && why.shown && /buries what changed/.test(why.text) && !!b0 && b0 === b1, JSON.stringify({b0, b1, why}));
     await page.click("#whyBtn"); await page.waitForTimeout(150);
-    // #7970: every button has an accessible name
     const unnamed = await page.evaluate(() => [...document.querySelectorAll("button")].filter(b => !b.textContent.trim() && !b.getAttribute("aria-label") && !b.getAttribute("aria-labelledby") && !b.title).map(b => b.id || b.className || b.outerHTML.slice(0, 80)));
     ok("#7970: no button lacks an accessible name (text, aria-label or title)", unnamed.length === 0, JSON.stringify(unnamed));
-    // #7970: with questions still open, Finish is a secondary control and stays enabled (R4)
     await page.click("#sumBtn"); await page.waitForTimeout(300);
     const fin = await page.$eval("[data-wrapup]", b => ({primary: b.classList.contains("primary"), disabled: b.disabled, open: (document.getElementById("wrapChip") || {}).textContent})).catch(e => ({error: String(e)}));
     ok("#7970: with questions open, Finish is not the primary style and stays enabled", fin.primary === false && fin.disabled === false, JSON.stringify(fin));
-    // #7970: at 1568x744 the full Rec text and every alternative show in the Decide list, which has no inner scroll
     await page.setViewportSize({width: 1568, height: 744}); await page.waitForTimeout(300);
     await pick("Q1");
     const fit = await page.evaluate(() => {
@@ -196,8 +181,6 @@ async page => {
     ok("#7970: at 1568x744 the Decide list has no inner scroll and shows the whole Rec text and both alternatives", fit.inner <= 1 && fit.alts === 2 && fit.unseen.length === 0 && fit.recWhole, JSON.stringify(fit));
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
 
-    // #11649: at 1280x720 a Decide list with hidden rows fades the edge they sit past, and a Rec row at the 500-character cap fits the list.
-    // A second tab, polling /api/state through a route, gives Q1 that Rec and four long alternatives and makes Q2 withheld with none.
     const REC = "Ship it on Monday once the freeze lifts and the error budget holds. ".repeat(8).slice(0, 499) + ".";
     const tab = await page.context().newPage();
     tab.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -284,7 +267,6 @@ async page => {
   }
   if (PHASE === 5) {
     await page.waitForTimeout(600);
-    // #11584: the revision set the accept aside, so Q3 reads open, under Show: Open and no longer under Review.
     const inShow = async v => { await page.selectOption("#filter", v); await page.waitForTimeout(150); return !!(await page.$('.rail-list .qbtn[data-q="Q3"]')); };
     const underReview = await inShow("review"), underOpen = await inShow("open");
     ok("#11584: a revision that sets the accept aside moves Q3 from Show: Review to Show: Open", !underReview && underOpen, JSON.stringify({underReview, underOpen}));
@@ -324,7 +306,6 @@ async page => {
     await page.fill("#note", Array.from({length: 600}, (_, i) => "word" + i).join(" ")); await page.waitForTimeout(250);
     const long = await body();
     ok("a 600-word note leaves the question body the share it had, with the recommendation in view", long.share >= short.share - 0.02 && long.top === 0 && long.rec, JSON.stringify({short, long}));
-    // Whether the panel fits at 800 px turns on the host's font metrics, so a shorter window makes it overflow on every host.
     await page.setViewportSize({width: 1280, height: 560}); await page.waitForTimeout(250);
     const panel = await page.evaluate(() => { const a = document.getElementById("answer"); const s = a.querySelector("[data-save]"); if (!s) return {save: false}; s.scrollIntoView({block: "nearest"}); const b = a.getBoundingClientRect(), r = s.getBoundingClientRect(); return {save: true, scrollH: a.scrollHeight, clientH: a.clientHeight, overflowY: getComputedStyle(a).overflowY, panel: [b.top, b.bottom], btn: [r.top, r.bottom]}; });
     ok("the answer panel scrolls inside its limit and Save is reachable in it", panel.save && panel.scrollH > panel.clientH && ["auto", "scroll"].includes(panel.overflowY) && panel.btn[0] >= panel.panel[0] - 1 && panel.btn[1] <= panel.panel[1] + 1, JSON.stringify(panel));

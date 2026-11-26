@@ -153,8 +153,6 @@ write_binding "$BINDING" '{"schema_version":"1.0","provider":"github","config":{
 wit_read_binding "$BINDING"
 assert_eq "configured-empty container label falls back to the default" "spec-container" "$WIT_CONTAINER_LABEL"
 
-# A present non-string container_label is a configuration error, not a silent
-# stringification (jq -r would render 5 / true / {} as text no item carries).
 assert_rejected "numeric container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":5}}'
 assert_rejected "boolean container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":true}}'
 assert_rejected "object container_label rejected" '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24,"container_label":{"a":1}}}'
@@ -253,7 +251,6 @@ else
   pass "null lease_ttl_hours personal override fails binding validation"
 fi
 
-# Deny-by-default: any key outside the allowlist is a configuration error, not a merge.
 assert_override_rejected "personal override provider rejected" '{"provider":"local-markdown"}'
 assert_override_rejected "personal override role_labels rejected" '{"config":{"role_labels":{"human-gated":"x"}}}'
 assert_override_rejected "personal override container_label rejected" '{"config":{"container_label":"my-map"}}'
@@ -262,7 +259,6 @@ assert_override_rejected "personal override jira site rejected" '{"config":{"jir
 assert_override_rejected "personal override jira project_keys rejected" '{"config":{"jira":{"project_keys":["ZZ"]}}}'
 assert_override_rejected "wrong-typed intermediate rejected" '{"config":5}'
 assert_override_rejected "non-JSON personal override rejected" 'not json'
-# Empty-object values cannot smuggle a non-allowlisted key past the leaf check.
 assert_override_rejected "empty-object provider rejected" '{"provider":{}}'
 assert_override_rejected "empty-object unknown key rejected" '{"evil":{}}'
 assert_override_rejected "empty-object role_labels rejected" '{"config":{"role_labels":{}}}'
@@ -283,8 +279,6 @@ EG="$(wit_effective_binding_json "$OBINDING")"
 assert_eq "personal override gitea auth_env wins" "MY_GITEA_TOKEN" "$(jq -r '.config.gitea.auth_env' <<<"$EG")"
 assert_eq "team gitea repo survives the merge" "o/r" "$(jq -r '.config.gitea.repo' <<<"$EG")"
 
-# Widening auth_env must not widen the rest of either subtree: everything else
-# under linear/gitea is shared coordination state, exactly as jira's site is.
 assert_override_rejected "personal override linear team_keys rejected" '{"config":{"linear":{"team_keys":["X"]}}}'
 assert_override_rejected "personal override gitea repo rejected" '{"config":{"gitea":{"repo":"other/repo"}}}'
 assert_override_rejected "object-valued linear auth_env rejected" '{"config":{"linear":{"auth_env":{}}}}'
@@ -322,8 +316,6 @@ else
 fi
 assert_not_contains "YAML binding prints no notice" "$(<"$TEST_TMPDIR/yaml.err")" "notice"
 
-# Scalars stay strings and sequences become arrays: a jira resolution id is a
-# digit string the adapter requires as a string.
 write_binding "$TEST_TMPDIR/ids.yaml" 'tracker:
   config:
     jira:

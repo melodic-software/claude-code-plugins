@@ -10,8 +10,6 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
-# The fixture's git env is exported the way a hook chain would export it, so the
-# scan must resolve the fixture repo and not the checkout this suite runs from.
 run_scan() {
   GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" \
     bash -c "cd '$TEST_TMPDIR/repo' && bash '$SCAN'"
@@ -51,9 +49,6 @@ out="$(run_scan)"
 assert_contains "top-level build dir inventoried" "$out" "src/bin"
 assert_not_contains "build dir under pruned node_modules skipped" "$out" "node_modules/pkg/bin"
 
-# An unreachable SSH origin must not start ssh, askpass, or a credential helper.
-# The recorders sit on GIT_SSH_COMMAND and on a test-only global config (system
-# config hidden) so a host sshCommand or credential helper cannot run instead.
 OFF="$TEST_TMPDIR/offline"
 git init -q -b main "$OFF"
 git -C "$OFF" config user.email "t@example.com"

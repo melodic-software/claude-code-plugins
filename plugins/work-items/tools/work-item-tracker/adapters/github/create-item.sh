@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# create-item — CONTRACT.md "Verbs (core public surface)". Creates via bot identity.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -49,15 +48,8 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$title" ]] || wit_usage_error "--title is required"
 
-# wit_resolve_repo may call gh; wit_run_gh exits on API error, but inside $() that
-# only exits the subshell — propagate its code rather than continuing with "".
 target_repo="$(wit_resolve_repo "$repo_override" write)" || exit "$?"
 
-# Native GitHub Issue Type (org-defined Task/Bug/Feature) is a gh 2.94 flag.
-# On older gh, forwarding `--type` dies with `unknown flag` (exit 1) and
-# `/work-items:track add` on an org repo files nothing. Degrade to the same
-# coarse `type:` label personal/non-org repos already use, and say so.
-# Also taken after a native create is refused by the cloud proxy's GraphQL 403.
 degrade_type() {
   type_lc="$(printf '%s' "$type" | tr '[:upper:]' '[:lower:]')"
   case "$type_lc" in
@@ -65,7 +57,6 @@ degrade_type() {
   feature | feat) type_label="type: feature" ;;
   *) type_label="type: task" ;;
   esac
-  # A label the repo lacks makes the REST create fail or file the issue unlabeled.
   wit_run_gh read api --paginate "repos/$target_repo/labels?per_page=100" --jq '.[].name'
   if grep -qixF -- "$type_label" <<<"$WIT_GH_OUT"; then
     printf 'create-item.sh: --type requires gh >= 2.94; applying %s instead\n' \
@@ -85,10 +76,6 @@ if [[ -n "$type" ]] && ((!native)); then
   degrade_type
 fi
 
-# Sibling dedupe (CONTRACT.md "Verbs"): a child of the parent in the target repo with the
-# same trimmed title, open or closed within 24 hours, is returned instead of a new issue.
-# One GraphQL read, since the subIssues projection list-sub-items reads has no closedAt.
-# A proxy refusal drops to the REST branch, which refuses --parent.
 if ((native)) && [[ -n "$parent" ]]; then
   wit_require_github_id "$parent" || wit_usage_error "malformed or non-github --parent id: $parent"
   parent_url="$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
@@ -139,7 +126,6 @@ if ((native)); then
 
   wit_run_gh_native write "${args[@]}"
   if (($? == 10)); then
-    # The proxy refused GraphQL before creating anything: retry over REST below.
     native=0
     [[ -z "$type" ]] || degrade_type
   else
@@ -153,9 +139,6 @@ if ((native)); then
 fi
 
 if ((!native)); then
-  # `gh issue create` resolves through GraphQL, so sandboxed sessions create over
-  # REST (README "View item"). Sub-issue and dependency edges
-  # have no REST form here (the dispatcher gates them on the same gh version).
   if [[ -n "$parent" || -n "$blocked_by" ]]; then
     wit_require_graphql_session "--parent and --blocked-by"
     wit_usage_error "--parent and --blocked-by require gh >= 2.94 and a session that allows GraphQL"

@@ -13,7 +13,6 @@ HERE = Path(__file__).resolve().parent
 SCAN = HERE / "recall_scan.py"
 PLUGIN_ROOT = HERE.parents[2]
 
-# Built at run time so no token-shaped literal sits in the repository.
 SEEDED_TOKEN = "ghp_" + "Q7" * 18
 
 

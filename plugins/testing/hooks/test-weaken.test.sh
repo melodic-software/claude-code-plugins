@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for test-weaken.sh, the testing plugin's PreToolUse hook.
-#
-# Builds a throwaway git repository per run, writes test files into it, and
-# pipes hand-built PreToolUse payloads through the hook. Covers the option
-# gate, the advisory context (removed assertion, added skip, removed test
-# block, changed expected literal) with no permissionDecision, the deny path
-# behind rules.test-weaken-block and its test-change: marker, fail-open on a
-# scanner error and a hang, silence on a pure addition, a create, a
-# gitignored or excluded path and an unjudgeable fragment, the per-call dedup,
-# and that test-scan still reports for a call test-weaken already saw.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
 
 set -uo pipefail
@@ -79,10 +69,6 @@ edit_input() {
   jq -cn --arg o "$1" --arg n "$2" '{old_string: $o, new_string: $n, replace_all: false}'
 }
 N=0
-# run <tool> <file> <tool_input json> [env assignments...]
-# The payload is built before the hook starts and fed as a here-string, never
-# piped from a jq started beside it: the hook exits 0 unchecked when stdin
-# stays idle for stdin_read_timeout (2 s), which a starved runner can reach.
 run() {
   N=$((N + 1))
   local tool="$1" file="$2" input="$3" p
@@ -260,7 +246,6 @@ assert_empty "an unjudgeable fragment is silent" "$out"
 run Edit "$REPO/src/test_calc.py" "$(edit_input 'def test_add():' $'@pytest.mark.skip\ndef test_add():')"
 assert_contains "pytest: an added skip decorator is named" "$out" "@pytest.mark.skip"
 
-# Two overlapping `if` rows run the hook twice for one call; only one reports.
 p="$(payload Edit "$REPO/src/sum.test.ts" dup-call "$DROP_EXPECT")"
 first="$(bash "$HOOK" <<<"$p" 2>/dev/null)"
 second="$(bash "$HOOK" <<<"$p" 2>/dev/null)"

@@ -58,12 +58,6 @@ for k in sub_items_per_parent sub_item_depth dependencies_per_type list_items_ma
     "$(jq -r --arg k "$k" '.limits[$k] | if . == null then "ok" elif (type == "number" and . >= 0 and floor == .) then "ok" else "bad" end' <<<"$out")"
 done
 
-# --- the manifest agrees with the filesystem ---
-# `tr -d '\r'` on the verb names, not decoration: a Windows jq writes through a
-# text-mode stdout, so each key arrives as `get-item\r`. Every lookup then misses, every
-# verb falls to the declared-false arm, and `$SCRIPT_DIR/get-item\r.sh` is absent — so
-# the whole loop passes without inspecting anything, which is the one outcome a check
-# that exists to catch a disagreement may never have.
 while IFS= read -r v; do
   [[ "$v" == "capabilities" ]] && continue
   declared="$(jq -r --arg v "$v" '.verbs[$v]' <<<"$out")"
@@ -74,8 +68,6 @@ while IFS= read -r v; do
       fail "declared verb $v has a script" "$v.sh present" "missing"
     fi
   else
-    # A declared-false verb is answered by the core's capability gate (exit 6) before
-    # any script would run, so a leftover file is dead code that looks live.
     if [[ -e "$SCRIPT_DIR/$v.sh" ]]; then
       fail "undeclared verb $v has no script" "$v.sh absent" "present"
     else

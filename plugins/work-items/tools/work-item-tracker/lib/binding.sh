@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Binding discovery + validation for the work-item tracker seam (CONTRACT.md "Setup
-# (binding file)"). Sourced — callers map failures to exit 3.
-
 [[ -n "${_WIT_BINDING_LOADED:-}" ]] && return 0
 readonly _WIT_BINDING_LOADED=1
 
@@ -13,14 +10,8 @@ WIT_YAML_PARSER="$_WIT_BINDING_LIB_DIR/../../../skills/triage/scripts/yaml-subse
 WIT_HOME_RESOLVER="$_WIT_BINDING_LIB_DIR/../../../lib/resolve-convention-home.sh"
 readonly WIT_DEFAULT_CONVENTION_HOME="docs/conventions"
 readonly WIT_LEGACY_BINDING=".work-item-tracker.json"
-# What an empty flow sequence reads as while the parser reads a binding, which turns
-# back into []. It opens with a control character no YAML scalar can hold (raw, it is
-# outside YAML's character set; escaped, the subset rejects it), so it never matches
-# a value a file sets.
 readonly WIT_YAML_EMPTY_SEQ=$'\002[]'
 
-# wit_project_root: the one repo-root anchor every seam resolution uses (CONTRACT.md
-# "Setup (binding file)"). Fails outside a git repo with no CLAUDE_PROJECT_DIR.
 wit_project_root() {
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     printf '%s\n' "$CLAUDE_PROJECT_DIR"
@@ -29,11 +20,6 @@ wit_project_root() {
   git rev-parse --show-toplevel 2>/dev/null
 }
 
-# wit_convention_home <root>: the repo-relative convention home the pointer region
-# binds, or the default home when the repository binds none. Fails 1 when it declined
-# a home or no home applies (the root is $HOME, an ancestor of it, or not in a git
-# work tree, so nothing can bind it), 2 when the shared copies are missing, and 3 when
-# the pointer is broken (that message passes through to stderr).
 wit_convention_home() {
   local home rc
   [[ -f "$WIT_HOME_RESOLVER" && -f "$WIT_YAML_PARSER" ]] || return 2
@@ -50,11 +36,6 @@ wit_convention_home() {
   esac
 }
 
-# wit_wayfind_labels: the wayfind label prefix and the human-gated label the seam
-# resolves, as one JSON object naming the layer each came from (`binding` or
-# `default`). It refuses, with nothing on stdout, when wit_convention_home fails (a
-# broken pointer, a declined home, a root no home applies to, missing shared copies)
-# and when the binding is invalid. With no binding it prints the defaults.
 wit_wayfind_labels() {
   local root binding json='{}'
   root="$(wit_project_root)"
@@ -81,18 +62,11 @@ wit_wayfind_labels() {
      human_gated: $gated, human_gated_source: layer($b.config.role_labels["human-gated"])}'
 }
 
-# wit_yaml_mark_empty_seqs [<marker>]: stdin to stdout, line for line, with each empty
-# flow sequence in a value position (`key: []`, `- key: []`, `- []`) replaced by
-# <marker> as a double-quoted scalar. The parser prints nothing for `[]` and a record
-# for the scalar. The line count is kept, so a parse error still names the file's own
-# line. With no marker, a plain copy.
 wit_yaml_mark_empty_seqs() {
   if [[ -z "${1:-}" ]]; then
     cat
     return
   fi
-  # The lead is the indent, then `- `, a plain or quoted key and its colon, or both,
-  # exactly as the parser reads them; \047 is a single quote.
   LC_ALL=C awk -v marker="$1" '
     BEGIN {
       key = "([A-Za-z0-9_-]+|\"([^\"\\\\]|\\\\.)*\"|\047([^\047]|\047\047)*\047)"
@@ -107,9 +81,6 @@ wit_yaml_mark_empty_seqs() {
     }'
 }
 
-# wit_yaml_records <file> [<marker>]: the parser's `dotted.key<TAB>value` records, each
-# empty flow sequence printed as <marker> when one is given (wit_yaml_mark_empty_seqs).
-# On a parse error, names the file and line on stderr and fails.
 wit_yaml_records() {
   local records
   if ! records="$({ wit_yaml_mark_empty_seqs "${2:-}" | LC_ALL=C awk -f "$WIT_YAML_PARSER"; } <"$1")"; then
@@ -120,21 +91,12 @@ wit_yaml_records() {
   printf '%s\n' "$records"
 }
 
-# wit_yaml_has_binding <file>: true when the file sets a `tracker` key, or does not
-# parse (so the read names the error rather than reporting no binding).
 wit_yaml_has_binding() {
   local records
   records="$(wit_yaml_records "$1" 2>/dev/null)" || return 0
   grep -q $'^tracker[.\t]' <<<"$records"
 }
 
-# wit_yaml_binding_json <file>: the file's `tracker` mapping as one JSON object.
-# Every scalar stays a string: the parser drops quotes, so a type guessed from the
-# text would turn a quoted id such as "10000" into a number. Every reader takes
-# numbers and booleans as text (jq -r, then a regex or string compare). An empty flow
-# sequence stays [], as a JSON binding writes it: jira and linear tell a present
-# empty list (a config error) from an absent key (the default) with has(). A key with
-# no value reads as absent (CONTRACT.md "Setup (binding file)").
 wit_yaml_binding_json() {
   local records json bad
   records="$(wit_yaml_records "$1" "$WIT_YAML_EMPTY_SEQ")" || return 1
@@ -153,10 +115,6 @@ wit_yaml_binding_json() {
   printf '%s\n' "$json"
 }
 
-# wit_find_binding: echo the binding file path: the env override, else the `tracker`
-# mapping of <home>/work-items.yaml. Fails when neither binds; the caller reports
-# wit_no_binding_reason. Never a CWD-upward climb: a stray ancestor or home binding would silently capture
-# every repo beneath it (#2941).
 wit_find_binding() {
   if [[ -n "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
     [[ -f "$WORK_ITEM_TRACKER_BINDING" ]] || return 1
@@ -176,10 +134,6 @@ wit_find_binding() {
   return 1
 }
 
-# wit_no_binding_reason: one line saying why wit_find_binding found no binding and the
-# fix: /work-items:setup check for a broken pointer, a reinstall for missing shared
-# copies, else /work-items:setup apply. A retired repo-root .work-item-tracker.json gets
-# its own line: apply copies it under tracker: in <home>/work-items.yaml.
 wit_no_binding_reason() {
   local root home legacy=""
   if [[ -n "${WORK_ITEM_TRACKER_BINDING:-}" ]]; then
@@ -216,14 +170,8 @@ wit_no_binding_reason() {
   fi
 }
 
-# The only keys the personal override may refine; any other key there is a config
-# error, never a merge (CONTRACT.md "Setup (binding file)").
 readonly WIT_OVERRIDE_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["config","linear","auth_env"],["config","gitea","auth_env"],["docs"]]'
 
-# wit_override_path <binding-path>: echo where the personal override sits beside that
-# binding (work-items.local.yaml beside a YAML binding; beside a JSON file the
-# WORK_ITEM_TRACKER_BINDING override names, .work-item-tracker.local.json), whether or
-# not it exists.
 wit_override_path() {
   local dir name=".work-item-tracker.local.json"
   [[ "$1" == *.yaml ]] && name="work-items.local.yaml"
@@ -231,8 +179,6 @@ wit_override_path() {
   printf '%s\n' "$dir/$name"
 }
 
-# wit_find_override <binding-path>: echo the personal override path beside whatever
-# binding resolved, or fail when none exists.
 wit_find_override() {
   local override
   override="$(wit_override_path "$1")" || return 1
@@ -240,8 +186,6 @@ wit_find_override() {
   printf '%s\n' "$override"
 }
 
-# wit_binding_layer_json <path>: one layer as a JSON value: the `tracker` mapping of
-# a YAML file, else (a JSON file the env override names) the whole file.
 wit_binding_layer_json() {
   if [[ "$1" == *.yaml ]]; then
     wit_yaml_binding_json "$1"
@@ -250,9 +194,6 @@ wit_binding_layer_json() {
   fi
 }
 
-# wit_effective_binding_json <binding-path>: the team file merged with allowlisted
-# personal override keys. A bad personal override fails loudly: it must never silently
-# reshape team state.
 wit_effective_binding_json() {
   local path="$1" team override override_json bad
   team="$(wit_binding_layer_json "$path")" || return 1
@@ -264,8 +205,6 @@ wit_effective_binding_json() {
     printf 'work-item-tracker: personal override %s does not parse as a binding layer\n' "$override" >&2
     return 1
   fi
-  # Each path must be an allowlisted SCALAR or an object prefix of one; a leaf-only check
-  # lets {"provider":{}} through. Use any() equality: index() on an array is a subsequence search.
   bad="$(jq -c --argjson allowed "$WIT_OVERRIDE_ALLOWED_PATHS" '
     . as $o
     | [paths]
@@ -287,17 +226,12 @@ wit_effective_binding_json() {
         ($team; setpath($p; $o | getpath($p)))' <<<"$team"$'\n'"$override_json"
 }
 
-# wit_role_label <binding-json> <role> <default>: the configured label, or <default>
-# when absent OR empty (jq's `//` alone would let a configured empty string win).
 wit_role_label() {
   local configured
   configured="$(jq -r --arg role "$2" '.config.role_labels[$role] // empty' <<<"$1")"
   printf '%s\n' "${configured:-$3}"
 }
 
-# wit_config_list <binding-json> <key> <default-json>: config.<key> as one JSON array,
-# or <default-json> (an array) when it is absent or empty. Fails on a present value that
-# is not a list of non-empty strings.
 wit_config_list() {
   jq -c -e --arg k "$2" --argjson default "$3" '.config[$k]
     | if . == null or . == [] then $default
@@ -305,8 +239,6 @@ wit_config_list() {
       else false end' <<<"$1" 2>/dev/null
 }
 
-# wit_config_text <binding-json> <key> <default>: config.<key>, or <default> when it is
-# absent or empty. Fails on a present value that is not a string.
 wit_config_text() {
   local value
   value="$(jq -r -e --arg k "$2" '.config[$k]
@@ -315,9 +247,6 @@ wit_config_text() {
   printf '%s\n' "${value:-$3}"
 }
 
-# wit_with_owner_decision <label> <default>...: the defaults as one JSON array, with the
-# shipped owner-decision label replaced by <label>, so a role remap reaches the hold
-# label defaults.
 wit_with_owner_decision() {
   local label="$1"
   shift
@@ -325,9 +254,6 @@ wit_with_owner_decision() {
     '$ARGS.positional | map(if . == $from then $to else . end)' --args "$@"
 }
 
-# wit_invalid <path> <key> <value>: name the file (the personal override when it sets
-# the key), key and value of a rejected binding value on stderr (ADR 0075 "The
-# invalid-value rule"), and fail.
 wit_invalid() {
   local file="$1" key="$2" override present
   if override="$(wit_find_override "$file")"; then
@@ -340,8 +266,6 @@ wit_invalid() {
   return 1
 }
 
-# wit_storage_root <path>: where a relative storage_dir roots: the project root for
-# a YAML binding under it (the home is a subdirectory), else the binding's directory.
 wit_storage_root() {
   local root
   root="$(wit_project_root 2>/dev/null)"
@@ -352,8 +276,6 @@ wit_storage_root() {
   fi
 }
 
-# wit_read_binding <path>: validate shape and export the WIT_* binding values.
-# lease_ttl_hours is REQUIRED: defaults live in the binding, never in code.
 wit_read_binding() {
   local path="$1" json version provider ttl storage human_gated autonomous_eligible recurring_maintenance container minutes
   local owner_decision hold_labels hold_states hold_state_labels wayfind session_owned
@@ -361,8 +283,6 @@ wit_read_binding() {
   version="$(jq -r '.schema_version // empty' <<<"$json")"
   [[ "$version" == 1.* ]] || { wit_invalid "$path" schema_version "$version"; return 1; }
   provider="$(jq -r '.provider // empty' <<<"$json")"
-  # The provider name becomes an adapter directory path: a bare segment only, so a
-  # binding value can never traverse outside adapters/<provider>.
   [[ "$provider" =~ ^[a-zA-Z0-9_-]+$ ]] || { wit_invalid "$path" provider "$provider"; return 1; }
   ttl="$(jq -r '.config.lease_ttl_hours // empty' <<<"$json")"
   [[ "$ttl" =~ ^[0-9]+$ ]] || { wit_invalid "$path" config.lease_ttl_hours "$ttl"; return 1; }
@@ -376,8 +296,6 @@ wit_read_binding() {
   human_gated="$(wit_role_label "$json" "human-gated" "$WIT_DEFAULT_HUMAN_GATED_LABEL")"
   autonomous_eligible="$(wit_role_label "$json" "autonomous-eligible" "$WIT_DEFAULT_AUTONOMOUS_ELIGIBLE_LABEL")"
   recurring_maintenance="$(wit_role_label "$json" "recurring-maintenance" "$WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL")"
-  # A present non-string container_label is a config error, not a fallback: jq -r would
-  # stringify it into a label no item carries, letting containers onto the frontier.
   container="$(wit_config_text "$json" container_label "$WIT_DEFAULT_CONTAINER_LABEL")" ||
     { wit_invalid "$path" config.container_label "$(jq -c '.config.container_label' <<<"$json")"; return 1; }
   owner_decision="$(wit_role_label "$json" "owner-decision" "$WIT_DEFAULT_OWNER_DECISION_LABEL")"

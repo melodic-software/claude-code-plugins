@@ -1,9 +1,4 @@
 # shellcheck shell=bash
-# Shared helpers for the GitHub adapter — sourced by every verb script. Identity
-# routing (CONTRACT.md "Identity routing (GitHub adapter)"): writes prefer a bot
-# wrapper (gh-bot.sh) when the consuming repo provides one, falling back to bare gh
-# for plugin-lift portability; claim assignment stays on bare gh so @me resolves to
-# the session identity.
 
 [[ -n "${_WIT_GH_COMMON_LOADED:-}" ]] && return 0
 readonly _WIT_GH_COMMON_LOADED=1
@@ -11,12 +6,6 @@ readonly _WIT_GH_COMMON_LOADED=1
 WIT_GH_ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly WIT_GH_ADAPTER_DIR
 
-# A consumer may shadow this adapter with a local copy (CONTRACT.md "Adapter
-# resolution") while still running the bundled dispatcher; the shared seam libs
-# below then resolve relative to that copy and can be absent. A missing required
-# lib must hard-fail with a clear diagnostic (exit 3 — setup/config error), never
-# let sourcing fail silently and leave a verb emitting a malformed (e.g. empty-id)
-# record. Runs before the EX_* constants below exist, so it uses the literal.
 wit_gh_require_seam_lib() {
   [[ -f "$1" ]] && return 0
   printf 'work-item-tracker github adapter: required seam library not found: %s\n' "$1" >&2
@@ -42,22 +31,9 @@ source "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/gh-version.sh"
 # shellcheck source=../../lib/gh-version.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/gh-version.sh"
-# In this repository's CI jobs, each gh call keeps its rate-limit reading for
-# the job-end api-budget notice (.github/actions/log-api-budget). Each verb runs
-# as its own process, so the wrap goes here, where every verb sources it. A
-# no-op outside a job and wherever that file is absent (an installed plugin).
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
-# wit_gh_resolve_bot_wrapper — echo the bot wrapper path using consumer-local-first
-# resolution (CONTRACT.md "Identity routing (GitHub adapter)"), mirroring the
-# adapter two-root resolution (CONTRACT.md "Adapter resolution"): a consuming
-# repo's own wrapper at <repo root>/tools/github-auth/gh-bot.sh wins,
-# independent of where the adapter itself resolved from (a shadowed
-# consumer-local adapter must still find the consumer's wrapper, not miss it via
-# its own directory); otherwise the plugin-bundled path beside this adapter tree.
-# The root is the seam's single anchor (wit_project_root — CLAUDE_PROJECT_DIR,
-# else the git toplevel), so a bare shell resolves the consumer wrapper too (#2941).
 wit_gh_resolve_bot_wrapper() {
   local root
   if root="$(wit_project_root)" && [[ -n "$root" ]]; then
@@ -81,37 +57,22 @@ readonly EX_NOT_FOUND=5
 readonly EX_CONFLICT=7
 readonly EX_UNAVAILABLE=8
 
-# Set by wit_run_gh; declared here so a read before the first call does not trip
-# `set -u` (call-order independence).
 WIT_GH_OUT=""
 
-# wit_usage_error <message>: name the entry verb script and exit 2. The last BASH_SOURCE
-# element is the bottom of the source stack, so the verb is named whether the call sits
-# at the verb's top level or inside a helper this file defines. Indexed by length rather
-# than by -1, which needs bash 4.2 and this repo still runs on the macOS system bash 3.2.
 wit_usage_error() {
   printf '%s: %s\n' "$(basename "${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}")" "$1" >&2
   exit "$EX_USAGE"
 }
 
-# wit_require_github_id <id> — parse an ID and require its provider be `github`.
-# The shared grammar (lib/id.sh) accepts any provider by design; the GitHub
-# adapter must reject foreign-provider IDs so a `local-markdown:…#N` never
-# silently operates on a GitHub issue. Sets the WIT_ID_* globals on success.
 wit_require_github_id() {
   wit_parse_id "$1" || return 1
   [[ "$WIT_ID_PROVIDER" == "github" ]] || return 1
 }
 
-# wit_write_pause — wait WIT_WRITE_SPACING_S (default 1) before a write, so a
-# verb's consecutive writes stay at least that far apart (README "API budget").
-# Every write path calls it; callers run writes in $(), so no state survives
-# between calls to skip the first wait.
 wit_write_pause() {
   sleep "${WIT_WRITE_SPACING_S:-1}"
 }
 
-# gh_write <gh-args…> — write op through the bot wrapper when available.
 gh_write() {
   wit_write_pause
   if [[ -f "$WIT_GH_BOT" ]]; then
@@ -121,7 +82,6 @@ gh_write() {
   fi
 }
 
-# wit_map_gh_error <stderr-text> — echo the contract exit code for a failed gh call.
 wit_map_gh_error() {
   local err="$1"
   case "$err" in
@@ -133,8 +93,6 @@ wit_map_gh_error() {
   esac
 }
 
-# wit_require_graphql_session <feature> — exit 3 when the session's GitHub proxy refuses
-# GraphQL, for verbs with no REST form (sub-issue and dependency edges, blockedBy reads).
 wit_require_graphql_session() {
   if wit_gh_session_refuses_graphql; then
     printf '%s: %s is unavailable in this Claude Code cloud session: its GitHub proxy refuses GraphQL and this has no REST form\n' \
@@ -143,10 +101,6 @@ wit_require_graphql_session() {
   fi
 }
 
-# wit_run_gh <writer:write|read> <gh-args…> — run gh (routed by writer), capture
-# stdout to WIT_GH_OUT; on failure print stderr and exit with the mapped code.
-# With WIT_GH_NATIVE_TRY set (wit_run_gh_native) the proxy's GraphQL refusal returns 10
-# instead, so the caller can retry the operation over REST. Other failures still exit.
 wit_run_gh() {
   local writer="$1" err rc errfile
   shift
@@ -169,8 +123,6 @@ wit_run_gh() {
   WIT_GH_OUT="$(printf '%s' "$WIT_GH_OUT" | wit_strip_cr)"
 }
 
-# wit_run_gh_native <writer> <gh-args…> — wit_run_gh for a GraphQL-backed call with a
-# REST twin; returns 10 when the proxy refused GraphQL, 0 on success.
 wit_run_gh_native() {
   WIT_GH_NATIVE_TRY=1 wit_run_gh "$@"
 }
@@ -200,21 +152,10 @@ wit_resolve_repo() {
   printf '%s\n' "$WIT_GH_OUT"
 }
 
-# --- Assignee ops (REST) -----------------------------------------------------
-# These deliberately use `gh api` (REST) rather than `gh issue view/edit`. The
-# `gh issue` subcommands resolve assignees through GraphQL, which made the whole
-# lease protocol unrunnable in sandboxed sessions (Claude Code on the web /
-# remote execution); README "View item" records why and where to recheck.
-# The <writer> argument keeps the identity routing intact: `read` = bare gh =
-# the session identity the claim carve-out requires (README "Edit labels /
-# assignees"); `write` = the bot wrapper.
-
-# wit_read_assignees <owner> <repo> <number> — WIT_GH_OUT = JSON array of logins.
 wit_read_assignees() {
   wit_run_gh read api "repos/$1/$2/issues/$3" --jq '[.assignees[].login]'
 }
 
-# _wit_edit_assignee <method> <writer> <owner> <repo> <number> <login>
 _wit_edit_assignee() {
   local method="$1" writer="$2"
   [[ "$writer" == "write" ]] || wit_write_pause
@@ -222,48 +163,30 @@ _wit_edit_assignee() {
     -f "assignees[]=$6" --jq '[.assignees[].login]'
 }
 
-# wit_add_assignee <writer> <owner> <repo> <number> <login>
-# NOTE: unlike `gh issue edit --add-assignee`, REST POST silently IGNORES a user
-# who cannot be assigned (no push access) and still returns 201. Callers that
-# depend on the assignment having landed MUST verify with wit_read_assignees.
 wit_add_assignee() { _wit_edit_assignee POST "$@"; }
 
-# wit_remove_assignee <writer> <owner> <repo> <number> <login>
 wit_remove_assignee() { _wit_edit_assignee DELETE "$@"; }
 
-# wit_try_remove_assignee <owner> <repo> <number> <login> — best-effort rollback
-# on the session identity; never fails the caller.
 wit_try_remove_assignee() {
   wit_write_pause
   gh api --method DELETE "repos/$1/$2/issues/$3/assignees" \
     -f "assignees[]=$4" >/dev/null 2>&1 || true
 }
 
-# wit_try_add_assignee <owner> <repo> <number> <login> — best-effort, on the session
-# identity; never fails the caller.
 wit_try_add_assignee() {
   wit_write_pause
   gh api --method POST "repos/$1/$2/issues/$3/assignees" \
     -f "assignees[]=$4" >/dev/null 2>&1 || true
 }
 
-# wit_try_read_assignees <owner> <repo> <number> — WIT_GH_OUT = JSON array of logins;
-# returns 1 on a failed read instead of exiting.
 wit_try_read_assignees() {
   WIT_GH_OUT="$(gh api "repos/$1/$2/issues/$3" --jq '[.assignees[].login]' 2>/dev/null)"
 }
 
-# wit_issue_url <owner> <repo> <number>
 wit_issue_url() {
   printf 'https://github.com/%s/%s/issues/%s\n' "$1" "$2" "$3"
 }
 
-# wit_parse_edge_args <usage> <option> <args…>: parse the `<id> --<option> <id>` shape
-# the edge verbs (link-blocks, add-sub-item) share. Both ids are validated as github
-# ids and the option's value is resolved to the issue URL `gh issue edit` wants. Sets
-# WIT_EDGE_ID / WIT_EDGE_OWNER / WIT_EDGE_REPO / WIT_EDGE_NUMBER for the subject and
-# WIT_EDGE_OTHER / WIT_EDGE_OTHER_URL for the option's value. Any malformed invocation
-# exits 2 before a request is made.
 # shellcheck disable=SC2034  # the WIT_EDGE_* globals are read by the sourcing verb scripts, not within this lib
 wit_parse_edge_args() {
   local usage="$1" option="$2"
@@ -318,8 +241,6 @@ readonly WIT_ITEM_JQ="$WIT_JQ_DEF_UTC_TS"'{
   milestone: (.milestone.title // null)
 }'
 
-# _wit_gh_read_binding — set _WIT_GH_BINDING_JSON to the effective binding; return 1
-# when there is no binding, exit 3 when it is invalid.
 _wit_gh_read_binding() {
   local binding
   binding="$(wit_find_binding)" || return 1
@@ -329,11 +250,6 @@ _wit_gh_read_binding() {
   }
 }
 
-# wit_gh_load_wont_do_labels — set WIT_GH_WONT_DO_LABELS (JSON array, lowercased) from
-# the binding's optional config.github.wont_do_labels; `[]` when the key or the binding
-# is absent. A present value must be an array of non-empty strings, else exit 3. Call
-# it before a pipeline into wit_gh_annotate_blocker_reasons, so the exit is not lost in
-# a pipeline stage.
 wit_gh_load_wont_do_labels() {
   WIT_GH_WONT_DO_LABELS='[]'
   _wit_gh_read_binding || return 0
@@ -348,10 +264,6 @@ wit_gh_load_wont_do_labels() {
   fi
 }
 
-# wit_gh_load_status_trust — set WIT_GH_STATUS_TRUST from the binding's optional
-# config.github.status_trust (README "Work status trust"): empty when the key or the
-# binding is absent, else {trusted_actors, model, lanes_app} as one JSON object. Each
-# member must be a non-empty string and each path repo-relative, else exit 3.
 wit_gh_load_status_trust() {
   WIT_GH_STATUS_TRUST=""
   _wit_gh_read_binding || return 0
@@ -375,17 +287,6 @@ wit_gh_load_status_trust() {
   esac
 }
 
-# wit_gh_annotate_blocker_reasons — stdin: one issue object or an array of them, as
-# `gh --json ...,blockedBy` returns it; stdout: the same JSON with `stateReason` set
-# on every CLOSED blocker node. That projection carries no stateReason or labels, so
-# both come from `gh api graphql` nodes(ids:), one query per 100 closed blockers
-# and none when there is no closed blocker. Each CLOSED node also gets `reasonRead`:
-# false when its query failed, answered with a blank or unparsable body, or returned
-# no node for it, and `wontDoLabel`: true when it was read and carries a label in
-# WIT_GH_WONT_DO_LABELS (wit_gh_load_wont_do_labels; case-insensitive). A failed query
-# is not fatal, but WIT_ITEM_JQ keeps an unread blocker blocking (fail closed). A node
-# read with a null stateReason (issues closed before GitHub recorded reasons) and no
-# listed label is resolved.
 wit_gh_annotate_blocker_reasons() {
   local json ids n i reasons='[]' out page args id
   json="$(cat)"
@@ -416,16 +317,6 @@ wit_gh_annotate_blocker_reasons() {
     if type == "array" then map(ann) else ann end'
 }
 
-# wit_emit_item <owner> <repo> <number> — fetch the issue and emit the normalized
-# item object (CONTRACT.md "JSON output contract"). blocked_by_count counts OPEN
-# blockers, blockers closed NOT_PLANNED or DUPLICATE or carrying a config.github
-# wont_do_labels label, and closed blockers whose reason could not be read;
-# blocked_by_wont_do_count counts the won't-do ones.
-# gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
-# Older gh, a Claude Code cloud session (CLAUDE_CODE_REMOTE=true), and a native read the
-# proxy refuses with its GraphQL 403 all read REST, the path sandboxed sessions need
-# (README "View item"), and map the REST shape onto the same fields; type comes from
-# .type, and parent and blockers have no REST field there, so they emit as null and 0.
 wit_emit_item() {
   local owner="$1" repo="$2" number="$3" native=0
   local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at, milestone}'
@@ -448,20 +339,11 @@ wit_emit_item() {
   fi
 }
 
-# wit_patch_lease_comment <owner> <repo> <comment-id> <lease-json>: rewrite a
-# lease comment in place. The marker wrapper is the single lease-body format
-# this adapter writes. WIT_GH_OUT = the patched comment id.
 wit_patch_lease_comment() {
   wit_run_gh write api --method PATCH "repos/$1/$2/issues/comments/$3" \
     -f body="${WIT_LEASE_MARKER}$4 -->" --jq '.id'
 }
 
-# wit_list_lease_comments <owner> <repo> <number> — JSON array of
-# {id, node_id, body, created_at, author_association, user} for lease-marker
-# comments, ascending id. Only an owner's, member's or collaborator's comment, or a
-# bot's (association NONE; only an App installed on the repository can comment, such
-# as the lane's github-actions[bot] or a gh-bot.sh App), counts: anyone can comment
-# on a public repository.
 wit_list_lease_comments() {
   local owner="$1" repo="$2" number="$3"
   wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments?per_page=100" \
@@ -470,9 +352,6 @@ wit_list_lease_comments() {
     or .author_association == "COLLABORATOR" or .user.type == "Bot"))' <<<"$WIT_GH_OUT"
 }
 
-# wit_try_supersede_lease_comment <owner> <repo> <comment-id> <lease-json>: best-effort
-# edit adding superseded_at to that lease comment; never exits the caller, and returns 1
-# when the edit failed.
 wit_try_supersede_lease_comment() {
   local superseded
   superseded="$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$4")"
@@ -480,12 +359,6 @@ wit_try_supersede_lease_comment() {
     -f body="${WIT_LEASE_MARKER}${superseded} -->" >/dev/null 2>&1
 }
 
-# wit_lease_released_by_run <comment-id> <lease-json>: the <released-fn> every lease verb
-# hands wit_lease_winner (claim step 4). 0 when the lease's session_id is run-<id> and that
-# workflow run of the parsed id's repository has completed (any conclusion); the lease is
-# then superseded in place, best-effort. Any other session_id costs no read; another run
-# status, or a failed read, returns 1 and keeps the lease winning. Bare gh, not wit_run_gh:
-# a failed read must keep the lease, never fail the verb.
 wit_lease_released_by_run() {
   local sid run_id status verb
   sid="$(jq -r '.session_id // empty' <<<"$2")"
@@ -502,18 +375,6 @@ wit_lease_released_by_run() {
     "$verb" "$1" "$run_id" >&2
 }
 
-# wit_hand_back_assignee <owner> <repo> <number> <login> <own-id>: after a release, a claim's
-# back-off or failure, or a renew's back-off, remove <login> from the assignees unless a live
-# lease of <login> other than <own-id> holds the item (CONTRACT.md "Lease protocol", claim step
-# 4). It lists the leases itself, each list retried once; a list failed twice counts as empty
-# at the first read and ends the hand-back at the re-list. Every caller's own lease is
-# dead (superseded or expired) before that list, so a same-login session that
-# superseded its lease earlier is seen as gone, and its own list after superseding sees this
-# one's. A lease posted after the list is caught by the re-list after the removal, which puts
-# the assignee back: a claim posts its lease before it re-checks its assignee, and this removes
-# the assignee before it re-lists, so of two sessions one sees the other. A third can still
-# leave a holder unassigned (CONTRACT.md "Lease protocol"). A failed assignee read
-# still removes, since an assignee that no lease holds keeps the item off the frontier for good.
 wit_hand_back_assignee() {
   local owner="$1" repo="$2" number="$3" login="$4" own="$5" leases now
   _wit_list_at_clock "$owner" "$repo" "$number" || _wit_list_at_clock "$owner" "$repo" "$number" || leases='[]'
@@ -529,17 +390,11 @@ wit_hand_back_assignee() {
   _wit_login_holds_other "$leases" "$login" "$own" "$now" || wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
 }
 
-# _wit_list_at_clock <owner> <repo> <number>: set the caller's now to a clock read, then its
-# leases to a lease list taken after it. A renew only moves an expiry later, so judging the
-# listed bodies at that earlier read never makes a renewing holder look expired; a lease that
-# expires during the list still counts as live, and its login then stays for reclaim.
 _wit_list_at_clock() {
   now="$(date -u +%s)"
   leases="$(wit_list_lease_comments "$1" "$2" "$3")"
 }
 
-# _wit_login_holds_other <leases-json> <login> <excluded-id> <now-epoch>: 0 when a live lease
-# other than <excluded-id> is held by <login> at <now-epoch> or at the current clock.
 _wit_login_holds_other() {
   local row cand now="$4"
   while IFS= read -r row; do

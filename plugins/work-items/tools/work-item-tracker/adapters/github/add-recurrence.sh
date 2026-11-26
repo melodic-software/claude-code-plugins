@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# add-recurrence <id> --source-link <url> --note <text>: CONTRACT.md "Verbs (core public
-# surface)". Write. Posts one issue comment carrying the recurrence marker and the note, and
-# posts nothing when an owner's, member's, collaborator's or bot's comment on the item
-# already records the same source link. The post routes through the bot writer.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -44,8 +40,6 @@ emit() {
     '{schema_version: $sv, id: $id, source_link: $link, recorded: $recorded, reason: $reason}'
 }
 
-# Anyone can comment on a public repository, so only the authors a lease comment counts from
-# (common.sh wit_list_lease_comments) can mark a link recorded.
 wit_run_gh read api --paginate "repos/$owner/$repo/issues/$number/comments?per_page=100" \
   --jq "[.[] | select(.body | startswith(\"$WIT_RECURRENCE_MARKER\"))
     | {line: (.body | split(\"\\n\")[0]), author_association, type: .user.type}]"
