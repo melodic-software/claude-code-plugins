@@ -10,8 +10,9 @@
   held for that evidence is released by its record:
   [Cross-lane PR hold](../contracts/loop-lane/README.md#cross-lane-pr-hold).
 - A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
-  owner or in a declared-provider surface (a plugin or skill whose purpose is one provider: the
-  github plugin, repo-fleet-hygiene, the CI review lanes a GitHub workflow invokes, adapter files):
+  owner or in a declared-provider surface (any plugin or skill whose purpose is one provider, such
+  as the github plugin, repo-fleet-hygiene, the CI review lanes a GitHub workflow invokes, and
+  adapter files):
   provider commands, API fields and link grammar are implementation details that the consumer's
   conventions and adapter binding select, and a skill that hardcodes them sets the precedent every
   new skill copies. Forge work goes to `/source-control:pull-request`, tracker work to the

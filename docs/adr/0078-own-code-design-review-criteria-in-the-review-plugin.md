@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-19
-- Related: `plugins/implementation/skills/implement/SKILL.md`, which invokes the mode at a phase
+- Related: `/implementation:implement`, which invokes the mode at a phase
   boundary. Refs
   [#8326](https://github.com/melodic-software/claude-code-plugins/issues/8326).
 
@@ -27,7 +27,7 @@ unsynced Duplicated Code, and the consumer-criteria-win loading.
 
 Planning keeps design-time defaults only and cites the mode by invocation
 (`plugins/planning/reference/design-principles.md:96-99`). Implementation invokes the mode
-(`plugins/implementation/skills/implement/SKILL.md`). Review never cites planning files, so the dependency runs one way.
+(`/implementation:implement`). Review never cites planning files, so the dependency runs one way.
 
 Shipped in [#8348](https://github.com/melodic-software/claude-code-plugins/pull/8348) (phase-diff
 inputs for `/review:quality-gate`, issue

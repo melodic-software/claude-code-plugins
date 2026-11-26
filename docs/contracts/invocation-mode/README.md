@@ -45,7 +45,7 @@ of its cited page no longer matching the bullet re-derives it here):
 - **Multi-repo product:** consumers do not memorize 200+ skill names; model-side discoverability
   is part of what this marketplace sells. This inverts upstream's solo-operator premise.
 - **Listing budget is manageable, not a forcing function:** every skill name is always listed;
-  only descriptions are dropped, in the order the [listing scorer](../../../plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md) sets, under the listing budget
+  only descriptions are dropped, in the order `/harness-ops:audit-skill-visibility` scores, under the listing budget
   (`skillListingBudgetFraction`), with a per-entry cap (`skillListingMaxDescChars`); the current
   figures and their source records are in `/playbooks:skill-authoring` `## Descriptions`.
   The per-skill `skillOverrides: "name-only"` lever reaches project/user skills only, and plugin
@@ -62,7 +62,7 @@ reasons, each measured rather than assumed:
 
 - **The harness already does what the flip would do, and keeps what the flip destroys.** Under
   overflow Claude Code drops descriptions by a usage score that sheds a never-invoked skill first
-  ([listing scorer](../../../plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md)), while
+  (scored by `/harness-ops:audit-skill-visibility`), while
   the listing "always contains every skill name". A rarely invoked operator audit, the proposed
   population, is therefore already near the front of the line for name-only, and it stays model-invocable and
   chainable. The flip frees at most that skill's name on top, and pays the whole cost the first
@@ -90,12 +90,11 @@ really are the human's call already fits class (i) on those grounds, and cost pl
 Verification record. Claim: overflow keeps every name and sheds a never-invoked skill's description
 first, by the scorer recovered from the binary, whose order differs from the skills page's
 sentence on drop order; plugin skills ignore `skillOverrides`; `/skill-doctor` routes plugin skills
-away from `skillOverrides`. Basis:
-[listing-scorer.md](../../../plugins/harness-ops/skills/audit-skill-visibility/reference/listing-scorer.md) for the
+away from `skillOverrides`. Basis: `/harness-ops:audit-skill-visibility`'s listing scorer for the
 order, <https://code.claude.com/docs/en/skills> ("Skill descriptions are cut short", "Override
 skill visibility from settings", "Find unused skills"), and for the figures
 `bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills` at `0fc60e845` (211
-listing-eligible skills). As of: 2026-11-04 for the page; the scorer as listing-scorer.md dates it. Recheck:
+listing-eligible skills). As of: 2026-11-04 for the page; the scorer as that skill dates it. Recheck:
 the skills page changing its drop order or its plugin-skill lever, a changelog entry naming the
 listing scorer, or a fleet audit's re-run moving the flipped-set arithmetic past a documented budget.
 

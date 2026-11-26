@@ -334,18 +334,18 @@ cap: a later digest lists them, so place only the listed ones.
 People ask for work on a question: `ask`, `explore`, `research`, `design` or `prototype`. Only the
 owner's Run starts one, and only requests named in a `request-run` event run. Route each by its
 intent to whatever fits among the skills, workflows, MCP servers and CLI tools enabled in this
-session right now, and say why in `why`.
-
-Guests never reach Claude directly: the work runs on the owner's own account, which stays the
-owner's alone. For the account and plan terms behind that, read section 2 of the
-[Consumer Terms](https://www.anthropic.com/legal/consumer-terms) and the
-[Claude Code usage policy](https://code.claude.com/docs/en/legal-and-compliance#usage-policy).
+session right now, and say why in `why`:
 
 - `ask`: answer from the question, the session's answers and what this session already knows.
 - `explore`: look inside what the session has: answers, chat, uploads, and the linked project. Its answer, like a
   `design` or `prototype` one, waits for the owner's review before any guest sees it.
 - `research`: look outside: the web, official docs, other products.
 - `design`, `prototype`: a design pass, or a throwaway variant to react to.
+
+Guests never reach Claude directly: the work runs on the owner's own account, which stays the
+owner's alone. For the account and plan terms behind that, read section 2 of the
+[Consumer Terms](https://www.anthropic.com/legal/consumer-terms) and the
+[Claude Code usage policy](https://code.claude.com/docs/en/legal-and-compliance#usage-policy).
 
 **A prototype, for a request or a question of your own.** A prototype nobody asked for waits for
 the owner's yes in the terminal. Invoke `/prototype:explore-directions` with the shared-interview

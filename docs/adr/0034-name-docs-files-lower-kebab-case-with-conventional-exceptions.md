@@ -3,7 +3,9 @@
 - Status: accepted
 - Date: 2026-09-11
 - Extended by: [`scripts/check-docs-naming.sh`](../../scripts/check-docs-naming.sh), which applies
-  the rule to every markdown file
+  the rule to every markdown file; outside `docs/` it skips `fixtures/`, `evals/` and `vendor/`
+  trees, whose files keep the names of what they reproduce. A name joins its exempt list only when
+  a tool, a forge or a skill looks the file up by that exact spelling.
 
 ## Context
 
