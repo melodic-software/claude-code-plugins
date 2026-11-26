@@ -12,7 +12,6 @@ process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
 const NOW = VECTORS.vector_now * 1000;
-// Root reads and writes past any file mode, so the permission cases skip.
 const ROOT = process.getuid?.() === 0;
 const READ_FLOOR = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
 
@@ -282,9 +281,6 @@ test("a primary limit on core leaves graphql open; a secondary one stops every p
   assert.equal(gh.sent.length, 3);
 });
 
-// GitHub documents its rate limits as 403 or 429 answers (REST) and 200 or
-// 403 (GraphQL): a 5xx whose only signal is Retry-After is held for exactly
-// as long, over every pool, but titled and worded as a server error.
 test("a 5xx with retry-after alone holds every pool for retry-after, reported as a server error", async () => {
   for (const status of [502, 503, 504]) {
     const gh = fakeGitHub([[status, { "retry-after": "120" }, "<html>unavailable</html>"], [200]]);

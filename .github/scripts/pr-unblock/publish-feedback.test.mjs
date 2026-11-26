@@ -166,8 +166,6 @@ const run = (api, repliesText, runText = runFor(repliesText), adjudication = nul
     fileExists: exists,
   });
 
-// The review-thread tool counts the note in code points (jq length); 2000
-// emoji are 4000 UTF-16 units and must still pass here.
 test("a note of exactly 2000 emoji is accepted and posted", async () => {
   const api = fakeApi();
   const result = await run(api, lines(reply({ note: "😀".repeat(2000) })));
@@ -323,8 +321,6 @@ test("the fresh fixer's round, past the cap, is the last of the max", async () =
   assert.match(api.markers()[0][2], /finished round 3 of max 3 on /);
 });
 
-// #7545: a re-run of the reply job alone reuses the model run's artifact, so
-// it must not count that model turn as a second round.
 test("a re-run for a model run whose round the App already recorded posts no second marker", async () => {
   const api = fakeApi({
     issueComments: [{ id: 2, user: { id: APP }, body: `${ROUND}\n${MODEL_RUN}\nround 1` }],
@@ -345,8 +341,6 @@ test("a marker naming the run from another author or for another run does not st
   }
 });
 
-// #7545: fixesLanded judged the branch up to the head this job gated; a push
-// after that is unjudged, so nothing is posted or resolved against it.
 test("a push after the gated head, before the first post, posts nothing and escalates feedback-not-landed", async () => {
   const api = fakeApi({ movesAfter: 0 });
   const result = await run(api, lines(reply({ disposition: "VALID" })));
@@ -445,10 +439,6 @@ test("an empty or partial reply set posts nothing and escalates feedback-incompl
   }
 });
 
-// #8218's round 1 on 9c0a446 (2026-10-18): the select job kept one claude[bot]
-// thread on lib/session-bridge/session_bridge.py, root comment 4306751638, and
-// the model recorded no disposition for it. Its node id is not public, so
-// PRRT_8218 stands in for it.
 const RUN_8218 = { version: 1, head_sha: GATED, threads: [{ id: "PRRT_8218", path: "lib/session-bridge/session_bridge.py", comment_ids: [4306751638] }] };
 
 test("feedback-incomplete names each kept thread with no disposition in the round marker and the log", async () => {
@@ -538,9 +528,6 @@ test("an INCORRECT reply on a security-review finding goes to a person even with
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
 });
 
-// A claude[bot] finding names no lane (a footer in it is model text), so it
-// is adjudicated as a code-review finding, with or without a footer, unless
-// its text claims the security-review lane at a rating a person decides.
 test("a claude[bot] finding, with no footer or a footer it wrote, is adjudicated as a code-review finding and escalates nothing", async () => {
   for (const body of ["finding 200", "finding 200\n\nclaude-lane: claude-review"]) {
     const own = { id: 200, user: { id: REVIEWER }, pull_request_review_id: 10, path: "docs/b.md", line: 1, body };
@@ -634,8 +621,6 @@ test("a finding that stands with the head unmoved skips finding-stands and escal
   assert.deepEqual([both.escalationReason, both.skipReason], ["feedback-unadjudicated", ""]);
 });
 
-// #9560's fallback lands a VALID reply on an earlier lane commit: nothing is
-// pushed, so the standing finding beside it still needs the sweep.
 test("a VALID reply landed on an earlier fix pushes nothing: a finding standing beside it skips finding-stands", async () => {
   const at = (time) => `2026-10-22T${time}:00Z`;
   const api = fakeApi({
@@ -890,8 +875,6 @@ test("a VALID fix that also adds a file in its thread's plugin or any plugin's e
   }
 });
 
-// #8116's thread PRRT_kwDOTCGFQM6tojDu: the owner's fix request on
-// write-transcript.js named run-transcript.js.
 test("a VALID fix that changes a same-plugin file lands, named or not; another plugin's file does not, and a malformed list is invalid", async () => {
   const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
   const thread = { ...RUN.threads[0], path: `${T}/write-transcript.js` };
@@ -949,8 +932,6 @@ test("a VALID fix in another file the PR changes, citing a line it changed, land
   assert.equal(malformed.escalationReason, "feedback-invalid");
 });
 
-// #12346: the fix to lib/hook-utils.sh regenerated its copies in other
-// plugins, which run.json's copy_paths carry into the thread's scope.
 test("a VALID fix that regenerates the shared copies of a canonical the PR changes lands; a copy run.json does not list, or a workflow, does not", async () => {
   const thread = { ...RUN.threads[0], path: "lib/hook-utils.sh" };
   const copy = "plugins/a/hooks/hook-utils.sh";
@@ -979,8 +960,6 @@ test("feedback-not-landed, nothing posted: a VALID fix commit that does not chan
   assert.deepEqual(api.posted(), []);
 });
 
-// #8832: the thread sat on the skill's SKILL.md and the fix changed only that
-// skill's evals.
 test("a VALID fix on a SKILL.md thread lands when it changes any file in that skill's directory, not a sibling skill's", async () => {
   const S = "plugins/discipline/skills/script-the-deterministic-work";
   const skillRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: `${S}/SKILL.md` }] });
@@ -1024,9 +1003,6 @@ const runWith = (api, repliesText, runText, files = []) =>
     fileExists: (path) => exists(path) || files.includes(path),
   });
 
-// #9965: the thread sat on research/context/dispatch.md; the lane's fix
-// changed the operator block in parent-contract.md (hunk +784,11), a file of
-// the thread's plugin the PR had not touched, and the reply cited :787.
 test("a VALID fix in a file of the thread's scope outside the PR's files lands only at a line the evidence cites", async () => {
   const D = "plugins/discovery";
   const contract = `${D}/reference/parent-contract.md`;
@@ -1070,7 +1046,6 @@ test("a VALID fix in a plugin only the PR's files touch is credited at a cited l
 
 test("a fix in a thread's scope that its evidence does not cite is not credited to it", async () => {
   const hunk = "@@ -1,2 +1,3 @@\n x\n+y\n z";
-  // [label, thread paths, fix files, each thread's evidence, landed]
   for (const [label, threads, filenames, evidence, landed] of [
     ["a sibling thread's file", ["plugins/p/reference/a.md", "plugins/p/scripts/run.sh"], ["plugins/p/reference/a.md"], [["src/a.js:3"], ["src/a.js:3"]], false],
     ["a sibling thread's file, cited", ["plugins/p/reference/a.md", "plugins/p/scripts/run.sh"], ["plugins/p/reference/a.md"], [["src/a.js:3"], ["plugins/p/reference/a.md:2"]], true],
@@ -1101,8 +1076,6 @@ test("a retry credits an earlier fix in the thread's scope at a cited line, not 
   }
 });
 
-// #10082 review: the earlier fix changed a file of the thread's scope and one
-// outside it, the reply cited both, and a later commit changed the scoped one.
 test("a retry does not credit an earlier fix whose scoped cited file a later commit changed", async () => {
   const contract = "plugins/p/reference/contract.md";
   const other = "plugins/q/reference/other.md";
@@ -1305,8 +1278,6 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
   assert.equal(await main(env, { api, log: () => {} }), 0);
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-unadjudicated\n");
 
-  // replies.jsonl must be the bytes the scan job uploaded, whose SHA-256 it
-  // passed out.
   for (const sha of ["0".repeat(64), ""]) {
     const forged = fakeApi();
     await main({ ...env, REPLIES_SHA256: sha }, { api: forged, log: () => {} });
@@ -1410,8 +1381,6 @@ test("no replies.jsonl is no escalation: the round counts and the check skips no
   assert.deepEqual(api.posted(), []);
   assert.equal(api.markers().length, 1);
 });
-// Whether replies exist is the run job's to forge, so no-model-turn holds
-// only when the scan handed on no patch and the head is the selected one.
 test("no replies.jsonl beside a scanned patch or a moved head is an escalation", async () => {
   for (const patchState of ["written", "empty"]) {
     const api = fakeApi();
@@ -1428,9 +1397,6 @@ test("no replies.jsonl beside a scanned patch or a moved head is an escalation",
   }
 });
 
-// A scan that refused the leg's output (an oversize patch, a leak-scan block,
-// a refused decode) uploads nothing, so no replies is no proof the model took
-// no turn: the round goes to a person (#9225, #9340).
 test("no replies.jsonl after the scan refused the leg's output escalates feedback-invalid, never no-model-turn", async () => {
   for (const scanRefused of ["patch", "output"]) {
     const api = fakeApi();
@@ -1442,8 +1408,6 @@ test("no replies.jsonl after the scan refused the leg's output escalates feedbac
   }
 });
 
-// The scan named replies it uploaded (an attempt or a SHA-256), yet none
-// arrived: a failed download, not a round with no model turn (#9225).
 test("no replies.jsonl where the scan named an upload escalates feedback-invalid", async () => {
   const api = fakeApi();
   const result = await noReplies(api, { repliesExpected: true });
@@ -1452,9 +1416,6 @@ test("no replies.jsonl where the scan named an upload escalates feedback-invalid
   assert.equal(api.markers().length, 1);
 });
 
-// The lanes App's address, the trailer and a range position are what a person
-// can put on a local commit; GitHub's web-flow committer and a valid
-// signature are what only the App's API commit carries.
 test("a fix commit must be committed by web-flow with a valid signature", async () => {
   for (const [label, fields] of [
     ["committed by a person", { committer: { id: HUMAN } }],
@@ -1507,9 +1468,6 @@ test("main: a missing replies.jsonl writes the no-model-turn skip and no escalat
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
   rmSync(env.ESCALATION_REASON_FILE);
   await assert.rejects(main({ ...env, REVIEW_PATCH_STATE: "maybe" }, { api: fakeApi() }), /REVIEW_PATCH_STATE/);
-  // The scan-refusal job's marker alone, with every leg output empty, is no
-  // skip (#9340); nor is a marker download that failed, or replies the scan
-  // named that never arrived (#9225).
   const markers = join(dir, "scan-refused");
   mkdirSync(markers);
   writeFileSync(join(markers, "scan-refused-1.txt"), "output\n");
@@ -1690,9 +1648,6 @@ test("a pass-only round skips pass-only, so the dispatcher can tell its reply ch
   assert.equal(result.skipReason, "pass-only");
 });
 
-// On a PR a person opened GitHub lets the lanes App reply but not resolve
-// (#10763): each answer posts as the lanes App and the thread stays open for
-// the person or their babysit worker tier, with no escalation.
 test("on an owner PR a VALID reply and a lane verdict post as the lanes App and leave their threads open", async () => {
   const api = fakeApi({ opener: HUMAN });
   const logged = [];
@@ -1725,10 +1680,6 @@ test("on a lanes App PR the same round still resolves both threads", async () =>
   assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b"]);
 });
 
-// A tests-only finding (#10075): run.json carries the select job's CI
-// snapshot of the gated head, and the reply job settles from it alone.
-// A lane by its display name, and one by its job id, as a head tested before
-// the rename shows it.
 const CI_RUNS = [
   { name: "Test Bash (3)", url: "https://github.com/o/r/actions/runs/1/job/3" },
   { name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/4" },
@@ -1778,8 +1729,6 @@ test("a run.json whose ci snapshot is malformed posts nothing", async () => {
   }
 });
 
-// A mode-only fix (#10080): GitHub lists the file with no patch and no
-// changed lines, and the lane's commit still credits the thread.
 test("a VALID reply whose fix commit only changes the file's mode is posted and resolved", async () => {
   const modeOnly = [{ filename: "src/a.js", status: "changed", changes: 0 }];
   const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: modeOnly }, commits: { [FIX]: { files: modeOnly } } });
@@ -1788,10 +1737,6 @@ test("a VALID reply whose fix commit only changes the file's mode is posted and 
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
 });
 
-// #12809: a round on the notes of the earlier FAIL behind a verify:earlier-fail
-// refusal (run.json verify_notes, from the verdict artifact) has no thread to
-// post on. A push fixing a named note ends as any pushed fix does; no push with
-// every note already addressed escalates for a session, never a silent success.
 const FAILED = "e".repeat(40);
 const notesRun = (head = GATED) =>
   JSON.stringify({

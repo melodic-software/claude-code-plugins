@@ -511,8 +511,6 @@ assert_contains "a matching acknowledgement covers the row" "$OUT" "acknowledged
 assert_contains "and the reason is printed as evidence" "$OUT" "fixture, locates nothing"
 assert_contains "so condition 4 is MET" "$OUT" "every one acknowledged with a reviewed reason"
 
-# The match is on the source text, never the line number: moving the row keeps
-# it acknowledged, changing its code does not.
 # shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
 printf '# padding\n# padding\nif [[ -f "$root/CLAUDE.md" ]]; then echo found; fi\n' \
   >"$DIRTY/tools/find-root.sh"
@@ -530,8 +528,6 @@ OUT=$(bash "$SCRIPT" --repo "$DIRTY" --sources "$REAL_SOURCES" \
 assert_contains "a changed row falls out and is re-reported" "$OUT" \
   "UNACKNOWLEDGED tools/find-root.sh"
 
-# The reason IS the review. A row with a path and a copy of the line but no
-# reason acknowledges nothing.
 # shellcheck disable=SC2016 # the fixture line is literal text; $root must not expand here
 printf 'tools/find-root.sh\tif [[ -f "$root/CLAUDE.md" || -f "$root/other" ]]; then echo found; fi\t\n' \
   >"$DIRTY/.claude/cutover-pathdet-ack.txt"

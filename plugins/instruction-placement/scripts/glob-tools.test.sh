@@ -36,8 +36,6 @@ fixture_repo() {
 
 run() { bash "$SCRIPT" "$@" 2>&1; }
 
-# The pattern travels through ENVIRON, not `awk -v`: a -v assignment processes
-# escapes, so gawk rewrites `\[` and the match silently returns nothing.
 row_field() {
   IP_ROW_PAT="$2" awk -F'\t' -v f="$3" \
     '$1=="PATTERN" && $3==ENVIRON["IP_ROW_PAT"] {print $f}' <<<"$1"
@@ -112,7 +110,6 @@ out="$(run validate --root "$repo_nested" --glob '{a,b}/{c,d}/*.ts')"
 assert_eq "nested brace groups multiply to four patterns" "4" "$(row_field "$out" '{a,b}/{c,d}/*.ts' 4)"
 assert_eq "nested brace groups match only their cartesian product" "4" "$(row_field "$out" '{a,b}/{c,d}/*.ts' 5)"
 
-# 2^10 = 1024 expansions, past the documented 1,000-pattern budget.
 bomb='{a,b}/{c,d}/{e,f}/{g,h}/{i,j}/{k,l}/{m,n}/{o,p}/{q,r}/{s,t}/*.ts'
 out="$(run validate --root "$repo" --glob "$bomb")"
 assert_eq "a pattern past the brace budget is over-budget" "over-budget" "$(row_field "$out" "$bomb" 6)"

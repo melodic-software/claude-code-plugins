@@ -202,7 +202,7 @@ while IFS= read -r row; do
     dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
-[[ "$dispatcher" -eq 6 ]] || fail "expected the six dispatcher rows, found $dispatcher"
+[[ "$dispatcher" -eq 7 ]] || fail "expected the seven dispatcher rows, found $dispatcher"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
 [[ "$node_guards" -eq 2 ]] || fail "expected the settings-write-ask and connected-page-gate node rows, found $node_guards"
 

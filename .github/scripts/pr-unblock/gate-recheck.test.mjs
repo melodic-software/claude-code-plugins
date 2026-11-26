@@ -124,10 +124,6 @@ test("address-feedback on an owner PR re-reads as prHold, on comments and label 
   assert.equal((await recheck(ESCALATED, { ACTIVITY: "address-feedback" }, { adoption: ADOPTED })).out, "lane-escalation=true\n");
 });
 
-// The real client from address-feedback.mjs, on a stubbed fetch: the requests
-// each path makes, which the write job's contents: read and pull-requests:
-// read token may make (the same reads lane-hold.mjs and address-feedback.mjs
-// select make from jobs with those permissions).
 async function realRequests(activity) {
   const dir = tempDir("gate-recheck-real-");
   const seen = [];

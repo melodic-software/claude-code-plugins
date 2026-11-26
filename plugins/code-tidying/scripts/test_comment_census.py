@@ -60,7 +60,6 @@ def _clear_readonly(func, path, _error):  # noqa: ANN001 - shutil callback signa
 
 
 def rmtree_force(path: Path) -> None:
-    # `onerror` is deprecated from 3.12 and `onexc` does not exist before it; the repo floor is 3.10.
     if sys.version_info >= (3, 12):
         shutil.rmtree(path, onexc=_clear_readonly)
     else:
@@ -239,8 +238,6 @@ class SccArgv(unittest.TestCase):
         shim_dir = tmp / "bin"
         shim_dir.mkdir()
         if sys.platform == "win32":
-            # Windows cannot execute a shebang script: put a .cmd wrapper on
-            # PATH that runs the current interpreter on the recording script.
             recorder = shim_dir / "scc_recorder.py"
             recorder.write_text(FAKE_SCC)
             (shim_dir / "scc.cmd").write_text(
@@ -406,8 +403,6 @@ class Degradation(unittest.TestCase):
 
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_tracked_subdirectory_target_lists_its_files(self):
-        # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
-        # matches nothing, so a directory target would census zero files.
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(rmtree_force, tmp)
         env = git_env()

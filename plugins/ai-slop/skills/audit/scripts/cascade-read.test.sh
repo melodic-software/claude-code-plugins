@@ -106,9 +106,6 @@ else
 fi
 assert_eq "slug map: a hostile slug leaves other slugs alone" "${slugs["rule-a"]}" "keep/**"
 
-# --- encoding, once, across every shape ------------------------------------
-# A jq that terminates lines with CR (the Windows build) must yield the same
-# effective value as LF jq. The shim is the reader's input, not the JSON file.
 REAL_JQ="$(command -v jq)"
 SHIM="$TEST_TMPDIR/bin"
 mkdir -p "$SHIM"

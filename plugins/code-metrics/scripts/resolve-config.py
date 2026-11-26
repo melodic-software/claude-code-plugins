@@ -116,10 +116,6 @@ yaml_subset = _module("yaml_subset")
 pathglob = _module("pathglob")
 
 CONTROL = re.compile(r"[\n\r\t]")
-# The ecosystem-commands convention's identifier form (lowercase kebab-case).
-# A listed lane id names a record file
-# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md), so anything else
-# (a slash, `..`) is refused rather than joined into a path.
 LANE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 STRING_LISTS = {"suppressions.correctness_rules"}
 
@@ -570,9 +566,6 @@ def ladder_overrides(config: dict[str, Any]) -> list[str]:
             key = f"lanes.{name}.collectors.<measure>"
             column = _field(config, key, measure, tabs=True)
             if not tools:
-                # An explicitly empty list is a closed value: no collector runs
-                # for this lane and measure, so the dispatcher gets the
-                # reserved `none` rung rather than falling back to the ladder.
                 lines.append(f"{name}\t{column}\tnone")
                 continue
             for tool in tools:
@@ -586,11 +579,6 @@ def excludes(config: dict[str, Any]) -> list[str]:
     patterns = (config.get("scope") or {}).get("exclude")
     if patterns is None:
         patterns = []
-    # `scope.exclude` is a closed list. A scalar (`exclude: "vendor/**"`, the
-    # shape setup-apply.py writes for a one-glob value) iterates as characters,
-    # so the dispatcher would receive `v`, `e`, `n`, ... as globs: the audit
-    # exits 0 having measured the directory it was told to drop, and having
-    # possibly dropped unrelated single-character paths.
     if not isinstance(patterns, list):
         layer = (config.get("_layers") or {}).get("scope.exclude", "bundled default")
         raise ConfigTypeError(

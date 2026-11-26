@@ -99,10 +99,6 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("usage", result.stderr)
 
     def test_a_trailing_slash_excludes_the_directory_contents(self) -> None:
-        # Gitignore semantics: `vendor/` names a directory and covers what is
-        # under it. Dropping the slash would leave a bare segment matching only
-        # a path literally called `vendor`, so the exclusion would match
-        # nothing and the whole directory would stay in scope.
         result = run(
             "vendor/", "vendor/a.py", "vendor/sub/b.py", "vendor", "vendorish/c.py"
         )

@@ -1,42 +1,6 @@
 #!/usr/bin/env bash
-# setup-apply.sh — write the docs-naming team configuration layer.
-#
-# WRITES EXACTLY ONE FILE: `<root>/<home>/docs-naming.yaml`, <home> being the
-# repository's convention home (docs/conventions unless AGENTS.md or CLAUDE.md
-# binds another). Not the personal layers, which are the operator's own files;
-# not `.gitignore`, which is the consumer's; not the old JSON team file, which
-# stays where it is until the operator removes it. The setup contract scopes
-# `apply` to the artifact the plugin owns, and this script has no code path to
-# any other.
-#
-# IDEMPOTENT. Values are merged per key and compared as parsed documents, so a
-# re-run that changes nothing prints `already configured` and leaves the file's
-# bytes alone. The comment block at the top of an existing file survives every
-# merge; comments between keys do not, because the file is rewritten from the
-# merged document.
-#
-# MIGRATES. When the YAML is absent, the first write seeds it from the old JSON
-# team file, which the resolver no longer reads: .claude/docs-naming.json, else
-# the one at the retired docs-hygiene name. A fresh YAML so carries the old
-# settings over instead of dropping them. The JSON is left in place.
-#
-# Every single-quoted `${...}` below is a jq program argument, substituted by jq
-# from --arg/--argjson, never by the shell.
+# Every single-quoted `${...}` below is a jq program argument, never a shell expansion.
 # shellcheck disable=SC2016
-#
-# Usage:
-#   setup-apply.sh --defaults [--root <dir>]
-#   setup-apply.sh <key>=<value> [<key>=<value> ...] [--root <dir>]
-#   setup-apply.sh --help
-#
-#   --defaults    write the bundled document when no team layer exists, and
-#                 report the existing one untouched when it does
-#   <key>=<value> merge one key (a leading `file_names.` is accepted and
-#                 dropped). The value is parsed as JSON when it parses, and
-#                 taken as a string when it does not, so
-#                 `roots=["docs","guide"]` sets a list and `rule=lower-kebab`
-#                 sets a scalar.
-#
 # Exit: 0 written or already configured, 2 usage error or an unwritable target.
 set -uo pipefail
 
@@ -53,7 +17,15 @@ die() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+Write the docs-naming team configuration layer (<home>/docs-naming.yaml).
+Usage: setup-apply.sh --defaults [--root <dir>]
+       setup-apply.sh <key>=<value> [<key>=<value> ...] [--root <dir>]
+  --defaults     write the bundled document when no team layer exists
+  <key>=<value>  merge one key; the value is parsed as JSON when it parses, else taken as a string
+  --root <dir>   repository root
+Exit: 0 written or already configured; 2 usage error or an unwritable target.
+EOF
 }
 
 jqr() {

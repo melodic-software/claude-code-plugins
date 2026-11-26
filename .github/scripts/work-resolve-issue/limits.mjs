@@ -1,7 +1,3 @@
-// The `limits` leaf of pr-pipeline.yaml (pr-pipeline.schema.json) as the lane
-// scripts read it from resolve-config's output: its defaults, in hours and
-// counts, and the reset clamp the lanes share. It imports no package and sits
-// beside report-outcome.mjs, which runs from a copy of this directory alone.
 import { readFileSync } from "node:fs";
 
 const HOUR_MS = 3_600_000;

@@ -128,8 +128,6 @@ test("a resolved thread, a person's thread and one a person replied to stay out 
   }
 });
 
-// #8284: a listed bot's finding is one address-feedback works only behind a
-// trusted person's `@codex` request.
 test("a Codex finding goes into the context only when a trusted person asked Codex for the review", async () => {
   const CODEX = 199175422;
   const codex = (asker) => {
@@ -241,10 +239,6 @@ test("timed_out and startup_failure count as failing", async () => {
   );
 });
 
-// #9828's head c1184e03: test-bash (3) ended cancelled past its 9-minute
-// limit, beside the failed ci-status aggregate. Its recorded annotations
-// carry the time limit, so it is fixable and the model reads the cause; a
-// fail-fast sibling cancelled with only the cancel note is not.
 const TIME_LIMITED = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
 const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
 
@@ -366,8 +360,6 @@ test("a closed pull request is skipped", async () => {
   assert.equal(result.decision, "skip");
 });
 
-// release-publish-plugins.yml rebuilds release/plugins after fix-ci reads it,
-// so a fix-ci push there answers 422 (#11840's runs 41308756974, 41312571464).
 test("a head branch a workflow owns and rebuilds skips owned-branch before any check is read", async () => {
   const pull = (ref) => ({ state: "open", head: { sha: HEAD, ref, repo: { full_name: "o/r" } } });
   const api = { ...fakeApi({ pull: pull("release/plugins") }), listCommitCheckRuns: async () => assert.fail("no check read") };
@@ -425,7 +417,6 @@ test("needs-human from another lane's escalation proceeds and says so; fix-ci's 
 });
 
 test("a person's inline review-thread reply since another lane's escalation skips awaiting-human", async () => {
-  // GitHub's timeline has no event for a reply inside an existing review thread.
   const api = gatedApi(APP_USER, "feedback-disputed");
   api.listReviewComments = async () => [
     { id: 2, in_reply_to_id: 1, user: { login: "kyle-sexton", id: HUMAN, type: "User" }, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" },
@@ -621,9 +612,6 @@ test("main writes weaken-retry true on a head with no lane stop, false after one
   }
 });
 
-// #10919: address-feedback added the line that met a criterion, fix-ci cut it
-// to pass a line cap, and pr-verify failed the head on that criterion. The
-// context carries both the criterion and the line, so fix-ci can keep it.
 const CRITERION = "- [ ] `SKILL.md` names the new check where it lists what `run-validity.py` judges.";
 const ADDED = "- `run-validity.py` also judges whether each run's transcript names its check.";
 const STRANGER_USER = { __typename: "User", login: "someone", databaseId: STRANGER };
@@ -753,10 +741,6 @@ test("feedback lines skip blank and removed lines, and are null past their budge
   assert.deepEqual(feedbackLines([{ filename: "logo.png", additions: 0 }]), []);
 });
 
-// The read job refuses a context file over 1 MiB (pr-run-activity-read.yml).
-// Every field filled to its cap with three-byte characters fits, spec and
-// feedback lines just under their budgets included; text that escapes to six
-// bytes a character drops spec and feedback lines rather than pass the limit.
 for (const [why, char, specLength, keepsSpec] of [
   ["three-byte text", "中", 65000, true],
   ["control characters", "\u0001", 32000, false],

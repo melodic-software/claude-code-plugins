@@ -11,8 +11,6 @@ vi.mock("./acquire-retry-policy.js", async (importOriginal) => ({
   computeAcquireBackoffMs: () => 0,
 }));
 
-// Shape of probe 5 (#6812): "Me at the zoo" has manual `en` and `de` tracks; the
-// translated `en-de` track 429s after `en.vtt` is already on disk.
 const VIDEO_ID = "jNQXAC9IVRw";
 const URL = `https://www.youtube.com/watch?v=${VIDEO_ID}`;
 const TRANSLATED_429 =
@@ -69,7 +67,6 @@ describe("acquireYouTubeMedia keeps a caption already on disk when another track
         ...NO_THROTTLE,
         spawn: async (_cmd, args) => {
           if (!args.includes("--skip-download")) return succeeded;
-          // yt-dlp writes en.vtt, then aborts its subtitle loop on the en-de 429.
           await writeFixture({ [`${VIDEO_ID}.en.vtt`]: EN_VTT });
           return failed(`WARNING: something\n${TRANSLATED_429}`);
         },

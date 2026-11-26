@@ -1,20 +1,12 @@
 #!/usr/bin/env bash
-# lock-updates.sh — apply or remove the ICACLS deny on Kindle's updates dir.
-# Apply: deletes any cached installer, then denies write so Kindle can't re-download.
-# Remove: clears the deny ACE (cleanup action only).
-#
-# Usage: lock-updates.sh {apply|remove|check}
-#
 # Exit codes: 0 = success, 1 = failure, 2 = path doesn't exist
 
+# Git Bash sets the Windows env vars at runtime.
 # shellcheck disable=SC2154
-# (Windows env vars LOCALAPPDATA/USERNAME/USERDOMAIN are set on Git Bash runtime)
 
 set -uo pipefail
 
 UPDATES_DIR_BASH="${LOCALAPPDATA}/Amazon/Kindle/updates"
-# LOCALAPPDATA is already a native Windows path on Git Bash (C:\Users\<user>\AppData\Local),
-# so derive the icacls target from it — honors OneDrive-redirected or non-C: profiles.
 UPDATES_DIR_WIN="${LOCALAPPDATA}\\Amazon\\Kindle\\updates"
 TRUSTEE="${USERDOMAIN}\\${USERNAME}"
 CACHED_INSTALLER="${UPDATES_DIR_BASH}/KindleForPC-installer.exe"

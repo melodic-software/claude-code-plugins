@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for report-escalation.sh with stub gh and git on PATH. The stub gh
-# serves issue and comment JSON in the shape of the GitHub REST API (issue
-# .labels[].name, comment .body and .user.type) and records every call.
 # shellcheck disable=SC2016  # backticks and $STUB are literal text here
 set -euo pipefail
 unset RUNNER_TEMP
@@ -664,9 +661,6 @@ check "not-converging: no remove-the-label resume step" 0 "$(grep -c 'remove the
 has "not-converging, another author's PR: a person resolves the threads, then dispatches" 'a person resolves the threads or gets the checks green' "$STUB/bodies"
 check "not-converging, another author's PR: no close named" 0 "$(grep -c 'pr-merge lane closes' "$STUB/bodies" || true)"
 
-# On a pull request the lanes App opened (GraphQL names an App without the
-# [bot] suffix), the pr-merge lane closes it and re-admits its issue, so the
-# comment says so and how to keep it open; the retry text is gone.
 setup '[]' '[]'
 cat >"$STUB/threads.json" <<'EOF'
 [{"data":{"repository":{"pullRequest":{"author":{"login":"melodic-automation-lanes"},"reviewThreads":{"nodes":[
@@ -695,8 +689,6 @@ has "not-converging: asks for the next page by its cursor" 'endCursor=c1' "$STUB
 has "not-converging: names an open thread from a later page" '- `src/late.js:9`: https://github.com/o/r/pull/42#discussion_r11' "$STUB/bodies"
 check "not-converging: a later page's thread is not reported as none open" 0 "$(grep -c 'none open now' "$STUB/bodies" || true)"
 
-# The read is bounded, since anyone who can comment can add threads: at most
-# 10 pages (1,000 threads), and the comment says when more were not read.
 setup '[]' '[]'
 jq -n '[range(12) | {data: {repository: {pullRequest: {reviewThreads: {
   nodes: [{isResolved: false, path: "src/p\(.).js", line: 1, comments: {nodes: [{url: "https://github.com/o/r/pull/42#discussion_p\(.)"}]}}],
@@ -722,10 +714,6 @@ run feedback-not-converging
 check "not-converging, threads unreadable: still escalates" 0 "$RC"
 has "not-converging, threads unreadable: says so" 'could not be read' "$STUB/bodies"
 
-# feedback-incomplete: the comment names each kept thread with no
-# disposition, from the newest lanes App round marker on this head, in the
-# shape publish-feedback.mjs undisposedLines writes (#8218's round 1, with a
-# stand-in node id).
 round_comment() { comment "$ROUND"$'\n'"pr-unblock / address-feedback finished round 1 of max 3 on $1."$'\n\nKept review threads with no disposition:\n'"$2" "${3:-melodic-automation-lanes[bot]}" "${4:-Bot}"; }
 incomplete_json=$(jq -s add <<<"$(round_comment "$HEAD_B" '- `PRRT_old` (root comment 1)')
 $(round_comment "$HEAD_A" '- `PRRT_8218` (root comment 4306751638)'$'\n- `PRRT_x` (root comment 5)\n- and 2 more\n- `PRRT_y` <!-- x --> (root comment 6)')

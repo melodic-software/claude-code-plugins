@@ -1,192 +1,4 @@
 #!/usr/bin/env node
-// report-outcome.mjs: the work-resolve-issue lane's report-outcome leaf. Reads
-// what the resolve-issue run left and acts on the issue, with no model:
-//
-//   done      opens a ready PR from the run's branch: the body starts
-//             `Closes #<issue>`, or `Refs: #<issue>` and a Remaining work
-//             section when the run's `remaining` names the parts of the
-//             issue it leaves for later work (a malformed list counts as
-//             none); the merge lane reads a plain `Refs:` issue as it reads
-//             a closing one. Under that line go the `Refs:`, `Siblings:` and
-//             `Codifies:` lines the trusted issue's done-when asks the body to carry
-//             (linkageLines). The title is the run's Conventional
-//             Commits title, with any `#` or `/` a space
-//             (else one built from the issue title), and the body carries
-//             the hold line when a human must merge it. The PR gets no label:
-//             the work class lives on the issue only. The merge gate reads no
-//             work class and treats every lane PR as C2, so the hold line
-//             carries the class floor. The body fills the PR body contract's
-//             sections from the outcome's summary, changes, verification and
-//             not_done, and its Verification section the runner's check
-//             results (RUNNER_CHECKS). A done outcome whose not_done holds a
-//             required check is stopped, and so is one whose runner checks
-//             failed or cannot be read for the branch's current tip, whatever
-//             the outcome file says.
-//   Every stop below takes its route from stop-routes.json (stop-routes.mjs):
-//   The issue's state is its Work status field (models.issue-status); no
-//   route writes a status label. hold hands the issue to a person as pushback
-//   does; host-run adds the host-run label; attended adds the attended label;
-//   retry keeps Work status agent-ready, so
-//   work-unblock restarts it, up to limits.stop-retries; wait keeps
-//   agent-ready and names the open pull request the run waits on, so
-//   work-unblock restarts it once that pull request merges or closes (a
-//   pull request that is not open, or that neither the lanes App nor a
-//   listed human opened, retries instead); intake moves
-//   Work status from agent-ready to needs-triage, so the triage sweep sends
-//   the issue back through intake; park sets Work status confirmed beside admission's comment naming the reason, as
-//   admission parks a refusal no person answers; close closes the issue as
-//   completed (an already-done
-//   stop only once its cited commit or pull request is on the default
-//   branch and its commit message closes the issue, doneEvidence, and a
-//   verified-done stop only once VERIFY_CLOSE's sub-issues hold, else each
-//   retries); fail moves Work status to needs-triage and adds no label. A
-//   route other than hold carries no escalation marker.
-//
-//   pushback  a reason that opens with a hold code (security-risk,
-//             cost-risk, design-change, intent-change) takes that row; else
-//             cause intent or intent-change (as stop-routes.mjs causeName
-//             normalizes the cause) comments why, adds
-//             the human-gated Work status; else a cause
-//             naming a hold code takes that row; else a reason opening with
-//             a host-run or attended code takes that row, or security-risk's
-//             hold when runCode reads a security risk after the code (owner
-//             decision 2026-10-29); else pushback-means (stop-routes.json),
-//             one intake round. A pushback-means whose words (reason, else
-//             summary) or cause read as a security risk (runCode, any code
-//             ending) goes to intake with no means framing and a `security`
-//             marker; a spent intake round that is itself such a stop holds
-//             as security-risk, so a leak the run states again reaches a
-//             person.
-//             When a listed human's newest comment, posted since the lane's
-//             last outcome comment, does not open with DECISION_LINE, the
-//             comment links it and shows the line, since the lane counts no
-//             other comment as an answer.
-//   redispatch a pushback, intent-change, design-change or cost-risk hold
-//             whose answer, a listed human's decision comment or intake's
-//             refinement, was posted after the run's admission (lateRecord),
-//             which the run never read: instead of the hold it posts a
-//             redispatch record naming that comment, then a fresh admission
-//             record (lib/admission-record.mjs) and the App's restart of the
-//             Work status field (remove, then set agent-ready), so the fresh
-//             run freezes after the answer and reads it; a re-run of this run
-//             finishes what did not land (redispatch).
-//   stopped   comments why, takes its stop's route, and names the branch
-//             that holds any partial work. A missing or
-//             invalid outcome file is stopped; with a scan refusal marker
-//             (SCAN_REFUSED_DIR) the comment names the refusal instead, and
-//             otherwise, when lane.json's class says the issue file was never
-//             written (readIssueStop), it names why.
-//   limited   a run that wrote no readable outcome file and whose lane.json
-//             carries class rate-limit (the run hit its credential's usage
-//             limit before it could report): comments once with the
-//             limited marker naming when the limit resets, keeps agent-ready
-//             and adds no label, so work-unblock restarts it after the reset.
-//   turn-cap  a run that wrote no readable outcome file and whose lane.json
-//             carries class max-turns, or run-claude-cli's leg timeout
-//             (class timeout): comments with the turn-cap marker,
-//             naming the cap and the branch. While limits.turn-cap-restarts
-//             allows a restart since a listed human last set Work status
-//             agent-ready (humanSince), it keeps agent-ready and work-unblock restarts the issue; past
-//             that it takes turn-cap-spent's route.
-//   reused   the resolve-issue run skipped the work for a lane branch an
-//             earlier run left with commits and no report (REUSE_BRANCH):
-//             the earlier outcome counts only when this run's artifact names
-//             that branch (a re-run attempt); with none readable, a held PR
-//             opens from it, whatever the limit record. It carries the
-//             read-only summary pass's summary when the summary names this
-//             issue, the branch and its current tip; else fixed text only.
-//             The runner's check results are listed and never stop it: the
-//             PR always carries the hold line, so a human reads them.
-//   refused  a done run whose patch apply-issue-patch refused
-//             (ESCALATION_REASON patch-protected-path, patch-credential,
-//             patch-invalid or patch-not-applied), or whose apply job failed
-//             before giving one (patch-apply-failed), stops like stopped,
-//             naming the reason; only patch-credential reaches a person, and
-//             it does on any exit, ahead of any funding, limit or turn-cap
-//             record.
-//             patch-empty changes nothing, as the run committed nothing.
-//   dimension the issue's dimensions skipped the run before any model turn
-//             (DIMENSION_SKIP): takes the reason's route, naming the next
-//             step, with no person: research-first and probe-first park at
-//             status: confirmed, and split-required goes back through intake,
-//             whose split files its sub-issues. No outcome file is read.
-//   outside  the check-admission job stopped the run because the issue's author is
-//             neither a listed human nor the lanes App (DIMENSION_SKIP
-//             outside-author): comments that a listed human re-files the work
-//             as a new issue (once: a re-run finds its own comment) and
-//             moves Work status to needs-triage, with no label, since a
-//             retry stops again. No outcome file is read.
-//   stale    the read runner stopped on stale workflow files before any model
-//             turn (DIMENSION_SKIP workflow-stale): re-fires the issue at once
-//             on main's files (refireStale): the App's Work status restart,
-//             gated on the field reading agent-ready and on an admission (the
-//             App's admission record or a listed human's agent-ready set). No
-//             outcome file is read.
-//
-// Run from the base copy. It reads only the outcome directory and the GitHub
-// API, and never writes to a branch.
-//
-// `--find-prior` runs before the resolve-issue mint instead, with the job's
-// read-only token, and writes the step outputs `proceed`, `skip-reason` and
-// `reuse-branch` (see findPrior).
-//
-// Environment:
-//   GH_TOKEN            token with pull-requests: write and issues: write
-//                       (--find-prior: the job's read-only GITHUB_TOKEN)
-//   GITHUB_REPOSITORY   owner/repo
-//   ISSUE_NUMBER        the issue the lane worked
-//   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
-//                       untrusted) and lane.json (written by the runner: the
-//                       lane branch, the run's failure `class`, its limit
-//                       `resets`, its `max-turns`, the `turns` it took and
-//                       the `resume` branch a resumed run continued). Code the model started can
-//                       rewrite this artifact, so check results are never
-//                       read from it.
-//   RUNNER_CHECKS       work-resolve-issue.yml's run-checks job output, where
-//                       no model ran: each activity check run from the base
-//                       copy against the lane branch. Empty when that job did
-//                       not succeed.
-//   REUSE_BRANCH        the lane branch --find-prior chose, or empty
-//   ESCALATION_REASON   apply-issue-patch's escalation reason (a PATCH_REASONS
-//                       key), or empty
-//   SCAN_REFUSED_DIR    the read runner's scan-refusal markers for this run,
-//                       when its scan job refused the run's output and so
-//                       uploaded no outcome (see readScanRefusal)
-//   DIMENSION_SKIP      split-required, research-first or probe-first when
-//                       the issue dimensions skipped the run, or
-//                       outside-author when the check-admission job stopped it on the
-//                       issue's author (work-resolve-issue.yml report-skip),
-//                       or workflow-stale when a resolve-issue call stopped on
-//                       stale workflow files (resolve-issue-stale), else empty
-//   VERIFY_CLOSE        the check-admission job's verify-close output: a finished
-//                       parent's sub-issue numbers, comma-joined, each closed
-//                       as completed by a trusted close (check-blockers.mjs),
-//                       else empty. A verified-done stop closes only when the
-//                       issue's sub-issues, read fresh, are all closed as
-//                       completed and each is one of these (parentDone), and
-//                       the run neither committed nor resumed a branch; else
-//                       it retries
-//   GITHUB_WORKFLOW_SHA workflow-stale: the commit the run's workflow files
-//                       come from
-//   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
-//                       (runner-written issue, branch and tip; model output)
-//   TRACKER_CONFIG      the base tracker binding, for the human-gated label
-//   RESOLVED_CONFIG     resolve-config's output for this run (default
-//                       $RUNNER_TEMP/resolved-config.json), for the denied
-//                       paths and the limits
-//   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
-//                       a rerun reuses (default melodic-automation-lanes[bot])
-//   TRUSTED_ACTORS      trusted-actors.json from the base, whose humans may
-//                       apply the merge: human hold, and whose comments a
-//                       pushback reads
-//   TRUSTED_ACTORS_PATH --find-prior: trusted-actors.json from the default
-//                       branch tip, whose humans' closing PRs stop the lane
-//   APP_SENDER_ID       the lanes App's user id, whose admission records and
-//                       field restarts count (else the trusted-actor list's
-//                       LANES_BOT_LOGIN entry)
-//   GITHUB_OUTPUT       --find-prior: the step output file
-//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT
-//                       (the attempt whose scan-refusal markers are read)
 import { execFileSync } from "node:child_process";
 import { appendFileSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix, resolve } from "node:path";
@@ -208,9 +20,6 @@ import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securi
 export { doneEvidence, REFINE_MARKER };
 
 export const HOLD_LINE = "Hold: a human merges this";
-// The label a held PR carries from its opening. The hold line is body text the
-// lanes App can edit; ci-status fails while this label is on, and removing it
-// lifts the hold.
 export const HOLD_LABEL = "do-not-merge";
 export const EVAL_GATED_LABEL = "eval-gated";
 export const evalHoldComment = (issueNumber) =>
@@ -238,8 +47,6 @@ const heldWord = (outcome) =>
   [leadingCode(outcome?.reason), leadingCode(outcome?.cause), causeName(outcome?.cause)].some((code) => stopRoute(code) === "hold")
     ? ""
     : (stopWords(outcome).map(securityWord).find(Boolean) ?? "");
-// The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
-// cannot name an issue to close.
 const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
 const SUBJECT = /^(?!.*\bGH-\d)[A-Za-z0-9][A-Za-z0-9 ,.:;()'"`!?+=_-]{0,98}$/i;
 const SUBJECT_MAX = 99;
@@ -271,13 +78,6 @@ function prTitle(runTitle, issueTitle, issueNumber) {
   }
   return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
 }
-// Work a human merges: an issue carrying one of UNTRUSTED_LABELS, a trust
-// hold and the one label read here, and any diff that touches a path the merge
-// lane refuses (merge.diff-check.denied-paths in the base pr-pipeline.yaml),
-// so the two lists cannot drift apart. No other work class holds.
-// An owner decision that a person merges the issue's PR. It holds only when the
-// lane's labeler check passes: the newest `labeled` event is a listed human's
-// (by id) or the lanes App's, so no one else can add the hold or stand in for it.
 export const HUMAN_MERGE_LABEL = "merge: human";
 export function trustedLabeler(events, label, { bot, humans }) {
   const last = events.filter((event) => event?.event === "labeled" && event.label?.name === label).at(-1);
@@ -287,31 +87,17 @@ const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
 
-// A limit stop with no reset time is taken to reset `limits.fallback-reset`
-// hours after the run: the shortest plan limit is a five-hour session window
-// (https://support.claude.com/en/articles/11145838). work-unblock takes
-// clampReset from here.
 export { clampReset };
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
-// The attended queue's escalation marker (work-items reference
-// escalation-marker.md): the first line of every comment that hands the issue
-// to a person, so /work-items:attend-queue lists it as escalated. The outcome
-// marker follows on the next line.
 export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->";
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
 const LANE = "work-resolve-issue";
 const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))?(?: credential=(ISSUE_LANE_CLAUDE_API_KEY|ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN|FALLBACK_CLAUDE_CODE_OAUTH_TOKEN))?(?: fallback=(credit-stop|no-key))? -->/;
 
-// `branch=resumed` marks a resumed run that kept no branch of its own, so its
-// work is still on the branch it resumed (see findPrior).
 const resumedTag = (yes) => (yes ? " branch=resumed" : "");
 
 const runLines = (runUrl) => (runUrl ? ["", `Run: ${runUrl}`] : []);
 
-// The secret NAME a run's leg used and why it fell back, from lane.json, which
-// the run could rewrite. Only the names run-claude-cli records for role
-// issue-lane and the reasons the collect step writes pass, so a rewritten
-// lane.json cannot carry any other value (an encoded token) into the marker.
 const CREDENTIALS = new Set(["ISSUE_LANE_CLAUDE_API_KEY", "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"]);
 const FALLBACKS = new Set(["credit-stop", "no-key"]);
 export function readLaneCredential(dir) {
@@ -327,8 +113,6 @@ export function readLaneCredential(dir) {
   };
 }
 
-// The plan with ` credential=<NAME> fallback=<reason>` (each when valid)
-// closing its outcome marker line; a line already tagged is left as it is.
 export function withCredential(plan, { credential, fallback } = {}) {
   const tag = `${CREDENTIALS.has(credential) ? ` credential=${credential}` : ""}${FALLBACKS.has(fallback) ? ` fallback=${fallback}` : ""}`;
   if (!tag || typeof plan?.comment !== "string") {
@@ -337,23 +121,14 @@ export function withCredential(plan, { credential, fallback } = {}) {
   return { ...plan, comment: plan.comment.replace(/^(<!-- work-resolve-issue outcome=(?:(?! credential=| fallback=)[^\n])*?) -->/m, `$1${tag} -->`) };
 }
 
-// The marker a limited run leaves on its issue; work-unblock reads it back.
 export const limitedMarker = ({ resets, runId, onResumed = false }) =>
   `<!-- work-resolve-issue outcome=limited resets=${resets} run=${runId || 0}${resumedTag(onResumed)} -->`;
 
-// The marker a run that reached its turn cap leaves, restarted or handed back.
 export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
   `<!-- work-resolve-issue outcome=turn-cap${cap ? ` cap=${cap}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
 
-// The marker of a refs-hold comment: the App's needs-human hold on the issue
-// of a Refs PR, which work-unblock lifts once that PR merges. report-outcome
-// sets none, since the merge lane merges a plain `Refs:` PR as a closing one.
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
 
-// {outcome, resets, run, onResumed, pr?, security?, credential?, fallback?} from a comment body that opens with the lane's
-// marker, alone or after ESCALATION_MARKER, or null. resets is epoch milliseconds, or null when absent or
-// unreadable; onResumed is true for `branch=resumed`; security is true on an
-// intake marker a pushbackSecurity stop left.
 export function parseOutcomeMarker(body) {
   const match = MARKER.exec(String(body ?? ""));
   if (!match) {
@@ -372,10 +147,6 @@ export function parseOutcomeMarker(body) {
   };
 }
 
-// `value` cut to `cap` UTF-16 units at its last whitespace, `tidy` applied,
-// and CUT added; a single token longer than the cap is cut hard, never inside
-// a surrogate pair. Text within the cap is only tidied; a cut that keeps only
-// whitespace is empty.
 const CUT = "…";
 const clip = (value, cap, tidy = (kept) => kept) => {
   if (value.length <= cap) {
@@ -425,35 +196,16 @@ function deniedPaths(diffCheck) {
   return Array.isArray(paths) && paths.every((glob) => typeof glob === "string") ? paths : null;
 }
 
-// The merge lane's denied-path globs from the resolved config; an empty list
-// denies no path. Null, which holds every PR, when the file cannot be read or
-// parsed, or the value is missing, not a list, or holds a non-string.
 export function readHoldPaths(path) {
   return deniedPaths(readDiffCheck(path));
 }
 
-// The denied paths a PR holds on: readHoldPaths while
-// merge.diff-check.path-holds is on, none while it is absent or false (owner
-// decisions Q15 and Q16; merge-holds.mjs pathHoldsOf reads it alike). An
-// unreadable config still holds.
 export function heldPaths(path) {
   const diffCheck = readDiffCheck(path);
   const paths = deniedPaths(diffCheck);
   return paths !== null && [undefined, null, false, "false"].includes(diffCheck?.["path-holds"]) ? [] : paths;
 }
 
-// The read runner's scan refusal markers, the ones address-feedback.mjs
-// scanRefusal reads; the runner copies only this script's directory, so it
-// cannot import that one. `patch` when every marker names a patch over its
-// cap, `fault` when they name only that or a mix of it and `patch` (the scan
-// faulted, finding no credential), `output` when any names another (it may be
-// a credential shape), so a mixed set fails closed; '' for none or an
-// unreadable directory: a failed
-// download claims no refusal here, since the hand-back would name a false cause. Only
-// the current attempt's markers count (the download pattern spans every
-// attempt's), and with no readable attempt none does. A
-// marker's text only picks one of the fixed sentences below, so a forged one
-// puts nothing of its own in the comment.
 const ATTEMPT = /^[1-9][0-9]{0,4}$/;
 export function readScanRefusal(dir, attempt) {
   if (!ATTEMPT.test(attempt ?? "")) return "";
@@ -471,18 +223,15 @@ export function readScanRefusal(dir, attempt) {
   return kinds.every((kind) => kind === "patch" || kind === "fault") ? "fault" : "output";
 }
 
-// The scan job's refusals, as its decode step names them.
 export const SCAN_REFUSALS = {
   patch: "The scan job refused the run's output, so nothing was published: too-large: the patch was over its 262144-byte cap. The run's log names its size.",
   output: "The scan job refused the run's output, so nothing was published. The run's log names why.",
   fault: "The patch did not apply to the head the scan job scans, so nothing was published. The run's log names it; that says nothing about a credential.",
 };
 
-// The scan job's collect-refused output, as collect-patch.sh's exit 3 sets it.
 export const COLLECT_REFUSED =
   "The run left content, a link or a directory at a name the patch collector only accepts as an empty stub (such as `.npmrc`, `.env` or a lockfile), so no patch was collected and nothing was published. The run's log names the file.";
 
-// The skill's outcome file, checked as data. Anything unreadable is stopped.
 export function readOutcome(path) {
   let parsed;
   try {
@@ -512,18 +261,6 @@ function remainingList(value) {
   return items.every((item) => bullets([item]).slice(2).replace(CUT, "")) ? items : [];
 }
 
-// Model text is data. HTML comments go; `&` is escaped first, so no entity
-// can spell `@` or `#`, then raw HTML (`<`, `>`) and link syntax (`[`, `]`,
-// which could hide a reference definition). `@` is dropped so nothing
-// mentions anyone, and issue references are broken: squash merge copies the
-// body as plain text, so `#` becomes a full-width ＃, `GH-` and `/issues/` or
-// `/pull/` gain a space, and no closing keyword in it can close an issue.
-// `://` and `www.` gain a space too, so no bare URL autolinks.
-// Control characters other than newline go, and so do format characters
-// (bidi overrides, zero-width), which can make text read other than it is.
-// The cap applies after escaping, at a word (clip), and drops a half-cut
-// entity or escape. A file path keeps its comments, escaped, so the whole
-// name shows.
 const neutral = (value, cap, { path = false } = {}) =>
   clip(
     (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
@@ -552,17 +289,6 @@ const quoted = (value) =>
     .map((line) => (line.trim() ? `> ${line.trimEnd()}` : ">"))
     .join("\n");
 
-// The linkage lines the issue's done-when asks the PR body to carry: each
-// task-list item that names the PR body and quotes, in a code span, a
-// `Refs: #<n>` or `Siblings: #<a>, #<b>` line in the form pr-verify and the
-// merge lane read (merge-holds.mjs refsIssue, resolve-pr.mjs siblingNumbers).
-// Built from the issue's text, never the run's, so the line keeps the ASCII
-// `#` that neutral() breaks in model text; main passes a body only when a
-// listed human or the lanes App wrote the issue. A Refs line naming the issue
-// itself is left out, since the body's first line already names it. A
-// `Codifies:` line (the record /corrections:codify count-checks counts) is
-// copied only when it matches the record grammar whole and fits in 72
-// characters, so the squash commit's wrap cannot split it.
 const TASK_ITEM = /^ {0,3}[-*+] \[[ xX]\] (.*)$/;
 const PR_BODY = /\b(?:PR|pull request)(?:'s)? body\b/i;
 const LINKAGE = /`(Refs:[ \t]*#[1-9][0-9]{0,8}|Siblings:[ \t]*#[1-9][0-9]{0,8}(?:[ \t]*,[ \t]*#[1-9][0-9]{0,8}){0,9})[ \t]*`/g;
@@ -599,19 +325,11 @@ const bullets = (items) =>
 
 const notDoneLines = (notDone) => (notDone.length ? ["", "What the run says it did not do:", "", bullets(notDone.map(({ what }) => what))] : []);
 
-// The first line that makes a listed human's issue comment a decision the run
-// builds (select-trusted-text's isDecisionComment, which write-issue.mjs
-// applies). A script activity runs from a copy of its own directory, so the
-// rule is restated here, not imported.
 export const DECISION_LINE = "**Decision recorded.**";
 const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
 const firstLine = (body) => String(body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 const COMMENT_URL = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]*#issuecomment-[1-9][0-9]*$/;
 
-// The URL of a listed human's newest issue comment after the lanes App's
-// (`bot`) last outcome marker, when they posted it themselves (not through an
-// App) and its first line is not DECISION_LINE; else null. `comments` are
-// oldest first, as GET /issues/{n}/comments lists them.
 export function unmarkedAnswer(comments, humans, bot) {
   const since = comments.findLastIndex((comment) => comment?.user?.login === bot && parseOutcomeMarker(comment.body) !== null);
   const last = comments.slice(since + 1).filter((comment) => humans.has(comment?.user?.id)).at(-1);
@@ -680,20 +398,13 @@ const ROUTE_LABEL = { "host-run": HOST_RUN_LABEL, attended: ATTENDED_LABEL };
 const PARK_STATUS = "status: confirmed";
 const KEPT = new Set(["retry", "wait"]);
 const COUNTED = new Set([...KEPT, "intake"]);
-// Removes no label: the queue state is the Work status field. Kept for
-// work-unblock (label-unblocked.mjs), which still calls it.
 export async function stripQueueLabels() {
   return [];
 }
-// The state label a closed issue no longer needs: the host queue's. Removed
-// only once the issue is closed, so a close that fails leaves an open issue in
-// its state. `attended` stays: only a listed human lifts it.
 export const STATE_LABELS = [HOST_RUN_LABEL];
 
 const labelNames = (labels) => labels.map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
 
-// Removes the state labels `had` holds from the closed issue at `base`, and
-// returns their names. A 404 counts as removed.
 export async function stripStateLabels(github, base, had) {
   const present = new Set(labelNames(had));
   const removed = STATE_LABELS.filter((name) => present.has(name));
@@ -715,9 +426,6 @@ const ROUTE_TEXT = {
   close: "It closes the issue as completed.",
   fail: "It set Work status to needs-triage and added no label.",
 };
-// The pull request a blocked-by-pr reason names, or the issue a
-// blocked-by-issue reason names: its first `#<n>` (or the full-width `＃<n>`)
-// other than the issue itself, or "".
 export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
 const PUSHBACK_SECURITY_WHY =
@@ -795,13 +503,9 @@ function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: gi
   return { ...plan, stop, stopArgs: args, ...(why && { why }) };
 }
 
-// A retry, wait or intake plan with the earlier ones counted in: past the cap
-// it becomes retry-spent's route, or security-risk's hold for an intake plan
-// that is a pushbackSecurity stop. Any other plan is returned as it is.
 export const capRetries = (plan, retries, limits = LIMIT_DEFAULTS) =>
   COUNTED.has(plan.action) ? routeStop(plan.stop, plan.stopArgs, { retries, limits, route: plan.action, why: plan.why }) : plan;
 
-// apply-issue-patch's escalation reasons, each with why the patch did not land.
 export const PATCH_REASONS = {
   "patch-empty": "the run wrote no change",
   "patch-protected-path": "the patch changes a path the issue lane may not push: a workflow, a CODEOWNERS file, submodule config or a settings file",
@@ -811,8 +515,6 @@ export const PATCH_REASONS = {
   "patch-apply-failed": "apply-issue-patch failed before it committed or refused the patch",
 };
 
-// The step that must come before the lane can run an issue its dimensions
-// skipped, as triage's apply-outcome rule names it.
 export const DIMENSION_STEPS = {
   "split-required": "Its Size is too large for one run: intake splits it into sub-issues (owner Q93).",
   "research-first": "Its Uncertainty says research comes first: plan or research the approach, then set Uncertainty to Known.",
@@ -821,8 +523,6 @@ export const DIMENSION_STEPS = {
 
 const RETIRED_SKIPS = new Set(["not-assessed"]);
 
-// The check-admission job's stop on an issue neither a listed human nor the lanes App
-// wrote (check-blockers.mjs), which report-skip reports like a dimension skip.
 export const OUTSIDE_AUTHOR = "outside-author";
 const TRIAGE_AGAIN = new Set(["intake", "failed", OUTSIDE_AUTHOR]);
 
@@ -835,31 +535,17 @@ function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
   return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [] };
 }
 
-// The read runner's stop on stale workflow files (pr-run-activity-read.yml
-// `Stop on stale workflow files`), which work-resolve-issue.yml's
-// resolve-issue-stale job reads from the jobs listing and report-outcome
-// passes on like a dimension skip.
 export const WORKFLOW_STALE = "workflow-stale";
 
-// The lane's caller and the write runner, in work-unblock's re-fire key
-// order: the broker refuses a run whose copy of either differs from main's.
 export const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
-// work-unblock's re-fire record, which its sweep reads back: the key is
-// main's blob SHAs of LANE_WORKFLOWS, and `breaker` marks a kill-switch trip.
 export const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 export const refireComment = (key, cause, actor = "work-unblock") =>
   `<!-- work-unblock refired ${key} -->\n${cause} ${actor} removed and added \`agent-ready\` back to start a fresh run on main's workflow files. If this run ends the same way, it re-fires the issue again, waiting longer each time.`;
 const STALE_CAUSE =
   "The work-resolve-issue run that `agent-ready` started waited in its slot past a change to its lane workflow files on main, so it stopped before any model turn.";
-// The labels the issue lane never starts or restarts on, which work-unblock
-// reads too: a person decides each but `attended`, which waits on a step the
-// owner takes present, and `host-run`, which a host session builds while Work
-// status stays agent-ready; only a person removes OUTSIDE_ACTOR_LABEL.
 export const LANE_HOLDS = new Set(["needs-owner-decision", "needs-reporter-info", "needs-human", ...UNTRUSTED_LABELS, ATTENDED_LABEL, HOST_RUN_LABEL, OUTSIDE_ACTOR_LABEL]);
 const BLOB = /^[0-9a-f]{40}$/;
 
-// The admission record's lib, loaded on use: ci-status loads this file from a
-// sparse checkout that holds no lib/admission-record.mjs.
 const admissionLib = () => import("../lib/admission-record.mjs");
 
 const appSets = (fieldEvents, fieldId, appId) =>
@@ -881,22 +567,6 @@ async function fieldState(field, issueNumber) {
 
 const NO_FIELD = { id: null, state: async () => null, events: async () => [], restart: async () => false };
 
-// A run that stopped on stale workflow files ran no model and is no fault in
-// the issue, so it is re-fired at once on main's files, the way work-unblock's
-// sweep re-fires it: its re-fire record, then the App's restart of the Work
-// status field (`field.restart`), which starts a fresh run. The restart writes
-// no admission record, so the fresh run freezes at the admission this one did.
-// Nothing is done when the run's files match main's (the stale claim does not
-// hold), the issue is closed, its trusted Work status is not agent-ready or
-// cannot be read, no admission (admission-record.mjs admittedAt: the App's
-// record or a listed human's agent-ready set) admitted it, a hold is on, or a
-// person changes the field before the write lands; and none past
-// limits.limit-stops-per-issue re-fire records since the newest admission or
-// a run last reported. Past that bound the hourly sweep still re-fires a stale
-// stop once per new version of the two lane workflow files on main, so the
-// re-fires are bounded by how often main changes them. Returns what it did.
-// `statusOf(number, names)` gives the label names as the Work status field
-// decides them (baseStatus); a failed read re-fires nothing.
 export async function refireStale(github, repo, issueNumber, { workflowSha, bot, appId, humans, limits, statusOf = async (number, names) => names, field = NO_FIELD }) {
   if (!BLOB.test(workflowSha ?? "")) {
     return "skipped: the run names no workflow commit";
@@ -980,18 +650,6 @@ const REDISPATCHED = /^(?:<!-- work-resolve-issue outcome=redispatch[^\n]* -->\r
 export const redispatchComment = (comment, runId = "") =>
   `<!-- work-resolve-issue outcome=redispatch${runId ? ` run=${runId}` : ""} -->\n<!-- work-resolve-issue redispatch comment=${comment.id} -->\nA record this run did not read was posted after its admission: ${comment.html_url}. The run's report-outcome posted a fresh admission record and set the Work status field to agent-ready again, so a fresh run admits the issue as it stands now and reads it.`;
 
-// The record a hold would leave unread, or null: a listed human's own
-// decision (DECISION_LINE first, not posted through an App) or the lanes
-// App's (`bot`) refinement, created or last updated at or after the newest
-// admission (admission-record.mjs admittedAt: the App's admission record or a
-// listed human's agent-ready set of the Work status field `fieldId`). The
-// App's restarts write no record, so write-issue.mjs freezes a run at that
-// admission or an earlier one, and each such record is one the run left out.
-// `comments` are oldest first. Returns {comment}, or, when this run
-// (`runId`) already posted a redispatch record, {comment, marker, recorded}
-// naming it: a re-run finishes that redispatch rather than reading the new
-// admission record it posted, `recorded` when an App admission record
-// followed the marker. No admission found answers null.
 export async function lateRecord({ comments, fieldEvents, fieldId, appId, bot, humans, runId }) {
   const { admissionRecords, admittedAt } = await admissionLib();
   const marker = runId
@@ -1106,9 +764,6 @@ function turnCapPlan({ issueNumber, branch, cap, timeout = false, restart, human
   return { action: "turn-cap", exit: "turn-cap", issueNumber, runId, comment: lines.join("\n"), addLabels: [] };
 }
 
-// The summary pass's file for a reused branch, or null unless it is bound to
-// this issue and branch, names the tip it read, and holds a non-empty summary.
-// issue, branch and tip are runner values; output is the model's, read as data.
 export function readSummary(dir, { issueNumber, branch }) {
   let parsed;
   try {
@@ -1132,11 +787,6 @@ export function readSummary(dir, { issueNumber, branch }) {
   return summary.trim() ? { tip: parsed.tip, title: text(output.title), summary, changes: list(output.changes) } : null;
 }
 
-// The run-checks job's `checks` output: {tip, results: [{check, exit}]}, or
-// null unless it names this branch, a tip, and at most MAX_ITEMS whole-number
-// results, so no result is cut off. A check passes only on exit 0. On a reused
-// branch it adds `scan`, the leak scan's word for that tip (scan-reuse.mjs);
-// any word but clean holds the PR, and so does none.
 export function readChecks(text, { branch }) {
   let parsed;
   try {
@@ -1167,21 +817,8 @@ const checkFailures = (checks) =>
     ? [{ what: "The runner's check results are missing, unreadable or for another tip of the branch.", required: true }]
     : checks.results.filter(({ exit }) => exit !== 0).map(({ check, exit }) => ({ what: `${check} failed (exit ${exit})`, required: true }));
 
-// The gate a resumed branch passes before its PR opens and its statuses are
-// posted: at least one check ran and none failed.
 export const checksPassed = (checks) => Boolean(checks?.results.length) && !checkFailures(checks).length;
 
-// Whether the lane's PR holds for a person. decide() and reusePlan() both ask
-// here, so a reused branch holds on exactly the main path's conditions plus
-// its own leak scan: a trusted `merge: human`, an issue carrying one of
-// UNTRUSTED_LABELS, an unreadable denied-path list or changed-file list,
-// changed path the merge lane refuses, and on a reused branch a leak scan that
-// is missing or not clean. Runner checks hold nothing, failed or unreported:
-// the PR's Verification section names a failure, and ci-status reruns them on
-// the head, where a red one goes to the fix lanes, not a person. The scan is
-// not covered that way: lint-repo's gitleaks honors a gitleaks:allow comment
-// or .gitleaksignore the branch can add, its password rule misses short or
-// symbol-bearing values scanLeak flags, and it reads only the commits' patches.
 export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, checks, reused = false }) {
   return (
     humanMerge ||
@@ -1237,10 +874,6 @@ const humanPullStop = (humanPull, args) =>
     ...args,
   });
 
-// A lane branch an earlier run left with commits and no report, whose outcome
-// this run cannot read: a PR listing the files it changes, held on mustHold's
-// conditions. With the summary pass's summary it carries that text; without
-// it, titled from the issue, no model text.
 export function reusePlan({
   issueNumber,
   issueLabels = [],
@@ -1309,14 +942,6 @@ export function reusePlan({
   return { action: "open-pr", issueNumber, title: prTitle(summary?.title ?? "", issueTitle, issueNumber), body, branch, hold };
 }
 
-// What to do on the issue, from the outcome and what the run left. `limit` is
-// the runner's limit record ({resets}, epoch ms or null) when the run hit its
-// usage limit; a missing reset counts from `now`, the run's end. `turnCap` is
-// the runner's record ({cap}) when the run reached its turn cap, and
-// `turnCapRestarts` the restarts already made since a person last added
-// agent-ready. `checks` is readChecks' record for the branch's current tip;
-// null stops a done run. `unmarked` is the comment a pushback links
-// (unmarkedAnswer). `linkage` is linkageLines' list for the issue.
 export function decide({
   outcome,
   issueNumber,
@@ -1578,28 +1203,17 @@ function humanLabelFrom(path) {
   return label;
 }
 
-// The outcomes after which the next run continues the marked run's branch.
-// work-unblock's `failed` names the limit or funding stop's run it ends.
 export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding", "retry", "wait", "host-run", "attended", "failed"]);
 
 const laneBranch = (issueNumber) => laneBranchPattern(WORK_RESOLVE_ISSUE, issueNumber);
 export const isLaneBranch = (name, issueNumber) => laneBranch(issueNumber).test(name ?? "");
-// The issue a lane branch name is for, or null for any other name.
 export const laneBranchIssue = (name) => {
   const parsed = parseLaneBranch(name);
   return parsed ? Number(parsed.issue) : null;
 };
 
-// A commit the lanes App made through the API: verified, authored by the App
-// and committed by web-flow (a branch name proves nothing about who pushed to
-// it, and anyone can sign a commit naming the App's address as author).
 const laneCommit = (commit, bot) =>
   commit?.commit?.verification?.verified === true && commit.author?.login === bot && commit.committer?.login === "web-flow";
-// A resume carries every commit ahead of the default branch into the next PR,
-// so each of them, not only the tip, must be the lanes App's. A listing cut
-// short (null) passes none.
-// A GET /compare answer's commits, or null when the listing (at most 250) is
-// cut short.
 export const listedCommits = (comparison) =>
   Array.isArray(comparison?.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
 export const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
@@ -1616,50 +1230,11 @@ export function readBranch(dir, issueNumber, key = "branch") {
   return fromLane(dir, (lane) => (isLaneBranch(lane?.[key], issueNumber) ? lane[key] : ""), "");
 }
 
-// The first of the issue's open closing PRs (closingPulls) in this repository
-// that the lanes App or a listed human opened: anyone can write `Closes #N`, so
-// an outsider's PR would let anyone stop the lane.
 export const trustedCloser = (closing, { repo, bot, humans }) =>
   closing.find(({ author, repository }) => String(repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase() && trustedAuthor(author, { bot, humans }));
 const trustedAuthor = (author, { bot, humans }) =>
   (author?.__typename === "Bot" && (author.login === bot || `${author.login}[bot]` === bot)) || (author?.__typename === "User" && humans.has(author.databaseId));
 
-// Whether an earlier run already did the issue's work, from facts read before
-// the resolve-issue mint:
-//   stop   a lanes-App PR from a lane branch is open, or an open PR in this
-//          repository closes the issue and the lanes App or a listed human
-//          opened it (anyone can write `Closes #N`, so an outsider's PR
-//          would let anyone stop the lane);
-//   reuse  the first lane branch, newest first, with commits ahead of the default branch,
-//          a tip commit GitHub verified, authored by the lanes App and
-//          committed by web-flow, as the App's API commits are (a branch
-//          name proves nothing about who pushed to it, and anyone can sign
-//          a commit naming the App's address as author),
-//          no lanes-App PR in any state (a closed one was rejected or
-//          merged) and no lanes-App outcome marker for its run (that report
-//          already handed the work on, so the model runs again);
-//   resume the newest lanes-App outcome marker, passing over those of resumed
-//          runs that kept no branch, is turn-cap, stopped, limited or funding
-//          and names a run whose newest lane branch passes the same
-//          tip, commit and PR checks, with every commit ahead of the default
-//          branch verified, by the lanes App, committed by web-flow, and no
-//          commit behind the default branch: the model runs on a new lane
-//          branch made at that branch's tip (`tip`, the sha read), so it
-//          continues the work instead of starting from the default branch.
-//          A branch behind the default branch would carry its stale base into
-//          the runner's whole-branch checks, so it starts fresh instead
-//          (`stale` names it and the tip read) and is left as it is. With `keepBehind` it
-//          resumes anyway: the read runner's check-issue-fields job re-derives a
-//          claim made before the model ran, and the default branch may have
-//          moved since;
-//   run    otherwise.
-// `branches` are {name, sha, aheadBy, behindBy, tip, tipAt, pulls, commits} (commits
-// from GET /compare, null when the listing is cut short; tip from GET
-// /commits/{sha}, tipAt epoch ms, pulls from
-// GET /pulls?state=all&head=); `closing` the issue's open closing PRs as
-// GraphQL nodes; `markers` the lanes App's parsed outcome markers, each with
-// `at`. A marker naming no run, posted before markers named one, covers every
-// branch whose tip is not newer than it.
 export function findPrior({ issueNumber, repo, bot, humans, branches, closing, markers, keepBehind = false }) {
   const lane = laneBranches(branches, issueNumber);
   const byBot = (pull) => pull?.user?.login === bot;
@@ -1709,17 +1284,8 @@ const laneBranches = (branches, issueNumber) => {
 const reportedIn = (markers) => ({ match, tipAt }) =>
   markers.some((marker) => marker.run === match[1] || (marker.run === "" && !(marker.at <= tipAt)));
 
-// At most this many branches are named to prune per run; the rest wait for
-// the next run on the issue.
 export const PRUNE_CAP = 20;
 
-// The issue's lane branches a run deletes (owner decision on #7948): a stopped
-// run's branch, one whose run posted an outcome marker and whose every commit
-// ahead of the default branch is the lanes App's, with no pull request in any state, from the facts findPrior
-// decided on, so it costs no read. Spared: the branch the run reuses, resumes
-// or starts fresh past (`prior`), an unreported branch (reuse's), and every
-// attempt of the run itself (`runId`). A branch someone else pushed to is kept
-// for the daily branch cleanup.
 export function pruneBranches({ issueNumber, bot, branches, markers, prior, runId = "" }) {
   const spared = new Set([prior?.branch, prior?.stale?.branch].filter(Boolean));
   const reported = reportedIn(markers);
@@ -1730,7 +1296,6 @@ export function pruneBranches({ issueNumber, bot, branches, markers, prior, runI
     .slice(0, PRUNE_CAP);
 }
 
-// The listed humans' ids in trusted-actors.json; throws when it cannot be read.
 export function readHumans(path) {
   const list = readRawTrustedActors(path);
   if (list?.version !== 1 || !Array.isArray(list.actors)) {
@@ -1747,8 +1312,6 @@ function readHumansOrNone(path) {
   }
 }
 
-// The runner's limit record in lane.json: {resets} (epoch ms, or null when
-// the run named none) when the run's class is rate-limit, else null.
 export function readLimit(dir) {
   return fromLane(dir, (lane) => {
     if (lane?.class !== "rate-limit") {
@@ -1759,11 +1322,6 @@ export function readLimit(dir) {
   }, null);
 }
 
-// Why the run never started, from lane.json's class, or null: the runner set
-// issue-edited when write-issue refused because the issue's title or body
-// changed after the label, issue-edited-trusted when only listed accounts
-// changed them, and issue-file when it wrote no issue file for another
-// reason. Either way no model ran.
 export const ISSUE_STOPS = {
   "issue-edited":
     "The run did not start: the issue's title or body changed after `agent-ready` was added, so the runner wrote no issue file for the skill and no model ran.",
@@ -1776,10 +1334,6 @@ export function readIssueStop(dir) {
   return fromLane(dir, (lane) => (Object.hasOwn(ISSUE_STOPS, lane?.class ?? "") ? ISSUE_STOPS[lane.class] : null), null);
 }
 
-// The runner's funding record in lane.json: {regain} (epoch ms, or null when
-// no date is readable) when the run failed on a spend limit or zero balance
-// (api_error_status 400 with "regain access on <date>") or a disabled key
-// (401), else null. The stop text's shape is the one ci-workflows#781 records.
 const REGAIN = /regain access on ([^.\n"]{1,80})/i;
 export function readFunding(dir) {
   return fromLane(dir, (lane) => {
@@ -1801,11 +1355,6 @@ export function readFunding(dir) {
 
 const turnCount = (value) => (/^[1-9][0-9]{0,5}$/.test(value ?? "") ? Number(value) : null);
 
-// The runner's turn-cap record in lane.json: {cap} (the run's --max-turns, or
-// null when unreadable) when the run's class is max-turns, else null. A leg
-// run-claude-cli stopped at its leg timeout (class timeout) ran out of time
-// the same way, so it is the same record with `timeout: true` and no cap: it
-// restarts from its branch under limits.turn-cap-restarts, never stops.
 export function readTurnCap(dir) {
   return fromLane(dir, (lane) => {
     if (lane?.class === "timeout") {
@@ -1815,9 +1364,6 @@ export function readTurnCap(dir) {
   }, null);
 }
 
-// The runner's over-cap record in lane.json: {turns, cap} when the run took
-// more turns than its --max-turns and still ended, else null. run-claude-cli
-// counts such a run a success, so its class is empty.
 export function readOverCap(dir) {
   return fromLane(dir, (lane) => {
     const [turns, cap] = [turnCount(lane?.turns), turnCount(lane?.["max-turns"])];
@@ -1825,10 +1371,6 @@ export function readOverCap(dir) {
   }, null);
 }
 
-// When a listed human last set the Work status field (`fieldId`) to
-// agent-ready, among resolve-config fieldEvents (admission-record.mjs
-// personAdmissions), else -Infinity. Anyone else's set, the lanes App's
-// restarts included, resets nothing, so it cannot buy restarts.
 export async function humanSince(fieldEvents, fieldId, humans) {
   if (fieldId == null) {
     return Number.NEGATIVE_INFINITY;
@@ -1837,8 +1379,6 @@ export async function humanSince(fieldEvents, fieldId, humans) {
   return personAdmissions(fieldEvents, { fieldId, humans }).at(-1)?.at ?? Number.NEGATIVE_INFINITY;
 }
 
-// The turn-cap restarts since `since` (humanSince): the lanes App's turn-cap
-// markers after that, other than this run's own.
 export const countTurnCapRestarts = (args) => countRestarts({ ...args, outcome: "turn-cap" });
 
 function restartMarkers({ comments, since, bot, runId, outcome }) {
@@ -1862,8 +1402,6 @@ const spentOnFaults = (plan, markers, runId, limits) =>
   markers.every((marker) => marker.fault) &&
   (!plan.stopArgs.branch || laneBranch(plan.issueNumber).exec(plan.stopArgs.branch)?.[1] !== runId);
 
-// Every page of a list endpoint, 100 per page. A script activity runs from a
-// copy of its own directory (collect-base-activity), so this is not imported.
 async function paginate(github, path, maxPages = 50) {
   const items = [];
   const separator = path.includes("?") ? "&" : "?";
@@ -1891,9 +1429,6 @@ const CLOSING_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
   }
 }`;
 
-// Every open PR that closes the issue, across pages, so no number of other
-// PRs can push a trusted one out of reach. `includeClosedPrs: false` still
-// lists a merged PR, so each node's state decides.
 export async function closingPulls(github, { owner, name, number }, maxPages = 50) {
   const nodes = [];
   let after = null;
@@ -1921,8 +1456,6 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
   throw new Error(`the issue has more than ${maxPages} pages of closing pull requests`);
 }
 
-// The marker of report-outcome's comment naming a stale lane branch a fresh
-// run left behind, once per branch.
 export const staleMarker = (branch) => `<!-- work-resolve-issue stale-branch=${branch} -->`;
 const staleNoted = (body, branch) => String(body ?? "").split(/\r?\n/, 1)[0] === staleMarker(branch);
 export const staleComment = (branch) =>
@@ -1947,14 +1480,6 @@ const postedThisRun = (comments, { bot, outcome, runId }) =>
     return marker?.outcome === outcome && runId !== "" && marker.run === runId;
   });
 
-// --find-prior: reads the facts findPrior decides on and writes its step
-// outputs. A failed read, or an answer of the wrong shape, holds
-// (docs/conventions/pr-pipeline/README.md#outage-posture, element 2): green with a notice and
-// proceed=false, so no model runs and no mint follows, with no branch to reuse
-// or prune. agent-ready stays and no marker goes up, so work-unblock's sweep
-// starts the issue again. The re-derive fails instead: its job continues on the
-// error, and that failure is what withholds the run's branch claim
-// (pr-run-activity-read.yml).
 export async function findPriorMain({ env = process.env, fetchImpl, sleep, latchOptions } = {}) {
   const keepBehind = env.FIND_PRIOR_KEEP_BEHIND === "true";
   const holdsOnRefusal = !keepBehind;
@@ -2014,8 +1539,6 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
       if (legacy && !Number.isFinite(tipAt)) {
         throw new Error(`the tip commit time of ${ref.name} could not be read`);
       }
-      // A branch the compare listing cuts short carries no commit list, so it
-      // is never resumed.
       const commits = listedCommits(comparison);
       branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, behindBy: comparison.behind_by, tip, tipAt, pulls, commits });
     }
@@ -2171,8 +1694,6 @@ async function finishStop(github, repo, plan, { bot, appId, humans, runId, limit
   await applyHandBack(github, repo, plan, { setStatus, leaveAgentReady, stateOf });
   if (plan.action === "close") {
     const base = `${repo}/issues/${plan.issueNumber}`;
-    // A label DELETE is idempotent (a 404 counts as removed), so it is resent
-    // after a 5xx.
     const resend = (method, path) => github(method, path, undefined, { safeToResend: true });
     const had = (await github("GET", base))?.labels ?? [];
     await github("PATCH", base, { state: "closed", state_reason: "completed" }, { safeToResend: true });
@@ -2181,12 +1702,6 @@ async function finishStop(github, repo, plan, { bot, appId, humans, runId, limit
   }
 }
 
-// The Work status field (NO_FIELD's shape) over `github`, a createGitHub
-// client, and the modules baseStatus loads. `reader` is read-status.mjs
-// statusReader's and `restart(number)` write-status.mjs statusWriter's, which
-// removes the value and sets agent-ready, answering {outcome: "held"} on a
-// listed human's hold. The state is read again just before it, since a
-// removal clears whatever value a person set since the caller's read.
 export function workStatusField({ github, repository, config, reader, fieldEvents, restart }) {
   if (!config) {
     return NO_FIELD;
@@ -2254,9 +1769,6 @@ async function labelState(env, label) {
   return state;
 }
 
-// `setStatus(number, state)` writes the issue's Work status field,
-// `statusOf(number, names)` reads its label names as the field decides them,
-// and `field` reads and restarts the field (baseStatus at the command line).
 export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now(), sleep, setStatus = async () => {}, leaveAgentReady = async () => {}, statusOf = async (number, names) => names, field = NO_FIELD } = {}) {
   const stateOf = (label) => labelState(env, label);
   const bot = botLogin(env);
@@ -2497,8 +2009,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       return 0;
     }
     if (plan.action === "open-pr") {
-      // A rerun finds the PR it already opened. Anyone can open a PR between two branches of a public repository, so
-      // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
       const findOpen = async () =>
         (await github("GET", `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`)).find(

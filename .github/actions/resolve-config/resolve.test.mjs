@@ -142,8 +142,6 @@ test("rejection 3: a merge effect outside pr-merge is rejected in a lane the run
   assertRejected(() => run(config), "forbidden-by-lane");
 });
 
-// A skill runs only in the read runner: the schema and the reader each refuse
-// a skill whose effect is not read, in any lane.
 test("a skill with an effect other than read fails the schema and the reader", () => {
   const schemaWithoutRule = structuredClone(SCHEMA);
   schemaWithoutRule.$defs.leaf.allOf = schemaWithoutRule.$defs.leaf.allOf.filter(
@@ -298,9 +296,6 @@ test("rejection 9: an activity named run is rejected", () => {
 test("rejection 9: an activity named report is rejected", () => {
   assertRejected(() => run(fixture("reserved-report.yaml")), "reserved-name");
 });
-
-// Denied paths: the config's own, nothing forced (owner direction
-// 2026-10-24: a trusted path alone holds nothing).
 
 test("no denied path is added when the config sets no merge section", () => {
   assert.deepEqual(
@@ -727,9 +722,6 @@ test("with an activity, another slot's undecidable predicate leaves that slot un
   );
 });
 
-// Owner rule (#7032 amendment): a token with contents: write and
-// pull-requests: write can enqueue a pull request, so only merge holds both;
-// the broker refuses any other such grant.
 test("no effect but merge grants both contents: write and pull-requests: write", () => {
   const both = Object.entries(EFFECT_GRANTS)
     .filter(([, grant]) => grant.contents === "write" && grant["pull-requests"] === "write")
@@ -1611,8 +1603,6 @@ lanes:
   );
 });
 
-// Owner shape (#7032 amendment): the model job only pushes, the reply job
-// only posts.
 const feedbackLeaf = (activity, effect) => `version: 2
 activities:
   ${activity}:
@@ -1627,8 +1617,6 @@ lanes:
       - activity: ${activity}
 `;
 
-// address-feedback runs on the read runner: it neither pushes nor posts. As a
-// skill, the schema refuses any other effect before its activity rule does.
 for (const [activity, allowed, forbidden, code] of [
   ["address-feedback", "read", ["mutate-branch", "publish-artifact", "mutate-tracker", "merge"], "invalid-config"],
   ["publish-feedback", "publish-artifact", ["mutate-branch", "mutate-tracker", "merge"], "forbidden-by-activity"],
@@ -1751,8 +1739,6 @@ const appliedByEdit = (edit) => {
   return stringify(doc);
 };
 
-// review-threads also hands on its replies, which the schema requires: the
-// reply job is the only way they reach the pull request.
 test("prepare: a read skill that hands on a patch may set a writing skill's prepare mode; without applied-by.patch it may not", () => {
   for (const prepare of ["review-threads", "dependency-review", "merge-base"]) {
     const handsOn = appliedByEdit((doc) => {

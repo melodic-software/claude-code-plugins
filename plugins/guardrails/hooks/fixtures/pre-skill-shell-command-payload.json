@@ -1,0 +1,19 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/dev/null",
+  "cwd": "/work",
+  "prompt_id": "00000000-0000-4000-8000-000000000002",
+  "permission_mode": "auto",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreSkillShellCommand",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "echo capture-ok"
+  },
+  "tool_use_id": "00000000-0000-4000-8000-000000000003:inner:preamble-0",
+  "command_name": "capture-pssc:cap",
+  "command_source": "plugin",
+  "invoked_by": "user"
+}
