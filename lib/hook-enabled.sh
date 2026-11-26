@@ -6,6 +6,7 @@
 
 [[ -n "${_HOOK_ENABLED_LOADED:-}" ]] && return 0
 readonly _HOOK_ENABLED_LOADED=1
+readonly _HOOK_ENABLED_SOURCE="${BASH_SOURCE[0]:-}"
 
 readonly _HOOK_ENABLED_LOWER=abcdefghijklmnopqrstuvwxyz
 readonly _HOOK_ENABLED_UPPER=ABCDEFGHIJKLMNOPQRSTUVWXYZ
@@ -64,6 +65,31 @@ hook_enabled::_repo_value_to() {
   return 1
 }
 
+hook_enabled::_settings_value_to() {
+  local __he_key="$3" __he_src="${_HOOK_ENABLED_SOURCE//\\//}" __he_rest __he_mkt __he_name __he_file __he_out
+  printf -v "$1" '%s' ""
+  printf -v "$2" '%s' ""
+  [[ "$__he_src" == /* || "$__he_src" == [A-Za-z]:/* ]] || return 1
+  [[ "$__he_src" == */plugins/cache/*/*/* ]] || return 1
+  __he_rest="${__he_src#*/plugins/cache/}"
+  __he_mkt="${__he_rest%%/*}"
+  __he_rest="${__he_rest#*/}"
+  __he_name="${__he_rest%%/*}"
+  [[ -n "$__he_mkt" && -n "$__he_name" ]] || return 1
+  __he_file="${__he_src%%/plugins/cache/*}/settings.json"
+  [[ -f "$__he_file" && -r "$__he_file" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  __he_out="$(jq -j --arg id "$__he_name@$__he_mkt" --arg k "$__he_key" '
+    (.pluginConfigs[$id].options[$k])?
+    | if type == "boolean" then "v:" + tostring
+      elif type == "string" then "v:" + .
+      else empty end' <"$__he_file" 2>/dev/null)" || return 1
+  __he_out="${__he_out%$'\r'}"
+  [[ "$__he_out" == v:* ]] || return 1
+  printf -v "$1" '%s' "${__he_out#v:}"
+  printf -v "$2" '%s' "pluginConfigs[\"$__he_name@$__he_mkt\"] in $__he_file"
+}
+
 hook_enabled::_no_repository_layer() {
   local root home
   hook_enabled::_posix_to root "$1"
@@ -74,7 +100,7 @@ hook_enabled::_no_repository_layer() {
 }
 
 hook_enabled::resolve() {
-  local security=0 root="${CLAUDE_PROJECT_DIR:-}" home="docs/conventions" plugin key default option user file repo
+  local security=0 root="${CLAUDE_PROJECT_DIR:-}" home="docs/conventions" plugin key default option user file repo setting setting_from
   local -a positional=()
   while (($# > 0)); do
     case "$1" in
@@ -112,6 +138,14 @@ hook_enabled::resolve() {
   if [[ "$default" != true && "$default" != false ]]; then
     echo "hook-enabled: $key: plugin default \"$default\" is not true or false" >&2
     return 2
+  fi
+
+  if ((security)) && hook_enabled::_settings_value_to setting setting_from "$key"; then
+    case "$setting" in
+      true) return 0 ;;
+      false) return 1 ;;
+      *) hook_enabled::_drop "$key" "$setting" "$setting_from" ;;
+    esac
   fi
 
   hook_enabled::_map_to option "CLAUDE_PLUGIN_OPTION_$key" "$_HOOK_ENABLED_LOWER" "$_HOOK_ENABLED_UPPER"

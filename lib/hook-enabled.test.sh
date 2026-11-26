@@ -8,6 +8,11 @@ project="$work/project"
 conf="$project/docs/conventions/demo.yaml"
 mkdir -p "$project/docs/conventions" "$project/settings" "$work/home/docs/conventions" "$work/other/docs/conventions" "$work/docs/conventions"
 option="CLAUDE_PLUGIN_OPTION_DEMO_ENABLED"
+lib="$HERE/hook-enabled.sh"
+installed="$work/config/plugins/cache/market/demo/1.0.0/lib/hook-enabled.sh"
+settings="$work/config/settings.json"
+mkdir -p "${installed%/*}"
+cp "$lib" "$installed"
 fails=0
 
 repo() {
@@ -25,7 +30,7 @@ check() {
   done
   shift
   # shellcheck disable=SC2016
-  err="$(env -u "$option" HOME="$work/home" CLAUDE_PROJECT_DIR="$project" ${env[@]+"${env[@]}"} bash -c '. "$1" && shift && hook_enabled::resolve "$@"' _ "$HERE/hook-enabled.sh" "$@" 2>&1 >/dev/null)"
+  err="$(env -u "$option" HOME="$work/home" CLAUDE_PROJECT_DIR="$project" ${env[@]+"${env[@]}"} bash -c '. "$1" && shift && hook_enabled::resolve "$@"' _ "$lib" "$@" 2>&1 >/dev/null)"
   code=$?
   if [[ "$code" == "$want" && "$err" == "$want_err" ]]; then
     echo "PASS: $name"
@@ -95,6 +100,34 @@ repo
 check "security: an environment false falls to a plugin default of false" 1 "" "$option=false" -- --security demo demo_enabled false
 repo "demo_enabled: false"
 check "security: an invalid option falls past the ignored repository false" 0 "$(dropped 1 "$option")" "$option=1" -- --security demo demo_enabled true
+
+user_setting() {
+  printf '{"pluginConfigs": {"demo@market": {"options": {"demo_enabled": %s}}}}\n' "$1" >"$settings"
+}
+lib="$installed"
+from_settings="pluginConfigs[\"demo@market\"] in $settings"
+repo "demo_enabled: true"
+user_setting false
+check "security: the user's own settings false turns the guard off over a repository true" 1 "" -- --security demo demo_enabled true
+check "security: the user's own settings false wins over an environment true" 1 "" "$option=true" -- --security demo demo_enabled true
+check "a settings false is not read without --security" 0 "" -- demo demo_enabled true
+user_setting '"false"'
+check "security: a settings string false turns the guard off" 1 "" -- --security demo demo_enabled true
+user_setting true
+repo "demo_enabled: false"
+check "security: the user's own settings true keeps the guard on" 0 "" "$option=false" -- --security demo demo_enabled false
+user_setting '"no"'
+check "security: an invalid settings value is named and dropped; an environment false stays ignored" 0 "$(dropped no "$from_settings")" "$option=false" -- --security demo demo_enabled true
+printf '{"pluginConfigs": {"other@market": {"options": {"demo_enabled": false}}}}\n' >"$settings"
+check "security: another plugin's settings entry is not the user layer" 0 "" -- --security demo demo_enabled true
+printf 'not json\n' >"$settings"
+check "security: an unreadable settings file leaves the user layer unset" 0 "" -- --security demo demo_enabled true
+rm -f "$settings"
+check "security: no settings file leaves the guard on" 0 "" "$option=false" -- --security demo demo_enabled true
+user_setting false
+lib="$HERE/hook-enabled.sh"
+check "security: a library outside the install cache reads no settings layer" 0 "" -- --security demo demo_enabled true
+rm -f "$settings"
 
 repo
 printf 'demo_enabled: false\n' >"$project/settings/demo.yaml"
