@@ -178,9 +178,9 @@
 // and the next pass, reading the newest scheduled or hand-started run of
 // main's copy of this workflow that holds one, skips each carried id its
 // listing still shows. A run to re-run is never carried (a deferred one still
-// gets its place later, and a re-run that fails is tried again), nor one whose
-// failed job's steps did not list in full. A carry that is missing or cannot be
-// read reads every run, as before.
+// gets its place later, and a re-run that fails is tried again). A lane run with
+// truncated steps can settle when its attempt-1 job listing is whole and final.
+// A missing or unreadable carry makes the next pass read every run.
 //
 // The same file carries each open PR's latest-attempt job reads (readJobs),
 // keyed on the run id and attempt, and used only while the head's live listing
@@ -947,6 +947,9 @@ async function holdReason(call, repo, run, { judge, write }, settled, carry = ne
   const jobs = await withAnnotations(call, repo, listing.jobs);
   const cut = jobs.filter((job) => !stepsKnown(job));
   if (!cut.every((job) => job?.conclusion === "failure" && (lostRunnerNoted(job) || setupFailed(job)))) {
+    if (current && wholeListing(listing)) {
+      return { reason: TRUNCATED_STEPS, settle: true };
+    }
     throw new Error("a job's steps did not list in full, so which steps ran is unknown");
   }
   const started = jobs
@@ -966,6 +969,8 @@ async function holdReason(call, repo, run, { judge, write }, settled, carry = ne
 }
 
 export const WRITTEN = "after its verdict write started, so a re-run would judge the head again";
+export const TRUNCATED_STEPS = "its job steps never listed in full, so which steps ran is unknown";
+
 async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
   const key = jobsKey(run.id, 1);
   const carried = carry.get(key);
