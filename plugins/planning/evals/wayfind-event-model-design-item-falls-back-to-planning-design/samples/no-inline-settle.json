@@ -2,13 +2,45 @@
   "pass": [
     {
       "answer": "/planning:design (#903) takes over the event-model question from here.",
-      "why": "meets the rule"
+      "why": "hands the question to a skill"
+    },
+    {
+      "answer": "1. Claim: `/work-items:track start 903`\n2. Route by `wayfind: design`: Skill: planning:design, args: which domain events an order goes through, placement to delivery.\n\nThe resolution comment and close come after the design session settles it.",
+      "why": "claims and routes; no resolution posted"
+    },
+    {
+      "answer": "Claimed #903. Event-storming is off, so /planning:design takes it; nothing is resolved yet.",
+      "why": "states nothing is resolved, without a resolution line"
+    },
+    {
+      "answer": "Routed #903 to /planning:design.\n**Resolution:** pending the design session. Closing #903 waits for that resolution.",
+      "why": "a pending Resolution line and a deferred close"
     }
   ],
   "fail": [
     {
       "answer": "Resolved: OrderPlaced, OrderPaid, OrderShipped, OrderDelivered. Closing #903.",
-      "why": "breaks the rule"
+      "why": "settles the event list inline"
+    },
+    {
+      "answer": "1. `/work-items:track edit 903 --comment-file resolution.md` (events: OrderPlaced, OrderShipped, OrderDelivered)\n2. `/work-items:track done 903 --summary \"Resolved; see the resolution comment.\"`",
+      "why": "posts and closes its own resolution"
+    },
+    {
+      "answer": "**Resolved:** the order goes through Placed, Paid, Packed, Shipped, Delivered. Basis: the usual lifecycle.",
+      "why": "resolution comment shape with its own answer"
+    },
+    {
+      "answer": "Skill: work-items:track args: done https://example.com/acme/shop/issues/903",
+      "why": "closes the item"
+    },
+    {
+      "answer": "Event-storming is off, so /planning:design would normally take this, but the event list is clear: OrderPlaced, OrderPaid, OrderShipped, OrderDelivered. Posting that as the resolution on #903 and closing #903.",
+      "why": "wrong: names the fallback skill, then settles the events inline in prose"
+    },
+    {
+      "answer": "**Resolution:** OrderPlaced -> OrderPaid -> OrderShipped -> OrderDelivered.\n`/work-items:track comment 903 --body-file resolution.md`",
+      "why": "wrong: a Resolution heading with its own event list"
     }
   ]
 }

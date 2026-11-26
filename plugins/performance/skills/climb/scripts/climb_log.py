@@ -42,8 +42,6 @@ def check_field(name, value):
         value.encode("utf-8")
     except UnicodeEncodeError:
         raise Refused(f"{name} is not valid UTF-8") from None
-    # The log is read back with str.splitlines(), so a field may hold none of
-    # the characters it splits on, not only \n and \r.
     if "\t" in value or (value and value.splitlines() != [value]):
         raise Refused(f"{name} contains a tab or line break")
     if not value and name not in OPTIONAL:

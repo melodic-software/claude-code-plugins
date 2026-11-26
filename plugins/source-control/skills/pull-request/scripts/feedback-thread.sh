@@ -1,51 +1,5 @@
 #!/usr/bin/env bash
-# feedback-thread.sh: the review-thread tool of `comments --ci`
-# (reference/comments-ci.md). The read runner stages a read-only copy behind a
-# wrapper that fixes the environment below, and the skill's Bash may run only
-# that wrapper. Every finding body is untrusted data: it is printed, never run.
-# The tool posts nothing and commits nothing: it records each reply in the
-# replies file, which the runner scans and uploads and a later job with no
-# model validates and posts; the runner turns the working tree's changes into
-# a patch that another job pushes.
-#
-#   list                              the kept threads, as JSON
-#   notes                             the pr-verify notes of an earlier FAIL,
-#                                     as JSON (none outside such a round)
-#   issues                            the closing issues' spec text, as JSON
-#                                     (none unless a thread may take follow-up)
-#   check-paths <path>...             exit 0 when every path is in a kept
-#                                     thread's or note's scope (allowed below)
-#   record <id> <disposition>         check the disposition against the
-#                                     template and append it to the replies
-#   sections                          the body sections a fix may refresh,
-#                                     as JSON (none with pr_body_refresh off)
-#   record-body <file>                check replacement text for those
-#                                     sections and append it to the replies
-#
-# The disposition file is JSON in the scratch directory:
-#   {"disposition": "VALID" | "INCORRECT" | "UNCERTAIN" | "VALID-defer",
-#    "evidence": ["path:line", ...], "fix_sha": "", "note": "<prose>"}
-# A thread marked may_follow_up also takes "follow-up".
-# A note's (a VNOTE_ id) disposition is "VALID" or "already-addressed", with
-# evidence. fix_sha stays empty: the reply job names the commit the push job
-# made.
-#
-# The body file is JSON in the scratch directory, once per round:
-#   {"sections": [{"heading": "<a heading sections lists>", "text": "<prose>"}]}
-# The reply job judges the text again and drops the refresh when it holds a
-# line a gate reads (publish-feedback.mjs refreshedBody).
-#
-# Environment:
-#   FEEDBACK_THREADS    the runner's thread file (repository, pr, head_sha,
-#                       threads[], verify_notes[] in an earlier-fail round,
-#                       closing_issues[] when a thread may take follow-up)
-#   FEEDBACK_LOG        the replies file, one JSON object per line
-#   FEEDBACK_SCRATCH    the only directory a disposition file may sit in
-#   FEEDBACK_WORKSPACE  the checkout evidence paths and a VALID reply's
-#                       uncommitted fix are checked in
-#
 # Exit: 0 done; 1 refused (nothing recorded); 2 usage or environment.
-#
 # allowed() is a predicate: set -e need not reach inside it.
 # shellcheck disable=SC2310
 set -euo pipefail
@@ -61,23 +15,8 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
   die 2 "FEEDBACK_THREADS, FEEDBACK_LOG, FEEDBACK_SCRATCH and FEEDBACK_WORKSPACE must be set"
 [[ -f $threads_file ]] || die 2 "no thread file"
 
-# Not under .github/workflows/ in any letter case, with no empty, . or .. segment, of
-# plain ASCII segments, and in a kept thread's scope: its path; a file that is
-# no instruction path (.gitmodules, CODEOWNERS, a settings*.json, a package
-# manifest or lockfile) and is either under a plugin's or a skill's evals/ or
-# in a plugins/<p>/ directory a kept thread's path or a pr_paths file sits in;
-# a test file in its directory; or a path in its named_paths (the files a
-# write-access fix request named) in that same plugins/<p>/ directory that is
-# no instruction path; or, when the gated head holds it as a regular file, a
-# file in the thread file's pr_paths (the files the pull request already
-# changes, which the select job already held to thread-scope.mjs's prPathsOf)
-# or copy_paths (the shared copies of the canonicals it changes,
-# copyPathsOf's). The same rule as
-# .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
-# the reply job apply.
 allowed() {
   local tracked=false mode
-  # A regular or executable file at the gated head: no new file, symbolic link or gitlink.
   mode=$(git_tree ls-tree HEAD -- "$1" 2>/dev/null | cut -d' ' -f1) || mode=""
   [[ $mode == 100644 || $mode == 100755 ]] && tracked=true
   [[ ! ${1,,} =~ ^\.github/workflows(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
@@ -97,17 +36,11 @@ allowed() {
           or ($plugin != null and ($t | plugin) == $plugin and any(.named_paths[]?; . == $p))))' "$threads_file" >/dev/null
 }
 
-# git in the checkout with no system, global, hook, fsmonitor or untracked
-# cache config, so reading the tree runs no program the checkout names.
 git_tree() {
   GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
     git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.untrackedCache=false --no-optional-locks -C "$workspace" "$@"
 }
 
-# The empty files the CLI's Bash leaves at the top of the checkout under
-# run-claude-cli's environment scrub, which the patch collector leaves out
-# while they are empty and untracked (.github/scripts/read-patch/collect-patch.sh
-# holds the same names): no fix, so no scope check.
 scrub_stubs=(bunfig.toml package.json .npmrc .yarnrc .yarnrc.yml .gitmodules package-lock.json yarn.lock
   pnpm-lock.yaml .env .env.local .env.development .env.development.local .env.test .env.test.local
   .env.production .env.production.local)
@@ -243,15 +176,6 @@ cmd_record() {
   local real
   real=$(scratch_file "$file")
 
-  # The same rules the reply job enforces, so a refusal comes now, while the
-  # skill can still fix its file: the note holds no control or direction
-  # character, no HTML comment, and nothing shaped like a GitHub token. Token
-  # shapes from
-  # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-  # and the stateless installation token (ghs_ then a JWT) from
-  # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-  # whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
-  # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
   local d
   d=$(jq -ec --arg id "$id" --argjson kinds "$kinds" '
     def path_line: type == "string" and test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$")
@@ -276,10 +200,6 @@ cmd_record() {
     [[ -f $workspace/${ev%:*} ]] || die 1 "evidence ${ev%:*} is not a file in the checkout"
   done < <(jq -r '.evidence[]' <<<"$d")
 
-  # A VALID reply's fix is uncommitted in the working tree: every path the
-  # tree changes against the gated head, both sides of a rename, and every
-  # untracked file not ignored but an empty scrub stub, is in a kept thread's
-  # scope. The runner keeps .lane/ out of the tree through .git/info/exclude.
   if [[ $disposition == VALID ]]; then
     local -a paths untracked
     local path
@@ -288,7 +208,6 @@ cmd_record() {
     mapfile -d '' -t untracked < <(git_tree ls-files --others --exclude-standard -z)
     wait "$!" || die 1 "cannot read the working tree's untracked files"
     for path in "${untracked[@]}"; do
-      # The lane's sandbox masks a dotfile with /dev/null, a device git will not add.
       [[ -L $workspace/$path || ! -c $workspace/$path ]] || continue
       is_stub "$path" || paths+=("$path")
     done

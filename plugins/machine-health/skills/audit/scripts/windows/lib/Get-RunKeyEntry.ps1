@@ -30,7 +30,6 @@ $script:StartupFolder = @{
     'common-folder' = [Environment+SpecialFolder]::CommonStartup
 }
 
-# Get-ItemProperty adds the provider properties; '(default)' is the key's unnamed value, never an entry.
 $script:RunKeySkippedProperty = @('PSPath', 'PSParentPath', 'PSChildName', 'PSDrive', 'PSProvider', '(default)')
 
 function Get-RunKeyEntry {

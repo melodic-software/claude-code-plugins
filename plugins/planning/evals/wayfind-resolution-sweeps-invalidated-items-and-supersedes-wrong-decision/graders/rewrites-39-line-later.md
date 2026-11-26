@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+flags: im
+pattern: '^(?=[^\n]*(?:Share one invoice table across tenants|\b39\b))(?=[^\n]*superseded\s+by(?![^\n]{0,20}(?:Decide invoice numbering|\b44\b)))(?=[^\n]*\b(?:when|once|after)\b[^\n]*\bresol(?:ves|ved|ution)\b)|\b(?:when|once|after)\b[^\n]{0,150}\bresol\w*[^\n]*(?:\n[^\n]*){0,4}?\n(?=[^\n]*(?:Share one invoice table across tenants|\b39\b))[^\n]*superseded\s+by(?![^\n]{0,20}(?:Decide invoice numbering|\b44\b))'
 ---
-
-On map #200 'Map: billing overhaul', #44 'Decide invoice numbering' just resolved to per-tenant numbering. That makes open item #47 'Pick the global invoice sequence store' pointless and shows closed decision #39 'Share one invoice table across tenants' was wrong. A Not-yet-specified fog note ('something feels off about how tenants share invoice data') is now sharp enough to chart as 'Choose per-tenant invoice storage'. The user asked to finish the close-out. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply says #39's Decisions-so-far line is rewritten to point at the superseding decision when that decision resolves.
-
-FAIL if it says nothing about #39's line, deletes it, or leaves two live answers to the question.

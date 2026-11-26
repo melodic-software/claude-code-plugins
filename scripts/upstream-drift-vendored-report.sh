@@ -1,37 +1,4 @@
 #!/usr/bin/env bash
-# Run each vendored skill's drift check and write one report `page` line per
-# row, in the form scripts/upstream-drift-issues.sh reads.
-#
-#   scripts/upstream-drift-vendored-report.sh --output <file> --broken-contract <file>
-#       [--row-timeout <seconds>] [--table <file>]
-#   scripts/upstream-drift-vendored-report.sh --list | --help
-#
-# Each row is `<id>|<check script>|<argument>`, optionally `|files-only`: the
-# id is the upstream's `<owner>/<repo>`, else `<plugin>/<skill>`; the script
-# path is relative to the repository root. `files-only` marks a row whose
-# apply mode only rewrites vendored files and installs no package; intake
-# trusts a vendored drift issue only for such a row (admit.mjs vendoredRows,
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). ROWS below is the shipped table; --table reads one from a
-# file instead (blank and `#` lines skipped). --list prints `<id> <path>` per
-# shipped row.
-#
-# Every row's check runs from the repository root with GH_TOKEN and
-# GITHUB_TOKEN removed, under `timeout` (--row-timeout, default 120 seconds).
-# Its exit code maps to the page status, under the drift-check contract every
-# check script shares:
-#   0 clean, 1 drift, 2 untracked with a ::warning,
-#   a timeout untracked with a ::warning,
-#   any other code untracked with an ::error, and the row id appended to the
-#   --broken-contract file.
-# Every line reports `pin=unknown head=unknown`: a vendored skill has no git
-# pin. The script's stdout and stderr go only to $GITHUB_STEP_SUMMARY (nowhere
-# when it is unset), never to this script's own output, so a check's output
-# cannot issue a workflow command. This script prints only its annotations.
-#
-# Exit: 0 every row was emitted, 2 usage, a malformed or empty table, or a
-# write that failed. It never exits 1. On 2 neither file is written, and a
-# file already at --output is removed, so a partial report never reaches the
-# filer, whose close-unreported sweep would close the missing rows' issues.
 set -uo pipefail
 export LC_ALL=C
 

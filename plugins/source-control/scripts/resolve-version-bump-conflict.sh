@@ -1,30 +1,4 @@
 #!/usr/bin/env bash
-# resolve-version-bump-conflict.sh — resolve the collision two concurrent PRs
-# create on one plugin's version bump: <plugin>/.claude-plugin/plugin.json and
-# <plugin>/CHANGELOG.md, during a merge of main into the PR branch or a
-# rebase/cherry-pick of the PR onto main that stopped on conflicts.
-#
-# Rule: the new version is main's current version bumped once at the level the
-# PR used (major, minor or patch against the merge base), so no version number
-# is skipped.
-# Main's changelog entries are kept; the PR's one new entry is re-headed under
-# the new version and placed above main's newest version heading, so
-# check-changelog-parity.sh stays green. Every other edit either side made to
-# the two files is three-way merged; when that merge conflicts, or the pair does
-# not have that shape, the plugin is left untouched for manual resolution.
-#
-# A plugin that the default branch's scripts/fragment-plugins.txt lists is in
-# changelog-fragment mode, where only the release pull request bumps it: the
-# resolution is main's plugin.json and CHANGELOG.md, with the PR's entry moved
-# into a changelog fragment. This script leaves such a plugin untouched and
-# names it; abort the merge, run convert-bump-to-fragment.sh (this plugin) on
-# the branch, commit, and merge again.
-#
-# Both files are recomputed from the three commits, never from the worktree,
-# then written and staged. Other conflicted paths are left alone.
-#
-# Exit: 0 every plugin pair resolved, or none present; 1 at least one pair left
-# for manual resolution (named on stderr); 2 git failure.
 set -uo pipefail
 
 conflicted_plugins() {
@@ -39,10 +13,8 @@ unsupported() {
   exit 1
 }
 
-# ponytail: default branch is origin/HEAD, else "main"; add an argument if a repo needs another.
 default=$(git symbolic-ref -q --short refs/remotes/origin/HEAD) default=${default#*/}
 if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
-  # The sides are known only for a merge of the default branch INTO the PR.
   [[ $(git branch --show-current) == "${default:-main}" ]] && unsupported
   pr=HEAD main=MERGE_HEAD
   base=$(git merge-base HEAD MERGE_HEAD) || exit 2
@@ -61,7 +33,6 @@ version_at() { git show "$1:$2" 2>/dev/null | jq -r '.version // empty'; }
 version_headings() { grep -o '^## \[[0-9][^]]*\]' | sort; }
 set_version() { awk -v v="$1" '!done && sub(/"version"[ \t]*:[ \t]*"[^"]*"/, "\"version\": \"" v "\"") { done = 1 } 1'; }
 
-# cp below would write through a link, out of the checkout.
 linked() { [[ -L $1/CHANGELOG.md || -L $1/.claude-plugin/plugin.json ]]; }
 
 resolve() {

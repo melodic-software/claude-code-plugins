@@ -132,8 +132,6 @@ $CheckBody = {
         $summary = "$($warn.Count) SDK(s) reach EOL within 90 days."
     } elseif ($findings.Count -gt 0) {
         $severity = 'INFO'
-        # Detection order is not age. Sort by EOL date (unknown last) so
-        # "oldest" names the runtime whose support window ends first (#3435).
         $oldest = @(
             $findings | Sort-Object @{
                 Expression = {

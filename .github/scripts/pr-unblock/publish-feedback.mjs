@@ -38,7 +38,7 @@ import { DISPUTED, FINDING_ANSWERED, LEFT_OPEN, parseVerdicts, settleDisputes } 
 import { inThreadScope, NOTE_ID, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
-export const LIMITS = { bytes: 49152, runBytes: 1048576, note: 2000, evidence: 10, files: 300 };
+export const LIMITS = { bytes: 49152, runBytes: 1048576, note: 2000, evidence: 10 };
 const WEB_FLOW_ID = 19864447;
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/address-feedback";
 const PATH_LINE = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$/;
@@ -501,7 +501,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   if (valid.length === 0 && run.head_sha === headSha) {
     return landed;
   }
-  const comparison = await api.compare(run.head_sha, headSha);
+  const comparison = await api.compareWhole(run.head_sha, headSha);
   const fixes = valid.length === 0 ? [] : (comparison.commits ?? []).filter((commit) => isLaneFix(commit, appId));
   const fixSha = fixes.length === 1 ? fixes[0].sha : "";
   const threadOf = new Map(run.threads.map((thread) => [thread.id, thread]));
@@ -512,7 +512,6 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
     fixes.length <= 1 &&
-    files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
         (path) =>

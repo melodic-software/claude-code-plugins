@@ -17,9 +17,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_skip as skip
 import babysit_verify_evidence as verify_evidence
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -410,7 +407,6 @@ class ASkipRepeatsOnlyAnUnchangedAllowedRefusal(unittest.TestCase):
                 self.assertEqual([r["pr"] for r in rows], [7])
 
     def test_a_forged_record_is_reported_as_a_refusal_only(self) -> None:
-        # The store comes from a cache entry any default-branch job can write.
         forged = _stored(_key())
         forged["value"]["row"] = {
             **_row(),

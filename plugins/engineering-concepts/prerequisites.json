@@ -1,0 +1,26 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:lookup",
+        "skill:load"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, /engineering-concepts:lookup and /engineering-concepts:load cannot run the catalog lookup script and stop.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

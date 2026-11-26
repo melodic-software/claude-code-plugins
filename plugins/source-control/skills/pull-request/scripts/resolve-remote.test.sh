@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -64,7 +62,6 @@ repo=$(make_repo "explicit-branch-remote" origin=/dev/null fork=/dev/null)
 git -C "$repo" config branch.main.remote fork
 run_test "branch.<name>.remote overrides origin" "$repo" "main" "fork" 0
 
-# branch.<name>.remote = "." (local-only upstream) is treated as unset.
 repo=$(make_repo "dot-remote" origin=/dev/null)
 git -C "$repo" config branch.main.remote .
 run_test "branch.<name>.remote=. falls through to origin" "$repo" "main" "origin" 0
@@ -77,11 +74,6 @@ run_test "multiple non-origin remotes with no origin fails loudly" "$repo" "main
 
 repo=$(make_repo "no-remotes")
 run_test "no remotes configured fails loudly" "$repo" "main" "" 1
-
-# --- Push precedence (#442 triangular-fork case) ------------------------------
-# The push destination can legitimately differ from the fetch remote. Each case
-# fixes branch.<name>.remote=upstream (the fetch remote) and varies the push
-# config; the default (non-push) resolver must keep returning `upstream`.
 
 repo=$(make_repo "tri-pushremote" origin=/dev/null upstream=/dev/null)
 git -C "$repo" config branch.main.remote upstream
@@ -104,7 +96,6 @@ repo=$(make_repo "push-no-override" origin=/dev/null upstream=/dev/null)
 git -C "$repo" config branch.main.remote upstream
 run_push_test "push falls through to branch.<name>.remote when unset" "$repo" "main" "upstream" 0
 
-# pushRemote/pushDefault = "." (local repo) is not a publish target -> fall through.
 repo=$(make_repo "push-dot" origin=/dev/null upstream=/dev/null)
 git -C "$repo" config branch.main.remote upstream
 git -C "$repo" config branch.main.pushRemote .

@@ -1,19 +1,3 @@
-// Proves the read and write paths against a real SQL Server: starts a local
-// SQL Server Linux container (Developer edition), creates a read-only login, a
-// write login and a second database, runs the plugin's stdio server on a
-// registration confined to one database, first without --write and then with
-// it, and checks #5940's S1/S2, S4, S5, S6 and S7. Prints one PASS or FAIL
-// line per check on stdout, progress on stderr. Without Docker it prints
-// "SKIP: docker not available" and exits 0.
-//
-// With --azure-server it runs the same checks against an existing, empty Azure
-// SQL Database named app on that logical server instead: it signs in as the
-// Azure CLI's account, which must be the server's Microsoft Entra admin, and
-// creates a read-only and a write contained user there (target.mjs).
-//
-// usage: node plugins/sql-server/integration/read-path.mjs [--azure-server <server>.database.windows.net]
-// needs: the plugin's dependencies (npm ci --prefix plugins/sql-server); locally
-// Docker and openssl, on Azure an `az login` and SQL authentication enabled
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -100,7 +84,6 @@ function run(command, args, { env = process.env, quiet = false } = {}) {
   return (result.stdout ?? '').trim();
 }
 
-// Meets SQL Server's default password policy: upper, lower, digit and symbol.
 const newPassword = () => `${randomBytes(16).toString('hex')}Aa1!`;
 
 async function loadDependency(name) {
@@ -116,9 +99,6 @@ async function loadTedious() {
   return module.default ?? module;
 }
 
-// The container's certificate is self-signed for localhost, so the client
-// trusts it explicitly: the sa connection through ca, the server through
-// NODE_EXTRA_CA_CERTS. The plugin's executor keeps certificate checks on.
 function writeTls(dir) {
   const tls = join(dir, 'tls');
   mkdirSync(tls);
@@ -128,8 +108,6 @@ function writeTls(dir) {
     '-keyout', key, '-out', cert, '-days', '1'], { quiet: true });
   const conf = join(tls, 'mssql.conf');
   writeFileSync(conf, '[network]\ntlscert = /opt/mssql-tls/cert.pem\ntlskey = /opt/mssql-tls/key.pem\ntlsprotocols = 1.2\nforceencryption = 1\n');
-  // The container runs as the mssql user (uid 10001), not the host user; the
-  // 0700 temp directory above keeps other host users out.
   chmodSync(tls, 0o755);
   for (const file of [cert, key, conf]) chmodSync(file, 0o444);
   return { tls, cert, conf };
@@ -137,8 +115,6 @@ function writeTls(dir) {
 
 const sqlLogin = (userName, password) => ({ type: 'default', options: { userName, password } });
 
-// endpoint: { server, port, ca?, connectTimeout }. Azure's certificate chains
-// to a public root, so only the container passes a ca.
 function connect(tedious, { endpoint: { server, port, ca, connectTimeout }, authentication, database }) {
   const connection = new tedious.Connection({
     server,
@@ -297,7 +273,6 @@ async function startLocal(tedious, dir, container, saPassword) {
     run('docker', ['pull', IMAGE]);
   }
   log(`starting ${container}`);
-  // The sa password reaches docker through its environment, never its argv.
   run('docker', ['run', '--detach', '--name', container, '-e', 'ACCEPT_EULA=Y', '-e', 'MSSQL_PID=Developer', '-e', 'MSSQL_SA_PASSWORD',
     '-p', '127.0.0.1::1433', '-v', `${tls}:/opt/mssql-tls:ro`, '-v', `${conf}:/var/opt/mssql/mssql.conf`, IMAGE],
   { env: { ...process.env, MSSQL_SA_PASSWORD: saPassword }, quiet: true });
@@ -309,8 +284,6 @@ async function startLocal(tedious, dir, container, saPassword) {
   return { endpoint, admin, cert, conf };
 }
 
-// Connects to app as the Azure CLI's signed-in account, the server's Entra
-// admin. A serverless database resuming from pause can take about a minute.
 async function connectAzure(tedious, target) {
   const identity = await loadDependency('@azure/identity');
   const endpoint = { server: target.server, port: 1433, connectTimeout: 90_000 };
@@ -383,8 +356,6 @@ async function main() {
         },
       },
     }, null, 2)}\n`);
-    // What a stdio registration stores: the command line, with credentials
-    // left to the environment the client starts the server in.
     const registrationPath = join(dir, 'registration.json');
     const registration = {
       type: 'stdio',

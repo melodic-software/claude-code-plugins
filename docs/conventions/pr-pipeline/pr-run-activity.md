@@ -1977,8 +1977,11 @@ in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `check-broker` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
-other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
-`path` and `persist-credentials`. One exception, the scan-carrier key: the read file declares
+other than `${{ github.event.repository.default_branch }}` (or `${{ steps.tip.outputs.sha }}` after
+an earlier `id: tip` step that is the SHA-pinned ci-workflows `resolve-branch-tip` action with only
+`branch: main` or the default branch), a `with` key other than `ref`, `path` and
+`persist-credentials`, or an `if` or `continue-on-error`, since an empty ref checks out the
+event's ref. One exception, the scan-carrier key: the read file declares
 `scan-carrier-private-key` (required) and its `scan` job may hold one step that uses
 `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
 exactly; a job that calls the read file passes it by name only,

@@ -175,8 +175,10 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
 
 Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
 durations": CI installs every hook tool and times every shipped `pre-commit` entry on a
-10-file staged fixture and every `pre-push` entry on the real checkout, HEAD pushed as a new
-branch, since pre-push cost grows with the repository (`scripts/check-git-hook-time-budget.sh`).
+10-file staged fixture and every `pre-push` entry on a shared clone of the real checkout, one
+fixture commit past HEAD pushed as a new branch: pre-push cost grows with the repository, which
+the clone keeps, and the fixed one-commit range keeps a large pull request's own diff out of the
+timing (`scripts/check-git-hook-time-budget.sh`).
 A piped group counts as one unit. It runs when a change touches a hook config or a script an
 entry calls, or adds or removes a plugin, and on the scheduled full run of main, so growth
 alone can trip it. Each run times four reference parts that run no hook code and do not

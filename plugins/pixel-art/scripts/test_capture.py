@@ -391,8 +391,6 @@ class CaptureTest(unittest.TestCase):
             audio_seconds = last_pts + last_duration
             self.assertAlmostEqual(audio_seconds, stamps[-1], delta=0.5)
             self.assertAlmostEqual(audio_seconds, 4.0, delta=0.5)
-            # Frames are picked by capture order, not timestamp: the browser stamps them with its wall
-            # clock, which a loaded runner shifts against scene time. Up to 10 blue pixels is VP8 noise.
             for index, name in ((0, "frame-first.png"), (len(stamps) - 1, "frame-last.png")):
                 subprocess.check_call([
                     "ffmpeg", "-y", "-i", str(webm), "-vf", f"select=eq(n\\,{index})",

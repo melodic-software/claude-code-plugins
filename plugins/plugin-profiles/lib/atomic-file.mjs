@@ -1,11 +1,3 @@
-// Whole-file replacement that a reader never sees half done: write a temp file beside the target,
-// run the caller's last check, then rename over the target.
-//
-//   replaceFile(path, text, {beforeRename}) -> void; the temp file is removed on any failure
-//   removeFile(path) -> void; an absent file is fine
-//
-// Windows can refuse a rename while another process holds the target open (EPERM, EBUSY,
-// EACCES), so the rename is retried a few times before the failure is passed on.
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 

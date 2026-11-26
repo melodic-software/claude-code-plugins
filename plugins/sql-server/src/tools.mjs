@@ -1,9 +1,3 @@
-// The fixed tool set of ADR 0086 section 2 and its write-tier amendment: every
-// registration exposes these five tools and no others, and the list never
-// changes while the server runs. The write tool is listed on every registration and refused on one that
-// did not opt in. Each call resolves its database against the registration's
-// allow-list before the executor sees it, so a refused name never opens a
-// connection.
 import { checkStatement, checkWriteStatement } from './statement.mjs';
 
 /**
@@ -23,8 +17,6 @@ import { checkStatement, checkWriteStatement } from './statement.mjs';
  * @property {() => Promise<void>} [close]
  */
 
-// Claude Code shows the permission prompt for a tool carrying this on every
-// call, in every permission mode, and an allow rule does not skip it.
 export const REQUIRES_USER_INTERACTION = 'anthropic/requiresUserInteraction';
 
 function deepFreeze(value) {
@@ -130,7 +122,6 @@ export const TOOLS = deepFreeze([
         expectedRows: {
           type: 'integer',
           minimum: 0,
-          // @@ROWCOUNT is an int.
           maximum: 2_147_483_647,
           description: 'How many rows of the target table the statement must affect for the batch to commit.',
         },
@@ -143,7 +134,6 @@ export const TOOLS = deepFreeze([
 
 export const TOOL_NAMES = deepFreeze(TOOLS.map((tool) => tool.name));
 
-// A refusal the agent can act on: it reaches the client as a tool error.
 export class ToolInputError extends Error {
   constructor(message) {
     super(message);
@@ -187,9 +177,6 @@ const withSchema = (request, schema) => (schema === undefined ? request : { ...r
 export const WRITE_NOT_OPTED_IN =
   'this registration did not opt in to writes: start it with --write and an environment whose write block names a separate write login';
 
-// Checks the call, then hands it to the executor. Throws ToolInputError for a
-// refusal; any other error comes from the executor. writeExecutor, which
-// connects as the write principal, exists only on a registration that opted in.
 export async function callTool({ databases, executor, writeExecutor }, name, args) {
   const tool = TOOLS.find((candidate) => candidate.name === name);
   if (!tool) throw new ToolInputError(`unknown tool ${name}`);
@@ -205,7 +192,6 @@ export async function callTool({ databases, executor, writeExecutor }, name, arg
     case 'write': {
       const verdict = checkWriteStatement(checked.sql);
       if (!verdict.ok) throw new ToolInputError(`the write reject list refused the statement: ${verdict.reason}`);
-      // The executor runs more statements after this one, and MERGE must end in a semicolon.
       const sql = verdict.terminated ? checked.sql : `${checked.sql}\n;`;
       return writeExecutor.write({ database, sql, expectedRows: checked.expectedRows });
     }

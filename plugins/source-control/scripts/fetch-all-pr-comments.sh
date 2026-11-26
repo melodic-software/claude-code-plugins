@@ -1,53 +1,4 @@
 #!/usr/bin/env bash
-# fetch-all-pr-comments.sh — Fetch ALL PR comments across 3 GitHub API surfaces.
-#
-# Deterministic replacement for agent judgment in endpoint selection.
-# Hits all three surfaces that can carry review feedback:
-#   1. General PR comments (issue-level conversation tab)
-#   2. Review-level comments (review summaries)
-#   3. Inline review comments (line-anchored on the diff)
-#
-# Output: unified JSON array sorted by creation date. Each object:
-#   {"id":N,"type":"general|review|inline","author":"login","body":"...","path":"...","line":N,"created_at":"ISO","in_reply_to_id":N|null}
-#
-# in_reply_to_id is populated ONLY for type "inline" (the only GitHub REST
-# surface that threads via this field — general/review comments have no
-# reply-parent concept and always carry null). GitHub sets it to the id of
-# the THREAD-OPENING comment, not the immediately-preceding reply: every
-# reply in a thread carries the same in_reply_to_id (empirically verified
-# against live review-thread data — every referenced parent in that set was
-# itself a root comment), so grouping by `in_reply_to_id // id` recovers
-# thread membership directly. This does not change the documented REST
-# cross-check in reference/review-discipline.md / skills/pull-request/SKILL.md
-# — this script's schema was the only thing missing the field; the raw API
-# was always correct.
-#
-# Usage:
-#   fetch-all-pr-comments.sh <pr-number> [--dir <checkout>]
-#
-# --dir names any checkout of the PR's repository, resolved with the
-# pull-request skill's target-repo.sh (which honors GH_REPO). Default:
-# `gh repo view` in the current directory.
-#
-# Env overrides (each wins over --dir and the default):
-#   FETCH_COMMENTS_OWNER   the repository's owner
-#   FETCH_COMMENTS_REPO    the repository's name
-#
-# Windows Python consumers (#597):
-#   Output commonly carries non-ASCII bytes (bot badge images, reaction
-#   emoji) from bot review comments. A downstream Python consumer on Windows
-#   that opens the JSON output, or reads this script's stdout, WITHOUT an
-#   explicit UTF-8 encoding inherits the interpreter's default ANSI code page
-#   (cp1252) and raises UnicodeDecodeError on those bytes. Either open with
-#   `encoding="utf-8"` (or reconfigure the stream to UTF-8 at runtime), or run
-#   the consumer with `PYTHONUTF8=1` (PEP 540) set in the environment.
-#
-# Exit codes:
-#   0  success (zero or more comments emitted)
-#   1  invalid argument, or --dir names no directory
-#   2  gh api call failed, or jq failed parsing a surface or merging
-#   5  prerequisite missing (gh, jq)
-
 set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit N }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -55,8 +6,21 @@ PR_NUMBER=""
 CHECKOUT=""
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
-    "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+fetch-all-pr-comments.sh: fetch a PR's general, review and inline comments as one JSON array.
+
+Usage:
+  fetch-all-pr-comments.sh <pr-number> [--dir <checkout>]
+
+  --dir  any checkout of the PR's repository (default: the current directory)
+  FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO win over --dir and the default.
+
+Exit codes:
+  0  success (zero or more comments emitted)
+  1  invalid argument, or --dir names no directory
+  2  gh api call failed, or jq failed parsing a surface or merging
+  5  prerequisite missing (gh, jq)
+EOF
   exit 0
 }
 
@@ -139,17 +103,6 @@ if [[ -z "$OWNER" || -z "$REPO" ]]; then
   exit 2
 fi
 
-# fetch_surface <endpoint> <jq-projection>: page one API surface, project each
-# of its comments into the shared schema, and append the JSONL to ALL_JSON.
-# Every surface has the same two failure modes (the fetch, then the parse) and
-# the same fail-loud response to each, so they live here once rather than per
-# surface.
-#
-# The result accumulates in a GLOBAL rather than stdout: both guards must
-# terminate the SCRIPT, and an `exit 2` inside a `$( )` capture kills only the
-# subshell — the caller would sail on with an empty surface, which is exactly
-# the shape of a PR with no comments there. A legitimately empty surface
-# appends nothing.
 ALL_JSON=""
 fetch_surface() {
   local endpoint="$1" projection="$2" raw json
@@ -205,9 +158,6 @@ fetch_surface "pulls/$PR_NUMBER/comments" '
   }
 '
 
-# --- Merge and sort by created_at --------------------------------------------
-# A jq merge failure maps to exit 2 rather than jq's native parse-error 5,
-# which this script already documents as "prerequisite missing (gh, jq)".
 printf '%s' "$ALL_JSON" | jq -s 'sort_by(.created_at)' || {
   printf 'fetch-all-pr-comments: jq merge failed\n' >&2
   exit 2

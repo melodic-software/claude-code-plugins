@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-conformance-registry.sh.
-#
-# Builds a throwaway tree holding a registry, an owner doc, a script, a plugin
-# skill, a repo-local skill and a CI workflow, then mutates one registry row per
-# case and asserts on the exit code and the named row. Mutates only its own
-# mktemp dir. Registry rows carry literal markdown backticks, never shell
-# expansions.
+# Registry rows carry literal markdown backticks, never shell expansions.
 # shellcheck disable=SC2016
 set -uo pipefail
 

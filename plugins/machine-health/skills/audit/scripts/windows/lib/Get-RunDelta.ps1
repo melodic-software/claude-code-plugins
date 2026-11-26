@@ -28,11 +28,6 @@ function Get-RunDelta {
         [AllowEmptyCollection()]
         [object[]] $HistoryTail,
         [Parameter(Mandatory = $true)] $CurrentSeverityCounts,
-        # Checks the current run cadence-deferred. They ran in the prior run (so
-        # they inflate its totals) but not this one, which would otherwise read
-        # as a spurious severity delta. History is category-grained (no per-check
-        # severity), so the deferred checks cannot be subtracted from the prior
-        # totals exactly -- disclose the count instead of implying a health change.
         [int] $SkippedCount = 0
     )
 
@@ -40,8 +35,6 @@ function Get-RunDelta {
         return 'no prior runs'
     }
 
-    # HistoryTail is oldest -> newest (Get-Content -Tail order), so the most recent
-    # prior run is [-1]; [0] would compare against stale data.
     $prior = $HistoryTail[-1]
     if (-not $prior.PSObject.Properties['severity_counts']) {
         return "no comparable data in prior run $($prior.run_id)"

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for scripts/lib/changed-files.sh. Each scenario builds a throwaway
-# git repo outside the checkout, commits a base tree, commits a change, and
-# asserts what the shared resolver reports.
-#
-# The NUL-safety cases are the reason this suite exists rather than leaning on
-# the four calling gates' own suites. A pathname Git C-quotes under the default
-# core.quotePath is exactly the input that made check-changed-skills.sh and
-# check-docs-only.sh diverge from the two portability scanners, and no caller
-# suite exercises it. Asserting it here means the invariant has one owner and
-# one failing test if it is ever dropped again.
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -37,9 +27,6 @@ mk_repo() {
   printf '%s' "$dir"
 }
 
-# run_into <repo> <out-array-name> <args...> — source-level call inside <repo>.
-# `changed_files::into` assigns through a nameref, so it must run in a shell
-# whose cwd is the fixture; a subshell would lose the array.
 run_into() {
   local repo="$1"
   shift
@@ -62,8 +49,6 @@ if (cd "$repo" && changed_files::verify_base definitely-not-a-ref 2>/dev/null); 
 else
   ok "verify_base rejects a bogus ref"
 fi
-# A ref that resolves to a TREE rather than a commit must not pass: the callers
-# feed the result to `git diff <base>`, which needs a commit.
 if (cd "$repo" && changed_files::verify_base "HEAD^{tree}" 2>/dev/null); then
   fail "verify_base accepted a tree-ish"
 else
@@ -72,8 +57,6 @@ fi
 rm -rf "$repo"
 
 repo="$(mk_repo)"
-# The fixture's default branch resolves bare, with no origin/ remote present, so
-# the candidate ladder must fall past origin/main to the local branch.
 if (
   cd "$repo" || exit 1
   b=""
@@ -83,8 +66,6 @@ if (
 else
   fail "resolve_base did not fall through to main/master"
 fi
-# Every rung of the ladder must be a REAL commit, never a name handed back
-# unverified for `git diff` to reject a moment later.
 if (
   cd "$repo" || exit 1
   b=""
@@ -159,11 +140,6 @@ rm -rf "$repo"
 
 repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
-# A byte-identical move is the strongest rename candidate (R100), so git's
-# default detection collapses it to one record whose --name-only line is the
-# destination only. First prove the default keeps doing that, then that
-# --no-renames splits it back into the delete and the add a both-sides gate
-# (check-vendor-version-bump.sh) must see.
 git_test_config "$repo" mv keep.sh moved.sh >/dev/null
 git_test_config "$repo" commit -qm move >/dev/null
 
@@ -183,10 +159,6 @@ else
   fail "into --no-renames returned: ${paths[*]-<none>}"
 fi
 
-# --find-renames pins detection ON regardless of the repository's diff.renames.
-# A gate whose verdict depends on a move collapsing to its destination alone
-# (a `git mv` out of a policed directory) cannot let a config setting decide,
-# so the flag is asserted against a repo that has turned detection OFF.
 git_test_config "$repo" config diff.renames false >/dev/null
 paths=()
 run_into "$repo" paths "$base" --include-deleted --
@@ -205,14 +177,8 @@ else
 fi
 rm -rf "$repo"
 
-# --- into: NUL safety (the divergence this extraction closed) -------------
-
 repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
-# A non-ASCII pathname is C-quoted by `git diff --name-only` under the default
-# core.quotePath. Read line-wise it arrives wrapped in double quotes with its
-# high bytes spelled as octal escapes, so it fails every suffix test a caller
-# applies; read NUL-delimited it arrives as the real name.
 quoted_name='café.sh'
 printf 'seed\n' >"$repo/$quoted_name"
 git_test_config "$repo" add -A >/dev/null
@@ -233,8 +199,6 @@ else
 fi
 rm -rf "$repo"
 
-# A pathname containing a literal newline is the case NO line-wise read can
-# survive, quoting or not.
 repo="$(mk_repo)"
 base="$(git -C "$repo" rev-parse HEAD)"
 nl_name="$(printf 'two\nlines.sh')"
@@ -249,15 +213,6 @@ else
   fail "into split a pathname containing a newline: ${#paths[@]} entries"
 fi
 rm -rf "$repo"
-
-# A nameref resolves its target in the scope where it is USED, so any local
-# declared inside the function that shares the caller's chosen out-var name
-# shadows the caller's variable for the rest of the call. Measured on the
-# unprefixed version of this library, with three distinct broken outcomes and no
-# diagnostic naming the caller: `base` aborted under `set -u` citing an internal
-# variable, `filter` came back holding the option array, and `tmp` and `path`
-# came back SILENTLY EMPTY -- the empty-change-set fail-open this library exists
-# to remove. The names below are exactly those four.
 
 repo="$(mk_repo)"
 base_sha="$(git -C "$repo" rev-parse HEAD)"

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Emit MCP tool manifest facts for the mcp-tools audit skill.
-#
-# Discovery config: reference/server-discovery.md
-# Output: Server count, then one block per tool (Server, Runtime, Tool file, Tool, Tool line).
-# Scan root: the git repository root, or the directory given to --path.
-# --path is bounded to ${CLAUDE_PROJECT_DIR} (or the git root when that is unset);
-# a path resolving outside it is refused (exit 3). The scan is depth-capped.
 # Exit: 0 normally, 2 on argument error, 3 on an out-of-bounds --path.
 set -u
 
@@ -55,8 +48,6 @@ lines_after() {
   sed -n "$(($2 + 1)),$(($2 + 12))p" "$1" 2>/dev/null
 }
 
-# report_not_a_directory <path>: the empty-manifest answer for a scan root that
-# is not a directory. Exit 0, because nothing to scan is not an argument error.
 report_not_a_directory() {
   echo "Server count: 0"
   echo "Error: scan path is not a directory: $1"
@@ -88,8 +79,6 @@ if [[ -n "$SCAN_PATH" ]]; then
   if [[ ! -d "$SCAN_PATH" ]]; then
     report_not_a_directory "$SCAN_PATH"
   fi
-  # Canonicalize both sides the same way (cd + pwd -P, no realpath dependency) so the
-  # prefix comparison holds across symlinks, '..', and Git Bash path forms.
   scan_canon="$(cd "$SCAN_PATH" 2>/dev/null && pwd -P)"
   boundary="${CLAUDE_PROJECT_DIR:-}"
   [[ -z "$boundary" ]] && boundary="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
@@ -165,8 +154,6 @@ while IFS= read -r file; do
     tool_name=""
     while IFS= read -r candidate || [[ -n "$candidate" ]]; do
       [[ -z "$candidate" ]] && break
-      # Both shapes in one pass: the `def` expression rewrites the pattern space
-      # to the bare name, so the `async def` expression cannot also match it.
       tool_name="$(printf '%s' "$candidate" |
         sed -n -e 's/^[[:space:]]*def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p' \
           -e 's/^[[:space:]]*async[[:space:]]\+def[[:space:]]\+\([a-zA-Z0-9_]*\).*/\1/p')"
@@ -195,8 +182,6 @@ while IFS= read -r file; do
       fi
     done < <(lines_after "$file" "$line_num")
     [[ -z "$method_line" ]] && continue
-    # A client-facing name on the attribute wins over the method name:
-    # [McpServerTool(Name = "inventory_list_items")] is what clients see.
     tool_name="$(printf '%s' "${hit#*:}" | sed -n 's/.*\[McpServerTool[^]]*Name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p')"
     [[ -z "$tool_name" ]] && tool_name="$(printf '%s' "$method_line" | sed -n 's/^[[:space:]]*\(public\|private\|internal\|protected\).*[[:space:]]\+\([A-Za-z0-9_]*\)[[:space:]]*(.*/\2/p')"
     [[ -z "$tool_name" ]] && continue

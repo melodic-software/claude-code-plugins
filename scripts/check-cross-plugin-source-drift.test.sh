@@ -9,8 +9,6 @@ SCRIPT="$SELF_DIR/check-cross-plugin-source-drift.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -91,9 +89,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a final registry entry with no trailing newline is still loaded -------
-# A bare `while IFS= read -r` returns non-zero on an unterminated last line even
-# after filling the variable, dropping the entry and reporting it UNREGISTERED.
 new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "identical"
 plugin_file "$f" beta hooks/shared.sh "identical"
@@ -145,10 +140,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a cluster path containing a space iterates ONCE, not once per word ----
-#
-# Guards #3376: an unquoted command substitution over the keys, or a
-# space-joined accumulator, splits a space-bearing path with no error signal.
 new_fixture f
 plugin_file "$f" alpha "hooks/shared file.sh" "same"
 plugin_file "$f" beta "hooks/shared file.sh" "same"
@@ -171,12 +162,6 @@ else
 fi
 rm -rf "$f"
 
-# --- discover on a tree with NO clusters at all ----------------------------
-#
-# The empty-array edge: `printf '%s\n'` with no arguments still prints one blank
-# line, so `mapfile -t < <(printf '%s\n' "${!cluster_status[@]}" | sort)` hands
-# the loop a single EMPTY key, which dies on `${cluster_entries[]}` under
-# `set -u`.
 new_fixture f
 plugin_file "$f" alpha hooks/only-here.sh "content"
 if out="$(run_discover "$f" 2>&1)"; then
@@ -190,13 +175,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a cluster line (` -> `) is the duplication audit's, not this check's ---
-#
-# `<canonical> -> <member>...` names a root-relative canonical copy and the
-# plugin paths or globs that carry it, for registry-filter.py in the
-# code-metrics plugin. This check keys clusters by path-within-plugin, so the
-# line must be skipped: registering it would report it REGISTRY STALE on every
-# run, since no plugin carries a path spelled `lib/... -> ...`.
 new_fixture f
 plugin_file "$f" alpha hooks/shared.sh "same"
 plugin_file "$f" beta hooks/shared.sh "same"
@@ -268,7 +246,6 @@ else
 fi
 rm -rf "$f"
 
-# --- production registry: every cluster documents its enforcement path (#2404) -
 REGISTRY="$SELF_DIR/cross-plugin-source-registry.txt"
 if [[ ! -f "$REGISTRY" ]]; then
   fail "production registry missing at $REGISTRY"

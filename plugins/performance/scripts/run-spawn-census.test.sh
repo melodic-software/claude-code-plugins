@@ -24,8 +24,6 @@ for ((i = 0; i < $1; i++)); do
 done
 STABLE
 
-# A subject whose spawn count CLIMBS on every run. Only builtins touch the
-# counter (read and printf), so the drift shows up purely as sed spawns.
 cat >"$WORK/climbing.sh" <<'CLIMBING'
 #!/usr/bin/env bash
 n=0

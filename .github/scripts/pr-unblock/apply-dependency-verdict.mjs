@@ -22,9 +22,8 @@ import { stopSkip } from "./escalation-routes.mjs";
 import { FILES_CAP, roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
 
 export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300, config: 200 };
-// Compare lists at most 250 commits unpaged and 300 files, only on page 1.
-// https://docs.github.com/en/rest/commits/commits#compare-two-commits
-export const COMPARE_LIMITS = { commits: 250, files: 300 };
+// https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
+export const PR_COMMITS = 250;
 export const CONFIG_PATH = ".github/dependabot.yml";
 
 export const isLaneCommit = (commit, appId, started) =>
@@ -252,19 +251,13 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
     if (head === run.head_sha) {
       return end("fix", "dependency-fix-not-landed");
     }
-    const compare = await api.compare(run.head_sha, head);
+    const compare = await api.compareWhole(run.head_sha, head);
     if (compare.status !== "ahead") {
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} off the reviewed head; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
     const { commits, files } = compare;
-    if (
-      !Array.isArray(commits) ||
-      !Array.isArray(files) ||
-      commits.length >= COMPARE_LIMITS.commits ||
-      files.length >= COMPARE_LIMITS.files ||
-      compare.total_commits !== commits.length
-    ) {
+    if (!Array.isArray(commits) || !Array.isArray(files) || compare.total_commits !== commits.length) {
       log(`#${pr}: the comparison from ${run.head_sha} to ${head} is not listed whole`);
       return end("invalid", "dependency-invalid");
     }
@@ -305,12 +298,11 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       log(`#${pr}: a workflow or action file change is not a pin swap (${unpinned})`);
       return end("escalate", "dependency-workflow-unpinned");
     }
-    const commits = await api.listPullCommits(pr);
+    const commits = pull.commits >= PR_COMMITS ? (await api.compareWhole(baseSha, head)).commits : await api.listPullCommits(pr);
     let refusal = null;
     if (
       !Array.isArray(commits) ||
       commits.length === 0 ||
-      commits.length >= COMPARE_LIMITS.commits ||
       commits.length !== pull.commits ||
       commits.at(-1)?.sha !== head
     ) {

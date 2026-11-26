@@ -1,4 +1,3 @@
-// Run: node --test plugins/prototype/lib/prototype-settings.test.mjs
 // test-scope: plugins/prototype/schemas/prototype.schema.json plugins/prototype/reference/levels.default.yaml plugins/prototype/lib/config-cascade.mjs plugins/prototype/lib/resolve-convention-home.sh
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -12,7 +11,6 @@ import { reportLine, resolveLevel } from "./prototype-settings.mjs";
 const CLI = path.join(import.meta.dirname, "prototype-settings.mjs");
 const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "prototype-settings-test-")));
 after(() => rmSync(base, { recursive: true, force: true }));
-// Git in every child reads no host config and never climbs above `base` to the repository holding this file.
 const env = {
   ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "CLAUDE_PROJECT_DIR"].includes(name) && !name.startsWith("GIT_CONFIG"))),
   GIT_CONFIG_GLOBAL: path.join(base, "gitconfig"),

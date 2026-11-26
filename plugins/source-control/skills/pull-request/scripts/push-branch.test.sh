@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# Integration tests for push-branch.sh — the §2.4.1 push gate sequence
-# (resolve-fetch -> resolve-push -> conditional `-u` push -> re-resolve-fetch).
-#
-# resolve-remote.test.sh exercises the resolver in ISOLATION; it cannot catch a
-# gate that resolves correctly yet still writes the branch's upstream to the
-# wrong place — the pushDefault-only triangular clobber lived in exactly that
-# gap. These cases drive REAL pushes into REAL bare remotes
-# and assert the destination that received the branch AND whether the conditional
-# `-u` rewrote the branch's upstream (branch.<name>.remote AND branch.<name>.merge
-# — `git push -u` writes both), the observables a clobber would corrupt.
-#
-# The suite pins the refined invariant in BOTH directions, so neither strawman
-# passes:
-#   * bootstrap POSITIVELY asserts `-u` fired (branch.remote set from unset) —
-#     rejects an always-plain-push implementation.
-#   * non-triangular, local-only `.`, and merge-only tracking assert an EXISTING
-#     upstream's merge ref survives the push — rejects an always-`-u`
-#     implementation, the resolved-name-only gate that shipped `-u` whenever
-#     fetch==push, and a remote-only "no upstream" probe that misses a branch
-#     tracking origin/<ref> via branch.<name>.merge with the remote unset.
-#   * the fetch-ambiguous case proves a failed fetch resolution degrades to a
-#     plain push (no clobber), never an abort.
-
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -40,24 +15,11 @@ PASS=0
 FAIL=0
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
-# Fixtures read only their own git config: a global commit.gpgsign or signing
-# program would sign every fixture commit with the machine's key, and decide
-# what the sync-stale-base cases sign.
 : >"$WORKDIR/gitconfig-global"
 export GIT_CONFIG_GLOBAL="$WORKDIR/gitconfig-global" GIT_CONFIG_NOSYSTEM=1
 
 BRANCH="feat/x"
 
-# A gh stand-in. The acting-login read push-branch.sh makes to tell a lane from
-# an operator answers an operator login unless PB_LOGIN says otherwise, and
-# fails when PB_LOGIN_FAIL is set. `repo view` names the base repository, and
-# `pr view` the PR's head branch and repository (PB_PR_HEAD_REPO, else the
-# base): push-branch.sh's own read (`-q`, one line) and lane-push.sh's (`-R`,
-# two lines). `api --hostname github.com repos/...` is lane-push.sh's default-branch read. Lane cases add a git
-# stand-in that records a push instead of sending it. With PB_GITHUB_ROOT set,
-# the git stand-in sends a push or ls-remote for https://github.com/<path> to
-# $PB_GITHUB_ROOT/<path>, so a remote can carry a github.com URL (what
-# `git remote get-url` reports) and still push into a local bare repository.
 REAL_GIT="$(type -P git)"
 SHIM="$WORKDIR/shim"
 LOG="$WORKDIR/log"
@@ -114,11 +76,6 @@ chmod +x "$SHIM/gh" "$SHIM/git"
 export PB_GH_LOG="$LOG/gh.log"
 export PATH="$SHIM:$PATH"
 
-# push-branch.sh runs from a copy of the plugin's layout, so the lane identity
-# preflight it calls (babysit-prs' babysit-postmerge.sh --preflight) is a
-# stand-in: it records its arguments and answers in the preflight's JSON shape,
-# passing with PB_IDENTITY as the configured identity, else refusing as a
-# target that names none. lane-push.sh is the real one.
 PLUGIN="$WORKDIR/plugin"
 mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/skills/babysit-prs/scripts" "$PLUGIN/scripts" "$PLUGIN/lib"
 cp -p "${SCRIPT_DIR}/push-branch.sh" "$RESOLVER" "$PLUGIN/skills/pull-request/scripts/"
@@ -137,11 +94,6 @@ EOF
 chmod +x "$PLUGIN/skills/babysit-prs/scripts/babysit-postmerge.sh"
 PUSH_BRANCH="$PLUGIN/skills/pull-request/scripts/push-branch.sh"
 
-# Build a working clone under $WORKDIR/$1 with `feat/x` checked out (one commit),
-# plus a bare remote per remaining `name` arg. The clone's `origin` is a bare
-# repo of its own so a real push has somewhere to land. Every remote holds the
-# commit as `trunk`, its HEAD, so ls-remote reports a default branch, as a real
-# remote does. Echoes the clone path.
 make_clone() {
   local name="$1"
   shift
@@ -194,10 +146,6 @@ wc=$(make_clone bootstrap)
 check "bootstrap: -u fired, branch.remote set to origin" "$(branch_config "$wc" remote)" "origin"
 check "bootstrap: origin received the branch" "$(has_branch "$WORKDIR/bootstrap/origin")" "yes"
 
-# 2. Non-triangular, established upstream: branch.remote=origin already set, with
-#    a NON-default merge ref (tracks origin/main). Push resolves origin too, but
-#    the upstream already exists -> plain push -> the merge ref must survive. An
-#    always-`-u` (or resolved-name-only) gate would rewrite it to refs/heads/feat/x.
 wc=$(make_clone nontri)
 git -C "$wc" config "branch.${BRANCH}.remote" origin
 git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
@@ -214,10 +162,6 @@ check "pushRemote-tri: fetch remote preserved (upstream)" "$(branch_config "$wc"
 check "pushRemote-tri: fork received the branch" "$(has_branch "$WORKDIR/tri-pushremote/fork")" "yes"
 check "pushRemote-tri: origin did NOT receive the branch" "$(has_branch "$WORKDIR/tri-pushremote/origin")" "no"
 
-# 4. THE #442 REGRESSION: pushDefault-only triangular. branch.remote UNSET,
-#    remote.pushDefault=fork, origin present. Fetch falls back to origin, push
-#    resolves fork. Resolved remotes differ -> plain push -> branch.remote stays
-#    UNSET, so the next fetch/rebase still targets origin (no silent clobber).
 wc=$(make_clone tri-pushdefault fork)
 git -C "$wc" config remote.pushDefault fork
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
@@ -235,11 +179,6 @@ check "fetch-ambiguous: push-branch.sh did not abort" "$push_exit" "0"
 check "fetch-ambiguous: branch.remote not written" "$(branch_config "$wc" remote)" "UNSET"
 check "fetch-ambiguous: fork received the branch" "$(has_branch "$WORKDIR/ambiguous/fork")" "yes"
 
-# 6. Local-only `.` upstream: branch.remote=. (tracks the local repo), merge
-#    tracks refs/heads/main, only origin configured. The resolver normalizes `.`
-#    to origin for BOTH modes, so a resolved-name-only gate would see fetch==push
-#    and fire `-u`, clobbering the deliberate local-only upstream. Because the
-#    upstream literally exists, the refined gate pushes plain: both keys survive.
 wc=$(make_clone dot-upstream)
 git -C "$wc" config "branch.${BRANCH}.remote" .
 git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
@@ -248,12 +187,6 @@ check "dot-upstream: branch.remote stays '.' (local-only preserved)" "$(branch_c
 check "dot-upstream: merge ref preserved (not rewritten by -u)" "$(branch_config "$wc" merge)" "refs/heads/main"
 check "dot-upstream: origin received the branch" "$(has_branch "$WORKDIR/dot-upstream/origin")" "yes"
 
-# 7. Merge-only tracking: branch.merge set, branch.remote UNSET (valid — Git
-#    defaults the remote to origin, so the branch tracks origin/main). Both
-#    resolvers fall back to origin, so a remote-only "no existing upstream" probe
-#    reads the branch as fresh and fires `-u`, replacing the merge ref. The gate
-#    must treat a set merge ref as an existing upstream too -> plain push -> the
-#    merge ref survives.
 wc=$(make_clone merge-only)
 git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
 (cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
@@ -261,12 +194,6 @@ check "merge-only: branch.remote not written (stays unset)" "$(branch_config "$w
 check "merge-only: merge ref preserved (not rewritten by -u)" "$(branch_config "$wc" merge)" "refs/heads/main"
 check "merge-only: origin received the branch" "$(has_branch "$WORKDIR/merge-only/origin")" "yes"
 
-# 8. --pr from another worktree: the session sits in worktree A (feat/x) while
-#    the PR being readied is on worktree B (feat/b), whose new commit is not yet
-#    pushed. `--pr <n>` must push the PR's head branch (from a stubbed
-#    `gh pr view`), never A's branch, and a PR whose head has no local branch
-#    must exit non-zero instead of pushing the cwd's branch. origin carries the
-#    github.com URL of the PR's head repository, as a real checkout does.
 wc=$(make_clone pr-worktree)
 git -C "$wc" push -q -u origin "$BRANCH" 2>/dev/null
 git -C "$wc" remote set-url origin https://github.com/pr-worktree/origin.git
@@ -295,8 +222,6 @@ check "pr-worktree: origin holds B's head commit" \
 missing_exit=zero
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 43) >/dev/null 2>&1 || missing_exit=nonzero
 check "pr-worktree: head branch with no local branch exits non-zero" "$missing_exit" "nonzero"
-# `gh pr view ""` resolves the cwd branch's PR (the stub answers feat/x, which
-# exists locally), so an empty number must stop before gh is asked.
 empty_exit=zero
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr "") >/dev/null 2>&1 || empty_exit=nonzero
 check "pr-worktree: --pr with no number exits non-zero" "$empty_exit" "nonzero"
@@ -361,13 +286,6 @@ for url in ssh://git@github.com/pr-worktree/origin.git git@github.com:pr-worktre
 done
 unset PB_GITHUB_ROOT
 
-# 9. Inside a lane, meaning the acting gh login is a GitHub App login
-#    (`<slug>[bot]`, the loop-lane identity contract), the push goes to
-#    lane-push.sh as the identity the base repository configures, and only
-#    after the identity preflight passes for that repository: its constructed
-#    https URL for the base repository (or, with --pr, the PR's own head), from
-#    the worktree holding the branch, never a remote, and no upstream is
-#    written. Expected URL and refspec: the lane-push contract.
 LANE="example-lane[bot]"
 lane_run() {
   rm -f "$LOG"/*
@@ -418,9 +336,6 @@ check "lane --dir: pushes from that checkout" "$(cat "$LOG/push.cwd" 2>/dev/null
 check "lane --dir: pushes the PR's head branch" "$(lane_dest)" \
   "https://github.com/example-org/app.git HEAD:refs/heads/feat/b"
 
-# A fork PR's head name can match a local in-repo branch, so in a lane --pr
-# without --dir refuses for a fork head instead of pushing that branch to the
-# fork; with --dir it pushes that checkout to the fork's head.
 PB_PR_HEAD_REPO=someone/fork PB_IDENTITY="$LANE" lane_run "$wc" --pr 46
 check "lane --pr, fork head without --dir: exits non-zero" "$(nonzero)" "nonzero"
 check "lane --pr, fork head without --dir: nothing pushed" "$(lane_dest)" "NONE"
@@ -442,8 +357,6 @@ rm -f "$LOG"/*
 check "operator: the remote received the branch by plain git" "$(has_branch "$WORKDIR/operator/origin")" "yes"
 check "operator: no identity preflight" "$([[ -f $LOG/preflight.argv ]] && echo ran || echo none)" "none"
 
-# R4, the named residual: a failed acting-login read is read as an operator,
-# so the push takes the operator path, by plain git to the remote.
 wc=$(make_clone login-fail)
 rm -f "$LOG"/*
 (cd "$wc" && PB_LOGIN_FAIL=1 bash "$PUSH_BRANCH") >/dev/null 2>&1
@@ -518,10 +431,6 @@ refuse_case "--check main" "$bare" main "'main' is refused $ALWAYS" "$WORKDIR" -
 check "--check, feature branch: exits 0" "$?" "0"
 check "--check, feature branch: nothing pushed" "$(has_ref "$bare" "$BRANCH")" "no"
 
-# --pr: a head in the base repository on main refuses, before the
-# head-repository check, and names the PR head. A fork head pushes to the
-# contributor's fork, not the base, so its main pushes (lane-push.sh's rule).
-# The stub answers "<head branch> <head repo> <base repo>".
 wc=$(make_clone default-pr)
 git -C "$wc" branch -q -f main
 git -C "$wc" remote set-url origin https://github.com/default-pr/origin.git
@@ -726,13 +635,6 @@ check "sync, fork head: exit 0" "$RC" "0"
 check "sync, fork head: fetched the base from upstream" "$(grep -c 'upstream +refs/heads/trunk:' "$LOG/fetch.log")" "1"
 check "sync, fork head: merged upstream's trunk" "$(git -C "$wc" rev-parse HEAD^2)" "$(git -C "$WORKDIR/sync-fork/upstream.git" rev-parse trunk)"
 
-# Without --pr, the setting is read from the PR's base repository, which the
-# forge names, not the fetch remote. Here origin is the fork and upstream the
-# base. A fork that turns the setting on, where upstream does not, syncs
-# nothing; upstream turning it on, where the fork does not, syncs from upstream.
-# fork_base_clone <checkout> <yes|no> <name>: adds the base repository
-# `upstream` (the setting on for yes) beside the fork `origin`, then moves
-# upstream's trunk on c.txt so the branch is stale on an overlapping path.
 fork_base_clone() {
   local wc="$1" up_on="$2" up
   git init -q --bare "$WORKDIR/$3/upstream.git"
@@ -782,8 +684,6 @@ check "sync, off everywhere: no forge read of the base" "$(grep -c . "$LOG/gh.lo
 check "sync, off everywhere: nothing fetched" "$(fetched)" "none"
 check "sync, off everywhere: one ls-remote (the default-branch check)" "$(wc -l <"$LOG/ls-remote.log" | tr -d ' ')" "1"
 
-# Nothing the pushed head holds decides the step or runs in it. A head that
-# turns sync_stale_base on, where the base's config does not, fetches nothing.
 wc=$(sync_clone sync-head-config no)
 mkdir -p "$wc/docs/conventions"
 echo 'sync_stale_base: true' >"$wc/docs/conventions/source-control.yaml"
@@ -796,10 +696,6 @@ check "sync, head-only config: exit 0" "$RC" "0"
 check "sync, head-only config: nothing fetched" "$(fetched)" "none"
 check "sync, head-only config: HEAD unchanged" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
 
-# The overlap rule is the base's scripts/check-stale-base-overlap.sh: it runs
-# with --check and the fetched base, and its pass (exit 0) means no merge
-# though git sees an overlap. The head's edited copy, which would merge and
-# leave a marker, is never run.
 wc=$(make_clone sync-repo-rule)
 printf '%s\n' 1 2 3 4 5 6 7 8 9 10 >"$wc/c.txt"
 mkdir -p "$wc/docs/conventions" "$wc/scripts"
@@ -818,8 +714,6 @@ check "sync, repo rule: the base's copy ran with --check and the fetched base" "
 check "sync, repo rule: the head's copy did not run" "$([[ -e $LOG/head-rule-ran ]] && echo ran || echo none)" "none"
 check "sync, repo rule: its pass means no merge" "$(git -C "$wc" rev-parse HEAD)" "$OLD_TIP"
 
-# A base that is not the default branch never runs its rule, which its author
-# may have pushed unreviewed: the paths decide, so the overlap merges.
 wc=$(sync_clone sync-stacked-rule yes)
 git -C "$wc" checkout -q -b stack/base
 mkdir -p "$wc/scripts"
@@ -869,7 +763,6 @@ check "--preflight, feature branch: prints remote and branch" "$OUT" "origin${TA
 check "--preflight, feature branch: nothing pushed" "$(has_ref "$WORKDIR/pre-ok/root/example-org/app.git" "$BRANCH")" "no"
 check "--preflight, feature branch: no upstream written" "$(branch_config "$wc" remote)" "UNSET"
 
-# A rebase runs on a detached HEAD, so the branch comes from an argument.
 git -C "$wc" checkout -q --detach
 pre_run "$wc" --preflight
 check "--preflight, detached HEAD with no branch: refused" "$(nonzero)" "nonzero"

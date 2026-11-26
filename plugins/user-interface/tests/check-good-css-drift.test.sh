@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Exit-code contract of scripts/check-good-css-drift.sh, network-free: the
-# script is sourced and run against a copy of the plugin root holding the
-# vendored files. The hashes are the upstream blob SHAs of those files at pin
-# 92d436ba recorded in docs/upstream/good-css.md, which the vendored copies # spellchecker:disable-line
-# must still match.
 set -uo pipefail
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 

@@ -140,7 +140,6 @@ Describe 'Test-Defender -- signature age' -Tag 'check' {
         Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
-        # Third-party AV handles detection; Defender signatures going stale is expected.
         $result.severity | Should -Be 'INFO'
     }
 
@@ -176,7 +175,6 @@ Describe 'Test-Defender -- real-time protection' -Tag 'check' {
         Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
-        # RTP=off in passive mode is normal -- third-party AV is the active protection.
         $result.severity | Should -Be 'INFO'
         $result.notes | Should -Match 'passive'
     }
@@ -213,8 +211,6 @@ Describe 'Test-Defender -- tamper protection' -Tag 'check' {
         Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
-        # Passive mode with RTP off must not collapse severity to INFO and mask a concurrent
-        # tamper-protection finding: tamper protection applies regardless of passive mode.
         $result.severity | Should -Be 'WARN'
     }
 }
@@ -227,8 +223,6 @@ Describe 'Test-Defender -- AM service disabled' -Tag 'check' {
         Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
-        # AM service off means Defender is not loaded -- different from passive
-        # mode (another AV is active) and different from just RTP off.
         $result.severity | Should -Be 'CRIT'
     }
 }
@@ -432,7 +426,6 @@ Describe 'Test-Defender -- exclusion change history (5007)' -Tag 'check' {
 
     BeforeEach {
         Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
-        # Mock bodies do not reliably see $script: variables, so the sentinel is repeated here.
         Mock Get-DefenderEventHistory {
             New-EventHistory -ReadState 'ok' -ExclusionChanges @(
                 [pscustomobject]@{ Type = 'path'; Value = '<drive>:\Sentinel-5007-value'; Change = 'added'; ChangedAt = (Get-Date).AddDays(-3) }

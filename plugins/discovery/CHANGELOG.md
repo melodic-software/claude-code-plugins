@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [2.2.23] - 2026-11-26
+
+### Changed
+
+- The `discovery:explorer` agent points at the subagent frontmatter reference for what the harness does at `maxTurns`, the same pointer its sibling agents carry, instead of describing the stop itself.
+
+## [2.2.22] - 2026-11-26
+
+### Changed
+
+- **`/discovery:blindspot`, `/discovery:explore` and `/discovery:research` drop the "unsure where this leaves the work" `## Next` bullet.** `/session-flow:workflow` stays the fallback when no bullet matches.
+
 ## [2.2.21] - 2026-11-25
 
 ### Changed

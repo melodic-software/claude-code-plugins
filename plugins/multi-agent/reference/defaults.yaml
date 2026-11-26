@@ -1,40 +1,12 @@
-# Bundled role map: the bottom layer of the multi-agent cascade.
-# Keys and layering: reference/config.md. A consumer layer overrides per key.
-#
-# model: an alias (opus, sonnet, haiku, fable) or `inherit`. `inherit`
-#   means a workflow omits opts.model on a generic agent() call
-#   (reference/config.md).
-# effort: low | medium | high | xhigh | max. Always passed explicitly.
-# pointer*, as_of, recheck: where the default's basis lives, read by
-#   /multi-agent:audit-defaults. The resolver never emits them.
-# basis_<field>: per role, `upstream` or `judgment` for that role's <field>
-#   (model or effort). `upstream` names pointer_<field>, the section whose
-#   statement sets the value or the rule it follows from, and claim_<field>,
-#   which statement in it. `judgment` names reason_<field>: no upstream
-#   statement sets the value, and why it is what it is. The resolver emits the
-#   basis beside each value; the audit checks that an upstream pointer states it.
-#   A workloads.<w>.<field> value records its basis on the role as
-#   basis_<w>_<field>, with pointer_<w>_<field> and claim_<w>_<field> or
-#   reason_<w>_<field>.
-# Which roles may route to haiku, and at what effort: reference/routing-rubric.md.
 schema: 1
 
-# Workloads a role may set values for (roles.<r>.workloads.<w>). A consumer
-# layer declares its own the same way, or withdraws one with false.
 workloads:
   code: true
   research: true
   mechanical: true
 
-# Session model aliases treated as frontier by the fan-out guard.
 frontier: fable
 
-# The fan-out guard: the resolver names no frontier model for a stage that runs
-# more than one agent. Under a frontier session, or when the caller does not name
-# the session model, every role's fan-out variant names fanout.model where it
-# would otherwise inherit (or name) a frontier model. Single-agent stages keep
-# the role's own model. Turning frontier_guard off is an explicit opt-in to
-# frontier fan-outs.
 fanout:
   frontier_guard: true
   model: opus

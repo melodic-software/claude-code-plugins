@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-skill-portability.sh. Synthetic cases run through --paths
-# mode against files in a temp dir with a minimal single-pattern token list
-# (SKILL_PORTABILITY_TOKENS); the exclusion case builds a synthetic plugins/ tree
-# and runs the script's --all mode from a fixture root, exactly as the
-# silent-skip suite does. Two cases run against the REAL corpus to prove the
-# bare-vs-guarded discrimination on live files, not only synthetic ones.
-#
-# Assertion scaffolding lives in scripts/lib/test-harness.sh — repo tooling,
-# not a plugin library. See docs/contracts/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal skill content in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -15,14 +6,9 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-skill-portability.sh"
 
-# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
-# without those, the copy dies on a missing source at line 1 and every assertion
-# below turns into the same opaque failure.
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 fx=""
 
 REAL_TOKENS="$REPO_ROOT/scripts/skill-portability-tokens.txt"
@@ -59,22 +45,6 @@ tokenfile() {
   printf '%s' "$f"
 }
 
-# assert_staged <label> <pattern> — assert <pattern> is present VERBATIM as a
-# commented line in the shipping token list's STAGED section.
-#
-# The fixtures below carry each staged pattern as a literal and assert it still
-# matches what ships, rather than parsing it back out of the token file:
-# a staged class is documented in prose that necessarily quotes its own pattern
-# fragments, so no "which commented line is the data" rule separates pattern
-# from commentary without marking up the shipped file with test scaffolding.
-#
-# Deliberately an assertion in the PARENT shell, never a value-returning
-# helper. A `fail` inside a `$(...)` substitution increments a subshell's copy
-# of the counter and is lost, and the empty result then makes every
-# `if [[ -n "$TOKEN" ]]` fixture below skip in silence — a green suite whose
-# Stage 2 coverage has quietly stopped running. That is the silent-skip this
-# repo's gates exist to forbid, so the pattern is always non-empty and a drifted
-# token file fails loudly here instead.
 assert_staged() {
   local label="$1" pattern="$2"
   if grep -qxF -- "# $pattern" "$REAL_TOKENS"; then
@@ -141,11 +111,6 @@ else
 fi
 rm -f "$f" "$BAD_TOKENS"
 
-# --- a token list with NO active patterns fails closed (#3161) --------------
-#
-# An all-comments list loads zero patterns, so every file scans clean and awk
-# exits 0 — the gate passing while gating nothing, the #1513 shape, which
-# check-shell-portability.sh refuses too.
 EMPTY_TOKENS="$(mktemp)"
 printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
 f="$(tmpfile 'diff against origin/main here')"
@@ -180,7 +145,6 @@ else
 fi
 rm -f "$f"
 
-# --- empty portability-ok does not exempt (#624 finding 2) ------------------
 f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: -->')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "empty portability-ok should not exempt the hit, got success: $out"
@@ -213,15 +177,6 @@ else
 fi
 rm -f "$f"
 
-# --- a content line with an inline HTML comment does not act as a comment --
-# line for pending_annot carry-forward purposes (#611): only a genuine
-# block-level `<!--` comment line (opening at start-of-line, modulo leading
-# whitespace) may extend an annotation to the next line. Line 2 below has a
-# hardcoded token AND an inline `<!--` marker that is NOT itself a
-# portability-ok annotation — treating that line as a comment would make
-# is_comment() true for line 2, leaving pending_annot carried over from
-# line 1 instead of resetting it and wrongly excusing line 3's unannotated
-# hit too.
 f="$(tmpfile '<!-- portability-ok: covers only line 2 -->
 diff against origin/main here <!-- unrelated inline note, not an annotation -->
 diff against origin/main again, unannotated')"
@@ -234,10 +189,6 @@ else
 fi
 rm -f "$f"
 
-# --- container-nested block comments still count as comment lines (#1342) --
-# A `<!--` opener that is the first content of a Markdown list item or
-# blockquote is a dedicated comment line, so a portability-ok annotation
-# written in that style must set/carry pending_annot to the line it precedes.
 for prefix in '- ' '> ' '* ' '+ ' '1. ' '2) ' '> - '; do
   f="$(tmpfile "${prefix}<!-- portability-ok: container-nested annotation -->
 The base branch is origin/main here.")"
@@ -249,9 +200,6 @@ The base branch is origin/main here.")"
   rm -f "$f"
 done
 
-# --- a list-item CONTENT line with an inline comment is still not a comment --
-# line (#1342 must not reopen #611): the marker is followed by prose, not by
-# the `<!--` opener, so pending_annot must reset and line 3 must flag.
 f="$(tmpfile '<!-- portability-ok: covers only line 2 -->
 - diff against origin/main here <!-- inline note, not an annotation -->
 - diff against origin/main again, unannotated')"
@@ -282,9 +230,6 @@ else
 fi
 rm -f "$f"
 
-# --- a mere MENTION of the token (not a genuine comment-line declaration) --
-# does NOT exempt the file -- #1513, shared fix with
-# check-shell-portability.sh's identical mechanism.
 f="$(tmpfile 'This gate supports a whole-file portability-scope: <reason> declaration.
 Base the diff on origin/main for the review.')"
 if out="$(scan_paths "$f" 2>&1)"; then
@@ -305,12 +250,6 @@ else
 fi
 rm -f "$f"
 
-# =============================================================================
-# awk operand disambiguation: a scanned file whose name is shaped like an
-# identifier=value assignment must not be silently dropped from the scan
-# (#1513, shared fix with check-shell-portability.sh's identical mechanism —
-# see #1531)
-# =============================================================================
 fixture_tree::build fx --sut "$SCRIPT"
 printf 'diff against origin/main\n' >"$fx/FOO=bar.md"
 out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --paths "FOO=bar.md" 2>&1)"
@@ -322,17 +261,6 @@ else
 fi
 rm -rf "$fx"
 
-# =============================================================================
-# ...and the same for the TOKEN LIST operand, the worse half of #1513 (#2914).
-# A token path shaped like identifier=value parses as an awk variable
-# assignment, so the
-# `FNR == NR` loading pass never runs: NO patterns are active, every file
-# reports clean, and awk exits 0. The gate passes while gating nothing, and the
-# scanner-fault check cannot see it because nothing faulted.
-#
-# The path must be RELATIVE for this to bite. The gate cd's to its own parent,
-# and an absolute path begins with `/`, which awk can only read as a filename.
-# =============================================================================
 fixture_tree::build fx --sut "$SCRIPT"
 cp "$TEST_TOKENS" "$fx/t=custom.txt"
 printf 'diff against origin/main\n' >"$fx/plain.md"
@@ -361,21 +289,6 @@ else
 fi
 rm -f "$f"
 
-# =============================================================================
-# Stage 2 (#713) — forge / branch / remote grammar classes.
-#
-# Every class below is STAGED in the shipping token list, so each fixture first
-# asserts its pattern still matches what ships (assert_staged), then activates
-# that pattern in an isolated one-pattern list. Editing a staged class into a
-# shape that no longer catches its own defect therefore fails here rather than
-# leaving these tests passing against a stale retyped copy.
-#
-# Each case pairs the coupling that must FAIL with the compliant or declared
-# shape that must PASS — a token that only ever fires is indistinguishable from
-# one that fires on everything.
-# =============================================================================
-
-# --- remote-name class: bare `origin` as a git remote ARGUMENT (#442) -------
 REMOTE_TOKEN='git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]-][^[:space:]]*)?)*[[:space:]]+(push|fetch|pull|clone|ls-remote|remote (prune|show|add|rename|get-url|set-url))([[:space:]]+-[^[:space:]]+)*[[:space:]]+origin([^a-zA-Z0-9_/.-]|$)'
 assert_staged 'remote-name' "$REMOTE_TOKEN"
 rt="$(tokenfile "$REMOTE_TOKEN")"
@@ -398,11 +311,6 @@ else
 fi
 rm -f "$f"
 
-# Git's syntax is `git [<global-options>] <command> [<args>]`, so a global
-# option sits between `git` and the subcommand. A subcommand-adjacent anchor
-# reports this shape clean, which both understates the residue and lets the
-# same coupling through the future gate — the live corpus carries exactly this
-# form in plugins/source-control/skills/babysit-prs/reference/orchestration.md.
 f="$(tmpfile 'Re-fetch the base ref (`git -C <worktree> fetch origin <base>`) before merging.')"
 if out="$(scan_with "$rt" "$f" 2>&1)"; then
   fail "a global option before the subcommand must not hide the hardcoded remote: $out"
@@ -413,8 +321,6 @@ else
 fi
 rm -f "$f"
 
-# Separate-value (`-c <k>=<v>`) and attached-value (`--git-dir=<path>`) global
-# options are both spanned, and several may precede the subcommand.
 f="$(tmpfile 'Run `git -c core.hooksPath=/dev/null --git-dir=/w/.git push origin HEAD` in the sandbox.')"
 if scan_with "$rt" "$f" >/dev/null 2>&1; then
   fail "a run of global options must not hide the hardcoded remote"
@@ -449,13 +355,6 @@ else
 fi
 rm -f "$f"
 
-# A branch-DETECTION ladder still names the remote it queries, so it is a
-# true positive for this class even though it is exemplary for the branch
-# class. The two couplings are independent: resolving which branch is the
-# default says nothing about which remote holds it, and a `git clone -o
-# vendor` consumer breaks on the remote name regardless. Recorded as an
-# expectation because it is the shape most likely to be mistaken for a
-# false positive when this class is activated.
 f="$(tmpfile 'Resolve the default via `git ls-remote --symref origin HEAD`.')"
 if scan_with "$rt" "$f" >/dev/null 2>&1; then
   fail "a branch-detection ladder still hardcodes its remote name and must flag"
@@ -474,7 +373,6 @@ rm -f "$f"
 
 rm -f "$rt"
 
-# --- branch-grammar class: shipped Conventional-Commits types (#415) --------
 GRAMMAR_TOKEN='`(feat|fix|refactor|chore|docs|test|build|perf|style)/`[^`]*`(feat|fix|refactor|chore|docs|test|build|perf|style)/`'
 assert_staged 'branch-grammar' "$GRAMMAR_TOKEN"
 gt="$(tokenfile "$GRAMMAR_TOKEN")"
@@ -507,7 +405,6 @@ rm -f "$f"
 
 rm -f "$gt"
 
-# --- branch-shape class: a shipped `<type>/<...>` placeholder (#415) --------
 SHAPE_TOKEN='<type>/<'
 assert_staged 'branch-shape' "$SHAPE_TOKEN"
 st="$(tokenfile "$SHAPE_TOKEN")"
@@ -532,7 +429,6 @@ rm -f "$f"
 
 rm -f "$st"
 
-# --- forge class: a hardcoded raw.githubusercontent URL (#432) --------------
 FORGE_TOKEN='raw\.githubusercontent\.com'
 assert_staged 'forge-URL' "$FORGE_TOKEN"
 ft="$(tokenfile "$FORGE_TOKEN")"
@@ -557,13 +453,6 @@ rm -f "$f"
 
 rm -f "$ft"
 
-# =============================================================================
-# Declared-narrower-scope honor (#441): the acceptance pair proving a
-# scope-declared file is exempt while an otherwise identical undeclared one is
-# flagged, and that the two escapes do NOT have the same reach — a per-site
-# portability-ok covers its site only and must never silence the rest of the
-# file the way a whole-file portability-scope does.
-# =============================================================================
 rt="$(tokenfile "$REMOTE_TOKEN")"
 
 declared="$(tmpfile '<!-- portability-scope: forge=github — this skill wraps gh and is inherently GitHub-locked -->
@@ -599,13 +488,6 @@ rm -f "$f"
 
 rm -f "$rt"
 
-# =============================================================================
-# Guard markers are CLASS-SCOPED (#713): is_guarded() receives the matched
-# pattern, so the branch class's branch-detection evidence excuses only the
-# branch class. Without the scoping, one line carrying both a symbolic-ref
-# resolution and a hardcoded remote name would go green on BOTH — the false
-# exemption the token file's staged-class preamble forbids.
-# =============================================================================
 BOTH_TOKENS="$(mktemp)"
 printf '%s\n%s\n' 'origin/(main|master)' "$REMOTE_TOKEN" >"$BOTH_TOKENS"
 
@@ -661,16 +543,6 @@ else
 fi
 rm -rf "$fx"
 
-# --- diff-mode reads a Git-quoted (non-ASCII) changed path -----------------
-# A changed file whose pathname triggers Git's C-style quoting (here a non-ASCII
-# byte; core.quotePath defaults on) must still be gated. Without -z, git diff
-# emits `"plugins/.../quoted-\303\251.md"`, the leading quote misses the
-# plugins/*/skills/* glob, and the file is silently dropped — the silent
-# exclusion the contract forbids. The fixture commits one ASCII-named and one
-# non-ASCII-named coupling file, then diffs against the empty base commit: the
-# ASCII hit proves -z left the common path intact, and two COUPLING lines prove
-# the quoted path was read, not skipped. The non-ASCII name is built with octal
-# escapes so this test source stays pure ASCII.
 fixture_tree::build fx --sut "$SCRIPT"
 quoted_name="$(printf 'quoted-\303\251.md')" # trailing U+00E9 byte — non-ASCII, triggers Git quoting
 out="$(
@@ -694,16 +566,6 @@ else
   fail "diff-mode should flag both the ASCII and non-ASCII coupling files (rc=$rc): $out"
 fi
 rm -rf "$fx"
-
-# =============================================================================
-# Stage 3 (#714) — stack/ecosystem opinion class.
-#
-# The class ships one ACTIVE token (Clean-Architecture vocabulary, proven 0/0
-# against the corpus) and a staged set of ecosystem literals. What is new here
-# is the class-scoped guard: the ecosystem class is excused by CONSUMER-SEAM
-# evidence, not by branch-resolution evidence, so these fixtures pin both that
-# the seam is honored and that the seams do not cross between classes.
-# =============================================================================
 
 ECO_TOKEN='[Dd]otnet'
 et="$(tokenfile "$ECO_TOKEN")"
@@ -886,28 +748,10 @@ else
 fi
 rm -f "$f"
 
-# --- the ecosystem literals stay staged, verbatim --------------------------
-# Same discipline as Stage 2: a staged pattern edited into a shape that no
-# longer catches its own defect fails here rather than rotting unnoticed. The
-# patterns are the STAGED_COVERAGE ones above, so the coverage fixtures and
-# these verbatim pins cannot drift apart. Every spelling is POSIX-safe — a `\b`
-# anywhere in this class is the inert-pattern trap the token file documents, so
-# these literals also pin that the `\b` spellings did not come back.
 for ((i = 0; i < ${#STAGED_COVERAGE[@]}; i += 2)); do
   assert_staged 'ecosystem literal' "${STAGED_COVERAGE[i]}"
 done
 
-# Scoped to ACTIVE lines: the token file necessarily QUOTES `\b` in the prose
-# that documents why it is forbidden, and a commented line is indistinguishable
-# from that prose by shape alone. The staged half is covered by the verbatim
-# assert_staged fixtures above, which is the same discipline Stage 2 uses.
-#
-# The search itself is written as a bracket expression, `[\]b`, rather than the
-# escape it is looking for: this file is scanned by the sibling
-# check-shell-portability.sh gate, whose own token class forbids a
-# backslash-b in a shell regex for exactly the POSIX reason under test. Spelling
-# the needle as a bracketed literal keeps this assertion from tripping the gate
-# that agrees with it.
 if grep -q '[\]b' < <(grep -vE '^[[:space:]]*(#|$)' "$REAL_TOKENS"); then
   fail "a backslash-b word-boundary escape reached an ACTIVE token — POSIX ERE does not define it"
 else

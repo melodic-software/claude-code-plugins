@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# worktree-root-scan.sh — classify the directories under the worktree root that
-# no given repository registers as a worktree. Report only: it never deletes,
-# moves or repairs anything.
-#
-# Usage:
-#   worktree-root-scan.sh [--root DIR] [--repo-dir REPO]...
-#     --root      the worktree root; default: worktree-root-resolve.sh for the
-#                 first --repo-dir
-#     --repo-dir  a canonical repository; its `git worktree list` paths join the
-#                 registered set (repeatable)
-#
-# Output: one TSV row per unregistered direct child directory of the root:
-#   <path><TAB><class><TAB><proposed>
-#   symlink   a symlink                                          proposed no
-#   live      inside a live work tree (another repo's worktree)  proposed no
-#   husk      .git FILE naming <common>/worktrees/<name>, that admin dir gone
-#             while <common> is still a repository: git dropped the
-#             registration. .git as the sole entry                proposed yes
-#             other content too (possibly uncommitted work)       proposed no
-#   empty     no entries at all                                  proposed yes
-#   foreign   content and no .git                                proposed no
-#   unknown   a directory that cannot be listed (no read permission), or any
-#             other .git entry: its gitdir exists but rev-parse fails, its
-#             <common> is gone (main clone moved, deleted or unmounted, which
-#             `git worktree repair` can recover), or it is no worktree pointer
-#                                                                proposed no
-# A directory some other repo owns is `live`, so pass every repo whose worktrees
-# share the root to keep those out of the proposals.
-#
-# A root that does not resolve or is not a directory (an unmounted drive) exits 3
-# with a message and no rows; it is never read as "everything is an orphan".
-#
 # Exit codes:
 #   0  scan complete (zero or more rows)
 #   2  usage
@@ -68,9 +36,6 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$root" || ${#repos[@]} -gt 0 ]] || usage
 
-# Physical path when the directory exists, else the input with a CR and trailing
-# slashes dropped. Both sides of every comparison go through this, so Git Bash's
-# C:/x and /c/x spellings meet.
 phys() {
   local p="${1%$'\r'}" out
   while [[ ${#p} -gt 1 && "$p" == */ ]]; do p="${p%/}"; done
@@ -117,8 +82,6 @@ is_registered() {
   return 1
 }
 
-# The ceiling stops discovery at the root, so a child with no .git of its own is
-# never read as part of a repository that happens to contain the root.
 inside_work_tree() {
   GIT_CEILING_DIRECTORIES="$root" git -C "$1" rev-parse --is-inside-work-tree >/dev/null 2>&1
 }

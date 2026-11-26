@@ -1,41 +1,4 @@
 #!/usr/bin/env bash
-# Resolve the git remote a branch should fetch/rebase against, or — with
-# --push — publish to.
-#
-# Fetch/rebase resolution order:
-#   1. branch.<name>.remote, if set and not "." (local-only upstream, e.g. a
-#      branch created with `git branch --track . <ref>`)
-#   2. `origin`, if configured
-#   3. the sole OTHER configured remote — only when exactly one exists
-#
-# Push resolution (--push) prepends Git's documented push precedence
-# (git-config(1) `remote.pushDefault` / `branch.<name>.pushRemote`,
-# git-push(1) "Named Remotes") ahead of that order, because the push
-# destination can legitimately differ from the fetch remote in a triangular
-# fork flow:
-#   1. branch.<name>.pushRemote, if set and not "." (local repo)
-#   2. remote.pushDefault, if set and not "." (local repo)
-#   3. …then the fetch order above (branch.<name>.remote -> origin -> sole other)
-# So a branch tracking `upstream` for fetch (branch.<name>.remote=upstream, as
-# `git checkout -b feature upstream/main` sets) but configured to push to a
-# fork via `branch.feature.pushRemote=origin` or `remote.pushDefault=origin`
-# resolves the push to the fork, not upstream.
-#
-# Two or more candidate remotes with no way to disambiguate (neither the
-# mode's configured remote nor `origin`) is ambiguous (e.g. a fork clone with
-# `fork` + `upstream` remotes and no `origin`) and fails loudly rather than
-# silently picking one, instead of risking a silent rebase/push against the wrong
-# base.
-#
-# Usage:
-#   resolve-remote.sh [--push] [--dir <checkout>] [branch-name]
-#
-# --dir names the checkout whose branch and remote config are read (default:
-# the current directory). With no branch arg, falls back to
-# `git branch --show-current`. Prints the resolved remote name on stdout and
-# exits 0 on success. Exits 1 with a diagnostic on stderr when resolution is
-# ambiguous, no remote is configured at all, or --dir is not given once with a
-# directory.
 set -uo pipefail
 
 PUSH=0 CHECKOUT=""
@@ -65,9 +28,6 @@ fi
 BRANCH="${1:-}"
 [[ -n "$BRANCH" ]] || BRANCH="$(git -C "$CHECKOUT" branch --show-current 2>/dev/null | tr -d '\r')"
 
-# Read a remote-name config key, normalizing the CRLF a Git-for-Windows config
-# read can carry. A "." value names the local repo rather than a remote, so it
-# is reported as unset and the caller falls through to the next candidate.
 remote_config() {
   local value
   value=$(git -C "$CHECKOUT" config "$1" 2>/dev/null | tr -d '\r')
@@ -77,9 +37,6 @@ remote_config() {
 
 REMOTE=""
 if [[ $PUSH -eq 1 ]]; then
-  # Push precedence, ahead of the shared fetch order: branch.<name>.pushRemote
-  # overrides remote.pushDefault, which overrides branch.<name>.remote for the
-  # push destination.
   REMOTE=$(remote_config "branch.${BRANCH}.pushRemote")
   [[ -n "$REMOTE" ]] || REMOTE=$(remote_config "remote.pushDefault")
 fi

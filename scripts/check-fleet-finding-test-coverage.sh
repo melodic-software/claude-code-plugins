@@ -1,26 +1,4 @@
 #!/usr/bin/env bash
-# Gate: every finding kind audit-fleet.sh emits must have a collector-output
-# assertion in audit-fleet.test.sh (the literal `Finding: <kind>` needle).
-#
-#   scripts/check-fleet-finding-test-coverage.sh          discover: list emitted
-#                                                          kinds and whether the
-#                                                          suite asserts them
-#   scripts/check-fleet-finding-test-coverage.sh --check  fail if an un-grandfathered
-#                                                          emitted kind has no
-#                                                          Finding: assertion, or a
-#                                                          baseline entry is stale
-#
-# Why this lives outside audit-fleet.test.sh: a rewrite of the test file
-# alongside the collector keeps the suite self-consistent while dropping
-# coverage. A check that only runs inside the rewritten file cannot defend it.
-#
-# Substring / setup-only mentions (comments, F_KIND injection arrays) do not
-# count. Existing coverage debt is grandfathered in
-# scripts/fleet-finding-test-coverage-baseline.txt
-# (exact finding-kind tokens, one per line). --check fails on a stale entry so
-# the baseline cannot outlive its debt. FLEET_FINDING_COVERAGE_BASELINE /
-# FLEET_FINDING_SCRIPT / FLEET_FINDING_TEST override paths (test injection and
-# historical proofs).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

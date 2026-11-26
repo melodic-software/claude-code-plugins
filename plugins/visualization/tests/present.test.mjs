@@ -231,7 +231,6 @@ describe("check-deck", () => {
     });
   });
 
-  // A shell-less spawn on Windows finds only a .exe or .com on PATH, so there the sh fake could never run and the test would prove nothing.
   test("the CLI takes --argument hosted and never runs pages-publish", { skip: process.platform === "win32" && "the fake pages-publish is a sh script" }, () => {
     const bin = join(scratch, "fake-bin");
     const marker = join(scratch, "pages-publish-ran");

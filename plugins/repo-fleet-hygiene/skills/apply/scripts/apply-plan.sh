@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# apply-plan.sh — consume a fleet action-plan JSON behind one batch confirmation.
-#
-# Default: dry-run / preview (refresh evidence, print the ordered plan, mutate nothing).
-# --apply: after one batch-wide confirmation (or --yes), execute deletes in plan order.
-#
-# This verb owns batched merged-local-branch deletion. It does not widen audit-fleet.sh.
-# Mutable OIDs are re-derived immediately before every delete; tip drift skips fail-closed.
-#
-# delete-remote-branches actions run only under --remote-branches, one prompt per branch that
-# --yes never answers, after the live tip, the remote's identity and the branch's PR state are
-# re-read (ls-remote, git remote get-url, gh pr list). Each tip is appended to a
-# ledger next to the plan file before the lease-guarded push deletes the head.
-#
 # Exit: 0 success (including dry-run / confirmation-stop); 2 usage/plan error; 3 apply aborted
 # by confirmation gate; 4 one or more mutations failed after the gate.
 # shellcheck disable=SC2310 # git_probe, git_mutate and status predicates return status in if/||/!; every false path is handled
@@ -101,15 +88,6 @@ if ! command -v git >/dev/null 2>&1; then
   fail "git is required"
 fi
 
-# Parse plan → ordered units on stdout. Fields are ASCII Unit Separator (U+001F)
-# delimited so empty ref_name / expected_oid stay intact under Bash 3.2 `read`
-# (tab is IFS whitespace and collapses consecutive delimiters).
-# Columns: phase, operation, canonical, ref_name, expected_oid, kind, target, remote, class,
-# remote_key, github_repo
-# ref_name is the local branch (or empty for prune-only worktree ops). remote, class, remote_key and
-# github_repo are set only for delete-remote-branches, whose branch, tip, class and audited
-# identity come from the action's remote_branches[] row once it is bound to its audit finding.
-# expected_oid may be empty when the plan evidence lacked a headRefOid (fail-closed later).
 PLAN_TSV="$(
   PLAN_FILE_PATH="$PLAN_FILE" python3 - <<'PY'
 import json, os, re, sys
@@ -326,7 +304,6 @@ for _idx, action in ordered:
 PY
 )" || exit 2
 
-# Bash 3.2-compatible collection (no mapfile).
 UNITS=()
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -n "$line" ]] || continue
@@ -343,12 +320,6 @@ git_probe() {
 }
 
 git_mutate() {
-  # The mutating counterpart to git_probe. It shares the prompt and optional-lock
-  # suppression but deliberately not the probe's GIT_NO_LAZY_FETCH or
-  # protocol.file.allow: those exist to keep a read-only probe from reaching the
-  # network or a file remote, and a local delete/prune has no business doing either. The
-  # remote-branch push and its tip fetch do reach the remote; they run only under
-  # --remote-branches and add nothing to what the operator's own git config allows.
   GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git "$@"
 }
 
@@ -427,7 +398,6 @@ worktree_locked() {
     *) ;;
     esac
   done < <(git_probe -C "$canonical" worktree list --porcelain 2>/dev/null || true)
-  # Final record may lack trailing blank line.
   [[ "$cur_path" == "$wt_path" && "$locked" -eq 1 ]]
 }
 
@@ -437,12 +407,6 @@ worktree_head() {
 }
 
 worktree_is_unsafe_to_remove() {
-  # Fail-closed local probe without a sibling-plugin dependency.
-  # Dirty or unreadable porcelain always blocks removal.
-  # Unpushed commits (HEAD --not --remotes) also block when remotes exist.
-  # When the repository has no remotes at all, --not --remotes would treat every
-  # commit as unpushed and false-positive; in that case OID match against the
-  # plan's merged headRefOid is the refresh proof and porcelain is the gate.
   local wt_path=$1
   local dirty unpushed remotes
   dirty="$(git_probe -C "$wt_path" status --porcelain 2>/dev/null || echo FAILED)"
@@ -458,8 +422,6 @@ worktree_is_unsafe_to_remove() {
 oids_match() {
   local a=$1 b=$2
   [[ -n "$a" && -n "$b" ]] || return 1
-  # Case-insensitive equality, or prefix match when one side is an abbreviated OID.
-  # tr (not ${var,,}) keeps this Bash 3.2-safe on stock macOS.
   local al=${#a} bl=${#b}
   a="$(printf '%s' "$a" | tr '[:upper:]' '[:lower:]')"
   b="$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]')"
@@ -509,8 +471,6 @@ append_decision() {
   D_REPO+=("${15:-}")
 }
 
-# decide <action> <reason> [<live oid> [<worktree>]]: append_decision for the unit held in the
-# caller's phase, op, canonical, ref, kind, target and expected.
 decide() {
   append_decision "$phase" "$op" "$canonical" "$ref" "$kind" "$target" "$expected" "${3:-}" \
     "$1" "$2" "${4:-}"
@@ -629,7 +589,6 @@ refresh_worktree_cleanup() {
   fi
 }
 
-# Remote-branch deletion. The gated path runs exactly the argv the plan listing prints.
 remote_delete_argv() {
   local canonical=$1 remote=$2 ref=$3 tip=$4
   RD_ARGV=(-C "$canonical" push "$remote" --delete "refs/heads/${ref}"
@@ -643,8 +602,6 @@ remote_delete_cmdline() {
   printf '\n'
 }
 
-# Identity of a remote URL: the lowercase github.com/owner/repo key for a GitHub URL (userinfo, port
-# and a .git suffix dropped), the URL itself otherwise. The audit records the same key.
 remote_identity() {
   local url=$1 rest authority path host
   if [[ "$url" == *://* ]]; then
@@ -671,9 +628,6 @@ remote_identity() {
   fi
 }
 
-# True when every URL git would fetch from and push to for the remote names the audited repository.
-# Uses the effective config, so a url.*.insteadOf or a changed pushurl that retargets the remote
-# fails here instead of deleting a branch in a repository the audit never saw.
 remote_names_audited_repo() {
   local canonical=$1 remote=$2 key=$3 url seen=0 flag
   for flag in "" "--push"; do
@@ -686,8 +640,6 @@ remote_names_audited_repo() {
   [[ "$seen" -eq 1 ]]
 }
 
-# Fails, naming why on stdout, unless GitHub still shows the audited class for the branch: no PR at
-# all for never-pr; only CLOSED PRs, one at the planned tip, for closed-unmerged. Any doubt fails.
 remote_pr_state_ok() {
   local repo=$1 ref=$2 class=$3 tip=$4 rows state oid count=0 closed_at_tip=0
   if ! rows="$(env -u GH_REPO GH_PROMPT_DISABLED=1 gh pr list --repo "github.com/${repo}" --head "$ref" \
@@ -766,8 +718,6 @@ refresh_remote_delete() {
     "$action" "$reason" "" "$remote" "$class" "$key" "$repo"
 }
 
-# Appends one ledger line before a push and leaves it in LEDGER_LINE. A failed write aborts the
-# branch: no restore record, no delete.
 record_tip() {
   local canonical=$1 remote=$2 ref=$3 class=$4 tip=$5 restore
   restore="$(printf 'git -C %q push %q %q' "$canonical" "$remote" "${tip}:refs/heads/${ref}")"
@@ -776,8 +726,6 @@ record_tip() {
   printf '%s\n' "$LEDGER_LINE" >>"$LEDGER"
 }
 
-# --- Evidence refresh -------------------------------------------------------
-# Unit Separator (not tab): empty ref/expected fields must survive read.
 for line in "${UNITS[@]:-}"; do
   [[ -n "$line" ]] || continue
   IFS=$'\037' read -r phase op canonical ref expected kind target remote rclass rkey rrepo _ <<<"$line"
@@ -863,8 +811,6 @@ if [[ "$mutable" -eq 0 && "$remote_mutable" -eq 0 ]]; then
   exit 0
 fi
 
-# The per-branch prompt cannot be answered without a terminal, and --yes never answers it, so a
-# non-interactive run with remote rows deletes nothing at all (local rows included).
 if [[ "$remote_mutable" -gt 0 ]] && ! is_tty_stdin; then
   printf '\nRemote branch deletion needs an interactive per-branch confirmation; --yes does not answer it.\n' >&2
   printf 'Non-interactive session: mutate nothing. Rows above are the branches that would be prompted.\n' >&2
@@ -994,7 +940,6 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
     class="${D_CLASS[$i]}"
     tip="${D_ACTUAL[$i]}"
     remote_delete_argv "$canonical" "$remote" "$ref" "$tip"
-    # Per-branch gate: --yes is not consulted; anything but an explicit yes skips the branch.
     printf '\nDelete remote branch?\n  repo:   %s\n  remote: %s\n  branch: %s\n  class:  %s\n  tip:    %s\n  command: %s\n[y/N] ' \
       "$canonical" "$remote" "$ref" "$class" "$tip" "$(remote_delete_cmdline "$canonical" "$remote" "$ref" "$tip")" >&2
     confirm=""
@@ -1006,7 +951,6 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
       continue
       ;;
     esac
-    # The prompt can sit open: re-check identity and PR state now. The lease covers the tip.
     if ! remote_names_audited_repo "$canonical" "$remote" "${D_KEY[$i]}"; then
       printf 'SKIP: %s/%s in %s (remote no longer names the audited repository)\n' "$remote" "$ref" "$canonical"
       continue
@@ -1015,7 +959,6 @@ for ((i = 0; i < ${#D_ACTION[@]}; i++)); do
       printf 'SKIP: %s/%s in %s (%s)\n' "$remote" "$ref" "$canonical" "$why"
       continue
     fi
-    # The restore command pushes the tip by SHA, so the object must exist locally.
     if ! git_probe -C "$canonical" cat-file -e "${tip}^{commit}" 2>/dev/null; then
       git_mutate -C "$canonical" fetch --quiet --no-tags "$remote" "refs/heads/${ref}" 2>/dev/null || true
     fi

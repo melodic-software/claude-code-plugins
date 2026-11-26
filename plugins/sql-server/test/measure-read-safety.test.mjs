@@ -12,8 +12,6 @@ const START = '<!-- BEGIN GENERATED: measure-read-safety-results. Run node plugi
 const END = '<!-- END GENERATED: measure-read-safety-results -->';
 const resultsBlock = () => doc.slice(doc.indexOf(START), doc.indexOf(END));
 
-// Runs the script on a doc holding text; an empty PATH means a docker call would fail with
-// ENOENT, not start a container.
 function runOn(t, text) {
   const dir = mkdtempSync(join(tmpdir(), 'sql-server-measure-test-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));

@@ -2,13 +2,49 @@
   "pass": [
     {
       "answer": "Only the #51 line goes in Out-of-scope; the fog stays where it is.",
-      "why": "meets the rule"
+      "why": "moves nothing"
+    },
+    {
+      "answer": "Fog in Not-yet-specified is never moved into Out-of-scope for being unphrasable.",
+      "why": "negated rule statement"
+    },
+    {
+      "answer": "Add one Out-of-scope line linking #51, leaving the Not-yet-specified fog untouched.",
+      "why": "adds only the #51 line"
+    },
+    {
+      "answer": "Nothing moves from Not-yet-specified into Out-of-scope.",
+      "why": "negated"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply moves nothing"
     }
   ],
   "fail": [
     {
       "answer": "Also moved the fog bullet about mobile sync into Out-of-scope.",
-      "why": "breaks the rule"
+      "why": "moves fog"
+    },
+    {
+      "answer": "Map edit: move the Not-yet-specified bullet 'offline mode?' to Out-of-scope as well.",
+      "why": "moves a Not-yet-specified bullet"
+    },
+    {
+      "answer": "Out-of-scope now includes the mobile-push fog bullet too.",
+      "why": "fog lands in Out-of-scope"
+    },
+    {
+      "answer": "Add the mobile-sync fog bullet to Out-of-scope alongside #51.",
+      "why": "adds fog to Out-of-scope"
+    },
+    {
+      "answer": "Map body edit: add the #51 line, and the mobile-related fog in Not-yet-specified goes to Out-of-scope with it.",
+      "why": "wrong: fog moved with a verb after the section name"
+    },
+    {
+      "answer": "Sweep Not-yet-specified: any fog about the mobile app is out of scope too, so migrate it into Out-of-scope.",
+      "why": "wrong: fog swept into Out-of-scope"
     }
   ]
 }

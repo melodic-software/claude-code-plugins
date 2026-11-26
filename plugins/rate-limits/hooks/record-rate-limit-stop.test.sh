@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for record-rate-limit-stop.sh (the rate-limits
-# StopFailure hook).
-#
-# Proves the side-effect contract: kill switch, one appended JSONL detection
-# record per invocation at the fixed contract path (HOME-anchored, so tests
-# redirect via HOME), jq-free operation, degraded-payload tolerance (empty
-# stdin still records — the event firing IS the signal), size rotation, and
-# silent exit 0 when the contract directory cannot be created. The harness
-# ignores StopFailure output and exit codes, so the record file is the only
-# observable surface.
-#
-# Self-contained: defines its own assertion helpers — installed plugins are
-# cache-isolated with no shared test lib.
-
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,18 +26,10 @@ build_input() {
   printf '{"session_id":"%s","hook_event_name":"StopFailure","cwd":"/tmp/x"}' "$session"
 }
 
-# Records in a JSONL file, with the blanks a BSD wc pads its count with and a CR
-# from a Windows toolchain stripped.
 count_records() {
   wc -l <"$1" | tr -d ' \r'
 }
 
-# Runner: fresh-HOME-scoped hook invocation with the kill switch enabled unless
-# the caller overrides it. Output and exit code are captured even though the
-# harness ignores them — the hook must still be silent and exit 0.
-#
-# Stdin comes from a file, not a pipe: with the kill switch off the hook exits
-# before it reads, and a writer still feeding a pipe would take EPIPE.
 run() {
   local home="$1" input="$2"
   shift 2

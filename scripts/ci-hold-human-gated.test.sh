@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a pull request carrying the human-gated label` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# On a pull_request event, contract-only runs included, ci-status fails while
-# the pull request carries the human-gated label the base commit's
-# docs/conventions/work-items.yaml binds (default `needs-human`), read from the base
-# commit's sparse checkout; the labels are read live from the API.
-# The error names the reason from the newest review-lane hold comment, and says
-# that removing the label approves. It fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -30,10 +20,6 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" budget || fail "the ci-status gh_rea
 
 NAME='Fail a pull request carrying the human-gated label'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
-# Every pull_request run, contract-only included, and after a failed earlier
-# step, so the hold is never hidden. A draft's ci-status passes by design
-# (`Note a draft`), so the step makes no read there; the ready_for_review run
-# judges the label.
 if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
   ok "step runs on every pull_request run that is not cancelled or a draft, and on a draft run's re-run once the pull request is ready"
 else
@@ -69,10 +55,6 @@ if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$a
 else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
-# The config comes from a sparse checkout of the commit hold_ref resolves:
-# never the head, never a persisted credential, never an empty ref (which
-# checks out the event's ref, the pull request's own merge commit), and before
-# every step that reads it.
 checkout="$(awk '$0 == "      - name: Check out the base commit'"'"'s hold config" { on = 1; print; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW")"
@@ -92,10 +74,6 @@ else
   fail "the base checkout is not in ci-status before the cost-hold step (lines: $order)"
 fi
 
-# hold_ref resolves the commit the hold config is read at: a pull request into
-# the default branch reads the branch's tip at run time, so a re-run (which
-# replays the event and its stale base.sha) still sees a policy merged since;
-# any other base, and a merge group, keep the event's base SHA.
 REF_NAME="Resolve the hold config's commit"
 ref_step="$(awk -v name="      - name: $REF_NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
@@ -320,9 +298,6 @@ expect "a claude[bot] hold comment gives the reason" 1 1 "needs-human" 0 "(An ol
 export STUB_COMMENTS="[$OLD,$NEW]"
 STUB_FILTER=unfoot expect "a github-actions[bot] hold its lane's run did not record gives no reason" 1 1 "needs-human" 0 "(An older hold.). $APPROVE" "Changes a trust gate"
 STUB_FILTER=fail expect "a hold comment whose run does not read still fails, without a reason" 1 1 "needs-human" 0 "::error::#6419 carries 'needs-human'. $APPROVE"
-# pr-merge's refusal (enable-auto-merge.mjs refusalBody), a person's: the
-# attend-queue marker, then the reasons marker, the reasons fenced. Newer
-# than the security hold, so it names the hold that set the label (#10224).
 APP='{"login":"melodic-automation-lanes[bot]","type":"Bot"}'
 REFUSAL_BODY=$'<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again.\n\n```text\nit changes docs/held.md, a hold path\npr-merge\'s gate holds it on its risk score (cost-review-required: infra/main.tf)\n```'
 REFUSAL="$(hold "$APP" "$REFUSAL_BODY")"
@@ -361,13 +336,6 @@ unset STUB_COMMENTS STUB_COMMENTS_FAIL
 
 expect "a transient label read failure is retried" 1 2 "needs-human" 1
 
-# A paginated read's rate limit stops every pool (the api-budget rate guard):
-# for an hour on a primary limit, for the documented minute on a secondary
-# one. Its headers are unseen, so the stop is a guess and gh_read takes no
-# wait: the read fails closed at once, with no sleep and no second call. So
-# does a 4xx that is no rate limit. Any other error is read again inside
-# gh_read, 3 sends at most, after full-jitter waits of at most 5, then 10 s;
-# the step itself does not loop.
 sleeps() { paste -sd' ' "$TMP_ROOT/sleeps"; }
 for STUB_FAIL_TEXT in 'gh: API rate limit exceeded for installation. (HTTP 403)' 'gh: You have exceeded a secondary rate limit. (HTTP 403)'; do
   export STUB_FAIL_TEXT
@@ -415,8 +383,6 @@ export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  owner-call "}}}'
 expect "the tracker's label is trimmed" 1 1 "owner-call" 0 "::error::#6419 carries 'owner-call'. $APPROVE"
 export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"  "}}}'
 expect "a blank tracker label falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
-# The rule is the base's merge-holds.mjs humanGatedLabel: a base that cannot
-# judge fails closed before any read.
 export STUB_TRACKER="$CUSTOM" STUB_NO_MODULE=1
 expect "a base with no merge-holds.mjs fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label from docs/conventions/work-items.yaml at $BASE with its merge-holds.mjs"
 unset STUB_NO_MODULE

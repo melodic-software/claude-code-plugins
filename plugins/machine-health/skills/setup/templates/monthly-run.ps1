@@ -75,7 +75,6 @@ $runStamp = $start.UtcDateTime.ToString('yyyy-MM-ddTHHmmssfffZ', [Globalization.
 New-Item -ItemType Directory -Force -Path $logsDir | Out-Null
 $logPrefix = Join-Path $logsDir "monthly-run-$runStamp"
 
-# A string JSON value as written, or $null; JsonNode never turns a date-shaped string into a DateTime.
 function Get-JsonString($Node) {
     if ($Node -is [System.Text.Json.Nodes.JsonValue] -and $Node.GetValueKind() -eq 'String') { $Node.GetValue[string]() } else { $null }
 }
@@ -102,8 +101,6 @@ try {
         $said = @($launched | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { "$_" })
         if ($launchRc -ne 0) { throw "profile '$PluginProfile' was not applied and the run did not start: profiles.mjs launch exited ${launchRc}: $($said -join '; ')" }
         $result = @($launched | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n" | ConvertFrom-Json -AsHashtable
-        # The profile wins on enabledPlugins, so one that leaves machine-health off starts a
-        # session that cannot run the audit.
         $enabled = $result['enabledPlugins']
         if ($enabled -isnot [System.Collections.IDictionary]) {
             throw "profile '$PluginProfile' was not applied and the run did not start: profiles.mjs launch reported no enabledPlugins to check machine-health against; update plugin-profiles"
@@ -127,7 +124,6 @@ try {
     $allArgs = $lead + $profileArgs + $auditArgs
     $viaCmd = $exe.Source -match '\.(cmd|bat)$'
     [void]$text.err.AppendLine("monthly-run: claude is $($exe.Source)$($viaCmd ? ', a batch file that cmd.exe runs' : '')")
-    # cmd.exe expands %...% even inside quotes, and reads & | < > ^ in an unquoted argument as syntax.
     if ($viaCmd -and @($allArgs -match '[%&|<>^"]').Count) {
         throw 'an argument holds a character cmd.exe would rewrite (% & | < > ^ ")'
     }
@@ -138,12 +134,9 @@ try {
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
-    # claude writes UTF-8; the default would decode it with the console code page.
     $psi.StandardOutputEncoding = $psi.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
     $process = [System.Diagnostics.Process]::Start($psi)
 
-    # Chunked reads on this thread: whatever arrived is kept even when a process the run left
-    # behind holds a stream open past the exit, and the wait for the rest is bounded.
     $readers = @{ out = $process.StandardOutput; err = $process.StandardError }
     $buffers = @{ out = [char[]]::new(4096); err = [char[]]::new(4096) }
     foreach ($k in $readers.Keys) { $pending[$k] = $readers[$k].ReadAsync($buffers[$k], 0, $buffers[$k].Length) }
@@ -215,6 +208,5 @@ $status.ok = $status.exit_code -eq 0 -and $status.is_error -eq $false -and $stat
 [System.IO.File]::WriteAllText("$logPrefix.stderr.log", $text.err.ToString())
 [System.IO.File]::WriteAllText("$logPrefix.status.json.tmp", ($status | ConvertTo-Json))
 [System.IO.File]::Move("$logPrefix.status.json.tmp", "$logPrefix.status.json")
-# A read still pending on a stream held open elsewhere could block disposal; the process exit frees it.
 if ($process -and $pending.Count -eq 0) { $process.Dispose() }
 exit ($status.ok ? 0 : 1)

@@ -1,14 +1,30 @@
 {
   "pass": [
     {
-      "answer": "One interview item, 'Formly data sharing', groups the two questions: fields and agreement.",
-      "why": "one item holds the questions"
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"`\nformly.md: which of name, date of birth and symptoms cross to Formly, and under what agreement.",
+      "why": "one item holds both questions"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: add --parent 700 --label 'wayfind: interview' --body-file formly.md \"Formly data sharing\"\n```\nStatusly receives no user data: `/work-items:track add` is not run for it.",
+      "why": "one Formly create; the Statusly mention is no Formly create"
     }
   ],
   "fail": [
     {
-      "answer": "Create two items: 'Formly fields' and 'Formly agreement'.",
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file f1.md \"Formly fields\"`\n`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file f2.md \"Formly agreement\"`",
       "why": "one item per question"
+    },
+    {
+      "answer": "Create two items: 'Formly fields' and 'Formly agreement'.",
+      "why": "no single Formly create written out"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply creates no item"
+    },
+    {
+      "answer": "`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file f1.md \"Formly data sharing: which fields cross\"`\n`/work-items:track add --parent 700 --label 'wayfind: interview' --body-file f2.md \"Which data-processing agreement covers the intake vendor\"`",
+      "why": "wrong: one item per question, the second without the vendor's name"
     }
   ]
 }

@@ -46,7 +46,7 @@ run() { (cd "$TMP" && bash "$SUT" "$@"); }
 out="$(run --help 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] &&
-  grep -q 'in the issue this script closes' <<<"$out" &&
+  grep -q 'Exit 0 always (report-only)' <<<"$out" &&
   ! grep -q 'set -uo pipefail' <<<"$out"; then
   pass "--help exits 0 and prints the full header without spilling into code"
 else
@@ -133,10 +133,6 @@ else
   fail "multiple roots should pool into one aggregate of 10 chars across 2 skills: $out"
 fi
 
-# 9. `disable-model-invocation: true` skills are excluded from the aggregate.
-#    Their descriptions are never loaded into the model-visible listing
-#    (https://code.claude.com/docs/en/skills — "Description not in context"),
-#    so counting them would overstate the shared budget.
 make_skill "$TMP/dmi-root" eligible-skill "12345"
 make_skill "$TMP/dmi-root" manual-skill "9999999999999999999999999" "" "true"
 make_skill "$TMP/dmi-root" explicit-false-skill "67890" "" "false"
@@ -163,13 +159,6 @@ else
   fail "only norm-false-comment and norm-eligible should count (2 skills, 10 chars): $out"
 fi
 
-# 9c. Boolean frontmatter accepts `yes`, `no`, `on`, `off`, `1` and `0` in any
-#     letter case beside `true` and `false`
-#     (https://code.claude.com/docs/en/skills#frontmatter-reference). The true
-#     spellings leave the listing; the false spellings stay in it, and each
-#     false skill contributes 5 chars, so the aggregate proves which counted.
-#     Fixture names carry an index, never the spelling, so no two differ only by
-#     letter case on a case-insensitive filesystem.
 i=0
 for spelling in yes YES On on 1; do
   i=$((i + 1))
@@ -247,11 +236,6 @@ else
   fail "the fixed budget should win and announce the ignored reconstruction input (rc=$rc): $out"
 fi
 
-# 14. A zero-padded integer override means what it reads as. `^[0-9]+$` accepts
-#     it, but bash arithmetic and `printf %d` then read it as OCTAL: `08` was a
-#     hard "invalid octal number" that rendered the budget as 0 and still
-#     reported OK, and `0123` silently became 83. Each case asserts the DECIMAL
-#     reading and the absence of the octal diagnostic.
 out="$(cd "$TMP" && CHECK_SKILL_LISTING_BUDGET_CHARS=0123 bash "$SUT" "$ROOT_A" 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -qE 'budget:.*(^|[^0-9])123 chars \(override' <<<"$out" && ! grep -q 'octal' <<<"$out"; then
@@ -332,17 +316,6 @@ else
   fail "the block fixture should measure all 9 chars of 'abc # def': $out"
 fi
 
-# ===================== single-pass port guards (#2216) ======================
-#
-# The measurement is one awk pass rather than ~11 forked subshells and 5 process
-# execs per SKILL.md. Corpus equivalence over the repo's ~200 files (proved by
-# diffing both implementations' per-file contribution rows) is NOT parser
-# equivalence, so the frontmatter shapes most likely to diverge get fixtures.
-
-# 16. LITERAL block scalar (`|`) joins its lines with NEWLINES, and the trailing
-#     blank line before the closing fence must not add one — the pre-port
-#     pipeline got that for free from command substitution stripping trailing
-#     newlines, and the port has to reproduce it deliberately.
 mkdir -p "$TMP/yaml-literal-root/lit"
 {
   printf -- '---\n'
@@ -374,15 +347,6 @@ else
   fail "the single-quote fixture should measure 8 chars: $out"
 fi
 
-# 18. LENGTH SEMANTICS, asserted as an EQUIVALENCE rather than a hardcoded
-#     number. The pre-port script measured with bash `${#var}`; the port
-#     measures with awk `length()`. Both are locale-dependent and they can
-#     disagree when awk counts bytes while the shell counts characters (mawk
-#     ignores the locale; gawk does not). A fixed expected number would encode
-#     ONE environment's answer and fail elsewhere for the wrong reason — this
-#     compares the script's own output against the measurement primitive the
-#     OLD implementation used, in the SAME shell, so a divergence is reported
-#     as exactly what it is.
 mkdir -p "$TMP/yaml-utf8-root/utf8"
 UTF8_DESC='a—b…c'
 {
@@ -398,14 +362,6 @@ else
   fail "awk length() and bash \${#var} disagree on a multibyte value (expected ${#UTF8_DESC}): $out"
 fi
 
-# 19. WALL CLOCK over a ~200-file corpus — the regression this port exists to
-#     prevent. The pooled run took 289s on Windows and was killed at the 180s
-#     foreground limit with zero output; the single pass returns in low
-#     single-digit seconds. The bound is deliberately VERY loose (30s for 200
-#     files against a sub-second target): this runs in required CI, and a tight
-#     timing assertion is a flaky gate, which is worse than the defect it
-#     guards. It fails only on a return to per-file process spawning, which is
-#     two orders of magnitude away.
 i=0
 while ((i < 200)); do
   mkdir -p "$TMP/perf-root/skill-$i"
@@ -480,9 +436,6 @@ write_fraction() {
   mkdir -p "$(dirname "$1")"
   printf '{"skillListingBudgetFraction": %s}\n' "$2" >"$1"
 }
-# run_cfg <project-dir> <config-dir> [args...]: each case gets its own fixture
-# project and config dirs, so no case sees another's settings files. Source
-# paths are matched by their tail: a native Windows jq reports a C:/ spelling.
 run_cfg() {
   local proj="$1" cfg="$2"
   shift 2

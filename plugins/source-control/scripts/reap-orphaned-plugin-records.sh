@@ -1,38 +1,4 @@
 #!/usr/bin/env bash
-# reap-orphaned-plugin-records.sh — run the worktree audit Step 2b remedy over
-# the paths a person individually confirmed as dead worktrees.
-#
-# WHY THIS EXISTS. `claude plugin uninstall <id> -s project` has no path flag, so
-# the only route to a project-scope record whose path no longer exists is to
-# recreate the path, reap from inside it, and remove it again. This script does
-# that for each confirmed dead path.
-#
-# PER PATH, IN ORDER, STOPPING AT THE FIRST FAILURE:
-#   1. mkdir <path>             plain `mkdir`, never `-p`: it FAILS when the path
-#                               exists, so a live directory is never reaped. A
-#                               path whose parent is missing fails here too.
-#   2. cd <path>
-#   3. reap --dry-run           reap-project-plugin-records.sh --worktree-path
-#   4. reap                     the helper's own cwd-only check still applies
-#   5. rm -rf <path>/.claude    the settings file the uninstall CLI rewrites
-#   6. cd .. && rmdir <path>    removes only the directory step 1 created
-# A failure in steps 3-4 leaves the directory in place, because deleting it
-# would put surviving records back out of reach.
-#
-# The caller must confirm each path is a dead worktree first (not another
-# repository's live worktree, not an unmounted share, not a detached volume).
-# This script does no classification of its own.
-#
-# Usage:
-#   reap-orphaned-plugin-records.sh <path> [<path> ...]
-#
-# Output: `[n/total] <path>: <step> ...` lines, the helper's own lines indented
-# under the step that ran them, and a closing `ok:` or `error:` line.
-# Exit codes:
-#   0  every path was reaped and its directory removed
-#   1  a path failed; the path and step are named, later paths are not touched
-#   2  usage error (no path given, or an unknown flag)
-
 set -uo pipefail
 
 PROG=${0##*/}
@@ -40,8 +6,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER="$SCRIPT_DIR/reap-project-plugin-records.sh"
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
-    "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+reap-orphaned-plugin-records.sh: reap project-scope plugin records for paths a person confirmed as dead worktrees.
+
+Usage:
+  reap-orphaned-plugin-records.sh <path> [<path> ...]
+
+  <path>  a confirmed dead worktree path; it must not exist
+
+Exit codes:
+  0  every path was reaped and its directory removed
+  1  a path failed; the path and step are named, later paths are not touched
+  2  usage error (no path given, or an unknown flag)
+EOF
 }
 
 paths=()
@@ -78,9 +55,6 @@ MINGW* | MSYS* | CYGWIN*) windows_shell=true ;;
 *) ;;
 esac
 
-# strip_trailing_separators <path> — every trailing separator the platform
-# recognizes. Off Windows a trailing backslash is a legal filename byte and must
-# survive, or the chain would act on a different sibling path.
 strip_trailing_separators() {
   local p="$1"
   if [[ "$windows_shell" == "true" ]]; then
@@ -131,7 +105,6 @@ for raw in "${paths[@]}"; do
   esac
   printf '[%s/%s] %s\n' "$index" "$total" "$path"
 
-  # Plain mkdir, never `mkdir -p`: it fails on an existing directory.
   if ! mkerr="$(mkdir -- "$path" 2>&1)"; then
     detail="$(one_line "$mkerr")"
     if [[ ! -e "$path" && ! -L "$path" ]]; then

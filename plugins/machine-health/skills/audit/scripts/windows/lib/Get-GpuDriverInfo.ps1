@@ -26,8 +26,6 @@ function Get-GpuDriverInfo {
 
     $out = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    # One string per argv entry. An unquoted comma in argument mode would split
-    # the query into four entries and nvidia-smi would reject it (exit 2).
     $nv = Invoke-NativeCommand -Name 'nvidia-smi' -DiscardStdErr -ArgumentList @(
         '--query-gpu=name,driver_version',
         '--format=csv,noheader'

@@ -1,8 +1,4 @@
 # shellcheck shell=bash
-# Self-test for scripts/time-gates.sh: the row format, the invocation each gate
-# gets, a failing gate's exit code recorded rather than judged, and the usage
-# errors. The gates are stubs under a mktemp root handed over in
-# TIME_GATES_ROOT, so no real gate runs here.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

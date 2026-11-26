@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "10.4.0",
+  "version": "10.5.0",
   "license": "MIT",
   "engines": {
     "claude-code": ">=2.1.331"
@@ -133,6 +133,66 @@
       "description": "Times the gate refuses the same command before letting it run; default 1.",
       "default": 1,
       "min": 0
+    },
+    "observer_harness_check": {
+      "type": "boolean",
+      "title": "Observer harness checks",
+      "description": "Run the scripted harness checks (hook latency, prompt-cache misses, slow repeated tools, context-zone crossings, rate-limit approach) beside the live checks. They call no model. Off by default.",
+      "default": false
+    },
+    "observer_hook_log_dir": {
+      "type": "string",
+      "title": "Observer hook log folder",
+      "description": "Folder holding session-telemetry's per-session hook log (sessions/<session id>.jsonl), absolute or relative to the project; the hook latency check reads each hook's duration_ms from it. Default .observability/claude.",
+      "default": ".observability/claude"
+    },
+    "observer_hook_p95_ms": {
+      "type": "number",
+      "title": "Observer hook p95 budget (ms)",
+      "description": "Report a hook whose p95 latency this session exceeds this many milliseconds; default 1000.",
+      "default": 1000,
+      "min": 1
+    },
+    "observer_hook_min_runs": {
+      "type": "number",
+      "title": "Observer hook minimum runs",
+      "description": "Runs a hook needs this session before its p95 is judged; default 5.",
+      "default": 5,
+      "min": 1
+    },
+    "observer_cache_miss_tokens": {
+      "type": "number",
+      "title": "Observer cache miss tokens",
+      "description": "Report a turn that rewrites at least this many tokens of cached prompt beyond the context it added, unless a break past the cache lifetime or a compaction explains it; default 50000.",
+      "default": 50000,
+      "min": 1
+    },
+    "observer_tool_slow_seconds": {
+      "type": "number",
+      "title": "Observer slow tool seconds",
+      "description": "A tool call that runs longer than this many seconds counts as slow; default 60.",
+      "default": 60,
+      "min": 1
+    },
+    "observer_tool_repeat": {
+      "type": "number",
+      "title": "Observer slow tool repeats",
+      "description": "Report a tool (a Bash command by its first two words) after this many slow calls in one session; default 3.",
+      "default": 3,
+      "min": 1
+    },
+    "observer_context_percents": {
+      "type": "string",
+      "title": "Observer context thresholds",
+      "description": "Comma-separated context-window percentages; report each upward crossing. Default 50,75.",
+      "default": "50,75"
+    },
+    "observer_rate_limit_percent": {
+      "type": "number",
+      "title": "Observer rate-limit percent",
+      "description": "Report a rate-limit window once per reset when it reaches this percent used; default 80.",
+      "default": 80,
+      "min": 1
     },
     "observer_clear_after_prompts": {
       "type": "number",

@@ -1,15 +1,3 @@
-// Profile files: one YAML file per profile, at three levels, resolved into one catalog.
-//
-//   profileLevels({pluginRoot, configDir, projectDir, conventionHome}) -> [{level, dir}], lowest first
-//   readProfileFiles(levels) -> [{level, name, path, def}], each file validated, or throws ProfileError
-//   resolveCatalog(files) -> {alwaysOn, profiles: Map<name, profile>}, each profile also carrying
-//                            fromRepository {plugins, hideSkills} and ignored [{file, list, id}]
-//   readCatalog(levels) = resolveCatalog(readProfileFiles(levels))
-//   parseProfile(text, where) -> {description, plugins, optional, remove, exclude, hideSkills}, validated
-//   profileText(def) -> the file text for a def, which parseProfile reads back as the same def
-//
-// Levels: shipped <plugin root>/profiles, user <config dir>/plugin-profiles, repository
-// <project>/<convention home>/plugin-profiles (ADR 0075; default home docs/conventions).
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "./yaml-subset.mjs";

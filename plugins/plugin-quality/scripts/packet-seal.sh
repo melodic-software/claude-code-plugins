@@ -1,92 +1,4 @@
 #!/usr/bin/env bash
-# Tamper-evidence for evidence-packet files.
-#
-# Packet files are written with the Write tool, and any sibling plugin that
-# registers a `PostToolUse` hook on the `Write|Edit` matcher post-processes
-# every one of them, whatever the destination directory. When and how
-# PostToolUse may rewrite is the pointer record in
-# skills/audit/reference/evidence-packet.md#packet-files-are-write-once-evidence-sibling-hooks-rewrite-them-in-place.
-# Observed in this fleet: a formatter
-# plugin such as `markdown-format` registers that matcher and rewrites in
-# place, damaging exactly what a packet exists to preserve — verbatim
-# quotations and code-span identifiers.
-#
-# The rewrite is silent WITH RESPECT TO THE ARTIFACT: it is announced only in
-# the session, which is the context the packet exists to outlive. This script
-# makes divergence visible to a later reader instead.
-#
-# What the digest does and does not cover (stated honestly, because a mechanism
-# that overclaims is worse than none):
-#
-#   COVERED — every divergence after the LAST seal: a formatter re-run triggered
-#   by a subsequent edit (their own notices state the autocorrect "has no
-#   memory", so a hand-repair is rewritten again on the next edit), truncation,
-#   or tampering. VERIFY turns all of those from silent into reported. "Last"
-#   rather than "first" is exact, and `record` enforces the difference: it
-#   refuses to reseal over an already-divergent file, because doing so would
-#   replace the evidence of a rewrite with a digest of the rewritten bytes.
-#
-#   ACKNOWLEDGED DIVERGENCE — `record --acknowledge-divergence` never replaces
-#   `packet.sha256`: verify keeps reporting the original divergence as CHANGED
-#   (exit 1). It writes `packet.sha256.<N>` (N starts at 2), a manifest of the
-#   bytes as they are now, so notes added afterwards can be sealed. verify reads
-#   `packet.sha256` exactly as before and also every entry of the LATEST
-#   generation (highest N by numeric value), labeled GEN-MATCH / GEN-CHANGED /
-#   GEN-MISSING, so a second edit of an already-diverged file is still caught.
-#   A file in neither manifest is UNSEALED. Once a generation exists an ordinary
-#   `record` is refused (it would launder the acknowledged divergence), and
-#   `record --acknowledge-divergence` writes the next generation, also after the
-#   altered file was restored. It names (GEN-MISSING) any file the previous
-#   generation sealed that is now gone, because the next generation stops
-#   listing it.
-#
-#   With a generation, verify prints `ACKNOWLEDGED generation=<N>` on every run,
-#   including when a restore made every digest match and the exit is 0: verify
-#   reports what the bytes are, and the visible line, not a permanent nonzero
-#   exit, keeps the incident in front of a reader.
-#
-#   NOT COVERED — the FIRST in-place rewrite. PostToolUse runs after the write
-#   succeeds, so by the time any subsequent tool call can hash the file, the
-#   formatter has already run; the digest necessarily covers the post-hook bytes.
-#   The writer's read-back (see the skill's write-once rule) is what catches
-#   that one, not this script.
-#
-# Usage:
-#   bash packet-seal.sh record <packet-dir>
-#   bash packet-seal.sh record --acknowledge-divergence <packet-dir>
-#   bash packet-seal.sh verify <packet-dir>
-#   bash packet-seal.sh --help
-#
-# The manifest is `packet.sha256` inside the packet directory: a first line
-# `# sealed-at <UTC ISO-8601>`, then `<digest>  <name>` lines (the coreutils
-# format), one per non-manifest regular file anywhere under the packet, named by
-# its path RELATIVE to the packet. Coverage is recursive on purpose: a packet
-# holds raw artifacts as well as the markdown files, and content the manifest
-# silently said nothing about is exactly the content a reader would trust on the
-# strength of a manifest that never covered it. The manifest's own name is
-# outside the .md class, so neither known sibling formatter matches it
-# (markdown-format filters to `*.md|*.mdc`; typos leaves a hex digest alone).
-#
-# SEAL MOMENT — `record` writes the `# sealed-at` line, and so does each
-# generation manifest, so a later reader can tell how old a seal is. The value
-# is SELF-ATTESTED: this script wrote it from the local clock, it is unsigned,
-# and anyone who can write the manifest can edit it. It says when the packet
-# claims to have been sealed, not proof of when it was. Every reader of a
-# manifest here skips lines starting with `#`; a real entry starts with a hex
-# digest, so the two cannot clash. A manifest written before the header existed
-# has no seal moment and verifies as before, reporting `unknown`. The reverse
-# fails closed: a verify from a version of this script older than the header
-# reads that line as a sealed name, reports it MISSING, and exits 1. That is
-# loud, not silent, and acceptable.
-#
-# Output (stdout, greppable): per-file `<verdict> <name>` lines for verify
-# (MATCH / CHANGED / MISSING, then GEN-MATCH / GEN-CHANGED / GEN-MISSING for the
-# latest generation, then UNSEALED), `ACKNOWLEDGED generation=<N>` when a
-# generation exists, `sealed-at=<value>` (`unknown` without a header) and, when
-# a generation exists, `gen-sealed-at=<value>` for the latest generation, then a
-# summary line that gains gen-matched / gen-changed / gen-missing counters only
-# when a generation exists. The seal moment never changes an exit code.
-#
 # Exit 0 = recorded, or verified with every manifest entry (and every entry of
 #          the latest generation) matching and nothing unsealed. NOT a claim
 #          the content is pristine, only that nothing changed since the seal;
@@ -108,24 +20,31 @@ set -uo pipefail
 MANIFEST_NAME="packet.sha256"
 
 usage() {
-  sed -n '/^# Tamper-evidence/,/^# Exit 3/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Tamper-evidence for evidence-packet files: seal a packet's files in packet.sha256, then verify them against it.
+
+Usage:
+  bash packet-seal.sh record <packet-dir>
+  bash packet-seal.sh record --acknowledge-divergence <packet-dir>
+  bash packet-seal.sh verify <packet-dir>
+  bash packet-seal.sh --help
+
+  record                    write packet.sha256; refused over a divergent file or once a generation exists
+  --acknowledge-divergence  write the next generation manifest packet.sha256.<N> instead
+  verify                    report MATCH / CHANGED / MISSING / GEN-* / UNSEALED per file
+  --help                    print this help
+
+Exit 0 = recorded, or every sealed file matches; 1 = a sealed file changed or is missing, or
+record refused; 2 = usage error, unusable packet, no digest tool, or a symlink entry;
+3 = every sealed file matches but some file is UNSEALED.
+EOF
 }
 
-# Every regular file under the packet, as a path relative to it, one per line,
-# in a stable order. Recursive so raw artifacts in subdirectories are covered
-# rather than silently outside the manifest.
-# `! -type d` rather than `-type f`: a symlink is not a regular file, so a
-# `-type f` walk cannot see one — an all-symlink packet enumerated as EMPTY and
-# then verified as "intact", which is the worst possible answer from an
-# integrity tool. Everything that is not a directory is now enumerated, and
-# symlinks are adjudicated per entry where the manifest is built.
 packet_files() {
   local root="$1"
   (cd "$root" && find . ! -type d 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort)
 }
 
-# GNU coreutils ships sha256sum; macOS ships shasum. Probed once: the answer
-# cannot change mid-run, and the refusal below reads the same probe.
 if command -v sha256sum >/dev/null 2>&1; then
   digest_tool=sha256sum
 elif command -v shasum >/dev/null 2>&1; then
@@ -146,9 +65,6 @@ is_manifest_name() {
   [[ "$1" == "$MANIFEST_NAME" || "$1" =~ ^packet\.sha256\.[0-9]+$ ]]
 }
 
-# The first line of every manifest this script writes: the self-attested seal
-# moment (see the header comment). `date -u` with this format is the same on
-# GNU and BSD.
 seal_header() {
   printf '# sealed-at %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
@@ -159,11 +75,6 @@ seal_moment() {
   printf '%s' "${moment:-unknown}"
 }
 
-# The highest generation number in the packet, compared numerically (10 sorts
-# after 9), or empty when there is none. `10#` keeps a leading zero from being
-# read as octal. Returns 2, naming the file, for a generation that cannot be
-# trusted: a symlink (verify would read its target, outside the packet) or a
-# number past 18 digits (Bash arithmetic would wrap it).
 latest_generation() {
   local f n latest=""
   for f in "$1"/packet.sha256.*; do
@@ -207,21 +118,6 @@ note_divergence() {
   done <"$1"
 }
 
-# write_manifest <dest> <kind>: seals every name in `files` into <dest> through a
-# temp file beside it, then moves it into place. <kind> is `manifest` or
-# `generation manifest`, as the error messages name it; a generation skips
-# manifest names. Every failure removes the temp file and exits 2.
-#
-# A packet entry is never allowed to be a symlink. The rule is "no symlinks",
-# not "no symlinks that escape", deliberately. An evidence packet is written by
-# Write-tool calls and never legitimately contains a link, so the permissive
-# case buys nothing — while resolving a link's real target portably needs
-# `readlink -f`, which is GNU-only and silently absent on BSD userland, exactly
-# where a resolution bug would go unnoticed. Refusing the whole class is
-# simpler, portable, and fails closed: a link's bytes are not the packet's,
-# they can change with nothing in the packet changing, and digesting one would
-# let a link inside an evidence directory make an arbitrary file on the machine
-# read as sealed packet content.
 write_manifest() {
   local dest="$1" kind="$2" tmp="$1.tmp.$$" name file d
   seal_header >"$tmp" || {
@@ -412,14 +308,6 @@ else
   gen_missing=0
 fi
 
-# A packet file that the manifest never covered. Reported, never ignored: an
-# unsealed file is content a reader would otherwise trust on the strength of a
-# manifest that says nothing about it.
-#
-# Compared as exact strings, never by grepping the name into a pattern: a
-# filename is not a regex, and `audit-notes.md` as a pattern would also match
-# `audit-notesXmd` — a false negative that reports unsealed content as covered,
-# which is the one direction this check must never fail in.
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
   ! is_manifest_name "$name" || continue
@@ -445,12 +333,6 @@ if [[ -n "$latest" ]]; then
 fi
 echo "$summary"
 
-# CHANGED/MISSING and UNSEALED are different facts and must not share an exit
-# code. A packet routinely acquires files after its last seal — `contract.md` at
-# step 4, `item.md` at step 6 — so collapsing them would make the ordinary
-# interrupted-run packet, the exact case resume exists for, report as tampered
-# evidence and get discarded. The GEN- verdicts count the same way: a generation
-# entry that differs was altered after it was acknowledged.
 if [[ $changed -gt 0 || $missing -gt 0 || $gen_changed -gt 0 || $gen_missing -gt 0 ]]; then
   echo "packet integrity: NOT INTACT — treat the differing files as altered evidence, not ground truth" >&2
   [[ $unsealed -eq 0 ]] || echo "packet integrity: additionally, $unsealed file(s) are outside the manifest" >&2

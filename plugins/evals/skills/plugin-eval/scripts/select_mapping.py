@@ -7,7 +7,9 @@ standard library only.
 """
 
 import collections
+import functools
 import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -16,10 +18,6 @@ import sys
 MIN_PYTHON = (3, 8)
 
 DESC_TOKEN_RE = re.compile(r"\w+|[^\w\s]")
-HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-MEANING_FLIP_WORDS = frozenset(
-    ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
-)
 DELIM_REL_PATH_RES = (
     re.compile(r"<((?:\.\.?/)+[^<>#\r\n]+)(?:#[^<>\r\n]*)?>"),
     re.compile(r'"((?:\.\.?/)+[^"#\r\n]+)(?:#[^"\r\n]*)?"'),
@@ -70,6 +68,8 @@ PLUGIN_WIDE_FILES = frozenset(
 PLUGIN_WIDE_DIRS = frozenset(["hooks"])
 DESCRIPTION_KEYS = ("description", "when_to_use")
 
+GLOSSARY_PATHS = ("docs/glossary.md", "GLOSSARY.md")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 VALIDATE_CASES_PY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "validate", "scripts", "validate-cases.py")
@@ -87,6 +87,7 @@ def _load_module(name, path):
 
 
 validate_cases = _load_module("evals_validate_cases", VALIDATE_CASES_PY)
+no_run_text = _load_module("evals_no_run_text", os.path.join(HERE, "no_run_text.py"))
 
 
 def _git(repo_dir, *args):
@@ -170,30 +171,43 @@ def git_show(repo_root, rev, rel_path):
     return done.stdout
 
 
-def _flips_meaning(word):
-    token = word.replace("\u2019", "'").strip(".,;:!?()\"'`*_").lower()
-    return token in MEANING_FLIP_WORDS or token.endswith("n't")
-
-
-def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0, skip_old_ranges=()):
+def _diff_has_cut_hunks(
+    diff_text,
+    skip_old_lines_upto=0,
+    skip_old_ranges=(),
+    allow_heading_renames=False,
+    pairs=(),
+    comment_style=None,
+):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
     its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion. A hunk
-    whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut."""
+    whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut,
+    nor one that only swaps glossary-decided terms (`pairs`) or only deletes whole comment lines
+    (`comment_style`), nor, with `allow_heading_renames`, one that only renames routing headings."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
             return True
-        match = HUNK_HEADER_RE.match(line)
+        match = no_run_text.HUNK_HEADER_RE.match(line)
         if match:
             old_start = int(match.group(1))
             old_count = 1 if match.group(2) is None else int(match.group(2))
             old_end = old_start + old_count - 1
             skipped = any(lo <= old_start and old_end <= hi for lo, hi in skip_old_ranges)
-            hunks.append([old_count > 0 and old_end > skip_old_lines_upto and not skipped, [], []])
+            keep = old_count > 0 and old_end > skip_old_lines_upto and not skipped
+            hunks.append([keep, [], [], [], [], old_start])
         elif hunks and line.startswith("-") and not line.startswith("---"):
             hunks[-1][1].extend(line[1:].split())
+            hunks[-1][3].append(line[1:])
         elif hunks and line.startswith("+") and not line.startswith("+++"):
             hunks[-1][2].append(line[1:].split())
+            hunks[-1][4].append(line[1:])
+    for hunk in hunks:
+        if hunk[0] and (
+            (allow_heading_renames and no_run_text._is_routing_heading_rename(hunk[3], hunk[4]))
+            or no_run_text._hunk_is_no_run(hunk[3], hunk[4], pairs, comment_style, hunk[5])
+        ):
+            hunk[0] = False
 
     def is_cut(old, new_lines):
         """Old words must survive in order; a flip word inserted into a line that keeps old words
@@ -208,14 +222,21 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0, skip_old_ranges=()):
                     kept_here = True
                 else:
                     added.append(word)
-            if kept_here and any(_flips_meaning(word) for word in added):
+            if kept_here and any(no_run_text.flips_meaning(word) for word in added):
                 return True
         return index != len(old)
 
-    return any(edits and is_cut(old, new) for edits, old, new in hunks)
+    return any(edits and is_cut(old, new) for edits, old, new, *_ in hunks)
 
 
-def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0, skip_old_ranges=()):
+def diff_has_cut(
+    repo_root,
+    diff_base,
+    rel_path,
+    skip_old_lines_upto=0,
+    skip_old_ranges=(),
+    allow_heading_renames=False,
+):
     """True when any `-U0` hunk modifies or removes an existing line past the skipped prefix and
     outside the skipped ranges."""
     done = _git(
@@ -229,8 +250,15 @@ def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0, skip_old
     )
     if done.returncode != 0:
         return True
+    merge_base = resolve_merge_base(repo_root, diff_base)
+    base = git_show(repo_root, merge_base, rel_path) or ""
     return _diff_has_cut_hunks(
-        done.stdout, skip_old_lines_upto=skip_old_lines_upto, skip_old_ranges=skip_old_ranges
+        done.stdout,
+        skip_old_lines_upto=skip_old_lines_upto,
+        skip_old_ranges=skip_old_ranges,
+        allow_heading_renames=allow_heading_renames,
+        pairs=decided_term_pairs(repo_root, merge_base),
+        comment_style=no_run_text.comment_style(rel_path, base),
     )
 
 
@@ -245,21 +273,12 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     )
     if done.returncode != 0:
         return True
-    return _diff_has_cut_hunks(done.stdout)
-
-
-def _next_section_lines(text):
-    """The 1-based line range of a `## Next` section's body, heading excluded, or None. It names
-    successors for the person and changes no tool call, so editing it runs nothing."""
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        if line.rstrip() == "## Next":
-            end = next(
-                (j for j in range(index + 1, len(lines)) if lines[j].startswith("## ")),
-                len(lines),
-            )
-            return index + 2, end
-    return None
+    base = git_show(repo_root, merge_base, old_path) or ""
+    return _diff_has_cut_hunks(
+        done.stdout,
+        pairs=decided_term_pairs(repo_root, merge_base),
+        comment_style=no_run_text.comment_style(new_path, base),
+    )
 
 
 def _frontmatter_end_line(text):
@@ -335,7 +354,60 @@ def _is_subsequence(old_tokens, new_tokens):
     return all(token in it for token in old_tokens)
 
 
-def _classify_description_change(base_fm, head_fm):
+@functools.lru_cache(maxsize=None)
+def decided_term_pairs(repo_root, rev):
+    """The glossary's rejected-to-decided term pairs at `rev`, empty when no glossary exists."""
+    for path in GLOSSARY_PATHS:
+        text = git_show(repo_root, rev, path)
+        if text is not None:
+            return no_run_text._parse_rejected_terms(text)
+    return ()
+
+
+def swap_rename_pairs(repo_root, merge_base, deleted, added):
+    """(deleted, added) path pairs git did not pair as a rename whose path and content differ only
+    by decided-term swaps."""
+    pairs = []
+    unused = list(added)
+    for old_path in deleted:
+        for new_path in unused:
+            if is_no_run_file_change(repo_root, merge_base, old_path, new_path):
+                pairs.append((old_path, new_path))
+                unused.remove(new_path)
+                break
+    return pairs
+
+
+def is_no_run_file_change(repo_root, merge_base, old_path, new_path):
+    """True when `old_path` at merge_base and `new_path` at HEAD differ only by decided-term swaps
+    (path and content) and whole-comment-line deletions."""
+    pairs = decided_term_pairs(repo_root, merge_base)
+    if os.path.splitext(new_path)[1].lower() in SCRIPT_EXTENSIONS:
+        pairs = ()
+    old_id, new_id = old_path.split("/")[:4], new_path.split("/")[:4]
+    if old_id != new_id and old_id[2:3] in (["skills"], ["agents"], ["commands"]):
+        return False
+    if old_path != new_path and not no_run_text.is_term_swap_only(old_path, new_path, pairs):
+        return False
+    done = _git(
+        repo_root, "diff", "-U0", "%s:%s" % (merge_base, old_path), "HEAD:%s" % new_path
+    )
+    if done.returncode != 0:
+        return False
+    hunks = no_run_text._raw_hunks(done.stdout)
+    style = no_run_text.comment_style(new_path, git_show(repo_root, merge_base, old_path) or "")
+    return bool(hunks) and all(
+        no_run_text._hunk_is_no_run(old, new, pairs, style, start) for start, old, new in hunks
+    )
+
+
+def _value_text(value):
+    return value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+
+
+def _classify_description_change(base_fm, head_fm, pairs=(), plugins=frozenset()):
+    """`cut`, `additive`, `exempt` (routing clauses, skill tokens or decided terms only) or
+    None; a cut in either key wins, then an additive edit."""
     status = None
     for key in DESCRIPTION_KEYS:
         old_val = base_fm.get(key)
@@ -346,6 +418,8 @@ def _classify_description_change(base_fm, head_fm):
             key_status = "additive"
         elif new_val is None:
             key_status = "cut"
+        elif no_run_text.is_routing_only_change(str(old_val), str(new_val), pairs, plugins):
+            key_status = "exempt"
         else:
             old_tokens = DESC_TOKEN_RE.findall(str(old_val))
             new_tokens = DESC_TOKEN_RE.findall(str(new_val))
@@ -354,17 +428,24 @@ def _classify_description_change(base_fm, head_fm):
             )
         if key_status == "cut":
             return "cut"
-        status = "additive"
+        if status != "additive":
+            status = key_status
     return status
 
 
-def _classify_other_frontmatter(base_fm, head_fm):
+def _classify_other_frontmatter(base_fm, head_fm, pairs=()):
+    """An added key, or a non-`name` value changed only by decided-term swaps, is additive."""
     base_other = {k: v for k, v in base_fm.items() if k not in DESCRIPTION_KEYS}
     head_other = {k: v for k, v in head_fm.items() if k not in DESCRIPTION_KEYS}
     if base_other == head_other:
         return None
     for key, old_val in base_other.items():
-        if key not in head_other or head_other[key] != old_val:
+        new_val = head_other.get(key)
+        if new_val != old_val and (
+            new_val is None
+            or key == "name"
+            or not no_run_text.is_term_swap_only(_value_text(old_val), _value_text(new_val), pairs)
+        ):
             return "cut"
     return "additive"
 
@@ -387,21 +468,23 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
     base_fm = _parse_frontmatter_loose(base_fm_raw)
     head_fm = _parse_frontmatter_loose(head_fm_raw)
 
-    desc_class = _classify_description_change(base_fm, head_fm)
-    other_fm_class = _classify_other_frontmatter(base_fm, head_fm)
+    pairs = decided_term_pairs(repo_root, merge_base)
+    plugin_dir = os.path.join(repo_root, "plugins")
+    plugins = frozenset(os.listdir(plugin_dir) if os.path.isdir(plugin_dir) else ())
+    desc_class = _classify_description_change(base_fm, head_fm, pairs, plugins)
+    other_fm_class = _classify_other_frontmatter(base_fm, head_fm, pairs)
 
     body_class = None
     if base_body != head_body:
-        fm_end = _frontmatter_end_line(base_text)
-        next_lines = _next_section_lines(base_text)
         body_class = (
             "cut"
             if diff_has_cut(
                 repo_root,
                 diff_base,
                 rel_path,
-                skip_old_lines_upto=fm_end,
-                skip_old_ranges=(next_lines,) if next_lines else (),
+                skip_old_lines_upto=_frontmatter_end_line(base_text),
+                skip_old_ranges=no_run_text._no_run_section_lines(base_text),
+                allow_heading_renames=True,
             )
             else "additive"
         )

@@ -27,9 +27,6 @@ RUN_ID = 111
 JOB_ID = 222
 FAILED_AT = "2026-10-09T10:00:00Z"
 STARTED_AT = "2026-10-09T09:50:00Z"
-# Shapes follow live payloads (2026-10-09): `gh pr view --json
-# statusCheckRollup` gives a CheckRun no id, and an Actions job's `id`, its
-# `check_run_url` tail and its check run's id are one number.
 CHECK = {
     "name": "pr-review / claude-review-status",
     "id": "",
@@ -94,7 +91,6 @@ class RerunRateLimitedReview(unittest.TestCase):
             if args[1] == f"repos/{REPO}/actions/jobs/{JOB_ID}":
                 return job if job is not None else _job()
             if args[1].startswith(f"repos/{REPO}/check-runs/{JOB_ID}/annotations"):
-                # The check-runs annotations payload carries each level.
                 return [
                     a
                     if isinstance(a, dict)

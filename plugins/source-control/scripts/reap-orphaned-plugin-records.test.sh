@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for reap-orphaned-plugin-records.sh. Black-box: a stubbed
-# `claude` on PATH reproduces the measured CLI contract (`plugin list --json`
-# reports every project-scope record, `plugin uninstall <id> -s project` acts
-# only on a record whose projectPath is the current directory). The cases pin
-# the properties the Step 2b remedy rests on: paths are reaped in order, an
-# existing path is refused without reaping, the run stops at the first failing
-# path, and only the directory the script created is removed.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -134,8 +127,6 @@ assert_eq "the path before the failure was reaped and removed" "no" "$([[ -e "$C
 assert_eq "the failing path's directory is left in place" "yes" "$([[ -d "$D" ]] && echo yes || echo no)"
 assert_eq "the path after the failure was never created" "no" "$([[ -e "$E" ]] && echo yes || echo no)"
 assert_not_contains "no uninstall ran for the path after the failure" "$(cat "$LOG")" "in $E"
-
-# --- a missing parent fails at mkdir, pointing at #7461 -------------------------
 
 reset_log
 run "$ROOT_NATIVE/no-such-parent/child"

@@ -1,47 +1,20 @@
-#
-# Environment:
-#   PSSA_STATE_BASE  the directory that holds trust approvals
-#   PSSA_REPO_ROOT   the root text that the trust signature is bound to
-#
 # Exit codes:
 #   0  clean
 #   3  the PSScriptAnalyzer module is not installed
 #   4  Invoke-Formatter or Invoke-ScriptAnalyzer threw ("PSSA_ERROR ..." lines)
 #   6  the settings declare CustomRulePath (or could not be verified code-free)
 #      and this settings-content state is unapproved ("PSSA_TRUST ..." line)
-#
-# A file that is neither BOM'd nor valid UTF-8 (legacy ANSI) is skipped whole:
-# its bytes cannot round-trip through a rewrite.
 
 $mode = $args[0]
 $targets = @($args | Select-Object -Skip 1)
 $runDir = (Get-Location).ProviderPath
 
-# Importing the module is both the presence probe and the load the formatter
-# needs; a -ListAvailable scan of every module path costs extra.
 try {
     Import-Module PSScriptAnalyzer -ErrorAction Stop
 } catch {
     exit 3
 }
 
-# Trust gate: a settings file may declare CustomRulePath, which makes
-# Invoke-ScriptAnalyzer load and execute repository-supplied rule modules.
-# Detect the key via the restricted data-file parser PowerShell itself
-# provides — a textual grep is evadable through quoting and escape
-# sequences (e.g. a backtick escape inside a double-quoted key still
-# evaluates to CustomRulePath). A settings file the restricted parser
-# rejects cannot be proven code-free (PSScriptAnalyzer settings parsing is
-# more lenient, for example taking the first hashtable of a
-# multi-statement file), so it gates too: fail closed.
-#
-# The approval signature covers the settings file AND every file reachable
-# under each declared CustomRulePath entry (recursively for directories,
-# matching -RecurseCustomRulePath reach), so approval binds to the rule
-# module content that would execute, not just to the text that names it.
-# An entry that does not resolve, or a state base that is unusable, makes
-# the state unverifiable: exit 6 with no approval route (fail closed).
-# Structured PSSA_TRUST lines on stdout hand the verdict to the shell.
 function exitTrust([string]$verdict) {
     Write-Output "PSSA_TRUST $verdict"
     exit 6
@@ -74,28 +47,9 @@ if ($sd.ContainsKey("CustomRulePath")) {
         }
     }
     if ($ruleFiles.Count -gt 512) { exitTrust UNVERIFIABLE }
-    # Transitive code-loading inputs: a declared leaf module may dot-source
-    # or Import-Module further repository files, and those execute with it,
-    # so they must be pinned too. Enumerating PowerShell resolution exactly
-    # would mean evaluating the module - the very thing being gated - so
-    # approximate from text: collect every string literal in each collected
-    # file, resolve it against the containing directory and the settings
-    # directory, take existing files, and rescan those the same way,
-    # bounded. Overflow or an unreadable file makes the state unverifiable.
     $sq = [char]39
     $dq = [char]34
     $litPattern = "$sq([^$sq]+)$sq|$dq([^$dq]+)$dq"
-    # Substitute the automatic variables whose values are known here -
-    # anywhere in the reference, not just as a leading prefix - so the
-    # standard interpolated dependency . "$PSScriptRoot/x.ps1" resolves.
-    # Without it Join-Path reads PSScriptRoot as a directory name and the
-    # helper escapes the signature. Shared by the parser and text passes so
-    # both judge and resolve the same string.
-    # The name is BOUNDED, so a longer variable that merely starts with the
-    # same text is not mistaken for it: PowerShell continues a variable name
-    # through [A-Za-z0-9_] and reads a colon as a scope qualifier, so an
-    # unbounded pattern would rewrite $PSScriptRootFoo to <dir>Foo and the
-    # caller would then judge that reference pinnable and never pin it.
     function expandKnownVars([string]$value, [string]$scriptRoot, [string]$commandPath) {
         $out = [regex]::Replace(
             $value,
@@ -106,20 +60,8 @@ if ($sd.ContainsKey("CustomRulePath")) {
             "(?i)\`$(?:\{PSCommandPath\}|PSCommandPath(?![A-Za-z0-9_:]))",
             $commandPath.Replace("`$", "`$`$"))
     }
-    # Named code-loading commands. The dot-source and call-operator
-    # forms need no name match: InvocationOperator identifies them,
-    # and their element 0 IS the target, so it is checked too.
     $loaders = @("Import-Module", "ipmo", "Add-Type", "New-Module",
         "Import-PowerShellDataFile", "Invoke-Command", "Start-Job")
-    # Invoke-Expression is its own case: its argument is CODE, not a
-    # path, so even a constant string cannot be pinned - the code it
-    # evaluates may itself load a file this scan never sees, a
-    # dot-source spelled inside the evaluated text. Listing it as a
-    # loader pins the code STRING as if it named a file, so
-    # `Invoke-Expression 'Import-Module ./evil.psm1'` reads as pinned
-    # while the load it really performs is never seen. Binding it
-    # would mean recursively parsing evaluated text, so the state is
-    # refused instead. A linter rule has no reason to evaluate text.
     $evaluators = @("Invoke-Expression", "iex")
     $loadKinds = @(
         [System.Management.Automation.Language.UsingStatementKind]::Module,
@@ -140,26 +82,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
         try { $text = [System.IO.File]::ReadAllText($cur) } catch { exitTrust UNVERIFIABLE }
         $pending = [System.Collections.Generic.List[string]]::new()
 
-        # Refuse a load whose target cannot be pinned to a file. A COMPOSED
-        # target - a variable, an env lookup, or an expression such as
-        # . (Join-Path $PSScriptRoot "deps" "helper.ps1") - names a
-        # dependency that could never enter the signature, and an approval
-        # would then survive arbitrary edits to it. The PowerShell parser
-        # decides pinnability exactly: the target must be a constant string,
-        # or an interpolated string whose every variable this scan can
-        # expand. Unlike a text pattern it cannot be evaded by quoting or
-        # comment placement, and it needs no file-extension guessing, so the
-        # extensionless Import-Module "$root/MyModule" form is caught too.
-        #
-        # A target the parser accepts is queued HERE rather than left to the
-        # quoted-literal scan below, which sees only quoted text: PowerShell
-        # does not require quotes around a command argument, so
-        # . $PSScriptRoot\helper.ps1 and Import-Module ./rules/helper.ps1
-        # would otherwise be judged pinnable and then never pinned - the one
-        # direction this gate must not fail in.
-        #
-        # Scoped to PowerShell source because the collector also pins
-        # non-code data files, which the parser would reject wholesale.
         if ($cur -match "\.ps(m|d)?1$") {
             $perrs = $null
             $fileAst = [System.Management.Automation.Language.Parser]::ParseInput(
@@ -172,12 +94,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
                 }, $true)
             foreach ($cmdAst in $cmdAsts) {
                 $cmdName = $cmdAst.GetCommandName()
-                # A module-qualified name resolves to the same command:
-                # `Microsoft.PowerShell.Core\Import-Module` IS Import-Module.
-                # GetCommandName returns the qualified spelling as written, so
-                # an exact-name membership test never matches it and the load
-                # is skipped outright. The bare name after the last qualifier
-                # separator is what the membership tests below must see.
                 $bareName = $cmdName
                 if (-not [string]::IsNullOrEmpty($bareName)) {
                     $bareName = ($bareName -split "[\\/]")[-1]
@@ -190,14 +106,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
                         $loaders -contains $bareName
                 }
                 if (-not $isLoad) { continue }
-                # A loader fed by a PIPELINE takes its source from the
-                # upstream element, not from its own arguments, so the loop
-                # below would see only a constant command name and accept:
-                # Get-Content (Join-Path $PSScriptRoot deps helper.ps1) | iex
-                # executes a file this scan never reconstructs, and
-                # Get-ChildItem *.psm1 | Import-Module has the same shape.
-                # Anything but the first element of its own pipeline is
-                # refused.
                 if ($cmdAst.Parent -is [System.Management.Automation.Language.PipelineAst] -and
                     $cmdAst.Parent.PipelineElements.Count -gt 1 -and
                     -not [object]::ReferenceEquals($cmdAst.Parent.PipelineElements[0], $cmdAst)) {
@@ -209,9 +117,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
                         [void]$pending.Add($el.Value)
                         continue
                     }
-                    # An inline script block is part of the text already
-                    # hashed here; FindAll recursed into it, so a composed
-                    # load nested inside is still judged on its own.
                     if ($el -is [System.Management.Automation.Language.ScriptBlockExpressionAst]) { continue }
                     if ($el -is [System.Management.Automation.Language.ExpandableStringExpressionAst]) {
                         $target = expandKnownVars $el.Value $curDir $cur
@@ -223,14 +128,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
                     exitTrust UNPINNABLE
                 }
             }
-            # `using module ./deps/helper.psm1` and `using assembly
-            # ./deps/helper.dll` both load repository code, but are
-            # UsingStatementAst nodes rather than commands, so the loop above
-            # never sees them - and neither form needs quotes, so the text
-            # scan does not either. `using namespace` and `using type` name
-            # no repository file and are left alone. The path must be a
-            # constant (PowerShell requires one), so a hashtable module
-            # specification cannot be pinned and refuses approval.
             $usingAsts = $fileAst.FindAll({
                     param($n) $n -is [System.Management.Automation.Language.UsingStatementAst]
                 }, $true)
@@ -249,21 +146,12 @@ if ($sd.ContainsKey("CustomRulePath")) {
         foreach ($hit in [regex]::Matches($text, $litPattern)) {
             $lit = if ($hit.Groups[1].Success) { $hit.Groups[1].Value } else { $hit.Groups[2].Value }
             if ([string]::IsNullOrWhiteSpace($lit) -or $lit.Contains("`n")) { continue }
-            # The raw literal AND its expansion are both candidates: a file
-            # whose name genuinely contains the text still resolves, and the
-            # standard interpolated dependency resolves too.
             [void]$pending.Add($lit)
             if ($lit.Contains("`$")) {
                 $expanded = expandKnownVars $lit $curDir $cur
                 if ($expanded -ne $lit) { [void]$pending.Add($expanded) }
             }
         }
-        # An extensionless reference resolves through PowerShell module
-        # resolution, so pinning only the exact leaf would miss the file that
-        # actually executes: Import-Module "$PSScriptRoot/MyModule" loads
-        # MyModule.psd1/.psm1, or MyModule/MyModule.psd1 when the reference
-        # names a module directory. Every candidate is tried; whatever exists
-        # is pinned, which over-collects at worst.
         foreach ($cand0 in $pending) {
             if ([string]::IsNullOrWhiteSpace($cand0)) { continue }
             foreach ($baseDir in @($curDir, $settingsDir)) {
@@ -283,11 +171,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
                         foreach ($ext in @(".psd1", ".psm1")) {
                             $cands += (Join-Path $base "$leaf$ext")
                         }
-                        # The versioned layout PowerShell also loads:
-                        # MyModule/<version>/MyModule.psd1. Every immediate
-                        # subdirectory is tried rather than version strings
-                        # being parsed - a non-version directory simply has
-                        # no manifest to find.
                         foreach ($sub in Get-ChildItem -LiteralPath $base -Directory -Force -ErrorAction SilentlyContinue) {
                             foreach ($ext in @(".psd1", ".psm1")) {
                                 $cands += (Join-Path $sub.FullName "$leaf$ext")
@@ -316,10 +199,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
         [void]$manifest.AppendLine("$target`t$h")
     }
     if ([string]::IsNullOrEmpty($env:PSSA_STATE_BASE)) { exitTrust NOSTORE }
-    # Instance SHA256 + x2 formatting: the static SHA256.HashData /
-    # Convert.ToHexString shortcuts are .NET 5+, absent on the PowerShell
-    # 7.0 (.NET Core 3.1) floor this hook supports. Any failure is
-    # UNVERIFIABLE - an empty signature must never mint a shared marker.
     try {
         $sha = [System.Security.Cryptography.SHA256]::Create()
         try {
@@ -333,10 +212,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
         $signature = ""
     }
     if ([string]::IsNullOrEmpty($signature)) { exitTrust UNVERIFIABLE }
-    # Emit the marker NAME, not a path: the shell rebuilds the directory in
-    # its own path form so the approval hint matches the POSIX shell the
-    # user runs mkdir in, while Test-Path here uses the native form — both
-    # views name the same physical directory.
     $trustDir = Join-Path $env:PSSA_STATE_BASE "trust-approvals" "pssa-$signature"
     if (-not (Test-Path -LiteralPath $trustDir -PathType Container)) {
         exitTrust "GATE pssa-$signature"
@@ -346,9 +221,6 @@ if ($sd.ContainsKey("CustomRulePath")) {
 $settings = $env:PSSA_SETTINGS
 $lintOut = if ($mode -eq "format") { $env:PSSA_LINT_OUT } else { "" }
 
-# Relative CustomRulePath entries in the settings file resolve from the current
-# PowerShell location, so anchor at the settings directory and the rule paths
-# resolve the way the repository intended.
 Set-Location -LiteralPath $settingsDir
 
 function readSource([string]$file) {

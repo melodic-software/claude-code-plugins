@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-claim.sh (#2882).
-# Black-box: throwaway git fixtures, plain `git worktree add` (unlocked),
-# helper-shaped lock reasons left untouched, and check-enter on a foreign
-# claim. Invoked from an unrelated cwd so a repo-dir leak would surface.
-# No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,20 +15,13 @@ TEST_TMPDIR="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
 
-# A run inside a Claude Code session exports the session id; each case sets the
-# variables it means to test.
 unset CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID
 
-# Helper-created reason when --session-id is omitted: host and time, no
-# `session <id> since` token. Claim must not rewrite it (#2882 AC4), and
-# check-enter treats it as foreign to every session.
 HELPER_REASON='worktree-create.sh: lane active on testhost since 2026-08-15T08:46:04Z; unlock when the owning lane is done'
 
 REPO="$(mkrepo)"
 EXT="$TEST_TMPDIR/external"
 mkdir -p "$EXT"
-# The script reports paths in the form it resolves from git, which on Windows
-# Git Bash is not the /tmp/... spelling mktemp returned; expect that form.
 EXT_PHYS="$(physical_dir "$EXT")"
 REPO_PHYS="$(physical_dir "$REPO")"
 
@@ -47,10 +35,6 @@ run_claim() {
   return "$rc"
 }
 
-# stanza_for <path-substring> — $REPO's `worktree list --porcelain` record for
-# the worktree whose path contains <path-substring>. Paragraph mode (RS=) is
-# what makes one record one awk line, so the `locked` line stays attached to
-# the `worktree` line it belongs to.
 stanza_for() {
   git -C "$REPO" worktree list --porcelain | awk -v RS= -v p="$1" 'index($0, p)'
 }
@@ -156,25 +140,13 @@ run_claim claim --all-unclaimed --repo-dir "$REPO" --session-id batch-sess
 assert_exit "--all-unclaimed with nothing left is exit 0" 0 "$?"
 assert_contains "no-op --all-unclaimed says so" "$ERR" "no unclaimed"
 
-# A lock failure in the batch must not be reported as success (`if ! cmd;
-# then rc=$?` stores 0, hiding the failure).
 git -C "$REPO" worktree add -q "$EXT/wt-lockfail" -b feat/lockfail
 
-# Root-proof arm (#3378). The chmod fixture below cannot make the admin
-# directory unwritable for uid 0, and some filesystems ignore the write bits
-# too, so on those platforms it proves nothing. A stub `git` that fails ONLY
-# `worktree lock` reproduces the failure on every platform and every uid.
-# worktree-claim.sh resolves git through PATH (`git_unlocated` invokes a plain
-# `git`), so a stub earlier on PATH intercepts it; the real binary is resolved
-# BEFORE the stub dir is prepended, and everything else is delegated to it.
 STUB_BIN="$TEST_TMPDIR/stub-bin"
 mkdir -p "$STUB_BIN"
 REAL_GIT="$(command -v git)"
 {
   printf '#!/usr/bin/env bash\n'
-  # The invocation is `-C <dir> worktree lock --reason <text> <path>`, so match
-  # positionally: the fixture path and the arbitrary reason text must not be
-  # able to trip this by carrying the word "lock".
   # shellcheck disable=SC2016  # the $3/$4 belong to the generated stub, not here.
   printf 'if [[ "${3:-}" == worktree && "${4:-}" == lock ]]; then\n'
   printf '  echo "stub git: worktree lock refused" >&2\n'
@@ -200,13 +172,6 @@ if [[ ! -d "$admin" ]]; then
   admin="$(git -C "$EXT/wt-lockfail" rev-parse --absolute-git-dir)"
 fi
 chmod a-w "$admin" 2>/dev/null || true
-# Probe whether that chmod actually took. uid 0 writes through a cleared write
-# bit, and some filesystems do not enforce it at all; asserting on a fixture
-# that did not take reports a product defect which does not exist, so skip
-# with the reason named instead.
-# discriminating-skip-ok: the stub-git arm directly above covers lock-failure
-# exit-code propagation on every platform and uid, so this skip vacates no
-# discriminating coverage — only the redundant permission-bits fixture.
 if : >"$admin/.write-probe" 2>/dev/null; then
   rm -f "$admin/.write-probe"
   chmod u+w "$admin" 2>/dev/null || true
@@ -255,8 +220,6 @@ assert_exit "release of the main worktree is usage (exit 2)" 2 "$?"
 run_claim release "$UNRELATED" --repo-dir "$REPO" --session-id rel-own
 assert_exit "release of a non-worktree path is environment (exit 5)" 5 "$?"
 
-# The helper armed the lock for the session that wrote the handoff; /clear
-# then starts a new session id in the same terminal.
 git -C "$REPO" worktree add -q "$EXT/wt-hand" -b feat/hand
 HAND_REASON="$(HOSTNAME=testhost bash -c 'source "$1"; worktree_lock_reason worktree-create.sh "$2"' _ "$SCRIPT_DIR/lib/worktree-facts.sh" hand-old)"
 git -C "$REPO" worktree lock --reason "$HAND_REASON" "$EXT/wt-hand"
@@ -330,8 +293,6 @@ assert_exit "--to outside handover is usage (exit 2)" 2 "$?"
 run_claim handover "$REPO" --repo-dir "$REPO" --session-id hand-old --to hand-new
 assert_exit "handover of the main worktree is usage (exit 2)" 2 "$?"
 
-# Claude Code exports CLAUDE_CODE_SESSION_ID to Bash; a bare call must act as
-# that session, so its own claim reads as its own.
 git -C "$REPO" worktree add -q "$EXT/wt-env" -b feat/env
 CLAUDE_CODE_SESSION_ID=env-own run_claim claim "$EXT/wt-env" --repo-dir "$REPO"
 assert_exit "claim with only CLAUDE_CODE_SESSION_ID set succeeds" 0 "$?"
@@ -418,10 +379,6 @@ assert_exit "stale: an unreadable transcript directory is not provable (exit 1)"
 assert_contains "stale: the refusal names the directory" "$OUT" "transcript directory"
 assert_contains "stale: the refusal says it is unreadable" "$OUT" "unreadable"
 
-# A scan that fails mid-way. uid 0 reads through chmod 000 and Windows Git Bash
-# does not enforce it, so a stub `find` that exits non-zero after a real scan
-# carries the contract on every platform and uid; the chmod fixture adds a real
-# unreadable directory where the host enforces the mode.
 FAILFIND_BIN="$TEST_TMPDIR/failfind-bin"
 mkdir -p "$FAILFIND_BIN"
 {
@@ -515,10 +472,6 @@ assert_exit "stale --batch through the counting stubs is exit 0" 0 "$?"
 assert_eq "stale --batch lists the worktrees once" 1 "$(grep -c '^git .*worktree list' "$COUNT_LOG")"
 assert_eq "stale --batch scans the transcripts once" 1 "$(grep -c '^find ' "$COUNT_LOG")"
 
-# Spawn budget: process creations, counted by the kernel, must not grow with the
-# number of registered worktrees, for a single-path call or for a batch naming
-# every one of them. A host without a working strace (macOS, Windows Git Bash)
-# skips; the Linux CI lane holds the pin.
 if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true 2>/dev/null; then
   SPAWN_REPO="$(mkrepo)"
   SPAWN_ROOT="$TEST_TMPDIR/spawn-root"
@@ -610,8 +563,6 @@ else
   skip_case "malformed registry cases: no jq on this host"
 fi
 
-# Only the tools the script runs are on this PATH, so jq is absent even where it is installed.
-# Git Bash copies a symlink's target, and a copied bash.exe cannot find its DLLs.
 if [[ "$(uname -s)" == Linux ]]; then
   NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
   mkdir -p "$NOJQ_BIN"
@@ -733,8 +684,6 @@ assert_exit "whitespace session id is usage" 2 "$?"
 run_claim report --repo-dir "$UNRELATED"
 assert_exit "report outside a git repo is environment (exit 5)" 5 "$?"
 
-# A git older than 2.36 rejects `worktree list -z`: fail closed (no non-z
-# fallback) and name the floor and the installed version.
 OLD_GIT_BIN="$TEST_TMPDIR/old-git-bin"
 mkdir -p "$OLD_GIT_BIN"
 {
@@ -782,7 +731,6 @@ REAL_ROOT="$TEST_TMPDIR/real-root"
 LINK_ROOT="$TEST_TMPDIR/link-root"
 mkdir -p "$REAL_ROOT"
 ln -s "$REAL_ROOT" "$LINK_ROOT"
-# Git Bash without native symlinks makes `ln -s` copy the directory; there is no symlink to test.
 if [[ -L "$LINK_ROOT" ]]; then
   OTHER_ROOT="$TEST_TMPDIR/other-root"
   mkdir -p "$OTHER_ROOT"
@@ -790,9 +738,6 @@ if [[ -L "$LINK_ROOT" ]]; then
   git -C "$LINK_REPO" worktree add -q "$LINK_ROOT/sib-b" -b feat/sib-b
   git -C "$LINK_REPO" worktree add -q "$OTHER_ROOT/sib-c" -b feat/sib-c
   ln -s "$OTHER_ROOT/sib-c" "$REAL_ROOT/sib-c-link"
-  # git records the resolved path, so porcelain would never show the symlinked spelling. Point
-  # each admin gitdir at the logical path, so parse_worktrees canonicalizes all three in one run:
-  # sib-a resolves its parent, sib-b reuses it, sib-c-link must not.
   admin="$(git -C "$LINK_REPO" rev-parse --path-format=absolute --git-common-dir)/worktrees"
   printf '%s\n' "$LINK_ROOT/sib-a/.git" >"$admin/sib-a/gitdir"
   printf '%s\n' "$LINK_ROOT/sib-b/.git" >"$admin/sib-b/gitdir"

@@ -14,7 +14,7 @@ import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { LANES_APP_LOGIN, REFINE_MARKER } from "../lib/lane-vocabulary.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
-import { OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { DIFF, listedCommits, OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines, wholeCommits, wholeCompare } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence, REFINE_MARKER };
@@ -86,9 +86,6 @@ export function trustedLabeler(events, label, { bot, humans }) {
 const MAX_TEXT = 3000;
 const MAX_ITEMS = 20;
 const MAX_ITEM = 300;
-// Compare lists at most 300 files, only on page 1; a longer list is incomplete.
-// https://docs.github.com/en/rest/commits/commits#compare-two-commits
-const COMPARE_FILES_CAP = 300;
 
 export { clampReset };
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
@@ -828,7 +825,6 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     issueLabels.some((label) => UNTRUSTED_LABELS.includes(label)) ||
     holdPaths === null ||
     changedFiles === null ||
-    (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
     (reused && checks?.scan !== "clean")
   );
@@ -869,7 +865,6 @@ function fileList(files, holdPaths) {
       .slice(0, MAX_FILES)
       .map((path) => `- ${neutral(path.replaceAll(/\s+/g, " "), MAX_ITEM, { path: true }).trim()}${denied(path) ? " (denied path)" : ""}`),
     ...(sorted.length > MAX_FILES ? [`- and ${sorted.length - MAX_FILES} more`] : []),
-    ...(files.length >= COMPARE_FILES_CAP ? ["", `The compare listing stops at ${COMPARE_FILES_CAP} files, so this list may be incomplete.`] : []),
   ].join("\n");
 }
 
@@ -1219,8 +1214,7 @@ export const laneBranchIssue = (name) => {
 
 const laneCommit = (commit, bot) =>
   commit?.commit?.verification?.verified === true && commit.author?.login === bot && commit.committer?.login === "web-flow";
-export const listedCommits = (comparison) =>
-  Array.isArray(comparison?.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
+export { listedCommits };
 export const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
 
 function fromLane(dir, read, fallback) {
@@ -1528,7 +1522,8 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
     const legacy = markers.some((marker) => marker.run === "");
     const branches = [];
     for (const ref of refs) {
-      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(ref.name)}`);
+      const range = `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(ref.name)}`;
+      const comparison = await wholeCommits((path) => github("GET", path), range, await github("GET", range));
       if (!Number.isSafeInteger(comparison?.ahead_by) || comparison.ahead_by < 0) {
         throw new Error(`the commits ${ref.name} holds ahead of ${base} could not be read`);
       }
@@ -1890,7 +1885,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     let commits = null;
     const compare = async (head = branch) => {
       base = (await github("GET", repo)).default_branch;
-      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
+      const comparison = await wholeCompare(
+        (path) => github("GET", path),
+        (path) => github("GET", path, undefined, { accept: DIFF }),
+        `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
+      );
       commits = listedCommits(comparison);
       return (comparison.files ?? []).flatMap((file) =>
         file.previous_filename ? [file.filename, file.previous_filename] : [file.filename],

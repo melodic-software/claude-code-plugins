@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "## Notes\n- Retention rules follow the seed item's comment.",
-      "why": "meets the rule"
+      "why": "no path in Notes"
+    },
+    {
+      "answer": "Seeding from the ledger at .work/data-retention/interview-checklist.md.\n\n## Notes\n- Audit logs are retained 7 years.\n- EU data stays in the EU region.\n\n## Not-yet-specified\n- **Derived analytics**: what deletion means.",
+      "why": "the path appears outside Notes only"
+    },
+    {
+      "answer": "**Notes:**\n- Consult /planning:prd at closure.",
+      "why": "bold heading, no path"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ],
   "fail": [
     {
       "answer": "## Notes\n- Interview ledger: .work/data-retention/interview-checklist.md",
-      "why": "breaks the rule"
+      "why": "Notes cite the ledger path"
+    },
+    {
+      "answer": "**Notes:** see .work/data-retention/interview-checklist.md for the settled answers.",
+      "why": "inline Notes cite the path"
+    },
+    {
+      "answer": "### Notes\n\n- Audit logs: 7 years.\n- Source: `.work/data-retention/`",
+      "why": "a later Notes bullet points at the slice"
+    },
+    {
+      "answer": "**Notes**\n- Seeded from the interview ledger at `.work/data-retention/interview-checklist.md`.",
+      "why": "wrong: bold Notes heading without a colon, citing the ledger path"
     }
   ]
 }

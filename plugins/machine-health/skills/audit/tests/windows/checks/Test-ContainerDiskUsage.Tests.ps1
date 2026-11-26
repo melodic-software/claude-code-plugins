@@ -7,8 +7,6 @@ BeforeAll {
 
 Describe 'Test-ContainerDiskUsage -- baseline' -Tag 'check' {
     It 'emits a schema-valid CheckResult when docker and wsl are absent' {
-        # Native commands can't be mocked reliably; simulate absence by
-        # stubbing Get-Command to return $null for both.
         Mock Get-Command {
             param($Name)
             if ($Name -eq 'docker' -or $Name -eq 'wsl') { return $null }

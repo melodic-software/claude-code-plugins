@@ -59,7 +59,6 @@ function fakeTedious({ answer = (request, connection) => connection.respond([{ o
       });
     }
 
-    // Streams rows as the 'row' events tedious emits, stopping once cancelled.
     respond(rows) {
       const request = this.current;
       const names = Object.keys(rows[0] ?? {});

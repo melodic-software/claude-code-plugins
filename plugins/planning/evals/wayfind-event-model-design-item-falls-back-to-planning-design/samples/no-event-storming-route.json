@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "Domain/event-model work would route to /event-storming:methodology or /event-storming:simulation, but the event-storming plugin is not enabled, so #903 falls back to /planning:design.",
+      "why": "names the event-storming skills only as the route not taken"
+    },
+    {
+      "answer": "Skill: planning:design\nargs: Model the order lifecycle events (#903)",
+      "why": "routes to design only"
+    },
+    {
+      "answer": "Normally this calls for `/event-storming:simulation`; it is not installed. Invoking /planning:design instead.",
+      "why": "describes the usual route without taking it"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply takes no event-storming route; other graders fail it"
+    },
+    {
+      "answer": "The event-storming plugin is not enabled, so I cannot invoke /event-storming:methodology; falling back to /planning:design.",
+      "why": "cannot invoke the event-storming skill"
+    },
+    {
+      "answer": "I can't call /event-storming:simulation here; invoking /planning:design.",
+      "why": "cannot call the event-storming skill"
+    },
+    {
+      "answer": "Rather than routing it to /event-storming:methodology, #903 goes to /planning:design.",
+      "why": "rather-than mention"
+    },
+    {
+      "answer": "Instead of calling /event-storming:methodology, invoking /planning:design.",
+      "why": "instead-of mention"
+    },
+    {
+      "answer": "I'd route it to /event-storming:methodology, but it is off.",
+      "why": "hypothetical route"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Invoking /event-storming:methodology for 'Model the order lifecycle events'.",
+      "why": "routes to event-storming"
+    },
+    {
+      "answer": "Hand-off:\n```\nSkill: event-storming:simulation\nargs: order lifecycle, #903\n```",
+      "why": "skill block for event-storming"
+    },
+    {
+      "answer": "Routing #903 to `/event-storming:methodology`.",
+      "why": "routes the item to event-storming"
+    },
+    {
+      "answer": "Handing it off to /event-storming:methodology even though the plugin is off.",
+      "why": "hands it to event-storming"
+    },
+    {
+      "answer": "The plugin is listed as off, but domain events are its job, so calling /event-storming:methodology for #903 rather than /planning:design.",
+      "why": "wrong: takes the event-storming route over the fallback"
+    }
+  ]
+}

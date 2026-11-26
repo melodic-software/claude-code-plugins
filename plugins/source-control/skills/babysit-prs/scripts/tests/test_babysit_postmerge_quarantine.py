@@ -26,9 +26,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -212,8 +209,6 @@ class AffectedBase(CheckCase):
 
 class AffectedSet(AffectedBase):
     def test_a_newer_green_run_on_a_commit_not_on_main_is_ignored(self) -> None:
-        # A run on a tag named main reports `head_branch: main`; its commit
-        # (and the plan script it would run) is not main's.
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -504,7 +499,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual(verdict.quarantines, ())
 
     def test_a_marker_the_title_does_not_name_excuses_nothing(self) -> None:
-        # A writer moved another suite's issue onto this suite by its marker.
         self.quarantine_issue(
             FLAKY,
             "2026-10-12T00:00:00Z",
@@ -553,8 +547,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual((report["issues"], report["comments"]), ([], [501]))
 
     def test_a_quarantine_issue_someone_else_opened_counts_for_nothing(self) -> None:
-        # An outsider's expired issue would demote, and an open one would take
-        # the sighting: it is neither, so the filers' own issue is filed.
         self.quarantine_issue(FLAKY, "2026-10-01T09:00:00Z")
         self.gh.issues[-1]["user"] = {"login": "outsider"}
         self.red_dispatch(bash_log((FLAKY, False)))
@@ -583,10 +575,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
     def test_a_leg_listing_no_failed_step_demotes(self) -> None:
-        # A pin of the safe answer: with no failed step listed (the jobs API
-        # can answer a completed job with no steps or a cut list), no suite
-        # can be named, so an out-of-set failure excuses nothing. The full
-        # list keeps the quarantine excuse.
         cases = {
             "no steps": ([], ["dispatch"]),
             "a list cut before the suite step": (
@@ -900,7 +888,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual([(r["runId"]) for r in report["reruns"]], [11])
 
     def test_a_red_run_off_the_branch_gets_no_rerun(self) -> None:
-        # Run 11 on a tag named main: its commit is not on refs/heads/main.
         self.lane_red(bash_log((TOUCHED, False)), head_sha=FORK_SHA)
         self.assertEqual(self.lane_reruns(self.lane_check()), [])
 
@@ -990,8 +977,6 @@ class AffectedSuites(unittest.TestCase):
         return self.git(self.root, "rev-parse", "HEAD")
 
     def setUp(self) -> None:
-        # The machine's global config signs commits (commit.gpgsign) through a
-        # key the fixture cannot reach, which fails `git commit` under load.
         env = mock.patch.dict(
             os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
         )
@@ -1004,8 +989,6 @@ class AffectedSuites(unittest.TestCase):
         self.git(self.root, "init", "-q")
         self.git(self.root, "config", "user.email", "t@example.com")
         self.git(self.root, "config", "user.name", "t")
-        # Repo-local, as in test_prune_babysit_worktrees.py: a global
-        # commit.gpgsign would sign every fixture commit with the machine's key.
         self.git(self.root, "config", "commit.gpgsign", "false")
         self.green = self.commit(
             {pm.PLAN_SCRIPT: self.PLAN, "tree.txt": "green"}, "green"
@@ -1088,8 +1071,6 @@ class SuiteFailures(unittest.TestCase):
     def test_an_advisory_line_inside_another_suites_block_excuses_nothing(
         self,
     ) -> None:
-        # FLAKY's own output prints TOUCHED's advisory warning, with the
-        # nonce guessed wrong or copied from an older run.
         for forged in (advisory(TOUCHED, "f" * 16), advisory(TOUCHED, "")):
             with self.subTest(forged):
                 log = bash_log((FLAKY, False), (TOUCHED, False), inside={FLAKY: forged})
@@ -1098,8 +1079,6 @@ class SuiteFailures(unittest.TestCase):
                 )
 
     def test_a_nonce_line_inside_a_block_is_not_the_runners(self) -> None:
-        # A suite prints its own nonce line and a warning carrying it; only
-        # the runner's line, before any block, sets the nonce.
         forged = f"Advisory nonce: {'e' * 16}"
         log = bash_log(
             (FLAKY, False), (TOUCHED, False), inside={FLAKY: forged}
@@ -1108,7 +1087,6 @@ class SuiteFailures(unittest.TestCase):
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY, TOUCHED}))
 
     def test_bash_drops_an_advisory_suite_from_a_titled_warning(self) -> None:
-        # run-plugin-tests.sh's suite_annotate titles each warning by its suite.
         titled = advisory(TOUCHED).replace(
             "::warning::", f"::warning title={TOUCHED}::", 1
         )
@@ -1116,8 +1094,6 @@ class SuiteFailures(unittest.TestCase):
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
 
     def test_a_real_leg_log_names_only_runner_suites(self) -> None:
-        # Job 119563204870: the ui suite's own output prints `FAIL: <file>`
-        # lines, and the runner's stderr `FAIL: <suite>` lands inside them.
         log = (FIXTURES / "job-log-bash-ui-fail.txt").read_text(encoding="utf-8")
         self.assertEqual(
             pm.suite_failures(log, "bash"),

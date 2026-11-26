@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Standards-alignment collector for one audited component.
-#
-# Resolves the consumer convention home with resolve-convention-home.sh.
-# Exit 1 from that resolver is the unresolved-home fallback: this script
-# names the five topics and infers nothing. Exit 3 is forwarded. A resolved
-# home runs a closed probe set and cites the convention line plus the
-# component line when a probe disagrees. invocation-mode, untrusted-content and
-# windows-path-emit report `finding`. seam-phrasing grades prose (the gate
-# belongs where an invocation is instructed, not where one is described), so
-# it reports `candidate` leads that do not change the exit; the auditor reads
-# each against the convention before recording a finding.
-#
-# Exit: 0 no disagreement (including unresolved-home), 1 one or more
-# findings or a missing citation basis, 2 usage, 3 the resolver FAILed.
-#
-#   collect-standards.sh --component <file> --root <repo>
 set -uo pipefail
 
 usage() {
@@ -86,14 +70,11 @@ fi
 resolver_err="$(mktemp)"
 home_out="$(bash "$RESOLVER" --root "$ROOT" 2>"$resolver_err")"
 home_rc=$?
-# The resolver writes duplicate: notices to stderr. Keep them off this
-# script's stdout so the report stays one record per line.
 if [[ -s "$resolver_err" ]]; then
   cat "$resolver_err" >&2
 fi
 rm -f "$resolver_err"
 
-# 1 no pointer, 4 declined, 5 not applicable (home, ancestor of home, or outside git): no home binds, so grade from the topic docs.
 if [[ "$home_rc" -eq 1 || "$home_rc" -eq 4 || "$home_rc" -eq 5 ]]; then
   echo "convention-home: unresolved"
   echo "fallback: convention home unresolved; grade invocation-mode, seam-phrasing, untrusted-content, windows-path-emit, and hook-budget from those topic docs once a home is configured. Nothing was inferred."

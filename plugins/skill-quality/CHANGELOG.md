@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-11-26
+
+### Changed
+
+- **`check-skill.sh` check 27 checks every routing section against the skill-bodies rule.** A `## Next` bullet now warns when it names more than one skill, has no `<result>:` lead, is the only bullet, or routes an unsure reader to `/session-flow:workflow`; the two-to-four bullet cap is gone. `## Related` warns on a bullet not in `<condition>: /plugin:skill` form, `## See also` on any skill token, and the description on an existing skill named without its slash.
+
 ## [1.1.32] - 2026-11-25
 
 ### Changed

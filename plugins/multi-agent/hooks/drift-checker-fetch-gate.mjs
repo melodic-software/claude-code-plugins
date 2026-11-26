@@ -1,16 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse gate for the drift-audit workflow's web stage. Inside a
-// multi-agent:drift-checker subagent, a WebFetch is allowed only to an https
-// URL on a first-party docs host with no query string and no userinfo, so a
-// checker that holds quoted repository claims cannot be steered into fetching
-// an address that carries them out. Every other agent and the main thread pass
-// through untouched.
-//
 // The hook input carries agent_type when the hook fires inside a subagent:
 // https://code.claude.com/docs/en/hooks#common-input-fields.
-//
-// Fail-closed inside drift-checker (a URL it cannot parse is denied);
-// fail-open everywhere else.
 
 import { pathToFileURL } from 'node:url'
 

@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// Prints the project's design-system signals and the routed tools that are installed, as JSON:
-//   {"project": {...}, "installed": [row ids] | null, "reachable": {row id: true | false | null},
-//    "reason"?: "why installed is null, or why a list was matched by name",
-//    "uncertain"?: {row id: "why it was left out of installed"}}
-// project also carries browserslist {query, source}, lint {stylelint, eslint_css, config_paths} and
-// style_files [kinds]. With --config, a top-level "config" holds the resolved settings
-// (lib/config-cascade.mjs output: values, provenance, prose, layers, legacy) plus "home", the
-// convention home. When the project's pointer line is unusable, "home" is null, "home_error" says
-// why, and the team and local layers are not read. When the repository declined a home or none
-// applies (the project is $HOME, an ancestor of it, or outside git), "home" is null,
-// "home_skipped" says which, and the bundled defaults apply without the team and local layers.
-// --config also prints "routes" (the bundled rows with the team routing applied; installed and
-// reachable are computed over them), "skipped" (each route a team disable or deny removed:
-// {concern, id, by, name?, source}) and, when something degraded, "routing_notes" (disclosures to
-// relay).
-// Detection rules live in lib/installed.mjs.
-// Usage: detect.mjs [--project DIR] [--home DIR] [--plugin-list-json FILE] [--mcp-list FILE]
-//                   [--config [--team FILE] [--user-config FILE]]
-// The two list flags replace the live `claude plugin list --json` and `claude mcp list` calls.
-// --team replaces the team file the convention home resolves to (a test seam); --user-config is a
-// JSON file of the plugin's css_* userConfig values, read as data and never passed to a shell.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -36,7 +15,6 @@ const ROUTING = join(ROOT, "reference/routing.json");
 const PLUGIN = "user-interface";
 const DEFAULT_HOME = "docs/conventions";
 
-// Design-system, component and terminal-styling packages. An entry ending in "/" is a scope prefix.
 const PACKAGES = [
   "@mui/", "@chakra-ui/", "@mantine/", "@radix-ui/", "@fluentui/", "@carbon/", "@primer/", "@storybook/",
   "@angular/material", "@material/web", "@headlessui/react", "@adobe/react-spectrum", "antd", "bootstrap",
@@ -91,7 +69,6 @@ function browserslist(pkg) {
   if (isMapping(own)) return { query: join_(own.production ?? own.defaults ?? []), source: "package.json" };
   for (const name of BROWSERSLIST_FILES) {
     const file = join(opts.project, name);
-    // A link out of the project could print any readable file, so only the project's own file counts.
     if (!isFile(file) || escapesProject(file) || statSync(file).size > BROWSERSLIST_MAX_BYTES) continue;
     const plain = [];
     const production = [];
@@ -340,8 +317,6 @@ function claude(args) {
 }
 const fromFileOr = (file, args) => (file ? readFileSync(file, "utf8") : claude(args));
 
-// A skill or plugin detect names a skill directory or a plugin, never a path: installed() joins a
-// skill detect onto the skills directories, so a team row must not reach outside them.
 const DETECT_NAME = /^(?!\.\.?(?:@|$))[A-Za-z0-9._-]+(?:@[A-Za-z0-9._-]+)?$/;
 const nameOf = (detect) => (detect.includes("@") ? detect.slice(0, detect.lastIndexOf("@")) : detect);
 /** The plugin or skill name a row's id names: `name@market` for a plugin, `/plugin:skill` or `/skill`. */

@@ -23,8 +23,6 @@ Pins these fixes:
 #>
 
 BeforeAll {
-    # The reliability wrapper is dot-sourced so Mock can attach to it; otherwise it exists only
-    # in the child script scope and Mock throws CommandNotFoundException.
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DiskHealth' `
         -AsObject 'Invoke-DiskHealthAsObject' -LibScript 'Get-PhysicalDiskReliability.ps1' -MockHelpers
 }

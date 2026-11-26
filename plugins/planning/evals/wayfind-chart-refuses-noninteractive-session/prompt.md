@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 4, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "In an unattended run, chart says charting needs a human and stops without creating a map or choosing a destination itself (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30
