@@ -232,7 +232,7 @@ cheapest post-merge place:
   ([#17133](https://github.com/melodic-software/claude-code-plugins/issues/17133)).
 
 `pr-refine.yml`'s fix-docs, which tidies markdown inside the pull request, stays as
-`limits.fix-docs-per-run` in [`pr-pipeline.yaml`](../pr-pipeline.yaml) sets it.
+the [PR pipeline convention](../pr-pipeline/README.md#owner-pull-requests) records it.
 
 ## Is a lifecycle UI needed?
 

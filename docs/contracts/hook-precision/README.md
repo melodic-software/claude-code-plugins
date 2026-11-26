@@ -112,8 +112,8 @@ The one exception in force:
     [2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080);
     the break-glass rule is the
     [2026-10-26 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6420924529).
-  - Scope: the advisory hook only. The same check also runs from guardrails' `reference-verify`
-    git pre-push entry, which fails the push (`plugins/guardrails/README.md`, the
+  - Scope: the advisory hook only. The same check also runs in guardrails' pre-PR
+    `reference-verify` script, which fails the check (`plugins/guardrails/README.md`, the
     `skill-reference-verify` row); the exception does not cover that placement.
 
 ## Platform gap: `if` file rules on Windows

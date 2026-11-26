@@ -2306,7 +2306,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   resolved against nothing.** The return-payload sentence named `agents/explorer.md`,
   `agents/researcher.md` and `agents/intent-tracer.md`, whose implied base is the
   plugin root while their real base is `reference/`, the defect class
-  ADR 0018's
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. All three now carry `${CLAUDE_PLUGIN_ROOT}/`, the form the
   next sentence of the same paragraph already uses for the three dispatch docs.
   This file is not fetched from outside the plugin, so the anchored form resolves
