@@ -183,7 +183,7 @@ Each case's `docs` names the section that states its expected outcome.
 |---|---|---|
 | `pass` | The target call's outcome matched `expect.json` | Refresh the case's row in records.md with the date and version |
 | `fail` | It did not | Platform behavior moved. Update the record and every convention that cites it |
-| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, a tool result was not of the case's `result_match`, the CLI did not start, a `transcript-grep` session saved no transcript or a compaction case has no PostCompact record, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
+| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, a `prints` case's command printed nothing, a tool result was not of the case's `result_match`, the CLI did not start, a `transcript-grep` session saved no transcript or a compaction case has no PostCompact record, a `reply` case got no reply, the account hit its usage limit (a `rate_limit_event` whose status is `rejected`; `allowed` is informational), which also skips every case after it, or a case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
 | `error` | The scaffold or case is broken | Fix the case; a fixture failure says nothing about the platform |
 | `skipped` | Platform, a missing tool, or a ceiling | Report it |
 
@@ -227,7 +227,11 @@ regexes no line may match; optional `compaction`, which counts only with a PostC
 the hook log, since PreCompact fires with nothing compacted; and `example`, the lines the dry run
 writes. `cli_args` may pass `--input-format stream-json` for one user message per `prompt.md` line;
 mark each after the first `"priority": "later"` so it waits for the running turn
-([`SDKUserMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdkusermessage)). A `deny` or `refused`
+([`SDKUserMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdkusermessage)). Optional
+`turns`, a list of user messages such as `"/clear"`, does that for you: the runner sends them, then
+`prompt.md`, over stream-json input. Outcome `reply` judges the run's last reply: its `target` holds
+`reply_match`, a regex in which `<session8>` stands for the first 8 characters of the session that
+gave the reply, and `example`, the reply the dry run gives. A `deny` or `refused`
 case names its positive control in `control`, a case that differs only in the element that causes the
 denial, per the [liveness-assertion convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/liveness-assertion/README.md).
 A `prints` case may name a `prints` control whose `example` its `text_match` rejects, and a `ran`

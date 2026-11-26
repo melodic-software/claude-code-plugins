@@ -12,13 +12,18 @@ session and judges its transcript: the session's JSONL followed by the lines the
 case's own hooks append to .probe-hooks.jsonl in the temp directory, which every
 regex in target.patterns must match in order, which no regex in target.absent
 may match, and which, when target.compaction is set, must hold a PostCompact
-record, the only proof that a compaction ran:
+record, the only proof that a compaction ran. A `reply` case judges the text of
+the run's last reply against target.reply_match, with <session8> standing for the
+first 8 characters of the session that gave it. A case's `turns` are user
+messages sent before prompt.md, over stream-json input, so a case can run slash
+commands such as /clear before its prompt:
 
   pass          the target call's outcome (or printed line) matches expect.json
   fail          it does not
   inconclusive  the model never attempted the target call, the command printed
-                nothing, the CLI produced no init event, the session saved no
-                transcript or a compaction case no PostCompact record, or a
+                nothing, a reply case got no reply, the CLI produced no init
+                event, the session saved no transcript or a compaction case no
+                PostCompact record, the account hit its usage limit, or a
                 case's paired control did not pass
   error         the case or its scaffold is broken (a fixture failure)
   skipped       the platform, a required tool or the suite ceiling ruled it out
@@ -39,6 +44,8 @@ Subcommands (standard library only):
       transcript-grep case's transcript beside it, moved out of the operator's
       session history; a verdict-only case saves no stream and no tool output text.
       --max-runs defaults to 20 under --live; a dry run has no run ceiling.
+      A run whose stream reports a rejected rate limit (the usage limit) ends
+      the suite: every case after it is skipped.
       A case marked explicit runs live only when --case names it; otherwise
       it is reported skipped.
       --state-issue OWNER/REPO#N is the issue a needs_state_issue case works
@@ -89,7 +96,11 @@ STATE_ISSUE_RESOLVER = SKILL_DIR.parent.parent / "scripts" / "probe-state-issue.
 
 PRINTS = "prints"
 GREP = "transcript-grep"
-OUTCOMES = ("allow", "deny", "ran", "refused", PRINTS, GREP)
+REPLY = "reply"
+OUTCOMES = ("allow", "deny", "ran", "refused", PRINTS, GREP, REPLY)
+SESSION8 = "<session8>"
+DRY_RUN_SESSION = "0d0d0d0d-0000-4000-8000-000000000000"
+USAGE_LIMIT = "the account hit its usage limit (a rejected rate_limit_event)"
 HOOK_LOG = ".probe-hooks.jsonl"
 TRANSCRIPT_FILE = ".probe-transcript.jsonl"
 NEGATIVE = ("deny", "refused")
@@ -302,6 +313,39 @@ def grep_problems(cid: str, target: dict) -> list[str]:
     return []
 
 
+def reply_pattern(target: dict, session: str) -> re.Pattern:
+    """target.reply_match with <session8> bound to the answering session's id prefix."""
+    return re.compile(
+        str(target.get("reply_match") or "").replace(SESSION8, re.escape(session[:8]))
+    )
+
+
+def reply_problems(cid: str, target: dict) -> list[str]:
+    if not isinstance(target.get("reply_match"), str) or not target["reply_match"]:
+        return [f"{cid}: target.reply_match is required"]
+    try:
+        pattern = reply_pattern(target, DRY_RUN_SESSION)
+    except re.error as exc:
+        return [f"{cid}: target.reply_match is not a regex: {exc}"]
+    example = target.get("example")
+    if not isinstance(example, str) or not example.strip():
+        return [f"{cid}: target.example (the reply the dry run gives) must be text"]
+    if not pattern.search(example):
+        return [
+            f"{cid}: target.example does not match target.reply_match with "
+            f"{SESSION8} as {DRY_RUN_SESSION[:8]}"
+        ]
+    return []
+
+
+def turns_ok(turns) -> bool:
+    return (
+        isinstance(turns, list)
+        and bool(turns)
+        and all(isinstance(t, str) and t.strip() for t in turns)
+    )
+
+
 def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
     cid = case["id"]
     problems = []
@@ -315,6 +359,8 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
         problems += print_problems(case, target, by_id)
     elif case.get("outcome") == GREP:
         problems += grep_problems(cid, target)
+    elif case.get("outcome") == REPLY:
+        problems += reply_problems(cid, target)
     else:
         if not target.get("tool"):
             problems.append(f"{cid}: target.tool is required")
@@ -330,6 +376,8 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
             target.get("input_match", ""), json.dumps(target["example"])
         ):
             problems.append(f"{cid}: target.example does not match target.input_match")
+    if "turns" in case and not turns_ok(case["turns"]):
+        problems.append(f"{cid}: turns must be a non-empty list of messages")
     if "cli_args" in case and not cli_args_ok(case["cli_args"]):
         problems.append(
             f"{cid}: cli_args must be flag-value pairs, each flag one of "
@@ -472,6 +520,8 @@ def parse_stream(lines) -> dict:
         "result_text": None,
         "model_turn": False,
         "transcript": [],
+        "result_session": None,
+        "usage_limited": False,
     }
     for line in lines:
         try:
@@ -483,6 +533,10 @@ def parse_stream(lines) -> dict:
         kind = (event.get("type"), event.get("subtype"))
         if kind == INIT and obs["version"] is None:
             obs["version"] = event.get("claude_code_version")
+        elif event.get("type") == "rate_limit_event":
+            info = event.get("rate_limit_info") or {}
+            if info.get("status") == "rejected":
+                obs["usage_limited"] = True
         elif kind == DENIED_EVENT and event.get("tool_use_id"):
             obs["denied"][event["tool_use_id"]] = event
         elif event.get("type") == RESULT:
@@ -496,6 +550,8 @@ def parse_stream(lines) -> dict:
                 obs["result_text"] = event["result"]
             if event.get("num_turns") == 0:
                 obs["no_turns"] = True
+            if isinstance(event.get("session_id"), str):
+                obs["result_session"] = event["session_id"]
         elif event.get("type") in ("assistant", "user"):
             content = (event.get("message") or {}).get("content")
             if event["type"] == "assistant":
@@ -586,6 +642,8 @@ def verdict(case: dict, obs: dict) -> dict:
         )
     if case["outcome"] == PRINTS:
         return print_verdict(case, obs, row)
+    if case["outcome"] == REPLY:
+        return reply_verdict(case, obs, row)
     if case["outcome"] == GREP:
         judged, note, evidence = grep_match(target, obs["transcript"])
         return {
@@ -679,6 +737,21 @@ def grep_match(target: dict, lines: list[str]) -> tuple[str, str, str]:
         if hit is not None:
             return "fail", f"line {hit + 1} matches absent {pattern}", lines[hit]
     return "pass", "", " ".join(evidence.split())
+
+
+def reply_verdict(case: dict, obs: dict, row: dict) -> dict:
+    """Judge the run's last reply against target.reply_match."""
+    reply = obs["result_text"] or ""
+    if not reply.strip():
+        return with_verdict(row, "inconclusive", "the run gave no reply")
+    passed = reply_pattern(case["target"], obs["result_session"] or "").search(reply)
+    return {
+        **row,
+        "observed": "replied",
+        "text": "" if case.get("verdict_only") else " ".join(reply.split())[:TEXT_CLIP],
+        "verdict": "pass" if passed else "fail",
+        "note": "",
+    }
 
 
 def print_verdict(case: dict, obs: dict, row: dict) -> dict:
@@ -894,6 +967,22 @@ def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list
         )
         done = {"type": "result", "subtype": "success", "total_cost_usd": 0.0}
         return [json.dumps(init), json.dumps(done)]
+    if case["outcome"] == REPLY:
+        reply = target["example"]
+        return [
+            json.dumps(event)
+            for event in (
+                init,
+                {"type": "assistant", "message": {"content": [{"type": "text", "text": reply}]}},
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "result": reply,
+                    "session_id": DRY_RUN_SESSION,
+                    "total_cost_usd": 0.0,
+                },
+            )
+        ]
     if case["outcome"] == PRINTS:
         printed = target["example"]
         return [
@@ -1036,6 +1125,28 @@ def rejudge(
     return rows
 
 
+def turn_input(turns: list[str], prompt: str) -> str:
+    """The turns, then the prompt, as stream-json user messages; each after the first
+    waits for the running turn."""
+    lines = []
+    for n, text in enumerate([*turns, prompt]):
+        message = {
+            "type": "user",
+            "message": {"role": "user", "content": text},
+            "parent_tool_use_id": None,
+        }
+        if n:
+            message["priority"] = "later"
+        lines.append(json.dumps(message))
+    return "".join(line + "\n" for line in lines)
+
+
+def with_stream_input(cli_args: list[str]) -> list[str]:
+    if "--input-format" in cli_args[::2]:
+        return cli_args
+    return [*cli_args, "--input-format", "stream-json"]
+
+
 def plant(case: dict, workdir: Path) -> dict:
     """A fresh fake value for the case's plant_env, leaving only its hash on disk."""
     name = case.get("plant_env")
@@ -1129,6 +1240,12 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             prompt = state_substitute(
                 prompt, case.get("state_issue") or DRY_RUN_STATE_ISSUE
             )
+        if case.get("turns"):
+            turns = [
+                substitute(t, workdir, case_dir, json_escape=False)
+                for t in case["turns"]
+            ]
+            prompt = turn_input(turns, prompt.strip())
         # The planted value goes only here: rows are built from case, never resolved.
         resolved = {
             **case,
@@ -1142,8 +1259,17 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
                 if case.get(field)
             },
         }
+        if case.get("turns"):
+            resolved["cli_args"] = with_stream_input(list(case.get("cli_args") or []))
         lines = runner(resolved, cwd, settings_file, prompt)
-        return {**row, **verdict(case, observe(case, lines, workdir / TRANSCRIPT_FILE))}
+        obs = observe(case, lines, workdir / TRANSCRIPT_FILE)
+        judged = {**row, **verdict(case, obs)}
+        if obs["usage_limited"]:
+            judged = {
+                **with_verdict(judged, "inconclusive", USAGE_LIMIT),
+                "usage_limited": True,
+            }
+        return judged
     finally:
         if keep:
             print(f"kept {case['id']}: {workdir}", file=sys.stderr)
@@ -1152,10 +1278,13 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
 
 
 def run_suite(cases: list[dict], runner, args) -> list[dict]:
-    spent, runs, rows = 0.0, 0, []
+    spent, runs, rows, limited = 0.0, 0, [], False
     for case in cases:
         attempts = 0
         while True:
+            if limited:
+                row = with_verdict(base_row(case), "skipped", USAGE_LIMIT)
+                break
             if (
                 args.live
                 and case.get("explicit")
@@ -1196,7 +1325,8 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
                 cost = row.get("cost_usd")
                 spent += cost if isinstance(cost, (int, float)) else budget
             attempts += 1
-            if row["verdict"] != "inconclusive" or attempts > args.retries:
+            limited = bool(row.get("usage_limited"))
+            if limited or row["verdict"] != "inconclusive" or attempts > args.retries:
                 break
         row["attempts"] = attempts
         rows.append(row)
