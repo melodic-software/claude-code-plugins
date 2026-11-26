@@ -113,7 +113,7 @@ declare -A want=() was=()
 while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
   read -r old_mode new_mode old_blob new_blob status <<<"${meta#:}"
   if [[ $path == .changes/* ]]; then
-    if [[ $status == A && $new_mode == 100644 && $path =~ ^\.changes/[^/]+/[^/]+\.md$ ]]; then
+    if [[ $status == A && $new_mode == 100644 && $path =~ ^\.changes/[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9._-]*\.md$ ]]; then
       size=$(git -C "$repo" cat-file -s "$new_blob") || fail_run "could not read $path"
       if ((size > fragment_cap)); then
         no "$path: a fragment of $size bytes, over the $fragment_cap-byte cap"
@@ -133,6 +133,13 @@ while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
     no "$path: mode $old_mode to $new_mode"
     continue
   fi
+  case $path in
+    scripts/run-ruff.sh | scripts/sync-shared-copies.sh | scripts/sync-hold-floor.py | scripts/lib/* | \
+      plugins/bash-format/git-hooks/* | plugins/source-control/skills/babysit-prs/scripts/*)
+      no "$path: the proof runs this file, so a change to it needs review"
+      continue
+      ;;
+  esac
   want[$path]=$new_blob was[$path]=$old_blob
   if [[ -n ${is_copy[$path]:-} ]]; then
     regen+=("$path")

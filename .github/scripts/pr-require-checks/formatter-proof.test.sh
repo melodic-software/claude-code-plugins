@@ -138,6 +138,13 @@ expect "a fragment over the cap is no proof before any tool runs" 1 "- $FRAG: a 
 h="$(make_head fragment-edit "${FORMATTED[@]}" .changes/p/note.txt 'note\n')"
 prove "$BASE" "$h"
 expect "a .changes file that is not a fragment .md is no proof" 1 ".changes/p/note.txt: a change under .changes/ other than one added fragment .md file"
+h="$(make_head fragment-dot "${FORMATTED[@]}" .changes/.p/fmt-1234abcd.md "$(fragment patch)")"
+prove --classify "$BASE" "$h"
+expect "a fragment path with a dot-led component is no proof" 1 ".changes/.p/fmt-1234abcd.md: a change under .changes/ other than one added fragment .md file"
+
+h="$(make_head tool-change "${FORMATTED[@]}" scripts/sync-shared-copies.sh '#!/usr/bin/env bash\nexit 0\n')"
+prove --classify "$BASE" "$h"
+expect "a change to a tool the proof runs is no proof" 1 "- scripts/sync-shared-copies.sh: the proof runs this file, so a change to it needs review"
 
 h="$(make_head stale-copy "${FORMATTED[@]}" plugins/p/a.sh "# GENERATED from lib/a.sh\n$A_FMT# edited\n")"
 prove "$BASE" "$h"

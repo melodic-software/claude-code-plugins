@@ -100,7 +100,14 @@ fail as before.
 No pull request code runs in `prove-formatting`: after its checkout it moves
 the working tree to the merge commit's first parent, the base branch commit
 GitHub merged into, so the local shfmt action, the Ruff pin and the script are
-the base's, and the head is read only as blob ids. The job and `ci-status`
+the base's, and the head is read only as blob ids. The regenerators and the
+fragment validator run in the formatted tree, so a change to any file the
+proof runs (`scripts/run-ruff.sh`, `scripts/sync-shared-copies.sh`,
+`scripts/sync-hold-floor.py`, `scripts/lib/`, the bash-format hooks and the
+babysit-prs scripts `sync-hold-floor.py` imports) is no proof. shfmt is
+downloaded fresh and checked against the base action's SHA-256, never restored
+from a cache a pull request's earlier run could write, and the job checks that
+the test merge commit merges the event's head. The job and `ci-status`
 themselves come from the pull request's own workflow file, though, so a head
 that rewrites `pr-require-checks.yml` can set the proof itself, as it can
 rewrite the review-lane check; that file is a trust-gate path. The job holds a

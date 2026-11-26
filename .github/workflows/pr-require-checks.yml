@@ -4159,7 +4159,9 @@ jobs:
         id: base
         env:
           MERGE_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          [ "$(git rev-parse "$MERGE_SHA^2")" = "$HEAD_SHA" ] || { echo "::error::the test merge commit $MERGE_SHA does not merge head $HEAD_SHA"; exit 1; }
           git checkout -q --detach "$MERGE_SHA^1"
           echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
       - name: Classify the changed paths
@@ -4180,17 +4182,9 @@ jobs:
         run: |
           awk '/^ruff==/ { f = 1 } f { print } f && !/\\$/ { f = 0 }' .github/requirements-ci.txt >"$RUNNER_TEMP/ruff.txt"
           python -m pip install --only-binary=:all: --require-hashes --requirement "$RUNNER_TEMP/ruff.txt"
-      - name: Restore the pinned tool downloads
-        if: steps.classify.outcome == 'success'
-        uses: actions/cache/restore@v6
-        with:
-          path: ~/.cache/ci-tools
-          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1
       - name: Install pinned shfmt
         if: steps.classify.outcome == 'success'
         uses: ./.github/actions/setup-pinned-shfmt # zizmor: ignore[self-repository]
-        with:
-          cache-dir: ~/.cache/ci-tools
       - name: Prove the change is the formatters' output
         id: prove
         if: steps.classify.outcome == 'success'
