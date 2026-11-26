@@ -370,6 +370,11 @@ substituted or expanded on the way to the Bash tool.
 - **Pointer**: when deciding whether a `${…}` token in a Read-delivered file resolves, fetch
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
 
+## Next
+
+- A codebase lesson covered a change the user just made: /education:quiz-me.
+- The concept is understood and a change to it comes next: /planning:interview.
+
 ## What This Skill Does Not Do
 
 - **Write production code.** It teaches understanding; code changes go through the project's own

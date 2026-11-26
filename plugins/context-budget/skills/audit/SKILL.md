@@ -326,6 +326,11 @@ otherwise use the payload's share of the measured window.
   the spawned headless session; they say nothing about the context remaining here and are no
   reason to shorten, summarize, or wrap up this audit.
 
+## Next
+
+- A measured trim is worth applying: /context-budget:audit fix.
+- Most of the payload is plugins this folder does not use: /plugin-profiles:profile.
+
 ## Related
 
 - Settings correctness or permission-rule state: /harness-config:audit.
