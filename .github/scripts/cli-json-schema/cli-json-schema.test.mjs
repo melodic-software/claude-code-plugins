@@ -33,6 +33,7 @@ function cli() {
 function runCli(schema) {
   const home = tempDir("cli-json-schema-home-");
   const run = spawnSync(cli(), ["-p", "--json-schema", schema, "Reply with an empty object."], {
+    cwd: home,
     encoding: "utf8",
     input: "",
     timeout: 120_000,
