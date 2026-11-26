@@ -4,7 +4,7 @@
 usage: stills.py --storyboard FILE --out DIR (--narration NDIR | --no-audio | --script-only) [--stylesheet CSS]
                  [--stitcher COMMAND] [--upload-limit-mb N] [--head-sha SHA] [--scan-pattern REGEX ...]
 
-Steps: parse the storyboard -> scan its narration, frame text and screenshot sidecars (media_scan.py) -> write
+Steps: parse the storyboard -> scan its narration, frame text and screenshot sidecars (ADR 0107) -> write
 DIR/script.txt -> capture each moment at 3840x2160, a long list (also-changed files, code-hunk lines, risk-map rows)
 continued over as many frames as it needs, each frame fit-checked in the capture browser -> lay out the holds from
 NDIR/words.json (speech's narrate.py output) or, with --no-audio, captions-only holds; every frame gets a reading

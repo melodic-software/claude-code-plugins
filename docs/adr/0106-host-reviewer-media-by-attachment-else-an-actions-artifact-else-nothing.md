@@ -31,7 +31,7 @@ outside the markers is rewritten.
 ### One-way doors
 
 An attachment on a public repository cannot be deleted; the scan floor runs before every upload
-([`media_scan.py`](../../lib/media-render/media_scan.py)).
+([ADR 0107](0107-scan-every-media-upload-and-online-voice-request-against-a-fixed-floor.md)).
 
 ## Considered options
 

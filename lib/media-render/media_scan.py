@@ -1,4 +1,4 @@
-"""The secret and machine-data floor: run before every upload and before text reaches an online voice.
+"""The secret and machine-data floor (ADR 0107): run before every upload and before text reaches an online voice.
 
 scan(texts, rules=None, host=None, user=None, extra=()) -> ScanResult
   texts   {source label: text}: narration, frame text, screenshot sidecars, the rendered PR section;
