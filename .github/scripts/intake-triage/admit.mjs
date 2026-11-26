@@ -1327,6 +1327,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
+  await markAgentDecided(github, base, decision);
   const record = () => writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
   const checkedAt = Date.now();
   const s = await status();
@@ -1374,22 +1375,11 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return stop;
   }
   log(`admit: #${number} set to ${AGENT_READY}`);
-  if (decision.agentDecided) {
-    await markAgentDecided(github, repository, base, log);
-  }
   return { outcome: "admitted", reasons: [] };
 }
 
-async function markAgentDecided(github, repository, base, log) {
-  try {
-    await github("GET", `/repos/${repository}/labels/${encodeURIComponent(AGENT_DECIDED)}`);
-  } catch (error) {
-    if (error?.status !== 404) {
-      throw error;
-    }
-    log(`::warning title=admit::the ${AGENT_DECIDED} label is not declared in ${repository}, so ${base} was admitted without it; adding it would create the label`);
-    return;
+export async function markAgentDecided(github, base, decision) {
+  if (decision.verdict === "admit" && decision.agentDecided) {
+    await github("POST", `${base}/labels`, { labels: [AGENT_DECIDED] });
   }
-  await github("POST", `${base}/labels`, { labels: [AGENT_DECIDED] });
-  log(`admit: ${base} labeled ${AGENT_DECIDED}`);
 }

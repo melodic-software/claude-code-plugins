@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, retriageNote, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/size-split.mjs";
+import { agentDecisionBody, render, validateOutput } from "../intake-triage/refine.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -5195,6 +5196,35 @@ test("a person's mark on an admissible decided issue runs the admission rules an
   assert.equal(fieldReads(calls), 1);
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
+});
+
+test("an issue admitted on the lanes App's agent-decision opener gets agent-decided when work-unblock admits it", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const body = "Fix it: the README skill count is wrong.";
+  const settled = validateOutput(
+    {
+      exact: false,
+      outcome: "The README states nineteen skills.",
+      criteria: ["Line 3 says nineteen."],
+      dependencies: [],
+      related: [],
+      questions: [{ question: "Count the bundled skills?", recommended: "Yes.", basis: "skills/: nineteen folders", stop_reason: "none" }],
+      sources: [],
+      split: [],
+      external: { state: "none", repo: "", class: "", what: "" },
+    },
+    new Set(),
+  );
+  const app = { __typename: "Bot", databaseId: LANES_APP_ID };
+  const node = (text) => ({ body: text, author: app, editor: null, lastEditedAt: null });
+  const spec = (opener) => ({ body, author: { __typename: "User", databaseId: OWNER.id }, editor: null, lastEditedAt: null, comments: [node(opener), node(render(settled, { body }))] });
+  const ADD = `POST /repos/${REPO}/issues/25/labels {"labels":["agent-decided"]}`;
+  const agent = markedWorld({ body, specs: { 25: spec(agentDecisionBody(settled, body)) } });
+  assert.equal(await sweep({ github: agent.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(agent.calls), [ADD, labeled(25)]);
+  const stale = markedWorld({ body, specs: { 25: spec(agentDecisionBody(settled, "an older body")) } });
+  assert.equal(await sweep({ github: stale.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(!writes(stale.calls).includes(ADD) && !writes(stale.calls).includes(labeled(25)), writes(stale.calls).join("\n"));
 });
 
 test("a person's mark admitted with a parked status: confirmed beside status: ready lifts it", async (t) => {

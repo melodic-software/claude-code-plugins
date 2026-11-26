@@ -4339,32 +4339,24 @@ describe("agent decision", () => {
     assert.equal(decideWith([openerBy(APP_ACTOR), owned]).verdict, "refuse", "its questions hold no criteria to admit on");
   });
 
-  const LABEL = `/repos/o/r/labels/${AGENT_DECIDED}`;
   const ADD = `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_DECIDED] })}`;
-  test("admission adds agent-decided after agent-ready on the admitted path", async () => {
-    const fake = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]), elsewhere: { [LABEL]: { name: AGENT_DECIDED } } });
-    assert.equal((await go(fake)).outcome, "admitted");
-    assert.deepEqual(writes(fake.calls).slice(-2), [STATUS(AGENT_READY), ADD]);
+  test("admission marks an issue admitted on the opener agent-decided, also when it defers it for room", async () => {
+    const admitted = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]) });
+    assert.equal((await go(admitted)).outcome, "admitted");
+    assert.deepEqual(writes(admitted.calls).filter((call) => call === ADD), [ADD], "admitted: one label write");
+    assert.equal(writes(admitted.calls).at(-1), STATUS(AGENT_READY));
+    const deferred = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]) });
+    assert.equal((await go(deferred, { status: { ...open, admission_open: false, admission_reason: "closed" } })).outcome, "deferred");
+    assert.ok(writes(deferred.calls).includes(ADD), "deferred: the label travels with the deferral");
+    assert.equal(writes(deferred.calls).at(-1), STATUS("deferred"));
   });
 
-  test("admission adds no agent-decided when it defers, refuses, or the label is not declared", async () => {
-    const deferred = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]), elsewhere: { [LABEL]: { name: AGENT_DECIDED } } });
-    assert.equal((await go(deferred, { status: { ...open, admission_open: false, admission_reason: "closed" } })).outcome, "deferred");
-    assert.ok(!writes(deferred.calls).includes(ADD), "deferred: no label");
-    const stale = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR, "older body"), refinement]), elsewhere: { [LABEL]: { name: AGENT_DECIDED } } });
+  test("admission adds no agent-decided when it refuses the opener or admits on a person's criteria", async () => {
+    const stale = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR, "older body"), refinement]) });
     assert.equal((await go(stale)).outcome, "refused");
     assert.ok(!writes(stale.calls).includes(ADD), "refused: no label");
-    const missing = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]) });
-    const github = async (method, path, body) => {
-      if (path === LABEL) {
-        missing.calls.push({ method, path, body });
-        throw Object.assign(new Error("Not Found"), { status: 404 });
-      }
-      return missing.github(method, path, body);
-    };
-    const logs = [];
-    assert.equal((await admit({ ...goArgs(missing), github, log: (line) => logs.push(line) })).outcome, "admitted");
-    assert.ok(!writes(missing.calls).includes(ADD), "an undeclared label is never created");
-    assert.ok(logs.some((line) => line.startsWith("::warning title=admit::") && line.includes(AGENT_DECIDED)), logs.join("\n"));
+    const plain = fakeGitHub();
+    assert.equal((await go(plain)).outcome, "admitted");
+    assert.ok(!writes(plain.calls).includes(ADD), "a person's criteria: no label");
   });
 });
