@@ -4,5 +4,5 @@ bump: patch
 
 ### Fixed
 
-- The old-file warning and `/bugs:setup check` now name a retired `lanes` key in `~/.claude/bugs.md`,
-  which is no longer read, so the move to `areas` is not missed.
+- A retired `lanes` key in `~/.claude/bugs.md` is no longer read; `/bugs:setup apply` now moves it
+  as `areas`, and the old-file warning and `check` name it, so the focus areas are not lost.
