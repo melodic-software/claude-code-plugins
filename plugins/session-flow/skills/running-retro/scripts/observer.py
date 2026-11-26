@@ -40,6 +40,7 @@ _PLUGIN_SCRIPTS = str(_PLUGIN_DIR / "scripts")
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
+import plugin_paths  # noqa: E402  (plugin-level scripts/plugin_paths.py)
 from claude_cli import permission_prompts_args  # noqa: E402  (plugin-level scripts/claude_cli.py)
 from transcript_reader import decode_line  # noqa: E402  (plugin-level scripts/transcript_reader.py)
 
@@ -500,19 +501,17 @@ class Observer:
         files under the repo.
         """
         memory_root = self.ledger_dir.parent
-        if (memory_root / ".git").exists():
+        if plugin_paths.is_repo_root(memory_root):
             self.log(
                 "memory root is a repo root; refusing the memory-tier write "
                 "(would leave an untracked committable ledger under the repo)"
             )
             return False
-        gi = memory_root / ".gitignore"
+        gi = memory_root / plugin_paths.SELF_IGNORE
         try:
             memory_root.mkdir(parents=True, exist_ok=True)
-            content = gi.read_text(encoding="utf-8") if gi.exists() else ""
-            # Verify a bare `*`/`**` line is present -- not merely that the file
-            # exists (a repo-created .gitignore may hold only comments/exceptions).
-            if not any(ln.strip() in ("*", "**") for ln in content.splitlines()):
+            if not plugin_paths.is_self_ignored(memory_root):
+                content = gi.read_text(encoding="utf-8") if gi.exists() else ""
                 if content and not content.endswith("\n"):
                     content += "\n"
                 gi.write_text(content + "*\n", encoding="utf-8")

@@ -619,5 +619,323 @@ class ReadOnlyTest(TempTree):
         self.assertEqual(snapshot(), before)
 
 
+class SharedLibDeepeningTest(TempTree):
+    """H1 (`plugin_cache_versions`) and H2 (`claude_projects`) regression tests."""
+
+    def test_temp_git_nested_dirs_are_not_misclassified_as_plugin_versions(self) -> None:
+        cache = self.mkdir("claude/plugins/cache")
+        self.mkdir("claude/plugins/cache/mkt/alpha/1.0.0")
+        self.write("claude/plugins/cache/mkt/alpha/1.0.0/plugin.json", "{}")
+        self.write(
+            "claude/plugins/cache/temp_git_12345_abcd/.git/objects/pack/pack-1.idx",
+            "pack",
+        )
+        registry = self.root / "claude/plugins/installed_plugins.json"
+        registry.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "plugins": {
+                        "alpha@mkt": [
+                            {
+                                "scope": "user",
+                                "installPath": str(cache / "mkt/alpha/1.0.0"),
+                            }
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        rows = di.plugin_cache_versions(self.root / "claude", NOW)
+        rel_paths = [
+            Path(r["name"]).relative_to(self.root / "claude").as_posix() for r in rows
+        ]
+        self.assertEqual(rel_paths, ["plugins/cache/mkt/alpha/1.0.0"])
+
+    def test_plugin_cache_versions_surface_table_and_guarded_readers(self) -> None:
+        import plugin_cache_versions as pcv
+
+        self.assertIn("remote", pcv.SURFACE_TABLE)
+        self.assertEqual(
+            pcv.classify_cache_relpath(
+                "plugins/cache/temp_git_99/.git/objects/pack/foo"
+            ).kind,
+            "temp-git",
+        )
+        self.assertEqual(
+            pcv.classify_cache_relpath("plugins/cache/mkt/plug/1.0.0/index.js").kind,
+            "version",
+        )
+
+        claude = self.mkdir("custom-claude")
+        self.write("custom-claude/.credentials.json", "top-secret")
+        self.write("custom-claude/settings.json", "{}")
+        (claude / "bad.json").write_bytes(b"\xff\xfe")
+        reader = pcv.FsGuardedTextReader(claude)
+        with self.assertRaises(pcv.SecretReadRefused):
+            reader.read_text(".credentials.json")
+        with self.assertRaises(UnicodeDecodeError):
+            reader.read_text("bad.json")
+        self.assertEqual(reader.read_text("settings.json"), "{}")
+
+        mem = pcv.InMemoryTextReader(
+            {
+                "plugins/installed_plugins.json": "{}",
+                ".credentials.json": "secret",
+                "bad": b"\xff",
+            }
+        )
+        self.assertEqual(mem.read_text("plugins/installed_plugins.json"), "{}")
+        with self.assertRaises(pcv.SecretReadRefused):
+            mem.read_text(".credentials.json")
+        with self.assertRaises(UnicodeDecodeError):
+            mem.read_text("bad")
+
+        self.assertEqual(
+            pcv.resolve_claude_dir(env={"CLAUDE_CONFIG_DIR": str(claude)}),
+            claude,
+        )
+
+    def test_claude_projects_utf16_windows_hashed_pinned_and_cached_walk(self) -> None:
+        import claude_projects as cp
+
+        self.assertEqual(cp.encode_project_slug("José"), "Jos-")
+        self.assertEqual(cp.encode_project_slug("a😀b"), "a--b")
+        self.assertEqual(cp.encode_project_slug(r"D:\work\my.repo"), "D--work-my-repo")
+
+        self.assertIsNone(
+            cp.validated_pinned_dir_name({"CLAUDE_CODE_PROJECT_DIR_NAME": "pinned"})
+        )
+        self.assertEqual(
+            cp.validated_pinned_dir_name(
+                {
+                    "CLAUDE_CONFIG_DIR": "/cfg",
+                    "CLAUDE_CODE_PROJECT_DIR_NAME": "pinned_1",
+                }
+            ),
+            "pinned_1",
+        )
+        for reserved in ("con", "CON", "nul", "prn", "aux", "com1", "lpt9"):
+            self.assertIsNone(
+                cp.validated_pinned_dir_name(
+                    {
+                        "CLAUDE_CONFIG_DIR": "/cfg",
+                        "CLAUDE_CODE_PROJECT_DIR_NAME": reserved,
+                    }
+                )
+            )
+
+        d_drive = self.mkdir("d_drive")
+        self.mkdir("d_drive/work/my.repo")
+        self.mkdir("claude/projects")
+        w_exist = self.mkdir("claude/projects/D--work-my-repo")
+        w_gone = self.mkdir("claude/projects/D--work-deleted")
+        resolver = cp.ProjectSlugResolver(
+            fs_root=self.root / "fs",
+            drive_roots={"D": d_drive},
+            cwd_port=cp.NullTranscriptCwdAdapter(),
+        )
+        res_exist = resolver.resolve_dir(w_exist)
+        res_gone = resolver.resolve_dir(w_gone)
+        self.assertEqual(res_exist.status, "exists")
+        self.assertEqual(res_exist.source_path, r"D:\work\my.repo")
+        self.assertEqual(res_gone.status, "orphan")
+
+        long_path = self.mkdir(f"fs/{'a' * 110}/{'b' * 110}")
+        long_posix = "/" + long_path.relative_to(self.root / "fs").as_posix()
+        long_enc = cp.encode_project_slug(long_posix)
+        hashed_dir = self.mkdir(f"claude/projects/{long_enc[:200]}-abc123")
+        cwd_resolver = cp.ProjectSlugResolver(
+            fs_root=self.root / "fs",
+            cwd_port=cp.InMemoryTranscriptCwdAdapter({hashed_dir: long_posix}),
+        )
+        res_hash = cwd_resolver.resolve_dir(hashed_dir)
+        self.assertEqual(res_hash.status, "exists")
+        self.assertEqual(res_hash.source_path, long_posix)
+        self.assertEqual(res_hash.via, "transcript-cwd")
+
+        bench_fs = self.mkdir("bench_fs")
+        bench_projects = self.mkdir("bench_projects")
+        for i in range(100):
+            self.mkdir(f"bench_fs/srv/work/org/repo-{i}")
+            self.mkdir(f"bench_projects/-srv-work-org-repo-{i}")
+        scandir_orig = os.scandir
+        listdir_orig = os.listdir
+        resolve_calls = [0]
+        fs_calls = [0]
+
+        def count_scandir(path):
+            resolve_calls[0] += 1
+            if str(path).startswith(str(bench_fs)):
+                fs_calls[0] += 1
+            return scandir_orig(path)
+
+        def count_listdir(path):
+            resolve_calls[0] += 1
+            if str(path).startswith(str(bench_fs)):
+                fs_calls[0] += 1
+            return listdir_orig(path)
+
+        with (
+            mock.patch("os.scandir", side_effect=count_scandir),
+            mock.patch("os.listdir", side_effect=count_listdir),
+        ):
+            bench_resolver = cp.ProjectSlugResolver(
+                fs_root=bench_fs, cwd_port=cp.TranscriptReaderCwdAdapter()
+            )
+            resolutions = bench_resolver.resolve_all(bench_projects)
+        self.assertEqual(len(resolutions), 100)
+        self.assertTrue(all(r.status == "exists" for r in resolutions))
+        self.assertLessEqual(
+            resolve_calls[0],
+            6,
+            f"expected <= 6 total resolve calls, got {resolve_calls[0]}",
+        )
+        self.assertEqual(fs_calls[0], 4, f"expected 4 fs_root calls, got {fs_calls[0]}")
+
+        fs_calls[0] = 0
+        with (
+            mock.patch("os.scandir", side_effect=count_scandir),
+            mock.patch("os.listdir", side_effect=count_listdir),
+        ):
+            rows = di.project_transcripts(bench_projects, bench_fs)
+        self.assertEqual(len(rows), 100)
+        self.assertTrue(all(r["disposition"] == "KEEP" for r in rows))
+        self.assertEqual(fs_calls[0], 4, f"expected 4 fs_root calls, got {fs_calls[0]}")
+
+
+class DeepInventoryArchitectureTest(TempTree):
+    """D5 single-pass sizing, subpath targets, read-only locks, and standalone CLI."""
+
+    def test_single_pass_respects_mount_point_inside_categorized_directory(self) -> None:
+        claude = self.mkdir("home/.claude")
+        ver = self.mkdir("home/.claude/plugins/cache/mkt/plug/1.0.0")
+        self.write("home/.claude/plugins/cache/mkt/plug/1.0.0/local.txt", "12345")
+        mounted = self.mkdir("home/.claude/plugins/cache/mkt/plug/1.0.0/mnt")
+        self.write("home/.claude/plugins/cache/mkt/plug/1.0.0/mnt/big.bin", "x" * 9999)
+        self.write(
+            "home/.claude/plugins/installed_plugins.json",
+            json.dumps({"plugins": {"plug@mkt": [{"installPath": str(ver)}]}}),
+        )
+        rows = list(
+            di.inventory_rows(
+                claude,
+                deep=True,
+                home=self.root / "home",
+                tmp_dir=self.root / "no-tmp",
+                now=NOW,
+                running=set(),
+                mounts=frozenset({str(mounted)}),
+            )
+        )
+        by_path = {r["name"]: r for r in rows}
+        self.assertEqual(by_path[str(ver)]["category"], "plugin-cache-version")
+        self.assertEqual(by_path[str(ver)]["disposition"], "KEEP")
+        self.assertEqual(by_path[str(ver)]["size"], 5)
+        self.assertEqual(by_path[str(mounted)]["category"], "not-walked")
+        self.assertNotIn(str(mounted / "big.bin"), by_path)
+
+    def test_subpath_targets_under_claude_classify_properly(self) -> None:
+        claude = self.mkdir("custom-claude")
+        ver = self.mkdir("custom-claude/plugins/cache/mkt/plug/1.0.0")
+        self.write("custom-claude/plugins/cache/mkt/plug/1.0.0/plugin.json", "{}")
+        temp_git = self.mkdir("custom-claude/plugins/cache/temp_git_1234")
+        self.write("custom-claude/plugins/cache/temp_git_1234/.git/objects/pack/a", "x")
+        self.write(
+            "custom-claude/plugins/installed_plugins.json",
+            json.dumps({"plugins": {"plug@mkt": [{"installPath": str(ver)}]}}),
+        )
+        self.mkdir("custom-claude/projects/-definitely-missing-repo-xyz")
+
+        cache_rows = {
+            r["name"]: r
+            for r in di.inventory_rows(
+                claude / "plugins" / "cache",
+                deep=True,
+                home=self.root / "no-home",
+                tmp_dir=self.root / "no-tmp",
+                claude_dir=claude,
+                now=NOW,
+                running=set(),
+            )
+        }
+        self.assertEqual(cache_rows[str(ver)]["category"], "plugin-cache-version")
+        self.assertEqual(cache_rows[str(ver)]["disposition"], "KEEP")
+        self.assertEqual(cache_rows[str(temp_git)]["category"], "plugin-cache-temp-git")
+        self.assertEqual(cache_rows[str(temp_git)]["disposition"], "CANDIDATE")
+
+        proj_dir = claude / "projects" / "-definitely-missing-repo-xyz"
+        proj_rows = {
+            r["name"]: r
+            for r in di.inventory_rows(
+                claude / "projects",
+                deep=True,
+                home=self.root / "no-home",
+                tmp_dir=self.root / "no-tmp",
+                claude_dir=claude,
+                now=NOW,
+                running=set(),
+            )
+        }
+        self.assertEqual(proj_rows[str(proj_dir)]["category"], "transcript-dir")
+        self.assertEqual(proj_rows[str(proj_dir)]["disposition"], "CANDIDATE")
+
+    def test_readonly_version_lock_detection_keeps_locked_superseded_version(
+        self,
+    ) -> None:
+        parent = self.mkdir("share/claude/versions")
+        v1 = self.write("share/claude/versions/2.1.10", "old")
+        self.write("share/claude/versions/2.1.20", "new")
+        lock_file = self.write("share/claude/locks/2.1.10.lock", "")
+        st = lock_file.lstat()
+
+        proc = self.mkdir("proc")
+        (proc / "100").mkdir()
+        dev_maj = os.major(st.st_dev)
+        dev_min = os.minor(st.st_dev)
+        (proc / "locks").write_text(
+            f"1: FLOCK  ADVISORY  WRITE 100 {dev_maj:02x}:{dev_min:02x}:{st.st_ino} 0 EOF\n",
+            encoding="utf-8",
+        )
+        liveness = di.ProcLivenessAdapter(proc_root=proc)
+        rows = by_name(di.superseded_versions([parent], liveness=liveness))
+        self.assertEqual(rows["2.1.10"]["disposition"], "KEEP")
+        self.assertEqual(rows["2.1.10"]["evidence"], {"lock": str(lock_file)})
+        self.assertEqual(rows["2.1.20"]["disposition"], "KEEP")
+        self.assertEqual(di.validate_report(rows.values()), [])
+
+        mem_live = di.InMemoryLivenessAdapter(locked_paths={str(v1): str(lock_file)})
+        rows2 = by_name(di.superseded_versions([parent], liveness=mem_live))
+        self.assertEqual(rows2["2.1.10"]["disposition"], "KEEP")
+        self.assertEqual(rows2["2.1.10"]["evidence"], {"lock": str(lock_file)})
+
+    def test_standalone_cli_streams_validated_jsonl_with_zero_writes(self) -> None:
+        import subprocess
+
+        target = self.mkdir("scan-me")
+        self.write("scan-me/a/hello.txt", "hello")
+        env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE_")}
+        before = sorted(str(p) for p in self.root.rglob("*"))
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "deep_inventory.py"),
+                "--deep",
+                "--no-claude",
+                str(target),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        rows = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+        self.assertGreaterEqual(len(rows), 3)
+        self.assertEqual(di.validate_report(rows), [])
+        self.assertEqual(sorted(str(p) for p in self.root.rglob("*")), before)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -28,17 +28,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
 
-_CLEAN_SCRIPTS = Path(__file__).resolve().parents[2] / "clean" / "scripts"
-if str(_CLEAN_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_CLEAN_SCRIPTS))
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
-import hygiene  # noqa: E402  (path set above; the clean engine)
+import policy_cascade  # noqa: E402  (path set above; plugin-bundled module)
+import yaml_subset  # noqa: E402  (path set above; plugin-bundled module)
 
 PATH_KEYS = ("source", "hint_sources")
 COMPARED_KEYS = (
@@ -49,16 +49,11 @@ COMPARED_KEYS = (
 )
 PLAIN_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
+same_file = policy_cascade.same_file
+
 
 class MigrationError(Exception):
     pass
-
-
-def same_file(first: Path, second: Path) -> bool:
-    try:
-        return os.path.samefile(first, second)
-    except OSError:
-        return False
 
 
 def default_user_target() -> Path:
@@ -68,15 +63,16 @@ def default_user_target() -> Path:
 def plan(
     project_dir: Path | None, user_policy: str | None, user_target: str | None
 ) -> list[dict[str, Any]]:
-    old = hygiene.old_policy_paths(project_dir)
-    option = hygiene.user_policy_path(user_policy, [])
+    old = policy_cascade.old_policy_paths(project_dir)
+    option = policy_cascade.user_policy_path(user_policy, [])
     user_new = option or (
         Path(user_target).expanduser() if user_target else default_user_target()
     )
     targets = {"userConfig": user_new}
     if project_dir is not None and not is_home(project_dir, old):
         targets["team"] = (
-            hygiene.convention_home(project_dir) / hygiene.TEAM_POLICY_NAME
+            policy_cascade.convention_home(project_dir)
+            / policy_cascade.TEAM_POLICY_NAME
         )
     rows = []
     for layer, new_path in targets.items():
@@ -170,7 +166,7 @@ def dump_yaml(node: Any, indent: int = 0) -> list[str]:
 
 def to_yaml(document: dict[str, Any]) -> str:
     text = "\n".join(dump_yaml(document)) + "\n"
-    if hygiene.yaml_subset.parse(text) != document:
+    if yaml_subset.parse(text) != document:
         raise MigrationError("the YAML written does not read back as the JSON")
     return text
 
@@ -188,8 +184,10 @@ def _without_paths(node: Any) -> Any:
 
 
 def effective(path: Path, layer: str) -> dict[str, Any]:
-    result = hygiene.baseline_policy()
-    hygiene.apply_policy_overlay(result, path, project_scope=layer != "userConfig")
+    result = policy_cascade.baseline_policy()
+    policy_cascade.apply_policy_overlay(
+        result, path, project_scope=layer != "userConfig"
+    )
     return {key: _without_paths(result[key]) for key in COMPARED_KEYS}
 
 
@@ -206,19 +204,19 @@ def move(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             try:
                 text = old.read_text(encoding="utf-8")
                 if row["layer"] == "team":
-                    text = to_yaml(hygiene.load_json(old))
+                    text = to_yaml(policy_cascade.load_json(old))
                 new.parent.mkdir(parents=True, exist_ok=True)
                 with new.open("x", encoding="utf-8") as handle:
                     handle.write(text)
                 outcome["result"] = "written"
-            except (OSError, MigrationError, hygiene.HygieneError) as exc:
+            except (OSError, MigrationError, policy_cascade.PolicyError) as exc:
                 outcome["result"] = f"refused: {exc}"
         done.append(outcome)
     return done
 
 
 def verify(rows: list[dict[str, Any]], user_policy: str | None) -> list[dict[str, Any]]:
-    option = hygiene.user_policy_path(user_policy, [])
+    option = policy_cascade.user_policy_path(user_policy, [])
     done = []
     for row in rows:
         old, new = Path(row["old"]), Path(row["new"])
@@ -234,12 +232,12 @@ def verify(rows: list[dict[str, Any]], user_policy: str | None) -> list[dict[str
         ):
             outcome["result"] = (
                 f"refused: pass --user-policy naming {new} once the "
-                f"{hygiene.POLICY_FILE_OPTION} option is set to it"
+                f"{policy_cascade.POLICY_FILE_OPTION} option is set to it"
             )
         else:
             try:
                 same = effective(old, row["layer"]) == effective(new, row["layer"])
-            except hygiene.HygieneError as exc:
+            except policy_cascade.PolicyError as exc:
                 same, outcome["error"] = False, str(exc)
             if not same:
                 outcome["result"] = "refused: the new file resolves differently"

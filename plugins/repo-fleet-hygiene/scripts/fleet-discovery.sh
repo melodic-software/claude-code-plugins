@@ -32,6 +32,50 @@ fleet_config_values() {
   ${FLEET_GIT_CMD:-git} config --file "$1" --null --get-all "$2" 2>/dev/null || true
 }
 
+fleet_clean_project_dir() {
+  local dir="${1:-}"
+  case "$dir" in
+  "\${"*) dir="" ;;
+  *) ;;
+  esac
+  printf '%s\n' "$dir"
+}
+
+fleet_default_config_path() {
+  local project_dir
+  project_dir="$(fleet_clean_project_dir "${1:-}")"
+  [[ -n "$project_dir" ]] || project_dir="$PWD"
+  printf '%s/.claude/repo-fleet-hygiene.conf\n' "$project_dir"
+}
+
+fleet_resolve_config() {
+  local explicit="${1:-}" project_dir home_dir
+  project_dir="$(fleet_clean_project_dir "${2:-}")"
+  FLEET_CONFIG_FILE=""
+  FLEET_CONFIG_DIR=""
+  FLEET_CONFIG_SOURCE="none"
+  if [[ -n "$explicit" ]]; then
+    [[ -f "$explicit" ]] || fail "config file not found: $explicit"
+    FLEET_CONFIG_FILE="$explicit"
+    FLEET_CONFIG_SOURCE="explicit --config"
+  elif [[ -n "$project_dir" && -f "$project_dir/.claude/repo-fleet-hygiene.conf" ]]; then
+    FLEET_CONFIG_FILE="$project_dir/.claude/repo-fleet-hygiene.conf"
+    FLEET_CONFIG_SOURCE="project"
+  else
+    home_dir="${HOME:-${USERPROFILE:-}}"
+    if [[ -n "$home_dir" && -f "$home_dir/.claude/repo-fleet-hygiene.conf" ]]; then
+      FLEET_CONFIG_FILE="$home_dir/.claude/repo-fleet-hygiene.conf"
+      FLEET_CONFIG_SOURCE="user-global"
+    fi
+  fi
+  if [[ -n "$FLEET_CONFIG_FILE" ]]; then
+    FLEET_CONFIG_FILE="$(cd "$(dirname "$FLEET_CONFIG_FILE")" 2>/dev/null && pwd -P)/$(basename "$FLEET_CONFIG_FILE")"
+    ${FLEET_GIT_CMD:-git} config --file "$FLEET_CONFIG_FILE" --list >/dev/null 2>&1 ||
+      fail "invalid Git config: $FLEET_CONFIG_FILE"
+    FLEET_CONFIG_DIR="$(dirname "$FLEET_CONFIG_FILE")"
+  fi
+}
+
 resolve_input_path() {
   local value="$1" base="$2"
   if [[ "$value" =~ ^/ || "$value" =~ ^[A-Za-z]:[\\/] ]]; then

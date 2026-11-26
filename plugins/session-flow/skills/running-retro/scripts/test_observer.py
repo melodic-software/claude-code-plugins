@@ -1282,6 +1282,24 @@ class LedgerAndRetention(unittest.TestCase):
             ob = make_observer(tmp, session_id="mine")
             self.assertIsNone(ledger_of(ob))
 
+    def test_ensure_memory_root_ignored_accepts_doublestar_and_refuses_repo_root(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            mem = tmp / "mem"
+            mem.mkdir()
+            (mem / ".gitignore").write_text("**\n", encoding="utf-8")
+            ob = make_observer(tmp)
+            ob.ledger_dir = mem / "running-retros"
+            self.assertTrue(ob._ensure_memory_root_ignored())
+            self.assertEqual((mem / ".gitignore").read_text(encoding="utf-8"), "**\n")
+
+            repo = tmp / "repo"
+            (repo / ".git").mkdir(parents=True)
+            ob_repo = make_observer(tmp)
+            ob_repo.ledger_dir = repo / "running-retros"
+            self.assertFalse(ob_repo._ensure_memory_root_ignored())
+            self.assertFalse((repo / ".gitignore").exists())
+
     def test_analysis_command_is_tool_restricted(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)

@@ -758,4 +758,61 @@ else
   echo "SKIP: ln -s made no symlink on this platform; symlinked-root sibling checks not run"
 fi
 
+W5_REPO="$(mkrepo)"
+W5_ORIGIN="$TEST_TMPDIR/w5-origin.git"
+git init -q --bare -b main "$W5_ORIGIN"
+git -C "$W5_REPO" remote add origin "$W5_ORIGIN"
+git -C "$W5_REPO" push -q -u origin main
+W5_EXT="$TEST_TMPDIR/w5-ext"
+mkdir -p "$W5_EXT"
+W5_EXT_PHYS="$(physical_dir "$W5_EXT")"
+
+git -C "$W5_REPO" worktree add -q "$W5_EXT/wt-manual" -b feat/manual
+git -C "$W5_REPO" worktree lock "$W5_EXT/wt-manual"
+
+run_claim report --repo-dir "$W5_REPO"
+assert_exit "report: reasonless lock alone exits 0 (exit 1 is UNCLAIMED only)" 0 "$?"
+assert_contains "report: emits LOCKED_NO_REASON<TAB><path>" "$OUT" $'LOCKED_NO_REASON\t'"$W5_EXT_PHYS/wt-manual"
+assert_not_contains "report: reasonless lock is not UNCLAIMED" "$OUT" $'UNCLAIMED\t'"$W5_EXT_PHYS/wt-manual"
+
+run_claim claim "$W5_EXT/wt-manual" --repo-dir "$W5_REPO" --session-id s-manual
+assert_exit "claim: reasonless manual lock is EX_FOREIGN (4)" 4 "$?"
+
+run_claim check-enter "$W5_EXT/wt-manual" --repo-dir "$W5_REPO" --session-id s-manual
+assert_exit "check-enter: reasonless manual lock is EX_FOREIGN (4), not 3" 4 "$?"
+
+run_claim release "$W5_EXT/wt-manual" --repo-dir "$W5_REPO" --session-id s-manual
+assert_exit "release: reasonless manual lock is EX_FOREIGN (4), not 0" 4 "$?"
+assert_contains "release: refused release leaves reasonless lock intact" \
+  "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-manual/')" "locked"
+
+run_claim handover "$W5_EXT/wt-manual" --repo-dir "$W5_REPO" --session-id s-manual --to s-new
+assert_exit "handover: reasonless manual lock is EX_FOREIGN (4)" 4 "$?"
+
+git -C "$W5_REPO" worktree add -q "$W5_EXT/wt-gone" -b feat/gone-branch
+git -C "$W5_EXT/wt-gone" push -q -u origin feat/gone-branch
+git -C "$W5_ORIGIN" branch -D feat/gone-branch >/dev/null 2>&1
+git -C "$W5_REPO" fetch -q --prune origin
+
+git -C "$W5_REPO" worktree add -q "$W5_EXT/wt-active" -b feat/active-branch
+
+run_claim report --repo-dir "$W5_REPO"
+assert_exit "report: exits 1 when unlocked trees exist alongside reasonless lock" 1 "$?"
+assert_contains "report: still lists LOCKED_NO_REASON alongside UNCLAIMED" "$OUT" $'LOCKED_NO_REASON\t'"$W5_EXT_PHYS/wt-manual"
+
+run_claim claim --all-unclaimed --repo-dir "$W5_REPO" --session-id s-batch
+assert_exit "--all-unclaimed skips reasonless and [gone] cleanly (exit 0)" 0 "$?"
+assert_contains "--all-unclaimed locks active unlocked worktree" \
+  "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-active/')" "session s-batch since"
+assert_not_contains "--all-unclaimed skips [gone] branch by default" \
+  "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "locked"
+
+run_claim claim --all-unclaimed --include-gone --repo-dir "$W5_REPO" --session-id s-batch
+assert_exit "--all-unclaimed --include-gone locks [gone] branch (exit 0)" 0 "$?"
+assert_contains "--include-gone locks the [gone] branch" \
+  "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "session s-batch since"
+
+run_claim report --include-gone --repo-dir "$W5_REPO"
+assert_exit "--include-gone outside claim is usage (exit 2)" 2 "$?"
+
 [[ $FAILED -eq 0 ]] || exit 1

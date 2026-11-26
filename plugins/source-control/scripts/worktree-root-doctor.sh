@@ -60,27 +60,8 @@ err() {
   FINDINGS=$((FINDINGS + 1))
 }
 
-expand_tilde() {
-  local p="$1"
-  # Config values arrive verbatim, so matching the literal unexpanded tilde is the point.
-  # shellcheck disable=SC2088
-  if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
-    printf '%s/%s' "${HOME%/}" "${p#\~/}"
-  else
-    printf '%s' "$p"
-  fi
-}
-
-canon() {
-  local r
-  if r=$(realpath -- "$1" 2>/dev/null) || r=$(readlink -f -- "$1" 2>/dev/null); then
-    [[ -n "$r" ]] && {
-      printf '%s' "$r"
-      return 0
-    }
-  fi
-  printf '%s' "$1"
-}
+expand_tilde() { worktree_root_expand_tilde "$1"; }
+canon() { worktree_root_canon "$1"; }
 
 if ! git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
   err "repository unreadable at $repo_dir — not a git repository, or dubious ownership (safe.directory). Until this resolves, any 'git -C <here> config --get worktreeroot.path' silently returns the GLOBAL value as if it were this repository's answer (rc=0, no stderr). Fix: run from a repository, or 'git config --global --add safe.directory <path>'."
@@ -99,30 +80,17 @@ fi
 declare -a inc_conds=() inc_paths=() inc_origins=() inc_resolved=()
 declare -A contributing_origin=()
 
-while IFS= read -r -d '' origin && IFS= read -r -d '' kv; do
-  if [[ "$kv" == *$'\n'* ]]; then
-    key="${kv%%$'\n'*}"
-    val="${kv#*$'\n'}"
-  else
-    key="$kv"
-    val=""
-  fi
-  ofile=""
-  [[ "$origin" == file:* ]] && ofile="${origin#file:}"
-  [[ -n "$ofile" ]] && contributing_origin["$(canon "$ofile")"]=1
-  if [[ "$key" == includeif.*.path ]]; then
-    cond="${key#includeif.}"
-    cond="${cond%.path}"
-    inc_conds+=("$cond")
-    inc_paths+=("$val")
-    inc_origins+=("$ofile")
-    rp="$(expand_tilde "$val")"
-    if [[ "$rp" != /* && ! "$rp" =~ ^[A-Za-z]:/ && -n "$ofile" ]]; then
-      rp="$(dirname "$ofile")/$rp"
-    fi
-    inc_resolved+=("$(canon "$rp")")
-  fi
-done < <(git -C "$repo_dir" config --list --show-origin -z 2>/dev/null | tr -d '\r')
+worktree_root_collect_includes "$repo_dir"
+for orig in ${WORKTREE_ROOT_ORIGINS[@]+"${WORKTREE_ROOT_ORIGINS[@]}"}; do
+  contributing_origin["$orig"]=1
+done
+for idx in ${WORKTREE_ROOT_INC_KINDS[@]+"${!WORKTREE_ROOT_INC_KINDS[@]}"}; do
+  [[ "${WORKTREE_ROOT_INC_KINDS[idx]}" == "includeif" ]] || continue
+  inc_conds+=("${WORKTREE_ROOT_INC_CONDS[idx]}")
+  inc_paths+=("${WORKTREE_ROOT_INC_PATHS[idx]}")
+  inc_origins+=("${WORKTREE_ROOT_INC_ORIGINS[idx]}")
+  inc_resolved+=("${WORKTREE_ROOT_INC_RESOLVED[idx]}")
+done
 
 git_version_num=0
 if [[ "$(git --version 2>/dev/null)" =~ ([0-9]+)\.([0-9]+) ]]; then

@@ -7,17 +7,17 @@
 #      check-enter: our claim, or path is not a linked worktree
 #      release: unlocked this session's lock, or the tree was already unlocked
 #      handover: the lock now names NEW (or already did)
-#   1  report: one or more linked worktrees have no lock reason
+#   1  report: one or more linked worktrees are unlocked (UNCLAIMED)
 #      stale: not provably stale (unlocked, reasonless, no session, another
 #      host, a running process holds the session, the session registry is
 #      missing or malformed, or a transcript changed within the idle window)
 #   2  usage (release: main worktree, or no session id to prove ownership;
 #      handover: main worktree, or --session-id / --to missing)
-#   3  check-enter: the worktree is unclaimed (no lock reason)
+#   3  check-enter: the worktree is unlocked (UNCLAIMED)
 #      handover: the worktree is unlocked, so there is no claim to hand over
-#   4  check-enter: foreign live claim (reason printed)
-#      claim: path already has a reason that is not this session's
-#      release: the lock is foreign or carries no session (reason printed)
+#   4  check-enter: foreign live claim or reasonless manual lock (reason printed)
+#      claim: path already has a foreign claim or reasonless manual lock
+#      release: the lock is foreign, reasonless, or carries no session
 #      handover: the lock names a session other than OLD (reason printed), or
 #      carries no reason at all
 #   5  environment: not a git repository, or path is not a registered worktree
@@ -43,7 +43,7 @@ usage() {
 Usage:
   $PROG report [--repo-dir DIR] [--root DIR]
   $PROG claim <path> [--repo-dir DIR] [--session-id ID]
-  $PROG claim --all-unclaimed [--repo-dir DIR] [--session-id ID]
+  $PROG claim --all-unclaimed [--include-gone] [--repo-dir DIR] [--session-id ID]
   $PROG check-enter <path> [--repo-dir DIR] [--session-id ID]
   $PROG release <path> [--repo-dir DIR] [--session-id ID]
   $PROG handover <path> --session-id OLD --to NEW [--repo-dir DIR]
@@ -143,6 +143,7 @@ valid_session_id() {
 parse_worktrees() {
   local repo="$1" porcelain i canon
   WT_PATHS=()
+  WT_BRANCHES=()
   WT_REASONS=()
   WT_IS_LOCKED=()
   WT_IS_LINKED=()
@@ -158,6 +159,7 @@ parse_worktrees() {
     [[ "${WT_FACT_BARE[$i]}" == "yes" ]] && continue
     canonicalize_path_to canon "${WT_FACT_PATH[$i]}"
     WT_PATHS+=("$canon")
+    WT_BRANCHES+=("${WT_FACT_BRANCH[$i]}")
     WT_REASONS+=("${WT_FACT_LOCKED[$i]}")
     WT_IS_LOCKED+=("${WT_FACT_IS_LOCKED[$i]}")
     if [[ "${WT_FACT_LINKED[$i]}" == "yes" ]]; then
@@ -166,6 +168,20 @@ parse_worktrees() {
       WT_IS_LINKED+=(0)
     fi
   done
+}
+
+classify_lock_state() {
+  local idx="$1" sid="${2:-}"
+  local is_locked="${WT_IS_LOCKED[idx]}" reason="${WT_REASONS[idx]}"
+  if [[ "$is_locked" != "yes" ]]; then
+    printf 'unlocked'
+  elif [[ -z "$reason" ]]; then
+    printf 'reasonless'
+  elif [[ -n "$sid" ]] && worktree_reason_is_ours "$reason" "$sid"; then
+    printf 'ours'
+  else
+    printf 'foreign'
+  fi
 }
 
 find_worktree_index() {
@@ -199,6 +215,7 @@ session_id_given=0
 to_session=""
 path=""
 all_unclaimed=0
+include_gone=0
 batch=0
 idle_minutes=120
 root_dir=""
@@ -233,6 +250,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --all-unclaimed)
     all_unclaimed=1
+    shift
+    ;;
+  --include-gone)
+    include_gone=1
     shift
     ;;
   --batch)
@@ -291,6 +312,7 @@ handover)
 esac
 
 [[ "$cmd" != handover && -n "$to_session" ]] && die_usage '--to applies to handover only'
+((include_gone)) && [[ "$cmd" != claim || "$all_unclaimed" == 0 ]] && die_usage '--include-gone applies to claim --all-unclaimed only'
 ((batch)) && [[ "$cmd" != stale ]] && die_usage '--batch applies to stale only'
 ((batch)) && [[ -n "$path" ]] && die_usage 'stale --batch reads its paths from stdin, not arguments'
 ((batch)) && [[ -z "$repo_dir" ]] && die_usage 'stale --batch needs --repo-dir'
@@ -321,23 +343,37 @@ if ! parse_worktrees "$repo_dir"; then
 fi
 
 do_report() {
-  local i unclaimed=0 linked=0 outside=0 root=""
+  local i unclaimed=0 claimed=0 reasonless=0 linked=0 outside=0 root="" state
   [[ -z "$root_dir" ]] || root="$(canonicalize_path "$root_dir")"
   for i in "${!WT_PATHS[@]}"; do
     ((WT_IS_LINKED[i])) || continue
     linked=$((linked + 1))
-    if [[ -n "${WT_REASONS[i]}" ]]; then
-      printf 'CLAIMED\t%s\t%s\n' "${WT_PATHS[i]}" "${WT_REASONS[i]}"
-    else
+    state="$(classify_lock_state "$i")"
+    case "$state" in
+    unlocked)
       printf 'UNCLAIMED\t%s\n' "${WT_PATHS[i]}"
       unclaimed=$((unclaimed + 1))
       if [[ -n "$root" && "${WT_PATHS[i]}" != "$root"/* ]]; then
         outside=$((outside + 1))
       fi
-    fi
+      ;;
+    reasonless)
+      printf 'LOCKED_NO_REASON\t%s\n' "${WT_PATHS[i]}"
+      reasonless=$((reasonless + 1))
+      ;;
+    *)
+      printf 'CLAIMED\t%s\t%s\n' "${WT_PATHS[i]}" "${WT_REASONS[i]}"
+      claimed=$((claimed + 1))
+      ;;
+    esac
   done
-  printf '%s: %d linked, %d unclaimed, %d claimed\n' \
-    "$PROG" "$linked" "$unclaimed" "$((linked - unclaimed))" >&2
+  if ((reasonless > 0)); then
+    printf '%s: %d linked, %d unclaimed, %d claimed, %d locked without reason\n' \
+      "$PROG" "$linked" "$unclaimed" "$claimed" "$reasonless" >&2
+  else
+    printf '%s: %d linked, %d unclaimed, %d claimed\n' \
+      "$PROG" "$linked" "$unclaimed" "$claimed" >&2
+  fi
   if [[ -n "$root" ]]; then
     printf '%s: %d unclaimed outside the worktree root %s\n' "$PROG" "$outside" "$root" >&2
   fi
@@ -373,16 +409,25 @@ ensure_claim_session() {
 }
 
 lock_one() {
-  local wt_path="$1" existing="$2"
-  if [[ -n "$existing" ]]; then
-    if worktree_reason_is_ours "$existing" "$session_id"; then
-      printf '%s\n' "$existing"
-      return "$EX_OK"
-    fi
+  local idx="$1" wt_path existing state reason
+  wt_path="${WT_PATHS[idx]}"
+  existing="${WT_REASONS[idx]}"
+  state="$(classify_lock_state "$idx" "$session_id")"
+  case "$state" in
+  ours)
+    printf '%s\n' "$existing"
+    return "$EX_OK"
+    ;;
+  foreign)
     printf '%s: already claimed: %s\n' "$PROG" "$existing" >&2
     return "$EX_FOREIGN"
-  fi
-  local reason
+    ;;
+  reasonless)
+    printf '%s: already locked without a reason: %s\n' "$PROG" "$wt_path" >&2
+    return "$EX_FOREIGN"
+    ;;
+  unlocked) ;;
+  esac
   reason="$(worktree_lock_reason worktree-claim.sh "$session_id")"
   worktree_git lock --reason "$reason" "$wt_path" || return "$EX_ENV"
   printf '%s\n' "$reason"
@@ -392,17 +437,28 @@ lock_one() {
 do_claim_one() {
   linked_index claim || return
   ensure_claim_session
-  lock_one "${WT_PATHS[WT_INDEX]}" "${WT_REASONS[WT_INDEX]}"
+  lock_one "$WT_INDEX"
 }
 
 do_claim_all() {
-  local i rc=0 any=0
+  local i rc=0 any=0 b track state
+  local -A gone_branches=()
   ensure_claim_session
+  if ((include_gone == 0)); then
+    while IFS=$'\t' read -r b track; do
+      [[ "$track" == '[gone]' ]] && gone_branches["$b"]=1
+    done < <(git_unlocated -C "$repo_dir" for-each-ref --format='%(refname:short)%09%(upstream:track)' refs/heads 2>/dev/null)
+  fi
   for i in "${!WT_PATHS[@]}"; do
     ((WT_IS_LINKED[i])) || continue
-    [[ -z "${WT_REASONS[i]}" ]] || continue
+    state="$(classify_lock_state "$i" "$session_id")"
+    [[ "$state" == "unlocked" ]] || continue
+    b="${WT_BRANCHES[i]#refs/heads/}"
+    if ((include_gone == 0)) && [[ -n "$b" && -n "${gone_branches[$b]+x}" ]]; then
+      continue
+    fi
     any=1
-    lock_one "${WT_PATHS[i]}" "" || rc=$?
+    lock_one "$i" || rc=$?
   done
   if ((any == 0)); then
     printf '%s: no unclaimed linked worktrees\n' "$PROG" >&2
@@ -411,7 +467,7 @@ do_claim_all() {
 }
 
 do_check_enter() {
-  local idx
+  local idx wt reason state
   if ! find_worktree_index "$path"; then
     return "$EX_OK"
   fi
@@ -419,55 +475,79 @@ do_check_enter() {
   if ((WT_IS_LINKED[idx] == 0)); then
     return "$EX_OK"
   fi
-  local wt="${WT_PATHS[idx]}"
-  local reason="${WT_REASONS[idx]}"
-  if [[ -z "$reason" ]]; then
+  wt="${WT_PATHS[idx]}"
+  reason="${WT_REASONS[idx]}"
+  state="$(classify_lock_state "$idx" "$session_id")"
+  case "$state" in
+  unlocked)
     printf 'UNCLAIMED: %s carries no lock reason\n' "$wt" >&2
     printf '  claim it first: %s claim %s --session-id <session-id>\n' "$PROG" "$wt" >&2
     return "$EX_UNCLAIMED"
-  fi
-  if worktree_reason_is_ours "$reason" "$session_id"; then
+    ;;
+  ours)
     printf 'CLAIMED: %s\n' "$reason"
     return "$EX_OK"
-  fi
-  printf 'FOREIGN CLAIM: %s\n' "$reason" >&2
-  printf '  path: %s\n' "$wt" >&2
-  printf '  stop: another session holds a live claim on this worktree; do not write here\n' >&2
-  return "$EX_FOREIGN"
+    ;;
+  reasonless)
+    printf 'FOREIGN CLAIM: locked without a reason\n' >&2
+    printf '  path: %s\n' "$wt" >&2
+    printf '  stop: a manual lock without a reason holds this worktree; do not write here\n' >&2
+    return "$EX_FOREIGN"
+    ;;
+  foreign)
+    printf 'FOREIGN CLAIM: %s\n' "$reason" >&2
+    printf '  path: %s\n' "$wt" >&2
+    printf '  stop: another session holds a live claim on this worktree; do not write here\n' >&2
+    return "$EX_FOREIGN"
+    ;;
+  esac
 }
 
 do_release() {
   linked_index release || return
-  local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}"
-  if [[ -z "$reason" ]]; then
+  local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}" state
+  state="$(classify_lock_state "$WT_INDEX" "$session_id")"
+  case "$state" in
+  unlocked)
     printf '%s: not locked: %s\n' "$PROG" "$wt" >&2
     return "$EX_OK"
-  fi
-  if ! worktree_reason_is_ours "$reason" "$session_id"; then
+    ;;
+  reasonless)
+    printf '%s: not released, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
+    return "$EX_FOREIGN"
+    ;;
+  foreign)
     printf '%s: not released, the lock is not this session'\''s: %s\n' "$PROG" "$reason" >&2
     return "$EX_FOREIGN"
-  fi
-  worktree_git unlock "$wt" || return "$EX_ENV"
-  printf 'released %s\n' "$wt"
+    ;;
+  ours)
+    worktree_git unlock "$wt" || return "$EX_ENV"
+    printf 'released %s\n' "$wt"
+    ;;
+  esac
 }
 
 do_handover() {
   linked_index "hand over" || return
-  local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}" creator=worktree-claim.sh new_reason
-  if [[ -z "$reason" && "${WT_IS_LOCKED[WT_INDEX]}" == "yes" ]]; then
+  local wt="${WT_PATHS[WT_INDEX]}" reason="${WT_REASONS[WT_INDEX]}" creator=worktree-claim.sh new_reason state
+  state="$(classify_lock_state "$WT_INDEX" "$session_id")"
+  case "$state" in
+  reasonless)
     printf '%s: not handed over, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
     return "$EX_FOREIGN"
-  fi
-  if [[ -z "$reason" ]]; then
+    ;;
+  unlocked)
     printf '%s: not locked, no claim to hand over: %s\n' "$PROG" "$wt" >&2
     printf '  claim it instead: %s claim %s --session-id %s\n' "$PROG" "$wt" "$to_session" >&2
     return "$EX_UNCLAIMED"
-  fi
-  if worktree_reason_is_ours "$reason" "$to_session"; then
+    ;;
+  foreign | ours) ;;
+  esac
+  if [[ "$(classify_lock_state "$WT_INDEX" "$to_session")" == "ours" ]]; then
     printf '%s\n' "$reason"
     return "$EX_OK"
   fi
-  if ! worktree_reason_is_ours "$reason" "$session_id"; then
+  if [[ "$state" != "ours" ]]; then
     printf '%s: not handed over, the lock does not name session %s: %s\n' "$PROG" "$session_id" "$reason" >&2
     return "$EX_FOREIGN"
   fi

@@ -6,7 +6,7 @@ engine call must name the guard's absolute Python and its authorized
 ``--data-root``; without this hook the skill learns both only from a denial,
 so each run opened with a deliberately failing tool call (#4215).
 
-Both values come from the guard's own functions, run under the same launcher
+Both values come from ``lib/install_authority.py``, run under the same launcher
 and with the same ``--plugin-root`` argument the skill-frontmatter guard gets,
 so they are the values that guard will accept. The note also names the
 engine's absolute path, so a skill body whose ``${CLAUDE_PLUGIN_ROOT}`` arrived
@@ -24,20 +24,31 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
-import destructive_guard
+_PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+_LIB_DIR = _PLUGIN_ROOT / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import install_authority  # noqa: E402  (path set above; plugin-bundled module)
 
 
-def context_text() -> str:
-    python = destructive_guard._display_python()
-    engine = destructive_guard._display_path(destructive_guard._engine_script_path())
-    data_root = destructive_guard._display_data_root(
-        destructive_guard.resolve_authorized_data_root()
+def context_text(argv: list[str] | None = None) -> str:
+    args = sys.argv[1:] if argv is None else argv
+    auth = install_authority.resolve_install_authority(
+        plugin_root=install_authority.parse_plugin_root_arg(args),
+        authorized_data_root=install_authority.parse_authorized_data_root_arg(args),
     )
+    python = install_authority.display_python()
+    engine = install_authority.display_path(
+        install_authority.engine_script_path(_PLUGIN_ROOT)
+    )
+    data_root = install_authority.display_data_root(auth.data_root)
     root_line = (
         f'data_root: "{data_root}"'
         if data_root
-        else f"data_root: none. {destructive_guard._NO_DATA_ROOT_REASON}"
+        else f"data_root: none. {install_authority.NO_DATA_ROOT_REASON}"
     )
     return (
         "disk-hygiene guard values:\n"

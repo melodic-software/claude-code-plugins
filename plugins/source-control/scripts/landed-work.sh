@@ -24,7 +24,7 @@ $PROG — read-only landed-vs-stranded classification for git worktrees.
 Usage:
   $PROG [--repo-dir <dir>] [--worktree <path>]... [--base <ref>]
         [--merged-refs-file <path>] [--no-peers] [--merged-pr-proof]
-        [--merged-pr-limit <n>]
+        [--merged-pr-limit <n>] [--stats-file <path>]
   $PROG --path-key <value>
   $PROG --help
 
@@ -65,6 +65,8 @@ Options:
                       first, 100 per page.
                       Default: 1000. A branch whose PR is older than that window
                       stays unproven, and its reason says the listing was full.
+  --stats-file <path> Write run counters (\`gh_calls=<N>\` and
+                      \`rate_limited=<yes|no>\`) to <path>.
   --path-key <value>  Print the path comparison key for <value> and exit. A
                       debug seam the test suite asserts the normalizer through.
 
@@ -112,6 +114,7 @@ MERGED_REFS_FILE=""
 DO_PEERS=true
 USE_PR_PROOF=false
 MERGED_PR_LIMIT=1000
+STATS_FILE=""
 EXPLICIT_TARGETS=()
 
 while [[ $# -gt 0 ]]; do
@@ -158,6 +161,11 @@ while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 ]] || die "--merged-pr-limit requires a value"
     [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--merged-pr-limit must be a positive integer: $2"
     MERGED_PR_LIMIT="$2"
+    shift 2
+    ;;
+  --stats-file)
+    [[ $# -ge 2 ]] || die "--stats-file requires a value"
+    STATS_FILE="$2"
     shift 2
     ;;
   *) die "unknown argument: $1" ;;
@@ -442,6 +450,7 @@ classify_landed() {
 }
 
 GH_CALLS=0
+RATE_LIMITED="no"
 MP_KEYS=()
 MP_ERRS=()
 MP_FILE=""
@@ -490,6 +499,9 @@ merged_pr_listing() {
       -f base="$base_name" -F first="$first" ${after[@]+"${after[@]}"} --jq "$MERGED_PR_JQ") >"$page" 2>"$MP_FILE.err"; then
       err=$(head -n 1 "$MP_FILE.err" | tr '\t;' '  ' | cut -c1-120)
       MP_ERR="gh-pr-list${err:+ ($err)}"
+      if grep -qi 'rate limit' "$MP_FILE.err" 2>/dev/null; then
+        RATE_LIMITED="yes"
+      fi
       : >"$MP_FILE"
       break
     fi
@@ -708,10 +720,23 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   fi
 
   if [[ "$unpushed" == "0" ]]; then
-    R_LANDED+=("n/a")
-    R_METHOD+=("none")
-    R_BASE+=("")
-    reason="nothing-unpushed"
+    base=""
+    base_sha=""
+    base_err="$WORKDIR/base-resolve.err"
+    if base=$(resolve_base "$p") &&
+      base_sha=$(git -C "$p" rev-parse --verify "$base^{commit}" 2>"$base_err") &&
+      ! { [[ -s "$base_err" ]] && grep -qi 'ambiguous' "$base_err"; } &&
+      git -C "$p" merge-base --is-ancestor HEAD "$base_sha" 2>/dev/null; then
+      R_LANDED+=("yes")
+      R_METHOD+=("ancestor")
+      R_BASE+=("$base@${base_sha:0:12}")
+      reason="nothing-unpushed; head-is-ancestor-of-base"
+    else
+      R_LANDED+=("n/a")
+      R_METHOD+=("none")
+      R_BASE+=("")
+      reason="nothing-unpushed"
+    fi
   else
     classify_landed "$p"
     if [[ "$USE_PR_PROOF" == "true" && "$L_STATE" != "yes" && "${T_BRANCH[$idx]}" != "(detached)" ]]; then
@@ -739,6 +764,10 @@ done
 
 if [[ "$USE_PR_PROOF" == "true" ]]; then
   printf '%s: merged-pr-proof made %s gh call(s)\n' "$PROG" "$GH_CALLS" >&2
+fi
+if [[ -n "$STATS_FILE" ]]; then
+  printf 'gh_calls=%s\nrate_limited=%s\n' "$GH_CALLS" "$RATE_LIMITED" >"$STATS_FILE" ||
+    die "cannot write --stats-file: $STATS_FILE" 4
 fi
 
 assert_row_count "${#T_PATH[@]}" "${#R_LANDED[@]}" || exit 5
@@ -780,14 +809,14 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     risk="superseded"
   elif [[ "${R_LANDED[$idx]}" == "no" ]]; then
     risk="STRANDED"
-  elif [[ "${R_LANDED[$idx]}" == "?" ]]; then
+  elif [[ "${R_LANDED[$idx]}" == "?" || "${R_UNPUSHED[$idx]}" == "?" || "${R_STAGED[$idx]}" == "?" || "${R_UNSTAGED[$idx]}" == "?" || "${R_CONFLICTED[$idx]}" == "?" || "${R_UNTRACKED[$idx]}" == "?" ]]; then
     risk="UNKNOWN"
   elif [[ "${R_INPROGRESS[$idx]}" != "none" ]]; then
     risk="in-progress"
+  elif [[ "${R_CONFLICTED[$idx]}" != "0" || "${R_UNSTAGED[$idx]}" != "0" || "${R_STAGED[$idx]}" != "0" || "${R_UNTRACKED[$idx]}" != "0" ]]; then
+    risk="dirty"
   elif [[ "${R_LANDED[$idx]}" == "yes" ]]; then
     risk="landed"
-  elif [[ "${R_CONFLICTED[$idx]}" != "0" || "${R_UNSTAGED[$idx]}" != "0" || "${R_STAGED[$idx]}" != "0" ]]; then
-    risk="dirty"
   else
     risk="ok"
   fi

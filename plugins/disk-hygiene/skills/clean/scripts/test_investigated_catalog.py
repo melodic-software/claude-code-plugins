@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -798,6 +799,31 @@ class CatalogCommandTest(unittest.TestCase):
         self.assertEqual(3, code)
         self.assertIn("changed-since-scan", blocked["candidates"][0]["blockers"])
         self.assertTrue(self.item.is_file())
+
+
+class CatalogScalingTests(unittest.TestCase):
+    def test_preindexed_descendants_scale_linearly_on_10k_entries(self) -> None:
+        entries = []
+        findings = []
+        inode = 1
+        for d in range(1000):
+            dpath = f"dir_{d:04d}"
+            entries.append(_entry(dpath, inode=inode, logical_size=100))
+            inode += 1
+            findings.append(_finding(dpath))
+            for c in range(9):
+                entries.append(
+                    _entry(f"{dpath}/file_{c}", kind="file", inode=inode, logical_size=10)
+                )
+                inode += 1
+        snapshot = _snapshot(*entries)
+        t0 = time.perf_counter()
+        stored, _ = catalog.sync_catalog(snapshot, None, findings, [], "run-scale-1")
+        catalog.annotate_entries(snapshot, stored)
+        elapsed = time.perf_counter() - t0
+        matched = sum(1 for e in entries if e.get("prior_disposition") == "keep")
+        self.assertEqual(1000, matched)
+        self.assertLess(elapsed, 0.25, f"expected pre-indexed catalog ops < 0.25s, got {elapsed:.3f}s")
 
 
 if __name__ == "__main__":
