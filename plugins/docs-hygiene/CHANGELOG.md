@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [4.4.9] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
 ## [4.4.8] - 2026-11-26
 
 ### Changed
