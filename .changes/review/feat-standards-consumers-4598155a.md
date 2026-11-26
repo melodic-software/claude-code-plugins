@@ -9,3 +9,4 @@ bump: minor
 ### Fixed
 
 - The `architecture-guardian` and `security-reviewer` agents open a `REVIEW.md` citation only from `scripts/org-standards.sh citations`, never by splitting a citation and reading its path themselves, and read standards through the Resolution ladder, personal subscriptions included.
+- `/review:code-review`'s `ORG STANDARDS:` folder is now the organization's checked standards: the lane opens an organization citation only from its `citations.tsv` and reads its `docs/standards/README.md` as the printed index, never resolving a citation from the criteria text.

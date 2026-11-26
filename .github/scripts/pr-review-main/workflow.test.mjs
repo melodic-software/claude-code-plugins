@@ -1328,17 +1328,28 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
       writeFileSync(path.join(dir, ".base", file), body);
     }
     const org = path.join(dir, "org-checkout");
-    for (const [file, body] of Object.entries({ "REVIEW.md": "org review\n", "standards/review/x.md": "cited", "docs/standards/README.md": "index", "other/y.md": "not copied" })) {
+    const orgIndex = "---\nstandards-contract: 1.3.1\n---\n\nprose not copied\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |\n| escape | never | ../../outside.md |\n";
+    const orgFiles = {
+      "REVIEW.md": "org review, see `standards/review/x.md#rule`\n",
+      "standards/review/x.md": "# rule\n",
+      "docs/standards/README.md": orgIndex,
+      "docs/standards/testing.md": "listed",
+      "docs/standards/unlisted.md": "not copied",
+      "other/y.md": "not copied",
+    };
+    for (const [file, body] of Object.entries(orgFiles)) {
       mkdirSync(path.dirname(path.join(org, file)), { recursive: true });
       writeFileSync(path.join(org, file), body);
     }
+    writeFileSync(path.join(dir, "outside.md"), "outside");
     const data = path.join(dir, "data");
-    const copy = () => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env: { ...process.env, SKILL: "code-review", DATA: data, ORG: org } });
+    const env = { ...process.env, SKILL: "code-review", DATA: data, ORG: org, ORG_STANDARDS_CACHE: path.join(dir, "cache") };
+    const copy = () => spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env });
     const result = copy();
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(readdirSync(data, { recursive: true }).filter((f) => f.endsWith(".md")).sort(), [
-      "org/REVIEW.md",
       "org/docs/standards/README.md",
+      "org/docs/standards/testing.md",
       "org/standards/review/x.md",
       "review/reference/ref.md",
       "review/skills/code-review/SKILL.md",
@@ -1347,8 +1358,19 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
       "standards/rules/r.md",
       "standards/standards/s.md",
     ]);
+    const orgCopy = path.join(data, "org");
+    assert.equal(
+      readFileSync(path.join(orgCopy, "docs", "standards", "README.md"), "utf8"),
+      `---\nstandards-contract: 1.3.1\n---\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | ${orgCopy}/docs/standards/testing.md |\n`,
+      "the org index is the reader's printed index, each row's File the copy in the review data; the escaping row and the prose are gone",
+    );
+    assert.equal(
+      readFileSync(path.join(orgCopy, "citations.tsv"), "utf8"),
+      `standards/review/x.md#rule\t${orgCopy}/standards/review/x.md#rule\n`,
+      "the citations the reader lists, each pointing at its copy in the review data",
+    );
     const composed = () => readFileSync(path.join(data, "standards", "REVIEW.md"), "utf8");
-    assert.match(composed(), /^org review\n\n<!-- The repository REVIEW\.md follows[^\n]*-->\n\nreview\n$/, "extend: main's REVIEW.md follows the org's");
+    assert.match(composed(), /^org review, see `standards\/review\/x\.md#rule`\n\n<!-- The repository REVIEW\.md follows[^\n]*-->\n\nreview\n$/, "extend: main's REVIEW.md follows the org's");
     rmSync(data, { recursive: true, force: true });
     writeFileSync(path.join(dir, ".base", "REVIEW.md"), "<!-- review-base: replace -->\nown\n");
     assert.equal(copy().status, 0);
@@ -1356,7 +1378,7 @@ test("each leg copies the review criteria criteria.txt lists, REVIEW.md composed
     rmSync(data, { recursive: true, force: true });
     rmSync(path.join(dir, ".base", "REVIEW.md"));
     assert.equal(copy().status, 0, "a main with no REVIEW.md still copies");
-    assert.equal(composed(), "org review\n", "default: the org's criteria alone");
+    assert.equal(composed(), "org review, see `standards/review/x.md#rule`\n", "default: the org's criteria alone");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

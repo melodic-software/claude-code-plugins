@@ -895,12 +895,30 @@ jobs:
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
           STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
-          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
-            if [ -e "$ORG/$part" ]; then
-              mkdir -p "$(dirname "$DATA/org/$part")"
-              cp -R "$ORG/$part" "$DATA/org/$part"
-            fi
-          done
+          org_real=$(cd "$ORG" && pwd -P)
+          confine() {
+            case $1 in "$org_real"/*) ;; *) return 1 ;; esac
+            [ -f "$1" ] || return 1
+            mkdir -p "$(dirname "$DATA/org/${1#"$org_real"/}")"
+            cp "$1" "$DATA/org/${1#"$org_real"/}"
+            printf '%s\n' "$DATA/org/${1#"$org_real"/}"
+          }
+          if index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
+            mkdir -p "$DATA/org/docs/standards"
+            while IFS= read -r line; do
+              IFS='|' read -r _ _ _ file _ <<<"$line"
+              file=${file# }
+              file=${file% }
+              case $line in
+              '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
+              *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
+              esac
+            done <"$index" >"$DATA/org/docs/standards/README.md"
+          fi
+          citations=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh citations --root .base) || citations=
+          while IFS=$'\t' read -r cite target; do
+            if dest=$(confine "${target%#*}"); then printf '%s\t%s#%s\n' "$cite" "$dest" "${target##*#}"; fi
+          done <<<"$citations" >"$DATA/org/citations.tsv"
 
       - name: Resolve the review's model
         id: models
@@ -1581,12 +1599,30 @@ jobs:
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
           STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
-          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
-            if [ -e "$ORG/$part" ]; then
-              mkdir -p "$(dirname "$DATA/org/$part")"
-              cp -R "$ORG/$part" "$DATA/org/$part"
-            fi
-          done
+          org_real=$(cd "$ORG" && pwd -P)
+          confine() {
+            case $1 in "$org_real"/*) ;; *) return 1 ;; esac
+            [ -f "$1" ] || return 1
+            mkdir -p "$(dirname "$DATA/org/${1#"$org_real"/}")"
+            cp "$1" "$DATA/org/${1#"$org_real"/}"
+            printf '%s\n' "$DATA/org/${1#"$org_real"/}"
+          }
+          if index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
+            mkdir -p "$DATA/org/docs/standards"
+            while IFS= read -r line; do
+              IFS='|' read -r _ _ _ file _ <<<"$line"
+              file=${file# }
+              file=${file% }
+              case $line in
+              '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
+              *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
+              esac
+            done <"$index" >"$DATA/org/docs/standards/README.md"
+          fi
+          citations=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh citations --root .base) || citations=
+          while IFS=$'\t' read -r cite target; do
+            if dest=$(confine "${target%#*}"); then printf '%s\t%s#%s\n' "$cite" "$dest" "${target##*#}"; fi
+          done <<<"$citations" >"$DATA/org/citations.tsv"
 
       - name: Resolve the review's model
         id: models
@@ -2245,12 +2281,30 @@ jobs:
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
           STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
-          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
-            if [ -e "$ORG/$part" ]; then
-              mkdir -p "$(dirname "$DATA/org/$part")"
-              cp -R "$ORG/$part" "$DATA/org/$part"
-            fi
-          done
+          org_real=$(cd "$ORG" && pwd -P)
+          confine() {
+            case $1 in "$org_real"/*) ;; *) return 1 ;; esac
+            [ -f "$1" ] || return 1
+            mkdir -p "$(dirname "$DATA/org/${1#"$org_real"/}")"
+            cp "$1" "$DATA/org/${1#"$org_real"/}"
+            printf '%s\n' "$DATA/org/${1#"$org_real"/}"
+          }
+          if index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
+            mkdir -p "$DATA/org/docs/standards"
+            while IFS= read -r line; do
+              IFS='|' read -r _ _ _ file _ <<<"$line"
+              file=${file# }
+              file=${file% }
+              case $line in
+              '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
+              *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
+              esac
+            done <"$index" >"$DATA/org/docs/standards/README.md"
+          fi
+          citations=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh citations --root .base) || citations=
+          while IFS=$'\t' read -r cite target; do
+            if dest=$(confine "${target%#*}"); then printf '%s\t%s#%s\n' "$cite" "$dest" "${target##*#}"; fi
+          done <<<"$citations" >"$DATA/org/citations.tsv"
 
       - name: Resolve the review's model
         id: models
