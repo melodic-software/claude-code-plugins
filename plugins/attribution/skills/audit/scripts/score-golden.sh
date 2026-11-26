@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 on a clean run, 2 on usage or input error, 3 when the golden
-# directory holds no scoreable case, 4 when jq is absent.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

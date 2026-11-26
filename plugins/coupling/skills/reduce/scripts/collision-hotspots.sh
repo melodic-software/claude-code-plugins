@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-#   collision-hotspots.sh --prs <n> [--repo <owner>/<repo>] [--max-pairs <m>]
-#                         [--exclude <glob>]... [--dry-run]
-#
-# Exit 0 done, 2 usage error, missing gh, jq or `merge-tree --write-tree`, not
-# a repository, a failed gh or git call, or a PR path with a control character.
 set -uo pipefail
 
 MIN_PAIRS=3
@@ -50,8 +45,6 @@ git rev-parse --verify -q HEAD >/dev/null 2>&1 || die "run from a git repository
 git merge-tree --write-tree --name-only HEAD HEAD >/dev/null 2>&1 ||
   die "this git has no 'merge-tree --write-tree'$fallback"
 
-# Resolve the repository once, so the listing and the head fetch read the same
-# one: without --repo, gh's default repository can differ from origin (a fork).
 view_args=()
 [[ -n "$repo" ]] && view_args=("$repo")
 view="$(gh repo view "${view_args[@]}" --json nameWithOwner,url,sshUrl)" || die "gh repo view failed$fallback"
@@ -59,8 +52,6 @@ repo="$(jq -r '.nameWithOwner // empty' <<<"$view")"
 gh_url="$(jq -r '.url // empty' <<<"$view")" gh_ssh="$(jq -r '.sshUrl // empty' <<<"$view")"
 [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "gh reported no repository name"
 [[ -n "$gh_url" ]] || die "gh reported no URL for $repo"
-# gh drops the host from a bare owner/repo, so a GitHub Enterprise repository is
-# listed as host/owner/repo.
 list_repo="$repo"
 if [[ "$gh_url" =~ ^https?://([^/@]+@)?([^/:]+) && "${BASH_REMATCH[2],,}" != github.com ]]; then
   list_repo="${BASH_REMATCH[2]}/$repo"
@@ -176,8 +167,6 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 2' INT TERM HUP
 
-# PR numbers and path indexes are digits only (checked above), so the indexed
-# arrays below never evaluate untrusted text.
 wanted=() fetch_err=()
 for line in "${pair_lines[@]}"; do
   IFS=$'\t' read -r a b _ <<<"$line"
@@ -190,8 +179,8 @@ for ((i = 0; i < ${#numbers[@]}; i += 50)); do
     [[ "$n" =~ ^[0-9]+$ ]] || die "unexpected PR number"
     specs+=("+refs/pull/$n/head:$ns/pr/$n")
   done
-  # An empty --refmap stops a configured remote.<name>.fetch from also writing
-  # remote-tracking refs for these heads.
+  # An empty --refmap makes git ignore remote.<name>.fetch; only the command-line refspecs apply.
+  # https://git-scm.com/docs/git-fetch
   if ! git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "${specs[@]}" >/dev/null 2>&1; then
     for spec in "${specs[@]}"; do
       if ! err="$(git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "$spec" 2>&1 >/dev/null)"; then

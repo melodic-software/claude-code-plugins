@@ -1,6 +1,4 @@
 # shellcheck shell=bash
-# Shared dead-code candidate shapes and detector plumbing for
-# /code-tidying:audit-dead-code (sourceable; not invoked directly).
 
 dc_trim_excerpt() {
   local line="$1"
@@ -191,8 +189,6 @@ dc_binary_invocable() {
   "$bin" "$@" >/dev/null 2>&1
 }
 
-# Returns 0 with `<file><TAB><line><TAB><shape><TAB><excerpt>` in the named
-# variable, 1 when the line is drift.
 dc_parse_vulture_line() {
   local line="${1//$'\r'/}" out_var="$2"
   local re='^(.+):([0-9]+):[[:space:]](unused|unreachable|unsatisfiable)[[:space:]](.*)$'
@@ -207,9 +203,6 @@ dc_parse_vulture_line() {
     "$(dc_trim_excerpt "${BASH_REMATCH[3]} ${BASH_REMATCH[4]}")"
 }
 
-# Returns 0 = a candidate, 1 = drift (not a diagnostic at all), 2 = a diagnostic
-# this lane does not own (an exported symbol, or any non-unused hint). The
-# unexported-only filter is the lane's DECLARED coverage, not a defect.
 dc_parse_gopls_line() {
   local line="${1//$'\r'/}" out_var="$2"
   local re='^(.+):([0-9]+):([0-9]+)(-[0-9]+)?:[[:space:]](.*)$'
@@ -271,10 +264,6 @@ dc_gopls_stdout_is_degraded() {
   return 1
 }
 
-# knip --reporter json, scanned tolerantly on stdin. Emits
-# `<file><TAB><line><TAB><shape><TAB><name>` rows on stdout; exits 1 when it
-# recognized nothing, which the driver reads as "parsed nothing", never as
-# "clean".
 dc_parse_knip_json() {
   awk '
   function shape_for(k) {
@@ -374,12 +363,6 @@ dc_knip_config_module() {
   return 1
 }
 
-# Emit `<line><TAB><name><TAB><shape><TAB><text>` for every symbol DEFINITION in
-# one file. The extractor set is this lane's declared coverage: shell functions,
-# PowerShell functions, function, class, const, let, and var declarations in
-# JS/TS (with or without `export`), and C# type declarations plus C# members
-# that carry an access modifier. Names under three characters are dropped: at
-# that length the reference search is noise, not evidence.
 dc_symbol_defs() {
   local file="$1" lang="$2"
   local line name shape rest head num=0

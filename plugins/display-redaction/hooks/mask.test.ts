@@ -5,7 +5,6 @@ const M = '[hidden]'
 const { patterns } = compilePatterns([])
 const mask = (text: string) => maskText(text, patterns, M)
 
-// Token prefixes are joined at run time so no secret scanner reads this file as a credential.
 const GH = 'gh' + 'p_'
 const PAT = 'github' + '_pat_'
 const SLACK = 'xo' + 'xb-'

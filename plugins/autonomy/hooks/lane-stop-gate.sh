@@ -112,8 +112,6 @@ gate_arm_owned() {
   local claim="$1" me="${SESSION_ID//[$'\r\n']/}" owner=""
   [[ ! -e "$claim" || (-f "$claim" && ! -L "$claim") ]] || return 0
   if [[ -n "$me" ]] && (
-    # umask 077 is best-effort on MSYS (the claim may still land 644); the
-    # exclusive-create is what binds the record, not the file mode.
     umask 077
     set -o noclobber
     printf '%s\n' "$me" >"$claim"

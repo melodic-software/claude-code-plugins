@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for user-scope.sh: every fixture root lives under a
-# mktemp directory, with HOME and CLAUDE_CONFIG_DIR pointed there, so the real
-# ~/.claude is never read.
 set -uo pipefail
 
 export LC_ALL=C
@@ -11,9 +8,6 @@ US="$SCRIPT_DIR/user-scope.sh"
 DETECT="$SCRIPT_DIR/detect.sh"
 RAW_TMPDIR="$(mktemp -d)" || { echo "mktemp failed" >&2; exit 2; }
 [[ -n "$RAW_TMPDIR" && -d "$RAW_TMPDIR" ]] || { echo "mktemp gave no directory: $RAW_TMPDIR" >&2; exit 2; }
-# The script prints Windows form under MSYS (`pwd -W`), plain pwd elsewhere;
-# expected paths are built the same way. The result is checked again before
-# the trap is armed and before any fixture is written.
 TEST_TMPDIR="$(cd -P "$RAW_TMPDIR" && { pwd -W 2>/dev/null || pwd; })"
 [[ -n "$TEST_TMPDIR" && -d "$TEST_TMPDIR" ]] || { echo "cannot canonicalize $RAW_TMPDIR" >&2; exit 2; }
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -24,7 +18,6 @@ mkdir -p "$HOME/.claude" "$CLAUDE_PROJECT_DIR"
 
 # shellcheck source=lib/test-helpers.sh
 source "$SCRIPT_DIR/lib/test-helpers.sh"
-# PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
 EXPECTED_CASES=62
 
 assert_eq() {

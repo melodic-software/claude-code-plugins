@@ -71,14 +71,6 @@ def _finish(
 ) -> None:
     if not order:
         return
-    # One tracefile can carry several `SF` blocks for the same source file (a
-    # concatenation of per-suite runs). The `DA` counts already merge with
-    # `max` into the shared section, so the function records must fold the
-    # same way: replacing them would let a later block's `FNDA:0` erase an
-    # earlier hit and report the function at 0 percent, at maximal CRAP, in a
-    # file the line table shows as covered. The fold key is the name with the
-    # start line, the same identity the accumulators carry, because one file
-    # can hold two functions of the same name at different lines.
     existing = {(f["name"], f["start_line"]): f for f in section["functions"] or []}
     for key in order:
         function = {
@@ -106,18 +98,11 @@ def parse(path: str) -> dict[str, dict]:
     """Read `path` and return the per-file coverage mapping."""
     files: dict[str, dict] = {}
     section: dict[str, Any] | None = None
-    # Keyed by (name, start line): one `SF` section can declare two functions
-    # of the same name at different lines (two `render` methods in two
-    # classes). Keyed by name alone they collapse into one record, and the
-    # survivor wears the other's execution count.
     starts: dict[tuple, int | None] = {}
     ends: dict[tuple, int | None] = {}
     hits: dict[tuple, int] = {}
     order: list[tuple] = []
     leaders: dict[str, list] = {}
-    # `FN` declarations per name, in file order, and how many `FNDA` counts
-    # each name has consumed. `FNDA` carries only the name, so the nth count
-    # for a name belongs to the nth declaration of it.
     declared: dict[str, list[tuple]] = {}
     counted: dict[str, int] = {}
     with open(path, encoding="utf-8", errors="replace") as handle:
@@ -196,8 +181,6 @@ def parse(path: str) -> dict[str, dict]:
                 if not name:
                     continue
                 leader = leaders.get(index)
-                # `FNA` carries its own count, so the leader it points at is
-                # the start line: no positional pairing is needed here.
                 key = (name, leader[0] if leader else None)
                 _declare(key, order, declared)
                 if count is not None:

@@ -1,58 +1,4 @@
 #!/usr/bin/env bash
-# Collect a C4 container record from the tracked files of one repository.
-#
-# WHY. A container is an application or a data store. Directory names are not
-# that fact. Every deployable cites the project output, the host builder, a
-# Dockerfile, or a process manifest. Every store cites a config key. The raw
-# value is never stored.
-#
-# A C4 container is an application or a data store, and the container diagram
-# scopes to one software system. Basis: https://c4model.com/diagrams/container
-# and https://c4model.com/ . Verified 2026-09-28. Recheck when that page
-# changes what a container is or stops scoping the diagram to one system.
-#
-# Usage:
-#   collect-containers.sh [--repo <path>] [--out <file>] [--focal <name>]
-#       [--graph <dependency-graph.json>] [--generated-on <date>]
-#   collect-containers.sh --help
-#
-# Tracked files only (git ls-tree HEAD). Each is read from the working tree, not
-# from HEAD, so one edit to a tracked file is charted; when git status reports
-# any, the count is the dirty-tracked-files finding. --graph, when set, supplies
-# project edges for containment and is not re-derived from ProjectReference.
-# Without it the edges come from lib/dotnet-references.sh, the reader
-# map-dependencies uses. A reference whose target is missing, escapes the
-# repository, is absolute, or is a glob is not a module. Nothing is matched by
-# project name. A test project (dotnet_is_test_project) is not a deployable, and
-# the count of those that would otherwise be one is the excluded-test-projects
-# finding. Project files are *.csproj, *.fsproj and *.vbproj; each one charted
-# as no deployable, module or excluded test project is named in the
-# uncharted-projects finding.
-#
-# schema_version 1, one object per line:
-#   containers: {"id": ...}
-#   modules:    {"container": ...}
-#   edges:      {"from": ...}
-#   findings:   {"kind": ...}
-# Edge kind shared-infrastructure is one edge per pair of owners of a store, and
-# cites the config keys of both. A sql store is one host, port, and database; with
-# no database named the id says "database unknown" and an edge between its
-# owners says "same server, database unknown".
-# Edge kind uses between two deployables is one edge per pair: from the deployable
-# whose own config names an http endpoint, to the deployable it resolves to. It
-# cites the config key and the fact that resolved it: a compose service whose
-# build context is the target's directory (the endpoint host is the service name,
-# and a declared port equals the endpoint's), or a launchSettings.json
-# applicationUrl on the target (localhost or 127.0.0.1 and the same port). An
-# endpoint that resolves to no deployable or to several draws no edge and is an
-# external-endpoint finding with its redacted host. A self-reference draws none.
-# technology is a runtime, framework, or image, or the literal unknown. A sql
-# store's is its URL scheme (mongodb, postgres, mysql), Azure SQL for a
-# database.windows.net host, or unknown.
-#
-# Redaction is plugins/architecture/lib/redact-connection.awk.
-# Portability: bash plus POSIX awk/sed. No jq, no python.
-#
 # Exit: 0 written; 1 unreadable path, not a git commit, or a bad graph; 2 usage.
 set -uo pipefail
 
@@ -72,7 +18,17 @@ source "$SCRIPT_DIR/../../../lib/record-layout.sh"
 JSTR_AWK="$(<"$SCRIPT_DIR/../../../lib/jstr.awk")"$'\n'
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Collect a C4 container record from the tracked files of one repository.
+Usage: collect-containers.sh [--repo <path>] [--out <file>] [--focal <name>] [--graph <dependency-graph.json>] [--generated-on <date>]
+  --repo <path>          repository to read (tracked files only)
+  --out <file>           where containers.json is written (default stdout)
+  --focal <name>         the focal system's name
+  --graph <file>         dependency-graph.json supplying project edges
+  --generated-on <date>  date recorded in the record
+Writes containers.json, schema_version 1, one object per line.
+Exit: 0 written; 1 unreadable path, not a git commit, or a bad graph; 2 usage.
+EOF
 }
 
 die() {
@@ -543,8 +499,6 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     }
     END { flush() }
   ' "$abs" >"$parsed"
-  # Unit separator, not tab: bash read collapses empty tab fields, and a service
-  # with a build and no image would slide the build into the image.
   while IFS=$'\034' read -r svc image build ports; do
     [[ -n "$svc" ]] || continue
     context="${build#./}"
@@ -700,8 +654,6 @@ store_technology() {
   esac
 }
 
-# Unit separator, not tab: bash read collapses empty tab fields, and a blank
-# port would slide the file path into the port.
 while IFS=$'\034' read -r skind host port file key db scheme; do
   [[ -n "$host" ]] || continue
   owner="$(bind_deployable "$file")"

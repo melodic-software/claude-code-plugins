@@ -283,7 +283,6 @@ Review checks structure and convention; `/planning:devils-advocate` (run later a
 - The product idea itself is not yet tested (who has the problem, why they would switch): /planning:interview product.
 - PRD locked and the Brief already exists: /planning:design.
 - PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
-- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Related
 

@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Exit: 0 ok (an empty history prints zeros), 2 usage, 1 no default branch, a failed git read or an
-// unreadable ladder.
 import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
