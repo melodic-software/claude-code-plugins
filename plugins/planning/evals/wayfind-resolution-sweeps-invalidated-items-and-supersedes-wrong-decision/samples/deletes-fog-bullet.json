@@ -11,6 +11,18 @@
     {
       "answer": "**Not-yet-specified:** the tenant-sharing bullet is deleted (now charted).",
       "why": "passive form after the section name"
+    },
+    {
+      "answer": "In Not-yet-specified, remove the tenant-sharing bullet.",
+      "why": "section named before an imperative verb"
+    },
+    {
+      "answer": "**Not-yet-specified:** delete the bullet.",
+      "why": "section label, then an imperative delete"
+    },
+    {
+      "answer": "- Not-yet-specified: drop the fog note",
+      "why": "list item naming the section first"
     }
   ],
   "fail": [
@@ -33,6 +45,10 @@
     {
       "answer": "Create 'Choose per-tenant invoice storage' (wayfind: design). The Not-yet-specified bullet about tenants sharing invoice data stays until that item resolves, and is deleted then.",
       "why": "wrong: defers the fog-bullet deletion"
+    },
+    {
+      "answer": "Not-yet-specified: don't delete the tenant-sharing bullet yet.",
+      "why": "wrong: section first, then a negated delete"
     }
   ]
 }
