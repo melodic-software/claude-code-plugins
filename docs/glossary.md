@@ -610,5 +610,6 @@ Each maps to the term or doctrine that owns the concept.
 | lane *(a skill or plugin registered with the shared view resolver)* | producer, the word the resolver (`--producer`) and its registry use |
 | lane *(instruction-placement's promote or demote pass)* | direction, the word `instruction-placement` uses (`--direction`) |
 | lane *(the files of one language that code-metrics measures)* | language, the word `code-metrics` uses (the `languages` config key) |
+| lane *(one detector `/code-tidying:audit-dead-code` runs)* | analyzer, the word the skill uses (`--analyzer`) |
 | lane *(coupling's apply or route path for a finding)* | step, the word `coupling:reduce` uses |
 | lane *(the skill that owns a job)* | that skill's name, or skill |

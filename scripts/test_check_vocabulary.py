@@ -35,6 +35,12 @@ GATE = HERE / "check-vocabulary.py"
 DATA = HERE / "vocabulary-senses.json"
 
 HITS = {
+    "lane-view-producer": "node lib/view-settings.mjs resolve --lane planning --option auto",
+    "lane-placement-direction": "Flag stranded docs conventions on the promote lane.",
+    "lane-code-metrics-language": "Files outside every language lane carry a line count.",
+    "lane-dead-code-analyzer": "Run dead-code-scan.sh --lane grep over src.",
+    "lane-coupling-step": "A second list is always a route-lane ledger entry.",
+    "lane-owning-skill": "Hand the findings off to the remediation lanes.",
     "rung": "## Choosing the rung: text, diagram, page, or video",
     "default-ladder": "The shipped default ladder is page, then terminal.",
     "overlay": "Write the personal overlay to the gitignored local file.",
@@ -749,6 +755,119 @@ ALLOWLIST = [
         ".changes/**",
         ".changes/code-tidying/rename.md",
         "Move any `.claude/tidy-lanes/` files to `.claude/tidy-areas/`.",
+    ),
+    path(
+        "lane-view-producer",
+        "**/evals/**/samples/**",
+        "plugins/alpha/evals/one/samples/answer.json",
+        "node lib/view-settings.mjs resolve --lane planning --option auto",
+    ),
+    path(
+        "lane-view-producer",
+        "**/evals/**/graders/**",
+        "plugins/alpha/evals/one/graders/check.md",
+        "node lib/view-settings.mjs resolve --lane planning --option auto",
+    ),
+    phrase(
+        "lane-view-producer",
+        r"""^\s*(?:-\s*)?pattern:\s*['"]""",
+        "pattern: \"node lib/view-settings.mjs resolve --lane planning --option auto\"",
+    ),
+    path(
+        "lane-view-producer",
+        "plugins/testing/skills/audit/evals/judge-calibration/**",
+        "plugins/testing/skills/audit/evals/judge-calibration/cases/copy.py",
+        "node lib/view-settings.mjs resolve --lane planning --option auto",
+    ),
+    path(
+        "lane-placement-direction",
+        "**/evals/**/samples/**",
+        "plugins/alpha/evals/one/samples/answer.json",
+        "Flag stranded docs conventions on the promote lane.",
+    ),
+    path(
+        "lane-placement-direction",
+        "plugins/testing/skills/audit/evals/judge-calibration/**",
+        "plugins/testing/skills/audit/evals/judge-calibration/cases/copy.py",
+        "Flag stranded docs conventions on the promote lane.",
+    ),
+    path(
+        "lane-code-metrics-language",
+        "**/evals/**/samples/**",
+        "plugins/alpha/evals/one/samples/answer.json",
+        "Files outside every language lane carry a line count.",
+    ),
+    path(
+        "lane-code-metrics-language",
+        "plugins/testing/skills/audit/evals/judge-calibration/**",
+        "plugins/testing/skills/audit/evals/judge-calibration/cases/copy.py",
+        "Files outside every language lane carry a line count.",
+    ),
+    path(
+        "lane-dead-code-analyzer",
+        "**/evals/**/samples/**",
+        "plugins/alpha/evals/one/samples/answer.json",
+        "Run dead-code-scan.sh --lane grep over src.",
+    ),
+    path(
+        "lane-dead-code-analyzer",
+        "plugins/testing/skills/audit/evals/judge-calibration/**",
+        "plugins/testing/skills/audit/evals/judge-calibration/cases/copy.py",
+        "Run dead-code-scan.sh --lane grep over src.",
+    ),
+    path(
+        "lane-coupling-step",
+        "**/evals/**/samples/**",
+        "plugins/alpha/evals/one/samples/answer.json",
+        "A second list is always a route-lane ledger entry.",
+    ),
+    path(
+        "lane-coupling-step",
+        "plugins/testing/skills/audit/evals/judge-calibration/**",
+        "plugins/testing/skills/audit/evals/judge-calibration/cases/copy.py",
+        "A second list is always a route-lane ledger entry.",
+    ),
+    path(
+        "lane-owning-skill",
+        "**/evals/**/samples/**",
+        "plugins/alpha/evals/one/samples/answer.json",
+        "Hand the findings off to the remediation lanes.",
+    ),
+    path(
+        "lane-owning-skill",
+        "plugins/testing/skills/audit/evals/judge-calibration/**",
+        "plugins/testing/skills/audit/evals/judge-calibration/cases/copy.py",
+        "Hand the findings off to the remediation lanes.",
+    ),
+    path(
+        "lane-view-producer",
+        ".changes/**",
+        ".changes/code-tidying/rename.md",
+        "Run `view-settings.mjs resolve --producer <id>` (`--lane` is gone).",
+    ),
+    path(
+        "lane-placement-direction",
+        ".changes/**",
+        ".changes/code-tidying/rename.md",
+        "It takes `--direction demote|promote` (`--lane` is gone).",
+    ),
+    path(
+        "lane-code-metrics-language",
+        ".changes/**",
+        ".changes/code-tidying/rename.md",
+        "`scripts/detect-lanes.sh` is `scripts/detect-languages.sh`.",
+    ),
+    path(
+        "lane-dead-code-analyzer",
+        ".changes/**",
+        ".changes/code-tidying/rename.md",
+        "Run `dead-code-scan.sh --analyzer <name>` (`--lane` is gone).",
+    ),
+    path(
+        "lane-dead-code-analyzer",
+        "plugins/code-tidying/skills/audit-dead-code/evals/fixtures/**",
+        "plugins/code-tidying/skills/audit-dead-code/evals/fixtures/standalone.mjs",
+        "// Standalone-module control for the grep lane.",
     ),
 ]
 
