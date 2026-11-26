@@ -55,9 +55,11 @@ script on another machine goes over port 22 instead: `<ssh> <win-alias> '<pwsh c
 Placeholders, each filled from FLEET.md or a probe, never guessed:
 
 - `<ssh>`: the client the `ssh_client` option names, `${user_config.ssh_client}`, the same one the
-  session-start peer list runs. Empty or still the literal token means unset: then the platform's
-  own client, `ssh.exe` from Windows, `/mnt/c/Windows/System32/OpenSSH/ssh.exe` from WSL (the
-  Windows side holds the fleet key), `/usr/bin/ssh` elsewhere.
+  session-start peer list runs. It counts only as an absolute path (a drive-letter path on Windows)
+  to a file named `ssh` or `ssh.exe`; empty, still the literal token, or any other value means
+  unset: then the platform's own client, `ssh.exe` from Windows,
+  `/mnt/c/Windows/System32/OpenSSH/ssh.exe` from WSL (the Windows side holds the fleet key),
+  `/usr/bin/ssh` elsewhere.
 - `<wsl-alias>` / `<win-alias>`: the target's `wsl-shell` (port 2222) and `windows-shell` (port 22)
   aliases.
 - `<claude-exe>`: `/mnt/c/Users/<user>/.local/bin/claude.exe`, by absolute path.
