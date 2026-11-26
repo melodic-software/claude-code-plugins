@@ -232,7 +232,6 @@ class ViewHandler(bridge.LoopbackHandler):
         )
 
 
-
 def parse_ops(raw, seqs):
     """{handled: [seq], replies: [{seq, text}]} checked against the log's seqs, or ValueError."""
     if not isinstance(raw, dict) or set(raw) - {"handled", "replies"}:

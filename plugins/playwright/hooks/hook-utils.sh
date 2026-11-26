@@ -1455,7 +1455,7 @@ hook::data_json_to() {
   printf -v "$__hu_dj_dest" '%s' "$__hu_dj_out"
 }
 
-# shellcheck disable=SC2034  # the caller's contract: every name above is read by the hook, not here
+# shellcheck disable=SC2034  # the caller's contract: the globals set here are read by the hook
 hook::begin() {
   local __hu_bg_relative=0 __hu_bg_unscoped=0 __hu_bg_notebook=0
   local __hu_bg_root_fn="" __hu_bg_prejq_fn=""
@@ -1685,7 +1685,7 @@ hook::session_telemetry_sink_to() {
   __hu_hos_cfg="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
   __hu_hos_cfg="${__hu_hos_cfg//\\//}"
   # Plugin data directories sit at <config dir>/plugins/data/<id>:
-  # https://code.claude.com/docs/en/plugins-reference#environment-variables
+  # https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables
   __hu_hos_roots+=("${__hu_hos_cfg%/}/plugins/data")
   for __hu_hos_root in "${__hu_hos_roots[@]}"; do
     for __hu_hos_c in "$__hu_hos_root"/session-telemetry-*/hook-telemetry-sink.sh; do

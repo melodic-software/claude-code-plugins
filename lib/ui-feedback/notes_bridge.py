@@ -419,7 +419,6 @@ class NotesHandler(view.ViewHandler):
         )
 
 
-
 def cmd_status(d, a):
     log = view.load_log(d / "actions.json")
     handled = set(view.load_json(d / "replies.json", {}).get("handled", []))

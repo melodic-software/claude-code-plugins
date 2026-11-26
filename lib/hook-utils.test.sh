@@ -2963,7 +2963,7 @@ ce_probe() {
   shift 2
   local got
   got=$(
-    # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
+    # shellcheck disable=SC2016  # $0 must NOT expand here
     env -u CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED \
       "$@" bash -c 'source "$0"; hook::check_enabled "RATE_LIMITS"; printf RUN' \
       "$HOOK_DIR/hook-utils.sh" 2>/dev/null
@@ -2988,7 +2988,7 @@ ie_probe() {
   shift 2
   local got
   got=$(
-    # shellcheck disable=SC2016  # $0 must NOT expand here: it is the child bash's
+    # shellcheck disable=SC2016  # $0 must NOT expand here
     env -u CLAUDE_PLUGIN_OPTION_RATE_LIMITS_ENABLED \
       "$@" bash -c 'source "$0"
         if hook::is_enabled "RATE_LIMITS"; then printf ENABLED; else printf DISABLED; fi
@@ -3201,7 +3201,7 @@ rrp_case() {
 rrp_case nocyg "strips the repo root" /repo/a/b.md /repo a/b.md 0
 rrp_case nocyg "root mismatch redacts to basename" /elsewhere/a/b.md /repo b.md 1
 rrp_case nocyg "drive-letter path redacts" 'C:/proj/app/a/b.md' /repo b.md 1
-# portability-ok: a literal Windows UNC fixture path; the \s and \b are path
+# portability-ok: a literal Windows UNC fixture path
 rrp_case nocyg "UNC path redacts on the backslash" '\\srv\share\b.md' /repo b.md 1
 rrp_case nocyg "an already-relative path passes through" a/b.md /repo a/b.md 0
 rrp_case nocyg "the root as the file redacts" /repo /repo repo 1

@@ -695,7 +695,6 @@ def start(handler, make_hub, port, nonce=""):
     return httpd, hub
 
 
-
 def ping(port, timeout=1.0):
     """GET /api/ping on 127.0.0.1 (no proxy); the parsed body on 200, else None."""
     conn = http.client.HTTPConnection("127.0.0.1", int(port), timeout=timeout)

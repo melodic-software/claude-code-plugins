@@ -32,7 +32,7 @@ export function isPublicHost(host) {
 }
 
 // Claude Code substitutes plugin paths with forward slashes on Windows too:
-// https://code.claude.com/docs/en/plugins-reference#quoting-and-path-separators
+// https://code.claude.com/docs/en/plugins/manifest-reference#quoting-and-path-separators
 const COMMAND = /^bash +"([^"$`\\\x00-\x1f\x7f]+)" +(--render +)?('[^'"\\\x00-\x20\x7f]+'|[A-Za-z0-9._~:/%=+#-]+)((?: +[1-9][0-9]{0,5}){0,20}) *$/
 
 const fold = s => (process.platform === 'win32' ? s.toLowerCase() : s)

@@ -2,7 +2,7 @@
 # GENERATED from lib/state-key.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 # ${CLAUDE_PLUGIN_DATA} is keyed to the plugin identifier only; this adds the project segment:
-# https://code.claude.com/docs/en/plugins-reference#environment-variables
+# https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables
 #
 # Exit:
 #   0  a successful derivation: every input reaches some rung
