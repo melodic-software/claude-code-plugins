@@ -1,7 +1,3 @@
-// Builds a lane's prompt context from a PR: its title and body, issue
-// comments, reviews, review comments, and the issues it closes with their
-// comments, keeping only items whose own author is on the trusted-actor list.
-// Dropped items are counted and never written or logged.
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -49,9 +45,6 @@ const prPage = (github, query, repository, prNumber, after) => {
   return github("POST", "/graphql", { query, variables: { owner, name, number: Number(prNumber), after } });
 };
 
-// Every node of one PR connection (`closingIssuesReferences` or
-// `timelineItems`), page by page; a page with no node list or more than the
-// cap throws. `first`, when given, is an answer already holding page one.
 async function prConnection(github, query, field, repository, prNumber, first) {
   const nodes = [];
   let after = null;
@@ -70,16 +63,11 @@ async function prConnection(github, query, field, repository, prNumber, first) {
   throw new Error(`${field} exceeds ${MAX_GRAPHQL_PAGES} pages`);
 }
 
-// Who renamed the PR's title, one entry per rename, oldest first: the actor's
-// { __typename, databaseId }, or null when GitHub cannot name it. pr-verify's
-// resolve-pr.mjs reads renames through this too. `first` as prConnection's.
 export async function titleRenamers(github, repository, prNumber, first) {
   const renames = await prConnection(github, TITLE_RENAMES, "timelineItems", repository, prNumber, first);
   return renames.map((event) => event?.actor ?? null);
 }
 
-// PullRequest, Issue, IssueComment, PullRequestReview and
-// PullRequestReviewComment all implement Comment.
 const LAST_EDITORS = `query($ids: [ID!]!) {
   nodes(ids: $ids) {
     id
@@ -90,8 +78,6 @@ const LAST_EDITORS = `query($ids: [ID!]!) {
   }
 }`;
 
-// An item is trusted when its author's id is listed and, if it was posted
-// through a GitHub App, that App's bot account is listed too.
 function createTrustCheck(github, ids) {
   const appBots = new Map();
   async function appBotListed(app) {
@@ -254,8 +240,6 @@ export async function buildTrustedContext({ github, repository, prNumber, ids, r
   if (prTrusted && !prKept) {
     dropped["edited-by-untrusted"] += 1;
   }
-  // The edit check above covers the body only; a title counts as written by
-  // everyone who renamed it.
   let titleKept = prKept;
   if (prKept) {
     const renamers = await titleRenamers(github, repository, prNumber, reads && !(reads.pull && reads.renames) ? undefined : firstPages);
@@ -287,10 +271,6 @@ export async function buildTrustedContext({ github, repository, prNumber, ids, r
   };
 }
 
-// An issue's comments, oldest first, kept under the same author and edit rules
-// as a PR's, each as { comment, lastEditedAt, lastEditorId } (the REST
-// comment, and the last edit time and editor id, or null when never edited).
-// The issue lane's write-issue.mjs shapes them.
 export async function selectTrustedIssueComments({ github, repository, issueNumber, ids }) {
   const trusted = createTrustCheck(github, ids);
   const dropped = { "issue-comment": 0, "edited-by-untrusted": 0 };
@@ -321,9 +301,6 @@ export async function selectTrustedIssueComments({ github, repository, issueNumb
 const DECISION = /^\*\*Decision recorded\.\*\*(\s|$)/;
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
 
-// A decision is a listed human's own text: a kept comment whose first line is
-// `**Decision recorded.**`, not posted through an App, and never edited or
-// last edited by a listed human. `humans` holds the list's human ids.
 export function isDecisionComment({ comment, lastEditedAt, lastEditorId }, humans) {
   return (
     humans.has(comment.user?.id) &&
@@ -333,11 +310,6 @@ export function isDecisionComment({ comment, lastEditedAt, lastEditorId }, human
   );
 }
 
-// Returns a predicate over node ids: true when the node was never edited or
-// its last editor is listed. A node missing from the answer, or an edit with
-// no resolvable editor, is false. Its `lastEditedAt` and `lastEditorId` maps
-// hold each kept node's last edit time and editor id (null when never
-// edited). GraphQL errors raise.
 async function readEditors(github, ids, nodeIds) {
   const unique = [...new Set(nodeIds.filter((id) => typeof id === "string" && id !== ""))];
   const trustedNodes = new Set();
@@ -362,8 +334,6 @@ async function readEditors(github, ids, nodeIds) {
   return Object.assign((nodeId) => trustedNodes.has(nodeId), { lastEditedAt, lastEditorId });
 }
 
-// Returns the process exit code. On any failure nothing is written, so a lane
-// never reads a partial context.
 export async function main({ env = process.env, github, log = console.log } = {}) {
   const outputPath = env.OUTPUT_PATH;
   try {

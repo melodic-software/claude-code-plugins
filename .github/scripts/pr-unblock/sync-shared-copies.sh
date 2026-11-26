@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# Regenerate a pull request's shared-library copies on a clean merge of the
-# pinned base, with the base's tooling only: pr-unblock's sync-shared-copies
-# activity, after pr-merge refused the head as shared-copy-sources-changed.
-#
-#   sync-shared-copies.sh <base-dir> <head-dir> <base-sha> <out-patch>
-#
-# <base-dir> is the default branch tip checkout, <head-dir> the PR head with
-# <base-sha> merged into it and not committed (merge-base/prepare.sh's clean
-# state). No head code runs:
-# - the head's merged scripts/sync-shared-copies.sh, scripts/shared-copies.txt
-#   and scripts/lib must equal <base-sha>'s, or it refuses
-#   shared-copy-tooling-changed;
-# - the base's script and scripts/lib are copied outside the checkout and run
-#   from there, so the registry they read is the base's (checked above);
-# - every path the run writes must be a copy the base-tip
-#   scripts/shared-copies.txt registers, or it refuses
-#   shared-copy-path-unregistered and writes no patch.
-# Writes <out-patch> (a binary diff against the merge) and prints
-# state=written|empty, sha256=<hex> and paths=<n>, or refused=<reason>.
-# Empty means the merge already holds current copies, which
-# apply-shared-copies then pushes as the merge alone.
 # Exit 0, 3 on a refusal, 2 on a usage error or a malformed base registry.
 set -euo pipefail
 

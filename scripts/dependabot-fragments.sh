@@ -1,31 +1,4 @@
 #!/usr/bin/env bash
-# Write the changelog fragment for each fragment-mode plugin a merged Dependabot
-# pull request changed (ADR 0048).
-#
-#   scripts/dependabot-fragments.sh [<ref>]
-#
-# A Dependabot pull request gets no commit for a plugin in fragment mode: a
-# commit made with GITHUB_TOKEN holds every run on it at action_required
-# (#5786), and check-changelog-fragments.sh --check-required exempts a pull
-# request of verified Dependabot commits. This script supplies the fragment
-# after the merge. .github/workflows/release-generate-dependabot-changelog-fragments.yml runs it on main and
-# lands its output through a pull request of its own.
-#
-# It walks every first-parent commit on <ref> (default HEAD) that Dependabot
-# authored and that changed plugins/, and for each plugin that commit changed
-# and that is in fragment mode both in the commit's own scripts/fragment-plugins.txt
-# and in the working tree's, writes .changes/<plugin>/dependabot-<pr>-<sha8>.md:
-# a `patch` fragment whose `### Changed` entry is the pull request title and its
-# "Updates `<package>` from <a> to <b>" lines (scripts/lib/dependabot-entry.sh).
-# The name is fixed per commit and plugin, so a fragment is written once: it is
-# skipped when <ref>'s history ever added that path (a release deletes it, the
-# history keeps it), when the working tree already holds it, or when the commit
-# itself added a fragment for the plugin (a pull request from before this
-# script). Nothing is lost when a release runs first: the fragment lands later
-# and the next release takes it.
-#
-# Prints each path it wrote, one per line. Exit 0 (including nothing to write),
-# 1 a fragment it wrote is invalid (it is removed), 2 usage or git failure.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

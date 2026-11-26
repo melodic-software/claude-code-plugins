@@ -1,29 +1,10 @@
 #!/usr/bin/env bash
 # test-scope: plugins/markdown-format/git-hooks/format.sh
-# Black-box contract test for the markdown-format PostToolBatch row, launched exactly
-# as hooks.json registers it (node exec-bash.mjs with the row's args).
-#
-# Proves WIRING: one PostToolBatch row and no PostToolUse row; the row rewrites
-# the .md and .mdc files a Write, Edit or MultiEdit in the batch named, once per
-# batch, and never anything a Read named; it prints nothing (no finding, no
-# disclosure reaches the model) and exits 0; a markdownlint config must govern the
-# file (present -> run, absent -> leave bytes untouched) and must not be able to
-# run repository code unless the user approved its state; the config's ignores, .githooks/, gitignored files and the
-# kill switch are honored; a batch with no Markdown edit costs only the launcher.
-#
-# Self-contained: builds throwaway git repos with runtime-generated fixtures. The
-# row is run from an UNRELATED cwd so any reliance on the caller's working
-# directory would surface.
-#
-# Requires a real markdownlint-cli2: on PATH, else the repository's locked install.
-# Without one the behavioral assertions cannot run, so the suite skips.
 # test-scope: plugins/markdown-format/.claude-plugin/plugin.json plugins/markdown-format/hooks/hooks.json plugins/markdown-format/prerequisites.json plugins/markdown-format/git-hooks/markdown-gates.sh
 # test-scope: plugins/markdown-format/git-hooks/adapters.sh plugins/markdown-format/lib/git-hooks/resolve-tool.sh
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -99,9 +80,6 @@ else
   fail "probe cases need git and node"
 fi
 
-# The batch row takes no matcher and no `if`: the hooks reference says neither
-# applies to the event, so its launcher flag is the only filter. The script reads
-# the paths itself.
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
   EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","--skip-unless-stdin-contains",".md","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh"]'
@@ -160,8 +138,6 @@ payload() {
   jq -n --arg t "$tool" '{session_id: "s", hook_event_name: "PostToolBatch", tool_calls: [$ARGS.positional[] | {tool_name: $t, tool_input: {file_path: .}, tool_use_id: "toolu_x", tool_response: "ok"}]}' --args "$@"
 }
 
-# fire <payload> [env...]: the registered row, from an unrelated cwd. CLAUDE_PROJECT_DIR
-# stays unset so scoping falls to git-working-tree membership.
 fire() {
   local p="$1"
   shift
@@ -173,8 +149,6 @@ fire() {
 
 run_edit() { fire "$(payload Edit "$1")"; }
 
-# Two documented rule outcomes drive the fixtures: markdownlint MD047 (a file ends
-# with one newline) is fixable, and MD033 (no inline HTML) is not.
 NO_NL=$'# T\n\ntext'
 FIXED=$'# T\n\ntext\n'
 
@@ -186,7 +160,6 @@ RC=$?
 expect "no config: exit 0 and silent" "0|" "$RC|$OUT"
 expect "no config: file left untouched" "$NO_NL" "$(cat "$REPO_NO/a.md")"
 
-# A package.json property is no opt-in: markdownlint-cli2 reads it only under --config.
 REPO_PJ="$WORK/package-json"
 new_md_repo "$REPO_PJ" NO_CONFIG
 printf '{"markdownlint-cli2":{"config":{"default":true}}}\n' >"$REPO_PJ/package.json"
@@ -286,7 +259,6 @@ expect "a nested config governs a file below it" "${FIXED}x" "$(
 )"
 expect "a file outside the nested config is untouched" "$NO_NL" "$(cat "$REPO_NE/top.md")"
 
-# A config that can run repository code is never run, and nothing says so.
 for cfg_case in "cjs" "customRules" "backslash"; do
   REPO_CODE="$WORK/code-$cfg_case"
   new_md_repo "$REPO_CODE" NO_CONFIG
@@ -432,10 +404,7 @@ expect "with a record, the adapter formats the file" "${FIXED}x" "$(
 )"
 expect "the record command was not called" "no" "$([[ -e "$WORK/record-ran" ]] && echo yes || echo no)"
 
-# PostToolBatch has no matcher, so the row fires on every batch of every session.
-# A batch that never mentions .md costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" markdown-format PostToolBatch markdown-format.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/main.py"},"tool_use_id":"toolu_census","tool_response":"import os"}]}' \

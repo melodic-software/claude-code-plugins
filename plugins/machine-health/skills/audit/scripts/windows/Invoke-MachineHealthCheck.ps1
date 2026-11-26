@@ -84,7 +84,6 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
-# The console code page (often 437) mangles characters such as ® (into "r"); the reader expects UTF-8.
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $libRoot = Join-Path $PSScriptRoot 'lib'
@@ -136,11 +135,6 @@ function Write-StderrBanner {
 $runStart = Get-Date
 $runId = $runStart.ToString('o')
 $runDate = $runStart.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
-# Filesystem-safe UTC run stamp for per-run artifact names (colons are invalid
-# in Windows paths). Millisecond precision so two runs in the same second (a
-# scheduler retry/overlap, or a fast mostly-cadence-deferred run) still write
-# distinct report/battery filenames rather than overwriting each other. Gregorian
-# whatever the culture: th-TH would otherwise write the Buddhist year.
 $runStamp = $runStart.ToUniversalTime().ToString('yyyy-MM-ddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture)
 $hostname = [System.Net.Dns]::GetHostName()
 $effectiveDry = $DryRun.IsPresent -or ($RunMode -eq 'first-run')
@@ -161,9 +155,6 @@ $reportsDir = Join-Path $OutputBase 'reports'
 $stateDir = Join-Path $StateBase 'state'
 $logsDir = Join-Path $StateBase 'logs'
 
-# Elevated pass: this process holds the admin token, so it reads the catalog and mutes,
-# runs the elevation-matrix checks, fills the pre-created result file and exits. It
-# creates no directory and writes nothing else, so it branches before every write below.
 if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
     . (Join-Path $libRoot 'Write-ElevatedResult.ps1')
     $passLog = [System.Collections.Generic.List[string]]::new()
@@ -177,8 +168,6 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
         $shippedCatalog = ConvertFrom-Jsonc -InputText (
             Get-Content -LiteralPath (Join-Path $skillRoot 'catalog\checks.jsonc') -Raw -ErrorAction Stop)
         $shippedChecks = @($shippedCatalog.checks | Where-Object { $_ -and $_.PSObject.Properties['id'] })
-        # The overlay under StateBase is user-writable: it may only switch a check off
-        # here, never change which script runs.
         $effectiveChecks = $shippedChecks
         $overlayPath = Join-Path $StateBase 'catalog\checks.local.jsonc'
         if (Test-Path -LiteralPath $overlayPath) {
@@ -239,12 +228,8 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
     exit 0
 }
 
-# Approval state is a standard-run read that creates the state folder, so it loads only past
-# the elevated-pass branch.
 . (Join-Path $libRoot 'Get-ApprovalState.ps1')
 
-# Plugin state never goes into a cloud-synced folder; see the StateBase
-# parameter help for what a synced StateBase still gets.
 $guardWarnings = @()
 $stateLocation = Assert-StateBaseLocation -Path $StateBase -WarningVariable +guardWarnings -WarningAction SilentlyContinue
 $outputLocation = Assert-StateBaseLocation -Path $OutputBase -WarningVariable +guardWarnings -WarningAction SilentlyContinue
@@ -289,8 +274,6 @@ if ($stateWritable) {
     }
 }
 
-# The log defaults bound below live in the caller's $PSDefaultParameterValues; the finally
-# puts back whatever was there so a later run in the same session starts clean.
 $logDefaultKeys = @('Write-MachineHealthLog:LogPath', 'Write-MachineHealthLog:ToStderr')
 $savedLogDefaults = @{}
 foreach ($k in $logDefaultKeys) {
@@ -313,10 +296,6 @@ try {
     Write-MachineHealthLog ("run_start run_id=$runId mode=$RunMode dry_run=$($DryRun.IsPresent) " +
         "output_base=$OutputBase state_base=$StateBase state_writable=$stateWritable")
 
-    # Guard: the checked-in catalog/cisa-kev.json is a seed STUB only. If the file
-    # on disk is larger than the stub (which would mean machine-refreshed live data
-    # has contaminated source control), warn loudly. Never mutate automatically --
-    # the user decides whether to `git checkout -- catalog/cisa-kev.json`.
     $seedKevPath = Join-Path $skillRoot 'catalog\cisa-kev.json'
     if (Test-Path -LiteralPath $seedKevPath) {
         try {
@@ -340,8 +319,6 @@ try {
         Write-MachineHealthLog 'dry_run forced by RunMode=first-run'
     }
 
-    # User-load heuristic: last input <60s. LASTINPUTINFO is user32 interop --
-    # if unavailable, default to "not loaded."
     function Test-UserLoad {
         try {
             if (-not ([System.Management.Automation.PSTypeName]'UserLoadInterop').Type) {
@@ -433,11 +410,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
             ($_.os -contains 'windows') -and ($_.enabled) -and (-not $_.deprecated)
         })
 
-    # Pre-run elevation banner (stderr only; stdout remains clean JSON).
-    # Non-elevated + no -SkipBanner => print the coverage matrix so the user
-    # knows up-front what will be degraded and how to re-run with admin. The
-    # covered list comes from the loaded catalog, so it runs after the load; a
-    # failed load leaves it empty and the banner omits that section.
     try {
         Write-ElevationBanner `
             -Elevated $elevated `
@@ -450,13 +422,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         Write-MachineHealthLog "banner_render_failed $($_.Exception.Message)"
     }
 
-    # Load history tail. Depth 100 (not 8) so cadence selection can still find a
-    # monthly check's last run when many weekly reruns / on-demand runs fall inside
-    # the ~27-day interval -- an 8-line tail would push the last actual run off the
-    # window and re-run the check prematurely. Trend uses only the recent slice.
-    # Wrap in @() so a first run (no history file -> the helper emits nothing, which
-    # would bind as $null) yields an empty array for the [AllowEmptyCollection()]
-    # consumers below.
     $historyDepth = 100
     $historyPath = Join-Path $stateDir 'history.jsonl'
     $historyTail = @(Read-HistoryJsonl -Path $historyPath -Tail $historyDepth)
@@ -624,11 +589,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         Write-MachineHealthLog "discovery_failed $($_.Exception.Message)"
     }
 
-    # First-run proposal: suggest installing Microsoft.WinGet.Client module when
-    # it's absent. The text-parse fallback is localization-fragile. Never auto-
-    # install per SKILL.md. The proposal is machine-specific state: queue it in the
-    # state-root proposals file (Get-TodoPath), print a loud banner to stderr, and
-    # append a log line. Never write to the repo.
     if ($RunMode -eq 'first-run' -and $stateWritable) {
         try {
             $hasWingetModule = $null -ne (Get-Module -ListAvailable Microsoft.WinGet.Client -ErrorAction SilentlyContinue)
@@ -684,11 +644,6 @@ modules. Harmless to ignore.
     $urlsCalled = @()
     if ($runLog) {
         try {
-            # Scope to current run only -- the log file is day-scoped (run-YYYY-MM-DD.log)
-            # so a second run on the same day would otherwise inherit earlier runs'
-            # URLs. Compare as DateTimeOffset so mixed offsets (e.g., DST fall-back)
-            # order chronologically, not lexicographically. Lines whose timestamp
-            # fails to parse are dropped with a log note rather than included.
             $runStartOffset = [DateTimeOffset]::Parse($runId)
             $urlsCalled = @(Read-EgressLog -LogPath $runLog |
                     Where-Object {
@@ -728,9 +683,6 @@ modules. Harmless to ignore.
         Write-MachineHealthLog "wrote_latest_json path=$latestPath"
     }
 
-    # Compact history line -- extract scalar detail properties per check into
-    # top_metrics so subsequent runs can detect trend context. Keys use the
-    # "{checkId}.{detailKey}" convention documented in reference/shared/output-schema.md.
     $topMetrics = ConvertTo-TopMetric -CheckResults $checkResults
     $checkSeverities = [ordered]@{}
     foreach ($r in $checkResults) {

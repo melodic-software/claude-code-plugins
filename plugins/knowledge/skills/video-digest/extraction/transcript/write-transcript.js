@@ -162,7 +162,6 @@ export function buildTranscriptText(
   let cues;
 
   if (isAutoCaption) {
-    // Decode after parsing: the cleaner's VTT output must keep `&lt;` escaped.
     cues = cleanAutoCaptions(vttText)
       .cues.map((cue) => ({ ...cue, text: stripCaptionHtmlEntities(cue.text) }))
       .filter((cue) => cue.text.length > 0);

@@ -1,56 +1,28 @@
 #!/usr/bin/env bash
-# Count what one registered hooks.json command costs per fire, at the kernel.
-#
-#   scripts/hook-census.sh <plugin> <event> <row> <payload> [options]
-#
-#   <row>      fixed text the handler's command or args contain. The first
-#              handler under <event> is the one run. Shell form (no args key)
-#              runs as `sh -c <command>`. Exec form (an args key) runs
-#              `command` with that vector, placeholders expanded, no shell.
-#   <payload>  the stdin JSON. `@DIR@` becomes the scratch repository (the
-#              fire's cwd and CLAUDE_PROJECT_DIR), `@TRANSCRIPT@` the generated
-#              transcript.
-#
-#   --measure spawns            (default) process creations plus successful
-#                               execve calls, the hook's own `sh` included
-#   --measure transcript-bytes  bytes read from the transcript by any process
-#   --measure growth            transcript bytes at 10 MiB minus at 50 KiB,
-#                               floored at 0: a hook whose per-fire read does
-#                               not grow with the transcript prints 0
-#   --transcript-bytes N        generate a deterministic JSONL transcript of
-#                               whole lines, at most N bytes
-#   --seed                      fire once untraced first, then append one line
-#                               to the transcript, so the measured fire takes
-#                               the warm path a later turn takes
-#   --env K=V                   extra environment for every fire (repeatable)
-#   --setup CMD                 run in the scratch repository before any fire
-#   --check CMD                 run there after the measured fire; it asserts
-#                               the path taken. $HOOK_STDOUT holds its stdout.
-#
-#   scripts/hook-census.sh --versions
-#                               print the versions of the programs a count
-#                               depends on, for reading an ABOVE after a
-#                               runner image change
-#
-# Every fire runs under `env -i` with a fresh HOME, TMPDIR, CLAUDE_PLUGIN_DATA
-# and scratch git repository, all removed on exit, plus LC_ALL=C and no system
-# git config, so nothing the host carries moves the count except the programs
-# on PATH. Those are what --versions names. strace follows descriptors under
-# -P, so a builtin read (`mapfile <"$t"`) is counted the same as `cat "$t"`; a
-# spawn counter cannot see that class (#4408).
-#
-# The fire is not network-sandboxed, and CLAUDE_PLUGIN_ROOT is this checkout:
-# the ubuntu-24.04 runner refuses `unshare -rn` (write to /proc/self/uid_map
-# not permitted). A payload must steer the hook down a path that neither
-# reaches the network nor writes under its plugin root.
-#
-# Exit: 0 measured; 2 cannot measure (bad arguments, no strace, jq or git, no
-# such row, --setup failed); 3 the fire exited nonzero, --check failed, or a
-# growth fire read no transcript byte at either size.
 set -euo pipefail
 
 usage() {
-  sed -n '2,/^set -euo/{/^#/!d;s/^# \{0,1\}//;p}' "$0" >&2
+  cat >&2 <<'EOF'
+Count what one registered hooks.json command costs per fire, at the kernel.
+
+  scripts/hook-census.sh <plugin> <event> <row> <payload> [options]
+  scripts/hook-census.sh --versions   print the versions of the programs a count depends on
+
+  <row>      fixed text the handler's command or args contain; the first match under <event> runs
+  <payload>  the stdin JSON; @DIR@ becomes the scratch repository, @TRANSCRIPT@ the generated transcript
+  --measure spawns            (default) process creations plus successful execve calls
+  --measure transcript-bytes  bytes read from the transcript by any process
+  --measure growth            transcript bytes at 10 MiB minus at 50 KiB, floored at 0
+  --transcript-bytes N        generate a deterministic JSONL transcript of at most N bytes
+  --seed                      fire once untraced first, then append one transcript line
+  --env K=V                   extra environment for every fire (repeatable)
+  --setup CMD                 run in the scratch repository before any fire
+  --check CMD                 run there after the measured fire; $HOOK_STDOUT holds its stdout
+
+Exit: 0 measured; 2 cannot measure (bad arguments, no strace, jq or git, no
+such row, --setup failed); 3 the fire exited nonzero, --check failed, or a
+growth fire read no transcript byte at either size.
+EOF
   exit 2
 }
 
@@ -113,11 +85,6 @@ HOOKS_JSON="$ROOT/hooks/hooks.json"
   echo "hook-census: no $HOOKS_JSON" >&2
   exit 2
 }
-# Shell form is `sh -c <command>`, the Linux shell the hooks docs name.
-# Exec form (an `args` key, even empty) is the executable plus that vector,
-# with ${CLAUDE_PLUGIN_ROOT}, ${CLAUDE_PLUGIN_DATA}, and ${CLAUDE_PROJECT_DIR}
-# expanded here. The row match looks at the command and at each arg, so a
-# needle that lives only in args still selects the row.
 HOOK_JSON="$(jq -c --arg e "$EVENT" --arg r "$ROW" \
   'first(.hooks[$e][]?.hooks[]? | select(type == "object") | select(
       ((.command // "") | tostring | contains($r))
@@ -136,9 +103,6 @@ jq -e 'has("args")' <<<"$HOOK_JSON" >/dev/null && HOOK_EXEC=1
   exit 2
 }
 
-# No dot before the random part: mktemp's default `tmp.XXXXXXXXXX` can draw a
-# suffix starting `md`, putting `.md` in the payload's @DIR@ paths and defeating
-# a launcher that skips on that text (#8425).
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/hook-census-XXXXXXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -169,8 +133,6 @@ census_once() {
       exit 2
     }
   fi
-  # expand_hook_field <text>: the three placeholders Claude substitutes
-  # into an exec-form command and each arg, as plain strings.
   expand_hook_field() {
     local s=$1
     s=${s//\$\{CLAUDE_PLUGIN_ROOT\}/$ROOT}
@@ -212,7 +174,6 @@ census_once() {
     }
   fi
 
-  # -ff writes one file per pid, so a call and its result share a line.
   if [[ "$mode" == spawns ]]; then
     local creations execs
     creations="$(cat "$run"/trace.* | grep -E '^(clone|clone3|fork|vfork)\(' | grep -v CLONE_THREAD | grep -cE '= [0-9]+$' || :)"

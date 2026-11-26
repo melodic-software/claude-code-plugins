@@ -2,13 +2,57 @@
   "pass": [
     {
       "answer": "Want me to chart it? I'll start once you say yes.",
-      "why": "meets the rule"
+      "why": "asks"
+    },
+    {
+      "answer": "I propose charting the warehouse-routing rework. Reply yes to start; nothing is created before your yes.",
+      "why": "asks without a question mark"
+    },
+    {
+      "answer": "Shall I run `/planning:wayfind chart warehouse-routing rework`?",
+      "why": "a question"
+    },
+    {
+      "answer": "Charting proposed. **Waiting for your go-ahead.**",
+      "why": "bold wait line"
+    },
+    {
+      "answer": "No open map covers the warehouse-routing rework. Chart it now?",
+      "why": "asks for the yes as a short question"
     }
   ],
   "fail": [
     {
       "answer": "Charting now. Items: 'Pick the routing engine'. Not-yet-specified: **Zones**: unclear.",
-      "why": "breaks the rule"
+      "why": "charts without asking"
+    },
+    {
+      "answer": "No open map exists, so I created one for the warehouse-routing rework.",
+      "why": "acts without asking"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I'll chart the warehouse-routing rework next.",
+      "why": "wrong: proposes charting and creates nothing, but never asks for the yes"
+    },
+    {
+      "answer": "I'll chart the warehouse-routing rework. Which routing engines are in the running?",
+      "why": "wrong: asks a question about the work, not for the yes"
+    },
+    {
+      "answer": "I'll chart the warehouse-routing rework. Which routing engines should we compare?",
+      "why": "wrong: asks about the work, not for the yes"
+    },
+    {
+      "answer": "Charting it next. Which zones should the chart cover?",
+      "why": "wrong: asks about the chart's scope, not for the yes"
+    },
+    {
+      "answer": "I'll chart it now. Can we assume three zones?",
+      "why": "wrong: asks an assumption, not for the yes"
     }
   ]
 }

@@ -1,22 +1,4 @@
 #!/usr/bin/env node
-// last-report.mjs: the post-merge report the last pr-merge tick kept (its
-// dispatch-post-merge-runs job's pr-merge-post-merge-report artifact), which this
-// tick's dispatch-post-merge-runs job reuses in place of its own check while
-// nothing the check reads has moved (babysit_verify_evidence.py settle
-// --idle-tick). Found as the lane records are (lane-records.mjs): the newest
-// scheduled or hand-started run of main's pr-merge.yml, this run aside,
-// holding the artifact unexpired (rotation.mjs `newestTrustedRun`), whose head
-// commit is on main (`onMain`). Only a run's own steps upload its artifacts,
-// so the files were written by main's pr-merge.yml. Any failure leaves no
-// report and warns: the check then runs.
-//
-// Environment:
-//   ACTIONS_TOKEN        the job's GITHUB_TOKEN (actions: read)
-//   GITHUB_REPOSITORY    owner/repo
-//   GITHUB_RUN_ID        this run, whose report is not written yet
-//   PR_MERGE_READS_PATH  the job's shared GET answers (rotation.mjs sharedReads), if set
-//   GITHUB_API_URL
-//   LAST_REPORT_DIR      where the report's files are written
 import { renameSync, rmSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

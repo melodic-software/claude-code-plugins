@@ -27,7 +27,6 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-# The console code page (often 437) mangles characters such as ® (into "r"); the reader expects UTF-8.
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $libRoot = Join-Path $PSScriptRoot 'lib'
@@ -64,7 +63,6 @@ if (-not (Test-Path -LiteralPath $LatestPath -PathType Leaf)) {
     try {
         $text = Read-SharedText -Path $LatestPath
         $latest = $text | ConvertFrom-Json
-        # JsonNode keeps run_id as written; ConvertFrom-Json turns a date-shaped string into a DateTime.
         $runNode = [System.Text.Json.Nodes.JsonNode]::Parse($text)['run_id']
         if ($runNode -isnot [System.Text.Json.Nodes.JsonValue] -or $runNode.GetValueKind() -ne 'String') { throw 'no run_id' }
         $runId = $runNode.GetValue[string]()

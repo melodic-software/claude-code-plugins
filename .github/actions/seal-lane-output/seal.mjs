@@ -17,8 +17,6 @@ export class SealError extends Error {}
 
 export const keyIdOf = (raw) => crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
 
-// The public key file: one line, `x25519 <key id> <base64 raw key>`, where the
-// key id is the first 16 hex digits of the raw key's SHA-256.
 export function parsePublicKey(text) {
   const match = KEY_LINE.exec(String(text).trim());
   const raw = match && Buffer.from(match[2], "base64");
@@ -37,7 +35,6 @@ export function context(name, runId, jobId) {
   return Buffer.from(`lane-output/v${VERSION}\0${name}\0${runId}\0${jobId}`);
 }
 
-// One record: version (1) | key id (8) | ephemeral public key (32) | nonce (12) | ciphertext | tag (16).
 export function sealRecord(recipient, name, data, runId, jobId) {
   const bound = context(name, runId, jobId);
   const ephemeral = crypto.generateKeyPairSync("x25519");
@@ -51,7 +48,6 @@ export function sealRecord(recipient, name, data, runId, jobId) {
   return Buffer.concat([header, cipher.update(data), cipher.final(), cipher.getAuthTag()]);
 }
 
-// The bundle: per payload, name length (1) | name | record length (4, big-endian) | record.
 export function sealBundle(recipient, payloads, runId, jobId) {
   const parts = [];
   for (const [name, data] of payloads) {
@@ -63,7 +59,6 @@ export function sealBundle(recipient, payloads, runId, jobId) {
   return Buffer.concat(parts);
 }
 
-// `name=path` lines; a missing path or a symbolic link is an absent payload.
 export function readPayloads(text, cwd) {
   const payloads = [];
   const seen = new Set();

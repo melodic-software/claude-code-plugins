@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# compare-head.sh: whether pull request PR still stands as a compare run of
-# pr-run-plugin-evals.yml measures it: open, from this repository, into
-# DEFAULT_BRANCH, at HEAD_SHA (https://github.com/melodic-software/claude-code-plugins/issues/17854).
-# Reads GH_TOKEN, GITHUB_REPOSITORY, PR, HEAD_SHA and DEFAULT_BRANCH.
 # Exit codes:
 #   0  it stands
 #   1  it does not, or it did not read

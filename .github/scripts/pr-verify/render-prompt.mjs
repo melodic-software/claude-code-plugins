@@ -12,6 +12,8 @@ const DATA_FILES = [
   ["JOBS_FILE", "upstream-jobs.json"],
 ];
 
+import { chunkBudget } from "./write-verdict.mjs";
+
 const fill = (template, pairs) => pairs.reduce((text, [token, value]) => text.replaceAll(token, () => value), template.replace(/\n+$/, ""));
 const bullets = (paths) => paths.map((file) => `  - \`${file}\``).join("\n");
 
@@ -21,6 +23,7 @@ export function renderChunkNote({ template, manifestParts, dataDir, index, count
     ["DATA_DIR", dataDir],
     ["CHUNK_INDEX", String(index)],
     ["CHUNK_COUNT", String(count)],
+    ["CHUNK_BUDGET", String(chunkBudget(count))],
   ]);
 }
 

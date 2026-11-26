@@ -99,8 +99,6 @@ type State = {
   zonesToasted: Set<string>
 }
 
-// plugin.json declares no number bounds, because the engine refuses the whole module for a value
-// outside them; the module checks them here, uses the default and names each bad option once.
 const badOption = (name: string, kind: string, fallback: string) => `context-usage: option ${name} ${kind}; it reads as the default, ${fallback}`
 const quote = (s: string) => JSON.stringify(s.length > 40 ? `${s.slice(0, 40)}...` : s)
 
@@ -347,8 +345,6 @@ async function loadSettings($: EngineInterface, st: State, home: string | undefi
 
 const isoSeconds = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
-// The session's state, created on first use: after /clear or a resume no session.start fires, so
-// every hook starts the new conversation's state lazily.
 const sessionFor = (st: State, sid: string) => {
   let s = st.sessions.get(sid)
   if (s === undefined) {
@@ -555,7 +551,6 @@ function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[
   }
   for (const e of due) e.shown = true
   if (!showable) return
-  // The engine drops a failing toast itself; it never throws into the module.
   if (cfg.toast) $.ui.toast(toastText(crossed.from, to))
   $.ui.invalidate('ui.render')
 }
@@ -782,7 +777,6 @@ export const register: Register = (on, options) => {
         $.ui.invalidate('ui.render')
       }
     }
-    // session.start does not fire after /clear or a resume: register the tool again if it is gone.
     if (st.recheckTool) {
       st.recheckTool = false
       const tools = await $.tool.list().catch(() => undefined)
@@ -846,7 +840,6 @@ export const register: Register = (on, options) => {
     if (sub !== 'band' || rest.length > 0 || (arg !== undefined && arg !== 'on' && arg !== 'off')) return { text: USAGE }
     st.bandShown = arg === undefined ? !st.bandShown : arg === 'on'
     $.ui.invalidate('ui.render')
-    // Claude Code puts the plugin's name before a command's reply, so no reply carries it again.
     return { text: `band row ${st.bandShown ? 'on' : 'off'} for this session` }
   }).catch(($, e, next) => next(e))
 

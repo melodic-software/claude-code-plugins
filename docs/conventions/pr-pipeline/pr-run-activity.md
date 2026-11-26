@@ -1977,8 +1977,11 @@ in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `check-broker` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
-other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
-`path` and `persist-credentials`. One exception, the scan-carrier key: the read file declares
+other than `${{ github.event.repository.default_branch }}` (or `${{ steps.tip.outputs.sha }}` after
+an earlier `id: tip` step that is the SHA-pinned ci-workflows `resolve-branch-tip` action with only
+`branch: main` or the default branch), a `with` key other than `ref`, `path` and
+`persist-credentials`, or an `if` or `continue-on-error`, since an empty ref checks out the
+event's ref. One exception, the scan-carrier key: the read file declares
 `scan-carrier-private-key` (required) and its `scan` job may hold one step that uses
 `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
 exactly; a job that calls the read file passes it by name only,
@@ -2635,8 +2638,11 @@ here:
   run ran differs from the tip's, which the broker would refuse as `workflow-modified`. That commit
   is the run's head, or for a `pull_request_target` run the one its
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
-  The caller's `check-dispatcher-current` job (`dispatcher-current.sh`; in `pr-refine.yml`, a step of
-  `select-passes`) compares the two before any select job or step, so nothing runs and the run ends green with no check and no stop, and the next
+  A step of the caller's first job (`dispatcher-current.sh`: in `pr-unblock.yml`, each activity's
+  select job or `fix-ci-context`; in `pr-refine.yml`, `select-passes`) compares the two before the
+  job reads the PR. `review-dependency-select` holds no `actions: read`, which the compare's run
+  read needs, so for that activity the `check-dispatcher-current` job compares first and the
+  select job does not start. Either way nothing runs and the run ends green with no check and no stop, and the next
   dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
   and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
   run to the broker.

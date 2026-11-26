@@ -1,9 +1,3 @@
-// pr-review-main.yml's collect-trusted-text job reads the PR's trusted text once per
-// run (outage posture element 6). Each leg takes that read only when it is this
-// run attempt's, read at the leg's main commit for its PR and head, with the
-// bytes the job's sha256 names; anything else, a missing artifact included,
-// leaves the leg to read its own. The job and the edges to it never fail the
-// run or skip a leg.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -177,8 +171,6 @@ const triggered = { result: "success", outputs: { "run-attempt": "1", proceed: "
 test("every leg needs the collect-trusted-text job and still runs when it failed, was skipped or left no hash", () => {
   const needs = (job) => /^ {4}needs: \[(.*)\]$/m.exec(jobText(job))?.[1].split(", ") ?? [];
   for (const job of LEGS) assert.ok(needs(job).includes(TEXT), job);
-  // Without a status function GitHub adds success(), which a failed
-  // collect-trusted-text job would fail; each leg's gate starts with its own.
   for (const job of LEGS) assert.ok(/^(?:\S+ != '[a-z-]+' && )?!cancelled\(\) && /.test(jobGate(job)), `${job}: ${jobGate(job)}`);
   for (const result of ["failure", "skipped", "success"]) {
     const text = { result, outputs: {} };
@@ -194,7 +186,6 @@ test("the collect-trusted-text job never fails the run, and runs only where this
   assert.match(job, /^ {4}continue-on-error: true$/m);
   assert.match(job, /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {4}outputs:/m);
   assert.doesNotMatch(job, /secrets\.|run-claude-cli|exit 1/);
-  // Each step that can fail carries its own continue-on-error, so the job ends green.
   for (const s of stepsOf(TEXT)) {
     if (s.name === "Report the kill switch") continue;
     assert.match(s.text, /^ {8}continue-on-error: true$/m, s.name);
@@ -225,7 +216,6 @@ test("the collect-trusted-text job never fails the run, and runs only where this
     rmSync(dir, { recursive: true, force: true });
   }
   assert.equal(ifOf(step(TEXT, "Select the trusted PR text")), "steps.switch.outputs.proceed == 'true'");
-  // A hash leaves the job only for bytes that uploaded after a clean scan.
   assert.equal(ifOf(step(TEXT, "Upload the trusted PR text")), "(steps.select.outcome == 'success') && steps.scan.outputs.clean == 'true'");
   assert.equal(ifOf(step(TEXT, "Record what was read")), "steps.upload.outcome == 'success'");
   for (const [output, from] of [["sha256", "hash"], ["main-sha", "hash"], ["pr-number", "hash"], ["head-sha", "hash"], ["read-at", "hash"]]) {
@@ -252,7 +242,6 @@ test("the collect-trusted-text job's record holds only fixed shapes, hashing the
     assert.match(lines["main-sha"], /^[0-9a-f]{40}$/);
     assert.equal(lines["pr-number"], String(PR));
     assert.equal(lines["head-sha"], HEAD);
-    // The read time is when the uploaded file was written, in epoch seconds.
     utimesSync(h.shared, 1767225600, 1767225600);
     assert.equal(Object.fromEntries(run({}).trim().split("\n").map((line) => line.split("=")))["read-at"], "1767225600");
     assert.equal(run({ PR_NUMBER: "7; echo x" }), "");

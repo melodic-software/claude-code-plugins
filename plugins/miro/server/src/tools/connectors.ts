@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import { jsonResponse } from "../response.ts";
 
-// Miro connector stroke colors are 6-digit hex; an invalid value reaches the API as a generic 400.
 export const strokeColorSchema = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "stroke_color must be a 6-digit hex color, e.g. #000000")

@@ -116,8 +116,6 @@ function Get-WingetPackageUpdate {
     if ($module) {
         try {
             Import-Module Microsoft.WinGet.Client -ErrorAction Stop
-            # IsUpdateAvailable gates "upgrade is pending"; AvailableVersions is
-            # ordered newest-first.
             $mapped = @(Get-WinGetPackage -ErrorAction Stop |
                     Where-Object { $_.IsUpdateAvailable } |
                     ForEach-Object {

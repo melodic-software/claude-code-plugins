@@ -1,9 +1,3 @@
-# Layer 1 of the user-interface config cascade: the plugin's own defaults.
-# Later layers override a key (userConfig, <home>/user-interface.yaml,
-# <home>/user-interface.local.yaml); `*.disable` lists add up.
-# Keys and allowed values: team.schema.json. Block style only. Project tokens beat every layer.
-# A key marked heuristic has no upstream source; every other key's source is recorded under
-# docs/upstream/.
 version: 1
 css:
   browser_target: "baseline widely available"
@@ -14,15 +8,12 @@ css:
   important: avoid
   layer: null
   token_fallback: ask
-  # The widest gap in px (parent border plus padding) at which a nested radius is still derived from its parent's.
   concentric_radius:
     max_gap_px: 24
-  # Line widths in px: a high-density hairline, a standard border, an emphasis line.
   border_px:
     hairline: 0.5
     standard: 1
     strong: 2
-  # The fade band on an overflowing scroller: its length, and the points in percent where it is full.
   edge_fade:
     length: 2rem
     stops_percent:
@@ -33,11 +24,6 @@ css:
     width: "max(2px, 0.08em)"
   image_outline:
     opacity: 0.1
-# Animation taste defaults: each curve is four cubic Bezier control points [x1, y1, x2, y2];
-# each duration in milliseconds is both the value a recipe writes for its role and the role's
-# ceiling, and exit_factor is the longest an exit may run as a fraction of its entrance; the
-# stagger values are milliseconds between items and for the whole group; the gesture threshold is
-# px/ms for a small element's swipe to dismiss. animation.easing.in is a heuristic.
 animation:
   easing:
     out:
@@ -136,14 +122,10 @@ animation:
     large: 300
     page: 400
     exit_factor: 0.8
-  # Waits in milliseconds: how long a group stays warm after it closes, and before a first tooltip
-  # or a loading indicator shows.
   delay_ms:
     group_warm: 300
     tooltip: 200
     indicator: 150
-  # Scales as a fraction of the element's own size; press_min is the lower limit the audit reports a
-  # press scale below.
   scale:
     press: 0.97
     press_min: 0.95
@@ -156,7 +138,6 @@ animation:
     max_total: 400
     section: 100
     word: 80
-  # Distance in px a surface travels as it enters or leaves.
   travel_px:
     small: 4
     medium: 8
@@ -164,8 +145,6 @@ animation:
   blur_max_px: 20
   blur_px:
     soften: 2
-  # Spring bounce (0 is none), duration in seconds, and the response range in seconds for stacks
-  # that take damping and response.
   spring:
     bounce:
       default: 0
@@ -178,23 +157,16 @@ animation:
       - 0.4
   gesture:
     velocity_threshold: 0.11
-    # Fraction of a dragged element's own travel, 0 to 1, past which release dismisses it.
     distance_threshold: 0.4
     deceleration_rate: 0.998
     rubberband_constant: 0.55
     slop_px: 10
-  # The playback rate for checking motion by eye, and the uses per day above which an action takes
-  # no animation.
   inspect_playback_rate: 0.1
   skip_frequency: 100
-  # The passes the motion lane's cleanup sub-mode runs, in list order, one per value. Allowed
-  # values: removal, review (the lane's review pass), opportunities, performance.
   cleanup_order:
     - removal
     - review
     - performance
-# Color taste defaults: OKLCH lightness from 0 to 1, alpha from 0 to 1, percent shares.
-# color.subtle_mix_percent is a heuristic.
 color:
   border:
     dark_solid_l: 0.285
@@ -224,7 +196,6 @@ color:
     near_white_l:
       - 0.85
       - 0.45
-# Icon sizes and gaps in px or em. icon.size_px, the ladder of sizes, and icon.label_gap_em are heuristics.
 icon:
   filled_below_px: 12
   label_gap_px:
@@ -238,8 +209,6 @@ icon:
     - 20
     - 24
     - 48
-# Layout taste defaults as CSS values. Heuristics: breakout_width, grid_track_min_width,
-# media_aspect_ratio, media_small, panel_max_height, sidebar_width.
 layout:
   breakout_width: 80rem
   content_width: 1200px
@@ -257,11 +226,9 @@ performance:
   image_max_kb: 300
   search_debounce_ms: 300
   virtualize_min_items: 50
-# Corner radii as CSS lengths. radius.l is a heuristic.
 radius:
   s: 4px
   l: 1.25rem
-# Spacing as CSS lengths. Heuristics: control_padding, section, and the heading parts of flow.
 spacing:
   xs: 0.5rem
   s: 1rem
@@ -278,16 +245,12 @@ spacing:
   section:
     - "clamp(3rem, 1rem + 6vw, 8rem)"
     - 6rem
-# Timings for interface states in milliseconds, and reading speed in words per minute.
 states:
   copy_confirm_ms: 1500
   toast_reading_wpm:
     - 200
     - 250
   wait_indicator_ms: 400
-# Type taste defaults. Long-form reading text (articles, documentation) is in px, never below the
-# 16px body floor; a skill writes a px value in rem, the value divided by the root size in px.
-# Heuristics: fluid_body, fluid_scale, fluid_max_ratio.
 typography:
   long_form_body_px: 18
   fluid_body:
@@ -315,10 +278,6 @@ typography:
     caption: 13
     control: 14
     min: 12
-# How a touch element that needs both axes (a map, a canvas) takes gestures: tap-to-activate starts
-# it inactive so the page scrolls across it, and one tap activates it; always-active takes gestures
-# from the first touch. The project's own pattern beats every layer. The widths in px a page is
-# checked at and a fixed width is hunted below, and the hit area on a fine-pointer desktop.
 touch:
   both_axes_activation: tap-to-activate
   check_width_px: 375

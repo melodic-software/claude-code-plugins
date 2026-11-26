@@ -100,11 +100,6 @@ assert_contains "scope-divergent plugin shows both + marker" "$out" "work-items 
 assert_not_contains "unselected plugin omitted" "$out" "caveman"
 assert_contains "deviations left to the model, not scripted" "$out" "not scripted"
 
-# ============================================================================
-# clone-path from a RELATIVE git-common-dir (the main-worktree case, where
-# `rev-parse --git-common-dir` returns a bare `.git`) must be the absolute repo
-# path, not "." — regression guard for the dirname(".git") == "." bug.
-# ============================================================================
 export STUB_COMMON_DIR=".git"
 expected_clone="$(cd "$TMP" && pwd)"
 out="$(run 2>&1)"
@@ -145,16 +140,6 @@ out="$(MACHINE_BEHAVIOR_INSTALLED_JSON="$INSTALLED" bash "$SCRIPT" --repo "$TMP/
 rc=$?
 assert_eq "--repo non-directory exits 4" 4 "$rc"
 
-# ============================================================================
-# jq binary missing exits 4 — regression guard for the jq() wrapper (defined
-# before this prereq check) shadowing `command -v jq` and fail-opening the
-# guard. A PATH with no jq binary must still be caught by `type -P jq`, which
-# looks at PATH executables only and ignores the wrapper function.
-# ============================================================================
-# Resolve bash's own absolute path first so invoking it below needs no PATH
-# lookup; then restrict the child's PATH to just STUB_BIN (the git/gh stubs),
-# which never contains jq — reaching the prereq check without an external jq
-# binary anywhere in PATH, on any platform.
 BASH_BIN="$(command -v bash)"
 out="$(PATH="$STUB_BIN" MACHINE_BEHAVIOR_INSTALLED_JSON="$INSTALLED" "$BASH_BIN" "$SCRIPT" --repo "$TMP" 2>&1)"
 rc=$?

@@ -71,6 +71,14 @@ test("each bash record regex matches a vector line exactly when it is a record o
   }
 });
 
+test("handoff.bash sends no issue to intake triage that it could not lock first", () => {
+  const script = '. "$1"; gh() { echo "$*" >&2; case "$*" in *"/lock"*) return 1 ;; esac; }; GITHUB_REPOSITORY=o/r; send_to_intake 5; echo "rc=$? missed=$intake_missed"';
+  const run = spawnSync("bash", ["-c", script, "_", HANDOFF], { encoding: "utf8" });
+  assert.match(run.stderr, /\/lock/);
+  assert.doesNotMatch(run.stderr, /dispatches/);
+  assert.match(run.stdout, /rc=1 missed=#5 could not be locked/);
+});
+
 test("handoff.bash refuses a fix-issue check name that carries a record kind", () => {
   const ok = (name) => spawnSync("bash", ["-c", '. "$1"; fix_name_ok "$2"', "_", HANDOFF, name]).status;
   assert.equal(ok("Test Bash"), 0);

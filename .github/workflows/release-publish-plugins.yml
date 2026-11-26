@@ -1,33 +1,5 @@
 name: Release Publish Plugins
 
-# The bot-maintained release pull request of ADR 0048
-# (docs/adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md).
-# `build` turns the changelog fragments on main into one commit on
-# `release/plugins` (scripts/release-plugins.sh) and opens or updates the pull
-# request; `merge` checks that pull request against main's live tip and queues
-# the head it checked.
-#
-# Both run as the dedicated release GitHub App, never GITHUB_TOKEN: a pull
-# request that GITHUB_TOKEN opens or updates gets its `pull_request` runs only
-# after approval, and the release pull request needs `ci-status` unattended. The commit goes through the GraphQL
-# createCommitOnBranch mutation, which GitHub signs, so main's
-# required_signatures rule accepts it.
-#
-# A scheduled run, and a push of a fragment to main, run `merge`: it queues a
-# release pull request that is current, green and carries no hold label
-# (label-holds.mjs --queue), and builds one when none is open. Current means
-# main has changed no file the release changes (a fragment it consumed, a
-# CHANGELOG.md, a plugin.json) since its build base, the main commit it was
-# cut from; fragments main added since then ride the next release. It also
-# rebuilds one that is not current, conflicted, or failing ci-status on a base
-# behind main with no hold label; a push run leaves that to a later run while
-# ci-status is pending or a GitHub Actions check run on the head has not
-# completed, since each rebuild cancels the release pull request's running
-# checks (ADR 0048, Rollout 3, Resolved decisions 1 and 2, and the 2026-10-17,
-# 2026-10-20 and 2026-10-31 amendments). Neither action rebuilds one in the
-# merge queue:
-# .github/scripts/release-publish-plugins/decide-rebuild.sh decides for both.
-# workflow_dispatch runs either action by hand.
 on:
   schedule:
     - cron: '41 */3 * * *'
@@ -49,10 +21,6 @@ on:
 
 permissions: {}
 
-# One release at a time. A scheduled or dispatched run supersedes a running one,
-# since it reads the newest main; it can land between a push run's head write
-# and pull request edit, an accepted risk (ADR 0048, 2026-10-31 amendment). A
-# push run waits instead, so a burst of fragments never cuts a build short.
 concurrency:
   group: release-plugins
   cancel-in-progress: ${{ github.event_name != 'push' }}
@@ -61,8 +29,6 @@ jobs:
   merge:
     name: Merge
     if: github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
-    # The App's private key is an environment secret; the environment admits
-    # only main (github-iac RepositoryEnvironments.cs).
     environment:
       name: plugin-release
       deployment: false
@@ -135,9 +101,6 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      # Read main at this moment, not at checkout: the check and the queue call
-      # are seconds apart, and the merge queue re-runs the check on the exact
-      # tree the release lands on (pr-require-checks.yml, check-plugins).
       - name: Check the release against main's live tip
         id: check
         env:
@@ -145,14 +108,6 @@ jobs:
         run: |
           git fetch -q --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
           .github/scripts/release-publish-plugins/decide-rebuild.sh "$(git rev-parse origin/main)"
-      # expectedHeadOid pins the queued or merged head to the one checked
-      # above: a push to release/plugins in between makes the call fail rather
-      # than land an unchecked head. With no merge queue on main (an empty
-      # queue= from queue-ahead.sh) the step squash-merges instead. It does
-      # nothing for a head already queued, and leaves to a later run one whose
-      # GitHub Actions `ci-status` has not passed (ci-status.sh) or that would
-      # queue behind an entry changing a file it changes (queue-ahead.sh); the
-      # `if` skips one a push run deferred and one carrying a hold label (held).
       - name: Queue the checked head
         if: steps.check.outputs.rebuild == 'false' && steps.check.outputs.deferred != 'true' && steps.check.outputs.held != 'true'
         env:
@@ -272,10 +227,6 @@ jobs:
             echo "::warning::try $i $why; retrying"
             sleep "$((RANDOM % (2 * i + 1)))"
           done
-      # Full history: release-plugins.sh orders each plugin's fragments by the
-      # commit that added them, and refuses a shallow clone. A fresh checkout
-      # each run also means a run cut short can never leave a half-written tree
-      # for the next one.
       - name: Check out main
         uses: actions/checkout@v7
         with:
@@ -287,9 +238,6 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      # The same decision the merge job makes (decide-rebuild.sh): a release
-      # pull request in the merge queue is never rebuilt, since GitHub refuses
-      # to update a queued branch.
       - name: Decide whether to build
         id: decide
         env:
@@ -323,10 +271,6 @@ jobs:
           if [ "$released" = 0 ] && [ -z "$skipped" ]; then
             echo "::notice::No fragment on main asks for a release; nothing to write. A bump: none fragment waits for the next release."
           fi
-      # Write the release as one signed commit on a staging branch cut from
-      # main's tip, then move release/plugins to that exact commit in one ref
-      # update: a run cut short never leaves the open release PR with an empty
-      # head. expectedHeadOid makes the write fail if the staging branch moved.
       - name: Write the release commit
         if: steps.decide.outputs.rebuild == 'true' && steps.release.outputs.released != '0'
         env:

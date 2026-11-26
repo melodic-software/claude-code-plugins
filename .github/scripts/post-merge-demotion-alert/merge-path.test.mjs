@@ -1,6 +1,3 @@
-// merge-path.mjs: the agent-authored rule as #13601 states it (a body marker
-// and a Co-Authored-By: Claude trailer), the path a merge takes, the labels the
-// canary pass writes, and the rollup read back from them.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";

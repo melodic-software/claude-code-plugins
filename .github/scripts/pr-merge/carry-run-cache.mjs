@@ -1,65 +1,4 @@
 #!/usr/bin/env node
-// carry-run-cache.mjs: copies the reads in one pr-merge run cache
-// (babysit_run_cache.py) that can never change into a file the next run starts
-// from. pr-merge.yml runs it in the merge and enable-auto-merge jobs: after
-// the gate or the arm step, from this run's cache into the file a scheduled or
-// hand-started run uploads (the merge job as the pr-merge-run-cache artifact,
-// enable-auto-merge, whose verdict reader is the only one that fills
-// run-record, as pr-merge-verify-run-cache); before them, `read`, which
-// fetches those files; and then from them into this run's empty cache. Every
-// entry is checked again on each pass.
-//
-// `read` takes each file from the newest scheduled or hand-started run of
-// main's pr-merge.yml, this run aside, holding that artifact, and only when
-// that run's head commit is on main, as head-ref-map.mjs reads its map. Only a
-// run's own steps can upload its artifacts, so each file was written by main's
-// pr-merge.yml; it never goes through actions/cache, which any job in main's
-// cache scope can write and whose restore extracts its archive anywhere in
-// the workspace. `read` first removes any file at CARRY_TO, so a file left
-// there before it is never read. It writes the pr-merge-run-cache file as it
-// is (babysit_merge_skip.py reads its skip-unchanged section), with only the
-// carried-* sections of the pr-merge-verify-run-cache file added to its own.
-//
-//   run-record        a pr-verify run's record of origin shape (a run of
-//                     pr-verify.yml on the branch of this repository), kept
-//                     as carried-run-record with each repository trimmed to
-//                     its full_name (all either reader reads); used only
-//                     when it shows origin
-//   fail-head-ref     the head ref an untied FAIL's verdict.json records, by
-//                     artifact id, kept as carried-fail-head-ref; used only
-//                     when it names the PR's head ref
-//   on-branch         a run head found on the branch (main forbids force
-//                     pushes), kept as carried-on-branch; a yes counts a
-//                     FAIL's run as origin, and a PASS's run never reads it
-//   lane-run          a completed review-lane run's attempts with their jobs
-//                     and annotations (babysit_gh.collect_lane_runs), kept as
-//                     carried-lane-run, the LANE_RUN_MAX newest within
-//                     LANE_RUN_DAYS. Unlike the reads above it can bind a
-//                     lane, so allow: it is used only while the run's live
-//                     listing shows the same completed attempt, updated_at and
-//                     latest-attempt fields, and forging one needs code
-//                     running in main's pr-merge.yml, as forging the listing
-//                     carry does (babysit_verify_evidence.py "Carried reads")
-// Everything else is dropped: a read bounded by MAX_AGE, keyed by
-// credentials, or a sweep stamp can change between runs. So is an entry dated
-// in the future or more than RETENTION_DAYS ago, past the artifact retention
-// that makes it unreachable. Any failure writes nothing and warns, so the run
-// reads GitHub as before.
-//
-// Environment:
-//   CARRY_FROM          the run cache file to read (missing: nothing carried)
-//   CARRY_TO            the file to write
-//   GITHUB_REPOSITORY   owner/repo
-//   CARRY_BRANCH        the branch the verdicts are judged on (main)
-//   GITHUB_OUTPUT       gets carried=true once CARRY_TO is written, and
-//                       kept=true when it holds a read
-//   ACTIONS_TOKEN       read: the job's GITHUB_TOKEN (actions: read)
-//   GITHUB_RUN_ID       read: this run, which has no file yet
-//   RUNNER_TEMP         read: where the artifact is downloaded
-//   PR_MERGE_READS_PATH read: the job's shared GET answers
-//                       (rotation.mjs sharedReads), if set
-//   PR_MERGE_MAIN_TIP   read: main's tip (head-ref-map.mjs onMain), if set
-//   GITHUB_API_URL
 import { appendFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -73,11 +12,7 @@ export const VERIFY_ARTIFACT = "pr-merge-verify-run-cache";
 const CARRIED = ["carried-run-record", "carried-fail-head-ref", "carried-on-branch", "carried-lane-run"];
 export const CARRY_FILE = "pr-merge-carried.json";
 
-// A FAIL verdict's artifact retention (write-verdict.mjs retentionDays; .github/artifact-retention.json `pr-verify-*`).
 export const RETENTION_DAYS = 90;
-// The carried lane runs' bound (judgment): a few weeks of an open PR's lane
-// runs, each read again once it ages out. babysit_gh.LANE_RUN_FORMAT names
-// the key's last field.
 export const LANE_RUN_DAYS = 30;
 export const LANE_RUN_MAX = 400;
 const LANE_RUN_BYTES = 65_536;
@@ -135,8 +70,6 @@ function onBranch(key, value, repo, branch) {
   return match !== null && match[1] === repo && match[3] === branch && value === true;
 }
 
-// A completed run's attempts saved under `repo|run|attempt|lane job|format`:
-// one record per attempt, each of this run, the last with updated_at.
 function laneRun(key, value, repo) {
   const match = /^([1-9][0-9]{0,15})\|([1-9][0-9]{0,3})\|([A-Za-z0-9_.-]+)\|([a-z0-9]+)$/.exec(key.slice(repo.length + 1));
   if (!key.startsWith(`${repo}|`) || match === null || match[4] !== LANE_RUN_FORMAT) return false;
@@ -158,7 +91,6 @@ function laneRun(key, value, repo) {
   );
 }
 
-// The sections of `data` kept for the next run, each entry as saved.
 export function carry(data, { repo, branch, now }) {
   const out = Object.fromEntries(CARRIED.map((section) => [section, {}]));
   if (!isObject(data)) return out;
@@ -171,7 +103,6 @@ export function carry(data, { repo, branch, now }) {
       }
     }
   };
-  // Wrapped: the pinned lizard (js-complexity-share) cannot parse a bare `{ shape: slimRecord }` here.
   take("run-record", (k, v) => originRecord(k, v, repo, branch), { shape: (value) => slimRecord(value) });
   take("fail-head-ref", (k, v) => headRef(k, v, repo));
   take("on-branch", (k, v) => onBranch(k, v, repo, branch));
@@ -203,8 +134,6 @@ export function main(env = process.env, now = Date.now()) {
   }
 }
 
-// `base` with the carried-* sections of `extra` added to its own; every
-// other section of `base` as it was, and none other of `extra`.
 export function withCarried(base, extra) {
   const out = { ...base };
   for (const section of CARRIED) {
@@ -213,8 +142,6 @@ export function withCarried(base, extra) {
   return out;
 }
 
-// `read`: the newest trusted run's pr-merge-run-cache file, with the carried
-// reads of the newest trusted run's pr-merge-verify-run-cache file added.
 export async function read({ env = process.env, actions: client, download } = {}) {
   const { CARRY_TO: to, GITHUB_REPOSITORY: repo = "" } = env;
   try {

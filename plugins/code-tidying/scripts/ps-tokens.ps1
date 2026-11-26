@@ -20,9 +20,6 @@ param(
     [Parameter(ParameterSetName = 'Tokens', Mandatory, ValueFromRemainingArguments)][string[]]$Path
 )
 
-# Redirected stdout defaults to the OEM codepage on Windows, where two different
-# non-ASCII characters both become '?' and compare equal, a false-COMMENT-ONLY
-# path in a proof tool.
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

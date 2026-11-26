@@ -1,64 +1,4 @@
 #!/usr/bin/env bash
-# Plugin drift audit for the audit skill (Category E).
-#
-# Compares a settings file's `enabledPlugins` against the catalog
-# `marketplace.json` of each marketplace declared in that file's
-# extraKnownMarketplaces. Reports drift modes that a state-vs-settings
-# bootstrap check misses:
-#
-#   ORPHAN     plugin in enabledPlugins, NOT in upstream catalog, and not a null
-#              entry in that catalog's renames map (deleted upstream, or a
-#              renames chain that cycles)
-#   NEW        plugin in upstream catalog with no enabledPlugins entry in this
-#              file (added upstream). Report only: nothing proposes an entry.
-#   RENAME     an orphan key the catalog renames map sends to a name, followed
-#              to the end of the chain (source "renames"), or, when the map
-#              does not mention the key, an ORPHAN + NEW pair with similar
-#              names (source "heuristic")
-#   REMOVED    an orphan key the catalog renames map sends to null. Not an
-#              orphan row and not a rename.
-#
-# Coverage: only marketplaces this file declares are diffed. Every run prints
-# the file's enabledPlugins keys whose marketplace it does not declare as "not
-# diffed", with the count and the keys, including when it declares none.
-#
-# Catalog resolution per marketplace, by `extraKnownMarketplaces[key].source`:
-#   directory  `source.source == "directory"` with a `path`. The catalog is
-#              read from `<path>/.claude-plugin/marketplace.json` on disk. A
-#              relative path (including `./`) resolves against the project
-#              root, the directory that contains the settings file's
-#              `.claude/`; an absolute path is used as is. Takes precedence
-#              over `source.repo` when both are present, and never consults
-#              SETTINGS_AUDIT_FIXTURE_DIR.
-#   repo       `source.repo` (owner/name). When SETTINGS_AUDIT_FIXTURE_DIR is set,
-#              the catalog is read from that directory and nowhere else. Otherwise
-#              the local Claude Code clone is tried first. The config root is
-#              CLAUDE_CONFIG_DIR when that is set, else ~/.claude. The catalog is
-#              `<root>/plugins/marketplaces/<key>/.claude-plugin/marketplace.json`,
-#              or, when that file is absent, `<installLocation>/.claude-plugin/marketplace.json`
-#              for the installLocation `known_marketplaces.json` records for the
-#              key. A readable valid catalog from either place is source
-#              "local-clone" and the network is not contacted. Otherwise the
-#              catalog is fetched from raw.githubusercontent.com. A repo that is
-#              not owner/name in GitHub's name characters is reported SKIP. A
-#              local-clone read only reads.
-#   neither    reported SKIP.
-#
-# Keys are carried as JSON from the settings file and the catalog to the
-# findings, so a key holding a carriage return or any other character reaches
-# the JSON exactly. Displayed text prints control characters as `?`.
-#
-# Read-only. Network-tolerant: a marketplace whose upstream fetch fails, or
-# whose directory catalog is missing or invalid, is reported SKIP and does not
-# fail the run. Outputs a structured table to stdout and a machine-readable
-# JSON to $SETTINGS_AUDIT_OUTPUT_JSON when set (consumed by fix-plugin-drift.sh).
-# Each JSON block carries `source: "directory" | "repo" | "local-clone"` naming
-# which resolution produced it. A rename row carries its own `source`:
-# `"renames"` when the catalog map named the final plugin, `"heuristic"` when
-# the similarity fallback did. A removed row carries
-# `reason: "removed per catalog renames map"`. An orphan whose renames chain
-# repeats a name carries `reason: "renames chain cycles"` and no rename row.
-#
 # Exit codes:
 #   0  no orphan and no removed entry (NEW entries alone, which are report
 #      only, exit 0)
@@ -67,16 +7,6 @@
 #   2  fatal (settings.json missing/invalid, jq missing). A missing curl is
 #      not fatal: directory-sourced catalogs still audit, and each
 #      repo-sourced one is recorded as a fetch failure.
-#
-# Env overrides (for testing):
-#   CLAUDE_SETTINGS_FILE        path to project settings.json
-#   SETTINGS_AUDIT_FIXTURE_DIR  directory of fixture marketplace.json files
-#                               named <marketplace-key>.json. When set, the
-#                               script reads repo-sourced catalogs from that
-#                               directory and does not read a local clone or
-#                               the network. Directory-sourced catalogs ignore it.
-#   SETTINGS_AUDIT_OUTPUT_JSON  write structured findings to this path
-#   NO_COLOR                    disable ANSI output
 
 # The jq programs below are single-quoted on purpose: $name is a jq variable.
 # shellcheck disable=SC2016
@@ -95,7 +25,6 @@ source "$RESOLVE_SCOPES_LIB"
 if [[ -n "${CLAUDE_SETTINGS_FILE:-}" ]]; then
   SETTINGS="$CLAUDE_SETTINGS_FILE"
 else
-  # Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
   PROJECT_ROOT=""
   scopes::project_root_to PROJECT_ROOT
   SETTINGS="$PROJECT_ROOT/.claude/settings.json"
@@ -131,12 +60,6 @@ SKIPPED_MARKETS=()
 
 JSON_LINES=""
 
-# Shared jq definitions. `san` is for display only: every control character,
-# a carriage return included, prints as `?`, so no display line carries one and
-# the carriage return a native-Windows jq appends to each line can be dropped
-# wholesale. `mk($i)` is marketplace number $i in sorted key order. Every
-# variable is a parameter, because jq 1.6 refuses to compile a def naming an
-# unbound variable even when the program never calls it.
 JQ_DEFS='def san: tostring | gsub("[[:cntrl:]]"; "?");
 def mk($i): .extraKnownMarketplaces as $m | ($m | keys[$i]) as $k | {key: $k, value: $m[$k]};
 def ep: .enabledPlugins | if type == "object" then . else {} end;'
@@ -201,7 +124,6 @@ fetch_network() {
     echo "WARN: curl not found; cannot fetch ${market_key//[[:cntrl:]]/?} from $repo" >&2
     return 1
   fi
-  # --globoff: the URL is literal, never a curl range or set pattern.
   local url="https://raw.githubusercontent.com/$repo/HEAD/.claude-plugin/marketplace.json"
   curl -fsSL --globoff --max-time 15 "$url" 2>/dev/null
 }
@@ -337,8 +259,6 @@ audit_marketplace() {
       return 0
     fi
 
-    # The repo becomes part of a URL, so only an owner/name pair of GitHub's
-    # name characters is fetched; `.` and `..` would walk the URL path.
     local repo_re='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
     if [[ ! "$repo" =~ $repo_re || "/$repo/" == *"/./"* || "/$repo/" == *"/../"* ]]; then
       print_market_header "$repo"
@@ -513,7 +433,6 @@ main() {
   fi
 
   local market_count
-  # An array would yield its indices as marketplace names, so only an object is read.
   if ! market_count=$(jq -j '.extraKnownMarketplaces // {}
     | if type != "object" then error("not an object") else keys | length end' "$SETTINGS"); then
     echo "ERROR: cannot read extraKnownMarketplaces from $SETTINGS" >&2

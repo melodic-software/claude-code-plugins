@@ -63,8 +63,6 @@ lines.push(`ffmpeg: ${ffmpeg ?? "MISSING - install ffmpeg (watch action only)"}`
 const magick = probe("magick", ["-version"]);
 lines.push(`ImageMagick: ${magick ?? "MISSING - install ImageMagick 7 (watch action only)"}`);
 
-// Optional ASR rung: detected through whichever Python imports faster_whisper, never installed.
-// An unset option can reach this script as the literal `${user_config...}` token: ignore it.
 const configuredPython = [asrPython, process.env.CLAUDE_PLUGIN_OPTION_ASR_PYTHON]
   .map((value) => value?.trim())
   .find((value) => value && !value.includes("${"));

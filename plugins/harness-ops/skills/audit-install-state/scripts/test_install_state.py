@@ -636,12 +636,6 @@ class TestCsvFormulaInjection(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            # A DDE-shaped payload with the two characters Windows forbids in a
-            # filename removed: `|` and the `/` of `/C`. Neither assertion below
-            # inspects them -- both read the `=cmd` leader and the quote the
-            # writer prepends -- so dropping them keeps the property under test
-            # intact and lets the case run on every host instead of erroring at
-            # `mkdir` with WinError 123.
             hostile = root / "=cmd 'C calc'!A0"
             hostile.mkdir(parents=True, exist_ok=True)
             (hostile / "plugin.json").write_text("{}", encoding="utf-8")
@@ -1063,8 +1057,6 @@ class TestAuditorAncestry(unittest.TestCase):
         "no process lister on this host",
     )
     def test_one_ps_listing_yields_the_same_ancestors_as_proc(self) -> None:
-        # Git Bash's ps is Cygwin's and rejects -axo; the engine lists Windows
-        # processes through CIM, so that is the listing to exercise there.
         if os.name == "nt":
             table, method = engine._process_table()
             table = table or {}

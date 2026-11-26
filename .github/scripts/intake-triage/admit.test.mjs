@@ -43,7 +43,6 @@ const CONFIRMED = "status: confirmed";
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
   "\n",
 );
-// #9287's done-when, as filed.
 const CANARY = [
   "## Done when",
   "",
@@ -107,8 +106,6 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead] } })), { verdict: "refuse", reasons: [APP_FILED, NO_SPEC], hold: true, reason: "security" });
     });
 
-    // Owner decision on #10735: the lanes App's issue is admitted only as a
-    // trusted size-split sub-issue, whatever a listed human's comment carries.
     test("off the own-agent list, the same issue with a listed human's comment carrying the task list is still refused for a person", () => {
       for (const comment of [written(USER(HUMAN)), written(USER(HUMAN), { editor: USER(HUMAN) })]) {
         assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead, comment] } })), { verdict: "refuse", reasons: [APP_FILED], hold: true, reason: "security" });
@@ -469,8 +466,6 @@ describe("decide", () => {
     });
   }
 
-  // #9372: intake's split never edits the body, so it stays the listed
-  // human's text; the split refinement alone takes the person-only item out.
   describe("intake's split refinement", () => {
     const issue = issueOf({ body: CANARY });
     const SPLIT = { exact: true, outcome: "Line 9 says 27 checks.", criteria: [], dependencies: [], related: [], questions: [], sources: [], split: [2], external: { state: "none", repo: "", class: "", what: "" } };
@@ -591,16 +586,12 @@ describe("decide", () => {
       assert.deepEqual(decide(sized("medium", { comments, rules: { ...RULES, sizes: [...RULES.sizes, "large"] } })), { verdict: "admit", reasons: [] });
     });
 
-    // #13197: a trusted size-split sub-issue never splits again (owner Q93),
-    // so a cap stop on one parks it for a builder instead of re-admitting it
-    // unchanged into the same stop.
     describe("on a trusted size-split sub-issue", () => {
       const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
       const childBody = `${splitChildHeader(5, 1, 3)}\n${lines[0]}`;
       const spec = { body: childBody, lastEditedAt: null, author: APP_ACTOR, editor: null, comments: [], splitParent: { number: 5, spec: written(USER(HUMAN), { body: lines.join("\n") }), appId: APP } };
       const child = (comments) => sized("medium", { issue: issueOf({ user: { id: APP }, body: childBody }), spec, comments });
       const comment = (body, at) => ({ user: { id: APP }, created_at: at, body });
-      // #13197's comments as the lanes App wrote them.
       const capStop = comment(
         [
           "<!-- work-resolve-issue outcome=intake run=41831397269 -->",
@@ -1017,7 +1008,6 @@ describe("decide", () => {
       assert.equal(hits("Move the `lint` leg to larger GitHub-hosted runners.", { public: true }), "larger github-hosted runners");
       assert.equal(hits('```yaml\nmessage: "```"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```'), "subscription");
       assert.equal(hits("````\n```\nretention-days: 5\n````\n\n~~~\nretention-days: 5\n~~~~"), undefined);
-      // Web-typed bodies end lines in CRLF; a fence line ending in \r still closes.
       assert.equal(hits("```yaml\r\nretention-days: 5\r\n```\r\n\r\n~~~\r\nretention-days: 5\r\n~~~\r\n"), undefined);
       assert.equal(hits('```yaml\r\nmessage: "```"\r\n```\r\n\r\nBuy a paid subscription.\r\n\r\n```yaml\r\nretention-days: 5\r\n```'), "subscription");
       assert.deepEqual(chargeHits("We pay per-seat; data-retention grows.", chargePattern()), ["seat", "retention"]);
@@ -1337,8 +1327,6 @@ describe("decide", () => {
       });
     });
 
-    // The comparison rests on `diff` holding each revision's full text, newest
-    // first, against its schema description; these fixtures pin that shape.
     describe("an edit that moves a charge word into code", () => {
       const charges = chargePattern();
       const WRAPPED = "- [ ] Reuse the `subscription` value.";
@@ -1678,11 +1666,6 @@ describe("decide", () => {
     }
   });
 
-  // Owner decision on #14215 (Q195 (a)): an issue the upstream-drift workflow
-  // filed is admitted with no owner step when github-actions[bot] (41898282)
-  // wrote it, nobody else last edited it, and its title and first body line
-  // are the two lines scripts/upstream-drift-issues.sh writes. Its criteria
-  // come from a fixed template, never its body.
   describe("a trusted upstream-drift issue", () => {
     const ACTIONS = 41898282;
     const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS };
@@ -1967,7 +1950,6 @@ const goArgs = (fake, { status = open } = {}) => ({
   log: () => {},
 });
 const go = (fake, options) => admit(goArgs(fake, options));
-// The GraphQL reads are POSTs but write nothing.
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 const STATUS = (state) => `STATUS #7 ${JSON.stringify(state)}`;
 const RECORD = `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) })}`;
@@ -2925,7 +2907,6 @@ describe("unrunnableCriteria", () => {
     ["after days", "Confirm after 7 days that the cache stays under 1 GB.", /over time/],
     ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
     ["a page an item compares against", "Confirm the table matches https://example.com/page.", /example\.com/],
-    // Done-when items from the concise-skills rollout issues (#6584, #6602, #6615).
     ["before and after numbers", "The PR body holds a per-skill decision table, description and body decided separately, with the before and after numbers behind each row.", /model eval run/],
     ["measure-invocation trigger scores", "The PR body shows `/skill-quality:check measure-invocation` trigger scores for the before and the after description on the same probes.", /model eval run/],
     [
@@ -2935,26 +2916,22 @@ describe("unrunnableCriteria", () => {
     ],
     ["a plugin-eval delta", "`/evals:plugin-eval` with and without; difference in the PR body.", /model eval run/],
     ["a run of measure-invocation", "Run `measure-invocation.sh` on the new probes and paste the output.", /model eval run/],
-    // Live CLI items from #6963, #6758, #6761, #6877 and #9914.
     ["claude -p", 'A comment on this issue records whether the `/usage` report from `claude -p "/usage" --output-format stream-json` carries its rate limits.', /Claude Code CLI/],
     ["a recorded probe", "A recorded probe: a subagent Write into a path covered by a path-scoped rule, with a logging InstructionsLoaded hook.", /Claude Code CLI/],
     ["a named Claude Code version", "A recorded probe answers questions 1 to 3 on a named Claude Code version.", /Claude Code CLI/],
     ["the probe's version", "The monitor guidance states the `-p` behavior with the probe's Claude Code version.", /Claude Code CLI/],
     ["a measured result", "The verified-mechanics row is updated with the measured result and the Claude Code version.", /Claude Code CLI/],
     ["a plugin install", "`claude plugin install testing@melodic-software` exits 0.", /Claude Code CLI/],
-    // A comment-only deliverable (#6636).
     ["a comment on this issue", "One comment on this issue with the versions released per plugin over the last 14 days.", /comment instead/],
     ["no file changed", "No file is changed.", /comment instead/],
     ["a result recorded in a comment on this issue", "The script's output is recorded in a comment on this issue.", /comment instead/],
     ["a comment on this issue listing a result (#9735)", "A comment on this issue lists the machines done.", /comment instead/],
     ["a comment on this issue starting with a heading (#7556)", "A comment on this issue starting `Probe result:` records the Cursor version.", /comment instead/],
-    // Live CLI items the corpus diff flagged (#7135, #9930).
     ["claude plugin test passing", "`claude plugin test` passes for each touched plugin; skill, eval and drift checks pass.", /Claude Code CLI/],
     ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install plugin-profiles@melodic-software` both exit 0.", /Claude Code CLI/],
     ["a run of claude plugin install", "Run `claude plugin install testing@melodic-software` in a fresh config directory.", /Claude Code CLI/],
     ["a headless Claude Code run", "A headless Claude Code session started with the new flag exits 0.", /Claude Code CLI/],
     ["a run result recorded in a comment on this issue (#4281)", "`/instruction-placement:migrate cutover-check` has been run, with its met/unmet output recorded in a comment on this issue.", /comment instead/],
-    // Items the lane stopped on (#12229) and the corpus replay found (#11959, #10221, #12072).
     ["a result attributed in a comment (#12229)", "The startup gap is attributed by source in a comment.", /comment instead/],
     ["a result posted as a labeled comment (#11959)", "The eval runs with 12 cases, and its result is posted as a `Probe result:` comment.", /comment instead/],
     [
@@ -3042,7 +3019,6 @@ describe("unrunnableCriteria", () => {
     ["an issue form", "The intake template is opened as an issue form with the new field."],
     ["a sub-issue closed by a PR (#10232)", "Every slice sub-issue is closed by a merged PR."],
     ["a script filing an issue (#10195)", "The detection script's test shows one unread release files one issue."],
-    // Review findings on #12248: an "Open issues" noun phrase, and a comment an automation posts.
     ["an Open issues noun phrase", "Open issues labeled `stale` are listed in the weekly digest."],
     ["an Open issue count", "Open issue count is shown in the summary table."],
     ["Open issues a sweep skips", "Open issues with the `needs-decision` label are skipped by the sweep."],
@@ -3132,9 +3108,6 @@ describe("unrunnable-rules.json", () => {
     assert.equal(result.hostRun, undefined);
   });
 
-  // Review findings on #12628: an automation's or a conditional output stays
-  // with the lane, as the built-in comment kind leaves it, and eval words
-  // count only in eval context.
   for (const line of [
     "The workflow's results are reported on this issue.",
     "When the check fails, a sub-issue is filed by the sweep.",
@@ -3260,7 +3233,6 @@ describe("host-run work", () => {
     assert.deepEqual(writes(fake.calls).slice(0, 2), [STATUS("confirmed"), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["host-run"] })}`]);
   });
 
-  // #9293: the owner released it with host-run added, and admission held it again.
   test("an issue already carrying host-run parks at status: confirmed, whether all or some items are host work", async () => {
     for (const [body, by] of [
       [HOST_ONLY, HUMAN],
@@ -3402,8 +3374,6 @@ describe("host-run work", () => {
 describe("admission and the paths the issue lane cannot push", () => {
   const withBody = (lines, labels = [{ name: READY }]) => issueOf({ body: lines.join("\n"), labels });
   const DONE = ["## Done when", "", "- [ ] Line 3 says nineteen."];
-  // #15977's lines as filed: a prose sentence and a done-when item that name
-  // workflow files the fix does not change.
   const SHAPE_15977 = [
     "## Problem",
     "",
@@ -3640,9 +3610,6 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ issue: unsplit, verdict: large })), { verdict: "wait", reasons: [SIZE_SPLIT_PENDING], pulls: [] });
   });
 
-  // A finished parent (finishedParent: every sub-issue closed as completed by
-  // a trusted close) gets one verified-done run at any Size (#12456, class A);
-  // that run is the done-check a merged Refs pull request would park it for.
   test("a finished parent at Size Large is admitted for its verify run; one with an open sub-issue still waits", () => {
     const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
     const split = issueOf({ sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } });
@@ -3718,8 +3685,6 @@ describe("size split sub-issues", () => {
     const spec = { ...written(APP_ACTOR, { body: child.body }), comments: [] };
     const fake = withIssues(fakeGitHub({ issue: child, parent, spec }), { specs: { [PARENT]: parentSpec() } });
     assert.equal((await go(fake)).outcome, "admitted");
-    // With no parent read the body is not a trusted sub-issue, so the App's
-    // issue holds for a person (owner decision on #10735).
     const orphan = fakeGitHub({ issue: child, spec });
     const refused = await go(orphan);
     assert.equal(refused.status, "needs-owner-decision");
@@ -4215,10 +4180,6 @@ describe("hold reason codes", () => {
   });
 });
 
-// #14215 done-when items 2 and 3, through every gate on the way: the triage
-// sweep selects the issue, intake's verdict check would mint, admission
-// admits it, and the issue lane's check-blockers runs it, with no person
-// step; a design-changing finding routes the run to a person's hold.
 describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
   const ACTIONS_ID = 41898282;
   const TITLE = "Upstream drift: mattpocock/sandcastle";

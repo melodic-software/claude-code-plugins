@@ -182,8 +182,6 @@ def body_start(lines: list[str]) -> int:
 
 
 def sidecars_in(directory: Path) -> list[Path]:
-    # fnmatchcase, not glob: pathlib's glob is case-insensitive on Windows and
-    # would take the lowercase research-checklist.md ledger for a sidecar.
     return sorted(
         p
         for p in directory.iterdir()

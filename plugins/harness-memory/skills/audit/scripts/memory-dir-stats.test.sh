@@ -115,11 +115,6 @@ HEAVY=$(printf '%26000s' '' | tr ' ' 'x')
 assert_eq "a heavy one-line runaway is bounded by weight" "$(raw_bytes)" "$(run "$H3" --memory-bytes)"
 assert_eq "a heavy one-line runaway counts every line" "$(raw_lines)" "$(run "$H3" --memory-lines)"
 
-# The weight cap measures BYTES, not characters: in a multibyte locale awk's length()
-# counts characters, so 600 two-byte characters (1200 bytes) read as ~606 and slip
-# under the 1024-byte cap — the same under-count, resurrected by locale. LC_ALL=C on the
-# awk pass pins byte semantics; this fixture fails without it. The repetend is written
-# as octal escapes so the file stays ASCII and no tool can re-encode the fixture.
 WIDE=$(for ((i = 0; i < 600; i++)); do printf '\303\251'; done)
 {
   printf -- '---\n'

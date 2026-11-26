@@ -2,13 +2,57 @@
   "pass": [
     {
       "answer": "Deferred: mutual TLS. Glossary: added 'partner app'.",
-      "why": "meets the rule"
+      "why": "both listed"
+    },
+    {
+      "answer": "**Out of scope:** none.\n\n**Deferred:**\n- Mutual TLS, to a later phase.\n\n**Glossary changes:**\n- Added *partner app*.",
+      "why": "sectioned comment"
+    },
+    {
+      "answer": "- mTLS: deferred to a later phase\n- 'partner app' added to the glossary",
+      "why": "item first, label after"
     }
   ],
   "fail": [
     {
       "answer": "Deferred: none.",
-      "why": "breaks the rule"
+      "why": "both missing"
+    },
+    {
+      "answer": "Deferred: none.\nOut of scope: mutual TLS.\nGlossary: 'partner app'.",
+      "why": "mutual TLS not listed as deferred"
+    },
+    {
+      "answer": "Deferred: mutual TLS to a later phase.",
+      "why": "glossary change missing"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| Client | Auth |\n|---|---|\n| Partners | OAuth client credentials |",
+      "why": "answers only the result"
+    },
+    {
+      "answer": "**Deferred:** mutual TLS, to a later phase.\n**Glossary changes:** no changes; partner app stays an informal term.",
+      "why": "wrong: uses the Glossary label but records no glossary change"
+    },
+    {
+      "answer": "**Deferred:** nothing.\n**Out of scope:** mutual TLS (not deferred).\n**Glossary:** added 'partner app'.",
+      "why": "wrong: mutual TLS moved out of scope instead of deferred"
+    },
+    {
+      "answer": "Nothing is deferred; mutual TLS is out of scope. Glossary: added 'partner app'.",
+      "why": "wrong: says nothing is deferred and moves mutual TLS out of scope"
+    },
+    {
+      "answer": "mTLS isn't deferred. Glossary: added 'partner app'.",
+      "why": "wrong: says mutual TLS is not deferred"
+    },
+    {
+      "answer": "Deferred: mutual TLS. The partner app wasn't added to the glossary.",
+      "why": "wrong: says the glossary did not change"
     }
   ]
 }

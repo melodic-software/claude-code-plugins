@@ -1,61 +1,4 @@
 #!/usr/bin/env bash
-# Compose a conforming review-findings file from instruction-scan.sh output and
-# from model-lane findings.
-#
-#   emit-findings.sh [--from <scan-output>] [--from-lane <lane-rows>] --out <path>
-#                    [--branch <b>]
-#
-# The FINDINGS HOME is never resolved here: the caller (the audit-instructions
-# skill) resolves it from the memory root per the detector-findings convention
-# and its fetch-and-refuse gate, then hands the resolved path in as --out. This
-# script owns only the deterministic composition.
-#
-# TWO INTAKE PATHS, each admitting only the rules that carry a severity-crosswalk
-# row and are selected on that path:
-#   --from       scanner-fed: I28-a/b (instruction-scan.sh) and I29-a/b
-#                (restatement-scan.py, concatenated onto the same stream).
-#                Confidence `high`: a deterministic detector fired.
-#   --from-lane  lane-fed: I30, I31, I32, I33, which no scanner seeds; the rows
-#                are the Phase C-surviving lane findings, in the same
-#                `file:line:check-id` shape. Confidence is omitted: a judgment
-#                selected the row, and the contract has no grade below `high`
-#                for a producer that performs no reviewer verification.
-#                I31 and I33 are admitted for a file inside a skill directory
-#                (skills/<name>/...) or in a context/, reference/, or references/
-#                directory; I33 excludes SKILL.md. I32 is CRITICAL on a path
-#                under plugins/ and IMPORTANT anywhere else.
-# A row on the wrong path is declined with the path it belongs to. Every other
-# check id (I6, I8-a/b/c/f/g, I10, I23, I25, I27, ...) has no crosswalk row, and
-# the detector-findings contract admits no row whose tier cannot be looked up
-# from one — those stay in the human report. Rows for them are counted as
-# declined, never silently dropped. A line that is not a row at all (suffix
-# outside [a-g], prose, blank) is counted as reason=unparsable-row, never
-# omitted from both the rows-read count and every Declined line.
-#
-# Every emitted row carries its audit-pass finding identity in the Finding cell
-# (`finding_id=<16 hex>`), derived by finding-ids.sh beside this script; a row
-# it cannot identify is declined reason=identity-unresolved rather than emitted
-# without one.
-#
-# The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/contracts/detector-findings/README.md ("The severity crosswalk"); that
-# table is the source of truth — a tier change lands there first and is copied
-# here, never the reverse.
-#
-# BODY-SCOPE FENCE, RE-VERIFIED HERE. instruction-scan.sh --body-only already
-# drops frontmatter hits, but this script recomputes the fence rather than
-# trusting its input, and additionally drops any body row whose line quotes a
-# `'trigger phrase'` that also appears in the file's own `description:`. The
-# reason is check-skill.sh check 3: it hard-FAILs a dropped trigger phrase versus
-# the base ref, so a remediation that edits a description or a quoted trigger
-# phrase is an auto-invocation regression. A fence that lives only in the caller
-# is one caller away from being bypassed; findings that reach an APPLY relay
-# carry it in the writer.
-#
-# Exit: 0 on success, 2 on usage error, 3 when neither input carries a single
-# row (not scanner or lane output; refusing beats composing from garbage). Zero
-# EMITTABLE findings with rows present still WRITES the file — coverage is the
-# payload.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -150,10 +93,6 @@ if [[ -z "$BRANCH" ]]; then
   }
 fi
 
-# A row is `<path>:<line>:<check-id>`. Input with no such row is neither scanner
-# nor lane output. Strip a trailing CR first so an all-CRLF file with a matching
-# row is recognized rather than refused — the same strip the awk intake applies
-# before its pattern match.
 ROW_ERE='^.+:[0-9]+:I[0-9]+(-[a-g])?$'
 INPUTS=()
 [[ -n "$FROM" ]] && INPUTS+=("$FROM")
@@ -170,31 +109,8 @@ if [[ -e "$OUT" ]]; then
 fi
 mkdir -p "$(dirname "$OUT")"
 
-# ISO-8601 EXTENDED, colons in the time portion. The consumer parses this field:
-# fix-pass-mode.md "Step 1" reads a value only if it is a full ISO-8601 date-time
-# carrying an explicit UTC designator (Z) or numeric offset. The colon-free rule
-# the convention states elsewhere binds the FILE NAME, never this field.
 DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Repo root, for relativizing Location. The fix action fences each remediation to
-# its finding's Location, and an absolute path is not portable to the checkout
-# that applies the fix.
-#
-# One directory has several SPELLINGS on Git Bash, and matching the wrong one
-# silently declines a real in-repo finding — this producer FAILS CLOSED, so a
-# path it cannot prove is under the root never reaches the relay. Measured:
-# `git rev-parse --show-toplevel` answers Git Bash's Windows spelling of the same temp repo
-# while the caller reached the same directory as `/tmp/t/repo`.
-#
-# The PRIMARY anchor is derived from the caller's own `pwd` by removing the
-# sub-path git reports for it. The git-reported forms stay as fallbacks.
-# (The ai-slop sibling fails OPEN on the same mismatch — Location stays
-# absolute and nothing reports it.)
-#
-# A scan row may also carry a path that is not absolute at all:
-# instruction-scan.sh echoes the caller's own argument, and naming a repo-owned
-# file relatively is the ordinary invocation. Such a path is resolved against
-# CALLER_PWD, the same directory the awk body reads the file from.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 REPO_ROOT_ALT=""
 REPO_ROOT_PWD=""
@@ -221,23 +137,6 @@ if [[ -n "$RESIDENCY" && ! "$RESIDENCY" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
-# I29 rows come from restatement-scan.py, a NATIVE Windows interpreter. MSYS
-# converts its argv on the way in and the scanner echoes what it received:
-# backslash separators, and 8.3 SHORT components (`<drive>:\Users\<SHORT~1>\...`) for
-# every directory that has one. None of the three anchors above is spelled that
-# way, so such a row was declined as outside the root -- fail closed, and on a
-# host whose checkout sits under a short-named path that silently dropped every
-# restatement finding into the human-report-only column.
-#
-# `cygpath -l -m` answers the long, forward-slash spelling of such a path, which
-# is the toplevel form the anchors are written in. The expansion cannot be done
-# from the anchor side instead: `cygpath -m -s` also shortens components MSYS
-# left long, so the two spellings do not meet in the middle. The path travels to
-# cygpath through a file this script owns rather than through a command line, so
-# no scanner-supplied text is ever interpolated into a shell word.
-#
-# Where cygpath is absent -- Linux CI, where neither shape occurs -- awk falls
-# back to separator normalization alone and the anchors work as they always did.
 CYGPATH_BIN="$(command -v cygpath 2>/dev/null || true)"
 CYGPATH_IO=""
 if [[ -n "$CYGPATH_BIN" ]]; then
@@ -277,7 +176,7 @@ LC_ALL=C awk \
     return ""
   }
   function lane_rule(id) { return id ~ /^I3[0-3]$/ }
-  # Tier mirror of the severity crosswalk (see header comment). I32 is
+  # Tier mirror of the severity crosswalk (docs/contracts/detector-findings). I32 is
   # CRITICAL on the marketplace arm (a path under plugins/, catalog severity
   # error) and IMPORTANT on the user and project arm (catalog severity warning).
   # I33 is SUGGESTION, and every other emitted rule is IMPORTANT.
@@ -506,7 +405,7 @@ LC_ALL=C awk \
   }
 
   # Frontmatter close line for <file>, or 0 when there is none. Recomputed here
-  # rather than trusted from the caller (header comment: BODY-SCOPE FENCE).
+  # rather than trusted from the caller (body-scope fence: context/persist-findings.md).
   # An unclosed leading `---` fences the whole file, the fail-safe direction.
   # Delimiter test, deliberately IDENTICAL to this repo authoritative extractor
   # skill_frontmatter::extract (plugins/skill-quality/scripts/skill-frontmatter.sh),

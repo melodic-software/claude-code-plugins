@@ -1,55 +1,4 @@
 #!/usr/bin/env bash
-# lane-runs.sh: the deterministic half of audit-instructions' execution model.
-# Phase B's lanes are sized from a token budget, persisted one file per lane
-# under a run directory, and resumed by re-running only the lanes whose report
-# is incomplete or whose inputs changed. Everything a model would otherwise
-# re-derive by hand, and could derive two ways, lives here.
-#
-#   lane-runs.sh partition --window-tokens <n> --fraction <f> --bytes-per-token <b>
-#       stdin: one row per in-scope file, `<group>\t<unit>\t<path>`, where
-#       <group> is the atomic packing unit (a plugin, or the memory layer) and
-#       <unit> is what an oversized group splits by (a skill, or a file).
-#       Packs whole groups into lanes up to the byte budget; a group larger than
-#       the budget is split by unit into lanes of its own. Prints `key=value`
-#       header lines (budget_tokens, budget_bytes, bytes_per_line, budget_lines,
-#       lanes, partition_digest), one `split=<group>:<lanes>` line per split
-#       group, then `lane\t<id>\t<bytes>\t<members>` and
-#       `file\t<id>\t<path>` rows. A single unit larger than the budget still
-#       gets one lane and is named on an `over_budget=<group>/<unit>` line.
-#
-#   lane-runs.sh digest --partition-digest <d> --param <key>=<value>... -- <file>...
-#       Prints `sha256:<hex>` over the ordered file list with each file's
-#       content hash, the partition digest, and every --param sorted by key.
-#       The keys in REQUIRED_PARAMS must all be present, so a caller cannot
-#       leave a behavior-affecting input out of the digest by omission.
-#
-#   lane-runs.sh marker --lane <id> --digest <d>
-#       Prints the completion marker a lane report must end with.
-#
-#   lane-runs.sh plan --run-dir <dir>
-#       stdin: `<lane-id>\t<digest>` rows. Prints `<lane-id>\t<reuse|rerun>\t<reason>`
-#       per lane, reason one of complete, missing, incomplete, digest-changed,
-#       judged against `<run-dir>/lanes/<lane-id>.md`.
-#
-#   lane-runs.sh latest --runs-dir <dir>
-#       Prints the newest run id (a `YYYYMMDDTHHMMSSZ` directory) under
-#       `<plugin-data>/audit-instructions/runs/<state-key>/`.
-#
-#   lane-runs.sh attach --run-dir <dir>
-#       Classifies the run's lease through audit-pass's run-state.sh. A live
-#       lease is refused (exit 4) with its heartbeat_at and stale_after_s named;
-#       otherwise prints `verdict=<stale|released|missing>` and
-#       `next_epoch=<n>` for the adopting `lease acquire --epoch`.
-#
-# The lease itself is never reimplemented here: acquire, heartbeat, and release
-# go straight to audit-pass's run-state.sh, invoked with
-# `--plugin-data <plugin-data>/audit-instructions` so its `<plugin-data>/runs/`
-# containment pin holds for this skill's tree.
-#
-# Portability: bash, coreutils, awk, and one of sha256sum / shasum. No jq.
-#
-# Exit: 0 success; 1 `latest` found no run; 2 usage error; 4 `attach` refused a
-# live lease.
 set -uo pipefail
 
 PROG="lane-runs.sh"
@@ -66,7 +15,26 @@ die() {
 }
 
 usage() {
-  sed -n '2,/^set -uo pipefail$/{/^set -uo/d;s/^# \{0,1\}//;p;}' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+lane-runs.sh: size, digest and resume audit-instructions' Phase B lanes.
+
+  lane-runs.sh partition --window-tokens <n> --fraction <f> --bytes-per-token <b>
+      stdin `<group>\t<unit>\t<path>` rows; prints the budget header, split lines,
+      `lane\t<id>\t<bytes>\t<members>` and `file\t<id>\t<path>` rows
+  lane-runs.sh digest --partition-digest <d> --param <key>=<value>... -- <file>...
+      prints `sha256:<hex>`; every key in REQUIRED_PARAMS must be given
+  lane-runs.sh marker --lane <id> --digest <d>
+      prints the completion marker a lane report must end with
+  lane-runs.sh plan --run-dir <dir>
+      stdin `<lane-id>\t<digest>` rows; prints `<lane-id>\t<reuse|rerun>\t<reason>`
+  lane-runs.sh latest --runs-dir <dir>
+      prints the newest run id under the runs directory
+  lane-runs.sh attach --run-dir <dir>
+      prints `verdict=<stale|released|missing>` and `next_epoch=<n>`; refuses a live lease
+
+Exit: 0 success; 1 `latest` found no run; 2 usage error; 4 `attach` refused a
+live lease.
+EOF
 }
 
 sha256_stdin() {

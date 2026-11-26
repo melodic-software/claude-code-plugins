@@ -1,7 +1,4 @@
 // https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
-//
-//   node sweep-gap.mjs   EVENT_NAME, RESOLVED_CONFIG, ACTIONS_TOKEN,
-//                        GITHUB_REPOSITORY, GITHUB_RUN_ID and GITHUB_OUTPUT
 
 import { appendFileSync } from "node:fs";
 import process from "node:process";
@@ -14,12 +11,8 @@ import { readLimits } from "../work-resolve-issue/limits.mjs";
 import { anySweepRun, CARRY_ARTIFACT } from "./verdict-carry.mjs";
 
 const WORKFLOW_PATH = ".github/workflows/work-unblock.yml";
-// A run the concurrency group replaced, or one whose job never ran, holds no
-// artifact; leaving it out saves an artifact listing per run.
 const NO_SWEEP = new Set(["cancelled", "skipped"]);
 
-// The newest sweep run, other than `runId`, that finished a full sweep at or
-// after `since` (epoch ms), or undefined.
 export async function recentSweep({ repo, runId, actions, since }) {
   let found;
   const sweep = anySweepRun(repo);

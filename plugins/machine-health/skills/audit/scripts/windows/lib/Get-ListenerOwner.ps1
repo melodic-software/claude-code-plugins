@@ -167,7 +167,6 @@ function Get-ListenerOwner {
             $endpoints.Add([pscustomobject]@{ Protocol = 'tcp'; Address = [string]$c.LocalAddress; Port = [int]$c.LocalPort; Pid = [int]$c.OwningProcess })
         }
     } catch {
-        # No listening socket at all comes back as "not found", which is an empty table, not a failure.
         $state = Get-ListenerReadState -ErrorRecord $_
         if ($state -ne 'absent') { $result.ReadState = $state }
     }

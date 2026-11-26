@@ -59,8 +59,6 @@ MEASURE = "cyclomatic"
 RULE = "complexity"
 COMPLEXITY_MESSAGE = re.compile(r"^(?P<what>.+?) has a complexity of (?P<value>\d+)")
 QUOTED_NAME = re.compile(r"'([^']+)'")
-# ESLint's own wording when it resolves no configuration for the files it was
-# given; it prints this and exits 2 without a report.
 NO_CONFIGURATION = re.compile(
     r"couldn't find an eslint\.config|No ESLint configuration found",
     re.IGNORECASE,

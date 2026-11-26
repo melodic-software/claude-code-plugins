@@ -1,16 +1,3 @@
-// Moves package.json's install-script approval for @anthropic-ai/claude-code
-// (`allowScripts`, one exact version) to the version package-lock.json
-// installs, so a Dependabot bump of the CLI keeps its postinstall. It writes
-// that version only when it is also the exact version package.json pins,
-// since the push rule (dependency-classify.mjs installScriptPinRefusal, under
-// patch-rules.json's install-script-pin row) checks the pin against the
-// manifest's version as Dependabot set it, not the lockfile. It runs no head
-// code: the manifest and lockfile are data. review-dependency.mjs select
-// writes its patch, which apply-dependency-pin pushes. `check` exits 1 when
-// the pin and the lockfile disagree, for pr-require-checks.yml.
-//
-//   node install-script-pin.mjs check [dir]
-
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -28,16 +15,11 @@ const parse = (text) => {
   }
 };
 
-// The version package-lock.json installs at the top level, or null.
 export function lockedVersion(lockText, name = PACKAGE) {
   const version = parse(lockText)?.packages?.[`node_modules/${name}`]?.version;
   return typeof version === "string" ? version : null;
 }
 
-// { text, from, to } with the pin renamed in place, so key order, indent and
-// the rest of the file keep their bytes; null when there is nothing to move:
-// no pin for the package, the pin already names the locked version, or no
-// locked version. A pin it cannot move as exactly one key throws.
 export function movePin(packageText, lockText, name = PACKAGE) {
   const manifest = parse(packageText);
   if (!manifest) throw new Error("package.json is not a JSON object");
@@ -84,8 +66,6 @@ function editScript(a, b) {
   return ops;
 }
 
-// A git unified diff of `path` from `before` to `after`, with three lines of
-// context per hunk; both texts end with a newline.
 export function unifiedDiff(path, before, after) {
   if (!before.endsWith("\n") || !after.endsWith("\n")) throw new Error(`${path} does not end with a newline`);
   const ops = editScript(before.slice(0, -1).split("\n"), after.slice(0, -1).split("\n"));

@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# Read-only inventory of the mods this Claude Code can run: one TSV row per mod.
-#
-# Installed tier: `claude plugin list --json`, one row per distinct installPath whose
-# hooks/hooks.json (or plugin.json's inline hooks object) declares `modules`; its hooks and
-# calls come from `claude plugin validate --json <installPath>`, which reads the code without
-# loading it and writes nothing to the directory (mod-posture.test.sh holds that). Built-in
-# tier: an inventory report (`--builtin-json`, the JSON /harness-ops:inventory writes), plus
-# the "How to turn it off" column of the mods overview "Built-in mods" table for can_disable.
-#
-# Prints names only: plugin ids, hook event names and mods API method names, each filtered
-# through a strict grammar, plus fixed words. Never prints a settings or env value, a path,
-# or any `claude auth status` field but the derived guard state. From managed settings it
-# reads only `prependPlugins`, the guard's `allowModsToOverrideDenyRules`, `disableSideloadFlags`
-# and `permissions.defaultMode`, and from user, project and local settings only
-# `permissions.defaultMode` (user settings being the one other file whose auto and
-# bypassPermissions values take effect; a lower mode in project or local settings still
-# overrides the user's), each printed as words:
-# https://code.claude.com/docs/en/settings-reference#permissions-defaultmode
-#
-# Usage: mod-posture.sh [--date YYYY-MM-DD] [--project <dir>] [--builtin-json <file>]
-#                       [--overview <file> | --no-fetch] [--managed-file <file>]
-#                       [--surface terminal|desktop] [--guard-only]
-#   --guard-only  print only the `# guard:` line and its `# not read:` footers; skips both
-#                 tiers and the surface line, so the one claude call is `auth status`
-# Env (test seam): MOD_POSTURE_CLAUDE  claude executable (default: claude on PATH)
 # Exit: 0 inventory or guard line printed (rows may be partial; read the footers); 2 usage or jq missing.
 set -uo pipefail
 
@@ -42,7 +17,25 @@ MANAGED_FILE=""
 SURFACE=""
 GUARD_ONLY=0
 
-usage() { sed -n '/^# Usage:/,/^# Exit:/s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+Usage: mod-posture.sh [--date YYYY-MM-DD] [--project <dir>] [--builtin-json <file>]
+                      [--overview <file> | --no-fetch] [--managed-file <file>]
+                      [--surface terminal|desktop] [--guard-only]
+Inventory the mods this Claude Code can run and whether the built-in guard is seated.
+  --date          report date (default: today)
+  --project       project directory to read (default: the current directory)
+  --builtin-json  inventory report JSON from /harness-ops:inventory (its builtin_plugins section); without it the built-in tier is not read
+  --overview      mods overview page to read instead of fetching it
+  --no-fetch      fetch nothing
+  --managed-file  managed settings file to read
+  --surface       terminal or desktop
+  --guard-only    print only the `# guard:` line and its `# not read:` footers; skips both
+                  tiers and the surface line, so the one claude call is `auth status`
+Env (test seam): MOD_POSTURE_CLAUDE  claude executable (default: claude on PATH)
+Exit: 0 inventory or guard line printed (rows may be partial; read the footers); 2 usage or jq missing.
+EOF
+}
 die() {
   echo "mod-posture.sh: $1" >&2
   exit 2
@@ -139,8 +132,6 @@ note_os_store() {
 }
 if [[ -f "$base" ]] || compgen -G "$dropin/*.json" >/dev/null 2>&1; then
   managed="present"
-  # Two keys decide whether the guard loads and what it holds (mods admin page, "Set options on
-  # the built-in guard"). Files combine in drop-in order: lists union, a scalar's last value wins.
   files=()
   [[ -f "$base" ]] && files+=("$base")
   while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done < <(compgen -G "$dropin/[!.]*.json" | LC_ALL=C sort)

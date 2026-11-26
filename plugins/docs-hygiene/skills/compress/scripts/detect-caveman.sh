@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Exit: always 0.
 set -uo pipefail
 
 usage() {

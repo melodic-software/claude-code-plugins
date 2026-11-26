@@ -186,8 +186,6 @@ for plugin in guardrails code-tidying; do
   rm -rf "$repo/plugins/$plugin"
 done
 
-# A lock bump selects the suite through its test-scope, so the leg installs the
-# lock it bumped and ffmpeg, and the suite cannot skip green (#8780).
 mk plugins/playwright/skills/demo-video/requirements.txt "numpy==2.5.4"
 mk plugins/playwright/skills/demo-video/scripts/demo-video.test.sh \
   "# test-scope: plugins/playwright/skills/demo-video/scripts/* plugins/playwright/skills/demo-video/requirements.txt"

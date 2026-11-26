@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# Count the process spawns a subject command performs.
-#
-# A spawn count is the drift-immune counter this plugin puts ahead of any
-# duration: it does not move when the machine is loaded, so it stays the honest
-# before/after metric on a box whose wall-clock timings swing several-fold
-# within an hour. A counter that fails to move is also an unambiguous signal,
-# where a duration that fails to move is ambiguous.
-#
-# Method: prepend a shim directory to the subject's PATH. Each shim logs its own
-# name and then execs the real tool. Builtins never reach a shim, which is
-# precisely the distinction being measured.
-#
-# What this refuses to do, and why (reference/harness-integrity.md):
-#
-#   * Invent a shim directory. The directory goes on PATH, so under rule 1 it
-#     must be fixed across runs. The source harness used `mktemp -d`, changed
-#     PATH every run, forced a permanent cache miss in a subject that cached
-#     keyed on PATH, and reported "no improvement" while measuring its own
-#     randomization. --shim-dir is required, a temporary root is rejected, and
-#     a ledger keyed on the label catches a directory that moved between runs.
-#   * Skip a tool it cannot resolve. The source harness did (`|| continue`),
-#     which undercounts silently. Rule 2: fail, never degrade.
-#   * Accept a Windows drive-letter path without being told to. Rule 6.
-#
-# Usage, options, output and exit codes: usage() below, printed by --help.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -147,9 +122,6 @@ REAL_PATH="${REAL_PATH%:}"
 LOG="$HARNESS_SHIM_DIR/spawns.log"
 
 resolve_tool() {
-  # `type -P` searches PATH only, so a builtin name never resolves to itself.
-  # `command -v pwd` returns the bare word "pwd", and a shim exec'ing that would
-  # find itself first on PATH and spin forever.
   (
     PATH="$REAL_PATH"
     type -P -- "$1" || true
@@ -186,13 +158,6 @@ if ((refreshed == 1)); then
   harness_warn "shim directory refreshed at $HARNESS_SHIM_DIR. The shims' modification times moved, so a subject that invalidates a cache on a newer interpreter will report COLD counts on this run. Treat this run as cold and re-run for the warm number."
 fi
 
-# Stdin is materialized to a FILE and redirected, never piped. A
-# `printf ... | subject` pipeline under `pipefail` reports 141 whenever the
-# subject exits without draining stdin, because printf takes EPIPE and is then
-# the only non-zero element: the census would fabricate an exit code the subject
-# never returned, intermittently, on a pipe-buffer race. It also costs a
-# subshell fork per run, which is a spawn this census would then be counting
-# against itself.
 INPUT="/dev/null"
 if ((HAVE_STDIN == 1)); then
   if [[ -n "$STDIN_FILE" ]]; then
@@ -210,10 +175,6 @@ PATH="$HARNESS_SHIM_DIR:$REAL_PATH" "${SUBJECT[@]}" <"$INPUT" >/dev/null 2>&1
 subject_rc=$?
 set -e
 
-# 126 as well as 127. 127 is "not found" and 126 is "found but not executable",
-# a directory, or a permission refusal. Both mean the subject NEVER RAN, and both
-# produce a tidy `spawns=0` line that reads as a clean result. Guarding only the
-# more famous of the two leaves the same false green reachable by the other.
 if ((subject_rc == 127 || subject_rc == 126)); then
   harness_die "the subject command exited $subject_rc, which means the shell never ran it ($( ((subject_rc == 127)) && printf 'not found' || printf 'found but not executable, a directory, or refused by permissions')). A census of a command that never ran counts zero spawns and reads as a clean result, which is how source failures 3 and 4 reported a confident wrong verdict. Subject was: ${SUBJECT[*]}"
 fi

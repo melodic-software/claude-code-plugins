@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# Keep a sweep's closure ledger, running fetch spend and source cache in one file.
-#
-#   sweep-ledger.sh --topic SLUG init
-#   sweep-ledger.sh --topic SLUG close FILE --dispositions T --pointer-liveness T
-#                   --semantic-diff T --in-span T --carve-out T
-#   sweep-ledger.sh --topic SLUG spend N
-#   sweep-ledger.sh --topic SLUG cache-add URL SHA256
-#   sweep-ledger.sh --topic SLUG cache-check URL
-#   sweep-ledger.sh --topic SLUG status
-#   sweep-ledger.sh [--topic SLUG] --show-config
-#
-# Reasoning-free (Brief constraint C1): this script checks that an entry has the
-# fields the ledger needs and that the spend adds up. Whether a disposition is
-# RIGHT, or whether a file's findings are all accounted for, is not knowable from
-# an entry and is never asserted here; every field is the run's own claim.
-#
-# The ledger is `.work/SLUG/sweep-ledger.md` under the checkout's toplevel, so a
-# worktree keeps its own and no other checkout sees it. `init` writes the sweep's
-# id and the checkout it started in on the first line after the header, and every
-# call refuses a ledger that does not name this checkout, so a copy carried to
-# another checkout is not resumed as the same sweep. The script reads and
-# writes that one file, plus the config cascade for `budgets.corpus_fetch_ceiling`.
-# It is append-only: the running spend is the sum of the `spend` lines, and the
-# newest `cache` line for a URL wins.
-#
-# Contract: reference/dispositions.md "Sweep closure".
-# Exit: 0 on success, 1 when `status` finds spend at or over the ceiling, 2 on
-# usage or input error (a `close` missing a field included), 3 when the ledger's
-# state refuses the call (no ledger for a write, a file already closed, a ledger
-# from another checkout), 4 when
-# `status` needs jq to read a JSON config layer and it is absent, 5 when the ledger
-# could not be written.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

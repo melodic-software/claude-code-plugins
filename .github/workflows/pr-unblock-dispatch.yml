@@ -1,68 +1,12 @@
 name: PR Unblock Dispatch
 
-# GitHub runs no pull_request workflow on a PR with a merge conflict, so the
-# pr-unblock lane is started from here instead: each push to main lists the
-# open PRs GitHub reports as conflicting and dispatches pr-unblock.yml for
-# them (.github/scripts/pr-unblock/dispatch.mjs). A queue merge of several
-# PRs raises one push, so the listing reads main as it is now, not the push.
-# The same run dispatches review-dependency for each open Dependabot PR the
-# classifier sorts `review` whose head has no review-dependency check run yet
-# (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
-# open lanes App PR, or idle PR of an owner in the config's `adoption`
-# section, whose head's ci-status failed (or passed while its pr-test-platforms
-# run failed), with no re-run of that run going and no infra-only first
-# failure's reconciler re-run still due, and has no fix-ci run yet,
-# at most limits.fix-ci-per-run per run, from one GraphQL query whose
-# rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs).
-# pr-refine.yml's fix-docs is started only by the PR's own event, in the refine
-# job below: once per open, ready PR into main that changes a Markdown file,
-# carries no hold label and never had a fix-docs check run, when the event's
-# sender is the lanes App or a listed human (no other sender's PR gets one),
-# except Dependabot, the release App and the standards-sync App, and not for a
-# work-resolve-issue PR tidied in its own run (within the tidy cutoffs)
-# (.github/scripts/pr-unblock/refine-event-dispatch.mjs over
-# fix-docs-dispatch.mjs); limits.fix-docs-per-run 0 turns it off. The same
-# job starts each pr-refine activity refine-dispatch.activities lists on a
-# listed human's event, never the lanes App's; the list is empty by default.
-#
-# No model and no App token: the job's GITHUB_TOKEN can only read and start
-# workflow runs. A run started by hand, or a re-run of a push run, must come
-# from a listed trusted human. A re-run of a scheduled run fails at the trigger
-# check, which handles no schedule event; the next tick replaces it. The
-# dispatched lane runs its own trigger gate, kill switch and config. Only
-# fix-ci and fix-docs filter by author and hold label: fix-ci to spend no
-# model run on a PR the lane would skip, fix-docs to leave alone PRs whose
-# files are generated or synced.
-#
-# The job token's rate-limit readings, from the script's own responses, are
-# logged at the end of the job (.github/actions/log-api-budget), and the
-# script logs its own call counts.
-# The heads whose check runs already handle them for good are carried from
-# run to run in the Actions cache (dispatch-record.mjs), so a later run skips
-# their reads; a head a resolve-conflicts select job's stop handles is kept
-# with the base tip it was judged against, and read again once main moves. A
-# run only skips work on the record, never dispatches on it.
-
-# API_BUDGET_HOLD (outage posture element 2): only the dispatch step sets
-# it; the trigger check and the pace step are gates.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   push:
     branches: [main]
   schedule:
     - cron: "9,39 * * * *"
   workflow_dispatch: {}
-  # Starts fix-docs on a PR's own event, the only start it has: the refine
-  # job below. From 2026-12-02 GitHub blocks pull_request_target in public
-  # repositories unless an Actions event policy allows it for this file
-  # (https://github.blog/changelog/2026-11-02-pull_request_target-blocked-by-default-december-2/);
-  # without one, fix-docs stops while reviews still run. pull_request_target
-  # runs this file and its checkout from main, never the PR's copy
-  # (ADR 0090). Opened, reopened or turned ready, and a push, which may
-  # add the PR's first Markdown file; a draft is skipped.
+  # pull_request_target runs this file and its checkout from main, never the PR's copy.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, reopened, ready_for_review, synchronize]
     branches: [main]
@@ -76,9 +20,6 @@ env:
 
 jobs:
   dispatch:
-    # A dispatch on another branch would run that branch's copy of this file.
-    # A pull_request_target run also reports main as its ref; the refine job
-    # takes it.
     name: Dispatch
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target'
     concurrency:
@@ -147,10 +88,6 @@ jobs:
         run: |
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
 
-      # A push or scheduled run on its first attempt was started by the event
-      # itself. A hand run, or any re-run, is checked against the base list:
-      # the sender and the re-runner must be listed, and the lanes App bot is
-      # denied. A scheduled run's re-run stops here with no-pr.
       - name: Check the trigger
         id: gate
         if: >-
@@ -179,21 +116,12 @@ jobs:
           echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
           exit 1
 
-      # The base config's limits.api, in resolve-config's output shape, for
-      # the pacer; a failed read leaves rate-limits.json's defaults.
       - name: Read the pace override from the base config
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
         continue-on-error: true
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
 
-      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
-      # at reset, projected at this window's burn rate, is under limits.api
-      # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
-      # and only when the previous scheduled run marked a clean pass, so the timer
-      # lanes slow to half cadence before the breaker stops every lane. Any
-      # other event, or a read that fails, runs as before
-      # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
         if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
@@ -252,20 +180,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           ARTIFACT_READ_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
-          # A rate limit past the guard's budget refuses the call with a notice
-          # (rate-guard.mjs): the refusal carries rateLimited, so a refused
-          # listing dispatches nothing and a refused read skips its PR, each
-          # with a warning, and a refused dispatch still ends the run red.
           API_BUDGET_HOLD: "1"
-          # fix-ci skips a PR whose pr-verify FAILs are at the cap (verify-cap.mjs).
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
-          # The reader's gh calls, with this job's read scopes.
           GH_TOKEN: ${{ github.token }}
-          # fix-ci starts on PRs the lanes App opened, matched by this id, and
-          # on idle PRs of the owners in the config's `adoption` section.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
           DISPATCH_RECORD: ${{ runner.temp }}/pr-unblock-dispatch-record.json
@@ -280,12 +200,6 @@ jobs:
           path: ${{ runner.temp }}/pr-unblock-dispatch-record.json
           key: pr-unblock-dispatch-record-${{ github.run_id }}-${{ github.run_attempt }}
 
-      # The record of which runs this run dispatched: an artifact only steps of
-      # this run can upload, named with every id so a reader needs one list
-      # call and no download. It outlives the 10-minute dispatch window and
-      # runs after a partial dispatch failure, which still sent the others,
-      # and after a cancel mid-dispatch: dispatch.mjs appends each id to the
-      # file as soon as its dispatch returns.
       - name: Name the dispatched-runs record
         id: record
         if: always() && steps.dispatch.outcome != 'skipped'
@@ -336,16 +250,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Dispatches pr-refine.yml's fix-docs for this PR under fix-docs-dispatch.mjs's
-  # rule, and each refine-dispatch.activities id on a listed human's event
-  # (refine-event-dispatch.mjs), and records each dispatch for the
-  # trusted-trigger gate and the broker (ADR 0090). Four invariants, each
-  # pinned in workflow-gates.test.mjs: main's code only, checked out at the
-  # commit this file ran from, never the PR head; no PR text reaches a step,
-  # only the PR number and SHAs through env:; exactly the two permissions
-  # below; no secret and no App token. A burst of pushes cancels the run
-  # going, and the record steps run on cancel too (always()), so a run
-  # cancelled after its dispatch still records it.
   refine:
     name: Refine
     if: >-
@@ -366,8 +270,6 @@ jobs:
       npm_config_fund: "false"
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
-      # The record names this commit, which the gate and the broker check is
-      # on main and holds main's copy of this file.
       - name: Check out the commit this workflow ran from
         uses: actions/checkout@v7
         with:
@@ -411,8 +313,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/pr-unblock/refine-event-dispatch.mjs
 
-      # Named from the commit this file ran from and the id the dispatch API
-      # returned, nothing else: pr-unblock-target-dispatched-<commit>-<run id>.
       - name: Name the dispatched-run record
         id: record
         if: always() && steps.dispatch.outcome != 'skipped'

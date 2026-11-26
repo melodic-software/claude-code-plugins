@@ -13,10 +13,6 @@ test("parses the Unicode-arrow window header", () => {
   });
 });
 
-// Regression (#3364): the old `([0-9T:Z-]+)\s*[→-]+\s*([0-9T:Z-]+)` could not
-// place the `>` of an ASCII arrow, so it backtracked and split INSIDE the first
-// timestamp — yielding open="2026", close="04-24T19:00:00Z" and a nonsense
-// rendered window. Both spellings must yield the same full pair.
 test("parses the ASCII-arrow window header into the same full timestamps", () => {
   assert.deepEqual(parseWindowRange(`${OPEN} -> ${CLOSE} (~11 days)`), {
     open: OPEN,

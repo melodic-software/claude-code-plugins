@@ -373,7 +373,6 @@ async function assertGone(pid: number) {
       process.kill(pid, 0);
     } catch (error) {
       code = (error as NodeJS.ErrnoException).code;
-      // macOS gives EPERM for a process group of only zombies, until they are reaped.
       if (code !== "EPERM") {
         assert.equal(code, "ESRCH");
         return;

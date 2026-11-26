@@ -1,19 +1,3 @@
-// Checks each chunk's main-run review structured output, the last result
-// message of that chunk's run-claude-cli execution file, and writes the one
-// verdict file that
-// pr-review-main.yml uploads as pr-review-main-<lane>-<pr>-<tree>
-// (babysit_review_evidence.main_review_name). The gate counts only its
-// numbers: `findings`, every finding the model returned, summed over the
-// chunks, and `critical`, the CRITICAL ones, the most in any one chunk
-// (`items` lists them all, each chunked one with its `chunk`). The
-// pull request, head, base and tree come from the job's own reads, never from
-// the model. A run with any permission denial, output
-// that is not {findings, summary}, a finding that is not
-// {severity, path, line, title, body}, or model text a credential pattern
-// matches (lib/publish-gate.mjs findSecret) writes nothing and throws, so the
-// job fails and uploads no verdict; so does any one chunk that ran no review,
-// left no result or did not read its own parts whole. Model text is cut to fixed lengths and
-// never reaches a shell.
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -28,6 +12,7 @@ export const LONG_LINE_BYTES = 1800;
 const FINDINGS_MAX = 200;
 const TEXT_MAX = 2000;
 const SUMMARY_MAX = 4000;
+export const MERGED_SUMMARY_MAX = 4 * SUMMARY_MAX;
 const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
@@ -170,19 +155,22 @@ export function buildChunkedVerdict({ outputs, ...rest }) {
   if (chunks.length === 1) {
     return chunks[0];
   }
+  const room = Math.min(SUMMARY_MAX, Math.floor(MERGED_SUMMARY_MAX / chunks.length));
   return {
     ...chunks[0],
     findings: chunks.reduce((sum, c) => sum + c.findings, 0),
     critical: Math.max(...chunks.map((c) => c.critical)),
-    summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary}`).join("\n\n"),
+    summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary.slice(0, room)}`).join("\n\n"),
     items: chunks.flatMap((c, i) => c.items.map((item) => ({ ...item, chunk: i + 1 }))),
   };
 }
 
-// The diff is DIFF_DIR/chunk-<k>/part-<n>.patch; EXECUTION_FILES names each
-// chunk's execution file, one per line in chunk order.
+export function executionFiles(env, count) {
+  return Array.from({ length: count }, (_, i) => (i === 0 ? env.EXECUTION_FILE : env.CHUNKS_DIR && path.join(env.CHUNKS_DIR, `chunk-${i + 1}`, "execution.json")));
+}
+
 export function main(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "STANDARDS_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
+  for (const key of ["EXECUTION_FILE", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "STANDARDS_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -201,7 +189,7 @@ export function main(env = process.env) {
   if (dirs.length !== count || !want.every((name) => dirs.includes(name))) {
     throw new Error(`the diff holds ${dirs.length} chunk directories, not the ${count} the diff step wrote`);
   }
-  const files = env.EXECUTION_FILES.split("\n");
+  const files = executionFiles(env, count);
   const chunks = want.map((name, i) => {
     const label = `chunk ${i + 1} of ${count}`;
     let parts;

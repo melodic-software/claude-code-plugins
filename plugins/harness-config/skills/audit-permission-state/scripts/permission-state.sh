@@ -55,10 +55,6 @@ source "$MANAGED_SCOPE_LIB"
 
 NL_SENTINEL=$'\x01MULTILINE\x01'
 
-# The rule-extraction filter, shared by the settings-file reader and the Windows
-# registry reader below so the two cannot drift apart: one rule string per line,
-# with a rule carrying a literal newline or carriage return marked by the
-# sentinel and folded onto a single line rather than split into fragments.
 # shellcheck disable=SC2016 # a jq program: $k and $nl are jq variables bound with --arg, and must not expand in the shell
 RULES_JQ='.permissions[$k] // [] | .[] | if test("[\n\r]") then $nl + (. | gsub("[\n\r]"; " ")) else . end'
 
@@ -70,8 +66,6 @@ note() { printf 'NOTE: %s\n' "$1"; }
 reg_cmd() { MSYS2_ARG_CONV_EXCL='*' reg "$@"; }
 
 
-# The session's start directory. Claude Code wrote settings.local.json here
-# before v2.1.211 and still reads what an earlier version left behind.
 START_DIR="${PERMISSION_STATE_STARTDIR:-$PWD}"
 
 if [[ -n "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
@@ -79,8 +73,6 @@ if [[ -n "${PERMISSION_STATE_FIXTURE_DIR:-}" ]]; then
   REPO_ROOT="$PERMISSION_STATE_FIXTURE_DIR"
 else
   PRIMARY_DIR="$PWD"
-  # The prefix, not a path comparison: it is empty at the root however the shell
-  # and git spell that path.
   {
     read -r REPO_ROOT
     read -r REPO_PREFIX
@@ -139,9 +131,6 @@ MANAGED_FILE="$(mscope::base_file "${PERMISSION_STATE_MANAGED_PATH:-}")"
 MANAGED_DROPIN="$(mscope::dropin_dir "${PERMISSION_STATE_MANAGED_PATH:-}")"
 
 
-# classify_json_file <path> — status for a settings file, without ever holding
-# its contents in a variable (a settings file may carry credentials, and a shell
-# variable would put them into `set -x` output).
 classify_json_file() {
   local path="$1"
   [[ -f "$path" ]] || {
@@ -176,8 +165,6 @@ emit_rules_of_kind() {
       ;;
     *) printf 'rule %s %s %s %s\n' "$scope" "$surface" "$kind" "$rule" ;;
     esac
-    # jq emits CRLF on Windows; a trailing \r would corrupt every rule string,
-    # so the stream is stripped of them before the loop reads it.
   done < <(jq -r --arg k "$kind" --arg nl "$NL_SENTINEL" "$RULES_JQ" 2>/dev/null |
     tr -d '\r')
 }
@@ -265,9 +252,6 @@ else
 fi
 
 
-# `-`, not `:-`: an explicitly EMPTY value must mean "no registry surface", and
-# `:-` treats set-but-empty as unset, so every test passing "" was silently
-# probing the operator's REAL registry instead of the seam it asked for.
 registry_keys="${PERMISSION_STATE_REGISTRY_KEYS-$(mscope::registry_keys)}"
 if [[ -z "$registry_keys" ]]; then
   emit managed registry not-applicable "-"
@@ -291,9 +275,6 @@ else
   done <<<"$registry_keys"
   emit managed registry "$registry_status" "$registry_path"
   if [[ "$registry_status" == "present" && "$mode" == "full" ]]; then
-    # `reg query` prints "<name> <type> <data>" with the data as the rest of the
-    # line; cut at the type token rather than by field count, because the JSON
-    # payload contains spaces.
     reg_json="$(reg_cmd query "$registry_path" /v Settings 2>/dev/null | tr -d '\r' |
       sed -n 's/.*REG_\(EXPAND_\)\{0,1\}SZ[[:space:]]*//p' | head -1)"
     if [[ -z "$reg_json" ]] || ! printf '%s' "$reg_json" | jq empty 2>/dev/null; then
@@ -307,7 +288,6 @@ else
   fi
 fi
 
-# `-` for the same reason as the registry seam above.
 plist_domain="${PERMISSION_STATE_PLIST_DOMAIN-$(mscope::plist_domain)}"
 if [[ -z "$plist_domain" ]]; then
   emit managed plist not-applicable "-"
@@ -367,9 +347,6 @@ if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
   note "CLAUDE_CODE_REMOTE=true: this is a cloud session, which reads a DIFFERENT scope set than a local one. Your own machine's user settings and .claude/settings.local.json are not read at all, and a managed-settings.json file or MDM profile on your device does not reach it. A self-hosted environment's runner image can carry its own managed file, and a cloud thread in a project takes no permission rules from a repository's .claude/settings.json; this reader detects neither case, so read https://code.claude.com/docs/en/settings#settings-in-cloud-sessions before trusting the managed or project records above, and run /permissions in the session, which from Claude Code 2.1.319 says where the session's rules live. Any user scope reported above is this container's file, not yours."
 fi
 
-# The pre-v2.1.211 copy is a DISTINCT scope member, not a fallback: when both
-# exist "the repository root's value wins, except that permission rules from both
-# files stay in effect", so both rule sets are live and both must be inventoried.
 STARTDIR_LOCAL="$START_DIR/.claude/settings.local.json"
 if [[ "$STARTDIR_LOCAL" == "$LOCAL_ROOT/.claude/settings.local.json" ]]; then
   emit startdir-local settings not-applicable "$STARTDIR_LOCAL"

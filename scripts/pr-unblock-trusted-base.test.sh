@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Structure test: every pr-unblock.yml job that runs an activity through a
-# runner passes trusted-base: default-tip, so a dispatched run resolves config,
-# actions and trusted actors from the default branch tip, never from the stale
-# base SHA an older PR keeps (docs/adr/0069). The read runner takes the same
-# trusted-base input as the write runner and hands it to check-trusted-base.
-# The action's own modes are check-trusted-base's suite; this asserts wiring.
 # test-scope: .github/workflows/pr-unblock.yml .github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml scripts/ci-deps/package.json
 set -uo pipefail
 

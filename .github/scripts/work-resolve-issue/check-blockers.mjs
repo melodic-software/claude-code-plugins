@@ -1,76 +1,4 @@
 #!/usr/bin/env node
-// check-blockers.mjs: the issue lane's admission checks a label added by hand
-// would otherwise skip, in the check-admission job before any model run. No model, no
-// write; it never fails the job or hands the issue to a person.
-//
-// - Authorship first, by admission's rule (admit.mjs authorTrust): an
-//   issue neither a listed human nor the lanes App wrote, and no trusted
-//   upstream-drift issue, does not run, for
-//   good, whoever added agent-ready, since the run would work from an
-//   outsider's text: `untrusted` and `outsider` are true, and
-//   work-resolve-issue.yml's report-skip removes agent-ready and comments that
-//   a listed human re-files the work as a new issue. No read past the issue's
-//   own. A trusted drift issue runs as a split child does (`split-child`
-//   true): admission takes it at any Size, since it is never split.
-// The issue's events are its label events plus its Work status field
-// changes shaped as label events (read-status.mjs statusEvents), so a verdict
-// or admission written only to the field counts as one.
-//
-// - Then provenance, by admission's rule (admit.mjs untrustedHold): an issue
-//   carrying one of UNTRUSTED_LABELS, or whose newest removal of one
-//   was by neither a listed human nor the lanes App, does not run, for good:
-//   `untrusted` is true, and work-unblock's sweep never re-fires the run.
-// - Then the map labels: a map or one of its items (its own labels hold the
-//   tracker binding's container label or a label starting with its wayfind
-//   prefix, check-born-triaged.mjs routingLabel, read from BASE_PATH's
-//   docs/conventions/work-items.yaml) is the filing skill's to route, not the
-//   lane's: it does not run, and work-unblock never re-fires it while the
-//   label stays.
-// - Then blockers (owner decision Q95): an issue a blocker still blocks, as
-//   admission judges it (admit.mjs blockerDone: a pull request merged here, or
-//   an issue closed, for any reason, by a listed human or, here only, a merge
-//   or commit; another repository's issue is read there), does not run until
-//   none does; the sweep re-fires it then.
-// - Then sub-issues: an umbrella, an issue with an open sub-issue, is no work
-//   for the lane (owner Q93, intake admission's wait: its work is its
-//   sub-issues'), nor a decision for a person, so it does not run while one
-//   is open and the sweep re-fires it once none is. The issue read's
-//   sub_issues_summary answers for an issue with none open, at no extra call
-//   (admit.mjs openSubIssues).
-//
-// Either way `proceed` is false, agent-ready stays on, and a notice says why.
-// A read that fails also skips, with a warning, and is not final, so the
-// sweep retries it.
-//
-// With RECHECK=true it is the read runner's in-slot re-check
-// (pr-run-activity-read.yml check-broker), after admission passed and the run
-// waited for its slot. It reads the issue first: a map or untrusted label on
-// it, added while the run waited, takes the full check, as admission does
-// (https://github.com/melodic-software/claude-code-plugins/issues/18061).
-// Otherwise one read of the blocked_by list decides when the list is empty
-// (proceed) or names an open blocker (blocked, as above). A list of closed
-// blockers alone takes the full check, since only it judges who closed them.
-//
-// Environment:
-//   GH_TOKEN             the job's GITHUB_TOKEN (issues: read)
-//   GITHUB_REPOSITORY    owner/repo
-//   ISSUE_NUMBER         the issue agent-ready was added to
-//   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list
-//   BASE_PATH            the default branch's checkout (default `.base`),
-//                        whose models.issue-status the field read reads and
-//                        whose tracker binding names the map labels
-//   LANES_APP_ID         the lanes App bot's numeric user id
-//   RECHECK              `true` for the in-slot re-check above
-//   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false,
-//                        outsider=true on the outside-author stop, and with
-//                        proceed=true split-child=true|false: whether the issue
-//                        is a trusted size-split sub-issue (admit.mjs
-//                        trustedSplitChild) or a finished parent (admit.mjs
-//                        finishedParent), resolve-config's split-child input,
-//                        so Size Large does not skip either; and verify-close,
-//                        a finished parent's sub-issue numbers, comma-joined
-//                        (else empty), report-outcome's VERIFY_CLOSE
-//   GITHUB_API_URL
 import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -135,10 +63,6 @@ export async function main({ env = process.env, github, log = console.log, write
       held = !outsider && untrustedHold({ labels: issue?.labels, events, humans, isApp });
       routed = outsider || held ? null : routingLabel(labels, routing);
       if (!outsider && !held && !routed) {
-        // The same close admission counts (admit.mjs closedByTrusted), so a split
-        // parent the lanes App closed does not hold an issue admission let through.
-        // A blocker the App closed report-delivered no longer holds once a
-        // verdict or admission postdates its close (admit.mjs reportCleared).
         const after = judgedSince(events, (actor) => humans.has(actor?.id) || isApp(actor));
         const closed = closedByTrusted({ github: client, repository, humans, appId });
         const trusted = clearedPastReport({ github: client, repository, isApp, trusted: (blocker) => closed(blocker, { blocker: true }), after });

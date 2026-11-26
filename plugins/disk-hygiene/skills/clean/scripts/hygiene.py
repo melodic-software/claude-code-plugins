@@ -829,8 +829,6 @@ def is_os_managed_target(
     return False
 
 
-# The device path, not DiskImage.Number, tells a VHD (a physical drive with
-# partitions) from an optical image (.iso/.img, a CD-ROM device with one volume).
 WINDOWS_DISK_IMAGE_PROBE = r"""
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -862,8 +860,6 @@ def windows_disk_image_mounts(path: Path) -> list[str] | None:
         check=False,
         env={**os.environ, "DISK_HYGIENE_IMAGE": str(path)},
     )
-    # Exit code and sentinel only: Windows PowerShell writes CLIXML progress
-    # records to a redirected stderr even on success.
     lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
     if run.returncode != 0 or not lines or lines[0] not in {"attached", "detached"}:
         raise ValueError(
@@ -2194,7 +2190,6 @@ def os_autoclean_advisory(
         effective = (
             state["enabled"] is True
             and state["temporary_files_cleanup"] is True
-            # Cadence 0 = "during low free disk space", which may never fire.
             and (state["cadence_days"] or 0) > 0
         )
         if zone["logical_bytes"] >= threshold:
@@ -2862,8 +2857,6 @@ def annotate_stdlib_shadowing(
     except (OSError, ValueError):
         return []
     prefix = "" if home_relative == "." else f"{home_relative}/"
-    # The home prefix comes from Path.home() while entry paths come from
-    # scandir names, and on Windows the two may differ only in case.
     fold = str.casefold if sys.platform == "win32" else str
     folded_prefix = fold(prefix)
     children: dict[str, dict[str, Any]] = {}
@@ -2871,16 +2864,14 @@ def annotate_stdlib_shadowing(
         path = entry["path"]
         if fold(path).startswith(folded_prefix) and "/" not in path[len(prefix) :]:
             children[path[len(prefix) :]] = entry
-    # Built-in modules resolve before sys.path is searched, so sys.py or
-    # time.py in the home directory never shadows them.
+    # The default sys.meta_path tries the built-in finder before the import-path finder.
+    # https://docs.python.org/3/reference/import.html#the-meta-path
     stdlib = sys.stdlib_module_names - set(sys.builtin_module_names)
     shadows: dict[str, dict[str, Any]] = {}
     for name, entry in children.items():
         stem, dot, suffix = name.rpartition(".")
-        # A case-insensitive filesystem imports Random.py for `import random`.
         stem = fold(stem)
         if (
-            # Python follows a symlinked module source.
             entry.get("kind") in ("file", "link")
             and dot
             and fold(suffix) == "py"
@@ -3495,8 +3486,6 @@ def run_git(repo: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     if not git:
         raise HygieneError("git-not-found")
     environment = os.environ.copy()
-    # `git status` may otherwise refresh the index and write an optional
-    # lock/index update. Evidence collection is a read-only handoff operation.
     environment["GIT_OPTIONAL_LOCKS"] = "0"
     return subprocess.run(
         [git, "-C", str(repo), *arguments],
@@ -3524,8 +3513,6 @@ def verify_github_remote_head(
     repo: Path, remote: str, sha: str
 ) -> tuple[bool, dict[str, str]]:
     """Confirm one local head through the GitHub commits API, never by ref name."""
-    # Read the literal declaration rather than `git remote get-url`, which
-    # expands global `insteadOf` transport rewrites and can hide github.com.
     remote_url = run_git(repo, "config", "--get", f"remote.{remote}.url")
     if remote_url.returncode != 0 or not remote_url.stdout.strip():
         return False, {"sha": sha, "error": "remote-url-unverified"}
@@ -3922,8 +3909,6 @@ def windows_handle_state(path: Path) -> tuple[str, str | None]:
     ]
     create_file.restype = ctypes.c_void_p
     flags = FILE_FLAG_BACKUP_SEMANTICS if path.is_dir() else FILE_ATTRIBUTE_NORMAL
-    # A zero-access open skips the share check, so it succeeds on a held file.
-    # DELETE access with share mode 0 conflicts with any existing handle.
     handle = create_file(str(path), DELETE, 0, None, OPEN_EXISTING, flags, None)
     invalid = ctypes.c_void_p(-1).value
     if handle == invalid:
@@ -5272,7 +5257,6 @@ class _RecycleProgressSink:
         def proceed(_this: int, *_arguments: Any) -> int:
             return _S_OK
 
-        # IUnknown, then IFileOperationProgressSink, in vtable order.
         slots = (
             (hr, (ptr, ctypes.POINTER(ptr)), query_interface),
             (u32, (), reference_count),  # AddRef

@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// The steps of maintenance-measure-skill-edit.yml after a win. No model runs here, and nothing here
-// reads the model's proposal: the edit is the patch the scan job checked and pass b measured, and
-// the pull request text is written here from the compare-passes job's scripted results.
-//
-//   push     applies edit.patch to a checkout of the base, adds a fixed changelog fragment, checks
-//            the result changes only the skill's markdown body (never its frontmatter) and that
-//            fragment, and recreates it as one
-//            lanes App commit on chore/hill-climb-<plugin>-<skill>-<run id> (mutate-branch)
-//   body     writes the draft pull request's title and body from the win's files (no token)
-//   publish  opens that branch's pull request as a draft, unless it has one (publish-artifact)
-//
-// The owner's grant (AL-Q11, #12035) allows chore/hill-climb-* branches and draft pull requests
-// only; the broker sees neither, so this file enforces both.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -29,10 +16,8 @@ export const BRANCH_PREFIX = "chore/hill-climb-";
 const NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const SHA = /^[0-9a-f]{40}$/;
-// A summary past this is cut, so the body stays under GitHub's 65536-character limit.
 const SUMMARY_MAX = 24000;
 
-// The one branch a run may write: the prefix and nothing the inputs can widen.
 export function branchOf(plugin, skill, runId) {
   if (!NAME.test(plugin ?? "") || !NAME.test(skill ?? "") || !RUN_ID.test(String(runId ?? ""))) {
     throw new Error("the plugin, the skill or the run id is not a lowercase kebab-case name and a run id");
@@ -42,8 +27,6 @@ export function branchOf(plugin, skill, runId) {
 
 export const titleOf = (plugin, skill) => `chore(${plugin}): apply the hill-climb edit to the ${skill} skill`;
 
-// Named as scripts/new-changelog-fragment.sh names one, with the suffix taken from the patch, so a
-// re-run builds the same tree.
 export function fragmentOf(plugin, skill, branch, patch) {
   const slug = branch.toLowerCase().replace(/[^a-z0-9._-]/g, "-");
   const hex = createHash("sha256").update(patch).digest("hex").slice(0, 8);
@@ -53,11 +36,8 @@ export function fragmentOf(plugin, skill, branch, patch) {
   };
 }
 
-// The change lines of a `git diff --raw` output.
 const rawLines = (raw) => raw.split("\n").filter((line) => line.startsWith(":"));
 
-// Why the net raw diff may not be pushed, or null: only regular-file edits to the skill's markdown
-// outside evals/, the one fragment added, and no hold path.
 export function diffRefusal(raw, { plugin, skill, fragment }, holdPath = changesHoldPath) {
   let skillFiles = 0;
   let fragments = 0;
@@ -82,15 +62,11 @@ export function diffRefusal(raw, { plugin, skill, fragment }, holdPath = changes
   return null;
 }
 
-// A markdown file's frontmatter block: the text from an opening `---` line to the next `---` line,
-// or "" when the file has none. Frontmatter is configuration (hooks, allowed-tools), not prose.
 export function frontmatterOf(text) {
   const match = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(text);
   return match ? match[0] : "";
 }
 
-// Why an edit may not be pushed because it changes a file's frontmatter, or null. `show(ref, path)`
-// returns the file's text at that commit.
 export function frontmatterRefusal(paths, show, baseRef, headRef) {
   const changed = paths.find((path) => frontmatterOf(show(baseRef, path)) !== frontmatterOf(show(headRef, path)));
   return changed ? `a frontmatter change in ${changed}` : null;
@@ -102,8 +78,6 @@ const fenced = (text) => {
   return `${fence}text\n${text.replace(/\n+$/, "")}\n${fence}`;
 };
 
-// Cut at the last whitespace within SUMMARY_MAX; a single longer token is cut hard, never inside a
-// surrogate pair.
 const cut = (text) => {
   if (text.length <= SUMMARY_MAX) return text;
   const head = text.slice(0, SUMMARY_MAX + 1);
@@ -112,8 +86,6 @@ const cut = (text) => {
   return `${kept}\n(cut at ${SUMMARY_MAX} characters; the run's win artifact holds the whole file)\n`;
 };
 
-// The draft's body. Everything quoted from the run sits in a fence: a summary can quote a run's
-// error text, so it may carry no live markdown, link or mention.
 export function bodyOf({ plugin, skill, runUrl, winTest, summaryA, summaryB, fragment }) {
   return [
     `Refs: #${SPEC_ISSUE}`,
@@ -151,8 +123,6 @@ export function bodyOf({ plugin, skill, runUrl, winTest, summaryA, summaryB, fra
 
 const pullsOf = (repository, branch) => `/repos/${repository}/pulls?state=all&head=${repository.split("/")[0]}:${encodeURIComponent(branch)}`;
 
-// A re-run finds the branch: at the built tree it is this run's, and is reused; any other tree is
-// not this run's, so stop.
 export async function existingHead(read, repository, branch, tree) {
   const ref = await read(`/repos/${repository}/git/ref/heads/${branch}`, { allow404: true });
   if (!ref) return null;
@@ -162,8 +132,6 @@ export async function existingHead(read, repository, branch, tree) {
   return tip;
 }
 
-// Opens the branch's pull request as a draft when the branch is still at the head push left and
-// has none. Returns whether it opened one.
 export async function openDraft(read, repository, { branch, head, title, body }) {
   if (!branch.startsWith(BRANCH_PREFIX) || !SHA.test(head ?? "")) throw new Error("the branch or its head is malformed");
   const ref = await read(`/repos/${repository}/git/ref/heads/${branch}`, { allow404: true });
@@ -232,6 +200,8 @@ async function publish(env) {
   console.log(opened ? "opened the draft pull request" : "the branch already has a pull request; none opened");
 }
 
+export const failureMessage = (error) => (String(error.message).startsWith("Command failed") ? "a command failed" : String(error.message)).replace(/[\r\n]+/g, " ");
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const commands = { push, body, publish };
   const run = commands[process.argv[2]];
@@ -242,8 +212,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   Promise.resolve()
     .then(() => run(process.env))
     .catch((error) => {
-      // A failed command's message quotes its stderr, which can hold file text.
-      const message = (String(error.message).startsWith("Command failed") ? "a command failed" : String(error.message)).replace(/[\r\n]+/g, " ");
+      const message = failureMessage(error);
       console.log(`::error::${message}`);
       if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `gate: ${process.argv[2]}: ${message}\n`);
       process.exit(1);

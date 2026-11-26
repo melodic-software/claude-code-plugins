@@ -1,30 +1,4 @@
 #!/usr/bin/env bash
-# Chart async message topology from committed C# call sites and registrations.
-#
-# WHY. A publisher and its consumer share no build reference. The edge exists
-# only when both cite a resolved contract type. A publish that cannot be
-# resolved is listed, never dropped, or an orphan-consumer finding would be wrong.
-#
-# Usage:
-#   collect-events.sh --repo <path> --out <file> [--generated-on <date>]
-#   collect-events.sh --help
-#
-# The shipped adapter is C# in the MassTransit shape: Publish<T> or
-# Publish(new T(..)) (broadcast), Send<T> or Send(new T(..)) (point-to-point),
-# IConsumer<T> (consumer of T). AddConsumer<C> and ConfigureConsumer<C> register
-# consumer class C; inside a ReceiveEndpoint("q", ..) call (its own line or block)
-# they give C's consume edges queue q. Publish and send edges carry no queue.
-# A message is a type some publish, send, or consume names. Other types are not.
-# A publish or send whose type does not resolve is an unresolved edge and finding.
-# Identity is the namespace-qualified type. A short or dotted name resolves through
-# the file's namespace and using directives, a short name also through a unique
-# repo match. A name matching no declared type is unresolved, never an orphan.
-# fanout_threshold is 3, a limit of this plugin, not of the broker.
-#
-# schema_version 1. Message lines start with {"id":. Edge lines start with
-# {"from":. Finding lines start with {"kind":.
-#
-# Portability: bash plus POSIX awk. No jq, no python.
 # Exit: 0 written; 1 no commit or unreadable path; 2 usage.
 set -uo pipefail
 
@@ -34,7 +8,14 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/github-remote
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/json-escape.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Chart async message topology from committed C# call sites and registrations.
+Usage: collect-events.sh --repo <path> --out <file> [--generated-on <date>]
+  --repo <path>          repository to read
+  --out <file>           where events.json is written
+  --generated-on <date>  date recorded in the record
+Exit: 0 written; 1 no commit or unreadable path; 2 usage.
+EOF
 }
 
 die() {

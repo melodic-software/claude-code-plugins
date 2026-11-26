@@ -1,33 +1,5 @@
 #!/usr/bin/env node
 
-// Cycle-start snapshot for the babysit-loop merge lane: every open pull request and
-// every open issue in one repository, read through GraphQL cursor pagination and checked
-// for completeness before it is printed.
-//
-// Usage: node lane-snapshot.mjs --repo <owner/repo>
-//
-// Prints {repo, complete: true, prs, issues} and exits 0 only when every page of both
-// lists was read (gh exits non-zero on a failed page, and --paginate has no cap) and each
-// list is whole: no number repeats, and the count read equals the totalCount every page
-// reported. Cursors do not shift the way REST page offsets do when an item opens or
-// closes mid-read, and the totalCount check catches a list that changed between pages.
-// A list that fails the check is re-read once before it counts. Any other outcome prints
-// nothing on stdout and one reason on stderr, so a caller can never act on a partial list:
-//
-//   2  usage error (missing or malformed --repo)
-//   3  read failure: a gh call exited non-zero, or its output was not the expected JSON
-//   4  incomplete read: a list failed the completeness check on both reads (the queue
-//      kept moving; the next cycle reads again)
-//
-// Provenance fields are null when GitHub does not return them (a deleted fork's head
-// repository, a deleted author), so a caller's fail-closed test sees the gap rather than
-// a default. Author login and type keep the REST shape the trust test matches: a GraphQL
-// Bot login gains the `[bot]` suffix REST reports, and type is the GraphQL typename.
-//
-// Each issue also carries `milestone` (its title or null) and `cordoned`: true when that
-// title is in `cordoned-milestones` in RULES_PATH on the repository's default branch. A
-// repository without that file cordons nothing; any other failed read of it exits 3.
-
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { parseArgs } from "node:util";
@@ -41,7 +13,6 @@ function fail(code, reason) {
   process.exit(code);
 }
 
-// `ifNotFound`, when given, is returned for an HTTP 404 instead of failing the read.
 function ghJson(args, label, ifNotFound) {
   const run = spawnSync("gh", ["api", ...args], {
     encoding: "utf8",
@@ -67,8 +38,6 @@ const FIELDS = {
   issues: `number title ${LABELS} milestone { title } updatedAt authorAssociation ${AUTHOR}`,
 };
 
-// Every open node of one connection, oldest first, through `--paginate --slurp` (one
-// response object per page). Returns null when the pages do not add up to one whole list.
 function listAll(connection, label) {
   const query = `query($owner: String!, $name: String!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
@@ -127,15 +96,12 @@ const rules = ghJson(["-H", "Accept: application/vnd.github.raw", `repos/${repo}
 const cordoned = rules?.["cordoned-milestones"] ?? [];
 if (!Array.isArray(cordoned)) fail(3, "admission rules carried a cordoned-milestones that is not a list");
 
-// One read of both lists. With issues disabled there is no issue list to read.
 function readLists() {
   const pulls = listAll("pullRequests", "open pull requests");
   const issues = meta.has_issues ? listAll("issues", "open issues") : [];
   return pulls && issues ? { pulls, issues } : null;
 }
 
-// An item opened or closed mid-read leaves a list short, long, or with a repeat; read
-// both again once before giving up on the cycle.
 const read = readLists() ?? readLists();
 if (!read) fail(4, "an open pull-request or issue list was incomplete on two reads");
 

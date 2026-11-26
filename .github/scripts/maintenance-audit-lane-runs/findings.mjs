@@ -62,9 +62,6 @@ export const fingerprint = ({ slice, workflow, job, signature }) =>
     .digest("hex")
     .slice(0, 16);
 
-// Model text is data. Every free-text field renders inside a fence longer
-// than any backtick run it holds, so no link, image, mention or reference
-// works; an HTML comment cannot open even there.
 const fenced = (text) => {
   const body = String(text).replace(/<!--/g, "<\u200b!--");
   const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((run) => run.length));
@@ -83,10 +80,6 @@ export const inertTitle = (text) =>
 
 const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: ${c.quote}`).join("\n");
 
-// The digest: one rolling issue holding the newest sweep's findings, found by
-// its first line. Its last line keeps the lane-sweep fingerprint form, so
-// scripts that skip the sweep's issues by that line still skip it, and holds
-// the fingerprint of the entry set. Each entry opens with its own marker.
 export const DIGEST_MARKER = "<!-- lane-sweep-digest -->";
 export const DIGEST_TITLE = "Review the open findings from the lane sweep";
 const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))?(?: slice=([ACD]))?(?: wf=(\S+))? -->$/;

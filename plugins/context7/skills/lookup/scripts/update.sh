@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Exit codes (the shared drift-check contract):
-#   0 — no drift, or the requested fix/refresh completed with nothing left to report
-#   1 — drift: the installed CLI is behind latest, or upstream skill content differs
-#       from its baseline (a missing baseline counts as drift)
-#   2 — unverifiable: a prerequisite (npm, curl, diff, git) missing, npm registry or
-#       upstream unreachable, a requested fix/refresh failed, or usage
-# Drift outranks unverifiable: a run that finds drift exits 1 even if another check
-# could not run. A ctx7 CLI that is not installed is reported but is not drift.
-
 set -uo pipefail
 
 MODE="${1:-report}"
@@ -121,8 +112,6 @@ check_skill_drift() {
     return 1
   fi
 
-  # Baseline may be CRLF on a Windows checkout and upstream is always LF;
-  # comparing unnormalized reports false drift on every Windows run.
   tr -d '\r' <"$baseline" >"$baseline_lf"
   tr -d '\r' <"$tmpfile" >"$tmpfile_lf"
 

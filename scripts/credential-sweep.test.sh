@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for credential-sweep.sh against a stub `gh` that serves fixture
-# responses keyed by API path, and a stub `gitleaks` unless the case needs the
-# real scanner.
-#
-# Expected values come from the sweep's contract: a hit is reported by rule and
-# location and never by value, anything readable but unread is listed under
-# GAPS, what the API serves to nobody is listed apart and leaves the exit code
-# alone, every request is a GET, the first rate-limit error stops the sweep,
-# and the exit code is 0 clean, 1 hits, 2 gaps and no hits, 3 could not start.
-#
-# The planted token is assembled at run time from two halves, so no line of
-# this file matches a gitleaks or GitGuardian token pattern.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,8 +15,6 @@ prefix='gh''p_'
 body='R7kT2vXq9LmN4bWc8YdF3hJs6PzA1uEo5iGt'
 PLANTED="$prefix$body"
 SINCE=2026-10-01
-# The pinned default config's shape, cut to one rule: a global [allowlist]
-# whose paths list skips node_modules, the way the upstream default does.
 CONFIG_FIXTURE="$(
   cat <<'EOF'
 title = "fixture"
@@ -150,10 +136,6 @@ z.close()
 PY2
 }
 
-# artifact_record <dir> <repo> <blob-content> [<victim>]: artifact 5
-# ("x.dockerbuild") uploaded unzipped, so its download is a Docker build
-# record's own bytes: a gzipped tar of an OCI layout. With <victim>, the tar
-# also holds a symlink bin.strings.txt to it beside a binary bin.
 BLOB=blobs/sha256/0000000000000000000000000000000000000000000000000000000000000001
 artifact_record() {
   local d="$1" b="repos/o/$2"
@@ -220,7 +202,6 @@ if [[ -z "$PYTHON" ]]; then
   exit 1
 fi
 
-# --- A hit is reported by rule and location, never by value -----------------
 F="$TMP/hit"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[{"id":31,"name":"build","output":{"title":"ok","summary":"","text":null}}]}'
@@ -344,7 +325,6 @@ expect_out "the undownloadable log is listed under GAPS" '- r: logs: run 11 atte
 expect_out "no hits is stated" $'## Hits (0)\n\nNone'
 if [[ "$LOG" != *repos/o/p/* ]]; then ok "the default listing sweeps public repos only"; else fail "private repo p was swept: $LOG"; fi
 
-# Control characters in API text never reach the report.
 F="$TMP/ctrl"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -405,7 +385,6 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-dupe" --repo r
 expect_out "a run listed twice is counted once" '| r | 1 | 1 |'
 if [[ "$(grep -c 'runs/11/attempts/1/logs' <<<"$LOG")" -eq 1 ]]; then ok "a run listed twice is fetched once"; else fail "run 11 fetched more than once: $LOG"; fi
 
-# Expired logs (HTTP 410) are served to nobody: listed apart, exit 0.
 F="$TMP/expired"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -445,7 +424,6 @@ else
 fi
 if [[ "$LOG" != *pulls/3/reviews* ]]; then ok "a pull request before --since is not fetched"; else fail "pull 3 reviews fetched: $LOG"; fi
 
-# --- A symlink in an archive is deleted, never written through ---------------
 F="$TMP/symlink"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -512,8 +490,6 @@ t.close()
 PY
 }
 
-# A tar compressed other than with gzip is never handed to tar, which would
-# decompress it without a bound: it is kept as one file and scanned as bytes.
 F="$TMP/record-xz"
 base_fixture "$F" r
 record_tar "$F" w:xz "inner.txt:644:token $PLANTED"
@@ -538,7 +514,6 @@ else
   fail "left on disk: $(find "$TMP/out-record-partial/downloads" "$TMP/x" 2>&1)"
 fi
 
-# --- A --repo that is not public is refused ----------------------------------
 F="$TMP/private"
 base_fixture "$F" r
 fix "$F" "repos/o/r" '{"private":true}'
@@ -578,7 +553,6 @@ expect_rc "a short run window exits 2" 2
 expect_out "the short window is listed under GAPS" \
   '- r: logs: run list for 2026-10-03T00:00:00Z..2026-10-03T23:59:59Z: listed 0 of total_count 3'
 
-# A window over the 1,000-result cap is halved, and each half is listed.
 F="$TMP/split"
 base_fixture "$F" r
 fix "$F" "$(day_runs r 2026-10-04)" '{"total_count":1500,"workflow_runs":[]}'
@@ -630,7 +604,6 @@ expect_out "the stop is reported as a gap" 'stopped mid-repo: rate limit on GET'
 expect_out "the repo after the stop is a gap" '- s: all: not swept'
 if [[ "$(tail -n 1 <<<"$LOG")" == *actions/runs* ]]; then ok "no request follows the rate-limit error"; else fail "requests after the limit: $LOG"; fi
 
-# A secondary-limit 403 stops the sweep the same way.
 F="$TMP/secondary"
 base_fixture "$F" r
 base_fixture "$F" s

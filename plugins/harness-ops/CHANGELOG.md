@@ -3,6 +3,13 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.8.2] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk` synced (comment-only removal).
+- The observability SQL and awk files lose their comments, with no behavior change; the privacy reference now names `prune-compact.sh`'s column constants as the authoritative cold content list.
+
 ## [10.8.1] - 2026-11-25
 
 ### Fixed

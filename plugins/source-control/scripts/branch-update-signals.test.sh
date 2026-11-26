@@ -22,11 +22,6 @@ ROOT="$WORKDIR/gh"
 mkdir -p "$FAKE" "$SHIM" "$ROOT/example-org"
 export FAKE
 
-# Answers each read the script makes. The JSON shapes are GitHub's published
-# REST schemas for a pull request, its commits and reviews, repository rules and
-# compare (reference/providers/github/branch-update-signals.md points at each);
-# the file each case writes is the only input. FAKE_REFUSE is a regex of calls
-# to fail, as a refused read does.
 cat >"$SHIM/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE/calls"
@@ -448,20 +443,12 @@ GH_REPO=example-org/app LABEL="GH_REPO" run "$WC" --pr 7
 assert_contains "GH_REPO: the pull request is read from GH_REPO's repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
 expect "GH_REPO: head_sha read" head_sha "$SHA"
 
-########################################################################
-# --dir: a shell outside the checkout reads the checkout and its repository
-########################################################################
-# The fake records no gh default, and its {owner}/{repo} placeholder names
-# upstream-org/app, which serves no pull request, so example-org/app can come
-# only from the checkout's one GitHub remote.
 reset_fake "$SHA"
 LABEL="--dir" run "$WORKDIR" --pr 7 --dir "$WC"
 assert_contains "--dir: the pull request is read from the checkout's repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
 expect "--dir: head_sha read" head_sha "$SHA"
 expect "--dir: overlap read in the checkout" base_change_needed no
 
-# Under an exported CDPATH, a relative --dir resolved through it would print the directory ahead
-# of the JSON.
 reset_fake "$SHA"
 CDPATH="$WORKDIR" LABEL="--dir under CDPATH" run "$WORKDIR" --pr 7 --dir app
 assert_eq "--dir under CDPATH: stdout is one JSON object" "1 object" \
@@ -674,8 +661,6 @@ expect "setting: non-default base value ignored" setting auto
 assert_not_contains "setting: non-default base level" "$(sig setting_level)" "repository"
 assert_contains "setting: non-default base notice" "$ERR" "not the default branch"
 
-########################################################################
-# PR-supplied text is data
 ########################################################################
 # shellcheck disable=SC2016 # False positive: the literal text is the fixture's branch name.
 EVIL='feat/$(touch${IFS}evil-marker)'

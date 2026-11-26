@@ -44,8 +44,6 @@ export function courseBaseUrl(courseUrl) {
   return courseUrl.substring(0, courseUrl.lastIndexOf("/", courseUrl.length - 2) + 1);
 }
 
-// Workaround: storageState doesn't reliably inject cookies
-// on launchPersistentContext (Playwright #14949, #35466, #36139).
 export async function injectSavedCookies(context, storageStatePath) {
   if (!existsSync(storageStatePath)) return 0;
   try {

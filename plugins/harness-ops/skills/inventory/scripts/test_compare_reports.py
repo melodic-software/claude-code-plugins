@@ -113,8 +113,6 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(_classes(old, new), {"/names": "unresolved->resolved"})
 
     def test_a_literal_value_holding_an_ellipsis_is_resolved(self) -> None:
-        # The source says the text was read as written, so `…` is a
-        # character in it, not the reader's placeholder (#5754 review).
         old = _report(description="Wait…", description_source="literal")
         new = _report(description="Wait!", description_source="literal")
         result = cr.compare(old, new)
@@ -182,7 +180,6 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(_classes({"n": 1}, {"n": True}), {"/n": "value->value"})
 
     def test_a_type_change_inside_a_scalar_list_is_a_change(self) -> None:
-        # Python has [1] == [True] and [0] == [0.0]; JSON does not.
         self.assertEqual(_classes({"n": [1]}, {"n": [True]}), {"/n": "value->value"})
         self.assertEqual(_classes({"n": [0]}, {"n": [0.0]}), {"/n": "value->value"})
         self.assertEqual(_classes({"n": [1, "a"]}, {"n": [1, "a"]}), {})

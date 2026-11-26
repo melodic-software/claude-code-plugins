@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Exit: always 0 on audit paths (a read-only audit must never fail the caller);
-# 2 on unknown arguments or unreadable --paths-file, when no temporary
-# directory can be made for the scan's per-file streams (removed on exit), or
-# when prose extraction fails.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

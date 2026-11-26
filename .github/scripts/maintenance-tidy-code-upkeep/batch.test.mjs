@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { branchOf, findExisting, openPulls, parseAreas, prBody, promptText, pushStep, sortSweeps, staysInArea, slotsLeft, sweepRecord, validatePlan } from "./batch.mjs";
+import { branchOf, failureLine, findExisting, openPulls, parseAreas, prBody, promptText, pushStep, sortSweeps, staysInArea, slotsLeft, sweepRecord, validatePlan } from "./batch.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -30,7 +30,6 @@ test("the prompt names each area's branch and in-place arguments, and forbids pu
   const text = promptText({ areas, date: DATE, baseSha: BASE });
   assert.match(text, /branch `chore\/tidy-adhoc-scripts-2026-11-03`, arguments `scripts\/\*\* in-place=commit`/);
   assert.match(text, /Push nothing, open no pull request and file no issue/);
-  // The opt-out line is what left pr-verify with no spec (#12828).
   assert.doesNotMatch(text, /No related issue/);
 });
 
@@ -180,4 +179,10 @@ test("a body that links another issue is refused: a second Refs line unlinks the
   for (const body of ["Refs: #7585", "## Related\n\nRefs: #1, #2", "Closes #7585", "## Fix\n\nThis fixes #12.", "resolves melodic-software/other#3", "Fixes https://github.com/melodic-software/claude-code-plugins/issues/123", "closed: http://github.com/acme/widgets/issues/9"]) {
     assert.throws(() => prBody(body, SPEC), /another issue/, body);
   }
+});
+
+test("a failed command's error line names no stderr, which can hold file or model text", () => {
+  const error = new Error("Command failed: git -C repo apply\nSECRET-FILE-TEXT\n::error::forged");
+  assert.equal(failureLine(error), "::error::a command failed");
+  assert.equal(failureLine(new Error("the plan\nis malformed")), "::error::the plan is malformed");
 });

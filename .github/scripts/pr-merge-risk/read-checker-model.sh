@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# read-checker-model.sh: the merge-risk legs' "Read the checker's model" step.
-# Refuses a default model and a subagent model that is not an alias, then
-# writes model and force to GITHUB_OUTPUT. Run with bash from the workspace
-# root, with MODEL and SETTINGS from the step env. errexit and pipefail match
-# the step shell it replaces (the workflow's `shell: bash`).
 # shellcheck disable=SC2154 # the step env sets MODEL and SETTINGS, and the runner GITHUB_OUTPUT
 set -eo pipefail
 

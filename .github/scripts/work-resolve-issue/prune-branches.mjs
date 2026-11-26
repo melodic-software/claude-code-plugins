@@ -1,17 +1,3 @@
-// work-resolve-issue.yml's prune-lane-branches job: deletes the lane branches
-// of stopped runs that report-outcome.mjs --find-prior named (pruneBranches),
-// which the read runner's check-issue-fields job held to the lane-branch shape.
-// The run job that named them ran the model, so the list is only a claim:
-// this script drops any name that is not this issue's lane branch, is this
-// run's own (any attempt), or is the reuse or resume branch, then reads every
-// remaining branch in one GraphQL request and keeps any that backs a pull
-// request in any state, is the base of an open one, is gone, or reads oddly. Each delete is one GraphQL
-// updateRefs whose beforeOid is the tip read, so a push after the read makes
-// GitHub refuse it. A failed read deletes nothing; a refused delete is logged
-// and the next branch still goes. Nothing here fails the run.
-//
-// Environment: GITHUB_TOKEN, GITHUB_API_URL, REPOSITORY, ISSUE_NUMBER,
-// RUN_ID, PRUNE_BRANCHES (space-separated), REUSE_BRANCH, RESUME_BRANCH.
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -21,7 +7,6 @@ import { isLaneBranch, PRUNE_CAP } from "./report-outcome.mjs";
 
 const SHA = /^[0-9a-f]{40}$/;
 
-// The names this run may delete, before any read.
 export function claimed(env) {
   if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) throw new Error("ISSUE_NUMBER is not an issue number");
   if (!/^[1-9][0-9]*$/.test(env.RUN_ID ?? "")) throw new Error("RUN_ID is not a run id");

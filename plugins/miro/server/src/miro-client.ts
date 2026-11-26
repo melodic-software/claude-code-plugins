@@ -11,8 +11,6 @@ export const MISSING_TOKEN_MESSAGE =
   "Get a token from https://miro.com/app/settings/user-profile/apps. " +
   "Without the plugin's user config, set MIRO_API_TOKEN in the server's environment.";
 
-// An unset user_config option may reach the server as no variable, an empty string, or the
-// unexpanded `${user_config.miro_api_token}` text; all three mean "no token".
 export function isTokenUnset(token: string | undefined): boolean {
   const value = token?.trim();
   return !value || value.startsWith("${user_config.");

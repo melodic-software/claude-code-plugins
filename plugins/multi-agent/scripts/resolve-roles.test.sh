@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Self-contained tests for resolve-roles.sh: it ships inside the plugin, so the
-# suite must run wherever the plugin is installed. Assertions match substrings
-# of the resolver's compact JSON, so no JSON tool is needed.
-#
-# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown
-# fences written into fixtures, never shell expansions.
+# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown fences written into fixtures.
 # shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR

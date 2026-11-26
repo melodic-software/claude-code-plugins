@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# autocompact-project.sh <dir> <window> [<model window>]: writes the project
-# settings file <dir>/.claude/settings.json with a top-level autoCompactWindow
-# and, when <model window> is given, a modelSettings entry for $PROBE_MODEL, the
-# model the case runs. No case runs /autocompact with an argument, so none saves
-# to the operator's user settings.
 set -euo pipefail
 d="$1" window="$2" model_window="${3:-}"
 mkdir -p "$d/.claude"

@@ -19,7 +19,7 @@ graders:
     pattern: '\b(?:commit|stage)\b[^\n]{0,60}\b(?:it|the (?:team )?file|bugs\.yaml)\b|\bgit add\b'
     flags: 'i'
     target: 'last_message'
-  - name: 'reports-team-lane'
+  - name: 'reports-team-area'
     type: 'regex'
     pattern: '\bentrypoints\b'
     target: 'last_message'

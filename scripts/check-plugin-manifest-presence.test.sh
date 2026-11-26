@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-plugin-manifest-presence.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway
-# .claude-plugin/marketplace.json + plugins/ tree, runs the checker against
-# it, and asserts on exit code + output. Mutates only its own mktemp dir. The
-# SUT resolves its paths relative to its own location, so the fixture tree
-# carries a copy of it. A green run on the current repo tree is not
-# sufficient evidence the gate works -- these fixtures prove it goes red on
-# the two failure classes #1547 named (a manifest removed, and a name/key
-# mismatch), plus the paired inverse (orphan) check and a happy-path baseline.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,8 +9,6 @@ SUT_SRC="$SCRIPT_DIR/check-plugin-manifest-presence.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TMP=""
 
 fixture_tree::build TMP --sut "$SUT_SRC"
@@ -55,7 +43,6 @@ write_marketplace() {
 
 run() { (cd "$TMP" && bash "$SUT" 2>&1); }
 
-# --- 1. Happy path: manifests present, names match, no orphans -> green. ----
 rm -rf "$TMP/plugins"
 make_plugin alpha
 make_plugin beta
@@ -68,7 +55,6 @@ else
   fail "happy path should pass (rc=$rc): $out"
 fi
 
-# --- 2. #1547's own failure class: a manifest directory loses its manifest. -
 rm -rf "$TMP/plugins/alpha/.claude-plugin"
 out="$(run)"
 rc=$?
@@ -79,7 +65,6 @@ else
 fi
 make_plugin alpha
 
-# --- 3. A whole plugin directory vanishing (not just the manifest). --------
 rm -rf "$TMP/plugins/beta"
 out="$(run)"
 rc=$?
@@ -90,7 +75,6 @@ else
 fi
 make_plugin beta
 
-# --- 4. Name/key mismatch: manifest exists but declares a different name. --
 make_plugin beta "not-beta"
 out="$(run)"
 rc=$?
@@ -101,7 +85,6 @@ else
 fi
 make_plugin beta
 
-# --- 5. Malformed manifest: present but no readable "name" field. ----------
 mkdir -p "$TMP/plugins/beta/.claude-plugin"
 echo '{"version": "0.1.0"}' >"$TMP/plugins/beta/.claude-plugin/plugin.json"
 out="$(run)"
@@ -113,7 +96,6 @@ else
 fi
 make_plugin beta
 
-# --- 6. Inverse check: a plugin directory the catalog never registered. ----
 make_plugin gamma
 out="$(run)"
 rc=$?
@@ -124,10 +106,6 @@ else
 fi
 rm -rf "$TMP/plugins/gamma"
 
-# --- 6b. A catalog "source" that escapes the repo root (a ".." segment or an
-#     absolute path) must fail loudly rather than be probed or silently
-#     skipped -- the path-traversal defense-in-depth the gate applies before
-#     ever using catalog data to build a filesystem path.
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nevil\t../../etc\n' | write_marketplace
 out="$(run)"
 rc=$?
@@ -138,11 +116,22 @@ else
 fi
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
-# --- 6c. Equivalent spellings of the SAME registered directory must not be
-#     reported as unregistered. A trailing slash, a doubled slash and a "."
-#     segment all resolve and glob to one directory, so the forward check
-#     accepts them; an inverse check keyed on the raw string would report the
-#     very directory the catalog registers.
+OUTSIDE="$(mktemp -d)"
+mkdir -p "$OUTSIDE/.claude-plugin"
+printf '{"name":"evil"}\n' >"$OUTSIDE/.claude-plugin/plugin.json"
+for src in "$OUTSIDE" 'C:/outside'; do
+  printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nevil\t%s\n' "$src" | write_marketplace
+  out="$(run)"
+  rc=$?
+  if [[ $rc -eq 1 ]] && grep -q 'UNSAFE CATALOG SOURCE' <<<"$out" && grep -q 'evil' <<<"$out"; then
+    ok "an absolute catalog source ($src) fails the gate without being probed"
+  else
+    fail "absolute catalog source $src should fail as unsafe (rc=$rc): $out"
+  fi
+done
+rm -rf "$OUTSIDE"
+printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
+
 printf 'alpha\t./plugins/alpha/\nbeta\tplugins/./beta\n' | write_marketplace
 out="$(run)"
 rc=$?
@@ -153,9 +142,6 @@ else
 fi
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
-# --- 6d. ...and canonicalization must not launder a traversal: dot segments
-#     and doubled slashes wrapped around a ".." still have to reach the
-#     out-of-tree guard, never be resolved away into a benign-looking path.
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\nevil\t./plugins/.//../../etc/\n' | write_marketplace
 out="$(run)"
 rc=$?
@@ -166,8 +152,6 @@ else
 fi
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
-# --- 6e. A top-level bin/ with content fails (#5850); an empty one is a
-#     checkout leftover and passes; a bin/ nested deeper is not top-level.
 mkdir -p "$TMP/plugins/alpha/bin"
 out="$(run)"
 rc=$?
@@ -228,7 +212,6 @@ fi
 rm -rf "$TMP/plugins/external-agents"
 printf 'alpha\t./plugins/alpha\nbeta\t./plugins/beta\n' | write_marketplace
 
-# --- 7. Back to green after every fixture is restored/removed. -------------
 out="$(run)"
 rc=$?
 if [[ $rc -eq 0 ]]; then
@@ -237,7 +220,6 @@ else
   fail "restored tree should pass (rc=$rc): $out"
 fi
 
-# --- 8. Missing marketplace.json is a hard usage error, not a silent pass. -
 rm -f "$MARKETPLACE"
 out="$(run)"
 rc=$?

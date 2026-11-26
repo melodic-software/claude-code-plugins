@@ -1274,7 +1274,8 @@ _TRUSTED_READONLY_BIN_PREFIXES = (
     "/usr/local/bin/",
     "/sbin/",
     "/usr/sbin/",
-    # Ubuntu 25.10+ uutils coreutils: /usr/bin/ls -> /usr/lib/cargo/bin/coreutils/ls
+    # Ubuntu 25.10+ uutils: /usr/bin/<tool> is a symlink into /usr/lib/cargo/bin/coreutils/.
+    # https://bugs.launchpad.net/bugs/2127231
     "/usr/lib/cargo/bin/coreutils/",
     "/mingw64/bin/",
 )
@@ -1536,28 +1537,9 @@ _POWERSHELL_VB_FILESYSTEM_DELETE = re.compile(
 _POWERSHELL_SHELL_APP_NAMESPACE_BIN = re.compile(
     r"(?i)NameSpace\s*\(\s*(?:10|0x0*a)\s*\)"
 )
-# `InvokeVerbEx` is the same call with arguments, so the stem carries the `Ex`
-# suffix here rather than being closed off by `\b` after `InvokeVerb` (which
-# does NOT match `InvokeVerbEx`): "This method is similar to InvokeVerb, but it
-# allows you to specify arguments to the command as well as the command itself"
-# (https://learn.microsoft.com/en-us/windows/win32/shell/invokeverbex, fetched
-# 2026-08-16).
 _POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
     r"(?i)(?<![\w])(?:MoveHere|InvokeVerb(?:Ex)?)\b"
 )
-# ENUMERATED, NOT IDENTITY-CHECKED — completeness is not implied. No identity
-# test exists for a COM shell verb: the argument is a name out of the item's own
-# verb collection, not a stable canonical token. Of `vVerb`, Microsoft's
-# `FolderItem.InvokeVerb` reference
-# (https://learn.microsoft.com/en-us/windows/win32/shell/folderitem-invokeverb,
-# fetched 2026-08-16) says: "A string that specifies the verb to be executed. It
-# must be one of the values returned by the item's FolderItemVerb.Name property.
-# If no verb is specified, the default verb will be invoked." `FolderItemVerb
-# .Name` in turn only "Contains the verb's name"
-# (https://learn.microsoft.com/en-us/windows/win32/shell/folderitemverb-name,
-# fetched 2026-08-16) — so a verb named anything other than the enumerated
-# spellings below (a localized name, for instance) is NOT covered. Recheck when
-# either page documents a fixed verb-name set for `InvokeVerb`.
 _POWERSHELL_SHELL_APP_INVOKE_VERB_ARG = re.compile(
     r"(?i)(?<![\w])InvokeVerb(?:Ex)?\s*\(\s*(?P<quote>[\"'])(?P<verb>[^\"']*)(?P=quote)"
 )
@@ -2009,11 +1991,6 @@ def _reset_decision_state(main_result: int | None = None) -> None:
         _MAIN_RESULT = main_result
 
 
-# The `timeout` both guard registrations declare (`hooks/hooks.json` and
-# `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
-# payload does not carry the hook's own timeout, so the guard cannot read it at
-# runtime; `test_declared_hook_timeouts_match_the_watchdog_ceiling` fails the
-# suite if either registration drifts from this value.
 _DECLARED_HOOK_TIMEOUT_SECONDS = 60.0
 _HOOK_STARTUP_HEADROOM_SECONDS = 10.0
 _WATCHDOG_MAX_SECONDS = _DECLARED_HOOK_TIMEOUT_SECONDS - _HOOK_STARTUP_HEADROOM_SECONDS
@@ -2493,12 +2470,6 @@ def main() -> int:
     with _EMIT_LOCK:
         _INVOCATION_TOKEN = token
     try:
-        # `args` stays `(deadline,)`: `test_main_arms_watchdog_before_reading_stdin`
-        # pins this construction exactly, so the token rides on the Timer OBJECT
-        # instead. `threading.Timer` is a `Thread`, so the callback recovers it
-        # with `threading.current_thread()` — and a directly-invoked
-        # `_watchdog_fire` runs on a thread that carries no such attribute,
-        # which is what keeps the unit-test path on the full decision route.
         watchdog = threading.Timer(deadline, _watchdog_fire, args=(deadline,))
         watchdog.guard_invocation_token = token  # type: ignore[attr-defined]
         watchdog.daemon = True
@@ -2562,10 +2533,5 @@ if __name__ == "__main__":
         _exit_code = 2
     with contextlib.suppress(BaseException):
         sys.stderr.flush()
-    # `os._exit`, not `SystemExit`: interpreter shutdown flushes the std
-    # streams again and CPython replaces the exit status with 120 when that
-    # flush fails — non-blocking under PreToolUse, so a deliberate `2` would
-    # let the destructive command run. Both streams are already flushed as far
-    # as they can be, so nothing deliverable is lost by exiting hard. Same
-    # reasoning as `_watchdog_fire`'s exit.
-    os._exit(_exit_code)  # noqa: SLF001 -- see comment above
+    # os._exit, not SystemExit: a failed shutdown flush would turn a blocking 2 into 120.
+    os._exit(_exit_code)  # noqa: SLF001

@@ -78,8 +78,6 @@ fi
 
 unread_scopes=""
 while IFS= read -r rec; do
-  # Word splitting is the point here: a surface record is positional, and $1/$3
-  # are its scope and status fields.
   # shellcheck disable=SC2086 # deliberate field split on a positional record
   set -- $rec
   [[ $# -ge 3 ]] || continue

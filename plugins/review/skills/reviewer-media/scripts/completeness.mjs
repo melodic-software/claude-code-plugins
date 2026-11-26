@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// Every changed file of the pull request must appear in some moment's `covers` of the storyboard
-// (an "also changed" moment counts). Prints each uncovered path, one per line.
-//
-//   completeness.mjs --storyboard <storyboard.json> --facts <facts.json>
-// Exit 0 every file covered, 1 one or more uncovered (listed), 2 usage or unreadable input.
-
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";

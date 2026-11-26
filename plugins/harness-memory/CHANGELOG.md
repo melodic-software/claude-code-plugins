@@ -3,6 +3,18 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.5] - 2026-11-26
+
+### Changed
+
+- **`/harness-memory:audit` writes its one successor as the one-line `## Next` form.**
+
+## [2.5.4] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [2.5.3] - 2026-11-24
 
 ### Changed

@@ -1,33 +1,15 @@
 #!/usr/bin/env bash
-# Render containers.json as a C4 container diagram.
-#
-# WHY. The record is the fact. This script draws only what the record says,
-# and it refuses a record that is not in the one-object-per-line layout
-# collect-containers.sh writes.
-#
-# Usage:
-#   render-containers.sh --record <file> --out <dir> [--dialect likec4|c4-plantuml|none]
-#   render-containers.sh --help
-#
-# --dialect is the resolved authoring-formats diagram_dialect.system. It has no
-# default: none, the value when the key is unset, draws no diagram. Mermaid is
-# refused, as the convention refuses it for that key.
-#
-# containers.md carries one fenced likec4 or plantuml block (none when the
-# dialect is none), then the uses, shared-infrastructure, findings, and evidence
-# tables. A store shared by three owners is one shared-infrastructure row per
-# owner pair. Contained modules are named on their deployable. They are not
-# containers. The findings array is optional: a record without it renders.
-#
-# Prints:
-#   containers: focal=<name> deployables=<n> stores=<n> modules=<n> edges=<n> shared=<n> unknown_technology=<n> thin=<yes|no> dialect=<d> excluded_tests=<n> dirty_tracked_files=<n>
-#
-# Exit: 0 written; 1 unreadable, not schema_version 1, or wrong layout
-# (nothing written); 2 usage.
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render containers.json as a C4 container diagram.
+Usage: render-containers.sh --record <file> --out <dir> [--dialect likec4|c4-plantuml|none]
+  --record <file>  containers.json from collect-containers.sh
+  --out <dir>      directory containers.md is written into
+  --dialect <d>    likec4, c4-plantuml, or none (default; mermaid is refused)
+Exit: 0 written; 1 unreadable, not schema_version 1, or wrong layout (nothing written); 2 usage.
+EOF
 }
 
 die() {

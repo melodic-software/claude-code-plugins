@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -91,9 +89,6 @@ assert_contains "case 7: absolute local remote is hashed" "$k" "remote/"
 
 r="$(mkrepo winpath 'C:\repos\{central}.git')"
 k="$(key "$r")"
-# A literal backslash, built without a backslash-bearing literal: shellcheck's
-# SC1003 fires on every spelling of one inside quotes, and this assertion is
-# precisely about a backslash surviving into a path segment.
 backslash=$(printf '%b' '\134')
 assert_not_contains "case 8: no backslash in the key" "$k" "$backslash"
 assert_contains "case 8: windows-path remote is hashed" "$k" "remote/"

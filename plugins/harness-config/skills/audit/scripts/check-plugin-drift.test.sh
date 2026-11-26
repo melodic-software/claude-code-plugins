@@ -4,8 +4,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/check-plugin-drift.sh"
 
-# A POSIX-form base: a drive-letter TMPDIR such as C:/... carries a colon that
-# splits PATH when a case builds a shim directory under it.
 TMP_BASE="${TMPDIR:-/tmp}"
 if command -v cygpath >/dev/null 2>&1; then
   TMP_BASE=$(cygpath -u "$TMP_BASE") || TMP_BASE="${TMPDIR:-/tmp}"
@@ -516,8 +514,6 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
 project_dir=$(make_project_dir "$case_dir")
 
-# The path spells each backslash as the JSON escape \u005c, so the fixture
-# decodes to a Windows path without the source carrying a regex-looking escape.
 write_settings "$project_dir/.claude/settings.json" '{
   "enabledPlugins": {
     "alpha@sub-market": true
@@ -590,8 +586,6 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
 project_dir=$(make_project_dir "$case_dir")
 
-# A directory source, because NTFS refuses a carriage return in a fixture
-# file name. `gone@mk` names a marketplace the file does not declare.
 write_settings "$project_dir/.claude/settings.json" '{
   "enabledPlugins": {
     "alpha@mk\r": true,

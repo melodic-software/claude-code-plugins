@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Fixture JSON carries "$schema" keys and ${CLAUDE_PLUGIN_ROOT} placeholders
-# that must reach the file unexpanded, so single quotes are the correct spelling.
+# Fixture JSON carries "$schema" keys and ${CLAUDE_PLUGIN_ROOT} placeholders that must stay unexpanded.
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -11,8 +10,6 @@ if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
   echo "FATAL: mktemp -d gave no directory" >&2
   exit 2
 fi
-# The shell's own physical form: a D:/x TMPDIR would split PATH at the drive
-# colon and hide the curl and jq shims the fetch and process-count cases add.
 TEST_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)" || exit 2
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
@@ -852,9 +849,6 @@ for i in 1 2 3 4; do
 done
 printf '}}\n' >>"$m/project/.mcp.json"
 rc=0
-# stderr is captured SEPARATELY here, unlike every other case. The usual 2>&1
-# idiom merges the overflow diagnostic into the captured document, which leaves
-# the assertions below nothing parseable to read.
 out=$(run "$m" --json --out "$m/findings.json" 2>"$m/err") || rc=$?
 assert_exit "case 21: the unlisted servers still make it exit 1" 1 "$rc"
 assert_eq "case 21: the payload is over the Win32 command-line cap" "true" "$([[ ${#out} -gt 32764 ]] && echo true || echo false)"
@@ -909,7 +903,6 @@ assert_eq "case 24: env-vars read" "read" "$(jq -r '.docs.pages[] | select(.slug
 mkdir -p "$m/partial"
 cp "$DOCS/env-vars.md" "$m/partial/"
 out=$(run "$m" --json --docs-dir "$m/partial" 2>&1) || true
-# Compared by suffix: on Git for Windows the path reaches jq respelled as C:/...
 assert_eq "case 24: a --docs-dir page is read from there" "docs-dir true" "$(jq -r '.docs.pages[] | select(.slug=="env-vars") | "\(.source) \(.url_or_path | endswith("/partial/env-vars.md"))"' <<<"$out")"
 assert_eq "case 24: a page missing from --docs-dir resolves through the index" "read fixture" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.source)"' <<<"$out")"
 out=$(run "$m" --json --docs-dir "$DOCS" 2>&1) || true
@@ -1223,7 +1216,6 @@ assert_eq "case 40: name@marketplace string form" "1" "$(jq '[.findings[] | sele
 assert_eq "case 40: one finding when several scopes hold false, at the effective one" ".claude/settings.json" "$(jq -r '[.findings[] | select(.identity.claim=="dependency-disabled:y@mkt") | .identity.sites[0].surface] | join(",")' <<<"$out")"
 assert_eq "case 40: the lower-scope false is inventory" "ok" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:y@mkt" and .surface=="user:settings.json") | .status' <<<"$out")"
 assert_eq "case 40: object form without a marketplace takes the dependent's" "1" "$(jq '[.findings[] | select(.identity.claim=="dependency-disabled:z@mkt")] | length' <<<"$out")"
-# Only Git Bash with a native (non-MSYS) jq rewrites `k=/x@mkt`, so this can fail nowhere else.
 assert_eq "case 40: a key with = and / keeps its spelling" "1" "$(MSYS2_ARG_CONV_EXCL="*" jq '[.findings[] | select(.identity.claim=="dependency-disabled:k=/x@mkt")] | length' <<<"$out")"
 assert_eq "case 40: a false nothing depends on is inventory" "ok none" "$(jq -r '.rows[] | select(.claim=="disabled-plugin:w@mkt") | "\(.status) \(.severity)"' <<<"$out")"
 assert_eq "case 40: no disabled-plugin finding at all" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("disabled-plugin:"))] | length' <<<"$out")"

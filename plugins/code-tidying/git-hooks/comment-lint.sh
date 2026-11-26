@@ -186,8 +186,10 @@ max_lines="$(setting class_c_max_lines)"
 [[ "$max_lines" =~ ^[0-9]+$ ]] && budget=(--class-c-max-lines "$max_lines")
 
 checks_changed_lines --skip-reindent
+checks_diff -U0 --text --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 >"$CHECKS_TMP/diff" 2>/dev/null ||
+  : >"$CHECKS_TMP/diff"
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
-python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" ${budget[@]+"${budget[@]}"} --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
+python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" ${budget[@]+"${budget[@]}"} --ranges "$CHECKS_TMP/ranges" --diff "$CHECKS_TMP/diff" --allow "$CHECKS_TMP/allow" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"
 rc=$?
 ((rc == 3)) && pygments_missing

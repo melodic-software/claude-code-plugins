@@ -1,47 +1,4 @@
 #!/usr/bin/env bash
-# Spawn budget for the PR-body linkage pair on the Bash and GitHub MCP
-# surfaces: pr-body-linkage-gate.sh and pr-linkage-mcp-gate.sh.
-#
-# WHY A SEPARATE SUITE — the two gates' own contract suites
-# (pr-body-linkage-gate.test.sh, pr-linkage-mcp-gate.test.sh) assert what the
-# gates DECIDE. This one asserts what they COST, because on the host that filed
-# #3509 process creation runs 0.3-0.9 s per spawn and every recorded run of
-# `pr-body-linkage-gate.sh` exceeded its 15 s timeout — a gate that is killed
-# before it renders a verdict protects nothing. The cost is therefore part of
-# the contract, and `docs/contracts/hook-budget/README.md` states the budget
-# it draws on (k x S: the processes one fire costs, times one no-op spawn).
-#
-# WHY strace AND NOT xtrace — an xtrace command-position count reads the SOURCE
-# positions bash traced, not the processes the kernel created. `$(cmd 2>/dev/null)`
-# is one xtrace line and two clones: bash execs in the command substitution's own
-# subshell only when the command carries no redirection of its own, and a
-# `2>/dev/null`, a `<<<`, or a pipeline inside the substitution defeats that and
-# forks twice for one program. #3520 measured an xtrace count of 2 against 8 real
-# kernel spawns on the same script. Only `strace -f -e trace=clone,clone3,fork,
-# vfork,execve` sees the difference these hooks were changed to exploit, so only
-# strace can fence it.
-#
-# WHAT IS FENCED — clone-family calls (the latency this issue is about) and
-# execve (the work actually done). They move independently and both matter: a
-# rewrite that trades one jq for three greps holds the clone count and blows the
-# execve count, and a rewrite that reintroduces `$( … 2>/dev/null )` holds the
-# execve count and blows the clone count.
-#
-# NON-VACUITY — a budget assertion passes trivially if the harness measures
-# nothing, so this suite refuses to report a pass it has not earned:
-#   1. a self-check runs two snippets whose kernel-level counts are known and
-#      differ only by redirect placement; if the harness cannot tell them apart
-#      it SKIPS rather than passing;
-#   2. every budget is re-measured against a MUTATED copy of the hook that puts
-#      one redirect back inside its command substitution, and the suite fails
-#      unless the mutant's count actually rises.
-#
-# EXEMPT FROM THESE NUMBERS — spawns owned by lib/hook-utils.sh, which is a
-# synced shared library this plugin does not change: `hook::buffer_stdin`'s
-# payload validation (one jq) and `hook::repo_root` (one git). They are inside
-# the totals because the totals are what the host pays, but a change to them
-# belongs to that library's own budget, not this suite's.
-
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -78,7 +35,6 @@ trace_counts() {
   local log="$WORK/trace.$$"
   strace -f -qq -o "$log" -e trace=clone,clone3,fork,vfork,execve \
     "$@" >/dev/null 2>/dev/null
-  # CLONE_THREAD clones are threads (shfmt is Go), not processes.
   CLONES=$(grep -E '^[0-9]+ +(clone|clone3|fork|vfork)\(' "$log" 2>/dev/null | grep -vc CLONE_THREAD)
   EXECS=$(grep -cE '^[0-9]+ +execve\(' "$log" 2>/dev/null)
   EXECS=$((EXECS - 1))
@@ -164,20 +120,7 @@ budget() {
   fi
 }
 
-# --- 1. Budgets ---------------------------------------------------------------
-# Ceilings are the measured steady-state counts, with no headroom on purpose:
-# every one of them is a spawn someone deliberately removed, and a silent
-# re-addition is exactly what this suite is for. Raising a number here is a
-# decision to be argued in the PR that raises it, per hook-budget.md rule 2
-# ("the budget never relaxes to absorb an overage").
-#
-# The lib floor inside each number: one `jq -e .` from hook::buffer_stdin, plus
-# one `git rev-parse` from hook::repo_root once a path reaches repo resolution.
 budget "bash gate / non-PR gh call" "$BASH_GATE" "$WORK/p-nonpr.json" 7 2
-# A PR command the bash gate reads costs one shfmt parse (lib/hook-utils.sh
-# hook::_bps_shfmt_to): 7 processes and 2 execs (shfmt, jq). Those rows are
-# exact: the parse forks the same processes on every run, so any change is one
-# to argue for (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/README.md#measured-cost).
 exact() {
   run_hook "$2" "$3"
   if ((CLONES == $4 && EXECS == $5)); then
@@ -206,18 +149,12 @@ verdict "bash gate still allows the compliant body" "$BASH_GATE" "$WORK/p-allow.
 verdict "mcp gate still DENIES the failing body" "$MCP_GATE" "$WORK/p-mcp-block.json" 2
 verdict "mcp gate still allows the compliant body" "$MCP_GATE" "$WORK/p-mcp-allow.json" 0
 
-# --- 2. Mutation: the budgets must be able to FAIL ----------------------------
-# Each mutant reverts exactly one of the changes #3509 made and must push the
-# measured count back above the ceiling. A mutant that does not is a budget
-# asserting nothing, and is reported as a failure of THIS suite.
 MUT="$WORK/mut"
 mkdir -p "$MUT"
 cp "$HOOK_DIR"/hook-utils.sh "$HOOK_DIR"/pr-linkage-validator.sh "$HOOK_DIR"/pr-linkage-scope.sh "$MUT/"
 mkdir -p "$WORK/lib"
 cp "$HOOK_DIR"/../lib/yaml-subset.awk "$WORK/lib/"
 
-# Mutant A — the redirect moved back INSIDE the command substitution. Same
-# program, same output, one extra fork; this is the defect class #3779 named.
 awk '
   /remote get-url origin/ {
     print "ORIGIN=$(git -C \"$REPO_ROOT\" remote get-url origin 2>/dev/null || true)"

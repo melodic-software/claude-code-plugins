@@ -111,7 +111,7 @@
 # findings report with a handoff to `clean` (#5516).
 # user-interface joins on the verb's own grounds. Its object, the interface
 # code of a project, is supplied by the namespace, and the scope argument
-# (diff, tree or launch) and a concern lane narrow it without renaming it. The
+# (diff, tree or launch) and a concern narrow it without renaming it. The
 # contract is exactly the verb's: a bare call reports findings and edits
 # nothing, and `--fix` is the explicit override the verb table sanctions,
 # applying one finding at a time and only after a yes on that finding. The
@@ -182,6 +182,12 @@ generate ai-briefing,wizard
 # description's first clause names it, and improvement:improve routes a
 # structural fix to its owning lane rather than repeating architecture's lens.
 improve architecture,improvement
+
+# Fixed verb meaning: read-only lookup in the namespace's own reference. The
+# namespace supplies the object: context7:lookup reads library documentation,
+# engineering-concepts:lookup reads the built-in concept catalog. A qualifier
+# such as `lookup-concept` would repeat the namespace.
+lookup context7,engineering-concepts
 
 # Noun reserved for knowledge routers (plugin-philosophy.md, Naming). Each
 # routes its own domain's method literature: event-storming:methodology the

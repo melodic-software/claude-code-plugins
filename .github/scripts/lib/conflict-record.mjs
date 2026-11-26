@@ -1,8 +1,6 @@
 export const MARKER = "conflict-record ";
 const SHA = /^[0-9a-f]{40}$/;
-// GitHub caps output.text at 65,535 characters
-// (https://docs.github.com/en/rest/checks/runs#create-a-check-run); the
-// record keeps to a quarter of that beside the lane-outcome line.
+// GitHub caps check-run output.text at 65,535 characters: https://docs.github.com/en/rest/checks/runs#create-a-check-run
 export const MAX_LENGTH = 16_384;
 
 export const recordLine = (record) => `${MARKER}${JSON.stringify(record)}`;

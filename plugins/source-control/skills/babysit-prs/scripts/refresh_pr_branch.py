@@ -78,8 +78,6 @@ def validate_current_candidate(
     if str(current.get("state") or "").upper() != "OPEN":
         raise RuntimeError("PR is no longer open")
     author = str(json_object(current.get("author")).get("login") or "")
-    # A Dependabot head passes every gate a refresh does, then is asked to
-    # rebase instead of being updated.
     dependabot_head = dependabot.is_dependabot_head(current.get("headRefName"), author)
     extra = repo_policy.resolve(repo, fallback or {}).extra_dependency_manager_logins
     if not dependabot_head and is_dependency_author(author, extra):
@@ -100,7 +98,6 @@ def validate_current_candidate(
         raise RuntimeError("PR has a merge conflict; refusing branch refresh")
     if compute_branch_freshness(current)["state"] != "behind":
         raise RuntimeError("PR is no longer behind its base branch")
-    # Read live even when GitHub reports BEHIND; an unreadable answer (None) refuses.
     if (
         base_requires_merge_queue(repo, str(current.get("baseRefName") or ""))
         is not False
@@ -263,7 +260,6 @@ def acting_login() -> str:
         )
         login = json_object(json_object(data.get("data")).get("viewer")).get("login")
     except RuntimeError:
-        # A session whose proxy refuses GraphQL reads a user token over REST.
         login = json_object(gh_json(["api", "user"])).get("login")
     if not isinstance(login, str) or not login:
         raise RuntimeError(

@@ -1,35 +1,9 @@
 #!/usr/bin/env bash
-# Effort-pin drift check for the audit skill.
-#
-# The repo pins effort levels in agent and skill frontmatter, lane configs,
-# lane launch lines and Workflow scripts. Each pin was chosen against the
-# model-config page's effort tables and per-model defaults. This script reads
-# that page fresh through the plugin's shared fetcher and docs cache, takes the
-# "Adjust effort level" section (with its child sections) from the cache's
-# section map, hashes the three parts a pin rests on (the Levels column table
-# under "Adjust effort level", the level rows of the "Choose an effort level"
-# table, and the item of the resolution list that states each model's default),
-# and compares the hash with a committed baseline. It then lists every pin and
-# flags the ones a human must re-decide. It never edits a pin and never
-# rewrites the baseline.
-#
-# Output (stdout, one line each, in this order):
-#   table status=<same|changed|unread|unparsed> levels=<csv> sha256=<hex> baseline_sha256=<hex> reason=<text>
-#   pin path=<repo-relative> kind=<kind> effort=<value> status=<ok|drift> reason=<none|table-changed|level-not-in-table>
-#   summary pins=<n> drift=<n> status=<ok|drift|no-claim>
-# On unread or unparsed no pin line is printed: the run makes no claim.
-#
 # Exit codes:
 #   0  the page matches the baseline and every pin's level is in the table
 #   1  the page changed since the baseline, or a pin is flagged
 #   2  fatal (bad arguments, baseline missing or malformed, fetcher or docs cache missing or failing)
 #   3  no claim: the page was unread or its headings, tables or list changed shape
-#
-# Env overrides (the test seam):
-#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of llms.txt and model-config.md; when set no fetch
-#                                    happens, and DOCS_CACHE_DIR must name a cache directory
-#   DOCS_CACHE_DIR                   docs cache directory (default: the docs cache's own)
-#   CLAUDE_PLUGIN_ROOT               plugin root holding scripts/fetch-docs.sh and scripts/docs-cache.sh
 
 set -uo pipefail
 export LC_ALL=C
@@ -125,7 +99,6 @@ read_page() {
   IFS=$'\t' read -r state reason entry < <(jq -r '.pages[0] | [.state, (.reason // "unread"),
     (if .cache_key then .cache_key + "-" + .sha256 else "" end)] | @tsv' "$WORK/docs/manifest.json")
   if [[ "$state" == read && -s "$WORK/docs/$SLUG.md" ]]; then
-    # A Windows jq ends its line with CR, which the last field keeps.
     PAGE="$WORK/docs/$SLUG.md" ENTRY="${entry%$'\r'}"
   else
     UNREAD="${reason:-unread}"
@@ -262,8 +235,6 @@ scan_pins() {
       }
     ' "$f"
   done
-  # A lane config is found by its JSON "effort" key, never by another plugin's path:
-  # plugins install independently, so a skill's internal layout is not a cite target.
   for f in "$ROOT"/plugins/*/skills/*/context/*.md; do
     grep -oE '"effort"[[:space:]]*:[[:space:]]*"[^"]*"' "$f" |
       sed -E 's/.*:[[:space:]]*"([^"]*)"$/\1/' | while IFS= read -r v; do printf 'lane-config\t%s\t%s\n' "${f#"$ROOT"/}" "$v"; done

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a review-lane hold an untrusted account lifted` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# Once a review lane has held a pull request, ci-status passes with the
-# human-gated label off only when the first removal of that label after the
-# newest hold comment was made by a `human` of the base commit's trusted-actor
-# list. It fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml
 # test-scope: docs/conventions/work-items.yaml
 # test-scope: docs/conventions/source-control.yaml
@@ -35,8 +27,6 @@ if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' 
 else
   fail "step lost its condition on the human-gated step's held output"
 fi
-# On a draft the human-gated step skips, so its held output is empty, not
-# 'false', and this step skips with it: it makes no read on a draft.
 gated="$(awk '$0 == "      - name: Fail a pull request carrying the human-gated label" { on = 1; next } on && /^        if: / { print; exit }' "$WORKFLOW")"
 if [[ "$gated" == *"github.event.pull_request.draft != true"* ]]; then
   ok "the human-gated step skips on a draft, so this step does too"
@@ -247,7 +237,6 @@ STUB_EVENTS="[$(unlabeled owner-call 2026-10-23T11:00:00Z 153232337 kyle-sexton)
 expect "the label is the one the human-gated step resolved" 0 "kyle-sexton, a person on the trusted-actor list"
 unset HUMAN_GATED
 
-# The label events anchor the hold too: they cannot be deleted or edited.
 STUB_COMMENTS="[]"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T10:00:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "a deleted hold comment leaves the lane's label event as the hold" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
@@ -264,9 +253,6 @@ expect "a bot re-adding the label does not move the hold" 1 "melodic-automation-
 STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 4242 octocat)]"
 expect "an untrusted removal after a trusted re-add fails" 1 "octocat removed 'needs-human'"
 
-# A stale hold the lanes App cleared (clear-escalations.mjs stale-review-hold,
-# owner brief Part A2): the App's own removal lifts it only after its own
-# marked comment names a head no hold comment names.
 OLD_SHA=$(printf 'c%.0s' {1..40})
 NEW_SHA=$(printf 'd%.0s' {1..40})
 APP_USER='{"login":"melodic-automation-lanes[bot]","type":"Bot","id":337595936}'
@@ -301,8 +287,6 @@ STUB_EVENTS="[$BOT_LIFT]"
 LANES_APP_ID='' expect "with no lanes App id the App's removal fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"human"}]}' \
   expect "a lanes App id the base list does not name fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# The race the security review of 990c1941 found: a lane held the current
-# head after the App judged it, under the label already on, before its delete.
 STUB_COMMENTS="[$STALE_HOLD,$(held_at "$NEW_SHA" 2026-10-23T11:20:00Z),$(cleared_for "$OLD_SHA")]"
 expect "a hold naming this head, written before the App's marker, keeps it whatever head the marker names" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 OTHER_SHA=$(printf 'e%.0s' {1..40})
@@ -318,8 +302,6 @@ else
 fi
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$OTHER_SHA" "" 2026-10-23T11:10:00Z),$(cleared_for "$NEW_SHA")]"
 expect "the newest marker before the removal is the one judged" 0 "its marker names $NEW_SHA,"
-# A hold a person already lifted counts for nothing (thread PRRT_kwDOTCGFQM6xmJXy):
-# an old unparsable hold, its trusted lift, then the lane's new label and hold.
 STUB_COMMENTS="[$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-review' 2026-10-22T10:00:00Z),$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 STUB_EVENTS="[$(unlabeled needs-human 2026-10-22T12:00:00Z 153232337 kyle-sexton),$(labeled needs-human 2026-10-23T09:59:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "an unparsable hold a person lifted before the label went on again does not block the App's clear" 0 \
@@ -332,9 +314,6 @@ expect "with no removal before the label, every hold comment counts" 1 "melodic-
 STUB_EVENTS="[$BOT_LIFT]"
 HEAD_SHA='' expect "an empty head fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 HEAD_SHA=main expect "a head that is not a commit SHA fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# The marker only points ci-status at the hold: the base commit's
-# clear-escalations.mjs recheckStaleHold judges it again at this head (coordinator direction:
-# never take the App's judgment on trust).
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 STUB_PREDICATE=stands expect "a valid marker whose predicate now finds the hold standing fails" 1 \
   "melodic-automation-lanes[bot] removed 'needs-human'"
@@ -373,9 +352,6 @@ export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed" 1 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA
 
-# The stub above stands in for the base commit's clear-escalations.mjs, so a
-# real import the sparse base_config checkout leaves out would only fail on a
-# runner. Copy the sparse list's files alone and import the real module.
 SPARSE="$TMP_ROOT/sparse"
 mapfile -t sparse_paths < <(awk '/^        id: base_config$/ { on = 1 } on && /sparse-checkout: \|$/ { list = 1; next }
   list && /^            \// { print substr($0, 14); next } list { exit }' "$WORKFLOW")
@@ -388,7 +364,6 @@ else
       cp "$ROOT/$rel" "$SPARSE/$rel"
     fi
   done
-  # The path goes in the environment: as argv[1] the module would run as the script.
   if out="$(SPARSE_MODULE="$SPARSE/.github/scripts/pr-merge/clear-escalations.mjs" node --input-type=module -e 'await import(process.env.SPARSE_MODULE);' 2>&1)"; then
     ok "the base_config sparse checkout holds every file clear-escalations.mjs imports"
   else

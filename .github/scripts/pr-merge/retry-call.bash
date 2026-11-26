@@ -1,13 +1,4 @@
 # shellcheck shell=bash
-# retry_call [--read] <budget-seconds> <command...>: runs the command in this
-# shell and returns 0 when it succeeds, else 2 for unknown, with the reason in
-# retry_call_unknown. With --read a failure is tried again, three runs at most:
-# after a rate limit it waits until the rate guard's stop, otherwise a capped
-# exponential backoff with full jitter. Waits add up against the budget, and a
-# wait that does not fit is not slept. Without --read the command runs once, so
-# a write that may have landed is never repeated. A caller's completeness check
-# goes in the command: a 200 that fails it is a failure. Source api-budget.bash
-# and rate-stop.bash first.
 # shellcheck disable=SC2034 # retry_call_unknown and retry_call_waited are read by the caller
 retry_call() {
   local tries=1 attempt=1 budget err rc stop until wait ceiling

@@ -12,10 +12,6 @@ const REPO = "acme/widgets";
 const base = mkdtempSync(join(tmpdir(), "lane-snapshot-"));
 after(() => rmSync(base, { recursive: true, force: true }));
 
-// A PATH-stub `gh` that answers from a fixture map keyed by REST endpoint, or for
-// `gh api graphql` by the connection the query reads (pullRequests or issues): key ->
-// {out, code}, or key -> [{out, code}, ...] served one per call in order (the last
-// repeats). A key missing from the map is a read failure.
 const ghPath = join(base, "gh");
 writeFileSync(
   ghPath,
@@ -81,8 +77,6 @@ const issue = (number, extra = {}) => ({
   ...extra,
 });
 
-// The `--paginate --slurp` output for one connection: one response object per page, each
-// carrying the totalCount GitHub reported when that page was read.
 function pages(connection, total, ...pageNodes) {
   return {
     out: pageNodes.map((nodes, i) => ({

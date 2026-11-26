@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for context.sh on throwaway repositories: a `pr` branch (the gated
-# head) and `main` (the trusted base) merged with conflicts, as prepare.sh
-# leaves them.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

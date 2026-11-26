@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "implementation_route: factory (docs/conventions/session-flow.yaml). #101 and #102 are handed to the factory, which owns implement through ship; no local implement stage. #103 stays local: it needs the on-premises reporting host, so implement it in a local session.",
+      "why": "factory owns the plain items, the host-bound item stays local"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Next stage: implement. Start with #101, then #102 and #103.",
+      "why": "local implement for every item"
+    },
+    {
+      "answer": "All three items, #101, #102 and #103, are handed to the factory. Nothing left to do here.",
+      "why": "the host-bound item goes to the factory"
+    },
+    {
+      "answer": "#101 and #102 go to the factory; nothing runs locally.",
+      "why": "#103 not mentioned"
+    }
+  ]
+}

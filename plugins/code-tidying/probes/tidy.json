@@ -38,7 +38,7 @@
       "id": "pos-train-05",
       "split": "train",
       "expect_trigger": true,
-      "request": "Run the next tidying lane and ship whatever safe cleanups you find."
+      "request": "Run the next tidying focus area and ship whatever safe cleanups you find."
     },
     {
       "id": "pos-train-06",

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 on success (with findings or none — coverage is the payload), 2 on
-# usage error, 3 when the report is not usable audit output (it does not parse, it
-# has no findings key, its findings key is not a list, or a `not-found` finding
-# names no searched surfaces; refusing beats composing from garbage, and each
-# refusal names its own cause), 4 when jq is absent, 5 when the destination could
-# not be written. A single malformed RECORD is none of these: it lands in
-# `## Unparsed` rather than costing the well-formed findings beside it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -229,8 +222,6 @@ if ! mkdir -p "$(dirname "$OUT")" 2>/dev/null; then
   exit 5
 fi
 
-# Repo root for relativizing Location, in the two spellings checked here (one
-# directory has several on Git Bash). A path matching neither is left as-is.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 REPO_ROOT_ALT=""
 if [[ -n "$REPO_ROOT" ]]; then
@@ -366,7 +357,7 @@ function yaml_scalar(s) {
   return s
 }
 
-# Tier/Action mirror of the severity crosswalk (see header comment). All four
+# Tier/Action mirror of the severity crosswalk. All four
 # rules argue to IMPORTANT and none is auto-applicable: each repair is a
 # judgment the relay surfaces rather than applies.
 function rule_tier(slug) { return "IMPORTANT" }

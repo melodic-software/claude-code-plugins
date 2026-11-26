@@ -84,8 +84,6 @@ export default {
 `,
           1,
         ],
-        ["      # npm's fetch timeout and retries, from the one file that sets them.\n", "", 1],
-        [/ {10}# Strips credentials[^\n]*\n(?: {10}#[^\n]*\n)*/g, "", 1],
         ["          LANE_API_KEY: ${{ secrets.EVALS_CLAUDE_API_KEY }}\n", "          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN }}\n", 2],
         ["          LEG: key\n          FALLBACK_READY: ${{ steps.credential.outputs.fallback-ready }}\n", '          LEG: subscription\n          FALLBACK_READY: "true"\n', 2],
         ["          credential: EVALS_CLAUDE_API_KEY\n", "          credential: EVALS_CLAUDE_CODE_OAUTH_TOKEN\n", 1],

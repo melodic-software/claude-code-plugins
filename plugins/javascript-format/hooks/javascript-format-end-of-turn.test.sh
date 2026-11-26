@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/javascript-format/hooks/javascript-format.test.sh
-# Contract tests for the opt-in Stop row (javascript_format_end_of_turn), launched
-# exactly as hooks.json registers it: off by default; on, an uncommitted finding
-# exits 2 with the finding on stderr and nothing is rewritten; stop_hook_active
-# keeps it from blocking twice in one turn; the plugin kill switch wins. The
-# spawn budget case fences the cost every user pays per turn with the option
-# off: the node launcher only.
 # test-scope: plugins/javascript-format/hooks/hooks.json plugins/javascript-format/git-hooks/lint.sh plugins/javascript-format/.claude-plugin/plugin.json plugins/javascript-format/hooks/exec-bash.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE BIOME_CONFIG_PATH CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_ENABLED
@@ -70,9 +64,6 @@ expect "on: stop_hook_active means it already blocked this turn" "0|" \
   "$(stop true CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN=true)"
 expect "on: the plugin kill switch wins" "0|" \
   "$(stop false CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_END_OF_TURN=true CLAUDE_PLUGIN_OPTION_JAVASCRIPT_FORMAT_ENABLED=false)"
-# Without biome the check script fails an agent (git-hooks test); the row turns
-# that one failure into a silent pass, since the SessionStart probe already
-# reports the missing tool.
 NOTOOL="$WORK/no-biome"
 mkdir -p "$NOTOOL"
 for t in node git bash sed awk cat mktemp rm dirname grep tr jq; do
@@ -95,7 +86,6 @@ out="$(printf '{"stop_hook_active":false}' | bash "$COPY/hooks/javascript-format
 expect "missing-tool lines alone keep the row quiet" "0|" "$?|$out"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" javascript-format Stop javascript-format.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' --check 'test ! -s "$HOOK_STDOUT"')"

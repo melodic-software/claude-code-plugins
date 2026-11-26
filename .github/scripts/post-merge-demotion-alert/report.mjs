@@ -1,15 +1,3 @@
-// post-merge-file-demotion-issues.yml's red-main report: after a scheduled or
-// dispatched pr-require-checks run on main failed, wait for its one re-run,
-// confirm the red, pin the culprit merge, decide whether the bot may revert
-// it, and report that in the step summary and, for a confirmed red, as one
-// comment on the log issue. A run that reports nothing notes any unreported
-// reds on that issue instead. It pushes, opens and merges nothing. REST reads
-// only, paced, within a call budget; a failed or rate-limited read stops the
-// run (no retry). No model.
-//
-// Environment: GITHUB_TOKEN, REPOSITORY, RUN_ID, RUN_SHA, RUN_URL,
-// RUN_WORKFLOW_ID, RUN_CREATED, BASE_PATH (main's checkout), CALL_BUDGET,
-// GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_STEP_SUMMARY.
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import process from "node:process";
@@ -74,8 +62,6 @@ async function awaitRerun(call, repo, runId, minutes, sleep) {
   return run;
 }
 
-// The merge-queue actor of the pull request's latest entry, as the alert's
-// classify step and babysit_merge_policy.derive_auto_merge read it.
 async function enqueuer(call, repo, number) {
   const events = await pages(call, `/repos/${repo}/issues/${number}/timeline`, { max: 10 });
   return events.filter((e) => e.event === "added_to_merge_queue").at(-1)?.actor?.login ?? "";
@@ -83,8 +69,6 @@ async function enqueuer(call, repo, number) {
 
 const firstLine = (body) => (body ?? "").trimStart().split("\n")[0].trimEnd();
 
-// git merge-tree applies the revert of `sha` to main's tip in memory: a merge
-// of the tip and sha's parent over sha. Exit 0 is clean, 1 a conflict.
 export function revertAppliesWithGit(basePath) {
   return (sha) => {
     try {
@@ -98,8 +82,6 @@ export function revertAppliesWithGit(basePath) {
   };
 }
 
-// The full runs on main before this one, newest 100 completed: about two days
-// of full runs, which pr-merge dispatches after every merge.
 async function fullRuns(call, repo, env) {
   const listed = await call(
     "GET",

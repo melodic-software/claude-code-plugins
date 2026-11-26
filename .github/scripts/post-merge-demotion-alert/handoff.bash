@@ -1,25 +1,11 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154 # the Actions runner sets GITHUB_REPOSITORY
-# The hand-off of fix and quarantine issues to intake triage, which both the
-# retry step and the filing step of post-merge-file-demotion-issues.yml source. The
-# hourly triage sweep skips github-actions[bot] issues and a re-run takes the
-# existing-record path, so a failed hand-off is recorded in a hidden marker
-# comment and retry_undelivered, before each alert run files, retries it:
-# - `<!-- post-merge-undelivered issue=<n> -->`, on issue <n> when it was not
-#   locked or not dispatched, and, for a fix issue, on its record too;
-# - `<!-- post-merge-undelivered check=<name> -->`, on the record, when the
-#   check's fix issue could not be filed or reopened.
-# Only github-actions[bot]'s own open issues and its own comments on them count:
-# an issue body or anyone else's comment holding that text does nothing.
 
 fix_charset='^[A-Za-z0-9][- A-Za-z0-9._:,/()]{0,99}$'
 fix_name_ok() {
   [[ "$1" =~ $fix_charset && "$1" != *babysit-merge-demotion* && "$1" != *post-merge-failure* ]]
 }
 
-# file_issue <type> <gh api field args>: files an issue with that Issue Type and
-# prints its number. GitHub drops a type the token may not set without an
-# error, so the response is checked and a dropped type warns.
 file_issue() {
   local type="$1" filed
   shift
@@ -31,8 +17,6 @@ file_issue() {
   printf '%s\n' "${filed%% *}"
 }
 
-# post_fields <issue> <work-status> <priority> [<size> <complexity> <uncertainty>]:
-# one write of the org issue fields, by option name, so a failed call sets none.
 post_fields() {
   local issue="$1"
   shift
@@ -42,10 +26,6 @@ post_fields() {
       -H 'X-GitHub-Api-Version: 2026-03-10' --input - >/dev/null
 }
 
-# set_fields <issue> <work-status> <priority> [<size> <complexity> <uncertainty>]:
-# the Size, Complexity and Uncertainty values in lowercase, the options' new
-# names, and once more Title-cased when GitHub refuses those; the REST write
-# takes option names, not ids.
 set_fields() {
   local issue="$1"
   shift
@@ -54,8 +34,6 @@ set_fields() {
   post_fields "$issue" "$1" "$2" "${3^}" "${4^}" "${5^}"
 }
 
-# mark_undelivered <issue> <issue=N|check=name>: returns 1 when the marker could
-# not be written.
 mark_undelivered() {
   if ! gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$1/comments" -f body="<!-- post-merge-undelivered $2 -->" >/dev/null; then
     echo "::error::could not mark #$1 for the hand-off retry"
@@ -63,9 +41,6 @@ mark_undelivered() {
   fi
 }
 
-# send_to_intake <issue>: locked before intake reads it, so no outsider comment
-# reaches the triage prompt; a lock that fails sends nothing. On failure,
-# intake_missed says what happened.
 send_to_intake() {
   intake_missed=''
   if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/issues/$1/lock" >/dev/null; then
@@ -81,19 +56,6 @@ send_to_intake() {
   fi
 }
 
-# fix_work <check> <sha> <signal> <on-record> <merges> <run-link> <fix-marker>
-# <recurrence-note>: the fix issue for one failing check, under that first body
-# line and with that comment on a reopen, which work-unblock's sweep matches.
-# One issue per check across SHAs: an open one stands, a
-# closed one is reopened (unless closed as not planned or a duplicate, which
-# mutes the check). A reopened issue keeps whatever labels it has and is not
-# sent to intake again, so a repeat goes straight back to agents. Only this
-# workflow's own issues are read, from own_records (issue number, state, state
-# reason and first body line, tab-separated). An issue this files or reopens
-# joins own_records, so a later retry of the same check finds it open. On
-# failure, fix_missed names what failed and fix_missed_issue the filed issue
-# intake did not receive, if there is one. fix_open is the issue found already
-# open; fix_handled the issue this sent to intake or reopened.
 fix_work() {
   local check="$1" sha="$2" signal="$3" on_record="$4" merges="$5" run_link="$6" fix_marker="$7" note="$8"
   local found fix_number fix_state fix_reason fix_body job old
@@ -149,7 +111,6 @@ Fix the check on main. Closing this issue changes nothing on $on_record."
   fi
 }
 
-# clear_marks <comment-id>...: a marker that stays makes the next run send again.
 clear_marks() {
   local id
   for id in "$@"; do
@@ -158,17 +119,6 @@ clear_marks() {
   done
 }
 
-# retry_undelivered: one read of github-actions[bot]'s open issues, one of the
-# comments of each fix issue, quarantine issue and record among them that has
-# any, and, when a check marker turns up, one of all its issues. A failed read
-# warns and leaves the marker to the next run. A marker on an issue names that
-# issue; only a record's may name another. A marker whose issue this listing
-# does not show as an open fix or quarantine issue stays, so the issue is sent
-# if it is listed later. A check marker that finds its fix
-# issue open sends it, unless this run already did: the run that filed it may
-# have failed both to send it and to mark it, so a second send is the cost of
-# never losing one. A retry that fails again keeps its marker, or moves it to
-# the issue it filed, and the function returns 1 once every marker has been tried.
 retry_undelivered() {
   local listed n kind count first failing marks id mark named t row moved failed=0
   local r check sha signal on_record run_link own_records

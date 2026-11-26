@@ -47,7 +47,6 @@ function metadata(...updates) {
   return lines.join("\n");
 }
 
-// GitHub verified and committed it, as it does Dependabot's commits.
 const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
 const commit = (message, { sha = "d".repeat(40), name = "dependabot[bot]", email = "49699333+dependabot[bot]@users.noreply.github.com", signed = SIGNED } = {}) => ({
   sha,
@@ -71,7 +70,6 @@ test("a patch or 1.x minor update is auto", () => {
 });
 
 test("a quoted scoped npm name matches the title", () => {
-  // Dependabot quotes `@scope/name` in the metadata.
   const message = metadata(['"@anthropic-ai/claude-code"', "semver-patch", "2.1.302"]);
   const result = tier("build: Bump @anthropic-ai/claude-code from 2.1.301 to 2.1.302 in the npm-minor-patch group", {
     commits: [commit(message)],
@@ -180,7 +178,6 @@ test("a 0.x minor in the metadata is major", () => {
   assert.deepEqual(tier("bump x", { commits: [commit(metadata(["x", null, "1.3.0"]))] }).reasons, ["unparsed-version:x"]);
 });
 
-// A security update's commit: its metadata carries no update-type.
 const security = (subject, name, version) => commit(`${subject}\n${metadata([name, null, version]).split("\n").slice(1).join("\n")}`);
 
 test("security metadata without update type reads the commit subject", () => {
@@ -592,14 +589,6 @@ test("classify sends a review-only update to review and leaves the rest auto", (
   assert.deepEqual([omitted.tier, omitted.reasons], ["review", ["dependabot-policy-unreadable"]]);
 });
 
-// The provenance gate. Fixtures carry the shapes the registries return: npm's
-// packument (dist.attestations, _npmUser.trustedPublisher) and attestations
-// endpoint (a base64 DSSE payload holding the SLSA v1 predicate), PyPI's
-// simple index JSON (files[].provenance, upload-time) and integrity endpoint
-// (attestation_bundles[].publisher). The identities are what the registries
-// served on 2026-10-17: biome 2.5.14 from biomejs/biome
-// .github/workflows/release.yml, its trusted publisher's oidcConfigId both
-// with and without `oidc:`, numpy from numpy/numpy-release wheels.yml.
 const REG = "https://registry.npmjs.org";
 const BIOME_OIDC = "88a86367-18c3-4668-9f8d-aa7619d345aa";
 const slsa = (repository, path, ref = "refs/heads/main") => ({
@@ -796,8 +785,6 @@ test("a review that only a parse gap caused is a classifier gap; any other reaso
 });
 
 const FIX_PKG = (deps, extra = {}) => JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: deps, ...extra });
-// A lock of `entries` (key to entry) under the root; reg() is the registry
-// tarball npm records for a name and version (registry.npmjs.org/<name>/-/<base>-<v>.tgz).
 const FIX_LOCK = (entries) => JSON.stringify({ lockfileVersion: 3, packages: { "": {}, ...entries } });
 const INTEGRITY = `sha512-${"A".repeat(86)}==`;
 const reg = (name, version, extra = {}) => ({ version, resolved: `https://registry.npmjs.org/${name}/-/${name.split("/").pop()}-${version}.tgz`, integrity: INTEGRITY, ...extra });
@@ -863,8 +850,6 @@ const FIX_VECTORS = [
   ["requirements.txt", "numpy==2.5.3\n", "numpy>=2.5.4\n", "requirements-line"],
   ["requirements.txt", "-r base.txt\nnumpy==2.5.3\n", "-r base.txt\nnumpy==2.5.4\n", null],
   ["setup.py", "", "", "content-unchecked"],
-  // The install-script pin: moved to the version the manifest pins, and no
-  // other way (claude-code-plugins#12807).
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true, "e@1.0.0": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.317": true, "e@1.0.0": true } }), null],
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.318": true } }), "package-json-key:allowScripts"],
   ["package.json", FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code@2.1.316": true } }), FIX_PKG({ "@anthropic-ai/claude-code": "2.1.317" }, { allowScripts: { "@anthropic-ai/claude-code": true } }), "package-json-key:allowScripts"],

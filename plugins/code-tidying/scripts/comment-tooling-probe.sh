@@ -45,8 +45,6 @@ else
   add_row commented-out ruff absent "Precise commented-out-code detection in Python (ERA001). Falls back to model judgment."
 fi
 
-# Probe `ast-grep`, NEVER `sg`: shadow-utils ships /usr/bin/sg (newgrp) and ast-grep's
-# deprecated `sg` shim collides with it, so PATH order would answer silently and wrongly.
 if have ast-grep; then
   add_row rules ast-grep present "-"
 else

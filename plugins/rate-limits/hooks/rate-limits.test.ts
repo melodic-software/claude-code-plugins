@@ -9,8 +9,6 @@ const SEVEN_RESET = '2026-10-08T09:00:00Z'
 const HOME = '/srv/u'
 const TARGET = '/srv/u/.claude/rate-limits/rate-limits.json'
 const STATE_FILE = '/srv/u/.claude.json'
-// The engine hands fs hooks the resolved path, which on Windows gains a drive and backslashes
-// (D:\srv\u\.claude.json); the fake fs keys files by the POSIX path the mod built.
 const key = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
 
 type Limit = { kind: string; percentUsed: number; resetsAt?: string }
@@ -335,8 +333,6 @@ test('debug mirror: each line sent to Claude is written to the debug log as sent
   expect(w.logs.filter(l => l.to === 'debug' && l.text.includes(' window ')).map(l => l.text)).toEqual([...atTool, ...atPrompt])
 })
 
-// session.start with earlier turns is a fresh load in a running session: a reload, a worker respawn,
-// an enable, or a --resume launch, which session.start cannot tell apart.
 test('lines: a load with earlier turns and quiet windows sends nothing', NO_WRITES, async ($, on) => {
   world(on, { turns: 3 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
@@ -801,7 +797,6 @@ test('toast: with lines to Claude off, a rise to the edge still toasts and Claud
   expect(w.toasts).toEqual(['5h at the 95% line threshold · resets 21:00 UTC'])
 })
 
-// The engine drops a refused or throwing toast itself; it never throws into the module.
 test('toast: a refused toast leaves the line to Claude, the transcript line and the notice row, and the tool runs once', NO_WRITES, async ($, on) => {
   let runs = 0
   const { w } = world(on, {}, { HOME }, ['ui.toast', 'tool.call'])
@@ -1237,7 +1232,6 @@ const scriptedWrites = (stub: any, outcome: (run: number) => Outcome) => {
   })
   return { w, clock, logs }
 }
-// The engine reports a stub's throw in its own words, so the thrown case matches the mod's prefix.
 const FAILURE_LOG = {
   exit: /^rate-limits: snapshot write failed \(exit 1\): write-snapshot: rename failed after 3 tries: EPERM$/,
   throw: /^rate-limits: snapshot write did not run: \S/,
@@ -1594,7 +1588,6 @@ test('lines: a reading whose every window has passed its reset time still sends 
   expect(ownLines((await bash($)).context)).toEqual([])
 })
 
-// A /branch or an in-process /resume: the new session's first prompt can come before any reading.
 const BRANCH = { reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-2' } } as any
 
 test('lines: after a branch, a carrier with no reading keeps the restatement, and the first carrier with one restates each window past quiet once', NO_WRITES, async ($, on) => {

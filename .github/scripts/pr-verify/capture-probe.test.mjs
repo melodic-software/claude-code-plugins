@@ -1,8 +1,3 @@
-// capture-probe.mjs, the reach probe
-// (https://github.com/melodic-software/claude-code-plugins/issues/12836): it
-// must name every credential a Bash child of a Claude Code leg can read, never
-// print a value,
-// and never pass when its own scan cannot be shown to work (the canary).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -13,7 +8,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { CREDENTIAL_NAMES, credentialFiles, envHits, fileReach, probedNames, scanFiles, scanProc, verdict } from "./capture-probe.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./capture-probe.mjs", import.meta.url));
-// Built at run time so no key-shaped literal sits in the file.
 const KEY = `${"sk-ant-"}api03-${"Q".repeat(40)}`;
 
 const fakeProc = (processes) => {
@@ -75,10 +69,6 @@ test("a git config with an auth header or a stored token is a hit, and a plain o
   assert.deepEqual(scanFiles([header, plain, path.join(dir, "absent")]), [{ where: header, name: "a stored credential" }]);
 });
 
-// The subscription job's leg holds an OAuth token: run-claude-cli sets it as
-// CLAUDE_CODE_OAUTH_TOKEN (lane.cjs legEnv), and on Linux Claude Code keeps a
-// login in ~/.claude/.credentials.json (code.claude.com/docs/en/authentication,
-// Credential management), so the probe looks in both.
 test("a subscription token is a hit in the environment and in Claude Code's credential file", () => {
   const token = `${"sk-ant-"}oat01-${"Z".repeat(40)}`;
   assert.deepEqual(envHits([`CLAUDE_CODE_OAUTH_TOKEN=${token}`]), ["CLAUDE_CODE_OAUTH_TOKEN", "a credential-shaped value in CLAUDE_CODE_OAUTH_TOKEN"]);
@@ -107,9 +97,6 @@ test("the verdict passes only a clean scan that saw its canary", () => {
   assert.equal(verdict({ ownHits: [], procScan: procScan([], true), fileHits: [{ where: "f", name: "a stored credential" }] }).exit, 1);
 });
 
-// The probe leg's stream-json messages, in the Agent SDK's shapes: a Read
-// tool_use in an assistant message, its tool_result in a user message, and
-// the result message's permission_denials (SDKResultMessage).
 const readUse = (id, file) => ({ type: "assistant", message: { content: [{ type: "tool_use", id, name: "Read", input: { file_path: file } }] } });
 const readResult = (id, isError) => ({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, ...(isError ? { is_error: true } : {}), content: "x" }] } });
 const resultMessage = (denials = []) => ({ type: "result", permission_denials: denials.map((id) => ({ tool_name: "Read", tool_use_id: id, tool_input: {} })) });

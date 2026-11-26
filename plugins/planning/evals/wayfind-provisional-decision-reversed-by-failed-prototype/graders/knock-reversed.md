@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '(?<!\bnot )(?<!\bnever )(?<!\bnothing )(?<!\bno )(?<!\bwithout )(?<!\bno need to )(?<!\bno reason to )(?<!\bnot be )(?<!\bnever be )(?<!n''t )(?<!n''t be )(?<!\bnothing to )\b(?:revers|supersede|superseding|overturn|invalidat)\w*(?:(?!\b(?:no|not|never|nothing|without)\b|n''t\b)[^.!?;\n]){0,100}?(?:\bKnock\b|Pick the vendor|#?502\b)|(?:\bKnock\b|Pick the vendor|#?502\b)(?:(?!\b(?:no|not|never|nothing|without)\b|n''t\b)[^.!?;\n]){0,100}?(?<!\bnot )(?<!\bnever )(?<!\bnothing )(?<!\bno )(?<!\bwithout )(?<!\bno need to )(?<!\bno reason to )(?<!\bnot be )(?<!\bnever be )(?<!n''t )(?<!n''t be )(?<!\bnothing to )\b(?:revers|supersede|superseding|overturn|invalidat)\w*'
+flags: i
 ---
-
-On map #500, Decisions-so-far has 'Pick the vendor' (#502): Knock, provisional until the prototype #504 'Prove Knock sends email and in-app from one call'. #504 just failed (in-app messages need a second call); its fallback is Courier. The user asked to graduate #504. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply treats the Knock decision as reversed by the failed prototype.
-
-FAIL if it leaves the Knock decision standing.

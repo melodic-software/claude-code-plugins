@@ -35,4 +35,5 @@ Scans a codebase for shallow modules and seam leaks, named in these terms.
 
 - The project's glossary wins for domain nouns only. An architecture idea keeps the term defined
   here even when the glossary has a near-synonym for it.
-- A subagent may lack the Skill tool. Brief it with the definitions themselves, not the skill name.
+- Brief a subagent with the definitions themselves, not the skill name. Which tools a subagent
+  holds: [available tools](https://code.claude.com/docs/en/sub-agents#available-tools).

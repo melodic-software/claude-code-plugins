@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-// policy-probe.mjs: judges the eval policy probe's stream (`claude -p
-// --output-format stream-json --verbose`) for the four calls the eval legs'
-// probe step asks for. Each call is denied (the result's permission_denials
-// records it), made and not denied (a tool_use with no matching denial: the
-// policy let it through), or not made. A session can end normally without
-// making every call, since no `claude` flag forces a tool call; that proves
-// nothing about the policy either way, so it is reported as unproven, never as
-// a policy failure.
-//
-// Env: PROBE (the stream's path), RUNNER_ROOT.
-// Exit 0: all four denied. Exit 1: a call made and not denied, or a session
-// that errored before making every call. Exit 3: a session that ended normally
-// without making every call, which the caller runs again.
-// Prints one line: the reason, then the probe's facts. The facts hold only
-// counts and tokens checked against fixed patterns, never text from the
-// stream, which can hold what a call returned.
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";

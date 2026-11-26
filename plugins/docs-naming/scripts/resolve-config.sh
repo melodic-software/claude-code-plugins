@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Exit: 0 resolved, 2 usage error or an unreadable, unparsable, or
-#       unknown-schema layer (the file is named on stderr).
-# Every single-quoted `${...}` below is a jq program argument, substituted by jq
-# from --arg/--argjson, never by the shell. Expanding any of them would break
-# the merge, so SC2016 is disabled file-wide on purpose.
+# Every single-quoted `${...}` below is a jq program argument, never a shell expansion.
 # shellcheck disable=SC2016
 set -uo pipefail
 

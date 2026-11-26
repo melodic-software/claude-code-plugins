@@ -231,11 +231,6 @@ class AssembleTests(unittest.TestCase):
         self.assertEqual(doc["summary"]["functions"], 2)
 
     def test_functions_counts_distinct_functions_not_rows(self) -> None:
-        # The row shapes the committed Python fixture produces: lizard reports
-        # cyclomatic for `classify` and `classify.inner`, radon reports
-        # halstead for `classify`, so `classify` arrives twice. A same-named
-        # function in another file is a different function, and a file row
-        # (`function: null`) is not one at all.
         doc = self.assemble(
             [
                 {

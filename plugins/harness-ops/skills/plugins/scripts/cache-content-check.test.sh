@@ -2,20 +2,11 @@
 # test-scope: .gitattributes
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/cache-content-check.sh"
-# Never /tmp: on Windows that is a drive-root path that accumulates silently.
-# $TEMP there is a NATIVE Windows path spelled with drive letter and backslash
-# separators, and those backslashes would be
-# embedded raw into the fixture JSON, where a backslash is an escape character —
-# the state files would be malformed and every case would read as the script
-# correctly rejecting schema drift. Folded to forward slashes, which Git Bash
-# accepts everywhere, before anything is built under it.
 TMP_BASE="${TMPDIR:-${TEMP:-/var/tmp}}"
 TMP_BASE="${TMP_BASE//\\//}"
 TEST_TMPDIR="$(mktemp -d "$TMP_BASE/cache-content-check.XXXXXX")"
@@ -54,9 +45,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# CASE_NUM must be incremented in the CALLER's shell before calling this, never
-# inside it: `case_dir=$(new_case_dir)` runs in a subshell, so an assignment
-# made in here is discarded and every case reuses case-1's directory.
 new_case_dir() {
   local case_dir="$TEST_TMPDIR/case-$CASE_NUM"
   mkdir -p "$case_dir"
@@ -106,9 +94,6 @@ seed_cache_from() {
   local case_dir="$1" sha="$2" repo="$1/market" cache="$1/cache/alpha/1.0.0"
   rm -rf "$cache"
   mkdir -p "$cache"
-  # `-z`, and NUL-delimited reads, because a non-ASCII name comes back QUOTED
-  # from a plain ls-tree and `git show` would then be handed the quoted
-  # spelling — the fixture would fail to build rather than exercise the case.
   local rel
   while IFS= read -r -d '' rel; do
     [[ -n "$rel" ]] || continue
@@ -220,19 +205,10 @@ assert_eq "sha absent from the clone: counted not_checked" "1" "$(jq -r '.not_ch
 assert_eq "sha absent from the clone: not counted unverifiable" "0" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
 assert_eq "sha absent from the clone: and not as a match" "0" "$(jq -r '.match' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: a one-commit (shallow) clone, the shape Claude Code's marketplace clone
-# is observed in. A record at the clone's HEAD is compared; a record at an older
-# sha, which the clone does not hold, is counted not_checked with no file
-# compared, and nothing is fetched to reach it.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
 seed_cache_from "$case_dir" "$SHA2" >/dev/null
-# `--depth` is honored only over a transport, so the source is a file:// URL.
-# A drive-letter path (Windows) needs the third slash a POSIX path already
-# supplies.
 shallow_url="file://$case_dir/market"
 [[ "$case_dir" == /* ]] || shallow_url="file:///$case_dir/market"
 git clone -q --depth 1 "$shallow_url" "$case_dir/shallow" 2>/dev/null
@@ -289,11 +265,6 @@ out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "unignored extra: is stale-content" "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_contains "unignored extra: is named" "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "extra-in-cache: leftover.txt"
 
-# ============================================================================
-# Case: `.in_use` is Claude Code's own per-process refcount directory. It is in
-# every cache version directory and in no commit; counting it would report the
-# entire fleet stale on its existence alone.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -383,11 +354,6 @@ assert_contains "unknown marketplace: the error names it" "$out" "nosuchmarket"
 stdout_only=$(run_check_stdout "$case_dir" --marketplace nosuchmarket 2>/dev/null)
 assert_eq "unknown marketplace: stdout is left empty" "" "$stdout_only"
 
-# ============================================================================
-# Case: usage rejections. Each leaves stdout EMPTY, so a `< <(… --ids …)`
-# consumer — which cannot see the process's exit status — can never read an
-# error line as a plugin id.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 out=$(run_check "$case_dir" --all --ids)
 rc=$?
@@ -485,16 +451,6 @@ assert_eq "absent gitCommitSha: the installPath did not slide into another colum
   "$case_dir/cache/alpha/1.0.0" "$(jq -r '.installs[0].installPath' <<<"$out" 2>/dev/null)"
 assert_eq "absent gitCommitSha: counted as unverifiable" "1" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: the plugin's source directory is RENAMED after the recorded commit.
-# Resolving the source from the current checkout would look an older tree up
-# under a path it does not contain, and `git ls-tree` reports a pathspec that
-# matches nothing as success with EMPTY output — so every cache file becomes an
-# extra and a perfectly matching cache reports stale-content. A record at the
-# pre-rename commit is not the clone's HEAD, so it is not compared at all; with
-# the clone checked out AT that commit and its work-tree manifest edited to the
-# renamed path, reading the manifest at the recorded sha makes it a match.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -555,12 +511,6 @@ assert_eq "no-source-at-sha: counted as unverifiable" "1" "$(jq -r '.unverifiabl
 assert_eq "no-source-at-sha: not counted as stale" "0" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
 assert_eq "no-source-at-sha: no cache file is called extra" "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: a tracked filename carrying non-ASCII bytes. Without `-z`, git QUOTES
-# and escapes such a pathname in ls-tree output, and the line-oriented compare
-# then reads the quoted spelling and the raw one as two different files — an
-# unchanged file reported as BOTH missing-from-cache and extra-in-cache.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -590,12 +540,6 @@ assert_eq "non-ASCII path: an edited accented file is still stale-content" \
 assert_eq "non-ASCII path: and is counted as differing, not as missing+extra" \
   "1" "$(jq -r '.installs[0].differing' <<<"$out" 2>/dev/null)"
 
-# Builds a one-commit fixture whose plugin holds plain.sh plus every name given,
-# with the cache seeded from that commit and the record pointing at it. Returns
-# 1 when this host cannot hold one of the names as a tracked file spelled
-# exactly that way (Windows refuses a control character, a tab and `*` in a
-# filename, and Git Bash maps some of them to other characters), so the caller
-# skips instead of passing a case that never held the name.
 seed_odd_names_case() {
   local case_dir="$1" repo="$1/market" name rel odd_sha
   shift
@@ -620,14 +564,6 @@ seed_odd_names_case() {
   seed_state "$case_dir" "$odd_sha"
 }
 
-# ============================================================================
-# Case: paths a word split or a glob would break, on the split branch of
-# `spool_records_to` (no record holds a newline or an SOH, so the capture is
-# split on newlines by `split_lines_to`). A space or a tab splits a record in
-# two under a wider IFS, and `star*.sh` expands to its siblings without
-# `set -f`. The extra-file count is asserted EXACTLY: an expanded glob lists
-# `stark.sh` twice, which only a count can see.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 if ! seed_odd_names_case "$case_dir" 'sp ace.sh' $'tab\there.sh' 'star*.sh'; then
@@ -658,14 +594,6 @@ else
     "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "missing-from-cache: sp ace.sh"
 fi
 
-# ============================================================================
-# Case: a path holding a newline and one holding an SOH, which send
-# `spool_records_to` to its `mapfile -d ''` fallback: `tr` maps a newline to SOH,
-# so either byte puts an SOH in the capture. A newline path is also hashed by
-# its own process, since `hash-object --stdin-paths` has no `-z`. If the
-# fallback broke, `nl<newline>name.sh` would be read as two records and its
-# unchanged file reported missing and extra.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 if ! seed_odd_names_case "$case_dir" $'nl\nname.sh' $'soh\x01name.sh' 'sp ace.sh' 'star*.sh'; then
@@ -695,13 +623,6 @@ else
     "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
 fi
 
-# ============================================================================
-# Case: a tracked SYMLINK. git stores it as a blob holding the target text,
-# while `find -type f` excludes it entirely — so an unchanged link would be
-# reported missing-from-cache forever. Guarded by a capability check: creating
-# a symlink on Windows may need a privilege this host does not have, and a
-# silent pass there would be a green run of a case that never executed.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -746,8 +667,6 @@ seed_cache_from "$case_dir" "$SHA2" >/dev/null
 seed_state "$case_dir" "$SHA2"
 REAL_GIT="$(command -v git)"
 mkdir -p "$case_dir/stub"
-# The stub must call the real binary by ABSOLUTE path: a script named `git`
-# that runs `git` would find itself first on PATH and recurse forever.
 write "$case_dir/stub/git" "#!/usr/bin/env bash
 case \"\$*\" in
 *'hash-object --stdin-paths'*)
@@ -758,10 +677,6 @@ esac
 exec '$REAL_GIT' \"\$@\"
 "
 chmod +x "$case_dir/stub/git"
-# PATH entries must be POSIX-spelled. The fixture root is derived from $TEMP,
-# which on Windows is a drive-letter path, and a `C:/…` entry in PATH is not
-# searched at all — the stub would be silently ignored and the case would report
-# a plain match, which is exactly the vacuous pass it exists to prevent.
 STUB_PATH_ENTRY="$case_dir/stub"
 if command -v cygpath >/dev/null 2>&1; then
   STUB_PATH_ENTRY="$(cygpath -u "$case_dir/stub")"
@@ -865,25 +780,6 @@ assert_eq "nested sources: that hole is missing-from-cache, not a cache-only ext
 assert_eq "nested sources: the nested plugin is unaffected" \
   "match" "$(jq -r 'first(.installs[] | select(.id == "nested@market1") | .verdict)' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Process budget: a clean install costs a FIXED number of process creations,
-# never one per file. Each creation is a fork() emulation plus a CreateProcess
-# on Windows Git Bash (roughly 120 ms on a quiet host, seconds on a contended
-# one), and the obvious implementation of this check — hash each cache file on
-# its own — would pay one for every file in every plugin, which for a plugin
-# that vendors dependencies is thousands. The batched `git hash-object
-# --stdin-paths` is what keeps it flat, and the per-file `--path` re-hash is
-# reached only for a file that already looks different. Counted the way
-# fleet-state.test.sh counts it: `bash -x` with PS4 carrying $BASHPID, so every
-# subshell shows up as a distinct pid, plus every external exec. Two fixtures
-# differing only in FILE COUNT must cost the same.
-#
-# The probe is itself asserted, not just its result. `count_creations` returns
-# `forks - 1 + execs`, so a trace it cannot parse at all yields -1 — which would
-# satisfy any ceiling and turn this whole section into a test that cannot fail.
-# The floor below makes a broken probe a FAILURE, and the measured number is
-# printed either way so a silent drift in what the trace looks like is visible.
-# ============================================================================
 count_creations() {
   local trace="$1" forks execs
   forks=$(grep -oE '^\++[0-9]+\+' "$trace" | sort -u | wc -l | tr -d ' ')
@@ -907,11 +803,6 @@ seed_budget_case() {
 
 run_traced() {
   local case_dir="$1" trace="$2"
-  # PS4 travels through a BASH_ENV startup file, never the environment: bash
-  # 4.4 and later rebind an euid-0 shell's PS4 to '+ ' at startup, before any
-  # startup file runs (CVE-2016-7543), so an exported PS4 never reaches a root
-  # shell and the probe counts nothing. A BASH_ENV assignment lands after that
-  # rebind, and its own unstamped `+ PS4=` trace line matches no pid pattern.
   # shellcheck disable=SC2016  # PS4 must reach bash unexpanded: bash expands it per traced line
   write "$case_dir/ps4.env" 'PS4='\''+${BASHPID}+ '\'''
   env \

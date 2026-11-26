@@ -39,9 +39,6 @@ test("parseBriefing strips metadata labels from bold header fields", async () =>
 });
 
 test("parseBriefing tolerates malformed URLs in bullet sources", async () => {
-  // Bare host without scheme would throw inside `new URL()` if dateFromUrl
-  // did not guard. This shape is reachable because synthesize-agent emits
-  // `urls` as `z.string().min(1)` — not strict URLs.
   await withBriefing(
     `# AI Briefing - Meeting #21
 

@@ -41,8 +41,6 @@ EXTRACTOR_NAME = "extract_nodes.py"
 EXTRACTOR_VERSION = "1.0.0"
 
 UTF8_BOM = b"\xef\xbb\xbf"
-# UTF-32 BOMs listed before their UTF-16 prefixes: \xff\xfe\x00\x00 starts
-# with \xff\xfe, so order decides which one matches.
 NON_UTF8_BOMS = [
     (b"\xff\xfe\x00\x00", "UTF-32 LE"),
     (b"\x00\x00\xfe\xff", "UTF-32 BE"),
@@ -102,8 +100,6 @@ def markdown_boundaries(data: bytes):
     - setext-vs-thematic-break ambiguity for `---` resolves to setext whenever
       the previous line is non-blank and not itself a boundary.
     """
-    # Scan past a UTF-8 BOM with raw offsets so its bytes land in the first node.
-    # CR-only line endings would silently lose every heading, so fail loudly.
     base = len(UTF8_BOM) if data.startswith(UTF8_BOM) else 0
     if b"\n" not in data[base:] and b"\r" in data[base:]:
         fail(

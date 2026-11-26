@@ -180,11 +180,7 @@ rc=$?
 assert_eq "duplicate lane names exit 3" 3 "$rc"
 assert_contains "duplicate lane names named in message" "$out" "duplicate lane names: work"
 
-# The lane name is also the launch-commit marker's filename (#792), so a name
-# that is not a single path component would let two distinct lanes share one
-# marker (`work` vs `group/../work`) or escape the data dir entirely.
-# portability-ok: 'back\slash' is a literal single-quoted test input naming a
-# Windows path separator, not a GNU `\s` regex class
+# portability-ok: 'back\slash' is a literal test input naming a Windows path separator, not a GNU `\s` class
 for bad_name in 'group/../work' 'back\slash' '.' '..'; do
   jq -n --arg n "$bad_name" \
     '{lanes: [{name: $n, prompt: "work.md"}, {name: "other", prompt: "babysit.md"}]}' \
@@ -791,6 +787,24 @@ log="$(cat "$CLAUDE_LOG")"
 assert_eq "arm: missing helper surfaces a non-zero exit" 1 "$rc"
 assert_contains "arm: missing helper message is actionable" "$out" "no autonomy gate-arm helper was found"
 assert_not_contains "arm: no launch without a helper for a gate-requesting lane" "$log" "--bg -n babysit"
+
+DECOY="$TMP/decoy"
+DECOY_LOG="$TMP/decoy-arm.log"
+for root in "$DECOY" "$DECOY/home/.claude"; do
+  decoy_helper="$root/plugins/cache/mk/autonomy/1.0.0/hooks/lane-stop-gate-arm.sh"
+  mkdir -p "$(dirname "$decoy_helper")"
+  printf '#!/usr/bin/env bash\nprintf "decoy ran\\n" >>"%s"\n' "$DECOY_LOG" >"$decoy_helper"
+  chmod +x "$decoy_helper"
+done
+: >"$DECOY_LOG"
+: >"$CLAUDE_LOG"
+out="$(CLAUDE_CONFIG_DIR="$DECOY" HOME="$DECOY/home" bash "$SCRIPT" start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "arm: a helper planted under an env-derived config dir is not discovered" 1 "$rc"
+assert_contains "arm: the env-derived decoy leaves the helper missing" "$out" "no autonomy gate-arm helper was found"
+assert_eq "arm: the env-derived decoy helper never ran" "" "$(cat "$DECOY_LOG")"
+assert_not_contains "arm: no launch off an env-derived helper" "$log" "--bg -n babysit"
 
 : >"$ARM_LOG"
 out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
@@ -1528,7 +1542,6 @@ out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
 assert_not_contains "a lane with no schedule gets no schtasks entry" "$out" "schtasks /Create"
 assert_contains "a lane with no schedule is named as skipped" "$out" "work: no schedule"
 
-# Cron cannot say every 7 minutes; every 120 is every second hour.
 et_lanes work-items:work-loop '{"schedule":{"every_minutes":120}}'
 out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
 assert_contains "120 minutes is the cron form every second hour" "$out" "0 */2 * * * "
@@ -1576,8 +1589,6 @@ et_lanes work-items:work-loop
 out="$(et_run start --write-script --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_eq "--write-script outside print-schedule exits 3" 3 "$?"
 
-# The Windows /TR payload stays within schtasks' 262-character limit with a
-# 120-character repository path. A cygpath stub stands in for Git Bash's.
 WIN_BIN="$TMP/win-bin"
 mkdir -p "$WIN_BIN"
 cat >"$WIN_BIN/cygpath" <<'STUB'

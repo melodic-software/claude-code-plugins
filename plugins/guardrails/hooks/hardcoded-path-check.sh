@@ -18,38 +18,14 @@ source "$PLUGIN_ROOT/lib/path-detection/hardcoded-path-patterns.sh"
 
 start=${EPOCHREALTIME:-}
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; buffer
-# once, parse each field from it. rc 1 (empty stdin) skips like the empty-field
-# guards below; rc 2 (text that is not JSON) FAILS CLOSED — the guard cannot
-# evaluate the tool call, and a silent skip would pass exactly the traffic this
-# guard exists to stop; rc 3 (a JSON payload cut short by the pipe, a transport
-# fault) is a loud skip the dispatcher takes once. buffer_stdin already
-# printed the reason to stderr. Buffering does not require jq (hook::buffer_stdin's
-# own JSON-completeness check is jq-optional), so it runs before the jq gate
-# below — hook::require jq needs the buffered input for its once per session
-# and agent notice scoping.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require jq fails OPEN
-# (advisory hooks never block over a missing prerequisite) but makes the
-# degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
-# Every payload field this hook can need, in ONE jq process (hook::jq_fields),
-# not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
-# runs on every Write/Edit/NotebookEdit. All three per-tool content fields are
-# fetched together because selecting between them would cost a second process;
-# jq reads the same envelope either way, and the tool-specific choice happens
-# below in the shell. Failure semantics are unchanged: a missing jq or an
-# unparsable payload yields rc 1 here, which exits 0 exactly as the empty-TOOL
-# case did — hook::require jq above has already made the degraded state visible
-# once per session and agent. NotebookEdit's target is `notebook_path`, appended
-# last so the indices the MCP lane reads do not move.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \

@@ -1,33 +1,9 @@
 #!/usr/bin/env bash
-# Upstream citation check for the audit skill.
-#
-# The checklist and references cite settings keys and sentences on official
-# docs pages. Those pages move: a key migrates to another page, a sentence is
-# reworded, and the row that cited it then points at text that is not there.
-# This script reads the manifest of citations (reference/doc-citations.tsv,
-# one <page slug><TAB><literal span> per row), has the plugin's shared fetcher
-# (scripts/fetch-docs.sh) read each page verbatim through the docs cache with
-# --max-age 0, so every page is asked of the server, and greps the span in the
-# fetched file. A page that lost a span is a failure naming the row; a page the
-# fetcher reports unread (including a slug the docs index does not list) is a
-# visible SKIP with the reason, never a pass and never a failure, because a
-# truncated, foreign or absent read supports no claim in either direction.
-#
-# Pages already fetched this run can be reused: --docs-dir names a directory
-# holding <slug>.md files, and a page present there is read from disk instead
-# of fetched again. The fixture seam does the same without any network.
-#
 # Exit codes:
 #   0  every fetched page carries every span it is cited for (skips allowed)
 #   1  at least one fetched page lacks a cited span
 #   2  fatal (manifest missing, a row whose slug is not lower-case `/`-joined
 #      segments, the shared fetcher missing or failing, bad arguments)
-#
-# Env overrides (the test seam):
-#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of llms.txt and <slug>.md files; when set no fetch happens,
-#                                    and DOCS_CACHE_DIR must name a cache directory
-#   DOCS_CACHE_DIR                   docs cache directory (default: the docs cache's own)
-#   CLAUDE_PLUGIN_ROOT               plugin root holding scripts/fetch-docs.sh and scripts/docs-cache.sh
 
 set -uo pipefail
 
@@ -107,7 +83,6 @@ fetch_pages() {
     exit 2
   }
   while IFS=$'\t' read -r slug state reason; do
-    # A Windows jq ends its line with CR, which the last field keeps.
     reason="${reason%$'\r'}"
     if [[ "$state" == read ]]; then
       PAGE_FILE[$slug]="$FETCH_DIR/$slug.md"
@@ -117,10 +92,6 @@ fetch_pages() {
   done < <(jq -r '.pages[] | [.slug, .state, (.reason // "unread")] | @tsv' "$FETCH_DIR/manifest.json")
 }
 
-# Every slug becomes a path under the fetch, docs and fixture directories, so
-# the whole manifest is checked before any page is read: a slug is lower-case
-# segments joined by `/`, never `.`, `..` or a leading `/`.
-# The C locale keeps `a-z` an ASCII range.
 slug_ok() {
   local LC_ALL=C re='^[a-z0-9_-]+(/[a-z0-9_-]+)*$'
   [[ "$1" =~ $re ]]
@@ -128,8 +99,6 @@ slug_ok() {
 row=0
 NEED=()
 declare -A NEED_SEEN=()
-# `|| [[ -n "$slug" ]]` keeps a final row that has no trailing newline: read
-# returns nonzero at EOF even when it filled the variables.
 while IFS=$'\t' read -r slug span || [[ -n "$slug" ]]; do
   row=$((row + 1))
   [[ -n "$slug" && "${slug:0:1}" != "#" && -n "$span" ]] || continue

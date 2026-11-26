@@ -41,9 +41,6 @@ STATUSES = (
 )
 
 _SECTION = "## All commands"
-# Only a table row's first cell is a regex (here and in _TOOL_ROW_RE); the rest
-# is split with string methods, because a lazy `.*?` cell between `\s*` runs
-# backtracks super-linearly on a long whitespace run.
 _ROW_RE = re.compile(r"\|\s*`/(?P<name>[a-z0-9][a-z0-9:_-]*)(?P<args>[^`]*)`\s*\|")
 _KIND_RE = re.compile(r"^\*\*\[?(Skill|Workflow)\]?(?:\([^)]*\))?\.?\*\*\.?\s*")
 _ALIAS_OF_RE = re.compile(r"^Alias (?:for|of) \[?`/([a-z0-9:_-]+)")
@@ -68,10 +65,6 @@ _EVENT_WORDS = (
     ("alias", re.compile(r"\balias(?:es|ed)?\b", re.I)),
 )
 _EVENT_TEXT_MAX = 240
-# Bounds on untrusted fetched text. _ROW_MAX is the longest table line parsed; a
-# longer one is skipped. It caps how much text each row's parsing scans; it does
-# not bound backtracking within that text, which is why the row parsers use no
-# backtracking cell pattern. _FETCH_MAX is the largest page file read.
 _ROW_MAX = 8_000
 _FETCH_MAX = 16_000_000
 

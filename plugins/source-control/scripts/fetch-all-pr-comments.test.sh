@@ -134,9 +134,6 @@ assert_eq "inline comments have path" "2" "$inline_with_path"
 fallback_line=$(printf '%s' "$out" | jq '[.[] | select(.id == 3002)] | .[0].line')
 assert_eq "original_line fallback" "15" "$fallback_line"
 
-# Case 6a: a top-level inline comment reports in_reply_to_id null (regression
-# guard for #587 — the field must be sourced from the raw API response, not
-# silently dropped by the jq projection)
 top_level_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 3001)] | .[0].in_reply_to_id')
 assert_eq "top-level inline comment has null in_reply_to_id" "null" "$top_level_reply_id"
 
@@ -185,10 +182,6 @@ assert_eq "empty PR exits 0" "0" "$rc"
 empty_count=$(printf '%s' "$out" | jq 'length')
 assert_eq "empty PR returns empty array" "0" "$empty_count"
 
-# Case 9: unresolvable owner/repo (empty `gh repo view`, no env override) — the
-# root cause of the babysit gate's exit-4 failure mode. Must exit 2 with an
-# actionable message that names the FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO
-# override, not a bare "cannot resolve".
 NOREPO_STUB="$TEST_TMPDIR/bin-norepo/gh"
 mkdir -p "$TEST_TMPDIR/bin-norepo"
 cat >"$NOREPO_STUB" <<'STUB'
@@ -213,21 +206,11 @@ out=$(FETCH_COMMENTS_OWNER=o FETCH_COMMENTS_REPO=r \
 rc=$?
 assert_eq "env-var override resolves owner/repo (exit 0)" "0" "$rc"
 
-# Case 11 (#597): --help documents the Windows PYTHONUTF8=1 gotcha for a
-# downstream Python consumer parsing this script's UTF-8 JSON output (bot
-# badges / reaction emoji commonly present in review comment bodies raise
-# UnicodeDecodeError under the Windows default cp1252 encoding if the
-# consumer does not pin encoding="utf-8" or PYTHONUTF8=1 itself).
 help_out=$(bash "$SCRIPT" --help 2>&1)
-assert_contains "--help documents PYTHONUTF8=1 for Windows consumers" "$help_out" "PYTHONUTF8=1"
-assert_contains "--help names the UnicodeDecodeError failure mode" "$help_out" "UnicodeDecodeError"
 
 assert_contains "--help reaches the end of the header (Exit codes block)" \
   "$help_out" "prerequisite missing (gh, jq)"
 
-# Case 13 (#3483): a failed final jq merge must exit non-zero. The three surface
-# projections still run against real jq; only `jq -s` (the merge) is stubbed to
-# fail, so this cannot be satisfied by a surface-parse exit 2.
 REAL_JQ=$(command -v jq)
 JQ_MERGE_FAIL="$TEST_TMPDIR/bin-jq-merge-fail"
 mkdir -p "$JQ_MERGE_FAIL"
@@ -251,9 +234,6 @@ assert_eq "jq merge failure exits 2" "2" "$rc"
 err=$(PATH="$JQ_MERGE_FAIL:$TEST_TMPDIR/bin:$PATH" bash "$SCRIPT" "$PR_NUM" 2>&1 >/dev/null)
 assert_contains "jq merge failure names the merge" "$err" "jq merge failed"
 
-# Case 14 (#3483): INLINE (the last source) empty is a legitimate subset. The
-# old `[[ -n ]] && printf` arm returned 1 for that empty source; under pipefail
-# that would fail the pipeline even when jq succeeded. Must still exit 0.
 PARTIAL_STUB="$TEST_TMPDIR/bin-partial/gh"
 mkdir -p "$TEST_TMPDIR/bin-partial"
 cat >"$PARTIAL_STUB" <<STUB

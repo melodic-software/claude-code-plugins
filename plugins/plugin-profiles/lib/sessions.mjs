@@ -1,10 +1,3 @@
-// The other live Claude Code sessions working in one folder, from `claude agents --json`.
-//
-//   othersInFolder(folder, ownSessionId, run) -> [{name, sessionId, kind}]
-//
-// A folder switch changes the plugins of every session there at its next reload, so the switch's
-// confirmation names them. It never fails a switch: a claude without `agents`, a timeout or output
-// it cannot read gives [].
 import { spawnSync } from "node:child_process";
 import { claudeCommand } from "./claude-command.mjs";
 import { folderLevel } from "./folder-file.mjs";

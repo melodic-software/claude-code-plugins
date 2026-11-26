@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target-resolve.sh: rdt_bounded_to gives
-# what `$(command)` gives and bounds the command's whole life, and the guard
-# refuses when a resolver outlives the time left.
-#
-# The too-slow cases set SECONDS in the guard's environment. Bash imports it, and
-# RDT_DEADLINE_ABS bounds the hook by absolute SECONDS, so a start at 44 leaves
-# 6 s and the test needs no switch in the guard.
 # shellcheck disable=SC2016
 
 set -uo pipefail
@@ -27,9 +20,6 @@ no() {
   echo "FAIL - $1: $2"
 }
 
-# alive <pid>: the process still runs. A killed process answers `kill -0` until
-# its reaper collects it, often for a moment after its parent died too, so a gone
-# pid or a zombie (state Z) is not running; wait up to 2 s for one of the two.
 alive() {
   local s i
   for ((i = 0; i < 20; i++)); do
@@ -72,7 +62,6 @@ same_as_subst 'a nonzero exit keeps its status' 'printf "a\n"; exit 3'
 same_as_subst 'stderr is dropped' 'echo err >&2; echo out'
 same_as_subst 'a NUL is dropped' 'printf "a\0b\n"'
 
-# `$(...)` keeps a CR on Linux and strips it on Git Bash; the helper always strips.
 shim crlf 'printf "a\r\nb\r\n"'
 rdt_bounded_to got 10 "$SHIMS/crlf"
 if [[ "$got" == $'a\nb' ]]; then ok 'carriage returns removed'; else no 'carriage returns removed' "[$got]"; fi

@@ -63,10 +63,6 @@ def root_relative(path: str, root: str) -> str:
 def translate(pattern: str) -> str:
     """Return an anchored regex for a gitignore-style glob."""
     pattern = _normalize(pattern)
-    # A trailing slash names a directory, and gitignore semantics exclude
-    # everything under it. Dropping the slash would leave a bare segment that
-    # matches only a path literally called `vendor`, so `vendor/` would exclude
-    # nothing and the whole directory would stay in scope.
     directory = pattern.endswith("/")
     pattern = pattern.rstrip("/")
     if directory and pattern:
@@ -120,9 +116,6 @@ def main(argv: list[str]) -> int:
     if args and args[0] == "--any":
         any_mode = True
         args = args[1:]
-    # `--paths-from` reads the paths from a file, one per line. A whole
-    # repository's scope does not fit in one argument vector on every platform
-    # this runs on, and a file has no such ceiling.
     if len(args) >= 3 and args[1] == "--paths-from":
         try:
             with open(args[2], encoding="utf-8") as handle:
@@ -138,10 +131,6 @@ def main(argv: list[str]) -> int:
     try:
         regex = re.compile(translate(pattern))
     except re.error as exc:
-        # A consumer writes these patterns by hand in an ecosystem file, and a
-        # bad character class (`[z-a]`) is a configuration mistake, not a
-        # crash. Naming it beats a traceback, and the non-zero exit is what
-        # stops the caller from reading "no files matched" as an answer.
         print(f"pathglob.py: {pattern!r} is not a usable glob: {exc}", file=sys.stderr)
         return 2
     hits = [p for p in paths if regex.match(_normalize(p))]

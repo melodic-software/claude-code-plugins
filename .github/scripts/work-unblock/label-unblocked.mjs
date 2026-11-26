@@ -1,378 +1,4 @@
 #!/usr/bin/env node
-// label-unblocked.mjs: when an issue closes, labels `agent-ready` each issue
-// it blocked that is now ready for the resolve-issue lane, which the label
-// starts: open, every blocker closed, for any reason, by a listed human or a
-// merge in this repository (a pull request blocker: merged here; another
-// repository's blocker: closed there by a listed human), no hold label, and
-// not already agent-ready. Issues it would label are taken oldest
-// opened first (owner Q95). Every fact is read from the API now, never from the event
-// payload. No model.
-//
-// The close path also strips the closed issue's own queue labels
-// (agent-ready, `status: ready`, admission-deferred; stripClosed), only those
-// present, unless it is open again or is a post-merge fix issue. A bot's close
-// runs no close path: where the lanes App closes an issue itself (a split
-// parent here, report-outcome's close route) it strips them before the close,
-// and the sweep strips each issue in its window a listed human or a merge
-// closed (a merge the App ran among them).
-//
-// Every status this writes goes to the issue's Work status field
-// (models.issue-status, write-status.mjs statusWriter), and every status it
-// reads, a hold included, comes from that field first (read-status.mjs): the
-// labels below name the states, and a legacy status label is only ever taken
-// off. agent-ready stays a label beside its field state.
-//
-// Each new agent-ready is paced: at or over the issue lane's queued cap, or
-// with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
-// after wip.pause-from, or whenever a search answers incomplete_results:
-// true) a ready issue is set deferred instead, and with room for k
-// admissions only the first k ready issues are labeled. Every sweep revisits
-// the open deferred issues oldest first, before the closed ones: one still
-// ready is labeled agent-ready within the room, a held one, or one an open
-// pull request in this repository names (intake defers those), stays
-// deferred, and any other goes back to ready, or to needs-triage when no
-// listed human or the App set its status: ready (dropDeferral). A
-// deferred issue not yet agent-ready counts as ready only while it keeps
-// `status: ready`, carries neither do-not-merge nor needs-human, has no
-// untrusted-provenance hold, and neither gained `area: security` nor had its
-// body edited since its newest admission-deferred add (admit.mjs
-// deferralLapsed). One of those holds keeps it deferred, and one that lost
-// `status: ready` loses admission-deferred. One that gained the security area
-// or a body edit since gets admit.mjs's comment and loses `status: ready` and
-// admission-deferred, parked at `needs-owner-decision` for the security
-// area, else at `status: confirmed`. A hold's comment names its owner reason
-// as the stop-reason marker and line (heldText). A person's mark below is judged by
-// decide, which refuses on the same changes. Restarts, re-fires and relabels below
-// re-run admitted issues and are never paced. Each admission also lifts a
-// parked `status: confirmed` beside `status: ready`, as admit.mjs does.
-// Before any new agent-ready, an issue a merged `Refs:` pull request may have
-// done (admit.mjs mergedRefsAfter) is parked at `status: confirmed`, losing
-// `status: ready` and admission-deferred, with admit.mjs's comment naming the
-// pull request; each pass reads its issues in one GraphQL call
-// (mergedRefsReader), and a failed read admits as before.
-//
-// An issue it blocked that is otherwise ready but carries `status: confirmed`
-// without `status: ready` is never labeled: `status: ready` is what admission
-// passed. When admission parked it (admit.mjs admissionParked), a blocker closed
-// after it parked, intake admits its author, no refuse label holds it, and its
-// milestone is not in admission-rules.json's `cordoned-milestones`, the App
-// hands it back to intake (handBackParked): a comment opening with
-// UNPARKED_MARKER, which the hourly triage sweep reads to send it to intake,
-// then its Work status set to needs-triage. The close check makes this once per
-// close: a sweep's window overlaps the close run, and an issue intake parked
-// again after the close stays parked. Until a trusted `status: ready` follows
-// that hand-back, the issue is not labeled. Only issues a closed blocker
-// blocked are read, so the bound is that blocker list, and the count is logged
-// before any write.
-//
-// A listed human adding admission-deferred to an issue with `status: ready`
-// is the mark of a decided issue (owner decision Q75): the sweep reads its
-// Size, Complexity and Uncertainty fields (a value counts only when a listed
-// human or the App set it, as `status: ready` must be added; no default
-// stands in) and runs intake's admission
-// rules on it (admit.mjs decide). It is admitted within the room only on an
-// admit verdict. A refusal gets admit.mjs's comment, `needs-owner-decision`
-// for `status: ready` when it holds for a person, needs-triage when its one
-// reason is done-when items a lane run cannot perform beside items it can
-// (decide's `triage`: the triage sweep sends it to intake, whose refine step
-// splits them), else `status: confirmed`, as
-// intake's admit parks it; a wait on an open pull request stays deferred, and
-// one on a blocker goes back to ready, so its blocker's close admits it. One
-// the rules leave alone loses its deferral (dropDeferral) with a comment
-// saying why.
-//
-// After the closed ones, the sweep runs those rules on the open `status:
-// ready` issues in no queue (neither agent-ready nor admission-deferred, no
-// hold or refuse label, no open blocker or sub-issue), at most
-// limits.readmit-per-run of them, oldest updated first (readmitReady), and
-// writes as intake's admission does. One with an open blocker or sub-issue
-// goes to the rules too, once a day, while no admission comment is newer than
-// its newest `status: ready` (admissionUndecided). A born-triaged issue (check-born-triaged
-// notBornTriaged: the marker as its body's last line, a listed human or the
-// App its author) that the rules refuse only for a Size or Uncertainty no one
-// set yet waits with no write: its filer sets them after filing, and if no one
-// does, the triage sweep dispatches intake for it.
-//
-// An agent-ready issue left with nothing running is stranded: no hold, no open
-// lane pull request or open pull request of a listed human's for it, no
-// outcome marker since its newest agent-ready, and no work-resolve-issue run
-// for that label, or only one that ended with no report, over its cause's
-// limits.stranded-backoff-hours ago. It is re-fired with the re-fire record
-// below once per version of the lane workflow files, and after that on a
-// backoff (those hours doubling with each re-fire, at most
-// BACKOFF_CAP_HOURS), recorded in one comment
-// edited in place; it never gets needs-human. All share
-// limits.restarts-per-run. An issue a merged pull request names on a `Refs:`
-// line after its newest decision or refinement comment (admit.mjs
-// mergedRefsAfter, as admission reads it) is never re-fired: it is handed to
-// triage as a lane PR merged with `Refs:` is.
-//
-// The lane skips an issue a blocker still blocks and keeps agent-ready on
-// (check-blockers.mjs), so the close path above, which leaves an agent-ready
-// issue alone, never re-runs it. The sweep does: an agent-ready issue a
-// blocker still blocks is never re-fired, stranded or handed to a person, and
-// a run the blocker gate skipped, at check-admission or at the read runner's in-slot
-// re-check, is re-fired like a run that did no work once none blocks. An umbrella, an issue with an open sub-issue, is skipped and
-// waits the same way until none is open; the listing's sub_issues_summary
-// answers for one with none open at no extra call. A run the gate stopped on
-// an outside author or untrusted provenance, or an issue whose
-// untrusted-provenance label someone unlisted removed, is never re-fired and
-// gets no needs-human: on an outside author the lane's report-skip removes
-// agent-ready and asks a listed human to re-file the work, and on the rest
-// admission's refusal reaches a person.
-//
-// On `schedule`, and on `workflow_run` after a work-resolve-issue run
-// finishes, it sweeps instead: every issue closed since the last
-// successful scheduled run that ran its labeling step and read its closed
-// listing began (less SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS back; the full
-// window when that cannot be shown) goes through the same rules, so an issue a
-// bot closed (a pull request merge), which starts no close run, is still picked
-// up. A swept close counts only when a listed human or a merge made it. A
-// listing the sweep cannot read holds: a notice and a green exit, no read or
-// write after a failed closed listing, and the next sweep's window stays back,
-// so it reads the closes this one missed. A read for one issue that meets a
-// GitHub fault holds that issue the same way: a notice, the rest of the sweep
-// goes on, and the window stays back. A write that fails, or a read that fails
-// for another reason, ends the run red, which keeps the window back too.
-// Overlapping windows are harmless: an issue already labeled is left alone, and one whose
-// label was removed (by a person, or by a lane's pushback) is not labeled
-// again until the lanes App or a listed human adds `status: ready` after the
-// newest removal (admit.mjs removalStands). A removal by the lanes App that
-// follows the App's own limited marker is a restart, not a stop, and does
-// not count.
-//
-// The sweep also restarts issues the usage limit stopped: an open agent-ready
-// issue whose newest lanes-App outcome marker is `limited`, past its reset,
-// with no agent-ready label added since (so no lane run started after the
-// stop), and no hold label gets agent-ready removed and
-// added again by the App, which starts the lane. An issue whose newest marker
-// is `turn-cap` or `retry` (report-outcome kept agent-ready, so a restart is
-// left) is restarted the same way at once, while its markers of that outcome
-// since a person last added agent-ready are within limits.turn-cap-restarts
-// or limits.stop-retries. One whose newest marker is `wait` names the pull
-// request it waits on (`pr=`): it waits while that pull request is open and
-// is then restarted like a retry, its waits counted against
-// limits.stop-retries apart from its retries. A funding stop (the lane's Claude capacity: a spend
-// limit, no credit or a disabled key) is restarted like a limit stop, after
-// its regain date or, with none, limits.fallback-reset hours after the stop.
-// At most
-// limits.restarts-per-run issues per run, longest-waiting first.
-//
-// Limit and funding stops past limits.limit-stops-per-issue since a person
-// last added agent-ready spend that cap, a safety limit, so the issue takes
-// the `fail` route of the issue lane's stop routes: the App posts
-// an outcome=failed marker naming the stopped run, which maintenance-monitor
-// signal 9 reports, and removes agent-ready, adding no label. It never gets
-// needs-human. A newest failed marker with agent-ready still on (a removal
-// that did not land) gets agent-ready removed.
-//
-// It re-fires the same way an open agent-ready issue whose newest
-// work-resolve-issue run (the one its newest agent-ready label started, by a
-// listed human or the App) did no work and left no lanes-App outcome marker since: a
-// crash before the report, a run cancelled after check-admission passed and before any
-// resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit),
-// or a run that stopped at the read runner's `Stop on stale workflow files`
-// step in any of its calls (it waited in its slot past a lane workflow change, so no model ran)
-// and whose report-outcome did not re-fire it at once (report-outcome.mjs
-// refireStale: its mint refused, or limits.limit-stops-per-issue re-fires already).
-// A run a newer agent-ready run replaced while it waited is never re-fired:
-// check-admission never ran in it. A rerun keeps its first event's workflow files, so only a
-// fresh label event runs on main's. Each issue is re-fired once per version
-// of the two lane workflow files on main with a marker comment posted before
-// the label moves, and after that on the stranded backoff, so a run that
-// keeps failing is retried less often but never handed to a person.
-//
-// A run that minted no lane token did no work and ran no model: the WIP cap
-// skipped its resolve-issue job, or its `Request the lane token` step failed
-// (GitHub's rate limit past the retry budget among the reasons), or
-// check-broker's `Ask the broker whether the lane may run` failed for any
-// reason but the kill switch (a broker 5xx, a workflow-modified refusal of a
-// rerun, a log that names no reason): the read runner resolve-issue calls has
-// no `Request the lane token` step, so that is its failed mint, and a fresh
-// label event runs on main's workflow files. Such a run is
-// re-fired with the same record: a failed mint up to limits.limit-stops-per-issue
-// times per version of the lane workflow files and then on the stranded
-// backoff, a WIP cap skip without a per-issue bound. It waits limits.reset-clamp-min hours after the run ended, past any reset
-// the broker passes on (its Retry-After is at most an hour), and only while
-// the issue lane's WIP cap check (check-wip-cap.mjs) does not pause it. It is no
-// limit stop, so it never counts toward failing the issue.
-//
-// So is a run whose check-admission, pick-slot, or a call's check-broker or run job
-// failed on a GitHub API rate-limit stop, in a run where no model step ran
-// (the read runner's `Run the skill on` legs and its reused-branch summary
-// pass): the failed step's last line is rate-guard's or api-budget.bash's
-// stop, a call that hit a pool's rate limit, left it at or under its
-// stop-floor share, or got a server error with a Retry-After (a server error
-// hold, its record named so), naming the reset. It is re-fired as a failed mint, under
-// the same bound and backoff, once both that reset and limits.reset-clamp-min
-// hours after the run ended have passed. A log that cannot be read leaves the
-// run as before. Where a model step ran and every failed job ended on a rate
-// limit, the run is a floor stop: a fresh start only from the reset R a job
-// names to FLOOR_SPAN_MIN minutes after, and from each hour after R, a primary
-// rate limit's window being an hour:
-// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
-// With no R named, it re-fires from an hour after the run ended. It re-fires
-// once per R, at most the lane's SLOTS per rolling hour, and takes the
-// failed-again backoff after limits.limit-stops-per-issue of them. A job log
-// that could not be read holds the run for the next sweep until an hour after
-// the run ended; a log over LOG_CAP_BYTES never can be, so it does not hold.
-//
-// A run the token broker refused for the lanes kill switch, at check-broker's
-// `Ask the broker whether the lane may run` or at a `Request the lane token`
-// step, is a breaker trip, not a fault in the issue or the lanes; only the
-// refused job's log names the reason (the jobs listing reads the same for a
-// workflow-modified refusal). So is a run whose check-broker `Check the kill
-// switch` step saw a kill switch on and skipped the broker ask, or whose check-admission
-// or pick-slot job's own `Check the kill switch` did and the job ended green
-// with its gated steps skipped (check-admission's `Install resolve-config's packages`
-// and `Check the trigger`, pick-slot's `Check the WIP cap`; a failed install
-// is a failed run, not the switch): that run ends green, and
-// the jobs listing alone shows it; both count as trips at check-broker. A
-// trip at check-broker ran no model, and the sweep runs only with the kill
-// switch off, so the first sweep after the switch clears re-fires it; a trip at a mint ran the model and is
-// re-fired limits.reset-clamp-min hours after the run ended. A run whose
-// report-outcome mint alone stopped, after another mint took its token, is a
-// trip at a mint too. Each gets a breaker record of its own, and after
-// limits.limit-stops-per-issue trips since a listed human last added
-// agent-ready or a run last reported, waits the kill-switch
-// limits.stranded-backoff-hours after the run ended, flat, never doubled,
-// with no cap on trips and no fail route. A run whose start gate stopped it
-// on the GITHUB_TOKEN budget (BUDGET_STEP green in a call's check-broker,
-// from the jobs listing) is a breaker trip at check-broker whose record
-// carries BUDGET_TAG: it never counts toward that bound or that wait, and
-// re-fires only from the window reset its step names to FLOOR_SPAN_MIN minutes
-// after, and from each hour after that reset:
-// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
-// A sweep re-fires breaker trips,
-// oldest run end first, only while the work-resolve-issue runs not yet
-// finished (five status listings, read once a sweep that has one) are under
-// limits.refire-queue-per-slot times the lane's SLOTS, within
-// limits.restarts-per-run, so after a clear the lane stays full with a short
-// queue that each finished run's sweep tops up. A budget stop's re-fire also
-// waits until those runs are under limits.refire-budget-per-slot times SLOTS:
-// a run queued behind a second one per slot started past the window and the
-// start gate stopped it again. A run still `queued`
-// limits.stale-queued-minutes after it was created is not counted: its first
-// job never got a runner, so it is a run GitHub lost and will never start,
-// and counting it would hold the room at 0 for good. For the same reason a
-// reopened fix issue's in-flight check does not count such a run among the
-// runs that name no issue, though one that names the issue still holds it. A breaker
-// record never spends the once-per-version re-fire, never counts toward the
-// failed-mint bound and never raises another cause's backoff. Each run's log
-// is read once, from its one refused job (or its one failed job before any
-// model turn) and at most LOG_CAP_BYTES, and only its failed step's last line
-// counts: a refusal for another reason, or a log that cannot be read, is a
-// failed mint.
-//
-// A run check-admission's upstream-status stop skipped (check-upstream-status: Actions
-// or npm installs listed an outage) ran no model either. Once the status pages
-// read clear the sweep re-fires it with no wait, paced with the breaker trips
-// by limits.refire-queue-per-slot; while they list an outage or cannot be
-// read, it waits limits.reset-clamp-min hours after the run ended, as a run
-// the blocker gate skipped does, and that wait is not carried to the next
-// sweep. The pages are read once a sweep, and only when such a run is decided.
-//
-// When that label's run opened a pull request instead, the newest one the
-// lanes App opened from the issue's lane branch in this repository decides.
-// Merged with `Refs:` (the issue stays open with nothing to run) or closed
-// unmerged, the App removes `status: ready` and agent-ready, so the triage
-// sweep (maintenance-audit-lane-runs triage-sweep.mjs) dispatches intake,
-// which decides what is left and whose fresh `status: ready` re-admits it;
-// after a merge, admission parks it for a done-check instead (admit.mjs
-// mergedRefsAfter) until a decision comment says what is left. Open, it waits: report-outcome put needs-human on the
-// issue of a Refs PR, and this lifts that hold once that PR merges or closes
-// unmerged, only while its refs-hold marker and the App's needs-human label
-// are the newest. Each hand-off also counts against limits.restarts-per-run.
-// A lane PR the pr-merge lane closed at the verify cap, which its
-// capped-close record on the issue names with an attempt, is no hand-off:
-// that lane already restarted the issue for a fresh attempt or parked it.
-// The issues this path reads carry agent-ready.
-//
-// It relabels a red-main fix issue post-merge-file-demotion-issues.yml reopened on
-// a repeat failure: the reopen keeps agent-ready but ran on that workflow's
-// GITHUB_TOKEN, which starts no run. An open agent-ready issue filed by
-// github-actions[bot] with a `<!-- post-merge-fix check=... -->` first line
-// and a newest github-actions[bot] recurrence comment, with no agent-ready
-// added since that comment, its newest agent-ready added by a listed human
-// or the App, no hold, no open lane PR and no lane run in
-// flight, gets a record naming that comment and agent-ready removed and added
-// by the App. Relabels share limits.restarts-per-run, and the count is logged
-// before any of them.
-//
-// When a sub-issue of a size split (intake's refine.mjs, owner Q93) closes,
-// by a listed human or, on the sweep, a merge, and every sub-issue of its
-// open parent closed that way as completed with its done-when covered
-// (admit.mjs splitLeftOpen), the App comments on the parent and closes it as
-// completed. Only a split parent counts (admit.mjs isSplitParent): one whose
-// split record the App posted, or one split by hand whose every sub-issue the
-// App or a listed human linked, not `recurring`, each open task-list item in
-// its body being one of those sub-issues: its `#N` alone or with that
-// sub-issue's title. A parent that stays open gets no comment here: admission
-// says why, in its one comment (readmitReady). One that admission parked on
-// SIZE_SPLIT_DONE, every sub-issue now closed as completed by a trusted close,
-// loses status: confirmed instead, so intake admits it for the issue lane's
-// one verified-done run (reenterFinished, #12456 class A).
-//
-// The App's admission comment on an open parent in no queue that waits on its
-// sub-issues alone (no blocker) is rewritten when it says only that the split
-// is pending or that sub-issues are open and its open sub-issues now differ
-// (refreshSplitWait): on each sub-issue close above, and on the sweep for the
-// open-sub-issue parents whose number is the UTC hour modulo 24.
-//
-// The sweep also rescans open parents whose sub_issues_summary shows every
-// sub-issue completed and whose number is the UTC hour modulo 24, at most
-// limits.parent-rescan-per-run of them, oldest updated first
-// (rescanSplitParents), with the same rules: a parent whose last sub-issue
-// closed outside the sweep window still closes, and one that stays open logs
-// why.
-//
-// Every pass leaves out a map issue and each of its items: an issue whose own
-// labels hold the tracker binding's container label or a label starting with
-// its wayfind prefix (check-born-triaged.mjs routingLabel, read from BASE_PATH's
-// docs/conventions/work-items.yaml). The skill that filed it routes it, so no
-// pass reads, judges, admits, re-fires or comments on it past the listing or
-// parent lookup that named it, and the queued cap does not count it
-// (check-wip-cap.mjs). One notice per run names each one left out; one that
-// loses the label is decided on the next pass.
-//
-// Environment:
-//   GH_TOKEN              the lane App token (issues: write)
-//   GITHUB_REPOSITORY      owner/repo
-//   GITHUB_EVENT_NAME      `issues` (a close), or `schedule`,
-//                          `workflow_dispatch` or `workflow_run` (a finished
-//                          work-resolve-issue run) for the sweep
-//   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
-//                          sender and issue number are read; on a sweep
-//                          event it is not read
-//   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
-//   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
-//   ACTOR_ID               who closed the issue; must be a listed human
-//                          (`issues` only)
-//   ACTIONS_TOKEN          the job's GITHUB_TOKEN (actions: read), to read
-//                          this run's record (`issues`), list
-//                          work-resolve-issue runs, read a refused job's log,
-//                          and find the last sweep and its jobs; on
-//                          `schedule`, unset skips the re-fire and uses the
-//                          full window
-//   GITHUB_RUN_ID          this run, read for who started this attempt (a
-//                          re-runner may differ; it must be a listed human,
-//                          `issues` only) and skipped when reading the last
-//                          sweep
-//   GITHUB_RUN_ATTEMPT     this run's attempt, checked against its record
-//   VERDICTS_IN            a sweep's carried job listings and log verdicts
-//                          (verdict-carry.mjs read); missing carries nothing
-//   VERDICTS_OUT           where a sweep keeps them for the next one, and
-//                          sets the `verdicts=true` output; unset keeps
-//                          and carries nothing
-//   LANES_BOT_LOGIN        the lanes App bot login, the only author of a marker
-//                          and actor of a restart this trusts (default
-//                          melodic-automation-lanes[bot])
-//   GITHUB_API_URL
-//   RESOLVED_CONFIG        resolve-config's output (default
-//                          $RUNNER_TEMP/resolved-config.json), for the limits
-//   BASE_PATH              the default branch checkout (default .base), for
-//                          the admission rules, models.issue-dimensions and
-//                          the tracker binding's routing labels
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -419,9 +45,6 @@ const RECHECK_STOP_STEP = "Stop on an open blocker";
 const UNTRUSTED_STEP = "Stop on untrusted provenance";
 const BROKER_STEP = "Ask the broker whether the lane may run";
 const KILL_STEP = "Check the kill switch";
-// check-broker's step that runs exactly when KILL_STEP stopped on the
-// GITHUB_TOKEN budget (cause budget). Its name carries the window's reset,
-// in epoch seconds, from the gate's reset output.
 const BUDGET_STEP = /^Stop on a low GITHUB_TOKEN budget(?: until (.*))?$/;
 const BUDGET_TAG = "<!-- work-unblock cause=budget -->";
 const BUDGET_EARLIER = /^<!-- work-unblock earlier ([^>]*) -->$/m;
@@ -434,20 +57,10 @@ const INSTALL_STEP = "Install resolve-config's packages";
 const TRIGGER_STEP = "Check the trigger";
 const WIP_STEP = "Check the WIP cap";
 const MODEL_STEP = /^(?:Run the skill on|Summarize the reused branch on) /;
-// A raw job log line, its timestamp first, whose rest matches the pattern `rest`.
 const stamped = (rest) => new RegExp(String.raw`^\d{4}-\d\d-\d\dT[\d:.]+Z ` + rest);
-// request-lane-token's last line when the broker refuses it, in check mode
-// (BROKER_STEP) or token mode (MINT_STEP), and the runner's line that follows
-// it when the step fails. Only the reason word is read.
 const denial = (mode) => stamped(String.raw`##\[error\]lane-${mode}-denied: the broker answered 403 with reason ([a-z]+(?:-[a-z]+)*)(?::|$)`);
 const DENIAL = { check: denial("check"), token: denial("token") };
 const STEP_FAILED = stamped(String.raw`##\[error\]Process completed with exit code [0-9]+\.$`);
-// rate-guard's (and api-budget.bash's) stop line, as the failed step's last
-// line: a call that hit a pool's rate limit, left it at or under its
-// stop-floor share, or got a server error with a Retry-After (rate-guard's
-// serverErrorHold, held the same way, its 5xx in `status`), and the `reset` it
-// names. A raw job log shows a titled annotation as `##[error]<message>`,
-// the title dropped, as it shows an untitled one.
 export const RATE_LIMITED = stamped(
   String.raw`##\[error\].* (?:hit GitHub's .+ rate limit|left GitHub's .+ requests, at or under its stop-floor share \S+|got a GitHub server error, HTTP (?<status>5\d\d) with a Retry-After)(?: \(status \d+\))?: no call to it before (?<reset>\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \(`,
 );
@@ -465,72 +78,40 @@ const NO_RESET = "rate-limited";
 const LOG_UNREAD = "unread";
 const OVER_CAP = /answered a body over \d+ bytes$/;
 const STAGE_STEP = "Stage the activity from the base";
-// request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
-// green with no token, at a mint or at check-broker's check.
 const STOPPED = stamped(
   String.raw`##\[notice\]lane-(?:token-stopped: the broker refused the token|check-stopped: the broker refused the check) because a lanes kill switch is on(?:,|$)`,
 );
 const LEASE_STEP = "Claim the issue with a lane lease";
-// The runner's markers around request-lane-token's one composite step, its
-// `Request the lane token` with id `request`; a STOPPED line counts only
-// between the job's first start marker and its end marker.
 const MINT_START = stamped(String.raw`##\[start-action display=Request the lane token;id=([\w-]+\.request)\]$`);
 const mintEnd = (id) => stamped(String.raw`##\[end-action id=${id.replace(".", "\\.")};`);
 const BREAKER = "kill-switch";
-// The refused jobs' logs on 2026-10-24 were 45 KB (check-broker) and 94 KB
-// (apply-issue-patch); a longer one is left unread.
 const LOG_CAP_BYTES = 1_048_576;
-// The line a sweep prints once it has read the closed-issue listing, and that
-// line in a raw job log, stamp first. A held sweep ends as green as a full one,
-// so this line alone lets the next sweep's window start from it.
 const LISTED_LINE = "label-unblocked: read the closed-issue listing";
 const LISTED = stamped(`${LISTED_LINE}$`);
-// The line a run prints when it held an issue on a faulted read (failedFor),
-// and that line in a raw job log. The next sweep's window stays back past it.
 const HELD_LINE = "label-unblocked: held an issue on a failed read";
 const HELD = stamped(`${HELD_LINE}$`);
-// work-unblock.yml's job and its step that runs this script. The kill switch
-// and a lane the config turns off skip the step and leave the run green, so
-// only this step's success shows a sweep ran.
 const SWEEP_JOB = "label-unblocked";
 const SWEEP_STEP = "Label the unblocked issues";
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
-// The pr-merge lane's capped-close record on the issue
-// (babysit_verify_evidence.py CAPPED_CLOSE_RE) naming an attempt: it closed
-// the lane PR it names at the verify cap and restarted or parked the issue
-// itself. One with no attempt started nothing.
 const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
 const HOLDS = LANE_HOLDS;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-// post-merge-file-demotion-issues.yml's fix issue and the comment it posts when it
-// reopens one, both under that workflow's GITHUB_TOKEN.
 const ALERT_BOT = "github-actions[bot]";
 const FIX_ISSUE = /^<!-- post-merge-fix check=[^\r\n]+ -->/;
 export const RECURRENCE_PREFIX = "This check failed on main again at `";
 const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
-// A work-resolve-issue run in any of these has not finished.
 export const IN_FLIGHT = Object.freeze(["queued", "in_progress", "waiting", "pending", "requested"]);
-// The sweep's widest window, used when the last good sweep is unknown or
-// older: a missed run loses nothing up to this far back.
 export const LOOKBACK_HOURS = 3;
-// The sweep reads from this long before the last good sweep started.
 export const SWEEP_MARGIN_MIN = 15;
-// work-unblock.yml's step a scheduled run the burn-rate pacer paced runs
-// (log-api-budget/pace.mjs), and how far back the sweep after it may read:
-// it starts from the sweep before the paced run, which a dropped or late
-// tick can push past LOOKBACK_HOURS.
 export const PACED_STEP = "Mark this tick paced";
 export const PACED_LOOKBACK_HOURS = 2 * LOOKBACK_HOURS;
-// Minutes from the script's start after which a sweep decides no further
-// agent-ready issue, when SWEEP_BUDGET_MINUTES (work-unblock.yml) names none.
 export const SWEEP_BUDGET_MIN = 6;
 const sweepBudgetMs = (env) => {
   const minutes = Number(env.SWEEP_BUDGET_MINUTES);
   return (Number.isFinite(minutes) && minutes > 0 ? minutes : SWEEP_BUDGET_MIN) * 60_000;
 };
 const INFRA = /^<!-- work-unblock infrastructure ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
-// The longest wait between backoff re-fires.
 export const BACKOFF_CAP_HOURS = STRANDED_BACKOFF_MAX;
 const backoffDue = (since, refires, hours) => since + Math.min(hours * 2 ** refires, BACKOFF_CAP_HOURS) * HOUR_MS;
 const spanOpens = (reset, now) => {
@@ -543,12 +124,6 @@ const spanOpens = (reset, now) => {
 const isoSecond = (at) => new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
 const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
-// Whether the account that closed the issue (ACTOR_ID) and the one that
-// started this run attempt (a re-runner may be another account) are each a
-// listed human, by id. The re-runner's id is read from this run's own record
-// with `actions` (default: the job token), since a login can pass to another
-// account; a failed or malformed read answers false. The broker mints only
-// when this holds.
 export async function checkCloser(env, actions) {
   if (!NUMBER.test(env.ACTOR_ID ?? "")) {
     return false;
@@ -674,11 +249,6 @@ function deferralMark(events, { bot, humans }) {
 const eventsOf = (github, repo, statusOf, number) =>
   statusOf?.events ? statusOf.events(number) : paginate(github, `/repos/${repo}/issues/${number}/events`);
 
-// The Work status field's moves onto and off agent-ready (resolve-config.mjs
-// fieldEvents rows for field `field`) as `labeled` and `unlabeled` agent-ready
-// events, so the restart rules read a field restart as they read a label one.
-// Only the lanes App's (`bot`) and a listed human's (`humans`, a User's id)
-// count. Pure.
 export function agentReadyEvents(rows, { field, bot, humans }) {
   return rows.flatMap((row) => {
     const app = row.actorType === "Bot" && `${row.actorLogin}[bot]` === bot;
@@ -730,13 +300,6 @@ async function readiness({ github, repo, number, humans, closes, bot = DEFAULT_B
   if (unset) {
     return unset;
   }
-  // admit.mjs blockerDone: a blocker counts once closed, for any reason, by a
-  // listed human or a merge in this repository; a pull request counts only
-  // once merged here. Anyone can close their own issue, so a blocking issue
-  // needs a trusted close (trustedClose), read fresh from the issue in its own
-  // repository. Another repository's blocker counts only by a listed human's
-  // close there, and a read that fails there leaves it blocking: people the
-  // trusted list does not cover merge in other repositories.
   const pending = await stillBlocking(
     await blockersOf(github, base),
     repo,
@@ -777,8 +340,6 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
     if (!Array.isArray(runs)) {
       throw new Error("the workflow run listing has an unexpected shape");
     }
-    // Newest first by id, which grows with each run; created_at can be
-    // stamped out of order (rotation.mjs runOrder).
     const order = (run) => (RUN_ID.test(String(run?.id)) ? Number(run.id) : -1);
     const older = runs.filter((run) => String(run?.id) !== String(runId ?? "")).sort((a, b) => order(b) - order(a));
     const listJobs = jobLister(actions, repo);
@@ -823,9 +384,6 @@ async function sweepSince({ actions, jobLog, repo, now, runId }) {
   }
 }
 
-// The issues closed at or after `since`. The listing's `since` filters on the
-// last update, so the close time is checked here; pull requests, which the
-// listing also returns, are left out.
 async function closedSince(github, repo, since) {
   const path = `/repos/${repo}/issues?state=closed&since=${encodeURIComponent(since.toISOString())}&sort=updated&direction=desc`;
   return (await paginate(github, path))
@@ -960,9 +518,6 @@ async function staysParked({ github, repo, issue, lower, humans, appId, admissio
   return parkedAt < closedAt ? { why: null, parkedAt, comments } : { why: "no blocker closed since it parked" };
 }
 
-// The lanes App's hand-back to intake of a parked issue, its comment's first
-// line, which the hourly triage sweep (triage-sweep.mjs HAND_BACK) reads to
-// send it to intake.
 export const UNPARKED_MARKER = "<!-- work-unblock unparked triage -->";
 
 async function handBackParked({ github, repo, number, comments, parkedAt, isApp, writer, why }) {
@@ -976,11 +531,6 @@ async function handBackParked({ github, repo, number, comments, parkedAt, isApp,
   return heldOnSet(writer, number, "needs-triage");
 }
 
-// The hand-back a refusal decide marks `triage` posts before its needs-triage
-// write, apart from the admission comment refine's splitOf matches: the
-// UNPARKED_MARKER line, so the triage sweep starts a new dispatch cycle for
-// it, then the body's version (admit.mjs bodyVersion, the key refine's own
-// once-per-body guard reads), so the same body is handed back once. Pure.
 export const splitHandBack = (body) =>
   `${UNPARKED_MARKER}\n${bodyVersion(body)}\nAdmission refused this issue only for done-when items a lane run cannot perform beside items it can, which intake's refine step splits off only in an intake run, so work-unblock set its Work status to needs-triage, and the hourly triage sweep sends it back to intake triage.`;
 
@@ -1283,11 +833,6 @@ const refusedState = (status) => (status === NEEDS_DECISION ? "needs-owner-decis
 
 const UNBLOCK_LANE = "work-unblock";
 
-// The admission comment's text for a refusal: one that holds for a person
-// (`code`, its owner reason) adds the visible reason line and the stop-reason
-// marker after it, as intake's admit.mjs heldRefusalText does, so every reader
-// of the refusal's opening line reads it unchanged; a park (`code` null)
-// hands nothing to a person and carries neither.
 export function heldText(reasons, code) {
   if (code === null) {
     return refusalText(reasons);
@@ -1296,10 +841,6 @@ export function heldText(reasons, code) {
   return `${refusalText(reasons)}\n\n${line}\n${marker}`;
 }
 
-// The owner reason a deferral's lapsed holds (admit.mjs deferralLapsed) stop
-// for, as intake's decide names it: `security` for the untrusted-provenance
-// hold or a gained security area, `intent` for any other hold, or null when
-// none holds.
 export function lapsedReason(lapsed) {
   const holds = lapsed.filter((item) => item.hold);
   if (holds.length === 0) {
@@ -1358,11 +899,6 @@ async function admitMarked({ github, repo, number, issue, names, events, humans,
   }
 }
 
-// Whether no admission comment (ADMIT_MARKER, by `bot`) among `comments` was
-// written at or after the newest `status: ready` add in the issue's events,
-// read through `events()` only when that comment exists: no admission decided
-// the ready status the issue holds now, as when intake's admission skipped or
-// failed on it.
 export async function admissionUndecided({ comments, events, bot }) {
   const own = comments.find((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(ADMIT_MARKER));
   if (!own) {
@@ -1554,15 +1090,9 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate, 
   return failed + (parked.length > 0 ? await unpark({ github, repo, parked, humans, appId, admission, writer, statusOf }) : 0);
 }
 
-// The fail route's comment after limits.limit-stops-per-issue limit and
-// funding stops. It opens with the issue lane's outcome marker, so signal 9
-// reports it and findPrior resumes the stopped run's branch (`run`, and
-// `branch=resumed` when that run kept no branch of its own) on the next run.
 export const failedComment = ({ stops, run = "", onResumed = false }) =>
   `<!-- work-resolve-issue outcome=failed${run ? ` run=${run}` : ""}${onResumed ? " branch=resumed" : ""} -->\nThe usage limit or the lane's funding stopped the work-resolve-issue lane on this issue ${stops} times since a person last added \`${LABEL}\` (limits.limit-stops-per-issue), so work-unblock stopped restarting it: it removed \`${LABEL}\` and added no label. This is a capacity stop, not a decision for a person. To run it again, add \`${LABEL}\`; the next run continues the stopped run's branch while it is not behind the default branch.`;
 
-// The re-fire's record, posted before the label moves: one per issue per
-// version of the lane workflow files.
 const FAILED_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's.`;
 export const refireComment = (key, cause = FAILED_CAUSE) => refireRecord(key, cause);
 
@@ -1581,9 +1111,6 @@ const rateLimitCause = (reset, server = null) => {
     : `The work-resolve-issue run that \`${LABEL}\` started stopped on GitHub's API rate limit before any model turn; the limit reset at ${at}.`;
 };
 
-// The record of a re-fire after a kill-switch refusal, posted before the
-// label moves, once per re-fire. It names the refused run and when it ended,
-// since the re-fire can come hours after the refusal.
 export const breakerComment = (key, { repo, run, ended, budget = false, earlier = [] }) =>
   budget
     ? `<!-- work-unblock refired ${key} breaker -->\n${BUDGET_TAG}\nThis records a re-fire of an earlier stop, not a new one. The start gate stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, before any model turn, because the GITHUB_TOKEN budget was under its start-gate share, or the window was projected to have under its start-project share of the header's limit left by the run's expected end (github-token start-gate, start-project and start-run-minutes in rate-limits.json; the run's start-gate notice names which); that run ended at ${new Date(ended).toISOString().replace(/\.\d{3}Z$/, "Z")}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run. A budget stop is the lanes' load, not a fault in this issue: it never counts toward limits.limit-stops-per-issue or the \`kill-switch\` wait.${earlier.length > 0 ? `\n<!-- work-unblock earlier ${earlier.join(" ")} -->` : ""}`
@@ -1594,28 +1121,19 @@ const floorComment = (key, { repo, run, reset, named, server }) => {
   return `<!-- work-unblock refired ${key} breaker -->\n${floorTag(reset)}\nThis records a re-fire of an earlier stop, not a new one. ${stopper} stopped [run ${run}](https://github.com/${repo}/actions/runs/${run}), the work-resolve-issue run that \`${LABEL}\` started, after its model ran${named ? `, until ${isoSecond(reset)}` : ""}. work-unblock has now removed and added \`${LABEL}\` back to start a fresh run${named ? " early in a window" : ""}. ${server ? "A GitHub server error is" : "A floor stop is the lanes' load,"} not a fault in this issue. After limits.limit-stops-per-issue of these since a person last added \`${LABEL}\` or a run last reported, work-unblock waits the limits.stranded-backoff-hours \`failed-again\` backoff instead.`;
 };
 
-// The backoff record of an issue whose re-fires on these workflow files keep
-// ending the same way: one comment per issue, edited on each re-fire.
 export const infraComment = (key, cause, refires) =>
   `<!-- work-unblock infrastructure ${key} -->\n${cause} work-unblock has re-fired it ${refires} time(s) on lane workflow files ${key} and keeps re-firing it, waiting longer each time, up to ${BACKOFF_CAP_HOURS} hours, until a run reports. This is a fault in the lanes, not in the issue; this comment is updated on each re-fire.`;
 
-// The relabel's record, posted before the label moves: one per recurrence
-// comment.
 export const recurrenceComment = (id) =>
   `<!-- work-unblock recurrence ${id} -->\nThis check failed on main again, and post-merge-file-demotion-issues reopened this issue, which starts no work-resolve-issue run. work-unblock removed and added \`${LABEL}\` back to start one. It does this once per reopen.`;
 
-// The hand-offs to triage once the lane PR ended, each posted once per pull
-// request before its labels move.
 export const refsMergedComment = (pr) =>
   `${handedMarker(pr)}\nPull request #${pr} merged with \`Refs:\`, so this issue stays open and nothing starts the lane on it again. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage. Admission then parks it at \`${CONFIRMED}\` for a check of what that pull request left, until a \`**Decision recorded.**\` comment says what is left or someone closes it.`;
 export const refsClosedComment = (pr) =>
   `${handedMarker(pr)}\nThe lanes App's pull request #${pr} for this issue was closed without merging. work-unblock removed \`${READY}\` and \`${LABEL}\`, so the hourly triage sweep sends it back to intake triage, which decides what work is left and admits it again.`;
 
-// A work-resolve-issue run title that names an issue ends with ` #<number>`.
 const NAMES_ISSUE = / #[1-9][0-9]*$/;
 
-// A label window as the `created=a..b` listing filter reads it: both ends cut
-// to the second, and both inclusive, as GitHub's `n..n` range is.
 const runWindow = (addedAt) => [Math.floor(addedAt / 1000) * 1000, Math.floor((addedAt + RUN_WINDOW_MS) / 1000) * 1000];
 const laneRunsPath = (repo, [from, to]) => {
   const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -1623,10 +1141,6 @@ const laneRunsPath = (repo, [from, to]) => {
 };
 const runTitle = (run) => String(run.display_title ?? "");
 
-// The work-resolve-issue runs for issue `number` created within RUN_WINDOW_MS
-// of the label event at `addedAt`, as `mine`. The run title ends with
-// ` #<number>`; `untitled` counts the runs in the window whose title names no
-// issue (titles from before that run name), which may include this issue's.
 export async function laneRuns(actions, repo, number, addedAt) {
   const path = laneRunsPath(repo, runWindow(addedAt));
   const runs = [];
@@ -1646,15 +1160,11 @@ export async function laneRuns(actions, repo, number, addedAt) {
   throw new Error("the workflow run listing has more than 10 pages");
 }
 
-// Label windows starting in the same span of this length share one listing.
-// At about 75 lane runs an hour, a span's listing is about one page, the call
-// one issue's own listing costs.
 const BUCKET_MS = 60 * 60_000;
-// The listing filtered by `created` answers at most 1,000 runs.
+// A filtered run listing returns at most 1,000 runs; split the range.
+// https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
 const LISTING_CAP = 1000;
 
-// The runs of one span's listing, or null when it holds more than the listing
-// answers, so each of its issues is listed on its own.
 async function spanRuns(actions, repo, span) {
   const path = laneRunsPath(repo, span);
   const runs = [];
@@ -1675,12 +1185,6 @@ async function spanRuns(actions, repo, span) {
   return null;
 }
 
-// laneRuns as `(number, addedAt)`, from one listing per BUCKET_MS span that a
-// label window starts in, read when an issue of that span first asks, so no
-// issue's history is read ahead of its own turn. Each span's listing reaches
-// RUN_WINDOW_MS past its end, so it holds the whole window of every label in
-// it. A listing is never reused by another sweep, so status and updated_at
-// are this sweep's; a span too big to list has each issue listed on its own.
 export function sharedLaneRuns(actions, repo) {
   const spans = new Map();
   return async (number, addedAt) => {
@@ -1755,10 +1259,6 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       }
     }
     const killedBefore = (step) => (job) => endedAt(job, KILL_STEP, "success") && endedAt(job, step, "skipped");
-    // check-admission's first gated step is INSTALL_STEP: a failed install also skips
-    // TRIGGER_STEP, and that job fails, so only a green job with both skipped
-    // is the switch. pick-slot's gated WIP_STEP follows only continue-on-error
-    // steps, so a green job with it skipped is the switch too.
     const switchedOff = (...steps) => (job) => job.conclusion === "success" && steps.every((step) => killedBefore(step)(job));
     const killed =
       budget ||
@@ -1848,16 +1348,6 @@ async function floorStop(jobsOf, refusalOf, runs) {
   return stop && limitSeen ? { ...stop, server: null } : stop;
 }
 
-// The reason the broker refused `job`, from its log: the failed step's last
-// line before the runner's first `Process completed`, in `mode` (check or
-// token; in `limit` mode the reset a RATE_LIMITED line names), or BREAKER
-// for a `stop` mode log with a STOPPED line inside the mint step's MINT_START
-// section. Null when there is no such line or the log
-// cannot be read within LOG_CAP_BYTES, or no log reader was given; the log is
-// data: check and token modes read only that one line, and a STOPPED line
-// outside the section never counts. A job's log never changes once it ends,
-// so the answer from a log that was read is kept in `carry`
-// (verdict-carry.mjs) and the next sweep reads it from there.
 function refusalReader(jobLog, repo, carry) {
   return async (job, mode) => {
     if (!jobLog || !RUN_ID.test(String(job?.id))) {
@@ -1929,8 +1419,6 @@ function refusalIn(lines, mode) {
     return null;
   }
   if (mode === "limit") {
-    // `<reset>` for a rate limit, `<reset> server-<5xx>` for a server error
-    // hold; verdict-carry's REASON carries both.
     return stopNamedIn(lines[end - 1]);
   }
   return DENIAL[mode].exec(lines[end - 1])?.[1] ?? null;
@@ -1974,9 +1462,6 @@ async function someRunJobs(jobsOf, runs, test) {
 
 const stoppedMint = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => jobs.some(stoppedAt));
 
-// The display name of each job this script reads, by job id. The jobs API
-// names a job by its display name, or by its id on a run started before the
-// rename; a called job's name goes on ` / <job>`.
 const JOB_NAMES = {
   admit: "Admit",
   "check-admission": "Check Admission",
@@ -1995,17 +1480,9 @@ const stoppedUntrusted = (jobsOf, runs) => someRunJobs(jobsOf, runs, (jobs) => A
 const stoppedStale = (jobsOf, runs) =>
   someRunJobs(jobsOf, runs, (jobs) => RESOLVE_CALLS.flatMap((name) => namedJobs(jobs, name)).some((job) => endedAt(job, STALE_STEP, "success")));
 
-// A job that never ran on a runner: skipped, or no step ran and no runner took
-// it. A job listing with no steps for a job a runner took is not one.
 const neverStarted = (job) =>
   job?.conclusion === "skipped" || ((job?.steps ?? []).every((step) => step?.conclusion === "skipped") && (!job?.runner_id || !job?.started_at));
 
-// Whether one of `runs` was cancelled after check-admission passed and before any
-// resolve-issue job (pr-run-activity-read.yml's check-broker and run) started:
-// pick-slot cancelled (its timeout, or a person), or resolve-issue cancelled
-// while it waited for its slot (GitHub cancels a slot queue past its limit).
-// A run a newer agent-ready run replaced in the workflow's concurrency group
-// was cancelled while it waited, before check-admission ran, so it never counts.
 const cancelledBeforeWork = (jobsOf, runs) =>
   someRunJobs(
     jobsOf,
@@ -2062,8 +1539,6 @@ async function lastLanePull({ github, repo, number, addedAt, bot }) {
   return last;
 }
 
-// The issue lane's slot count: the effective lane level, which pick-slot in
-// work-resolve-issue.yml reads the same way (lane-level-value.mjs).
 export function laneSlots({ laneLevel = {}, env = process.env, now = Date.now(), log = console.log } = {}) {
   const read = laneLevelFromEnv(laneLevel, env, now);
   log(`label-unblocked: ${describeLevel(read)}`);
@@ -2083,11 +1558,6 @@ async function runsInFlight(actions, repo) {
   return runs;
 }
 
-// Whether `run` has sat `queued` for `minutes` or more at `now`. The lane's
-// check-admission job runs on a GitHub-hosted runner and the slot wait is a job-level
-// concurrency group after it (work-resolve-issue.yml), so a run that is still
-// queued this long never got a runner: GitHub lost it and it will never start.
-// An unreadable creation time is never stale, so the run still counts.
 const staleQueued = (run, now, minutes) => run.status === "queued" && now - run.created >= minutes * 60_000;
 
 const fieldNamesOf = (statusOf, issue) => fieldFirst(statusOf, issue.number, labelNames(issue).map((name) => name.toLowerCase()));
@@ -2265,21 +1735,10 @@ async function refireRefusal({ github, actions, jobLog, carry, repo, number, iss
     ...markers.filter((marker) => marker.outcome !== "refired").map((marker) => marker.at),
   );
   if (stalled) {
-    // Breaker trips since a listed human last added agent-ready or a run last
-    // reported; past limits.limit-stops-per-issue of them, a flat wait of the
-    // kill-switch hours that never doubles: a trip is the lanes' load, not the
-    // issue's fault (owner decision Q109). A stop on the GITHUB_TOKEN budget is
-    // no trip: it never counts, and re-fires only early in a window after the
-    // reset its step names (with none, from an hour after the run ended), a
-    // primary window's length:
-    // https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
     const trips = stalled === "breaker" && !budget ? markers.filter((marker) => marker.breaker && !marker.budget && marker.floor === undefined && marker.at > from).length : 0;
     const over = budget ? -1 : trips - limits["limit-stops-per-issue"];
     const outage = stalled === "outage";
     const clamp = (stalled === "breaker" && stage === "check") || (outage && (await upstreamClear())) ? 0 : limits["reset-clamp-min"];
-    // A budget stop waits for a span early in a window after the reset it names:
-    // https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
-    // A rate-limit stop waits past the reset it names.
     const due = budget ? (resetAt === null ? ended + HOUR_MS : spanOpens(resetAt, now)) : Math.max(ended + (over >= 0 ? hoursFor["kill-switch"] : clamp) * HOUR_MS, reset);
     if (now < due) {
       const why = budget
@@ -2401,9 +1860,6 @@ async function restartRefusal({ github, actions, jobLog, carry, repo, issue, bot
   if (!funding && marker?.outcome !== "limited") {
     return { reason: "no limit stop is its newest lane outcome" };
   }
-  // A limit or funding stop (ci-workflows#781) that keeps stopping the lane
-  // spends the per-issue cap and takes the fail route: count both since a
-  // person last added agent-ready.
   const stops = markers.filter((item) => (item.outcome === "limited" || item.outcome === "funding") && item.at > since).length;
   if (stops >= limits["limit-stops-per-issue"]) {
     return { reason: `${stops} limit stops since a person last added ${LABEL}`, fail: { stops, run: marker.run, onResumed: marker.onResumed } };
@@ -2986,8 +2442,6 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
   }
 }
 
-// `--check-closer` writes only the closer check, as the `proceed` step
-// output, so the workflow can stop before it requests a token.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   if (process.argv[2] === "--check-closer") {
     const proceed = await checkCloser(process.env);

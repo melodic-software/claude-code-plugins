@@ -1189,7 +1189,6 @@ test('a reservation left by a process that is gone is reclaimed, and a launch ri
 `;
   placeEngine(box.target, runs, { marked: true });
   const name = session();
-  // 99999999 is above the largest pid Linux (2^22) or macOS (99998) assigns, so no process holds it.
   mkdirSync(join(RUNTIME, 'ccd'), { recursive: true, mode: 0o700 });
   writeFileSync(join(RUNTIME, 'ccd', `${name}.lock`), '99999999');
   const args = ['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '30'];
@@ -1777,7 +1776,6 @@ test('record stop prints only the fixed stop reply: a holder naming a path fails
   }
 });
 
-// Node's setTimeout takes at most 2^31-1 ms and fires a longer delay after 1 ms.
 test('a deadline past the setTimeout maximum waits instead of firing at once', posixOnly, async () => {
   assert.equal(driver.brokerDeadline('ready', { timeout: '9999999999' }), 2 ** 31 - 1);
   assert.equal(driver.brokerDeadline('ready', { timeout: String(2 ** 31 - 1) }), 2 ** 31 - 1);
@@ -1814,12 +1812,6 @@ test('a relative CCD_RUNTIME_DIR and a session name starting with - are usage er
   );
   await assert.rejects(main(['stop', '--session=-x']), { code: 2, message: '--session takes 1-32 letters, digits, _ or -, not starting with -' });
 });
-
-// ---- cli/account.mjs: the driven session's account, read by its holder ----
-// The stub outputs follow `claude auth status --json` from Claude Code 2.1.319: `authMethod` is
-// `api_key` under ANTHROPIC_API_KEY (no email or orgName) and `claude.ai` for a subscription login.
-// The caller's own `claude` always disagrees with the holder's, as the CI outer leg's does with the
-// sibling sandbox's, so a value read in the caller's environment fails each case.
 
 const ACCOUNT = join(HERE, '..', 'cli', 'account.mjs');
 const KEY_AUTH = JSON.stringify({ loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty', apiKeySource: 'ANTHROPIC_API_KEY' });

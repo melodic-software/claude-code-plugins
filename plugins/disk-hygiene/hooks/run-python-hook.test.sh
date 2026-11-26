@@ -745,7 +745,6 @@ mkdir "$MARKER_DIR/sess-7.seen"
 marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
 assert_eq "a .seen that is no file runs the monitor" "ran" "$(target_state)"
 rmdir "$MARKER_DIR/sess-7.seen"
-# Root reads every file, and MSYS cannot set these bits against Windows ACLs.
 if [[ "$(id -u)" != 0 && "${OSTYPE:-}" != msys* && "${OSTYPE:-}" != cygwin* ]]; then
   printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-7.launched"
   printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-7.seen"

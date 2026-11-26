@@ -13,8 +13,6 @@ SCRIPT="$SELF_DIR/check-skill-precompute-compose.sh"
 # shellcheck source=lib/changed-files.sh
 . "$SELF_DIR/lib/changed-files.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -98,16 +96,6 @@ else
 fi
 rm -rf "$f"
 
-# =============================================================================
-# Argument parser coverage (#2708).
-#
-# Every case above enters via --paths (or --strict --paths), which break-s out
-# of the while-loop before $# reaches 0. Mutating -gt 0 to -ge 0 therefore
-# survived the suite: once $# hits 0 the loop body still ran and case "$1"
-# unbound-variable-exited under set -u — but only for invocations that drain
-# through *) or leave POSITIONAL empty after consuming --strict/--help.
-# =============================================================================
-
 new_fixture f
 out="$(run_check "$f" 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 2 ]] && grep -q '^usage:' <<<"$out"; then
@@ -177,16 +165,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an invalid base ref exits 2, not a silent "nothing to gate" (#3377) -----
-#
-# Target discovery runs inside `mapfile -t targets < <( ... )`, and the
-# base-ref branch's `exit 2` terminated only that process-substitution
-# subshell. `mapfile`'s own status reflects the READ, and a process
-# substitution's exit code is not propagated, so the parent saw nothing but an
-# empty `targets`, scanned zero files and exited 0. A typo'd branch or a
-# shallow clone missing the ref therefore read as "nothing to gate": the error
-# text went to stderr, but the exit code CI gates on said success, in exactly
-# the case this validation exists to catch.
 new_git_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
 git_test_config "$f" add -A >/dev/null
@@ -201,16 +179,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a git diff that fails AFTER ref validation exits non-zero ---------------
-#
-# Validating the ref only covers the ref. Every other way a diff can fail -- a
-# shallow clone missing an object, a corrupt pack, an unreadable index --
-# resolves the base fine and then dies inside `git diff`, and the hand-rolled
-# `mapfile -t targets < <(git diff ...)` this replaced could not see it: the
-# parent read an empty `targets`, scanned zero files and exited 0, having
-# gated nothing. The fixture reproduces that class exactly by deleting the base
-# commit's `plugins` tree object: `<base>^{commit}` still resolves (the commit
-# object is intact), and `git diff <base>` cannot read the tree.
 new_git_fixture f
 skill_md "$f" $'---\ndescription: test\n---\n\n## Body\n\nNo precompute here.\n'
 git_test_config "$f" add -A >/dev/null

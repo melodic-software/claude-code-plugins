@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Resolve one upkeep setting: the team layer at <home>/code-tidying.yaml, else
-# the default. Keys and layers: reference/config.md.
-#
-# Usage: upkeep-setting.sh upkeep_cadence|upkeep_backstop|upkeep_max_open|upkeep_spec_issue
-#
-# Prints <value><TAB><source> and exits 0. <source> is `team`, `default`, or
-# `default (<why the team value was dropped>)`. upkeep_spec_issue's default is
-# empty: the caller refuses to run without it. Exit 2 on a usage error.
-#
-# The root is the git toplevel of CLAUDE_PROJECT_DIR, else of the current
-# directory.
 set -uo pipefail
 
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../lib" && pwd)"

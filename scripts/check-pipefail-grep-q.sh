@@ -1,52 +1,5 @@
 #!/usr/bin/env bash
-# Gate: no shell file in the repository pipes into an early-exit grep.
-#
-#   scripts/check-pipefail-grep-q.sh              scan every *.sh git lists
-#                                                 (tracked, or untracked and
-#                                                 not ignored)
-#   scripts/check-pipefail-grep-q.sh <file>...    scan exactly these files
-#
-# The default scan skips the findings of each file listed in
-# scripts/pipefail-grep-q-baseline.txt, the known offenders. The baseline is a
-# ratchet: an entry whose file is gone or no longer offends is a finding, so
-# the list only shrinks. It exempts whole files, so a new pipe added to a
-# listed file is not caught. Never add a file to it: rewrite the pipe instead.
-#
-# Flags `producer | grep` (also `|&`, egrep, fgrep, `\grep`, a path to grep, a
-# `command`, `env`, `!` or `{` prefix, and a pipe split across lines) when that
-# grep stops reading early: a short option cluster carrying q, l, L or m, or
-# --quiet, --silent, --files-with-matches, --files-without-match, --max-count.
-# Other wrappers (sudo, xargs) are not followed.
-#
-# Why: when grep exits at its first match, a producer still writing is killed
-# by SIGPIPE, and under `set -o pipefail` the pipeline reports that 141 instead
-# of grep's 0. A present match reads as absent, and a negated assertion passes.
-# scripts/affected-tests.test.sh measured it on a 1 MB input (#4461). Small
-# input is not safe either: bash line-buffers its stdout, so `printf '%s\n' "$v"`
-# writes one line at a time, and a grep that matched an early line can exit
-# before the rest is written. Sourced libraries are scanned too, since they run
-# inside callers that set pipefail.
-#
-# The rewrite: match a variable with a here-string, `grep -q X <<<"$v"`, and a
-# command's output with process substitution, `grep -q X < <(producer)`; the
-# producer's status is then never read. `producer | grep X >/dev/null` is not a
-# fix: GNU grep notices a /dev/null stdout and stops at the first match anyway.
-#
-# Detection is an inline awk lexer: quotes, $'...', backticks, $( ) and ${ }
-# (also inside double quotes), escapes, comments and heredoc bodies are masked,
-# `\`-newline continuations are joined, and what remains is searched for a
-# single `|` whose next command word is grep. Each finding names the grep's line.
-# Options are read with their quoting removed, so `grep "-q" x` counts as -q.
-#
-# Known gap: the lexer does not model `case`, so a pattern-ending `)` inside a
-# `$( )` closes that frame early. Inside double quotes the rest of the
-# substitution is then masked as quoted text, and a pipe there is missed:
-#   v="$(case $y in a) echo a;; esac | grep -q x)"
-# scripts/check-pipefail-grep-q.test.sh pins this as a known gap.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in scripts/README.md, "The check-script
-# contract", and held by scripts/check-script-contract.test.sh.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr.
 
 set -euo pipefail
 
@@ -88,7 +41,6 @@ else
   done
 fi
 
-# awk reads an operand shaped like name=value as an assignment, not a file.
 for i in "${!files[@]}"; do
   [[ "${files[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && files[i]="./${files[i]}"
 done

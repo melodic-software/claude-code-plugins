@@ -1,36 +1,4 @@
 #!/usr/bin/env node
-// eval-handoff.mjs: whether one `claude plugin eval` leg hands off to the next
-// credential, judged by run-claude-cli's own classifier.
-//
-// A leg is the policy probe (`claude -p --output-format stream-json`) plus the
-// eval it guards, both on one credential. Each kept run trace is the session
-// as stream-json, one message per line (code.claude.com/docs/en/plugin-evals,
-// "What a grader can look at", the `trace` row), the same stream run-claude-cli
-// writes as its execution file. So every errored run's trace and the probe's
-// stream go through judgeLeg and isCreditStop from run-claude-cli's published
-// contract in the ci-workflows checkout at the pin the lanes run (CI_WORKFLOWS),
-// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs,
-// and the leg hands off on the contract's handoffReason:
-//   key leg           a credit stop, or class auth with API status 401 or 402
-//   subscription leg  with FALLBACK_READY true: a credit stop, a 401 or 402,
-//                     or a limit stop (a rejected rate_limit_event with its reset)
-//   fallback leg      never
-// A run whose `error` is null ended normally and is not judged; the suite's
-// exit code is not read, since a case below --threshold also exits 1.
-// A results file marked partial with reason auth_failed ("your credential was
-// rejected before or at the first run", plugin-evals' exit-code table) is a
-// refused credential with no status to read, so it hands off as a 401 does
-// when no stream already has; its runs may hold no trace a classifier can
-// judge. The suite's other partial reasons, cost_ceiling and interrupted, are
-// not the credential's stop.
-//
-// Env: LEG (key, subscription or fallback), FALLBACK_READY, CI_WORKFLOWS,
-// RESULTS (the --json results, one path per line; a missing one is skipped),
-// PROBE and PROBE_EXIT (the probe's stream and exit code; PROBE may be empty),
-// LEG_RESULT (where to write the leg's execution file for report-lane-outcome:
-// one result message carrying the suites' summed durationSeconds and costUsd,
-// nothing a run wrote).
-// Prints handoff, handoff-reason, lane-class and outcome as key=value lines.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -42,7 +10,6 @@ const LEGS = { key: "api-key", subscription: "subscription", fallback: "fallback
 const AUTH_FAILED_STATUS = 401;
 const STOP_CLASSES = ["credit-stop", "auth", "rate-limit", "overloaded"];
 
-// Every errored run's trace path, resolved as run-validity.py resolves it.
 export function erroredTraces(result, base) {
   const traces = [];
   for (const kase of Array.isArray(result?.cases) ? result.cases : []) {
@@ -57,7 +24,6 @@ export function erroredTraces(result, base) {
   return traces;
 }
 
-// One stream's verdict: its class and why it hands off ("" when it does not).
 export function judgeStream(text, exitCode, { leg, fallbackReady }, { judgeLeg, linesToMessages, isCreditStop, handoffReason }) {
   const dir = mkdtempSync(join(tmpdir(), "eval-handoff-"));
   try {
@@ -76,8 +42,6 @@ export function judgeStream(text, exitCode, { leg, fallbackReady }, { judgeLeg, 
   }
 }
 
-// The leg's verdict over the probe and every errored run: the first stream
-// that hands off decides; otherwise the first stop class any stream shows.
 export function judgeLegStreams(streams, options, launcher) {
   let laneClass = "";
   for (const { text, exitCode } of streams) {
@@ -92,8 +56,6 @@ function authFailed(result) {
   return result?.partial === true && result.partialReason === "auth_failed";
 }
 
-// The streams' verdict, overruled by a suite that ended auth_failed unless a
-// stream already handed off.
 export function withPartials(verdict, results, { leg, fallbackReady }, { handoffReason }) {
   if (verdict.handoff || !results.some(authFailed)) return verdict;
   const reason = handoffReason({ leg }, "auth", AUTH_FAILED_STATUS, { fallbackReady });
@@ -112,10 +74,6 @@ export const CONTRACT = ".github/actions/run-claude-cli/contract.cjs";
 export const CONTRACT_FILES = ".github/actions/run-claude-cli/contract-files.txt";
 export const contractFiles = (manifest) => manifest.split("\n").map((line) => line.trim()).filter(Boolean);
 
-// Copied under a folder whose package.json ends Node's package-scope lookup
-// there, as contract.cjs asks: required in place, the lookup climbs to the
-// workspace root, whose package.json may not parse (run 42138674762):
-// https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/run-claude-cli/contract.cjs
 export function loadContract(root) {
   const dir = mkdtempSync(join(tmpdir(), "eval-handoff-contract-"));
   try {

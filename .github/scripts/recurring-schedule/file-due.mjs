@@ -1,16 +1,3 @@
-// The recurring filer: files one issue for each .github/recurring-schedule.json
-// row whose next_due has arrived and that no open `recurring` issue's body
-// marker names. A due row whose precondition sets
-// requires_operator_confirmation is held, not filed: no automation observes
-// that precondition, so an operator who confirms it files the issue
-// (plugins/work-items/reference/standing-item-preconditions.md). It never
-// edits the schedule: `/work-items:track recheck`
-// closes the issue and advances next_due. No model. Writes with the job's own
-// token, one call at a time, 1 s apart, within its call budget.
-//
-//   node file-due.mjs [schedule path]   GITHUB_TOKEN, REPOSITORY; TODAY
-//                                       (YYYY-MM-DD, UTC), CALL_BUDGET,
-//                                       GITHUB_API_URL, GITHUB_STEP_SUMMARY optional
 import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -26,8 +13,6 @@ export const scheduleIds = (body) => [...new Set([...String(body ?? "").matchAll
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ID = /^[A-Za-z0-9._-]+$/;
 
-// The row's own title, written as the plain verb-first summary the org filing
-// rule asks for; the body marker, not the title, links the issue to its row.
 export const issueTitle = (row) => row.title;
 
 export function issueBody(row) {
@@ -50,7 +35,6 @@ function rowProblem(row) {
   return null;
 }
 
-// Open issues labeled recurring, pull requests excluded, at most ten pages.
 export async function listOpenRecurring({ call, repo }) {
   const open = [];
   for (let page = 1; page <= 10; page += 1) {
@@ -64,9 +48,6 @@ export async function listOpenRecurring({ call, repo }) {
 export const HELD = "needs an operator's confirmation (requires_operator_confirmation)";
 const ISSUE_TYPE = "Task";
 
-// One result per row: { id, next_due, due, outcome: filed | covered | held |
-// not-due | failed, issue?, reason? }. A list that cannot be read fails every due row
-// rather than filing a duplicate.
 export async function fileDue({ schedule, today, call, repo, wait = () => delay(1000) }) {
   const rows = Array.isArray(schedule?.items) ? schedule.items : [];
   const entry = (row, isDue) => ({ id: row.id, next_due: row.next_due, due: isDue });
@@ -88,8 +69,6 @@ export async function fileDue({ schedule, today, call, repo, wait = () => delay(
   } catch (error) {
     return [...results, ...due.map((row) => ({ ...entry(row, true), outcome: "failed", reason: error.message }))];
   }
-  // A label the repository lacks would be created by the write; one missing
-  // `recurring` would leave the issue unlisted, so the next run files again.
   const exists = new Map();
   const labelExists = async (name) => {
     if (!exists.has(name)) exists.set(name, Boolean(await call("GET", `/repos/${repo}/labels/${encodeURIComponent(name)}`)));
@@ -107,7 +86,6 @@ export async function fileDue({ schedule, today, call, repo, wait = () => delay(
       await wait();
       const issue = await call("POST", `/repos/${repo}/issues`, { title: issueTitle(row), body: issueBody(row), labels, type: ISSUE_TYPE });
       covered.set(row.id, issue.number);
-      // GitHub drops a type the token may not set without an error.
       results.push({ ...base, outcome: "filed", issue: issue.number, ...(issue.type?.name === ISSUE_TYPE ? {} : { typeDropped: true }) });
     } catch (error) {
       results.push({ ...base, outcome: "failed", reason: error.message });

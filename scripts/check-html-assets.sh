@@ -1,32 +1,5 @@
 #!/usr/bin/env bash
-# Validate the repo's checked-in rendered-view HTML assets (the rendered-views
-# convention's shared chrome/token reference and any future sibling), so a
-# tracked .html asset is never the unaudited instruction surface the
-# affected-tests contract forbids.
-#
-#   scripts/check-html-assets.sh
-#
-# Two checks, both fail-closed:
-#   1. Every asset in the manifest below exists and lints clean under the
-#      exact-pinned htmlhint from the repo's locked toolchain.
-#   2. Every TRACKED plugins/*/reference/*.html is in the manifest, so a new
-#      asset must register here (which is also what routes its changes to this
-#      suite: affected-tests' reference rules match the basenames this file
-#      names). An unregistered asset fails as UNREGISTERED, never passes
-#      silently.
-#
-# The manifest is deliberately an explicit list, not a glob: registration is
-# the stopping rule the rendered-views convention requires, and the named
-# basenames are the coverage signal.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage (htmlhint missing: run
-# `npm ci`); findings on stderr. That is the whole family's contract, stated
-# once in scripts/README.md, "The check-script contract", and held by
-# scripts/check-script-contract.test.sh.
-#
-# Test injection: CHECK_HTML_ASSETS_ROOT overrides the repo root,
-# HTML_ASSETS_MANIFEST points at a newline-separated manifest file,
-# HTMLHINT_BIN overrides the linter path.
+# Exit 0 clean, 1 findings, 2 environment or usage
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

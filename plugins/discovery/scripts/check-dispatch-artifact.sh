@@ -1,81 +1,4 @@
 #!/usr/bin/env bash
-# Deterministic acceptance gate for a dispatched /discovery:explore or
-# /discovery:research run.
-#
-# The dispatched agent's return payload is a CLAIM about a run; this gate reads
-# the run's actual output off disk instead. It takes the memory-slice path the
-# PARENT resolved before dispatching — never a path read out of the payload —
-# because the failure it exists to catch is a payload that arrives malformed,
-# carrying no artifact pointer at all. A check that sources its own input from
-# the suspect payload cannot see that failure.
-#
-# It grades EXACTLY that path, and never scans for candidates. The parent
-# assigns every slice path before dispatching — including the collision
-# sub-slice when the slice root is already occupied, and the per-topic
-# sub-slices on a fan-out — so the assigned path IS the artifact's one
-# sanctioned home, and an index anywhere else under the slice is some other
-# run's artifact. Reaching for it is how a prior run's output gets accepted as
-# evidence that this dispatch succeeded.
-#
-# One gate serves both skills because they share one on-disk shape: an index
-# plus section-keyed sidecars beside it, the same parent-assigned sub-slice
-# rule, and the same two placement rules
-# (`skills/research/context/artifact-shape.md`).
-# The part that differs between them is the sidecar YAML header — tiers and
-# publishing pools for research, `verified: read | ran | grep | inferred` for
-# exploration — and this gate never reads a header. `--index-name` is therefore
-# the whole difference, and it is REQUIRED rather than defaulted: a gate that
-# fails closed everywhere else must not silently grade the wrong artifact
-# family because a caller omitted a flag.
-#
-# Usage:
-#   bash check-dispatch-artifact.sh <memory-slice-path> \
-#     --index-name <EXPLORE.md|RESEARCH.md> \
-#     [--newer-than <pre-dispatch baseline file>] \
-#     [--expect-index <the payload's artifact: value>] \
-#     [--expect-sidecars <the payload's sidecars: count>]
-#   bash check-dispatch-artifact.sh --help
-#
-# What it checks, in order:
-#   1. <index-name> exists at the root of the given slice path — and nowhere
-#      else is looked. A research fan-out that has synthesized a slice-root
-#      index beside its sub-slice ones confuses nothing: each invocation names
-#      which artifact it is asking about, so grade each fan-out run against its
-#      own assigned sub-slice, before synthesis.
-#   2. That index is non-empty.
-#   2a. Its marker slot does not hold `Run status: in progress`. The slot is
-#      the first non-blank line after the index's first level-1 title heading
-#      (past any BOM and CR, and never a heading-shaped line inside a code
-#      fence: a fence opens on 3+ backticks or tildes after at most 3 spaces
-#      of indent and closes only on a run of the same character, at least as
-#      long, followed by whitespace only). YAML front matter is skipped: line 1
-#      `---` counts as front matter only when a `---` or `...` closer follows
-#      and every line between is YAML-shaped (blank, indented, a hash comment,
-#      a `-` list item, or a `key:` line); otherwise it is a horizontal rule.
-#      A dispatched agent writes the marker there in its early
-#      skeleton and replaces it with `Run status: complete` in its final
-#      write, so a marked slot is a run that stopped before finishing. Only
-#      the slot is read: a later line quoting the marker does not trigger, and
-#      an index with no marker in its slot (inline or legacy) grades as before.
-#   3. It names at least one `<PREFIX>-<section>.md` sidecar, and every sidecar
-#      it names exists beside it and is non-empty. A mid-stream stub passes a
-#      bare non-empty test; it does not pass this one.
-#   4. With --newer-than, the index is strictly newer than a file the parent
-#      touched immediately BEFORE dispatching. Existence alone cannot tell this
-#      run's artifact from one an earlier run left in the same slice, so without
-#      a baseline a dispatch that wrote nothing can be accepted on stale
-#      evidence and planning proceeds against an outdated snapshot.
-#   5. With --expect-index, the pointer the payload returned resolves to the
-#      same file this gate graded. A payload naming some OTHER path is not
-#      corroborating this artifact, and its verification_request.target would
-#      send the verifier at the wrong file.
-#   6. With --expect-sidecars, the count the payload reported matches the count
-#      the index actually names. Secondary: the payload is the suspect party.
-#
-# Checks 4-6 are opt-in, so each reports `unchecked` in the output line rather
-# than passing silently — a skipped check that looks like a passed one is the
-# same failure class this gate exists to refuse.
-#
 # Exit 0 = a usable artifact set is on disk (status=usable)
 # Exit 1 = the slice is readable but its artifact set is NOT usable — no index,
 #          an empty index, an index still marked `Run status: in progress`,
@@ -87,28 +10,20 @@
 #          directory, or names a baseline file that does not exist — plus usage
 #          errors, including a missing or malformed `--index-name`. FAIL
 #          CLOSED: a slice this gate cannot read is never reported as usable.
-#
-# What it deliberately does NOT check: the coverage ledger a bounded-corpus
-# research run writes. `research-checklist.md` has its own gate
-# (`check-coverage-complete.sh`), which grades the marks in its table rather
-# than the presence of a file, and the research skill composes the two. Folding
-# a ledger flag in here would put one caller's file into the shape-agnostic
-# half of the pair.
-#
-# Output (stdout, greppable):
-#   `index=<path> sidecars=<n> missing=<m> freshness=<newer|stale|unchecked>
-#    pointer=<matches|mismatch|unchecked> status=<usable|unusable>`
-#   (one line; wrapped here only for the comment width)
-#   On exit 0 a second line follows: `verification=<value>`, the index
-#   frontmatter's `verification:` value, or `unrecorded` when it has none.
-#   `pending` there means the sibling verifier has not run or its verdict
-#   was never written back. It never changes the exit status.
-# On a failure the specific reason is named on stderr.
 
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Deterministic acceptance gate/,/^# Output/ s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Deterministic acceptance gate for a dispatched /discovery:explore or /discovery:research run.
+Usage: check-dispatch-artifact.sh <memory-slice-path> --index-name <EXPLORE.md|RESEARCH.md> [options]
+  --index-name <name>      index file to grade at the slice root. Required.
+  --newer-than <file>      the index must be newer than this pre-dispatch baseline
+  --expect-index <path>    the payload's artifact pointer must resolve to the graded index
+  --expect-sidecars <n>    the payload's sidecar count must match the index
+Exit: 0 a usable artifact set is on disk; 1 the artifact set is not usable;
+2 the gate cannot grade, or a usage error (fail closed).
+EOF
 }
 
 slice=""

@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '\b(?:shall|should|may|can) (?:I|we)\b[^?.\n]{0,40}?\b(?:start|begin|go ahead|proceed|chart\w*|run)\b[^?.\n]{0,80}\?|\b(?:want me to|do you want|would you like)\b[^?.\n]{0,80}\?|(?:^|[.!?:]\s+|\n\s*)chart\w* (?:it|this|that|them|the|a|an)\b[^?.\n]{0,80}\?|\b(?:ok|okay|sound good|go ahead|proceed)\s*\?|\b(?:say|reply|answer|type) ["''“`]?(?:yes|go)\b|\byour (?:yes|go-ahead|confirmation|ok)\b|\bonce you (?:say|confirm|agree)\b|\bwaiting for (?:you|your)\b'
+flags: i
 ---
-
-The user invoked wayfind with no action word, saying the warehouse-routing rework was interviewed earlier and kept opening more questions than it closed. No map exists for it. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply asks for the user's yes and does not chart in this turn (no proposed map, items or fog list).
-
-FAIL if it charts (proposes or creates a map, items or fog bullets) without the user's yes.

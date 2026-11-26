@@ -1,39 +1,4 @@
 #!/usr/bin/env node
-// adjudicate-feedback.mjs: the pr-unblock lane's adjudication of a disputed
-// review finding, one an address-feedback round answered INCORRECT, UNCERTAIN
-// or VALID-defer (DISPUTED): any reply that leaves the thread open. A
-// fresh-context model sees the whole review comment, the locations both the
-// reviewer and the lane cited and those files at the head, never the lane's
-// reasoning, and returns a verdict as structured output; this file stages its
-// input, collects its verdict, and applies it with no model.
-//
-//   prepare  run by pr-unblock.yml's adjudicate-feedback job, base code only,
-//            with the job's read-only token, before any model turn: reads the
-//            select job's threads.json and the scan job's replies.jsonl, each
-//            checked against the SHA-256 its writer recorded, and for each
-//            DISPUTED reply on an adjudicable thread no adjudication has
-//            stood before and no trusted person directed (up to MAX_THREADS)
-//            writes
-//            <OUT_DIR>/<slot>/: finding.json (path, line, head, and the
-//            review comment), evidence.json (the lane's cited path:line
-//            list, never its note), review-evidence.json (the locations the
-//            review comment cites) and files/<path>.txt, the cited files and
-//            the finding's own at the head, and contract.json: the linked
-//            issues' spec text trusted people wrote (pr-verify's
-//            resolve-pr.mjs linkedIssues), empty when none is linked or it
-//            cannot be read. <OUT_DIR>/index.json names each slot's thread.
-//            Outputs `count`.
-//   collect  run after the model steps: reads each slot's verdict.json (the
-//            launcher's structured output) and writes VERDICTS_FILE, one
-//            entry per indexed thread; an absent or malformed verdict is
-//            null, and an intent or design question settled by a quote that
-//            is not in the slot's contract.json, or settled toward the lane,
-//            stays that question for a person. Outputs `sha256`.
-//
-// settleDisputes is publish-feedback.mjs's DISPUTED branch: after the lane's
-// replies are posted it applies each verdict (adjudicationReplies, fixed text
-// only) and returns the round's escalation reason.
-
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -52,13 +17,9 @@ export const CONTRACT_QUESTIONS = ["intent", "design"];
 export const QUOTE_MIN = 20;
 const QUOTE_MAX = 2000;
 const ISSUE_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]{0,9}$/;
-// The first line of each adjudication reply the lanes App posts: this, or
-// FINDING_STANDS, which the next address-feedback round reads.
 export const FINDING_ANSWERED = "<!-- pr-unblock adjudicate-feedback: finding-answered -->";
 const FILE_BYTES = 204800;
 const EVIDENCE_CAP = 10;
-// Each staged file's suffix, so a cited CLAUDE.md, AGENTS.md or .claude/**
-// file is never at a path Claude Code reads as instructions.
 export const STAGED_SUFFIX = ".txt";
 const PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 const PATH_LINE = /^([A-Za-z0-9_@+.-]+(?:\/[A-Za-z0-9_@+.-]+)*):([1-9][0-9]{0,6})$/;
@@ -110,28 +71,14 @@ export const securityRoot = (comments) => {
 const DEPENDENCIES_FLAG = /^manifest dependencies: flag(,|$)/;
 const PLUGIN_MANIFEST = /^plugins\/([A-Za-z0-9._-]+)\/\.claude-plugin\/plugin\.json$/;
 export const MARKETPLACE = ".claude-plugin/marketplace.json";
-// A dependency entry that resolves in the plugin's own marketplace: a string
-// with no `@marketplace` and no version, which only the object form carries
-// (code.claude.com/docs/en/plugins-reference#dependencies, as of 2026-10-29;
-// recheck when that section adds an entry form).
 const BARE_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const IN_REPOSITORY = /^\.\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
-// What a dependency may declare and hold and still add nothing Claude Code
-// runs once it is enabled for every user of the flagged plugin: a manifest of
-// metadata and userConfig only, a marketplace entry of listing fields only,
-// and none of the default locations of hooks (a mod's module included), MCP
-// or LSP servers, monitors, executables, workflows or settings
-// (code.claude.com/docs/en/plugins-reference, "Fields" and "Standard
-// layout", as of 2026-10-29; recheck when either adds a component). Any other
-// key, its own `dependencies` included, fails closed.
 const INERT_MANIFEST = new Set(["$schema", "name", "displayName", "version", "description", "author", "homepage", "repository", "license", "keywords", "metadata", "userConfig"]);
 const INERT_ENTRY = new Set(["name", "source", "displayName", "version", "description", "author", "homepage", "repository", "license", "keywords", "category", "tags", "relevance", "defaultEnabled"]);
 const RUNS = new Set(["hooks", ".mcp.json", ".lsp.json", "monitors", "bin", "workflows", "settings.json"]);
 const GUARDED =
   /\b(install(ed)?|uninstalled|enabled?|disabled|resolves?|available|unavailable|absent|present|missing|exists?|loaded|fallback|falls? back|otherwise|optional(ly)?|never|not|cannot|without|if|when(ever)?|unless|where|whether|once|in case)\b|n['\u2019]t\b/i;
 const GUARD_LINES = 2;
-// The files whose text Claude Code loads as a plugin's skills, agents or
-// commands; an eval case, a changelog or a script is no call site.
 const callSite = (dir, path) => new RegExp(`^plugins/${dir.replace(/\./g, "\\.")}/(skills|agents|commands)/([A-Za-z0-9_@+.-]+/)*[A-Za-z0-9_@+.-]+\\.md$`).test(path) && !/\/evals\//.test(path);
 const firstContentLine = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, "")).find((line) => line.trim() !== "") ?? "";
 const nextSection = (lines) => {

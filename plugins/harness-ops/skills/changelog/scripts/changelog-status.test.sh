@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git commit` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
@@ -11,8 +9,6 @@ SCRIPT="$SCRIPT_DIR/changelog-status.sh"
 FIXTURES="$SCRIPT_DIR/../evals/fixtures"
 CHANGELOG="$FIXTURES/changelog-sample.md"
 LEDGER="$FIXTURES/ledger-marker.md"
-# The shell's own physical form: a D:/x TMPDIR would split PATH at the drive
-# colon and hide the claude stub below.
 TMP="$(mktemp -d)" && TMP="$(cd "$TMP" && pwd -P)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)

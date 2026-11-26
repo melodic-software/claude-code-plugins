@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# glob-tools.sh — validate `paths:` globs for Claude Code path-scoped rules.
-#
-# WHY. A path-scoped rule is only as useful as its glob, and every way a glob can
-# be wrong fails SILENTLY: a zero-match pattern is a rule that never fires, an
-# unbalanced `[` matches nothing while the rule's other patterns keep working,
-# and a pattern past the brace-expansion budget is used UNEXPANDED so its literal
-# braces match no file. Claude Code reports none of these. This script turns each
-# one into an exit code.
-#
-# The budgets and semantics implemented here are Anthropic-documented
-# (code.claude.com/docs/en/memory, "Path-specific rules"):
-#   - brace groups multiply; a rule's whole `paths:` list shares one budget of
-#     1,000 expanded patterns and 4 MiB, and brace-free patterns do not count
-#   - a pattern over budget is used unexpanded and its braces match nothing
-#   - `[` opens a bracket expression; one that cannot be read as such matches
-#     nothing, and a literal `[` is escaped as `\[`
-#
-# Brace expansion is implemented by hand rather than by shell `eval`, because the
-# input is repository content: eval on a `paths:` value read off disk would let a
-# crafted rule file run commands.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -90,8 +69,6 @@ expand_braces() {
     done
 
     if ((open < 0 || close < 0)); then
-      # No expandable group left. A stray `}` or an unclosed `{` is not an
-      # error here: Claude Code treats it as a literal, and so do we.
       done_list+=("$current")
       bytes=$((bytes + ${#current}))
       if ((${#done_list[@]} > MAX_EXPANDED)) || ((bytes > MAX_BYTES)); then
@@ -172,30 +149,6 @@ brackets_valid() {
   return 0
 }
 
-# ---------------------------------------------------------------------------
-# Glob -> ERE, path-aware. Takes one brace expansion, since each is its own
-# pattern with its own form. The form sets where the match is anchored:
-#
-#   no slash          ->  (.*/)? prefix    any depth under the base
-#   leading /         ->  slash dropped    anchored at the base
-#   slash elsewhere   ->  as written       anchored at the base
-#
-# Inside the pattern:
-#
-#   **/   ->  (.*/)?     so `**/*.ts` matches a root-level `a.ts` too
-#   **    ->  .*         crosses directory separators
-#   *     ->  [^/]*      stays within one path segment
-#   ?     ->  [^/]
-#   [...] ->  preserved as a bracket expression
-#
-# Everything else is escaped, so a `.` in a pattern is a literal dot.
-#
-# The upstream table shows the slash-free form only as a wildcard; a slash-free
-# literal takes the same any-depth reading here, because reading it as root-only
-# would report a rule broken on a form upstream does not rule out.
-#   Pointer: when deciding what a pattern form matches, fetch
-#     https://code.claude.com/docs/en/memory#path-specific-rules live.
-# ---------------------------------------------------------------------------
 glob_to_ere() {
   local pattern="$1"
   local out="" i=0 len char
@@ -229,8 +182,6 @@ glob_to_ere() {
     "?") out+="[^/]" ;;
     "[")
       local j=$((i + 1)) body="["
-      # `!` and `^` both negate, and ERE spells both `^`. brackets_valid() reads
-      # the same pair, so the two must agree on where the expression starts.
       if [[ "${pattern:j:1}" == "!" || "${pattern:j:1}" == "^" ]]; then
         body+="^"
         ((j++))
@@ -280,8 +231,6 @@ validate | rules)
 esac
 
 ROOT="$PWD"
-# Declared userConfig reaches a script as $CLAUDE_PLUGIN_OPTION_<KEY>; an explicit
-# --breadth-max still wins over the configured value.
 BREADTH_MAX="${CLAUDE_PLUGIN_OPTION_BREADTH_MAX:-75}"
 [[ "$BREADTH_MAX" =~ ^[0-9]+$ ]] || BREADTH_MAX=75
 declare -a CLI_GLOBS=()
@@ -361,8 +310,6 @@ fi
 INVALID=$FM_BAD
 OVERBROAD=0
 
-# A running counter, not `declare -A` (bash 4+; macOS ships 3.2): a rule's
-# patterns are contiguous in the work list, so resetting on a key change suffices.
 PREV_BUDGET_KEY=""
 RUNNING_EXPANDED=0
 
@@ -379,10 +326,6 @@ for idx in "${!PATTERNS[@]}"; do
     PREV_BUDGET_KEY="$budget_key"
     RUNNING_EXPANDED=0
 
-    # A rule's patterns match from its base, the directory holding its `.claude`
-    # folder, so a nested rule sees only its own subtree, as paths relative to it.
-    #   Pointer: when deciding what a rule's patterns are relative to, fetch
-    #     https://code.claude.com/docs/en/memory#path-specific-rules live.
     UNIVERSE="$TRACKED_FILE"
     UNIVERSE_TOTAL="$TRACKED_TOTAL"
     if [[ "$source" == */.claude/rules/* ]]; then
@@ -399,15 +342,11 @@ for idx in "${!PATTERNS[@]}"; do
   elif ! expansions_raw="$(expand_braces "$pattern")"; then
     status="over-budget"
   else
-    # A read loop rather than `mapfile`: mapfile is bash 4+, and macOS still
-    # ships bash 3.2 as /bin/bash, where this script must still run.
     while IFS= read -r one_expansion; do
       expansions+=("$one_expansion")
     done <<<"$expansions_raw"
     expanded_count=${#expansions[@]}
 
-    # Charge this pattern against its rule's running total. A brace-free
-    # pattern expands to one and does not count, per the same documentation.
     if ((expanded_count > 1)); then
       RUNNING_EXPANDED=$((RUNNING_EXPANDED + expanded_count))
       if ((RUNNING_EXPANDED > MAX_EXPANDED)); then

@@ -82,18 +82,11 @@ $CheckBody = {
         $reasons = [System.Collections.Generic.List[string]]::new()
 
         if ($passiveMode) {
-            # Passive mode is itself informational: Defender isn't the active
-            # AV, so the human reviewing this report should know a third-party
-            # product is expected to be protecting the machine. WARN/CRIT
-            # findings below still win via Get-WorstSeverity.
             $severities.Add('INFO')
         }
 
         $sigAge = $null -ne $status.AntivirusSignatureAge ? [int]$status.AntivirusSignatureAge : $null
         if ($null -ne $sigAge) {
-            # In passive mode, stale Defender signatures are expected --
-            # the third-party AV is responsible for detection, so downgrade
-            # these findings to INFO rather than WARN/CRIT.
             $sigSev = 'OK'
             if ($passiveMode) {
                 if ($sigAge -gt 3) { $sigSev = 'INFO' }
@@ -110,32 +103,21 @@ $CheckBody = {
 
         $rtp = [bool]$status.RealTimeProtectionEnabled
         if (-not $rtp -and -not $passiveMode) {
-            # RTP off in Normal mode is CRIT. In passive mode RTP is
-            # EXPECTED to be off (the other AV is active) -- not a finding.
             $severities.Add('CRIT')
             $reasons.Add('real-time protection disabled')
         }
 
         $tamper = [bool]$status.IsTamperProtected
         if (-not $tamper) {
-            # Tamper protection is enforced regardless of passive mode; it
-            # protects Defender's own settings from unauthorized changes.
-            # Downgraded to WARN (not CRIT) because recent Windows images
-            # may ship with it disabled until the user signs into MSA.
             $severities.Add('WARN')
             $reasons.Add('tamper protection disabled')
         }
 
         if (-not [bool]$status.AMServiceEnabled) {
-            # AMServiceEnabled=false means the Defender kernel component
-            # isn't loaded at all -- different from passive mode (another
-            # AV is active) and different from RTP-off. This is a real gap.
             $severities.Add('CRIT')
             $reasons.Add('Defender service disabled')
         }
 
-        # Detections keep their severity even in passive mode. Summary and
-        # notes carry counts only, never exclusion values.
         if ($recentThreats.Count -gt 0) {
             $reasons.Add("$($recentThreats.Count) threat detection(s) in last $recentDays days, $($unremediated.Count) without a recorded remediation")
         }

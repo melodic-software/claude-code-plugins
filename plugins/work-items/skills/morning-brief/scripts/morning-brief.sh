@@ -2506,7 +2506,7 @@ TOUCH_JQ='
     | if $d > 0 then "\($d)d \($h)h" elif $h > 0 then "\($h)h \($m)m" else "\($m)m" end end;
   def pad($w): tostring | (" " * ([$w - length, 0] | max)) + .;
   def reason($l):
-    first($l[] | capture("^- Reason: `(?<r>[^`]+)`").r)
+    first($l[] | capture("^- (?:Lane code|Reason): `(?<r>[^`]+)`").r)
     // first($l[1:2][] | capture("^<!-- babysit-merge-(?<r>[a-z0-9-]+) -->").r)
     // first($l[1:2][] | capture("^<!-- work-resolve-issue outcome=(?<r>[a-z]+(-[a-z]+)*)").r)
     // "unspecified";

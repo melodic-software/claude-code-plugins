@@ -34,9 +34,6 @@ test("a PR with only changelog fragments gets no pass", () => {
   assert.deepEqual(plan, { passes: [], batches: [] });
 });
 
-// Node's globstar already skips a dot directory, so `.changes/**` above
-// would hold with no paths-ignore; this ignore is the only thing that drops
-// the file.
 test("paths-ignore drops a file the paths glob matched", () => {
   const activities = { "fix-docs": { ...FIX_DOCS, "applies-when": { paths: ["**/*.md"], "paths-ignore": ["docs/archive/**"] } } };
   assert.deepEqual(planPasses({ slots: slotsOf(activities), changedPaths: ["docs/archive/old.md"] }).passes, []);

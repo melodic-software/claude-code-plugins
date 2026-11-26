@@ -1,5 +1,29 @@
 # Changelog: session-flow plugin
 
+## [10.6.0] - 2026-11-26
+
+### Added
+
+- With `observer_harness_check` on, the observer runs scripted harness checks that call no model: a hook whose p95 latency this session passes `observer_hook_p95_ms` (read from session-telemetry's per-session hook log), a turn that rewrites the prompt cache with no break, compaction or model switch to explain it, a tool or Bash command that runs past `observer_tool_slow_seconds` `observer_tool_repeat` times, each crossing of `observer_context_percents`, and a rate-limit window at `observer_rate_limit_percent`. Each finding lands in the running-retro ledger and the band under a `harness` category, names its fix (here in this session, or a ready `cd <repo>` and `claude -n <name> "<prompt>"` command for a dedicated session on this platform), and `/observer` counts them beside the live checks. A dedicated-session finding is never auto-sent. Off by default.
+
+## [10.5.0] - 2026-11-26
+
+### Added
+
+- **`/session-flow:workflow` ships its stage map as data, `reference/stages.yaml`.** It holds the ladder in order, each stage's optional or conditional flag and entry skill, and the declared loop-backs and skips. The skill renders its overview from it, and a skill's own `## Next` bullet now wins over the ladder, which is the fallback when no bullet matches.
+
+- The observer can deliver its findings to the agent on its own: with `observer_auto_send` on, a finding raised mid-turn rides the agent's next model request, and one raised while idle starts a single observer turn. Two optional triggers join the live checks: `observer_change_check` checks after an editing step, and `observer_gate_check` holds outward commands such as `git push` until a check returns, refusing one on a finding and never blocking on an observer fault. Every number and text that shapes the observer's checks, notes, band, remembered findings and file retention is now an option, `observer_guidance` adds your own instructions to each check, and the check prompt names skill steps, standards, review criteria, plugin philosophy, code quality, and intent and vision. All new behavior is off by default.
+
+## [10.4.0] - 2026-11-25
+
+### Added
+
+- `implementation_route` setting (`local` or `factory`, default `local`), set per user or per repository in `docs/conventions/session-flow.yaml`. Under `factory`, `/session-flow:workflow` names the items decompose published as handed to the repository's unattended factory lanes and recommends no local implement stage; an item that needs a local dependency stays local and is named as such. `/session-flow:setup apply implementation_route=factory` writes it.
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [10.3.0] - 2026-11-25
 
 ### Added

@@ -90,7 +90,6 @@ tool, to persist the `EXPLORE.md` artifact.
 
 - The scan doubles as stage-1 codebase exploration: `/discovery:explore <area>`.
 - The prompt is sharpened and ready to scope: `/planning:interview`.
-- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## Related
 

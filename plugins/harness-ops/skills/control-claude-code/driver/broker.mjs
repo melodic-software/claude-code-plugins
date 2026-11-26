@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-// Launch broker for the control-claude-code driver: runs `launch`, `ready` and
-// `log` where the broker runs, for a driver whose CCD_BROKER_SOCK names it.
-//
-//   <key> | node broker.mjs --socket <path> --driver <abs driver.mjs> --root <dir>... [--deps-dir <dir>] [--in-sandbox]
-//
-// Each connection sends one JSON line `{verb, args}`; the broker answers with
-// JSON lines `{stdout}` and `{stderr}` as the driver writes them, then `{exit}`.
-// It takes only the verbs in VERBS, each with the options its validator allows:
-// a session name of 1-32 letters, digits, _ or -, not starting with -, and
-// --plugin-dir and --out paths that resolve inside a --root, each passed on as
-// one `--opt=value` argument. It runs the --driver it was started with, by
-// absolute path, with --unattended, and hands that one child the key read from
-// stdin as ANTHROPIC_API_KEY; the broker's own environment never holds it.
-// Started with --in-sandbox, it also adds --in-sandbox to every request, so
-// the driven session gets Bash and no scrub; a request cannot set it.
-//
-// It starts only on a dummy key (KEY_PREFIX), and only when it cannot write the
-// driver's directory, the driver's config directory or --deps-dir: the workflow
-// mounts all three read-only, so the PR code beside the broker cannot change
-// what the broker runs. Our rule: the broker also starts only from the --driver's
-// own directory, so the broker itself sits where it cannot write, and it imports
-// no module from beside it, so nothing there runs before these checks.
-//
-// Exit: 0 stopped by a signal, 2 usage.
 import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync, lstatSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import net from 'node:net';
@@ -33,7 +9,6 @@ import { parseArgs } from 'node:util';
 
 const SELF_DIR = dirname(realpathSync(fileURLToPath(import.meta.url)));
 const REQUEST_MAX = 64 * 1024;
-// The driver's session rule (driver.mjs SESSION), kept here so the broker imports nothing from beside it.
 export const SESSION = /^[A-Za-z0-9_][\w-]{0,31}$/;
 const CREDENTIALS = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
 export const KEY_PREFIX = 'ccd-dummy-';

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for dispatch.sh: scope, ladder walk, run rows, status, exit
-# codes. Collectors are stubbed at runtime: a temporary bin/ prepended to PATH
-# carries a fake `scc` that replays fixtures/tool-output/scc.json (design T13;
-# nothing executable is committed). The adapters themselves (scc.py,
-# line-counter.py) and report.py are exercised through the dispatcher.
 # test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 # test-scope: plugins/code-metrics/scripts/yaml_subset.py
 # test-scope: docs/conventions/ecosystems/*.yaml # runs from the repo root, so the config resolver reads its lanes
@@ -63,10 +58,6 @@ if [[ "\${1:-}" == "--version" ]]; then printf 'scc version 3.7.0\n'; exit 0; fi
 cat "$CAPTURE"
 EOF
 chmod +x "$STUBS/scc"
-# EMPTY_PATH is the caller's PATH with every collector removed: a directory of
-# symlinks to each executable on PATH except the tools the ladder names (and
-# the binaries those adapters look up), so the coreutils, git, and the
-# interpreter stay reachable while `scc` does not.
 # shellcheck source=tool-free-path.sh
 source "$SCRIPT_DIR/tool-free-path.sh"
 cm_fill_tool_free_path "$EMPTY_PATH"
@@ -79,14 +70,10 @@ else
 fi
 unset CODE_METRICS_DISABLE_BUNDLED
 
-# 0. The HOME guard bites: with CODE_METRICS_HOME empty the dispatcher falls
-#    back to $HOME, and the seeded ecosystem file moves the python fixture out of
-#    its lane. Were the guard inert, a case that lost its isolation would pass.
 out="$(PATH="$EMPTY_PATH" CODE_METRICS_HOME='' bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 assert_doc "a fallback to the guarded HOME moves cm_sample.py out of the python lane" "$out" \
   'any(r["file"].endswith("cm_sample.py") for r in d["measures"]) and not any(r["file"].endswith("cm_sample.py") and r["lane"]=="python" for r in d["measures"])'
 
-# 1. scc absent: the bundled counter is used and the run row names it.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 with the bundled counter" 0 "$rc"
@@ -105,7 +92,6 @@ assert_doc "threshold carries the plugin-default provenance" "$out" \
 assert_doc "a collector that said nothing leaves its ok row's reason null" "$out" \
   'all(r["reason"] is None for r in d["run"] if r["status"]=="ok")'
 
-# 2. scc present: the ladder prefers it and comment counts appear.
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 with the scc stub" 0 "$rc"
@@ -113,7 +99,6 @@ assert_doc "every lane row names scc 3.7.0" "$out" 'all(r["collector"]=="scc 3.7
 assert_doc "python row has scc comment and code counts" "$out" \
   'next(r for r in d["measures"] if r["file"].endswith("cm_sample.py"))["values"]=={"lines_total":20,"lines_blank":4,"lines_comment":8,"lines_code":8,"lines_non_blank":16}'
 
-# 3. All lanes unavailable: exit 0, status empty, every run row non-ok with a reason.
 out="$(PATH="$EMPTY_PATH" CODE_METRICS_DISABLE_BUNDLED=1 bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 when nothing could be measured" 0 "$rc"
@@ -124,7 +109,6 @@ assert_doc "the reason names both rungs and the install hint" "$out" \
 assert_doc "an unavailable row also carries the first install hint as its own field" "$out" \
   'd["run"][0]["hint"] and "boyter/scc" in d["run"][0]["hint"]'
 
-# 4. A ladder row whose adapter does not exist is reported, not skipped.
 ladder="$(mktemp)"
 printf 'python\tfile_lines\tnot-a-tool\n' >"$ladder"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --ladder "$ladder" "$SOURCES/cm_sample.py")"
@@ -132,7 +116,6 @@ assert_doc "adapter not shipped is the reason" "$out" \
   'd["run"][0]["status"]=="unavailable" and d["run"][0]["reason"]=="not-a-tool: adapter not shipped"'
 rm -f "$ladder"
 
-# 5. A measure with a `*` deferred row and a lane with an explicit `none` row.
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic,cognitive --all "$SOURCES")"
 rc=$?
 assert_eq "exit 0 with deferred and none rows" 0 "$rc"
@@ -145,20 +128,17 @@ assert_doc "python cognitive is unavailable with the validated-date reason" "$ou
 assert_doc "typescript cyclomatic lists both rungs with their probe reasons and hints" "$out" \
   'any(r["lane"]=="typescript" and r["measure"]=="cyclomatic" and r["status"]=="unavailable" and r["reason"].startswith("lizard: ") and "; eslint-complexity: " in r["reason"] and r["reason"].count("(")>=2 for r in d["run"])'
 
-# 6. Explicit missing path is a usage error.
 PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines "$SOURCES/missing.py" >/dev/null 2>&1
 assert_eq "missing explicit path exits 2" 2 "$?"
 PATH="$EMPTY_PATH" bash "$SCRIPT" --measures file_lines >/dev/null 2>&1
 assert_eq "missing skill name exits 2" 2 "$?"
 
-# 7. Empty scope: status empty with the not-applicable row.
 empty_dir="$(mktemp -d)"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$empty_dir")"
 assert_doc "empty scope yields one not-applicable row" "$out" \
   'd["status"]=="empty" and d["scope"]["files"]==0 and d["run"]==[{"lane":"*","measure":"*","collector":None,"status":"not-applicable","reason":"no measurable files in scope","hint":None}]'
 rmdir "$empty_dir"
 
-# 8. A collector that probes but fails in collect: exit 3, row unavailable.
 broken="$(mktemp -d)"
 cat >"$broken/scc" <<'EOF'
 #!/usr/bin/env bash
@@ -175,9 +155,6 @@ assert_doc "collect failure row is unavailable with the stderr relayed" "$out" \
   'd["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="scc 9.9.9" and "collect failed" in d["run"][0]["reason"] and "boom" in d["run"][0]["reason"]'
 rm -rf "$broken"
 
-# 8b. A collector that succeeds while saying something on stderr: the ok row
-# carries what it said as its reason (mypy's error count reaches the run
-# table this way); a silent success leaves the reason null.
 noisy="$(mktemp -d)"
 cat >"$noisy/mypy" <<EOF
 #!/usr/bin/env bash
@@ -201,7 +178,6 @@ assert_doc "the ok row's reason is what the adapter said on stderr" "$out" \
   'any(r["lane"]=="python" and r["status"]=="ok" and r["reason"]=="mypy reported 1 error (0 missing stubs)" for r in d["run"])'
 rm -rf "$noisy"
 
-# 9. Change scope resolves in a throwaway repository.
 repo="$(mktemp -d)"
 (
   cd "$repo" || exit 1
@@ -220,9 +196,6 @@ rc=$?
 assert_eq "change scope exits 0" 0 "$rc"
 assert_doc "change scope is the committed diff plus untracked files, base recorded" "$out" \
   'd["scope"]["mode"]=="change" and d["scope"]["base"] and sorted(r["file"] for r in d["measures"])==["changed.py","untracked.sh"]'
-# 9b. Change scope from a subdirectory: git names diffed files from the
-#     repository root, so the dispatcher rebases them onto the cwd instead of
-#     dropping every file that is not under it.
 (
   cd "$repo" || exit 1
   mkdir -p sub
@@ -239,9 +212,6 @@ rc=$?
 assert_eq "--all from a subdirectory exits 0" 0 "$rc"
 assert_doc "--all from a subdirectory measures the whole repository, paths relative to the repository root" "$out" \
   'sorted(r["file"] for r in d["measures"])==["base.py","changed.py","sub/inner.py","untracked.sh"]'
-# 9b'. The same repository audited from its root and from a subdirectory names
-#      every file the same way and records the same root; only `scan_root`,
-#      where the run started, differs.
 repo_top="$(cd "$repo" && git rev-parse --show-toplevel)"
 from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all)"
 assert_doc "a run from the repository root records the repository root and its own scan root" "$from_root" \
@@ -264,19 +234,12 @@ assert_doc "outside a work tree the root is the working directory and paths are 
 out="$(cd "$plain" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --no-anchor)"
 assert_doc "--no-anchor leaves the document without a root" "$out" '"root" not in d and "scan_root" not in d'
 rm -rf "$plain"
-# 9c. A change with nothing in it: the run row's reason is where the reader
-#     learns how to widen the scope, since the skill body is not in front of
-#     them when the report is.
 (cd "$repo" && rm -f untracked.sh && git checkout -q main)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 rc=$?
 assert_eq "an empty change exits 0" 0 "$rc"
 assert_doc "an empty change names the base and says how to widen the scope" "$out" \
   'd["status"]=="empty" and d["scope"]["mode"]=="change" and d["scope"]["files"]==0 and len(d["run"])==1 and d["run"][0]["status"]=="not-applicable" and d["scope"]["base"] in d["run"][0]["reason"] and "--all" in d["run"][0]["reason"] and "paths" in d["run"][0]["reason"]'
-# 9d. A file in the other lane that cannot be read: the scope filter drops it
-#     so one locked file does not turn the lane unavailable, names it on
-#     stderr so it does not vanish unsaid, and the rest of the change is
-#     measured. Root reads everything, so the case is skipped there.
 (cd "$repo" && git checkout -q feature && printf '# notes\n' >locked.md && chmod 000 locked.md)
 if [[ -r "$repo/locked.md" ]]; then
   pass "an unreadable other-lane file (skipped: this user can read a mode-000 file)"
@@ -296,10 +259,6 @@ else
   rm -f "$err_file"
 fi
 (cd "$repo" && chmod 644 locked.md && rm -f locked.md)
-# An explicitly named directory holding only ignored files lists nothing. Asking
-# git whether it listed anything cannot tell that apart from a path outside the
-# repository, and reading it as "outside" walks the very tree the ignore rules
-# exclude.
 (
   cd "$repo" || exit 1
   mkdir -p vendored
@@ -326,9 +285,6 @@ case "$err" in
 esac
 rm -rf "$repo"
 
-# 13. A file whose name carries non-ASCII bytes. git quotes such a path by
-#     default, and a quoted literal matches no file on disk, so the file left
-#     the scope with nothing said and the document still called itself complete.
 repo="$(mktemp -d)"
 (
   cd "$repo" || exit 1
@@ -343,18 +299,12 @@ out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_
 assert_eq "a non-ASCII filename stays in scope" "python	café.py
 python	plain.py" "$(printf '%s\n' "$out" | sort)"
 
-# 14. A repository whose listing fails. An empty listing and a failed listing
-#     are the same on stdout, so an unread exit status turns a broken
-#     repository into a document that says it measured nothing, at exit 0.
 printf 'GARBAGE-NOT-AN-INDEX' >"$repo/.git/index"
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
 rc=$?
 assert_eq "a failed repository listing exits 2 rather than reporting an empty run" "2:" "$rc:$out"
 rm -rf "$repo"
 
-# 15. A repository reached through a symlink. `cd`/`pwd` are logical and keep
-#     the symlink, while git reports the physical path, so a logical comparison
-#     never matched and the ignored-tree guard fell through to a plain walk.
 repo="$(mktemp -d)"
 (
   cd "$repo" || exit 1
@@ -374,10 +324,6 @@ out="$(cd "$repo/link/sub" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUD
 assert_eq "an ignored tree stays out of scope through a symlinked work tree" "" "$out"
 rm -rf "$repo"
 
-# 16. A team writes `scope.exclude` against the repository root, because a
-#     configuration file cannot know which directory an audit will run from.
-#     Matched against the cwd-relative scope, the same exclusion covers the
-#     files from the root and covers nothing one directory down.
 repo="$(mktemp -d)"
 (
   cd "$repo" || exit 1
@@ -396,18 +342,10 @@ python	src/keep/keep.py" "$from_root"
 from_sub="$(cd "$repo/src" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
 assert_eq "the same exclusion applies from a subdirectory" "other	../docs/conventions/code-metrics.yaml
 python	keep/keep.py" "$from_sub"
-# 17. The same exclusion, reached through an explicitly scoped sibling. Mapping
-#     a path back to the root by prefixing alone leaves the `..` in place, so
-#     `src/keep/../vendor/skip.py` is what the matcher sees and a `src/vendor/**`
-#     pattern does not match the text. The segments have to collapse first.
 from_sibling="$(cd "$repo/src/keep" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope -- . ../vendor)"
 assert_eq "the exclusion applies to an explicitly scoped sibling path" "python	keep.py" "$from_sibling"
 rm -rf "$repo"
 
-# 10. The config cascade: a team file sets the reference, an exclusion, and a
-#     lane opt-out; an ecosystem file redefines the bash lane by globs. The
-#     resolver reads them from the repo root and a home directory with no
-#     user-global layer (CODE_METRICS_HOME).
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
 mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions" "$repo/gen"
@@ -440,10 +378,6 @@ assert_doc "ecosystem globs redefine the bash lane" "$out" \
 assert_doc "lanes.dotnet.enabled false opts the lane out" "$out" \
   'not any(r["lane"]=="dotnet" for r in d["run"]) and not any(r["file"]=="C.cs" for r in d["measures"])'
 
-# 10b. The personal layer: docs/conventions/code-metrics.local.yaml beats the
-#      team file; the old .claude/code-metrics.local.yaml applies only while it
-#      is absent, and each run names the old file on stderr (the dual-read
-#      window: https://github.com/melodic-software/claude-code-plugins/issues/18001).
 personal="$repo/docs/conventions/code-metrics.local.yaml"
 old_personal="$repo/.claude/code-metrics.local.yaml"
 file_lines_is() {
@@ -501,8 +435,6 @@ stderr_has "with both user files the warning names both" "$old_user is the old u
 rm -f "$err_file"
 rm -rf "$repo" "$home"
 
-# 11. --config with a pre-resolved document: the collector override narrows the
-#     typescript cyclomatic ladder to lizard alone.
 resolved="$(mktemp)"
 "$PY" "$SCRIPT_DIR/resolve-config.py" "$SCRIPT_DIR/fixtures/config/user.yaml" "$SCRIPT_DIR/fixtures/config/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$resolved"
 out="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-complexity --measures cyclomatic --config "$resolved" "$SOURCES/cm-sample.ts")"
@@ -512,10 +444,6 @@ assert_doc "pre-resolved thresholds carry their layer" "$out" \
   'next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["reference"]==15 and next(t for t in d["thresholds"] if t["measure"]=="cyclomatic")["layer"]=="team"'
 rm -f "$resolved"
 
-# 12. Configured scope: `scope.base` and `scope.default` apply when the command
-#     line names no --base, --all, or path; an explicit --base still wins; an
-#     explicitly empty collector list runs nothing for that lane and measure;
-#     and --print-scope prints the resolved lane/path rows and stops.
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
 (
@@ -562,9 +490,6 @@ python	changed.py
 python	third.py" "$(printf '%s\n' "$listing" | sort)"
 assert_eq "--print-scope lists a file no language lane claims under other" "other	docs/conventions/code-metrics.yaml" \
   "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
-# A value the resolver refuses never stops the run and never reaches the
-# dispatcher: the line break that would smuggle in `--disable-lane python` is
-# named on stderr and dropped, so the python lane is still measured.
 (cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-lane python"]\n' >docs/conventions/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
 rc=$?
@@ -578,11 +503,6 @@ case "$err" in
 esac
 rm -rf "$repo" "$home"
 
-# 25. A collector that leaves inputs out reports the lane as partial with its
-#     reason, through the partial-reason file the dispatcher hands every
-#     collect. The jscpd adapter skips both cluster copies under a 100-byte
-#     cap, so the fake `jscpd` (probe only; never reached for collect) has
-#     nothing to replay.
 skipper="$(mktemp -d)"
 cat >"$skipper/jscpd" <<'EOF'
 #!/usr/bin/env bash
@@ -600,8 +520,6 @@ assert_doc "a skipped input leaves the row's hint null" "$out" \
   'all(r.get("hint") is None for r in d["run"])'
 rm -rf "$skipper"
 
-# 20. The default scope exclusions drop dependency and build-output directories
-# and the scope names each pattern's count.
 repo="$(mktemp -d)"
 (
   cd "$repo" || exit 1
@@ -618,7 +536,6 @@ repo="$(mktemp -d)"
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines --all)"
 assert_doc "the default exclusions drop dist and vendor and name each pattern's count" "$out" \
   'd["scope"]["excluded"]==2 and sorted((e["pattern"],e["files"]) for e in d["scope"]["exclusions"])==[("**/dist/**",1),("**/vendor/**",1)] and [r["file"] for r in d["measures"]]==["src/a.py"]'
-# 21. An empty change scope says why it is empty and what widens it.
 (cd "$repo" && git checkout -qb feature) >/dev/null 2>&1
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "a branch at its merge-base with a clean tree gets the merge-base reason and the --all hint" "$out" \
@@ -633,9 +550,6 @@ assert_doc "with lanes.other.enabled false, a change holding only files in no la
   'd["status"]=="empty" and "belong to no lane" in d["run"][0]["reason"] and d["scope"]["files"]==2 and d["scope"]["unclassified"]==2'
 rm -rf "$repo"
 
-# 22. A sanctioned-replication registry collapses the copies of a shared file
-# into one row per function or file, and a registry that does not exist is a
-# usage error.
 team="$(mktemp -d)"
 printf 'scope:\n  registries: [plugins/code-metrics/scripts/fixtures/registry/cluster.txt]\n' >"$team/team.yaml"
 "$PY" "$SCRIPT_DIR/resolve-config.py" "$team/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$team/resolved.json"
@@ -653,9 +567,6 @@ PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$te
 assert_eq "a registry that does not exist is a usage error" 2 "$?"
 rm -rf "$team"
 
-# 23. Collectors run in parallel; the run table and the rows come out in the
-# same order whatever the concurrency, and progress is on stderr only for a
-# run that asks for it or is large.
 out1="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 out2="$(PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_JOBS=1 bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES")"
 if printf '%s\n\x1e%s' "$out1" "$out2" | "$PY" -c '
@@ -680,9 +591,6 @@ err="$(cd "$quiet" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bas
 assert_eq "a small run prints no progress by default" "" "$err"
 rm -rf "$quiet"
 
-# 24. An adapter whose collect exits 4 (the tool resolved but cannot run
-# here: ESLint with no configuration for the files) gets an unavailable row
-# carrying the tool's reason, and the run is not a failure.
 noconf="$(mktemp -d)"
 cat >"$noconf/eslint" <<EOF
 #!/usr/bin/env bash
@@ -700,14 +608,6 @@ assert_doc "the row is unavailable with the tool's own reason and no 'collect fa
   'd["status"]=="empty" and d["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="eslint-complexity 10.1.0" and "no configuration" in d["run"][0]["reason"] and "eslint.config" in d["run"][0]["reason"] and "collect failed" not in d["run"][0]["reason"] and d["measures"]==[]'
 rm -rf "$noconf" "$ladder"
 
-# 26. An interpreter that writes CRLF, as native Windows Python does (#6794).
-# A stub `python3` ahead of the real one ends every stdout line with exactly
-# one CR (also when the real one already writes CRLF), so
-# a Linux runner sees what Git Bash sees: every path, lane glob, exclusion,
-# scope default, and registry bash reads back from Python would carry a
-# trailing CR. Unhandled, `a.sh<CR>` matches no lane (every file lands in
-# `other` and the run exits 0 having measured nothing) and a configured
-# registry is "not found".
 crlf="$(mktemp -d)"
 real_py="$(command -v python3 || command -v python)"
 for name in python3 python; do

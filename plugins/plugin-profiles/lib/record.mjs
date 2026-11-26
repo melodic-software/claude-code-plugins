@@ -1,20 +1,3 @@
-// The applied-profile record: what this tool changed in one settings file, so status can compare
-// and clear can put every entry back. One JSON file per settings file, under a record home: the
-// repository's .git/plugin-profiles for a folder in git, ~/.claude/plugin-profiles-state for user
-// settings, else the plugin data folder (scripts/profiles.mjs homesOf; scenario row 5 of
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md):
-//
-//   recordPath(dataDir, settingsFile) -> <dataDir>/records/<sha256 of the settings file's real path>.json
-//   baseline(doc, record) -> {enabledPlugins, skillOverrides}: the file's entries with each
-//     recorded before-value put back, as if the earlier profile had been cleared
-//   nextRecord(previous, apply) -> the record after this apply; before-values come from the first write
-//   restoreEdits(record) -> {edits, dropEmpty}: the settings-io edits that clear the profile
-//
-// Record: {schema, profile, target, settingsFile, appliedAt, pluginVersion, phase: "applied" |
-// "off-pending", pending: {id: false}, createdFile, containers: {enabledPlugins, skillOverrides},
-// installed: [id], entries: {id: {before, after}}, skillOverrides: {name: {before, after}}}.
-// A before or after value of "absent" means the file held no entry. off-pending marks a switch cut
-// off after its first write: pending holds the entries the second write still has to switch off.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";

@@ -55,14 +55,12 @@ printf '{"counters": [{"name": "hook", "command": "true", "field": "spawns", "ce
 ratchet check --file "$F"
 assert_eq "a boolean ceiling is refused" "2" "$RUN_RC"
 
-# A NaN ceiling compares false both ways, so every count would read as equal.
 for bad in NaN Infinity -Infinity; do
   printf '{"counters": [{"name": "hook", "command": "echo spawns=999", "field": "spawns", "ceiling": %s, "goal": "g"}]}' "$bad" >"$F"
   ratchet check --file "$F"
   assert_eq "a $bad ceiling is refused" "2" "$RUN_RC"
 done
 
-# 400 digits parse to float inf, which no ceiling can hold.
 ceilings "$F" "echo spawns=$(printf '9%.0s' {1..400}).0" 4
 ratchet check --file "$F"
 assert_eq "a non-finite measured value is refused" "2" "$RUN_RC"

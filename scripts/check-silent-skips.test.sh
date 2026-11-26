@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-silent-skips.sh. Builds a tiny synthetic plugins/ tree
-# per scenario in a temp dir and invokes the script against it directly -- the
-# script's own `cd "$(dirname "$0")/.."` makes this work unmodified: copy it
-# to <fixture>/scripts/ and it scans <fixture>/plugins/*/hooks/*.sh.
 # shellcheck disable=SC2016  # fixture bodies are literal hook-script code passed in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -14,8 +10,6 @@ SCRIPT="$SELF_DIR/check-silent-skips.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -243,9 +237,6 @@ else
 fi
 rm -rf "$f"
 
-# --- block skip with a bare stderr notice FAILS (docs/conventions/
-# hook-observability/: exit-0 stderr is never shown to the user or the
-# agent, so a bare `>&2` write is not a sanctioned visibility signal) -------
 new_fixture f
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   echo "alpha: jq not found — advisory disabled" >&2
@@ -323,7 +314,6 @@ else
 fi
 rm -rf "$f"
 
-# --- scripts/*.test.sh: ok "skip ..." scored as PASS fails (#2807) ---------
 new_fixture f
 script_test_file "$f" demo.test.sh 'ok "skip historical proof (deadbeef not in this clone)"'
 if out="$(run_check "$f" 2>&1)"; then
