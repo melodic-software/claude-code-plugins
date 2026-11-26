@@ -468,11 +468,31 @@ test("a PR-scoped dispatch runs only enable-auto-merge", () => {
   assert.match(job("report-unarmed-status"), /\n {4}if: \$\{\{ !cancelled\(\) && !inputs\.pr && /);
 });
 
-function runEvalWake(released) {
+function runEvalWake(released, { appId = "", answers = {} } = {}) {
   const block = job("wake-eval-released").split("\n      - name: Wake pr-merge for each released pull request\n")[1].split("\n      - name: ")[0];
   const dir = tempDir("pr-merge-eval-wake-");
   mkdirSync(join(dir, "bin"));
-  writeFileSync(join(dir, "bin", "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >>"${dir}/log"\n`, { mode: 0o755 });
+  mkdirSync(join(dir, "pulls"));
+  for (const [pr, answer] of Object.entries(answers)) {
+    writeFileSync(join(dir, "pulls", `${pr}.json`), JSON.stringify(answer));
+  }
+  writeFileSync(
+    join(dir, "bin", "gh"),
+    [
+      "#!/usr/bin/env bash",
+      `printf '%s\\n' "$*" >>"${dir}/log"`,
+      'if [ "$1" = api ]; then',
+      `  file="${dir}/pulls/\${2##*/}.json"`,
+      '  [ -f "$file" ] || exit 1',
+      '  while [ "$#" -gt 0 ]; do',
+      '    if [ "$1" = --jq ]; then exec jq -r "$2" "$file"; fi',
+      "    shift",
+      "  done",
+      "fi",
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
   writeFileSync(join(dir, "body.sh"), runBody(block));
   const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
     env: {
@@ -480,6 +500,7 @@ function runEvalWake(released) {
       PATH: `${join(dir, "bin")}:${process.env.PATH}`,
       GH_TOKEN: "x",
       GITHUB_REPOSITORY: "o/r",
+      LANES_APP_ID: appId,
       RELEASED: released,
       MAX_WAKES: /\n {10}MAX_WAKES: (\d+)\n/.exec(block)[1],
     },
@@ -487,18 +508,47 @@ function runEvalWake(released) {
   });
   const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
   rmSync(dir, { recursive: true, force: true });
-  return { status: result.status, calls: log.split("\n").filter(Boolean) };
+  return { status: result.status, stdout: result.stdout, calls: log.split("\n").filter(Boolean) };
 }
+
+const PULL_SAMPLE = JSON.parse(readFileSync(new URL("./fixtures/pull-read-sample.json", import.meta.url), "utf8"));
+
+test("the eval-release wake dispatches only an unarmed, unheld lanes App pull request it can read", () => {
+  const pull = ({ id = PULL_SAMPLE.user.id, type = PULL_SAMPLE.user.type, armed = false, held = false } = {}) => ({
+    ...PULL_SAMPLE,
+    user: { ...PULL_SAMPLE.user, id, type },
+    auto_merge: armed ? { merge_method: "squash" } : PULL_SAMPLE.auto_merge,
+    labels: held ? [{ name: "do-not-merge" }] : PULL_SAMPLE.labels,
+  });
+  const bot = (flags) => pull({ id: 5, type: "Bot", ...flags });
+  const read = (pr) => `api repos/o/r/pulls/${pr}`;
+  const dispatch = (pr) => `workflow run pr-merge.yml -R o/r --ref main -f pr=${pr}`;
+  const answers = { 7: bot(), 8: pull(), 9: bot({ armed: true }), 10: bot({ held: true }), 11: pull({ id: 5, type: "User" }) };
+  const run = runEvalWake("7 8 9 10 11 12", { appId: "5", answers });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.calls.map((call) => call.replace(/ --jq .*$/, "")), [read(7), dispatch(7), read(8), read(9), read(10), read(11), read(12), dispatch(12)], "12's read fails, so it dispatches anyway");
+  assert.match(run.stdout, /::notice title=eval-release wake::pr=8 not a lanes App pull request; nothing woken/);
+  assert.match(run.stdout, /::notice title=eval-release wake::pr=9 already armed; nothing woken/);
+  assert.match(run.stdout, /::notice title=eval-release wake::pr=10 held \(do-not-merge\); nothing woken/);
+  assert.match(run.stdout, /::notice title=eval-release wake::pr=11 not a lanes App pull request; nothing woken/);
+  const skipped = runEvalWake("21 22 23 24 25 26 27", { appId: "5", answers: { 21: pull(), 22: bot(), 23: bot(), 24: bot(), 25: bot(), 26: bot(), 27: bot() } });
+  assert.deepEqual(skipped.calls.filter((call) => call.startsWith("workflow")), ["22", "23", "24", "25", "26"].map(dispatch), "a skipped pull request spends none of the five wakes");
+  assert.deepEqual(runEvalWake("7", { appId: "x", answers }).calls, [dispatch(7)], "no lanes App id: no read, and the dispatch goes out");
+});
 
 test("each pull request the eval-hold release freed gets one PR-scoped pr-merge dispatch, at most five", () => {
   const dispatch = (pr) => `workflow run pr-merge.yml -R o/r --ref main -f pr=${pr}`;
-  assert.deepEqual(runEvalWake("7 9"), { status: 0, calls: [dispatch(7), dispatch(9)] });
-  assert.deepEqual(runEvalWake("11 12 13 14 15 16"), { status: 0, calls: ["11", "12", "13", "14", "15"].map(dispatch) });
-  assert.deepEqual(runEvalWake(""), { status: 0, calls: [] });
-  assert.deepEqual(runEvalWake("0 x7 8"), { status: 0, calls: [dispatch(8)] });
+  const wake = (released) => {
+    const { status, calls } = runEvalWake(released);
+    return { status, calls };
+  };
+  assert.deepEqual(wake("7 9"), { status: 0, calls: [dispatch(7), dispatch(9)] });
+  assert.deepEqual(wake("11 12 13 14 15 16"), { status: 0, calls: ["11", "12", "13", "14", "15"].map(dispatch) });
+  assert.deepEqual(wake(""), { status: 0, calls: [] });
+  assert.deepEqual(wake("0 x7 8"), { status: 0, calls: [dispatch(8)] });
 });
 
-test("the eval-release wake runs on what the merge job released, whatever its result, with only actions: write", () => {
+test("the eval-release wake runs on what the merge job released, whatever its result, with only actions: write and pull-requests: read", () => {
   const schedule = { event_name: "schedule", event: {} };
   const released = (value, result = "success") => ({ merge: { result, outputs: { "eval-released": value } } });
   assert.equal(evalIf("wake-eval-released", schedule, {}, released("7")), true);
@@ -512,7 +562,8 @@ test("the eval-release wake runs on what the merge job released, whatever its re
   assert.equal(evalIf("wake-eval-released", dispatch, { pr: "7" }, released("", "skipped")), false, "a PR-scoped dispatch wakes nothing");
   const wake = job("wake-eval-released");
   assert.match(wake, /^ {4}needs: \[merge\]\n/m);
-  assert.match(wake, /\n {4}permissions:\n {6}actions: write\n {6}contents: read\n {4}[a-z]/);
+  assert.match(wake, /\n {4}permissions:\n {6}actions: write\n {6}pull-requests: read\n {6}contents: read\n {4}[a-z]/);
+  assert.match(wake, /\n {10}LANES_APP_ID: \$\{\{ vars\.AUTOMATION_LANES_APP_SENDER_ID \}\}\n/);
   assert.match(job("merge"), /\n {6}actions: read\n/);
   assert.match(job("merge"), /\n {6}eval-released: \$\{\{ steps\.release-eval\.outputs\.released \}\}\n/);
   assert.match(job("merge"), /- name: Release eval holds whose record matches the head\n {8}id: release-eval\n/);
