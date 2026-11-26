@@ -4349,6 +4349,9 @@ describe("agent decision", () => {
     assert.equal((await go(deferred, { status: { ...open, admission_open: false, admission_reason: "closed" } })).outcome, "deferred");
     assert.ok(writes(deferred.calls).includes(ADD), "deferred: the label travels with the deferral");
     assert.equal(writes(deferred.calls).at(-1), STATUS("deferred"));
+    const labeled = fakeGitHub({ issue: { ...thin, labels: [...thin.labels, { name: AGENT_DECIDED }] }, spec: specWith([openerBy(APP_ACTOR), refinement]) });
+    assert.equal((await go(labeled)).outcome, "admitted");
+    assert.ok(!writes(labeled.calls).includes(ADD), "already labeled: no second label write");
   });
 
   test("admission adds no agent-decided when it refuses the opener or admits on a person's criteria", async () => {

@@ -5222,6 +5222,9 @@ test("an issue admitted on the lanes App's agent-decision opener gets agent-deci
   const agent = markedWorld({ body, specs: { 25: spec(agentDecisionBody(settled, body)) } });
   assert.equal(await sweep({ github: agent.github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(agent.calls), [ADD, labeled(25)]);
+  const again = markedWorld({ body, labels: [...MARKED, "agent-decided"], specs: { 25: spec(agentDecisionBody(settled, body)) } });
+  assert.equal(await sweep({ github: again.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(again.calls), [labeled(25)], "already labeled: no second label write");
   const stale = markedWorld({ body, specs: { 25: spec(agentDecisionBody(settled, "an older body")) } });
   assert.equal(await sweep({ github: stale.github, admission: admissionFor() }, PAUSING), 0);
   assert.ok(!writes(stale.calls).includes(ADD) && !writes(stale.calls).includes(labeled(25)), writes(stale.calls).join("\n"));

@@ -816,7 +816,7 @@ async function admissionDecision({ github, repo, number, issue, names, events, h
   if (decision.unsetOnly && notBornTriaged(issue, trusted) === null) {
     return { decision: { verdict: "wait", reasons: [`born triaged, ${decision.unsetOnly.join(" and ")} not set yet`], pulls: [], fields: true }, facts };
   }
-  await markAgentDecided(github, `/repos/${repo}/issues/${number}`, decision);
+  await markAgentDecided(github, `/repos/${repo}/issues/${number}`, decision, names);
   return { decision, facts };
 }
 

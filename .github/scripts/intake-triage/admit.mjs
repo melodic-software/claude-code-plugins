@@ -1327,7 +1327,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
-  await markAgentDecided(github, base, decision);
+  await markAgentDecided(github, base, decision, issue.labels);
   const record = () => writeAdmissionRecord(github, repository, number, { actorId: appId, title: issue.title, body: issue.body ?? "" });
   const checkedAt = Date.now();
   const s = await status();
@@ -1378,8 +1378,8 @@ export async function admit({ github, repository, number, verdict, rules, humans
   return { outcome: "admitted", reasons: [] };
 }
 
-export async function markAgentDecided(github, base, decision) {
-  if (decision.verdict === "admit" && decision.agentDecided) {
+export async function markAgentDecided(github, base, decision, labels) {
+  if (decision.verdict === "admit" && decision.agentDecided && !names(labels).includes(AGENT_DECIDED)) {
     await github("POST", `${base}/labels`, { labels: [AGENT_DECIDED] });
   }
 }
