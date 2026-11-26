@@ -11,10 +11,12 @@ die() {
 usage() {
   cat <<'EOF'
 Compose the rename plan the realign skill consumes from an inventory and a sweep.
-Usage: emit-findings.sh --inventory <tsv> --sweep <tsv> --out <path> [options]
+Usage: emit-findings.sh --inventory <tsv> --sweep <tsv> [options]
   --inventory <tsv>     inventory.sh output
   --sweep <tsv>         sweep.sh output
-  --out <path>          the findings artifact; an existing one on the same branch is merged
+  --memory-root <dir>   the memory root, relative to --root or absolute (default .work)
+  --out <path>          the findings artifact; default <memory-root>/docs-hygiene/<branch-slug>/file-names.md;
+                        an existing one on the same branch is merged
   --root <dir>          repository root
   --config-path <text>  configuration path recorded in the artifact
   --replace             start a fresh artifact instead of merging
@@ -28,6 +30,7 @@ SWEEP=""
 OUT=""
 ROOT=""
 CONFIG_PATH="resolved"
+MEMORY_ROOT=".work"
 REPLACE=0
 
 while [[ $# -gt 0 ]]; do
@@ -46,6 +49,11 @@ while [[ $# -gt 0 ]]; do
     shift
     [[ $# -gt 0 ]] || die "--out needs a path"
     OUT="$1"
+    ;;
+  --memory-root)
+    shift
+    [[ $# -gt 0 && -n "$1" ]] || die "--memory-root needs a directory"
+    MEMORY_ROOT="$1"
     ;;
   --root)
     shift
@@ -73,7 +81,6 @@ done
 
 [[ -n "$INVENTORY" ]] || die "--inventory is required"
 [[ -n "$SWEEP" ]] || die "--sweep is required"
-[[ -n "$OUT" ]] || die "--out is required"
 [[ -r "$INVENTORY" ]] || die "cannot read the inventory at $INVENTORY"
 [[ -r "$SWEEP" ]] || die "cannot read the sweep at $SWEEP"
 command -v git >/dev/null 2>&1 || die "git is required and is not on PATH"
@@ -101,6 +108,14 @@ if [[ -z "$BRANCH" ]]; then
   BRANCH="detached-$short"
 fi
 HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+if [[ -z "$OUT" ]]; then
+  case "$MEMORY_ROOT" in
+  /*) mem="$MEMORY_ROOT" ;;
+  *) mem="$ROOT/$MEMORY_ROOT" ;;
+  esac
+  OUT="${mem%/}/docs-hygiene/${BRANCH//[^A-Za-z0-9._-]/-}/file-names.md"
+  printf 'home: %s (memory root %s, branch %s)\n' "$OUT" "$MEMORY_ROOT" "$BRANCH"
+fi
 NOW="$(date -u +%Y%m%dT%H%M%SZ)"
 SCANNED="$(awk -F'\t' '$1=="SCANNED" {print $2; exit}' "$INVENTORY")"
 ROOTS="$(awk -F'\t' '$1=="SCANNED" {print $3; exit}' "$INVENTORY")"

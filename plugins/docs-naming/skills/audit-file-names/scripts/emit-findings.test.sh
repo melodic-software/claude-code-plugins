@@ -159,8 +159,19 @@ assert_eq "--help exits 0" "0" "$(
   bash "$SUT" --help >/dev/null 2>&1
   printf '%s' "$?"
 )"
-assert_eq "a missing --out exits 2" "2" "$(
-  bash "$SUT" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" >/dev/null 2>&1
+home_root="$(new_fixture)"
+branch="$(git -C "$home_root" branch --show-current)"
+home_out="$(bash "$SUT" --root "$home_root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv")"
+assert_contains "without --out the emitter names the home it composed" "$home_out" \
+  "home: $home_root/.work/docs-hygiene/$branch/file-names.md (memory root .work, branch $branch)"
+assert_eq "and writes the plan there" "1" "$([[ -f "$home_root/.work/docs-hygiene/$branch/file-names.md" ]] && printf 1 || printf 0)"
+bash "$SUT" --root "$home_root" --memory-root "$TEST_TMPDIR/mem" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" >/dev/null
+assert_eq "an absolute --memory-root is used as given" "1" "$([[ -f "$TEST_TMPDIR/mem/docs-hygiene/$branch/file-names.md" ]] && printf 1 || printf 0)"
+git -C "$home_root" switch -q -c feat/a+b
+slash_out="$(bash "$SUT" --root "$home_root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv")"
+assert_contains "a branch slugs every character outside [A-Za-z0-9._-] to -" "$slash_out" "/docs-hygiene/feat-a-b/file-names.md"
+assert_eq "an empty --memory-root exits 2" "2" "$(
+  bash "$SUT" --root "$home_root" --memory-root "" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" >/dev/null 2>&1
   printf '%s' "$?"
 )"
 assert_eq "an unreadable inventory exits 2" "2" "$(
