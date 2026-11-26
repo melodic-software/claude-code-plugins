@@ -1041,11 +1041,7 @@ test("every job judges chunk 1, then every later chunk eight at once in one step
   }
 });
 
-// A step run-claude-cli failed with no lane class, having left an execution
-// file, stopped on its credential scan, so its fail is still a judgment;
-// write-verdict counts nothing else of it. A step that timed out or never
-// started the CLI leaves that file empty and skips the verdict for a re-run.
-const judged = (id) => `(steps.${id}.outcome == 'success' || (steps.${id}.outcome == 'failure' && steps.${id}.outputs.lane-class == '' && steps.${id}.outputs.execution-file != ''))`;
+const judged = (id) => `(steps.${id}.outcome == 'success' || (steps.${id}.outcome == 'failure' && (steps.${id}.outputs.lane-class == '' || steps.${id}.outputs.lane-class == 'credential-stop') && steps.${id}.outputs.execution-file != ''))`;
 
 test("the verdict needs every chunk the diff has, and reads each chunk's files", () => {
   for (const job of JOBS) {
