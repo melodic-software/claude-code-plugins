@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Black-box suite for upstream-drift-vendored-report.sh.
-#
-#   bash scripts/upstream-drift-vendored-report.test.sh
-#
-# Hermetic: every case but the row listing runs a fixture table of stub check
-# scripts, so no case reaches the network. The expected ids are D6's, and the
-# exit-code mapping and timeout are the plan's (docs/contracts/upstream-drift/
-# README.md, "Weekly drift issues").
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

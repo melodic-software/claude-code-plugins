@@ -12,6 +12,7 @@ const STAGES = ["interview", "design", "plan", "build", "review", "operate", "an
 const REVERSIBILITY = ["one-way", "two-way", "unrated"];
 const SOURCE_BARS = ["official", "official-plus-confirming"];
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const SKILL_OWNER = /^\/?[a-z0-9-]+:[a-z0-9-]+$/u;
 const FETCH_TIMEOUT_MS = 10_000;
 const FETCH_CONCURRENCY = 8;
 
@@ -73,6 +74,7 @@ const isList = (v) => v === undefined || (Array.isArray(v) && v.every(isText));
 function rejection(record) {
   if (!isText(record.id) || !ID.test(record.id)) return "id is not a kebab-case slug";
   for (const field of ["name", "concern", "kind", "owner"]) if (!isText(record[field])) return `${field} is missing`;
+  if (!record.owner.startsWith("https://") && !SKILL_OWNER.test(record.owner)) return "owner is neither an https URL nor a plugin:skill name";
   if (!isText(record.source_url) || !record.source_url.startsWith("https://")) return "source_url is not an https URL";
   if (!STAGES.includes(record.stage)) return `stage is not one of ${STAGES.join("|")}`;
   if (!REVERSIBILITY.includes(record.reversibility)) return `reversibility is not one of ${REVERSIBILITY.join("|")}`;
@@ -82,13 +84,35 @@ function rejection(record) {
   return null;
 }
 
+export function recordLines(path) {
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/u)
+    .map((text, i) => ({ line: i + 1, text }))
+    .filter(({ text }) => text.trim());
+}
+
+export function parseRecord(text) {
+  let record;
+  try {
+    record = JSON.parse(text);
+  } catch (e) {
+    return { reason: `not JSON: ${e.message}` };
+  }
+  const reason = record && typeof record === "object" ? rejection(record) : "not a JSON object";
+  return reason ? { reason } : { record };
+}
+
+export function dataFiles(dataDir) {
+  return readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
+}
+
 /** `shipped` marks the plugin's own data/, which is absent or empty until curated records ship. */
 export function loadIndex(dataDir, err, { shipped = false } = {}) {
   const byId = new Map();
   const byName = new Map();
   let files = [];
   try {
-    files = readdirSync(dataDir).filter((f) => f.endsWith(".jsonl")).sort();
+    files = dataFiles(dataDir);
   } catch (e) {
     if (!(shipped && e.code === "ENOENT")) {
       err(JSON.stringify({ level: "error", event: "data directory unreadable", dir: dataDir, code: e.code }));
@@ -100,23 +124,15 @@ export function loadIndex(dataDir, err, { shipped = false } = {}) {
   for (const file of files) {
     const path = join(dataDir, file);
     const topic = basename(file, ".jsonl");
-    readFileSync(path, "utf8")
-      .split(/\r?\n/u)
-      .forEach((text, i) => {
-        if (!text.trim()) return;
-        const reject = (reason) =>
-          err(JSON.stringify({ level: "error", event: "record rejected", at: `${path}:${i + 1}`, file: path, line: i + 1, reason }));
-        let record;
-        try {
-          record = JSON.parse(text);
-        } catch (e) {
-          return reject(`not JSON: ${e.message}`);
-        }
-        const reason = record && typeof record === "object" ? rejection(record) : "not a JSON object";
-        if (reason) return reject(reason);
-        byId.set(record.id, { aliases: [], counterweights: [], conflicts_with: [], ...record, topic });
-        for (const name of [record.name, ...(record.aliases ?? [])]) byName.set(name.toLowerCase(), record.id);
-      });
+    for (const { line, text } of recordLines(path)) {
+      const { record, reason } = parseRecord(text);
+      if (reason) {
+        err(JSON.stringify({ level: "error", event: "record rejected", at: `${path}:${line}`, file: path, line, reason }));
+        continue;
+      }
+      byId.set(record.id, { aliases: [], counterweights: [], conflicts_with: [], ...record, topic });
+      for (const name of [record.name, ...(record.aliases ?? [])]) byName.set(name.toLowerCase(), record.id);
+    }
   }
   return { byId, byName };
 }

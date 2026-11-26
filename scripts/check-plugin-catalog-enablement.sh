@@ -1,55 +1,5 @@
 #!/usr/bin/env bash
-# Gate: this repo's committed enabled-plugin set must name only catalogued
-# plugins, in byte order, and the cloud bootstrap must install the marketplace
-# that set belongs to.
-#
-#   scripts/check-plugin-catalog-enablement.sh   run the gate (no flags)
-#
-# WHAT A CLOUD SESSION HERE INSTALLS. The cloud environment's setup (setup.sh
-# in the standards repository, components/cloud-environment/) derives the
-# fleet list every snapshot installs from this catalog: each entry whose
-# `defaultEnabled` is absent or `true`. .claude/cloud-bootstrap.sh reads that
-# list overlaid with .claude/settings.json, whose `enabledPlugins` block can
-# opt out (`false`) or opt in (`true`); a key matching the catalog default
-# changes nothing in the cloud and pins the plugin's state for local sessions.
-# Because the list comes from the catalog, no catalogued plugin can go missing
-# unannounced: it is on by default, or the catalog records it as off. So this
-# gate checks the block's keys, not per-plugin coverage. The block does not
-# mirror the catalog: a
-# mirror writes one project-scope install record per plugin per checkout on
-# every local session start.
-#
-# NOT COVERED ELSEWHERE. plugins/harness-config/skills/audit/scripts/
-# check-plugin-drift.sh audits this same axis for CONSUMER repos. It reads this
-# repo's catalog too (a relative `directory` source), but it diffs the catalog
-# only against the `enabledPlugins` keys of one settings file, reports a plugin
-# with no key as NEW (report only, exit 0), and checks no key order, so it
-# cannot gate this repo. scripts/check-plugin-manifest-presence.sh holds the
-# catalog against the filesystem (manifest present, name matches, no
-# unregistered directory).
-#
-# WHAT IS CHECKED:
-#   1. ORPHANED ENTRY    -- an `enabledPlugins` key for this marketplace that
-#      names no catalog entry. What a plugin rename or removal leaves behind;
-#      the id resolves to nothing and the install silently no-ops.
-#   2. UNSORTED KEYS     -- `enabledPlugins` keys out of byte order.
-#      docs/cloud-sessions.md calls the alphabetical one-per-line layout the
-#      reason a single plugin can be flipped without disturbing the rest, and
-#      an insertion at the wrong point is how a duplicate-looking near-miss
-#      hides.
-#   3. IDENTITY          -- the bootstrap's `marketplace_name` must equal the
-#      `name` in marketplace.json (see the check below).
-#   4. SHADOWING         -- settings must not declare extraKnownMarketplaces
-#      under that same name.
-#
-# A key's value is not judged: `true` and `false` are both recorded deltas.
-#
 # Exit codes: 0 clean, 1 drift, 2 fatal (inputs missing or unreadable).
-#
-# Env overrides (tests only):
-#   PLUGIN_CATALOG_ENABLEMENT_MARKETPLACE  -- path to marketplace.json
-#   PLUGIN_CATALOG_ENABLEMENT_SETTINGS     -- path to settings.json
-#   PLUGIN_CATALOG_ENABLEMENT_BOOTSTRAP    -- path to cloud-bootstrap.sh
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -81,11 +31,6 @@ if [[ ! -f "$BOOTSTRAP" ]]; then
   exit 2
 fi
 
-# The marketplace's name, read from the catalog itself rather than hardcoded,
-# so renaming the marketplace does not leave the gate silently checking a
-# suffix nothing uses any more. The project settings declare no marketplace:
-# local sessions resolve it from the user's registration, and only the cloud
-# bootstrap registers this checkout as a directory source.
 MARKET="$(jq -r '.name // empty' "$MARKETPLACE" | tr -d '\r')"
 
 if [[ -z "$MARKET" ]]; then
@@ -94,8 +39,6 @@ if [[ -z "$MARKET" ]]; then
   exit 2
 fi
 
-# CRLF tolerance: jq on Windows (Git Bash) can emit \r\n, and a trailing \r
-# would ride into every comparison below as an invisible suffix mismatch.
 catalog="$(jq -r '.plugins[]?.name // empty' "$MARKETPLACE" | tr -d '\r' | sort -u)"
 
 if [[ -z "$catalog" ]]; then
@@ -105,12 +48,6 @@ fi
 
 declared_keys="$(jq -r '.enabledPlugins // {} | keys_unsorted[]' "$SETTINGS" | tr -d '\r')"
 
-# Suffix stripping is a LITERAL parameter expansion, never a `sed` expression
-# interpolating $MARKET. A marketplace name is free-form text from a JSON
-# file, so a regex metacharacter in it would change what the pattern matches
-# rather than what it says: a name like 'melodic.software' would make the '.'
-# match any character, silently accepting 'alpha@melodicXsoftware' as this
-# marketplace's key and reporting it as an orphan.
 enabled="$(
   while IFS= read -r key; do
     [[ -n "$key" ]] || continue
@@ -121,7 +58,6 @@ enabled="$(
 
 errors=0
 
-# 1. ORPHANS -- enabled but no longer catalogued.
 while IFS= read -r name; do
   [[ -n "$name" ]] || continue
   printf "ORPHANED ENABLED ENTRY: %s enables '%s@%s', but %s catalogs no such plugin.\n" \
@@ -130,7 +66,6 @@ while IFS= read -r name; do
   errors=$((errors + 1))
 done < <(comm -13 <(printf '%s\n' "$catalog") <(printf '%s\n' "$enabled"))
 
-# 2. LAYOUT -- keys must stay in byte order, one per line.
 sorted_keys="$(printf '%s\n' "$declared_keys" | LC_ALL=C sort)"
 if [[ "$declared_keys" != "$sorted_keys" ]]; then
   printf 'UNSORTED enabledPlugins: keys in %s are not in byte order.\n' "$SETTINGS" >&2
@@ -141,15 +76,6 @@ if [[ "$declared_keys" != "$sorted_keys" ]]; then
   errors=$((errors + 1))
 fi
 
-# 3. IDENTITY -- the bootstrap must agree on which marketplace this is.
-# This gate reads the suffix from the catalog's `name`; .claude/cloud-
-# bootstrap.sh hardcodes `marketplace_name` and selects its install set with
-# endswith("@" + $n). Rename the marketplace and update both settings keys and
-# the catalog, and the two disagree: `wanted` matches nothing, cloud sessions
-# install none of the catalog, and this lane stays green over it -- a parity
-# gate certifying a set nobody installs. Verifying the constant rather than deriving it keeps the bootstrap's
-# behavior byte-identical (it must work before anything else does) while making
-# a rename that touches only one of the two impossible to merge.
 bootstrap_name="$(sed -n 's/^marketplace_name="\([^"]*\)".*/\1/p' "$BOOTSTRAP" | head -1)"
 
 if [[ -z "$bootstrap_name" ]]; then
@@ -168,10 +94,6 @@ elif [[ "$bootstrap_name" != "$MARKET" ]]; then
   errors=$((errors + 1))
 fi
 
-# 4. SHADOWING -- settings must not redeclare this marketplace. A declared
-# source that differs from the user's registration makes Claude Code refetch
-# from it, so a project entry under this name replaces the marketplace local
-# sessions resolve. Other marketplaces are allowed.
 if jq -e --arg m "$MARKET" '(.extraKnownMarketplaces // {}) | has($m)' "$SETTINGS" >/dev/null; then
   printf "SHADOWED MARKETPLACE: %s declares extraKnownMarketplaces.'%s', the marketplace %s names.\n" \
     "$SETTINGS" "$MARKET" "$MARKETPLACE" >&2

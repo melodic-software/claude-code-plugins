@@ -11,8 +11,6 @@ SCRIPT="$SELF_DIR/check-hook-userconfig-argv.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 new_fixture() {
@@ -144,10 +142,6 @@ else
 fi
 rm -rf "$f"
 
-# --- JSON-escaped token spelling is caught by the decoded pass --------------
-# The fixture spells the underscore as the JSON backslash-u005f escape (built
-# via printf so the literal backslash survives this file's own quoting): raw
-# grep cannot see the token, but the loader-equivalent decoded pass must.
 new_fixture f
 ESCAPED_HOOK="$(printf '{"hooks":[{"matcher":"Bash","hooks":[{"type":"command","command":"x","args":["${user\\u005fconfig.some_toggle}"]}]}]}')"
 plugin_file "$f" alpha hooks/hooks.json "$ESCAPED_HOOK"

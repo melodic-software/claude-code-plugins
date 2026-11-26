@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "areas:\n  - name: entrypoints\n    globs:\n      - 'src/api/**/*.ts'\n  - name: billing-core\n    globs:\n      - 'src/billing/**/*.ts'\n"
+    },
+    {
+      "answer": "# focus areas for /bugs:scan\nareas:\n  - globs: ['src/billing/**']\n    name: billing\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "areas: []\n"
+    },
+    {
+      "answer": "areas:\n  - name: everything\n    globs:\n      - '**/*.ts'\n"
+    },
+    {
+      "answer": "filing_posture: allowed\n"
+    }
+  ]
+}

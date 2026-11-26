@@ -1,8 +1,5 @@
 # shellcheck shell=bash
-# Sourced: finds which local remote is a given github.com repository.
 
-# github_repo_of <url>: the owner/repo a github.com URL (https, ssh:// or
-# scp-style) names, or nothing.
 github_repo_of() {
   local url="${1%/}"
   url="${url%.git}"
@@ -14,8 +11,6 @@ github_repo_of() {
   esac
 }
 
-# remote_of_repo <owner/repo>: the first remote whose fetch URL is that
-# github.com repository, or nothing.
 remote_of_repo() {
   local r repo
   for r in $(git remote); do

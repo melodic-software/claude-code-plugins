@@ -34,7 +34,6 @@ else
   bad 'stdout and stderr are captured under the check name' "$(cat "$out_dir/spoke-plugin-root.log" 2>&1)"
 fi
 
-# The body runs under `bash -e`, as a step with no `shell:` does.
 run_gate errexit $'false\necho "after false"'
 if [[ "$RC" -ne 0 && "$OUT" != *'after false'* ]]; then
   ok 'the body runs with errexit, like the default step shell'

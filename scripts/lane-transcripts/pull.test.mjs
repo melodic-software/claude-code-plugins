@@ -145,8 +145,6 @@ test("a failed pull still logs its gh call count", () => {
   assert.match(result.err, /pull failed: artifact-list: gh exited 1/);
 });
 
-// The job-id each upload-lane-transcript step passes, read from the workflow
-// text: the enclosing job's key stands in for github.job.
 function uploadJobIds() {
   const found = {};
   for (const [file, lines] of workflowLines()) {

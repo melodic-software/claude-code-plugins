@@ -1,27 +1,6 @@
 # shellcheck shell=bash
 # GE_MODE, GE_REF, and GE_PATHS are the caller's result record.
 # shellcheck disable=SC2034
-# Shared entry for repo-tooling gates under scripts/. Sourced, never executed.
-#
-# Owns four steps the gates otherwise re-derive:
-#   mode dispatch          <base-ref> | --all | --paths FILE...
-#   base-ref validation    in this shell, via changed_files::verify_base
-#   target discovery       nameref fill; a failed diff is not an empty set
-#   exit mapping           0 pass, 1 findings, anything else 2
-#
-# A fatal raised inside a subshell (mapfile, process substitution, command
-# substitution) signals this shell on USR2. The trap exits 2, so the #3377
-# shape — an unresolvable ref swallowed as an empty target list — cannot
-# report a pass. --all and --paths never consult a ref.
-#
-# Adoption: classify and finish are used by check-shell-portability,
-# check-skill-portability, check-skill-precompute-compose, check-changed-skills,
-# check-stale-base-overlap, check-vendor-version-bump, check-changelog-parity,
-# and check-changelog-fragments. check-guardrails-ps-differential uses only
-# require_base. Two gates stay outside:
-#   check-docs-only                exits 0 on every fail-closed path, an
-#                                  unresolvable ref included, so the full suite runs
-#   affected-tests                 exits 0, 1, 2, or 3, not the 0/1/2 map above
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/gate-entry.sh is sourced-only\n' >&2
@@ -33,18 +12,11 @@ if ! declare -F changed_files::verify_base >/dev/null 2>&1; then
   . "${BASH_SOURCE[0]%/*}/changed-files.sh"
 fi
 
-# Parent shells only. A subshell inherits the variable and must not replace
-# the trap; a fresh process does not inherit an unexported variable and arms
-# its own. USR2 is not the EXIT trap, so a gate's cleanup trap stays put.
 if [[ -z "${GATE_ENTRY_ARMED:-}" && "${BASH_SUBSHELL:-0}" -eq 0 ]]; then
   GATE_ENTRY_ARMED=1
   trap 'exit 2' USR2
 fi
 
-# gate_entry::fatal
-# Exit 2. From a subshell, ask the parent shell to exit 2 and wait until it
-# does. Sleeping is what keeps a process substitution from returning before
-# the signal is delivered; the parent exit reaps it.
 gate_entry::fatal() {
   if [[ "${BASH_SUBSHELL:-0}" -gt 0 ]]; then
     kill -USR2 "$$" 2>/dev/null || true
@@ -53,26 +25,12 @@ gate_entry::fatal() {
   exit 2
 }
 
-# gate_entry::require_base <ref> [message]
-# 0 when <ref> is a commit. Otherwise print <message> (or the shared
-# diagnostic) and exit 2, including when the caller is a subshell.
 gate_entry::require_base() {
   changed_files::verify_base "$1" && return 0
   printf '%s\n' "${2:-Error: base ref $1 is not a valid commit}" >&2
   gate_entry::fatal
 }
 
-# gate_entry::classify [args...]
-# Sets GE_MODE to all, paths, or base. GE_REF is the base ref in base mode.
-# GE_PATHS is the file list in paths mode. Returns 2 on a usage error and
-# does not exit, so the caller can print its own usage line. An unresolvable
-# base ref exits 2 from this shell. --all and --paths do not call git.
-#
-# A gate with its own flag modes sets GE_FLAGS before the call, one entry per
-# mode: "--check" takes no ref, "--check-bump:ref" takes one <base-ref>. Only
-# the declared flags are accepted then, not <base>, --all, or --paths. GE_MODE
-# is the flag, GE_REF the ref. GE_BAD_REF_MSG, when set, replaces the shared
-# diagnostic for an unresolvable ref.
 gate_entry::classify() {
   GE_MODE=""
   GE_REF=""
@@ -121,24 +79,14 @@ gate_entry::classify() {
   return 0
 }
 
-# gate_entry::collect_changed <out-array> <base> [changed_files::into args...]
-# Fills <out-array> from the shared diff. A resolvable base with no changes
-# returns 0 with an empty array. A failed diff or an unresolvable base exits 2.
-# The two are not the same result.
 gate_entry::collect_changed() {
   local _ge_out_name="$1"
   local _ge_base="$2"
   shift 2
   gate_entry::require_base "$_ge_base"
-  # Pass the caller's array name straight through. A nameref in this frame
-  # would sit between changed_files::into and that array, and a nameref that
-  # points at a nameref comes back empty.
   changed_files::into "$_ge_out_name" "$_ge_base" "$@" || gate_entry::fatal
 }
 
-# gate_entry::finish <status>
-# The 0/1/2 map. 0 and 1 pass through. Every other status, including an
-# omitted one, is a fail-closed 2.
 gate_entry::finish() {
   case "${1-}" in
   0 | 1) exit "$1" ;;

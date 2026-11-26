@@ -1,37 +1,4 @@
 #!/usr/bin/env bash
-# Discover and check cross-plugin skill leaf-name collisions: a skill directory
-# name (the leaf of `/<plugin>:<skill>`) carried by 2+ plugins.
-#
-#   scripts/check-skill-leaf-names.sh          discover: list every leaf name
-#                                               owned by 2+ plugins, with its
-#                                               owners and registration state
-#   scripts/check-skill-leaf-names.sh --check  fail on an UNREGISTERED
-#                                               collision, on a registered one
-#                                               whose OWNER SET changed, or on
-#                                               an entry that no longer collides
-#
-# Namespacing already guarantees every one of these is separately invocable --
-# `/disk-hygiene:clean` and `/repo-hygiene:clean` can never resolve to each
-# other, and the philosophy's Naming section is explicit that a built-in never
-# forces a plugin skill's name. So a collision is not a correctness bug and this
-# script is not a rename mandate.
-#
-# What it catches is the thing namespacing does NOT cover: a leaf typed into the
-# picker filters to every plugin carrying it, so the reader disambiguates a
-# family of near-identical rows by prefix and by the `(<plugin-name>)` marker the
-# description carries, and the model faces the same ambiguity when matching
-# descriptions for auto-invocation. That cost is invisible from inside any one
-# plugin -- nothing in a single skill's own review surfaces it -- and the
-# grammar's own collision rule (docs/plugin-philosophy.md, Naming) governs
-# siblings WITHIN one namespace, not across plugins.
-#
-# Registering a leaf name in skill-leaf-name-registry.txt records the grounds it
-# was accepted on, together with the owner set those grounds were argued over.
-# A new plugin joining an already-registered collision has to be argued on its
-# own merits, so the owner set is part of the entry rather than the bare name --
-# otherwise the first registration would silently pre-authorize every later one.
-# An unregistered collision is a decision waiting to be made, not yet a
-# violation of anything.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,11 +23,6 @@ for plugin_dir in plugins/*/; do
   done
 done
 
-# Collisions only: a leaf name owned by 2+ plugins. A plain indexed array, not
-# an associative one: under `set -u` an associative array that was declared but
-# never assigned is UNBOUND, so counting or listing it aborts the script in the
-# zero-collision case -- which is exactly the state the stale-entry guard is
-# meant to shepherd the repo into.
 collision_leaves=()
 for leaf in "${!leaf_owners[@]}"; do
   # shellcheck disable=SC2206  # plugin names are kebab-case; word-splitting is the intent
@@ -73,18 +35,11 @@ declare -A registered
 registered_leaves=()
 duplicate_leaves=()
 if [[ -f "$registry" ]]; then
-  # `inline`: an entry is a leaf name plus an owner set, never a regex, so a `#`
-  # anywhere on the line opens the rationale comment (scripts/lib/read-list.sh
-  # owns the two comment families and why they must stay distinct).
   registry_lines=()
   # shellcheck disable=SC2310  # the non-zero return IS the handled case; the library reports it
   read_list::into registry_lines "$registry" --comments inline || exit 2
   for line in ${registry_lines[@]+"${registry_lines[@]}"}; do
-    # `read`, not array splitting: the owner field may be a literal `*`, which
-    # unquoted word splitting would pathname-expand against the cwd.
     read -r leaf_key owner_field _ <<<"$line"
-    # A merge that keeps both sides (merge=union, or a hand resolution) leaves
-    # two lines when two branches each changed one entry; neither may win.
     if [[ -n "${registered[$leaf_key]+set}" ]]; then
       duplicate_leaves+=("$leaf_key")
     else
@@ -98,9 +53,6 @@ owner_set() {
   printf '%s\n' "$@" | sort | paste -sd, -
 }
 
-# The same normalization for the registry side, whose owner set arrives as one
-# comma-separated field. `read`, not array splitting: the field may be a literal
-# `*`, which unquoted word splitting would pathname-expand against the cwd.
 owner_set_field() {
   local -a parts=()
   IFS=',' read -ra parts <<<"$1"

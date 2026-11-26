@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-add-claim.sh (PostToolUse Bash hook,
-# #2882). After a plain `git worktree add`, the hook must lock the new tree
-# with a session-distinct reason and must not rewrite a helper-created
-# reason. Invoked from an unrelated cwd. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,8 +34,6 @@ run() {
   local payload
   payload=$(jq -n --arg cwd "$cwd" --arg cmd "$cmd" --arg sid "$sid" \
     '{session_id:$sid,cwd:$cwd,hook_event_name:"PostToolUse",tool_name:"Bash",tool_input:{command:$cmd}}')
-  # A here-string, never a pipe: the kill switch exits before reading stdin, and
-  # a printf still writing then fails on the closed pipe, which pipefail reports.
   OUT=$(cd "$UNRELATED" && env -u CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_ENABLED \
     "$@" bash "$HOOK" <<<"$payload" 2>/dev/null)
   RC=$?
@@ -117,7 +111,6 @@ assert_contains "git -C add target is claimed in the other repo" "$dashc" "dashc
 
 NOSHFMT="$TEST_TMPDIR/noshfmt-bin"
 mkdir -p "$NOSHFMT" "$TEST_TMPDIR/noshfmt-home"
-# jq through a wrapper that keeps the real HOME, so a version manager's shim resolves.
 printf '#!/bin/sh\nHOME=%q exec %q "$@"\n' "$HOME" "$(command -v jq)" >"$NOSHFMT/jq"
 chmod +x "$NOSHFMT/jq"
 git -C "$REPO" worktree add -q "$EXT/wt-noshfmt" -b feat/noshfmt

@@ -90,9 +90,6 @@ def bash_patterns(glob: str) -> list[str]:
     if glob.endswith("/**"):
         glob = glob[:-3] + "/*"
     found = [glob[3:], "*/" + glob[3:]] if glob.startswith("**/") else [glob]
-    # Bash's `*` crosses `/`, which Python's and Node's `*` never do, so a
-    # glob whose `*` is not the leading `**/` or trailing `/**` has no form
-    # that matches the same paths.
     core = glob.removeprefix("**/").removesuffix("/*")
     if any(c in core for c in "*?[") or "'" in glob:
         raise SystemExit(f"sync-hold-floor: no bash form for {glob!r}")
@@ -131,8 +128,6 @@ def path_holds() -> bool:
     return value == "true"
 
 
-# dependabot[bot] in trusted-actors.json. Its pull requests bump third-party action pins, so
-# ci-status holds its trust-gate paths with path holds off too (owner decision Q24, 2026-10-29).
 DEPENDABOT_ID = "49699333"
 
 

@@ -97,18 +97,6 @@ read_into() {
   return "${rest%%:*}"
 }
 
-# Every read is a conditional GET: each page goes out with the ETag of its last answer, and a 304
-# replays that answer's body. GitHub does not count an authorized 304 against the primary rate
-# limit, so a poll where nothing changed costs no requests:
-# https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests
-# Each page is cached on its own because a change can land on any page, and every URL stays the
-# same from poll to poll, since a different query string gets a different ETag.
-# An ETag covers the body, not the Link header, so a full page that answers 304 still reads the page
-# after it: a list that grows from per_page items to one more adds a page and leaves page 1 as it was.
-# A read's new answers are staged and cached only once the whole read, and for a comment surface
-# its filter, succeeded; a read that fails partway leaves the old ETags, so the next poll reads
-# the new pages again instead of answering 304 for them.
-# The cache is parallel indexed arrays, not `declare -A`, which Bash 3.2 (macOS) lacks.
 per_page=100
 c_url=() c_etag=() c_body=() c_next=() c_full=()
 link_next='<([^>]*)>; rel="next"'
@@ -321,13 +309,6 @@ while true; do
 
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   fetch_ok=1
-  # `since` stays at the watch's start so the URL, and so its ETag, holds from poll to poll; the
-  # watermark filter runs here, on updated_at, the field `since` filters on. A surface whose every
-  # page came back 304 holds nothing the poll that cached it did not already report, so it is
-  # skipped rather than filtered again.
-  # The reviews endpoint takes no `since` parameter, so its filter is on submitted_at and the read
-  # must paginate to reach the newest reviews:
-  # https://docs.github.com/en/rest/pulls/reviews#list-reviews-for-a-pull-request
   for surface in "issues/$PR_NUMBER/comments?since=$watch_start&" "pulls/$PR_NUMBER/comments?since=$watch_start&" \
     "pulls/$PR_NUMBER/reviews?"; do
     # shellcheck disable=SC2016 # $ts is a jq variable

@@ -4,41 +4,14 @@ name: PR Check Managed Files Hosted
 # Source of truth: melodic-software/standards,
 # components/managed-files-guard/managed-files-guard.yml (the
 # `managed-files-guard-caller` component in distribution/sync-manifest.yml).
-# Downstream edits are overwritten by the next sync PR; change the component
-# upstream, or move the component to `locally-owned` in the manifest to
-# customize.
-#
-# Thin caller for the org's check-managed-files composite action
-# (melodic-software/ci-workflows, ci-workflows#208). The action resolves this
-# repository's sync-manifest-managed destination paths from the standards ref
-# it is given and fails the pull request when the diff hand-edits one of them
-# (ADR-0007: a managed file is byte-exact with its standards source; the fix
-# path is a standards change, never a downstream edit). Pull requests opened
-# by the sync itself (authored by `melodic-standards-sync[bot]` and
-# labeled `standards-sync`) are exempt inside the action.
-#
-# ADVISORY during soak (standards#496): this check is NOT aggregated into
-# `ci-status` and is not a required context. Promotion is a per-target
-# decision taken after a clean soak, recorded in the component README.
-#
-# Hosted-only shape: `runs-on` names the approved hosted label directly, so the
-# same bytes serve public and un-enrolled private targets. A private target
-# enrolled for local CI routing takes the fleet-routed sibling,
-# components/managed-files-guard/managed-files-guard-fleet.yml, instead.
 
-# No `paths` filter: the action resolves this repository's managed
-# destinations from the manifest at run time and passes in seconds when the
-# pull request's file list (read from the API, no clone) touches none. A
-# filter here would have to list every target's destinations, so any
-# manifest change anywhere would re-sync this file to every target. `types`
-# restates the documented pull_request default.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
-  pull-requests: read # check-managed-files lists the PR commits to skip all-Dependabot PRs
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -46,22 +19,11 @@ concurrency:
 
 jobs:
   pr-check-managed-files:
-    # The check context is this Title Case name (org naming lint, job-name);
-    # zizmor's pedantic `anonymous-definition` audit also flags an unnamed job.
     name: PR Check Managed Files
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # No checkout step: the action checks out this repository itself, with
-    # full history and no persisted credentials (ci-workflows#881).
     steps:
       - name: Guard managed files
         uses: melodic-software/ci-workflows/.github/actions/check-managed-files@main
         with:
-          # `main` for the soak, per the action's own input contract ("Pin to
-          # a full SHA in callers once soak completes"): the guard must read
-          # the manifest that is live for this repository, and a fixed
-          # standards SHA would stop tracking target roster and component
-          # changes the moment it landed. `standards-ref` is a workflow input
-          # naming a ref of a different repository, so the ci-workflows
-          # pin-comment convention does not apply to it.
           standards-ref: main

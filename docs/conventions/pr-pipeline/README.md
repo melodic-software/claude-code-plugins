@@ -2374,9 +2374,12 @@ back to them:
   bases of H and of H' (M and M') with the tip lists, and the recursive trees of H' and M' give
   each of those files one mode (a removed file, or a renamed file's old path, in neither). A merge
   that writes any change of its own, to a hold path or any other file, flips the mode of a file the
-  base changed, or drops a base change, carries nothing. A commit list not read whole or a head in
-  a fork carries nothing, and on the exact path neither does either compare listing 300 files or
-  more, a file with no patch, or a truncated tree. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
+  base changed, or drops a base change, carries nothing. Every compare's commits are read in pages
+  past the 250 an unpaged read lists, and on the exact path a listing at 300 files or with a file
+  with no patch is judged on the two ranges' diffs, the modes checked for every file the merges'
+  diff names. A commit list not read whole, a diff that does not read or parse or names fewer files
+  than its listing, a file with no patch on the exact path without diffs, a truncated tree, or a
+  head in a fork carries nothing. The exact path assumes GitHub omits no file from a compare's list of fewer than 300
   files; nothing checks that against a second listing. The compare listing reports no file mode,
   so a mode-only change still reads the same on the same-net-change path when both listings are
   under the cap: a known residual there.
@@ -2944,12 +2947,13 @@ with no such line or a withheld body). A model error, an output that fails the s
 permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
 shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
 credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
-verdict from a judge step `run-claude-cli` failed on its own credential scan, is written as a `fail`
+verdict from a judge step `run-claude-cli` failed on its own credential scan (lane class
+`credential-stop`, or no class from an older `run-claude-cli`), is written as a `fail`
 with a fixed text in place of all the model's, which counts toward the repeated-fail cap, so the head
 is not judged twice. A later chunk counts as such a stop only when it failed and `run-review-chunks`'
-`chunk-classes` (a JSON array, one string per later chunk) gives it an empty class; a later chunk that
-failed with a class (a handoff, max turns, a timeout), or with an unset, unparsable or wrong-length
-list, left no output. A `pass` or `pass-notes` holding only a secret assignment, which may be a
+`chunk-classes` (a JSON array, one string per later chunk) gives it `credential-stop` or an empty
+class; a later chunk that failed with any other class (a handoff, max turns, a timeout), or with an
+unset, unparsable or wrong-length list, left no output. A `pass` or `pass-notes` holding only a secret assignment, which may be a
 fixture, uploads nothing, and the run fails. The chunk-results step stops with no verdict, before the final
 judge runs, on results over 300000 bytes. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since

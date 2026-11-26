@@ -1,6 +1,6 @@
 # engineering-concepts
 
-A built-in catalog of software engineering concepts (principles, patterns, practices and
+Shipped concepts: software engineering concepts (principles, patterns, practices and
 architectures) kept as data. Each record is a short pointer to the concept's official source, never
 a copied definition, tagged so a session can find the concepts that apply to the work in front of
 it. The catalog states no positions: whether to follow a concept is a team's or person's stance,
