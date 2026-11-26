@@ -14,7 +14,6 @@ shape() {
   redact_connection_shape "$1" "$2"
 }
 
-# Fixture credentials expand from variables so no committed line reads as a live credential to a secret scanner.
 leak_sql="SuperSecret123"
 leak_blob="abcDEF123SECRETKEY"
 
@@ -106,7 +105,6 @@ secret() {
 clean() {
   if redact_is_secret "$2" "$3"; then fail "clean: $1" "flagged: $2 = $3"; else pass "clean: $1"; fi
 }
-# Fake placeholders. Shapes a secret scanner flags as a literal are assembled at runtime.
 fake="FAKE-NOT-A-SECRET-0000"
 secret "sql password" "Db" "Server=db.example.com;Password=${fake}"
 secret "storage account key" "Blob" "AccountName=a;AccountKey=${fake}"

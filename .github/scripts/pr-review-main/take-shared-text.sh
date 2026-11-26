@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Takes the collect-trusted-text job's context.json into this leg's data directory,
-# only when it is this run attempt's, read at this leg's main commit for this
-# leg's pull request and head at most SHARED_TEXT_MAX_AGE_MINUTES ago, and its
-# bytes hash to the job's sha256 output. A later leg can start hours after the
-# read, when the PR body or a trusted comment may have changed. Anything else
-# sets nothing, and the leg reads its own (Select the trusted PR text). Always
-# exits 0, so a shared read that failed never fails the leg.
-#
-# Env: SHARED_FILE, SHARED_SHA256, SHARED_ATTEMPT, SHARED_MAIN, SHARED_PR,
-# SHARED_HEAD, SHARED_READ_AT (the job's outputs, the last in UTC epoch
-# seconds), SHARED_TEXT_MAX_AGE_MINUTES, RUN_ATTEMPT, PR_NUMBER, HEAD_SHA (this
-# leg's gate result), BASE_DIR (this leg's main checkout), CONTEXT_FILE.
 set -uo pipefail
 
 own() {

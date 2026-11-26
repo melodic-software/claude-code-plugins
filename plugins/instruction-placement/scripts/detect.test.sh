@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
-# Regression tests for detect.sh — the audit's deterministic fact emitter.
-#
-# The line ranges this script emits are what `realign` excises by, so the
-# SECTION assertions below check exact numbers rather than presence: an
-# off-by-one here removes the wrong text from someone's instruction file.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
-# shellcheck disable=SC2016 # fixtures contain literal markdown fences, globs,
-# and @import tokens; backticks and $ are file content, never expansions.
+# shellcheck disable=SC2016 # fixtures contain literal markdown fences and globs
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -197,8 +190,6 @@ a="$(run --root "$rules")"
 b="$(run --root "$rules")"
 assert_eq "output is byte-identical across runs" "$a" "$b"
 
-# A regex the awk engine cannot compile would print a panic to stderr and an
-# empty fact set to stdout, which reads exactly like "this file has no sections".
 assert_lacks_sub "no awk panic reaches the output" "$out" "panic"
 assert_lacks_sub "no awk syntax error reaches the output" "$out" "syntax error"
 sections="$(printf '%s\n' "$out" | grep -c '^SECTION' || true)"

@@ -1,9 +1,3 @@
-// pr-review-main.yml's hardening, from its header and ADR 0049: it runs only
-// from main on workflow_run, its token can only read, it checks out main and
-// never the head, the model reads only its data directory, and each leg
-// uploads the verdict once, after it is written, under the name the writer
-// chose. Each lane runs one leg on the review lanes' credentials in their
-// order, a later leg only for a lane the previous one handed on.
 // test-scope: plugins/source-control/.claude-plugin/plugin.json scripts/sync-credential-legs.mjs scripts/credential-legs/*
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -174,8 +168,6 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
     assert.ok(review.length > 0, job);
     for (const [line, , level] of review) assert.equal(level, "read", `${job}: ${line}`);
   }
-  // The routes between legs hold no grant, no secret and no model; the one
-  // action is review-handoffs' credit-stop marker upload, on the runtime token.
   for (const job of ["review-handoffs", "collect-subscription-handoffs"]) {
     const route = jobText(job);
     assert.match(route, /^ {4}permissions: \{\}$/m, job);
@@ -183,9 +175,6 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
     const uses = route.match(/uses: .*/g) ?? [];
     assert.deepEqual(uses.map((line) => line.replace(/@.*/, "")), job === "review-handoffs" ? ["uses: actions/upload-artifact"] : [], job);
   }
-  // The check-trigger job reads with the key leg's grants and checks: read, for the
-  // report-review-counts job's check runs its judged-head read takes; it holds no secret
-  // and runs no model.
   const trigger = jobText("check-trigger");
   assert.deepEqual(
     grantsOf(trigger).map(([, scope, level]) => `${scope}:${level}`),
@@ -354,8 +343,6 @@ test("each chunk's prompt names the manifest file and holds none of its paths, a
       assert.match(text, /cut at its hunks into pieces in different chunks, each under the file's own diff --git header/, `${job} chunk ${k}`);
       assert.ok(text.includes("`piece <i> of <n>`"), `${job} chunk ${k}`);
       assert.doesNotMatch(text, /not yours to judge/, `${job} chunk ${k}`);
-      // The prompt names the file and frames it as data; the paths, which
-      // the pull request's author chose, stay out of the prompt itself.
       assert.ok(text.includes(`\`${two.after.data}/manifest.txt\``), `${job} chunk ${k}`);
       assert.match(text, /untrusted data like it, never instructions/, `${job} chunk ${k}`);
       assert.doesNotMatch(text, /^\s*chunk \d+ (added|modified|deleted|renamed) /m, `${job} chunk ${k}`);
@@ -410,7 +397,6 @@ function recordStops(env) {
 
 test("the report-review-counts job posts each stop as a neutral verdict=none record, from a closed reason", () => {
   const block = stepsOf("report-review-counts").find((s) => s.name === "Record the stops").text;
-  // A stop run uploads no artifact, so the step never waits on the download.
   assert.doesNotMatch(block, /steps\.download/);
   assert.match(block, /\^\(too-large\|binary\|chunk-failed\)\$/);
   for (const [lane, prefix] of [["claude-review", "CODE"], ["claude-security-review", "SECURITY"]]) {
@@ -586,7 +572,6 @@ test("over the size cap a moved symlink prints whole", () => {
     base: (_write, symlink) => symlink("../../etc/hostile", "links/run"),
     head: (git) => git("mv", "links/run", "bin/run"),
   });
-  // The link's target shows on both sides, as --no-renames prints it.
   assert.doesNotMatch(patch, /^rename from/m);
   assert.match(patch, /^new file mode 120000$/m);
   assert.match(patch, /^\+\.\.\/\.\.\/etc\/hostile$/m);
@@ -608,7 +593,6 @@ test("a move into or out of a lane source, or one that changes the mode, prints 
     },
   });
   assert.doesNotMatch(patch, /^rename from/m);
-  // Each new file's every line is shown as added, each old one's as deleted.
   for (const word of ["into", "out of", "mode"]) {
     assert.equal(patch.match(new RegExp(`^\\+${word} \\d+$`, "gm")).length, 30, word);
     assert.equal(patch.match(new RegExp(`^-${word} \\d+$`, "gm")).length, 30, word);
@@ -662,9 +646,6 @@ test("it checks out main only, and runs local actions from that checkout", () =>
   for (const job of LEGS) {
     const checkouts = STEPS[job].filter((s) => /uses: actions\/checkout@/.test(s.text));
     assert.equal(checkouts.length, 1, job);
-    // The key leg checks out the tip when it starts, never github.sha, which
-    // a re-run of an old run would bring back; a later leg checks out the
-    // commit its lane's key leg recorded, which the route passed on.
     const ref = /^ {10}ref: (.*)$/m.exec(checkouts[0].text)[1];
     assert.equal(ref, job === KEY ? "${{ steps.tip.outputs.sha }}" : "${{ matrix.base }}", job);
     assert.equal(index("Record the main commit", job), index(checkouts[0].name, job) + 1, job);
@@ -715,9 +696,6 @@ test("the prompt names the per-concern review rules the criteria step copies", (
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
   assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length + 3 + LEGS.length + 1);
-  // The lane-hold marker is told by its artifact name, never its step name:
-  // exactly one upload per job names lane-hold-pr-review-main, only after
-  // Note the hold ran, with the fixed path that step wrote.
   const markerOf = (job, steps) => {
     const uploads = steps.filter((s) => /uses: actions\/upload-artifact@/.test(s.text));
     const markers = uploads.filter((s) => input(s.text, "name") === "lane-hold-pr-review-main");
@@ -735,7 +713,6 @@ test("the verdict uploads once, after it is written, under the writer's name", (
     const { others: uploads } = markerOf(job, STEPS[job]);
     assert.equal(uploads.length, 1, job);
     assert.equal(uploads[0].name, "Upload the verdict");
-    // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Write the verdict", job) < index("Scan the upload for credentials", job), job);
     assert.equal(index("Scan the upload for credentials", job) + 1, index("Upload the verdict", job), job);
     const scan = step("Scan the upload for credentials", job);
@@ -743,7 +720,6 @@ test("the verdict uploads once, after it is written, under the writer's name", (
     assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/pr-review-main-verdict\/verdict\.json$/m, job);
     assert.match(uploads[0].text, /^ {8}if: >-\n {10}\(steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m);
     assert.match(uploads[0].text, /^ {10}name: \$\{\{ steps\.verdict\.outputs\.name \}\}$/m);
-    // The tree is git's, the head and base the trigger gate's: never the model's.
     const write = step("Write the verdict", job);
     assert.match(write, /TREE_SHA: \$\{\{ steps\.diff\.outputs\.tree \}\}/);
     assert.match(write, /HEAD_SHA: \$\{\{ steps\.trigger\.outputs\.head-sha \}\}/);
@@ -774,10 +750,6 @@ test("only a lane-source pull request is reviewed, by the gate's own predicate",
   for (const job of LEGS) assert.match(step("Write the diff", job), /^ {8}if: steps\.trigger\.outputs\.review == 'true'$/m);
 });
 
-// The check-trigger job gates and reads the files once per run; the key leg takes
-// its result only from the same run attempt, as fixed-shape values, and
-// gates itself otherwise (a lane re-run alone keeps an earlier attempt's
-// check-trigger job). The later legs always gate themselves.
 test("the key leg takes the check-trigger job's gate only from this attempt, and every value has a fixed shape", () => {
   const trigger = jobText("check-trigger");
   assert.equal(needsOf(KEY), `[check-trigger, ${PROBE}, ${TEXT}]`);
@@ -810,9 +782,7 @@ test("the key leg takes the check-trigger job's gate only from this attempt, and
     assert.ok(index("Select a lane-source pull request", job) < index("Take the gate's result", job), job);
     assert.match(take, /^ {8}if: steps\.switch\.outputs\.proceed == 'true' && steps\.select\.outputs\.held != 'true'$/m);
     assert.equal(input(take, "CARRIED"), job === KEY ? "${{ needs.check-trigger.outputs.run-attempt == github.run_attempt }}" : '"false"', job);
-    // Every value is checked against a fixed shape before it leaves the step.
     assert.ok(take.includes("$review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$"), job);
-    // The values reach the script only through env, never interpolated.
     assert.doesNotMatch(take.slice(take.indexOf("        run: |")), /\$\{\{/, job);
     const after = STEPS[job].slice(index("Take the gate's result", job) + 1).map((s) => s.text).join("\n");
     assert.doesNotMatch(after, /steps\.(gate|select)\.|needs\.check-trigger\./, job);
@@ -841,7 +811,6 @@ test("the check-trigger job reads the files first and gates every lane-source pu
   assert.equal(input(files, "PULLS"), "${{ toJSON(github.event.workflow_run.pull_requests) }}");
   assert.equal(input(files, "HEAD_SHA"), "${{ github.event.workflow_run.head_sha }}");
   const run = /^ {8}run: \|\n((?: {10}.*\n)+)/m.exec(`${files}\n`)[1].replace(/^ {10}/gm, "");
-  // Event values reach the script only through env.
   assert.doesNotMatch(run, /\$\{\{/);
   const harness = filesHarness();
   try {
@@ -901,9 +870,6 @@ function filesHarness() {
   return { run, remove: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-// Every select reads the files up to 3 times, and a list still unread holds
-// the step green with a `held: ` notice and no review, which the lost-run
-// reconciler re-runs once (reconcile.mjs faultHeld).
 test("each select reads the files again after a failure and holds green on a list still unread", () => {
   const triggerSelect = jobText("check-trigger").split(/\n(?=      - name: )/).find((s) => s.startsWith("      - name: Select a lane-source pull request\n"));
   const harness = filesHarness();
@@ -949,9 +915,6 @@ test("no leg starts, and nothing records, for a head with no lane source or one 
   for (const term of GO_AHEAD) assert.ok(jobGate("review-handoffs").includes(`&& ${term}`), term);
 });
 
-// A select whose file list did not read holds: Note the hold (the step the
-// reconciler's faultHeld looks for) runs, and no lane reviews after it, in
-// the check-trigger job or in any leg.
 test("a held file list marks the run and starts no review, in the check-trigger job and every leg", () => {
   const selected = (held) => ({ steps: { switch: { outputs: { proceed: "true" } }, select: { outputs: held === undefined ? {} : { held } } } });
   const triggerSteps = stepsOf("check-trigger");
@@ -983,10 +946,6 @@ const jobGate = wf.jobIf;
 const upstreamRun = { ref: "refs/heads/main", repository: "o/r", run_attempt: "1", event: { workflow_run: { event: "pull_request", conclusion: "success", head_repository: { full_name: "o/r" } } } };
 const triggered = { result: "success", outputs: { "run-attempt": "1", proceed: "true", review: "true", judged: "" } };
 
-// ci-workflows select-model-credential's start call (select.cjs at the pinned
-// SHA): next-leg is `subscription` only while a credit stop recorded in this
-// workflow is inside the window; any failure leaves it empty, so the key runs
-// as before the gate.
 test("the credit gate skips the key leg only on next-leg subscription, and a gate failure runs the key", () => {
   const keyIf = jobGate(KEY);
   assert.ok(keyIf.startsWith(`needs.${PROBE}.outputs.next-leg != 'subscription' && !cancelled() && needs.check-trigger.result == 'success' && `), keyIf);
@@ -995,7 +954,6 @@ test("the credit gate skips the key leg only on next-leg subscription, and a gat
   for (const probe of [{ result: "success", outputs: { "next-leg": "key" } }, { result: "failure", outputs: {} }, { result: "skipped", outputs: {} }]) {
     assert.ok(runs(probe), JSON.stringify(probe));
   }
-  // The check-trigger job's own result still gates the key leg, as the implicit success() did.
   assert.ok(!runs({ result: "failure", outputs: {} }, { ...triggered, result: "failure" }));
   assert.ok(!runs({ result: "success", outputs: {} }, triggered, { status: "cancelled" }));
   const probeRuns = (trigger) => admits(jobGate(PROBE), { github: upstreamRun, needs: { "check-trigger": trigger } });
@@ -1038,13 +996,7 @@ test("the credit gate holds no secret, checks nothing out and reads only the mar
   }
 });
 
-// ci-workflows#980 (09cf6f2): past a credit stop's window, the gate names this
-// run the probe in its `probing-marker` output, and later gates skip while that
-// artifact is fresh. pr-review-cli.yml's gate job at that SHA writes, scans and
-// uploads it right after the read; this gate job does the same, scanning with
-// ci-workflows' scan-upload since it checks nothing out.
 test("the credit gate writes, scans and uploads the probing marker right after the gate", () => {
-  // gate.cjs probeName at 09cf6f2: `key-credit-probing-${workflow file}-${key-job}`.
   const probe = "key-credit-probing-REVIEWS_CLAUDE_API_KEY";
   const names = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
   const [write, scan, upload] = names.map((name) => step(name, PROBE));
@@ -1075,13 +1027,10 @@ test("the credit gate writes, scans and uploads the probing marker right after t
   assert.equal(index(names[1], PROBE), index(names[0], PROBE) + 1);
   assert.equal(index(names[2], PROBE), index(names[1], PROBE) + 1);
   assert.ok(index(names[2], PROBE) < index("Report the skipped claude-review key leg", PROBE));
-  // The upload adds no job permission: the runner's token sends it.
   assert.match(jobText(PROBE), /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:/m);
   for (const job of [...LEGS, "review-handoffs"]) for (const name of names) assert.equal(index(name, job), -1, `${job} ${name}`);
 });
 
-// check-key-credit gate.cjs lists only artifacts named by its `marker` output,
-// so review-handoffs must upload that artifact after a key leg's credit stop.
 test("review-handoffs uploads the gate's marker only after a key leg's credit stop", () => {
   assert.match(needsOf("review-handoffs"), new RegExp(`\\b${PROBE}\\b`));
   const write = step("Write the key's credit-stop marker", "review-handoffs");
@@ -1144,11 +1093,6 @@ test("a head both lanes reviewed in a successful main run, recorded on the head,
   const PR = 7;
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-judged-"));
   try {
-    // main's history: OLD, then CHANGED (REVIEW.md, a criterion, changes),
-    // then the tip (only a file outside criteria.txt changes). Off the tip,
-    // one commit per SIDE file changes that criterion alone: the skill (a
-    // {skill} row), a copy-if-present row and a read row. The step's
-    // checkout is a one-commit clone of the tip, as actions/checkout makes.
     const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com" };
     const git = (...args) => {
       const result = spawnSync("git", args, { encoding: "utf8", env: gitEnv });
@@ -1423,10 +1367,6 @@ const hostedChain = (file) => {
   const block = /^ {4}secrets:\n((?: {6}.*\n)+)/m.exec(caller)[1];
   return [...block.matchAll(/^ {6}([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$/gm)].map(([, as, secret]) => [as, secret]);
 };
-// The run-claude-cli input each reusable secret reaches in ci-workflows
-// pr-review-cli.yml: review-key passes CLAUDE_API_KEY as api-key,
-// review-subscription CLAUDE_CODE_OAUTH_TOKEN as subscription-token,
-// review-fallback FALLBACK_CLAUDE_CODE_OAUTH_TOKEN as fallback-token.
 const LAUNCHER_INPUT = {
   CLAUDE_API_KEY: "api-key",
   CLAUDE_CODE_OAUTH_TOKEN: "subscription-token",
@@ -1465,8 +1405,6 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
     assert.equal(input(check, "credential-set"), `\${{ secrets.${used[i][1]} != '' }}`, job);
     assert.equal(input(check, "fallback-set"), fallbackSet[job], job);
   });
-  // Each secret's value reaches only its leg's launcher step; elsewhere a
-  // job may ask only whether it is set.
   for (const job of LEGS) {
     for (const s of STEPS[job]) {
       const values = [...s.text.matchAll(/secrets\.([A-Z_]+)(?![A-Z_]| != '')/g)].map(([, name]) => name);
@@ -1477,10 +1415,6 @@ test("the legs run the review lanes' credentials in the review lanes' order", ()
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
 });
 
-// run-claude-cli's handoff-reason (its action.yml at the pinned SHA): a key
-// leg hands off on credit-stop or auth, a subscription leg with fallback-ready
-// on limit-stop, credit-stop or auth; an empty credential with a later leg's
-// set hands off as no-key (report-lane-outcome's fallback-reason).
 const ROUTES = {
   "review-handoffs": ["credit-stop", "auth", "no-key"],
   "collect-subscription-handoffs": ["limit-stop", "credit-stop", "auth", "no-key"],
@@ -1543,15 +1477,11 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
     assert.equal(needsOf(route), route === "review-handoffs" ? `[check-trigger, ${PROBE}, ${from}]` : from);
     const gated = route === "review-handoffs" ? `\\n {6}\\|\\| needs\\.review\\.result == 'skipped' && needs\\.${PROBE}\\.outputs\\.next-leg == 'subscription'\\n[^)]*` : "";
     assert.match(routeJob, new RegExp(`&& \\(needs\\.${from}\\.outputs\\.claude-review != '' \\|\\| needs\\.${from}\\.outputs\\.claude-security-review != ''${gated}\\)`));
-    // !cancelled(): one lane's failed leg does not drop the other lane's
-    // handoff; the route still passes on only closed-set reasons.
     assert.match(routeJob, /^ {4}if: >-\n {6}!cancelled\(\)\n {6}&& github\.ref == 'refs\/heads\/main'\n/m);
     assert.doesNotMatch(routeJob, /always\(\)/);
     const leg = jobText(to);
     assert.equal(needsOf(to), `[${TEXT}, ${route}]`);
     assert.match(leg, new RegExp(`^ {6}matrix: \\$\\{\\{ fromJSON\\(needs\\.${route}\\.outputs\\.matrix\\) \\}\\}$`, "m"));
-    // !cancelled() with the route's own success: the implicit success() needs
-    // every ancestor, so one lane's failed leg would skip the other's.
     assert.match(leg, new RegExp(`^ {4}if: >-\\n {6}!cancelled\\(\\)\\n {6}&& needs\\.${route}\\.result == 'success'\\n {6}&& github\\.ref == 'refs\\/heads\\/main'\\n`, "m"));
     assert.doesNotMatch(leg, /always\(\) \|\|/);
     for (const lane of ["claude-review", "claude-security-review"]) {
@@ -1580,8 +1510,6 @@ test("a later leg runs only for the lanes the previous leg handed on", () => {
 
 test("the handoff step names its lane and a closed reason, and a handed-off leg stays green", () => {
   for (const job of [KEY, SUB]) {
-    // Any chunk's handoff hands the whole lane on: the next-leg call reads
-    // every chunk's (select-model-credential, credential-legs.test.mjs).
     const next = step("Pick the next leg", job);
     assert.match(next, /^ {8}id: next$/m);
     assert.match(next, /^ {8}if: \$\{\{ always\(\) \}\}$/m);
@@ -1673,9 +1601,6 @@ test("the prompt says a rename-only entry is unseen and a change that references
   assert.ok(prompt.indexOf("rename from") < prompt.indexOf("DIFF_PARTS"));
 });
 
-// An upstream-status skip fails the leg before its review starts, so the run
-// is a failed first attempt the lost-run reconciler re-runs once with a record
-// (reconcile.mjs RECORDED_LANES, holdReason); a kill-switch stop stays green.
 test("each leg's kill-switch report fails on an upstream outage and passes a kill-switch stop", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "report-"));
   try {

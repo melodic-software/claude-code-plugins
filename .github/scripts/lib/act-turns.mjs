@@ -1,12 +1,3 @@
-// The "Check the skill took a model turn" step of pr-run-activity-read.yml and
-// pr-run-activity-write.yml: reads the skill run's execution file, writes
-// act-turns.json within the 32768-byte carry cap and sets the step's turns and
-// models outputs. A slash command whose expansion fails ends with a `success`
-// result and no model turn, so the act did nothing: that fails the step.
-//
-// Each runner copies this file out of the base before the model runs, with
-// its SHA-256 as a step output, and the step imports only a copy that matches.
-// It imports nothing but node: modules, so the step can load it from its bytes.
 import { Buffer } from "node:buffer";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -17,9 +8,6 @@ const textOf = (content) =>
   typeof content === "string" ? content : (content ?? []).map((block) => block?.text ?? "").join("\n");
 const serialize = (value) => `${JSON.stringify(value, null, 2)}\n`;
 
-// Assistant messages in the main loop (null parent_tool_use_id) and in
-// subagents (set), as messages and as distinct model turns by message id, so a
-// num_turns past --max-turns can be checked against the run's own evidence.
 export function turnCounts(messages) {
   const counts = { main_loop: 0, subagent: 0, main_loop_turns: 0, subagent_turns: 0 };
   const seen = new Set();
@@ -36,9 +24,6 @@ export function turnCounts(messages) {
   return counts.subagent === 0 ? { ...counts, note: MAIN_LOOP_ONLY } : counts;
 }
 
-// The run fields act-turns.json records, with `redact` applied to every text
-// the run produced, and the file's text, within CAP: the oldest stderr entries
-// drop first, then denials from the end.
 export function actTurns(messages, { redact = (text) => text } = {}) {
   const result = messages.filter((m) => m?.type === "result").at(-1) ?? {};
   const stderr = messages
@@ -47,10 +32,6 @@ export function actTurns(messages, { redact = (text) => text } = {}) {
     .filter((text) => text.includes("<local-command-stderr>"));
   const models = Object.keys(result.modelUsage ?? {});
   const denials = result.permission_denials ?? [];
-  // The first 20 calls the permission mode denied, each with its tool name
-  // cut to 100 characters and its command, file_path, path or pattern cut to
-  // 300; denied_total counts them all. Entries drop from the end until denied
-  // serializes to at most 8192 bytes (a JSON-escaped control character is 6 bytes).
   const denied = denials.slice(0, 20).map((d) => {
     const i = d?.tool_input ?? {};
     const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
@@ -64,8 +45,6 @@ export function actTurns(messages, { redact = (text) => text } = {}) {
     turn_counts: turnCounts(messages),
     duration_ms: result.duration_ms ?? null,
     models: models.slice(0, 10).map((name) => name.slice(0, 100)),
-    // The CLI's own report of a failed slash command expansion: the first 4,
-    // each cut to 2000 characters; local_command_stderr_total counts them all.
     local_command_stderr: stderr.slice(0, 4).map((text) => redact(text).slice(0, 2000)),
     local_command_stderr_total: stderr.length,
     denied,
@@ -80,11 +59,8 @@ export function actTurns(messages, { redact = (text) => text } = {}) {
   return { diag, models, text };
 }
 
-// The step body. `summary` writes the run fields to the step summary: the
-// write runner does; the read runner shows them only after its scan job's leak scan.
 export async function runStep({ core, executionFile, replyDir, redact, summary = false }) {
   const out = `${replyDir}/act-turns.json`;
-  // Head code could have planted one; only this step's copy is uploaded.
   rmSync(out, { force: true });
   let messages;
   try {
@@ -108,11 +84,9 @@ export async function runStep({ core, executionFile, replyDir, redact, summary =
     };
     await core.summary
       .addHeading("Skill run", 3)
-      // addCodeBlock does not escape its text.
       .addCodeBlock(JSON.stringify(shown, null, 2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"), "json")
       .write();
   }
-  // JSON escapes newlines, so no field can start a workflow command.
   core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: models.length }));
   if (Number.isSafeInteger(diag.num_turns) && diag.num_turns >= 0) {
     core.setOutput("turns", String(diag.num_turns));

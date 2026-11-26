@@ -56,7 +56,7 @@ DIRECTIVE = re.compile(
     | \bhadolint\s+ignore= | \byamllint\s+(?:disable|enable) | \bcheckov:skip= | \btfsec:ignore
     | \btrivy:ignore | \bdotnet_diagnostic | \bReSharper\s+(?:disable|restore)\b | \bnoinspection\b
     | \b@formatter:(?:off|on)\b | \blgtm\b | \bcoverage:\s*ignore
-    | ^\s*//go:\w | ^\s*//\s*\+build\b | ^\s*//line\s | ^\s*/// <reference\b
+    | ^\s*//go:\w | ^\s*//\s*\+build\b | ^\s*//line\s | ^\s*///\s*<reference\b
     | ^\s*(?:\#|//|--|/\*)\s*\#?(?:end)?region\b | <editor-fold\b | </editor-fold> | \{\{\{\d*\s*$ | \}\}\}\d*\s*$
     | (?:^|\s)(?:vim?|ex):\s*(?:set?\s|[a-z]+=) | -\*-.*-\*- | \bLocal\s+Variables:
     | \byaml-language-server:\s*\$schema= | \bfrozen_string_literal:\s*(?:true|false) | ^\s*\#\s*syntax=

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Expected values pinned against Biome 2.6.7: `lint --reporter=concise` prints
-# "<mark> <path>:<line>:<col>: <category>: <message>", and a config Biome cannot
-# parse prints "<path>/biome.json:<line>:<col> parse" lines, which must not read
-# as a finding (https://biomejs.dev/reference/cli/#--reporterformat).
-# BIOME_TEST_BIN names a native Biome binary; else `biome` on PATH is used.
 # test-scope: plugins/javascript-format/git-hooks/entries.json plugins/javascript-format/git-hooks/adapters.sh
 # test-scope: plugins/javascript-format/lib/git-hooks/check-lib.sh plugins/javascript-format/lib/git-hooks/resolve-tool.sh
 # shellcheck disable=SC2016 # record commands are literal text

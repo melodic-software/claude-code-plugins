@@ -1,21 +1,9 @@
 # shellcheck shell=bash
-# One resolver for detect.sh's target list. Sourceable; not invoked directly.
-# Every entry form (no paths, explicit paths, a directory, --paths-file,
-# offset/limit) comes through resolve_targets. The git ladder (git on PATH, work
-# tree confirmed, ls-files succeeded) lives in list_tracked_or_fallback alone,
-# and list_tracked_markdown is the one place that sets core.quotePath=false.
 
-# list_tracked_markdown <dir>: tracked *.md paths relative to dir, one per line.
-# The exit status is git's. quotePath is forced off so a non-ASCII name is the
-# raw filename, not a C-quoted escape. Every git call here and in the callers
-# turns off core.fsmonitor and hooks, so a target repository's own config
-# runs no program.
 list_tracked_markdown() {
   git -c core.fsmonitor= -c core.hooksPath=/dev/null -C "$1" -c core.quotePath=false ls-files '*.md'
 }
 
-# Strip one trailing slash, except a Windows drive root (`C:/`) or `/`.
-# `C:\` is unchanged: this strip only removes `/`.
 normalize_dir_target() {
   local dir="${1%/}"
   if [[ -z "$dir" || "$dir" == [A-Za-z]: ]]; then
@@ -25,22 +13,6 @@ normalize_dir_target() {
   printf '%s\n' "$dir"
 }
 
-# list_tracked_or_fallback <dir> <walk|none>: tracked markdown under dir, or the
-# fallback, with the stderr line that names why the fallback ran.
-#   walk: a directory target. Prints paths spelled as the caller spelled <dir>.
-#         Where git cannot confirm a work tree, a filesystem walk replaces the
-#         listing; a failed ls-files yields nothing.
-#   none: a bare invocation. Prints paths relative to <dir>; every failure
-#         yields nothing.
-#
-# The caller's own spelling of <dir> is the only anchor. Git Bash answers
-# `C:/Users/...` for the checkout a shell reaches as `/tmp/...`, so a prefix
-# built from `git rev-parse --show-toplevel` or a filter built from `pwd` can
-# disagree with it; `git -C <dir> ls-files` answers relative to <dir> itself.
-# The branch is chosen from `--is-inside-work-tree`, never from an empty
-# pipeline. A silent walk is valid only when git itself says the directory is
-# outside a checkout: a safe.directory refusal or an unreadable .git must
-# surface, not walk.
 list_tracked_or_fallback() {
   local dir="$1" mode="$2" inside listing status rel
 
@@ -92,21 +64,14 @@ list_tracked_or_fallback() {
   done <<<"$listing"
 }
 
-# expand_dir_target <dir>: markdown under dir, one path per line, spelled as the
-# caller spelled <dir>.
 expand_dir_target() {
   list_tracked_or_fallback "$(normalize_dir_target "$1")" walk
 }
 
-# list_repo_markdown <repo-root>: tracked markdown for a bare invocation.
-# Prints repo-relative paths; any failure prints its stderr line and no paths.
 list_repo_markdown() {
   list_tracked_or_fallback "$1" none
 }
 
-# resolve_targets <dest> <repo-root> <paths-file> <offset> <limit> <skip-window> [path...]
-# Fills dest with the sorted file list. skip-window is 1 for --list-targets,
-# which ignores offset and limit. Returns 2 when paths-file is unreadable.
 resolve_targets() {
   local -n dest_ref="$1"
   local repo_root="$2" paths_file="$3" offset="$4" limit="$5" skip_window="$6"

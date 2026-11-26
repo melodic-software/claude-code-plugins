@@ -1,16 +1,3 @@
-// Expected values come from the verdict rules in
-// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): the artifact is named pr-verify-<pr>-<head-sha>-<verdict>, the
-// verdict JSON holds {pr, head_sha, base_sha, head_ref, linked_issues,
-// verdict, summary, notes, evidence, run_id}, each linked issue records its
-// author, and malformed output writes nothing. The evidence block records that no
-// app check ran (no-app) and the PR body's `Evidence loop: k/3`
-// count, and never fails the verdict. The output comes from the last result
-// message of run-claude-cli's execution file, a JSON array of CLI messages
-// (its action.yml, output execution-file), and model text shaped like a
-// credential (an Anthropic key or OAuth token, both sk-ant-; a GitHub token,
-// per GitHub's documented ghp_ prefix and 36-character body; an AWS access key
-// id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing on a
-// pass, and on a fail, which stands, withholds all of the model's text.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -183,7 +170,6 @@ test("a name the readers would not take is refused before any upload", () => {
 });
 
 test("the head-ref digest is the first 16 hex digits of the branch's SHA-256", () => {
-  // `printf %s <ref> | sha256sum`, cut to 16 digits.
   assert.equal(HEAD_REF_DIGEST_HEX, 16);
   assert.equal(headRefDigest("feat/x"), "79b4cc554b80dca6");
   assert.equal(headRefDigest("feat/a+b"), "a27da2afd9962004");
@@ -265,7 +251,6 @@ test("linked issues outside their schema throw", () => {
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [edited], output: ok }).linked_issues, [edited]);
 });
 
-// Built at run time so no key-shaped literal sits in the repository.
 const KEY = `${"sk-ant-"}api03-${"Q".repeat(40)}`;
 const TOKEN = `${"sk-ant-"}oat01-${"Z".repeat(40)}`;
 
@@ -384,7 +369,6 @@ test("naming the key prefix alone is not a credential", () => {
   assert.equal(buildVerdict({ ...ids, output }).summary, "keys start with sk-ant-");
 });
 
-// Other credential shapes from their published formats, also built at run time.
 const GITHUB_TOKEN = `${"ghp_"}${"k".repeat(36)}`;
 const AWS_KEY = `${"AKIA"}${"Q7".repeat(8)}`;
 const PEM = `-----BEGIN ${"RSA PRIVATE"} KEY-----`;
@@ -521,7 +505,6 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     writeFileSync(file, JSON.stringify([{ type: "system" }, read, { type: "result", subtype: "success", structured_output: output }]));
     return file;
   };
-  // run-claude-cli's log: one JSON object per leg, each with its denial count.
   const log = (name, ...counts) => {
     const file = path.join(dir, `${name}.jsonl`);
     writeFileSync(file, counts.map((count, i) => JSON.stringify({ leg: i + 1, denials: { count } })).join("\n"));
@@ -645,7 +628,6 @@ test("mergeChunks passes only when every chunk does, and a fail's notes come fir
   assert.equal(failed.verdict, "fail");
   assert.deepEqual(failed.notes, [...CHUNK_FAIL.notes, ...CHUNK_NOTES.notes]);
   assert.match(failed.summary, /^Chunk 3 of 3, fail: chunk broken\n/);
-  // Notes start with their path, which verify-notes.mjs noteComments anchors on.
   assert.ok(failed.notes.every((note) => !note.startsWith("Chunk")));
   const crowded = { ...CHUNK_NOTES, notes: Array(40).fill("docs/a.md: note") };
   const built = buildVerdict({ ...ids, output: mergeChunks([crowded, CHUNK_FAIL], FINAL_PASS) });

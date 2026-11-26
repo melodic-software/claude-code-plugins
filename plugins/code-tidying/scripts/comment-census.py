@@ -85,8 +85,6 @@ def tracked_files(roots: list[Path], code_ext: set[str] | None = None) -> list[P
                 cwd=str(root),
             ).stdout
             names = [n for n in listing.decode(errors="replace").split("\0") if n]
-            # Pathspec `.` with cwd=root: a repo-relative pathspec run from
-            # inside that directory would look for root/root and match nothing.
             found = [root / n for n in names]
         except (subprocess.CalledProcessError, FileNotFoundError):
             found = [p for p in root.rglob("*") if p.is_file()]
@@ -110,8 +108,6 @@ def scc_counts(files: list[Path]) -> dict[str, dict] | None:
     exe = shutil.which("scc")
     if not exe or not files:
         return None
-    # `git ls-files` names are attacker-chosen (`-o=evil.json`): `--` ends scc's flag
-    # parsing, and the `./` prefix keeps a bare relative name from reading as a flag.
     proc = subprocess.run(
         [
             exe,

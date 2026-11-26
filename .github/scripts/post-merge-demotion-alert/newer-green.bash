@@ -1,18 +1,4 @@
 # shellcheck shell=bash
-# newer_green_of REPO WORKFLOW_ID RUN_ID RUN_CREATED RUN_SHA prints, as
-# <id>\t<sha>, the newest full run of WORKFLOW_ID on REPO's main, newer than
-# run RUN_ID, whose attempt 1 passed (a listed run shows its latest attempt)
-# and that a schedule or the lane's github-actions[bot] dispatch started, or
-# nothing when there is none: a person dispatching until a run passes is no
-# recovery, as babysit_postmerge.py's `_outcome` rule holds. It counts only
-# when its head descends from RUN_SHA and is on main's history (a ref named
-# main, a tag included, can sit anywhere): compare RUN_SHA...newer and
-# newer...<main's tip, read by heads/main> must each read ahead or identical.
-# A failed listing returns 1; any other failed read or status prints nothing.
-# At most four reads: one listing (newest ten), two compares and the ref.
-# post-merge-file-demotion-issues.yml sources it to file nothing for a dispatched
-# red run main already recovered from; babysit_postmerge.py's
-# `_Context.superseded` holds the same rule for what pr-merge re-runs.
 newer_green_of() {
   local found newer_id newer_sha ancestry main_tip on_main
   found="$(NG_REPO="$1" NG_RUN_ID="$3" NG_CREATED="$4" gh api \

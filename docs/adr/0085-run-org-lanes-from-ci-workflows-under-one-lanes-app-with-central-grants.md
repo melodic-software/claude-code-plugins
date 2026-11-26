@@ -67,13 +67,14 @@ prefixed repository; a `.github/` or `docs/` path with no prefix is this reposit
 - **Lane model steps hold no write token.** Every model activity has `effect: read`
   (`docs/conventions/pr-pipeline.yaml:11,42,102,176,236,332`); every write is a scripted `apply-*`
   or `report-*` activity, and patch-carrying ones run under `patch-rules.json`, whose rows all
-  refuse the `UNIVERSAL_REFUSE` classes (`.github/actions/resolve-config/patch-rules.mjs:9-18,39-43`).
+  refuse the `UNIVERSAL_REFUSE` classes (`.github/actions/resolve-config/patch-rules.mjs:5-14,31-35`).
   Those classes cover workflows and CODEOWNERS, not `.github/actions/**` or `.github/standards/**`.
   Every workflow job that runs a model holds no write scope, write credential or dependency cache
   ([`.github/scripts/lib/model-job-permissions.test.mjs`](../../.github/scripts/lib/model-job-permissions.test.mjs)).
 - **Only intake calls ci-workflows today**, for its model jobs (`.github/workflows/intake-triage.yml:297`);
   its write job mints from the caller file (`intake-triage.yml:440-447`). The review lanes call
-  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml:248`) and sit outside the broker.
+  `pr-review-cli.yml` (`.github/workflows/pr-review-hosted.yml`, job `pr-review`) and sit outside
+  the broker.
 
 ### Corrected premise
 
@@ -125,8 +126,10 @@ adds.
    grants and trusted actors central, a consumer's main supplies the broker only its caller file.
 6. **No lane can edit the central grant file or the trusted-actor list.** Both paths join a new
    class in `UNIVERSAL_REFUSE` and the `patch-rules.schema.json` enum, so `checkPatchRules` fails any
-   row that omits it. This repository's change alone; per `patch-rules.mjs:1-3` it needs no broker
-   pin. A person's pull request can still change them.
+   row that omits it. This repository's change alone: `checkPatchRules` lives in `patch-rules.mjs`,
+   outside `resolve.mjs`, which the broker fetches at a pinned commit and which never checks patch
+   rules, so a change to the refusal set needs no broker pin. A person's pull request can still
+   change them.
 7. **The broker change is one-time.** azure-iac accepts the ci-workflows reusable at an allowed SHA,
    reads grants, lane rules and trusted actors from this repository's main by repository id, and
    replaces `UNBLOCK_REPOSITORY_IDS`, `INTAKE_REPOSITORY_IDS` and `SELF_JOB_CALLERS`

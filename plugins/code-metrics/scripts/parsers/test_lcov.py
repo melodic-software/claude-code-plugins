@@ -107,10 +107,6 @@ class PathAndShapeTests(unittest.TestCase):
         self.assertEqual(sorted(document), ["src/a.ts", "src/b.ts"])
 
     def test_repeated_sections_for_one_file_fold_their_functions(self) -> None:
-        # A tracefile that concatenates two suites' runs carries the same file
-        # twice. The line counts already merge with max; the function records
-        # must too, or the second block's FNDA:0 erases the first block's hit
-        # and the function reports 0 percent inside a covered file.
         with tempfile.TemporaryDirectory() as tmp:
             artifact = Path(tmp) / "repeated.info"
             artifact.write_text(

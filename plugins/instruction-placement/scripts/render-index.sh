@@ -1,59 +1,4 @@
 #!/usr/bin/env bash
-# render-index.sh — generate the always-loaded index of deferred instruction surfaces.
-#
-# WHY. Every instruction surface that loads on demand — a path-scoped rule, a
-# nested CLAUDE.md/AGENTS.md — arrives only when a file it covers triggers it,
-# and returns after compaction only when its trigger recurs (which tool
-# calls trigger each surface, by version: context/verified-mechanics.md). The
-# injection itself does reach subagents: a subagent that reads a covered path
-# receives the surface exactly as the main session does (measured on 2.1.268). What no deferred surface supplies is the
-# knowledge that it exists, to any context that has not happened to touch a
-# covered path. An always-loaded index converts those surfaces from INVISIBLE to
-# DISCOVERABLE: the agent learns the surface exists and can reach it with an
-# ordinary Read before any covered file is touched.
-#
-# This is the same trade Claude Code already makes for skills — the listing is
-# always in context, the body loads on demand. The index is the listing for rules.
-#
-# WHAT IS INDEXED, AND WHAT IS NOT. Only surfaces that DEFER. An unscoped rule
-# already loads in every session, so indexing it would spend always-loaded budget
-# restating something already present. The index earns its own cost by covering
-# exactly what would otherwise be missing.
-#
-# The block is delimited by HTML comments, which Claude Code strips from memory
-# files before injecting them, so the markers cost no context while remaining
-# visible on disk to this script.
-#
-# Subcommands, usage and exit codes: usage() below, or --help. Beyond that
-# text: `reachable` exits 0 for LOADED or NATIVE, and exit 2 also means an
-# unusable path (a --root or --file die() rejects), not only a usage error.
-#
-# `reachable` exists because a CLAUDE.md is read INSTEAD of the AGENTS.md beside
-# it. A repository carrying both with no import between them gets an index
-# nothing ever reads, while every other gate reports green — the entire
-# subagent-gap mitigation silently doing nothing.
-#
-#   Decision: the reachability and wiring gates treat the three CLAUDE.md names
-#     that ip_entry_points_on_path walks as shadowing an AGENTS.md, and an
-#     `@AGENTS.md` import or symlink as what carries it in. Canary runs on
-#     Claude Code 2.1.278 observed the shadowing.
-#   Pointer: when deciding which files shadow AGENTS.md, fetch
-#     https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md live.
-#
-# So a target nothing blocks gets the third verdict NATIVE rather than a pass or
-# a failure: availability (version, whether the built-in agents-md plugin is
-# enabled, the first session after an upgrade) is not observable from a repository, and
-# neither is a CLAUDE.md above the repository root.
-#
-# `wiring` asks the same question one level down. The index lists every nested
-# AGENTS.md as a surface that "enters context automatically ... once a file it
-# covers triggers it". A nested CLAUDE.md and a nested AGENTS.md share the
-# Read trigger; what separates them is that a CLAUDE.md on the file's own path is
-# read instead of it, and then only an import or symlink from one of those
-# CLAUDE.md files brings it in. A blocked, unimported nested AGENTS.md is
-# indexed, in sync, and never loaded; `check` cannot see the difference because
-# it compares text, not wiring.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,6 +10,8 @@ discover="$SCRIPT_DIR/lib/discover.sh"
 MAX_ROWS="${CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS:-40}"
 [[ "$MAX_ROWS" =~ ^[0-9]+$ ]] || MAX_ROWS=40
 
+# Claude Code strips block-level HTML comments from CLAUDE.md before injecting it.
+# https://code.claude.com/docs/en/memory
 BEGIN_MARKER="<!-- BEGIN GENERATED: instruction-placement rules index -->"
 END_MARKER="<!-- END GENERATED: instruction-placement rules index -->"
 
@@ -122,9 +69,6 @@ first_h1() {
   grep -m1 '^# ' "$1" 2>/dev/null | sed 's/^#[[:space:]]*//'
 }
 
-# Rule title, in preference order: an explicit `description:` frontmatter value,
-# then the first H1, then the basename. The frontmatter key is optional and
-# ignored by Claude Code, which parses `paths:` and leaves other keys alone.
 rule_title() {
   local file="$1" title
   title="$(awk '
@@ -195,15 +139,6 @@ render_block() {
   if ((${#rows[@]} == 0)); then
     printf '\n%s\n\n' "$EMPTY_NOTE"
   else
-    # The preamble names no trigger list: it covers nested AGENTS.md rows too,
-    # whose triggers differ from a rule's, and every consuming repo would carry
-    # a stale list after the next release. It links the live sections instead.
-    # - **Pointer**: when the preamble's wording about what loads a surface is
-    #   in question, fetch https://code.claude.com/docs/en/memory#path-specific-rules
-    #   (rules), https://code.claude.com/docs/en/memory#how-claude-md-files-load
-    #   (nested CLAUDE.md) and
-    #   https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
-    #   (AGENTS.md) live (per-surface detail: context/verified-mechanics.md).
     cat <<'PREAMBLE'
 
 ## Conventions that load on demand
@@ -266,14 +201,6 @@ print_fix() {
   printf 'FIX\tbash "%s/render-index.sh" write --file "%s" --root "%s"\n' "$SCRIPT_DIR" "$TARGET" "$PWD"
 }
 
-# A drive-letter path may arrive with backslashes (`C:\repo\AGENTS.md`), the
-# spelling a PowerShell or cmd caller produces. GNU dirname and basename do not
-# treat `\` as a separator, so splitting that value yields `.` and the whole
-# string, TARGET_NORM becomes `$PWD/C:\repo\AGENTS.md`, `reachable` asks about
-# a path that does not exist, and `write` warns that a reachable index is
-# unreachable. Re-spell once at intake so every later use sees one form. Only
-# the drive-letter shape is touched: a POSIX path may legitimately carry a
-# literal backslash, and it is passed through untouched.
 normalize_drive_path() {
   local p="$1"
   if [[ "$p" =~ ^[A-Za-z]:[\\/] ]]; then
@@ -337,20 +264,6 @@ if [[ "$SUBCOMMAND" != "render" && "$SUBCOMMAND" != "wiring" && -z "$TARGET" ]];
   die "$SUBCOMMAND needs --file"
 fi
 
-# Resolve the target before entering --root.
-#
-# A relative `--file` belongs to `--root` WHEN `--root` WAS GIVEN. A caller who
-# names a repository explicitly and then writes `--file AGENTS.md` means that
-# repository's file; anchoring it to the caller's own directory finds nothing
-# and dies with "--file is not a readable file". Without `--root` the two are
-# the same directory anyway, so the caller's cwd stays the anchor and nothing
-# is silently re-anchored: the re-anchoring only happens where the caller asked
-# for it by naming a root.
-#
-# A drive-letter path is ABSOLUTE. `git rev-parse --show-toplevel` answers
-# `C:/repo` under Git Bash, so that spelling is what a caller on Windows hands
-# `--file` and `--root`. Read as relative, it would join to the calling
-# directory as `/d/cwd/C:/repo/AGENTS.md`, which `check` cannot read.
 if [[ -n "$TARGET" ]] && ! is_abs_path "$TARGET"; then
   anchor="$PWD"
   if ((ROOT_GIVEN)); then
@@ -361,30 +274,10 @@ fi
 
 cd "$ROOT" || die "cannot enter --root: $ROOT"
 
-# One directory has several spellings on Git Bash: `C:/repo` from git, `/c/repo`
-# from `pwd`. After the `cd` above, `$PWD` holds the shell's own spelling of
-# ROOT, so a TARGET still written in git's spelling shares no prefix with it and
-# every `${TARGET#"$PWD"/}` strip below silently leaves the path absolute --
-# which makes `reachable` ask about a target it cannot name and `write` warn
-# about reachability it never actually tested.
-#
-# TARGET_NORM re-spells the target in the shell's own form by asking the
-# directory itself (`cd "$dir" && pwd`), which is the same call that produced
-# `$PWD`. TARGET itself is left as the caller wrote it, after the backslash
-# re-spelling at intake: every read, every write and every
-# `WROTE`/`DRIFTED`/`IN-SYNC` line still names the path the caller asked about.
-#
-# Residual, recorded rather than implied: this unifies spellings of the SAME
-# directory family. A `--root C:/repo` paired with a `--file` reached through an
-# unrelated alias (a mount whose `pwd` form differs from the target's) still
-# shares no prefix and stays absolute -- the fail-open direction, and not a
-# shape any caller in this repository produces.
 TARGET_NORM="$TARGET"
 if [[ -n "$TARGET" ]]; then
   target_dir="$(dirname -- "$TARGET")"
   target_base="$(basename -- "$TARGET")"
-  # `pwd` prints a trailing slash only for `/` itself, so stripping one keeps
-  # the root case from joining as `//base`.
   if target_dir_norm="$(cd "$target_dir" 2>/dev/null && pwd)"; then
     TARGET_NORM="${target_dir_norm%/}/$target_base"
   fi
@@ -397,35 +290,6 @@ if [[ "$SUBCOMMAND" == "reachable" ]]; then
   exit $?
 fi
 
-# One `WIRED|NATIVE|UNWIRED\t<nested AGENTS.md>\t<detail>` row per nested
-# AGENTS.md discovery returns. Wired means some instruction entry point IS the
-# file (a symlink) or reaches it through the import chase the rest of this
-# plugin uses. `ip_entry_points_on_path` supplies the walk, shared with
-# `ip_index_target_loaded` so the two verdicts cannot disagree about one tree:
-# the CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md beside it (the prescribed
-# layout, nearest first), then any in an ancestor directory up to the root. An
-# import from any of those brings the file into context, so a file reached that
-# way loads and is not a finding. Entry points are read from the filesystem, so
-# a gitignored CLAUDE.local.md shim counts.
-#
-# An UNWIRED row is a finding under the DEFAULT instruction-files mode, and
-# under the user-settings option `claude-md-and-agents-md` too: that option
-# reads both files, "each directory's `CLAUDE.md` files first and its
-# `AGENTS.md` after them", but the page does not say when a subdirectory's
-# AGENTS.md loads under it, so the row is not treated as a false positive.
-# The import stays harmless either way: "Claude Code skips an `AGENTS.md` it has
-# already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
-# twice" (code.claude.com/docs/en/memory, "Choose which instruction files load";
-# fetched 2026-10-01; recheck when that table changes). The setting is a user,
-# `--settings` or managed one, which no repository can ship, so the gate keeps
-# the default's answer.
-#
-# NATIVE means no CLAUDE.md, CLAUDE.local.md or root .claude/CLAUDE.md sits on
-# the file's own path, so nothing in this repository stops Claude Code reading
-# it and the import would add nothing. It is not a pass: availability, and a
-# CLAUDE.md above the repository root, are outside what this can see.
-#
-# Returns 1 when any row is UNWIRED.
 nested_agents_wiring() {
   local nested dir want entry wired blocker unwired=0
   while IFS= read -r nested; do
@@ -545,14 +409,6 @@ write)
         { if (blankheld) { print ""; blankheld = 0 } print }
       ' "$TARGET" >"$tmp"
     else
-      # The block travels through ENVIRON, not `awk -v`. POSIX has -v process
-      # escape sequences, so a rule path carrying a backslash would be rewritten
-      # on the way in -- gawk turns `\t` into a tab and drops an unknown
-      # escape's backslash, mawk passes both through. The markers are fixed text
-      # with no backslash in them and stay on -v; the block is generated from
-      # repository paths and does not. Writing a corrupted index is the one
-      # failure this script must never have, since nothing downstream re-reads
-      # it for sanity.
       IP_INDEX_BLOCK="$BLOCK" awk -v b="$BEGIN_MARKER" -v e="$END_MARKER" '
         $0 == b { print ENVIRON["IP_INDEX_BLOCK"]; skipping = 1; next }
         $0 == e { skipping = 0; next }

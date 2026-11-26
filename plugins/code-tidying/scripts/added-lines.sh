@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Exit: 0 on success (no rows when nothing was added); 2 on a missing or unknown base,
-# outside a repository, when a git diff fails, when any changed path holds a control character, which
-# would make a row ambiguous, or when a hunk header's start or count is not digits
-# (rows printed before that point are not to be trusted). Every diff passes
-# --no-ext-diff and --no-textconv, so a configured external diff or textconv driver
-# never shapes the output this script parses.
 set -euo pipefail
 
 if [[ $# -ne 1 || -z "$1" || "$1" == -* ]]; then

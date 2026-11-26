@@ -1,47 +1,4 @@
 #!/usr/bin/env bash
-# quote-check.sh: are the mechanics quotes still on their docs pages?
-#
-# Reads the fixed list in ../context/mechanics-sources.tsv (id, url, quote,
-# as_of), fetches each page once through fetch-docs.sh --cache, takes the
-# section the URL's anchor names with docs-cache.sh slice, and prints one
-# result per record:
-#
-#   verified <id>                  the quote is in that section
-#   drift <id> <url>               it is not; the next two lines are the stored
-#     stored:  <quote>             quote and the section's closest sentence
-#     fetched: <sentence>
-#   unverified <id> as of <as_of>  the page could not be read fresh
-#
-# It takes no URL or any other argument: what it fetches is the shipped list
-# and nothing else. Every fetch goes through fetch-docs.sh, so this script
-# makes no request of its own.
-#
-# Comparison follows the quote rule in ../context/verified-mechanics.md
-# ("Pointer records"): the section is read as the page renders it, link markup
-# and bold dropped, code spans kept, a table row's cells joined with ` | `, and
-# every whitespace run read as one space.
-#
-# A section is the heading whose text, reduced to ASCII letters and digits,
-# equals the anchor reduced the same way, so a docs slug rule that drops or
-# keeps punctuation still matches. A page that no longer has the heading is
-# drift: the page was read and the quote's section is gone. A URL with no
-# anchor is checked against the whole page.
-#
-# Every page is asked of the server on every run. A page that is not read
-# fresh, including cached bytes standing in for a failed fetch, is unverified:
-# those bytes say what the page said, not what it says.
-#
-# Exit: 0 whatever the results are (the lines are the result); 2 for an
-# argument or an unreadable list.
-#
-# Test seam:
-#   QUOTE_CHECK_FIXTURE_DIR  a directory of page snapshots in fetch-docs.sh's
-#       fixture layout (llms.txt and <slug>.md). Set means no network: it is
-#       passed on as FETCH_DOCS_FIXTURE_DIR, and the cache is a temporary one.
-#   QUOTE_CHECK_SOURCES      the list to read instead of the shipped one; read
-#       only with QUOTE_CHECK_FIXTURE_DIR set, so a live run fetches only the
-#       shipped list.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -89,8 +46,6 @@ WORK="$(mktemp -d)" || {
 }
 trap 'rm -rf "$WORK"' EXIT
 
-# Bash 3.2 has no mapfile: the records go into parallel arrays. Fields are
-# split by hand: read with a tab IFS would merge an empty field into the next.
 IDS=() URLS=() QUOTES=() AS_OF=()
 while IFS= read -r line || [[ -n "$line" ]]; do
   line="${line%$'\r'}"
@@ -118,8 +73,6 @@ fi
 FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" "${FETCH_ARGS[@]}" "${URLS[@]}" >/dev/null 2>&1
 MANIFEST="$WORK/docs/manifest.json"
 
-# Reads the section on stdin and the quote from QC_QUOTE. Prints `verified`, or
-# `drift<TAB><the sentence sharing the most words with the quote>`.
 # shellcheck disable=SC2016 # awk source, not shell
 COMPARE_AWK='
 function rendered(s,   p, o, k, c, n, seg, i) {

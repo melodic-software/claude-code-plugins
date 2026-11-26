@@ -14,7 +14,6 @@ const OTHER = "b".repeat(40);
 const APP = 337595936;
 const DEPENDABOT = 49699333;
 
-// GitHub verified and committed it, as it does Dependabot's commits.
 const SIGNED = { committer: { email: "noreply@github.com" }, verification: { verified: true, reason: "valid" } };
 const dependabotCommit = (sha, message = "bump") => ({
   sha,
@@ -142,8 +141,6 @@ test("select reviews a red ci-status even on a patch bump", async () => {
   assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
 });
 
-// The contract-only ci-status a full run in flight superseded, as GitHub
-// annotated it on the run that sent #10776 to a person.
 const EXIT = { annotation_level: "failure", message: "Process completed with exit code 1." };
 const superseded = (sha) => ({
   annotation_level: "failure",
@@ -414,8 +411,6 @@ test("select makes a github-actions[bot] commit review, even one touching only c
 });
 
 test("select counts no round marker at a head the pull request no longer has", async () => {
-  // #9131: `@dependabot recreate` replaced the reviewed commit, leaving two
-  // markers at a head that is not among the current commits.
   const result = await select({
     api: fakeApi({ comments: [marker(OTHER, "merge"), marker(OTHER, "merge")] }),
     pr: 7,
@@ -444,7 +439,6 @@ test("select counts the round marker at a current commit and not the one at a re
 });
 
 test("select counts every round marker when the commits listing is not the whole pull request", async () => {
-  // The listing stops at 250 commits, so a head missing from it proves nothing.
   const result = await select({
     api: fakeApi({ pull: { commits: 251 }, comments: [marker(HEAD, "fix"), marker(HEAD, "fix")], commits: [dependabotCommit(OTHER)] }),
     pr: 7,

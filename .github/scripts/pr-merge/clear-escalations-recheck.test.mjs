@@ -1,12 +1,3 @@
-// Expected values come from the owner's needs-human brief, Part A2, and the
-// coordinator's direction that ci-status re-runs the App's predicate instead
-// of trusting its marker: after the lanes App removed a stale review-lane hold,
-// the base commit's clear-escalations.mjs recheckStaleHold, run by ci-status with its own token,
-// judges the head the App's marker names (CLEARED_SHA), which must be the
-// head when the App removed the label, so a later clean push stays green
-// before its lanes run (thread PRRT_kwDOTCGFQM6xmIfF). A CRITICAL thread opened
-// after the clear, or a lane with no run at the cleared head, makes it fail.
-// Shapes are the review lanes' (#10743).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
