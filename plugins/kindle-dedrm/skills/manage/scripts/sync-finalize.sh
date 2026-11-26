@@ -7,6 +7,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KINDLE_UPDATES_DIR="${LOCALAPPDATA}/Amazon/Kindle/updates"
 CACHED_INSTALLER="${KINDLE_UPDATES_DIR}/KindleForPC-installer.exe"
+EXPECTED_KINDLE_VER="2.8.0.70980"
 
 echo "=== kindle-dedrm: sync finalize ==="
 
@@ -18,8 +19,8 @@ fi
 # $env:LOCALAPPDATA is expanded by PowerShell, not bash.
 # shellcheck disable=SC2016
 KINDLE_VER=$(powershell.exe -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\Amazon\Kindle\application\Kindle.exe").VersionInfo.FileVersion' 2>/dev/null | tr -d '\r\n ')
-if [[ "${KINDLE_VER}" != "2.8.0.70980" ]]; then
-  echo "[sync-finalize] WARNING: Kindle.exe version is ${KINDLE_VER}, expected 2.8.0.70980"
+if [[ "${KINDLE_VER}" != "${EXPECTED_KINDLE_VER}" ]]; then
+  echo "[sync-finalize] WARNING: Kindle.exe version is ${KINDLE_VER}, expected ${EXPECTED_KINDLE_VER}"
   echo "[sync-finalize] An auto-update may have run. See reference/troubleshooting.md 'Installed wrong Kindle for PC version'."
   echo "[sync-finalize] Continuing with cleanup anyway, but key extraction may fail until version is restored."
 fi
