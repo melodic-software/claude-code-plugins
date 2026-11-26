@@ -88,6 +88,7 @@ REGISTRY=(
   "check-detector-findings-crosswalk.sh|-|-|-"
   "check-discriminating-test-skips.sh|-|-|-"
   "check-docs-naming.sh|git|-|docs_naming"
+  "check-engineering-concepts.sh|jq|-|-"
   "check-docs-only-gate.sh|-|-|-"
   "check-docs-only.sh|-|-|-"
   "check-drive-root-litter.sh|-|-|-"
