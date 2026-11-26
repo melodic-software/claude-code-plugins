@@ -69,6 +69,23 @@ export function failComment({ head, summary, notes }) {
   ].join("\n");
 }
 
+export function supersededComment({ head, verdict }) {
+  return [VERIFY_NOTE_MARKER, `Superseded: the pr-verify verifier passed head \`${head}\` (${verdict}), so an earlier fail no longer holds this pull request. This comment's edit history keeps the fail.`].join("\n");
+}
+
+async function supersedeFailComment({ api, pull, verdict, log }) {
+  const { pr, head } = verdict;
+  if (pull.comments === 0) {
+    return;
+  }
+  const last = (await api.listIssueComments(pr)).findLast((comment) => markedBy(comment, VERIFY_NOTE_MARKER));
+  const body = supersededComment(verdict);
+  if (last !== undefined && last.body !== body) {
+    await api.updateIssueComment(last.id, body);
+    log(`#${pr}: the ${verdict.verdict} at ${head} marked its fail comment superseded`);
+  }
+}
+
 const hasLabel = async (api, pull, pr, name = FAILED_LABEL) => (Array.isArray(pull?.labels) ? pull.labels : await api.listLabels(pr)).some((label) => label.name === name);
 
 async function everyStep(log, steps) {
@@ -189,10 +206,15 @@ export async function findStaleNotes({ api, verdict, appId, log }) {
     return false;
   }
   if (pull.user?.id !== appId) {
-    if (await hasLabel(api, pull, pr)) {
-      await api.removeLabel(pr, FAILED_LABEL);
-      log(`#${pr}: the ${verdict.verdict} at ${head} removed ${FAILED_LABEL}`);
-    }
+    await everyStep(log, [
+      async () => {
+        if (await hasLabel(api, pull, pr)) {
+          await api.removeLabel(pr, FAILED_LABEL);
+          log(`#${pr}: the ${verdict.verdict} at ${head} removed ${FAILED_LABEL}`);
+        }
+      },
+      () => supersedeFailComment({ api, pull, verdict, log }),
+    ]);
     return false;
   }
   if (pull.review_comments === 0) {
