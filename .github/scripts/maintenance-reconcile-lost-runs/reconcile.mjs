@@ -1,250 +1,4 @@
 #!/usr/bin/env node
-// reconcile.mjs: re-runs PR CI and lane runs a GitHub outage ended without a
-// result. A run that ended cancelled, timed_out or startup_failure, on its
-// first attempt, is re-run once with the job's own token. Its attempt number is
-// the record: a run at attempt 2 or later was already re-run, by this script
-// or a person, and is never touched again: a CI run lost again is named in the
-// summary with who takes it. No model.
-//
-// These kinds are re-run:
-// - CI: a CI workflow's newest run on an open PR's current head. These
-//   workflows check no re-runner, but pr-verify, which runs after
-//   pr-require-checks, trusts its attempt 2 by github-actions[bot] only through
-//   this workflow's record of it, so each re-run that makes that attempt
-//   carries one, as a lane re-run does.
-// - Infra: the same run when it ended failure and every failure is one an
-//   outside outage explains (infra-failure.mjs). Only its failed jobs are
-//   re-run, through rerun-failed-jobs, once, at attempt 1 only,
-//   INFRA_BACKOFF_MINUTES after the attempt ended, and only while npm's and
-//   GitHub's status pages show indicator none. At attempt 2 fix-ci takes it.
-// - Flake: the same run when it ended failure on anything else, at attempt 1
-//   only: its failed jobs are re-run once, at the next hourly run, so a
-//   flaky test the diff did not cause can pass. pr-unblock's fix-ci does not
-//   wait for this re-run unless it is already queued or going, so it may run
-//   beside a fix-ci run (CI minutes, no model).
-// - Floor: a pr-require-checks run, at attempt 1 inside the lookback, whose
-//   failed jobs (Mark Lanes, or CI Status alone) failed only where the
-//   GITHUB_TOKEN hit its rate-limit floor (floorNoted: a rate guard's refusal,
-//   its "could not" lines and the exit note, nothing else). Its failed jobs
-//   are re-run once, recorded, as a flake is, but placed before lane runs: the
-//   floor is gone once the pool resets, and nothing else re-runs a ci-status
-//   that failed alone. Every floor kind (this one, Verdict's, and a lane run's
-//   that ended within RATE_WINDOW_MS) waits until RATE_RESET_GRACE_MS past the
-//   reset its refusals name (floorReset), so its one re-run is not spent
-//   inside the floor. A hosted review a kill switch stopped, or whose leg a
-//   rate limit held, goes in the same set (Review), read from its own jobs,
-//   since the floored ci-status never got to name it; so does one on a
-//   Switch set.
-// - Lane: a pr-verify, pr-review-main or pr-rate-merge-risk run whose first
-//   attempt ended as above or failure (a judgment that broke, a review every
-//   credential leg stopped on, a pr-verify run the kill switch stopped, which
-//   fails, or a rating stopped at the token's floor), and whose verdict write
-//   (RECORDED_LANES) never started in any job: a judgment that finished is never
-//   taken again, so a FAIL the write or upload then lost is held for a person,
-//   with the reason in the summary. Its trigger check trusts a re-run
-//   github-actions[bot] starts only through this workflow's record of it, the
-//   artifact rerunRecordName(run id, attempt, head SHA) (check-trusted-trigger's README). The
-//   plan step names each record, the workflow uploads them, and only then does
-//   the act step re-run the run, so the record exists before the re-run. The
-//   same holds for each CI re-run that carries a record.
-// - Held: a pr-verify or pr-review-main run whose first attempt a GitHub
-//   fault held green (resolve-pr.mjs closing; pr-review-main's unread file
-//   list): it succeeded with a `held: ` notice and no verdict. Re-run once, as
-//   a lane run is, with the same record, so a hold is retried on the next pass
-//   that reads; one where any job's verdict write started is held for a
-//   person, a run whose held job names a rate-limit reset (heldReset) waits
-//   until RATE_RESET_GRACE_MS past it, as a floor does, and a pr-review-main
-//   run waits out the upstream gate, as a lost lane run does. A pr-verify
-//   run its budget gate deferred (DEFER_STEP, with DEFER_NOTE's reset) is
-//   held the same way: it waits until RATE_RESET_GRACE_MS past that reset,
-//   and its re-run takes the DEFER_MAX band beside the hosted reviews'.
-//   Held runs matched to an open head go ahead of its other lane runs (laneOrder).
-//   Their succeeded runs are listed
-//   from FAULT_HELD_HOURS back, or from the carried `held_since` when that is
-//   earlier: the last pass that read, or the oldest first attempt that pass
-//   saw still going, inside the lookback. Only those an open head may own
-//   (followsNoOpenHead) have their jobs read, at most FAULT_HELD_READS a
-//   pass. A run held again at attempt 2 waits for the
-//   head's next checks run. A pr-rate-merge-risk run the lanes kill switch
-//   stopped is taken the same way: it succeeds with no rating, its resolver
-//   skipped in the last leg that ran (RATER_RESOLVE_STEP). This script reads
-//   nothing while the switch is on, so its first pass after the switch lifts
-//   re-runs it, once, at attempt 1 only.
-// - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
-//   pr-verify pass that the spec has since changed under (an issue edit, a
-//   new spec comment or a standards trusted-list commit after the pass:
-//   resolve-pr's `spec-changed`, the same read pr-verify makes, the list's
-//   time read once a run from STANDARDS_SHA, `listChangedAt`). The gate
-//   refuses that pass `verify:spec-changed`;
-//   the recorded re-run starts pr-verify, which judges the head against the
-//   spec as it is now. One batched GraphQL read of the linked issues' and
-//   their comments' times (`prefilterSpec`) keeps that full read off heads
-//   whose spec nobody touched since the pass; the same read, run first against
-//   the head's earliest checks run, keeps the pass reads off heads whose spec
-//   nobody touched since then. A spec can change again after the re-run's
-//   pass, so a passed run is re-run at each attempt below
-//   RECONCILER_ATTEMPT_CAP, each re-run recorded at the attempt it starts;
-//   one at the cap is named for a person. A run past attempt 1 is taken only
-//   once a pass started after its attempt did, so it is not re-run again
-//   while pr-verify still judges it. An edit or label later starts a new
-//   attempt-1 run.
-// - Too old: the same passed run, at attempt 1 only, inside GitHub's re-run window, on a pull
-//   request created more than TOO_OLD_DAYS ago whose head has no counted
-//   verdict (its pass expired: resolve-pr's `ok`). The gate refuses it
-//   `verify:too-old` until a fresh pass at the head; the recorded re-run
-//   starts pr-verify, which judges the head. A head a spec re-run takes is
-//   left to it.
-// - Switch: a lanes App PR whose newest pr-require-checks run failed, at
-//   attempt 1, only in ci-status, with ci-status's note that the lanes kill
-//   switch was on (KILL_SWITCH_NOTE). ci-status fails every lanes App PR while
-//   the switch is on, and nothing else re-runs it once the switch is lifted.
-//   This script reads nothing while the switch is on, so the first run after
-//   it is lifted re-runs that ci-status, recorded as a CI re-run, with no
-//   lookback: the switch may have been on for days. A run at attempt 2 or
-//   later is left to a person: this kind re-runs only a first attempt.
-// - Pending: any PR whose newest pr-require-checks run failed, at attempt 1,
-//   only in ci-status, and only on its notes that a review lane had not
-//   finished or had no run yet (PENDING_REVIEW_NOTE, MISSING_REVIEW_NOTE),
-//   while the newest pull_request run of each
-//   hosted review on the head has since completed, the last of them at least
-//   PENDING_BACKOFF_MINUTES ago. rerun-ci-status re-runs that ci-status when
-//   the review completes, unless it was lost or held it: it holds a lanes App
-//   PR's while the kill switch is on. Re-run as a Stop is, with no lookback.
-// - Verdict: a pr-dispatch-feedback.yml run, at attempt 1, whose only failed
-//   job is post-verify-notes and whose only failed step there is its
-//   kill-switch stop (VERDICT_STOP_STEP), or any one step that failed only
-//   where the GITHUB_TOKEN hit its rate-limit floor (floorNoted): a pr-verify
-//   verdict finished while the switch was on or the token was at its floor,
-//   so its notes, or its pr-verify-failed label added or removed, never
-//   reached the PR. Its failed jobs are re-run once, over the
-//   whole lookback, taking no place under MAX_IN_FLIGHT. The re-run's
-//   dispatch job sends no address-feedback round, which the lanes trust only
-//   from an attempt-1 dispatcher; it records the head instead, and the next
-//   pr-unblock-dispatch tick sends the round (feedback-dispatch.mjs
-//   recoverDeferred).
-// - Upstream: a pull_request run of a hosted review caller (GATED_REVIEWS), at
-//   attempt 1, whose only failed job is kill-switch and whose failed step
-//   there is UPSTREAM_STOP_STEP: the upstream-status gate skipped the review
-//   while GitHub Actions or npm listed an outage, so the head has no review.
-//   Its failed jobs are re-run once, inside the lookback, only while that gate
-//   would now let it run (check-upstream-status.mjs). The re-run carries a
-//   record, which pr-dispatch-feedback.yml's rerun-ci-status reads, so
-//   pr-verify's gate accepts the ci-status re-run the review's completion causes.
-//   A person's re-run of the review becomes attempt 3, which the merge gate
-//   never binds. The reusable's bot check reads `github.actor`, which a
-//   re-run keeps
-//   (https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context),
-//   and the merge gate binds the re-run (babysit_review_evidence
-//   `_upstream_stopped`). Any other failure or loss of these runs is not
-//   re-run here.
-// - Review: a hosted review run whose first attempt a kill switch stopped, on a
-//   head whose newest pr-require-checks run failed only in ci-status with its
-//   note of that stop (REVIEW_STOP_NOTE), at any attempt: rerun-ci-status
-//   re-runs ci-status when a stopped run completes. ci-status reads the
-//   newest review run, so re-running ci-status alone stays red. The whole
-//   review run is re-run, as none of its jobs failed. Its completion re-runs
-//   ci-status, which that listener records on the strength of this workflow's
-//   record. Only attempt 2 binds in the merge
-//   gate (babysit_review_evidence `_kill_switch_stopped`), so the one re-run
-//   waits until nothing would stop it again: the lane's own switch, read as its
-//   caller reads it (REVIEW_SWITCHES, only `true`, in any case, stops), and the upstream
-//   gate. Both lanes of a head go in one pass, each in its own place, or both
-//   wait, so their completions cost ci-status one attempt, not two. While the
-//   head's newest checks run is still going, a stopped lane waits for it, and
-//   the pass writes no `clean`. No lookback: a switch may be on for days, up
-//   to GitHub's RERUN_WINDOW_DAYS. A first attempt whose leg held on a GitHub
-//   API rate limit (`rateHeld`), named by ci-status's RATE_HELD_NOTE, goes the
-//   same way, once RATE_RESET_GRACE_MS past the latest reset its refusals
-//   name; the merge gate binds that attempt 2 (babysit_review_evidence
-//   `_rate_held`). A first attempt the defer gate stopped (its gate job's
-//   DEFER_NOTE, cause=defer with the window's reset) waits until
-//   RATE_RESET_GRACE_MS past that reset, so the first pass after it, the
-//   tick that follows the reset (reset-tick.mjs), re-runs it. Those
-//   re-runs take the DEFER_MAX band, not the places below; their attempt 2
-//   never defers.
-// Other lost lane runs (a review lane run lost any other way, refine) are listed
-// in the summary for a person: a review re-run would trade one review for
-// another, and refine's lanes token broker refuses a re-run
-// github-actions[bot] starts. Their own paths recover them instead: the babysit
-// merge gate re-runs a lost review run under the owner's token, and the
-// dispatchers send refine and feedback dispatch a fresh attempt-1 run
-// (fix-docs-dispatch.mjs for a PR's first lost run, feedback-dispatch.mjs). A merge-group run is not
-// covered: a re-run puts no PR back in the queue, and pr-merge re-enqueues its
-// own PRs once their checks pass.
-//
-// A run's attempt-1 jobs never change once it completed, so a lost lane run
-// held for good, and a failed intake or verdict run that is not one to re-run,
-// is read once: its id is carried in the SETTLED_ARTIFACT this pass uploads,
-// and the next pass, reading the newest scheduled or hand-started run of
-// main's copy of this workflow that holds one, skips each carried id its
-// listing still shows. A run to re-run is never carried (a deferred one still
-// gets its place later, and a re-run that fails is tried again), nor one whose
-// failed job's steps did not list in full. A carry that is missing or cannot be
-// read reads every run, as before.
-//
-// The same file carries each open PR's latest-attempt job reads (readJobs),
-// keyed on the run id and attempt, and used only while the head's live listing
-// shows that run completed at that attempt, head and updated_at: a new run or
-// attempt reads its jobs again. Only a whole, final listing whose every job's
-// steps listed in full is carried, so it carries no annotation, and a red head
-// re-reads nothing until it changes. A lost lane run's attempt-1 job read is
-// carried the same way while the run stays at attempt 1, so a lane run deferred
-// for want of a place is read once, not on every pass until it gets one.
-// It also carries each passed head's pass read (passStarts): the runs that
-// uploaded its passes, when each started, and when the first pass expires,
-// only from whole listings with every start read. Until that expiry the head
-// is pre-filtered on the carried starts; a pass the carry lacks or a re-run
-// attempt only moves the newest start later, so a carried read is trusted
-// only when the pre-filter drops it, and one it keeps is read again live.
-// Every decision still runs on each pass against the jobs, now and the status
-// pages, and act re-reads each run before it writes.
-//
-// Nothing is read from GitHub while githubstatus.com shows Actions as anything
-// but operational, or the status cannot be read, so a re-run never adds load
-// mid-incident. At most MAX_IN_FLIGHT re-runs are in flight at once (PR CI
-// sets and recorded lane runs, counting those already running), in three
-// bands, the PR sets in each merge-critical (auto-merge set) first, then
-// oldest PR: PR sets with anything but a flake re-run, then lane runs, then
-// flake-only sets. Nothing else re-runs a lane run, while fix-ci does not wait
-// for a flake re-run. A lane run's listing does not name its PR, so lane runs
-// go oldest first among those whose creation matches an open head's newest
-// checks completion (laneOrder), then the rest oldest first: a second run for
-// one head takes no place before a live one, and the newer runs each
-// kill-switch trip adds no longer push the oldest live ones back pass after
-// pass. A lost lane run that follows no open head's newest checks
-// completion is not re-run (laneOrder): it was created outside every open head's
-// window, so a re-run would judge nothing live, and after a brake the backlog
-// is mostly such runs. One pass uploads at most MAX_IN_FLIGHT records, so what
-// would pass that waits too. A pass that defers anything but
-// a flake-only set writes no `clean`, so the pacer runs the next tick.
-// Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
-// run.
-//
-// Environment:
-//   MODE                 `plan` (read, choose, name records) or `act` (re-run the plan)
-//   PLAN_PATH            the plan file plan writes and act reads
-//   RECORD_PATH          the file plan writes for the record uploads
-//   GH_TOKEN             the job's GITHUB_TOKEN (actions: write, pull-requests: read)
-//   GITHUB_REPOSITORY    owner/repo
-//   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list; unset checks no
-//                        spec and no kill-switch stop
-//   VERIFY_AUTHORS, LANE_IDENTITY, SPEC_FROM_BODY_APPS  as pr-verify.yml passes
-//                        resolve-pr; LANE_IDENTITY also names the lanes App
-//   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
-//   CLAUDE_REVIEW_DISABLED, CLAUDE_SECURITY_REVIEW_DISABLED  each lane's switch,
-//                        as its caller reads it: only `true`, in any case, stops, and unset
-//                        reads empty
-//   STATUS_URL           the status page's components endpoint (default githubstatus.com)
-//   SETTLED_PATH         plan reads the last pass's settled runs and job reads, then writes
-//                        this pass's there for the upload, with the reviews it left waiting
-//                        on a running checks run (waiting_reviews); unset carries nothing
-//   FOLLOWUP             `true` makes plan the review-only follow-up of FOLLOWUP_PATH's
-//                        queue (followup.mjs): no other read, and no settled runs written
-//   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
-//   GITHUB_OUTPUT        plan writes record-1 to record-15 there (empty when unused;
-//                        https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/maintenance-reconcile-lost-runs.yml)
-//   GITHUB_STEP_SUMMARY  the outcome is listed there when set
-//   GITHUB_API_URL
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -313,49 +67,16 @@ export const REVIEW_JOB_PREFIXES =[...GATED_REVIEWS].flatMap((path) => {
 // GitHub re-runs a run up to 30 days after its initial run
 // (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
 export const RERUN_WINDOW_DAYS = 30;
-// babysit_verify_evidence.py TOO_OLD_DAYS: past it, the gate refuses a pull
-// request with no counted verdict at its head `verify:too-old`
-// (reconcile.test.mjs keeps the two equal).
 export const TOO_OLD_DAYS = 80;
 export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.yml"]);
-// The intake run an issue's opening starts, and its floor-label job. A first
-// attempt whose floor label failed (most often on a rate limit) left the
-// issue unlabeled, and nothing else starts it again, so its failed jobs are
-// re-run once, but only when that job is the run's only failed one: the
-// re-run starts every failed job again, and the run's other jobs (the model
-// triage, the gates) must not run again as github-actions[bot]. Adding the
-// label is idempotent, so the re-run is safe whatever the failure was. A run
-// where the floor label and another job both failed (a rate limit can fail
-// both) is left alone. When that failure kept the issue from a `status:`
-// label, the hourly triage sweep (maintenance-audit-lane-runs/triage-sweep.mjs,
-// issues a listed human or the lanes App opened) dispatches intake for it and
-// labels it needs-triage after 2 dispatches leave it untriaged. Otherwise, and
-// once a dispatch triages it, the issue stays without the floor label.
 export const INTAKE = ".github/workflows/intake-triage.yml";
 export const INTAKE_LABEL_JOBS = jobNames("intake-triage.yml", "intake-label-needs-triage");
 const isIntakeLabelJob = (job) => INTAKE_LABEL_JOBS.some((name) => String(job?.name ?? "").startsWith(`${name} / `));
 export const VERDICT_DISPATCH = ".github/workflows/pr-dispatch-feedback.yml";
 export const VERDICT_JOBS = new Set(jobNames("pr-dispatch-feedback.yml", "post-verify-notes"));
 export const VERDICT_STOP_STEP = "Stop on the kill switch";
-// A job's conclusions that rerun-failed-jobs leaves alone.
 const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
 const INTAKE_JOBS_WINDOW_MS = 2 * 3_600_000;
-// A lost lane run whose steps listed in full is re-run once when it was lost
-// before or during its judgment (a cut list is held below). One whose verdict
-// write (WRITE_STEP) started is held: that step runs once a judgment finished
-// (every judge step truly succeeded, a chunk left a fail the head can count, a
-// chunk's result did not count, or the final judge stopped on run-claude-cli's
-// credential scan), so the judgment may be a FAIL that the write
-// or upload lost, and a re-run would sample the head a second time. The judge step's
-// own conclusion cannot show this: it is continue-on-error, so it lists
-// success even when it broke. A FAIL
-// the first attempt uploaded counts whatever the run's conclusion, so a second
-// judgment cannot clear it, and attempt 2 is never re-run. Cancelling
-// a run is not what prevents this: the lanes App token has no actions: write,
-// but the ci-status job in pr-require-checks.yml does hold it. A run none of
-// whose jobs started is left alone: GitHub
-// cancels a pending run when a newer one for the same PR head queues behind
-// it, and that newer run judges the head.
 export const JUDGE_STEP = "Judge the pull request";
 export const JUDGE_PREDECESSOR = "Write the prompt and schema";
 export const WRITE_STEP = "Write the verdict";
@@ -379,10 +100,6 @@ export const RATER_LEGS = ["rate-merge-risk", "rate-merge-risk-subscription", "r
 export const FAULT_HELD_HOURS = 6;
 export const FAULT_HELD_READS = 100;
 export const MAX_IN_FLIGHT = 3;
-// Re-runs of reviews and pr-verify runs a defer gate stopped, per pass, beside
-// MAX_IN_FLIGHT; what does not fit waits for the next pass. The 24 h to 2026-11-21T20:49Z would have deferred at most 9 review runs in
-// one token window, so 12 leaves room for one more head, both lanes
-// (https://github.com/melodic-software/claude-code-plugins/issues/17460).
 export const DEFER_MAX = 12;
 export const RECORD_SLOTS = MAX_IN_FLIGHT + DEFER_MAX;
 export const WRITE_GAP_MS = 1000;
@@ -476,7 +193,6 @@ async function readSettled({ repo, runId, call, download }) {
 const wholeListing = (listing) =>
   Array.isArray(listing?.jobs) && listing.jobs.length === listing.total_count && listing.jobs.every((job) => job?.status === "completed" && job.conclusion != null);
 
-// A workflow path's file name, as the per-workflow runs endpoint takes it.
 const workflowFile = (path) => path.slice(path.lastIndexOf("/") + 1);
 const createdSince = (ms) => encodeURIComponent(`>=${new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
 
@@ -564,7 +280,6 @@ export const reviewStopNoted = (annotations) =>
 export const RATE_HELD_NOTE = "on a GitHub API rate limit, so it ran no review that counts";
 export const rateHeldNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(RATE_HELD_NOTE));
-// The note GitHub adds for a step that exits non-zero.
 export const EXIT_NOTE = /^Process completed with exit code [0-9]+\.$/;
 const failureCauses = (annotations) =>
   (Array.isArray(annotations) ? annotations : []).filter((a) => a?.annotation_level === "failure" && !EXIT_NOTE.test(String(a.message ?? "")));
@@ -573,11 +288,6 @@ export const onlyReviewStopsNoted = (annotations) => {
   const causes = failureCauses(annotations);
   return causes.length > 0 && causes.every(stopCause);
 };
-// The errors ci-status's review-lane step writes for a review still running,
-// or with no run yet, when it read the head (pr-require-checks.yml;
-// reconcile.test.mjs pins both there).
-// Each ends in the step's re-run note: since the step waits for a review
-// (#12447) it names the wait; a run from before writes the older tail.
 const RERUN_TAIL = String.raw`(?:ci-status re-runs when the review finishes\.|ci-status waited [0-9]+s for it; pr-dispatch-feedback re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
 export const PENDING_REVIEW_NOTE = new RegExp(String.raw`^'[^']+' has not finished on [0-9a-f]{40} \(https:\/\/[^ ]+\)\. ${RERUN_TAIL}$`);
 const MISSING_TAIL = String.raw`(?:${RERUN_TAIL}|ci-status does not wait for a lane with no run; pr-dispatch-feedback re-runs ci-status a few minutes after the review finishes, so no manual re-run is needed\.)`;
@@ -606,10 +316,6 @@ const TARGET_FORMS = [
 ];
 const namedCalls = (message) => TARGET_FORMS.flatMap(([named, call]) => [...message.matchAll(named)].map((m) => new RegExp(call(m[1]))));
 const floorCompanion = (message, floors) => FLOOR_COMPANION.test(message) && namedCalls(message).some((call) => floors.some((f) => call.test(f)));
-// The label holds ci-status fails on: its human-gated step (pr-require-checks.yml)
-// and check-contract's label checks
-// (https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/pr-require-checks/check-contract/run.sh).
-// A hold keeps ci-status red by itself, so a review re-run beside one merges nothing.
 const HUMAN_GATED_NOTE = /^#[1-9][0-9]* carries '[^']+'(?: \(.*\))?\. Removing the label approves this pull request; ci-status re-runs on the unlabel\.$/;
 const CONTRACT_HOLD_NOTE = /^check-contract: this PR carries the '[^']+' (?:label; remove it to merge|hold label; a person removes it to release the hold)\.$/;
 const CONTRACT_FAILED_NOTE = "ci-status: the pull-request contract or the draft policy failed; see the step above.";
@@ -636,22 +342,7 @@ const namedReset = (annotations, counts) => {
 };
 export const floorReset = (annotations) => namedReset(annotations, (a) => a?.annotation_level === "failure");
 export const heldReset = (annotations) => namedReset(annotations, () => true);
-// GitHub's primary rate limit resets each hour
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
-// so a run that ended longer ago than this has had its pool reset since.
 export const RATE_WINDOW_MS = 3_600_000;
-// How long after the last review completes before a Pending re-run: at least
-// rerun-ci-status's `timeout-minutes: 15` (reconcile.test.mjs pins it), so its
-// own re-run has had the time to land. Under its `queue: max` concurrency that
-// job may still start later, so this narrows the race without closing it. A
-// late rerun-ci-status after a review lane does not re-run again: its
-// started_at check ends it on a ci-status attempt that started after the lanes
-// finished (a pr-unblock upstream with a full status page skips that check).
-// What overlap remains is two POSTs inside check-then-act gaps (its
-// `"completed $attempt"` re-read, act's lostNow attempt check), which GitHub
-// would refuse while the first re-run is going (UNVERIFIED) rather than start
-// a third attempt. Should both land, the extra attempt has no record of its
-// own, so pr-verify refuses it: the head is stranded, never let through.
 export const PENDING_BACKOFF_MINUTES = 20;
 const isUnreviewed = (r) => GATED_REVIEWS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
 const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES * 60_000;
@@ -716,12 +407,6 @@ const recorded = (item) => item.kind === "lane" || item.kind === "fault-held" ||
 const byMergeCriticality = (a, b) => Number(b.auto_merge != null) - Number(a.auto_merge != null) || a.number - b.number;
 const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
 
-// How far a lane run's creation may sit from the completion of the checks run
-// that started it. Judgment from one measured pair: checks run done at
-// 04:13:36Z, its pr-verify run created at 04:13:40Z (4 s); the 15 minutes
-// after allow for a backed-up workflow_run queue. To re-measure, take
-// pr-verify runs from a busy hour, read UPSTREAM_RUN_ID from each verify job's
-// log, and compare the run's created_at with that checks run's updated_at.
 const MATCH_BEFORE_MS = 60_000;
 const MATCH_AFTER_MS = 15 * 60_000;
 const OWNED_AFTER_MS = 2 * 3_600_000;
@@ -751,28 +436,6 @@ const followsNoOpenHead = (run, openChecks) => {
   return starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
 };
 
-// The lane items in place order: those matched to an open head, held runs
-// (fault-held) oldest first ahead of the other matched runs oldest first,
-// then the rest, oldest first. A rate limit holds every open head's
-// pr-verify run at once, since the runs' tokens draw on one shared limit
-// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
-// and older failed runs would take the three places pass after pass while
-// each held head keeps its old verdict.
-// A lane run's listing names main's tip, not its
-// PR, so a run is matched by time: each open head's checks completion takes the
-// closest run of each lane created inside the match window, and each run is
-// taken once, so a duplicate run for a head and a run whose PR is gone sort
-// last. The match sets the order only; check-trusted-trigger and resolve-pr
-// still bind the re-run to its PR.
-// A lost lane run is `superseded` and left out when, for every open head, it
-// was created more than MATCH_BEFORE_MS before the head's newest checks
-// completion that starts its lane (laneStarts) or more than OWNED_AFTER_MS
-// after it: a lane run starts after the checks completion it follows, so it
-// follows no open head's current checks: its PR closed, its head moved, or its
-// head's checks completed again and started a newer run of its lane. Nothing
-// is left out unless `drop` (every open head's runs were read) holds and some
-// open head has a completion that starts the lane; a fault-held run is never
-// left out.
 function laneOrder(lanes, openChecks, drop) {
   const pairs = [];
   for (const lane of lanes) {
@@ -828,8 +491,6 @@ const sayReset = (reset) => `waiting for the rate-limit reset at ${new Date(rese
 const NOT_STARTED = "before any of its jobs started";
 export const PASS_MINUTES = 30;
 
-// True when the upstream-status gate alone failed a hosted review run: its one
-// failed job is the kill-switch job, failed at UPSTREAM_STOP_STEP.
 export const upstreamStopped = (jobs) =>
   Array.isArray(jobs) &&
   jobs.filter((job) => FAILED.has(job?.conclusion)).length === 1 &&
@@ -955,10 +616,6 @@ async function holdReason(call, repo, run, { judge, write }, settled, carry = ne
   if (cut.some((job) => job.steps?.some((s) => s?.name === JUDGE_PREDECESSOR || s?.name === judge))) {
     return { reason: "after its judge step may have started", settle: true };
   }
-  // The judge step is continue-on-error, so it lists success even when it
-  // broke; the verdict write runs only on its true success. Once that write
-  // started, the judgment may be a FAIL the run then failed to write or
-  // upload, and a re-run would judge the head a second time.
   if (started.some((s) => s.name === write)) {
     return { reason: WRITTEN, settle: true };
   }
@@ -1159,8 +816,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           () => "unreadable",
         );
         if (indicator !== "none") {
-          // The page's text is logged through `say`, so a newline in it must
-          // not start a workflow command line.
           return `${new URL(url).host} shows ${escapeCommand(indicator ?? "no indicator")}`;
         }
       }
@@ -1181,9 +836,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       if (!Array.isArray(listing?.workflow_runs) || listing.total_count > 100) {
         throw new Error("its run listing is not one complete page");
       }
-      // A fork PR at the same head SHA lists its runs here too: re-running one
-      // spends this repository's minutes on the fork's code, and a newer one
-      // would hide this repository's run. Only this repository's runs count.
       const own = listing.workflow_runs.filter((r) => r.head_repository?.full_name === repo);
       const done = checksDone(own);
       if (done !== undefined) {
@@ -1421,10 +1073,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
     return page.workflow_runs;
   };
-  // One repository-wide page of the runs in `status`, or undefined when it is
-  // not whole or cannot be read, so each lane lists that status itself. The
-  // lane listing filters only on `created` and `status`, both of which this
-  // endpoint takes; the workflow path is split here.
   const sharedRuns = async (status) => {
     try {
       const page = await call("GET", `/repos/${repo}/actions/runs?created=${created}&status=${status}&per_page=100`);
@@ -1582,11 +1230,6 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     noteFailure("held runs", error);
     heldSince = heldStart;
   }
-  // A run still going can hold in a later job (pr-verify's three jobs each run
-  // up to their timeout-minutes, https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-verify.yml) after FAULT_HELD_HOURS have passed, so the next pass
-  // lists back to the oldest first attempt not yet completed. The lane listing
-  // above already read those runs (LANE_LIST_STATUSES, inside the lookback),
-  // so this adds no read; when it failed, the next pass starts where this one did.
   for (const lanePath of FAULT_HELD_LANES) {
     if (laneFailures.has(lanePath)) {
       heldSince = Math.min(heldSince, heldStart);
@@ -1768,8 +1411,6 @@ async function act({ repo, call, say, since, sleep, items }) {
         continue;
       }
       if (!RUN_ONLY_KINDS.has(item.kind)) {
-        // A push since the listing makes this run obsolete, and re-running it
-        // would cancel the new head's CI in the PR's concurrency group.
         const current = await call("GET", `/repos/${repo}/pulls/${item.pr}`);
         if (current?.state !== "open" || current.draft === true || current.head?.sha !== item.head) {
           say(`${where}: the PR changed since the listing; run ${item.id} left alone`);
@@ -1925,7 +1566,6 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     if (env.TRUSTED_ACTORS_PATH) {
       const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
       laneApp = env.LANE_IDENTITY ? trusted.logins.get(env.LANE_IDENTITY.toLowerCase()) : undefined;
-      // The Refs read needs GraphQL errors back to tell a typo from a failure.
       const readRefs = injected ? github : createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, keepGraphQLErrors: true });
       judgeSpec = (upstreamRun) =>
         resolvePull({
