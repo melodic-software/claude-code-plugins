@@ -529,6 +529,16 @@ test('each check records its usage', async ($, on) => {
   expect(live(w)[0]).toMatchObject({ trigger: 'step', turnId: 't1', step: 6, outcome: 'none', usage: USAGE })
 })
 
+test('a parse_failed check row records the reason and field lengths, never the reply text', async ($, on) => {
+  const w = world(on)
+  w.replies.push(answer('finding: x\ncategory: taste\nrule: r'))
+  await start($)
+  await turn($, 't1')
+  await steps($, 't1', 6)
+  expect(live(w)[0]).toMatchObject({ trigger: 'step', outcome: 'parse_failed', reason: 'bad_category', lengths: { finding: 1, rule: 1, evidence: 0 } })
+  expect(JSON.stringify(live(w)[0])).not.toContain('taste')
+})
+
 kitTest('off unless observer_enabled', async ($, on) => {
   const w = world(on)
   await start($)
