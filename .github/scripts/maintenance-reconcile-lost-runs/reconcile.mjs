@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
+import { deferResets } from "../../actions/check-kill-switch/stop-record.mjs";
 import { createGitHub, paginate } from "../lib/github-client.mjs";
 import { listChangedAt } from "../lib/trusted-actors.mjs";
 import { callers, jobNames, laneJob } from "../lib/lane-registry.mjs";
@@ -528,14 +529,11 @@ export const rateHeld = async (jobs, notesOf) => {
   return undefined;
 };
 export const RATE_RESET_GRACE_MS = 60_000;
-// The hosted callers' stop notice when the gate deferred the review, with the
-// window's reset in epoch seconds (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-kill-switch/README.md).
-export const DEFER_NOTE = /\bcause=defer reset=([0-9]{9,12})\b/;
 export const DEFER_STEP = "Note the deferral";
 export const DEFERRED = "success (deferred)";
 export const deferReset = async (jobs, notesOf) => {
   const gate = jobs.find((job) => GATE_JOBS.has(job?.name) && Number.isSafeInteger(job.id) && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
-  const resets = gate ? (await notesOf(gate)).map((a) => DEFER_NOTE.exec(String(a?.message ?? ""))?.[1]).filter(Boolean).map(Number) : [];
+  const resets = gate ? deferResets(await notesOf(gate)) : [];
   return resets.length > 0 ? Math.max(...resets) : undefined;
 };
 
@@ -660,7 +658,7 @@ async function faultHeld(call, repo, run, carry = new Map(), keep = new Map()) {
   const whole = typeof run.updated_at === "string" && wholeListing(listing) && listing.jobs.every((j) => stepsKnown(j));
   for (const job of deferring) {
     const annotations = await call("GET", annotationsPath(repo, job.id));
-    const resets = (Array.isArray(annotations) ? annotations : []).map((a) => DEFER_NOTE.exec(String(a?.message ?? ""))?.[1]).filter(Boolean).map((s) => Number(s) * 1000);
+    const resets = deferResets(Array.isArray(annotations) ? annotations : []).map((s) => s * 1000);
     if (resets.length > 0) {
       const reset = Math.max(...resets);
       if (whole) {
