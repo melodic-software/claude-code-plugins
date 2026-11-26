@@ -37,8 +37,8 @@ as an argument; their stdin form below has not been re-probed.
 | R2 | WSL | other machine, WSL | `printf '%s\n' '<prompt>' \| <ssh> <wsl-alias> 'claude <agent-args>'` | tested: script, multi-turn, stream-json, `--bg`, message an interactive session and a `-p` receiver across accounts |
 | R3 | WSL | other machine, Windows | `printf '%s\n' '<prompt>' \| <ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args>'` | reaches `claude.exe`; needs `/login` at that machine's console |
 | R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude <agent-args> "<prompt>" < /dev/null'` | tested: script from a native-Windows `claude.exe` (its Bash tool, Git Bash); list |
-| R5 | Windows | other machine, WSL | `printf '%s\n' '<prompt>' \| ssh.exe <wsl-alias> 'claude <agent-args>'` | untested from a Windows origin (same hop as R2) |
-| R6 | Windows | other machine, Windows | `printf '%s\n' '<prompt>' \| ssh.exe <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args>'` | untested from a Windows origin (same hop as R3) |
+| R5 | Windows | other machine, WSL | `printf '%s\n' '<prompt>' \| <ssh> <wsl-alias> 'claude <agent-args>'` | untested from a Windows origin (same hop as R2) |
+| R6 | Windows | other machine, Windows | `printf '%s\n' '<prompt>' \| <ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args>'` | untested from a Windows origin (same hop as R3) |
 
 Over SSH a `-p` turn's prompt goes on stdin, and the quoted remote command carries only the flags,
 so no shell on either host parses prompt text. Never add `ssh -n` to an SSH row: it replaces stdin
@@ -54,8 +54,12 @@ script on another machine goes over port 22 instead: `<ssh> <win-alias> '<pwsh c
 
 Placeholders, each filled from FLEET.md or a probe, never guessed:
 
-- `<ssh>`: the Windows OpenSSH client. `ssh.exe` from Windows; from WSL,
-  `/mnt/c/Windows/System32/OpenSSH/ssh.exe`, because the distro holds no key.
+- `<ssh>`: the client the `ssh_client` option names, `${user_config.ssh_client}`, the same one the
+  session-start peer list runs. It counts only as an absolute path (a drive-letter path on Windows)
+  to a file named `ssh` or `ssh.exe`; empty, still the literal token, or any other value means
+  unset: then the platform's own client, `ssh.exe` from Windows,
+  `/mnt/c/Windows/System32/OpenSSH/ssh.exe` from WSL (the Windows side holds the fleet key),
+  `/usr/bin/ssh` elsewhere.
 - `<wsl-alias>` / `<win-alias>`: the target's `wsl-shell` (port 2222) and `windows-shell` (port 22)
   aliases.
 - `<claude-exe>`: `/mnt/c/Users/<user>/.local/bin/claude.exe`, by absolute path.
@@ -232,9 +236,10 @@ on-demand tasks FLEET.md lists.
 
 ## Gotchas
 
-- **Use the Windows OpenSSH client.** It is agent-backed and is what `~/.ssh/config` is wired to.
-  Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which reads
-  like a key problem and is not one.
+- **Use `<ssh>`, never Git Bash's `ssh`.** With `ssh_client` unset, `<ssh>` is the Windows OpenSSH
+  client, which is agent-backed and is what `~/.ssh/config` is wired to; a configured `ssh_client`
+  wins. Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which
+  reads like a key problem and is not one.
 - **Give every `claude -p` turn a closed stdin.** Over SSH the piped prompt is stdin, and it ends
   when `printf` does; our SSH rows send the prompt there, not as an argument, so no shell
   on either host parses prompt text. On R1 and R4 redirect `< /dev/null`, so nothing but the
