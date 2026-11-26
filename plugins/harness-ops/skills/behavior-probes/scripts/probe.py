@@ -506,6 +506,7 @@ def parse_stream(lines) -> dict:
         "transcript": [],
         "result_session": None,
         "usage_limited": False,
+        "result_count": 0,
     }
     for line in lines:
         try:
@@ -524,6 +525,7 @@ def parse_stream(lines) -> dict:
         elif kind == DENIED_EVENT and event.get("tool_use_id"):
             obs["denied"][event["tool_use_id"]] = event
         elif event.get("type") == RESULT:
+            obs["result_count"] += 1
             for denial in event.get(DENIALS) or []:
                 if isinstance(denial, dict) and denial.get("tool_use_id"):
                     obs["denial_ids"].add(denial["tool_use_id"])
@@ -622,6 +624,8 @@ def verdict(case: dict, obs: dict) -> dict:
         return with_verdict(
             row, "inconclusive", "no init event: the CLI did not start a session"
         )
+    if obs["usage_limited"]:
+        return {**with_verdict(row, "inconclusive", USAGE_LIMIT), "usage_limited": True}
     if case["outcome"] == PRINTS:
         return print_verdict(case, obs, row)
     if case["outcome"] == REPLY:
@@ -721,6 +725,8 @@ def grep_match(target: dict, lines: list[str]) -> tuple[str, str, str]:
 
 def reply_verdict(case: dict, obs: dict, row: dict) -> dict:
     """Judge the run's last reply against target.reply_match."""
+    if obs["result_count"] < len(case.get("turns") or []) + 1:
+        return with_verdict(row, "inconclusive", "the prompt's own turn gave no result")
     reply = obs["result_text"] or ""
     if not reply.strip():
         return with_verdict(row, "inconclusive", "the run gave no reply")
@@ -949,10 +955,12 @@ def fake_runner(case: dict, cwd: Path, settings_file: Path, prompt: str) -> list
         return [json.dumps(init), json.dumps(done)]
     if case["outcome"] == REPLY:
         reply = target["example"]
+        turn_done = {"type": "result", "subtype": "success", "result": "", "total_cost_usd": 0.0}
         return [
             json.dumps(event)
             for event in (
                 init,
+                *[turn_done for _ in case.get("turns") or []],
                 {"type": "assistant", "message": {"content": [{"type": "text", "text": reply}]}},
                 {
                     "type": "result",
@@ -1241,13 +1249,7 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
             resolved["cli_args"] = with_stream_input(list(case.get("cli_args") or []))
         lines = runner(resolved, cwd, settings_file, prompt)
         obs = observe(case, lines, workdir / TRANSCRIPT_FILE)
-        judged = {**row, **verdict(case, obs)}
-        if obs["usage_limited"]:
-            judged = {
-                **with_verdict(judged, "inconclusive", USAGE_LIMIT),
-                "usage_limited": True,
-            }
-        return judged
+        return {**row, **verdict(case, obs)}
     finally:
         if keep:
             print(f"kept {case['id']}: {workdir}", file=sys.stderr)

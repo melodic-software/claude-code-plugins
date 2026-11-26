@@ -30,7 +30,9 @@ export const HOST_KEYS = ['key', 'os', 'role', 'lanes']
 export const LANE_KEYS = ['kind', 'route', 'alias', 'distro', 'claudePath']
 const EXEC_NAME = /^(?:claude|claude\.exe|\d+\.\d+\.\d+)$/
 const DEFAULT_TIMEOUT_SECONDS = 3
-const DEADLINE_MARGIN_MS = 500
+export const DEADLINE_MARGIN_MS = 500
+/** Repo and branch labels are optional, so they get a short fixed wait after the lanes answer. */
+export const REPO_DEADLINE_MS = 1500
 const CAPS = { name: 40, folder: 80, repo: 40, branch: 40, host: 40 }
 const ALLOWED = { kind: ['interactive', 'background'], status: ['busy', 'idle', 'waiting'] }
 const MAX_OUTPUT_BYTES = 1 << 20
@@ -47,6 +49,7 @@ export function timeoutSeconds(raw) {
   const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : NaN
   return Number.isFinite(n) && n >= 0 && n <= 10 ? n : DEFAULT_TIMEOUT_SECONDS
 }
+
 
 /** An ssh login into WSL carries no WSL_DISTRO_NAME; the kernel release still names Microsoft. */
 const wslKernel = (ctx) => {
@@ -292,7 +295,7 @@ export async function repoOf(folders, ctx) {
   const repos = new Map()
   const git = gitPath(ctx)
   if (!git) return repos
-  const deadlineMs = ctx.deadlineMs ?? (timeoutSeconds(ctx.timeout) + 2) * 1000
+  const deadlineMs = ctx.deadlineMs ?? REPO_DEADLINE_MS
   const flags = ['--no-pager', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null']
   const controller = new AbortController()
   const lookups = [...new Set(folders)].map(async (folder) => {

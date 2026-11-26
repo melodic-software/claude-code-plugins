@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   buildCommand,
+  DEADLINE_MARGIN_MS,
   DRIVE_PATH,
   excludeSelf,
   HOST_KEYS,
@@ -19,6 +20,7 @@ import {
   pickLanes,
   queryLanes,
   readManifest,
+  REPO_DEADLINE_MS,
   repoOf,
   ROUTES,
   run as spawnRun,
@@ -110,6 +112,11 @@ const withLane = (patch) => {
   patch(m)
   return JSON.stringify(m)
 }
+
+test('the slowest lane wait plus the repo lookup fits inside the hook timeout, with a second for node start', () => {
+  const hookTimeoutMs = JSON.parse(readFileSync(join(here, 'hooks.json'), 'utf8')).hooks.SessionStart[0].hooks[0].timeout * 1000
+  assert.ok(timeoutSeconds('10') * 1000 + DEADLINE_MARGIN_MS + REPO_DEADLINE_MS + 1000 <= hookTimeoutMs)
+})
 
 test('timeout option: 0 to 10 is kept; empty, non-numeric and out of range read as 3', () => {
   for (const [raw, want] of [['0', 0], ['10', 10], ['5', 5], [7, 7], ['11', 3], ['-1', 3], ['abc', 3], ['', 3], [undefined, 3]]) {

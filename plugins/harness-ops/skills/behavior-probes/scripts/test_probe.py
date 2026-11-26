@@ -1808,7 +1808,12 @@ class ReplyAndTurnsTests(unittest.TestCase):
 
         def capture(c, _cwd, _settings_file, prompt):
             seen["cli_args"], seen["prompt"] = c.get("cli_args"), prompt
-            return stream(INIT, replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION))
+            return stream(
+                INIT,
+                replied("OK.", self.SESSION),
+                replied("", self.SESSION),
+                replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION),
+            )
 
         (self.tmp / "settings.json").write_text("{}")
         (self.tmp / "prompt.md").write_text("What is the nonce?\n")
@@ -1822,6 +1827,18 @@ class ReplyAndTurnsTests(unittest.TestCase):
             [("Say OK.", None), ("/clear", "later"), ("What is the nonce?", "later")],
         )
         self.assertEqual({m["type"] for m in messages}, {"user"})
+
+    def test_a_multi_turn_reply_whose_prompt_turn_never_answered_is_inconclusive(self):
+        c = reply_case(turns=["Say OK.", "/compact"], dir=self.tmp)
+        obs = probe.observe(c, stream(INIT, replied("OK.", self.SESSION)), self.tmp / "t.jsonl")
+        self.assertEqual(probe.verdict(c, obs)["verdict"], "inconclusive")
+
+    def test_a_usage_limited_stream_is_inconclusive_on_rejudge_too(self):
+        c = reply_case(dir=self.tmp)
+        limited = {"type": "rate_limit_event", "rate_limit_info": {"status": "rejected"}}
+        lines = stream(INIT, limited, replied("You've hit your limit", self.SESSION))
+        row = probe.verdict(c, probe.observe(c, lines, self.tmp / "t.jsonl"))
+        self.assertEqual((row["verdict"], row.get("usage_limited")), ("inconclusive", True))
 
     def test_a_case_without_turns_sends_prompt_md_as_text(self):
         seen = {}
