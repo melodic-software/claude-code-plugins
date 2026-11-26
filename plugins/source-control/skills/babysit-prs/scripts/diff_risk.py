@@ -171,11 +171,11 @@ class Risk(enum.IntEnum):
 @dataclass(frozen=True)
 class ChangedFile:
     path: str
-    previous_path: str | None  # set on a rename; both paths are tested
-    status: str  # one of STATUSES
+    previous_path: str | None
+    status: str
     additions: int
     deletions: int
-    has_patch: bool  # False for binary, submodule, or over-size files
+    has_patch: bool
     mode: str
     previous_mode: str | None = None
     patch: str | None = None
@@ -188,10 +188,10 @@ class ChangedFile:
 
 @dataclass(frozen=True)
 class LaneEvidence:
-    lane: str  # "claude-review" | "claude-security-review"
-    bound: bool  # the evidence binding held on the pinned SHA
+    lane: str
+    bound: bool
     unbound_reason: str | None
-    open_findings: int | None  # None when not bound
+    open_findings: int | None
     whole_review_clears: bool = False
     blocking_findings: int | None = None
 
@@ -202,13 +202,13 @@ FloorRows = tuple[tuple[str, str, bool], ...]
 @dataclass(frozen=True)
 class RiskInput:
     files: tuple[ChangedFile, ...]
-    files_complete: bool  # the listing was read to its end
-    max_changed_lines: int | None  # merge.diff-check.max-changed-lines at the base SHA
-    high_paths: tuple[str, ...]  # configured denied paths, joined to Floor.high
+    files_complete: bool
+    max_changed_lines: int | None
+    high_paths: tuple[str, ...]
     lanes: tuple[LaneEvidence, ...]
     high_floor: bool = True
     path_holds: bool = True
-    max_changed_files: int | None = 8  # None: no cap
+    max_changed_files: int | None = 8
     lines_optional: bool = False
     public: bool | None = None
     cost_decision: str | None = None
@@ -229,8 +229,8 @@ class Reason:
 
 @dataclass(frozen=True)
 class RiskResult:
-    score: Risk  # max(reason.severity), LOW when no reason
-    reasons: tuple[Reason, ...]  # sorted by severity desc, then code
+    score: Risk
+    reasons: tuple[Reason, ...]
     skipped: tuple[Reason, ...] = ()
 
 

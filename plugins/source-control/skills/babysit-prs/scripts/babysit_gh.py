@@ -1610,7 +1610,7 @@ def _search_prs_for_owners(
             try:
                 owner_has_repos = bool(list_repos_for_owner(owner))
             except RuntimeError:
-                owner_has_repos = True  # unconfirmed; fail closed as before.
+                owner_has_repos = True
             if not owner_has_repos:
                 continue
             errors.append(f"owner search {owner}: {exc}")
