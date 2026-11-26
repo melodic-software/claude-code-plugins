@@ -37,12 +37,10 @@ assert_eq "a serial run exits 0" "0" "$RUN_RC"
 assert_contains "the paired ratio is reported" "median_paired_ratio=4.00x" "$RUN_OUT"
 assert_contains "p95 is refused below its floor" "ratio_of_p95=REFUSED(n=4<20)" "$RUN_OUT"
 # discriminating-skip-required: without this assertion a lowered floor is
-# indistinguishable in the report from a ratio drawn from a full sample set.
 assert_contains "a lowered floor records itself on the reported line" \
   "OVERRIDE: min_pairs=4 (default 20)" "$RUN_OUT"
 
 # discriminating-skip-required: the minimum-pairs refusal is the only thing this
-# case proves.
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1
 assert_eq "too few pairs still exits 0" "0" "$RUN_RC"
 assert_contains "the headline ratio is refused by name" \
@@ -51,7 +49,6 @@ assert_not_contains "no ratio is printed below the floor" "median_paired_ratio=4
 assert_contains "the raw per-pair ratios replace it" "raw per-pair ratios:" "$RUN_OUT"
 assert_contains "the refusal cites the measured spread" "0.78x to 17.12x" "$RUN_OUT"
 # discriminating-skip-required: without these two assertions an ungated
-# ratio_of_p50 can still be quoted off a line whose headline is refused.
 assert_contains "ratio_of_p50 is refused below the floor too" \
   "ratio_of_p50=REFUSED(pairs=4<20)" "$RUN_OUT"
 assert_contains "ratio_of_p95 is refused below the floor too" \
@@ -92,7 +89,6 @@ run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAI
 assert_not_contains "agreeing ratios are not flagged" "DISAGREEMENT:" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the whole proof that the
-# concurrency suppression exists.
 run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=4
 assert_eq "a concurrent run still exits 0" "0" "$RUN_RC"
 assert_contains "the ratio is suppressed by name" "SUPPRESSED: concurrency=4" "$RUN_OUT"
@@ -114,7 +110,6 @@ assert_eq "an all-zero comparison arm is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the clock resolution" "clock resolution" "$RUN_OUT"
 
 # discriminating-skip-required: nothing else here proves the row shape is
-# enforced by this file rather than inherited from its caller.
 printf '120\n130 0\n' >"$WORK/spliced"
 run_ratio BENCH_OLD="$WORK/spliced" BENCH_NEW="$WORK/short" BENCH_CONC=1
 assert_eq "a spliced row is refused" "2" "$RUN_RC"
@@ -124,8 +119,6 @@ run_ratio BENCH_OLD="$WORK/old" BENCH_NEW="$WORK/new" BENCH_CONC=1 BENCH_MIN_PAI
 assert_eq "a non-integer BENCH_MIN_PAIRS is refused" "2" "$RUN_RC"
 
 # discriminating-skip-required: this is the only case covering p95 in the
-# disagreement check; without it the flag can regress to p50-only and every
-# other assertion here still passes.
 write_samples "$WORK/spike_old" 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 400
 write_samples "$WORK/spike_new" 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10 10
 run_ratio BENCH_OLD="$WORK/spike_old" BENCH_NEW="$WORK/spike_new" BENCH_CONC=1

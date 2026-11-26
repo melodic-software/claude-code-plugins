@@ -24,8 +24,6 @@ assert_eq "an existing file resolves" "0" "$RUN_RC"
 assert_contains "the resolution is reported" "resolved=" "$RUN_OUT"
 
 # discriminating-skip-required: silent rewriting of a working path is the
-# failure mode this whole file has to avoid, and this is the case that proves
-# it does not happen.
 run_pathfix "$WORK/real-file.txt"
 if [[ "$RUN_OUT" == *"note=None"* ]]; then
   pass "a working spelling is left alone, with no conversion note"

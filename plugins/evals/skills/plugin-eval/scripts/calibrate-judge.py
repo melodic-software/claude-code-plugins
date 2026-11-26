@@ -109,7 +109,6 @@ INSTRUCTION = (
     "lines are not part of it." % (BEGIN, END)
 )
 
-# Result-file and trace field paths, as run-validity.py reads them.
 CASES, CASE_NAME, CASE_ARMS = "cases", "name", "arms"
 ARMS = ("with", "without")
 RUN_GRADERS, RUN_TRACE, RUN_SKIPPED_PAID = "graders", "tracePath", "skippedPaidGraders"

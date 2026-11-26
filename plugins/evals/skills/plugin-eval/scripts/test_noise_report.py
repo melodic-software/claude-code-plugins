@@ -197,7 +197,6 @@ class NoiseReportTest(unittest.TestCase):
             "without-arm pass count at threshold 1.00: 2 of 4, 95% interval 0.15 to 0.85 (wilson)",
             proc.stdout,
         )
-        # Beta(k + 0.5, n - k + 0.5) quantiles, checked by direct numerical integration
         proc = self.report(result, "--interval-method", "jeffreys")
         self.assertIn(
             "with-arm pass count at threshold 1.00: 3 of 4, 95% interval 0.28 to 0.97 (jeffreys)",
