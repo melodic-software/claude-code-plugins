@@ -16,4 +16,5 @@ bump: major
 
 ### Removed
 
+- The interview's `me` action: the default interview now runs relentlessly; "interview me" still starts an interview.
 - The `wayfind_suggest_questions` setting and the scope check's `--limit` flag.
