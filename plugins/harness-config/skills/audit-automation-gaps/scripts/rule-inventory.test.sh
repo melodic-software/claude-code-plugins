@@ -158,6 +158,21 @@ printf -- '- Org rule.\n' >"$TMP/org/REVIEW.md"
 rows="$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R" --rows)"
 assert_line "O: org criteria row" "$rows" "$(printf 'Org rule.\tREVIEW.md in effect:1\tautomated-review\t4')"
 assert_line "O: repository criteria appended" "$rows" "$(printf 'Flag a retry loop with no cap.\tREVIEW.md in effect:5\tautomated-review\t4')"
+assert_no "O: an org layer with no standards index adds no standards row" "$rows" "org standards"
+
+mkdir -p "$TMP/org/docs/standards"
+printf -- '---\nstandards-contract: 1.3.1\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |\n| gone | never | gone.md |\n' >"$TMP/org/docs/standards/README.md"
+printf -- '- Name each test for the behavior it checks.\n\nKeep fixtures beside the suite.\n' >"$TMP/org/docs/standards/testing.md"
+rows="$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R" --rows)"
+assert_line "S: each statement of a file the org layer's printed index lists is a row, labeled by its path in the org checkout" "$rows" \
+  "$(printf 'Name each test for the behavior it checks.\torg standards docs/standards/testing.md:1\tautomated-review\t4')"
+assert_line "S: a second statement of that file is its own row" "$rows" \
+  "$(printf 'Keep fixtures beside the suite.\torg standards docs/standards/testing.md:3\tautomated-review\t4')"
+assert_no "S: no row cites the org checkout's absolute path" "$rows" "$TMP/org"
+assert_line "S: the org standards files read are named, a listed file that is missing among them" \
+  "$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R")" \
+  "- review: 1 org standards file(s) read from the org layer's printed index (org-standards.sh index); unreadable: docs/standards/gone.md"
+rm -r "$TMP/org/docs"
 
 U="$TMP/org-unreachable"
 new_repo "$U"

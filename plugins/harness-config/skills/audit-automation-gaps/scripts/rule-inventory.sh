@@ -37,7 +37,9 @@ Sources, one adapter each:
               review: the organization's with the repository's appended),
               CODING_STANDARDS.md, the review-criteria
               index docs/review/README.md and the docs/review/ files it links,
-              an automated-review each; the subscribed standards layers
+              and each file the org layer's printed index lists
+              (scripts/org-standards.sh index), an automated-review each,
+              labeled by its path in the org checkout; the subscribed standards layers
               (scripts/org-standards.sh subscriptions) are the user's, not the
               repository's, and are named as "present, not counted"
   instruction statements of every tracked CLAUDE.md and AGENTS.md and of
@@ -331,6 +333,20 @@ esac
 while IFS=$'\t' read -r layer _; do
   [[ -z "$layer" ]] || note "review: the personal standards subscription $layer is present, not counted: it is the user's, not this repository's"
 done < <(bash "$plugin_root/scripts/org-standards.sh" subscriptions --root "$root" 2>/dev/null || true)
+if org_index=$(bash "$plugin_root/scripts/org-standards.sh" index --root "$root" 2>/dev/null) &&
+  org_dir=$(bash "$plugin_root/scripts/org-standards.sh" dir --root "$root" 2>/dev/null); then
+  org_n=0 org_missing=""
+  while IFS= read -r f; do
+    rel="${f#"$org_dir"/}"
+    if [[ -r "$f" ]]; then
+      emit_items "$f" automated-review 0 "org standards $rel"
+      org_n=$((org_n + 1))
+    else
+      org_missing="$org_missing${org_missing:+, }$rel"
+    fi
+  done < <(awk -F'|' 'NF == 5 && $2 !~ /^ *Surface *$/ && $2 !~ /^-+$/ { f = $4; gsub(/^ +| +$/, "", f); print f }' "$org_index")
+  note "review: $org_n org standards file(s) read from the org layer's printed index (org-standards.sh index)${org_missing:+; unreadable: $org_missing}"
+fi
 review_files="CODING_STANDARDS.md"
 idx=docs/review/README.md
 if [[ -r "$idx" ]]; then
