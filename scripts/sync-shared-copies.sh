@@ -1,26 +1,7 @@
 #!/usr/bin/env bash
-# Generate, verify, or publish every per-plugin copy of a shared library.
-#
-#   scripts/sync-shared-copies.sh                      regenerate every registered copy
-#   scripts/sync-shared-copies.sh --check              fail if any copy differs from what its
-#                                                      canonical source generates; never writes
-#   scripts/sync-shared-copies.sh --check-bump <ref>   fail if a canonical changed vs <ref> but a
-#                                                      carrying plugin's manifest version did not
-#                                                      move (or, in fragment mode, it added no
-#                                                      fragment whose bump is not none)
-#   scripts/sync-shared-copies.sh --print-manifest     emit each canonical and its copies as data
-#
-# Each line of scripts/shared-copies.txt registers one copy: `<canonical> <copy>`.
-# A copy is the canonical with a generated-file header inserted after any shebang
-# line, so a copy is output, never a place to edit. The decision is ADR 0019.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# A script in a checkout's own scripts/ directory syncs that checkout, whatever
-# the caller's working directory, so a worktree's script writes the worktree.
-# Any other copy of scripts/ (the issue lane's read-only copy) syncs the
-# checkout the caller stands in, and gets only the offline modes (outside=1).
-# The probe drops an inherited GIT_DIR, which would make any directory a top level.
 outside=1
 if own="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$script_dir/.." rev-parse --show-toplevel 2>/dev/null)" &&
   [[ "$(cd "$own" && pwd -P)/scripts" == "$script_dir" ]]; then
@@ -45,8 +26,6 @@ srcs=()
 declare -A copies_of=()
 declare -A src_of=()
 
-# inside_root <path>: true when <path> is relative, has no `.` or `..` segment,
-# and no existing component is a symbolic link, so reads and writes stay in the root.
 inside_root() {
   local part prefix="" parts
   [[ "$1" != /* && "/$1/" != */../* && "/$1/" != */./* ]] || return 1
@@ -97,14 +76,6 @@ load_registry() {
   done
 }
 
-# render <canonical>: the generated copy's bytes, on stdout. A shell, Python or
-# JavaScript copy takes a two-line comment header after any shebang; a Markdown
-# copy takes the same header as an HTML comment after any frontmatter block; a CSS
-# copy takes it as a block comment at the top; an
-# HTML copy takes it as an HTML comment after a leading doctype line, which a
-# browser needs first to stay out of quirks mode. JSON has no comment syntax, so
-# a JSON copy is the canonical's bytes unchanged; shared-copies.txt and --check
-# are what mark it generated.
 render() {
   local src="$1" prefix first="" close=""
   case "$src" in
@@ -299,8 +270,6 @@ check_bump() {
 }
 
 mode="${1:-sync}"
-# --check-bump can reach the GitHub API; a copy run from outside the repository
-# it syncs (the issue lane's) gets only the offline modes.
 if ((outside)) && [[ "$mode" == --check-bump ]]; then
   echo "refused: --check-bump runs only from inside the repository it syncs; this copy runs from outside it." >&2
   exit 2
