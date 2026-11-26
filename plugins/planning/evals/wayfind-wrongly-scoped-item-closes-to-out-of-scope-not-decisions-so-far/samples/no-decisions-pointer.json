@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Out-of-scope line added, #51 closed; no Decisions-so-far pointer, since it is out of scope.",
-      "why": "meets the rule"
+      "why": "no pointer for #51"
+    },
+    {
+      "answer": "Out-of-scope:\n- [Should we also rewrite the mobile app?](https://example.com/acme/billing/issues/51): web billing only\n\nDecisions-so-far: unchanged.",
+      "why": "the link sits in Out-of-scope only"
+    },
+    {
+      "answer": "No Decisions-so-far line for [Should we also rewrite the mobile app?](https://example.com/acme/billing/issues/51).",
+      "why": "negated mention"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply adds no line"
     }
   ],
   "fail": [
     {
       "answer": "Decisions-so-far: '- [Should we also rewrite the mobile app?](URL): no (resolved today)'.",
-      "why": "breaks the rule"
+      "why": "adds a pointer for #51"
+    },
+    {
+      "answer": "## Decisions-so-far\n\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44)\n- [Should we also rewrite the mobile app?](https://example.com/acme/billing/issues/51): out of scope",
+      "why": "the index lists #51"
+    },
+    {
+      "answer": "Decisions-so-far gains:\n- [Mobile rewrite](https://example.com/acme/billing/issues/51): not doing it",
+      "why": "a pointer to #51 under another title"
+    },
+    {
+      "answer": "## Decisions-so-far\n\n- [Decide invoice numbering](https://example.com/acme/billing/issues/44)\n- #51 Should we also rewrite the mobile app? No: out of scope",
+      "why": "wrong: an index line for #51 written without a link"
     }
   ]
 }

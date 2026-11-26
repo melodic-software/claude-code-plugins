@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '(?:--comment(?:-file)?|\bcomment(?: on)?\b[^\n.]{0,80}?:)(?:(?!Decisions-so-far|work-items:track[\s`*"]*done\b|\bclose\b)[\s\S]){0,2500}?(?:\bpassed\b|\bverdict\b:?\**\s*\**pass)'
+flags: i
 ---
-
-On map #500, the claimed prototype item #504 'Prove Knock sends email and in-app from one call' passed all its checks. Another session is writing research findings to the same map's dossier branch right now. The user asked to save the prototype files and close the item. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the resolution comment carries the prototype's verdict (its checks passed).
-
-FAIL if the resolution comment has no verdict.

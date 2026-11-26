@@ -1,9 +1,6 @@
 ---
-type: llm
+type: regex
+match: not_contains
+pattern: '(?:^|[.!?;\n]|:(?=\s))(?:(?!\b(?:not|never|no|skip|without|instead of|rather than|unless|nor)\b|n''t\b)(?:[^.!?;:\n]|:(?!\s)))*?(?:/?planning:interview\b|\binterview(?:ing)? (?:you |it |this |the (?:flow|effort|work) )?first\b|\brun (?:an|the|a quick) interview\b|\binterview\b(?:(?!\b(?:not|no|never)\b|n''t\b)[^.!?;\n]){0,60}\b(?:before|beforehand|ahead of)\b|\bbefore\b(?:(?!\b(?:not|no|never)\b|n''t\b)[^.!?;\n]){0,60}\binterview)'
+flags: i
 ---
-
-The user asked wayfind to chart a 'forgot password' email flow and said it is exactly three clear tickets: a reset-token request endpoint, an email send, and a reset-confirmation endpoint. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply does not offer to run /planning:interview first.
-
-FAIL if it offers or recommends running /planning:interview first.

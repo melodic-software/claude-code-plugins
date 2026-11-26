@@ -2,13 +2,45 @@
   "pass": [
     {
       "answer": "Nothing created yet; answer the three and I'll show the proposed map.",
-      "why": "meets the rule"
+      "why": "creates nothing"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels` gave `wayfind:` (default) and `needs-human` (default). Open maps: `/work-items:track list --label 'wayfind: map' --state open` found none.\n\nProposed map (nothing is created until you say yes):\n- Define the notification catalogue (design)\n- Pick the delivery-retry policy (research)",
+      "why": "only read actions; the proposed items wait for the yes"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: list --label 'wayfind: map' --state open\n```\nItems to create after your yes: the notification catalogue, the delivery-retry policy.",
+      "why": "a list call and a proposal are not creates"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply creates nothing"
     }
   ],
   "fail": [
     {
+      "answer": "`/work-items:track add --label 'wayfind: map' --body-file map.md \"Map: notification preferences\"`",
+      "why": "writes out the map create"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: add --parent 12 --label 'wayfind: design' --body-file cat.md \"Define the notification catalogue\"\n```",
+      "why": "writes out an item create as skill and arguments"
+    },
+    {
+      "answer": "Claiming the first item: /work-items:track start 13.",
+      "why": "a tracker write before the yes"
+    },
+    {
+      "answer": "Run `gh issue create --title \"Map: notification preferences\"`.",
+      "why": "a provider create"
+    },
+    {
       "answer": "Created the map issue and the catalogue item.",
-      "why": "breaks the rule"
+      "why": "wrong: creates in prose, no tracker call written out"
+    },
+    {
+      "answer": "Created map 'Map: notification preferences' with items 'Define the notification catalogue' and 'Pick the delivery-retry policy'. Now the three ready questions: email digests on by default? Recommend yes.",
+      "why": "wrong: charts before the ready round and the yes"
     }
   ]
 }

@@ -1,9 +1,6 @@
 ---
-type: llm
+type: regex
+match: not_contains
+flags: im
+pattern: '^(?![^\n]*(?:\bno\b|\bnot\b|n''t\b|\bnever\b|\bwithout\b|\bnone\b|\bneither\b|\bnor\b)[^\n]*(?:\[Should we also rewrite the mobile app\?\]\(|\]\(<?[^)\s]*/51\b))[^\n]*Decisions-so-far[^\n]*(?:\[Should we also rewrite the mobile app\?\]\(|\]\(<?[^)\s]*/51\b)|Decisions-so-far[^\n]*\n(?:[ \t]*\n)?(?:[ \t>]*(?:[-*]|\d+[.)])[ \t][^\n]*\n){0,20}?[ \t>]*(?:[-*]|\d+[.)])[ \t]+`?(?:\[Should we also rewrite the mobile app\?\]\(|\[[^\]\n]*\]\(<?[^)\s]*/51\)|#51\b|Should we also rewrite the mobile app\?)'
 ---
-
-On map #200, the claimed item #51 'Should we also rewrite the mobile app?' (wayfind: interview) turned out to be outside the effort's scope (web billing only). The user asked to close it out. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply adds no Decisions-so-far line for #51.
-
-FAIL if it adds a Decisions-so-far line for #51.

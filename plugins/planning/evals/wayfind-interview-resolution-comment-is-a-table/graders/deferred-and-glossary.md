@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '^(?=[\s\S]*?(?:(?<!\bnothing )(?<!\bnothing is )(?<!\bnothing was )(?<!\bnone )(?<!\bnone is )(?<!\bnot )(?<!\bnot been )(?<!\bnever )(?<!\bnever been )(?<!n''t )(?<!n''t been )\bdefer\w*\b(?:(?!\b(?:none|nothing|out of scope|out-of-scope|glossary|inherit\w*)\b)[\s\S]){0,200}?\b(?:mutual[ -]TLS|mTLS)\b(?![^\n.;]*\bout[ -]of[ -]scope\b)|\b(?:mutual[ -]TLS|mTLS)\b(?:(?!\bnot\b|n''t\b)[^\n]){0,80}\bdefer))(?=[\s\S]*?(?:\bglossary\b(?:(?!\b(?:none|nothing|no changes?|unchanged|out of scope|out-of-scope|defer\w*|inherit\w*)\b)[\s\S]){0,200}?\bpartner app\b|\bpartner app\b(?:(?!\bnot\b|n''t\b)[^\n]){0,80}\bglossary\b))'
+flags: i
 ---
-
-On map #400 'Map: partner API v2', the interview item #402 'Choose the auth scheme' is settled: OAuth client credentials for partners, API keys only for the sandbox, mutual TLS deferred to a later phase, 'partner app' added to the glossary, and the rate-limit item inherits the per-client identity. The user asked to post the resolution and close it. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the resolution comment lists the deferred item (mutual TLS) and the glossary change ('partner app').
-
-FAIL if either is missing.

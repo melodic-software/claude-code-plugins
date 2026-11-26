@@ -1,14 +1,15 @@
 {
   "pass": [
-    {
-      "answer": "**Pass checks:**\n1. The templated email arrives.\n2. The in-app message appears.\n3. Both from one call.",
-      "why": "meets the rule"
-    }
+    {"answer": "**Pass checks:**\n1. The templated email arrives.\n2. The in-app message appears.\n3. Both from one call.", "why": "numbered checks"},
+    {"answer": "**Pass checks:** 1. One API call produces the templated email. 2. The same call produces the in-app message.", "why": "inline numbered checks"},
+    {"answer": "Pass checks:\n- A single POST to Knock delivers the email to the test inbox.\n- The same POST shows the in-app message in the feed.", "why": "bulleted checks"},
+    {"answer": "**Pass checks**:\n  1) Email received from one call\n  2) In-app message visible from that same call", "why": "indented, paren numbering"}
   ],
   "fail": [
-    {
-      "answer": "**Pass checks:** it works well.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "**Pass checks:** it works well.", "why": "vague, no checks"},
+    {"answer": "**Pass checks:**\n1. It works.\n2. It is fast.", "why": "numbered but names neither output"},
+    {"answer": "**Prove:** one Knock call sends email and in-app.", "why": "no pass checks at all"},
+    {"answer": "**Pass checks:**\n1. It works.\n2. It is fast.\n**On fail:** reopen the vendor decision for email and in-app.\n**Fallback:** Courier", "why": "wrong: vague checks, email and in-app named only in the next field"}
   ]
 }
