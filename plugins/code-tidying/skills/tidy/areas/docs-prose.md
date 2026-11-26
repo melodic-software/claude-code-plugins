@@ -1,0 +1,66 @@
+# Focus area: docs-prose
+
+Markdown prose: project docs and skill bodies (body only, never frontmatter). The narrowest, lowest-risk focus area in the rotation: bad tidyings here don't break builds; they just produce noise the next reviewer can ignore.
+
+## Scope
+
+```text
+docs/**.md
+README.md
+.claude/skills/*/SKILL.md         # BODY only, never frontmatter
+.claude/skills/*/**.md            # supporting prose files
+```
+
+The two `.claude/skills/` globs sit under the GLOBAL HARD `.claude/**` entry in [exclusions.md](../reference/exclusions.md), so they yield a candidate only when one of that file's section 4 channels lifts the entry for the run.
+
+Retarget this to the consuming project's actual documentation layout with a project focus area at `.claude/tidy-areas/docs-prose.md`. A project `Scope` block **replaces** the globs above (see [Merge semantics](#merge-semantics)); it does not have to restate the sections it keeps.
+
+## Merge semantics
+
+This focus area is layered per the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md) ("Merge semantics"). A project focus area at `.claude/tidy-areas/docs-prose.md` is **not** meant to replace this file wholesale. It merges with the bundled focus area **per section**, so bundled improvements to sections the project does not touch keep reaching the repo. This is the declaration a project focus area adopts (by reference or by restating it); it is the recommended shape for this focus area:
+
+- **`Scope`**: **per-section override.** A project `Scope` block replaces the bundled globs entirely; retargeting doc layout is the whole reason a project writes a focus area, and two glob sets do not meaningfully concatenate. A project focus area that omits `Scope` keeps the bundled globs.
+- **`Watch-for patterns`**: **additive (concatenate).** A project's watch-for entries are **appended** to the bundled P-1..P-6; the generic patterns are never frozen out, and new bundled patterns flow to the project on upgrade. A project adds repo-specific patterns here; it does not restate or replace the bundled ones.
+- **Every other section** (`Area-specific extra exclusions`, `Verification commands`, `Conventional Commits type`, `Preferred research sources`) gets a **per-section override**, same as `Scope`: a section the project supplies replaces the bundled one; a section it omits keeps the bundled value.
+
+When a project focus area at `.claude/tidy-areas/docs-prose.md` includes a `## Merge semantics` section, `/code-tidying:tidy` reads **both** that project focus area and this bundled focus area and merges them per **the project focus area's** declaration, which is why adopting the shape above (`Merge semantics: per the bundled focus area's declaration`) is what puts these rules in force. A project focus area without that section resolves project-only, and none of the above applies to it.
+
+## Watch-for patterns
+
+- **P-1, Dead-link removal**: internal cross-references to files/sections that no longer exist. Broken relative `(./x.md)` paths are the common case. Grep for relative markdown links and walk the matches
+- **P-2, Stale cross-reference repair**: references to merged-but-renamed files
+- **P-3, Redundant-paragraph dedup**: when two docs explain the same concept, the canonical explanation should live in one place; the other should reference it. Beck 13 (One Pile) for prose
+- **P-4, Reading order in prose**: within a single doc, sections should flow from "what is it" → "how to use it" → "when not to use it" → "advanced". When the order is inverted without cause, fix it
+- **P-5, Explaining comments**: for code-shaped prose (CLI commands, configuration snippets), an inline `# explains the next line` comment often beats a separate paragraph above the snippet
+- **P-6, Delete redundant prose**: boilerplate like "This document explains..." at the top of a doc whose title already explains it
+- **Markdown style consistency**: heading hierarchy skipping levels, inconsistent list markers, trailing whitespace, hard tabs
+
+## Area-specific extra exclusions
+
+Beyond the global HARD/SOFT lists:
+
+- **Skill frontmatter is HARD-EXCLUDED.** Frontmatter changes have functional effects (auto-discovery, permission gates, model selection); not prose tidyings
+- **Skill Action Router / argument-grammar sections are HARD-EXCLUDED.** A skill's argument grammar is a contract with its users, and changing it is behavioral
+- **Skill HARD/SOFT exclusion lists are HARD-EXCLUDED.** Those lists are the safety mechanism for autonomous runs
+- **The project's top-level `CLAUDE.md` is SOFT-EXCLUDED.** Too central; prose tidyings there deserve dedicated human review
+- **`.claude/rules/**` is HARD-EXCLUDED** (also caught globally). Convention files are not "prose" in the tidy sense. They're enforcement specs
+- **Append-only / historical records are HARD-EXCLUDED**: changelogs, release notes, accepted ADRs, and any file that declares itself append-only or immutable. Supersede, don't edit history
+
+## Verification commands
+
+The consuming project's own markdown lint command for the changed files, read from its ecosystem record (`docs/conventions/ecosystems/<ecosystem>.yaml`), its project instructions, or its CI config. When none names one, report the lint check as unresolved and skip it; the focus area ships no command to run in its place.
+
+Plus relative-link integrity on changed files: for each `](<relative>.md)` reference, confirm the target exists.
+
+## Conventional Commits type
+
+`docs:`. Example squash titles:
+
+- `docs(skills): repair stale cross-references`
+- `docs: dedup hook-chain explanation across guides`
+
+## Preferred research sources
+
+- **Anthropic skill-authoring best-practices guide**, for "is this prose effective for Claude" questions: start at [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills) and follow it to the section a candidate touches.
+- **Boris Cherny**: Claude Code creator; canonical patterns for skill content and progressive disclosure
+- **Diátaxis framework** (`diataxis.fr`), for "is this doc the right kind of doc" reading-order questions

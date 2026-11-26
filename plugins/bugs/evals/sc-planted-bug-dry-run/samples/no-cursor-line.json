@@ -9,7 +9,7 @@
   ],
   "fail": [
     {
-      "answer": "## Scan cursor\n\n```yaml\nlane: core-logic\n```"
+      "answer": "## Scan cursor\n\n```yaml\narea: core-logic\n```"
     },
     {
       "answer": "Cursor: advanced to entrypoints"

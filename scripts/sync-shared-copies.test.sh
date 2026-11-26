@@ -313,6 +313,19 @@ out="$(run --check)"
 expect "--check passes on a generated CSS copy" 0 $? "$out"
 
 fixture
+printf 'NAME=value\n' >"$root/lib/data.env"
+printf 'lib/data.env plugins/alpha/hooks/data.env\n' >"$root/scripts/shared-copies.txt"
+run >/dev/null
+want=$'# GENERATED from lib/data.env by scripts/sync-shared-copies.sh. Do not edit this copy:\n# edit the canonical source, then rerun the script.\nNAME=value'
+if [[ "$(cat "$root/plugins/alpha/hooks/data.env")" == "$want" ]]; then
+  pass "an env-file copy opens with a # header"
+else
+  bad "an env-file copy opens with a # header" "got: $(cat "$root/plugins/alpha/hooks/data.env" 2>&1)"
+fi
+out="$(run --check)"
+expect "--check passes on a generated env-file copy" 0 $? "$out"
+
+fixture
 printf 'lib/b.sh plugins/beta/hooks/b.sh\n' >>"$root/scripts/shared-copies.txt"
 printf 'echo b\n' >"$root/lib/b.sh"
 out="$(run --print-manifest)"
