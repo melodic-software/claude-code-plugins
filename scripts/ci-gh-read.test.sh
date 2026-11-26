@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Write the rate-limit-aware read helper` step body of
-# .github/workflows/pr-require-checks.yml's ci-status, then calls the gh_read
-# function it writes, under bash -e, against stub `gh`, `sleep` and `date`.
-#
-# gh_read runs `gh api` through the api-budget wrapper, whose rate guard stops
-# a pool until its reset on a rate-limited response: retry-after seconds, else
-# x-ratelimit-reset while remaining is 0, else a guess: the documented minute
-# for a secondary limit, an hour for any other. gh_read is the read's only
-# retry layer, 3 sends at most: it waits once, one second past a reset a header
-# gave, and reads again; a guessed stop gets no wait, so it fails the read at
-# once. Nothing is sent while the pool is stopped, a probe included. A wait
-# that would end past the deadline the step sets (the job's timeout less a
-# margin, from when the step runs) fails the read at once naming the reset.
-# A 4xx that is no rate limit fails at once. Any other failure (a 5xx, a
-# network error, no HTTP status) is read again after a full-jitter wait, at
-# most 5 s and then 10 s, unless that wait would end past the deadline. A
-# third send that is rate limited, with a reset a header gave, names it.
 # test-scope: .github/workflows/pr-require-checks.yml
 # shellcheck disable=SC2016 # the step snippets are literal
 set -uo pipefail
@@ -30,7 +13,6 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-# Children that call mktemp land inside the trapped root.
 export TMPDIR="$TMP_ROOT"
 
 if ! ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" budget; then
@@ -80,8 +62,6 @@ while IFS= read -r name; do
     fail "'$name' calls gh_read without sourcing it first"
   fi
 done < <(awk '/^      - name: / { name = substr($0, 15) } /(gh|pr)_read [-"]/ && name != "Write the rate-limit-aware read helper" { print name }' <<<"$job" | sort -u)
-# Every other `gh api` in the job is a write, or marked gh-read-exempt on the
-# line above, so a new fail-closed read cannot skip the wait unnoticed.
 stray="$(awk '/^      - name: / { helper = ($0 == "      - name: Write the rate-limit-aware read helper") }
   !helper && /gh api / && $0 !~ /^ *#/ && $0 !~ /gh api -X (POST|DELETE|PATCH|PUT) / && prev !~ /# gh-read-exempt: / { print }
   { prev = $0 }' <<<"$job")"
@@ -91,20 +71,6 @@ else
   fail "ci-status reads through plain gh api without a gh-read-exempt mark: $stray"
 fi
 
-# The gh stub logs its arguments and answers each call with the next line of
-# STUB_SCRIPT, as gh does with and without -i (the api-budget wrapper adds -i
-# to every call it can):
-#   ok <body>                       200 with 4000 of 5000 left
-#   limit <remaining> <reset> <retry-after or -> <message>
-#                                   403 with those headers and that message;
-#                                   graphql's resource on a graphql call
-#   last <reset> <body>             200 that spends the last request
-#   held <5xx> <retry-after>        that status with Retry-After and headroom
-#                                   left: a server error hold, no rate limit
-#   fail <status> <message>         that status, no rate-limit headers
-#   net                             no response: a network error, no status
-# Without -i only the body, or the error text on stderr, is printed. sleep
-# logs its seconds, and date +%s answers STUB_NOW plus the seconds slept.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -258,9 +224,6 @@ STUB_NOW=$((NOW + 120)) STUB_SCRIPT='ok never' run 'gh_read repos/o/r/pulls --pa
 check "two minutes later that pool is still stopped and nothing is sent" 0 0 "" "rc=1"
 
 
-# gh_read holds gh's stderr in a file until gh returns, and a stop the rate
-# guard cannot record ends the step first: the errors still reach its log.
-# Root writes past a read-only directory, so the case skips there.
 if [[ $(id -u) == 0 ]]; then
   ok "skipped as root: an unrecorded stop needs a directory root cannot write past"
 else
@@ -439,8 +402,6 @@ else
   fail "a guessed stop at the third send named a reset: '$out'"
 fi
 
-# A 5xx whose only signal is Retry-After is held as a rate limit is, but each
-# line gh_read writes for it names the server error, never a rate limit.
 fresh
 STUB_SCRIPT='held 503 30
 ok after' run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
@@ -470,10 +431,6 @@ STUB_SCRIPT='fail 502 Bad Gateway
 ok never' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
 check "a jittered wait that would end past the deadline is not taken" 0 1 "" "rc=1" "::error::"
 
-# pr_read: one read per job of the same args. A later step's pr_read answers
-# the kept body with no call; other args read again; a failed read keeps
-# nothing, so the next pr_read reads again; pr_read_put keeps an answer read
-# another way; pr_read_forget drops them all.
 fresh
 STUB_SCRIPT='ok {"number":1}' run 'pr_read repos/o/r/pulls/1'
 check "pr_read reads once" 0 1 "" '{"number":1}'

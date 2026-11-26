@@ -26,7 +26,6 @@ mkrepo() {
   git -C "$1" commit -q -m seed
 }
 
-# git's own spelling of a checkout path, so the 8.3 and drive forms match.
 top() { git -C "$1" rev-parse --show-toplevel; }
 
 FLEET="$T/fleet"
@@ -109,8 +108,6 @@ mkrepo "$FLEET/github.com/o/e"
 E="$(top "$FLEET/github.com/o/e")"
 mkdir -p "$T/proj/.claude"
 git config --file "$T/proj/.claude/repo-fleet-hygiene.conf" fleet.repo "$E"
-# The skill passes the project directory as a flag: the Bash tool's environment
-# carries no CLAUDE_PROJECT_DIR, which run_disc reproduces.
 run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir "$T/proj"
 assert_eq "project fleet config names a repository" $'repo\t'"$E"$'\t0' "$(rows repo "$E")"
 assert_eq "project fleet config shadows the user-global one" "" "$(rows repo "$C")"
@@ -200,8 +197,6 @@ assert_exit "--repo-dir without a value is a usage error" 2 "$RC"
 run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$T/missing"
 assert_exit "a missing root file is a usage error" 2 "$RC"
 
-# A git older than 2.36 rejects `worktree list -z`: fail closed, naming the
-# floor and the installed version, rather than reporting 0 linked worktrees.
 OLD_GIT_BIN="$T/old-git-bin"
 mkdir -p "$OLD_GIT_BIN"
 {
@@ -222,11 +217,6 @@ assert_contains "the old-git failure names the floor" "$ERR" "git >= 2.36.0"
 assert_contains "the old-git failure names the installed version" "$ERR" "git version 2.35.0"
 assert_eq "the old-git failure prints no inventory" "" "$OUT"
 
-# --- --remove-input-files deletes the handed files and their dir (#8212) ---
-# The status block writes its two input files into a mktemp dir; the helper owns
-# their removal so the block needs no rm and no exit-status variable.
-# mkinputs <dir> <data root>: the two files the skill writes, the plugin option
-# left unconfigured.
 mkinputs() {
   mkdir -p "$1"
   # shellcheck disable=SC2016 # the literal unexpanded token is the point
@@ -281,9 +271,6 @@ run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs
   --data-root-file "$inputs/data-root"
 assert_file_exists "without --remove-input-files the input files stay" "$inputs/data-root"
 
-# The status.md block end to end under zsh, where `status=$?` aborts: the bare
-# helper call exits with the helper's code and leaves no temp directory.
-# run_zsh_block <inputs dir>: the block, run by zsh from a non-repository cwd.
 run_zsh_block() {
   # shellcheck disable=SC2016 # zsh expands the positional parameters
   (cd "$UNRELATED" && HOME="$T/home" GIT_CONFIG_GLOBAL=/dev/null REPO_FLEET_GHQ_BIN="$T/bin/no-ghq" \

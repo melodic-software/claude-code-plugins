@@ -1,70 +1,5 @@
 #!/usr/bin/env bash
-# Detect the on-disk fingerprint of an unconverted POSIX path handed to a
-# Windows-native consumer. Two classes share the mechanism:
-#   * a directory at a drive root whose name is a single letter that is ITSELF
-#     a mounted drive (an MSYS /d/... literal), and
-#   * a directory at a drive root carrying a KNOWN TEMP-SINK NAME (a POSIX
-#     /tmp literal), e.g. C:\tmp.
-#
-#   scripts/check-drive-root-litter.sh          scan this host's drive roots
-#
 # Exit: 0 clean, or a no-op on a non-Windows host; 1 litter found; 2 usage error.
-#
-# WHAT IT DETECTS AND WHY THAT SHAPE. Git Bash spells `D:\dir` as `/d/dir`.
-# Handed to PowerShell, cmd, or a Windows-native interpreter, the leading `/`
-# anchors to the root of the CURRENT DRIVE, so the literal resolves to
-# `<current-drive>:\d\dir` and the consumer creates that whole phantom chain
-# before writing. The residue is therefore always the same shape: `<drive>:\<x>\`
-# where `<x>` is the single letter of the drive the author MEANT to write to.
-# `docs/contracts/windows-path-emit/README.md` owns the rule that prevents it;
-# this script is that rule's detection net, for the runs that ignore it.
-#
-# Requiring the directory name to match a MOUNTED DRIVE is what keeps the
-# detector precise. A single-letter directory is not suspicious on its own -
-# `D:\a` is the workspace root on a GitHub-hosted Windows runner, and any number
-# of projects use a one-character top-level folder deliberately. It becomes the
-# fingerprint of THIS defect only when that letter also names a real drive on the
-# same host, because that is the coincidence the mechanism requires: the phantom
-# path is built from a drive letter the author spelled out. The sibling
-# plugins/guardrails/hooks/block-windows-drive-tmp.sh guards an EXTERNAL
-# writer's `C:\tmp` residue on the command string before a run; this script
-# looks at the filesystem AFTER a run, for a producer we own.
-#
-# The TEMP-SINK class is the same mechanism with the literal spelled `/tmp`
-# instead of `/<drive>/...`: Git Bash's real temp is a mount
-# (`/tmp` -> `%TEMP%`), but a Windows-native consumer given the literal
-# resolves it to `<current-drive>:\tmp` and creates it. The name vocabulary is
-# deliberately the sibling guard's: `tmp` is the only drive-root sink
-# block-windows-drive-tmp.sh blocks (`/var/tmp` and `%TEMP%` are legitimate and
-# never sit at a volume root), so `tmp` is the only name here. Grow both lists
-# together. Precision comes from the name being a sink nothing legitimately
-# roots at a volume top on Windows - unlike the single-letter class there is no
-# mounted-drive coincidence to require, so this class carries an opt-out:
-# DRIVE_ROOT_LITTER_IGNORE_SINKS (space- or comma-separated names) exempts an
-# operator who keeps a deliberate `C:\tmp`. Sink names match CASE-INSENSITIVELY
-# in both directions - Windows filesystems are case-insensitive, so `C:\TMP`
-# and `C:\tmp` are one directory, and the detector enumerates drive-root
-# entries rather than probing the literal lowercase name so the contract holds
-# on the case-sensitive filesystems the test fixtures run on; the opt-out
-# accepts any casing for the same reason. An env var rather than a marker
-# file inside the directory, because the detector cannot trust litter's own
-# contents to prove intent, and the env var keeps the exemption visible at the
-# invocation site. The single-letter class has no opt-out and is unaffected.
-#
-# ADVISORY BY DEFAULT, not wired into a required lane that scans a live machine.
-# docs/adr/0003 is this repo's doctrine for that: a verification guard earns
-# default-on by measured precision, and this detector has none yet. CI runs its
-# self-test (deterministic, fixture-scoped) and asserts the non-Windows no-op;
-# the live scan is an operator/harness-author command. Promote it when there is
-# precision to point at.
-#
-# FIXTURE SEAM. `DRIVE_ROOT_LITTER_MOUNT_ROOT` relocates the MSYS mount root the
-# scan reads (default `/`, where Git Bash mounts `C:` at `/c`). It is the one
-# seam, it is opt-in, and it is never auto-detected - so a bare invocation on a
-# CI runner is provably the host scan and nothing else. Drives are found by
-# PROBING `<mount-root>/<letter>` with `-d` rather than by listing the mount
-# root, because MSYS maps drives lazily: `ls /` shows no single-letter entries on
-# a real Git Bash host even though `/c` and `/d` both resolve.
 set -uo pipefail
 
 if (($# > 0)); then
@@ -72,10 +7,6 @@ if (($# > 0)); then
   exit 2
 fi
 
-# Host gate, first and unconditional, so the bare invocation on a Linux or macOS
-# runner cannot reach any filesystem probing at all. Non-Windows hosts have no
-# drive letters, so this defect cannot occur and there is nothing to scan. The
-# skip is REPORTED, never silent.
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) ;;
 *)
@@ -97,11 +28,6 @@ if ((${#drives[@]} == 0)); then
   exit 0
 fi
 
-# A candidate that CONTAINS the current working directory is a real checkout
-# location, not litter: someone whose repo lives at `D:\c\work\repo` would
-# otherwise be told their own checkout is residue. Both sides are compared in
-# PHYSICAL form, because MSYS mount aliases make the lexical spellings differ
-# for the same directory (`/tmp/x` and `/c/Users/.../Temp/x` are one place).
 here="$(pwd -P 2>/dev/null)" || here="$(pwd)"
 
 hits=()
@@ -126,13 +52,6 @@ for drive in "${drives[@]}"; do
   done
 done
 
-# Temp-sink class (see the header): a known sink name at a drive root, matched
-# case-insensitively by ENUMERATING the drive root's entries - a lowercase
-# probe would rely on the host filesystem folding case, which the test
-# fixtures' filesystems do not. DRIVE_ROOT_LITTER_IGNORE_SINKS exempts a name,
-# any casing. The ${var,,} case folds below are bash 4.0+; they only ever
-# execute behind the Windows host gate above (Git Bash ships bash 5.x), so a
-# macOS bash 3.2 exits at the gate before reaching them - keep them below it.
 sink_names=" tmp "
 ignored_sinks="${DRIVE_ROOT_LITTER_IGNORE_SINKS:-}"
 ignored_sinks="${ignored_sinks//,/ }"

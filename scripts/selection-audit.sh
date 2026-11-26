@@ -1,79 +1,7 @@
 #!/usr/bin/env bash
-# Audit the test selector (scripts/affected-tests.sh) against what the suites
-# actually do. Two questions, one subcommand each:
-#
-#   scripts/selection-audit.sh trace [--shard I/N] [--jobs N] [--budget S] [--strict] [--out DIR] [SUITE...]
-#       Run each suite under strace, collect the tracked files it opened, then
-#       ask the selector, one synthetic single-file diff per file, whether a
-#       change to that file selects the suite. Every (suite, file) pair the
-#       selector would not take is a GAP: a change to that file could break the
-#       suite on main while the pull request's affected run never started it.
-#       Default corpus: every tracked *.test.sh, and every test_*.py outside
-#       /evals/fixtures/, which holds data no lane runs, but the two suites
-#       that run strace themselves; --shard keeps suites I, I+N, I+2N, ...
-#       of the sorted list. A *.test.mjs suite named on the command line runs
-#       under `node --test` from the root; the default corpus leaves Node
-#       suites out. Each suite gets 600 s under strace, and the slowest start
-#       first. The report names every suite the budget left untraced and
-#       counts the files left unchecked; --strict exits 1 on either, since a
-#       suite or file nobody checked is not clean
-#       (https://github.com/melodic-software/claude-code-plugins/issues/17522).
-#
-#   scripts/selection-audit.sh changed --base REF
-#       Print the suites the diff REF...HEAD adds or changes, one per line, for
-#       pr-require-checks.yml's test-selection job to trace: its *.test.sh,
-#       test_*.py and *.test.mjs files, less the eval-fixture test_*.py files
-#       and the two suites that run strace. A *.test.mjs with a sibling
-#       *.test.sh is printed as that wrapper, which is how CI runs it
-#       (https://github.com/melodic-software/claude-code-plugins/issues/17522).
-#
-#   scripts/selection-audit.sh replay --suite S --good SHA --bad SHA
-#       For each first-parent commit in GOOD..BAD, run that commit's own
-#       selector on its own diff and say whether it selected S. A suite no
-#       commit selected is a SELECTION MISS; one some commit selected is a
-#       regression its pull-request run should have caught, or a flake. A
-#       commit whose selector could not run is an error row, and a range with
-#       errors and no selecting commit is INCONCLUSIVE, not a miss.
-#
-# An unmapped file counts as selecting a suite only when pr-require-checks.yml's UNMAPPED
-# fallback runs that suite: in a tree whose pr-require-checks.yml plans its test lanes with
-# scripts/plan-test-lanes.sh, the corpus of the file's language, which the
-# selector adds itself under --unmapped-corpus; in an older tree, the corpus
-# fallback_corpus reads from pr-require-checks.yml.
-#
-#   scripts/selection-audit.sh red-replay --run-id ID [--repo OWNER/REPO]
-#       For a failed pr-require-checks run on main: read the failing suites from its job logs
-#       (FAIL: lines), find each suite's last green run (the newest earlier
-#       successful run whose job logs name the suite), and replay that
-#       range. Needs gh with actions: read.
-#
-#   scripts/selection-audit.sh reads <strace-log> <root>
-#       Print the files under <root> a trace opened, repo-relative. Internal;
-#       public so the suite can test the parser on a fixture.
-#
-# A read is a successful open(2)/openat(2): strace -y prints the opened file's
-# resolved path on the return value, so a relative path or a dirfd-relative
-# open resolves without replaying the process's working directory. Reads
-# through git objects (`git show HEAD:path`) and existence probes (stat, `-f`)
-# are not opens, so the trace cannot see them.
-#
-# Four root files are read by almost every suite through its tools, not its
-# logic: node reads package.json for the module type, the version manager reads
-# .node-version, and git reads .gitignore and .gitattributes. A read of one is no gap; a change to
-# one is the toolchain's to gate, and as a scope it would select every suite. The same holds for a
-# .gitignore or .gitattributes in any directory, which git reads when a suite walks the tree.
-# So is .github/npm-fetch.npmrc: npm reads it at startup in any suite that runs
-# npm or npx, through npm_config_globalconfig, and callers.test.mjs gates it.
-#
-# Writes report.md, gaps.tsv and suites.tsv (trace) or report.md (replay,
-# red-replay) under --out, and appends report.md to $GITHUB_STEP_SUMMARY when
-# set. Never opens or edits an issue.
-#
 # Exit: 0 no gap and no miss; 1 gaps or misses reported, or under --strict a
 #         suite left untraced or a file left unchecked; 2 usage or a tool missing.
 set -uo pipefail
-# In a job, each gh call keeps its rate-limit reading for the job-end
-# api-budget notice (.github/actions/log-api-budget).
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
@@ -84,7 +12,23 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/pytest-python.sh"
 SUMMARY_ROWS=200
 
 usage() {
-  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Audit the test selector (scripts/affected-tests.sh) against what the suites actually read.
+
+  scripts/selection-audit.sh trace [--shard I/N] [--jobs N] [--budget S] [--strict] [--out DIR] [SUITE...]
+      trace each suite's file reads and report every read file whose change would not select the suite
+  scripts/selection-audit.sh changed --base REF
+      print the suites the diff REF...HEAD adds or changes
+  scripts/selection-audit.sh replay --suite S --good SHA --bad SHA
+      say whether each first-parent commit's own selector selected S
+  scripts/selection-audit.sh red-replay --run-id ID [--repo OWNER/REPO]
+      replay each suite a failed pr-require-checks run on main failed since its last green run
+  scripts/selection-audit.sh reads <strace-log> <root>
+      print the files under <root> a trace opened (internal)
+
+Exit: 0 no gap and no miss; 1 gaps or misses reported, or under --strict a
+        suite left untraced or a file left unchecked; 2 usage or a tool missing.
+EOF
 }
 
 die() {
@@ -194,7 +138,6 @@ trace_one() {
   *) runner=(bash "$suite") ;;
   esac
   start="$(date +%s)"
-  # -k: a daemon a suite leaves behind stays traced, and strace outlives a TERM waiting for it.
   timeout -k 10 600 strace -f -y -z -qq --seccomp-bpf -e trace=open,openat -e signal=none \
     -o "$out/strace.$key" "${runner[@]}" >"$out/logs/$key.log" 2>&1 || rc=$?
   reads "$out/strace.$key" "$ROOT" | grep -vxF -e "$suite" -e package.json -e .node-version -e .github/npm-fetch.npmrc |
@@ -298,8 +241,6 @@ cmd_trace() {
   find "$out/chunks" -type f | sort |
     xargs -d '\n' -r -P "$jobs" -I{} bash -c "select_chunk \"\$1\" \"\$2\"" _ "$out" {}
 
-  # edges.tsv: suite, file it read. selected.tsv: file, suite a change to it
-  # selects. verdicts.tsv: file, the selector's answer in words.
   local key
   cat "$out"/suites/* | sort >"$out/suites.tsv"
   for f in "$out"/suites/*; do
@@ -323,10 +264,6 @@ cmd_trace() {
       grep -m1 -E "^(no-suite|deleted)" "$out/sel/$key.err" || echo 'selects no suite'
     fi | awk -v f="$f" '{ print f "\t" $0 }' >>"$out/verdicts.tsv"
   done <"$out/files"
-  # gaps.tsv: suite, file, verdict, for every read the selector would not
-  # take. An unmapped file is no gap for a suite the fallback runs, and a gap
-  # for one it does not; an unchecked file is counted apart; a file recorded in
-  # scripts/affected-tests-no-suite.txt is covered by a non-shell lane, so no gap.
   awk -F'\t' '
     FILENAME ~ /fallback$/ { fb[$0] = 1; next }
     FILENAME ~ /selected.tsv$/ { sel[$1 SUBSEP $2] = 1; next }
@@ -496,9 +433,6 @@ cmd_red_replay() {
   IFS=$'\t' read -r bad workflow created < <(gh api "repos/$repo/actions/runs/$run" \
     --jq '[.head_sha, .workflow_id, .created_at] | @tsv') || die "cannot read run $run"
   job_logs "$repo" "$run" "$out/logs" failure
-  # Failing suites: run-plugin-tests.sh and affected-tests.sh print
-  # `FAIL: <suite>`; pytest prints `FAILED <file>::<test>`. A case name that
-  # merely looks like a path is dropped unless the failed commit has that file.
   local -a failing=()
   local s
   while IFS= read -r s; do

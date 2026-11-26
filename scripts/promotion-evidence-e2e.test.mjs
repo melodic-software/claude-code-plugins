@@ -14,7 +14,6 @@ const CHECKER = join(REPO, "plugins/autonomy/skills/setup/scripts/check-security
 const FIXTURES = join(REPO, "plugins/autonomy/skills/setup/evals/fixtures/security-binding");
 const PROMOTED_BINDING = join(FIXTURES, "promoted-c2c3.json");
 const TRANSCRIPT_REF = "probe-transcripts/ci-pool-a-l2.json";
-// The fixture transcript probes $HOME/.netrc, expanded on the probe host to /home/runner/.netrc.
 const CREDENTIAL_ROOTS = "/home/runner";
 const CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
 const IN_EPOCH = "2026-07-10T12:00:00Z";
@@ -33,10 +32,6 @@ for (const name of ["resolve-promotion-evidence.mjs", "operator-options.mjs"]) c
 const RESOLVER = join(install, "resolve-promotion-evidence.mjs");
 const userSettings = join(config, "settings.json");
 
-// The resolver refuses a surface or settings file the lane user can write, and every file here
-// belongs to whoever runs the suite. Cases run its main() through its test seam instead: a wrapper
-// beside it on linux that reports every path administrator-owned (uid 0) and unwritable, so the
-// writability test passes and the case reaches the checker.
 const SEAM = join(install, "seam.mjs");
 writeFileSync(
   SEAM,

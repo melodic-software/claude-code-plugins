@@ -141,9 +141,6 @@ def main() -> int:
     files = production_files(args.registry)
     if not files:
         return fail("no production JavaScript file in scope.")
-    # -i -1: exit 0 whatever lizard's own warning threshold says, so a nonzero
-    # exit means lizard failed. The ./ prefix keeps a file named like an
-    # option (-o.js) a file.
     result = subprocess.run(
         [lizard, "--csv", "-i", "-1", *(f"./{rel}" for rel in files)],
         capture_output=True,

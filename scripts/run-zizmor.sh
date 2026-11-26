@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# The lint-repo zizmor gate: every offline audit blocks; the online audits
-# block on findings, but a GitHub API network error from them (HTTP 403, 429 or
-# 5xx, or no response at all) is a warning naming the status.
-#
-#   scripts/run-zizmor.sh            (from the repository root; GH_TOKEN set)
-#
-# zizmor reads one config and has no include, so the layering is
-# melodic-software/standards components/zizmor/README.md's: a repository config
-# is a complete override, read from the base commit with BASE_SHA set, else the
-# checkout's own; with none, standards' config from the standards checkout
-# (STANDARDS_DIR, download-standards' `path`), else from the main branch of
-# docs/conventions/source-control.yaml's standards_repository (the base
-# commit's with BASE_SHA set) through the API. One finding is suppressed inline
-# with `# zizmor: ignore[<audit>]`.
-#
-# Two runs, because one online-audit request error aborts the whole run with
-# "no audit was performed", which would hide every offline finding too:
-#   1. --no-online-audits: the offline audits. Any non-zero exit fails.
-#   2. the full run. Its offline findings are none (run 1 passed), so exit
-#      11-14 is an online finding and fails. Exit 1 is "Error during audit";
-#      it is downgraded only when zizmor names a GitHub API request error.
-# Exit codes and modes, as of 2026-10-18 (recheck on a zizmor bump in
-# .github/requirements-ci.txt): https://docs.zizmor.sh/usage/#exit-codes
-# and https://docs.zizmor.sh/usage/#operating-modes
 set -uo pipefail
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token

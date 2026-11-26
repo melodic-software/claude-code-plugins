@@ -1052,10 +1052,6 @@ def _annotation(level: str, message: str) -> dict[str, str]:
     return {"annotation_level": level, "message": message}
 
 
-# The failure and warning annotations of run 43155083740's CI Status job
-# (check run 130976739440, the merge group of #15535 on 2026-11-12), as GitHub
-# returned them; the notices, one repeated pair and the long request-id warning
-# are left out, and the jobs read's jq filter is cut from its command.
 RATE_LIMITED_GATE = [
     _annotation("failure", "Process completed with exit code 1."),
     _annotation(
@@ -2197,8 +2193,6 @@ class GateEvaluation(unittest.TestCase):
                 return self.views[int(args[2])]
             path = args[1]
             if path.startswith("repos/owner/repo/rules/branches/"):
-                # The gate percent-encodes the branch. GitHub decodes that
-                # segment back to the branch name before matching rules.
                 branch = unquote(path.split("/rules/branches/", 1)[1])
                 return self.rules.get(branch, [])
             if path == "repos/owner/repo":

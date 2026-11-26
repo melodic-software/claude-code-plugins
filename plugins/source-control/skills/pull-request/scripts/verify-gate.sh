@@ -1,40 +1,31 @@
 #!/usr/bin/env bash
-# verify-gate.sh: bind the ready flip's verify result to the head commit.
-#
-# The `ready` action's verify gate runs in its own Bash call, so its exit status cannot stop
-# the later call that flips the draft. `record` writes the gate's result for one head commit;
-# `check` runs in the same shell command as `gh pr ready` and refuses unless that exact head
-# has a recorded `pass`, or a recorded `skipped` (`--skip verify` or `pre_ready` turned it off).
-# `record --from-pre-ready` records `skipped` only when read-pre-ready.sh reads `pre_ready` at the
-# base repository's default branch turning `verify` off, so that skip comes from reviewed config,
-# not from the caller's word; any other read records nothing
-# (https://github.com/melodic-software/claude-code-plugins/issues/18112).
-# CI's test lanes passing on that head skips only the suites; the rest of the gate still records.
-# A result recorded for another head never counts, so a commit after the gate voids it.
-#
-# Usage:
-#   verify-gate.sh record --head <sha> --result pass|fail|skipped [--dir <checkout>]
-#   verify-gate.sh record --from-pre-ready --repo <owner/repo> --base <b> --head <sha> [--dir <checkout>]
-#   verify-gate.sh check  --head <sha> [--dir <checkout>]
-#
-# The result lives under the repository's common git directory (`ready-verify/<sha>`), shared by
-# every worktree, so a record and a check agree whichever checkout the shell sits in; or under
-# $READY_VERIFY_DIR when set. --dir names any checkout of the repository to read that directory
-# from (default: the current directory); $READY_VERIFY_DIR still wins over it.
-#
-# Exit codes:
-#   0  record: stored; check: `pass` or `skipped` recorded for the head
-#   1  invalid argument, or --dir names no directory
-#   2  check: no result recorded for the head, or the state cannot be read
-#   3  check: the recorded result for the head is `fail`
-#   4  record --from-pre-ready: the base's `pre_ready` does not disable verify, or cannot be read;
-#      nothing is recorded
-
 # portability-scope: local state under the git directory; --from-pre-ready reads the base through read-pre-ready.sh's gh calls.
 set -uo pipefail
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+verify-gate.sh: bind the ready flip's verify result to the head commit.
+
+Usage:
+  verify-gate.sh record --head <sha> --result pass|fail|skipped [--dir <checkout>]
+  verify-gate.sh record --from-pre-ready --repo <owner/repo> --base <b> --head <sha> [--dir <checkout>]
+  verify-gate.sh check  --head <sha> [--dir <checkout>]
+
+  --head            the head commit the result binds to
+  --result          the verify gate's result
+  --from-pre-ready  record `skipped` only when the base's `pre_ready` turns verify off
+  --repo, --base    the repository and base branch read for --from-pre-ready
+  --dir             any checkout of the repository (default: the current directory);
+                    $READY_VERIFY_DIR wins over it
+
+Exit codes:
+  0  record: stored; check: `pass` or `skipped` recorded for the head
+  1  invalid argument, or --dir names no directory
+  2  check: no result recorded for the head, or the state cannot be read
+  3  check: the recorded result for the head is `fail`
+  4  record --from-pre-ready: the base's `pre_ready` does not disable verify, or cannot be read;
+     nothing is recorded
+EOF
   exit 0
 }
 

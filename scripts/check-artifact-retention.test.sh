@@ -2,13 +2,6 @@
 # test-scope: scripts/ci-deps/package.json
 # test-scope: .github/artifact-retention.json .github/artifact-retention.schema.json
 # test-scope: .github/workflows/* .github/actions/*
-# Black-box contract test for check-artifact-retention.sh.
-#
-# Builds a throwaway tree with a retention table and fixture workflows, runs the
-# checker against it, and asserts on exit code and output; the last case runs
-# the checker on this checkout. Mutates only its own mktemp dir. The SUT
-# resolves the repository root relative to its own location, so the fixture
-# tree carries a copy of it under scripts/.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -324,7 +317,6 @@ run_case "a missing table fails as environment" 2 \
   "rm $TABLE" \
   "$TABLE"
 
-# Findings on stderr only; the clean statement on stdout only.
 tree=""
 if mk_tree tree; then
   drop_line "$tree/$WORKFLOW" '          retention-days: 1'
@@ -333,7 +325,6 @@ else
   fail "discover mode: fixture build failed"
 fi
 
-# The yaml package missing is environment, not findings.
 tree=""
 if mk_tree tree; then
   rm "$tree/scripts/ci-deps/node_modules"

@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Check, online, the external links a pull request adds or changes in markdown.
-#
-#   check-changed-links-online.sh [--list] <base-ref>
-#
-# lychee extracts the links of each markdown file the diff `<base-ref>...HEAD`
-# adds or modifies, with the same parser and lychee.toml the offline lane and the
-# weekly online run use, so code spans, fenced blocks and excluded URLs are left
-# out as they are there. A link is kept when it appears on an added line. lychee
-# then checks just those with the network on; lychee.toml's accept list keeps a
-# 429, a 5xx or a timeout from failing. --list prints the kept links and checks
-# nothing. LYCHEE names the binary (default lychee), LYCHEE_CONFIG the ruleset
-# (default: https://github.com/melodic-software/standards/blob/main/components/lychee/README.md#defaults-extensions-and-overrides). Exit status follows scripts/README.md, "The
-# check-script contract".
 set -euo pipefail
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
@@ -77,7 +64,6 @@ if ((${#files[@]})); then
     echo "$me: lychee could not extract the links of the changed files" >&2
     exit 2
   fi
-  # lychee may add a trailing slash to a bare host; match without it.
   while IFS= read -r url; do
     if [[ $url =~ ^https?:// && $added == *"${url%/}"* ]]; then urls+=("$url"); fi
   done < <(LC_ALL=C sort -u <<<"$dump")

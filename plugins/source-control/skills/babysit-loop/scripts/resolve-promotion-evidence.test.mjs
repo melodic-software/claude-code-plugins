@@ -450,8 +450,6 @@ test("administrator-owned surfaces and settings pass the writability check", cli
   assert.equal(result.cells["C2-auto-merge"].effective, "promoted");
 });
 
-// The rule babysit_merge_policy.py _lane_writable states: lane-writable when the lane can write,
-// or owns, the path or any directory above it, as given or after symlinks resolve.
 const ownedBy = (...dirs) => ({ uid: 1000, access: () => false, stat: (p) => ({ uid: dirs.includes(p) ? 1000 : 0 }) });
 
 test("laneWritable: the path or any directory above it owned by the lane user", () => {
@@ -474,8 +472,6 @@ test("laneWritable: a symlink resolving into a lane-owned directory", () => {
 });
 
 test("laneWritable: a '..' path judges the directories it names as given", () => {
-  // Python's Path.absolute() keeps "..", so _lane_writable walks <owned>/.. and <owned>; a
-  // normalized or resolved walk never visits <owned>.
   const owned = mkdtempSync(join(base, "dotdot-"));
   const path = `${owned}/../ops/binding.json`;
   assert.equal(laneWritable(path, ownedBy(owned)), true);

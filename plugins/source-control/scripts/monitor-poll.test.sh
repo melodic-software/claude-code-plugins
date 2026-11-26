@@ -13,7 +13,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not available"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# Children that call mktemp land inside the trapped root.
 export TMPDIR="$TEST_TMPDIR"
 
 BIN="$TEST_TMPDIR/bin"
@@ -448,9 +447,6 @@ FXV=$(verdict_fx fxv-verdict-off)
 touch "$FXV/no-verify"
 assert_contains "--verdict: says the base branch runs no pr-verify" "$(run_poll "$FXV" --verdict)" "PR-VERIFY off"
 
-# --- the script runs no rm and makes no temp file: an auto-mode session's
-# safety check denied a Monitor command that ran rm:
-# https://github.com/melodic-software/claude-code-plugins/issues/16201
 assert_eq "poll script runs no rm" "" "$(grep -nE '(^|[^[:alnum:]_-])rm([^[:alnum:]_-]|$)' "$SRC")"
 assert_eq "poll script makes no temp file" "" "$(grep -n 'mktemp' "$SRC")"
 
@@ -477,12 +473,6 @@ assert_eq "stopped watch: it exits within 5s of TERM" "gone" "$(kill -0 "$pid5" 
 kill -0 "$pid5" 2>/dev/null && kill -KILL "$pid5" 2>/dev/null
 wait "$pid5" 2>/dev/null
 
-# --- the documented Monitor command. Both docs hand the script to bash by
-# path with no poll body inline, so the shell the Monitor tool runs (zsh on
-# some hosts) never parses the poll itself; and each command as written, its
-# placeholders filled in, runs a watch to completion against the stub. The
-# quotes are dropped before the split: the fixture paths hold no whitespace.
-# https://github.com/melodic-software/claude-code-plugins/issues/16353
 SKILL_DOC="$SCRIPT_DIR/../skills/pull-request/reference/monitor.md"
 PROVIDER_DOC="$SCRIPT_DIR/../reference/providers/github/pull-request/monitor.md"
 skill_cmd=$(sed -n 's/^[[:space:]]*command: //p' "$SKILL_DOC")

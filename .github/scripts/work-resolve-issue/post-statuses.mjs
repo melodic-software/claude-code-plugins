@@ -16,6 +16,7 @@ import {
   readTurnCap,
 } from "./report-outcome.mjs";
 import { LANES_APP_LOGIN } from "../lib/lane-vocabulary.mjs";
+import { wholeCommits } from "../pr-merge/merge-holds.mjs";
 import { retryApi } from "../lib/retry-fetch.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
@@ -98,7 +99,8 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
     let checkedTip;
     if (checksPassed(checks) && (await headSha(resumed).catch(() => "")) === checks.tip) {
       const base = (await github("GET", repo))?.default_branch;
-      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${checks.tip}`);
+      const range = `${repo}/compare/${encodeURIComponent(base)}...${checks.tip}`;
+      const comparison = await wholeCommits((path) => github("GET", path), range, await github("GET", range));
       if (allLaneCommits(listedCommits(comparison), env.LANES_BOT_LOGIN || LANES_APP_LOGIN)) {
         checkedTip = checks.tip;
       }

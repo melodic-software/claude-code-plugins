@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Black-box suite for upstream-drift-issues.sh.
-#
-#   bash scripts/upstream-drift-issues.test.sh
-#
-# Hermetic: a stub `gh` first on PATH records every call (one argv element per
-# line) and copies any --body-file into the log, so no case reaches GitHub.
-# Report lines are written by hand in the form check-upstream-drift.sh --report
-# prints (docs/contracts/upstream-drift/README.md, the --report row); titles,
-# issue numbers and the 60,000-character cap are literals of the plan.
 # shellcheck disable=SC2016  # stub source and expected code spans are literal text; expansion is never wanted
 set -uo pipefail
 
@@ -23,10 +14,6 @@ trap cleanup EXIT
 
 STUB="$TMP/bin"
 mkdir -p "$STUB"
-# The stub answers `gh api` (the issue list read) with $GH_STUB_LIST, a file of
-# one or more JSON arrays as `gh api --paginate` prints pages, and fails the
-# command named in $GH_STUB_FAIL (api, or the issue subcommand create, edit,
-# reopen or close).
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'n=$(($(cat "$GH_STUB_LOG/count" 2>/dev/null || echo 0) + 1))' \
@@ -53,8 +40,6 @@ run_sut() {
   local report="$1"
   shift
   LOG="$(mktemp -d "$TMP/log.XXXXXX")" || exit 2
-  # RUNNER_TEMP emptied: on a runner the script would wrap its gh calls and
-  # record into the job's own api-budget state.
   OUT="$(env PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" RUNNER_TEMP='' \
     GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=acme/site GITHUB_RUN_ID=777 \
     ${GH_STUB_LIST:+GH_STUB_LIST="$GH_STUB_LIST"} ${GH_STUB_FAIL:+GH_STUB_FAIL="$GH_STUB_FAIL"} \
@@ -98,8 +83,6 @@ expect_lacks() {
   if [[ "$2" != *"$3"* ]]; then pass "$1"; else bad "$1" "unexpected '$3' in: $2"; fi
 }
 
-# The REST issue list names the author as user.login, github-actions[bot] for
-# the workflow's bot, and gives state and state_reason.
 BOT_AUTHOR='"user":{"login":"github-actions[bot]","type":"Bot"}'
 USER_AUTHOR='"user":{"login":"mallory","type":"User"}'
 OPEN='"state":"open","state_reason":null'
@@ -173,9 +156,6 @@ else
   bad "record body: byte-identical to the hex-pin wording" "got: $(body_of create)"
 fi
 
-# --- the filed body meets admission's trusted drift-issue rule --------------
-# admit.mjs is the rule's one home; an unedited github-actions[bot] issue with
-# this title and the body just filed must come back as the upstream id.
 ADMIT="$SCRIPT_DIR/../.github/scripts/intake-triage/admit.mjs"
 trusted="$(ADMIT="$ADMIT" BODY_FILE="$(body_file_of create)" node --input-type=module -e '
 const { readFileSync } = await import("node:fs");
@@ -473,8 +453,6 @@ expect_has "cap: body points at the job summary" "$body" 'job summary'
 expect_has "cap: the pointer carries the run URL" "$body" 'https://github.com/acme/site/actions/runs/777'
 expect_lacks "cap: the last page is cut" "$body" 'padding-0800.md'
 
-# --- hostile upstream names never reach the body ----------------------------
-# A file name the upstream chooses would otherwise reach intake's triage model.
 HOSTILE="$TMP/hostile.txt"
 printf '%s\n' \
   "page repo=acme/widgets pin=$PIN head=$HEAD status=drift path=docs/upstream/widgets.md" \
@@ -599,7 +577,6 @@ if [[ "$CODE" != 0 ]]; then pass "failed reopen, two upstreams: exits nonzero"; 
 expect_has "failed reopen: the next upstream still runs" "$(calls)" 'issue create --title Upstream drift: other/tools'
 GH_STUB_FAIL=""
 
-# --- untrusted text never reaches shell evaluation (bash 5.1 semantics) -----
 PWNED="$TMP/pwned"
 INJECT="$TMP/inject.txt"
 printf '%s\n' \

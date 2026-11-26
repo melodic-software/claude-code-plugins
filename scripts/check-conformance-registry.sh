@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
-# Check that every row of docs/conformance-dimensions.md points at things that
-# exist, so the conformance registry cannot cite a check nobody runs.
-#
-#   scripts/check-conformance-registry.sh          discover: list every finding
-#   scripts/check-conformance-registry.sh --check  same, explicit gate form
-#
-# A row is `| id | concern | owner | lane | checks | ci | scope |`. Per row:
-#
-#   - `id` is unique; `lane` and `checks` are non-empty (a row nobody runs is
-#     the phantom citation this registry replaces);
-#   - `owner` is `path#Heading text`: the file exists and holds that text as a
-#     level-2 or level-3 heading (matched as text, never used as a link anchor);
-#   - every repo path in `lane` or `checks` (scripts/, plugins/, docs/,
-#     .github/ with an extension) exists;
-#   - every backticked `/plugin:leaf` in `checks` resolves to
-#     plugins/<plugin>/skills/<leaf>/SKILL.md, and `/leaf` to
-#     .claude/skills/<leaf>/SKILL.md;
-#   - `ci` is yes, indirect or no; `yes` means .github/workflows/pr-require-checks.yml names
-#     every scripts/ path in `checks`;
-#   - `scope` is plugin or fleet.
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): one `registry: id: reason` finding per line on stderr, the
-# clean-run statement on stdout. Exit: 0 clean, 1 any finding, 2 environment
-# or usage (registry missing, bad argument).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

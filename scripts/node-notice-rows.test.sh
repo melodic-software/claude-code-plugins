@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# The fleet's SessionStart prerequisites rows: the shape, then plugin-diagnostics' node-notice row run
-# for real the way each default shell would run it (bash, dash, and PowerShell on a Windows
-# machine without Git Bash) with node absent. The runtime cases run on POSIX hosts only.
-#
-# A hook that launches through node cannot report that node is missing, so plugin-diagnostics carries
-# the fleet's one shell-form row that calls lib/prerequisites.sh and then lib/prerequisites.ps1.
-# A POSIX shell (bash, or dash as /bin/sh on Debian and Ubuntu) runs the first and leaves at
-# `${PPID:+exit}`, since every POSIX shell sets PPID; PowerShell finds no sh, reads
-# that token as a missing drive, and runs the second. Both share one latch per session.
-# Beside it, plugin-diagnostics' prerequisites-fleet.mjs row runs the probe of each enabled plugin that
-# declares session_probe in its prerequisites.json, so no other plugin carries a row. That row and
-# every other SessionStart row that needs node run lib/node-or-skip.sh in the same polyglot shape,
-# so they exit 0 silently when node is missing.
 # test-scope: plugins/*/hooks/hooks.json plugins/*/.claude-plugin/plugin.json plugins/*/prerequisites.json
 set -uo pipefail
 
@@ -21,9 +8,6 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
 
-# Every SessionStart source but compact (https://code.claude.com/docs/en/hooks, SessionStart
-# matcher table, as of 2026-10-04): the notice and probe latches outlive a compaction, so a
-# re-fire there prints nothing and only starts processes.
 MATCHER='startup|resume|clear|fork'
 HOOKS="$ROOT/plugins/plugin-diagnostics/hooks/hooks.json"
 
@@ -68,9 +52,6 @@ else
   bad "plugin-diagnostics: want one node-or-skip prerequisites-fleet.mjs row under $MATCHER" "found $fleet"
 fi
 
-# No SessionStart row launches node in exec form: that spawn fails on every new session when
-# node is missing. A row that needs node runs the node-or-skip stubs, both halves with the same
-# arguments, so it exits 0 silently and the node-notice row alone tells the user.
 exec_node=()
 skip_bad=()
 skip_rows=0
@@ -167,7 +148,6 @@ node_absent_cases() {
   fi
 
   if PWSH="$(command -v pwsh)"; then
-    # A version-manager shim (mise, asdf) dispatches on its name and refills PATH: use the real binary.
     real="$("$PWSH" -NoProfile -NonInteractive -Command '[Environment]::ProcessPath')"
     real="${real%$'\r'}"
     [[ -n "$real" ]] && PWSH="$real"
@@ -244,7 +224,6 @@ node_absent_cases() {
     fi
     PS_NODE_TOOLS="$WORK/ps-node-tools"
     mkdir -p "$PS_NODE_TOOLS"
-    # No sh here, as on Windows without Git Bash; the stub node's /bin/sh shebang needs only cat.
     ln -s "$PWSH" "$PS_NODE_TOOLS/powershell"
     ln -s "$NODE_TOOLS/node" "$PS_NODE_TOOLS/node"
     ln -s "$(readlink "$TOOLS/cat")" "$PS_NODE_TOOLS/cat"

@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Run skill-quality check 25 (description/verb-contract polarity) across every
-# marketplace skill. Changed-file scoping in check-changed-skills.sh only
-# guards skills a PR touches; this job keeps the full corpus green (#4586).
-#
-# The checker runs in its root form, once per plugins/*/skills root and in
-# parallel, with CHECK_SKILL_ONLY=25 so it runs check 25 and nothing else. Only
-# check-25 lines count here. A run that cannot vouch for every skill exits 2:
-# a checker exit other than 0 or 1, or a pass/fail rollup that does not add up
-# to the number of skills on disk. That second test is what keeps a checker
-# that stops accepting its input from reading as a clean pass.
-#
 # Exit: 0 clean, 1 a mismatch, 2 the gate could not run.
 set -uo pipefail
 
@@ -69,7 +58,6 @@ for i in "${!roots[@]}"; do
   read -r p _ f _ <<<"$rollup"
   passed=$((passed + p))
   failed=$((failed + f))
-  # A check-25 FAIL line precedes its skill's `CHECK-SKILL <leaf>:` summary.
   while IFS= read -r leaf; do
     hits+=("$root/$leaf")
   done < <(awk -v m="$MISMATCH" '

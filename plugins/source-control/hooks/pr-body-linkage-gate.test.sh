@@ -2,11 +2,6 @@
 
 set -uo pipefail
 
-# Fixture isolation. An inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository. An inherited
-# CLAUDE_PLUGIN_DATA (another plugin's) would receive this suite's skip-notices
-# and latch hook::notice_once across cases. A case that needs a data dir sets
-# its own.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -104,7 +99,6 @@ SECTIONS=$'\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Rela
 GOOD=$'Closes #5'"$SECTIONS"
 NO_RELATED=$'Closes #5\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx'
 NO_KEYWORD=$'## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- refs #9'
-# #3205 reproduction: linkage + Summary + Verification + Related, no Fix.
 ISSUE_3205=$'No linked issue\n\n## Summary\n\nwhat\n\n## Verification\n\nevidence\n\n## Related\n\n- N/A'
 BAD=$'Refs: #5\n\nThis does not close #5.'"$SECTIONS"
 
@@ -203,8 +197,6 @@ assert_allow "No linked issue marker accepted" "$GATED" \
 assert_allow "No related issue: marker accepted" "$GATED" \
   "$(gh_body $'No related issue: drift sweep'"$SECTIONS")"
 
-# Non-closing marker (ci-workflows#544): a `Refs:` / `Relates to:` line of its
-# own.
 assert_allow "Refs: #N on its own line accepted" "$GATED" \
   "$(gh_body $'Refs: #1234'"$SECTIONS")"
 assert_allow "Relates to: #N on its own line accepted" "$GATED" \
@@ -225,8 +217,6 @@ assert_allow "Relates to: with a tracker key accepted" "$GATED" \
 assert_allow "local-markdown non-closing link line accepted" "$GATED" \
   "$(gh_body $'Refs: local-markdown:local/markdown#7'"$SECTIONS")"
 
-# Negated closers: GitHub's parser ignores the negation and closes the issue
-# anyway, so CI fails them even beside valid linkage.
 assert_block "negated closer blocks" "$GATED" \
   "$(gh_body $'This does not close #5.'"$SECTIONS")"
 assert_block "negated closer blocks even beside a Refs: marker" "$GATED" \
@@ -257,8 +247,6 @@ else
   fail "negated-closer message wrong: $ERR"
 fi
 
-# Word boundaries: JavaScript's \b makes both of these non-matches, so neither
-# is a negated closer.
 assert_allow "trailing word char after #N is not a match" "$GATED" \
   "$(gh_body $'Refs: #5\n\nThis does not close #12abc.'"$SECTIONS")"
 assert_allow "keyword glued to a preceding word is not a match" "$GATED" \
@@ -398,8 +386,6 @@ assert_block "recognized sudo booleans are stepped over" "$GATED" \
   "$(printf "sudo -EH gh pr create -t T --body '%s'" "$BAD")"
 assert_block "recognized env booleans are stepped over" "$GATED" \
   "$(printf "env -i gh pr create -t T --body '%s'" "$BAD")"
-# env's signal options take an OPTIONAL argument, which GNU accepts only
-# attached after `=`, so they never consume the following word.
 assert_block "env --block-signal takes no separate word" "$GATED" \
   "$(printf "env --block-signal gh pr create -t T --body '%s'" "$BAD")"
 assert_block "env --ignore-signal=SIG is attached" "$GATED" \
@@ -489,14 +475,6 @@ printf 'Closes #5\r\n\r\n## Summary\r\n\r\nx\r\n\r\n## Fix\r\n\r\nx\r\n\r\n## Ve
 printf 'Refs: #5\r\n\r\nThis does not close #5.\r\n' >"$GATED/crlf-bad.md"
 assert_allow "a CRLF body validates" "$GATED" "gh pr create -t T --body-file crlf-good.md"
 assert_block "a CRLF body still fails when it should" "$GATED" "gh pr create -t T --body-file crlf-bad.md"
-# --- Large bodies stay inside the declared hook timeout ----------------------
-# A cancelled hook silently stops gating, so a large body must be judged inside
-# the 15 s hooks.json timeout; the bound is loose so a slow CI runner does not flake.
-#
-# A suffix-copy line split is quadratic in the line count: 16k two-character
-# lines (well under GitHub's body-size limit) exceeded 20 s and fail-opened,
-# against 2.4 s with the parent validator. The scratch-file `readarray` split
-# must stay inside the same 8 s bound the 1000-line case uses.
 
 {
   printf 'Closes #5\n\n'
@@ -639,9 +617,6 @@ else
   fi
 fi
 
-# --- Quadratic helpers: negation scan and newline chomp (#7152, #7169) -------
-# timed_run <label> <body-file> <want-rc> — the gate judges <body-file> inside
-# the same 8 s bound as the cases above.
 timed_run() {
   local label="$1" file="$2" want="$3" t0 t1 ms
   t0=${EPOCHREALTIME:-}
@@ -719,7 +694,6 @@ old_negation_trigger_to() {
 
 diff_chomp_inputs=("" $'\n' $'\n\n\n' "x" $'x\n' $'x\n\n\n' $'\nx' $'a\n\nb\n\n' $'a\r\n' $'  \n \n' $'\n\nx\n')
 diff_chomp_inputs+=($'\xff\n' $'a\xff\n\n' $'\xc3\n' $'\xe2\x80\n\n\n')
-# Built without a command substitution, which would itself strip the newlines.
 printf -v diff_nl_run '%300s' ''
 diff_nl_run="${diff_nl_run// /$'\n'}"
 diff_chomp_inputs+=("$diff_nl_run" "x$diff_nl_run" "x${diff_nl_run}y$diff_nl_run" "$(printf 'a\n%.0s' {1..50})")
@@ -769,8 +743,6 @@ fi
 STUB="$WORK/stub-bin"
 mkdir -p "$STUB"
 jq_stub_ok=1
-# bash is invoked by absolute path: a PATH with no bash in it would fail the
-# invocation itself rather than exercising the hook's own missing-jq branch.
 BASH_ABS="${BASH:-$(command -v bash)}"
 for tool in dirname tr; do
   if tool_path="$(command -v "$tool" 2>/dev/null)" && [[ -n "$tool_path" ]]; then
@@ -800,8 +772,6 @@ else
 fi
 
 payload=$(mk_payload "$GATED" "$(gh_body "$BAD")")
-# A here-string, never a pipe: the kill switch exits before reading stdin, and
-# a printf still writing then fails on the closed pipe, which pipefail reports.
 if (cd "$UNRELATED" &&
   CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED=false bash "$HOOK" <<<"$payload" >/dev/null 2>&1); then
   ok "kill switch disables the gate"

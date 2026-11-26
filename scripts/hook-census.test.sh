@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for hook-census.sh: builds a throwaway plugins/fx/hooks/hooks.json,
-# runs the census against its rows, and asserts on the counts and exit codes.
-# The counts are the kernel's (strace), so this suite needs strace and fails
-# closed without it: a census suite that skips proves nothing about the census
-# the ratchet step runs.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

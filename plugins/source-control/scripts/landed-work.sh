@@ -1,47 +1,4 @@
 #!/usr/bin/env bash
-# landed-work.sh — read-only landed-vs-stranded classification for git worktrees.
-#
-# Answers one question per worktree: if this checkout were removed and its branch
-# deleted, would any commit be lost? A commit is STRANDED when it is unpushed AND
-# its content is not already on the base. Everything else is recoverable, and the
-# distinction is the only thing standing between a cleanup sweep and data loss.
-#
-# Read-only by construction: no fetch, no ref write, no checkout, no removal, and
-# no network unless --merged-pr-proof is passed (one read-only, paged `gh api
-# graphql` listing of merged PRs per repository and base). Every verdict is computed from refs already on disk, so a stale remote
-# ref yields a conservative answer (see the fail-closed rule below), never a wrong
-# destructive one.
-#
-# Consumers: the `worktree` skill's status and cleanup contexts. The script
-# computes; prose maps the record to an operator disposition; the operator judges.
-#
-# FAIL-CLOSED RULE, which governs every branch below: only affirmative proof
-# yields `landed=yes`. Every failed command, empty result set, unresolvable base,
-# and ambiguity yields `?`, and a guard must treat `?` exactly as it treats `no`.
-# The nuisance direction costs a confirmation prompt; the other direction destroys
-# work.
-#
-# Method (measured, not assumed — see the three notes at each site):
-#   * unpushed set is `HEAD --not --remotes`, never `--branches` and never
-#     `@{upstream}..HEAD`;
-#   * `landed` is decided by RANGE patch-id first, because a per-commit primitive
-#     (including `git cherry`) cannot see a multi-commit squash-merge;
-#   * patch ids are computed `--verbatim`, because the whitespace-stripping
-#     default hashes `a b` and `ab` alike and would call two different contents
-#     the same change;
-#   * no affirmative verdict is drawn from an incomplete patch-id set — a commit
-#     that produces no patch is invisible to patch-id, so the set has to account
-#     for every non-merge commit before it can speak for the branch;
-#   * the path-scoped two-dot fallback answers only whether the touched paths
-#     differ from the base at all, and its verdict is stamped with the base SHA it
-#     was computed against.
-#
-# Output: one TSV row per target, header first, on stdout. Diagnostics on stderr.
-# Every field is non-empty — an absent value is `-` — so a consumer reading the
-# row with `while IFS=$'\t' read` gets the columns it asked for. Tab is IFS
-# whitespace and bash collapses runs of it, so an empty field would shift every
-# later column left and hand the reader the wrong value under the right name.
-#
 # Exit codes:
 #   0  success — every target classified
 #   2  usage error
@@ -122,16 +79,6 @@ die() {
   exit "${2:-2}"
 }
 
-# Windows shells render a drive as /d/repos/<repo> while git emits D:/repos/<repo>, so the
-# two operands compared here differ by CONSTRUCTION — one comes from git, the
-# other from the filesystem. audit-fleet.sh:500's path_key() never had to
-# reconcile that because both of its operands come from one source.
-#
-# cygpath is not used: worktree-create.sh:247 rejects it because it resolves
-# relative paths against the CWD and rewrites MSYS /tmp paths, and its own remedy
-# is a pure separator swap that defers all resolution to existing machinery. A
-# pure drive-letter swap is that same remedy, so this follows the precedent
-# rather than overturning it.
 CASE_INSENSITIVE_PATHS=false
 WINDOWS_PATHS=false
 case "$(uname -s 2>/dev/null || true)" in
@@ -223,29 +170,12 @@ if [[ -n "$MERGED_REFS_FILE" && ! -f "$MERGED_REFS_FILE" ]]; then
   die "--merged-refs-file not found: $MERGED_REFS_FILE"
 fi
 
-# is_worktree_root <path>: true when <path> is the ROOT of a work tree.
-#
-# `rev-parse --is-inside-work-tree` cannot answer this — it returns true for an
-# empty leftover directory inside a repository, because that directory genuinely
-# IS inside the parent's work tree, and the parent's clean state is then reported
-# as the husk's own. `--show-prefix` is the discriminator that needs no path
-# arithmetic at all: it is empty exactly at a work-tree root and non-empty at any
-# path below one, in every path spelling on every platform.
 is_worktree_root() {
   local prefix
   prefix=$(git -C "$1" rev-parse --show-prefix 2>/dev/null) || return 1
   [[ -z "$prefix" ]]
 }
 
-# inprogress_of <path>: the in-progress operation (rebase, merge, cherry-pick,
-# revert, or bisect), or `none`. A clean `status --porcelain` proves none of
-# these absent — an interactive rebase paused at a `break` leaves it completely
-# empty — so this probe is the liveness signal porcelain cannot be.
-#
-# Probed through `rev-parse --git-path`, never `<path>/.git/<file>`: a linked
-# worktree's git dir is <main>/.git/worktrees/<name>, and only --git-path
-# resolves the per-worktree vs common-dir split correctly — which is precisely
-# the subject matter here.
 inprogress_of() {
   local p="$1" name resolved pair
   for name in rebase-merge rebase-apply; do
@@ -270,18 +200,6 @@ S_UNSTAGED=0
 S_CONFLICTED=0
 S_UNTRACKED=0
 
-# status_counts <path>: split the working tree into four independent counts.
-#
-# A single `dirty` number is not a work-at-risk signal: a paused merge inflates
-# it with the merge's own staged result, which is recomputable at any time,
-# while the branch's own commits — the irreplaceable part — are carried by the
-# unpushed/landed columns instead.
-#
-# Returns 1 when the status could not be read at all. A failed `git status` used
-# to leave all four counts at their zero initialization, which is exactly the
-# shape of a clean worktree — so an unreadable index reported as clean, and a
-# worktree with nothing unpushed then classified `ok`. Unknown must not wear
-# clean's clothes.
 status_counts() {
   local p="$1" line x y status_out="$WORKDIR/status.$$"
   S_STAGED=0
@@ -315,7 +233,6 @@ status_counts() {
   return 0
 }
 
-# resolve_base <path>: the ref landedness is tested against, on stdout.
 resolve_base() {
   local p="$1" ref
   if [[ -n "$BASE_REF" ]]; then
@@ -335,34 +252,6 @@ resolve_base() {
   return 1
 }
 
-# patch_ids <path> <range> <outfile>: sorted patch-ids for every non-merge commit
-# in <range>, one per line.
-#
-# One `git log -p` stream into one `git patch-id` process computes the whole set;
-# a per-commit `git show | git patch-id` loop costs ~13s per worktree and buys
-# nothing.
-#
-# `--no-merges` is explicit rather than incidental: `git log -p` emits no diff for
-# a merge commit, so a merge-only range would otherwise produce an empty id set
-# that is indistinguishable from a failed pipeline — and an empty set makes the
-# "every branch id is on the base" test vacuously TRUE, which is a false `yes` in
-# the data-loss direction. The caller compares this count against
-# `rev-list --count --no-merges` over the same range for exactly that reason.
-#
-# `--verbatim`, not `--stable`. The default (and `--stable`) computes the id
-# AFTER stripping whitespace, so `a b` and `ab` hash identically — two
-# genuinely different contents, one id, and a branch whose unique change differs
-# from the base's only in whitespace would classify as landed. Measured on git
-# 2.54: both spellings produce `7ad14294…` under `--stable` and different ids
-# under `--verbatim`. The two flags are mutually exclusive.
-#
-# What `--verbatim` costs is whitespace tolerance: an EOL-renormalized branch
-# does not match here — it falls through to the two-dot fallback and, failing
-# there too, reports `no`. That is the fail-closed
-# direction — a prompt rather than a loss — and it is the correct trade for a
-# guard. What it does NOT cost is the squash case: the branch's range id still
-# equals the squash commit's, and still matches after the base advances. Both
-# verified in a fixture rather than assumed.
 patch_ids() {
   local p="$1" range="$2" out="$3" patches="$WORKDIR/patches.$$" pairs="$WORKDIR/pairs.$$" rc=0
   : >"$out"
@@ -375,25 +264,6 @@ patch_ids() {
   return "$rc"
 }
 
-# extend_base_window <path> <sorted-commits>: make sure every commit listed in
-# <sorted-commits> has been through `git log -p | git patch-id --verbatim` once
-# in this run. Every worktree's base range ends at the same base tip, so the
-# ranges overlap almost entirely, and hashing each range separately would
-# recompute the same commits once per worktree.
-#
-# The window is two files: base-window.pairs holds `<patch-id> <commit>` lines,
-# and base-window.seen holds every commit already rendered, sorted, including the
-# ones that produced no patch (an empty commit), so those are not rendered again
-# for each worktree either. Keyed by commit alone: a commit SHA fixes its
-# parent and tree, so it fixes the diff, and the id holds for every worktree
-# that renders diffs alike. The rendered text also follows the rendering
-# worktree's attributes and diff config (a `-diff` or textconv attribute,
-# `diff.algorithm`), so a worktree that renders differently can miss a base
-# match it would otherwise find. A missed match only falls through to the
-# two-dot check, the fail-closed direction; it never adds a match.
-#
-# Only a fully successful render is added. A failed `log` or `patch-id` adds
-# nothing, so the commits stay unseen and the caller reports the failure.
 extend_base_window() {
   local p="$1" needed="$2" seen="$WORKDIR/base-window.seen" pairs="$WORKDIR/base-window.pairs"
   local missing="$WORKDIR/base-window.missing" patches="$WORKDIR/base-window.patches"
@@ -415,9 +285,6 @@ extend_base_window() {
   return "$rc"
 }
 
-# only_empty_commits_unhashed <path> <range> <hashed-commits>: succeed when every
-# non-merge commit in <range> that patch-id did not hash has an empty diff. Such a
-# commit has no patch to hash, so it cannot be a rendering failure.
 only_empty_commits_unhashed() {
   local p="$1" range="$2" hashed="$3" all="$WORKDIR/range-commits.$$" c rc=0
   git -C "$p" rev-list --no-merges "$range" 2>/dev/null | sort >"$all" || rc=1
@@ -435,7 +302,6 @@ L_METHOD="none"
 L_BASE=""
 L_REASON=""
 
-# classify_landed <path>: set L_STATE (yes|no|?), L_METHOD, L_BASE, L_REASON.
 classify_landed() {
   local p="$1" base base_sha mb range_id branch_expected branch_count
   local base_ids branch_ids touched
@@ -448,10 +314,6 @@ classify_landed() {
     L_REASON="no-base-ref"
     return 0
   fi
-  # An AMBIGUOUS base name is not a resolvable base. `refs/tags/release` and
-  # `refs/heads/release` can both exist; rev-parse picks one by precedence and
-  # says so only on stderr, so a silent pick could test against the wrong history
-  # entirely. The warning is the signal, and it is treated as unresolvable.
   local base_err="$WORKDIR/base-resolve.err"
   if ! base_sha=$(git -C "$p" rev-parse --verify "$base^{commit}" 2>"$base_err"); then
     L_REASON="base-unresolvable:$base"
@@ -462,10 +324,6 @@ classify_landed() {
     return 0
   fi
   L_BASE="$base@${base_sha:0:12}"
-  # `--all`, and exactly one. A criss-cross history has several merge bases; a
-  # plain `merge-base` silently returns one of them, and testing against a
-  # different base than the one the work actually diverged at can produce a
-  # favorable verdict for content that is not there.
   local mb_count
   mb=$(git -C "$p" merge-base --all "$base_sha" HEAD 2>/dev/null) || mb=""
   if [[ -z "$mb" ]]; then
@@ -494,13 +352,6 @@ classify_landed() {
   fi
   cut -d' ' -f1 "$base_pairs" | sort >"$base_ids"
   cut -d' ' -f2 "$base_pairs" | sort >"$base_ids.commits"
-  # Count parity, the same check the branch side makes. An under-complete base
-  # set can only make a match LESS likely, so this cannot be the difference
-  # between `yes` and `no` today — it is here so the two sides cannot silently
-  # diverge if either is ever refactored, and so a base range that failed to
-  # render is named rather than quietly narrowing the id set it is compared
-  # against. An empty commit on the base (an empty squash merge) has no patch,
-  # so it is excused only after diff-tree shows its diff really is empty.
   base_count=$(wc -l <"$base_ids" | tr -d '[:space:]')
   if [[ "$base_count" -ne "$base_expected" ]] &&
     ! only_empty_commits_unhashed "$p" "$mb..$base_sha" "$base_ids.commits"; then
@@ -508,13 +359,6 @@ classify_landed() {
     return 0
   fi
 
-  # Branch side. The COMPLETENESS check runs before any verdict, because both
-  # affirmative arms below reason over the branch's commits and neither is sound
-  # over an incomplete set: a commit that produces no patch (an empty commit, or
-  # one whose diff git declined to render) is invisible to patch-id, so the id
-  # set silently under-represents the branch. Requiring the id count to equal the
-  # non-merge commit count is what makes "every id is on the base" a statement
-  # about every commit rather than about the ones that happened to hash.
   branch_ids="$WORKDIR/branch.ids"
   branch_expected=$(git -C "$p" rev-list --count --no-merges "$mb..HEAD" 2>/dev/null) || branch_expected=""
   if [[ -z "$branch_expected" ]]; then
@@ -531,11 +375,6 @@ classify_landed() {
     return 0
   fi
 
-  # Range first: a squash-merge collapses N commits into ONE patch, so no
-  # individual commit's patch-id can match it, while the branch's RANGE id equals
-  # the squash commit's exactly — and stays in the base's per-commit id set after
-  # the base advances. Range-vs-range does NOT work: the base's own range id moves
-  # as the base advances while the branch's does not.
   if git -C "$p" diff "$mb..HEAD" >"$WORKDIR/rangediff" 2>/dev/null && [[ -s "$WORKDIR/rangediff" ]]; then
     range_id=$(git patch-id --verbatim <"$WORKDIR/rangediff" | cut -d' ' -f1)
     if [[ -n "$range_id" ]] && grep -Fxq "$range_id" "$base_ids"; then
@@ -546,10 +385,6 @@ classify_landed() {
   fi
 
   if [[ "$branch_expected" -gt 0 ]]; then
-    # `comm`'s own exit status is checked, not just its output: a failed `comm`
-    # produces empty stdout, and empty stdout is exactly the shape that means
-    # "every branch id is on the base". Reading a failure as proof is the one
-    # direction this script must never take.
     local unmatched="$WORKDIR/branch-not-on-base"
     if comm -23 "$branch_ids" "$base_ids" >"$unmatched" 2>/dev/null; then
       if [[ ! -s "$unmatched" ]]; then
@@ -563,19 +398,6 @@ classify_landed() {
     fi
   fi
 
-  # Path-scoped two-dot fallback. It answers ONE question soundly — whether the
-  # branch's touched paths differ from the base at all — and that is the only
-  # question it is now asked.
-  #
-  # There is deliberately NO direction test here: `git diff base..HEAD` reports
-  # deletions for a branch that is merely BEHIND the base, and reports deletions
-  # for a branch whose own unique work IS a deletion. Those two are
-  # byte-identical in numstat, so "additions are zero" proves nothing and
-  # classifies a delete-only branch as landed — a false `yes` in the direction
-  # that destroys work. The behind-not-stranded case such a test would target is
-  # already caught by the range patch-id above, which is why none is needed.
-  #
-  # A verdict from here is only valid against the base tip stamped in L_BASE.
   touched="$WORKDIR/touched"
   if ! git -C "$p" diff --name-only --no-renames -z "$mb..HEAD" >"$touched" 2>/dev/null; then
     L_REASON="touched-paths-unreadable"
@@ -586,20 +408,6 @@ classify_landed() {
     return 0
   fi
 
-  # The touched paths are handed BACK to git as literal pathspecs rather than
-  # matched against a second diff's text output. Two diff invocations only agree
-  # on how a path is spelled when they agree on every escaping rule, and they did
-  # not: `--name-only` quoted non-ASCII bytes while `--numstat` was pinned to
-  # `core.quotepath=false`, so an i18n'd filename joined against nothing and the
-  # empty join read as "identical to the base" — an unproven `yes`. Pinning
-  # quotepath on both sides fixed that byte class and left another, since git
-  # escapes `"`, `\`, and control characters regardless of that setting and only
-  # `-z` suppresses it. Rather than chase escaping rules, git does its own path
-  # matching here and the whole mismatch class goes away.
-  #
-  # `:(literal)` because a path is not a pattern: a file actually named
-  # `star[1].txt`, or any path beginning with `:`, would otherwise be read as
-  # pathspec magic and match something else entirely.
   local -a specs=()
   local pth
   while IFS= read -r -d '' pth; do specs+=(":(literal)$pth"); done <"$touched"
@@ -608,9 +416,6 @@ classify_landed() {
     return 0
   fi
 
-  # Chunked: a branch touching thousands of paths would otherwise exceed the
-  # platform's command-line limit, and the failure would arrive as a non-zero
-  # exit that looks like any other probe failure.
   local i rc differs=0
   local -a chunk=()
   for ((i = 0; i < ${#specs[@]}; i += 200)); do
@@ -642,8 +447,6 @@ MP_ERRS=()
 MP_FILE=""
 MP_ERR=""
 
-# Only the fields the proof reads. `gh pr list --json commits` also asks for each
-# commit's authors, which GitHub refuses past 500,000 possible nodes at 50 PRs.
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions
 MERGED_PR_QUERY='query($owner: String!, $name: String!, $base: String!, $first: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -654,27 +457,16 @@ MERGED_PR_QUERY='query($owner: String!, $name: String!, $base: String!, $first: 
     }
   }
 }'
-# One page as `pr`/`head`/`commit` lines, then `page <hasNextPage> <endCursor>`.
 MERGED_PR_JQ='.data.repository.pullRequests
   | (.nodes[] | "pr " + .headRefName + " " + .baseRefName, "head " + .headRefOid,
       (.commits.nodes[] | "commit " + .commit.oid)),
     "page " + (.pageInfo.hasNextPage | tostring) + " " + (.pageInfo.endCursor // "")'
 
-# merged_pr_listing <path> <base-name>: point MP_FILE at the merged PRs into
-# <base-name> for <path>'s repository, as `pr <head-ref> <base-ref>`, `head <oid>`
-# and `commit <oid>` lines. The first call for a repository and base pages
-# through `gh api graphql`, 100 PRs a page, until MERGED_PR_LIMIT PRs are read;
-# each page counts as one gh call. Later calls reuse its file, so N worktrees cost
-# one listing, not N. The repository is keyed by its common git dir, which every
-# linked worktree shares. A failed page fails the whole listing, and the failure
-# is cached as well, so a rate-limited listing is not retried once per worktree.
-# Returns 1 with MP_ERR naming the failure.
 merged_pr_listing() {
   local p="$1" base_name="$2" repo key i err page got=0 n first more cursor
   local -a after=()
   MP_FILE=""
   MP_ERR=""
-  # `CDPATH=` keeps a relative `.git` from resolving through the caller's CDPATH.
   repo=$(cd "$p" 2>/dev/null && common=$(git rev-parse --git-common-dir 2>/dev/null) &&
     CDPATH='' cd -- "$common" 2>/dev/null && pwd -P) || repo=""
   key="${repo:-$p}|$base_name"
@@ -694,12 +486,8 @@ merged_pr_listing() {
     first=$((MERGED_PR_LIMIT - got))
     ((first > 100)) && first=100
     GH_CALLS=$((GH_CALLS + 1))
-    # `{owner}`/`{repo}` resolve from <path>'s repository, as `gh pr list` did.
     if ! (cd "$p" && gh api graphql -f query="$MERGED_PR_QUERY" -F owner='{owner}' -F name='{repo}' \
       -f base="$base_name" -F first="$first" ${after[@]+"${after[@]}"} --jq "$MERGED_PR_JQ") >"$page" 2>"$MP_FILE.err"; then
-      # Name gh's own error so a failed run states its cause; tabs and semicolons
-      # would break the record's columns and reason list. The `gh-pr-list` token
-      # stays: callers match on it.
       err=$(head -n 1 "$MP_FILE.err" | tr '\t;' '  ' | cut -c1-120)
       MP_ERR="gh-pr-list${err:+ ($err)}"
       : >"$MP_FILE"
@@ -718,22 +506,8 @@ merged_pr_listing() {
   [[ -z "$MP_ERR" ]]
 }
 
-# add_reason <text>: append <text> to L_REASON, `; `-separated.
 add_reason() { L_REASON="${L_REASON:+$L_REASON; }$1"; }
 
-# merged_pr_proof <path> <branch>: affirmative proof from the branch's MERGED pull
-# request, for a row the content probes left `no` or `?`. Sets L_STATE, L_METHOD
-# and L_REASON; returns 0 only when it proved the branch landed.
-#
-# Range patch-id cannot match a multi-commit branch to its squash commit, and
-# `git cherry` calls each part `+`; the merged PR is the one record that names
-# what was merged. Landed when local HEAD equals or is an ancestor of the PR's
-# head commit, or every unpushed local commit is in the PR's commit list. A later
-# local commit that is in neither stays unproven, which is what keeps a reused
-# branch name from reading as landed.
-#
-# Any failed read leaves the prior verdict and appends a reason naming the read:
-# an unreadable PR is `unproven`, never `landed`.
 merged_pr_proof() {
   local p="$1" branch="$2" out="$WORKDIR/merged-pr.out" head_oid unpushed_list sha
   local -a pr_heads=()
@@ -753,9 +527,6 @@ merged_pr_proof() {
     add_reason "merged-pr-read-failed:$MP_ERR"
     return 1
   fi
-  # This branch's PRs, as `pr <base-ref>` / `head` / `commit` lines. A ref name
-  # holds no whitespace, so the default field split reads it whole. The `""`
-  # forces a string compare, so branch `1.0` never matches a PR from branch `1`.
   if ! awk -v b="$branch" '$1 == "pr" { keep = ($2 "" == b ""); if (keep) print "pr " $3; next } keep' \
     "$MP_FILE" >"$out"; then
     add_reason "merged-pr-read-failed:branch-filter"
@@ -783,8 +554,6 @@ merged_pr_proof() {
   fi
 
   for head_oid in "${pr_heads[@]}"; do
-    # Exit 1 is "not an ancestor"; any other status (the PR head was never
-    # fetched, so the object is absent) proves nothing and is not an error.
     if git -C "$p" merge-base --is-ancestor HEAD "$head_oid" 2>/dev/null; then
       L_STATE="yes"
       L_METHOD="merged-pr-head"
@@ -830,16 +599,6 @@ collect_targets() {
   git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1 ||
     die "not a git repository: $REPO_DIR" 4
 
-  # Captured to a file and status-checked BEFORE parsing, not streamed through a
-  # process substitution. A process substitution's exit status is invisible to
-  # the loop, so an enumeration that failed halfway produced a short list that
-  # every downstream count — the row-count assertion included — then agreed with.
-  # The assertion can only catch a truncated PASS; a truncated ENUMERATION has to
-  # be caught here or not at all.
-  #
-  # `-z` because a worktree path may contain a newline, which line-oriented
-  # parsing of `--porcelain` splits into a path that does not exist. Git
-  # documents `-z` as the newline-safe form for exactly this.
   local porcelain="$WORKDIR/worktree-list"
   if ! git -C "$REPO_DIR" worktree list --porcelain -z >"$porcelain" 2>/dev/null; then
     die "git worktree list failed in $REPO_DIR ($(worktree_list_z_floor_note)) — refusing to report a partial inventory" 4
@@ -856,9 +615,6 @@ collect_targets() {
   fi
 }
 
-# assert_row_count <expected> <actual>: a pass that covered fewer worktrees than
-# it enumerated must fail loudly. A short list silently reads as "nothing at
-# risk", which is the one failure mode a stranded-work detector cannot have.
 assert_row_count() {
   local expected="$1" actual="$2"
   if [[ "$expected" -ne "$actual" ]]; then
@@ -869,9 +625,6 @@ assert_row_count() {
   return 0
 }
 
-# Sourcing seam: `LANDED_WORK_LIB=1 . landed-work.sh` defines the functions above
-# without running the collector, so assert_row_count — whose failure path cannot
-# be provoked through the CLI — is directly testable.
 [[ -n "${LANDED_WORK_LIB:-}" ]] && return 0
 
 WORKDIR=$(mktemp -d "${TMPDIR:-/tmp}/landed-work.XXXXXX") || die "cannot create work directory" 4
@@ -931,10 +684,6 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
     continue
   fi
 
-  # A bare-clone hub's own entry is the first row `git worktree list` emits, and
-  # it carries no HEAD. It passes the work-tree-root probe (a bare repository's
-  # --show-prefix is empty), so without this it would reach the landed
-  # computation, fail at merge-base, and report a healthy hub as UNKNOWN.
   if [[ "$(git -C "$p" rev-parse --is-bare-repository 2>/dev/null)" == "true" ]]; then
     push_unprobed_row no yes "n/a" none 0 "bare-repository; holds no working tree to strand"
     T_BRANCH[idx]="(bare)"
@@ -943,12 +692,6 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   R_NOTGIT+=("no")
   R_BARE+=("no")
 
-  # HEAD, never --branches: on a detached HEAD --branches reports every OTHER
-  # branch in the repository and says nothing about the commits this worktree
-  # actually holds — which is the only case where removal makes commits
-  # unreachable immediately. `@{upstream}..HEAD` is equally wrong here: a
-  # worktree branch created locally has no upstream, and the range then silently
-  # returns nothing for every one of them.
   unpushed=$(git -C "$p" rev-list --count HEAD --not --remotes 2>/dev/null) || unpushed=""
   unpushed="${unpushed:-?}"
   R_UNPUSHED+=("$unpushed")
@@ -1034,25 +777,12 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   elif [[ "${R_BARE[$idx]}" == "yes" ]]; then
     risk="bare"
   elif [[ "${R_LANDED[$idx]}" == "no" ]] && merged_ref "${T_BRANCH[$idx]}"; then
-    # landed=no AND a merged PR on the same head ref NAME: the base probably
-    # holds a later, larger revision of this same work, which is worth saying
-    # rather than reporting the row as indistinguishable from stranded.
-    # The match is on the NAME, so a branch name reused after that merge also
-    # lands here carrying commits that are still the only copy — consumers gate
-    # this exactly as STRANDED, and the label narrows the reading, never the
-    # guard. Proving otherwise needs the merged PR's head revision, which is
-    # unavailable offline once the remote ref is deleted on merge.
     risk="superseded"
   elif [[ "${R_LANDED[$idx]}" == "no" ]]; then
     risk="STRANDED"
   elif [[ "${R_LANDED[$idx]}" == "?" ]]; then
     risk="UNKNOWN"
   elif [[ "${R_INPROGRESS[$idx]}" != "none" ]]; then
-    # Outranks `landed`: consumers read `landed` as "safe to remove", but a
-    # removal mid-operation kills the sequencer state (and any conflict
-    # resolutions) even when every commit is durable — clean or landed does not
-    # mean idle. The stranded family above still outranks this: data loss is the
-    # stronger stop, and the `inprogress` column carries the operation either way.
     risk="in-progress"
   elif [[ "${R_LANDED[$idx]}" == "yes" ]]; then
     risk="landed"
@@ -1061,18 +791,6 @@ for ((idx = 0; idx < ${#T_PATH[@]}; idx++)); do
   else
     risk="ok"
   fi
-  # Empty fields are emitted as `-`, never as nothing. A tab is IFS whitespace,
-  # so bash's `read` COLLAPSES a run of them: a row with an empty `base` or
-  # `peers` silently shifts every later column left, and the consumer reads the
-  # reason string out of the risk column. Found by using this output from a
-  # `while IFS=$'\t' read` loop, which is the most natural way to consume it and
-  # the one this file's own callers are told to use.
-  #
-  # The head column is sliced BEFORE the fallback applies: `${T_HEAD[$idx]:0:12}`
-  # on an empty value yields empty, not `-`, so a `${T_HEAD[$idx]:--}` written
-  # inline with the slice would still emit nothing. notgit and bare-hub rows
-  # carry no HEAD by design (the `-z "${T_HEAD[$idx]}"` checks above), so those
-  # are exactly the rows this contract was written for.
   head_col="${T_HEAD[$idx]:0:12}"
   worktree_fact_row \
     "${T_PATH[$idx]}" "${T_BRANCH[$idx]}" "$head_col" "${R_UNPUSHED[$idx]}" \
