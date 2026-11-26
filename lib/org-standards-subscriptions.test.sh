@@ -349,12 +349,7 @@ assert_eq "rule inventory: a subscribed layer is named as present, not counted" 
   "$(bash "$INVENTORY" --root "$inv" 2>/dev/null | grep -cxF -e "- review: the personal standards subscription acme/handbook@$HANDBOOK2 is present, not counted: it is the user's, not this repository's")|$(bash "$INVENTORY" --root "$inv" --rows 2>/dev/null | grep -c 'acme/handbook')"
 
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/tab-cache"
-user_index "standards_repositories:
-  - repo: stranger/guide
-"$'\t'"  ref: $GUIDE
-  - repo: stranger/guide
-    ref: $GUIDE
-"
+user_index "$(printf 'standards_repositories:\n  - repo: stranger/guide\n\t  ref: %s\n  - repo: stranger/guide\n    ref: %s\n' "$GUIDE" "$GUIDE")"$'\n'
 tabbed=$(bash "$SCRIPT" subscriptions --root "$tp" 2>&1)
 assert_eq "a tab-indented line skips only its own entry, reported with its file and line" "1|1|0" \
   "$(grep -c "^stranger/guide@$GUIDE	" <<<"$tabbed")|$(grep -c "^org-standards: $USER_INDEX:4: malformed subscription (tab indentation at line 5); entry skipped$" <<<"$tabbed")|$(grep -c 'subscriptions not read' <<<"$tabbed")"
