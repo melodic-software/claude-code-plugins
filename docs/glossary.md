@@ -496,6 +496,14 @@ repository names as its org layer
 
 Avoid: preference pack, taste pack
 
+**shipped concepts**
+
+The software engineering concept entries the `engineering-concepts` plugin ships as data: each a
+name, aliases, tags and a link to the concept's official source, with no definition
+([engineering-concepts](../plugins/engineering-concepts/README.md)).
+
+Avoid: built-in catalog, concept index
+
 ### Planning
 
 **Brief**
