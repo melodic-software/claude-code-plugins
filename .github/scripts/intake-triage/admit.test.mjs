@@ -3773,7 +3773,7 @@ describe("a Feature under a parent at needs-owner-decision", () => {
     criteria: exact ? ["Line 3 says nineteen."] : [],
     dependencies: [],
     related: [],
-    questions: exact ? [] : [{ question: "Which part ships first?", recommended: "Part A.", basis: "judgment" }],
+    questions: exact ? [] : [{ question: "Which part ships first?", recommended: "Part A.", basis: "judgment", stop_reason: "intent" }],
     sources: [],
     split: [],
     external: { state: "none", repo: "", class: "", what: "" },
