@@ -70,7 +70,7 @@ export function failComment({ head, summary, notes }) {
 }
 
 export function supersededComment({ head, verdict }) {
-  return [VERIFY_NOTE_MARKER, `Superseded: the pr-verify verifier passed head \`${head}\` (${verdict}), so an earlier fail no longer holds this pull request. This comment's edit history keeps the fail.`].join("\n");
+  return [VERIFY_NOTE_MARKER, "### pr-verify / verify note", "", `Superseded: the verifier passed head \`${head}\` (${verdict}), so an earlier fail no longer holds this pull request.`, "- This comment's edit history keeps the fail."].join("\n");
 }
 
 async function supersedeFailComment({ api, pull, verdict, log }) {

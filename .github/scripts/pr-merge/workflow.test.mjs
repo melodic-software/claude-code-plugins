@@ -472,9 +472,25 @@ function runEvalWake(released, { appId = "", answers = {} } = {}) {
   const block = job("wake-eval-released").split("\n      - name: Wake pr-merge for each released pull request\n")[1].split("\n      - name: ")[0];
   const dir = tempDir("pr-merge-eval-wake-");
   mkdirSync(join(dir, "bin"));
+  mkdirSync(join(dir, "pulls"));
+  for (const [pr, answer] of Object.entries(answers)) {
+    writeFileSync(join(dir, "pulls", `${pr}.json`), JSON.stringify(answer));
+  }
   writeFileSync(
     join(dir, "bin", "gh"),
-    `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >>"${dir}/log"\nif [ "$1" = api ]; then var="ANSWER_\${2##*/}"; [ -n "\${!var:-}" ] || exit 1; echo "\${!var}"; fi\n`,
+    [
+      "#!/usr/bin/env bash",
+      `printf '%s\\n' "$*" >>"${dir}/log"`,
+      'if [ "$1" = api ]; then',
+      `  file="${dir}/pulls/\${2##*/}.json"`,
+      '  [ -f "$file" ] || exit 1',
+      '  while [ "$#" -gt 0 ]; do',
+      '    if [ "$1" = --jq ]; then exec jq -r "$2" "$file"; fi',
+      "    shift",
+      "  done",
+      "fi",
+      "",
+    ].join("\n"),
     { mode: 0o755 },
   );
   writeFileSync(join(dir, "body.sh"), runBody(block));
@@ -487,7 +503,6 @@ function runEvalWake(released, { appId = "", answers = {} } = {}) {
       LANES_APP_ID: appId,
       RELEASED: released,
       MAX_WAKES: /\n {10}MAX_WAKES: (\d+)\n/.exec(block)[1],
-      ...Object.fromEntries(Object.entries(answers).map(([pr, answer]) => [`ANSWER_${pr}`, answer])),
     },
     encoding: "utf8",
   });
@@ -496,18 +511,27 @@ function runEvalWake(released, { appId = "", answers = {} } = {}) {
   return { status: result.status, stdout: result.stdout, calls: log.split("\n").filter(Boolean) };
 }
 
+const PULL_SAMPLE = JSON.parse(readFileSync(new URL("./fixtures/pull-read-sample.json", import.meta.url), "utf8"));
+
 test("the eval-release wake dispatches only an unarmed, unheld lanes App pull request it can read", () => {
-  const read = (pr) => `api repos/o/r/pulls/${pr} --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null)"`;
+  const pull = ({ id = PULL_SAMPLE.user.id, type = PULL_SAMPLE.user.type, armed = false, held = false } = {}) => ({
+    ...PULL_SAMPLE,
+    user: { ...PULL_SAMPLE.user, id, type },
+    auto_merge: armed ? { merge_method: "squash" } : PULL_SAMPLE.auto_merge,
+    labels: held ? [{ name: "do-not-merge" }] : PULL_SAMPLE.labels,
+  });
+  const bot = (flags) => pull({ id: 5, type: "Bot", ...flags });
+  const read = (pr) => `api repos/o/r/pulls/${pr}`;
   const dispatch = (pr) => `workflow run pr-merge.yml -R o/r --ref main -f pr=${pr}`;
-  const answers = { 7: "5 Bot false false", 8: "9 User false false", 9: "5 Bot true false", 10: "5 Bot false true", 11: "5 User false false" };
+  const answers = { 7: bot(), 8: pull(), 9: bot({ armed: true }), 10: bot({ held: true }), 11: pull({ id: 5, type: "User" }) };
   const run = runEvalWake("7 8 9 10 11 12", { appId: "5", answers });
   assert.equal(run.status, 0);
-  assert.deepEqual(run.calls, [read(7), dispatch(7), read(8), read(9), read(10), read(11), read(12), dispatch(12)], "12's read fails, so it dispatches anyway");
+  assert.deepEqual(run.calls.map((call) => call.replace(/ --jq .*$/, "")), [read(7), dispatch(7), read(8), read(9), read(10), read(11), read(12), dispatch(12)], "12's read fails, so it dispatches anyway");
   assert.match(run.stdout, /::notice title=eval-release wake::pr=8 not a lanes App pull request; nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=9 already armed; nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=10 held \(do-not-merge\); nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=11 not a lanes App pull request; nothing woken/);
-  const skipped = runEvalWake("21 22 23 24 25 26 27", { appId: "5", answers: { 21: "9 User false false", 22: "5 Bot false false", 23: "5 Bot false false", 24: "5 Bot false false", 25: "5 Bot false false", 26: "5 Bot false false", 27: "5 Bot false false" } });
+  const skipped = runEvalWake("21 22 23 24 25 26 27", { appId: "5", answers: { 21: pull(), 22: bot(), 23: bot(), 24: bot(), 25: bot(), 26: bot(), 27: bot() } });
   assert.deepEqual(skipped.calls.filter((call) => call.startsWith("workflow")), ["22", "23", "24", "25", "26"].map(dispatch), "a skipped pull request spends none of the five wakes");
   assert.deepEqual(runEvalWake("7", { appId: "x", answers }).calls, [dispatch(7)], "no lanes App id: no read, and the dispatch goes out");
 });
