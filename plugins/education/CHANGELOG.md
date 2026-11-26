@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.16] - 2026-11-26
+
+### Changed
+
+- `/education:setup` points at the plugin manifest reference's user configuration sections for how Claude Code asks for and stores `userConfig` values, instead of describing it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [2.1.15] - 2026-11-26
 
 ### Changed

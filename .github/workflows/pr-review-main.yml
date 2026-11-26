@@ -894,13 +894,51 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
-          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
-            if [ -e "$ORG/$part" ]; then
-              mkdir -p "$(dirname "$DATA/org/$part")"
-              cp -R "$ORG/$part" "$DATA/org/$part"
-            fi
-          done
+          org_real=
+          if [ -d "$ORG" ]; then
+            STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
+            org_real=$(cd "$ORG" && pwd -P)
+          else
+            echo "::warning::no organization standards checkout at '$ORG'; the review reads the repository's criteria alone"
+          fi
+          confine() {
+            [ -n "$org_real" ] || return 1
+            case $1 in "$org_real"/*) ;; *) return 1 ;; esac
+            [ -f "$1" ] || return 1
+            mkdir -p "$(dirname "$DATA/org/${1#"$org_real"/}")"
+            cp "$1" "$DATA/org/${1#"$org_real"/}"
+            printf '%s\n' "$DATA/org/${1#"$org_real"/}"
+          }
+          if [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
+            mkdir -p "$DATA/org/docs/standards"
+            while IFS= read -r line; do
+              IFS='|' read -r _ _ _ file _ <<<"$line"
+              file=${file# }
+              file=${file% }
+              case $line in
+              '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
+              *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
+              esac
+            done <"$index" >"$DATA/org/docs/standards/README.md"
+          fi
+          base_real=$(cd .base && pwd -P)
+          lane_copy() {
+            case $1 in "$base_real"/*) ;; *) return 1 ;; esac
+            while read -r how src to; do
+              case $how in copy | copy-if-present) ;; *) continue ;; esac
+              src=${src//"{skill}"/$SKILL}
+              to=${to//"{skill}"/$SKILL}
+              case ${1#"$base_real"/} in "$src") ;; "$src"/*) to=$to/${1#"$base_real"/"$src"/} ;; *) continue ;; esac
+              if [ -f "$DATA/$to" ]; then printf '%s\n' "$DATA/$to"; return 0; fi
+            done <.base/.github/scripts/pr-review-main/criteria.txt
+            return 1
+          }
+          rc=0
+          citations=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh citations --root .base) || rc=$?
+          [ "$rc" -ne 3 ] || citations=
+          while IFS=$'\t' read -r cite target; do
+            if dest=$(confine "${target%#*}") || dest=$(lane_copy "${target%#*}"); then printf '%s\t%s#%s\n' "$cite" "$dest" "${target##*#}"; fi
+          done <<<"$citations" >"$DATA/org/citations.tsv"
 
       - name: Resolve the review's model
         id: models
@@ -1580,13 +1618,51 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
-          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
-            if [ -e "$ORG/$part" ]; then
-              mkdir -p "$(dirname "$DATA/org/$part")"
-              cp -R "$ORG/$part" "$DATA/org/$part"
-            fi
-          done
+          org_real=
+          if [ -d "$ORG" ]; then
+            STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
+            org_real=$(cd "$ORG" && pwd -P)
+          else
+            echo "::warning::no organization standards checkout at '$ORG'; the review reads the repository's criteria alone"
+          fi
+          confine() {
+            [ -n "$org_real" ] || return 1
+            case $1 in "$org_real"/*) ;; *) return 1 ;; esac
+            [ -f "$1" ] || return 1
+            mkdir -p "$(dirname "$DATA/org/${1#"$org_real"/}")"
+            cp "$1" "$DATA/org/${1#"$org_real"/}"
+            printf '%s\n' "$DATA/org/${1#"$org_real"/}"
+          }
+          if [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
+            mkdir -p "$DATA/org/docs/standards"
+            while IFS= read -r line; do
+              IFS='|' read -r _ _ _ file _ <<<"$line"
+              file=${file# }
+              file=${file% }
+              case $line in
+              '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
+              *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
+              esac
+            done <"$index" >"$DATA/org/docs/standards/README.md"
+          fi
+          base_real=$(cd .base && pwd -P)
+          lane_copy() {
+            case $1 in "$base_real"/*) ;; *) return 1 ;; esac
+            while read -r how src to; do
+              case $how in copy | copy-if-present) ;; *) continue ;; esac
+              src=${src//"{skill}"/$SKILL}
+              to=${to//"{skill}"/$SKILL}
+              case ${1#"$base_real"/} in "$src") ;; "$src"/*) to=$to/${1#"$base_real"/"$src"/} ;; *) continue ;; esac
+              if [ -f "$DATA/$to" ]; then printf '%s\n' "$DATA/$to"; return 0; fi
+            done <.base/.github/scripts/pr-review-main/criteria.txt
+            return 1
+          }
+          rc=0
+          citations=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh citations --root .base) || rc=$?
+          [ "$rc" -ne 3 ] || citations=
+          while IFS=$'\t' read -r cite target; do
+            if dest=$(confine "${target%#*}") || dest=$(lane_copy "${target%#*}"); then printf '%s\t%s#%s\n' "$cite" "$dest" "${target##*#}"; fi
+          done <<<"$citations" >"$DATA/org/citations.tsv"
 
       - name: Resolve the review's model
         id: models
@@ -2244,13 +2320,51 @@ jobs:
             cp -R ".base/$src" "$dest"
           done <.base/.github/scripts/pr-review-main/criteria.txt
           rm -rf "$DATA/review/skills/$SKILL/evals"
-          STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
-          for part in REVIEW.md .claude/standards.yaml docs/standards standards; do
-            if [ -e "$ORG/$part" ]; then
-              mkdir -p "$(dirname "$DATA/org/$part")"
-              cp -R "$ORG/$part" "$DATA/org/$part"
-            fi
-          done
+          org_real=
+          if [ -d "$ORG" ]; then
+            STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh review --root .base >"$DATA/standards/REVIEW.md"
+            org_real=$(cd "$ORG" && pwd -P)
+          else
+            echo "::warning::no organization standards checkout at '$ORG'; the review reads the repository's criteria alone"
+          fi
+          confine() {
+            [ -n "$org_real" ] || return 1
+            case $1 in "$org_real"/*) ;; *) return 1 ;; esac
+            [ -f "$1" ] || return 1
+            mkdir -p "$(dirname "$DATA/org/${1#"$org_real"/}")"
+            cp "$1" "$DATA/org/${1#"$org_real"/}"
+            printf '%s\n' "$DATA/org/${1#"$org_real"/}"
+          }
+          if [ -n "$org_real" ] && index=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh index --root .base); then
+            mkdir -p "$DATA/org/docs/standards"
+            while IFS= read -r line; do
+              IFS='|' read -r _ _ _ file _ <<<"$line"
+              file=${file# }
+              file=${file% }
+              case $line in
+              '| Surface |'* | '|---'* | [!\|]*) printf '%s\n' "$line" ;;
+              *) if dest=$(confine "$file"); then printf '%s\n' "${line%"$file |"}$dest |"; fi ;;
+              esac
+            done <"$index" >"$DATA/org/docs/standards/README.md"
+          fi
+          base_real=$(cd .base && pwd -P)
+          lane_copy() {
+            case $1 in "$base_real"/*) ;; *) return 1 ;; esac
+            while read -r how src to; do
+              case $how in copy | copy-if-present) ;; *) continue ;; esac
+              src=${src//"{skill}"/$SKILL}
+              to=${to//"{skill}"/$SKILL}
+              case ${1#"$base_real"/} in "$src") ;; "$src"/*) to=$to/${1#"$base_real"/"$src"/} ;; *) continue ;; esac
+              if [ -f "$DATA/$to" ]; then printf '%s\n' "$DATA/$to"; return 0; fi
+            done <.base/.github/scripts/pr-review-main/criteria.txt
+            return 1
+          }
+          rc=0
+          citations=$(STANDARDS_DIR=$ORG bash .base/lib/org-standards.sh citations --root .base) || rc=$?
+          [ "$rc" -ne 3 ] || citations=
+          while IFS=$'\t' read -r cite target; do
+            if dest=$(confine "${target%#*}") || dest=$(lane_copy "${target%#*}"); then printf '%s\t%s#%s\n' "$cite" "$dest" "${target##*#}"; fi
+          done <<<"$citations" >"$DATA/org/citations.tsv"
 
       - name: Resolve the review's model
         id: models

@@ -284,6 +284,17 @@ test("an unreadable --data-dir the caller passed is still an error", async () =>
   assert.deepEqual(errors.map((e) => [e.level, e.event]), [["error", "data directory unreadable"]]);
 });
 
+test("a --user-config file that does not exist is refused in plain words naming the file", async () => {
+  const missing = join(scratch, "no-such-user-config.json");
+  const { code, records, errors } = await run(["anything", "--user-config", missing]);
+  assert.equal(code, 2);
+  assert.deepEqual(records, []);
+  assert.deepEqual(
+    errors.map((e) => [e.event, e.option, e.error]),
+    [["invalid option", "user-config", `user config file not found: ${missing}`]],
+  );
+});
+
 test("a term that names no record exits 1 with nothing on stdout", async () => {
   const { code, records } = await run(["no-such-concept"]);
   assert.equal(code, 1);

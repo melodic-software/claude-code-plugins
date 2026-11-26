@@ -1,45 +1,3 @@
-// Offline replay of pr-verify's judgment over the synthetic planted-defect
-// fixtures in ./fixtures. Per case it lays out the data directory
-// pr-verify.yml builds (diff.patch, pr.json, context.json, spec.json,
-// spec-text.json, upstream-jobs.json), with the spec files from the real
-// resolvePull, the context from the real buildTrustedContext and the jobs from
-// the real upstreamJobs, all reading one stub GitHub that serves the fixture's
-// issue and pull request and a pr-require-checks run whose jobs all passed. The
-// jobs file's wrapped Node suites come from replayedTree, this checkout's tree
-// with the fixture's diff applied.
-// It fills in this checkout's prompt.md the way the "Write the prompt and
-// schema" step does, runs `claude -p` with the argv run-claude-cli builds at the pinned SHA (lane.cjs cliArgs)
-// and the verify-pr model route resolve-config resolves, and scores the
-// result through the real structuredOutput and buildVerdict.
-//
-// Dry run is the default: it builds every data directory and prints the exact
-// command per case without calling the model. `--live` runs the model and
-// needs CLAUDE_CODE_OAUTH_TOKEN, the subscription leg's credential.
-//
-// Differences from the runner, and how each is closed:
-// - Settings: an empty CLAUDE_CONFIG_DIR and HOME per run. --restricted
-//   ignores user, project and local settings, so the runner's one settings
-//   file, the managed settings apply-claude-managed-settings writes, goes in
-//   with --settings, where lane.cjs passes its sandbox settings instead. The
-//   judge has no Bash, so the sandbox cannot change its judgment. Of its keys,
-//   allowManagedHooksOnly takes effect only in managed settings, so it does
-//   nothing here; the empty config directory is what keeps the caller's hooks
-//   out. Pointer: the allowManagedHooksOnly row of
-//   https://code.claude.com/docs/en/settings-reference (scope Managed), as of
-//   2026-10-20; recheck when that row's scope changes.
-// - CLI version: CLI_VERSION, the cli-version default of run-claude-cli at
-//   RUN_CLAUDE_CLI_PIN. `latest` resolves, as lane.cjs does, with
-//   `npm view @anthropic-ai/claude-code version`; a live run refuses any
-//   other version.
-// - Environment: built from an allowlist, then lane.cjs legEnv's additions
-//   and the judge step's env; nothing else of the caller's shell passes.
-// - MCP: --strict-mcp-config with no --mcp-config, as on the runner.
-// - Model: the model ids each run resolved to are logged from the init and
-//   result messages.
-// Not reproduced: the bwrap read-only binds and runner isolation, which guard
-// the runner rather than shape the judgment.
-//
-// parity.test.mjs fails when JUDGE or cliArgs drift from pr-verify.yml.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -62,8 +20,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, "../../../..");
 export const FIXTURES_DIR = path.join(HERE, "fixtures");
 const REPOSITORY = "melodic-software/claude-code-plugins";
-// The jobs of pr-require-checks.yml as a run lists them, a matrix leg named
-// with its leg; each fixture's run passed every one.
 export const UPSTREAM_JOBS = Object.freeze([
   "Mark Lanes",
   "Select Tests",
@@ -81,7 +37,6 @@ export const UPSTREAM_JOBS = Object.freeze([
   "ci-status",
 ]);
 
-// A job's page, as the jobs API's html_url gives it.
 export const jobUrl = (runId, jobId) => `https://github.com/${REPOSITORY}/actions/runs/${runId}/job/${jobId}`;
 
 export const RUN_CLAUDE_CLI_PIN = /\/run-claude-cli@(main)\b/.exec(readFileSync(path.join(REPO_ROOT, ".github/workflows/pr-verify.yml"), "utf8"))?.[1];
@@ -92,15 +47,12 @@ export const MANAGED_SETTINGS = Object.freeze({
   env: { ANTHROPIC_BASE_URL: "https://api.anthropic.com" },
   permissions: { disableBypassPermissionsMode: "disable" },
 });
-// lane.cjs legEnv's additions; the watchdog wait is the action's default.
 export const LEG_ENV = Object.freeze({
   CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
   CLAUDE_CODE_RETRY_WATCHDOG: "1",
   CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS: "1800000",
 });
 
-// The judge step's inputs and env, and the prompt and schema step, in
-// pr-verify.yml.
 export const JUDGE = Object.freeze({
   dataDir: "pr-verify-data",
   modelRoute: "verify-pr",
@@ -135,8 +87,6 @@ export const JUDGE = Object.freeze({
   },
 });
 
-// lane.cjs cliArgs at the pin, for this lane's inputs, with the settings file
-// as --settings' value in place of the sandbox settings.
 export function cliArgs({ model, effort, maxTurns, settingsFile }) {
   return [
     "-p",
@@ -172,11 +122,8 @@ export function promptText(source, dataDir) {
   return `${JUDGE.preamble.trim()}\n\n${renderPrompt({ template: source, parts: [`${dataDir}/diff.patch`], dataDir })}`;
 }
 
-// A runner-like PATH: this node and the system directories, none of the
-// caller's tools.
 export const LEG_PATH = [path.dirname(process.execPath), "/usr/local/bin", "/usr/bin", "/bin"].join(":");
 
-// The child environment: an allowlist of the caller's, never the rest.
 export function legEnv({ base = process.env, home, configDir, token }) {
   const env = { PATH: LEG_PATH };
   for (const name of ["LANG", "LC_ALL", "TZ"]) {
@@ -216,7 +163,6 @@ export function loadCases(dir = FIXTURES_DIR) {
 
 const sha = (text) => createHash("sha1").update(text).digest("hex");
 
-// The ids, accounts and API objects one case's stub serves.
 export function scenario(testCase, index, { owner, lane, outsider }) {
   const number = 9100 + index;
   const issueNumber = 8100 + index;
@@ -336,8 +282,6 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
   };
 }
 
-// One GitHub that answers exactly the reads resolvePull and
-// buildTrustedContext make for a scenario, and throws on any other.
 export function stubGitHub(s) {
   const R = `/repos/${s.repository}`;
   const page = (list) => (apiPath) => (/[?&]page=1$/.test(apiPath) ? list : []);
@@ -390,7 +334,6 @@ export function stubGitHub(s) {
   };
 }
 
-// The accounts the trusted-actor list and pr-pipeline.yaml name.
 export function actorsFrom(trustedActorsPath, laneIdentity) {
   const list = JSON.parse(readFileSync(trustedActorsPath, "utf8")).actors;
   const human = list.find((actor) => actor.kind === "human");
@@ -407,9 +350,6 @@ export function actorsFrom(trustedActorsPath, laneIdentity) {
 
 let baseTree;
 
-// The six data files, written as resolve-pr.mjs, select-trusted-text.mjs,
-// upstream-jobs.mjs and the "Write the diff" step write them. Returns the
-// resolved PR facts.
 export async function writeData({ testCase, index, dataDir, trustedActorsPath, verifyAuthors, laneIdentity, baselineFile }) {
   const s = scenario(testCase, index, actorsFrom(trustedActorsPath, laneIdentity));
   const github = stubGitHub(s);
@@ -441,9 +381,6 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
   return resolved;
 }
 
-// The replayed head's tree, NUL-separated as the "Write the diff" step's
-// `git ls-tree -r -z --name-only` lists it: the base tree (this checkout's
-// HEAD) with each file the fixture's diff adds, deletes or renames applied.
 export function replayedTree(diff, baseListing) {
   const paths = new Set(baseListing.split("\0").filter(Boolean));
   for (const [, from, to] of diff.matchAll(/^--- (.+)\n\+\+\+ (.+)$/gm)) {
@@ -456,7 +393,6 @@ export function replayedTree(diff, baseListing) {
     .join("");
 }
 
-// lane.cjs linesToMessages: stream-json lines to the execution-file array.
 export function linesToMessages(text) {
   return text
     .split("\n")
@@ -470,20 +406,8 @@ export function linesToMessages(text) {
     });
 }
 
-// An API status a later attempt can clear: a rate limit or a server error.
 const transient = (status) => status === 429 || (Number.isInteger(status) && status >= 500 && status <= 599);
 
-// One leg's outcome. `verdict` when the workflow would write one. `denied`,
-// `invalid` and `no-verdict` are outcomes a retry would repeat, which
-// production also ends with no verdict: a permission denial, output that
-// fails buildVerdict, a run that ended without a structured output (the turn
-// cap, the structured-output retries, the leg timeout), or an API error such
-// as a 400 or 401. `infrastructure` is a run the model never finished for a
-// reason a later attempt can clear: no result message (the CLI did not start
-// or crashed), an API status of 429 or 5xx, or an error during execution.
-// Only `infrastructure` is retried. The workflow writes a verdict only after
-// a clean exit with a non-error result (lane.cjs judgeLeg), through
-// structuredOutput and buildVerdict.
 export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
   const messages = linesToMessages(stdout);
   const init = messages.find((m) => m?.type === "system" && m?.subtype === "init");
@@ -534,7 +458,6 @@ export function judgeLeg({ stdout, status, timedOut = false, resolved }) {
 
 const mentions = (patterns, text) => (patterns ?? []).some((pattern) => new RegExp(pattern, "i").test(text));
 
-// One verdict against its case's expectation.
 export function scoreRun(expect, verdict) {
   const text = [verdict.summary, ...verdict.notes].join("\n");
   const expectsFail = expect.expected === "fail";
@@ -547,7 +470,6 @@ export function scoreRun(expect, verdict) {
   };
 }
 
-// The rates the issue asks for, from scored run records.
 export function summarize(records) {
   const scored = records.filter((r) => r.score);
   const blocking = scored.filter((r) => r.expect.expected === "fail" && r.expect.scored === "main");
@@ -589,14 +511,12 @@ const quote = (word) => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${String(word)
 export function sh(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: "utf8", ...options });
   if (result.status !== 0) {
-    // resolve-config writes its ::error line to stdout.
     const detail = result.stderr?.trim() || result.stdout?.trim() || result.error?.message || `exit ${result.status}`;
     throw new Error(`${command} ${args.join(" ")} failed: ${detail}`);
   }
   return result.stdout.trim();
 }
 
-// The verify-pr route through the real resolve-config, as the action runs it.
 export function resolveModels(root = REPO_ROOT) {
   const action = path.join(root, ".github/actions/resolve-config");
   if (!existsSync(path.join(action, "node_modules"))) {
@@ -628,7 +548,6 @@ export function resolveModels(root = REPO_ROOT) {
 
 const MEMORY_FILES = ["CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", ".claude"];
 
-// Nothing above the workspace may load as project memory.
 function checkAncestors(dir) {
   for (let at = dir; ; at = path.dirname(at)) {
     const found = MEMORY_FILES.find((name) => existsSync(path.join(at, name)));
@@ -641,9 +560,6 @@ function checkAncestors(dir) {
   }
 }
 
-// Production runs one attempt and has no retry. The replay retries only an
-// infrastructure failure, up to maxAttempts, and stops at the first model
-// outcome, which is the one the run is scored on.
 export function untilModelOutcome(maxAttempts, attemptOnce) {
   const attempts = [];
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {

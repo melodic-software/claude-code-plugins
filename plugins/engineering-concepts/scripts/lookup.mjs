@@ -266,7 +266,8 @@ export async function main(
     try {
       userConfig = readUserConfig(opts["user-config"]);
     } catch (e) {
-      return invalid("user-config", opts["user-config"], null, e.code ?? e.message);
+      const reason = e.code === "ENOENT" ? `user config file not found: ${opts["user-config"]}` : (e.code ?? e.message);
+      return invalid("user-config", opts["user-config"], null, reason);
     }
   }
   const settings = resolveSettings({ projectRoot: resolvePath(opts.project ?? gitRoot(process.cwd())), userConfig, userHome: opts.home, err });

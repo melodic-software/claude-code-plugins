@@ -28,13 +28,13 @@ const TRIGGER = `    if: >-
 const TRUSTED_ACTORS =
   "          TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json\n          STANDARDS_DIR: ${{ steps.standards.outputs.path }}\n";
 const STANDARDS = "        uses: melodic-software/ci-workflows/.github/actions/download-standards@main\n";
-const shared = (carriedComment) => [
+const SHARED = [
   [STANDARDS, `${STANDARDS}        with:\n          ref: \${{ needs.check-intent.outputs.standards-sha }}\n`, 1],
   ["      standards-sha: ${{ steps.standards.outputs.sha }}\n", "", 1],
   [`      reads: \${{ steps.carry.outputs.reads }}\n`, "", 1],
   [
     `${TRUSTED_ACTORS}        run: |`,
-    `${TRUSTED_ACTORS}          CONTEXT_FILE: \${{ github.workspace }}/pr-verify-data/context.json\n${carriedComment}          CARRIED: \${{ needs.check-intent.outputs.reads }}\n        run: |`,
+    `${TRUSTED_ACTORS}          CONTEXT_FILE: \${{ github.workspace }}/pr-verify-data/context.json\n          CARRIED: \${{ needs.check-intent.outputs.reads }}\n        run: |`,
     1,
   ],
   [" && steps.defer.outputs.cause != 'defer'", "", 1],
@@ -56,27 +56,7 @@ export default {
       job: "check-intent-subscription",
       drop: KEY_ONLY,
       move: { "Check the credential": "Resolve the verifier's model" },
-      comments: {
-        "Check the trigger": `The upstream run's actors, the re-runner and the PR author must all be
-on the trusted-actor list. A re-run github-actions[bot] started passes
-only as the lost-run reconciler's recorded re-run of this run.`,
-        "Select the trusted PR text": "Carried from check-intent when the resolver took its reads.",
-        "Check the credential": "Only whether each secret is set reaches the action, never a value.",
-        "Write the prompt and schema": true,
-        "Judge the pull request": `With the fallback token set, a limit stop, a credit stop or a 401 or
-402 hands off, which skips the verdict steps; the outcome step records
-the leg as handed off, and the fallback job judges the run.`,
-        "Check the key leg": `After a handoff, the denial check: a denial on the subscription leg
-means no verdict, so the fallback job runs only on this step's
-clean=true; continue-on-error lets the report record the stop, and
-"Fail without a verdict" carries the red. run-claude-cli warns of a
-refused token itself.`,
-        "Report the judgment's outcome": `One lane record per leg: this one, marked handoff when the leg handed
-off cleanly; the fallback job records its own leg.`,
-        "Fail without a verdict": `A clean handoff, or an empty token with the fallback token set, hands
-the judgment on; any other run that passed the gates and left no
-verdict fails here.`,
-      },
+      comments: { "Write the prompt and schema": true },
       replace: [
         ["  check-intent:\n    name: Check Intent\n", "  check-intent-subscription:\n    name: Check Intent Subscription\n    needs: check-intent\n", 1],
         [TRIGGER, `    if: >-\n      !cancelled()\n      && github.ref == 'refs/heads/main'\n`, 1],
@@ -85,7 +65,7 @@ verdict fails here.`,
           "      && (needs.check-intent.result == 'skipped'\n      || (needs.check-intent.result == 'success'\n      && needs.check-intent.outputs.next-leg == 'subscription'))\n",
           1,
         ],
-        ...shared("          # check-intent's reads, taken only when they hold (resolve-pr.mjs takeReads).\n"),
+        ...SHARED,
         ["          leg: key\n", "          leg: subscription\n", 1],
         [
           CREDENTIAL_CALL,
@@ -112,7 +92,7 @@ verdict fails here.`,
         ],
         [
           "steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}\n",
-          `steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}\n          # Why this job ran, for its lane record.\n${FALLBACK_REASON}\n`,
+          `steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}\n${FALLBACK_REASON}\n`,
           1,
         ],
         [/^( {10}handoff: \$\{\{ steps\.judge-[\w]+\.outputs\.handoff == 'true'(?: && steps\.later-fail\.outputs\.fail != 'true')? && steps\.sub-leg-\w+\.outcome != 'failure' \}\})$/gm, `$1\n${FALLBACK_REASON}`, 2],
@@ -122,17 +102,13 @@ verdict fails here.`,
       job: "check-intent-fallback",
       drop: [...KEY_ONLY, ...LEG_CHECKS, "Pick the next leg"],
       move: { "Check the credential": "Resolve the verifier's model" },
-      comments: {
-        "Check the credential": `Only whether the fallback token is set reaches the action, as both
-inputs, never its value.`,
-        "Write the prompt and schema": true,
-      },
+      comments: { "Write the prompt and schema": true },
       replace: [
         ["  check-intent:\n    name: Check Intent\n", "  check-intent-fallback:\n    name: Check Intent Fallback\n    needs: [check-intent, check-intent-subscription]\n", 1],
         [TRIGGER, `    if: >-\n      !cancelled()\n      && needs.check-intent-subscription.result == 'success'\n      && github.ref == 'refs/heads/main'\n`, 1],
         ["      && vars.CLAUDE_API_KEYS_DISABLED != 'true'\n", "      && needs.check-intent-subscription.outputs.next-leg == 'fallback'\n", 1],
         [`      next-leg: \${{ steps.next.outputs.next-leg }}\n      next-reason: \${{ steps.next.outputs.next-reason }}\n`, "", 1],
-        ...shared(""),
+        ...SHARED,
         ["          leg: key\n", "          leg: fallback\n", 1],
         [
           CREDENTIAL_CALL,
@@ -145,7 +121,7 @@ inputs, never its value.`,
         fallbackReady,
         [
           "          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}",
-          `          # Why this job ran, for its lane record.\n${FALLBACK_REASON}`,
+          FALLBACK_REASON,
           1,
         ],
         [/^ {10}handoff: \$\{\{ steps\.judge-\w+\.outputs\.handoff == 'true'(?: && steps\.later-fail\.outputs\.fail != 'true')? && steps\.key-leg-\w+\.outcome != 'failure' \}\}$/gm, FALLBACK_REASON, 2],

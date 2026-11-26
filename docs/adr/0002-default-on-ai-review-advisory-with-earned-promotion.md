@@ -428,11 +428,11 @@ this ADR to match what `ci-status` already does.
   standards-sync App are exempt by author id. While `merge.diff-check.path-holds` is false, only a
   Dependabot change to a trust-gate path still fails; the two Apps' trust-gate changes pass. The `Fail a pull request carrying the human-gated label` step fails while a lane's
   hold label stands, and `Fail a review-lane hold an untrusted account lifted` fails unless a person
-  on the trusted-actor list removed it, with the exceptions that step's comment lists. The first revisit trigger below, which opened a promotion
+  on the trusted-actor list removed it, with the exceptions that step's comment listed at [22a3301e3c](https://github.com/melodic-software/claude-code-plugins/blob/22a3301e3c2852228fc17b9b147f0cd1f72bf7ee/.github/workflows/pr-require-checks.yml#L6038-L6066). The first revisit trigger below, which opened a promotion
   change, is superseded with Decision 2.
 - **The merge-queue trigger fired; its consequence does not apply.** Every commit reaches main
   through the merge queue (`pr-require-checks.yml`, the `NO PUSH TRIGGER` comment in its `on:`
-  block). The security check is no longer required (github-iac#614 retired the
+  block at [22a3301e3c](https://github.com/melodic-software/claude-code-plugins/blob/22a3301e3c2852228fc17b9b147f0cd1f72bf7ee/.github/workflows/pr-require-checks.yml#L10-L16)). The security check is no longer required (github-iac#614 retired the
   `security-review-gate` ruleset), so the security caller's missing `merge_group` trigger
   (`.github/workflows/pr-review-security-hosted.yml`) leaves no required check unreported. The
   review requirement runs on the `pull_request` event only; in the queue, the `Fail a queued pull

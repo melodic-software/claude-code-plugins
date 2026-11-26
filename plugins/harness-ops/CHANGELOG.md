@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [10.8.4] - 2026-11-26
+
+### Changed
+
+- `/harness-ops:inventory`, `/harness-ops:audit-skill-visibility`, `/harness-ops:audit-native-overlap`, `/harness-ops:audit-performance`, `/harness-ops:behavior-probes` and `/harness-ops:control-claude-code` point at section-anchored Claude Code docs for WebFetch, `/doctor`, compaction hooks, bundled skills, the skill listing budget, in-place plugins and sign-in storage, instead of restating that behavior. The inventory's docs pointers drop their as-of dates and recheck triggers and gain section anchors ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [10.8.3] - 2026-11-26
 
 ### Changed

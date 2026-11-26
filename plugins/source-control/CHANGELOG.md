@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.10] - 2026-11-26
+
+### Changed
+
+- `/source-control:worktree`, `/source-control:setup`, `/source-control:pull-request` and `/source-control:babysit-prs` point at the Claude Code worktree docs, Microsoft's long-path page and GitHub's `pull_request` event and `PullRequestReviewThread` references for the `EnterWorktree`/`ExitWorktree` behavior, the Windows path limit, CI on a conflicted PR and the thread-resolution field with no REST equivalent, instead of restating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.9] - 2026-11-26
+
+### Changed
+
+- `/source-control:babysit-loop` points at the scheduled-tasks docs for the delay range a self-paced loop allows, instead of stating the `ScheduleWakeup` clamp in seconds ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [13.21.8] - 2026-11-26
 
 ### Changed
