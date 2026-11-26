@@ -72,9 +72,9 @@ A local session marks these ready without asking, only by running `/source-contr
 
 - a PR its own `/source-control:pull-request create` returned, or one the user named in this
   session for this session to work on whose author is this session's `gh` login;
-- a PR another session opened (author this session's `gh` login, a commit with the Claude co-author
-  trailer) when that session agreed by message, or is not live in ListAgents and the PR has had no
-  push for an hour (ListAgents misses a session on another machine not on Remote Control).
+- a PR another session opened (its author is this session's `gh` login and at least one of its commits carries the
+  Claude co-author trailer) when that session agreed by message, or is not live in ListAgents and the PR has had
+  no push for an hour (ListAgents misses a session on another machine not on Remote Control).
 
 A lane marks a PR ready only by running `/source-control:pull-request ready --unattended` to
 completion, never by a bare draft flip, and only for a PR its own `create` returned or, in the
