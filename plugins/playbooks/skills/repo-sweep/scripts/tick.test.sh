@@ -24,7 +24,7 @@ esac
 EOF
 chmod +x "$TMP/bin/gh"
 
-body() { # <two-line> <three-line>: a CRLF body with no final newline, as GitHub returns it
+body() {
   printf '%s\r\n' 'No related issue: sweep' '## Summary' '<!-- repo-sweep:begin playbook=fixture -->' \
     '- [x] one: p:a@1.0, committed abc1234' '- [ ] two-b: p:z' "$1" "$2" '<!-- repo-sweep:end -->' '' \
     'Not run:'

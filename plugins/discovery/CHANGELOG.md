@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.24] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [2.2.23] - 2026-11-26
 
 ### Changed

@@ -1294,7 +1294,7 @@ test("enable-auto-merge hands the room's post-merge check the lane records the l
   assert.match(step, /\n {10}BABYSIT_POSTMERGE_LANE_RECORDS: \$\{\{ runner\.temp \}\}\/lane-records\.json\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Read the lane records the last run kept") < names.indexOf("Arm and disarm auto-merge"));
-  assert.match(arm, /\n {6}actions: read #/);
+  assert.match(arm, /\n {6}actions: read\n/);
 });
 
 test("the default branch checkouts of the post-merge check, the merge and enable-auto-merge fetch full history", () => {

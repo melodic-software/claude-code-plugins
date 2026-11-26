@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.28.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.28.0] - 2026-11-26
 
 ### Changed

@@ -224,7 +224,8 @@ regex over the first non-blank printed line, `example`, the text the dry run pri
 append to `${PROBE_WORKDIR}/.probe-hooks.jsonl`; the transcript moves to the run's `raw/` for
 `rejudge`. Its `target` holds `patterns`, regexes matching lines in order; optional `absent`,
 regexes no line may match; optional `compaction`, which counts only with a PostCompact record in
-the hook log, since PreCompact fires with nothing compacted; and `example`, the lines the dry run
+the hook log (when each event fires: [PreCompact](https://code.claude.com/docs/en/hooks#precompact),
+[PostCompact](https://code.claude.com/docs/en/hooks#postcompact)); and `example`, the lines the dry run
 writes. `cli_args` may pass `--input-format stream-json` for one user message per `prompt.md` line;
 mark each after the first `"priority": "later"` so it waits for the running turn
 ([`SDKUserMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdkusermessage)). A `deny` or `refused`

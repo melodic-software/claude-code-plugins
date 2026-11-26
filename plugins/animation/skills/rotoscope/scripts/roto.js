@@ -65,7 +65,7 @@ function gauss(c, sigma) {
   }
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let ch = 0; ch < 3; ch++) {
     let s = 0; for (let i = -R; i <= R; i++) s += k[i + R] * tmp[(Math.min(h - 1, Math.max(0, y + i)) * w + x) * 3 + ch];
-    p[(y * w + x) * 4 + ch] = s;   // Uint8ClampedArray rounds; adding 0.5 here double-rounds every channel upward
+    p[(y * w + x) * 4 + ch] = s;
   }
   c.putImageData(im, 0, 0);
 }

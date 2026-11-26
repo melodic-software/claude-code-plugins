@@ -46,7 +46,7 @@ pf__venv_here() {
   return 1
 }
 
-pf__dir() { # <file> <root>: the file's directory, absolute
+pf__dir() {
   local f="$1"
   [[ "$f" == /* || "$f" == [A-Za-z]:[\\/]* ]] || f="$2/$f"
   [[ "$f" == */* ]] && f="${f%/*}"
@@ -74,7 +74,7 @@ pf__detail() {
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entries
-rt_adapter() { # <concern> <file> <root>
+rt_adapter() {
   local dir
   dir="$(pf__dir "$2" "$3")"
   pf__walk "$dir" "$3" pf__config_here || return 1
@@ -93,7 +93,7 @@ rt_adapter() { # <concern> <file> <root>
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh
-rt_adapter_in_repo() { # <concern> <root>
+rt_adapter_in_repo() {
   local f config_dir="$2"
   if ! pf__config_here "$2"; then
     while IFS= read -r f; do

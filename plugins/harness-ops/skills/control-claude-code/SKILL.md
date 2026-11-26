@@ -90,8 +90,9 @@ Run `ready` from that checkout with the same flags but `--cwd`, and answer any f
 Gotchas says.
 
 Data: none: the session runs in the person's own Claude Code config directory (`CLAUDE_CONFIG_DIR`,
-else `~/.claude`), shared across runs, because the run reuses the account it is signed in with; a
-new directory per run would start signed out. The launch sets no config directory. A local drive
+else `~/.claude`), shared across runs, because the run reuses the account it is signed in with
+(how the sign-in follows the config directory:
+[credential management](https://code.claude.com/docs/en/authentication#credential-management)). The launch sets no config directory. A local drive
 writes the evidence under `<run-dir>`; the session's socket, lock file, holder log and `<session>.cwd`
 under the runtime directory; the terminal engine under the install base `doctor` prints; and what
 Claude Code keeps in the config directory, such as the session transcript.

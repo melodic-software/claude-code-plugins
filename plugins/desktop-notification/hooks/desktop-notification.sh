@@ -105,7 +105,7 @@ OSA
       CHANNELS+=("os_toast")
     fi
     ;;
-  *) ;; # Windows / unknown — no OS toast; terminal channels carry attention.
+  *) ;;
   esac
 fi
 

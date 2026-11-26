@@ -34,10 +34,10 @@ const NPM_CI_ARGS = ['ci', '--ignore-scripts', '--no-audit', '--no-fund'];
 const NPM_TIMEOUT_MS = 600_000;
 const SIGNED = '.signatures-verified';
 const FONT_ENTRY = 'noto-sans-symbols-2';
-const MAX_TTL_S = 2147483; // setTimeout holds at most 2^31-1 ms
-const TIMER_MAX_MS = 2 ** 31 - 1; // a longer setTimeout delay fires after 1 ms
+const MAX_TTL_S = 2147483;
+const TIMER_MAX_MS = 2 ** 31 - 1;
 const timerMs = (ms) => Math.min(ms, TIMER_MAX_MS);
-const SOCK_MAX = 100; // a Unix socket path is limited to roughly a hundred bytes
+const SOCK_MAX = 100;
 const EXIT_POLL_MS = 1000;
 const WHOLE = /^[1-9]\d*$/;
 const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|library)[^\n]*/;
@@ -155,7 +155,7 @@ class Unsafe extends Error {
 function privateDir(dir, { create = true } = {}) {
   if (create) mkdirSync(dir, { recursive: true, mode: 0o700 });
   else if (!existsSync(dir)) return dir;
-  if (process.platform === 'win32') return dir; // the per-user profile's ACL guards it
+  if (process.platform === 'win32') return dir;
   const st = lstatSync(dir);
   if (!st.isDirectory() || st.uid !== process.getuid() || (st.mode & 0o077) !== 0) {
     throw new Unsafe(`${dir} is not a private directory owned by you (mode 0700); fix or remove it and retry`);
@@ -829,7 +829,7 @@ async function serve(opts) {
   const launch = buildLaunch(launchConfig(opts, opts['plugin-dir']), process.env);
   const stale = process.platform !== 'win32' && existsSync(sock);
   if (stale && (await listening(sock))) throw new Error(`another process is serving ${sock}`);
-  for (const name of Object.keys(process.env)) if (!(name in launch.env)) delete process.env[name]; // the engine merges onto this env
+  for (const name of Object.keys(process.env)) if (!(name in launch.env)) delete process.env[name];
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
   const ctx = { TuiTest, env: launch.env, keySource: launch.keySource, realSetup: Boolean(opts['real-setup']) };

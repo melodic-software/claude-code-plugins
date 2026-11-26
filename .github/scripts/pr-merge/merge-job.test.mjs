@@ -106,7 +106,7 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
   assert.match(upload, /uses: actions\/upload-artifact@/);
   assert.match(upload, /name: pr-merge-dispatched-\$\{\{ steps\.dispatch\.outputs\.run-id \}\}\n/);
   assert.match(job, /\n {6}actions: read\n/);
-  assert.match(early, /\n {6}actions: write /);
+  assert.match(early, /\n {6}actions: write\n/);
   assert.doesNotMatch(job, /dispatch: .*needs-dispatch/);
 });
 
@@ -999,7 +999,7 @@ test("the early check warns when it cannot judge, and stays quiet on a verdict",
 });
 
 test("the early job can read the demotion records its floor depends on", () => {
-  assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}issues: read /);
+  assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}issues: read\n/);
 });
 
 test("the summary does not call a full run unneeded when only the gate's dispatch is read", () => {
@@ -2067,7 +2067,7 @@ test("a recovery the check proves on an open record sends close-cleared, and a c
     send,
     /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.close-cleared == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n {10}&& steps\.alert\.outputs\.rate-limited != 'true'\n/,
   );
-  assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}issues: read #/, "the job's token keeps issues: read; the close is close-cleared's");
+  assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}issues: read\n/, "the job's token keeps issues: read; the close is close-cleared's");
 
   const sent = runCloseSend("ok");
   assert.equal(sent.status, 0, sent.out);

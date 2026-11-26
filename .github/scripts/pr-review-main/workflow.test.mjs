@@ -974,7 +974,7 @@ test("the credit gate skips the key leg only on next-leg subscription, and a gat
 test("the credit gate holds no secret, checks nothing out and reads only the marker artifacts", () => {
   const job = jobText(PROBE);
   assert.equal(needsOf(PROBE), "check-trigger");
-  assert.match(job, /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:\n {6}next-leg: \$\{\{ steps\.gate\.outputs\.next-leg \}\}\n {6}next-reason: \$\{\{ steps\.gate\.outputs\.next-reason \}\}\n {6}marker: \$\{\{ steps\.gate\.outputs\.marker \}\}\n/m);
+  assert.match(job, /^ {4}permissions:\n {6}actions: read\n {4}outputs:\n {6}next-leg: \$\{\{ steps\.gate\.outputs\.next-leg \}\}\n {6}next-reason: \$\{\{ steps\.gate\.outputs\.next-reason \}\}\n {6}marker: \$\{\{ steps\.gate\.outputs\.marker \}\}\n/m);
   assert.doesNotMatch(job, /secrets\.|actions\/checkout|run-claude-cli|\.\/\.base/);
   const gate = step("Read the key's credit history", PROBE);
   assert.match(gate, /^ {8}id: gate$/m);
@@ -1027,7 +1027,7 @@ test("the credit gate writes, scans and uploads the probing marker right after t
   assert.equal(index(names[1], PROBE), index(names[0], PROBE) + 1);
   assert.equal(index(names[2], PROBE), index(names[1], PROBE) + 1);
   assert.ok(index(names[2], PROBE) < index("Report the skipped claude-review key leg", PROBE));
-  assert.match(jobText(PROBE), /^ {4}permissions:\n {6}actions: read #.*\n {4}outputs:/m);
+  assert.match(jobText(PROBE), /^ {4}permissions:\n {6}actions: read\n {4}outputs:/m);
   for (const job of [...LEGS, "review-handoffs"]) for (const name of names) assert.equal(index(name, job), -1, `${job} ${name}`);
 });
 

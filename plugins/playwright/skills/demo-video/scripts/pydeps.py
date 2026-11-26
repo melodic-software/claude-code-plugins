@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 
 PLUGIN = 'playwright'
-MIN_PYTHON = (3, 12)   # numpy 2.5 requires it
+MIN_PYTHON = (3, 12)
 REQUIREMENTS = Path(__file__).resolve().parent.parent / 'requirements.txt'
 PROBE = ('numpy', 'PIL')
 PIP_TIMEOUT_S = 240
@@ -72,7 +72,7 @@ def loads(packages, probe):
 
 def repair_line(data):
     cmd = [sys.executable, str(Path(__file__).resolve()), 'install', '--data-dir', str(data)]
-    if sys.platform == 'win32':   # Windows PowerShell 5.1: call operator, single quotes doubled
+    if sys.platform == 'win32':
         return '& ' + ' '.join("'" + part.replace("'", "''") + "'" for part in cmd)
     return shlex.join(cmd)
 

@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Test for gen-hook-filters.sh: the shipped hooks.json is in sync with the
-# adapters, every row is gated by an `if`, no row matches a non-test path, no
-# glob repeats, no per-edit scan or judge row ships, and --check catches drift.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # test-scope: plugins/testing/hooks/hooks.json
 # shellcheck disable=SC2016  # check() evals its single-quoted condition

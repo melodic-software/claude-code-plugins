@@ -57,8 +57,6 @@ if [[ "$rc" -eq 2 ]]; then
 else
   fail "confirmation precondition exit=$rc"
 fi
-# The caller reads the prompt off stdout ahead of the marker, so both lines are
-# part of the contract, not just the exit code.
 if [[ "$out" == *"confirm release"* && "$out" == *"needs-confirmation"* ]]; then
   pass "confirmation precondition prints the prompt, then the marker"
 else

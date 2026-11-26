@@ -33,7 +33,7 @@ def declared_rows(path=PREREQUISITES, which=shutil.which):
     rows = []
     for entry in json.loads(Path(path).read_text(encoding='utf-8'))['requires']:
         detect = entry['detect']
-        if entry['kind'] == 'env':   # the value is never read into a row
+        if entry['kind'] == 'env':
             name = detect['name']
             rows.append(('PASS', entry['id'], f'{name} is set') if os.environ.get(name, '').strip()
                         else ('INFO', entry['id'], f'{name} is not set (optional). {entry["degrade"]}'))

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.21.7] - 2026-11-25
 
 ### Changed

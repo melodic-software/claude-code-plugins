@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -133,7 +132,6 @@ function main(argv, env = process.env) {
       console.log(writePrivate(page, kind));
       return 0;
     }
-    // Replace a planted link or file rather than write through it.
     if (existsSync(out) && lstatSync(out).isDirectory()) throw new Error(`build-view: refused: ${out} is a directory`);
     rmSync(out, { force: true });
     writeFileSync(out, page, { flag: "wx", mode: 0o600 });

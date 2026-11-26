@@ -48,7 +48,6 @@ run "$ITEM_ID" --source-link "https://github.com/o/r/actions/runs/2" --note "see
 assert_eq "another link is recorded" "true" "$(jq -r '.recorded' <<<"$OUT")"
 assert_eq "another link adds one marker" "2" "$(grep -cF 'work-item-recurrence' "$ITEM_FILE")"
 
-# A note holding ` -->` must not end the marker early, or the link would not be found again.
 ODD="https://example.com/a?b=-->"
 run "$ITEM_ID" --source-link "$ODD" --note "closes --> early? no"
 assert_eq "a link holding --> is recorded" "true" "$(jq -r '.recorded' <<<"$OUT")"

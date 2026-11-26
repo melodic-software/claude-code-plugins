@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# add-recurrence <id> --source-link <url> --note <text>: CONTRACT.md "Verbs (core public
-# surface)". Appends one recurrence marker line, which carries the link and the note, to the
-# item file, and appends nothing when a marker line there already records the same link.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

@@ -30,7 +30,7 @@ proc_start() {
   if [[ -d /proc/self ]]; then
     { read -r stat <"/proc/$1/stat"; } 2>/dev/null || return 0
     read -ra fields <<<"${stat##*) }"
-    printf '%s\n' "${fields[19]:-}" # field 22, starttime
+    printf '%s\n' "${fields[19]:-}"
   else
     ps -o lstart= -p "$1" 2>/dev/null || true
   fi

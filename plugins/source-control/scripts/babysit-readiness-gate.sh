@@ -57,7 +57,7 @@ EOF
   exit 0
 }
 
-unproven() { # unproven <reason> <exit-code>
+unproven() {
   printf 'READINESS_UNPROVEN reason=%s pr=%s\n' "$1" "${PR_NUMBER:-unknown}"
   exit "$2"
 }
