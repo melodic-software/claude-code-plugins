@@ -440,10 +440,11 @@ re-invocation of the subagent that already commented on the blocker, never quali
 ## Pacing and session budget
 
 Launch via `/loop` with the interval omitted (self-paced). At the end of every cycle that does not
-stop, schedule the next with `ScheduleWakeup`, whose delay clamps to `[60, 3600]` seconds. When the
+stop, schedule the next with `ScheduleWakeup` (the delay range a self-paced loop allows:
+[let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)). When the
 babysit-prs engine snapshot supplies `recommended_cadence`, map it per the cadence table in the
 babysit-prs [loop reference](../babysit-prs/reference/loop.md) §5.3, which owns the
-seconds. Idle backs off toward the 3600s ceiling (standing mode's one-hour wakeups), and a genuine
+seconds. Idle backs off toward that range's ceiling (standing mode's one-hour wakeups), and a genuine
 daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same section). On a
 cycle-budget or `/loop` expiry hit (30 days for a loop created on 2.1.330 or later, 7 days for an
 older one), write a restart-request into the telemetry state block and

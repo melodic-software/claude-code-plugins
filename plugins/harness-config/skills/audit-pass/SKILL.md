@@ -346,7 +346,8 @@ step needs:
 4. **The main-session pass is the one that survives a lowered depth budget**, because it spawns from
    the top of the session rather than from inside a lane. A run that could verify no lane inline can
    usually still verify the assembled set, so `inline` per lane and a completed Phase 6 verification
-   is the ordinary shape on a depth-1 host, not a degraded one.
+   is the ordinary shape on a depth-1 host, not a degraded one. Where the depth limit comes from:
+   [let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
 
 ## Phase 6: Assemble, verify the assembled set, report
 
