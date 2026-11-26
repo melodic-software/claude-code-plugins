@@ -1824,6 +1824,25 @@ describe("agent decision", () => {
     assert.deepEqual(shown(fake.calls), ["STATUS #7 needs-triage", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision", "POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/comments"]);
   });
 
+  const opener = { id: 20, user: { id: APP, type: "Bot" }, body: `**Agent decision recorded.**\n${bodyVersion(issueOf().body)}\n1. Yes.` };
+  const agentRefined = { id: 21, user: { id: APP, type: "Bot" }, body: render(validateOutput(SETTLED, new Set()), { body: issueOf().body }) };
+  const override = { id: 22, node_id: "C22", user: { id: HUMAN, type: "User" }, performed_via_github_app: null, body: "**Decision recorded.** Eighteen, not nineteen." };
+  const select = (comments) => selectRefinement({ github: fakeGitHub({ issue: ready(), comments }).github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
+
+  test("the triage run an owner override re-enters is refined again, and one without an override is not", async () => {
+    assert.equal((await select([opener, agentRefined, override, laneComment()])).refine, true, "the override is the newest decision");
+    assert.deepEqual(await select([opener, agentRefined, laneComment()]), { refine: false, reason: "the lanes App already refined this body" });
+    const stranger = { ...override, user: { id: OUTSIDER, type: "User" } };
+    assert.equal((await select([opener, agentRefined, stranger, laneComment()])).refine, false, "only a listed human overrides");
+    assert.equal((await select([opener, agentRefined, override, { ...agentRefined, id: 23 }, laneComment()])).refine, false, "a refinement after the override counts");
+  });
+
+  test("after an owner override an all-none refinement waits for the owner instead of posting a new opener", async () => {
+    const fake = fakeGitHub({ issue: ready(), comments: [opener, agentRefined, override, laneComment()], events: [] });
+    assert.deepEqual(await apply(fake, SETTLED), { outcome: "needs-decision", redispatch: false });
+    assert.ok(!writes(fake.calls).some((call) => String(call.body?.body ?? "").startsWith("**Agent decision recorded.**")));
+  });
+
   for (const reason of ["intent", "design", "security", "cost"]) {
     test(`one ${reason} question gives today's needs-decision outcome and no opener`, async () => {
       const fake = fakeGitHub({ issue: ready(), comments: [laneComment()], events: [] });

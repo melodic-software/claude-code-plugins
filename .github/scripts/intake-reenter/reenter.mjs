@@ -58,7 +58,7 @@ export async function classify({ github, repository, issue, comment, humans, ids
     const { kept: list } = await selectTrustedIssueComments({ github, repository, issueNumber: issue.number, ids });
     return list.find((item) => item.comment.id === comment.id) ?? null;
   };
-  if (labels.includes(AGENT_DECIDED) && humans.has(user.id)) {
+  if (labels.includes(AGENT_DECIDED) && humans.has(user.id) && !carried(labels, DECISION_LABELS) && !confirmedOnly(labels)) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
       return "agent";

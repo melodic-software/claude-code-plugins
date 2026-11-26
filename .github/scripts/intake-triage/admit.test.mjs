@@ -23,7 +23,7 @@ import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFER
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
 import { agentDecisionBody, REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
-import { AGENT_DECIDED, agentDecision, AGENT_UNSETTLED } from "./admit.mjs";
+import { AGENT_DECIDED, agentDecision, AGENT_UNSETTLED, noTrustedSpec } from "./admit.mjs";
 import { checkRun, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { main as checkBlockers } from "../work-resolve-issue/check-blockers.mjs";
 import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
@@ -4324,9 +4324,19 @@ describe("agent decision", () => {
     });
   }
 
-  test("a listed human's newer Decision recorded suppresses the opener, and an older one does not", () => {
+  test("a listed human's newer Decision recorded overrides the opener, and an older one does not", () => {
     assert.equal(agentDecision(specWith([openerBy(APP_ACTOR), refinement, ownerDecision]), APP, humans), null);
-    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, ownerDecision]), REFUSED);
+    assert.deepEqual(
+      decideWith([openerBy(APP_ACTOR), refinement, ownerDecision]),
+      { verdict: "refuse", reasons: [noTrustedSpec("- [ ] ")], hold: true, reason: "intent" },
+      "an override with no criteria of its own waits for the owner, not for a missing opener",
+    );
+    const withCriteria = node(USER(HUMAN), "**Decision recorded.** Eighteen.\n\n- [ ] `plugins/session-flow/README.md` line 3 says eighteen.");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, withCriteria]), { verdict: "admit", reasons: [] }, "the owner's criteria admit it, not agent-decided");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR, "an older body"), refinement, withCriteria]), { verdict: "admit", reasons: [] }, "an override also supersedes a stale opener");
+    const hostOnly = node(APP_ACTOR, render({ ...SETTLED, criteria: ["Run `/machine-health:audit` on a Windows 11 host and confirm the report lists 27 check results."] }, { body: thin.body }));
+    assert.equal(decideWith([openerBy(APP_ACTOR), hostOnly]).verdict, "refuse", "the agent's own host-run criterion counts while its decision stands");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), hostOnly, withCriteria]), { verdict: "admit", reasons: [] }, "after an override the agent's criteria are not judged beside the owner's");
     assert.deepEqual(decideWith([ownerDecision, openerBy(APP_ACTOR), refinement]), { verdict: "admit", reasons: [], agentDecided: true });
     const outsider = node(USER(OUTSIDER), "**Decision recorded.** No.");
     assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, outsider]), { verdict: "admit", reasons: [], agentDecided: true }, "only a listed human overrides");

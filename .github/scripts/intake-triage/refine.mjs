@@ -8,7 +8,7 @@ import { isDeepStrictEqual } from "node:util";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, paginate } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
 import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, AGENT_DECISION, ATTENDED, authorAdmitted, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPLIT_PENDING, splitItemsLine, unrunnableReason } from "./admit.mjs";
 import { bodyVersion, countedRefinement, loadRules, ownedLines, SCOPE_PREFIX, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, splitChildHeader, taskItems, taskText, unrunnableCriteria } from "./issue-spec.mjs";
@@ -47,8 +47,15 @@ const laneComment = (comments, startedAt) => {
 
 export const isRefinement = (comment, appId) => byApp(comment, appId) && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
-const refinedBody = (comments, appId, body, splitRecorded = false) =>
-  comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body) && (!splitRecorded || carriesSplit(comment.body)));
+export const overrideAt = (comments, appId, humans) => {
+  const opener = comments.findLastIndex((comment) => byApp(comment, appId) && String(comment.body ?? "").split("\n")[0] === AGENT_DECISION);
+  return opener < 0 ? -1 : comments.findLastIndex((comment, index) => index > opener && isDecisionComment({ comment, lastEditedAt: null, lastEditorId: null }, humans));
+};
+
+const refinedBody = (comments, appId, body, humans, splitRecorded = false) => {
+  const after = overrideAt(comments, appId, humans);
+  return comments.some((comment, index) => index > after && isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body) && (!splitRecorded || carriesSplit(comment.body)));
+};
 const flagsOf = (laneBody, verdict) => {
   const found = String(laneBody ?? "")
     .split("\n")
@@ -327,7 +334,7 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   const { lines } = split;
   if (lines.length < 2) {
     const why = `its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`;
-    return refinedBody(comments, appId, issue.body) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
+    return refinedBody(comments, appId, issue.body, humans) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
   }
   const { rules, held } = splitConfig();
   const texts = lines.map((line) => taskText(line, rules["task-list"]));
@@ -371,7 +378,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   }
   const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane.body, verdict });
   const split = thin ? null : splitOf({ body: issue.body, laneBody: lane.body, verdict, labels, admission: admissionComment(comments, appId), ...splitConfig() });
-  if (refinedBody(comments, appId, issue.body, split !== null)) {
+  if (refinedBody(comments, appId, issue.body, humans, split !== null)) {
     return no("the lanes App already refined this body");
   }
   if (!thin && split === null) {
@@ -613,7 +620,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip("changed while the model ran", true);
   }
   const comments = await paginate(github, `${base}/comments`);
-  if (refinedBody(comments, appId, issue.body, output.split.length > 0)) {
+  if (refinedBody(comments, appId, issue.body, humans, output.split.length > 0)) {
     return skip("is already refined");
   }
   if (output.split.length > 0) {
@@ -676,7 +683,7 @@ export async function applyRefinement({ github, repository, number, appId, human
   if (!output.exact) {
     const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
     const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), [hold]) !== appId;
-    agent = agentSettled(output) && !personHold && (await agentMay());
+    agent = agentSettled(output) && !personHold && overrideAt(comments, appId, humans) < 0 && (await agentMay());
     if (!agent) {
       const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
       if (!carried(labels, DECISION_LABELS) && !fieldHeld) {

@@ -689,6 +689,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
+  const agentAnswers = agentAnswered(countedRefinement(spec, humans, appId)?.body);
+  const overridden = agentAnswers && agentOverridden(spec, appId, humans);
+  if (overridden) {
+    spec = { ...spec, comments: spec.comments.filter((comment) => !appRefinement(comment, appId)) };
+  }
   const ownSpec = ownAgent ? ownIds : undefined;
   const texts = trustedSpecTexts(spec, humans, appId, taskList, ownSpec);
   const moved = personChecks(spec, humans, appId, taskList, webHosts);
@@ -697,10 +702,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (!hasTrustedCriteria(spec, humans, taskList, appId, ownSpec)) {
     refuse.push(noTrustedSpec(taskList));
+    if (overridden) holdFor("intent");
   }
-  const agentAnswers = agentAnswered(countedRefinement(spec, humans, appId)?.body);
-  const agentDecided = agentAnswers && agentDecision(spec, appId, humans) !== null;
-  if (agentAnswers && !agentDecided) {
+  const agentDecided = agentAnswers && !overridden && agentDecision(spec, appId, humans) !== null;
+  if (agentAnswers && !overridden && !agentDecided) {
     refuse.push(AGENT_UNSETTLED);
     holdFor("intent");
   }
@@ -947,14 +952,19 @@ const restComment = (node) => ({
   lastEditorId: node?.editor?.__typename === "User" ? node.editor.databaseId : null,
 });
 
+const openerAt = (spec, appId) => (spec?.comments ?? []).findLastIndex((comment) => appAuthored(comment, appId) && String(comment.body ?? "").split("\n")[0] === AGENT_DECISION);
+
+export const agentOverridden = (spec, appId, humans) => {
+  const at = openerAt(spec, appId);
+  return at >= 0 && spec.comments.slice(at + 1).some((comment) => isDecisionComment(restComment(comment), humans));
+};
+
 export function agentDecision(spec, appId, humans) {
-  const comments = spec?.comments ?? [];
-  const at = comments.findLastIndex((comment) => appAuthored(comment, appId) && String(comment.body ?? "").split("\n")[0] === AGENT_DECISION);
-  const opener = comments[at];
+  const opener = spec?.comments?.[openerAt(spec, appId)];
   if (opener === undefined || opener.lastEditedAt != null || String(opener.body).split("\n")[1] !== bodyVersion(spec.body)) {
     return null;
   }
-  return comments.slice(at + 1).some((comment) => isDecisionComment(restComment(comment), humans)) ? null : opener;
+  return agentOverridden(spec, appId, humans) ? null : opener;
 }
 
 export async function parentDecisionOpen({ github, repository, parent, humans, appId, events }) {

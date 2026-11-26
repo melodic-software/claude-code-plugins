@@ -602,6 +602,19 @@ test("an owner's decision on an agent-decided issue sends it back to triage, whe
   }
 });
 
+test("an owner's decision on an agent-decided issue parked for a decision re-enters it the way a decision label does", async () => {
+  const w = world({ labels: ["agent-decided", "needs-owner-decision"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  expectTriage(w, ["agent-decided"], "the decision label is lifted");
+  expectDispatched(w);
+  for (const by of [LANES_APP, OWNER]) {
+    const held = world({ labels: ["agent-decided"], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes: [fieldNode("IssueFieldAddedEvent", by, { value: "needs-owner-decision" })] });
+    assert.equal(await run(held, 1), 0);
+    assert.equal(held.field(), "needs-triage", `a field-only decision hold set by ${by.login} is released by the owner's decision`);
+    expectDispatched(held);
+  }
+});
+
 test("an agent-decided issue does not re-enter on the agent's own opener, an unlisted person, or an edited decision", async () => {
   for (const [name, comment, editors] of [
     ["the agent opener", { id: 1, user: OWNER, body: "**Agent decision recorded.**\n1. Yes." }, {}],
