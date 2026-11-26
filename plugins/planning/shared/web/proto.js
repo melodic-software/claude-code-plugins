@@ -73,7 +73,7 @@
   const OFF_TEXT = "This view is off in this session. You can still choose this variant.";
   const OFF_NAME = { screenshot: "screenshots are off", snapshot: "HTML snapshots are off", live: "live prototypes are off" };
   const LIVE_ONLY_TEXT = "This variant is a live prototype. It opens in its own tab, from Open live prototype above.";
-  const send = m => frame?.contentWindow?.postMessage(m, "*"); // the sandboxed frame has no origin to name
+  const send = m => frame?.contentWindow?.postMessage(m, "*");
   /** A frame for an html view: allow-scripts plus the asset's own CSP sandbox, never allow-same-origin. */
   const sandboxFrame = (cls, title) => {
     const f = E("iframe", cls);

@@ -919,9 +919,6 @@ test("a verify run with a final job listing and unknown steps is held and carrie
   }
 });
 
-// A runner that dies cuts its job's list at the running step, with no
-// "Complete job"; GitHub's runner-loss annotation on the job's check run tells
-// that cut from one the API made.
 test("a verify run whose job lost its runner is re-run when its cut list stops before the judge step, from the job's annotations", async () => {
   const lostAt = (running) => ({
     id: 88,

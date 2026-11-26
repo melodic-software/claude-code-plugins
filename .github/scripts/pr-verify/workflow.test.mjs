@@ -463,7 +463,7 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
   );
   assert.equal(/^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))?.[1], [...WAKE_OUTPUTS, ""].join("\n"));
   for (const id of JOBS) {
-    assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {6}actions: read #.*\n {4}[a-z]/m, id);
+    assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {6}actions: read\n {4}[a-z]/m, id);
   }
 });
 

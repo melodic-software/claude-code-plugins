@@ -30,9 +30,9 @@ jobs:
     timeout-minutes: 222
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its comments and reviews
-      actions: read # the upstream run, and verdicts already uploaded
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -823,9 +823,9 @@ jobs:
     timeout-minutes: 222
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its comments and reviews
-      actions: read # the upstream run, and verdicts already uploaded
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -1484,9 +1484,9 @@ jobs:
     timeout-minutes: 222
     cache-mode: read
     permissions:
-      contents: read # check out main; read the PR's commits for the diff
-      pull-requests: read # the PR, its comments and reviews
-      actions: read # the upstream run, and verdicts already uploaded
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
@@ -2087,9 +2087,9 @@ jobs:
     timeout-minutes: 5
     continue-on-error: true
     permissions:
-      actions: write # start pr-merge.yml on main for this pull request
-      pull-requests: read # read the pull request's author: only a lanes App one is woken
-      contents: read # check out the api-budget library
+      actions: write
+      pull-requests: read
+      contents: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:
