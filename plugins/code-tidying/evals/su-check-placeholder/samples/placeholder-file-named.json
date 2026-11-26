@@ -1,12 +1,12 @@
 {
   "pass": [
     {
-      "answer": "FAIL .claude/tidy-lanes/web.md still contains <build-command>"
+      "answer": "FAIL .claude/tidy-areas/web.md still contains <build-command>"
     }
   ],
   "fail": [
     {
-      "answer": "FAIL: a lane still contains a placeholder",
+      "answer": "FAIL: a focus area still contains a placeholder",
       "why": "neither file nor token named"
     }
   ]

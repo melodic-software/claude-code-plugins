@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Bundled focus areas available: shell-tooling, docs-prose, self-update."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bundled focus areas available: shell-tooling.",
+      "why": "one focus area only"
+    },
+    {
+      "answer": "Default focus areas apply.",
+      "why": "none named"
+    }
+  ]
+}
