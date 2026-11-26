@@ -806,6 +806,8 @@ lib/node-or-skip.sh plugins/disk-hygiene/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/disk-hygiene/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/explainer-video/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/explainer-video/lib/node-or-skip.ps1
+lib/node-or-skip.sh plugins/fleet/lib/node-or-skip.sh
+lib/node-or-skip.ps1 plugins/fleet/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/guardrails/lib/node-or-skip.sh
 lib/node-or-skip.ps1 plugins/guardrails/lib/node-or-skip.ps1
 lib/node-or-skip.sh plugins/playwright/lib/node-or-skip.sh
@@ -1005,6 +1007,9 @@ lib/hook-test-helpers.sh plugins/session-telemetry/hooks/session-telemetry-test-
 lib/hook-test-helpers.sh plugins/plugin-diagnostics/hooks/plugin-diagnostics-test-helpers.sh
 lib/plugin_cache_versions.py plugins/harness-ops/lib/plugin_cache_versions.py
 lib/plugin_cache_versions.py plugins/disk-hygiene/lib/plugin_cache_versions.py
+lib/claude_projects.py plugins/session-flow/lib/claude_projects.py
+lib/claude_projects.py plugins/harness-ops/lib/claude_projects.py
+lib/claude_projects.py plugins/disk-hygiene/lib/claude_projects.py
 lib/media-render/media_capture.py plugins/explainer-video/scripts/media_capture.py
 lib/media-render/media_captions.py plugins/explainer-video/scripts/media_captions.py
 lib/media-render/media_encode.py plugins/explainer-video/scripts/media_encode.py
@@ -1093,6 +1098,8 @@ lib/session-attended.sh plugins/guardrails/hooks/session-attended.sh
 lib/session-attended.mjs plugins/guardrails/hooks/session-attended.mjs
 lib/session-attended.env plugins/session-flow/hooks/session-attended.env
 lib/session-attended.sh plugins/session-flow/hooks/session-attended.sh
+lib/session-attended.env plugins/fleet/hooks/session-attended.env
+lib/session-attended.mjs plugins/fleet/hooks/session-attended.mjs
 lib/config-cascade.mjs plugins/engineering-concepts/scripts/lib/config-cascade.mjs
 lib/yaml-subset.mjs plugins/engineering-concepts/scripts/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/engineering-concepts/lib/resolve-convention-home.sh

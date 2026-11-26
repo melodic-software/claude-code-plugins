@@ -18,4 +18,4 @@ if ! "$PY" -c 'import pytest' 2>/dev/null; then
   exit 0
 fi
 
-exec "$PY" -m pytest tests/test_tidy_work.py -q -p no:cacheprovider
+exec "$PY" -m pytest tests/test_tidy_work.py tests/test_tidy_work_concerns.py -q -p no:cacheprovider

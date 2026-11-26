@@ -5,13 +5,27 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.5.4",
+  "version": "0.6.0",
   "license": "MIT",
   "userConfig": {
     "converge_docs_url": {
       "type": "string",
       "title": "Converge docs URL",
       "description": "URL of your own documentation for the fleet-converge command, which reach names when converging dotfiles comes up. Unset: reach names the command with no link."
+    },
+    "peer_query_timeout_seconds": {
+      "type": "number",
+      "title": "Peer query timeout (seconds)",
+      "description": "Seconds the session-start peer list waits for each fleet lane's claude agents --json, from 0 to 10. 0 lists only the lane the session runs on. Empty or out of range: 3.",
+      "default": 3,
+      "min": 0,
+      "max": 10
+    },
+    "ssh_client": {
+      "type": "string",
+      "title": "SSH client for other machines",
+      "description": "Absolute path of the ssh client the peer list runs to reach other machines; the file must be named ssh or ssh.exe (a drive-letter path on Windows). Empty or invalid: the platform's own client, on WSL the Windows OpenSSH client. Set /usr/bin/ssh on WSL when the distro holds the fleet key.",
+      "default": ""
     }
   },
   "keywords": [

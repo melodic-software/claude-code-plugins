@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: dg-clock-deadline-becomes-end
+description: An intent that asks for a results line timestamped before a clock time the run will likely pass gets that time as an end of its own, an OR branch on date -u naming the full date and time, never as a deadline an element must beat
+tags: [draft-goal-condition, outcome]
+expected_outcome: The reply holds a paste region whose condition ends with an OR branch on date -u showing a full UTC date and time (tomorrow's 06:00Z or an earlier buffer) or later, and the condition does not require a line timestamped before that time.
+execution:
+  prompt: "Use the draft-goal-condition skill from the planning plugin. I want Claude to keep working through the import queue in this one session until it is empty, and before it stops, append a results line to notes/status.md timestamped before 06:00 UTC tomorrow. Some days the queue clears in an hour; some days it runs much longer. If the /goal docs page can't be fetched from here, use what I copied from it this morning: a condition should state one end state Claude can show in the conversation (for example a command it ran and that command's output), plus any constraint on how to get there, and a condition can be at most 4000 characters."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, WebFetch]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?draft-goal-condition"'
+    arm: with-only
+  - name: goal-line-time-is-end
+    type: regex
+    pattern: 'Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*(?:─+|`{3,}\w*)?[ \t]*\n)*(?![ \t>]*/goal)[ \t>]*(?=[^\n]*\b(?:or|alternatively|otherwise)\b[^\n]{0,120}\bdate\b[^\n]{0,120}20(?:2[6-9]|[3-9]\d)-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?Z[^\n]{0,40}\b(?:or later|or after|has passed|onward)\b)(?![^\n]*\b(?:timestamped|stamped|dated|written|appended|timestamp)\b[^\n]{0,60}\b(?:before|earlier than)\b[^\n]{0,20}\d{2}:\d{2})[^\n]+'
+    flags: i
+    arm: both

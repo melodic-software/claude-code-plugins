@@ -43,6 +43,55 @@ const ALLOWED_ATTRS = new Set([
 const ESCAPED_TEXT =
   /^(?:[^&<>"']|&(?:amp|lt|gt|quot|#x27);)*$/;
 
+const BASE64 = "base64,[A-Za-z0-9+/]+={0,2}";
+const LOGO_RULE = new RegExp(
+  `\\.rv-logo\\s*\\{\\s*background-image\\s*:\\s*url\\(data:image/(?:png|jpeg);${BASE64}\\)\\s*;?\\s*\\}`,
+  "g",
+);
+const GROUPING_RULE = /^\s*@(?:media|supports|layer)\b/;
+const FONT_FACE = /(?<=^|[{}])\s*@font-face\s*\{[^{}]*\}/g;
+const FONT_URL = new RegExp(`url\\(data:font/(?:woff2|woff|ttf|otf);${BASE64}\\)`, "g");
+const CSS_COMMENT = /\/\*[\s\S]*?(?:\*\/|$)/g;
+const REFUSED_CSS = /url\(|@import|expression\(|\\/i;
+
+function outsideStyleRules(css, at) {
+  const before = css.slice(0, at);
+  if (!/(?:^|[{}])\s*$/.test(before)) {
+    return false;
+  }
+  const open = [];
+  let start = 0;
+  for (const mark of before.matchAll(/[{};]/g)) {
+    if (mark[0] === "{") {
+      open.push(before.slice(start, mark.index));
+    } else if (mark[0] === "}") {
+      open.pop();
+    }
+    start = mark.index + 1;
+  }
+  return open.every((prelude) => GROUPING_RULE.test(prelude));
+}
+
+/**
+ * Whether style text fetches a resource or runs code. A `data:` URL passes in
+ * two positions only: the logo slot, a `.rv-logo` rule at the top level or
+ * inside `@media`, `@supports` or `@layer` whose one declaration is
+ * `background-image`, as a base64 PNG or JPEG; and an `@font-face` block, as
+ * a base64 WOFF2, WOFF, TTF or OTF font. Every other `url(`, `@import`,
+ * `expression(` or backslash escape is refused, inside a comment too.
+ *
+ * @param {string} css the body of a style element
+ * @returns {boolean}
+ */
+export function styleRefused(css) {
+  const comments = css.match(CSS_COMMENT) ?? [];
+  const bare = css.replace(CSS_COMMENT, " ");
+  const rest = bare
+    .replace(LOGO_RULE, (rule, at) => (outsideStyleRules(bare, at) ? ".rv-logo{}" : rule))
+    .replace(FONT_FACE, (block) => block.replace(FONT_URL, "none"));
+  return REFUSED_CSS.test(rest) || comments.some((comment) => REFUSED_CSS.test(comment));
+}
+
 /**
  * Escape for HTML text and for a quoted attribute. Ampersand is replaced
  * first so an existing entity is not double-decoded. Null and undefined
@@ -125,7 +174,7 @@ function scanStructure(html, failures) {
 
   const styleRe = /<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi;
   for (const style of html.matchAll(styleRe)) {
-    if (/url\(|@import|expression\(|\\/i.test(style[1])) {
+    if (styleRefused(style[1])) {
       failures.push("style");
     }
   }

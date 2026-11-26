@@ -1,0 +1,48 @@
+[
+  {
+    "pid": 203836,
+    "cwd": "/home/<user>/repos/github.com/example-org/repo-a",
+    "kind": "interactive",
+    "startedAt": 1795397936008,
+    "sessionId": "eccb1ca8-0000-4000-8000-000000000001",
+    "name": "Session A",
+    "status": "busy"
+  },
+  {
+    "pid": 3808467,
+    "cwd": "/home/<user>/repos/github.com/example-org/repo-a",
+    "kind": "interactive",
+    "startedAt": 1795547429710,
+    "sessionId": "75274021-0000-4000-8000-000000000002",
+    "name": "Session B",
+    "status": "busy"
+  },
+  {
+    "pid": 3899894,
+    "cwd": "/home/<user>/repos/github.com/example-org/repo-a",
+    "kind": "interactive",
+    "startedAt": 1795548203191,
+    "sessionId": "819babc1-0000-4000-8000-000000000003",
+    "name": "Session C",
+    "status": "busy"
+  },
+  {
+    "pid": 92028,
+    "cwd": "/home/<user>/repos/github.com/example-org/repo-a",
+    "kind": "interactive",
+    "startedAt": 1795550120927,
+    "sessionId": "bd543b07-0000-4000-8000-000000000004",
+    "name": "Session D",
+    "status": "waiting",
+    "waitingFor": "permission prompt"
+  },
+  {
+    "pid": 1973081,
+    "cwd": "/home/<user>/repos/github.com/example-org/repo-a",
+    "kind": "interactive",
+    "startedAt": 1795631245730,
+    "sessionId": "257ebb15-0000-4000-8000-000000000005",
+    "name": "Session E",
+    "status": "busy"
+  }
+]

@@ -45,16 +45,40 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
-_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+_LIB_DIR = _SCRIPT_DIR.parents[2] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import managed_settings  # noqa: E402  (sibling module in scripts/)
+from claude_projects import (  # noqa: E402  (path set above; plugin-bundled module)
+    NullTranscriptCwdAdapter,
+    ProjectSlugResolver,
+)
 from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundled module)
+    AUTHORED,
+    DEFAULT_READ_LIMIT,
     INSTALLED_PLUGINS,
+    KEPT,
+    NEVER_READ_GLOBS,
     ORPHAN_SWEEP_DAYS,
+    SECRET,
+    SESSION_SCOPED,
+    SURFACE_TABLE,
+    SWEPT,
+    TEMP_GIT_PREFIX,
+    UNCLASSIFIED,
+    AllowlistGuardedReader,
+    SecretReadRefused,
+    classify_cache_relpath,
+    is_never_read,
     load_registry,
     orphan_marker,
     resolve,
+    resolve_claude_dir,
 )
 
 MIN_PYTHON = (3, 11)
@@ -84,16 +108,6 @@ SCHEMA = "claude-install-state/4"
 
 UNREFERENCED_VERSIONS_CAP = 25
 
-NEVER_READ_GLOBS = (
-    ".credentials.json",
-    "daemon/control.key",
-    "daemon/pipe.key",
-    "ide/*.lock",
-    "*.key",
-    "*.pem",
-)
-
-
 CONTENT_READ_ALLOWLIST = (
     "settings.json",
     ".last-cleanup",
@@ -109,121 +123,21 @@ def may_read_content(relpath: str) -> bool:
     )
 
 
-class SecretReadRefused(RuntimeError):
-    """Raised when the engine is asked to read the bytes of a secret file."""
+def read_text_guarded(
+    root: Path, relpath: str, limit: int = DEFAULT_READ_LIMIT
+) -> str:
+    """Read a file's text strictly as UTF-8, preserving all four safety guards.
 
-
-def is_never_read(relpath: str) -> bool:
-    """True when `relpath` (POSIX-style, relative to the root) is secret-bearing."""
-    rel = relpath.replace("\\", "/")
-    while rel.startswith("./"):
-        rel = rel[2:]
-    return any(fnmatch.fnmatchcase(rel, pat) for pat in NEVER_READ_GLOBS) or any(
-        fnmatch.fnmatchcase(PurePosixPath(rel).name, pat) for pat in NEVER_READ_GLOBS
-    )
-
-
-def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
-    """Read a file's text, refusing outright for anything on the never-read list.
-
-    The guard lives in the reader, not in each call site, so a future check
-    cannot reach a secret by forgetting to consult the list.
+    Delegates to ``AllowlistGuardedReader`` (NEVER_READ_GLOBS, explicit
+    allowlist/globs, symlink refusal outside allowlist, and bounded read cap).
     """
-    if is_never_read(relpath) or not may_read_content(relpath):
-        raise SecretReadRefused(relpath)
-    path = root / relpath
-    if relpath not in CONTENT_READ_ALLOWLIST and (
-        path.is_symlink() or not path.is_file()
-    ):
-        raise OSError(f"{relpath} is not a regular file")
-    with path.open(encoding="utf-8", errors="replace") as fh:
-        return fh.read(limit)
-
-
-SWEPT = "product-managed-swept"
-KEPT = "product-managed-kept"
-SESSION_SCOPED = (
-    "product-managed-session-scoped"
-)
-AUTHORED = "authored"
-SECRET = "secret"
-UNCLASSIFIED = "unclassified"
-
-SURFACE_TABLE: dict[str, tuple[str, str]] = {
-    "projects": (
-        SWEPT,
-        "Transcripts, subagent transcripts, spilled tool results, auto memory",
-    ),
-    "file-history": (SWEPT, "Pre-edit snapshots for checkpoint restore"),
-    "plans": (SWEPT, "Plan files written during plan mode"),
-    "debug": (SWEPT, "Per-session debug logs (--debug / /debug only)"),
-    "paste-cache": (SWEPT, "Contents of large pastes"),
-    "image-cache": (SWEPT, "Attached images"),
-    "uploads": (SWEPT, "Uploads; see claude-directory#cleaned-up-automatically"),
-    "dev-mods": (SWEPT, "Mods; see claude-directory#cleaned-up-automatically"),
-    "usage-data": (SWEPT, "Usage data; see claude-directory#cleaned-up-automatically"),
-    "session-env": (SWEPT, "Per-session environment metadata"),
-    "tasks": (SWEPT, "Per-session task lists"),
-    "shell-snapshots": (
-        SWEPT,
-        "Shell state captured at startup; removed on clean exit",
-    ),
-    "backups": (
-        SWEPT,
-        "~/.claude.json backups; see claude-directory#cleaned-up-automatically",
-    ),
-    "feedback-bundles": (SWEPT, "Redacted transcript archives written by /feedback"),
-    "todos": (
-        SWEPT,
-        "Legacy; no longer written. Sweep removes contents then the directory",
-    ),
-    "statsig": (
-        SWEPT,
-        "Legacy; no longer written. Sweep removes contents then the directory",
-    ),
-    "logs": (
-        SWEPT,
-        "Legacy; no longer written. Sweep removes contents then the directory",
-    ),
-    "history.jsonl": (KEPT, "Every prompt typed, with timestamp and project path"),
-    "stats-cache.json": (KEPT, "Aggregated token and cost counts shown by /usage"),
-    "remote-settings.json": (
-        KEPT,
-        "Cached server-managed settings for your organization",
-    ),
-    "policy-limits.json": (
-        KEPT,
-        "Cached feature policy settings for your organization",
-    ),
-    "cache": (KEPT, "cache/changelog.md is a cached copy of the Claude Code changelog"),
-    "jobs": (KEPT, "Background session state; see claude-directory#state-files-to-keep"),
-    "sessions": (
-        SESSION_SCOPED,
-        "One file per running session; removed at session exit, crash leftovers cleared at launch",
-    ),
-    "settings.json": (AUTHORED, "Primary user settings. Upstream: do not delete"),
-    "settings.local.json": (AUTHORED, "Personal overrides"),
-    "CLAUDE.md": (AUTHORED, "Global memory file"),
-    "rules": (AUTHORED, "Topic-scoped instructions"),
-    "skills": (AUTHORED, "User-scope skills"),
-    "commands": (AUTHORED, "Legacy single-file prompts; same mechanism as skills"),
-    "agents": (AUTHORED, "Subagent definitions"),
-    "agent-memory": (AUTHORED, "Persistent memory for subagents"),
-    "output-styles": (AUTHORED, "Custom system-prompt sections"),
-    "workflows": (AUTHORED, "Dynamic workflow scripts saved from /workflows"),
-    "themes": (AUTHORED, "Custom color themes"),
-    "keybindings.json": (AUTHORED, "Custom keyboard shortcuts"),
-    "hooks": (AUTHORED, "Hook scripts referenced from settings.json"),
-    "plugins": (
-        AUTHORED,
-        "Marketplaces, installed versions, per-plugin data. Upstream: do not delete. "
-        f"Orphaned versions are removed {ORPHAN_SWEEP_DAYS} days after update/uninstall; a removed "
-        "marketplace's cache tree keeps its .orphaned_at markers and is swept on the same clock "
-        "while any plugin stays installed. A version directory with no marker is never swept",
-    ),
-    ".credentials.json": (SECRET, "OAuth/API credentials -- never opened"),
-    "daemon": (SECRET, "Contains control.key / pipe.key -- those two are never opened"),
-}
+    reader = AllowlistGuardedReader(
+        root,
+        allowlist=CONTENT_READ_ALLOWLIST,
+        globs=CONTENT_READ_GLOBS,
+        limit=limit,
+    )
+    return reader.read_text(relpath, limit=limit)
 
 SWEEP_UNIT: dict[str, str] = {
     "projects": (
@@ -500,12 +414,7 @@ class FileRow:
 
 
 def resolve_root(explicit: str | None) -> Path:
-    if explicit:
-        return Path(explicit).expanduser()
-    env = os.environ.get("CLAUDE_CONFIG_DIR")
-    if env:
-        return Path(env).expanduser()
-    return Path.home() / ".claude"
+    return resolve_claude_dir(explicit)
 
 
 def iso(ts: float) -> str:
@@ -687,7 +596,7 @@ def read_retention(root: Path) -> dict:
             data = json.loads(read_text_guarded(root, "settings.json"))
             result["user_settings_parse"] = "ok"
             apply_setting(data, "user_setting_days")
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             settings_unparsable = True
             result["user_settings_parse"] = f"failed: {type(exc).__name__}"
             result["findings"].append(
@@ -706,30 +615,41 @@ def read_retention(root: Path) -> dict:
     else:
         result["user_settings_parse"] = "absent"
 
+    _missing = object()
     for candidate in managed_settings_paths():
-        if candidate.is_file():
-            result["managed_settings_path"] = str(candidate)
-            try:
-                data = json.loads(
-                    candidate.read_text(encoding="utf-8", errors="replace")
-                )
-                apply_setting(data, "managed_setting_days")
-            except (OSError, json.JSONDecodeError):
-                result["managed_setting_days"] = "unparsable"
-                result["findings"].append(
-                    {
-                        "id": "managed-settings-unparsable-refuses-start",
-                        "severity": "error",
-                        "evidence": MEASURED,
-                        "claim": (
-                            "The managed settings file does not parse. From Claude Code v2.1.259 a "
-                            "managed settings file, drop-in, MDM plist, or HKLM Settings value that "
-                            "cannot be parsed refuses startup (exit 1) and names the source. This is "
-                            "not silent non-enforcement."
-                        ),
-                    }
-                )
-            break
+        entries = managed_settings.load_managed_settings(candidate)
+        if not entries:
+            continue
+        result["managed_settings_path"] = str(entries[0].path)
+        result["managed_settings_files"] = [str(e.path) for e in entries]
+        unparsable_paths: list[str] = []
+        last_managed_raw: object = _missing
+        for entry in entries:
+            if entry.error is not None:
+                unparsable_paths.append(str(entry.path))
+                continue
+            if isinstance(entry.data, dict) and "cleanupPeriodDays" in entry.data:
+                last_managed_raw = entry.data["cleanupPeriodDays"]
+        if unparsable_paths:
+            result["managed_setting_days"] = "unparsable"
+            listed = ", ".join(unparsable_paths)
+            result["findings"].append(
+                {
+                    "id": "managed-settings-unparsable-refuses-start",
+                    "severity": "error",
+                    "evidence": MEASURED,
+                    "paths": unparsable_paths,
+                    "claim": (
+                        f"Managed settings file(s) do not parse ({listed}). From Claude Code v2.1.259 a "
+                        "managed settings file, drop-in, MDM plist, or HKLM Settings value that "
+                        "cannot be parsed refuses startup (exit 1) and names the source. This is "
+                        "not silent non-enforcement."
+                    ),
+                }
+            )
+        elif last_managed_raw is not _missing:
+            apply_setting({"cleanupPeriodDays": last_managed_raw}, "managed_setting_days")
+        break
 
     if settings_unparsable and isinstance(result["managed_setting_days"], int):
         result["findings"] = [
@@ -755,20 +675,14 @@ def read_retention(root: Path) -> dict:
             result["plugin_inuse_sweep"] = read_text_guarded(
                 root, "plugins/.last_inuse_sweep"
             ).strip()
-        except OSError:
+        except (OSError, ValueError):
             result["plugin_inuse_sweep"] = "unreadable"
 
     return result
 
 
 def managed_settings_paths() -> list[Path]:
-    system = platform.system()
-    if system == "Darwin":
-        return [Path("/Library/Application Support/ClaudeCode/managed-settings.json")]
-    if system == "Windows":
-        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
-        return [Path(program_files) / "ClaudeCode" / "managed-settings.json"]
-    return [Path("/etc/claude-code/managed-settings.json")]
+    return [managed_settings.base_file()]
 
 
 def count_files(root: Path, exclude: set[str] | None = None) -> dict[str, int]:
@@ -1364,7 +1278,12 @@ def largest_subtrees(
 
 def _is_cache_version_node_modules(parts: list[str]) -> bool:
     """`plugins/cache/<marketplace>/<plugin>/<version>/node_modules/...`, the one layout upstream installs into."""
-    return len(parts) > 6 and parts[1] == "cache" and parts[5] == "node_modules"
+    return (
+        len(parts) > 6
+        and parts[1] == "cache"
+        and not parts[2].startswith(TEMP_GIT_PREFIX)
+        and parts[5] == "node_modules"
+    )
 
 
 def node_modules_bucket(rows: list[FileRow]) -> dict:
@@ -1429,17 +1348,29 @@ def unreferenced_versions(
     sizes: Counter[tuple[str, str, str]] = Counter()
     for row in rows:
         parts = row.relpath.split("/")
-        if len(parts) >= 6 and parts[:2] == ["plugins", "cache"]:
-            sizes[(parts[2], parts[3], parts[4])] += row.bytes
+        if len(parts) < 6 or parts[:2] != ["plugins", "cache"]:
+            continue
+        classified = classify_cache_relpath(row.relpath)
+        if (
+            classified.kind == "version"
+            and classified.marketplace is not None
+            and classified.plugin is not None
+            and classified.version is not None
+        ):
+            sizes[(classified.marketplace, classified.plugin, classified.version)] += (
+                row.bytes
+            )
     if not sizes:
         return [], None
 
-    def read(relpath: str) -> str:
-        text = read_text_guarded(root, relpath)
-        opened.add(relpath)
-        return text
+    reader = AllowlistGuardedReader(
+        root,
+        allowlist=CONTENT_READ_ALLOWLIST,
+        globs=CONTENT_READ_GLOBS,
+        on_open=opened.add,
+    )
 
-    registry = load_registry(read, root)
+    registry = load_registry(reader, root)
     if registry.foreign:
         return (
             [],
@@ -1454,7 +1385,7 @@ def unreferenced_versions(
         if resolve(cache / marketplace / plugin / version) in registry.referenced:
             continue
         rel = f"plugins/cache/{marketplace}/{plugin}/{version}"
-        marker = orphan_marker(read, rel, now) or {
+        marker = orphan_marker(reader, rel, now) or {
             "orphaned_at": None,
             "marker_age_days": None,
             "past_sweep_window": False,
@@ -1472,6 +1403,30 @@ def unreferenced_versions(
         )
     found.sort(key=lambda v: (-v["bytes"], v["path"]))
     return found, None
+
+
+def projects_audit(root: Path) -> dict:
+    """Stat-only summary of ``projects/`` slugs using ``NullTranscriptCwdAdapter``."""
+    projects_dir = root / "projects"
+    if not projects_dir.is_dir():
+        return {
+            "total": 0,
+            "exists": 0,
+            "orphan_slugs": [],
+            "unknown_slugs": [],
+            "evidence": MEASURED,
+            "note": "Stat-only directory-tree check; no transcript files were opened.",
+        }
+    resolver = ProjectSlugResolver(cwd_port=NullTranscriptCwdAdapter())
+    resolutions = resolver.resolve_all(projects_dir)
+    return {
+        "total": len(resolutions),
+        "exists": sum(1 for r in resolutions if r.status in ("exists", "pinned")),
+        "orphan_slugs": [r.slug for r in resolutions if r.status == "orphan"],
+        "unknown_slugs": [r.slug for r in resolutions if r.status == "unknown"],
+        "evidence": MEASURED,
+        "note": "Stat-only directory-tree check; no transcript files were opened.",
+    }
 
 
 def engine_version() -> str:
@@ -1507,7 +1462,7 @@ def sentinels_block(root: Path) -> dict:
             try:
                 read_text_guarded(root, rel)
                 content_read = True
-            except OSError:
+            except (OSError, ValueError):
                 pass
         out[rel] = {
             "present": present,
@@ -1615,6 +1570,7 @@ def scan(
         "unreferenced_versions_total": versions_total,
         "unreferenced_versions_truncated": versions_truncated,
         "unreferenced_versions_note": versions_note,
+        "projects_audit": projects_audit(root),
         "_versions": versions,
         "sentinels": sentinels_block(root),
         "numeric_names": numeric,

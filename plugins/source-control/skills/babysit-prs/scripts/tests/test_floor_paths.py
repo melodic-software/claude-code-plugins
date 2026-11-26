@@ -51,7 +51,7 @@ REVIEW_SURFACE = (
     "docs/review/**",
 )
 PROMPT_TEXT = (
-    ".github/scripts/intake-triage/triage-rubric.txt",
+    "docs/conventions/work-items.md",
     ".github/scripts/intake-triage/refine-schema.json",
     ".github/scripts/plugin-eval/policy-probe-prompt.txt",
 )
@@ -99,12 +99,12 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
         self.assertEqual(len(FLOOR.classes), 169)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "9724c939fda2fa4948a0f053ba909e495e47baa6e85aecd56f9b2289b41506b7",
+            "754ddd18f85e177fc5a72d717822dafb89202ce3d0b539502fe4edf4f0872c20",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "7d24642993e4cc936335fb453e84966c8b7e54133bc877c2517f388148add26b",
+            FLOOR.high: "715cf502d32eb3c754f152018ffb71a826d88ce2b53e7016a24e6a37766b6368",
             FLOOR.review: "10394ff1368cfe85fac636ba592a5b8c3d67f860ea89a4b3e77a2fa2fc4fb0c7",
             FLOOR.author_review: "2276b8962a6172040fe454176c3d883dcf28b50f6c42086cb27fca58d22dc33f",
         }

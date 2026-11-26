@@ -147,8 +147,10 @@ Each sense keeps its name by a recorded decision.
 **harness**
 
 The program that runs a model as an agent, giving it tools and instructions and repeating the
-model-then-tools cycle ([Claude Code glossary](https://code.claude.com/docs/en/glossary)). Bare
-*harness* means Claude Code; in **vendor routing** it is any agent CLI a delegated task runs in.
+model-then-tools cycle ([Claude Code glossary](https://code.claude.com/docs/en/glossary)): Claude
+Code here, and in **vendor routing** any agent CLI a delegated task runs in. In testing,
+performance and eval work, a harness is instead the code that runs a test, benchmark or eval;
+write *test harness* wherever a reader could take it either way.
 
 ### Work items
 

@@ -2768,6 +2768,32 @@ else
   failures=$((failures + 1))
 fi
 
+mkdir -p "$TMP/winhome/.claude"
+cp "$TMP/homeg/.claude/repo-fleet-hygiene.conf" "$TMP/winhome/.claude/repo-fleet-hygiene.conf"
+# shellcheck disable=SC2016
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 env -u HOME USERPROFILE="$TMP/winhome" \
+  CLAUDE_PROJECT_DIR='${CLAUDE_PROJECT_DIR}' bash "$SCRIPT" >"$ladder_out" 2>"$TMP/winhome.err"
+if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then
+  printf 'PASS: audit USERPROFILE fallback and literal placeholder defense work via fleet_resolve_config\n'
+else
+  printf 'FAIL: audit USERPROFILE fallback and literal placeholder defense\n%s\n%s\n' "$(cat "$TMP/winhome.err")" "$(cat "$ladder_out")" >&2
+  failures=$((failures + 1))
+fi
+
+printf '[fleet\n\trepo = ../../discovered-a\n' >"$TMP/config/malformed-h7.conf"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/malformed-h7.conf" >"$TMP/mal-h7.out" 2>"$TMP/mal-h7.err"; then
+  printf 'FAIL: audit malformed config unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+else
+  mal_code=$?
+  if [[ "$mal_code" -eq 2 ]] && grep -Fq "invalid Git config:" "$TMP/mal-h7.err"; then
+    printf 'PASS: audit malformed config fails closed with exit 2\n'
+  else
+    printf 'FAIL: audit malformed config exit=%s err=%s\n' "$mal_code" "$(cat "$TMP/mal-h7.err")" >&2
+    failures=$((failures + 1))
+  fi
+fi
+
 if [[ "$failures" -ne 0 ]]; then
   printf '\nCollector output:\n' >&2
   cat "$output" >&2

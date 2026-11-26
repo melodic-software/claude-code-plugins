@@ -8,10 +8,10 @@ import { isDeepStrictEqual } from "node:util";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, paginate } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { readMarker } from "../maintenance-monitor-signals/issues.mjs";
-import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, ATTENDED, authorAdmitted, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPLIT_PENDING, splitItemsLine, unrunnableReason } from "./admit.mjs";
-import { bodyVersion, loadRules, ownedLines, SCOPE_PREFIX, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, splitChildHeader, taskItems, taskText, unrunnableCriteria } from "./issue-spec.mjs";
+import { ACTIONS_BOT_ID, ADMIT_MARKER, admissionParked, AGENT_DECISION, ATTENDED, authorAdmitted, carriesSplit, CONFIRMED, confirmedOnly, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, HOST_RUN, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPLIT_PENDING, splitItemsLine, unrunnableReason } from "./admit.mjs";
+import { bodyVersion, countedRefinement, loadRules, ownedLines, SCOPE_PREFIX, SPEC_COMMENTS, specOf, SPLIT_CHILD_MARKER, splitChildHeader, taskItems, taskText, unrunnableCriteria } from "./issue-spec.mjs";
 import { partitionProblem, renderSplitRecord, SIZE_SPLIT_MARKER, splitDigest, splitRecord, splitTaskLines, subsetProblem } from "./size-split.mjs";
 import { knownFlags, LANES_APP_LOGIN, MARKER, typedFlags } from "./apply-verdict.mjs";
 import { AGENT_READY, NEEDS_DECISION, NEEDS_HUMAN, READY } from "../lib/lane-vocabulary.mjs";
@@ -47,8 +47,15 @@ const laneComment = (comments, startedAt) => {
 
 export const isRefinement = (comment, appId) => byApp(comment, appId) && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
-const refinedBody = (comments, appId, body, splitRecorded = false) =>
-  comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body) && (!splitRecorded || carriesSplit(comment.body)));
+export const overrideAt = (comments, appId, humans) => {
+  const opener = comments.findLastIndex((comment) => byApp(comment, appId) && String(comment.body ?? "").split("\n")[0] === AGENT_DECISION);
+  return opener < 0 ? -1 : comments.findLastIndex((comment, index) => index > opener && isDecisionComment({ comment, lastEditedAt: null, lastEditorId: null }, humans));
+};
+
+const refinedBody = (comments, appId, body, humans, splitRecorded = false) => {
+  const after = overrideAt(comments, appId, humans);
+  return comments.some((comment, index) => index > after && isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body) && (!splitRecorded || carriesSplit(comment.body)));
+};
 const flagsOf = (laneBody, verdict) => {
   const found = String(laneBody ?? "")
     .split("\n")
@@ -327,7 +334,7 @@ async function selectSizeSplit({ github, repository, number, issue, comments, hu
   const { lines } = split;
   if (lines.length < 2) {
     const why = `its trusted text holds ${lines.length} task-list line(s), and a split needs at least 2`;
-    return refinedBody(comments, appId, issue.body) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
+    return refinedBody(comments, appId, issue.body, humans) ? visible("few-lines", why) : { thin: `fewer than 2 trusted task-list lines for its size split: ${why}` };
   }
   const { rules, held } = splitConfig();
   const texts = lines.map((line) => taskText(line, rules["task-list"]));
@@ -371,7 +378,7 @@ export async function selectRefinement({ github, repository, number, humans, app
   }
   const { thin, reasons } = sized?.thin ? { thin: true, reasons: [sized.thin] } : isThin({ body: issue.body, laneBody: lane.body, verdict });
   const split = thin ? null : splitOf({ body: issue.body, laneBody: lane.body, verdict, labels, admission: admissionComment(comments, appId), ...splitConfig() });
-  if (refinedBody(comments, appId, issue.body, split !== null)) {
+  if (refinedBody(comments, appId, issue.body, humans, split !== null)) {
     return no("the lanes App already refined this body");
   }
   if (!thin && split === null) {
@@ -470,6 +477,9 @@ export function validateOutput(output, known, split = null, classes = {}, monito
   } else if (questions.length === 0) {
     throw new Error("a refinement that is not exact asks at least one question");
   }
+  if (!exact && !questions.every((item) => item.stop_reason === "none")) {
+    criteria = [];
+  }
   if (exact && split !== null) {
     const sorted = (numbers) => [...numbers].sort((a, b) => a - b).join();
     if (criteria.length > 0 || sorted(moved) !== sorted(split.items.map(({ n }) => n)) || moved.length >= split.count) {
@@ -478,8 +488,20 @@ export function validateOutput(output, known, split = null, classes = {}, monito
   } else if (moved.length > 0) {
     throw new Error("only an exact refinement of a held issue moves done-when items");
   }
-  const external = exact ? externalOf(output.external, classes) : EXTERNAL_NONE;
+  const external = exact || criteria.length > 0 ? externalOf(output.external, classes) : EXTERNAL_NONE;
   return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved, external };
+}
+
+export const agentSettled = (output) => !output.exact && output.criteria.length > 0 && output.questions.length > 0 && output.questions.every((item) => item.stop_reason === "none");
+
+export function agentDecisionBody(output, body) {
+  return [
+    AGENT_DECISION,
+    bodyVersion(body),
+    ...output.questions.map((item, index) => `${index + 1}. ${line(item.question)}\n   ANSWER: ${line(item.recommended)} Basis: ${line(item.basis)}\n   ${reasonLine(item.stop_reason)}`),
+    "",
+    "<sub>Agent decision by the lanes App. Each question's stop reason is `none`: the cited evidence settles it and no intent, design, security or cost question is open. `**Decision recorded.**` from a listed human overrides it.</sub>",
+  ].join("\n");
 }
 
 export function externalLine({ state, repo, class: kind, what }) {
@@ -507,7 +529,7 @@ export function titleLine(text) {
 
 export const DECISION_REPLY = "**Decision recorded.** <answer>";
 
-export function render(output, { body, checks = [], retriage = false } = {}) {
+export function render(output, { body, checks = [], retriage = false, agent: opened = false } = {}) {
   const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), ...(output.split.length > 0 ? [splitItemsLine(output.split)] : []), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. On an issue a listed human filed, it counts as the issue's spec once posted, while unedited; it is still model text, so check it.", ""];
   const section = (title, items) => {
     if (items.length > 0) {
@@ -521,7 +543,8 @@ export function render(output, { body, checks = [], retriage = false } = {}) {
     parts.push(`**Split.** ${movedLine(output.split)} This issue keeps the rest of its done-when.`, "");
     section("Not done by the lane: checks a person runs", checks.map(quoted));
   }
-  if (output.exact) {
+  const agent = opened && agentSettled(output);
+  if (output.exact || agent) {
     section("Acceptance criteria", output.criteria.map((item) => `${TASK}${line(item)}`));
     if (output.external) {
       parts.push(externalLine(output.external), "");
@@ -534,11 +557,11 @@ export function render(output, { body, checks = [], retriage = false } = {}) {
     output.questions.map((item, index) => `${index + 1}. ${line(item.question)}\n   RECOMMENDED: ${line(item.recommended)} Basis: ${line(item.basis)}\n   ${reasonLine(item.stop_reason)}`),
   );
   section("Sources read", output.sources.map((item) => `- ${line(item)}`));
-  if (!output.exact) {
+  if (!output.exact && !agent) {
     parts.push("To answer, post a comment that starts with this line:", "", "```", DECISION_REPLY, "```", "");
   }
   parts.push(
-    !output.exact ? REFINE_FOOTERS.questions : retriage ? REFINE_FOOTERS.retriage : REFINE_FOOTERS.confirm,
+    agent ? REFINE_FOOTERS.agent : !output.exact ? REFINE_FOOTERS.questions : retriage ? REFINE_FOOTERS.retriage : REFINE_FOOTERS.confirm,
   );
   return parts.join("\n");
 }
@@ -597,7 +620,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip("changed while the model ran", true);
   }
   const comments = await paginate(github, `${base}/comments`);
-  if (refinedBody(comments, appId, issue.body, output.split.length > 0)) {
+  if (refinedBody(comments, appId, issue.body, humans, output.split.length > 0)) {
     return skip("is already refined");
   }
   if (output.split.length > 0) {
@@ -612,25 +635,41 @@ export async function applyRefinement({ github, repository, number, appId, human
     log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${CONFIRMED} lifted and triage asked again`);
     return { outcome: "split", redispatch: true };
   }
-  const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });
+  let agent = false;
+  const kind = () => (agent ? "settled by an agent decision" : "exact");
+  const post = async (retriage = false) => {
+    if (agent) {
+      await github("POST", `${base}/comments`, { body: agentDecisionBody(output, issue.body) });
+    }
+    return github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage, agent }) });
+  };
+  const agentMay = async () => {
+    if (carried(labels, DECISION_LABELS) && (await decisionStays(github, base, comments, appId, events)) !== null) {
+      return false;
+    }
+    const spec = await specOf(github, repository, number);
+    const refinement = { body: render(output, { body: issue.body, agent: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
+    return spec.commentCount + 2 <= SPEC_COMMENTS && countedRefinement({ ...spec, comments: [...spec.comments, refinement] }, humans, appId) === refinement;
+  };
   const untrusted = async () => {
     const spec = await specOf(github, repository, number);
-    const refinement = { body: render(output, { body: issue.body, retriage: true }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
+    const refinement = { body: render(output, { body: issue.body, retriage: true, agent }), lastEditedAt: null, author: { __typename: "Bot", databaseId: appId } };
     if (spec.commentCount < SPEC_COMMENTS && hasTrustedCriteria({ ...spec, comments: [...spec.comments, refinement] }, humans, rules["task-list"], appId)) {
       return false;
     }
     await post();
-    log(`refine: #${number} is exact; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
+    log(`refine: #${number} is ${kind()}; no text admission counts holds a task list yet, so the labels stay and no triage is asked`);
     return true;
   };
+  const settled = (redispatch) => ({ outcome: agent ? "agent-decided" : "exact", redispatch });
   const exactStays = async (why) => {
     await post();
-    log(`refine: #${number} is exact; ${why}`);
-    return { outcome: "exact", redispatch: false };
+    log(`refine: #${number} is ${kind()}; ${why}`);
+    return settled(false);
   };
   const exactRetriage = async (why, lift = async () => {}) => {
     if (await untrusted()) {
-      return { outcome: "exact", redispatch: false };
+      return settled(false);
     }
     const held = await retriage();
     if (held) {
@@ -638,19 +677,22 @@ export async function applyRefinement({ github, repository, number, appId, human
     }
     await lift();
     await post(true);
-    log(`refine: #${number} is exact; ${why}`);
-    return { outcome: "exact", redispatch: true };
+    log(`refine: #${number} is ${kind()}; ${why}`);
+    return settled(true);
   };
   if (!output.exact) {
     const hold = PERSON_HOLDABLE.find((name) => labels.includes(name));
     const personHold = hold && newestLabeler(await (events ? events() : paginate(github, `${base}/events`)), [hold]) !== appId;
-    const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
-    if (!carried(labels, DECISION_LABELS) && !fieldHeld) {
-      await setStatus(number, "needs-owner-decision");
+    agent = agentSettled(output) && !personHold && overrideAt(comments, appId, humans) < 0 && (await agentMay());
+    if (!agent) {
+      const fieldHeld = personHold && statusOf && (await statusOf.state(number)) !== null;
+      if (!carried(labels, DECISION_LABELS) && !fieldHeld) {
+        await setStatus(number, "needs-owner-decision");
+      }
+      await post();
+      log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
+      return { outcome: "needs-decision", redispatch: false };
     }
-    await post();
-    log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
-    return { outcome: "needs-decision", redispatch: false };
   }
   if (admissionParked(labels, comments, appId)) {
     return exactRetriage(`${CONFIRMED} lifted and triage asked again`);

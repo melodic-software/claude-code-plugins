@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: lib/org-standards.sh docs/conventions/source-control.yaml
+# test-scope: lib/org-standards.sh docs/conventions/source-control.yaml package-lock.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

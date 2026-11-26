@@ -3,6 +3,28 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-26
+
+### Fixed
+
+- `audit` keeps the coverage table a table in its reply, and `size` offers the ratchet only when
+  the user asks how to stop growth.
+
+## [2.0.2] - 2026-11-26
+
+### Fixed
+
+- `audit` names what a shortened reply keeps word for word: the coverage table, each reference's
+  provenance line with its section number, and that a measure with no reference has no standard.
+
+## [2.0.1] - 2026-11-26
+
+### Fixed
+
+- `audit` and `audit-suppressions` present the printed report whole, with notes after it, so the
+  coverage table and each reference's provenance reach the user; a frozen suppression count names
+  the command that printed it; a long file that rarely changes gets no recommendation.
+
 ## [2.0.0] - 2026-11-26
 
 ### Changed

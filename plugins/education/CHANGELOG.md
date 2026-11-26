@@ -3,6 +3,18 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.1] - 2026-11-26
+
+### Changed
+
+- `teach` names its successors in `## Next`: `/education:quiz-me` after a codebase lesson on a change just made, `/planning:interview` when a change to the concept comes next.
+
+## [3.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
 ## [3.0.0] - 2026-11-26
 
 ### Changed

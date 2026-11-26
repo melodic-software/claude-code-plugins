@@ -1734,5 +1734,163 @@ class RecheckTests(unittest.TestCase):
         )
 
 
+def reply_case(**overrides):
+    base = {
+        "id": "session-start/clear",
+        "area": "session-start",
+        "claim": "c",
+        "tags": ["SessionStart"],
+        "outcome": "reply",
+        "target": {
+            "reply_match": "probe-nonce-clear-<session8>",
+            "example": "probe-nonce-clear-0d0d0d0d",
+        },
+    }
+    base.update(overrides)
+    return base
+
+
+def replied(text, session):
+    return {"type": "result", "result": text, "session_id": session, "num_turns": 1}
+
+
+class ReplyAndTurnsTests(unittest.TestCase):
+    SESSION = "b1cc54db-53c5-4cf7-907f-cc32ce5176cd"
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="probe-test-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_reply_naming_the_answering_session_passes(self):
+        row = judge(reply_case(), INIT, replied("probe-nonce-clear-b1cc54db", self.SESSION))
+        self.assertEqual((row["verdict"], row["observed"]), ("pass", "replied"))
+
+    def test_reply_naming_an_earlier_session_fails(self):
+        row = judge(
+            reply_case(),
+            INIT,
+            replied("OK.", "21000fa1-248b-46af-95ae-48c2e267d058"),
+            replied("probe-nonce-clear-21000fa1", self.SESSION),
+        )
+        self.assertEqual(row["verdict"], "fail")
+
+    def test_only_the_last_reply_counts(self):
+        row = judge(
+            reply_case(),
+            INIT,
+            replied("probe-nonce-clear-b1cc54db", self.SESSION),
+            replied("I do not see a nonce.", self.SESSION),
+        )
+        self.assertEqual(row["verdict"], "fail")
+
+    def test_no_reply_is_inconclusive(self):
+        row = judge(reply_case(), INIT, replied("", self.SESSION))
+        self.assertEqual(row["verdict"], "inconclusive")
+        self.assertEqual(judge(reply_case(), replied("x", self.SESSION))["verdict"], "inconclusive")
+
+    def test_reply_cases_and_turns_are_validated(self):
+        bad = {
+            "no reply_match": reply_case(target={"example": "x"}),
+            "example off pattern": reply_case(
+                target={"reply_match": "probe-nonce-clear-<session8>", "example": "probe-nonce-clear-ffffffff"}
+            ),
+            "empty turns": reply_case(turns=[]),
+            "blank turn": reply_case(turns=["/clear", " "]),
+        }
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("p")
+        for name, c in {**bad, "good": reply_case(turns=["Say OK.", "/clear"])}.items():
+            problems = probe.case_problems({**c, "dir": self.tmp}, {})
+            self.assertEqual(bool(problems), name != "good", f"{name}: {problems}")
+
+    def test_turns_go_first_as_stream_json_messages_with_the_prompt_last(self):
+        seen = {}
+
+        def capture(c, _cwd, _settings_file, prompt):
+            seen["cli_args"], seen["prompt"] = c.get("cli_args"), prompt
+            return stream(
+                INIT,
+                replied("OK.", self.SESSION),
+                replied("", self.SESSION),
+                replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION),
+            )
+
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("What is the nonce?\n")
+        c = reply_case(turns=["Say OK.", "/clear"], dir=self.tmp)
+        row = probe.run_case(c, capture, keep=False, live=False)
+        self.assertEqual(row["verdict"], "pass")
+        self.assertEqual(seen["cli_args"], ["--input-format", "stream-json"])
+        messages = [json.loads(line) for line in seen["prompt"].splitlines()]
+        self.assertEqual(
+            [(m["message"]["content"], m.get("priority")) for m in messages],
+            [("Say OK.", None), ("/clear", "later"), ("What is the nonce?", "later")],
+        )
+        self.assertEqual({m["type"] for m in messages}, {"user"})
+
+    def test_a_multi_turn_reply_whose_prompt_turn_never_answered_is_inconclusive(self):
+        c = reply_case(turns=["Say OK.", "/compact"], dir=self.tmp)
+        obs = probe.observe(c, stream(INIT, replied("OK.", self.SESSION)), self.tmp / "t.jsonl")
+        self.assertEqual(probe.verdict(c, obs)["verdict"], "inconclusive")
+
+    def test_a_usage_limited_stream_is_inconclusive_on_rejudge_too(self):
+        c = reply_case(dir=self.tmp)
+        limited = {"type": "rate_limit_event", "rate_limit_info": {"status": "rejected"}}
+        lines = stream(INIT, limited, replied("You've hit your limit", self.SESSION))
+        row = probe.verdict(c, probe.observe(c, lines, self.tmp / "t.jsonl"))
+        self.assertEqual((row["verdict"], row.get("usage_limited")), ("inconclusive", True))
+
+    def test_a_case_without_turns_sends_prompt_md_as_text(self):
+        seen = {}
+
+        def capture(c, _cwd, _settings_file, prompt):
+            seen["cli_args"], seen["prompt"] = c.get("cli_args"), prompt
+            return stream(INIT, replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION))
+
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("What is the nonce?\n")
+        probe.run_case(reply_case(dir=self.tmp), capture, keep=False, live=False)
+        self.assertEqual((seen["cli_args"], seen["prompt"]), (None, "What is the nonce?\n"))
+
+    def test_a_rejected_rate_limit_ends_the_suite_and_an_allowed_one_does_not(self):
+        calls = []
+
+        def limited(status):
+            def run(c, _cwd, _settings_file, _prompt):
+                calls.append(c["id"])
+                event = {"type": "rate_limit_event", "rate_limit_info": {"status": status}}
+                return stream(INIT, event, replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION))
+
+            return run
+
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("p")
+        cases = [reply_case(id=f"session-start/c{n}", dir=self.tmp) for n in range(3)]
+        args = Namespace(max_runs=10, max_cost_usd=100.0, retries=2, keep=False, live=False)
+        rows = probe.run_suite(cases, limited("rejected"), args)
+        self.assertEqual(calls, ["session-start/c0"])
+        self.assertEqual([r["verdict"] for r in rows], ["inconclusive", "skipped", "skipped"])
+        self.assertTrue(all("usage limit" in r["note"] for r in rows))
+        calls.clear()
+        rows = probe.run_suite(cases, limited("allowed"), args)
+        self.assertEqual([r["verdict"] for r in rows], ["pass", "pass", "pass"])
+        self.assertEqual(len(calls), 3)
+
+    def test_session_start_hook_adds_the_source_and_session_prefix(self):
+        if not shutil.which("node"):
+            self.skipTest("the case hook needs node")
+        done = subprocess.run(
+            ["node", str(probe.DEFAULT_CASES / "lib" / "session-start-nonce.mjs")],
+            input=json.dumps({"source": "clear", "session_id": self.SESSION}),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(
+            json.loads(done.stdout),
+            {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "Probe nonce: probe-nonce-clear-b1cc54db"}},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

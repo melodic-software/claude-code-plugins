@@ -51,7 +51,8 @@ One reference, no stages: nothing here marks a second, higher length as "must re
 
 A limit a tool defines but the repository has not turned on is not the repository's limit.
 
-Present the markdown report to the user as printed. It opens with the scope and a "Coverage of
+Present the markdown report to the user as printed, whole: every table and line in the order
+the script printed them, with any note of yours after it, never in place of a part of it. It opens with the scope and a "Coverage of
 this run" table (language, collector, status, reason), then the reference with its provenance and
 layer, then one row per file, longest first by `lines_non_blank`, with its values and whether it
 is at or above the reference. Keep
@@ -84,14 +85,15 @@ file nobody edits costs nobody anything.
   above the reference with the commits that touched each since that date, automation authors left
   out, most-changed first. No count is a cutoff: the files high on both length and commits,
   against the others in the table, are the ones worth work. Report both numbers and the date.
-  `/architecture:improve` (if enabled) reads the same history to find what to deepen.
-- **File an issue; do not refactor in passing.** A long file met during other work gets a tracker
-  item naming the file, its length, its commit count and the window: through
-  `/work-items:track add` (if enabled), else the repository's own tracker. Never split it
+  `/architecture:improve` (if enabled) reads the same history to find what to deepen. A file that
+  rarely changes gets no recommendation at all: no split, no lint exception, no item.
+- **File an issue; do not refactor in passing.** A long file that also changes often, met during
+  other work, gets a tracker item naming the file, its length, its commit count and the window:
+  through `/work-items:track add` (if enabled), else the repository's own tracker. Never split it
   inside a change that is about something else.
-- **To stop growth without fixing anything yet**, offer `/toolchain:ratchet` (if enabled) on the
-  number of files at or above the reference (`summary.over_reference.file_lines` in the
-  `--json --all` document).
+- **To stop growth without fixing anything yet**, when the user asks how, offer `/toolchain:ratchet`
+  (if enabled) on the number of files at or above the reference
+  (`summary.over_reference.file_lines` in the `--json --all` document).
 
 ## Check mode
 

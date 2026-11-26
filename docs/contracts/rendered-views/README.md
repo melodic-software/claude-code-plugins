@@ -153,6 +153,18 @@ page it emits against one of two profiles and refuses to emit a page that fails.
 today: an allowlist of text and table tags and of non-URL attributes, every text and
 attribute value escaped, no `<script>`, no URL-bearing attribute, and no `url(`,
 `@import`, `expression(`, or backslash escape inside `<style>`. A static K2 page uses it.
+The `url(` ban has two exceptions, for a consumer's branding (see The shared chrome
+reference), and admits a base64 `data:` URL in no other position or form:
+
+- **The logo slot.** The `.rv-logo` rule's one declaration, `background-image`, may be
+  `url(data:image/png;base64,…)` or `url(data:image/jpeg;base64,…)`. The rule stands at
+  the top level or inside `@media`, `@supports` or `@layer`, and is its own: a selector
+  list, a descendant or nested selector, or a second declaration fails.
+- **`@font-face`.** A `url(data:font/woff2;base64,…)`, `font/woff`, `font/ttf` or
+  `font/otf` URL may appear inside an `@font-face` block, and nowhere else.
+
+Both positions are judged with CSS comments removed, and a `url(` inside a comment still
+fails.
 
 **Interactive profile.** Everything the report profile requires, with one exemption and
 the additions below.
@@ -178,9 +190,12 @@ from the one the browser runs. It checks the runtime body by hash before any oth
 3. **A content security policy in the page.** The first element in `<head>` after the
    charset is a `<meta http-equiv="Content-Security-Policy">` with `default-src 'none'`,
    a `script-src` naming only the runtime's SHA-256 hash, a `style-src` naming only the
-   hash of the page's one `<style>` element, and `base-uri 'none'` and
-   `form-action 'none'`, which do not fall back to `default-src`. Its content is the
-   builder's exact policy string. It is the only `http-equiv` meta the page carries: any
+   hash of the page's one `<style>` element, `img-src data:` and `font-src data:` for the
+   logo slot and `@font-face` (the report profile's two exceptions), and `base-uri 'none'`
+   and `form-action 'none'`, which do not fall back to `default-src`. Its content is the
+   builder's exact policy string: `default-src 'none'; script-src '<runtime hash>';
+   style-src '<style hash>'; img-src data:; font-src data:; base-uri 'none'; form-action
+   'none'`. It is the only `http-equiv` meta the page carries: any
    other, such as `refresh`, which navigates and is not blocked by the policy, fails.
    A Claude-interactive page (rule 9) adds one last directive, `connect-src` naming the
    `session-bridge` origin `http://127.0.0.1:<port>` and nothing else; the builder writes
@@ -867,10 +882,10 @@ The chrome is one for every page family: the system/light/dark toggle (system by
 heading), and the accessibility floor. A page offers no other theme control: no accent or
 palette picker. A consumer may override three things through configuration, never on the page:
 the palette, the type stacks (fonts installed or embedded as `data:` URLs) and a logo (inline SVG
-or an embedded `data:` PNG or JPEG), never loaded from a URL. The two embedded forms wait on one
-policy change ADR 0133 records: `img-src data:` and `font-src data:`, admitted only in the logo
-slot and `@font-face`. Until the first work item makes that change, the report profile and
-interactive rule 3 above refuse them. Layout, the accessibility floor, the toggle and the
+or an embedded `data:` PNG or JPEG), never loaded from a URL. The two embedded forms rest on the
+policy change ADR 0133 records: the builder's policy carries `img-src data:` and `font-src data:`
+(interactive rule 3), and the validator admits a `data:` URL only in the logo slot and
+`@font-face` (the report profile's two exceptions). Layout, the accessibility floor, the toggle and the
 comment box stay fixed, and an override that would put a page below the floor is dropped for
 the shipped value. Where the setting lives, the token layer each plugin copies, the migration
 order and the drift checks are in

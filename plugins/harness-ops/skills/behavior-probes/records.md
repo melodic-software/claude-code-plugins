@@ -829,3 +829,22 @@ were not committed.
 | auto-compact-keeps-goal-and-loop | An active goal survives automatic compaction, and fixed-interval and self-paced loops fire after one | Goal: `"type":"goal_status","met":false` re-asserted after the `compact_boundary` `"Conversation compacted"`, then the evaluator's next `Stop hook feedback`. Fixed loop: `"Running scheduled task (Nov 24 6:09pm)"` after the boundary. Self-paced loop: `"Claude resuming /loop wakeup (Nov 24 6:09pm)"` after the boundary |
 | fresh-session-rearms-loop | A fresh session re-arms a loop through the Skill tool's `loop` or CronCreate directly; the cron tools are deferred and load through ToolSearch first | Skill route: `"skill":"loop","args":"1m run the date command and report the time it prints"`, then `Scheduled recurring job 1696364b (Every minute)`. Direct route: `"query":"select:CronCreate"`, then CronCreate with `"cron":"* * * * *","recurring":true`, then `"Running scheduled task (Nov 24 6:08pm)"` and `(Nov 24 6:09pm)` |
 | initial-prompt-goal-arms | `claude -p "/goal ..."` and interactive `claude '/goal ...'` both arm a goal | `-p`: `"type":"goal_status","met":false,"sentinel":true,"condition":"you have replied with the exact word PINEAPPLE"`. Interactive: the same entry for `PAPAYA`, then `A session-scoped Stop hook is now active with condition: "you have replied with the exact word PAPAYA"` |
+
+## 26. A SessionStart hook's context reaches the model on startup, after `/clear` and after `/compact`
+
+**Claim.** A SessionStart hook's `hookSpecificOutput.additionalContext` reaches the model before
+the first prompt, and SessionStart fires again with source `clear` (a new session id) and `compact`
+(the same session id) and delivers its new context before the next prompt. The fleet plugin's peer
+list depends on this.
+
+**Recheck trigger.** A release note naming SessionStart, `additionalContext`, `/clear`, `/compact`
+or stream-json input.
+
+Runner run on Claude Code 2.1.332, 2026-11-26, `claude-haiku-5-5`, one run each; each case's
+hook adds `probe-nonce-<source>-<first 8 characters of session_id>`.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `session-start/startup-delivers-hook-context` | reply names the startup nonce of the answering session | replied with it | pass |
+| `session-start/clear-delivers-hook-context` | after `/clear`, reply names the clear nonce of the new session | replied with it; the session id changed at `/clear` | pass |
+| `session-start/compact-delivers-hook-context` | after `/compact`, reply names the compact nonce | replied with it; same session id | pass |

@@ -14,7 +14,7 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 jq_crlf_free
 unset CLAUDE_PLUGIN_OPTION_BLOCK_FOREGROUND_WAIT_ENABLED
 
-REASON_UNTIL='BLOCKED: This `until` loop waits in the foreground. Run the command with run_in_background set to true, or watch it with the Monitor tool'
+REASON_UNTIL='BLOCKED: This `until` loop waits in the foreground. Run it with Bash and run_in_background set to true, and read the result when it finishes. The Monitor tool is for a stream of events, not a wait for one condition.'
 REASON_WATCH='BLOCKED: This `--watch` command waits in the foreground. Run it with run_in_background set to true, or watch it with the Monitor tool'
 NL=$'\n'
 
@@ -49,6 +49,7 @@ deny_until "until in a subshell" '(until test -f x; do sleep 1; done)'
 deny_until "until as an if condition" 'if until test -f x; do sleep 1; done; then echo ok; fi'
 deny_until "until with a tab" $'until\ttest -f x; do sleep 1; done'
 deny_until "run_in_background false" '' --payload "$(payload 'until test -f x; do sleep 1; done' false)"
+deny_until "a Monitor call's Bash twin" '' --payload "$(<"$HOOK_DIR/fixtures/monitor-until-bash-twin-payload.json")"
 deny_watch "gh pr checks --watch" 'gh pr checks 42 --watch'
 deny_watch "gh run watch flag after options" 'gh run view 99 --exit-status --watch'
 deny_watch "--watch with an env prefix" 'NODE_ENV=test npx jest --watch'
@@ -64,6 +65,7 @@ BG_UNTIL=$(payload 'until test -f x; do sleep 1; done' true)
 BG_WATCH=$(payload 'gh pr checks 42 --watch' true)
 expect_both "until in the background" 0 --payload "$BG_UNTIL"
 expect_both "--watch in the background" 0 --payload "$BG_WATCH"
+expect_both "a Monitor call's own payload" 0 --payload "$(<"$HOOK_DIR/fixtures/monitor-until-payload.json")"
 allow "until as an argument" 'git log --grep until'
 allow "until in double quotes" 'git commit -m "fix: wait; until ready"'
 allow "until in single quotes" "echo 'retry; until it works'"

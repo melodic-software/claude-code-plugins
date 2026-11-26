@@ -68,7 +68,7 @@ When it does, this doc points at the upstream setting and the per-hook key becom
   a floor the repository cannot loosen, and departs from its condition 2: the user's own `false`
   still takes effect for that user, per the precedence above.
 - **Cost.** Reading the repository file on every fire counts against the
-  [hook budget](../hook-budget/README.md).
+  [hook budget](../hook-budget/README.md#the-hook-enablement-helper).
 
 ## How the setting reaches the hook
 
@@ -102,6 +102,36 @@ lefthook remote this marketplace ships, the per-clone skip of one job and declin
 [Adopting the git-hook entries](../check-placement/adopting-git-hooks.md), and lefthook's
 [`LEFTHOOK`](https://lefthook.dev/usage/envs/LEFTHOOK) variable skips every hook for one command.
 
+### The shared helper
+
+[`lib/hook-enabled.sh`](../../../lib/hook-enabled.sh) resolves one key across every layer above, so
+no plugin writes the precedence itself. Its suite is `lib/hook-enabled.test.sh`. To adopt it, a
+plugin:
+
+1. Registers a copy in `scripts/shared-copies.txt`, for example
+   `lib/hook-enabled.sh plugins/<plugin>/hooks/hook-enabled.sh`, and runs
+   `scripts/sync-shared-copies.sh` ([ADR 0019](../../adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)).
+   Edits go to the canonical copy in `lib/`.
+2. Sources the copy in the hook's own script and, before any work, calls
+   `hook_enabled::resolve <plugin> <key> <default>`, with `<default>` the option's manifest
+   `default`, and exits 0 only when it returns 1:
+   `rc=0; hook_enabled::resolve <plugin> <key> <default> || rc=$?; ((rc != 1)) || exit 0`.
+
+`resolve` returns 0 when the hook runs, 1 when it is off and 2 on a usage error, which it names on
+stderr. Exiting only on 1 keeps a hook with a broken call running, so a guard does not go quiet. It
+also names each dropped value on stderr. Flags:
+
+| Flag | Use |
+|---|---|
+| none | A Claude Code hook: user layer from `CLAUDE_PLUGIN_OPTION_<KEY>`, repository layer under `CLAUDE_PROJECT_DIR` |
+| `--git-hook` | A git hook: user layer from `pluginConfigs`, repository layer at `git rev-parse --show-toplevel` |
+| `--security` | A [security control](#the-per-hook-setting): a repository `false` and a `CLAUDE_PLUGIN_OPTION_<KEY>=false` are ignored (a `true` from either still turns the guard on). The user's `false` turns the guard off only from `pluginConfigs` in the `settings.json` beside the install's `plugins/cache` (with `--git-hook`, the user settings file above), so a Claude Code hook copy outside the install cache cannot be turned off. A `pluginConfigs` value in managed settings wins over both; on Linux a managed `false` counts only from a root-owned file no one else can write |
+| `--root DIR` | The project root, in place of `CLAUDE_PROJECT_DIR` or git's top level |
+| `--home DIR` | The convention home relative to the root, in place of `docs/conventions` |
+
+Its cost per fire is under
+[hook budget, The hook-enablement helper](../hook-budget/README.md#the-hook-enablement-helper).
+
 ## Wording
 
 Prose calls the per-hook setting an **on/off setting**, never a toggle or a flag: Claude Code's own
@@ -114,3 +144,27 @@ titles already ban both words ([plugin-option-naming](../plugin-option-naming/RE
 A plugin conforms when each hook it ships has its own `<name>_enabled` option and its script
 resolves both layers. Plugins that ship hooks with no such option are listed in
 [#18921](https://github.com/melodic-software/claude-code-plugins/issues/18921).
+
+### The adoption check
+
+`bash scripts/list-hook-enablement-gaps.sh` prints, one per line, each plugin whose
+`hooks/hooks.json` declares a hook and whose `plugin.json` `userConfig` declares no boolean option
+ending in `_enabled`. A hook here is an event handler under `hooks` or an entry under `modules`, so a
+plugin that ships only a module is listed too. The script exits `2` when a `hooks.json` or
+`plugin.json` is empty or not valid JSON, naming the file, and when no plugin declares a hook. Its
+suite, `scripts/list-hook-enablement-gaps.test.sh`, runs in CI's shell test lane, on every change to
+a `hooks.json` or `plugin.json` under `plugins/`, and fails when the repository's list differs from
+the suite's `PENDING` list. A plugin that adopts its option leaves
+both lists in the same change. A new plugin that ships a hook ships its option with it.
+
+A hook maps to its key by [the key rule](#the-per-hook-setting): a hook named after its plugin maps to
+the plugin's name in snake_case plus `_enabled` (`bash-format` to `bash_format_enabled`), and any
+other hook maps to its own name in snake_case plus `_enabled` (`hooks/block-no-verify.sh` to
+`block_no_verify_enabled`). The check reads plugins, not single hooks: one such option takes a
+plugin off the list. To verify a per-plugin change, check that the plugin left the list, then check
+by hand each hook in its `hooks.json` against the key rule, and confirm its script resolves both
+layers. The check does not read `git-hooks/`.
+
+The retrofit tracked in
+[#18921](https://github.com/melodic-software/claude-code-plugins/issues/18921) is accepted when the
+script lists no plugin.

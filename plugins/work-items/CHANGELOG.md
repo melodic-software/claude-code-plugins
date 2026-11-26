@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.2.0] - 2026-11-26
+
+### Added
+
+- `/work-items:morning-brief` has an Agent-decided section: each issue labeled `agent-decided`
+  since this machine's previous brief, by the labeled event's time, with its number, title and a
+  link to the lanes App's newest `**Agent decision recorded.**` comment, or a note when that
+  comment is missing. It says that a `**Decision recorded.**` comment from the owner sends the
+  issue back to triage. Its window stamp, `agent_decided_at`, sits beside `landed_at` under the
+  plugin data dir and moves only after a full read; a first read covers the last day. The section
+  only reads the tracker, and a test fails if it makes any call beyond its read searches. The
+  brief now has 11 sections, so the header's unreadable count reads `N of 11`.
+
+## [16.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
 ## [16.0.0] - 2026-11-26
 
 ### Changed

@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: dg-contradicting-elements-refused
+description: An intent whose required elements contradict each other through a repository gate (a hold label the required check fails on, beside all checks green) is refused, the conflict named, and no condition requiring both is emitted
+tags: [draft-goal-condition, outcome]
+expected_outcome: The reply names the conflict between the hold label and the required check passing, asks which element gives way or offers the waiting-on-the-user OR exit for the pair, and holds no paste region whose condition requires both the hold label and every required check green.
+execution:
+  prompt: "Use the draft-goal-condition skill from the planning plugin. I want Claude to keep going in this one session until the release pull request for branch release/2.4 is open with the hold label on it, and every required check on it is green. Our required status check fails any pull request that carries the hold label. If the /goal docs page can't be fetched from here, use what I copied from it this morning: a condition should state one end state Claude can show in the conversation (for example a command it ran and that command's output), plus any constraint on how to get there, and a condition can be at most 4000 characters."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, WebFetch]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?draft-goal-condition"'
+    arm: with-only
+  - name: conflict-named
+    type: regex
+    pattern: '\bhold\b[^\n]{0,240}\b(?:conflict\w*|contradict\w*|cannot both|can''t both|can never both|incompatible|mutually exclusive|never be (?:green|met|satisf\w+))\b|\b(?:conflict\w*|contradict\w*|cannot both|can''t both|incompatible|mutually exclusive)\b[^\n]{0,240}\bhold\b'
+    flags: i
+    arm: both
+  - name: no-goal-line-with-both
+    type: regex
+    pattern: '^(?![\s\S]*Type[ \t]+`/goal[ \t]*`[^\n]*\n(?:[ \t]*(?:─+|`{3,}\w*)?[ \t]*\n)*[ \t>]*(?![^\n]*\bor\b[^\n]*\bwaiting\b)(?=[^\n]*\bhold\b)(?=[^\n]*\b(?:green|pass\w*)\b)[^\n]+)[\s\S]+'
+    flags: i
+    arm: both

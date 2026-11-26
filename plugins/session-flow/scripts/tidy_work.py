@@ -6,10 +6,13 @@ Stdlib only; Python 3.10+. `report` is read-only; `normalize` and `clean`
 are dry runs that print exact absolute paths until `--apply` is given.
 
 Usage:
-    tidy_work.py report [--days N] [--memory-dir <root>] [--json]
+    tidy_work.py report [--days N] [--memory-dir <root>] [--scope all|repo|home]
+                        [--extra-concern-dir <name>]... [--json]
                         [--link-state <file> | --offline]
-    tidy_work.py normalize [--memory-dir <root>] [--apply]
-    tidy_work.py clean [--days N] [--memory-dir <root>] [--apply]
+    tidy_work.py normalize [--memory-dir <root>] [--scope all|repo|home]
+                           [--extra-concern-dir <name>]... [--apply]
+    tidy_work.py clean [--days N] [--memory-dir <root>] [--scope all|repo|home]
+                       [--extra-concern-dir <name>]... [--apply]
                        [--link-state <file> | --offline]
 
 `report` lists the first-level items of the current repo's memory root and of
@@ -125,8 +128,6 @@ import argparse
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -137,17 +138,50 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+import plugin_paths  # noqa: E402  (plugin_paths.py beside this script)
 import save_point  # noqa: E402  (save_point.py beside this script)
 from handoff_chain import STANDING_DIR  # noqa: E402
 from io_streams import utf8_streams  # noqa: E402
+from tidy_work_ops import (  # noqa: E402, F401  (re-exported for callers/tests)
+    FINISHED,
+    GH_STATES,
+    Guard,
+    LinkStates,
+    _age_days,
+    _attribution,
+    _blocked,
+    _escapes,
+    _gh_api,
+    _guard,
+    _human_size,
+    _load_link_table,
+    _refusal,
+    _remove,
+    _table,
+    _to_dict,
+    _verdict,
+)
 
 DEFAULT_DAYS = 14
-SELF_IGNORE = ".gitignore"
+SELF_IGNORE = plugin_paths.SELF_IGNORE
 CHECKLIST = "workflow-checklist.md"
 SLICE_INDEX = "INDEX.md"
-RETRO_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-running-retro-[^/\\]+\.md$")
+RETRO_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-running-retro-(?P<topic>[^/\\]+)\.md$")
 HANDOFF_SIDECAR_RE = re.compile(r"^(\d{8}T\d{6}Z-handoff-[^/\\]+)\.(?:slots\.json|prompt\.txt)$")
 OVER_BUDGET_RE = re.compile(r"^\.(\d{8}T\d{6}Z-handoff-[^/\\]+\.md)\.over-budget$")
+ARCHIVE_SUFFIXES = (".bundle", ".tar", ".tar.gz", ".tgz", ".zip")
+NON_REMOVABLE_KINDS = frozenset({"unknown", "concern", "git-clone", "recovery-archive"})
+REPO_SLUG_RE = re.compile(
+    r"(?:https?://)?(?:github\.com/)?(?P<slug>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?$"
+)
+RETRO_HEADER_REPO_RE = re.compile(
+    r"(?:^|\b)(?:repo|repository):\s*(?:https?://)?(?:github\.com/)?"
+    r"(?P<kv>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
+    r"|^#\s*Running retro[^\n]*?(?:—|--|-|\()\s*(?:https?://)?(?:github\.com/)?"
+    r"(?P<hdr>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)",
+    re.IGNORECASE,
+)
+SLUG_DIR_RE = re.compile(r"^(?P<owner>[A-Za-z0-9_.-]+)--(?P<repo>[A-Za-z0-9_.-]+)$")
 
 
 def _sidecars(path: Path) -> list[Path]:
@@ -164,6 +198,11 @@ CONCERN_DIRS = (
     "enforceability",
     "docs-hygiene",
     "lanes",
+    "coupling",
+    "recommend-skills",
+    "testing",
+    "testing-cleanup",
+    "testing-cleanup-plan",
 )
 REF_RE = re.compile(
     r"github\.com/(?P<url_repo>[\w.-]+/[\w.-]+)/(?:issues|pull)/(?P<url_num>\d+)"
@@ -175,8 +214,6 @@ YEAR_RE = re.compile(r"(?:19|20)\d\d")
 TIMESTAMP_RE = re.compile(r"^\d{8}T\d{6}Z-")
 UNTICKED_RE = re.compile(r"^\s*[-*]\s+\[ \]\s")
 STAGES_HEADING = "## Stages"
-FINISHED = ("closed", "merged")
-GH_STATES = ("open", *FINISHED, "closed-unmerged")
 
 
 @dataclass
@@ -209,11 +246,27 @@ class Item:
     def keep(self) -> bool:
         if self.kind in ("archive", "orphan-marker"):
             return self.in_flight
-        return self.kind in ("unknown", "concern") or self.in_flight or not self.links
+        return self.kind in NON_REMOVABLE_KINDS or self.in_flight or not self.links
 
 
 def _plain_file(path: Path) -> bool:
     return path.is_file() and not path.is_symlink()
+
+
+def _is_archive_name(name: str) -> bool:
+    lower = name.lower()
+    return any(lower.endswith(suffix) for suffix in ARCHIVE_SUFFIXES)
+
+
+def _contains_recovery_archive(path: Path) -> bool:
+    if not path.is_dir() or path.is_symlink():
+        return False
+    for _base, dirs, files in os.walk(path, followlinks=False):
+        if ".git" in dirs:
+            dirs.remove(".git")
+        if any(_is_archive_name(name) for name in files):
+            return True
+    return False
 
 
 def _tree_stats(path: Path) -> tuple[float, int]:
@@ -221,6 +274,14 @@ def _tree_stats(path: Path) -> tuple[float, int]:
     newest, size = st.st_mtime, st.st_size
     if path.is_dir() and not path.is_symlink():
         for base, dirs, files in os.walk(path, followlinks=False):
+            if os.path.basename(base) == ".git" and "objects" in dirs:
+                try:
+                    obj_st = os.lstat(os.path.join(base, "objects"))
+                    newest = max(newest, obj_st.st_mtime)
+                    size += obj_st.st_size
+                except OSError:
+                    pass
+                dirs.remove("objects")
             for name in (*dirs, *files):
                 try:
                     entry = os.lstat(os.path.join(base, name))
@@ -231,14 +292,57 @@ def _tree_stats(path: Path) -> tuple[float, int]:
     return newest, size
 
 
-def _refs_of(path: Path) -> list[str]:
+def _normalize_repo_slug(raw: str) -> str | None:
+    cleaned = raw.strip().strip("`'\"()[]<>,.;:")
+    match = REPO_SLUG_RE.match(cleaned)
+    return match.group("slug") if match else None
+
+
+def _retro_repo(path: Path, label: str) -> str | None:
+    """Extract a repo-qualified ``owner/repo`` slug from a running-retro file or slug."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        lines = []
+    idx = 0
+    if lines and lines[0].strip() == "---":
+        idx = 1
+        while idx < len(lines) and lines[idx].strip() != "---":
+            line = lines[idx].strip()
+            for prefix in ("repo:", "repository:"):
+                if line.lower().startswith(prefix):
+                    slug = _normalize_repo_slug(line[len(prefix) :])
+                    if slug:
+                        return slug
+            idx += 1
+        idx += 1
+    for line in lines[idx : idx + 20]:
+        match = RETRO_HEADER_REPO_RE.search(line.strip())
+        if match:
+            raw = match.group("kv") or match.group("hdr") or ""
+            slug = _normalize_repo_slug(raw)
+            if slug:
+                return slug
+    if label == "home":
+        parent_match = SLUG_DIR_RE.fullmatch(path.parent.name)
+        if parent_match:
+            return f"{parent_match.group('owner')}/{parent_match.group('repo')}"
+        name_match = RETRO_NAME_RE.match(path.name)
+        if name_match:
+            topic_match = SLUG_DIR_RE.fullmatch(name_match.group("topic"))
+            if topic_match:
+                return f"{topic_match.group('owner')}/{topic_match.group('repo')}"
+    return None
+
+
+def _refs_of(path: Path, default_repo: str | None = None) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
     refs: list[str] = []
     for match in REF_RE.finditer(text):
-        repo = match["url_repo"] or match["repo"]
+        repo = match["url_repo"] or match["repo"] or default_repo
         number = match["url_num"] or match["num"] or match["bare"]
         ref = f"{repo}#{number}" if repo else f"#{number}"
         if ref not in refs:
@@ -273,27 +377,25 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
             return "handoff", path
         if RETRO_NAME_RE.match(path.name):
             return "running-retro", path
+        if parent_kind is None and _is_archive_name(path.name):
+            return "recovery-archive", None
     if parent_kind:
         return "unknown", None
     if path.is_dir():
+        if (path / ".git").exists() or (path / ".git").is_symlink():
+            return "git-clone", None
         if (path / SLICE_INDEX).is_file():
             return "slice", None
         if (path / CHECKLIST).is_file():
             return "checklist", None
+        if _contains_recovery_archive(path):
+            return "recovery-archive", None
     return ("scratch" if _name_refs(path.name) else "unknown"), None
 
 
 def _chain_facts(path: Path) -> tuple[str, bool, frozenset[str], int | None]:
-    try:
-        doc = save_point.parse_doc(path)
-    except (OSError, UnicodeDecodeError):
-        return "", False, frozenset(), None
-    root = doc.frontmatter.get("chain_root") or (doc.chain[0] if doc.chain else "")
-    span = save_point._next_span(doc)
-    closed = span is not None and doc.lines[span[0]] == save_point.NEXT_CLOSED
-    names = {root, doc.frontmatter.get("previous_handoff", ""), *doc.chain}
-    shape = doc.shape if isinstance(doc.shape, int) else None
-    return root, closed, frozenset(n for n in names if n), shape
+    meta = save_point.handoff_chain_meta(path)
+    return meta.chain_root, meta.closed, meta.names, meta.shape
 
 
 def _unfinished_stage(slice_dir: Path) -> bool:
@@ -348,7 +450,42 @@ def _open_work(directory: Path) -> list[str]:
     return reasons
 
 
-def inventory(root: Path, label: str) -> list[Item]:
+def _valid_concern_dir_name(name: str) -> bool:
+    return (
+        bool(name)
+        and name not in (".", "..", ".git", "handoffs", "running-retros")
+        and "/" not in name
+        and "\\" not in name
+    )
+
+
+def _resolve_concern_dirs(
+    extra_cli: list[str] | None,
+    repo_top: Path | None,
+    home: Path | None,
+) -> tuple[str, ...]:
+    names: list[str] = list(CONCERN_DIRS)
+    cfg = plugin_paths.read_session_flow_yaml(repo_top, home)
+    yaml_extras = cfg.get("extra_concern_dirs")
+    if isinstance(yaml_extras, list):
+        for raw in yaml_extras:
+            if isinstance(raw, str) and _valid_concern_dir_name(raw) and raw not in names:
+                names.append(raw)
+    for raw in extra_cli or ():
+        if not _valid_concern_dir_name(raw):
+            raise ValueError(
+                f"invalid --extra-concern-dir value (expected a bare directory name): {raw!r}"
+            )
+        if raw not in names:
+            names.append(raw)
+    return tuple(names)
+
+
+def inventory(
+    root: Path,
+    label: str,
+    concern_dirs: tuple[str, ...] = CONCERN_DIRS,
+) -> list[Item]:
     items: list[Item] = []
     try:
         entries = sorted(root.iterdir())
@@ -368,7 +505,8 @@ def inventory(root: Path, label: str) -> list[Item]:
             stats = [_tree_stats(p) for p in (path, *extras)]
         except OSError:
             return
-        links = _refs_of(link_file) if link_file else []
+        default_repo = _retro_repo(link_file, label) if (link_file and kind == "running-retro") else None
+        links = _refs_of(link_file, default_repo=default_repo) if link_file else []
         if kind == "scratch":
             links = _name_refs(path.name)
         closed, names, shape = False, frozenset[str](), None
@@ -416,7 +554,7 @@ def inventory(root: Path, label: str) -> list[Item]:
     for entry in entries:
         if entry.name == SELF_IGNORE:
             continue
-        if entry.name in ("handoffs", "running-retros", *CONCERN_DIRS) and (
+        if entry.name in ("handoffs", "running-retros", *concern_dirs) and (
             entry.is_dir() and not entry.is_symlink()
         ):
             parent_kind = {
@@ -455,67 +593,20 @@ def inventory(root: Path, label: str) -> list[Item]:
                         if not (archive.is_dir() and not archive.is_symlink()):
                             add(held, "archive", None, held.name)
                     continue
+                if (
+                    entry.name == "running-retros"
+                    and label == "home"
+                    and child.is_dir()
+                    and not child.is_symlink()
+                    and SLUG_DIR_RE.fullmatch(child.name)
+                ):
+                    for nested in sorted(child.iterdir()):
+                        visit(nested, "running-retro")
+                    continue
                 visit(child, parent_kind)
             continue
         visit(entry, None)
     return items
-
-
-def _gh_api(path: str, jq: str, cwd: Path | None, *flags: str) -> str | None:
-    """Output of `gh api` for a repos/{owner}/{repo}/issues path (`{owner}/{repo}`
-    comes from cwd), or None when gh fails."""
-    try:
-        result = subprocess.run(
-            ["gh", "api", path, *flags, "--jq", jq],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=120,
-            cwd=cwd,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    return result.stdout if result.returncode == 0 else None
-
-
-_GH_STATE_JQ = (
-    'if .state == "open" then "open" elif .pull_request.merged_at then "merged" '
-    'elif .pull_request then "closed-unmerged" else .state end'
-)
-
-
-class LinkStates:
-    def __init__(self, table: dict[str, str] | None, offline: bool) -> None:
-        self._table = table
-        self._offline = offline
-        self._open: dict[tuple[str, Path | None], set[str] | None] = {}
-        self._one: dict[tuple[str, Path | None, str], str] = {}
-
-    def state(self, ref: str, root: Path) -> str:
-        if self._offline:
-            return "unknown"
-        if self._table is not None:
-            return str(self._table.get(ref, "unknown")).lower()
-        repo, _, number = ref.rpartition("#")
-        top = None if repo else save_point._git_toplevel(root)
-        if not repo and top is None:
-            return "unknown"
-        base = f"repos/{repo or '{owner}/{repo}'}/issues"
-        if (repo, top) not in self._open:
-            listing = _gh_api(
-                f"{base}?state=open&per_page=100", ".[].number", top, "--paginate"
-            )
-            self._open[repo, top] = None if listing is None else set(listing.split())
-        numbers = self._open[repo, top]
-        if numbers is None:
-            return "unknown"
-        if number in numbers:
-            return "open"
-        if (repo, top, number) not in self._one:
-            found = _gh_api(f"{base}/{number}", _GH_STATE_JQ, top)
-            state = (found or "").strip()
-            self._one[repo, top, number] = state if state in GH_STATES else "unknown"
-        return self._one[repo, top, number]
 
 
 def _mentions(text: str, name: str, is_dir: bool) -> bool:
@@ -629,126 +720,56 @@ def mark_in_flight(
                 item.reasons.append(f"a kept handoff of its chain: {', '.join(kept)}")
 
 
-def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[str]]:
+def _home_path() -> Path:
+    return Path(
+        os.environ.get("HOME") or os.environ.get("USERPROFILE") or str(Path.home())
+    )
+
+
+def resolve_roots(
+    memory_dir: str | None, scope: str = "all"
+) -> tuple[list[tuple[str, Path]], list[str]]:
     """The roots to inventory. Raises ValueError for a memory root that is the
     repository root (every top-level `INDEX.md` directory there would be a slice),
     and for an existing one outside the repository without the self-ignore guard
     (`memory_dir` comes from a repo-controlled file, so `/etc` must not be walked)."""
     notes: list[str] = []
-    top = save_point._git_toplevel(Path.cwd())
-    memory = (
-        Path(memory_dir).expanduser()
-        if memory_dir
-        else save_point._default_memory_dir()
-    )
-    if memory is not None and not memory.is_absolute() and top is not None:
-        memory = top / memory
-    if memory is None:
-        notes.append("no memory root: no git work tree and no plugin data dir")
-    else:
-        memory = memory.resolve()
-        if save_point._git_toplevel(memory) == memory:
-            raise ValueError(
-                f"memory root {memory.as_posix()} is the repository root; "
-                "it must be a dedicated directory below it"
-            )
-        if (
-            (top is None or not memory.is_relative_to(top.resolve()))
-            and memory.is_dir()
-            and not _self_ignored(memory)
-        ):
-            raise ValueError(
-                f"memory root {memory.as_posix()} is outside the repository and "
-                f"lacks the self-ignore guard: {(memory / SELF_IGNORE).as_posix()} "
-                "must contain a line '*'"
-            )
-    home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or str(Path.home())
+    home = _home_path()
+    home_work = (home / ".work").resolve()
     roots: list[tuple[str, Path]] = []
-    if memory is not None:
-        roots.append(("memory", memory))
-    home_work = (Path(home) / ".work").resolve()
-    if all(home_work != path for _, path in roots):
+
+    if scope in ("all", "repo"):
+        top = plugin_paths.git_toplevel(Path.cwd())
+        configured_memory: str | None = memory_dir
+        if not configured_memory and top is not None:
+            yaml_mem = plugin_paths.read_session_flow_yaml(top, home).get("memory_dir")
+            if isinstance(yaml_mem, str) and yaml_mem.strip():
+                configured_memory = yaml_mem.strip()
+        memory = (
+            Path(configured_memory).expanduser()
+            if configured_memory
+            else plugin_paths.default_memory_dir(
+                Path.cwd(), os.environ, _SCRIPTS_DIR.parent
+            )
+        )
+        if memory is not None and not memory.is_absolute() and top is not None:
+            memory = top / memory
+        if memory is None:
+            notes.append("no memory root: no git work tree and no plugin data dir")
+        else:
+            memory = plugin_paths.validate_memory_root(memory, top)
+            roots.append(("memory", memory))
+
+    if scope in ("all", "home") and all(home_work != path for _, path in roots):
         roots.append(("home", home_work))
     return roots, notes
-
-
-def _age_days(mtime: float, now: float) -> float:
-    return round(max(now - mtime, 0) / 86400, 1)
-
-
-def _to_dict(item: Item, now: float) -> dict[str, object]:
-    return {
-        "path": item.path.as_posix(),
-        "root": item.root,
-        "kind": item.kind,
-        "age_days": _age_days(item.mtime, now),
-        "mtime": datetime.fromtimestamp(item.mtime, timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        ),
-        "size_bytes": item.size,
-        "in_flight": item.in_flight,
-        "reasons": item.reasons,
-        "keep": item.keep,
-        "links": item.states,
-    }
-
-
-def _attribution(item: Item) -> str:
-    if not item.states:
-        return ""
-    return (
-        " [" + ", ".join(f"{ref} {state}" for ref, state in item.states.items()) + "]"
-    )
-
-
-def _verdict(item: Item) -> str:
-    if item.kind == "concern":
-        verdict = "keep: concern state read back by its skill"
-    elif item.kind == "unknown":
-        verdict = "keep: unknown kind"
-    elif item.reasons:
-        verdict = "keep: " + "; ".join(item.reasons)
-    elif item.kind == "orphan-marker":
-        verdict = "stale: its handoff is gone"
-    else:
-        verdict = "stale" if item.links else "keep: names no issue or PR"
-    return verdict + _attribution(item)
-
-
-def _table(items: list[Item], now: float) -> str:
-    header = ("KIND", "AGE(d)", "SIZE", "VERDICT", "PATH")
-    body = [
-        (
-            i.kind,
-            str(_age_days(i.mtime, now)),
-            str(i.size),
-            _verdict(i),
-            i.path.as_posix(),
-        )
-        for i in items
-    ]
-    widths = [max(len(row[col]) for row in (header, *body)) for col in range(4)]
-    fmt = "  ".join(f"{{:<{w}}}" for w in widths) + "  {}"
-    return "\n".join(fmt.format(*row) for row in (header, *body))
-
-
-def _load_link_table(path: str | None) -> dict[str, str] | None:
-    if not path:
-        return None
-    try:
-        table = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise ValueError(f"--link-state unreadable: {exc}") from exc
-    if not isinstance(table, dict):
-        raise ValueError("--link-state must be a JSON object")
-    return table
 
 
 def _roots(
     args: argparse.Namespace,
 ) -> tuple[list[tuple[str, Path]], list[str]] | None:
     try:
-        return resolve_roots(args.memory_dir)
+        return resolve_roots(args.memory_dir, scope=args.scope)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return None
@@ -759,7 +780,11 @@ def _survey(
 ) -> tuple[list[tuple[str, Path]], list[str], list[Item], float] | None:
     try:
         table = _load_link_table(args.link_state)
-        roots, notes = resolve_roots(args.memory_dir)
+        roots, notes = resolve_roots(args.memory_dir, scope=args.scope)
+        top = plugin_paths.git_toplevel(Path.cwd()) if args.scope != "home" else None
+        concern_dirs = _resolve_concern_dirs(
+            args.extra_concern_dir, top, _home_path()
+        )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return None
@@ -767,7 +792,7 @@ def _survey(
     now = datetime.now(timezone.utc).timestamp()
     items: list[Item] = []
     for label, root in roots:
-        items.extend(inventory(root, label))
+        items.extend(inventory(root, label, concern_dirs=concern_dirs))
     mark_in_flight(items, args.days, states, now, dict(roots))
     return roots, notes, items, now
 
@@ -799,74 +824,6 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
-def _escapes(path: Path, root: Path) -> bool:
-    """True when path, or a symlink inside it, resolves outside root."""
-    try:
-        if not path.resolve().is_relative_to(root):
-            return True
-        if path.is_dir() and not path.is_symlink():
-            for base, dirs, files in os.walk(path, followlinks=False):
-                for name in (*dirs, *files):
-                    entry = Path(base, name)
-                    if entry.is_symlink() and not entry.resolve().is_relative_to(root):
-                        return True
-    except (OSError, RuntimeError):
-        return True
-    return False
-
-
-@dataclass
-class Guard:
-    """Whether a root may be modified: git-tracked content never is."""
-
-    root: Path
-    refusal: str | None = None
-    tracked: list[str] | None = None
-
-    def blocks(self, path: Path) -> str | None:
-        if self.refusal:
-            return self.refusal
-        if self.tracked is not None:
-            rel = path.relative_to(self.root).as_posix()
-            if any(t == rel or t.startswith(f"{rel}/") for t in self.tracked):
-                return f"git tracks content at {rel}"
-        return None
-
-
-def _self_ignored(root: Path) -> bool:
-    try:
-        lines = (root / SELF_IGNORE).read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeDecodeError):
-        return False
-    return any(line.strip() == "*" for line in lines)
-
-
-def _guard(label: str, root: Path) -> Guard:
-    guard = Guard(root)
-    if not root.is_dir():
-        return guard
-    if label != "home" and not _self_ignored(root):
-        guard.refusal = (
-            f"memory root lacks the self-ignore guard: {(root / SELF_IGNORE).as_posix()} "
-            "must contain a line '*'"
-        )
-    elif save_point._git_toplevel(root) is not None:
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(root), "ls-files", "-z"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except OSError:
-            result = None
-        if result is None or result.returncode != 0:
-            guard.refusal = "cannot list the files git tracks"
-        else:
-            guard.tracked = [name for name in result.stdout.split("\0") if name]
-    return guard
-
-
 def plan_moves(root: Path) -> list[tuple[Path, Path]]:
     layout = (
         ("handoffs", save_point.HANDOFF_NAME_RE),
@@ -892,14 +849,6 @@ def plan_moves(root: Path) -> list[tuple[Path, Path]]:
                 for sidecar in _sidecars(src):
                     moves.append((sidecar, root / dirname / sidecar.name))
     return moves
-
-
-def _refusal(dst: Path) -> str | None:
-    if dst.parent.is_symlink() or (dst.parent.exists() and not dst.parent.is_dir()):
-        return f"{dst.parent.as_posix()} is not a plain directory"
-    if os.path.lexists(dst):
-        return f"target exists: {dst.as_posix()}"
-    return None
 
 
 def cmd_normalize(args: argparse.Namespace) -> int:
@@ -931,22 +880,6 @@ def cmd_normalize(args: argparse.Namespace) -> int:
             print(f"{verb}: {src.as_posix()} -> {dst.as_posix()}")
     print(f"{total} misplaced, {failed} refused" + ("" if args.apply else ", dry run"))
     return 1 if failed and args.apply else 0
-
-
-def _blocked(item: Item, root: Path, guard: Guard) -> str | None:
-    for path in item.paths:
-        if _escapes(path, root):
-            return "outside the root"
-        if reason := guard.blocks(path):
-            return reason
-    return None
-
-
-def _remove(path: Path) -> None:
-    if path.is_dir() and not path.is_symlink():
-        shutil.rmtree(path)
-    else:
-        path.unlink()
 
 
 def cmd_clean(args: argparse.Namespace) -> int:
@@ -1006,7 +939,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     sub = parser.add_subparsers(dest="command", required=True)
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--memory-dir", help="memory root; default is save_point.py's")
+    common.add_argument("--memory-dir", help="memory root; default is plugin_paths's")
+    common.add_argument(
+        "--scope",
+        choices=("all", "repo", "home"),
+        default="all",
+        help="which memory tiers to inspect (default: all)",
+    )
+    common.add_argument(
+        "--extra-concern-dir",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="repeatable bare directory name under the memory root treated as kept concern state",
+    )
     inflight = argparse.ArgumentParser(add_help=False)
     inflight.add_argument("--days", type=float, default=DEFAULT_DAYS)
     link = inflight.add_mutually_exclusive_group()
