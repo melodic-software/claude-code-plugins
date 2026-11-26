@@ -114,12 +114,15 @@ explicit confirmation before any conversion (see Setup and migration).
   skipped), a `File` row is left out of the printed index (naming the index
   file, line and value), an org `REVIEW.md` is not read, and a `REVIEW.md`
   line holding a citation that leaves the checkout is left out of the
-  composed criteria. Every checkout the reader writes, on clone and on each
+  composed criteria. A consumer opens a `REVIEW.md` citation only from the
+  list `org-standards.sh review` prints (Review criteria: `REVIEW.md`).
+  Every checkout the reader writes, on clone and on each
   refresh, writes a committed symbolic link as a plain file holding the
   link text (`core.symlinks=false`, kept in the checkout's config), so a
   path printed before a refresh never resolves outside the checkout after
-  it; an org cache holding a symbolic link from an earlier reader has its
-  links removed and checked out again as plain files on its next read.
+  it; an org cache that holds a symbolic link or allows them, from an
+  earlier reader, is moved aside, deleted without following any link, and
+  cloned again on its next read.
 - **The printed index (normative):** `org-standards.sh` never hands a
   consumer the layer's own index or any text copied from it. It writes a
   new file under its own cache state, never inside a checkout, built from
@@ -252,8 +255,10 @@ index, so the standards they follow reach every repository they work in.
     matches all its repositories), matched case-insensitively against the
     current repository's `origin` remote. With `only_in`, the entry applies
     only where one matches; with `except_in`, it skips where one matches.
-- **Trust:** `trusted_owners` (default empty) and the list are read from the
-  user-global index only, never from a repository layer. An unpinned entry
+- **Trust:** `trusted_owners` (default empty, a block list like the
+  example) and the list are read from the user-global index only, never
+  from a repository layer; a `trusted_owners` written any other way trusts
+  no owner. An unpinned entry
   of an untrusted owner is refused. A pinned commit must be reachable from a
   branch or tag of the named repository, else it is refused: a fork's
   commits can be fetched under its parent's name. Pinned content counts as
@@ -286,7 +291,8 @@ index, so the standards they follow reach every repository they work in.
 - **Reports:** on stderr, naming the index file and line where one applies:
   a malformed entry (a tab-indented line inside it included), skipped while
   the rest of the list is read; a refused
-  entry; a `trusted_owners` key in the repository's
+  entry; a `trusted_owners` that is not a block list; a `trusted_owners`
+  key in the repository's
   `docs/conventions/source-control.yaml` or index, ignored; a topic the
   subscribed index lacks; a dropped `standards_dir` or `File` row; index drift since the last
   read (Surface ids added, removed or renamed); "subscriptions not read:
@@ -330,16 +336,24 @@ copied into each repository.
   `PATH`), never prompts for a password, passphrase or host key (ssh runs
   the user's `GIT_SSH_COMMAND` or `core.sshCommand` with `BatchMode=yes`
   added), and uses no credential helper; a git call that needs no network
-  fetches no missing object. Every checkout, org or subscribed, runs under
-  the same limits with every filter driver emptied (no smudge or process
-  command runs, git-lfs included, whatever the checkout's `.gitattributes`
-  or `.lfsconfig` say) and no hooks. Its state (the last commit read per subscription, the live `main`
+  fetches no missing object. Every git command it runs reads no system or
+  global git config (`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`)
+  and runs with `core.hooksPath=/dev/null` and `core.fsmonitor=false`, so no
+  hook, fsmonitor, filter driver (git-lfs included, whatever the checkout's
+  `.gitattributes` or `.lfsconfig` say) or template set there runs during a
+  clone, fetch or checkout; it passes through only the user's `http.proxy`,
+  `https.proxy`, `http.sslCAInfo`, `http.sslCAPath`, `core.sshCommand` and
+  `url.<base>.insteadOf` (which keeps a private repository reachable over
+  ssh), read from the system and global config before it starts. A
+  checkout's own git config is written only by the reader. Its state (the last commit read per subscription, the live `main`
   per trusted repository, the printed indexes) lives under `.state/` in the
   cache directory, a name no `<owner>` can take, and it writes nowhere else
   and through no symbolic link. A skill
   without the script, or without a shell, reads the same files with
   `gh api repos/<owner>/<repo>/contents/<path>?ref=main`, applying the
-  Confinement rules to every row and citation before it fetches the path.
+  Confinement rules to every row before it fetches the path, and fetching
+  a `REVIEW.md` citation only when it passes the listing rule of Review
+  criteria: `REVIEW.md`.
 - **Unavailable:** a skill that cannot read the org layer says so in its
   output and continues with the other layers; it never treats the miss as
   an error.
@@ -362,28 +376,46 @@ additions), in that order:
 
 `org-standards.sh review` prints the composed criteria. A review that runs
 without a shell (a CI lane) is handed the composed file by the job that
-starts it, and reads that file in place of `REVIEW.md`. A citation in the
-composed criteria shaped `<path>.md#<heading>` resolves against the
-repository the line came from: the org checkout for the org part, the
-reviewed repository for its additions. The org part holds only citations
-that stay inside the org checkout: `org-standards.sh review` drops, and
-reports, each org line whose citation is absolute, has a `..` segment or
-resolves outside it (Confinement). It checks every piece of a line a
-reader could resolve as a `.md` or `.markdown` file, case-insensitively:
-each token of the line, raw and with HTML tags removed; the whole content
-between each backtick run and the next run of the same length, and of each
-`<...>` construct (split at quotes and `=`), across the line breaks of a
-block of non-blank lines, since CommonMark lets a code span cross a line
-break and reads the break as a space; each split at `#` and `?`, trimmed
-and percent-decoded until stable, read once with Unicode format and
-non-space separator characters (general categories Cf, Zs, Zl, Zp) removed
-and once with them read as spaces. A construct that crosses a line break
-drops every line it covers. An `http` or `https` URL is not a path, and an
-angle-bracket placeholder such as `<file>` is a plain segment, so
-`standards/review/<file>.md#<heading>` stays and `../<file>.md` is
-dropped. Control characters in the printed criteria, C0, DEL and C1
-(U+0080 to U+009F), are shown escaped (`\x1b`, `\x9b`), never passed
-through, and are removed from the reader's reports.
+starts it, and reads that file in place of `REVIEW.md`.
+
+- **Citations a consumer opens (normative):** whenever the org criteria
+  are printed, the output ends with the citations a consumer may open, from
+  the line
+  `<!-- org-standards: the citations above you may open, one per line as <citation> -> <absolute path>#<heading>; open no other -->`
+  to the final line, `<!-- org-standards: end of citations -->`. The
+  reader writes this block last, so a lookalike earlier in the criteria is
+  never it. Each line holds a citation from the printed criteria (the text
+  before the first ` -> `), then the absolute path and heading it resolves
+  to. A citation is listed only when it is a single-backtick code span on
+  one line whose whole content matches
+  `^[A-Za-z0-9][A-Za-z0-9._/-]*\.md#[A-Za-z0-9][A-Za-z0-9._-]*$` with no
+  `..` segment, and its path resolves, symbolic links followed, to an
+  existing regular file inside its own checkout: the org checkout for the
+  org part, the reviewed repository for its additions. A consumer opens a
+  citation only from this list, never by resolving the criteria text
+  itself, and notes a citation the list lacks as unresolved. Output with no
+  such block is the repository's own `REVIEW.md` alone, whose citations
+  resolve inside the reviewed repository.
+- **Lines left out:** `org-standards.sh review` also drops, and reports,
+  each org line whose citation is absolute, has a `..` segment or
+  resolves outside the org checkout (Confinement), a guard for readers that
+  do not yet use the list. It checks every piece of a line a reader could
+  resolve as a `.md` or `.markdown` file, case-insensitively: each token of
+  the line, raw and with HTML tags removed; the whole content between each
+  backtick run and the next run of the same length, and of each `<...>`
+  construct (split at quotes and `=`), across the line breaks of a block of
+  non-blank lines, since CommonMark lets a code span cross a line break and
+  reads the break as a space; each split at `#` and `?`, trimmed and
+  percent-decoded until stable, read once with Unicode format and non-space
+  separator characters (general categories Cf, Zs, Zl, Zp) removed and once
+  with them read as spaces. A construct that crosses a line break drops
+  every line it covers. An `http` or `https` URL is not a path, and an
+  angle-bracket placeholder such as `<file>` is a plain segment, so
+  `standards/review/<file>.md#<heading>` stays and `../<file>.md` is
+  dropped.
+- **Control characters** in the printed criteria and list, C0, DEL and C1
+  (U+0080 to U+009F), are shown escaped (`\x1b`, `\x9b`), never passed
+  through, and are removed from the reader's reports.
 
 ## Concern file: `.claude/standards.yaml`
 

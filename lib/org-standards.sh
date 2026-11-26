@@ -10,6 +10,21 @@ US=$'\037'
 die() { printf 'org-standards: %s\n' "$1" >&2; exit "${2:-2}"; }
 note() { printf 'org-standards: %s\n' "$1" >&2; }
 
+NET_KEYS='^(https?\.proxy|http\.sslcainfo|http\.sslcapath|core\.sshcommand|url\..*\.insteadof)$'
+GIT_ISOLATE=(-c credential.helper= -c core.hooksPath=/dev/null -c core.fsmonitor=false)
+USER_SSH=""
+while IFS= read -r -d '' kv; do
+  [[ "$kv" == *$'\n'* ]] || continue
+  key=${kv%%$'\n'*}
+  case "$key" in
+    core.sshcommand) USER_SSH=${kv#*$'\n'} ;;
+    *=*) ;;
+    *) GIT_ISOLATE+=(-c "$key=${kv#*$'\n'}") ;;
+  esac
+done < <(for scope in system global; do command git config "--$scope" -z --get-regexp "$NET_KEYS" 2>/dev/null || true; done)
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+git() { command git "${GIT_ISOLATE[@]}" "$@"; }
+
 cmd=${1:-}; shift || true
 root=""
 while [[ $# -gt 0 ]]; do
@@ -36,21 +51,12 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 GIT_TIMEOUT=${ORG_STANDARDS_GIT_TIMEOUT:-60}
 [[ "$GIT_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || GIT_TIMEOUT=60
 net_git() {
-  local limit=() ssh=${GIT_SSH_COMMAND:-}
-  command -v timeout >/dev/null 2>&1 && limit=(timeout "$GIT_TIMEOUT")
-  [[ -n "$ssh" ]] || ssh=$(git config --get core.sshCommand 2>/dev/null) || true
-  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${ssh:-ssh} -o BatchMode=yes" \
-    ${limit[@]+"${limit[@]}"} git -c credential.helper= "$@"
+  local run=(command git)
+  command -v timeout >/dev/null 2>&1 && run=(timeout "$GIT_TIMEOUT" git)
+  GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-${USER_SSH:-ssh}} -o BatchMode=yes" \
+    "${run[@]}" "${GIT_ISOLATE[@]}" "$@"
 }
-checkout_git() {
-  local dir=$1 d off=(-c core.hooksPath=/dev/null)
-  shift
-  while IFS= read -r d; do
-    d=${d#filter.}; d=${d%.*}
-    off+=(-c "filter.$d.smudge=" -c "filter.$d.process=" -c "filter.$d.required=false")
-  done < <(git -C "$dir" config --name-only --get-regexp '^filter\.' 2>/dev/null | sort -u || true)
-  GIT_LFS_SKIP_SMUDGE=1 net_git -C "$dir" "${off[@]}" "$@"
-}
+checkout_git() { local dir=$1; shift; GIT_LFS_SKIP_SMUDGE=1 net_git -C "$dir" "$@"; }
 place() {
   local tmp=$1 dest=$2 leaf
   mv -T "$tmp" "$dest" 2>/dev/null && return 0
@@ -80,16 +86,15 @@ org_dir() {
   local stamp="$cache/.git/org-standards-fetched" ttl="${ORG_STANDARDS_TTL:-3600}" now
   local url="${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"
   now=$(date +%s)
+  if [[ -d "$cache/.git" ]] && { [[ -n "$(find "$cache" -path "$cache/.git" -prune -o -type l -print -quit 2>/dev/null)" ]] \
+    || [[ "$(git -C "$cache" config --get core.symlinks 2>/dev/null)" != false ]]; }; then
+    note "$cache holds or allows symbolic links; cloning it again"
+    local old
+    old=$(mktemp -d "$(dirname "$cache")/.old.XXXXXX") || return 4
+    mv -- "$cache" "$old/" 2>/dev/null || true
+    rm -rf "${old:?}"
+  fi
   if [[ -d "$cache/.git" ]]; then
-    local links l
-    links=$(find "$cache" -path "$cache/.git" -prune -o -type l -print 2>/dev/null) || true
-    if [[ -n "$links" || "$(git -C "$cache" config --get core.symlinks 2>/dev/null)" != false ]]; then
-      git -C "$cache" config core.symlinks false 2>/dev/null || true
-      while IFS= read -r l; do [[ -z "$l" ]] || rm -f -- "$l"; done <<<"$links"
-      if [[ -n "$links" ]] && ! checkout_git "$cache" -c core.symlinks=false checkout --quiet --force HEAD -- . 2>/dev/null; then
-        note "$cache held symbolic links; they were removed and could not be checked out again as plain files"
-      fi
-    fi
     if [[ -f "$stamp" ]] && [[ $((now - $(cat "$stamp"))) -lt "$ttl" ]]; then
       printf '%s\n' "$cache"; return 0
     fi
@@ -325,12 +330,13 @@ BEGIN {
   for (i = 1; i < 32; i++) if (i != 9) C[sprintf("%c", i)] = sprintf("\\x%02x", i); C[sprintf("%c", 127)] = "\\x7f"
   for (i = 128; i < 160; i++) C["\302" sprintf("%c", i)] = sprintf("\\x%02x", i)
 }
+index(drop, " " FNR " ") { next }
 {
   sub(/\r$/, ""); out = ""; s = $0
   while (match(s, /[\001-\010\013-\037\177]|\302[\200-\237]/)) { out = out substr(s, 1, RSTART - 1) C[substr(s, RSTART, RLENGTH)]; s = substr(s, RSTART + RLENGTH) }
   print out s
 }'
-confine_review() {
+review_drops() {
   local root=$1 file=$2 line cite path why drop=" "
   while IFS="$US" read -r line cite path; do
     [[ "$drop" != *" $line "* ]] || continue
@@ -341,9 +347,34 @@ confine_review() {
     note "$file:$line: citation $(printable "$cite") $why; line dropped"
     drop+="$line "
   done < <(LC_ALL=C awk -v INVISIBLE="$INVISIBLE" "$CITATIONS" "$file" | LC_ALL=C sort -s -n -t "$US" -k1,1)
-  awk -v drop="$drop" 'BEGIN { n = split(drop, D, " "); for (i = 1; i <= n; i++) gone[D[i]] = 1 } !(FNR in gone)' "$file" | show
+  printf '%s' "$drop"
 }
-show() { LC_ALL=C awk "$ESCAPE_CONTROLS" "$@"; }
+show() { LC_ALL=C awk -v drop=" ${2:-} " "$ESCAPE_CONTROLS" "$1"; }
+
+CITE_START='<!-- org-standards: the citations above you may open, one per line as <citation> -> <absolute path>#<heading>; open no other -->'
+CITE_END='<!-- org-standards: end of citations -->'
+CITE_RE='^[A-Za-z0-9][A-Za-z0-9._/-]*\.md#[A-Za-z0-9][A-Za-z0-9._-]*$'
+# shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
+SPANS='
+index(drop, " " FNR " ") { next }
+{
+  s = $0; before = ""
+  while (match(s, /`[^`]+`/)) {
+    if (RSTART > 1) before = substr(s, RSTART - 1, 1)
+    if (before != "`" && substr(s, RSTART + RLENGTH, 1) != "`") print substr(s, RSTART + 1, RLENGTH - 2)
+    before = "`"; s = substr(s, RSTART + RLENGTH)
+  }
+}'
+citations() {
+  local c real base
+  base=$(phys "$2") || return 0
+  while IFS= read -r c; do
+    [[ "$c" =~ $CITE_RE && "/${c%%#*}/" != */../* ]] || continue
+    real=$(phys "$base/${c%%#*}" 2>/dev/null) || continue
+    [[ -f "$real" && "$real" == "$base"/* && "${real#"$base"/}" =~ ^[A-Za-z0-9._/-]+$ ]] || continue
+    printf '%s -> %s#%s\n' "$c" "$real" "${c#*#}"
+  done < <(LC_ALL=C awk -v drop=" ${3:-} " "$SPANS" "$1")
+}
 
 drift() {
   awk -F'\t' '
@@ -590,14 +621,15 @@ subscriptions() {
     text=$(printf '%s\n' "$text" | awk -v a="${range% *}" -v b="${range#* }" 'NR >= a && NR <= b { print ""; next } { print }')
     ranges=$(printf '%s\n' "$ranges" | grep -vxF -- "$range" || true)
   done
-  local records version="" trusted="" starts
+  local records version="" trusted="" starts flow_trust
   starts=$(printf '%s\n' "$ranges" | awk 'NF { printf "%s%s", sep, $1; sep = " " }')
   records=$(printf '%s\n' "$parsed" | to_records "$starts")
   [[ -n "$records" ]] || return 0
+  flow_trust=$(printf '%s\n' "$text" | awk '/^trusted_owners:/ { v = $0; sub(/^trusted_owners:[ \t]*/, "", v); if (v != "" && v !~ /^#/) print NR; exit }')
   while IFS=$'\t' read -r kind value; do
     case "$kind" in
       version) version=$value ;;
-      trusted) trusted="$trusted $(lower "$value")" ;;
+      trusted) [[ -n "$flow_trust" ]] || trusted="$trusted $(lower "$value")" ;;
       *) ;;
     esac
   done < <(printf '%s\n' "$records" | grep -E $'^(version|trusted)\t' || true)
@@ -610,6 +642,7 @@ subscriptions() {
   if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
     note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
+  [[ -z "$flow_trust" ]] || note "$file:$flow_trust: trusted_owners is not a block list; no owner is trusted"
   local org cur line repo ref topics only except prob layerfile at
   for layerfile in "$root/docs/conventions/source-control.yaml" "$(index_of "$root" 2>/dev/null || true)"; do
     [[ -f "$layerfile" ]] || continue
@@ -655,11 +688,17 @@ case "$cmd" in
       status=3
     fi
     if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]]; then
-      confine_review "$org" "$org/REVIEW.md"
+      drop=$(review_drops "$org" "$org/REVIEW.md")
+      show "$org/REVIEW.md" "$drop"
+      list=$(citations "$org/REVIEW.md" "$org" "$drop")
       if [[ -f "$local_file" ]] && ! cmp -s "$org/REVIEW.md" "$local_file"; then
         printf '\n<!-- The repository REVIEW.md follows: its criteria add to the organization criteria above. -->\n\n'
         show "$local_file"
+        list+=$'\n'$(citations "$local_file" "$root")
       fi
+      printf '\n%s\n' "$CITE_START"
+      printf '%s\n' "$list" | awk 'NF && !seen[$0]++' | show -
+      printf '%s\n' "$CITE_END"
     elif [[ -f "$local_file" ]]; then
       show "$local_file"
     else

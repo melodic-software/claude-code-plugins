@@ -24,7 +24,13 @@ resolve it (code-span padding trimmed, percent-escapes decoded, a `?query` cut, 
 invisible separator characters removed, any case), a construct crossing a line break drops every
 line it covers, and C0, DEL and C1 control characters in the printed criteria are escaped. Every
 checkout, the org layer's clone and refresh included, writes a committed symbolic link as a plain
-file, and an org cache holding one from an earlier reader is checked out again. `index` and
+file, and an org cache that holds one or allows them, from an earlier reader, is deleted without
+following a link and cloned again. `review` ends its output, whenever it prints the org criteria,
+with the citations a consumer may open: each single-backtick code span on one line shaped
+`<path>.md#<heading>` (letters, digits, `.`, `_`, `-`, `/`; no `..` segment) whose path resolves to
+a regular file inside its own checkout, printed as `<citation> -> <absolute path>#<heading>`.
+Consumers open a `REVIEW.md` citation only from that list, never by resolving the criteria text.
+A `trusted_owners` that is not a block list trusts no owner and is reported. `index` and
 `subscriptions` now print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract`
 version, the table header and each well-formed row of the `Surface | Applies when | File` table
 rebuilt from its cells (no prose or other line is copied; every other line holding a `|` is
@@ -32,7 +38,10 @@ reported and dropped), with a `Surface` that is an id and each kept row's `File`
 it resolves to inside the checkout. Consumers read another repository's index only through that
 copy, never by running the ladder at its checkout. Every clone, fetch, `ls-remote`, checkout and
 lazy object fetch gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), never prompts
-and uses no credential helper, and no checkout runs a filter driver (git-lfs included) or a hook.
+and uses no credential helper. Every git command the reader runs ignores the system and global git
+config, passing through only the user's proxy, CA, `core.sshCommand` and `url.<base>.insteadOf`
+settings, with hooks and fsmonitor off, so no hook, fsmonitor, filter driver (git-lfs included) or
+template from that config runs.
 A `ref` naming an annotated tag object reads the commit it tags. Reader
 state moves to `.state/` in the cache directory. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but
