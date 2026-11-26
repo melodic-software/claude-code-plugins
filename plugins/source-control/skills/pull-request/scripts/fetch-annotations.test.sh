@@ -4,8 +4,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fetch-annotations.sh"
-# POSIX path for stub PATH entries (Git Bash PATH lookup fails on Windows-form
-# paths like C:/Users/<user>/...). Production script accepts either form via env vars.
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -170,13 +168,9 @@ assert_exit "missing pr-number exits 1" 1 "$?"
 run_script_silent 2
 assert_exit "gh pr view failure exits 2" 2 "$?"
 
-# Case 8: per-check-run annotations API failure exits 2 (regression guard: a
-# `|| true` on the jq pipeline would mask gh api auth/rate-limit failures and
-# silently emit partial JSONL instead of failing per the docstring contract)
 run_script_silent 5
 assert_exit "annotations API failure exits 2" 2 "$?"
 
-# Case 7: check-runs API failure exits 2 (regression guard: must not silently exit 0)
 run_script_silent 4
 assert_exit "check-runs API failure exits 2" 2 "$?"
 
@@ -197,18 +191,10 @@ else
   fail "every JSONL line has required schema fields" "all lines pass jq schema check" "$out"
 fi
 
-# `has()` above is presence-only, so a field the projection stops carrying still
-# passes it: jq -r on a missing key yields the STRING "null", which is present
-# and wrong. check_run_name is emitted and never read back by anything else, so
-# this is the only place its value can be pinned. The fixture's check-run 200 is
-# named "test".
 name_val=$(printf '%s' "$out" | head -1 | jq -r '.check_run_name')
 assert_eq "check_run_name carries the check run's name, not a stringified null" \
   "test" "$name_val"
 
-# Case 9: --help emits the whole banner. usage() slices the header comment block
-# out of the script itself, so pinning the LAST banner line is what keeps a later
-# header edit from silently cutting the exit-code list short.
 help_out=$(run_script --help)
 help_ec=$?
 if [[ $help_ec -eq 0 && "$help_out" == *"0  success"* && "$help_out" == *"1  invalid argument"* &&
@@ -218,15 +204,7 @@ else
   fail "--help emits the full banner through the last documented exit code" \
     "exit 0 + all four exit codes" "exit $help_ec, out: $help_out"
 fi
-# The other direction: a slice that runs past the header block leaks executable
-# lines into the banner, so the banner must stop before the first one.
-assert_not_contains "--help stops at the header block" "$help_out" "set -uo pipefail"
 
-# ---- --dir: run from a directory outside every checkout ----------------------
-#
-# <checkout>'s one GitHub remote is acme/app, so the repository can come only from --dir. This
-# stub records no gh default, fails `gh repo view`, answers the PR read only with -R acme/app,
-# and fails a REST read of any other repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 CHECKOUT="$TEST_TMPDIR/checkout" FORK="$TEST_TMPDIR/fork" NOREMOTE="$TEST_TMPDIR/noremote"
@@ -286,12 +264,6 @@ assert_exit "--dir naming no directory is a usage error" 1 "$?"
 run_outside 1 --dir "$CHECKOUT" --dir "$FORK" >/dev/null
 assert_exit "--dir given twice is a usage error" 1 "$?"
 
-# ---- Integration cases (opt-in: INTEGRATION=1) -----------------------------
-#
-# Hits real GitHub API against a known PR in this repo. Skipped by default.
-# Run with: INTEGRATION=1 bash fetch-annotations.test.sh
-# Optionally pin a specific PR: INTEGRATION_PR=999
-
 if [[ "${INTEGRATION:-0}" == "1" ]]; then
   if ! command -v gh >/dev/null 2>&1; then
     skip_case "INTEGRATION mode but gh CLI not available"
@@ -310,9 +282,6 @@ if [[ "${INTEGRATION:-0}" == "1" ]]; then
       out=$(FETCH_ANNOT_REPO="$INTEGRATION_REPO" \
         bash "$SCRIPT" "$REAL_PR" 2>&1)
       ec=$?
-      # Pass criterion: exit 0 + (empty output OR every output line is valid JSON
-      # with the expected schema). Empty is acceptable — many PRs have zero
-      # annotations.
       schema_ok=1
       if [[ -n "${out//[[:space:]]/}" ]]; then
         while IFS= read -r line; do

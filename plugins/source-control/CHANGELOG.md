@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.6] - 2026-11-26
+
+### Fixed
+
+- The merge gate's cost-decision carry (`babysit_merge_policy._carries`) reads a compare whose unpaged commit list stops short of `total_commits` again in pages of 100 (`_whole_commits`), as `merge-holds.mjs` does, so a range of more than 250 commits carries. A page that does not read, or a list still shorter than `total_commits`, carries nothing.
+
+## [13.21.5] - 2026-11-26
+
+### Fixed
+
+- The merge gate's approval and cost-decision carries (`babysit_merge_policy.same_net_change`, `carried_lifters`, `_carries`) judge a pull request whose compare lists 300 files or more: when either listing caps or gives a file no patch, the two compares' `application/vnd.github.diff` texts decide, every file's patch and mode compared (`diff_files`, `needs_diff`, `_cap_diffs`), as `merge-holds.mjs` does. A binary file, a diff that does not parse, or a diff naming fewer files than the pull request changes carries nothing.
+
 ## [13.21.4] - 2026-11-26
 
 ### Fixed

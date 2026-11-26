@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Gate: the shipped plugin profiles name only plugins this marketplace's catalog lists, under the
-# catalog's own name, and interface-design keeps every planning member. The rules are the
-# plugin-profiles check action's (plugins/plugin-profiles/lib/check.mjs); this runs it on a tree.
-#
-#   scripts/check-plugin-profiles.sh [<repository root>]   default: this checkout
-#
-# Exits and streams follow scripts/README.md, "The check-script contract".
 set -euo pipefail
 
 if ! command -v node >/dev/null 2>&1; then

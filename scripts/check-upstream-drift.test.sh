@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
-# Black-box suite for check-upstream-drift.sh.
-#
-#   bash scripts/check-upstream-drift.test.sh
-#
-# Hermetic and cwd-independent: each case builds a throwaway tree holding a copy
-# of the script, one docs/upstream page and a fixture directory read through the
-# UPSTREAM_DRIFT_FIXTURE_DIR seam, so no case touches the network. Every expected
-# line below is written by hand from the fixture the case builds: the SHAs, the
-# paths and the page line numbers are literals of this file.
 set -uo pipefail
-# On a runner the script would wrap its gh calls and record into the job's
-# RUNNER_TEMP; the cases here run it unwrapped.
 unset RUNNER_TEMP
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -22,7 +11,6 @@ SUT_SRC="$SCRIPT_DIR/check-upstream-drift.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh" || exit 2
 
-# The builder assigns through a nameref, which shellcheck cannot follow.
 f=""
 
 PIN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -45,8 +33,6 @@ cleanup_mirrors() {
 }
 trap cleanup_mirrors EXIT
 
-# path_without <tool>: sets NO_PATH to a directory linking every PATH entry but
-# <tool>. Later entries are linked first so earlier ones win, as PATH does.
 NO_PATH=""
 path_without() {
   local dir i
@@ -61,9 +47,6 @@ path_without() {
   NO_PATH="$dir"
 }
 
-# page_lines: the default page. Line 3 is the marker, line 7 the alpha row (a
-# drift input), line 8 a link to another repository, line 12 the beta unit in
-# the Map section.
 page_lines() { # [<marker>]
   printf '# Widgets\n\n'
   printf '%s\n\n' "${1:-$MARKER}"

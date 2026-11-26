@@ -21,22 +21,7 @@ from babysit_util import configure_stdio, run_command
 WORKTREE_RE = re.compile(r"^(?P<owner>.+?)__(?P<repo>.+?)__pr-(?P<number>\d+)$")
 ALLOWED_EXECUTABLES = ("git", "gh")
 UNRECOGNIZED_REASON = "directory name does not match <owner>__<repo>__pr-<number>"
-# Substrings `git` emits (case-insensitive) when a path is no longer a usable
-# repository/worktree, each observed from `rev-parse --show-toplevel` under
-# `C_LOCALE_ENV`, which pins the wording. Used to recognize an orphaned entry
-# rather than an unrelated git failure (#816); anything else still raises.
-#   deleted pointer  -> fatal: not a git repository (or any of the parent
-#                       directories): .git
-#   dangling target  -> fatal: not a git repository: (NULL)
-#   corrupted pointer-> fatal: invalid gitfile format: <path>
-# The third is why this is a tuple: a malformed `.git` is one of the states
-# this self-heal exists to clear, so matching only the first two would re-raise
-# and report `action: error` forever on exactly that entry.
 NOT_A_WORKTREE_MARKERS = ("not a git repository", "invalid gitfile format")
-# Git localizes its diagnostics, so any probe whose result is read out of a
-# message must pin the locale first. `LC_ALL` outranks the other category
-# variables; `LANGUAGE` outranks `LC_ALL` for GNU gettext specifically, so it is
-# cleared rather than set.
 C_LOCALE_ENV = {"LC_ALL": "C", "LANGUAGE": ""}
 
 
@@ -270,24 +255,6 @@ def remove_empty_orphan_directory(path: Path, root: Path) -> bool:
     except OSError:
         pass
     finally:
-        # Every path that leaves the directory standing has to put the gitfile
-        # back, because it is the only record of the owning repository:
-        # discarding it leaves the next run unable to prune the registration at
-        # all, turning a retryable failure into a permanent `unresolved`. Three
-        # such paths exist and only the first is a failed `rmdir` (a Windows
-        # handle, most likely) -- the rescan after the unlink can raise, and a
-        # file appearing between the unlink and the rmdir skips the removal
-        # without raising at all. So restoration is keyed on whether the removal
-        # actually happened, never on which branch got here. `removed` is a flag
-        # rather than a second `exists()` probe: a probe that transiently failed
-        # would skip the restore precisely when the directory survives.
-        #
-        # The `exists()` probe is INSIDE the guard, not a condition guarding it:
-        # `Path.exists()` re-raises an OSError whose errno is not one of the
-        # ignored not-found family, so a permission denial on the very directory
-        # this block exists to rescue would escape the `finally` -- replacing the
-        # original exception and leaving the pointer deleted, the exact loss this
-        # block prevents.
         if not removed and pointer is not None and saved is not None:
             try:
                 if not pointer.exists():
@@ -319,17 +286,9 @@ def registered_repo_from_gitdir_pointer(path: Path) -> Path | None:
     recorded = Path(text[len(prefix) :].strip())
     if not recorded.is_absolute():
         recorded = (path / recorded).resolve()
-    # The record always sits at `<common-dir>/worktrees/<name>`, so the common
-    # directory is the parent of the `worktrees` segment. Derive it from that
-    # structure rather than from a `.git` ancestor: a bare-clone hub's common
-    # directory is `hub.git`, which `repo_path` already supports and which no
-    # `.git`-named-ancestor search would ever find.
     for parent in recorded.parents:
         if parent.name == "worktrees":
             common = parent.parent
-            # Same rule `repo_path` applies: a standard clone's common directory
-            # is the main working tree's `.git`, so git commands run from its
-            # parent; a bare hub has no working tree, so they run from itself.
             return common.parent if common.name == ".git" else common
     return None
 
@@ -390,9 +349,6 @@ def prune_repo_worktree_records(repo: Path, worktree_path: Path) -> str:
         listed = run(["git", "-C", str(repo), "worktree", "list", "--porcelain"])
     except (RuntimeError, OSError):
         return "failed"
-    # Compare resolved paths, never raw strings: git prints POSIX separators and
-    # long filenames, while the caller's path can carry native separators and a
-    # Windows 8.3 short name for the same directory.
     target = os.path.normcase(str(worktree_path.resolve()))
     for line in listed.stdout.splitlines():
         if not line.startswith("worktree "):
@@ -478,8 +434,6 @@ def drop_orphaned_worktree(
     if not preserve_lease and lease_path.exists():
         lease_path.unlink(missing_ok=True)
         info["lease_dropped"] = True
-    # Read the owning repository off the pointer BEFORE the directory goes --
-    # afterwards nothing at that path names it any more.
     registered_repo = registered_repo_from_gitdir_pointer(worktree.path)
     removed = remove_empty_orphan_directory(worktree.path, root)
     info["directory_removed"] = removed
@@ -628,11 +582,6 @@ def main() -> int:
                                 file=sys.stderr,
                             )
                         elif registration != "pruned":
-                            # The directory is gone but the owning repository's
-                            # record was not confirmed cleared, so the path may
-                            # still reject `git worktree add` as "missing but
-                            # already registered". Say so instead of letting
-                            # `dropped: true` read as a completed self-heal.
                             row["stale_registration"] = True
                             print(
                                 "WARNING: removed the orphaned directory for "

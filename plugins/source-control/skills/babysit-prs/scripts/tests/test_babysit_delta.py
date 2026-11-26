@@ -152,8 +152,6 @@ class BranchFreshnessTests(unittest.TestCase):
     def test_clean_head_behind_an_unread_queue_answer_is_not_reported_behind(
         self,
     ) -> None:
-        # The refresh disarms auto-merge and reruns CI and the AI reviews, so a
-        # failed rules read must not start one on what may be a queue base.
         for queue in (None, "absent"):
             with self.subTest(queue=queue):
                 over: dict[str, object] = {
@@ -366,9 +364,6 @@ class AttributionDriftTests(unittest.TestCase):
         self.assertFalse(result["detected"])
 
     def test_drift_surfaces_as_material_finding_via_classify(self) -> None:
-        # Acceptance path: the finding must ride the cycle-status material
-        # channel, not merely the raw detector return -- and with no gh-bot.sh
-        # (token wrapper) in the loop at all.
         pr = self._recorded_write("personal")
         prev = make_prev(
             review_trigger={"request_history": {HEAD: {"comment_id": "100"}}}
@@ -650,8 +645,6 @@ class SelfLoginHumanFeedbackExclusionTests(unittest.TestCase):
         "author": {"login": "solo", "__typename": "User"},
         "body": "must fix this blocking issue",
     }
-    # GitHub logins are case-insensitive: a differently-cased self login must
-    # still be recognized, matching the casefold the engine applies.
     SELF_BLOCKING_MIXED_CASE = {
         "author": {"login": "SoLo", "__typename": "User"},
         "body": "must fix this blocking issue",

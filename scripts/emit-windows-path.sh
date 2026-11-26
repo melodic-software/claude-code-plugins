@@ -1,49 +1,4 @@
 #!/usr/bin/env bash
-# Convert a path for EMISSION across the Git Bash -> Windows-native boundary.
-#
-#   scripts/emit-windows-path.sh <path>...       print each path in mixed form
-#                                                (C:/dir/file) - the default,
-#                                                because forward slashes survive
-#                                                shell and source-literal quoting
-#   scripts/emit-windows-path.sh -w <path>...    print each path in backslash
-#                                                form (C:\dir\file), for a
-#                                                consumer that requires it
-#                                                (cmd, some PowerShell providers)
-#
-# Exit: 0 converted (or passed through on a POSIX host); 2 usage error, cygpath
-# missing, or a conversion that failed. There is NO exit code that means "I gave
-# you the path unconverted on Windows" - see FAIL LOUD below.
-#
-# WHY THIS EXISTS. Git Bash spells `D:\dir` as `/d/dir`. Handed to a
-# Windows-native consumer - PowerShell, cmd, or a native interpreter such as
-# Windows Python - the leading `/` anchors to the root of the CURRENT DRIVE, so
-# the literal becomes `<current-drive>:\d\dir`. Nothing errors: the consumer
-# happily creates the phantom tree and writes there. `docs/contracts/windows-path-emit/README.md` owns the rule
-# this script implements, including the rule that ranks ABOVE it: prefer a path
-# the native side computes itself from a working directory it already owns, and
-# reach for this conversion only when an absolute path genuinely has to cross.
-#
-# MIXED FORM (`cygpath -m`) IS THE DEFAULT, not `-w`. Both spellings are correct
-# to the Win32 API, which accepts `/` and `\` interchangeably as separators. The
-# difference is what happens on the way there: a backslash path embedded in a
-# shell string, a Python literal, or a JSON value is one escape rule away from
-# becoming something else (`C:\temp\new` carries a newline in a Python literal),
-# and each layer it crosses is another chance to lose a separator. Mixed form has
-# no escape hazard in any of those layers. `-w` stays available for the consumer
-# that genuinely rejects forward slashes.
-#
-# FAIL LOUD. This helper is on an EMIT path, so it exits non-zero rather than
-# returning the input unconverted when cygpath is missing or fails. That is the
-# deliberate opposite of `lib/hook-utils.sh`'s host-gated path helpers, which
-# fail OPEN because their results feed a COMPARISON - a degraded comparison
-# answers a question slightly worse, while a degraded emitted path writes real
-# bytes to the wrong place, unobserved. `hook::normalize_path_to` in particular is
-# documented as comparison-only ("the emitted path is always the caller's
-# original") and must never be used to produce a path a native consumer reads.
-#
-# On a non-Windows host every path is already in its native form, so each
-# argument is printed unchanged and the exit is 0. That keeps a script that
-# routes its paths through this helper portable rather than Windows-only.
 set -uo pipefail
 
 usage() {
@@ -81,9 +36,6 @@ if (($# == 0)); then
   exit 2
 fi
 
-# Host gate, first and unconditional. On a POSIX host there is no MSYS->native
-# boundary to cross and no cygpath to cross it with; the argument IS the native
-# spelling. Pass through and exit 0 so callers stay cross-platform.
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) ;;
 *)

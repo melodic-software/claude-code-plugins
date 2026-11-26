@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
-# Contract test for scripts/check-affected-gates.txt: every hygiene gate the CI
-# jobs lint-repo, lint-shell, check-plugins and check-skills feed to the
-# aggregator is either run by scripts/check-affected.sh or named there as CI
-# only, so the local runner never leaves a gate out silently.
-#
-#   bash scripts/check-affected-gates.test.sh
-#
-# The gate set is read from the `<gate>=${{ steps.<id>.outcome }}` rows of each
-# job's CHECK_RESULTS block, the feed scripts/check-docs-only-gate.sh and the
-# lane-coverage gate already hold to the steps.
+# The fixture gate rows hold literal `${{ steps.<id>.outcome }}` text, never shell expansions.
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -65,7 +56,6 @@ else
   bad "no row names a gate the workflow stopped feeding" "remove the row for: ${gone//$'\n'/ }"
 fi
 
-# Each row is `<gate> run <runner check>` or `<gate> ci-only <reason>`.
 rows_ok=1
 while read -r gate kind rest; do
   case "$kind" in

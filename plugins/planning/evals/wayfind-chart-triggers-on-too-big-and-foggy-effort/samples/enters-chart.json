@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "Charting the notification overhaul. Survey first, then the fog test on each uncertainty.",
-      "why": "meets the rule"
+      "why": "chart mode"
+    },
+    {
+      "answer": "Before anything is created: what does finishing this map produce? Recommended destination: a PRD for the notification overhaul.",
+      "why": "chart's first question"
+    },
+    {
+      "answer": "Candidate decision items:\n- 'Choose the delivery channels per event'\n\nNot-yet-specified:\n- **Escalation feel**: unclear.",
+      "why": "fog-sorted candidates"
     }
   ],
   "fail": [
     {
       "answer": "Working the first frontier item of the open notifications map: claiming it now.",
-      "why": "breaks the rule"
+      "why": "work mode"
+    },
+    {
+      "answer": "I can't build a map here. Run /planning:interview again.",
+      "why": "refuses"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I can't apply the fog test without a tracker here, so run /planning:interview again to narrow the overhaul.",
+      "why": "wrong: names the fog test only to refuse charting"
+    },
+    {
+      "answer": "Working the first frontier item: the Not-yet-specified bullets stay as they are, and I am claiming 'Choose the delivery channels'.",
+      "why": "wrong: work mode that mentions the map's sections"
     }
   ]
 }

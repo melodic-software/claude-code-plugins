@@ -1,44 +1,4 @@
 #!/usr/bin/env bash
-# Gate: a change under a plugin's committed vendor/ tree must bump that
-# plugin's manifest version in the same change set.
-#
-#   scripts/check-vendor-version-bump.sh --check-bump <base-ref>
-#
-# WHY. ADR 0019 ("Intra-plugin sharing") collapses the cross-plugin sync
-# machinery when the second consumer is another skill in the SAME plugin: one
-# committed copy at the plugin root (vendor/), so nothing can byte-drift and no
-# sync-*.sh gate applies. The invariant that REPLACES the byte-drift gate is
-# delivery-by-version — editing the shared source obligates a plugin `version`
-# bump, because the version is the update cache key and an unbumped plugin
-# never delivers the change to consumers. Every cross-plugin cluster gets that
-# half enforced by its sync gate's --check-bump; this gate enforces it for the
-# intra-plugin shape.
-#
-# WHAT IS CHECKED. For every plugin whose tracked plugins/<name>/vendor/ tree,
-# or skill-level plugins/<name>/skills/<skill>/vendor/ tree (it installs with
-# the plugin just the same), differs from <base-ref> — an edit, an addition, or a deletion, since each is
-# a source change installed consumers must receive — the plugin's
-# .claude-plugin/plugin.json `version` must also differ from <base-ref>, or, for
-# a plugin in fragment mode, the change set must add a changelog fragment whose
-# bump is not none (the shared predicate in scripts/lib/changelog-fragments.sh).
-# A fragment-mode plugin needs neither when the change set is a verified
-# Dependabot one (changelog_fragments::dependabot_only), whose fragment
-# scripts/dependabot-fragments.sh writes after the merge.
-# General over plugins/*/vendor/ by construction, not a per-plugin list: a
-# future plugin adopting the ADR's intra-plugin shape is covered the moment its
-# vendor/ directory lands. A plugin absent at the base ref is new in this
-# change set; its initial release already carries the vendored source. Whether
-# the bump also writes its changelog entry is changelog-parity-gate's half.
-#
-# "Differs from <base-ref>" means differs from the merge base of <base-ref> and
-# HEAD, so a branch behind its base is judged only on its own changes.
-#
-# Exit: 0 no unbumped vendor change; 1 at least one; 2 usage, a base ref git
-# cannot resolve or with no merge base with HEAD, a failed diff, missing
-# tooling, or a base manifest that exists but cannot be read as a version
-# (failed git show, malformed JSON, no `version` key) — a gate that cannot see must refuse to pass, never report
-# "nothing changed", and never mistake "could not read" for the new-plugin
-# carve-out.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -52,10 +12,6 @@ self="$(basename "$0")"
 # shellcheck source=lib/changelog-fragments.sh
 . "$SCRIPT_DIR/lib/changelog-fragments.sh" || exit 2
 
-# jq is how every manifest version is read below; without it the per-plugin
-# reads all come back empty, which the loop would misread as "new plugin,
-# exempt" for every plugin — a full-open gate. Assert it up front so absent
-# tooling is its own loud exit, distinct from "nothing changed".
 if ! jq --version >/dev/null 2>&1; then
   echo "$self: jq is required to read manifest versions; refusing to pass without it" >&2
   exit 2
@@ -74,29 +30,6 @@ if ! mb="$(git merge-base "$base" HEAD)"; then
   exit 2
 fi
 
-# One diff over the whole plugins/ tree, filtered structurally in the loop: a
-# git pathspec glob ('plugins/*/vendor/') matches `*` across slashes, so it
-# could not also hand back the plugin name the manifest lookup needs. The walk
-# itself is the shared resolver's, not a hand-rolled pipeline, and each of its
-# arguments is load-bearing:
-#
-#   --include-deleted — a deletion is a source change installed consumers must
-#   receive, so the scanner default of dropping deleted paths is wrong here.
-#
-#   --no-renames — under rename detection (on by default for `git diff`), a
-#   file moved plugins/a/vendor/ -> plugins/b/vendor/ collapses to one R100
-#   record whose --name-only line is the DESTINATION only, so plugin a's
-#   vendor deletion — a source change a's installed consumers must receive —
-#   would never reach the loop and bumping b alone would pass. Disabling
-#   detection reports the move as a delete plus an add, one path per side, and
-#   both plugins get checked.
-#
-# The resolver also carries the fail-closed mechanics: a failed git diff (or
-# a failure staging/sorting its output) is its own non-zero return rather
-# than an empty list that reads as "nothing changed", and paths arrive
-# NUL-delimited so a name git would C-quote under the default core.quotePath
-# (non-ASCII bytes, a literal quote) reaches the structural filter verbatim
-# instead of wrapped in quotes that match no pattern.
 changed_paths=()
 if ! changed_files::into changed_paths "$mb" --include-deleted --no-renames -- plugins/; then
   echo "$self: git diff failed against $base (or staging its output did); refusing to pass on a change set this gate could not read" >&2
@@ -110,11 +43,6 @@ for path in ${changed_paths[@]+"${changed_paths[@]}"}; do
   plugins/*/vendor/*)
     name="${path#plugins/}"
     name="${name%%/*}"
-    # Two shapes install with the plugin and so oblige a bump: the plugin-root
-    # vendor/ (ADR 0019) and a skill-level vendor/ (plugins/<name>/skills/<s>/
-    # vendor/, exactly one skill segment). The case glob's `*` crosses slashes,
-    # so the exact shapes are confirmed here; a vendor/ nested any deeper is
-    # not claimed.
     skill_rest="${path#"plugins/$name/skills/"}"
     if [[ "$path" != "plugins/$name/vendor/"* ]] &&
       { [[ "$skill_rest" == "$path" ]] || [[ "$skill_rest" != "${skill_rest%%/*}/vendor/"* ]]; }; then
@@ -133,13 +61,6 @@ if [[ ${#changed_plugins[@]} -eq 0 ]]; then
   gate_entry::finish 0
 fi
 
-# Base manifests are staged through a file rather than a command substitution.
-# `$(git show ...)` is not a faithful read: Bash silently DROPS any raw NUL
-# byte from the captured output, so a base manifest corrupted by an embedded
-# NUL -- which is never valid JSON -- reaches jq already repaired, parses
-# clean, and yields a version the gate then trusts. The same read from a file
-# hands jq the bytes git actually stored, so a corrupt base manifest is the
-# exit 2 the header promises rather than a silent version.
 base_manifest_file="$(mktemp)" || {
   echo "$self: mktemp failed; refusing to pass without a place to stage base manifests" >&2
   exit 2
@@ -151,15 +72,6 @@ stale_fragment=0
 dependabot=""
 for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
-  # A plugin absent at the base ref is new in this change set; its initial
-  # release already carries the vendored source. But "absent" must be an
-  # observation, never a fallback: a failed `git show`, a malformed base
-  # manifest, and a version-less one must not collapse into the empty string
-  # this carve-out keys on.
-  # So existence is probed on its own (ls-tree exits 0 with empty output for
-  # a path the base tree lacks, non-zero only when git itself failed), and
-  # once the manifest is known to exist every later step must succeed: a base
-  # version this gate cannot read is not a bump exemption.
   if ! base_manifest_entry="$(git ls-tree --name-only "$mb" -- "$manifest")"; then
     echo "$self: git ls-tree failed reading $base; refusing to pass on a base this gate could not read" >&2
     exit 2

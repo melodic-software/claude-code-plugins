@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 9, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "After a resolution, work charts the sharpened fog as a typed item and deletes its bullet, closes the mooted item as not planned with a link to the resolution and no index line, and leaves the wrong closed decision alone while a new item linking it revisits it and its index line is rewritten once that resolves (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

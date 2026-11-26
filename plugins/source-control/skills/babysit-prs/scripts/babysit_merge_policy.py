@@ -4554,6 +4554,25 @@ def _compare(owner: str, name: str, spec: str) -> Any:
     return answer
 
 
+def _whole_commits(owner: str, name: str, spec: str, compare: Any) -> Any:
+    """The unpaged `compare` of `spec`, or, when its commit list stops short of
+    total_commits (it lists at most 250), the compare with every commit read in
+    pages of 100, ending at a short page; PolicyReadError when a page does not
+    read (merge-holds.mjs `wholeCommits`)."""
+    answer = json_object(compare)
+    listed, total = answer.get("commits"), answer.get("total_commits")
+    if not is_json_array(listed) or type(total) is not int or len(listed) >= total:
+        return compare
+    whole = json_object(_compare(owner, name, f"{spec}?per_page=100&page=1"))
+    commits = list(json_array(whole.get("commits")))
+    page = 2
+    while len(commits) < total and len(commits) == (page - 1) * 100:
+        more = json_object(_compare(owner, name, f"{spec}?per_page=100&page={page}"))
+        commits.extend(json_array(more.get("commits")))
+        page += 1
+    return whole | {"commits": commits}
+
+
 def _cap_diffs(
     owner: str, name: str, specs: Sequence[str], compares: Sequence[Any]
 ) -> list[str] | None:
@@ -4788,8 +4807,12 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
     if decided == sha:
         return True
     compare = partial(_compare, owner, name)
+
+    def whole(spec: str) -> Any:
+        return _whole_commits(owner, name, spec, compare(spec))
+
     try:
-        then, now = compare(f"{tip}...{decided}"), compare(f"{tip}...{sha}")
+        then, now = whole(f"{tip}...{decided}"), whole(f"{tip}...{sha}")
         diffs = _cap_diffs(owner, name, [f"{tip}...{decided}", f"{tip}...{sha}"], [then, now])
         in_base = base_parents(compare, tip, then, now)
     except PolicyReadError:

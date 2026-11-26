@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 22, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A research item runs /discovery:research at its light level with no verifier, files the findings and sidecars in the item's folder on a newly created dossier branch, and posts a resolution comment with the pick, costs, alternatives, what was not verified and a link to the findings (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

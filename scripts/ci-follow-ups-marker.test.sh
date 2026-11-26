@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Require the advisory marker on each Follow-ups bullet` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e).
-#
-# AGENTS.md ("Review advisories while issue filing is paused"): every bullet
-# under a pull request body's `## Follow-ups` heading starts with
-# `Pre-existing (advisory):`, the marker the paused-filing sweep finds entries
-# by. A follow-up that is not a review advisory goes under another heading or
-# into a filed issue. The step reports and exits 0 unless its
-# FAIL_ON_UNMARKED_FOLLOW_UPS switch is 'true'.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -96,7 +86,6 @@ expect "a bullet under a ### heading inside Follow-ups is still checked" 0 "## F
 expect "a heading with trailing blanks still opens the section" 0 "## Follow-ups  "$'\t'"
 - x" "line 2"
 expect "CRLF line endings are read as LF" 0 $'Closes #1\r\n\r\n## Follow-ups\r\n\r\n- x\r\n' "line 5"
-# CommonMark: up to three leading spaces is still a top-level item.
 expect "a top-level bullet indented two spaces is reported" 0 "## Follow-ups
 
   - Unmarked advisory" "line 3"
@@ -166,7 +155,6 @@ expect "marked bullets pass" 0 "Closes #1
 - $MARK two ADRs share number 0025.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)" "" "::warning::"
-# The shape publish-feedback.mjs followUpBullet writes.
 expect "the address-feedback lane's bullet passes" 0 "## Follow-ups
 
 - $MARK \`finding 100\` ([thread](https://github.com/o/r/pull/1#discussion_r1))" "" "::warning::"

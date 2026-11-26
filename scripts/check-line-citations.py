@@ -48,8 +48,8 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-# `from __future__ import annotations` needs 3.7; the .test.sh wrapper parses
-# this tuple to pick an interpreter.
+# `from __future__ import annotations` needs Python 3.7:
+# https://docs.python.org/3/library/__future__.html
 MIN_PYTHON = (3, 7)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -61,7 +61,6 @@ CITATION = re.compile(
     r"(?![\w.:/-]*\w)"
 )
 
-# A fence may sit inside a block quote (`> ````) or open a list item (`- ````).
 FENCE = re.compile(r"^(?:\s*>)*\s*(?:(?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
 
 RECORD_PREFIXES = ("docs/adr/", "docs/upstream/", ".changes/")

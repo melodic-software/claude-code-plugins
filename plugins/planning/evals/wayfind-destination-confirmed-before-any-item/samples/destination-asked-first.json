@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "Destination: a PRD for partner-API v2. Is that right? Nothing is created until you confirm.",
-      "why": "meets the rule"
+      "why": "names and asks"
+    },
+    {
+      "answer": "Labels: `/work-items:track wayfind-labels` gave `wayfind:` (default). Open maps: none.\n\n**What does finishing this map produce?** Recommended destination: a PRD for the partner-API v2 effort. Please confirm or change it.",
+      "why": "lookups first, then the destination question"
+    },
+    {
+      "answer": "Please confirm the destination before I propose the map: a PRD for partner-API v2.",
+      "why": "confirm before destination"
+    },
+    {
+      "answer": "Destination: a PRD for partner-API v2. Confirm it, and nothing is created until you do.",
+      "why": "confirm request, created only in a negated clause"
     }
   ],
   "fail": [
     {
       "answer": "Created the map with items for auth, rate limits and versioning.",
-      "why": "breaks the rule"
+      "why": "no destination question"
+    },
+    {
+      "answer": "/work-items:track add --label 'wayfind: map' --body-file map-body.md \"Map: Partner-API v2\"\nDestination: a PRD. Confirm?",
+      "why": "creates the map before asking"
+    },
+    {
+      "answer": "Proposed map: decision items for auth scheme, rate-limit model and versioning policy; Not-yet-specified: **Partner tiers**.",
+      "why": "never asks about the destination"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I created the map and three decision items: auth scheme, rate-limit model, versioning policy. Destination: a PRD. Any questions?",
+      "why": "wrong: creates in prose, then asks about the destination"
     }
   ]
 }

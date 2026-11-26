@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Tests for media.py, black-box with a stubbed `gh` on PATH that keeps one pull
-# request's body, head, labels and comments in files.
-#
-# Expected text comes from the reviewer-section contract in ../reference/media.md
-# (markers, heading, first line, stale line, placement before `## Summary`) and
-# from `gh pr edit --attach` as gh documents it: a body reference to an attached
-# image has its path swapped for the asset URL, a video reference alone in a
-# paragraph becomes the bare URL, and a failed upload leaves the body unwritten.
 # test-scope: plugins/source-control/skills/pull-request/scripts/media.py plugins/source-control/tools/reviewer-media/lib/* plugins/source-control/skills/pull-request/scripts/fixtures/body-with-reviewer-media.md plugins/source-control/tools/reviewer-media/vendor/gitleaks/*
 
 set -uo pipefail
@@ -138,8 +130,6 @@ esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
-# record-edit <state> <login>: the body's edit history gains the current body as
-# an edit by <login>, as GitHub's userContentEdits holds each revision in `diff`.
 cat >"$STUB_DIR/record-edit" <<'STUB_EOF'
 n=$(($(wc -l <"$1/edits.jsonl") + 1))
 jq -cn --rawfile body "$1/body" --arg who "$2" --arg id "E$n" \
@@ -453,7 +443,6 @@ media post 7 --manifest "$M5/manifest.json" --run-id run-1
 assert_exit "two screenshots sharing one sidecar exit 6" 6 "$RC"
 assert_silent "a shared sidecar uploads nothing" "$(cat "$S/attached")"
 
-# A secret beside the image under the old <image>.txt name is not the sidecar the entry names.
 printf 'api key %s' "$TOKEN" >"$M5/shot.png.txt"
 shots "[$(shot_entry "$M5" shot.png frames/shot.txt)]"
 reset "$TEST_TMPDIR/claimed.md" "$HEAD1"
@@ -652,7 +641,6 @@ assert_contains "fail on broken markers still adds the failure label" "$(cat "$S
 assert_eq "fail on broken markers still posts the failure comment" "1" \
   "$(find "$S/comments" -type f | wc -l | tr -d ' ')"
 
-# An installation token or GITHUB_TOKEN gets 403 from GET /user.
 NO_USER_DIR="$TEST_TMPDIR/stubs-no-user"
 mkdir -p "$NO_USER_DIR"
 cat >"$NO_USER_DIR/gh" <<'STUB_EOF'

@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 3, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Chart proposes a five-section map with the strangler question as a typed item, transactions as fog and the database split out of scope, then waits for the yes and names /planning:wayfind work as next (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

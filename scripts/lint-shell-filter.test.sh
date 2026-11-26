@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Pins what the `lint_shell` filter group of .github/workflows/pr-require-checks.yml
-# matches: a change to any input of a `lint-shell` gate starts the lane, and a
-# change no gate reads does not. The detect-changes action matches each pattern
-# as a root-anchored gitignore rule, so `git check-ignore --no-index` against
-# the group, written as a .gitignore, answers the same question.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 

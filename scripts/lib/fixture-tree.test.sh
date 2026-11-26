@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/lib/fixture-tree.sh.
-#
-# The properties under test are the ones the hand-rolled per-suite copies
-# disagreed on, so each is asserted against the BUILT TREE rather than against
-# the builder's source text: the root is outside the checkout, a copied script
-# resolves its own SCRIPT_DIR to the fixture's scripts/, a sibling lib that
-# script sources resolves there too, a --git repo carries all four identity
-# settings, the inherited git environment is cleared for all seven variables,
-# the cleanup trap removes the tree on every exit path, and it composes with a
-# trap the suite had already installed.
-#
-# This suite installs no EXIT trap of its own: the builder's trap is what
-# removes the roots it makes, and a trap set here would replace it.
-#
-# fixture-isolation-scope: exports GIT_DIR, GIT_WORK_TREE and GIT_CONFIG into a
-# child on purpose, to prove the builder clears what it inherits.
 # test-scope: scripts/lib/*
 set -uo pipefail
 
@@ -22,13 +6,12 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SELF_DIR/fixture-tree.sh"
 REPO_ROOT="$(cd "$SELF_DIR/../.." && pwd -P)"
 
+# fixture-isolation-scope: exports GIT_DIR, GIT_WORK_TREE and GIT_CONFIG into a child on purpose
 # shellcheck source=test-harness.sh
 . "$SELF_DIR/test-harness.sh"
 # shellcheck source=fixture-tree.sh
 . "$LIB"
 
-# A child suite that sources the builder and reports on the tree it got. Run in
-# its own process so an EXIT trap can be observed firing.
 run_child() {
   local body="$1"
   shift
@@ -43,8 +26,6 @@ child_value() {
   printf '%s' "${v%%$'\n'*}"
 }
 
-# fixture_tree::build assigns through a nameref, which shellcheck cannot follow;
-# declaring each out-var here is what tells it (SC2154) the name is written.
 root_outside="" root_plugins="" probe_home="" root_sut="" root_nolib="" root_closure="" root_alllib=""
 root_git="" poison_root=""
 
@@ -181,7 +162,6 @@ else
   fail "unknown option should return 2, got $rc"
 fi
 
-# --- --git writes the FULL throwaway identity ------------------------------
 fixture_tree::build root_git --git
 identity_ok=1
 for pair in "user.email=t@t.test" "user.name=test" "commit.gpgsign=false" "core.autocrlf=false"; do
@@ -202,10 +182,6 @@ else
   fail "--git should leave a repository at $root_git"
 fi
 
-# The identity lands in the FIXTURE, never in the caller's config, even when the
-# caller's environment points every git variable at another repository. This is
-# the incident scripts/check-fixture-git-isolation.sh exists to stop, asserted
-# against the builder rather than against a grep of a suite's source.
 if ! fixture_tree::build poison_root --git || [[ ! -d "$poison_root/.git" ]]; then
   fail "poison fixture not built; refusing to write its identity: '$poison_root'"
   test_harness::report
@@ -296,10 +272,6 @@ else
   [[ -n "$rb" ]] && rm -rf "$rb"
 fi
 
-# --- composing with a trap the suite already installed ---------------------
-#
-# The prior trap must still run, and it must run BEFORE the tree is removed so
-# a suite's own cleanup can still read out of its fixture.
 out="$(
   run_child "
     trap 'printf \"PRIOR_TRAP_RAN\n\"; if [[ -d \"\${r:-}\" ]]; then printf \"TREE_STILL_THERE\n\"; fi' EXIT
@@ -316,8 +288,6 @@ else
   [[ -n "$child_root" ]] && rm -rf "$child_root"
 fi
 
-# A prior trap carrying quotes and a newline survives the round trip through
-# `trap -p`, which is the only reason the recovery below can be a text strip.
 out="$(
   run_child "
     trap 'printf \"A B\n\"

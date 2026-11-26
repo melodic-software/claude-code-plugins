@@ -1,14 +1,20 @@
 {
   "pass": [
-    {
-      "answer": "The failed prototype reverses 'Pick the vendor' (Knock).",
-      "why": "meets the rule"
-    }
+    {"answer": "The failed prototype reverses 'Pick the vendor' (Knock).", "why": "reverses the decision"},
+    {"answer": "This reverses the provisional Knock decision through the supersede sweep.", "why": "reverses Knock"},
+    {"answer": "[Pick the vendor](https://example.com/acme/shop/issues/502) will be superseded once the new item resolves.", "why": "superseded"},
+    {"answer": "The fail **invalidates** #502's Knock pick.", "why": "invalidates"},
+    {"answer": "Since Knock can't send email and in-app from one call, the Pick the vendor decision is reversed.", "why": "reason in the negative, then the reversal"},
+    {"answer": "Knock no longer holds, so the new item supersedes Pick the vendor (#502).", "why": "no in the reason, then supersedes"}
   ],
   "fail": [
-    {
-      "answer": "Knock stays the vendor; we'll add a second call.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Knock stays the vendor; we'll add a second call.", "why": "Knock stands"},
+    {"answer": "This does not reverse Knock; a second call is acceptable.", "why": "negated reversal"},
+    {"answer": "Resolution comment on #504: failed.", "why": "no word on the decision"},
+    {"answer": "Resolution comment on #504: failed, in-app needs a second call. No need to reverse the Knock decision: a second call is an acceptable cost, so Pick the vendor stands.", "why": "wrong: keeps Knock, mentions reversal only to decline it"},
+    {"answer": "Knock doesn't need reversing: a second call is an acceptable cost.", "why": "wrong: declines the reversal"},
+    {"answer": "Knock doesn't have to be reversed.", "why": "wrong: declines the reversal"},
+    {"answer": "There's nothing to reverse: Knock stands.", "why": "wrong: Knock stands"}
   ]
 }

@@ -1,27 +1,4 @@
 #!/usr/bin/env bash
-# check-gate-lines.sh — Refuse a PR body rewrite that changes a line a gate reads.
-#
-# A body refresh (reference/monitor.md §3.3.2 step 5) rewrites only stale
-# sections. This compares the lines merge, ready and linkage checks read in the
-# current body and the proposed one, as a multiset, so a line changed, added,
-# removed or repeated fails. Gate lines, any case, after optional blanks or a
-# quote marker where a reader allows one:
-#   - `Hold:` and `Draft:` lines, and any "do not merge" / "don't merge" text
-#     (check-ready-holds.sh; merge-holds.mjs BODY_HOLD)
-#   - a closing keyword with an issue reference, and `Refs:`, `Relates to:` and
-#     `No linked issue` / `No related issue` lines (hooks/pr-linkage-validator.sh),
-#     or with a full issue URL (.github/scripts/maintenance-tidy-code-upkeep/batch.mjs
-#     CLOSING)
-#   - hold wording split across lines, one `hold wording across lines:` entry
-#     per match: the hold readers test the whole body, where the space between
-#     the words may be a line break (merge-holds.mjs BODY_HOLD, check-ready-holds.sh)
-#   - `Siblings:` (siblings-line.sh) and `Merge-Risk:` lines
-#   - every line of the `## Follow-ups` section, heading included
-#     (publish-feedback's entries)
-#
-# Usage:
-#   check-gate-lines.sh <current-body-file> <proposed-body-file>
-#
 # Exit codes:
 #   0  the gate lines match: the edit may post
 #   1  they differ: one `removed: <line>` or `added: <line>` per difference on stdout

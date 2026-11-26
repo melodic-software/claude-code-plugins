@@ -30,8 +30,6 @@ from guarded_mutation import (
 from babysit_util import configure_stdio, is_json_object
 
 RERUN_ID_PATTERN = re.compile(f"[0-9a-f]{{{RERUN_ID_LENGTH}}}")
-# Distinct from 2 (argument and every other refusal) so a caller can tell the
-# flake cap firing from a refusal it should fix and retry.
 EXIT_FLAKE_CAP = 4
 
 

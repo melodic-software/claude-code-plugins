@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# Turn pending changelog fragments into plugin releases (ADR 0048).
-#
-#   scripts/release-plugins.sh [--date YYYY-MM-DD]
-#
-# For each plugin with fragments under .changes/<plugin>/:
-#   1. the new version is plugin.json's version raised once at the highest
-#      `bump` among the fragments; a plugin whose fragments are all `none` gets
-#      no new version and no CHANGELOG entry;
-#   2. one `## [<new>] - <date>` entry goes above the newest version heading of
-#      plugins/<plugin>/CHANGELOG.md, merging the fragments' bodies section by
-#      section (Keep a Changelog order) in the order the fragments were
-#      committed, keeping only the first of identical bullet blocks (the `- `
-#      line with its indented lines) within one section;
-#   3. `version` changes in plugin.json only;
-#   4. every fragment of the plugin, `none` included, is deleted.
-# A listed convention (scripts/lib/changelog-fragments.sh) has no plugin.json:
-# its version is the newest heading of docs/contracts/<name>/CHANGELOG.md or
-# docs/conventions/<name>/CHANGELOG.md at HEAD, and step 3 does not apply.
-# Prints one line per plugin. Every new changelog and manifest is produced in a
-# temporary directory first, and the tree changes only once all of them exist.
-# A changelog that already carries the version about to be written (a run cut
-# short) is refused. <date> defaults to today in UTC.
-#
-# Fragment order comes from `git log`, so the release job needs the history of
-# .changes/ and refuses a shallow clone; an uncommitted fragment sorts after
-# every committed one.
-#
-# A plugin with an invalid fragment is skipped and reported on stderr, its
-# fragments left in place; the other plugins still release.
-#
-# Exit: 0 released (or nothing valid pending), 2 usage, an unreadable fragment
-# list, or a manifest or changelog this script cannot update.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -215,8 +183,6 @@ for name in "${plugins[@]}"; do
       }
     ' >"$stage/$name.entry" || exit 2
 
-  # The entry is read from a file, not passed with -v, which would expand the
-  # backslash escapes a release note can carry.
   if ! awk -v ef="$stage/$name.entry" '
     BEGIN { while ((getline line < ef) > 0) entry = entry line "\n" }
     !done && /^##[ \t]+\[?[0-9]+\.[0-9]+/ { printf "%s\n", entry; done = 1 }
