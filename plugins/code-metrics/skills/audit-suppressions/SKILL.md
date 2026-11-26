@@ -60,7 +60,7 @@ script. Each repository's `suppressions.correctness_rules` marks its own rows, a
 run writes one findings file per repository, under that repository's memory root and branch; a
 `--memory-dir` given with a target form must be relative, and is read from each root.
 
-Present the markdown report as printed: the scope, the counts, the correctness list with the layer
+Present the markdown report as printed, whole, with your notes after it: the scope, the counts, the correctness list with the layer
 that set it, then one row per suppression (correctness rules first, then lines without a reason),
 capped at 200 rows with the kept document named for the rest, then a `Not read` line naming each
 text file in scope whose language the scanner has no kind for. The `--json` document
@@ -126,6 +126,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py" --count
 `/toolchain:ratchet` (if enabled) can hold that count as a CI ceiling: it
 vendors a copy of the scanner into the repository and ratchets the `suppressions` or `unjustified`
 field. Without it, keep the `--json` document and compare counts by hand.
+
+When you report the count, quote both lines as printed and the exact command that printed them,
+so the user can run it again as the counter.
 
 The scanner reads no configuration: with no path it scans every tracked and untracked,
 not-ignored file in the repository, and `suppressions.correctness_rules` marks nothing. The caller
