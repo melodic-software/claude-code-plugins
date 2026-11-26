@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "One other session is live: \"fleet-peer-b8ff9e87\", an idle interactive session in /srv/scratch on eval-host.", "why": "names the peer from the list" },
+    { "answer": "- fleet-peer-0a1b2c3d (interactive, idle, started 10m ago)", "why": "list form" }
+  ],
+  "fail": [
+    { "answer": "" },
+    { "answer": "I can't tell which sessions are live without running claude agents --json.", "why": "no peer list reached the model" },
+    { "answer": "There is one peer, fleet-peer-unset.", "why": "the stub saw no session id" },
+    { "answer": "One peer: fleet-peer-<id>.", "why": "a placeholder, not the listed name" }
+  ]
+}
