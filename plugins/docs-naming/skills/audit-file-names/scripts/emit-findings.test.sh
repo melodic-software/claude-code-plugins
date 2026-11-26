@@ -44,10 +44,10 @@ report_rows="$(awk -F'\t' '$1=="REF" && $7=="report"' "$work/sweep.tsv" | grep -
 assert_eq "the fixture has report sites to count" "1" "$([[ "$report_rows" -gt 0 ]] && printf 1 || printf 0)"
 assert_contains "the report-site total counts the report REF rows" "$out" "report sites: $report_rows"
 assert_eq "one report line per report REF row" "$report_rows" "$(printf '%s\n' "$out" | grep -c '^report ' || true)"
-report_want="$(awk -F'\t' '$1=="REF" && $7=="report" {print $3 ":" $4}' "$work/sweep.tsv")"
-report_got="$(printf '%s\n' "$out" | awk '/^report / {print $2}')"
-assert_eq "each report line names its REF row's file and line" "$report_want" "$report_got"
-assert_eq "each report line names a finding in the plan" "$report_rows" "$(printf '%s\n' "$out" | awk '/^report / {print $3}' | while read -r rid; do grep -c "^### $rid " "$work/plan.md"; done | grep -c '^1$' || true)"
+assert_eq "each report line names its site, finding and old path" 'report CHANGELOG.md:7 FN-b1ff5a8e `docs/Alpha-One.md`
+report CHANGELOG.md:7 FN-f073cabd `docs/BETA.md`
+report docs/adr/0001-historical.md:10 FN-f073cabd `docs/BETA.md`' "$(printf '%s\n' "$out" | grep '^report ' | sort)"
+assert_contains "a report line's id is its finding's plan id" "$plan" '### FN-f073cabd `docs/BETA.md`'
 id_line="$(grep -m1 '^finding ' <<<"$out" | awk '{print $2}')"
 assert_eq "the summary is ranked like the plan" "$(grep -m1 '^### FN-' "$work/plan.md" | awk '{print $2}')" "$id_line"
 first_by_tier="$(grep -m1 '^- \*\*By tier:\*\* ' "$work/plan.md" | sed 's/^- \*\*By tier:\*\* //')"

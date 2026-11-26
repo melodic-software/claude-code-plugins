@@ -159,8 +159,8 @@ made being asked again.
 Say the count of `report` sites plainly, as the `total` line's `report sites`
 figure, then list each report site from the emitter's `report` lines. A
 maintainer who expected a frozen tier to change needs to see that it did not.
-The report-site total spans every file those lines name: never attach it to one
-file.
+The report-site total spans every file those lines name: credit each file only
+with the sites its own lines show.
 
 Quote every count from the emitter's `finding` and `total` lines as printed:
 each site count, tier breakdown and the report-site total. A count you tally
