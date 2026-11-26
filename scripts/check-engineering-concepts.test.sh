@@ -110,7 +110,7 @@ expect "index with a non-semver contract version fails" 1 "semver" --data-dir "$
 expect "index without frontmatter fails" 1 "frontmatter" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/no-frontmatter.md"
 expect "index with other table columns fails" 1 "Surface | Applies when | File" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/bad-header.md"
 expect "index with an extra frontmatter key fails" 1 "only frontmatter key" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/extra-key.md"
-expect "index row with the wrong number of cells fails with its line" 1 "bad-row-cells.md:10: row has 2 cells, want 3" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/bad-row-cells.md"
+expect "index row with the wrong number of cells fails with its line" 1 "bad-row-cells.md:11: row has 2 cells, want 3" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/bad-row-cells.md"
 expect "index with another contract major version fails" 1 "major" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/major-two.md"
 expect "index with a header and no rows passes" 0 "ok" --data-dir "$WORK/empty-data" --index "$FIXTURES/index/no-rows.md"
 
