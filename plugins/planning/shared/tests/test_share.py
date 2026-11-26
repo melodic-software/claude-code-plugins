@@ -21,6 +21,7 @@ import socket
 import stat
 import subprocess
 import sys
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -617,6 +618,66 @@ class TestRestart(Running):
         _, _, snap = call(self.guest_port(), "GET", "/api/state", headers=a)
         self.assertEqual(sorted(p["name"] for p in snap["people"]), ["Ann", "Bo", "Host"])
         self.assertEqual(sorted(c["text"] for c in snap["cards"]["Q1"] if c["kind"] == "person"), ["Card", "Saved method"])
+
+    def _bind_after_stop(self, port, release_after=None):
+        """Return a stop_server wrapper that holds `port` open once the old server stops."""
+        real = share_cli.stop_server
+        held = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if not WINDOWS:
+            held.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.addCleanup(held.close)
+        timers = []
+
+        def cancel_timers():
+            for t in timers:
+                t.cancel()
+                t.join(timeout=2)
+
+        self.addCleanup(cancel_timers)
+
+        def wrapped(d, s):
+            ok = real(d, s)
+            self.assertTrue(wait_for(lambda: share_cli.bridge.port_free(port), seconds=2.0, step=0.02))
+            held.bind(("127.0.0.1", port))
+            held.listen()
+            if release_after is not None:
+                t = threading.Timer(release_after, held.close)
+                timers.append(t)
+                t.start()
+            return ok
+
+        return wrapped, held
+
+    def test_restart_waits_for_a_busy_port_to_clear(self):
+        old, guest = self.session_record(), self.guest_port()
+        control = old["port"]
+        wrapped, held = self._bind_after_stop(guest, release_after=0.25)
+        a = share_cli.parser().parse_args(["--dir", str(self.d), "restart"])
+        with mock.patch.dict(os.environ, env()), mock.patch.object(share_cli, "stop_server", side_effect=wrapped):
+            out = share_cli.cmd_restart(self.d.resolve(), a)
+        self.assertEqual(held.fileno(), -1)
+        self.assertEqual((out["restarted"], out["localUrl"]), (True, f"http://127.0.0.1:{guest}/"))
+        now = self.session_record()
+        self.assertNotEqual(now["pid"], old["pid"])
+        self.assertEqual((self.guest_port(), now["port"]), (guest, control))
+        self.assertEqual(call(guest, "GET", "/api/state")[0], 200)
+
+    def test_restart_refuses_when_a_port_stays_busy_past_the_timeout(self):
+        guest = self.guest_port()
+        wrapped, _ = self._bind_after_stop(guest)
+        a = share_cli.parser().parse_args(["--dir", str(self.d), "restart"])
+        with (
+            mock.patch.dict(os.environ, env()),
+            mock.patch.object(share_cli, "PORT_FREE_SECONDS", 0.2),
+            mock.patch.object(share_cli, "stop_server", side_effect=wrapped),
+            mock.patch.object(share_cli, "start_server", wraps=share_cli.start_server) as start,
+        ):
+            with self.assertRaises(share_cli.Refused) as ctx:
+                share_cli.cmd_restart(self.d.resolve(), a)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn(str(guest), ctx.exception.message)
+        start.assert_not_called()
+        self.assertIsNone(share_cli.live(self.d.resolve()))
 
 
 class TestRestartFromE27acc5(ShareCase):
