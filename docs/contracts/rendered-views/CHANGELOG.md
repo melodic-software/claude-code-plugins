@@ -3,6 +3,17 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## A page may embed a logo and brand fonts, 2026-11-26
+
+- **The builder's policy gains `img-src data:` and `font-src data:`.** Interactive rule 3 states the
+  builder's exact policy string, which now carries both directives and no other new source.
+- **The validator admits a `data:` URL in two positions.** The report profile, and with it the
+  interactive profile, admits a base64 PNG or JPEG as the `.rv-logo` rule's one `background-image`
+  (the logo slot, at the top level or inside `@media`, `@supports` or `@layer`) and a base64
+  WOFF2, WOFF, TTF or OTF font inside `@font-face`, both judged with CSS comments removed. Every other
+  `url(`, scheme and URL-bearing attribute stays refused. This is the policy change ADR 0133
+  records.
+
 ## A consumer may brand rendered pages, 2026-11-25
 
 - **Palette, type and logo become consumer overrides.** The shared chrome section drops "no team or
