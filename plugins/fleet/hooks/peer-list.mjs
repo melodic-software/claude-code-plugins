@@ -48,7 +48,16 @@ export function timeoutSeconds(raw) {
   return Number.isFinite(n) && n >= 0 && n <= 10 ? n : DEFAULT_TIMEOUT_SECONDS
 }
 
-const ownKind = (ctx) => (ctx.platform === 'win32' ? 'windows' : ctx.env.WSL_DISTRO_NAME ? 'wsl' : ctx.platform === 'darwin' ? 'macos' : 'linux')
+/** An ssh login into WSL carries no WSL_DISTRO_NAME; the kernel release still names Microsoft. */
+const wslKernel = (ctx) => {
+  try {
+    return /microsoft/i.test(ctx.readFile('/proc/sys/kernel/osrelease'))
+  } catch {
+    return false
+  }
+}
+const ownKind = (ctx) =>
+  ctx.platform === 'win32' ? 'windows' : ctx.platform === 'darwin' ? 'macos' : ctx.env.WSL_DISTRO_NAME || wslKernel(ctx) ? 'wsl' : 'linux'
 
 /** The drive-letter form fits only a Windows lane the reader runs itself; every other lane takes the `/` form. */
 const pathFits = (lane) =>

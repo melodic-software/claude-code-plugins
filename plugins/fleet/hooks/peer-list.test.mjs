@@ -267,6 +267,9 @@ test('ssh option list', () => {
   assert.deepEqual(cmd, { file: '/mnt/c/Windows/System32/OpenSSH/ssh.exe', args: [...SSH_OPTIONS, 'host-a-wsl', '/opt/claude/bin/claude-windows', 'agents', '--json'], cwd: HOME })
   assert.ok(buildCommand(lane, makeCtx({ timeout: '7' })).args.includes('ConnectTimeout=7'))
   assert.equal(buildCommand(lane, makeCtx({ env: { WSL_DISTRO_NAME: '' } })).file, '/usr/bin/ssh', 'plain Linux')
+  const sshLogin = { env: { WSL_DISTRO_NAME: '' }, readFile: (p) => (p === '/proc/sys/kernel/osrelease' ? '6.18.33.2-microsoft-standard-WSL2\n' : '') }
+  assert.equal(buildCommand(lane, makeCtx(sshLogin)).file, '/mnt/c/Windows/System32/OpenSSH/ssh.exe', 'ssh login into WSL')
+  assert.equal(pickLanes(readManifest(contractExample), makeCtx(sshLogin))[0].kind, 'wsl', 'ssh login into WSL finds its own lane')
   assert.equal(buildCommand(lane, makeCtx({ platform: 'darwin', env: { WSL_DISTRO_NAME: '' } })).file, '/usr/bin/ssh', 'macOS')
   const win = buildCommand(lane, makeCtx({ platform: 'win32', env: { SystemRoot: 'C:\\Windows' } }))
   assert.equal(win.file, 'C:\\Windows\\System32\\OpenSSH\\ssh.exe')
