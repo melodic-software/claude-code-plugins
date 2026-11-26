@@ -1,12 +1,20 @@
 {
   "pass": [
     {
-      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n──────────────────────────────────────────────────────────\nThe import queue is shown empty in this conversation and notes/status.md holds a results line, or `date -u +%Y-%m-%dT%H:%MZ` shows 2099-12-01T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n──────────────────────────────────────────────────────────\nThe import queue is shown empty in this conversation and notes/status.md holds a results line, or `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
       "why": "terminal rails region, full date-time used as an OR end"
     },
     {
-      "answer": "Type `/goal ` (with a trailing space), then paste this. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n```text\nThe queue is empty and a results line is in notes/status.md, shown in this session, or date -u shows 2099-12-01T06:00Z or later.\n```\n",
-      "why": "markdown fenced region"
+      "answer": "Type `/goal ` (with a trailing space), then paste this. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n```text\nThe queue is empty and a results line with a date -u timestamp is in notes/status.md, shown in this session, or date -u shows 2031-03-09T06:00Z or later.\n```\n",
+      "why": "markdown fenced region, any resolved date"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines. Confirm the `◎ /goal active` indicator appears after you send it; if it is missing, redo it:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown by the queue command's output in this conversation, and a results line with a `date -u +%Y-%m-%dT%H:%MZ` timestamp is appended to notes/status.md and shown with `tail -n 3 notes/status.md`. Alternatively, stop when `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:30Z or later, after appending the same results line with the remaining count.\n──────────────────────────────────────────────────────────\n",
+      "why": "'Alternatively' branch with a buffer time before the user's 06:00Z"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty: `<QUEUE_CMD>` shows 0 pending items in this conversation, then one results line beginning with the output of `date -u +%Y-%m-%dT%H:%MZ` is appended to notes/status.md and shown. OR `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:00Z or later and that same results line has been appended and shown.\n──────────────────────────────────────────────────────────\n",
+      "why": "uppercase OR branch, one-hour buffer"
     }
   ],
   "fail": [
@@ -15,8 +23,12 @@
       "why": "empty"
     },
     {
-      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line timestamped before 2099-12-01T06:00Z.\n──────────────────────────────────────────────────────────\n",
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line timestamped before 2026-11-27T06:00Z.\n──────────────────────────────────────────────────────────\n",
       "why": "keeps the deadline an element must beat"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe queue is empty; then append a results line beginning with a UTC timestamp from `date -u` that is earlier than 2026-11-27T06:00Z, or date -u shows 2026-11-27T06:00Z or later.\n──────────────────────────────────────────────────────────\n",
+      "why": "adds the OR end but still requires a timestamp earlier than the time"
     },
     {
       "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty and notes/status.md holds a results line, or `date -u` shows 06:00Z or later.\n──────────────────────────────────────────────────────────\n",
