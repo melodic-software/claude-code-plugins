@@ -15,10 +15,7 @@ mkdir -p "$R/plugins/p/skills/s" "$R/docs/upstream" "$R/docs/x" "$R/plugins/p/sk
 git -C "$R" init -q
 printf 'Run workers on opus at medium effort.\n' >"$R/plugins/p/skills/s/SKILL.md"
 printf -- '---\nmodel: sonnet\n---\n' >"$R/plugins/q/agent.md"
-# A path with a quote tests the JSON escape; Windows paths cannot hold one, so the
-# fixture and its assertion run only where the file system accepts the name.
 QUOTE_PATH=0
-# Git Bash maps the quote to another character instead of failing, so test the platform.
 case "$(uname -s)" in
 MINGW* | MSYS* | CYGWIN*) printf 'The Workflow tool caps concurrency.\n' >"$R/docs/x/a_q.md" ;;
 *)
@@ -35,8 +32,6 @@ printf 'Use opus.\n' >"$R/.changes/p/fragment.md"
 printf 'Use opus.\n' >"$R/plugins/p/skills/s/evals/case.md"
 printf 'Use opus.\n' >"$R/untracked.md"
 printf 'Use opus.\n' >"$T/outside.md"
-# Plain ln -s copies the file on Windows, so there is no symlink to leave out;
-# Linux CI covers the symlink guard.
 IS_WINDOWS=0
 case "$(uname -s)" in
 MINGW* | MSYS* | CYGWIN*) IS_WINDOWS=1 ;;

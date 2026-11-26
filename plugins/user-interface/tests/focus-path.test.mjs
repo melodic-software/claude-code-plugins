@@ -36,10 +36,6 @@ test("the card with Back first in the markup flags nothing", () => {
   assert.deepEqual(focusPath(fixedCard), { order: ["Name", "Email", "Back", "Continue"], issues: [] });
 });
 
-// Expected order from the HTML tabindex rules (MDN tabindex; HTML "The tabindex attribute"): a
-// negative value is left out of sequential navigation; positive values come first, lowest number
-// first, equal numbers in document order; zero comes after them, in document order. Here:
-// c (1), b (2, dom 1), e (2, dom 4), then a and f (0); d (-1) is left out.
 test("positive tabindex values come first by number, then zero in document order", () => {
   const row = (name, tabIndex, domIndex) => ({ name, tabIndex, domIndex, rect: box(domIndex * 100, 0, 80, 36) });
   const { order } = focusPath([row("a", 0, 0), row("b", 2, 1), row("c", 1, 2), row("d", -1, 3), row("e", 2, 4), row("f", 0, 5)]);

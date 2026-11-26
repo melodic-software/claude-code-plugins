@@ -1,34 +1,7 @@
 #!/usr/bin/env bash
-# Can git's untracked cache work on the volume this repository lives on?
-#
-# `git update-index --test-untracked-cache` checks that the file system updates
-# a directory's mtime when an entry inside it changes, which the untracked cache
-# relies on. It tests the directory it runs in and needs a repository there, so
-# this runs it inside a fresh repository it creates under a scratch root, never
-# in the caller's repository: the caller's index and working tree are not
-# touched. The answer only says something about the caller's repository when
-# the scratch dir is on the same volume, so a scratch root on another volume is
-# refused before anything is created.
-#
-# Run it from inside the repository's working tree.
-#
-# Usage:
-#   untracked-cache-probe.sh [--scratch-root <dir>]
-#
-#   --scratch-root <dir>   Where the scratch dir is created. Default: $TMPDIR,
-#                          else /tmp. Never `/` or a drive root.
-#
-# Output, one key=value per line:
-#   volume=<repository volume>  scratch_volume=<scratch root volume>
-#   result=supported|unsupported|not-checked
-#   reason_code=no-data|refused-by-guard and reason=<text>, when not-checked
-#   detail=<git's own message>, when git ran
-#
 # Exit: 0 supported; 1 unsupported; 2 not checked (nothing measured).
 set -uo pipefail
 
-# A caller's git environment would point the scratch commands at a real
-# repository; discover everything from the working directory instead.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY
 
 PREFIX="untracked-cache-probe."
@@ -95,7 +68,6 @@ command -v git >/dev/null 2>&1 || not_checked no-data "git is not on PATH; this 
 REPO="$(git rev-parse --show-toplevel 2>/dev/null)" ||
   not_checked no-data "not inside a git working tree; run /performance:go-faster from inside the repository's working tree"
 
-# Physical paths: git reports C:/ paths where bash uses /c/, and either may be a symlink.
 ROOT_PHYS="$(cd "$ROOT" && pwd -P)"
 REPO_PHYS="$(cd "$REPO" && pwd -P)"
 [[ "$ROOT_PHYS/" != "$REPO_PHYS/"* ]] ||
@@ -118,6 +90,8 @@ fi
 if ! init_out="$(cd "$SCRATCH" && git init -q . 2>&1)"; then
   not_checked no-data "git init in the scratch dir failed: $init_out; this check applies only where git can create a repository in its scratch root"
 fi
+# --test-untracked-cache tests only the working directory it runs in, so it runs in the scratch repository:
+# https://git-scm.com/docs/git-update-index#Documentation/git-update-index.txt---test-untracked-cache
 out="$(cd "$SCRATCH" && git update-index --test-untracked-cache 2>&1)"
 rc=$?
 printf 'detail=%s\n' "$(tr '\n' ' ' <<<"$out" | sed 's/ *$//')"

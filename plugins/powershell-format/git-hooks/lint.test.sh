@@ -190,6 +190,28 @@ expect "a person is told the approval command, under the earlier entry's marker"
 mkdir -p "$marker"
 got="$(check "$REPO")"
 expect "an approved state is analyzed" "1||crp.ps1:1: [Warning] PSAvoidGlobalVars:" "$(first_line "$got")"
+cat >"$REPO/PSScriptAnalyzerSettings.psd1" <<'EOF'
+@{
+    "Custom`RulePath" = './rules/CleanRules.psm1'
+    IncludeDefaultRules = $true
+}
+EOF
+git -C "$REPO" add PSScriptAnalyzerSettings.psd1
+out="$(cd "$REPO" && CLAUDECODE=1 bash "$CHECK" 2>&1)"
+expect "a backtick-escaped CustomRulePath key is still gated" \
+  "0|powershell-format trust gate: linting skipped for files under PSScriptAnalyzerSettings.psd1; it loads repository rule modules and is not approved. Approval is the user's." "$?|$out"
+printf '. "$PSScriptRoot/helper.ps1"\n' >>"$REPO/rules/CleanRules.psm1"
+printf '$null = 1\n' >"$REPO/rules/helper.ps1"
+git -C "$REPO" add rules
+out="$(cd "$REPO" && CLAUDECODE=1 bash "$CHECK" 2>&1)"
+expect "a helper dot-sourced through \$PSScriptRoot is pinned, not refused as unpinnable" \
+  "0|powershell-format trust gate: linting skipped for files under PSScriptAnalyzerSettings.psd1; it loads repository rule modules and is not approved. Approval is the user's." "$?|$out"
+mkdir -p "$(cd "$REPO" && bash "$CHECK" 2>&1 | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+printf '$null = 2\n' >"$REPO/rules/helper.ps1"
+git -C "$REPO" add rules
+out="$(cd "$REPO" && CLAUDECODE=1 bash "$CHECK" 2>&1)"
+expect "an edit to that helper after approval is gated again" \
+  "0|powershell-format trust gate: linting skipped for files under PSScriptAnalyzerSettings.psd1; it loads repository rule modules and is not approved. Approval is the user's." "$?|$out"
 
 new_repo
 expect "--resolve: the repository row names the adapter, its tool and the settings file" \

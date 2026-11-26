@@ -4,8 +4,6 @@
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -76,9 +74,6 @@ else
   fail "probe cases need git and node"
 fi
 
-# The batch row takes no matcher and no `if`: the hooks reference says neither
-# applies to the event, so its launcher flag is the only filter. The script reads
-# the paths itself.
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
   # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
   EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","PYTHON_FORMAT_ENABLED","--skip-unless-stdin-contains",".py","${CLAUDE_PLUGIN_ROOT}/hooks/python-format.sh"]'
@@ -161,8 +156,6 @@ RC=$?
 expect "no config: exit 0 and silent" "0|" "$RC|$OUT"
 expect "no config: file left untouched" "x=1" "$(cat "$REPO_NO/nofmt.py")"
 
-# pyproject.toml WITHOUT [tool.ruff] does not opt in: Ruff ignores it for config
-# discovery, so the gate does too.
 REPO_PP="$WORK/pyproject-plain"
 new_ruff_repo "$REPO_PP" NO_CONFIG
 printf '[project]\nname = "t"\n' >"$REPO_PP/pyproject.toml"
@@ -337,10 +330,7 @@ expect "the record's command never ran" "" "$(cat "$WORK/stub.log")"
 expect "a crafted file name reached Ruff as data" "x = 1" "$(cat "$REPO_REC/$CRAFTED")"
 expect "a crafted file name ran nothing" "no" "$([[ -e "$REPO_REC/pwned" || -e "$UNRELATED/pwned" ]] && echo yes || echo no)"
 
-# PostToolBatch has no matcher, so the row fires on every batch of every session.
-# A batch that never mentions .py costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" python-format PostToolBatch python-format.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/README.md"},"tool_use_id":"toolu_census","tool_response":"# readme"}]}' \

@@ -133,6 +133,7 @@ case "$*" in
 */compare/"${STUB_BASE_REF:-main}..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
 */check-runs/*/annotations*) failing notes; from "$STUB_NOTES" "$(key check-runs "$@")" ;;
+*/contents/.github/workflows\?ref=*) failing listing; args="$*"; ref="${args##*ref=}"; from "${STUB_LISTINGS:-{\}}" "${ref%% *}" ;;
 */pulls/6419*) failing pull; printf '%s\n' "$STUB_PR" ;;
 *graphql*COMMENT_DELETED_EVENT*) failing deleted; printf '%s\n' "$STUB_DELETED" ;;
 *graphql*closingIssuesReferences*) failing closing; printf '%s\n' "$STUB_CLOSING" ;;
@@ -278,7 +279,7 @@ expect() {
   grep -q -- '-X POST repos/o/r/issues/6419/comments' "$TMP_ROOT/log" && posted=yes
   if [[ "$rc" -ne 0 ]]; then
     fail "$label: the step must never fail the job, got rc=$rc out='$out'"
-  elif grep -q '/contents/' "$TMP_ROOT/log"; then
+  elif grep -q '/contents/' < <(grep -v '/contents/.github/workflows?ref=' "$TMP_ROOT/log"); then
     fail "$label: the base config was read through the API: '$(grep '/contents/' "$TMP_ROOT/log")'"
   elif [[ "$cleared" != "$2" || "$deleted" != "$3" || "$posted" != "$4" ]]; then
     fail "$label: cleared=$cleared deleted=$deleted posted=$posted, wanted $2/$3/$4; out='$out'"
@@ -869,6 +870,20 @@ STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {files: [{filename: ".github/work
 expect "a lane run on a head that changes a review-lane workflow clears nothing" no no no "changes a review-lane workflow"
 STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {files: [range(300) | {filename: "f\(.)"}]}}')"
 expect "a lane run on a head whose comparison hits the file cap clears nothing" no no no "changes too many files"
+LISTING="$(jq -c .workflows "$ROOT/.github/scripts/pr-merge/fixtures/contents-listing.json")"
+EDITED="$(jq -c 'map(if .name == "pr-review-hosted.yml" then .sha = ("e" * 40) else . end)' <<<"$LISTING")"
+OTHER="$(jq -c 'map(if .name == "pr-merge.yml" then .sha = ("d" * 40) else . end)' <<<"$LISTING")"
+STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg m "$MAIN_SHA" --argjson tf "$TF" '{($h): {files: ([$tf] + [range(299) | {filename: "f\(.)"}]), merge_base_commit: {sha: $m}}}')"
+STUB_LISTINGS="$(jq -cn --arg h "$HEAD" --arg m "$MAIN_SHA" --argjson a "$LISTING" --argjson b "$OTHER" '{($m): $a, ($h): $b}')"; export STUB_LISTINGS
+expect "a lane run on a 300-file head whose lane workflows match its merge base clears the hold" yes yes yes "$LINK"
+STUB_LISTINGS="$(jq -cn --arg h "$HEAD" --arg m "$MAIN_SHA" --argjson a "$LISTING" --argjson b "$EDITED" '{($m): $a, ($h): $b}')"; export STUB_LISTINGS
+expect "a lane run on a 300-file head that changes a lane workflow since its merge base clears nothing" no no no "changes a review-lane workflow"
+CAPPED="$(jq -c '. + [range(1000 - length) | {name: "w\(.).yml", sha: ("c" * 40)}]' <<<"$LISTING")"
+STUB_LISTINGS="$(jq -cn --arg h "$HEAD" --arg m "$MAIN_SHA" --argjson a "$LISTING" --argjson b "$CAPPED" '{($m): $a, ($h): $b}')"; export STUB_LISTINGS
+expect "a 300-file head whose lane workflows listing is at the 1000-entry cap clears nothing" no no no "changes too many files"
+STUB_LISTINGS="$(jq -cn --arg m "$MAIN_SHA" --argjson a "$LISTING" '{($m): $a}')"; export STUB_LISTINGS
+expect "a 300-file head whose lane workflows cannot be listed clears nothing" no no no "are unreadable"
+unset STUB_LISTINGS
 STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {status: "diverged"}}')"
 expect "a comparison with no file list clears nothing" no no no "changes no file list"
 reset

@@ -3729,6 +3729,33 @@ def lane_change(compare: Any) -> str | None:
     return None
 
 
+# https://docs.github.com/en/rest/repos/contents#get-repository-content
+_DIRECTORY_CAP = 1000
+
+
+def _workflow_shas(owner: str, name: str, ref: str, env: Any) -> dict[str, str] | None:
+    status, entries = _get(f"repos/{owner}/{name}/contents/.github/workflows?ref={ref}", env)
+    if status != 200 or not is_json_array(entries) or len(entries) >= _DIRECTORY_CAP:
+        return None
+    return {str(json_object(e).get("name")): str(json_object(e).get("sha")) for e in entries}
+
+
+def _lane_change_in(owner: str, name: str, compare: Any, head: str, env: Any) -> str | None:
+    """`lane_change` for a compare of any size (merge-holds.mjs `laneChangeIn`)."""
+    why = lane_change(compare)
+    if why != "too many files":
+        return why
+    base = str(json_object(json_object(compare).get("merge_base_commit")).get("sha") or "")
+    if not SHA_RE.fullmatch(base) or not SHA_RE.fullmatch(head):
+        return why
+    ends = [_workflow_shas(owner, name, ref, env) for ref in (base, head)]
+    if ends[0] is None or ends[1] is None:
+        return why
+    if any(ends[0].get(file) != ends[1].get(file) for file, _ in REVIEW_LANES):
+        return "a review-lane workflow"
+    return None
+
+
 def cost_notices(annotations: Any, head: str, at: Any) -> list[tuple[str, Any]]:
     """The cost hold notices among one status job's `annotations`, as (sha,
     at) with `at` the job's completion: only those naming `head`, the head its
@@ -3855,7 +3882,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
                 status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
                 if status != 200:
                     raise PolicyReadError(f"the changes of {head} are unreadable")
-                if lane_change(compare) is not None:
+                if _lane_change_in(owner, name, compare, head, env) is not None:
                     return None
                 vetted.add(head)
             jobs = _paginated(

@@ -21,7 +21,6 @@ process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const LANE = "claude-security-review";
-// github-actions[bot]'s numeric id; GraphQL reports its login without "[bot]".
 const BOT = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
 const PERSON = { __typename: "User", login: "mallory" };
 
@@ -85,8 +84,6 @@ describe("which posts are the lane's own", () => {
   });
 
   test("a footer wrapped in backticks, the form the other lane parsers accept, is the lane's and is stripped", () => {
-    // clear-escalations.mjs LANE_TAG and babysit_review_evidence.py LANE_TAG_RE
-    // read `claude-lane: <lane>` with optional backticks.
     const ticked = `x\n\n\`claude-lane: ${LANE}\``;
     assert.equal(isLanePost({ author: BOT, body: ticked, lastEditedAt: null }, LANE), true);
     assert.equal(isLanePost({ author: BOT, body: "x\n\n`claude-lane: claude-review`", lastEditedAt: null }, LANE), false);
@@ -178,7 +175,6 @@ describe("earlier reviews and blocking only", () => {
   });
 
   test("a reviewed-head summary comment counts its head when it reports a review, clean or not, never a skip", () => {
-    // The status line ci-workflows publish-review/publish.cjs statusLine writes.
     const summary = (sha, findings, author = BOT, read = "2 of 2") => ({
       url: "u",
       lastEditedAt: null,

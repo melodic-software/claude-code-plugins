@@ -259,7 +259,6 @@ export function globMatcher(glob, { nocase = false } = {}) {
   const fold = (s) => (nocase ? s.toLowerCase() : s);
   /** @type {{kind: "lit" | "one" | "seg" | "any" | "dirs", ch?: string}[]} */
   const tokens = [];
-  // Code points, as test() walks the path: a surrogate half never equals a whole character.
   const chars = [...glob];
   for (let i = 0; i < chars.length; i += 1) {
     const c = chars[i];
@@ -345,7 +344,6 @@ export function triggers(facts, blastRadius, config) {
       ? num(facts.additions) + num(facts.deletions)
       : files.reduce((sum, f) => sum + num(f?.additions) + num(f?.deletions), 0);
   const labels = (Array.isArray(facts.labels) ? facts.labels : []).map((l) => (typeof l === "string" ? l : l?.name));
-  // Config paths match in any case: a case-insensitive filesystem reads every variant.
   const patterns = [...CONFIG_PATHS.map((p) => globMatcher(p, { nocase: true })), ...value("risk_paths").map((p) => globMatcher(p))];
 
   const fired = [];

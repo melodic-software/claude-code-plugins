@@ -2,8 +2,6 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    # The adapter and Test-IsElevated are dot-sourced here so Mock can intercept
-    # them; the check script's own imports are not visible in this scope.
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DefenderExclusions' `
         -AsObject 'Invoke-DefenderExclusionsAsObject' `
         -LibScript 'Test-IsElevated.ps1', 'New-FindingItem.ps1', 'New-DefenderExclusionItem.ps1', 'Get-DefenderExclusionState.ps1',

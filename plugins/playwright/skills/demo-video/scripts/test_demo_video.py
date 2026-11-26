@@ -242,8 +242,6 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertEqual(share['status'], 'PASS')
 
     def test_narration_trims_leading_silence_and_fits_the_edit(self):
-        # One /speech:narrate-shaped clip: 0.35 s of leading silence (the Kokoro padding), then 1.0 s of tone;
-        # words.json puts the first word at 0.35 s and the last word's end at 1.30 s.
         audio = self.tmp / 'audio'
         clip = audio / 'get-started'
         clip.mkdir(parents=True)

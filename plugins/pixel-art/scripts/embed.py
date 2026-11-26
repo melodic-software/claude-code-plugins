@@ -23,7 +23,6 @@ def embed(template, out):
         return (template.parent / match.group(1).strip()).resolve()
 
     def load_json(match):
-        # Escape "<" so a string holding "</script>" cannot close the inline script.
         return json.dumps(json.loads(target(match).read_text()), separators=(",", ":")).replace("<", "\\u003c")
 
     def load_wav(match):

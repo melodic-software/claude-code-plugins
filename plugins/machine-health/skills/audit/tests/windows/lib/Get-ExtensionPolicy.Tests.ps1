@@ -37,7 +37,6 @@ Describe 'Get-ExtensionPolicy' -Tag 'lib' {
                 throw [System.Management.Automation.ItemNotFoundException]::new("missing $path")
             }
             $o = [pscustomobject]@{ PSPath = "Microsoft.PowerShell.Core\Registry::$path" }
-            # Registry value names '1', '2' ...: Add-Member refuses numeric names, PSObject does not.
             foreach ($k in $script:Keys[$path].Keys) {
                 $o.PSObject.Properties.Add([psnoteproperty]::new($k, $script:Keys[$path][$k]))
             }

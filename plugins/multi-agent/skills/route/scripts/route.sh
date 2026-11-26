@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Translates the skill's arguments for scripts/resolve-roles.sh and runs it:
-# the first bare argument is the role, the second the workload.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

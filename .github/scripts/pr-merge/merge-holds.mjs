@@ -486,10 +486,10 @@ const COMPARE_FILES_CAP = 300;
 // https://docs.github.com/en/rest/repos/contents#get-repository-content
 const DIRECTORY_CAP = 1000;
 
+const shasOf = (entries) => (Array.isArray(entries) && entries.length < DIRECTORY_CAP ? new Map(entries.map((entry) => [String(entry?.name), String(entry?.sha)])) : null);
+
 async function objectShas(read, repo, dir, ref) {
-  const entries = await read("GET", `/repos/${repo}/contents/${dir}?ref=${ref}`);
-  if (!Array.isArray(entries) || entries.length >= DIRECTORY_CAP) return null;
-  return new Map(entries.map((entry) => [String(entry?.name), String(entry?.sha)]));
+  return shasOf(await read("GET", `/repos/${repo}/contents/${dir}?ref=${ref}`));
 }
 
 export async function changedPaths(read, repo, compare, to, paths) {
@@ -517,11 +517,19 @@ export async function changedPaths(read, repo, compare, to, paths) {
   return changed;
 }
 
+export function laneChangeListed(compare, from, to) {
+  const why = laneChange(compare);
+  const ends = [shasOf(from), shasOf(to)];
+  if (why !== "too many files" || !isSha(compare?.merge_base_commit?.sha) || ends.includes(null)) return why;
+  return REVIEW_LANES.some(([file]) => ends[0].get(file) !== ends[1].get(file)) ? "a review-lane workflow" : null;
+}
+
 export async function laneChangeIn(read, repo, compare, head) {
   const why = laneChange(compare);
-  if (why !== "too many files") return why;
-  const changed = await changedPaths(read, repo, compare, head, REVIEW_LANES.map(([file]) => `.github/workflows/${file}`));
-  return changed === null ? why : changed.length > 0 ? "a review-lane workflow" : null;
+  const from = compare?.merge_base_commit?.sha;
+  if (why !== "too many files" || !isSha(from) || !isSha(head)) return why;
+  const listing = (ref) => read("GET", `/repos/${repo}/contents/.github/workflows?ref=${ref}`);
+  return laneChangeListed(compare, await listing(from), await listing(head));
 }
 
 export function costNotices(annotations, head, at) {

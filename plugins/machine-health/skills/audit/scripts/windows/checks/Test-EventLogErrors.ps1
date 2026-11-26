@@ -19,13 +19,6 @@ $commands = @(
     "Get-WinEvent -FilterHashtable @{ LogName='System'; ProviderName='Microsoft-Windows-Kernel-Power'; Id=41 }"
 )
 
-# Benign-noise allowlist. Events matching these (Provider, Id) tuples are
-# removed from the severity calculation entirely. DCOM 10016 is the
-# canonical example -- every healthy Windows install logs it multiple
-# times per day because the system is trying to touch a local COM
-# server whose ACL doesn't include the calling identity. This is
-# harmless and not actionable. The list stays deliberately conservative
-# and has no per-host extension.
 $script:NoiseAllowlist = @(
     [pscustomobject]@{ Provider = 'Microsoft-Windows-DistributedCOM'; Id = 10016 }
 )
@@ -49,24 +42,12 @@ $CheckBody = {
 
     $events = @()
     try {
-        # Filter the 7-day window AND severity inside the query. A MaxEvents
-        # cap reads the newest records of ALL levels first, so on a busy host
-        # Error/Critical events older than the cap's newest records fall
-        # outside the window silently. Numeric Level (1=Critical, 2=Error) is
-        # locale-independent; LevelDisplayName ('Error'/'Critical') is
-        # translated on non-English Windows and would match nothing there.
         $events = @(Get-WinEvent -FilterHashtable @{
                 LogName   = 'System'
                 Level     = 1, 2
                 StartTime = $cutoff
             } -ErrorAction Stop)
     } catch {
-        # Get-WinEvent raises NoMatchingEventsFound when the filter matches
-        # nothing -- the normal path for a healthy host with a filtered query.
-        # Detect it by the locale-independent error id (the message text is
-        # localized on non-English Windows, so matching it would report a
-        # healthy localized host as UNKNOWN). Keep the English message match as
-        # a fallback; re-throw anything that is neither.
         if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*' -and
             $_.Exception.Message -notmatch 'No events were found') {
             throw

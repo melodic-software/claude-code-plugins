@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -37,7 +35,6 @@ assert_contains() {
   esac
 }
 
-# Fixture repos must never inherit an outer hook chain's exported git env.
 git_env_reset() { unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_CONFIG; }
 
 init_work_repo() {
@@ -46,8 +43,6 @@ init_work_repo() {
   git -C "$1" init -q
   git -C "$1" config user.email "test@example.com"
   git -C "$1" config user.name "test"
-  # Fixtures must not inherit a developer's global core.autocrlf: it makes git warn
-  # about LF->CRLF rewrites and would change the byte counts these cases assert on.
   git -C "$1" config core.autocrlf false
 }
 
@@ -73,9 +68,6 @@ add_commit_ahead() {
   git -C "$1" commit -q -m ahead
 }
 
-# Git >= 2.49 may create refs/remotes/origin/HEAD on fetch/push
-# (remote.<name>.followRemoteHEAD defaults to "create"), so the fallback fixtures
-# clear it explicitly rather than assuming it was never written.
 drop_origin_head() { git -C "$1" symbolic-ref -q -d refs/remotes/origin/HEAD >/dev/null 2>&1 || true; }
 
 run_in() { (cd "$1" && git_env_reset && bash "$SCRIPT"); }

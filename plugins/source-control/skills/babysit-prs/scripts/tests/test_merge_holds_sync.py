@@ -940,6 +940,19 @@ def _plain(lane: str) -> dict[str, Any]:
     )
 
 
+LISTING = json.loads(
+    (ROOT / ".github/scripts/pr-merge/fixtures/contents-listing.json").read_text(encoding="utf-8")
+)["workflows"]
+
+
+def _relisted(changes: dict[str, str]) -> list[dict[str, Any]]:
+    return [entry | {"sha": changes[entry["name"]]} if entry["name"] in changes else entry for entry in LISTING]
+
+
+def _many_at(base: str) -> dict[str, Any]:
+    return {"files": [TF, *({"filename": f"f{i}"} for i in range(299))], "merge_base_commit": {"sha": base}}
+
+
 CARRIES = {
     "a notice at the head": DEFAULT_HEADS,
     "a base merge since the decided head": {
@@ -963,6 +976,29 @@ CARRIES = {
             sha: {"files": [TF | {"filename": f"f{i}"} for i in range(300)]}
             for sha in (OLD, HEAD)
         },
+    },
+    "a notice at a 300-file head whose lane workflows match its merge base": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {MAIN: LISTING, HEAD: _relisted({"pr-merge.yml": "d" * 40})},
+    },
+    "a notice at a 300-file head that changes a lane workflow since its merge base": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {MAIN: LISTING, HEAD: _relisted({"pr-review-hosted.yml": "e" * 40})},
+    },
+    "a notice at a 300-file head whose own lane workflows cannot be listed": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {MAIN: [e for e in LISTING if not e["name"].startswith("pr-review-")]},
+    },
+    "a notice at a 300-file head whose lane workflows listing is at the 1000-entry cap": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {
+            MAIN: LISTING,
+            HEAD: [*LISTING, *({"name": f"w{i}.yml", "sha": "c" * 40} for i in range(1000 - len(LISTING)))],
+        },
+    },
+    "a notice at a 300-file head with no merge base": {
+        "compares": {HEAD: {"files": _many_at(MAIN)["files"]}},
+        "workflows": {MAIN: LISTING, HEAD: LISTING},
     },
     "a file with no patch": {
         "runs": [_run(OLD)],
@@ -1208,6 +1244,11 @@ const github = async (method, path, data) => {
     if (!(sha in answers)) throw new Error("no such commit");
     return answers[sha];
   }
+  const listed = /^\\/repos\\/o\\/r\\/contents\\/\\.github\\/workflows\\?ref=([0-9a-f]{40})$/.exec(path);
+  if (method === "GET" && listed) {
+    if (!heads.workflows || !(listed[1] in heads.workflows)) throw new Error("no such listing");
+    return heads.workflows[listed[1]];
+  }
   const runs = /\\/actions\\/workflows\\/([a-z-]+\\.yml)\\/runs\\?event=pull_request&branch=b&per_page=100&page=1$/.exec(path);
   if (method === "GET" && runs) {
     return { workflow_runs: heads.runs.flatMap((r, i) => (r.lane === runs[1] ? [{ id: i + 1, head_sha: r.sha, created_at: r.created, head_repository: r.repo && { full_name: r.repo } }] : [])) };
@@ -1271,6 +1312,10 @@ def py_decision(
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
+        if "/contents/.github/workflows?ref=" in endpoint:
+            ref = endpoint.rsplit("=", 1)[1]
+            listing = heads.get("workflows", {})
+            return (200, listing[ref]) if ref in listing else (404, None)
         return 200, comment
 
     def get_pages(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
@@ -1362,6 +1407,7 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
                 )
         carried = {
             "a notice at the head",
+            "a notice at a 300-file head whose lane workflows match its merge base",
             "a base merge since the decided head",
             "a notice from the security lane",
             "a newer head pushed before it with a run of every lane",

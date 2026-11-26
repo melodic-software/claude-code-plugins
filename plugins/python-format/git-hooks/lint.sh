@@ -1,26 +1,4 @@
 #!/bin/sh
-# python-format lint entry: report what the resolved lint command finds on the
-# lines this change adds. It never rewrites a file.
-#
-#   lint.sh             the staged changes (git runs it as pre-commit)
-#   lint.sh --worktree  the uncommitted changes against HEAD, untracked files
-#                       included (the opt-in end-of-turn Stop row)
-#   lint.sh --resolve [<path>...]  print the lint row, or one per path
-#                         (resolve-tool.sh rt_print); reads
-#                       runs nothing
-#
-# The command resolves per file through lib/git-hooks/resolve-tool.sh to the
-# Ruff adapter in adapters.sh where a Ruff config governs the file, else to
-# nothing; an ecosystem record is never run here
-# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#hooks-run-the-shipped-adapter). Its output becomes
-# "<path>:<line>: <message>" lines, repo-relative, and only those on added
-# lines block (stderr, exit 1). A linter that exits non-zero with no parseable
-# finding fails closed. A partly staged file is refused, since the linter reads
-# the work tree. A staged file gone from the work tree is linted from the index.
-# A missing tool follows the check-placement contract: checks.skipmissing,
-# else fail for an agent and a notice for a person.
-#
-# POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
 */*) here="${0%/*}" ;;

@@ -1,7 +1,3 @@
-// Binds one registration from its launch arguments, per ADR 0086 sections 2
-// and 5 and its write-tier amendment: --config names the file, --environment
-// the one server and database allow-list this process may reach, and --write
-// opts in to the write tool. No tool argument can change it.
 import { parseArgs } from 'node:util';
 import { ConfigError } from './config.mjs';
 
@@ -32,13 +28,9 @@ export function parseRegistrationArgs(argv) {
   return { configPath: values.config, environment: values.environment, write: values.write === true };
 }
 
-// Two auth blocks name one principal when they read the same variables or the
-// same Entra identity. Different variables holding one login go undetected.
 const samePrincipal = (a, b) =>
   a.type === b.type && a.user?.env === b.user?.env && a.clientId?.toLowerCase() === b.clientId?.toLowerCase();
 
-// A registration opts in to writes with --write; the environment must then
-// name a write principal separate from its read one.
 export function bindRegistration(config, environment, { write = false } = {}) {
   if (!Object.hasOwn(config.environments, environment)) {
     throw new ConfigError(
