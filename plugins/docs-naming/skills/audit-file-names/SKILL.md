@@ -123,8 +123,9 @@ literal `${user_config.…}` placeholder means unset.
    After the `wrote` line it prints one `finding` line per record, most-cited
    first, with the site count, file count, tier breakdown, review count and
    generated files, then one `total` line with the sweep's `SITES` count, the
-   sites by action and the report-site total. All of them are counted from the
-   sweep's `REF` rows.
+   sites by action and the report-site total, then one `report` line per
+   report site (`file:line`, finding id, old path). All of them are counted from
+   the sweep's `REF` rows.
    *Done when:* the script reports the path it wrote and a finding count equal
    to the inventory's offender count.
 
@@ -156,8 +157,10 @@ made being asked again.
    with the ids to accept.
 
 Say the count of `report` sites plainly, as the `total` line's `report sites`
-figure. A maintainer who expected a frozen tier to change needs to see that it
-did not.
+figure, then list each report site from the emitter's `report` lines. A
+maintainer who expected a frozen tier to change needs to see that it did not.
+The report-site total spans every file those lines name: never attach it to one
+file.
 
 Quote every count from the emitter's `finding` and `total` lines as printed:
 each site count, tier breakdown and the report-site total. A count you tally

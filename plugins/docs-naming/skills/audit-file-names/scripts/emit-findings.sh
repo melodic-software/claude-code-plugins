@@ -221,4 +221,10 @@ by_action="$(awk -F'\t' '$1=="REF" {print $7}' "$SWEEP" |
 [[ -n "$by_action" ]] || by_action="no site found"
 report_sites="$(awk -F'\t' '$1=="REF" && $7=="report"' "$SWEEP" | grep -c . || true)"
 printf 'total: %s site(s); by action: %s; report sites: %s\n' "$sweep_sites" "$by_action" "${report_sites:-0}"
+while IFS="$(printf '\t')" read -r _ old file line _; do
+  [[ -n "$old" ]] || continue
+  printf 'report %s:%s FN-%s `%s`\n' "$file" "$line" "$(printf '%s' "$old" | git hash-object --stdin | cut -c1-8)" "$old"
+done <<EOF
+$(awk -F'\t' '$1=="REF" && $7=="report"' "$SWEEP")
+EOF
 exit 0
