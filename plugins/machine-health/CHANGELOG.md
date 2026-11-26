@@ -3,6 +3,13 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.9] - 2026-11-26
+
+### Changed
+
+- The synced view registry and builder name a registered skill a producer, not a lane
+  (`PRODUCERS`, `producerOf`, `render(producerId, ...)`).
+
 ## [0.27.8] - 2026-11-26
 
 ### Changed

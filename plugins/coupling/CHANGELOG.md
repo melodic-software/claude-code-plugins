@@ -3,6 +3,14 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **`/coupling:reduce` splits findings into an apply step and a route step.** "Lane" now means
+  only a worker that serves one pipeline stage. The ledger field is `step: apply | route` (rename a
+  `lane:` field to `step:`, with no alias).
+
 ## [0.5.9] - 2026-11-26
 
 ### Changed

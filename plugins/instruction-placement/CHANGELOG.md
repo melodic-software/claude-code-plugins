@@ -3,6 +3,16 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **Placement findings have a direction, not a lane.** "Lane" now means only a worker that
+  serves one pipeline stage, so demote and promote are directions: `scripts/detect.sh identity`
+  takes `--direction demote|promote` (`--lane` is gone, with no alias), the findings artifact
+  writes `**Direction:**`, and the `check` field reads `instruction-placement/audit/<direction>`
+  with the same values. The delta skill's prose names it a skill.
+
 ## [1.10.10] - 2026-11-26
 
 ### Changed

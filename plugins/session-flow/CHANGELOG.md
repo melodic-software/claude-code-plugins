@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [10.8.0] - 2026-11-26
+
+### Added
+
+- Observer `parse_failed` usage rows, check and gate, record why the reply was rejected (`reason`: `no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a finding, the `lengths` of its finding, rule and evidence; the reply text is never recorded.
+
+### Changed
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
 ## [10.7.2] - 2026-11-26
 
 ### Changed

@@ -3,6 +3,13 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.7] - 2026-11-26
+
+### Changed
+
+- `/verification:measure metrics` re-takes a baseline written under an earlier `code-metrics`
+  schema, now that reports use `code-metrics/v3`.
+
 ## [0.30.6] - 2026-11-26
 
 ### Changed
