@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url'
 export const OFFERABLE = join(dirname(fileURLToPath(import.meta.url)), 'offerable.json')
 export const CACHE_MS = 24 * 3600e3
 const CATALOG = '.claude-plugin/marketplace.json'
-const TIMEOUT_MS = 5000
+const FETCH_TIMEOUT_MS = 5000
+const PLUGIN_LIST_TIMEOUT_MS = 15000
 
 export const loadOfferable = (file = OFFERABLE) => JSON.parse(readFileSync(file, 'utf8')).plugins
 
@@ -30,7 +31,7 @@ export async function githubJson(path) {
       Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
       'User-Agent': 'planning-offer-source',
     },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`GitHub ${res.status} for ${path}`)
   return JSON.parse(await res.text())
@@ -40,7 +41,11 @@ export async function githubJson(path) {
 // also means nothing can be installed from here.
 export function installedPlugins(
   list = () =>
-    execFileSync('claude', ['plugin', 'list', '--json'], { encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'ignore'] }),
+    execFileSync('claude', ['plugin', 'list', '--json'], {
+      encoding: 'utf8',
+      timeout: PLUGIN_LIST_TIMEOUT_MS,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }),
 ) {
   try {
     return new Set(JSON.parse(list()).map(p => String(p.id).split('@')[0]))
