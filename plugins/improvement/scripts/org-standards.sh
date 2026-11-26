@@ -505,7 +505,7 @@ origin_repo() {
 glob_hit() {
   local cur=$1 g globs
   read -ra globs <<<"$2"
-  for g in "${globs[@]}"; do
+  for g in ${globs[@]+"${globs[@]}"}; do
     g=$(lower "$g")
     [[ "$g" == */* ]] || g="$g/*"
     # shellcheck disable=SC2254  # the glob in $g is the pattern being matched
@@ -720,7 +720,7 @@ subscriptions() {
     note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
   [[ -z "$untrusted_at" ]] || note "$file:$untrusted_at: trusted_owners is not a block list; no owner is trusted"
-  for item in "${spaced[@]}"; do
+  for item in ${spaced[@]+"${spaced[@]}"}; do
     note "$file:${item%%$'\t'*}: trusted_owners item \"${item#*$'\t'}\" holds a space, and an owner name has none; it trusts no owner"
   done
   local org cur line repo ref topics only except prob layerfile at
