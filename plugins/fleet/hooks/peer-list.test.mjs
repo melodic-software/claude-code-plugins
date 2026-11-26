@@ -197,7 +197,10 @@ test('readManifest: a lane-rule break marks only that lane unsafe', () => {
 })
 
 test('pickLanes: an attended session lists every non-client lane, its own first, then this machine, then the manifest order', () => {
-  const lanes = pickLanes(readManifest(contractExample), makeCtx())
+  const withClientLane = withLane((m) => {
+    m.hosts.find((h) => h.key === 'host-c').lanes = [{ kind: 'linux', route: 'ssh', alias: 'host-c', claudePath: '/opt/claude/bin/claude' }]
+  })
+  const lanes = pickLanes(readManifest(withClientLane), makeCtx())
   assert.deepEqual(lanes.map((l) => [l.host, l.kind, l.route, l.own, l.thisMachine]), [
     ['host-b', 'wsl', 'local', true, true],
     ['host-b', 'windows', 'interop', false, true],
