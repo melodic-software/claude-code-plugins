@@ -6,6 +6,9 @@ const read = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.ur
 const { commits: [template], files: sampleFiles, ...header } = JSON.parse(read("compare-sample.json"));
 const sections = read("compare-sample.diff").split(/^(?=diff --git )/m);
 const extra = sections.pop();
+const modified = sampleFiles.findIndex((entry) => entry.status === "modified");
+
+export const modifiedAs = (paths) => paths.map((path) => sections[modified].replaceAll(sampleFiles[modified].filename, path)).join("");
 const COPIES = 300 / sampleFiles.length;
 
 const files = [];

@@ -64,10 +64,12 @@ from unittest import mock
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
 import diff_risk as risk
+from capped_compare import docs_diff, modified_as
 
 BASH = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
 ROOT = pathlib.Path(__file__).resolve().parents[6]
@@ -1699,18 +1701,8 @@ def _pushed(files: list[str], **extra: Any) -> dict[str, Any]:
     } | extra
 
 
-def _docs_diff(n: int) -> str:
-    return "".join(
-        f"diff --git a/docs/{i}.md b/docs/{i}.md\nindex 1..2 100644\n"
-        f"--- a/docs/{i}.md\n+++ b/docs/{i}.md\n@@ -1 +1 @@\n-a\n+b\n"
-        for i in range(n)
-    )
-
-
-_WORKFLOW_DIFF = (
-    "diff --git a/.github/workflows/x.yml b/.github/workflows/x.yml\nindex 1..2 100644\n"
-    "--- a/.github/workflows/x.yml\n+++ b/.github/workflows/x.yml\n@@ -1 +1 @@\n-a\n+b\n"
-)
+_docs_diff = docs_diff
+_WORKFLOW_DIFF = modified_as([".github/workflows/x.yml"])
 _SCRIPTS_DIR = "plugins/source-control/skills/babysit-prs/scripts"
 Q10_CASES = {
     "a docs-only push": ([_pushed(["docs/a.md", "plugins/work-items/README.md"]), []], True),

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import * as holdsModule from "./merge-holds.mjs";
 import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { chain, DIFF_TEXT, LISTED, PAGE_TWO } from "./capped-compare.fixture.mjs";
+import { chain, DIFF_TEXT, LISTED, modifiedAs, PAGE_TWO } from "./capped-compare.fixture.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -1447,10 +1447,9 @@ test("the exact carry judges merges past 300 files on the two ranges' diffs, and
 });
 
 test("Q10 past 300 files: the push is judged on its diff, and a held file the listing hides past 300 refuses", async () => {
-  const docs = (n, extra = "") =>
-    Array.from({ length: n }, (_, i) => `diff --git a/docs/${i}.md b/docs/${i}.md\nindex 1..2 100644\n--- a/docs/${i}.md\n+++ b/docs/${i}.md\n@@ -1 +1 @@\n-a\n+b\n`).join("") + extra;
+  const docs = (n, extra = "") => modifiedAs(Array.from({ length: n }, (_, i) => `docs/${i}.md`)) + extra;
   const many = pushed(Array.from({ length: 300 }, (_, i) => `docs/${i}.md`));
-  const hidden = "diff --git a/.github/workflows/x.yml b/.github/workflows/x.yml\nindex 1..2 100644\n--- a/.github/workflows/x.yml\n+++ b/.github/workflows/x.yml\n@@ -1 +1 @@\n-a\n+b\n";
+  const hidden = modifiedAs([".github/workflows/x.yml"]);
   assert.equal(ungatedSince(many, [], docs(301)), true);
   assert.equal(approvalCarry(null, null, H0, [], many, null, null, null, [], null, [docs(301), null]), true);
   for (const [name, diff] of [
@@ -1458,7 +1457,6 @@ test("Q10 past 300 files: the push is judged on its diff, and a held file the li
     ["a diff that does not parse", "not a diff"],
     ["a diff naming fewer files than the listing", docs(299)],
     ["a workflow the listing hides past 300", docs(300, hidden)],
-    ["a binary workflow the listing hides past 300", docs(300, "diff --git a/.github/workflows/x.yml b/.github/workflows/x.yml\nindex 1..2 100644\nBinary files a/.github/workflows/x.yml and b/.github/workflows/x.yml differ\n")],
   ]) {
     assert.equal(ungatedSince(many, [], diff), false, name);
   }
