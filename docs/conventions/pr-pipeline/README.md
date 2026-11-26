@@ -794,9 +794,9 @@ handoff job succeeded, with no next leg started, is a held run, and so is a run 
 or the human-gated hold, or the plan could not read the changed files. A
 run whose jobs cannot be read holds the PR for its next event.
 
-Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
+Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
 [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md).
 Lane commits are signed, and signing is enforced by the default-branch rule only:
 [ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
