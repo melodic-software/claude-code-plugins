@@ -1,223 +1,10 @@
 #!/usr/bin/env bash
-# Deterministic executor for `sync`/`audit` Steps 1 through 5b, one JSON digest out.
-#
-# `context/sync.md` is the normative algorithm and states why each step exists.
-# This script is that algorithm's executable form: it runs the whole per-marketplace
-# loop in ONE process and prints a single digest the model reads, rather than the
-# model retyping each step's bash into its own turn. Every invariant sync.md fixes
-# holds here — per-step `fleet-state.sh` re-reads (reused while their inputs are
-# unchanged; see `fleet_snapshot`), the run journal, the
-# `rc=${PIPESTATUS[0]}` capture after every `tee`-journaled mutating call, the
-# downgrade guard, the projection exit-status check, the per-marketplace failure
-# rule, and Step 4/5 gating on the fresh pre-install read.
-#
-# The one decision it cannot make is the `install_new` policy: `${user_config.*}`
-# substitutes only when Claude Code renders SKILL.md, so the caller passes the
-# rendered value with `--install-new`. On `ask` with a non-empty install gap the
-# script reports the gap and STOPS before Step 4; the caller prompts and re-enters
-# with `--only-install`.
-#
-# Usage:
-#   sync-run.sh [--marketplace <name> | --all] --journal-root <dir>
-#               [--install-new all|none|ask] [--allow-downgrade] [--render]
-#               [--source-pull ask|never] [--pull-source <names>]
-#               [--quiet-auto-update <names>] [--update-other-paths]
-#   sync-run.sh [--marketplace <name> | --all] --audit
-#               [--install-new all|none|ask] [--allow-downgrade] [--render]
-#               [--source-pull ask|never] [--quiet-auto-update <names>]
-#               [--update-other-paths]
-#   sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
-#               [--render]
-#
-# `--update-other-paths` turns on Step 3a, one serial CLI call per lagging record
-# in every other present path. Off, those records are counted and left alone.
-#
-# `--source-pull` is the rendered `directory_source_pull` option (ask, the
-# default, or never; any other value is treated as ask and named in the digest).
-# `--pull-source <names>` names the marketplaces whose `directory` checkout the
-# user agreed to fast-forward: before that marketplace's Step 1 refresh the script
-# runs `git -C <path> pull --ff-only`, but only when the policy is ask, no
-# CLAUDE_CODE_REMOTE is set, and the checkout is clean, on a branch with an
-# upstream, not ahead, and behind; otherwise it refuses with the reason and
-# touches nothing. `--quiet-auto-update <names>` drops the enable-it suggestion
-# from those marketplaces' `autoUpdate: off` slot. Both lists are comma- or
-# space-separated marketplace names.
-#
-# Step 6 is rendered here too: `render-report.jq` turns the digest into the
-# fixed-section report SKILL.md's Report section fixes, written to
-# `<run_dir>/report.txt` on every run and, under `--render`, printed to stdout
-# after the digest line. Every row, annotation and `Action needed` bullet is a
-# function of digest fields, so the caller appends the reload guidance and
-# nothing else.
-#
-# With neither `--marketplace` nor `--all`, the target is the default marketplace
-# `fleet-state.sh` resolves dynamically from `CLAUDE_PLUGIN_ROOT`; no marketplace
-# name is hardcoded anywhere in this script. `--all` runs Steps 2-5b once per
-# marketplace from `fleet-state.sh --marketplaces`, and a marketplace whose
-# iteration fails is recorded in that block's `errors[]` without aborting the rest.
-#
-# `--journal-root <dir>` is REQUIRED in sync mode and is the run journal's parent.
-# SKILL.md passes the substituted `${CLAUDE_PLUGIN_DATA}` path because that token
-# resolves in skill content and not in a `context/*.md` spoke. `--audit` ignores it
-# and uses a scratch directory under `${TMPDIR:-${TEMP:-.}}`, removed on exit, so an
-# audit leaves nothing behind.
-#
-# `--only-install <ids>` is the narrow re-entry after an `ask` prompt: a comma- or
-# space-separated list of fully-qualified `<name>@<marketplace>` ids to install
-# (empty is legal and means install nothing), against the run directory the first
-# invocation reported. It runs Step 4, the normalizer, Step 5, and the post re-read,
-# and re-emits the full digest. When the first pass stopped before install it
-# skipped Step 5b, and this re-entry runs that check after the installs land.
-# When the first pass already ran Step 5b, the re-entry reuses that report. The
-# cache checker therefore runs exactly ONCE per marketplace across both
-# invocations, on the pass that follows the installs. The re-entry also keeps the
-# run's `allow_downgrade`, `install_new` and `install_new_invalid` from
-# `flags.json`, and adds the first pass's run timings from `first-pass-run.json`.
-#
-# Output (stdout): one compact JSON object, also written to `<run_dir>/digest.json`,
-# followed under `--render` by a blank line and the rendered report.
-#   {run_dir, cwd, mode, allow_downgrade, install_new, install_new_invalid,
-#    source_pull, source_pull_invalid, quiet_auto_update,
-#    timings:{total,outside_marketplaces,resolution[,passes]}, marketplaces:[…], errors:[…]}
-#   `source_pull` is the policy the run applied: `never` when the option says so
-#   or CLAUDE_CODE_REMOTE is set. `quiet_auto_update` is the names array.
-#   On a re-entry, `timings.passes` is `[{pass: "first", …}, {pass: "only_install", …}]`,
-#   each `{total, outside_marketplaces, resolution}`, and the top-level `total` and
-#   `outside_marketplaces` sum the two; the wait between the passes is in neither.
-#   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
-#    source_checkout, source_pull, auto_update, refresh:{rc,output,predicted,skipped}, project_root,
-#    in_repo:{updated,failed,would_update,live_read},
-#    user_sweep:{updated,failed,would_update,withheld_downgrades},
-#    downgraded, moved_during_run, noop_unverified, install_gap, installed, installed_with_unset_user_config,
-#    install_enable_deferred, stopped_before_install, enable_gap, enabled,
-#    pending_enable, project_enable_rows, normalize, cache_content, catalog_regression,
-#    divergences, divergences_here, in_repo_records, in_repo_ids,
-#    stale_project_records, user_scope_orphans, installed_disabled, delisted,
-#    delisted_project, delisted_settings_only, other_paths, self_updated, self_update,
-#    updated_with_monitors, errors}
-#   `other_paths` is `{updated, failed, not_moved, would_update, skipped,
-#   catalog_moved}` for the project/local records of every OTHER present path (a
-#   user home and a linked worktree included) whose version is below a readable
-#   catalog version: with `--update-other-paths`, sync runs `update -s <scope>`
-#   from that path and reads each record back. Without it, `skipped` is `{records,
-#   paths}` for those records, and no call is made. `catalog_moved` counts the
-#   plugins whose catalog version changed between the pre and post reads.
-#   `updated[]` is `{id, scope, path, old, new}`, `would_update[]` (audit) is
-#   `{id, scope, path, old, catalog}`, `not_moved[]` is `{id, scope, path,
-#   version, catalog, label}` for a linked-worktree or user-home record the call
-#   left behind, and `failed[]` is `{id, scope, path, reason, stopped}` for any
-#   other record left behind, a failed call, and, with `stopped` true, the call
-#   after which the path's `.claude/` settings changed and every record in that
-#   path not tried after it.
-#   `installed_with_unset_user_config[]` is `{id, options_unset, required}` for
-#   each install this run performed whose CLI output named userConfig options
-#   the user has not set. `installed_disabled[]` is the ids whose install exited
-#   0 and whose output said the plugin is disabled by default, classified before
-#   the 400-character truncation, less any this run then enabled at user scope
-#   (an `--only-install` pick is). `delisted[]` is the user-scope installs the
-#   catalog's names no longer carry, `delisted_project[]` the `{id, scope}` of
-#   each install in the repo the run stands in that those names no longer carry,
-#   and `delisted_settings_only[]` the effective `true` enabledPlugins keys at
-#   this marketplace with no install record that the names no longer carry; a
-#   catalog with an empty plugins array produces none of the three.
-#   `self_update` is `{id, scope, old, new}` for the first record of this plugin
-#   the run moved (the row `self_updated` is true for), else null.
-#   `updated_with_monitors[]` is `{id, scope, monitors}` for each plugin this
-#   run moved whose installed manifest declares a monitor.
-#   `refresh.skipped` is `{head, ref}` when `git ls-remote` showed the source's
-#   ref at the clone's HEAD and the run skipped the refresh (see
-#   `refresh_skip_check`), with `rc` null; otherwise null.
-#   `catalog_last_updated` is the marketplace's lastUpdated as Step 2's read saw
-#   it, after Step 1's refresh; a skipped refresh leaves the last one's stamp, and
-#   a background refresh can move it later in the run.
-#   `timings` holds one key per step plus `unattributed`, the rest of the block's
-#   `total`, so the steps and the remainder sum to it.
-#   `in_repo_records` counts the project/local records belonging to the repo the
-#   run stands in, whether or not any of them moved; `stale_project_records` is
-#   `{total, paths, project, by_parent:[{parent,count,paths}], more_parents, list_file}`,
-#   `project` counting the project-scope records among `total`,
-#   with the full `[{path,count}]` in `list_file` (null under --audit);
-#   `user_home_records` is `{total, paths}` for the project/local records whose
-#   projectPath is a user home (`projectPathIsHome`) and that are still below
-#   the catalog version, or have none to compare (under --audit or without
-#   --update-other-paths, less the present ones Step 3a would update), which `divergences` and `divergences_here`
-#   never count;
-#   `cache_content.scope` is `user`, the only
-#   records Step 5b compares, and `cache_content.stale[]` is
-#   `{id, version, files_differ, unreleased_changes}` per stale install, the last
-#   true when the clone holds `.changes/<plugin>/`; `cache_content.not_checked`
-#   counts the installs recorded at a commit other than the clone's HEAD, which
-#   the checker does not compare. `in_repo.live_read[]` is
-#   `{id, scope, installed, path}`, filled under --audit only, for each in-repo
-#   record of a marketplace whose `directory` source is the run's own project
-#   root (or a folder under it): the CLI reads that folder live and will not
-#   update the record, so it is not in `would_update`. `source_checkout` is null
-#   unless the source is `directory`; then it is `{path, state, branch, upstream,
-#   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
-#   not_a_repo, and the counts as of the checkout's last fetch (never fetched here
-#   except by a requested fast-forward). `source_pull` is null unless the checkout
-#   is behind or a fast-forward was requested; then it is `{status, reason}` with
-#   status `offered` (eligible, policy ask, sync mode: the caller may ask),
-#   `skipped` (not requested, and not eligible, policy never, an autonomous
-#   session, or audit), `refused` (requested, and the guard said no), `pulled`
-#   (plus `from` and `to` commits) or `failed` (plus `rc`, `from` and `to`).
-#   `marketplace_update` timing includes a requested pull.
-#   `enable_gap` is the gap the step FOUND; `enabled` is what it filled at user and
-#   local scope, and `project_enable_rows` is what it reports rather than writes.
-#   `pending_enable[]` is `{id, outcome}` (`enabled` or `enable_failed`) for each
-#   id an earlier interrupted `ask` run left in pending-enable.txt that this run
-#   found installed at user scope and effectively `false`, and tried to enable.
-#   `updated` carries forward moves and unreadable-direction moves (flagged
-#   `direction: "unknown"`); a pair whose new version is LOWER lands in `downgraded`
-#   instead, which is what keeps a backward move off the report's `Updated:` line
-#   even for an id the guard could not prove in advance.
-#   `divergences` is `{pre, mid, post, new_total, new_by_interval, pre_existing,
-#   actionable_here, actionable_elsewhere, in_worktrees, blocked, record_count,
-#   records_file, by_path, blocked_paths}`:
-#   `post` counts the actionable (`versionsMatch: false`) rows, and
-#   `actionable_here` through `blocked` split it by what an operator can do about
-#   each row (see `divergence_block`). A digest written before the split carries
-#   none of the four. `record_count` counts the records that make a counted row
-#   skewed, each `{id, scope, version, projectPath}` (projectPath null at user
-#   scope). In sync they are written as `records[]` to `records_file`
-#   (`<run_dir>/divergences.<mp>.json`, beside the full `by_path[]`), not to the
-#   digest; under --audit, or when that write fails, `records_file` is null and
-#   the digest carries `records[]` itself. `by_path[]` is `{path, class, count,
-#   ids, more}` per projectPath among them that is present, `class` the path's
-#   pin class (`actionable` or `worktree`), the actionable paths first and then
-#   most records first, `ids` the first DIVERGENCE_PATH_IDS distinct ids and
-#   `more` the rest; `blocked_paths` is `{paths, records}` for the `blocked`
-#   paths it leaves out, which the stale project records section counts. A digest
-#   written before `blocked_paths` carries `records[]` and every path in
-#   `by_path`, one written before `records` and `by_path` carries neither, and one
-#   written before `class` carries no `class`.
-#   `moved_during_run[]` is `{id, scope, kind, old, new, direction}` for each id whose
-#   update call the CLI answered "already at the latest version" while the post
-#   snapshot's version differs from the pre-mutation one: it moved during the run
-#   under something other than this run's update calls. A backward one is also in
-#   `downgraded`, flagged `concurrent: true`. `noop_unverified` counts the already-
-#   current answers the snapshots could not confirm (a version unread, or the
-#   snapshot and the CLI's printed version disagreeing); those ids stay no-ops.
-#   Ids and counts only: the digest is read by a model in one turn, so per-file
-#   cache-check detail stays in `<run_dir>/cache-content.<mp>.json`.
-#
 # Exit codes:
 #   0  the run completed; per-marketplace and per-id failures are reported in the
 #      digest body, because a failed id is a finding, not a run failure
 #   2  usage error, a missing prerequisite, or a run-level failure that left no
 #      digest to emit
-#
-# Env overrides (testing only; production uses the bundled siblings):
-#   SYNC_RUN_FLEET_STATE     path to fleet-state.sh
-#   SYNC_RUN_CACHE_CHECK     path to cache-content-check.sh
-#   SYNC_RUN_NORMALIZE       path to normalize-enabled-plugins.sh
-#   SYNC_RUN_CLAUDE_BIN      the `claude` CLI to invoke (default: `claude` on PATH)
-#   SYNC_RUN_VERSION_DIRECTION  testing only: "old<TAB>new" prints version_direction
-#                            and exits before any fleet read
 
-# `set -e` is deliberately absent: it would abort a `{ …; } | tee` pipeline whose
-# CLI element failed before `${PIPESTATUS[0]}` is read, and that status is what
-# every mutating step here branches on.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -229,11 +16,6 @@ MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_
 STALE_PARENT_ROWS=10
 DIVERGENCE_PATH_IDS=3
 
-# jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
-# every jq call here goes through, shared with fleet-state.sh and
-# cache-content-check.sh. Resolved from this script's own location, never from a
-# SYNC_RUN_* override, so nothing a caller sets can redirect `source` at an
-# arbitrary file.
 JQ_CAPTURE="$SCRIPT_DIR/jq-capture.sh"
 if [[ -f "$JQ_CAPTURE" ]]; then
   # shellcheck source=jq-capture.sh
@@ -245,25 +27,9 @@ fi
 
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
-# --- clock ---------------------------------------------------------------------
-# Every step is stamped so the digest reports where a run spent its time. The
-# stamp source is a ladder, resolved once and named in the digest as `resolution`:
-#   microseconds  bash's EPOCHREALTIME (bash 5.0 and later; the manual documents
-#                 it as seconds since the Epoch with micro-second granularity)
-#   nanoseconds   `date +%s.%N`, accepted only when the output is digits, one dot,
-#                 digits: %N is a GNU extension and an older `date` prints a
-#                 literal `N` instead of a fraction
-#   seconds       `date +%s`, the one form every `date` documents (macOS system
-#                 bash is 3.2 and has no EPOCHREALTIME, so this rung is real there)
-# The timings are a diagnostic measurement with no gate, so a coarse rung is
-# acceptable and labeled rather than an error. Stamps are kept as strings and
-# subtracted in jq at emit time, because bash has no float arithmetic; a `,`
-# radix (the manual leaves EPOCHREALTIME's locale behavior unstated) is
-# rewritten to `.` first so every field is a JSON number.
-# SYNC_RUN_NO_EPOCHREALTIME=1 is the test seam that forces the `date` rungs on a
-# bash that has the variable: a child shell recreates it at startup, so a caller
-# cannot unset it from outside.
 CLOCK_RESOLUTION=""
+# EPOCHREALTIME needs bash 5.0; macOS system bash 3.2 lacks it, so keep the `date +%s` rung.
+# https://tiswww.case.edu/php/chet/bash/NEWS
 resolve_clock() {
   local probe
   [[ "${SYNC_RUN_NO_EPOCHREALTIME:-0}" != "1" ]] || unset EPOCHREALTIME
@@ -492,8 +258,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-# JSON array of the non-empty lines of a file, CR-stripped. Used for every id list
-# in the digest, so a `\r` can never ride into a report row or a later CLI call.
 json_lines() {
   local __var="$1"
   local __file="$2"
@@ -524,14 +288,6 @@ json_strings_of() {
   jq_to "$__var" -c -R -s 'split("\n") | map(select(length > 0))' <<<"$(printf '%s\n' "$@")"
 }
 
-# Writes the object {"<name>": <value>, ...} to the file $1 from name and value
-# pairs, each name a plain identifier written unescaped and each value already
-# JSON text, for a jq program to destructure with `. as {$name, ...}`. A value
-# that grows with the fleet (the divergence records, the installed and enabled
-# rows) can pass the kernel's cap on one exec argument, so it reaches jq through
-# this file, never as --argjson; see context/gotchas.md.
-# printf is a builtin, so writing the file is not an exec. An empty value leaves
-# the file invalid JSON, and the jq that reads it fails rather than reading null.
 json_object_file() {
   local __file="$1"
   local __sep=""
@@ -547,10 +303,6 @@ json_object_file() {
   } >"$__file"
 }
 
-# A move row `{id, scope[, kind], old, new, direction}` and a downgrade row
-# `{id, scope, old, new[, concurrent: true]}`, written with builtins in the key
-# order and escaping `jq -c` gives, so a run with many moves pays no jq per row.
-# move_row_to VAR id scope old new direction [kind]
 move_row_to() {
   local __mr_id __mr_sc __mr_o __mr_n __mr_d __mr_k=""
   json_string_to __mr_id "$2"
@@ -589,9 +341,6 @@ version_direction() {
 
 version_direction_to() {
   local __vd_var="$1" old="$2" new="$3" ore_ok=0 nre_ok=0 o1 o2 o3 n1 n2 n3 __vd_d
-  # Base 10 on every capture. A bare ((08)) is an octal error that makes the
-  # pair "unknown", and a longer leading-zero segment such as 010 is octal
-  # with no error and the wrong rank. sync.md's triple compare is decimal.
   if [[ "$old" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
     o1=$((10#${BASH_REMATCH[1]}))
     o2=$((10#${BASH_REMATCH[2]}))
@@ -636,16 +385,8 @@ version_at() {
       and ($sc == "user" or .currentProject == true)) | .version) // ""' "$report"
 }
 
-# --- journaled mutation --------------------------------------------------------
-# The canonical shape from sync.md's "Run journal": the call and its output are
-# appended to journal.log through `tee`, and `${PIPESTATUS[0]}` is read as the very
-# next statement. A pipeline's own `$?` is `tee`'s status, and `tee` succeeds
-# whenever it can write the log, so without this capture a failed CLI call journals
-# its own error text and is then read as a success.
 CLI_OUT=""
 CLI_RC=0
-# The directory a project/local call runs from when it is not the run's own:
-# `-s project` and `-s local` have no path flag and act on the cwd.
 CLI_CWD=""
 stamp_us() {
   local __su_s="$2"
@@ -663,8 +404,6 @@ run_cli() {
   clock_into t_s
   {
     echo "\$ $label"
-    # stdin closed: the CLI's confirmation for a marketplace-declared command
-    # must fail, not wait on a prompt whose text is captured into the journal.
     if [[ -n "$CLI_CWD" ]]; then
       (cd "$CLI_CWD" && exec "$CLAUDE_BIN" "$@") 2>&1 </dev/null
     else
@@ -680,13 +419,10 @@ run_cli() {
   CLI_CALLS=$((CLI_CALLS + 1))
   CLI_MS=$((CLI_MS + t_e))
   printf '# elapsed %d.%03ds, exit %d\n' $((t_e / 1000)) $((t_e % 1000)) "$CLI_RC" >>"$JOURNAL_LOG"
-  # `read`, not `$(<file)`: a builtin, so no fork per call.
   CLI_OUT=""
   IFS= read -r -d '' CLI_OUT <"$sink"
   while [[ "$CLI_OUT" == *$'\n' ]]; do CLI_OUT="${CLI_OUT%$'\n'}"; done
   CLI_OUT="${CLI_OUT//$'\r'/}"
-  # A CLI older than `--json` (before 2.1.268) rejects it as an unknown option:
-  # run the call once more without it and read its text output.
   if ((CLI_RC != 0)) && [[ " $* " == *" --json "* && "$CLI_OUT" == *"unknown option"*"--json"* ]]; then
     local -a args=()
     local arg
@@ -710,26 +446,8 @@ object_lines_to() {
   printf -v "$1" '%s' "$__ol_lines"
 }
 
-# The result line `claude plugin install|update --json` prints (Claude Code
-# 2.1.268 or later): the last output line that is a JSON object with a `command`
-# key, or empty when there is none, as from a CLI older than the flag. stderr is
-# merged into the capture, so a `✘ Failed ...` line and a marketplace-declared
-# command's review text can sit beside it.
-#   Claim: update prints `updateOutcome` (`updated`, `up_to_date`), `oldVersion`
-#     and `newVersion`; install and update print `outcome` (`ok`, `failed`),
-#     `message` and, on failure, `failureCode`. Install adds `unsetOptionCount`
-#     (only when an option is unset) and `configApplied` (only with --config).
-#     No field gives the required count or a disabled-by-default install: both
-#     are sentences in `message`.
-#   Basis: attended probes on Claude Code 2.1.310 and 2.1.330 (WSL2, scratch
-#     CLAUDE_CONFIG_DIR), recorded in fixtures/cli-json-results.jsonl;
-#     https://code.claude.com/docs/en/plugins/cli-reference#json-result-format
-#   As of: 2026-11-22.
-#   Recheck: a Claude Code release that adds a field for the required count or
-#     the disabled-by-default sentence, renames `unsetOptionCount`, or changes
-#     `updateOutcome`'s values.
-# One jq reads every candidate line. `values`: jq 1.7's last() of nothing is
-# null, and a found null would read as a result line.
+# `| values` drops the null that last(empty) yields before jq 1.8.
+# https://github.com/jqlang/jq/blob/master/NEWS.md
 RESULT_LINE_JQ='last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values'
 cli_json() {
   local __var="$1" __lines __found=""
@@ -751,12 +469,6 @@ cli_message() {
   fi
 }
 
-# `<new>` from the CLI's own result, which is the only source that reflects an
-# update immediately (sync.md's source 2): `newVersion` when `updateOutcome` is
-# `updated` or `up_to_date`. Without a result line, the text's `updated from X to
-# Y` or `already at the latest version (X)`. Empty when neither names a version.
-# For an already-current result it is the install's version as the CLI read it,
-# which finalize_moves checks against the snapshots.
 cli_reported_version() {
   local __var="$1"
   local text="$2"
@@ -774,21 +486,6 @@ cli_reported_version() {
   fi
 }
 
-# The userConfig options an install left unset, as a JSON object
-# `{options_unset, required}` or `null`. `options_unset` is the result's
-# `unsetOptionCount` when present, else the count in `message`'s sentence; no
-# field carries `required` (cli_json's claim), so it always comes from the
-# sentence. Classified at capture time from the UNTRUNCATED output: the digest
-# row keeps 400 characters.
-#   Claim: the sentence is "<N> userConfig option(s) not yet set[ (<M> required)]
-#     — run /plugin configure <id> in Claude Code, or pass --config KEY=VALUE.",
-#     and `unsetOptionCount` equals its N.
-#   Basis: attended probes of `plugin install --json` on Claude Code 2.1.310
-#     (two options and three) and 2.1.330 (two unset with one required, one
-#     unset, none unset);
-#     https://code.claude.com/docs/en/plugins/cli-reference#json-result-format
-#   As of: 2026-11-22.
-#   Recheck: as cli_json.
 unset_user_config_of() {
   local __var="$1"
   local text="$2" json pair count="" n="" r=""
@@ -813,17 +510,6 @@ unset_user_config_of() {
     '{options_unset: ($n | tonumber), required: (if $r == "" then null else ($r | tonumber) end)}'
 }
 
-# What the CLI said it did, classified at capture time, because the outcome is not
-# recoverable later: an id the CLI reported as ALREADY CURRENT and an id whose
-# update the state write has not landed for both read as "no version change" from a
-# post-sweep snapshot. Reporting the first as an update with an unknown version
-# would put most of an already-current fleet under `Updated:`.
-#   updated  `updateOutcome: updated`, or text naming a version pair
-#   noop     `updateOutcome: up_to_date`, or "already at the latest version". That
-#            is the CLI's word only: finalize_moves checks it against the
-#            snapshots before it drops the id, because an id that something else
-#            moved earlier in the run reads the same
-#   other    neither; the post-sweep read decides
 cli_move_result() {
   local __var="$1"
   local text="$2"
@@ -865,13 +551,6 @@ cli_update_result() {
   printf -v "$__ur_new" '%s' "${__ur_pair#*$'\x1f'}"
 }
 
-# The line the report should show for a CLI call, classified from the
-# UNTRUNCATED output. The digest keeps 400 characters, and the first line that
-# is not the journal's `$ <command>` echo is often a progress line, so the
-# failure reason has to be picked before truncation. The last line is the wrong
-# fallback: it can be a userConfig note or a truncated tail. The first line
-# that starts with ✘ or contains Failed or Error wins; then the first line of a
-# result line's `message`; otherwise the first non-`$` line.
 cli_outcome_line() {
   local text="$1"
   local line json message
@@ -900,12 +579,6 @@ cli_outcome_line() {
   printf '%s' "$fallback"
 }
 
-# Whether the install says the plugin was left disabled, read from `message` (no
-# field carries it; cli_json's claim). Classified from the untruncated output:
-# install_one keeps 400 characters, and the notice can sit past that. The
-# catalog's defaultEnabled field is not the signal, because the CLI's sentence and
-# that field can disagree. The CLI writes an explicit enabledPlugins false for
-# this case.
 install_disabled_notice() {
   local text
   cli_message text "$1"
@@ -915,11 +588,6 @@ install_disabled_notice() {
   esac
 }
 
-# --- projection ----------------------------------------------------------------
-# Redirect the selector to a file and hand back the exit status. An empty
-# projection is ambiguous: every `--from` rejection exits 2 with EMPTY stdout so a
-# failure can never reach the CLI as an id, which makes the status the only thing
-# that tells "nothing to do" from "the projection failed".
 project_ids() {
   local selector="$1"
   local from="$2"
@@ -944,18 +612,12 @@ proj_err() {
   printf '%s' "$bounded"
 }
 
-# --- run directory -------------------------------------------------------------
-# `mktemp -d`, never a bare `mkdir -p` on the timestamp: the stamp has one-second
-# resolution, so two runs started in the same second compute the same path,
-# `mkdir -p` succeeds for both, and their snapshots overwrite each other.
 setup_run_dir() {
   if ((ONLY_INSTALL_MODE == 1)); then
     JOURNAL_LOG="$RUN_DIR/journal.log"
     return 0
   fi
   if [[ "$MODE" == "audit" ]]; then
-    # `${TMPDIR:-${TEMP:-.}}` and never a hardcoded POSIX temp literal: on Windows
-    # that literal is resolved by a native consumer against the current drive root.
     RUN_DIR=$(mktemp -d "${TMPDIR:-${TEMP:-.}}/plugins-audit.XXXXXX") || {
       echo "ERROR: could not create the audit scratch directory" >&2
       exit 2
@@ -1011,25 +673,6 @@ catalog_regression_rows() {
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 ACTIONABLE_DEF='def actionable: select(.versionsMatch == false)
     | select(([.scopes[]? | select(.projectPathIsHome != true) | .version] | unique | length) > 1);'
-#
-# The post count is then split by what an operator can do about each row, so the
-# report points converge only at rows converge can act on. A divergence row is
-# classed by its project/local pins: any pin that is present and not a linked
-# worktree makes the row `actionable`; otherwise any pin in a linked worktree makes
-# it `worktree`; otherwise every pin is in a path that is not present and the row is
-# `blocked`. A row with no pin is `actionable`. The actionable rows split again into
-# `actionable_here` (the id has a record for the repo the run stands in) and
-# `actionable_elsewhere`. `divergences[]` itself is never filtered.
-#
-# A linked worktree is a present path whose `.git` is a FILE whose `gitdir:` line
-# names a `<repo>.git/worktrees/<name>` entry of another repository. A repository's
-# own `.git` is a directory, a submodule's `.git` file names `/modules/`, and a
-# `--separate-git-dir` checkout names a git directory that is not under `worktrees/`
-# of a `.git`, so none of them matches.
-#
-# A row's pins are judged only when they differ from the row's highest version
-# (`row_class`), so a pin already at the highest version does not make a row
-# actionable while its stale pin sits in a path that is not present.
 linked_worktree_paths() {
   local __var="$1" post="$2" paths="" p fs line
   local found=()
@@ -1192,27 +835,6 @@ divergence_block() {
   fi
 }
 
-# --- Step 3a — forward-update the records of every other present path --------------
-# Step 2 updates the records of the repo the run stands in; with
-# `--update-other-paths` this step takes the project/local records of every OTHER
-# path that is present, a user home and a linked worktree included, and runs
-# `claude plugin update <id> -s <scope>` from that path, since the two scopes have
-# no path flag. Calls stay serial: concurrent `update` calls lost records in a
-# sandbox probe. Without the flag it only counts them. Forward only: a record is
-# called only when its version and the catalog's both parse and the record is
-# below, so a deliberate pin above the catalog, a catalog that moved backward,
-# and an id with no readable catalog version are never touched.
-#
-# `update` writes no settings file (context/scope-semantics.md), and this step
-# checks that rather than trusting it: before the first call in a path and after
-# each one it takes `git status --porcelain -- .claude/` where the path is in a
-# git work tree, and a checksum of `.claude/settings.json` and
-# `.claude/settings.local.json` in every path (git status cannot see a change to
-# an ignored settings.local.json). A change stops that path: the call is a
-# failure, and every record in that path after it is reported as not tried.
-#
-# Selected from the mid snapshot, so Step 2's own moves are already in it, and
-# read back from the post snapshot by finalize_other_paths.
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 TRIPLE_DEF='def triple:
     if type == "string" then
@@ -1415,9 +1037,6 @@ persist_first_pass_rows() {
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
 
-# The three array restores stay spelled out: appending to a caller-named array
-# needs a `local -n` nameref (bash 4.3), and this script runs in Claude Code's
-# Bash-tool shell on every platform, which on macOS is the stock bash 3.2.
 restore_first_pass_rows() {
   local mp="$1" lines line
   local sidecar="$RUN_DIR/first-pass.$mp.json"
@@ -1487,8 +1106,6 @@ source_fast_forward() {
     return 0
   fi
   from=$(git -C "$path" rev-parse HEAD 2>/dev/null)
-  # No terminal prompt and no credential-manager dialog: a pull that needs one
-  # fails and is reported rather than waiting on a person who may not be there.
   {
     echo "\$ git -C $path pull --ff-only"
     GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never git -C "$path" pull --ff-only 2>&1 </dev/null
@@ -1509,16 +1126,6 @@ source_fast_forward() {
   fi
 }
 
-# --- the remote commit check that can stand in for Step 1's refresh -----------------
-# `claude plugin marketplace update` re-clones a git-backed marketplace on every
-# call. When the clone already sits at the commit its source points at, that
-# refresh lands the same catalog, so this asks the remote with `git ls-remote`,
-# which writes no FETCH_HEAD, refs or objects, and sets REFRESH_SKIP_JSON to
-# `{head, ref}` only when every check holds: a `github` or `git` source, a clone
-# root at installLocation whose origin is that source, no modified or untracked file,
-# a pinned `ref` checked out as that branch, and the remote's ref (`HEAD` when
-# unpinned) at the clone's HEAD. Anything else, an unreachable remote included,
-# leaves it `null` and the refresh runs.
 refresh_skip_check() {
   local mp="$1"
   local fields=""
@@ -1538,7 +1145,6 @@ refresh_skip_check() {
   IFS=$'\x1f' read -r loc kind repo url pin <<<"$fields"
   loc="${loc//\\//}"
   [[ "$kind" == "github" || "$kind" == "git" ]] || return 0
-  # The clone's own root, so git never walks up into an enclosing repository.
   [[ -n "$loc" && -e "$loc/.git" ]] || return 0
   local g=(git --no-optional-locks -C "$loc")
   origin=$("${g[@]}" remote get-url origin 2>/dev/null) || return 0
@@ -1563,9 +1169,6 @@ refresh_skip_check() {
     [[ "$branch" == "$pin" ]] || return 0
     ref="refs/heads/$pin"
   fi
-  # Stdin closed and prompts off, as for the fast-forward: a remote that needs a
-  # credential fails here and the refresh runs instead. ssh gets BatchMode only
-  # when the user configured no ssh command of their own.
   local ssh_env=()
   if [[ -z "${GIT_SSH_COMMAND:-}" && -z "${GIT_SSH:-}" ]] &&
     ! "${g[@]}" config --get core.sshCommand >/dev/null 2>&1; then
@@ -1594,12 +1197,6 @@ slurp_to() {
   printf -v "$1" '%s' "$__sl"
 }
 
-# One line per path listed in file $2, in list order: `<mtime>|<ctime>|<size>|<path>`
-# from one `stat` that follows symlinks, or `absent|<path>` for a path that does not
-# exist (a dangling link included). `stat` exits non-zero when any path is absent,
-# so the BSD spelling runs only on empty output. Empty when an existing path has no
-# `stat` line (neither dialect answered, or it appeared mid-call) or a time carries
-# no fractional digits, which turns reuse off.
 fingerprint_to() {
   local __fp_p __fp_l __fp_st="" __fp_out="" __fp_i=0
   local -a __fp_paths=() __fp_lines=()
@@ -1641,20 +1238,6 @@ inputs_older_than() {
   done <<<"$1"
 }
 
-# `fleet-state.sh --marketplace <mp>` into $2, or the stored report of an earlier
-# read when none of its inputs changed. fleet-state.sh lists every path it read
-# (FLEET_STATE_READ_LIST), and the report is reused while each keeps the mtime,
-# ctime and size it had at that read and each absent one stays absent. A report is
-# stored only when no input can have changed during its read: an earlier read's
-# list matches this one's, the fingerprint taken before the read matches the one
-# after it, and every present input's mtime and ctime are more than the margin
-# (SYNC_FLEET_STATE_STORE_MARGIN_S seconds, default 2) older than the read's start,
-# so a write within one timestamp tick of a fingerprint is not missed. A run's
-# first read has no earlier list, so it is never stored.
-# The cache sits in the run directory, keyed by the environment fleet-state.sh
-# reads, so an --only-install re-entry reuses the first pass's last report. Each
-# read and each reuse is journaled. Leaves stderr in .fs-err and returns the
-# reader's status.
 SNAPSHOT_KEY="$PWD|${HOME:-}|${CLAUDE_PROJECT_DIR:-}|$CLAUDE_PLUGIN_ROOT|${FLEET_STATE_INSTALLED_JSON:-}"
 SNAPSHOT_KEY+="|${FLEET_STATE_MARKETPLACES_JSON:-}|${FLEET_STATE_USER_SETTINGS:-}|${FLEET_STATE_CATALOG_DIR:-}"
 STORE_MARGIN_S=2
@@ -1818,10 +1401,6 @@ run_marketplace() {
     if ((rc != 0)); then
       mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
     else
-      # A marketplace whose `directory` source is this very repository is read
-      # live from that folder: `claude plugin update` answers "nothing to update"
-      # and leaves the project record pinned, so an update predicted for it
-      # would be one the CLI never makes.
       local live_path=""
       if [[ "$MODE" == "audit" ]]; then
         # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
@@ -2050,15 +1629,6 @@ run_marketplace() {
   emit_marketplace_block "$mp"
 }
 
-# --- pending-enable record ---------------------------------------------------------
-# An `ask` pick is installed and then enabled in two CLI calls, and a run
-# interrupted between them leaves a user-scope `enabledPlugins: false` that reads
-# as the user's own opt-out. So the pick is journaled in the record BEFORE the
-# install and cleared once the enable lands (or once nothing is left to enable);
-# the next run completes what the record names. The record lives beside the run
-# directories, not in one, so pruning old runs never drops it. Only an id sync
-# itself journaled is ever in it, which is why a `false` the user set is never
-# touched.
 PENDING_FILE=""
 pending_path() {
   local root
@@ -2132,9 +1702,6 @@ run_install_step() {
 
   if ((ONLY_INSTALL_MODE == 1)); then
     wanted=$(printf '%s' "${ONLY_INSTALL//,/ }")
-    # A pick is the user's choice, so a pick the CLI installed disabled by
-    # default is enabled at user scope. Only those: `enable` on a plugin that
-    # is already enabled exits 1, which would report a false failure.
     for id in $wanted; do
       [[ "$id" == *"@$mp" ]] || continue
       pending_add "$id"
@@ -2231,10 +1798,6 @@ run_enable_step() {
       enable_one "$id" local
       enabled_here=1
     fi
-    # `sync` never writes a committed settings file, so a project-scope gap is
-    # reported with its runnable command instead of enabled. Suppressed for an id
-    # this run already enabled at user or local scope: `enable -s project` gates on
-    # the merged effective value, so the reported command would fail.
     if [[ "$has_project" == "true" ]] && ((enabled_here == 0)); then
       PROJECT_ROWS+=("$(jq -c -n --arg id "$id" --arg p "$ppath" '{id: $id, project_path: $p}')")
     fi
@@ -2284,9 +1847,6 @@ cache_content_block() {
   rc=$?
   json_lines ids "$RUN_DIR/cache-stale-ids.$mp.txt"
   mp_error "cache-content JSON unusable, so the stale ids come from the checker's --ids form (exit $rc)"
-  # Same shape either way, with the per-id detail the `--ids` form cannot know
-  # spelled `null` rather than omitted: a reader that finds no `stale` key cannot
-  # tell an empty finding from a missing field.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to CACHE_JSON -c \
     '. as $ids
@@ -2319,21 +1879,8 @@ finalize_moves() {
   while IFS=$'\x1f' read -r line post_v ncat nlabel; do
     IFS=$'\t' read -r kind id scope old new result <<<"$line"
     [[ -n "$id" ]] || continue
-    # A version field is written as `-` when it is empty, and read back the same
-    # way: tab is IFS WHITESPACE, so two adjacent tabs collapse into one delimiter
-    # and an empty interior field would shift every later column left by one.
     [[ "$old" == "-" ]] && old=""
     [[ "$new" == "-" ]] && new=""
-    # An id the CLI called already-current is a true noop only when the snapshots
-    # agree and the run's own record took. First, when the run's own project/local
-    # record is still below the catalog, the CLI judged some other record (a linked
-    # worktree's update is a no-op, #6713) and the update did not take: a failure,
-    # never a quiet success, or the next run would count the same divergence again.
-    # Otherwise the post read decides; the version the CLI's line printed (`new`,
-    # for a noop row) is the cross-check. A post version that differs from `old`
-    # means the install moved after the pre-mutation read and this call changed
-    # nothing: a concurrent move, reported as its own row. A version that cannot be
-    # read, or the two sources disagreeing, stays a noop and is counted as unverified.
     if [[ "$result" == "noop" ]]; then
       if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" && -f "$post" ]]; then
         dir=""
@@ -2369,11 +1916,6 @@ finalize_moves() {
       new="$post_v"
       [[ "$new" == "$old" ]] && new=""
     fi
-    # The CLI says it updated a project/local record, yet the run's own record is
-    # unchanged in the post read: it updated a sibling worktree's record of the id
-    # instead. Never a success row.
-    # A --only-install re-entry restores the first pass's failed rows, this one
-    # included, so it does not append it again.
     if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" &&
       "$result" == "updated" && -n "$new" && -n "$old" && -f "$post" ]]; then
       local moved=""
@@ -2416,18 +1958,6 @@ finalize_moves() {
   done <<<"$joined"
 }
 
-# --- report rows that live in the state, not in this run's actions ------------------
-# SKILL.md's Report has rows whose only source is a fleet-state report: the
-# marketplace's own autoUpdate, the stale project records, the user-scope orphans,
-# and the share of actionable divergences that belong to the repo the run stands in.
-# They ride the digest so the report costs no extra read.
-#
-# `auto_update` is read from the snapshot directly, never through `//`: jq's
-# alternative operator treats `false` as absent, so `false // null` is `null`,
-# and a marketplace with autoUpdate off would read as unreadable. fleet-state.sh
-# already normalizes the field to a JSON boolean, so a snapshot that carries it
-# yields `true` or `false`; `null` is reserved for no snapshot at all, or a
-# snapshot whose marketplace block never resolved far enough to carry the field.
 report_extras() {
   local __var="$1"
   local mp="$2"
@@ -2494,17 +2024,6 @@ report_extras() {
        divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
 }
 
-# --- a directory source's checkout, read without changing it -----------------------
-# `claude plugin marketplace update` on a `directory` source validates the
-# directory as it is ("Validating local marketplace") and fetches nothing, so the
-# catalog is only as fresh as that checkout. This reads the checkout's branch,
-# upstream, ahead/behind counts against the upstream as of its last fetch, and
-# whether tracked files are modified. It never fetches, pulls, or writes:
-# `--no-optional-locks` keeps `status` from refreshing the index. `null` for any
-# other source kind, whose installLocation clone Claude Code itself manages.
-# `catalog_source` is `directory:<path>` with the path as recorded (native form
-# on Windows), folded to forward slashes the way fleet-state.sh folds
-# installLocation.
 source_checkout() {
   local __var="$1"
   local src="$2"
@@ -2545,25 +2064,6 @@ source_checkout() {
        dirty: (if $state == "not_a_repo" then null else $dirty != "" end)}'
 }
 
-# --- monitors in the plugins this run moved ---------------------------------------
-# A plugin updated mid-session keeps running its previous version's monitors
-# until the session restarts, so the report names every moved plugin whose
-# installed build declares one. The manifest is read from the record's own
-# cache directory in the post-sweep snapshot, which is the build the update
-# left in place.
-#   Claim: a plugin declares monitors under the nested experimental.monitors
-#     value or, when that key is absent, a top-level monitors value, as an
-#     inline array or a path. monitors/monitors.json counts only when neither
-#     key is present, because a present key replaces that file. An updated
-#     plugin's monitors need a session restart; /reload-plugins does not switch
-#     them.
-#   Basis: https://code.claude.com/docs/en/plugins/manifest-reference#monitors,
-#     https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location
-#     and https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update
-#   As of: 2026-10-04.
-#   Recheck: the reference renames either key, stops a declared key from
-#     replacing monitors/monitors.json, or the loading page stops requiring a
-#     restart for an updated plugin's monitors.
 monitor_count_at() {
   local __mc_var="$1"
   local __mc_root="$2"
@@ -2576,17 +2076,10 @@ monitor_count_at() {
   [[ -d "$__mc_root" ]] || return 0
   local __mc_text=""
   [[ -f "$__mc_manifest" ]] && IFS= read -r -d '' __mc_text <"$__mc_manifest"
-  # A manifest whose text never spells `monitors` (nor any `\u` escape that
-  # could spell it) declares neither key, and with no default file the count
-  # is 0 whether or not it parses, so it needs no jq. Most plugins are this.
   if [[ -f "$__mc_manifest" && "$__mc_text" != *monitors* && "$__mc_text" != *'\u'* &&
     ! -f "$__mc_root/monitors/monitors.json" ]]; then
     __mc_kind="false"
   elif [[ -f "$__mc_manifest" ]]; then
-    # Nested experimental.monitors wins over a top-level monitors key, the same
-    # order as (.experimental.monitors // .monitors). Presence is has(), not
-    # //: an empty array is a declared value and must not fall through to the
-    # default file, and neither must an explicit null.
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
     if ! jq_to __mc_spec -c '
       if (.experimental | type) == "object" and (.experimental | has("monitors")) then
@@ -2832,10 +2325,6 @@ emit_marketplace_block() {
     printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"
     return 0
   fi
-  # The steps above already ran and only the report block is missing, so the
-  # run names the failure instead of reading as if no marketplace resolved.
-  # render-report.jq matches this wording to tell the two apart: change both
-  # together.
   [[ -f "$err_file" ]] && IFS= read -r jq_err <"$err_file"
   jq_err="${jq_err//$'\r'/}"
   run_error "marketplace $mp: its report block could not be assembled (jq exit $block_rc: ${jq_err:-no error output})"
@@ -2929,8 +2418,6 @@ if ((ONLY_INSTALL_MODE == 1)); then
     exit 2
   fi
 elif ((ALL == 1)); then
-  # Names come from the script, never a hand-written jq over known_marketplaces.json:
-  # enumerating names carries the same trailing-`\r` hazard as enumerating ids.
   if ! "$FLEET_STATE" --marketplaces >"$RUN_DIR/.marketplaces.txt" 2>"$RUN_DIR/.fs-err"; then
     echo "ERROR: could not enumerate marketplaces" >&2
     cat "$RUN_DIR/.fs-err" >&2

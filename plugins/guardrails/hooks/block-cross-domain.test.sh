@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for block-cross-domain.sh (guardrails plugin).
-#
-# Black-box: the hook runs as a subprocess on a PreToolUse payload, alone and
-# under run-guards.sh. Every exit is 0, so the assertions are on stdout (the
-# deny document; the malformed-map notice), on the GUARDRAILS_CROSS_DOMAIN_TRACE
-# steps on stderr (what a call read and parsed), on the telemetry envelope (the
-# cwd's class, what the command names, and whether it was denied), and, where
-# strace runs, on the processes a call starts. The domain map is built here from
-# placeholder names under the suite's own temp tree.
 # test-scope: plugins/guardrails/hooks/hooks.json
 # shellcheck disable=SC2016  # commands under test carry literal $ spellings
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json
@@ -182,8 +173,6 @@ hit "a marker in another case" 'echo BETA-ORG' allow
 hit "a root below HOME after ~" 'ls ~/gamma/notes' deny
 hit 'a root below HOME after $HOME' 'ls "$HOME/gamma"' deny
 hit 'a root below HOME after a quoted $HOME' 'ls "$HOME"/gamma' deny
-# Unquoted, bash drops each backslash, so the word the parser hands over names
-# no root: the prefilter hits on the raw text and the parse settles it.
 hit "a root spelled with unquoted backslashes" "ls ${B_ROOT//"$FS"/"$BS"}" allow
 hit "a root spelled with quoted backslashes" "ls '${B_ROOT//"$FS"/"$BS"}'" deny
 miss "a longer name that starts like a root" "ls ${B_ROOT}shop"
@@ -977,8 +966,6 @@ strace_census() {
     CLAUDE_PLUGIN_DATA="$3" HOME="$HOME_DIR" \
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1) || CENSUS_RC=$?
-  # A clone with CLONE_THREAD is a thread (shfmt is Go, whose runtime starts a
-  # varying number), not a process: counted from the opening half of each call.
   CENSUS_CREATIONS=$(grep -E '(clone3?|v?fork)\(' "$log" | grep -v CLONE_THREAD | grep -cE '= [0-9]+$|<unfinished \.\.\.>$')
   CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")
 }

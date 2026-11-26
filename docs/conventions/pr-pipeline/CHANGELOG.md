@@ -1,5 +1,91 @@
 # Changelog for the PR pipeline convention
 
+## [13.2.1] - 2026-11-26
+
+### Fixed
+
+- pr-verify records a judge step that run-claude-cli stopped on its credential scan (lane class `credential-stop`) as a withheld fail, for chunk 1, the later chunks and the whole-spec judge, so the head is held for a person. Before, run-claude-cli reported that stop as `other`, the chunk-1 guard never passed, and the head got no verdict. An empty class from an older run-claude-cli still counts as the stop; every other class is still no output.
+
+- The cost-decision carry no longer refuses a range of more than 250 commits. `merge-holds.mjs` `carries` and ci-status's cost-hold step read a compare whose unpaged commit list stops short of `total_commits` again in pages of 100 (the new `wholeCommits`, `wholeCompare`'s paging without its diff), and so do `report-outcome.mjs` `--find-prior` and `post-statuses.mjs` for a lane branch's commits. A page that does not read, or a list still shorter than `total_commits`, carries nothing and resumes nothing.
+
+## [13.2.0] - 2026-11-26
+
+### Changed
+
+- PR Review Main and pr-verify review a diff of up to 75 chunks of 300000 bytes (22.5 MB, ci-workflows pr-review-cli.yml's 3000-file ceiling at 40 files a chunk), up from 4 and 12. Chunk 1 still runs on its own run-claude-cli step; every later chunk runs in one ci-workflows `run-review-chunks` step, 8 at once, on the same credential and tool rules, so N chunks take about 1 + (N - 1) / 8 legs' time instead of N. The fixed per-chunk step copies are gone, and each job's timeout is chunk 1's step, the later chunks' loop at the ceiling (3 + ceil(74 / 8) x 16 = 163 minutes) and the rest: 197 minutes for PR Review Main, 222 for pr-verify. PR Review Main's merged summary keeps each chunk's first 16000 / N characters. pr-verify packs the chunks' results for the final judge into as few files as 300000 bytes take, asks each chunk for summary and notes under 300000 / N / 3 characters, and skips the final judge when any chunk left a fail the head counts. The later chunks' sealed transcripts upload under the `-chunks` job id.
+
+### Fixed
+
+- The kill-switch gate's projection (`defer-project` and `start-project`) scales its share for a run whose horizon reaches past the window's reset: only the part of the run before the reset draws on this window, so the gate stops while the share projected left at the reset is under the share x seconds to the reset / horizon seconds. Before, a review read 112 s before the reset, with 0.24 of the limit projected left there, deferred against the full `defer-project` 0.3 (its scaled floor is 0.07), turning `CI Status` red until a manual re-run. The notice names the scaled floor.
+
+- A pull request whose compare lists 300 files or more is no longer refused on the count. `merge-holds.mjs` `sameNetChange` (the cost-decision and approval carries in the merge gate and ci-status's cost-hold step) reads the two compares' `application/vnd.github.diff` texts when either listing caps or gives a file no patch, and compares every file's patch and mode from them (`diffFiles`, `needsDiff`). The new `wholeCompare` pages a compare's commits 100 at a time to `total_commits`, past the 250 an unpaged read lists, and takes the files from the diff past 300; `apply-dependency-verdict.mjs` (the fix path, and the merge path past the pull request commit list's 250), `publish-feedback.mjs` `fixesLanded` and `report-outcome.mjs`'s changed-file and commit reads use it. `report-outcome.mjs` no longer holds a pull request only because its listing reached 300 files. A binary file, a diff that does not parse, or a diff naming fewer files than the pull request changes still carries nothing. `github-client.mjs` `createGitHub` and `retry-fetch.mjs` `retryApi` return the answer's text for a non-JSON media type.
+
+## [13.1.2] - 2026-11-26
+
+### Fixed
+
+- ci-status's cost-hold step vets a lane run on a head past the compare API's 300 files by the review-lane workflows' blobs at the merge base and the head (merge-holds.mjs `laneChangeListed`) instead of keeping the hold at "changes too many files".
+
+## [13.1.1] - 2026-11-26
+
+### Changed
+
+- In the merge queue, `ci-status` no longer reads a lanes App pull request's pr-verify pass a
+  second time. The verdict reader's `--pass-out` file gives the step the counted passes with their
+  runs, the first pass's `verdict.json` and the closing issues it judged on, and the step hands
+  them to `merge-holds.mjs` `verdictHold` and `linkHold` as before. That drops the four `?name=`
+  pass lookups (two of them for digest names the writer never uploads), the run read, the zip
+  download with its 5xx retries and the closing-issues GraphQL read. A pass file that does not read
+  holds the group. Any reader refusal now reaches `merge-holds.mjs` with no pass, as it already did
+  in FAIL index mode. Without the legacy FAILs file, a pass refusal such as
+  `verify:untrusted-spec` therefore holds until a trusted approval of the head lifts it.
+
+### Fixed
+
+- `resolve-config` no longer sizes an activity whose `applied-by` names `triage-verdict` by the issue's Size, Complexity and Uncertainty fields. Intake's `triage-issue` sets those fields, so it read them for a turn budget it does not use, and on its `workflow_dispatch` run, which carries no issue event, it failed with "an applies-when predicate needs fieldValues, which this run did not supply". A Large issue is triaged too, no longer skipped as `split`.
+
+- `check-signed-commits` pages the `since-sha...head` comparison 100 commits at a time until it has every commit the comparison counts, up to 10,000, instead of reading one unpaged response that stops at 250 commits and escalating the pull request to a person.
+
+- The merge-risk rating (`pr-rate-merge-risk.yml`) no longer refuses a diff over 600,000 bytes. `input.mjs` cuts the diff with `diff_chunking.py` into chunks of at most 300,000 bytes and parts one Read returns whole; the rating's agents read every chunk at once (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` raised to a rater and a checker per chunk), so wall time stays one chunk's read. Up to 50 chunks (15 MB) are rated; chunks past that are left out and counted. `write-rating.mjs` checks the execution file for a whole, successful Read of every part and adds a HIGH `Diff coverage` row, which demotes the head, for any part unread or chunk left out. The rating's output (`rating.json`) is unchanged.
+
+## [13.1.0] - 2026-11-25
+
+### Added
+
+- `time-to-merge-by-size.md` breaks open-to-merge time into stages per size band over the 7 days to
+  2026-11-25, with owner waits left out, and ranks the pipeline changes that bring each band's
+  median to one hour or less.
+
+### Changed
+
+- The intake lane triages on the skill-activity path: its new `triage-issue` activity runs `/work-items:triage --ci` in `pr-run-activity-read.yml`'s verdict mode (`issue-verdict`), with the read skill tools only (Read, Glob, Grep, Skill), and returns the verdict as structured output held to the skill's `schemas/ci-verdict.schema.json`, with each issue dimension narrowed to the dimension map's option keys and the type to the repository's Issue Types. The `post-triage` job, with no model, checks the scan job's verdict against its SHA-256, `check-ci-verdict.mjs` and `set-dimensions.sh --dry-run`, then posts the comment and applies the allowlisted labels and the Issue Type on the job's `GITHUB_TOKEN` (`.github/scripts/intake-triage/post-triage.mjs`); `apply-verdict` reads its verdict. Its step summary follows the lane output format: an `intake-triage / post-triage` heading, the result first (applied, escalated, deferred, withheld or not applied, and why), at most five bullets, and the rest in a collapsed block. The intake lane no longer calls the ci-workflows intake reusable, and the triage rubric is no longer passed to a model: this repository's own triage rules are under `## Triage rules` in `docs/conventions/work-items.md`.
+- Verdict mode runs only on a `workflow_dispatch`. On `issues: opened`, a no-model `dispatch-triage` job applies today's gate (the sender is the issue's author and a listed human, `github-actions[bot]` or the lanes App: `check-trusted-trigger` `bot-sender-ids` and `issue-author`) and dispatches `intake-triage.yml` with `issue-number`. The dispatched run admits a listed human or those bot senders, and a re-run needs a listed human. Its read check sends `issue_number`, which `request-lane-token` sends in `check` mode from an `intake-triage.yml` dispatch on `main` alone, so the broker gates the issue. It claims no lease, skips the issue lane's prior-work and stale-file checks, writes `issue.json` with the newest 200 open issues and the latest 100 merged pull requests (`write-intake-issue.mjs`), and hands on no patch.
+
+- The shared GitHub client (`github-client.mjs` `createGitHub`, and `budgetedFetch` through it) sends a repeated GET of the same URL, under the same token, with the kept answer's ETag as `If-None-Match`, and a 304 returns the kept body. A 304 to an authorized request does not count against the primary rate limit. Any other answer is returned as before; a 304 with no kept answer is still an error. With `GITHUB_READ_STORE` naming a directory, the kept answers also carry to later steps of the same job: pr-verify sets it on its resolver and trigger-gate steps, and the gate now reads the commit's pull requests at the resolver's URL (`?per_page=100&page=1`), so that read is a conditional one. The trigger gate's own re-run record listing memo is replaced by the client's store.
+
+- pr-unblock's `Check Dispatcher Current` job now runs only for review-dependency. The other activities' first jobs (four select jobs and `fix-ci-context`) compare the dispatcher's copy of its file with the tip's as a step before their kill-switch step, as pr-refine's `select-passes` already does. A stale dispatcher stops the job before it reads the PR, so its outputs stay empty, no later job starts and the run ends green, as before. Each such run starts one job fewer and skips one queue wait, measured at 171 s queued for 5 s of work on run 45662117298. Each of those jobs already holds `actions: read` and `contents: read`, the old job's whole grant; `review-dependency-select` holds no `actions: read`, so it keeps the separate job rather than widen.
+
+### Removed
+
+- The hosted review lanes (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) no longer run a `wait-for-refine` job, and `.github/scripts/pr-review/wait-refine.mjs` is gone. The review job needs only `check-kill-switch` and reviews each ready head as it lands. Refine's push carries the lanes App token, so it starts a `pull_request` `synchronize` run that reviews only the files changed since the last completed review. The wait had ended at its 30-minute cap with `review: refine-timeout` and then reviewed the unrefined head anyway, adding about 29.5 minutes to each review.
+
+### Fixed
+
+- `enable-auto-merge` reads a pull request's changed files up to the 3000 GitHub's files listing returns, instead of refusing every pull request over 300 files for a person; a listing that reaches 3000 still fails closed to a person.
+
+- `report-escalation.sh` hold comments name the lane's stop code as `- Lane code: ...`, so `Reason:` names only the owner reason (`intent`, `design`, `security` or `cost`). Before, a hold showed two `Reason:` lines, such as `Reason: design` and `Reason: feedback-question-design`.
+- A `feedback-question-*` hold lists the PR's open review threads, one of which holds the disputed finding the adjudicator left for a person, in a collapsed `<details>` block.
+- Hold comments follow the lane output format: a `pr-unblock / report-escalation` heading, a `Held for a person:` verdict line, at most three bullets (lane code, resume key, how to resume), and any thread list collapsed at the end.
+- `gate-source.mjs` and `clear-escalations.mjs` read the lane code from either label, so hold comments already open with `- Reason:` keep their meaning, and a re-run of the same hold on the same head still posts nothing.
+
+- pr-merge's cost-decision lane vetting, `clear-escalations` (its lane-run check and `workflow-staged`) and `refire-refused` no longer fail closed on a compare that lists 300 files or more: past that cap they compare the paths they check (the review-lane workflows, the lane-token broker's files, `.github/workflows`) by git object at the merge base and the far end, and still hold when either listing cannot be read.
+
+## [13.0.2] - 2026-11-25
+
+### Changed
+
+- pr-verify's resolver (`resolve-pr.mjs`) hands `select-trusted-text` the reads it already made of the pull request it judges: the pull request as `GET /commits/{sha}/pulls` listed it, and the first pages of its closing issue references and, where its spec query reads them, its title renames. `select-trusted-text` takes them through its new `reads-path` input instead of reading the pull request and those pages again, so each judgment spends one REST and, for a pull request whose body may be spec, one GraphQL call fewer. Both trust filters run unchanged on the handed-on text. The body is handed on with the edit stamp from the same spec answer, and is kept only when the edit query's stamp for the pull request still matches, so an edit between the two reads withholds it; this also closes the gap between the pull request read and the edit query that a full read had. A handed-on pull request at a head other than the new `head-sha` input fails the step. A missing or malformed hand-off fails the step with no context written, as a failed read does, and the step deletes the hand-off either way.
+
 ## [13.0.1] - 2026-11-25
 
 ### Changed

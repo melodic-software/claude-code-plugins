@@ -1,11 +1,6 @@
 import { resolveEnvWithLegacy } from "../lib/env-compat.js";
 
-// `en-orig` (the original speech track) first: yt-dlp writes tracks in this
-// order and stops at the first failed one, so a throttled translated `en`
-// cannot keep the original from landing.
 export const YT_DLP_SUB_LANGS = "en-orig,en.*,-live_chat";
-// YouTube extractor arg that drops translations of manual tracks (`en-de`,
-// `en-en`); the post-ladder caption retry lifts it when no English landed.
 export const YT_DLP_SKIP_TRANSLATED_SUBS = "skip=translated_subs";
 export const YT_DLP_SUB_FORMAT = "vtt";
 // biome-ignore lint/security/noSecrets: yt-dlp format selector string, not a credential
@@ -155,9 +150,6 @@ export function buildYtDlpArgs(
   /** @type {string[]} */
   const args = [
     "--no-progress",
-    // A watch URL copied from a playlist carries `&list=…`; without this,
-    // yt-dlp would fetch every playlist entry into the same workDir and
-    // resolve artifacts for the wrong video (preflight already forces it).
     "--no-playlist",
     "--paths",
     `temp:${workDir}`,
@@ -210,8 +202,6 @@ export function buildYtDlpArgs(
   args.push(
     ...resolveYtDlpAuthArgs(env, authOverride, source.allowBrowserCookieProfileFallback === true),
   );
-  // End-of-options sentinel: the URL can never be parsed as a flag, so the
-  // argv boundary defends itself instead of relying on upstream URL vetting.
   args.push("--", url);
   return args;
 }

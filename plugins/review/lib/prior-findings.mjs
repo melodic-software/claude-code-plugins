@@ -1,34 +1,4 @@
 #!/usr/bin/env node
-// A CI review lane's prior findings on one pull request, for the lane's
-// wrapper to run in a step with no model before the review. It lists only the
-// lane's own earlier posts (inline review threads, reviews and PR comments)
-// with, for each anchored one, whether the lines it names changed between the
-// head it was posted on and this head, and counts the earlier heads the lane
-// reviewed whole: after the first, the lane posts only blocking findings
-// unless `loop.findings-after-first-review` is `all`. The
-// model judges which candidate is the same finding (/review:code-review and
-// /review:security-review, "Prior findings").
-//
-// A post is the lane's own only when GitHub reports its author as the
-// github-actions bot by numeric id, no other account edited it, and its last
-// non-blank line is the lane's `claude-lane: <lane>` footer, bare or in
-// backticks (or its first line is the lane's reviewed-head marker). Text alone never makes a post the
-// lane's: a lookalike from any other account is not listed, so it cannot
-// suppress a finding. Any workflow's job token posts as that bot, so a footed
-// post also has to pass lane-binding.mjs's check against the run its binding
-// names (a post with no binding passes while the legacy cutoff allows it); one
-// that fails reads as having no footer, and one that passes is read without
-// its binding line. The check reads that run and its comment-record artifacts
-// with the job token, which needs `actions: read`.
-//
-// CLI env: REPOSITORY (owner/name), PR_NUMBER, HEAD_SHA, LANE (claude-review
-// or claude-security-review), OUTPUT_PATH, GITHUB_TOKEN, optional
-// GITHUB_API_URL, CAP_CONFIG (a pr-pipeline.yaml read from the default
-// branch, never the head) and GITHUB_OUTPUT (gets `note=<prompt line>`).
-// Diffs run with git in the current directory, a checkout holding HEAD_SHA;
-// a missing commit is fetched with GITHUB_TOKEN in the environment, never argv.
-// Any failure leaves no file and exits 1: with no file the lane reviews as if
-// nothing were prior.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -38,8 +8,6 @@ import { laneChecker, withoutBinding } from "./lane-binding.mjs";
 
 const SHA = /^[0-9a-f]{40}$/u;
 const LANES = new Set(["claude-review", "claude-security-review"]);
-// github-actions[bot]: ci-workflows pr-review-cli.yml's status job posts with
-// the job token. GraphQL reports the login without the "[bot]" suffix.
 export const ACTIONS_BOT_ID = 41898282;
 const MAX_BODY = 4000;
 
@@ -71,8 +39,6 @@ const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 const isBot = (actor) =>
   actor?.__typename === "Bot" && actor.databaseId === ACTIONS_BOT_ID && actor.login === "github-actions";
 
-// The lane's footer line, bare or in backticks, as clear-escalations.mjs
-// LANE_TAG and babysit_review_evidence.py LANE_TAG_RE read it.
 const footer = (lane) => new RegExp(`^\`?claude-lane: ${lane}\`?$`, "u");
 const marker = (lane) => new RegExp(`^<!-- claude-lane-reviewed-head lane=${lane} sha=([0-9a-f]{40}) -->$`, "u");
 const nonBlank = (body) =>
@@ -83,19 +49,12 @@ const nonBlank = (body) =>
 
 const footed = (post, lane) => footer(lane).test(nonBlank(post.body).at(-1) ?? "");
 
-// Whether `post` is `lane`'s own: the bot wrote it, nobody else edited it, and
-// it carries the lane's footer as its last non-blank line (unless bindPosts
-// marked it unbound) or the lane's reviewed-head marker as its first line.
 export function isLanePost(post, lane) {
   if (!LANES.has(lane) || !isBot(post?.author) || typeof post.body !== "string") return false;
   if (post.lastEditedAt != null && !isBot(post.editor)) return false;
   return (post.unbound !== true && footed(post, lane)) || marker(lane).test(nonBlank(post.body)[0] ?? "");
 }
 
-// The posts with each one whose footer would make it the lane's checked by
-// `check` (lane-binding.mjs laneChecker): a post that passes reads without its
-// binding line, one that fails is marked unbound. Other posts are not read.
-// A failed read rejects, failing the job.
 export async function bindPosts({ threads, reviews, comments, lane, check }) {
   const bind = async (post, kind) => {
     if (!isLanePost(post, lane) || !footed(post, lane)) return post;
@@ -116,8 +75,6 @@ export async function bindPosts({ threads, reviews, comments, lane, check }) {
   };
 }
 
-// lane-binding.mjs's readers over the REST API. An artifact download answers
-// with a redirect to signed storage, followed without the token.
 export function restReaders({ api, repository, token, fetchImpl }) {
   const headers = { authorization: `Bearer ${token}`, accept: "application/vnd.github+json" };
   const read = async (path) => {
@@ -147,12 +104,6 @@ export function restReaders({ api, repository, token, fetchImpl }) {
   };
 }
 
-// A reviewed-head comment's head and whether its status line reports a whole
-// review, as ci-workflows publish-review/publish.cjs writes them: the marker,
-// an optional reviewed-base line, then `**<lane>** reviewed `<sha>`: read N of
-// M changed file(s); K finding(s), ...`. Only N equal to M is a whole review:
-// a partial read (N below M) leaves files no review saw. A skip's "needs no new
-// review" line reports neither.
 function reviewedHead(body, lane) {
   const lines = nonBlank(body);
   const sha = marker(lane).exec(lines[0] ?? "")?.[1];
@@ -164,10 +115,6 @@ function reviewedHead(body, lane) {
   return { sha, reviewed: read !== null && read[1] === read[2], partial: read !== null && read[1] !== read[2] };
 }
 
-// Whether `git diff -U0 <posted> <head>` output changes any line in
-// [start, end] numbered in the posted commit: the old (`-`) side of each hunk.
-// A pure insertion (`-a,0`) sits after old line a and touches the range when
-// it falls inside it or borders it.
 export function touchesOriginal(diff, start, end) {
   for (const m of diff.matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/gmu)) {
     const from = Number(m[1]);
@@ -196,15 +143,6 @@ function judge(thread, posted, head, diff) {
   }
 }
 
-// The lane's prior findings and the earlier heads it reviewed whole. A head
-// counts when it is before the one under review and the lane posted a review
-// on it: an inline thread, a review (publish.cjs posts one only with inline
-// findings), or a reviewed-head comment whose status line reports a review,
-// with or without findings. A skip's comment is not a review, and a rerun's
-// own posts on the head under review do not count. A head whose reviewed-head
-// comment reports a partial read never counts, even with an inline thread or
-// review on it: those mean only that the partial read found something.
-// `diff(from, to, path)` returns `git diff -U0` text and throws on failure.
 export function collect({ threads, reviews, comments, lane, head, diff }) {
   const findings = [];
   const heads = new Set();
@@ -244,8 +182,6 @@ export function collect({ threads, reviews, comments, lane, head, diff }) {
   return { findings, reviewed: [...heads].filter((h) => !partial.has(h)).length };
 }
 
-// `loop.findings-after-first-review` in a pr-pipeline.yaml: `all`, or the
-// default `blocking-only` for an absent key, an unknown value or no file.
 export const AFTER_FIRST_REVIEW_DEFAULT = "blocking-only";
 export function readAfterFirstReview(yaml) {
   const m = /^loop:\r?\n(?:[ \t]+\S.*\r?\n|[ \t]*\r?\n)*?[ \t]+findings-after-first-review:[ \t]*(["']?)(blocking-only|all)\1[ \t]*(?:#.*)?\r?$/mu.exec(yaml ?? "");
@@ -297,7 +233,6 @@ export async function main({ env = process.env, fetchImpl = fetch, git = execFil
   if (!owner || !name || !/^[1-9]\d{0,9}$/u.test(env.PR_NUMBER ?? "") || !SHA.test(env.HEAD_SHA ?? "") || !LANES.has(lane) || !env.OUTPUT_PATH) {
     throw new Error("prior-findings: REPOSITORY, PR_NUMBER, HEAD_SHA, LANE and OUTPUT_PATH are required");
   }
-  // A file the head ships at this path never reaches the model.
   rmSync(env.OUTPUT_PATH, { force: true });
   const api = env.GITHUB_API_URL || "https://api.github.com";
   const res = await fetchImpl(`${api}/graphql`, {

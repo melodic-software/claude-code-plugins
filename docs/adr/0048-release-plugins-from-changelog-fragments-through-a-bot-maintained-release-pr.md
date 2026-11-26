@@ -26,11 +26,11 @@ Main moves those two files faster than a pull request can merge. Measured on `or
 Two concurrent pull requests that bump one plugin conflict on both files. The current repair is
 `plugins/source-control/scripts/resolve-version-bump-conflict.sh`, which recomputes the version as
 main's version plus one bump at the PR's level and re-heads the PR's changelog entry
-(`resolve-version-bump-conflict.sh:7-14`). Four skill documents tell lanes to run it
+([Plugin version-bump collisions](../../plugins/source-control/skills/pull-request/reference/ready-for-review.md#plugin-version-bump-collisions)). Four skill documents tell lanes to run it
 (`resolve-conflicts/SKILL.md:77`, `babysit-loop/SKILL.md:417`, `babysit-prs/reference/loop.md:334`,
 `babysit-prs/reference/orchestration.md:544`). Each conflict still costs a merge of main, a new
 commit and a fresh CI run, and the resolver handles only the shape it recognizes; anything else is
-left for manual resolution (`resolve-version-bump-conflict.sh:12-14`).
+left for manual resolution (same section).
 
 A merge queue does not fix this. `ci.yml:48-61` wires the `merge_group` event, and a queue tests
 each pull request against the ones ahead of it, so two queued pull requests that bump one plugin
@@ -44,7 +44,7 @@ The gates that enforce today's per-PR discipline:
 | Gate | Where | What it requires of a pull request |
 |---|---|---|
 | `check-changelog-parity.sh --check` | `ci.yml:1312-1315` | Every versioned plugin has a CHANGELOG whose newest heading does not exceed the manifest version |
-| `--check-bump` | `ci.yml:1316-1326` | A version change adds a `## [<v>]` entry, strictly greater than base, with a non-repeated body, and the plugin has another changed file (`check-changelog-parity.sh:87-96`) |
+| `--check-bump` | `ci.yml:1316-1326` | A version change adds a `## [<v>]` entry, strictly greater than base, with a non-repeated body, and the plugin has another changed file (`check-changelog-parity.sh:163`, `check-changelog-parity.sh:561-562`) |
 | `--check-preserved` | `ci.yml:1332-1342` | No touched changelog drops a heading it carried at the fork point |
 | `--check-order` | `ci.yml:1346-1349` | Every changelog reads newest-first with no duplicate versions |
 | `check-vendor-version-bump.sh --check-bump` | `ci.yml:1358-1368` | A `vendor/` change bumps the plugin version |
@@ -168,7 +168,7 @@ version bumps and CHANGELOG entries.
 | Gate | Change |
 |---|---|
 | `check-changelog-parity.sh --check`, `--check-preserved`, `--check-order` | Kept as they are. They guard CHANGELOG integrity, which now changes only in release pull requests |
-| `--check-bump` | Kept for the release pull request. Its "bump without change" rule (`check-changelog-parity.sh:93-96`) counts a consumed fragment as the change. For a plugin in fragment mode, any other pull request that changes its `version` or adds a CHANGELOG heading fails with a message pointing at `.changes/` |
+| `--check-bump` | Kept for the release pull request. Its "bump without change" rule (`check-changelog-parity.sh:561-562`) counts a consumed fragment as the change. For a plugin in fragment mode, any other pull request that changes its `version` or adds a CHANGELOG heading fails with a message pointing at `.changes/` |
 | New `check-changelog-fragments.sh` | Validates every added or modified fragment: path names an existing plugin, front matter has a valid `bump`, the body has at least one known `###` section (a `bump: none` fragment needs only a non-empty reason line instead), and an added fragment's path is new on the base |
 | New `check-changelog-fragments.sh --check-required <base>` | For each fragment-mode plugin whose shipped files (anything under `plugins/<name>/`) the pull request changes, requires an added or modified fragment for that plugin, `bump: none` included. Only the release pull request's own writes (the root `CHANGELOG.md` and a version-only `plugin.json` edit) are exempt; the same edits in any other pull request need a fragment. A pull request that `dependabot[bot]` opened, whose every commit Dependabot authored, GitHub committed and GitHub verified (read from the commits API), needs none: its fragment is written after the merge (the `dependabot-fragments.yml` row). The one other commit it may carry is `pr-bump-plugin-version.yml`'s verified `github-actions[bot]` bump, touching only the `plugin.json` and `CHANGELOG.md` of plugins not in fragment mode (removed in phase 5) |
 | New `check-changelog-fragments.sh --check-release <base>` | Runs on the release pull request only. Fails when the base holds an unconsumed fragment for a plugin the release bumps (see The release pull request) |

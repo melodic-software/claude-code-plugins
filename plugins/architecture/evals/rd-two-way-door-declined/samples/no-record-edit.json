@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "declined, nothing edited"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/docs/adr/0001-publish-plugins-through-one-marketplace.md",
+            "old_string": "Status: accepted",
+            "new_string": "Status: accepted\n\nThe release checklist runs lint first."
+          }
+        }
+      ],
+      "why": "folded the two-way door into an existing record"
+    }
+  ]
+}

@@ -1,5 +1,3 @@
-// Example replay script over the local fixture pages (no network): node ../record.mjs replay.mjs CAPTURE_DIR.
-// Each step is one demo.click ... demo.settle; the step ids key the captions in script.json.
 export default async (demo) => {
   await demo.goto(new URL('index.html', import.meta.url).href);
 

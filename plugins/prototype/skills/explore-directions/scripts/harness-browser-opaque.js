@@ -1,5 +1,4 @@
 async page => {
-  // The page here has no CSP meta of its own, so only the policy /api/page puts first in it, and the one the frame inherits, apply.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + detail + "]" : ""));
   const base = "http://127.0.0.1:__PORT__/";
   try {

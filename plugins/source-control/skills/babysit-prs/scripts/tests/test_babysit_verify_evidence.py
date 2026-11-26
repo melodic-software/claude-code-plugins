@@ -276,8 +276,6 @@ class FakeGitHub:
         self.issue_bodies: dict[int, dict[str, Any]] = {}
         self.closing_comments: dict[int, list[dict[str, Any]]] = {}
         self.comments_total: dict[int, int] = {}
-        # Each closing issue's comments as GraphQL pages of up to 100, the
-        # first in the closing read and the rest behind cursors "p1", "p2"...
         self.comment_pages: dict[int, list[list[dict[str, Any]]]] = {}
         self.comment_page_fail: str | None = None
         self.closers: dict[int, list[tuple[int, str]]] = {}
@@ -295,18 +293,13 @@ class FakeGitHub:
         self.permissions: dict[str, str] = {}
         self.live_total: int | None = None
         self.page_fail: str | None = None
-        # Ids each whole listing leaves out in turn, as one that pages while
-        # an earlier artifact expires skips the one at a page boundary.
         self.full_skips: list[set[int]] = []
         self.count_reads: list[list[str]] = []
         self.count_timeouts: list[float | None] = []
         self.count_fail: str | None = None
         self.relink: Any = None
-        # The pr-require-checks pull_request runs at each head, and a
-        # total_count that cuts them; a head with none named answers 404.
         self.checks_runs: dict[str, list[dict[str, Any]]] = {}
         self.checks_total: dict[str, int] = {}
-        # Each checks run's latest jobs; a run with none named answers 404.
         self.jobs: dict[int, dict[str, Any]] = {}
 
     def listed(self) -> list[dict[str, Any]]:
@@ -395,8 +388,6 @@ class FakeGitHub:
             if any("issueOrPullRequest" in a for a in args):
                 n = int(next(a for a in args if a.startswith("n="))[2:])
                 if n not in self.refs:
-                    # GitHub's answer for a number that names nothing, as a
-                    # live read of a missing number returned it: gh exits 1.
                     missing = {
                         "data": {"repository": {"issueOrPullRequest": None}},
                         "errors": [
@@ -415,7 +406,6 @@ class FakeGitHub:
                         args, 1, "", "gh: boom (HTTP 502)"
                     )
                 if kind == "errors":
-                    # gh exits 0 on an answer that carries data and errors.
                     return ok(
                         {
                             "data": {"repository": {"issueOrPullRequest": None}},
@@ -536,14 +526,12 @@ class FakeGitHub:
                 )
             return subprocess.CompletedProcess(args, 0, zipped(self.records[name]), "")
         if found := re.fullmatch(rf"repos/{REPO}/actions/artifacts/([0-9]+)", path):
-            # One artifact by id, as GitHub's "Get an artifact" answers.
             held = [a for a in self.artifacts if a.get("id") == int(found[1])]
             return ok(held[0]) if held else missing()
         by_name = re.fullmatch(
             rf"repos/{REPO}/actions/artifacts\?name=([^&]+)&per_page=100", path
         )
         if by_name:
-            # Every artifact with exactly that name, as GitHub's filter answers.
             held = [a for a in self.artifacts if a.get("name") == by_name[1]]
             return ok({"total_count": len(held), "artifacts": held})
         prefix = f"repos/{REPO}/actions/artifacts?per_page="
@@ -612,7 +600,6 @@ class FakeGitHub:
         ):
             return ok(list_commits(self.standards_list_changed))
         if path.startswith(f"repos/{REPO}/contents/"):
-            # Read at main's tip only, never by the branch's name.
             if not path.endswith(f"?ref={MAIN_SHA}") or self.actors is None:
                 return missing()
             if "Accept: application/vnd.github.raw" in args:
@@ -916,9 +903,6 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_re_attempted_earlier_pass_does_not_clear_a_later_fail(self) -> None:
-        # Run 39652492098's record: attempt 2 keeps the run's created_at and
-        # moves run_started_at later. The pass run was created before the
-        # FAIL's and re-attempted after it.
         fake = self.earlier_fail("2026-10-15T00:00:01Z")
         fake.runs[1] = run(
             1,
@@ -934,7 +918,6 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
     def test_a_run_record_whose_id_is_true_counts_nothing(self) -> None:
-        # True == 1 in Python, so the id must be an int, not equal to one.
         fake = self.earlier_fail()
         fake.runs[1] = {**run(1), "id": True}
         self.assertNotEqual(read(fake).refusal, None)
@@ -1064,8 +1047,6 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_head_github_no_longer_has_keeps_the_fail(self) -> None:
-        # A compare that answers 404 (a garbage-collected or force-pushed-away
-        # head) holds no readable change, which no later read will find.
         for sha in (EARLIER, HEAD):
             with self.subTest(sha=sha):
                 fake = self.earlier_fail()
@@ -1561,9 +1542,6 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
     def test_the_report_names_a_fail_superseded_at_the_head(self) -> None:
-        # pr-unblock resolves that FAIL's fail-note threads on this field
-        # alone (feedback-dispatch.mjs), so it is true only where the FAIL at
-        # the head gave way.
         self.assertIs(read(self.edited()).report()["supersededAtHead"], True)
         for label, answer in (
             ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
@@ -1606,8 +1584,6 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertIs(evidence.report()["supersededAtHead"], False)
 
 
-# Pull request #16602's FAIL notes at head 27fe8d09, as its pr-verify
-# fail-note review comment quoted them.
 BODY_NOTES_16602 = [
     'PR body (Summary, "Recorded list"): the quoted list is cut off after'
     ' `/planning:design` with "-…", so it is not true that every existing'
@@ -1996,7 +1972,6 @@ class TheChangeDigestKeysOnChangedLines(unittest.TestCase):
         )
 
     def test_added_blank_lines_do_not_count(self) -> None:
-        # A re-roll must not cost one empty line.
         base = change("x = 2")
         for blank in ("+", "+    ", "+\t"):
             with self.subTest(blank=blank):
@@ -2143,7 +2118,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertIsNone(read_as_lane(fake).refusal)
 
     def test_a_closed_pull_request_of_anyone_else_still_counts(self) -> None:
-        # Closing and reopening would otherwise re-roll the verifier.
         for author in (
             {"__typename": "User", "login": "someone", "databaseId": 3},
             {"__typename": "Bot", "login": "other-app", "databaseId": 2},
@@ -2181,9 +2155,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
     def test_only_the_caps_own_close_resets_the_count(self) -> None:
-        # A third pull request for the issue closed unmerged with no record,
-        # the lanes App's included: the lane closes its own for other reasons,
-        # and anyone can open one naming the issue and close it.
         for author in (
             LANES_APP_ACTOR,
             {"__typename": "User", "login": "someone", "databaseId": 3},
@@ -2269,7 +2240,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         del fake.runs[3]
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
-        # pr-unblock verify-cap.mjs reads this detail as the cap.
         self.assertEqual(evidence.detail, ve.SIBLING_UNREADABLE)
 
     def test_an_unreadable_fail_run_of_a_closed_sibling_holds_by_its_author(
@@ -2470,10 +2440,6 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, refusal)
 
     def test_a_long_cross_reference_timeline_holds_nothing(self) -> None:
-        # Anyone can cross-reference an issue, so a hundred and one mentions, from
-        # issues here or in another repository, a page of 100 cut from the
-        # count, hold no pull request for it, closing or `Refs:`, and its
-        # FAILs still count by name.
         mentions = [None] * 99 + [(SIBLING, "example-org/other")]
         closing = passing()
         closing.mentions[7], closing.mentions_total[7] = mentions, 101
@@ -2486,8 +2452,6 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_a_refs_pull_requests_own_state_decides(self) -> None:
-        # A `Refs:` pull request is in no closing list, so its state is read
-        # on its own; a failed read is unreadable, never an excuse.
         for answer, refusal in (
             ({"state": "closed", "merged_at": "2026-10-02T00:00:00Z"}, "verify:fail"),
             ({"state": "closed", "user": LANES_APP_USER}, "verify:fail"),
@@ -2580,8 +2544,6 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
     )
 
     def test_an_off_grammar_fail_of_verifier_origin_holds(self) -> None:
-        # A FAIL name no reader takes is held, never skipped: it may be a
-        # FAIL the cap or the head should count.
         for suffix in self.OFF_GRAMMAR:
             with self.subTest(suffix):
                 fake = self.named_fails(*SIBLING_HEADS[:1], suffix=suffix)
@@ -2591,10 +2553,6 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:unreadable")
 
     def test_a_fail_shaped_name_with_any_number_holds(self) -> None:
-        # The hold reads any digits, so a number no reader takes (11 digits,
-        # a leading zero) never turns a FAIL at the head into a skip.
-        # 4301 digits passes Python's limit on converting a string to an
-        # int, which must never raise out of the judgment.
         for number in ("12345678901", "041", "1" * 4301):
             with self.subTest(number[:12]):
                 fake = passing(artifact(f"pr-verify-{number}-{HEAD}-fail", 9))
@@ -2723,17 +2681,12 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         )
 
     def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
-        # A listing that does not read refuses rather than letting the pass
-        # decide, so a short read never lifts the cap.
         fake = self.failed_at(EARLIER, IN_PR, UNRELATED)
         fake.fail = {"actions/artifacts"}
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
     def test_a_fresh_pass_clears_an_old_pull_request_whose_fails_expired(self) -> None:
-        # Owner decision 2026-11-01: a fresh pass at the head of
-        # a pull request past TOO_OLD_DAYS allows it, so FAILs that expired
-        # past the 90-day retention no longer count toward its cap.
         expired = passing(
             *(
                 artifact(named(sha, "fail"), i, expired=True)
@@ -2775,8 +2728,6 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             [(f["head"], f["run"]) for f in findings], [(EARLIER, 2), (IN_PR, 3)]
         )
         self.assertEqual(findings[0]["summary"], "misses the error path")
-        # A run whose origin is not verified is never downloaded: its text
-        # could be anyone's.
         self.assertEqual(findings[1]["unreadable"], "run origin not verified")
         self.assertFalse(any("artifacts/30/zip" in " ".join(c) for c in fake.calls))
 
@@ -2898,7 +2849,6 @@ class UnauthenticatedArtifactsAreIgnored(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:missing")
 
     def test_a_fail_shaped_name_that_does_not_parse_holds(self) -> None:
-        # It starts like a FAIL of verifier origin, so it may be one: held.
         fake = FakeGitHub(
             [artifact(f"pr-verify-{PR}-{HEAD}-fail-extra", 1)], {1: run(1)}
         )
@@ -3486,13 +3436,7 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 )
 
     def test_a_refs_number_that_names_nothing_names_no_issue(self) -> None:
-        # GitHub answers a number with no issue or pull request NOT_FOUND
-        # and gh exits 1: no issue, so the pass recording the issue refuses
-        # as for any other link that names none, and no read error.
         self.assertEqual(read(self.refs("Refs: #99999")).refusal, "verify:spec-changed")
-        # Any other failed read stays unreadable: gh failing, an answer with
-        # other errors gh exits 0 on, one with no repository, and a null
-        # issue without NOT_FOUND.
         for kind in ("error", "errors", "no-repository", "null"):
             with self.subTest(kind):
                 self.assertEqual(
@@ -3500,8 +3444,6 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 )
 
     def test_a_pass_binds_to_how_the_issue_was_linked(self) -> None:
-        # A Refs pass was judged as a partial slice: it never covers the same
-        # issue closed, and a closing pass never covers it as a Refs link.
         fake = passing()
         fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
         self.assertEqual(read(fake).refusal, "verify:spec-changed")
@@ -3727,7 +3669,6 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
     def test_a_failed_listing_refuses_every_entry_and_is_not_read_per_entry(
         self,
     ) -> None:
-        # One outage holds the whole queue rather than merging blind.
         fake = passing()
         fake.fail = {"actions/artifacts"}
         with (
@@ -3900,7 +3841,6 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         )
 
     def test_a_pass_uploaded_after_the_saved_listing_is_read_by_name(self) -> None:
-        # #11854: the pass-notes landed after the run's listing was read.
         self.gate(FakeGitHub([], {}))
         fake = self.late_notes()
         reader, evidence = self.provisional(fake)
@@ -4102,8 +4042,6 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         self.assertEqual(self.run_reads(fake, 1), 3)
 
     def test_a_replaced_artifact_of_the_same_name_is_read_again(self) -> None:
-        # An overwrite uploads a new id under the same name: the head ref
-        # shared for the old id must not stand for the new contents.
         fake = self.other_fail()
         del fake.artifacts[0]
         self.assertEqual(read(fake).refusal, "verify:missing")
@@ -4114,8 +4052,6 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         self.assertEqual(self.downloads(fake, 2), 2)
 
     def test_a_fail_run_is_not_read_again_past_the_shared_bound(self) -> None:
-        # Origin rests on fields a re-run keeps, so the record serves the
-        # whole run, however long the sweep takes.
         clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
         fake = self.other_fail()
         with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
@@ -4182,8 +4118,6 @@ class ACarriedHeadServesOnlyAFail(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_pass_run_is_compared_and_not_counted_off_the_branch(self) -> None:
-        # The same run uploads another PR's FAIL first: its judgment rests on
-        # the carried yes, and the PASS must not reuse it.
         other = named(UNRELATED, "fail", 99)
         fake = FakeGitHub(
             [artifact(other, 1), artifact(named(HEAD, "pass"), 1) | {"id": 11}],
@@ -4316,8 +4250,6 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
                     )
 
     def test_a_slim_record_of_another_repository_is_not_origin(self) -> None:
-        # A trimmed record naming another repository is no origin, so the
-        # run is read from GitHub, as for a full one.
         name = named(UNRELATED, "fail", 99)
         fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         other = {"full_name": "someone/fork"}
@@ -4344,9 +4276,6 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
 _no_sleep = mock.patch.object(ve, "_listing_sleep")
 
 
-# Single pages go to whatever fake `postmerge.gh_capture` is patched to, with
-# GitHub's `Date` header (`DATE`); a test that needs other headers patches
-# this again.
 def _page_with_date(args: list[str], **kwargs: Any) -> Any:
     return postmerge.gh_capture(args, **kwargs), {"date": DATE}
 
@@ -4427,9 +4356,6 @@ class FlakyListing(FakeGitHub):
 
 
 class ATransientListingFailureIsReadAgain(unittest.TestCase):
-    # gh prints an API error as `gh: <message> (HTTP <status>)`
-    # (babysit_gh.GH_HTTP_STATUS_RE); a request that got no response prints
-    # gh's "error connecting to <host>" or Go's net/http error instead.
     TRANSIENT: tuple[str | BaseException, ...] = (
         "gh: Bad Gateway (HTTP 502)",
         "gh: Service Unavailable (HTTP 503)",
@@ -4437,26 +4363,17 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         "check your internet connection or https://githubstatus.com",
         'Get "https://api.github.com/repos/o/r/actions/artifacts": '
         "read tcp 10.0.0.1:443: read: connection reset by peer",
-        # A page body cut short: Go's JSON decoder error, as gh printed it in
-        # pr-merge run 40819274416 (skip step, 2026-10-29T04:59:05Z).
         "unexpected end of JSON input",
-        # A page body cut short while gh exits 0 (babysit_gh._run_pages).
         "page 2 is not JSON",
     )
     NOT_TRANSIENT: tuple[str | BaseException, ...] = (
-        # A rate limit stays a rate limit when gh also printed a parse error.
         "unexpected end of JSON input\ngh: API rate limit exceeded (HTTP 403)",
         "gh: Not Found (HTTP 404)",
         "gh: Bad credentials (HTTP 401)",
         "gh: Validation Failed (HTTP 422)",
-        # GitHub's answer to a GITHUB_TOKEN without the needed permission.
         "gh: Resource not accessible by integration (HTTP 403)",
-        # Rate limits (GitHub docs, "Rate limits for the REST API"): a fixed
-        # short wait outlasts neither, so neither is read again.
         "gh: Too Many Requests (HTTP 429)",
         "gh: You have exceeded a secondary rate limit. (HTTP 403)",
-        # As run 39906176584 logged it (pr-merge.yml, dispatch-full-run,
-        # 2026-10-23T05:30:57Z).
         "gh: API rate limit exceeded for installation. If you reach out to"
         " GitHub Support for help, please include the request ID"
         " 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23"
@@ -4464,8 +4381,6 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         " your rights, please review our Terms of Service"
         " (https://docs.github.com/en/site-policy/github-terms/"
         "github-terms-of-service) (HTTP 403)",
-        # A read that used the whole gh timeout, gh with no credential
-        # (exit 4), and gh missing from PATH (babysit_util.run_command).
         timed_out(),
         "To get started with GitHub CLI, please run:  gh auth login\n"
         "Alternatively, populate the GH_TOKEN environment variable with a "
@@ -4500,8 +4415,6 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
     def test_a_whole_listing_cut_short_every_time_refuses_after_three_reads(
         self,
     ) -> None:
-        # ci-status run 41475913026 refused #12404 after two cut-short reads;
-        # a cut short is read again after every wait, as a 5xx is.
         fake = FlakyListing(["unexpected end of JSON input"] * 3)
         evidence, sleeps = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
@@ -4591,7 +4504,6 @@ class AListingOfManyPagesReadsWhole(unittest.TestCase):
         self.assertEqual(len(sent), self.PAGES)
 
     def test_a_page_body_cut_short_reads_the_listing_again(self) -> None:
-        # gh exits 0 with page 2's body cut short on the first listing only.
         sent: list[str] = []
 
         def send(args, *, timeout_seconds, env_overrides, binary):
@@ -4702,8 +4614,6 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
             evidence.detail or "",
         )
         self.assertEqual(fake.timeouts, [])
-        # pr-unblock verify-cap.mjs skips the round on this detail, for this
-        # run only; the 300 s cap's own refusal is not the caller's.
         self.assertTrue((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
         evidence, _ = self.caller("900", 29_301)
         self.assertEqual(evidence.refusal, "verify:unreadable")
@@ -4713,7 +4623,6 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
     def test_the_count_read_fits_in_what_the_caller_leaves(self) -> None:
         _, fake = self.caller("120", 2_000, elapsed=60.0)
         self.assertEqual(fake.count_timeouts, [45.0])
-        # With no caller limit the count read keeps gh's default timeout.
         _, fake = self.caller("", 2_000)
         self.assertEqual(fake.count_timeouts, [None])
 
@@ -4727,8 +4636,6 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
         self.assertEqual((fake.probes(), fake.timeouts), (0, []))
 
     def test_a_small_listing_keeps_gh_s_60_s_default_as_its_floor(self) -> None:
-        # 100 artifacts: 1 page and a 7-page top-up, three times, is 24 s,
-        # under gh's 60 s per-call default the listing timeout replaced.
         self.assertEqual(self.first_timeout(100), 60.0)
         _, fake = self.caller("50", 100)
         self.assertEqual(fake.timeouts[0], 35.0)
@@ -4906,9 +4813,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
 
     def test_an_expired_carried_entry_is_dropped_by_githubs_date(self) -> None:
-        # GitHub no longer lists 800 (its expiry passed by the page's Date,
-        # 12:00:05, though not by the runner's clock, 12:00:00) nor 700
-        # (marked expired); its live count leaves both out.
         lapsed = dated(
             "pr-merge-gate-cursor",
             3,
@@ -4961,10 +4865,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         ]
 
     def test_a_carried_entry_deleted_before_its_expiry_is_read_again(self) -> None:
-        # GitHub deleted 500 half an hour before its expires_at, as it did on
-        # 2026-11-01; 400 expires 40 minutes on and stands. The base holds both,
-        # so first page and base hold one more than the live count. The pages
-        # around the entries near expiry decide them instead of a full listing.
         base = self.tail((500, 30), (400, 40))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 500])
@@ -4977,8 +4877,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(ids, [1000, 900, 800, 700, 600, 400, 300])
 
     def test_an_early_deletion_out_of_expiry_order_is_read_again(self) -> None:
-        # 400 expires before 500 but GitHub deleted only 400: the pages, not
-        # the expiry order, decide which entry went.
         base = self.tail((500, 30), (400, 20))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 400])
@@ -4992,8 +4890,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_fail_a_forged_carry_drops_beside_an_early_deletion_counts(
         self,
     ) -> None:
-        # A forged carry leaves out the FAIL 450 GitHub lists between 500 and
-        # 400, both deleted early: the region's pages bring the FAIL back.
         base = self.tail((500, 30), (400, 40))
         self.write_saved(base)
         fail = dated(named(EARLIER, "fail"), 2, 450, self.base_at - timedelta(days=2))
@@ -5032,8 +4928,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertFalse(self.failed.exists())
 
     def test_a_deletion_far_from_expiry_still_lists_every_page(self) -> None:
-        # 300 expires in 90 days but GitHub no longer lists it, and nothing
-        # in the base is near expiry: no region to read, so every page.
         base = self.tail()
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 300])
@@ -5053,13 +4947,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_deletion_between_region_pages_keeps_the_fail_it_shifts(
         self,
     ) -> None:
-        # The carry holds 1000 to 300 and FAIL 450. By page 1 GitHub dropped
-        # 800 (90 days from expiry) and 500 (expiring in 30 minutes): live
-        # count 7, the listing 9. The re-read around 500 takes page 2 (700,
-        # 600); 600 is deleted; page 3 is then (400, 300), so 450 is in
-        # neither read. Dropping it would leave 7, the live count, with the
-        # FAIL gone: it is read by id (live) and kept, so the count stays
-        # over and the one whole listing judges the FAIL.
         old = self.base_at - timedelta(hours=3)
         near = LISTED_AT + timedelta(minutes=30)
         fail = dated(named(EARLIER, "fail"), 2, 450, self.base_at - timedelta(days=2))
@@ -5093,10 +4980,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 1)
 
     def test_an_id_the_region_pages_omit_is_dropped_only_on_a_404(self) -> None:
-        # GitHub deleted 500 early; the region's page shows it gone. A 404
-        # for 500 drops it (incremental), after a 502 too; a 502 through the
-        # read's waits fails the incremental read, and no id reads left keeps
-        # 500: either way the over-count takes the one whole listing.
         attempts = 1 + len(ve.LISTING_WAITS)
         for label, fail, cap, mode, reads in (
             ("404", set(), ve.NEAR_EXPIRY_ID_READ_CAP, "incremental", 1),
@@ -5296,10 +5179,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_two_readers_that_over_count_take_one_whole_listing_a_job(
         self,
     ) -> None:
-        # GitHub dropped 300, 90 days from expiry, so both Readers' pages over
-        # the carry hold one more than the live count. The first takes the
-        # whole listing, which holds the count, and allows. The second, its
-        # saved listing back at the old base, refuses without another.
         base = self.tail()
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 300])
@@ -5312,7 +5191,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertIn("already took its whole listing", second.detail or "")
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
-        # Not a failed listing: #11926's note stays unwritten.
         self.assertFalse(self.failed.exists())
 
     def test_an_over_count_refused_before_paging_leaves_the_job_its_listing(
@@ -5332,9 +5210,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_an_over_count_listing_out_of_the_callers_time_refuses_so_later(
         self,
     ) -> None:
-        # A's whole listing pages, then its top-up runs out of the caller's
-        # time. B's Reader takes no second whole listing, and its refusal
-        # keeps the caller-limit prefix, so verify-cap skips B's round too.
         base = self.tail()
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 300])
@@ -5350,11 +5225,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_an_over_count_the_pages_near_expiry_leave_takes_one_whole_listing(
         self,
     ) -> None:
-        # GitHub dropped 500 early, which the region's pages settle, and 300,
-        # 90 days from expiry, which no page near expiry reaches. The whole
-        # listing skips 700 at a page boundary, so its top-up is one short:
-        # another whole listing would restore 700, but an over-count takes
-        # one a job, and the refusal is noted for the job's later Readers.
         base = self.tail((500, 30))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] not in (500, 300)])
@@ -5372,8 +5242,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), listed)
 
     def test_a_count_other_than_githubs_lists_every_page(self) -> None:
-        # A forged carry drops an old FAIL (600): the live count holds it, so
-        # the merged listing is one short and every page is read.
         fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
         self.write_saved(self.base)
         fake = self.fake(fail)
@@ -5386,9 +5254,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_caller_that_skips_the_waits_lists_every_page_after_one_miss(
         self,
     ) -> None:
-        # A forged carry under BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1: one
-        # incremental first page, no wait, then the whole listing, which still
-        # holds the dropped FAIL.
         fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
         self.write_saved(self.base)
         fake = self.fake(fail)
@@ -5450,9 +5315,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.sleep.assert_not_called()
 
     def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
-        # A 429, a rate-limit 403 or a timeout on the first incremental page
-        # is never read again (`_read_listing`'s rule): the whole listing
-        # follows at once, as before the count-miss retry.
         failures: dict[str, Any] = {
             "429": subprocess.CompletedProcess(
                 [], 1, "", "gh: API rate limit exceeded (HTTP 429)"
@@ -5512,8 +5374,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
             return reader, reader.evidence(PR, HEAD, pull()), fake
 
     def test_a_cut_short_page_is_read_again_without_a_full_listing(self) -> None:
-        # As gh printed it in pr-merge run 40819274416, and a body cut short
-        # that gh still exits 0 on.
         failures = {
             "gh error": subprocess.CompletedProcess(
                 [], 1, "", "unexpected end of JSON input"
@@ -5542,9 +5402,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0, 4.0])
 
     def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
-        # The first read's live count is one more than its pages hold, as
-        # when a page boundary moves during the read; the next read holds it
-        # and no page is listed whole.
         self.write_saved(self.base)
         fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
         rest, off = fake.rest, [len(self.base) + 2]
@@ -5626,8 +5483,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(reader.listing_mode, "full")
 
     def test_a_live_count_no_listing_can_hold_refuses(self) -> None:
-        # One short is a skip another whole listing may restore; one over is
-        # an entry GitHub no longer counts, which no further listing drops.
         for delta, reads in ((-1, 1), (1, ve.LISTING_READS)):
             with self.subTest(delta):
                 self.write_saved(self.base)
@@ -5770,11 +5625,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 2)
 
     def test_a_5xx_on_a_top_up_id_read_is_not_noted_for_the_job(self) -> None:
-        # No carry, so a whole listing, which lists 650 (expiring in 30
-        # minutes); GitHub then drops it early. The top-up's page 1 stops at
-        # 1000, keeping 650, one over the live count; the page near expiry
-        # omits it, and its read by id answers 502 through its waits: this
-        # Reader refuses, transient, and the next one, the blip over, lists.
         old, soon = self.base_at - timedelta(days=2), LISTED_AT + timedelta(minutes=30)
         dropping = dated("pr-merge-gate-cursor", 3, 650, old, expires=soon)
         fake = self.fake(dropping)
@@ -6067,8 +5917,6 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
         self.assertFalse(self.saved.exists())
 
     def test_a_duplicate_at_a_page_boundary_is_counted_once(self) -> None:
-        # An upload while it pages moves an artifact down a page, so the
-        # whole listing returns it twice.
         fake = self.fake()
         listed = fake.listed
 
@@ -6158,9 +6006,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
     def test_a_whole_listing_that_skips_a_fail_beside_an_early_deletion(
         self,
     ) -> None:
-        # The top-up's page 1 (1000, 900) keeps 800, 700 and 600: five, the
-        # live count. 600 is near expiry, so page 3 is read (650 alone),
-        # bringing the FAIL back, and 600, which it omits, answers 404.
         fake = self.skipped()
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
@@ -6171,12 +6016,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertEqual(ids, [1000, 900, 800, 700, 650])
 
     def test_a_stale_carry_whose_early_deletion_hides_a_missed_fail(self) -> None:
-        # The carry lacks FAIL 750 and still holds 600, which GitHub deleted
-        # 30 minutes before its expiry: five against a live count of five.
-        # Page 3 (700) does not reach 750, but 600's own read answers 404,
-        # so the count is one short. A short count reads again after each
-        # wait, as for a skip in the fresh pages; this one is the carry's, so
-        # every read stays short and the whole listing holds the FAIL.
         self.write_saved([*self.base, self.entry(600, timedelta(minutes=30))])
         fake = self.fake(self.earlier_fail(750))
         reader, evidence = self.judge(fake)
@@ -6641,7 +6480,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 )
 
     def test_an_unreadable_human_gated_label_closes_nothing(self) -> None:
-        # Its default could miss the label the tracker maps, and so the hold.
         self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
         self.role_label.side_effect = postmerge.PostMergeReadError("tracker gone")
         with mock.patch.object(ve, "capped_close") as close:
@@ -7090,8 +6928,6 @@ class EachVerdictIsOneRequest(unittest.TestCase):
         self.assertFalse(evidence.needs_human)
 
     def test_a_listing_with_an_artifact_of_no_id_refuses(self) -> None:
-        # An entry with no id cannot be counted against the live total, so
-        # the listing is never whole and no pass allows on it.
         fake = self.heads(ids=False)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
@@ -7303,8 +7139,6 @@ class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
         self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 2)
 
     def test_an_artifact_without_an_id_refuses_every_read(self) -> None:
-        # A listing entry with no id cannot be counted against the live
-        # total, so the listing never reads whole, record or not.
         fake = self.foreign()
         del fake.artifacts[1]["id"]
         self.assertEqual(read(fake).refusal, "verify:unreadable")
@@ -7314,7 +7148,6 @@ class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
-# The first 16 hex digits of `printf %s <ref> | sha256sum`.
 DIGEST_X = "79b4cc554b80dca6"
 DIGEST_OTHER = "3b0035df584451e9"
 
@@ -7383,7 +7216,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
         self.assertEqual(downloads(fake), 1)
 
     def test_a_pull_request_with_no_head_ref_ties_nothing_by_name(self) -> None:
-        # e3b0c44298fc1c14: the first 16 hex digits of `printf '' | sha256sum`.
         fake = FakeGitHub(
             [artifact(named(TIE, "fail", 97) + "-e3b0c44298fc1c14", 4)], {4: run(4)}
         )
@@ -7392,7 +7224,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
         )
 
     def test_a_name_from_a_run_not_of_verifier_origin_is_never_trusted(self) -> None:
-        # Each forgery names PR 41's head branch: trusted, it would hold.
         for label, overrides in UnauthenticatedArtifactsAreIgnored.FORGERIES.items():
             with self.subTest(label):
                 fake = FakeGitHub(
@@ -7422,8 +7253,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                 self.assertEqual(downloads(fake), 0)
 
     def test_a_malformed_digest_is_no_verdict_and_holds(self) -> None:
-        # No verdict name, but a FAIL-shaped one of verifier origin: held,
-        # never skipped.
         for suffix in ("-79B4CC554B80DCA6", "-79b4cc554b80dca", "-79b4cc554b80dca6x"):
             with self.subTest(suffix):
                 fake = FakeGitHub(
@@ -7602,9 +7431,6 @@ class TheHeadRefMapCarriesOnlyDownloads(unittest.TestCase):
         )
 
     def test_a_forged_cache_entry_never_reaches_the_map(self) -> None:
-        # PR 98's FAIL (id 30) records feat/other. A forged untie is read
-        # again from the record; a forged tie holds this run, and the map
-        # lacks the id, so the next run downloads it.
         for forged_ref, kept in (("feat/forged", "feat/other"), ("feat/x", None)):
             with self.subTest(forged_ref):
                 (self.dir / "run.json").unlink(missing_ok=True)
@@ -7633,7 +7459,6 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
             {
                 "BABYSIT_RUN_CACHE": str(self.dir / "run.json"),
                 ve.LISTING_ENV: str(self.dir / "listing.json"),
-                # As in pr-merge.yml: the Actions reads carry the job's token.
                 ve.TOKEN_ENV: "job-token",
             },
         )
@@ -7669,8 +7494,6 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
             )
             if not (number or base in paged) or proc.returncode != 0:
                 return proc
-            # A paged read goes page by page: serve the fake's slurped pages
-            # one at a time, linked as GitHub links them.
             pages, at = json.loads(proc.stdout), int(number or 1)
             link = (
                 f'Link: <https://api.github.com/{base}&page={at + 1}>; rel="next"\r\n'
@@ -7986,10 +7809,6 @@ class EvidenceCommandTest(unittest.TestCase):
         self.assertIs(report["needsHuman"], False)
 
     def test_only_an_untrusted_spec_goes_to_a_person(self) -> None:
-        # Owner rule 2026-10-27: a person only for intent, a design-altering
-        # finding or a CRITICAL security issue, trust holds kept. An untrusted
-        # spec is a trust boundary; the cap, an old pull request and a changed
-        # spec hold for the lanes.
         for refusal, person in (
             (ve.UNTRUSTED_SPEC, True),
             (ve.REPEATED_FAIL, False),
@@ -8588,9 +8407,6 @@ def ci_status_with(steps: list[dict[str, Any]]) -> dict[str, Any]:
     return {"total_count": 1, "jobs": [job]}
 
 
-# The jobs API can list a finished job's steps empty or cut short
-# (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
-# conclusion of the draft step decides; each of these is unreadable.
 UNREADABLE_DRAFT_STATE: dict[str, dict[str, Any]] = {
     "an empty step list": ci_status_with([]),
     "the draft step listed with no conclusion": ci_status_with(
@@ -8605,9 +8421,6 @@ UNREADABLE_DRAFT_STATE: dict[str, dict[str, Any]] = {
     },
 }
 DRAFT_CHECKS, READY_CHECKS = 41273054889, 41273113342
-# #11832's times: the draft checks run was created at 04:25:39, the verifier
-# run that judged it and uploaded the FAIL at 04:26:22, and the ready checks
-# run at 04:26:33.
 FAIL_JUDGED = "2026-11-01T04:26:22Z"
 
 

@@ -1,10 +1,3 @@
-// post-merge-test-mutation.yml's comment step: puts the body report.mjs built
-// from the validated result on the pull request that merged the pushed head,
-// as one comment. A re-run edits this lane's comment there instead of adding
-// another. No model runs here.
-//
-// Env: PULL (report.mjs's `pull` output), COMMENT_PATH, REPOSITORY,
-// GITHUB_TOKEN (pull-requests: write).
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

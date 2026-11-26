@@ -2,13 +2,41 @@
   "pass": [
     {
       "answer": "When the new item resolves, #39's line becomes 'superseded by [new title](URL)'.",
-      "why": "meets the rule"
+      "why": "rewrites #39's line once the new decision resolves"
+    },
+    {
+      "answer": "Once 'Revisit the invoice table design' resolves:\n- add its pointer to Decisions-so-far;\n- change #39's line to `[Share one invoice table across tenants](https://example.com/acme/billing/issues/39): superseded by [Revisit the invoice table design](<new URL>) (resolved <date>)`.",
+      "why": "timing on the line before the rewrite"
+    },
+    {
+      "answer": "**Later:** [Share one invoice table across tenants](https://example.com/acme/billing/issues/39)'s Decisions-so-far line is rewritten to superseded by the new decision after it resolves.",
+      "why": "bold label form"
     }
   ],
   "fail": [
     {
       "answer": "#39's Decisions-so-far line stays as it is.",
-      "why": "breaks the rule"
+      "why": "says nothing about rewriting it"
+    },
+    {
+      "answer": "Delete #39's Decisions-so-far line.",
+      "why": "deletes the line"
+    },
+    {
+      "answer": "Edit the map body now: #39's line becomes `[Share one invoice table across tenants](URL): superseded by [Revisit the invoice table design](URL)`.",
+      "why": "rewrites it now, before the new decision resolves"
+    },
+    {
+      "answer": "Add a pointer for the new item beside #39's line.",
+      "why": "two live answers"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    },
+    {
+      "answer": "After #44's resolution, #39's line reads: [Share one invoice table across tenants](URL): superseded by [Decide invoice numbering](https://example.com/acme/billing/issues/44).",
+      "why": "wrong: points #39 at #44 now instead of at the new decision once it resolves"
     }
   ]
 }

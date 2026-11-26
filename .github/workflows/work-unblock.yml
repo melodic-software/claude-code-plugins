@@ -1,60 +1,9 @@
 name: Work Unblock
 
-# What this does, in plain words:
-#
-# When an issue closes, each issue it was blocking may now be ready to work.
-# This workflow sets the Work status field to agent-ready, oldest opened
-# first, on each blocked issue that is open, not already agent-ready, has
-# every blocker closed, for any reason, by a listed human or a merge in this
-# repository (a pull request blocker: merged here; another repository's
-# blocker: closed there by a listed human), has no open sub-issue, carries no
-# hold (Work status or label: needs-owner-decision, needs-reporter-info,
-# needs-human, provenance: untrusted, attended, host-run,
-# security: outside-actor), and whose agent-ready was never removed, or had
-# its Work status set to ready by the lanes App or a listed human after its
-# newest removal. One a merged `Refs:` pull request may already have done is parked
-# at Work status confirmed instead. That field write starts
-# work-resolve-issue.yml. The rules are in
-# .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
-# effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
-#
-# The same close run removes the closed issue's own queue labels (agent-ready,
-# status: ready, admission-deferred), so a hand-closed issue leaves the queue;
-# a post-merge fix issue keeps them for its reopen.
-#
-# It runs no AI model and never checks out anything but the main branch.
-# The label is added with a lanes App token from the token broker: a label
-# added with the job's own GITHUB_TOKEN could never start a workflow.
-#
-# How to stop it: set the organization or repository lanes kill-switch
-# variable to anything but "false". The first steps check that switch.
-#
 # https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-work-unblock-sweep
-#
-# A blocked issue admission parked at Work status confirmed is never labeled: when
-# a blocker closes after it parked, the App sets its Work status to
-# needs-triage with a hand-back comment, and the hourly triage sweep sends it
-# to intake, which judges it again. An issue in a `cordoned-milestones`
-# milestone of admission-rules.json stays parked.
-#
-# To stop the lane on one issue, remove its agent-ready label or add a hold
-# label: no later run labels an issue whose agent-ready label a person removed
-# until its Work status is set to ready again.
-#
-# Its sync-status job writes the state of a status label a listed human adds
-# into the issue's Work status field, and never resets the field from a
-# removal but agent-ready's (.github/scripts/work-unblock/sync-status.mjs).
 
-# API_BUDGET_HOLD (outage posture element 2): only the label-unblocked
-# step sets it; --check-closer is a gate, and sync-status is not yet shown
-# to hold.
-# A step opts in only once its script is shown to hold green with a notice on
-# a refused call (rate-guard.mjs createRateLimitLatch); a gate never does, since
-# a hold would pass what it could not read, so the rest still end red on a
-# rate limit past the guard's budget.
 on:
   issues:
-    # labeled and unlabeled start only the sync-status job.
     types: [closed, labeled, unlabeled]
   schedule:
     - cron: "13,43,58 * * * *"
@@ -74,12 +23,6 @@ defaults:
 
 jobs:
   label-unblocked:
-    # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
-    # skip: the broker would refuse it, and the sweep picks it up. The broker
-    # mints for the sweep only from main. A finished work-resolve-issue run
-    # sweeps whatever its conclusion, since a failed or cancelled run can free
-    # room too; a skipped one, from a label other than agent-ready, ran no job.
-    # A label event is sync-status's, never this job's.
     name: Label Unblocked
     if: >-
       ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
@@ -87,11 +30,6 @@ jobs:
       || (github.event_name == 'workflow_run' && github.ref == 'refs/heads/main'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && github.event.workflow_run.conclusion != 'skipped')
-    # One run at a time across the repository, so two runs cannot each admit
-    # the queued cap's whole room. One more waits, and a newer run replaces
-    # it: a sweep reads the whole state, and its closed-issue window repeats a
-    # close run's work (label-unblocked.mjs labelUnblocked, closeSplitParents),
-    # so the next sweep does a replaced run's work.
     concurrency:
       group: work-unblock-label-unblocked
       cancel-in-progress: false
@@ -102,7 +40,6 @@ jobs:
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
     outputs:
-      # The sweep's lanes App rate-limit readings, for publish-lane-level.
       lane-readings: ${{ steps.readings.outputs.readings }}
       standards-sha: ${{ steps.standards.outputs.sha }}
     steps:
@@ -133,7 +70,6 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-          # Starts new work: also stop on a low GITHUB_TOKEN budget.
           budget: "true"
 
       - name: Report the kill switch
@@ -144,23 +80,12 @@ jobs:
           WHY: ${{ steps.kill.outputs.cause == 'budget' && format('the GITHUB_TOKEN budget is low until {0} (epoch seconds), which stops', steps.kill.outputs.reset) || 'the lanes kill switch stops' }}
         run: echo "::notice::${WHY} this run (reason ${REASON:-unreadable}, cause ${CAUSE:-unreadable}); nothing read or labeled"
 
-      # The base config's limits.api, in resolve-config's output shape, for
-      # the pacer; a failed read leaves rate-limits.json's defaults.
       - name: Read the pace override from the base config
         if: steps.kill.outputs.proceed == 'true'
         continue-on-error: true
         run: |
           yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
 
-      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
-      # at reset, projected at this window's burn rate, is under limits.api
-      # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
-      # and only when the previous scheduled run marked a clean sweep, so the
-      # next tick always sweeps. That sweep reads back from the last clean
-      # sweep before the paced run (label-unblocked.mjs sweepSince), so no
-      # close falls between them. A close or a finished work-resolve-issue
-      # run, or a read that fails, runs as before
-      # (.github/actions/log-api-budget/pace.mjs).
       - name: Pace the tick on the GITHUB_TOKEN burn rate
         id: pace
         if: steps.kill.outputs.proceed == 'true'
@@ -172,35 +97,21 @@ jobs:
           PACE_WORK_STEP: Mark this tick's work done
         run: node .base/.github/actions/log-api-budget/pace.mjs
 
-      # The next sweep's window reads this step to look past this run
-      # (label-unblocked.mjs PACED_STEP).
       - name: Mark this tick paced
         if: steps.pace.outputs.paced == 'true'
         run: echo "::notice::the pacer paced this tick; the next scheduled sweep reads back past it"
 
-      # The broker mints only when the person who closed the issue and the one
-      # who started this run (a re-runner may be someone else) are each a
-      # listed human (trusted-actors.json on main), matched by id: the
-      # re-runner's is read from this run's own record with the job token.
-      # Anything else, or a failed read, stops here quietly, before the token
-      # request. The script makes the same check again. A scheduled sweep has
-      # no closer, and its actor is whoever last changed the schedule, so it
-      # skips this check; so does a sweep a finished work-resolve-issue run
-      # starts, whose re-run the broker allows only to a listed human.
       - name: Check who closed the issue
         id: who
         if: steps.kill.outputs.proceed == 'true' && github.event_name == 'issues'
         env:
           ACTOR_ID: ${{ github.actor_id }}
-          # The job's own read-only token, to read this run's record.
           ACTIONS_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/work-unblock/label-unblocked.mjs --check-closer
 
-      # Reads the lane's rules from main: the label-unblocked activity's
-      # effect and token permissions.
       - name: Resolve the config
         id: config
         if: >-
@@ -236,10 +147,6 @@ jobs:
           API_BUDGET_TOKEN: github-token
         run: node .base/.github/scripts/work-unblock/sweep-gap.mjs
 
-      # Swaps this job's GitHub identity proof for a short-lived lanes App
-      # token for this repository only, with the resolved grant (issues:
-      # write, contents: read, pull-requests: read). The step fails red unless
-      # the broker granted exactly that.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true' && steps.gap.outputs.skip != 'true'
@@ -249,21 +156,12 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: work-unblock
           activity: label-unblocked
-          # A sweep (scheduled or after an issue lane run) names no issue; a
-          # close names its issue, which the broker needs on an issues event.
           issue-number: ${{ github.event_name == 'issues' && format('{0}', github.event.issue.number) || '' }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # A sweep's reads that never change (a completed lane run's job listing,
-      # a refused job's log verdict) carry over from the last successful
-      # sweep's work-unblock-verdicts artifact, so this sweep does not read
-      # them again. Only that run's steps could upload it; it never goes
-      # through actions/cache, which any job in the default branch's cache
-      # scope can write. Rules: .github/scripts/work-unblock/verdict-carry.mjs.
-      # Any error leaves no file, and the sweep reads GitHub.
       - name: Read the verdicts the last sweep kept
         if: steps.lane-token.outputs.token != '' && github.event_name != 'issues'
         continue-on-error: true
@@ -274,25 +172,13 @@ jobs:
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
         run: node .base/.github/scripts/work-unblock/verdict-carry.mjs read
 
-      # The script re-reads every blocked issue, its labels, blockers and
-      # comments from the API; nothing is taken from the event but the closed
-      # issue's number and who closed it (a sweep lists the closed issues from
-      # the API too). It gets the kill switch answer from the first step and
-      # stops on anything but `proceed`.
       - name: Label the unblocked issues
         id: label
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          # The App token's readings; the ACTIONS_TOKEN client logs its own
-          # under github-token.
           API_BUDGET_TOKEN: lanes-app
-          # A rate limit past the guard's budget refuses the call with a notice
-          # (rate-guard.mjs): a refused listing holds the sweep green
-          # (reportHold), the admission gate admits nothing on an unread queue,
-          # and any other refused call still ends the run red (`failed`).
           API_BUDGET_HOLD: "1"
-          # The job's own read-only token; the App token has no actions grant.
           ACTIONS_TOKEN: ${{ github.token }}
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
@@ -300,20 +186,12 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           VERDICTS_IN: ${{ runner.temp }}/work-unblock-verdicts-in.json
           VERDICTS_OUT: ${{ runner.temp }}/work-unblock-verdicts.json
-          # Minutes after which the sweep decides no further agent-ready issue
-          # and writes what it decided: inside the job's 10-minute limit, with
-          # room for the last decision, the writes and the steps after this.
           SWEEP_BUDGET_MINUTES: "6"
-          # A held sweep's marker for monitor signal 13 (lane-hold-marker.mjs).
           LANE_HOLD_MARKER: ${{ runner.temp }}/lane-hold/work-unblock
-          # The published lane level, for the re-fire room (lane-level-value.mjs).
           LANE_VARS: ${{ toJSON(vars) }}
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT"
 
-      # The collect part of the adaptive lane level: this sweep's lanes App
-      # readings, the hour's largest burst, for publish-lane-level. Local
-      # files only, no API call (.github/scripts/lib/lane-level-readings.mjs).
       - name: Collect the lane level readings
         id: readings
         if: always() && github.event_name == 'schedule' && steps.lane-token.outputs.token != ''
@@ -341,8 +219,6 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-      # On a green job only, as monitor signal 13 reads holds; no marker
-      # uploads nothing.
       - name: Keep the lane hold marker
         if: steps.label.outcome == 'success'
         continue-on-error: true
@@ -354,16 +230,10 @@ jobs:
           overwrite: true
           if-no-files-found: ignore
 
-      # A green sweep that read its closed listing and held nothing, the run
-      # the next sweep's window can start from (label-unblocked.mjs
-      # sweepSince). The pacer paces the next tick only after this step
-      # (.github/actions/log-api-budget/pace.mjs).
       - name: Mark this tick's work done
         if: steps.label.outputs.clean-sweep == 'true'
         run: echo "label-unblocked swept cleanly"
 
-      # The token is cancelled as soon as the job is done; it would otherwise
-      # expire within the hour. This never fails the job.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
@@ -379,20 +249,6 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # The adaptive lane level (owner decisions Q111 and Q113 (a)): once an hour,
-  # after the sweep, decides the issue lane's next concurrency level from the
-  # sweep's lanes App readings, the lane's runs in progress and the last
-  # decision, and publishes it as `<level>@<valid-until>` in the one variable
-  # limits.lane-level.variable names
-  # (.github/scripts/work-unblock/publish-lane-level.mjs). While
-  # limits.lane-level.shadow is set it logs the level as a notice, mints no
-  # token and writes nothing. Any failure but the variable check ends green
-  # with a notice: a missed hour leaves the last value, which expires to the
-  # default. The pacer does not skip it: it costs a few job-token calls an
-  # hour, and the level should still be decided when the budget runs hot. A
-  # tick the pacer paced made no lanes App calls, so it hands over no readings
-  # and decide() holds L.
-  # Schedule only: the broker mints publish-lane-level on no other event.
   publish-lane-level:
     name: Publish Lane Level
     needs: label-unblocked
@@ -401,11 +257,6 @@ jobs:
       group: work-unblock-publish-lane-level
       cancel-in-progress: false
     runs-on: ubuntu-24.04
-    # The step caps alone come to about 13 minutes (the tip resolve at 3 x 60s
-    # with backoff, the listing, publish, check and scan steps at 2 each, the
-    # revoke and budget log), with checkout, setup, config and the mint (a 30s
-    # OIDC read and a 60s broker call) on top. A job cut off mid-run skips the
-    # check, so the cap must leave it room.
     timeout-minutes: 20
     permissions:
       actions: read # count the issue lane's runs in progress, and read the last decision's artifact
@@ -461,7 +312,6 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # limits.lane-level.shadow: a shadow run mints no token.
       - name: Read the publish mode
         id: mode
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
@@ -471,9 +321,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" mode
 
-      # The resolved grant: Variables write, with contents, pull-requests and
-      # issues read. A refused or failed mint leaves no token; the next step
-      # then writes nothing and says so.
       - name: Request the lane token
         id: lane-token
         if: steps.mode.outputs.shadow == 'false'
@@ -492,10 +339,6 @@ jobs:
           kill-switch-ok: "true"
           rate-limit-hold-ok: "true"
 
-      # The token's Variables write covers every repository variable, so every
-      # one is listed before the publish and again after it (owner decisions
-      # Q113 (a) and Q115 (a)). A failed listing fails this step, and the
-      # publish step, which runs only on success, then writes nothing.
       - name: List the repository variables before the publish
         id: variables-before
         if: steps.mode.outputs.shadow == 'false' && steps.lane-token.outputs.token != ''
@@ -516,22 +359,14 @@ jobs:
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
           LANE_READINGS: ${{ needs.label-unblocked.outputs.lane-readings }}
           LANE_VARS: ${{ toJSON(vars) }}
-          # The job's own token: the lane's run count and the last decision's
-          # artifact. The lane token only writes the variable.
           ACTIONS_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          # The job token's readings; the script pins the lane token's client
-          # to lanes-app (publish-lane-level.mjs laneClient).
           API_BUDGET_TOKEN: github-token
           STATE_OUT: ${{ runner.temp }}/lane-level-state.json
           SCRIPT: ${{ steps.config.outputs.script }}
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" run
 
-      # Unlike the rest of this job, which ends green, this step fails the job
-      # on any variable change but the level variable, or when either listing
-      # is incomplete: maintenance-monitor-signals files signal 14 from its
-      # annotation. It runs whenever a token was minted, whatever publish did.
       - name: Check no other repository variable changed
         if: always() && steps.lane-token.outputs.token != ''
         timeout-minutes: 2
@@ -554,8 +389,6 @@ jobs:
           gate-path: .base/lib/publish-gate.mjs
           path: ${{ runner.temp }}/lane-level-state.json
 
-      # The next hour's previous decision; publish-lane-level.mjs reads it from
-      # the newest scheduled run of main's work-unblock.yml.
       - name: Upload the decision for the next hour
         if: (always() && steps.publish.outcome == 'success') && steps.scan-state.outputs.clean == 'true'
         continue-on-error: true
@@ -566,8 +399,6 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-      # The token is cancelled as soon as the job is done; it would otherwise
-      # expire within the hour. This never fails the job.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
@@ -583,21 +414,11 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # Writes the state of a status label a person adds into the issue's Work
-  # status field, never from a removal but agent-ready's
-  # (.github/scripts/work-unblock/sync-status.mjs). It writes with the lanes
-  # App token: the field's reader counts agent-ready only from a listed human
-  # or the App. A label change by a bot (the lanes App, whose scripts write
-  # the field themselves) starts no job; one by an account not listed as a
-  # human gets no token and writes nothing.
   sync-status:
     name: Sync Status
     if: >-
       github.event_name == 'issues' && github.event.action != 'closed'
       && github.event.sender.type != 'Bot' && !github.event.issue.pull_request
-    # One run per issue at a time, and each label event's run waits in line
-    # (`queue: max`): each translates its own event, so a dropped waiting run
-    # would lose its write.
     concurrency:
       group: work-unblock-sync-status-${{ github.event.issue.number }}
       queue: max
@@ -641,9 +462,6 @@ jobs:
           REASON: ${{ steps.kill.outputs.reason }}
         run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or written"
 
-      # The broker mints on a label event only for a listed human (the
-      # trusted-actor list on main, by id), so anyone else stops here quietly,
-      # before the token request.
       - name: Check who changed the label
         id: who
         if: steps.kill.outputs.proceed == 'true'
@@ -657,9 +475,6 @@ jobs:
             echo "::notice::the label was changed by an account not listed as a human; its Work status field is not written"
           fi
 
-      # Reads the lane's rules from main: the sync-status activity's effect
-      # and token permissions. It installs resolve-config's packages, which the
-      # script's config read needs.
       - name: Resolve the config
         id: config
         if: steps.who.outputs.proceed == 'true'
@@ -679,9 +494,6 @@ jobs:
           REASON: ${{ steps.config.outputs.skip-reason }}
         run: echo "::notice::sync-status does not apply (${REASON:-no reason}); nothing read or written"
 
-      # Swaps this job's GitHub identity proof for a short-lived lanes App
-      # token for this repository only, with the resolved grant (issues:
-      # write, contents: read, pull-requests: read).
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
@@ -691,17 +503,12 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: work-unblock
           activity: sync-status
-          # The broker needs the issue on an issues event.
           issue-number: ${{ format('{0}', github.event.issue.number) }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # The script reads the issue's field (and, when agent-ready comes off,
-      # its labels) from the API; nothing is taken from the event but the
-      # action, the issue number, the label name and whether it is a pull
-      # request.
       - name: Write the added status label into the `Work status` field
         if: steps.lane-token.outputs.token != ''
         env:
@@ -713,8 +520,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT"
 
-      # The token is cancelled as soon as the job is done; it would otherwise
-      # expire within the hour. This never fails the job.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true

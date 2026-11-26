@@ -35,11 +35,8 @@ def probe() -> int:
     return path_probe(NAME)
 
 
-# Argument-vector budget for one scc invocation, in characters. Git Bash under
-# Windows caps a native process's command line near 32,000 characters, so a
-# lane of thousands of paths is fed to scc in chunks that stay under it.
-# CODE_METRICS_ARGV_BUDGET overrides the figure (the suite uses it to force
-# several chunks over a small fixture).
+# CreateProcess caps a command line at 32,767 characters.
+# https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa
 ARGV_BUDGET = 24000
 
 

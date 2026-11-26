@@ -18,7 +18,6 @@ const CREDENTIAL_INPUTS = {
 const wf = workflowText(text);
 const jobText = wf.job;
 const step = (job, name) => wf.stepNamed(job, name).text;
-// A `with:` input's one-line value, a `|` list's lines, or a `>-` scalar folded.
 const input = (block, key) => new RegExp(`^ {10}${key}: (.*)$`, "m").exec(block)?.[1];
 const block10 = (block, key, style) =>
   (new RegExp(`^ {10}${key}: ${style}\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "")
@@ -41,7 +40,6 @@ test("no workflow-level env reaches the CLI", () => {
 for (const job of JOBS) {
   test(`${job}: the judge step's inputs are the replay's`, () => {
     const judge = step(job, "Judge the pull request");
-    // Any input added or removed changes the argv run-claude-cli builds.
     assert.deepEqual(withKeys(judge).sort(), [
       "allowed-tools",
       ...CREDENTIAL_INPUTS[job],
@@ -74,8 +72,6 @@ for (const job of JOBS) {
   });
 
   test(`${job}: no job-level env reaches the CLI`, () => {
-    // lane.cjs legEnv starts from the step's whole environment, which a
-    // job-level env block would add to.
     assert.doesNotMatch(jobText(job), /^ {4}env:/m);
   });
 
@@ -91,8 +87,6 @@ for (const job of JOBS) {
   });
 
   test(`${job}: every local action runs from the base checkout`, () => {
-    // A local path outside .base/ runs the pull request head's copy of the
-    // action, resolve-config included, which the head can rewrite.
     const local = [...jobText(job).matchAll(/^\s*(?:-\s+)?uses:\s*["']?(\.[^\s"']*)/gm)].map((m) => m[1]);
     assert.ok(local.length > 0, `${job} runs local actions`);
     for (const uses of local) {
@@ -110,7 +104,6 @@ for (const job of JOBS) {
     ]) {
       const uses = /^ {8}uses: (.*)$/m.exec(step(job, name))?.[1];
       assert.match(uses, new RegExp(`^melodic-software/ci-workflows/\\.github/actions/${action}@${RUN_CLAUDE_CLI_PIN}$`));
-      // No `settings` input: the action's default JSON, which MANAGED_SETTINGS holds.
       if (action === "apply-claude-managed-settings") {
         assert.doesNotMatch(step(job, name), /\n {8}with:/);
       }
@@ -190,9 +183,6 @@ test("legEnv passes only the allowlist, the runner's additions and the one crede
 });
 
 test("promptText writes the prompt as the bash step does, after the preamble", () => {
-  // $(<file) drops trailing newlines, each ${prompt//TOKEN/...} replaces every
-  // occurrence, printf '%s\n' adds one newline, and lane.cjs puts the trimmed
-  // preamble and a blank line in front.
   const source = "Read SPEC_TEXT_FILE and SPEC_FILE;\nDIFF_PARTSCHUNK_NOTE\n\n\n";
   assert.equal(
     promptText(source, "/w/pr-verify-data"),

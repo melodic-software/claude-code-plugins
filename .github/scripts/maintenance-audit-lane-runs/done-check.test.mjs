@@ -1,10 +1,3 @@
-// Expected values come from admission's merged-Refs rule (admit.mjs, "not
-// already done"): a pull request merged here naming the issue on a `Refs:`
-// line after its newest listed human's `**Decision recorded.**` parks it for a
-// done-check, and a later decision moves the cutoff past it; and from the
-// requested behavior: a scheduled job lists those issues where a session reads
-// them, closing none
-// (https://github.com/melodic-software/claude-code-plugins/issues/18251).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

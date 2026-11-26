@@ -1,8 +1,3 @@
-// The MCP server over stdio. It serves both protocol eras: a request whose
-// _meta names a protocol version is served statelessly under revision
-// 2026-07-28, and a request without one under the initialize-based revision
-// 2025-11-25. Either way the tools capability declares listChanged false and
-// tools/list returns the same fixed list (ADR 0086 section 2).
 import { createInterface } from 'node:readline';
 import { TOOLS, TOOL_NAMES, ToolInputError, callTool } from './tools.mjs';
 
@@ -109,8 +104,6 @@ export function createServer({ databases, executor, writeExecutor, serverInfo = 
     }
   }
 
-  // Returns the response for a request, or null for a notification, which
-  // never gets one. Never rejects.
   async function handle(message) {
     if (!isObject(message) || message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
       return errorResponse(isObject(message) && isId(message.id) ? message.id : null, ERROR_CODES.invalidRequest, 'Invalid Request');
@@ -131,13 +124,9 @@ export function createServer({ databases, executor, writeExecutor, serverInfo = 
   return { handle };
 }
 
-// Reads one JSON-RPC message per line from input and writes each response as
-// one line to output. Resolves once input ends and every request in flight has
-// been answered.
 export function serveStdio(server, { input = process.stdin, output = process.stdout } = {}) {
   const write = (message) => output.write(`${JSON.stringify(message)}\n`);
   const lines = createInterface({ input, crlfDelay: Infinity });
-  // A write error (EPIPE) means the client closed stdout; no one is left to answer.
   output.on('error', () => lines.close());
   const inFlight = new Set();
   lines.on('line', (line) => {

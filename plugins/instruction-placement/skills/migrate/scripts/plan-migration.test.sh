@@ -161,8 +161,6 @@ make_repo "$HAZARD"
 mkdir -p "$HAZARD/.github/workflows" "$HAZARD/tools" "$HAZARD/docs"
 printf '# Root\n' >"$HAZARD/AGENTS.md"
 printf '@AGENTS.md\n' >"$HAZARD/CLAUDE.md"
-# A case-variant fixture needs a case-sensitive filesystem: on NTFS `agents.md`
-# and `AGENTS.md` are one file, so the fixture cannot exist to be reported.
 case_sensitive=0
 printf 'a' >"$TMP/CaseProbe"
 [[ -f "$TMP/caseprobe" ]] || case_sensitive=1
@@ -235,8 +233,6 @@ commit_all "$OWNED"
 OUT=$(bash "$SCRIPT" --root "$OWNED" --home "$TMP/nohome")
 assert_contains "a Claude CLAUDE.md under .github is planned" "$OUT" "DIR	.github	content-in-claude"
 assert_contains "a Claude CLAUDE.md under .cursor is planned" "$OUT" "DIR	.cursor	content-in-claude"
-# The root AGENTS.md is 7 bytes and still counts on the path; Cursor's own
-# 9-byte file does not, so the sum is the root's alone.
 assert_contains "and the Cursor file is left out of the Codex budget" "$OUT" "BUDGET	.cursor	7	OK"
 
 

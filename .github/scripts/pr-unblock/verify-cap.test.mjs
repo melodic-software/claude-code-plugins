@@ -1,6 +1,3 @@
-// The expected arguments come from babysit_verify_evidence.py's `evidence`
-// command line (main: --repo, --base-sha, number, head) and its report line
-// (Evidence.report: refusal, head, detail).
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -117,8 +114,6 @@ test("the reader's supersededAtHead reaches the caller only as true from a read 
   for (const done of [answer({ refusal: "verify:fail", supersededAtHead: false }), answer({ refusal: null }), answer({ refusal: null, supersededAtHead: "true" })]) {
     assert.deepEqual(await read(done), { cap: null, supersededAtHead: false, earlierFailHeads: [] }, JSON.stringify(done));
   }
-  // A read with no answer for the head says so (readFailed), so a caller
-  // tells it from "no earlier FAIL" (#12843 review).
   for (const done of [
     answer({ refusal: null, supersededAtHead: true, head: "c".repeat(40) }),
     { status: 1, stdout: "", stderr: "gh: rate limited" },
@@ -129,10 +124,6 @@ test("the reader's supersededAtHead reaches the caller only as true from a read 
   assert.deepEqual(await read(answer({ refusal: "verify:repeated-fail", detail: CAPPED, supersededAtHead: false })), { cap: `verify:repeated-fail: ${CAPPED}`, supersededAtHead: false, earlierFailHeads: [] });
 });
 
-// #12809: a verify:earlier-fail refusal names the FAILed heads behind it
-// (Evidence.report `earlierFails`), so feedback-dispatch.mjs sends a round
-// that works their notes; it is handled, so it warns nothing. A list that is
-// not of commit ids other than the head names none, with a warning.
 test("a verify:earlier-fail refusal names its FAILed heads and warns nothing; a malformed list names none", async () => {
   const one = "1".repeat(40);
   const two = "2".repeat(40);
@@ -380,11 +371,6 @@ test("the reader is told the limit it is killed at, and who kills it", async () 
   assert.equal(calls[0].env.GITHUB_REPOSITORY, REPO);
 });
 
-// Runs 41078771801, 41081672214, 41082104940 and 41085939386 (2026-10-30):
-// after a 57-125 s read the dispatch POST failed at once with `fetch failed`.
-// A server in another process resets a connection idle 200 ms; the reader
-// runs past that, then the next request goes out. Under spawnSync the reset
-// lay unread and the request went out on the dead socket (ECONNRESET).
 test("a request after the reader's read goes out on a live connection, not on one reset while it ran", async () => {
   const server = spawnChild(
     process.execPath,

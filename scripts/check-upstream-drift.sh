@@ -1,48 +1,5 @@
 #!/usr/bin/env bash
-# Check every docs/upstream page pinned to a git commit for upstream changes
-# since that commit.
-#
-#   scripts/check-upstream-drift.sh [--page <file>]...            findings
-#   scripts/check-upstream-drift.sh --report [--page <file>]...   list mode
-#   scripts/check-upstream-drift.sh --links [--page <file>]...    link check
-#   scripts/check-upstream-drift.sh --help
-#
-# The page forms (the git pin marker, row links, drift inputs, the `## Map`
-# section and page status) are defined in docs/contracts/upstream-drift/
-# README.md, "Pinned git upstreams". In short: a page whose marker line reads
-# **Last audited upstream state:** `<owner>/<repo>@<40-hex sha>` [under `<scope>/`]
-# is checked; links to that repository outside `## Map` are drift inputs for any
-# change under them; a `## Map` link counts only when its unit is removed; a file
-# added under the scope that no link covers is a new unit. A marker carrying a
-# backticked `<owner>/<repo>@<hex>` that fails the form exits 2. Other markers
-# (`main@<short sha>`, `changelog through`) are skipped.
-#
-# Trees are read with `gh api 'repos/<o>/<r>/git/trees/<sha>:<path>?recursive=1'`
-# at the pin and at upstream HEAD. A truncated tree, a failed call, or a tree
-# path holding a control character exits 2 and is never a clean report. When an
-# owner's IP allow list refuses the token, that owner's repositories are read
-# anonymously over git instead (ls-remote for HEAD, a blobless depth-1 fetch of
-# each commit into a temporary bare repository, ls-tree for its tree), which no
-# REST rate limit meters; UPSTREAM_DRIFT_GIT_BASE (default https://github.com)
-# is the base URL, a test seam. A page with any read still refused is reported
-# `status=unreachable`, named on stderr with git's error, and skipped; --report
-# goes on and exits by drift alone, the other modes exit 2 after every page is
-# read.
-#
-# Fixture seam, for tests: with UPSTREAM_DRIFT_FIXTURE_DIR set, gh is not used.
-# <dir>/<owner>__<repo>/HEAD holds a SHA; <dir>/<owner>__<repo>/<sha>.tree
-# holds `<blob sha> <repo-relative path>` lines for the whole tree; a line
-# reading `truncated` marks a truncated read. A missing file exits 2.
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): findings on stderr, the clean statement on stdout; --report prints
-# its report on stdout for exit 0 and 1. Exit: 0 clean, 1 drift (or a bad link
-# under --links), 2 environment or usage; on exit 2 nothing reaches stdout.
-# Read-only: the script writes no file outside the temporary directory an
-# anonymous read creates, which it removes on exit.
 set -uo pipefail
-# In a job, each gh call keeps its rate-limit reading for the job-end
-# api-budget notice (.github/actions/log-api-budget).
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 export LC_ALL=C
@@ -90,7 +47,6 @@ done
 command -v jq >/dev/null 2>&1 || die "jq is required"
 FIXTURE="${UPSTREAM_DRIFT_FIXTURE_DIR:-}"
 if [[ -z "$FIXTURE" ]]; then
-  # type -P: on a runner `gh` is also the api-budget wrapper function.
   type -P gh >/dev/null 2>&1 || die "gh is required (or set UPSTREAM_DRIFT_FIXTURE_DIR)"
 fi
 
@@ -115,7 +71,6 @@ url_decode() {
   printf '%b' "${s//%/\\x}"
 }
 
-# parse_marker <page>: 0 git form (P_* set), 1 not the git form, 2 near-miss.
 parse_marker() {
   local line rest
   line="$(grep -m1 -F -- "$MARKER_PREFIX" "$1")" || return 1
@@ -325,7 +280,7 @@ filter_under() {
   awk -v p="$p" '{ q = substr($0, index($0, " ") + 1); if (q == p || index(q, p "/") == 1) print }' <<<"$1"
 }
 
-uri_path() { # percent-encodes every byte outside [A-Za-z0-9._~/-]
+uri_path() {
   local s="$1" out="" c i
   for ((i = 0; i < ${#s}; i++)); do
     c="${s:i:1}"
@@ -337,8 +292,6 @@ uri_path() { # percent-encodes every byte outside [A-Za-z0-9._~/-]
   printf '%s' "$out"
 }
 
-# gh_tree <o> <r> <sha> <path> [<recursive 1|0>]: sets OUT_TREE to
-# `<blob> <path>` lines; returns 3 for 404 (absent), 4 for 422 (a blob).
 gh_tree() {
   local o="$1" r="$2" sha="$3" p="$4" rec="${5:-1}" url status
   url="repos/$o/$r/git/trees/$sha"
@@ -396,13 +349,11 @@ tree_list() {
     elif ((rc == 3)); then
       OUT_TREE=""
     elif ((rc == 4)); then
-      # A blob path: list its directory and keep the one entry.
       dir=""
       [[ "$p" == */* ]] && dir="${p%/*}"
       gh_tree "$o" "$r" "$sha" "$dir" 0
       rc=$?
       if ((rc == 0)); then
-        # The listing is one level deep, so no entry sits under <path>.
         OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
       else
         OUT_TREE=""
@@ -412,7 +363,6 @@ tree_list() {
   [[ -n "$PAGE_UNREACH" ]] || TREES[$key]="$OUT_TREE"
 }
 
-# diff_trees <pin-text> <head-text>: prints `<A|M|D> <path>` sorted by path.
 diff_trees() {
   awk '
     FNR == 1 { fileno++ }
@@ -598,7 +548,6 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
     FINDINGS+=("${page_events[@]}")
   fi
   REPORT+=("page repo=$o/$r pin=${pin:0:12} head=${head:0:12} status=$status path=$page")
-  # Row lines first in page order, then units, as the report contract lists.
   for kind in row new-unit removed-unit; do
     for line in ${page_report[@]+"${page_report[@]}"}; do
       [[ "$line" == "$kind "* ]] && REPORT+=("$line")

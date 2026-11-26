@@ -470,7 +470,7 @@ other question. When the canvas closes, ask for the fenced form: the typed artif
 
 ## Next
 
-- Design finished, to gate and write into PLAN.md's `## Design`, which /planning:plan reads: /planning:design-handoff.
+- Design finished: /planning:design-handoff, which gates it and writes PLAN.md's `## Design` for the plan.
 - The contract is a UI component's props API (parts, variants, controlled state): /user-interface:design.
 
 ## Related

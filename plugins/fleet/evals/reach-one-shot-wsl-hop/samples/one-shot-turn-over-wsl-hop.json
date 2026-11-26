@@ -24,7 +24,7 @@
     },
     {
       "answer": "printf '%s\\n' 'Report the free space on D' | /mnt/c/Windows/System32/OpenSSH/ssh.exe desk-win claude -p",
-      "why": "turn over the port 22 alias, which is not an agent lane"
+      "why": "turn over the port 22 alias, which is not an agent hop"
     },
     {
       "answer": "printf '%s\\n' 'Report the free space on D' | ssh -p 2222 evaluser@desk-01 claude -p",

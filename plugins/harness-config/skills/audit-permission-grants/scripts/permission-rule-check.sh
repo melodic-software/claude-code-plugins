@@ -1,99 +1,4 @@
 #!/usr/bin/env bash
-# permission-rule-check.sh — deterministic detector for fragile Claude Code
-# permission grants across a repo's skill/command/agent frontmatter and its
-# settings.json / settings.local.json permission rules.
-#
-# Flags five anti-patterns (criteria file: reference/criteria.md):
-#   P1  interpreter-wildcard / blanket allow rules that Claude Code DROPS on
-#       entering auto mode (blanket Bash(*)/PowerShell(*), wildcarded
-#       interpreters like Bash(python*), package-manager wildcards — runner
-#       subcommands (Bash(npx *)) and bare package managers (Bash(npm:*),
-#       Bash(npm *)), with their path and version forms — script-glob
-#       interpreters like Bash(*.py:*), a wrapper followed only by a wildcard
-#       (Bash(timeout *)), leading-wildcard rules (Bash(* --version)), the
-#       $HOME and Windows backslash wildcarded paths, and Agent allow rules —
-#       both bare Agent and Agent(...), which auto mode drops categorically).
-#       Narrow rules such as Bash(npm test) carry over and are NOT flagged.
-#       Monitor allow rules are another documented drop class (upstream
-#       v2.1.236) that this detector does not scan; audit-permission-state
-#       owns it — see reference/criteria.md, P1.
-#   P2  hardcoded absolute user/machine home paths inside a rule. Bash rules
-#       match the command string literally — no ~, $HOME, or env expansion — so
-#       an absolute path breaks on other machines/usernames and leaks a
-#       username into version control.
-#   P3  a plugin settings.json that declares a `permissions` block. In a plugin's
-#       settings.json only the deprecated `agent` key takes effect; 2.1.323
-#       removed `subagentStatusLine`
-#       (https://code.claude.com/docs/en/changelog#2-1-323). A self-granted
-#       permission rule there is silently ignored; the operative
-#       allow-rule has to be added by the operator to ~/.claude/settings.json.
-#   P4  inert substitution tokens in a Bash allow rule. Two classes, because
-#       one of them is context-dependent:
-#         - always inert, every scope: `%USERPROFILE%`, `$env:USERPROFILE`.
-#           Bash rules match literally and neither Windows spelling expands.
-#         - inert only OUTSIDE a plugin skill: `${CLAUDE_PLUGIN_ROOT}`,
-#           `${CLAUDE_PLUGIN_DATA}`. In a PLUGIN skill Claude Code substitutes
-#           both in the skill body and in allowed-tools Bash rules, so the
-#           grant resolves and is NOT flagged there. In a personal/project
-#           skill, an agent, a command, or any settings file they stay literal.
-#       The grant never matches where flagged.
-#   P2b `~username/…` in a Bash rule — the portable `~/` home anchor is exempt
-#       (Read/Edit resolve it per user); `~user` is not portable, names a
-#       specific account, and is not expanded in Bash rules. Emitted under the
-#       id `P2b`, not `P2`: criteria.md gives it its own `### P2b` section with
-#       its own detection rule and SKILL.md's severity table names the error
-#       tier `(P2, P2b)`, so a report that labeled it `P2` left the reader
-#       unable to tell which of the two documented checks fired, and a grep for
-#       `P2b` returned nothing (#4149 defect 3).
-#
-# CHECK ID -> SEVERITY, the whole mapping in one place (it is what the gate modes
-# below partition on): error = P2, P2b, P4, P5; warning = P1, P3.
-#
-# Advisory about FINDINGS by DEFAULT: they never fail the run, so a scan that
-# completes exits 0 in report and `--count` mode whether or not it found anything.
-# `--check` and `--strict` are the opt-in gate modes — see Usage. Environment gaps
-# exit 2 in EVERY mode: missing jq, a missing shared pattern library, an
-# unrecognized argument, and an unresolvable (or non-directory) scan root — see
-# below. An unresolvable USER scope is a narrower gap: it is announced on stderr
-# and recorded in the coverage block, and it does not by itself change the exit
-# code in any mode. In the GATE modes the blind-scan limb joins them: a run whose
-# coverage block counts any input under "NOT read" exits 2, because a gate cannot
-# pass a tree whose inputs it could not open.
-#
-# Every run reports a DENOMINATOR — the coverage block. Without it "no fragile
-# permission grants found" is the same string whether forty allowed-tools blocks
-# were parsed and found healthy or none were parsed at all, and the reader cannot
-# tell a clean bill from a scan of nothing. The block counts what was read AND what
-# was not: files the walk could not open, settings files present but not valid JSON
-# (which this script skips), files removed by an exclusion rule, and the settings
-# scopes this detector never opens at all. A denominator that counts only successes
-# would be the same defect in a new spelling.
-#
-# Project-root resolution: $PERMISSION_HYGIENE_SCAN_ROOT (or its back-compatible
-# alias $PERMISSION_HYGIENE_FIXTURE_DIR), else the cwd's git toplevel, else
-# $CLAUDE_PROJECT_DIR. Never the plugin's own dir, and NEVER $PWD. The scan-root
-# variable is a SANCTIONED operator lever, not a test-only seam: it is the
-# documented remedy for the exit-2 refusal below. The old name said "FIXTURE" and
-# told operators the opposite, so it keeps working and the new name is the one
-# every surface documents.
-#
-# Why there is no $PWD fallback: outside a git repository $PWD is whatever directory
-# the session happens to stand in, which on a developer machine is typically the user
-# profile. Both scans below walk the root with `find` with no depth bound and stderr
-# discarded, so that fallback turned an unresolved root into an unbounded sweep of the
-# user's home that still exited 0 — a timeout or a swallowed permission error was
-# indistinguishable from a clean bill. An unresolvable root is an environment gap, so
-# it is reported as one (exit 2) rather than scanned on a guess.
-#
-# User-scope resolution: $CLAUDE_CONFIG_DIR, else $HOME/.claude.
-#
-# Usage:
-#   permission-rule-check.sh            # human-readable findings, one per line
-#   permission-rule-check.sh --count    # integer finding count only
-#   permission-rule-check.sh --check    # gate: error-tier findings exit 1
-#   permission-rule-check.sh --strict   # gate: any finding exits 1
-#   permission-rule-check.sh --help
-
 set -uo pipefail
 
 usage() {
@@ -243,14 +148,6 @@ if [[ ! -d "$ROOT" ]]; then
   exit 2
 fi
 
-# In a git repository Claude Code reads the shared .claude/settings.json from the
-# session's start directory, and keeps .claude/settings.local.json at the
-# repository root, or at the main checkout's root in a linked worktree. Source:
-# https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
-# (as of 2026-11-04; recheck when that section moves either file). So a root
-# resolved from git also scans the start directory's shared file when the run
-# starts in a subdirectory, and the main checkout's local file when it runs in a
-# linked worktree. An explicit scan root reads that root only.
 START_DIR=""
 MAIN_ROOT=""
 if [[ "$ROOT_SOURCE" == "git toplevel" ]]; then
@@ -258,7 +155,6 @@ if [[ "$ROOT_SOURCE" == "git toplevel" ]]; then
   start_real="$(pwd -P)"
   [[ "$start_real" == "$root_real" ]] || START_DIR="$start_real"
   common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')"
-  # A bare repository's common dir is not a .git inside a checkout: no main checkout.
   if [[ "${common_dir##*/}" == .git && -d "${common_dir%/*}" ]]; then
     main_real="$(cd "${common_dir%/*}" && pwd -P)"
     [[ "$main_real" == "$root_real" ]] || MAIN_ROOT="$main_real"
@@ -273,22 +169,12 @@ fi
 # shellcheck source=../../../lib/permission-patterns.sh
 source "$PATTERNS_LIB"
 
-# P2 — machine home-path shapes, ASSEMBLED FROM FRAGMENTS so no contiguous
-# home-path literal appears in this file's source bytes and trips the repo's
-# own machine-specific-path scanner. `seg` is one
-# real segment character: not a separator, wildcard, or a placeholder/expansion
-# lead (<, $, {, ~), so `${CLAUDE_PROJECT_DIR}/…`, `~/…`, and doc placeholders
-# like `<name>` are not matched — only concrete usernames are.
 _sl='/'
 # shellcheck disable=SC1003  # _bs is a literal single backslash, not an escape
 _bs='\'
 _seg="[^${_sl}${_bs}*<>\${}~ ]"
 _p2_path="${_sl}Users${_sl}${_seg}|${_sl}home${_sl}${_seg}|[A-Za-z]:[${_sl}${_bs}]Users[${_sl}${_bs}]${_seg}"
 P2_RULE_ERE="[A-Za-z_][A-Za-z0-9_]*\\(${CCPERM_BALANCED_ERE}(${_p2_path})${CCPERM_BALANCED_ERE}\\)"
-# `~user/…` in a Bash rule — not the portable `~/` anchor (Read/Edit resolve that
-# per user). Bash rules match literally and do not expand tilde-user forms.
-# Require `~` to begin a shell word (immediately after `(` or whitespace), not
-# inside arbitrary command text such as a URL user-directory segment.
 P2_TILDE_USER_RULE_ERE='Bash\((~[^/[:space:]~]+/|[[:space:]]+~[^/[:space:]~]+/)[^)]*\)'
 
 # Inert tokens inside Bash(...) only — not Read/Edit or other tools.
@@ -296,18 +182,7 @@ P2_TILDE_USER_RULE_ERE='Bash\((~[^/[:space:]~]+/|[[:space:]]+~[^/[:space:]~]+/)[
 P4_INERT_TOKEN_ERE='%USERPROFILE%|\$env:USERPROFILE'
 P4_BASH_INERT_ERE="Bash\\(${CCPERM_BALANCED_ERE}(${P4_INERT_TOKEN_ERE})${CCPERM_BALANCED_ERE}\\)"
 
-# Inert ONLY outside a plugin skill. The skills page, "Available string
-# substitutions": "Claude Code substitutes ${CLAUDE_SKILL_DIR} and
-# ${CLAUDE_PROJECT_DIR} in two places: the skill's markdown content, and Bash
-# rules in the allowed-tools frontmatter. In a plugin skill, Claude Code
-# substitutes ${CLAUDE_PLUGIN_ROOT} and ${CLAUDE_PLUGIN_DATA} in the same two
-# places." The same page's variable table bounds it: "Substituted only in
-# plugin skills." Upstream fixed the plugin-root case in v2.1.0 ("Fixed
-# ${CLAUDE_PLUGIN_ROOT} not being substituted in plugin allowed-tools
-# frontmatter, which caused tools to incorrectly require approval").
-# So these stay literal in a personal/project skill, in an agent or command,
-# and in any settings file — no page documents ${CLAUDE_*} expansion in a
-# settings permissions.allow array.
+# The ${CLAUDE_*} tokens below are literal rule text, not shell expansions.
 # shellcheck disable=SC2016
 P4_PLUGIN_ONLY_TOKEN_ERE='\$\{CLAUDE_PLUGIN_ROOT\}|\$\{CLAUDE_PLUGIN_DATA\}'
 P4_BASH_PLUGIN_ONLY_ERE="Bash\\(${CCPERM_BALANCED_ERE}(${P4_PLUGIN_ONLY_TOKEN_ERE})${CCPERM_BALANCED_ERE}\\)"
@@ -392,12 +267,6 @@ scan_rule() {
     [[ -n "$m" ]] && emit warning P1 "$src" "'$m' is a broad interpreter-, runner- or wildcard-led grant, not the portable bare-name pattern; Claude Code drops the broad forms of this shape (blanket, package-manager runners, wildcarded/globbed-target interpreters, wrapper-only and leading wildcards, and \$HOME or Windows backslash wildcarded paths) on entering auto mode. Expose the guarded script as a bare PATH command and allow that, e.g. Bash(babysit_merge.sh:*)."
   done < <(rule_matches "$text" "$CCPERM_P1_ERE")
   while IFS= read -r m; do
-    # No `//…` carve-out. `//` is the ABSOLUTE anchor, not a portable one: the
-    # permissions page's own row is `//path` = "Absolute path from filesystem
-    # root", with `Read(//Users/<name>/secrets/**)` -> `/Users/<name>/secrets/**`.
-    # So `//Users/<name>/…` names a concrete user home and leaks the username,
-    # exactly like `/Users/<name>/…`. `~/…` and `${CLAUDE_PROJECT_DIR}/…` are the
-    # genuinely portable forms and are already excluded by `_seg` above.
     [[ -n "$m" ]] && emit error P2 "$src" "hardcoded machine path in '$m' — the rule names a concrete user home, so it breaks on other machines and usernames and leaks a username into source control. $path_remedy"
   done < <(rule_matches "$text" "$P2_RULE_ERE")
   while IFS= read -r m; do
@@ -466,45 +335,6 @@ extract_allowed_tools() {
   ' "$1" | tr -d '\r'
 }
 
-# SKILL.md anywhere, plus markdown directly under an agents/ or commands/ dir.
-# Only frontmatter at a documented load path is audited — not every SKILL.md the
-# walk finds. Claude Code loads skills from project `.claude/skills/<name>/`,
-# nested `**/.claude/skills/<name>/` below the working directory (including
-# under `node_modules/<pkg>/`, not inside the user plugins directory), and a
-# plugin's `skills/<name>/SKILL.md`; agents
-# and commands load from the parallel `.claude/` and plugin paths. A vendored
-# copy at `vendor/foo/SKILL.md` or `pkg/skills/foo/SKILL.md` is not one of
-# those shapes and is excluded; `vendor/foo/.claude/skills/bar/SKILL.md` IS
-# loadable under the nested rule and must not be excluded. See criteria.md and
-# #2406 for the model.
-#
-# The loadability filter lives in the loop (not in `find`) so the run can say
-# how many files it removed. An exclusion nothing counts is invisible, and an
-# invisible exclusion is indistinguishable from a tree that had nothing in it —
-# the same confusion the coverage block exists to remove.
-#
-# A plugin's own `skills/`, `agents/` and `commands/` sit at its plugin root, the
-# directory holding `.claude-plugin/plugin.json` (plugins-reference "Standard
-# layout"). That root is not always `plugins/<name>/`: the installed cache puts it
-# at `cache/<marketplace>/<plugin>/<version>/`, and a single-plugin repository is
-# its own root. So a path also loads when the directory above its `skills/`,
-# `agents/` or `commands/` segment, at or below the scan root, holds the manifest.
-# A manifestless plugin outside `plugins/<name>/` is still excluded and counted.
-#
-# We treat `.claude/skills/` folders nested below the scan root inside the user
-# plugins directory (`<config root>/plugins/`) as non-loadable, and keep the scan
-# root's own `.claude/skills/` audited: a session started in the scan root loads
-# those as project skills. Pointer: https://code.claude.com/docs/en/changelog#2-1-321
-# and https://code.claude.com/docs/en/skills#discovery-from-parent-and-nested-directories.
-# As of: 2026-11-11. Recheck trigger: either section changes which directories
-# under the user plugins directory load skills. A session that adds a nested
-# folder with --add-dir would still load it; the exclusion count discloses that gap.
-#
-# CLAUDE_CONFIG_DIR relocates the whole ~/.claude tree when set (official
-# .claude-directory doc), so it wins over $HOME; with neither resolvable there is
-# no user scope. This resolution IS the fixture seam: a test points $HOME at a
-# fixture home and unsets CLAUDE_CONFIG_DIR, the same seam harness-memory's
-# resolver already uses. No test may read the operator's real ~/.claude.
 if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
   USER_CONFIG_ROOT="$CLAUDE_CONFIG_DIR"
 elif [[ -n "${HOME:-}" ]]; then
@@ -556,12 +386,6 @@ while IFS= read -r file; do
     fm_excluded_non_loadable=$((fm_excluded_non_loadable + 1))
     continue
   fi
-  # `find` needs only directory-traversal permission to report a file as
-  # `-type f`; it does NOT need read permission on the file. So an existing but
-  # unreadable candidate (mode 000, a restrictive ACL, a mount that denies
-  # reads) is enumerated here; without this gate `awk` would error to the real
-  # stderr and the file would land in no coverage bucket. `-f` is rechecked alongside `-r` so a candidate
-  # that vanished between the walk and this line lands here too, not nowhere.
   if [[ ! -f "$file" || ! -r "$file" ]]; then
     fm_unreadable=$((fm_unreadable + 1))
     continue
@@ -602,8 +426,6 @@ scan_settings_allow() {
     scan_bare_tool "$rule" "$label"
     scan_agent "$rule" "$label"
     scan_rule "$rule" "$label" ""
-    # Trailing tr strips CR: jq emits CRLF on Windows, which would otherwise
-    # leave a \r on each rule and pollute the token the scans above match.
   done < <(tr -d '\r' <"$file" | jq -r '.permissions.allow // [] | .[]' 2>/dev/null | tr -d '\r')
   allow_rules_read=$((allow_rules_read + n))
   scopes_read=$((scopes_read + 1))
@@ -622,14 +444,6 @@ if [[ -n "$MAIN_ROOT" ]]; then
     "local (main checkout $MAIN_ROOT)"
 fi
 
-# User-global scope. A project-only scan cannot see it, and a broad rule here
-# reaches every project, so it is scanned for the rules auto mode drops. For where
-# a prompt approval is saved, see
-# https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository
-# (as of 2026-11-04; recheck when that section changes where approvals are saved).
-# The label is the resolved absolute path (USER_CONFIG_ROOT, resolved above the
-# frontmatter loop) — reporting "~/.claude/settings.json" would name the wrong
-# file whenever CLAUDE_CONFIG_DIR has moved the tree.
 if [[ -n "$USER_CONFIG_ROOT" ]]; then
   user_settings="$USER_CONFIG_ROOT/settings.json"
   project_settings="$ROOT/.claude/settings.json"
@@ -683,7 +497,6 @@ reconcile_frontmatter() {
 
 coverage_block() {
   local joined="(no settings scope was attempted)"
-  # Guarded: under `set -u` an empty array must not be expanded at all.
   if [[ "${#scope_status[@]}" -gt 0 ]]; then
     joined="$(printf '%s; ' "${scope_status[@]}")"
     joined="${joined%; }"

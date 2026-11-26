@@ -12,7 +12,6 @@ extensions.json are synthetic shapes with made-up ids.
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-FirefoxExtension.ps1'
 
-    # Under TestDrive so the provider cmdlets' -LiteralPath binds; nothing is written there.
     $script:Root = Join-Path $TestDrive 'Firefox'
 
     $script:Fake = @{}

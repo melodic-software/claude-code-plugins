@@ -78,6 +78,14 @@ set `block`.
 - A comment moved in from another file counts as added. One only re-indented or moved within its own
   file does not, so a formatter-only change passes
   ([#17178](https://github.com/melodic-software/claude-code-plugins/issues/17178)).
+- A changed line whose trailing comment text is byte-identical to that of the base line it replaces
+  is not judged, so a formatter that respaces or rewraps the code before a comment passes; a
+  comment whose text changed, a new trailing comment and a full-line comment still are. A hunk
+  adding as many lines as it removes pairs them in order; any other hunk pairs a line only with its
+  one removed code line carrying the same comment, when no other added code line of the hunk holds
+  it, else the line is judged (row L437 of
+  docs/owner-decisions.md in the org's architecture repository;
+  [#17778](https://github.com/melodic-software/claude-code-plugins/issues/17778)).
 - The commit-time hook needs Python 3 with pygments on each machine that commits; an agent without
   it gets a failed commit, a person a notice. CI installs pygments already.
 - Workflow files are judged, since the version-pin shape exists only there; the comment pass skips

@@ -4,6 +4,12 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.12.0] - 2026-11-25
+
+**Minor, additive.** New adopter row `code-tidying/remove-comments/rule-glossary-candidate`: a domain
+term an ADR-candidate comment uses that the consumer's glossary lacks, SUGGESTION, not
+auto-applicable. No existing row, producer-owned field's rule or enforceability verdict moves.
+
 ## [3.11.0] - 2026-11-19
 
 **Minor, additive.** Each detector plugin now reads its own bundled copy of this contract, so "Where

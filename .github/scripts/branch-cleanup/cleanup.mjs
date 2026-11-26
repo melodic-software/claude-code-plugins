@@ -1,26 +1,3 @@
-// maintenance-delete-stale-branches.yml's two jobs, by STAGE.
-//
-// plan: sorts every branch of this repository into delete, keep or report by
-// the branch-cleanup rule (docs/conventions/pr-pipeline/README.md, "Branch
-// cleanup"), prints how many it will delete, and writes at most
-// `max-deletes-per-run` candidates to CANDIDATES_PATH. Its client refuses
-// every request but GET, and its job's token writes nothing.
-//
-// delete: reads only that candidate list, never issue or pull request text.
-// Before each delete it re-reads the branch tip and its open pull requests,
-// skips the branch when either changed, and appends the ledger line. The
-// delete is one GraphQL updateRefs per branch with beforeOid set to the
-// listed tip, so GitHub refuses it when the tip moved after the re-read. In
-// dry-run its client refuses every request but GET.
-//
-// REST and one GraphQL mutation per delete, paced, within a call budget, of
-// which the delete stage's share is reserved before any branch is evaluated.
-// No model.
-//
-// Environment: STAGE (`plan` or `delete`), GITHUB_TOKEN, REPOSITORY, DRY_RUN
-// (`true` or `false`), BASE_PATH (main's checkout), CANDIDATES_PATH (JSON),
-// LEDGER_PATH (JSON Lines file, delete), CALL_BUDGET, GITHUB_API_URL,
-// GITHUB_STEP_SUMMARY, GITHUB_OUTPUT (plan), GITHUB_RUN_NUMBER.
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -34,7 +11,6 @@ export function client(env, { pace = () => delay(200), dryRun = true, budget = N
   const call = async (method, path, body) => {
     if (dryRun && method !== "GET") throw new Error(`dry-run refuses ${method} ${path}`);
     const json = await rest(method, path, body);
-    // GraphQL answers a refused mutation with HTTP 200 and an errors list.
     if (path === "/graphql" && (json?.errors?.length || !json?.data)) {
       throw new Error(`POST /graphql: ${json?.errors?.map((e) => e.message).join("; ") || "no data"}`);
     }
@@ -47,9 +23,6 @@ export function client(env, { pace = () => delay(200), dryRun = true, budget = N
 const refPath = (name) => name.split("/").map(encodeURIComponent).join("/");
 const readTip = (call, repo, name) => call("GET", `/repos/${repo}/git/ref/heads/${refPath(name)}`);
 
-// One branch's verdict: { verdict: delete | keep | report, rule or reason,
-// issue, pr }. Reads run cheapest first and stop at the first
-// verdict; a failed read reports the branch.
 export async function evaluate(call, { repo, owner, defaultBranch }, branch) {
   const { name, sha } = branch;
   const keep = (reason, extra = {}) => ({ verdict: "keep", reason, ...extra });
@@ -115,9 +88,6 @@ async function stillDeletable(call, { repo, owner }, { name, sha }) {
 
 export const ZERO_OID = "0".repeat(40);
 
-// Deletes the ref only while it points at the listed SHA: GitHub checks
-// beforeOid and moves the ref in one step (GraphQL updateRefs). One branch per
-// call, since one refused update would refuse the whole list.
 export const DELETE_REF = `mutation($repositoryId: ID!, $name: GitRefname!, $beforeOid: GitObjectID!, $afterOid: GitObjectID!) {
   updateRefs(input: { repositoryId: $repositoryId, refUpdates: [{ name: $name, beforeOid: $beforeOid, afterOid: $afterOid }] }) { clientMutationId }
 }`;
@@ -147,8 +117,6 @@ const checkRepo = (repo) => {
   return repo;
 };
 
-// The plan stage: evaluates and returns the candidate list the delete stage
-// takes, { repo, planned: [{ name, sha, rule, issue, pr }] }.
 export async function plan(env, { call, loadConfig, log = console.log }) {
   const repo = checkRepo(env.REPOSITORY);
   const dryRun = isDryRun(env);
@@ -227,9 +195,6 @@ export async function plan(env, { call, loadConfig, log = console.log }) {
   return { dryRun, results, candidates, planned, unevaluated, list: { repo, planned }, summary: lines.join("\n") };
 }
 
-// The candidate list as the delete stage takes it: this repository, at most
-// the cap, each entry a deletable rule's shape on a branch the job may touch.
-// Anything else stops the stage before it deletes.
 export function readList(list, { repo, cap, defaultBranch }) {
   if (list?.repo !== repo) throw new Error("the candidate list is for another repository");
   if (!Array.isArray(list.planned)) throw new Error("the candidate list has no planned array");
@@ -251,7 +216,6 @@ export function readList(list, { repo, cap, defaultBranch }) {
   return list.planned;
 }
 
-// The delete stage: deletes the listed branches that are still deletable.
 export async function remove(env, { call, clock, loadConfig, append, list, log = console.log }) {
   const repo = checkRepo(env.REPOSITORY);
   const dryRun = isDryRun(env);
@@ -293,8 +257,6 @@ export async function remove(env, { call, clock, loadConfig, append, list, log =
       await deleteRef(call, repositoryId, candidate);
       deleted.push(entry);
     } catch (error) {
-      // A tip that moved after the re-read makes GitHub refuse the update:
-      // that branch is skipped, not a failed delete.
       const tip = await readTip(call, repo, candidate.name).catch(() => undefined);
       const reason =
         tip !== undefined && tip?.object?.sha !== candidate.sha

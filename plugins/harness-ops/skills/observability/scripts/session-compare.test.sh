@@ -16,8 +16,6 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Metric data point: <session> <model> <effort|-> <type|-> <value fragment, e.g. "asInt":"5">.
-# A `-` effort leaves the attribute out, as Claude Code does for a model without effort.
 point() {
   local attrs
   attrs="{\"key\":\"session.id\",\"value\":{\"stringValue\":\"$1\"}},{\"key\":\"model\",\"value\":{\"stringValue\":\"$2\"}}"

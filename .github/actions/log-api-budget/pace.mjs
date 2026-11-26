@@ -1,26 +1,3 @@
-// The burn-rate pacer for timer-driven lanes. A budget trip (the breaker
-// share of the header's limit left, rate-limits.json) turns the kill switch
-// on and stops every lane; this slows the timer-driven ones first. On a
-// schedule tick it reads the workflow's scheduled-run listing, whose headers
-// are the GITHUB_TOKEN pool reading, projects the remaining at the window's
-// reset from the burn rate the window has shown so far, and writes
-// paced=true when that falls under `pace` of the header's limit (limits.api
-// github-token pace: pr-pipeline.yaml, which each paced workflow hands over
-// as RESOLVED_CONFIG, over rate-limits.json; 0 is off) and the previous
-// scheduled run, the one with the highest run id below this run's, shows its
-// lane's marker step (PACE_WORK_STEP) concluded success. Each lane runs that
-// marker only after a clean pass of its work, and a paced tick skips it, so
-// the next scheduled tick always runs: a paced lane runs at half its cadence
-// rather than stopping, whatever other events do to the run counter. The
-// previous run's jobs are read only when the projection would pace. A paced
-// tick skips its work and ends green. Any other event, a reading that cannot
-// project, a previous run that is missing or shows no clean pass, or a
-// failed read is paced=false: the breaker stays the backstop.
-//
-//   node pace.mjs   EVENT_NAME, PACE_WORK_STEP, GITHUB_TOKEN, GITHUB_REPOSITORY,
-//                   GITHUB_RUN_ID, GITHUB_WORKFLOW_REF and GITHUB_OUTPUT;
-//                   RESOLVED_CONFIG optional
-
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -40,18 +17,12 @@ export function paceShare(limits, file) {
   return limits?.pace > 0 && typeof own === "number" ? own : limits?.pace;
 }
 
-// The scheduled run before `runId`: the highest run id below it. Ids grow
-// with each run; created_at does not always (rotation.mjs runOrder: runs
-// stamped an hour ahead on 2026-11-01).
 export function previousRun(runs, runId) {
   const own = /^[0-9]+$/.test(String(runId ?? "")) ? Number(runId) : Number.NaN;
   if (!Number.isSafeInteger(own)) return undefined;
   return runs.filter((run) => Number.isSafeInteger(run?.id) && run.id < own).reduce((a, b) => (a === undefined || b.id > a.id ? b : a), undefined);
 }
 
-// Why the tick must run although the projection would pace it, or null when
-// `previous` shows a clean pass and may be followed by a paced tick. `jobs`
-// reads that run's jobs.
 export async function mustRun({ previous, step, jobs }) {
   if (!step) return "no PACE_WORK_STEP names this lane's work";
   if (!previous) return "no earlier scheduled run";
@@ -73,8 +44,6 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
         countRequests(fetchImpl)(`${api}/repos/${env.GITHUB_REPOSITORY}${path}`, {
           headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
         });
-      // Five, so a run whose created_at is stamped ahead still leaves the
-      // previous one in the page.
       const response = await get(`/actions/workflows/${encodeURIComponent(file)}/runs?event=schedule&per_page=5`);
       const header = (name) => (response.headers.has(name) ? Number(response.headers.get(name)) : Number.NaN);
       const reading = { limit: header("x-ratelimit-limit"), remaining: header("x-ratelimit-remaining"), reset: header("x-ratelimit-reset") };

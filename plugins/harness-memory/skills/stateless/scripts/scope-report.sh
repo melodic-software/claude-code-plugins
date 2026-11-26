@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Snapshot the auto-memory posture for the CURRENT project (a git repo, or the current
-# directory outside one) across every settings scope.
-#
-# Reads no JSON key values, avoiding a jq dependency and precedence guessing; the
-# workflow reads the listed files and folds in any autoMemoryDirectory relocation.
-
 set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then

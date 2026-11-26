@@ -3,8 +3,6 @@
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
-# On a runner the audit would wrap its gh calls and record into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -71,7 +69,6 @@ else
   echo 22 >"$t/.node-version"
   echo '*.log' >"$t/.gitignore"
   echo '* text=auto' >"$t/.gitattributes"
-  # So are the nested copies git reads when a suite walks the tree.
   echo '*.tmp' >"$t/data/.gitignore"
   echo '*.bin binary' >"$t/data/.gitattributes"
   mkdir -p "$t/.github"
@@ -83,7 +80,6 @@ else
   mkdir -p "$t/plugins/x/evals/fixtures"
   printf '%s\n' 'open("data/hidden.txt").read()' >"$t/plugins/x/evals/fixtures/test_fake.py"
   ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
-  # The audit's own suite runs strace, which fails under the audit's strace.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt' >"$t/scripts/selection-audit.test.sh"
   git -C "$t" add -A && git -C "$t" commit -qm base
   echo untracked >"$t/data/untracked.txt"
@@ -261,6 +257,19 @@ EOF
   else
     fail "trace: budget without --strict exit $rc, want 0"
   fi
+  shards=""
+  for k in 0 1; do
+    (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+      bash "$AUDIT" trace --strict --shard "$k/2" --out "$TMP_ROOT/out-named-$k" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 &&
+      shards+="$(cut -f1 "$TMP_ROOT/out-named-$k/suites.tsv")|"
+  done
+  rc=0
+  (cd "$t" && bash "$AUDIT" trace --shard 2/3 --out "$TMP_ROOT/out-named-empty" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 || rc=$?
+  if [[ "$shards" == "suites/declared.test.sh|suites/node.test.mjs|" && "$rc" -eq 2 ]]; then
+    ok "trace --shard: named suites split across shards, one each, and a shard holding none of them exits 2"
+  else
+    fail "trace --shard over named suites: shards [$shards], empty-shard exit $rc, want 2"
+  fi
 
   s="$TMP_ROOT/stale-repo"
   git_repo "$s"
@@ -368,9 +377,6 @@ else
   fail "replay left a worktree: $(git -C "$r" worktree list)"
 fi
 
-# A tree whose pr-require-checks.yml plans its lanes with scripts/plan-test-lanes.sh: the
-# selector itself adds an unmapped file's language corpus (--unmapped-corpus,
-# exit 4), so a suite in that corpus is selected and one outside it is not.
 # shellcheck disable=SC2016 # workflow text, written literally
 printf '%s\n' '          scripts/plan-test-lanes.sh --base "$DIFF_BASE"' >"$r/.github/workflows/pr-require-checks.yml"
 cat >"$r/scripts/affected-tests.sh" <<'EOF'

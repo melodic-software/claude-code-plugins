@@ -1,10 +1,3 @@
-// Builds the intake re-entry eval suite (#8491) as a `claude plugin eval`
-// plugin directory outside the repository. The prompt is never kept here: the
-// builder runs the ci-workflows reusable's own compose script, read from the
-// reusable at the commit given, with this repository's allowed-labels and
-// instructions from the caller workflow, and fills each case with the prompt
-// it writes. `--no-instructions` builds the baseline with the instructions
-// input empty.
 import {
   cpSync,
   existsSync,
@@ -33,13 +26,9 @@ const REPO_LABELS = [
   "provenance: untrusted",
 ];
 const ISSUE_TYPES = ["Bug", "Task", "Feature"];
-// The one line not taken from the reusable: plugin eval has no --json-schema,
-// so the run is asked for the schema's object as its final reply.
 const OUTPUT_LINE =
   "Reply with only the structured output: one JSON object that matches this JSON Schema.";
 
-// The literal block scalar (`key: |`) at the first line matching `keyLine`
-// after line `from`, dedented as YAML does, with the line it ends on.
 export function blockScalar(lines, keyLine, from = 0) {
   const start = lines.findIndex((line, i) => i >= from && keyLine.test(line));
   if (start < 0) throw new Error(`no block scalar matching ${keyLine}`);
@@ -63,8 +52,6 @@ export function blockScalar(lines, keyLine, from = 0) {
   };
 }
 
-// Every compose step's script in the reusable. The legs must carry one script,
-// or the suite would measure only one of them.
 export function composeScript(reusable) {
   const lines = reusable.split("\n");
   const scripts = [];

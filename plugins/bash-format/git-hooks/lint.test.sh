@@ -101,11 +101,11 @@ sc_stub() {
   out="$(cd "$1" && SC_STUB_LOG="$WORK/sc.log" PATH="$WORK/sc-stub:$PATH" bash "$CHECK" 2>&1)"
   printf '%s|%s' "$?" "$out"
 }
-# 250 paths of about 150 characters: about 37,000 in all, past the cap, while
-# each path stays under Windows' 260-character MAX_PATH once a temp dir prefixes it.
 LONG="$(printf 'd%.0s' {1..60})/$(printf 'f%.0s' {1..80})"
 new_repo
 mkdir -p "$REPO/${LONG%/*}"
+# Windows MAX_PATH is 260 characters without the long-path opt-in.
+# https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
 for i in {1..250}; do
   printf '#!/bin/bash\necho ok %s\n' "$i" >"$REPO/$LONG-$i.sh"
 done

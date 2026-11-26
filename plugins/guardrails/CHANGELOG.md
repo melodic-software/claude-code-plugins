@@ -3,6 +3,37 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.4.0] - 2026-11-26
+
+### Changed
+
+- The ask-or-deny choice in block-dangerous-git, block-root-delete-target and settings-write-ask reads attendance from one predicate shared with session-flow (`hooks/session-attended.sh`, `hooks/session-attended.mjs`, the variables named in `hooks/session-attended.env`). A session is attended when `CLAUDE_CODE_SESSION_ATTENDED` is `1` and `CLAUDE_CODE_ENTRYPOINT` is not an Agent SDK value, so a session started through the Agent SDK now gets a deny where it got an ask. A missing or unreadable predicate copy denies. `GUARDRAILS_SESSION_UNWATCHED=1` still turns an ask into a deny after the predicate.
+
+## [5.3.0] - 2026-11-26
+
+### Added
+
+- The Bash and PowerShell guards now also check each command a skill injects as it loads
+  (`` !`...` `` and ` ```! ` blocks), through a `PreSkillShellCommand` hook entry that runs the
+  same guards, arguments, timeout and `onFailure: "block"` as the `PreToolUse` `Bash|PowerShell`
+  entry. A command a guard refuses on a tool call is not run while the skill loads, and the skill
+  loads without its output. The entry requires Claude Code 2.1.332 or later; an earlier version
+  runs injected commands without calling it.
+
+### Changed
+
+- The guard dispatcher no longer reads `hook_event_name` from the payload. Its telemetry and
+  abort-notice event label is always `PreToolUse`, the reply shape the hooks reference asks of a
+  script shared with `PreSkillShellCommand`, and no guard's verdict depends on which event fired.
+
+## [5.2.3] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- `git-hooks/reference-verify.sh` starts `hooks/run-guards.sh` once per range instead of once per changed file ([#18577](https://github.com/melodic-software/claude-code-plugins/issues/18577)). It uses the new `run-guards.sh --batch <dir>` mode, which loads `hook-utils.sh` once, then sources `run-guards.sh` again in a forked subshell for each file's payload and runs the three verifiers there. Findings still name `<path>:<line>`, and a verifier failure on one file still reports that file unchecked and fails the check. The edit-time hook rows do not pass `--batch` and run as before.
+
 ## [5.2.2] - 2026-11-25
 
 ### Fixed

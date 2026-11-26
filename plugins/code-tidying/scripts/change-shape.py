@@ -131,10 +131,10 @@ def powershell_records(*args: str) -> list[dict]:
         raise PowerShellUnavailable("no PowerShell host: pwsh is not on PATH")
     cmd = [host, "-NoProfile", "-NonInteractive"]
     if os.name == "nt":
-        # A Windows client's default policy is Restricted, where -File refuses
-        # to run at all and the failure would read as a tooling absence.
         cmd += ["-ExecutionPolicy", "Bypass"]
     proc = subprocess.run(
+        # With no policy set, Windows clients default to Restricted, which blocks script files.
+        # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies
         [*cmd, "-File", str(PS_SCRIPT), *args],
         capture_output=True,
         text=True,

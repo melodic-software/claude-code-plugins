@@ -269,13 +269,10 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
         $stateDir = New-Item -ItemType Directory -Path (Join-Path $script:stateBase 'state') -Force
         @{ run_id = (Get-Date).AddDays(-3).ToString('o'); checks_ran = @($deferred.id) } | ConvertTo-Json -Compress |
             Set-Content -LiteralPath (Join-Path $stateDir 'history.jsonl') -Encoding utf8
-        # th-TH formats dates in the Buddhist calendar (Gregorian 2026 is 2569), so a culture-bound
-        # stamp would name this run's files by the wrong year.
         $command = "[cultureinfo]::CurrentCulture = 'th-TH'; & '$script:Orchestrator' -OutputBase '$script:outputBase' " +
             "-StateBase '$script:stateBase' -RunMode weekly -DryRun -SkipBanner | Out-Null"
         & pwsh -NoProfile -NonInteractive -Command $command 2>$null
         $script:ExitCode = $LASTEXITCODE
-        # JsonNode keeps run_id as written; ConvertFrom-Json would turn it into a DateTime.
         $script:Snapshot = [System.Text.Json.Nodes.JsonNode]::Parse((Get-Content -Raw -LiteralPath (Join-Path $stateDir 'latest.json')))
         $script:Field = { param($Name) $script:Snapshot[$Name].GetValue[object]().ToString() }
     }

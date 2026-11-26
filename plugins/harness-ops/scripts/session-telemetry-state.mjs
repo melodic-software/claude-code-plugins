@@ -32,7 +32,6 @@ export function state({ project, env = process.env, ownRoot = OWN_ROOT }) {
   try {
     managed = managedSettingsFiles();
   } catch {
-    // No documented managed path on this platform.
   }
   const nameOf = (root) => readJson(path.join(root, ".claude-plugin", "plugin.json"))?.name;
   const enabledRoot = rootsFromSettings(config, project, managed, env).roots.find((root) => nameOf(root) === NAME);

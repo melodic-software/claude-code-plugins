@@ -1,28 +1,5 @@
 name: Release Generate Dependabot Changelog Fragments
 
-# Changelog fragments for merged Dependabot updates (ADR 0048). A Dependabot pull
-# request gets no commit for a plugin in fragment mode: a commit made with
-# GITHUB_TOKEN holds every run on it at action_required (#5786), and
-# check-changelog-fragments.sh --check-required exempts a pull request of
-# verified Dependabot commits. scripts/dependabot-fragments.sh finds each merged
-# Dependabot update of a fragment-mode plugin that has no fragment yet, and this
-# workflow lands those fragments through one pull request, release/dependabot-
-# fragments, armed to auto-merge. The release pull request then takes them.
-#
-# It runs as the release GitHub App, never GITHUB_TOKEN: a pull request that
-# GITHUB_TOKEN opens or updates gets its `pull_request` runs only after
-# approval, and this one needs `ci-status` unattended. The commit goes through createCommitOnBranch, which GitHub signs,
-# so main's required_signatures rule accepts it (the pattern of
-# release-publish-plugins.yml). A fragment is named after its merge commit, so
-# a rerun writes nothing twice.
-#
-# It starts on a push to main that changes a manifest Dependabot bumps under
-# plugins/ (scripts/dependabot-fragments.test.sh checks the paths against
-# .github/dependabot.yml), and the job runs only when the push carries a
-# Dependabot commit, so most merges start no run. The schedule every six hours
-# is the safety net for what the filter cannot see: a manifest or directory it does
-# not list, or a push run GitHub lost. A fragment that late still rides a
-# release, which runs every three hours and on a push under .changes/**.
 on:
   push:
     branches: [main]
@@ -48,8 +25,6 @@ jobs:
       github.ref == 'refs/heads/main'
       && (github.event_name != 'push'
       || contains(github.event.commits.*.author.email, '49699333+dependabot[bot]@users.noreply.github.com'))
-    # The App's private key is an environment secret; the environment admits
-    # only main (github-iac RepositoryEnvironments.cs).
     environment:
       name: plugin-release
       deployment: false
@@ -133,7 +108,7 @@ jobs:
           refs="repos/$GITHUB_REPOSITORY/git/refs"
           want="$(LC_ALL=C sort "$RUNNER_TEMP/fragments.txt")"
           number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
-          if [ -n "$number" ] && [ "$(gh pr diff "$number" --repo "$GITHUB_REPOSITORY" --name-only | LC_ALL=C sort)" = "$want" ]; then
+          if [ -n "$number" ] && [ "$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$number/files" --jq '.[].filename' | LC_ALL=C sort)" = "$want" ]; then
             echo "Pull request #$number already holds these fragments; leaving it alone."
             exit 0
           fi
@@ -176,8 +151,6 @@ jobs:
             gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$body"
           fi
           gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash
-      # The steps above call GitHub on the release App's token, not this one,
-      # so the line reads 0 unless a step starts spending the job token.
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true

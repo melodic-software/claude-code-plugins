@@ -174,7 +174,7 @@ on their own change, which runs the `bash-format`, `code-metrics`, `code-tidying
 | `playwright` | File upstream drift runs its `playwright` skill's `update.sh --check` |
 | `rate-limits` | Required CI's loop-lane floor drift check reads its `reference/reader-contract.md` as the source the copies in other plugins must match |
 | `review` | Code review and Security review load `review:code-review` and `review:security-review`; Review from main reads those skills' files as its criteria; Rate merge risk loads `review:merge-risk` |
-| `session-flow` | Required CI's `check-next-graph.py` reads its `workflow` skill's `context/steps.md` as the stage ladder every plugin's `## Next` graph must follow |
+| `session-flow` | Required CI's `check-next-graph.py` reads its `workflow` skill's `reference/stages.yaml` as the stage map every skill's `## Next` must follow, and its `context/steps.md` stage headings as the order that map must match |
 | `skill-quality` | Required CI runs its `check-skill.sh`, `check-evals-quality.sh`, `measure-invocation.sh` and `check-listing-budget.sh`; Resolve an issue runs `check-skill.sh` through its changed-skills check and may run `check-evals-quality.sh` |
 | `source-control` | Resolve merge conflicts, Address review feedback, Review a dependency update and Fix failing CI load `source-control:pull-request`; `pr-merge.yml`, `post-merge-file-demotion-issues.yml`, `pr-review-main.yml`, `pr-unblock-dispatch.yml`, `pr-dispatch-feedback.yml` and Required CI's `ci-status` job run its `babysit-prs` scripts; Run a lane read activity and Run a lane write activity run its `resolve-version-bump-conflict.sh` |
 | `testing` | Required CI runs its `cant-fail-scan.sh`; Resolve an issue may run it |

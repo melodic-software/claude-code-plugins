@@ -51,7 +51,6 @@ async page => {
       && (await page.textContent("#controls-panel")).includes('Alignment <img src=x onerror="window.__xss=1">'));
     ok("the defaults are shown and the page starts at them", (await shown("Card gap")) === "12px" && (await css("--card-gap")) === "12px" && (await attr("data-control-align")) === "start");
 
-    // A value reaches the frame by postMessage, a task after the input event: wait for it before reading.
     const landed = async (read, want) => {
       for (let i = 0; i < 40 && (await read()) !== want; i++) await page.waitForTimeout(50);
     };

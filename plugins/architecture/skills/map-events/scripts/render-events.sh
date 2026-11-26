@@ -1,22 +1,16 @@
 #!/usr/bin/env bash
-# Render events.json. Findings are always written. --unrouted-only draws only
-# orphan and unresolved edges. Broadcast is a dotted arrow. Point-to-point is solid.
-#
-# Usage:
-#   render-events.sh --record <file> --out <dir> [--unrouted-only]
-#   render-events.sh --help
-#
-# Writes events.md, a mermaid flowchart. It reads no dialect key: a message
-# topology is neither a data diagram nor a C4 system view.
-#
-# Prints:
-#   events: messages=<n> publishers=<n> consumers=<n> unresolved=<n> orphans=<n> unrouted_only=<yes|no>
-#
 # Exit: 0 written; 1 bad record (nothing written); 2 usage.
 set -uo pipefail
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Render events.json as a mermaid flowchart; findings are always written.
+Usage: render-events.sh --record <file> --out <dir> [--unrouted-only]
+  --record <file>   events.json from collect-events.sh
+  --out <dir>       directory events.md is written into
+  --unrouted-only   draw only orphan and unresolved edges
+Exit: 0 written; 1 bad record (nothing written); 2 usage.
+EOF
 }
 
 die() {

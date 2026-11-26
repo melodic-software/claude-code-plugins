@@ -1,8 +1,5 @@
 #!/bin/sh
 # shellcheck shell=bash
-# Biome reads its config from the working directory, and BIOME_CONFIG_PATH
-# overrides that, so every run starts in the governing config's directory with
-# the variable unset: https://biomejs.dev/reference/cli/#--config-pathpath
 
 # shellcheck disable=SC2034 # read by resolve-tool.sh
 RT_PLUGIN=javascript-format
@@ -11,10 +8,6 @@ RT_IDS="typescript javascript json"
 # shellcheck disable=SC2034 # read by the entries: the config names whose drift refuses a commit
 RT_DRIFT_CONFIGS="biome.json biome.jsonc"
 JF_INSTALL='npm i -D @biomejs/biome, or another method at https://biomejs.dev/guides/getting-started/'
-# A concise line is "<mark> <path>:<line>:<col>: <category>: <message>"
-# (https://biomejs.dev/reference/cli/#--reporterformat): the mark goes, and
-# every other line gains "biome: " so a config parse error never reads as a
-# finding.
 JF_CONCISE='s/^[^ ][^ ]* \([^:]*:[0-9][0-9]*:[0-9][0-9]*: \)/\1/
 t
 s/^/biome: /'
@@ -121,10 +114,6 @@ rt_adapter_in_repo() {
 
 rt_config_counts() { return 0; }
 
-# A file gone from the work tree is linted in a scratch mirror beside copies of
-# the Biome configs and ignore files above it, not from stdin, whose virtual
-# paths bypass files.includes and VCS ignores:
-# https://biomejs.dev/reference/cli/#--stdin-file-pathpath
 rt_lint_index() {
   local base="${CHECKS_TMP:?}/staged" rel=. rest="$1" name sub
   mkdir -p "$base"

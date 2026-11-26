@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/planning/surface/round.sh\" resolve --ledger .work/report-speed/interview-checklist.md Q2 reconfirm"
+          }
+        }
+      ],
+      "why": "reconfirm, not restore"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/planning/surface/round.sh\" resolve --ledger .work/report-speed/interview-checklist.md Q4 restore"
+          }
+        }
+      ],
+      "why": "approve is read as a rejection"
+    }
+  ]
+}

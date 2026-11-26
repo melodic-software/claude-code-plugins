@@ -3,7 +3,7 @@
 The **lane output format** is the one shape for what a lane posts: a short part a person reads,
 plus the lane-outcome record where the surface carries it. The **lane-outcome record** is only the
 structured part, a JSON object after the `lane-outcome` marker and a space
-(`.github/scripts/lib/lane-outcome.mjs:8`), defined by ci-workflows `docs/lane-outcome.md` and
+(`.github/scripts/lib/lane-outcome.mjs:1`), defined by ci-workflows `docs/lane-outcome.md` and
 adopted for every lane by
 [ADR 0087](../../adr/0087-keep-one-public-safe-lane-record-for-every-lane.md).
 
@@ -22,7 +22,7 @@ untouched paths alone.
 Every surface below uses the same order:
 
 1. **Heading**: the lane and activity, as `<lane> / <activity>`, the name the check run already
-   carries (`.github/scripts/pr-unblock/limit-stop.mjs:30`).
+   carries (`.github/scripts/pr-unblock/limit-stop.mjs:9`).
 2. **Verdict line**: the first line under the heading says the result in plain words, a verb
    first: `Passed: no findings.`, `Stopped: usage limit, resets at 14:00 UTC.`,
    `Fixed: 2 failing tests, pushed abc1234.` A reader who stops here knows what happened.
@@ -80,7 +80,7 @@ GitHub limits: [REST API, issue comments](https://docs.github.com/en/rest/issues
 
 **Record**: the first line of `output.text`, after the `lane-outcome` marker and a space, written by
 `report-check-run` (`.github/actions/report-check-run/action.yml:80-89`) and read by
-`.github/scripts/pr-unblock/limit-stop.mjs:28-34`. Readers read that line, not annotation text
+`.github/scripts/pr-unblock/limit-stop.mjs:7-13`. Readers read that line, not annotation text
 ([ADR 0087](../../adr/0087-keep-one-public-safe-lane-record-for-every-lane.md), Consequences).
 
 GitHub limits: [REST API, check runs](https://docs.github.com/en/rest/checks/runs).
@@ -114,8 +114,8 @@ GitHub limits: [workflow commands, adding a job summary](https://docs.github.com
 
 - One line per decision or result, not per call made.
 - Command output, API responses and long listings go inside `::group::<title>` and `::endgroup::`,
-  the title stating the result, as `.github/workflows/pr-merge.yml:345` does
-  (`post-merge check: exit <code>`).
+  the title stating the result, as `.github/workflows/pr-merge.yml` job `dispatch-post-merge-runs`
+  does (`post-merge check: exit <code>`).
 - An error or warning a person must act on is one `::error::` or `::warning::` line, so it also
   shows as an annotation. One per distinct problem, never one per retry.
 

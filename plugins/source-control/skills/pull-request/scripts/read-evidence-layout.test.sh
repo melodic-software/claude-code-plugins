@@ -1,9 +1,4 @@
 # shellcheck shell=bash
-# Tests for read-evidence-layout.sh, run through bash (no #! line, no executable bit). Expected
-# outputs follow the evidence_inline_max_captures and evidence_record_fields contract in
-# reference/evidence.md and reference/config-resolution.md: the repository value at the default
-# branch wins over the default (4 and false), and an invalid value falls back to the default with a
-# notice.
 
 set -uo pipefail
 

@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// Prints the radius a rounded child needs inside a rounded parent, as JSON:
-//   {"inner_px": n, "gap_px": n, "max_gap_px": n, "past_max_gap": bool}
-// inner_px is the outer radius minus the parent's border width minus the padding, floored at zero;
-// at zero the child's corner is square and the two curves no longer share a center. gap_px is the
-// border width plus the padding. past_max_gap is true when gap_px exceeds max_gap_px: past it the
-// two surfaces read as independent, and each radius is picked on its own merits.
-// Usage: nested-radius.mjs --outer PX --border PX --padding PX [--max-gap-px PX]
-// Without --max-gap-px it reads css.concentric_radius.max_gap_px from reference/defaults.yaml;
-// pass the project's resolved value (detect.mjs --config) when a team layer sets it.
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

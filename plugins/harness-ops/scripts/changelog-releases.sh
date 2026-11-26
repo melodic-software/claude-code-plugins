@@ -1,25 +1,5 @@
 #!/usr/bin/env bash
-# changelog-releases.sh: the one parser of the Claude Code changelog's release markup.
-#
-# Usage:
-#   changelog-releases.sh [<file>|-]                 rows, one per release and per item
-#   changelog-releases.sh --blocks <A..B|X> [<file>|-]   the raw lines of those releases
-#
-# Reads the body (a fetch-changelog.sh copy, or stdin when the file is omitted or -).
-# A release opens at any release marker form either source has used: the repository
-# file's `## X.Y.Z` line, or the docs page's `<Update label="X.Y.Z" ...>` line or a
-# line that is only `**X.Y.Z**`, and runs to
-# `</Update>`, the next release marker, or end of input. An item is a `*` or `-`
-# bullet line inside a release; bold group headings are not items.
-#
-# Rows, tab-separated, in page order:
-#   release<TAB><X.Y.Z>
-#   item<TAB><X.Y.Z><TAB><bullet text>
-# --blocks prints each release in range (inclusive, v prefix optional) from its marker
-# line to its last line, in page order.
-#
-# Exit: 0 parsed (zero rows when the body has no release marker); 3 invalid argument
-# or unreadable file.
+# Exit: 0 parsed (zero rows when the body has no release marker); 3 invalid argument or unreadable file.
 
 set -uo pipefail
 

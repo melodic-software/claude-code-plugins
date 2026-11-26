@@ -89,8 +89,6 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
     ["SIGHUP", 129],
   ])("%s also ends a grandchild the yt-dlp child started", async (signal, exitCode) => {
     const grandPid = path.join(sandbox, "grandchild.pid");
-    // A real yt-dlp runs ffmpeg as its own child; this one leaves a writer looping
-    // in the background, which outlives a SIGKILL sent to yt-dlp alone.
     await fs.writeFile(
       path.join(sandbox, "bin", "yt-dlp"),
       `#!/bin/sh\n${ANSWER_FREE_SPACE_PROBE_WITH_SMALL_SIZE}( while :; do\n  for d in "$TMPDIR"/video-extraction-*; do\n    [ -d "$d" ] && echo x >> "$d/merge.part"\n  done\n  sleep 0.05\ndone ) &\necho $! > "${grandPid}"\ntouch "${started}"\nwait\n`,
@@ -127,7 +125,5 @@ describe.skipIf(process.platform === "win32")("run-watch interrupted by a signal
     } finally {
       if (alive()) process.kill(pid, "SIGKILL");
     }
-    // A surviving grandchild holds yt-dlp's pipes open, so the run waits out its
-    // settle window before exiting; the timeout leaves room for that failure.
   }, 30_000);
 });

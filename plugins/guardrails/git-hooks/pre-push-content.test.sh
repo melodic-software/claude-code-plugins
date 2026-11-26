@@ -188,9 +188,6 @@ echo "measured: a pushed merge started ${starts[0]} git processes with a 20-file
 expect "a pushed merge's git process count does not grow with the other side's diff" yes \
   "$( ((starts[0] > 0 && starts[1] - starts[0] <= 2)) && echo yes)"
 
-# Merges built with plumbing, so no symlink is ever checked out: on Windows
-# with core.symlinks=false, an edited checked-out symlink stays at 120000.
-# ptree <mode> <name>: a one-file tree holding stdin as <name> at <mode>.
 ptree() {
   local blob
   blob="$(git -C "$REPO" hash-object -w --stdin)"
@@ -267,8 +264,6 @@ expect "the master decline key declines it too" "0|" "$(new_push)"
 git -C "$REPO" config checks.guardrails.pre-push-content.declined false
 expect "the entry's own key beats the master key" 1 "$(new_push | head -c 1)"
 
-# A working-tree file named exactly like a pushed SHA made git read the bare
-# revision as ambiguous and exit 128, refusing the push.
 new_repo
 base_sha="$(git -C "$REPO" rev-parse HEAD)"
 commit_text notes.md $'line one\nline two\nclean addition\n' "clean"

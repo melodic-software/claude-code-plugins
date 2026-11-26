@@ -1,35 +1,3 @@
-// Replays decide() (lane-level.mjs) hour by hour over the hub's recorded
-// history and prints the level it would have chosen, why, and totals. It
-// reads only the files it is given and actuates nothing.
-//
-//   node lane-level-replay.mjs --windows gh-token-windows.jsonl \
-//     --app app-quota.jsonl --events events.log [--slots slots.log] \
-//     [--concurrency concurrency.jsonl] [--days 14] [--app-limit 5200] \
-//     [--end 2026-11-10T22:00:00Z] [--events-end-date 2026-11-10] \
-//     [--pools lanes-app,github-token] [--signals app|all] [--actual-level 3] \
-//     [--ceiling N] [--clean-windows N] [--quiet]
-//
-// The rule's limit signals are the lanes App's own; --signals all adds
-// breaker trips, to compare against the rule as first drafted.
-// --actual-level is the SLOTS the history ran at (3 throughout the default
-// window): each hour's
-// lanes App spend is scaled by replayed L over it, and 0 replays it as
-// recorded.
-//
-// Readings per UTC hour:
-//   lanes-app     app-quota.jsonl: used = --app-limit - the hour's lowest
-//                 min_remaining (the file records no limit); a
-//                 github-rate-limited deny or a remaining of 0 is a limit signal
-//   github-token  gh-token-windows.jsonl: the hour's highest x-ratelimit used
-//   signals       with --signals all, events.log BREAKER-TRIP lines too,
-//                 holding until the reset named
-//   demand        slots.log, the hub's count of work-resolve-issue runs in
-//                 progress and waiting; for an hour it lacks, the
-//                 concurrency.jsonl repository-wide queued and in-progress runs,
-//                 a proxy that counts every workflow, labeled as such
-// events.log lines carry HH:MMZ only: dates are counted back from
-// --events-end-date (the file's last line), one day per wrap past midnight.
-
 import { readFileSync, statSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -51,7 +19,6 @@ function jsonl(path) {
     try {
       rows.push(JSON.parse(line));
     } catch {
-      // A torn line from a concurrent append is skipped.
     }
   }
   return rows;
@@ -63,9 +30,6 @@ const tally = (counts, key) => {
   counts[key] = (counts[key] ?? 0) + 1;
 };
 
-// events.log lines dated by counting back from endDate (YYYY-MM-DD, the date
-// of the last line): reading backwards, a time later than the line after it
-// by more than 12 hours is the day before.
 export function datedEvents(text, endDate) {
   const lines = text.split("\n");
   const out = [];
@@ -82,8 +46,6 @@ export function datedEvents(text, endDate) {
   return out.reverse();
 }
 
-// WORKFLOW-MERGE lines carry the merge's ISO time: a line dated before its
-// merge, or more than a day after, shows a gap the count above missed.
 export function anchorMisses(events) {
   let misses = 0;
   let checked = 0;
@@ -98,7 +60,6 @@ export function anchorMisses(events) {
   return { checked, misses };
 }
 
-// The reset named in a BREAKER-TRIP line, the first HH:MMZ at or after it.
 function resetOf(event) {
   const m = /reset=(\d{2}):(\d{2})Z/.exec(event.text);
   if (!m) return undefined;
@@ -107,7 +68,6 @@ function resetOf(event) {
   return reset;
 }
 
-// One reading per UTC hour, from the parsed inputs.
 export function hourlyReadings({ windows = [], app = [], events = [], slots = [], concurrency = [], appLimit, breaker = false }) {
   const hours = new Map();
   const at = (hour) => {
@@ -163,7 +123,6 @@ export function hourlyReadings({ windows = [], app = [], events = [], slots = []
   return out;
 }
 
-// slots.log: "<iso> running=N waiting=M" or "<iso> runs_in_progress=N runs_waiting=M".
 export function parseSlots(text) {
   const rows = [];
   for (const line of text.split("\n")) {
@@ -176,9 +135,6 @@ export function parseSlots(text) {
 const quantile = (sorted, q) => (sorted.length === 0 ? null : sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]);
 const pct = (x) => (x === null || x === undefined ? "-" : `${(x * 100).toFixed(1)}%`);
 
-// The lanes App reading as it would have been at `level` rather than the
-// `actual` level it was recorded at, on the fit check's own assumption that
-// spend grows with L; a modeled spend past the limit is a limit signal.
 export function scaled(readings, level, actual) {
   const app = readings?.pools?.["lanes-app"];
   if (!actual || !app) return readings;
@@ -187,9 +143,6 @@ export function scaled(readings, level, actual) {
   return { ...readings, pools: { ...readings.pools, "lanes-app": { ...app, used: Math.min(used, app.limit) } }, signals };
 }
 
-// Runs decide() over [start, end) hour by hour; an hour with no record at
-// all passes null readings, which holds. With `actual`, each hour's lanes App
-// spend is scaled from the recorded level to the replayed one.
 export function replay(byHour, { start, end, config, actual = 0 }) {
   const rows = [];
   let state = null;

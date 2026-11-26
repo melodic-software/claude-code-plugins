@@ -1,10 +1,3 @@
-// The setup skill's check. Prints one PASS, FAIL or INFO row for the Node.js
-// runtime, the config file, each environment it binds and, given --data-dir,
-// the installed server copy, then the claude mcp add command that registers
-// each environment. Prints variable names, never their values. Writes nothing.
-//
-// usage: node check-setup.mjs --config <path> [--environment <name>] [--data-dir <dir>]
-// exit: 0 with no FAIL row, 1 with one, 2 on a usage error
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,8 +12,6 @@ export const DEPENDENCIES = ['tedious', '@azure/identity'];
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const shellQuote = (text) => (/^[\w@%+=:,./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
 
-// install-server.mjs swaps a copy in only after npm ci succeeds there, so the
-// manifest's presence marks a finished copy.
 export const installedVersion = (serverDir) => {
   const manifest = join(serverDir, '.claude-plugin', 'plugin.json');
   if (!existsSync(manifest)) return undefined;
@@ -38,7 +29,6 @@ function credentialVariables(auth) {
   return auth.type === 'sql-login' ? [auth.user.env, auth.password.env] : [];
 }
 
-// Credentials are registered as ${NAME} references, never as values.
 export function registrationCommand({ environment, configPath, serverDir, auth }) {
   const envFlags = credentialVariables(auth).map((name) => `--env ${shellQuote(`${name}=\${${name}}`)}`);
   return [
@@ -152,7 +142,6 @@ function cli(argv) {
   return rows.some((r) => r.status === 'FAIL') ? 1 : 0;
 }
 
-// argv[1] keeps a symlinked path while import.meta.url is the real one.
 const isEntry = () => {
   try {
     return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));

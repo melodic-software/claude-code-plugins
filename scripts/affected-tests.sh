@@ -464,8 +464,40 @@ lang_family() {
   esac
 }
 
+index_lines() {
+  local rc=0
+  : >"$WORK_DIR/index-names"
+  : >"$WORK_DIR/index-stems"
+  awk -v namesf="$WORK_DIR/index-names" -v stemsf="$WORK_DIR/index-stems" -v plainf="$1" '
+    function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
+    function base_of(p) { sub(/.*\//, "", p); return p }
+    function pkg_of(p) { p = dir_of(p); sub(/\/$/, "", p); return base_of(p) }
+    function stem(b) { if (b ~ /\.py$/ && length(b) > 3) print substr(b, 1, length(b) - 3) > stemsf }
+    function target(p, b) { print b > namesf; stem(b); if (b == "__init__.py" && pkg_of(p) != "") print pkg_of(p) > stemsf }
+    $0 == "" { next }
+    { b = base_of($0) }
+    FILENAME == plainf { stem(b); if (b == "__init__.py") target($0, b); next }
+    { target($0, b) }' "$1" "$2" || return 1
+  if [[ "$3" == /dev/null ]]; then
+    INDEX_ALL=/dev/null
+  else
+    INDEX_ALL="$WORK_DIR/index-all"
+    LC_ALL=C grep -aF -f "$WORK_DIR/index-names" "$3" >"$INDEX_ALL" || rc=$?
+    ((rc < 2)) || return 1
+  fi
+  rc=0
+  if [[ "$4" == /dev/null ]]; then
+    INDEX_IMP=/dev/null
+  else
+    INDEX_IMP="$WORK_DIR/index-imp"
+    LC_ALL=C grep -aF -f "$WORK_DIR/index-stems" "$4" >"$INDEX_IMP" || rc=$?
+    ((rc < 2)) || return 1
+  fi
+}
+
 token_hits() {
-  awk -v plainf="$1" -v resf="$2" -v allf="$5" -v impf="$6" '
+  index_lines "$1" "$2" "$5" "$6" || return 1
+  awk -v plainf="$1" -v resf="$2" -v allf="$INDEX_ALL" -v impf="$INDEX_IMP" '
     function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
     function base_of(p) { sub(/.*\//, "", p); return p }
     function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
@@ -682,7 +714,7 @@ token_hits() {
       if (comment_only(path, text)) next
       # A Python import keeps its comment: `import x  # scripts/x.py` is how a
       # module import, which never spells the file name, names the file.
-      if (path ~ /\.(sh|bash|ps1|psm1)$/ || (path ~ /\.py$/ && text !~ /^[ \t]*(import|from)[ \t]/))
+      if (index(text, "#") && (path ~ /\.(sh|bash|ps1|psm1)$/ || (path ~ /\.py$/ && text !~ /^[ \t]*(import|from)[ \t]/)))
         text = code_part(text)
       # A shell redirect target is written, not read: a suite that seeds a
       # fixture with `printf x >"$dir/docs/a.md"` does not read docs/a.md.
@@ -726,7 +758,7 @@ token_hits() {
         print "p\t" kv[1] "\t" kv[2] "\t" kept[order[k]]
       }
     }
-  ' "$1" "$2" "$5" "$6" "$3" >"$4"
+  ' "$1" "$2" "$INDEX_ALL" "$INDEX_IMP" "$3" >"$4"
 }
 
 package_scope_importers() {
@@ -895,7 +927,7 @@ select_for() {
         [[ "${CROSSED[$p]:-0}" == "0" ]] && PATTERN_CROSSED["$b"]=0
       fi
       printf '%s\n' "$p" >>"$WORK_DIR/plain"
-      plain_key+="$p"$'\n'
+      if [[ "$b" == *.py ]]; then plain_key+="$p"$'\n'; else plain_key+="$b"$'\n'; fi
     done
 
     [[ -s "$WORK_DIR/patterns" ]] || break
@@ -914,7 +946,7 @@ select_for() {
           git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -F -f "$WORK_DIR/patterns" -- "${CODE_SPECS[@]}" \
             >"$matched" || grep_rc=$?
           TREE_GREPS=$((TREE_GREPS + 1))
-          ((TREE_GREPS == ${AFFECTED_TESTS_TREE_GREPS:-16})) && build_name_lines
+          ((TREE_GREPS == ${AFFECTED_TESTS_TREE_GREPS:-$TREE_GREP_LIMIT})) && build_name_lines
         fi
         if [[ "$grep_rc" -gt 1 ]]; then
           echo "error: the grep failed (exit $grep_rc) resolving dependents of the current level." >&2
@@ -1240,6 +1272,8 @@ if [[ ${#changed[@]} -eq 0 ]]; then
   echo "No changed files against the base ref; nothing to select." >&2
   exit 0
 fi
+TREE_GREP_LIMIT=16
+((${#changed[@]} <= 16)) || TREE_GREP_LIMIT=1
 
 select_unmapped_corpus() {
   local -A corpora=()
@@ -1312,9 +1346,10 @@ if [[ -n "$each_from" ]]; then
 fi
 
 declare -a NO_SUITE_FILES=()
+scope_suites=" ${SCOPE_SUITES[*]-} "
 for f in "${changed[@]}"; do
   [[ -n "$f" ]] || continue
-  [[ -z "$SCOPES_LIST" && " ${SCOPE_SUITES[*]-} " == *" $f "* ]] && check_scope_globs "$f"
+  [[ -z "$SCOPES_LIST" && "$scope_suites" == *" $f "* ]] && check_scope_globs "$f"
   select_for "$f"
   select_scoped "$f"
   if [[ "$SEED_HITS" -eq 0 ]]; then

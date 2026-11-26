@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# /code-metrics:audit-coverage entry point: line coverage per file and per
-# function, and CRAP per function, read from coverage artifacts a build
-# already produced. It never runs a test command.
-#
-#   audit-coverage.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [--artifacts <path>]... [<path>...]
-#
-# Prints the markdown report; `--json` prints the `code-metrics/v2` document
-# instead. Artifacts come from every `--artifacts` and from
-# `coverage.artifacts` in the config; with none named, well-known names are
-# looked for under the repository root, at most two directory levels deep.
-# Complexity for the CRAP formula comes from the audit skill's complexity
-# entry script, run over the same scope. Exit codes: 0 report
-# produced, including an empty one; 2 usage error, which includes a named
-# artifact or scope path that does not exist; 3 a collector ran and produced
-# nothing parseable.
 set -uo pipefail
+
+USAGE="$(
+  cat <<'EOF'
+/code-metrics:audit-coverage entry point: line coverage per file and function, and CRAP per
+function, read from coverage artifacts a build already produced.
+  audit-coverage.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [--artifacts <path>]... [<path>...]
+  --json                    print the code-metrics/v2 document instead of the report
+  --all                     measure every file, not the change
+  --base <ref>              measure the change from the merge-base with <ref>
+  --config <resolved.json>  a resolved configuration
+  --artifacts <path>        a coverage artifact to read (repeatable)
+Exit: 0 report produced, including an empty one; 2 usage error, including a named artifact or
+scope path that does not exist; 3 a collector ran and produced nothing parseable.
+EOF
+)"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    cm_usage_banner "${BASH_SOURCE[0]}" 17
+    cm_usage_banner --usage "$USAGE"
     exit 0
     ;;
   *)

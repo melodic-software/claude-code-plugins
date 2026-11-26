@@ -8,14 +8,9 @@ REAL_HTMLHINT="$REPO_ROOT/node_modules/.bin/htmlhint"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
-# The builder clears the inherited git environment for the whole suite: the
-# fixture below is its own git repo, and an inherited absolute GIT_DIR would
-# redirect its writes into the caller's clone.
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 fixture=""
 
 bad() { fail "$@"; }

@@ -55,8 +55,6 @@ BeforeAll {
         }
     }
 
-    # Mock bodies run inside the check script, where $script: names the check's
-    # scope, so the fake reads live in one table the mock reaches by closure.
     $script:Reads = @{}
     $reads = $script:Reads
     Set-Item -Path function:Get-FakeRead -Value ({ param([string] $Name) $reads[$Name] }.GetNewClosure())

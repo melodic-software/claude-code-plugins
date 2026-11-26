@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# queue-ahead.sh <main-sha> <head-sha>
-#
-# Read main's merge queue for the merge job of release-publish-plugins.yml in one
-# GraphQL call. Run from a checkout holding both commits, with GH_TOKEN and
-# GITHUB_REPOSITORY set. Prints:
-#   queue=<id>    the merge queue's id, empty when main has none
-#   ahead=<why>   one line per queued pull request that changes a file the
-#                 release changes (git diff <main-sha>...<head-sha>), or that the
-#                 read cannot list in full, which counts as one
-# Queued behind such an entry, the release fails its merge group's release gate
-# (check-changelog-fragments.sh --check-release, CHANGED ON BASE) once that
-# entry lands, and each removal re-runs every group queued behind it. Exit 0
-# read, anything else an error.
 set -euo pipefail
 : "${GITHUB_REPOSITORY:?}"
 main_sha=$1 head_sha=$2

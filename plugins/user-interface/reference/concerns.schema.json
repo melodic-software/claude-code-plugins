@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "user-interface concern table",
-  "description": "Interface concerns read by /user-interface:design (which spokes to load) and /user-interface:audit (which lanes exist and what each reads). Paths are relative to the plugin root. scripts/lib/concerns-validate.mjs adds the checks a schema cannot state: unique ids, known types, files that exist and routing concerns that exist.",
+  "description": "Interface concerns read by /user-interface:design (which spokes to load) and /user-interface:audit (which concerns exist and what each reads). Paths are relative to the plugin root. scripts/lib/concerns-validate.mjs adds the checks a schema cannot state: unique ids, known types, files that exist and routing concerns that exist.",
   "type": "object",
   "required": ["version", "concerns"],
   "additionalProperties": false,
@@ -40,7 +40,7 @@
             "additionalProperties": false,
             "properties": {
               "order": {"type": "integer", "minimum": 1},
-              "procedure": {"description": "null, or a lane procedure file", "pattern": "^[a-z0-9][a-z0-9./-]*\\.md$"}
+              "procedure": {"description": "null, or a concern procedure file", "pattern": "^[a-z0-9][a-z0-9./-]*\\.md$"}
             }
           }
         }

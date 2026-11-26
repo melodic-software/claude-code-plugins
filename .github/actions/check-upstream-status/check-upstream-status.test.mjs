@@ -1,10 +1,3 @@
-// Expected values come from the gate's contract (action.yml): degraded is
-// true only while the Actions or npm Package installation component lists
-// partial_outage or major_outage, the two Statuspage statuses that mean the
-// component is broken for some or all customers
-// (https://support.atlassian.com/statuspage/docs/what-is-a-component); a
-// page that cannot be read or lists no such component fails open. Pages are
-// built in the Statuspage components.json shape component-status.mjs reads.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -78,8 +71,6 @@ test("an outage still skips when the other page cannot be read", async () => {
   assert.equal(result.notes.length, 2);
 });
 
-// Incident pwxsjgnvrk6b listed Actions as degraded_performance while Actions
-// jobs kept succeeding; a slow or maintained component still runs.
 for (const status of ["degraded_performance", "under_maintenance"]) {
   test(`runs, with a logged note, while a component lists ${status}`, async () => {
     const result = await checkUpstreamStatus({
@@ -131,9 +122,6 @@ test("the script fails open with exit 0 when no page can be reached", () => {
   }
 });
 
-// Admissions and dispatches that start token-spending runs call the gate;
-// pr-merge enqueues never do, since status pages lag an incident's end and
-// would hold merges that already pass (#9016 item 5).
 const workflow = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const GATE = "./.base/.github/actions/check-upstream-status";
 const GATED_WORKFLOWS = [

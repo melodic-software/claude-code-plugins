@@ -66,7 +66,6 @@ function Get-AppLaunch {
                 $launches.Add([pscustomobject]@{ At = $entry.LastRun; Source = 'userassist' })
             }
         }
-        # BAM paths carry no drive letter; compare from the volume root.
         $bamExe = $exe -replace '^[A-Za-z]:', ''
         $bamDir = $dir -replace '^[A-Za-z]:', ''
         foreach ($entry in $Bam) {
@@ -102,8 +101,6 @@ $CheckBody = {
     $bam = $elevated | Where-Object Source -EQ 'bam'
 
     $uaEntries = $userAssist.ReadState -eq 'ok' ? @($userAssist.Entries) : @()
-    # Prefetch names only the executable file, so a hit counts only for a file
-    # name that exactly one installed app's DisplayIcon executable carries.
     $soleExeNames = @($installed.Apps | Where-Object ExePath |
             Group-Object { [System.IO.Path]::GetFileName($_.ExePath) } |
             Where-Object { @($_.Group.Key | Sort-Object -Unique).Count -eq 1 } |
@@ -113,8 +110,6 @@ $CheckBody = {
     $noLaunchText = $since ? "no launch recorded since $since" : 'no launch recorded'
 
     $items = [System.Collections.Generic.List[pscustomobject]]::new()
-    # One item per key: installs sharing an Uninstall subkey name (per-user and
-    # machine-wide) are one app, and a launch from any of their paths counts.
     foreach ($group in @($installed.Apps | Sort-Object Name | Group-Object Key)) {
         $app = $group.Group[0]
         $launches = @(foreach ($install in $group.Group) {

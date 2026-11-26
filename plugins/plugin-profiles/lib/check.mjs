@@ -1,19 +1,3 @@
-// The profile check: whether the profile files name plugins that exist.
-//
-//   readMarketplace(path) -> {name, plugins: Set<name>}, or throws CheckError
-//   checkProfiles({files, catalog, installed}) -> {failures: [line], reports: [line]}
-//
-// files      readProfileFiles output, every level.
-// catalog    readMarketplace output: the marketplace the shipped profiles belong to.
-// installed  Set<PluginId> of the installed plugins.
-//
-// Failures come from shipped files only, so the result on a repository tree does not depend on
-// the machine: an id the catalog lacks, an id of another marketplace, a missing description, an
-// exclude naming an always-on member (AC24), and a planning member interface-design lacks (C3).
-// User and repository files are reported, never failed: an id of the catalog's marketplace the
-// catalog lacks, an id of another marketplace that is not installed, an exclude naming an
-// always-on member. Installed plugins of a marketplace the profiles name, which no profile names,
-// are reported too: an apply switches them off unless the repository enables them.
 import { readFileSync } from "node:fs";
 import { excludedAlwaysOn } from "./plan.mjs";
 import { ALWAYS_ON, alphabetical, ignoredLine, resolveCatalog } from "./profile-files.mjs";

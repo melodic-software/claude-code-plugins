@@ -15,7 +15,6 @@ const HEADER = 1 + 8 + 32 + 12;
 const TAG = 16;
 const SPKI_PREFIX = Buffer.from("302a300506032b656e032100", "hex");
 
-// A refusal names a kind and never a value; `rotate` adds the rotation line.
 export class OpenError extends Error {
   constructor(message, { rotate = false } = {}) {
     super(rotate ? `${message}\nrotate this credential` : message);
@@ -26,10 +25,8 @@ const mismatch = (what) => new OpenError(`sealed-mismatch: ${what}; nothing is o
 const keyIdOf = (raw) => crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
 const context = (name, runId, jobId) => Buffer.from(`lane-output/v${VERSION}\0${name}\0${runId}\0${jobId}`);
 
-// One fixed refusal for an empty or unusable key: it names no key material.
 export const NO_KEY = "no-key: the private key is missing or malformed; no payload opened";
 
-// The private key: base64 PKCS#8 DER of an X25519 key, as keygen.mjs writes it.
 export function parsePrivateKey(text) {
   const trimmed = String(text ?? "").trim();
   if (trimmed === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) throw new OpenError(NO_KEY);
@@ -44,7 +41,6 @@ export function parsePrivateKey(text) {
   return { key, raw, keyId: keyIdOf(raw) };
 }
 
-// `name=bytes` lines: the payload names that may open, each with its cap.
 export function parseCaps(text) {
   const caps = new Map();
   for (const line of String(text).split("\n").map((l) => l.trim()).filter(Boolean)) {
@@ -55,8 +51,6 @@ export function parseCaps(text) {
   return caps;
 }
 
-// The chunks back into one base64 text. A chunk the length says is there but
-// that arrived empty is the runner's withheld output, the rotation signal.
 export function joinChunks(lengthText, parts) {
   const total = parts.reduce((sum, part) => sum + part.length, 0);
   if (parts.some((part) => part.length > CHUNK) || total > MAX_CHUNKS * CHUNK || lengthText.length > 10 || Number(lengthText) > MAX_CHUNKS * CHUNK) {
@@ -96,14 +90,12 @@ export function openRecord(recipient, expected, name, record, runId, jobId) {
     const decipher = crypto.createDecipheriv("aes-256-gcm", key, nonce);
     decipher.setAAD(Buffer.concat([header, bound]));
     decipher.setAuthTag(record.subarray(record.length - TAG));
-    // final() checks the tag; nothing decrypted is kept before it passes.
     return Buffer.concat([decipher.update(record.subarray(HEADER, record.length - TAG)), decipher.final()]);
   } catch {
     throw mismatch(`the ${name} record does not open for this key, payload name, run and job`);
   }
 }
 
-// Every record of the bundle, opened in memory, keyed by payload name.
 export function openBundle(recipient, expected, caps, bundle, runId, jobId) {
   const opened = new Map();
   let at = 0;

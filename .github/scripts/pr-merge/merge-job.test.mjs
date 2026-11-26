@@ -1,12 +1,6 @@
 // test-scope: .github/scripts/pr-merge/retry-call.bash .github/scripts/pr-merge/sweep-summary.mjs docs/conventions/work-items.yaml
 // test-scope: plugins/source-control/.claude-plugin/plugin.json plugins/source-control/lib/yaml-subset.awk
 // test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py
-// pr-merge.yml's merge job: the post-merge check and its re-dispatch do not
-// wait on the gate loop (#8299), the listing retries a failed GraphQL read, an
-// unknown listing holds the job green and every later acting step, the
-// post-merge check included, waits on that hold, the run logs its API cost
-// through the shared action, and the run cache carries the verdict reads that
-// never change to the next run.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -77,10 +71,6 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Log the API budget at the end",
     ],
   );
-  // Each upload waits on the credential scan just before it. The report is
-  // best-effort, so its scan cannot fail the job; a run record the
-  // post-merge check needs fails the job when its scan does (a missing
-  // scanner included), as a failed upload of it does.
   assert.match(
     assertScanned("Keep the post-merge report for enable-auto-merge", "steps.post-merge.conclusion == 'success'", list),
     /\n {8}continue-on-error: true\n/,
@@ -120,17 +110,6 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
   assert.doesNotMatch(job, /dispatch: .*needs-dispatch/);
 });
 
-// Runs the listing step's script against a fake `gh` whose GraphQL listing
-// fails its first `failures` calls and then answers `prs` (by default one pull
-// request of the lanes App's) 100 a page, each page counting `total` open pull
-// requests (by default as many as `prs`; null leaves the count out), with
-// `.base` pointing at this checkout,
-// or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
-// trusted-actors.json is `actors`, when given, else this checkout's.
-// `env` overrides the step's environment: merge.lane-prs is `gate` unless it
-// says otherwise, the mode that lists the lanes App's own pull requests.
-// `attempts` scripts each call in turn: `502` fails that one. `editPage(page, p)`
-// returns page `p`'s response in place of the one built.
 const bot = (login, databaseId) => ({ __typename: "Bot", login, databaseId });
 const user = (login, databaseId) => ({ __typename: "User", login, databaseId });
 const LANES = bot("melodic-automation-lanes", 337595936);
@@ -299,9 +278,6 @@ test("a next page with no cursor holds the job", () => {
   assert.match(run.output, /^held-reason=failed 3 times$/m);
 });
 
-// A step's `if:` as GitHub evaluates it on the schedule, with `steps` and
-// `needs` as given. No `if:` runs it. Takes a step block, since the credential
-// scans share one name.
 const blockRunsOn = (block, context, needs = {}) => admits(ifOf(block, 8), { steps: context, needs, github: { event_name: "schedule" }, inputs: {} });
 const runsOn = (name, context, needs = {}) => blockRunsOn(step(name), context, needs);
 const SCAN = "Scan the upload for credentials";
@@ -344,9 +320,6 @@ test("no step after the listing acts on a held listing", () => {
   }
 });
 
-// GitHub Support's audit item 7: one listing of every open pull request into
-// main, filtered by author, in place of one `gh pr list --author` (a search
-// call) per author. Trusted actors match by numeric id, never by login.
 const AUTHORED = [
   listed(1, LANES),
   listed(2, user("a-person", 1)),
@@ -357,7 +330,6 @@ const AUTHORED = [
   listed(7, bot("renamed-release", 2)),
   listed(8, user("a-person", 77)),
   listed(9, bot("some-release", 55)),
-  // No id: a deleted account and a mannequin.
   listed(10, null),
   listed(11, { __typename: "Mannequin", login: "a-person" }),
   listed(12, user("a-shape", 5)),
@@ -412,9 +384,6 @@ test("under lane-prs native with no other author the listing calls nothing and l
   assert.match(run.output, /^count=0$/m);
 });
 
-// GitHub Support's audit item 5: a pull_request_target run gates only the
-// pull request its event names, from the listing (never the payload); the
-// scheduled run keeps the whole sweep.
 test("an event run lists only its own pull request", () => {
   const actors = [{ id: 1, login: "a-person", kind: "human" }];
   const run = runListing(0, (config) => config, actors, { EVENT_PR: "2" }, undefined, AUTHORED);
@@ -427,8 +396,6 @@ test("an event run lists only its own pull request", () => {
   assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
 });
 
-// The listing reads at most 10 pages of 100: a list with an 11th page is cut
-// short, so it holds after those 10 calls; 1000 still lists.
 const lanePrs = (n) => Array.from({ length: n }, (_, i) => listed(i + 1, LANES));
 test("a listing past the page cap holds the job green after ten calls, never retried", () => {
   for (const total of [1001, 1500]) {
@@ -439,8 +406,6 @@ test("a listing past the page cap holds the job green after ten calls, never ret
     assert.doesNotMatch(run.stdout, /^::error/m);
     assert.match(run.output, /^held-reason=listing full: more than 1000 open pull requests, so it is cut short$/m);
   }
-  // The hold and its reason reach the sweep summary, whose listing_held
-  // monitor signal 12 counts.
   assert.match(step("Count the sweep's refusals"), /\n {10}LISTING_HELD: \$\{\{ steps\.candidates\.outputs\.held \}\}\n {10}LISTING_HELD_REASON: \$\{\{ steps\.candidates\.outputs\.held-reason \}\}\n/);
 });
 
@@ -492,7 +457,6 @@ test("a held listing writes a sweep summary with no read, and a monitor can tell
       env: {
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
-        // .base is a symlink here, and the script runs only as the main module.
         NODE_OPTIONS: "--preserve-symlinks-main",
         RUNNER_TEMP: dir,
         REPO: "o/r",
@@ -543,7 +507,6 @@ test("the mode step outputs merge.lane-prs as resolve-config resolved it, and th
   assert.match(step("List the candidate PRs"), /\n {10}LANE_PRS: \$\{\{ steps\.mode\.outputs\.lane-prs \}\}\n/);
 });
 
-// A stop past the budget is not slept: one call, gh's bare 429 message included.
 test("a rate-limited listing holds the job after one call, a bare HTTP 429 included", () => {
   for (const failure of ["gh: Too Many Requests (HTTP 429)", "API rate limit exceeded for installation ID 1. (HTTP 403)"]) {
     const run = runListing(3, undefined, undefined, {}, failure);
@@ -625,12 +588,6 @@ test("a held listing's cost line names the tokens' calls, marks the hold, and ha
   }
 });
 
-// The run cache's carried reads (carry-run-cache.mjs) reach both token-holding
-// jobs as the head-ref map does (#9416): read from the last trusted run's
-// pr-merge-run-cache artifact (with enable-auto-merge's
-// pr-merge-verify-run-cache added), each uploaded by scheduled and
-// hand-started runs only, the runs a later read accepts. Neither job restores an
-// Actions cache, which any job in main's cache scope can write (#9455).
 test("both token-holding jobs read the carried reads from the last trusted run's artifact, never a cache", () => {
   const carried = "${{ runner.temp }}/pr-merge-carried.json";
   const runCache = "${{ runner.temp }}/babysit-run-cache.json";
@@ -815,9 +772,6 @@ const runEarlyCheck = (code, needsDispatch = false, stops) => {
   }
 };
 
-// The owner's rule: a rate-limit stop (babysit_gh.py exits 75) turns the job
-// red, and nothing after it calls the stopped pool. The outputs and the kept
-// report are written first, so the dispatch reads needs-dispatch=false.
 test("the early check fails red on a rate-limit stop, after its outputs and report", () => {
   const run = runEarlyCheck(75, true);
   assert.notEqual(run.status, 0, run.stdout);
@@ -827,15 +781,6 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
   assert.equal(run.keptCode, "75");
 });
 
-// dispatch-post-merge-runs's check, run with the last run's report in
-// post-merge-last (or none) and a fake python3: `settle` answers whether the
-// report stands (exit `settle`), any other call is the check, which marks that
-// it ran. The rule (pr-merge.yml): an idle tick reuses a report whose check
-// passed (exit 0 or 5) and that `settle --idle-tick` keeps
-// (babysit_verify_evidence.py, tested in test_babysit_lane_room.py
-// IdleRefusal and SettleCommand), keeping its code and commit so the reuse
-// ends SHARED_MAX_AGE after the check that made it; otherwise it runs the
-// check.
 const LAST_SHA = "d".repeat(40);
 const lastReport = () => ({ readable: true, ok: true, needsDispatch: false, shared: { mainSha: "a".repeat(40) } });
 const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3, attempts } = {}) => {
@@ -968,15 +913,10 @@ test("the early check keeps the commit whose code ran it beside its report", () 
   }
 });
 
-// The stop the check recorded in the job's stop file (babysit_gh.py
-// _record_stop) goes to the next jobs as the rate-limited output, naming the
-// pool and its reset, every line folded by the readers' rule:
-// 4102444800 is 2100-01-01T00:00:00Z, 4102448400 an hour later.
 test("the early check names the stopped pool and its reset in its rate-limited output", () => {
   const core = runEarlyCheck(75, false, "core 4102448400\ngraphql 4102444800\ncore 4102444800\n");
   assert.match(core.output, /^rate-limited=the core pool until 2100-01-01T01:00:00Z$/m);
   assert.match(runEarlyCheck(75, false, "core 4102448400\n* 4102444800\n").output, /^rate-limited=every pool until 2100-01-01T01:00:00Z$/m);
-  // A CRLF line, a torn last line and a past stop count for nothing.
   const torn = runEarlyCheck(75, false, "graphql 4102448400\r\ncore 1\nsearch 4102444800\ncore 41024");
   assert.match(torn.output, /^rate-limited=the search pool until 2100-01-01T00:00:00Z$/m);
   assert.match(runEarlyCheck(75).output, /^rate-limited=an unrecorded pool until its reset$/m);
@@ -1018,9 +958,6 @@ for (const id of ["merge", "enable-auto-merge"]) {
     });
     assert.equal(result.status, 1);
     assert.match(result.stdout, /^::error title=GitHub rate limit::dispatch-post-merge-runs stopped on a GitHub rate limit \(the core pool until 2026-10-24T19:00:00Z\); this job sends nothing to GitHub$/m);
-    // With the stop step failed, every later step is skipped: each one's
-    // `if:` is evaluated with the earlier steps skipped and their outputs
-    // empty, for every event the job runs on.
     for (const event of ["schedule", "workflow_dispatch", "pull_request_target", "workflow_run", "issues"]) {
       const context = (path) => {
         if (path === "github.event_name") return event;
@@ -1042,8 +979,6 @@ const stepRuns = (block, context, status) => admits(ifOf(block, 8), context, { s
 
 test("the step-condition evaluator fails a later step that runs on empty outputs", () => {
   const context = (path) => (/\.(outcome|conclusion)$/.test(path) ? "skipped" : "");
-  // The shape the old check let through: always() with a step reference that
-  // is true when that step was skipped.
   assert.equal(stepRuns("\n        if: always() && steps.x.outputs.y == ''\n", context, "failure"), true);
   assert.equal(stepRuns("\n        if: always() && steps.gate.outcome != 'skipped'\n", context, "failure"), false);
   assert.equal(stepRuns("\n        if: steps.kill.outputs.proceed == 'true'\n", context, "failure"), false);
@@ -1141,9 +1076,6 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
 
-// Only --remediate writes, so it alone takes the lane token. The read-only
-// check and the gate's evidence reads spend the job's own token, which this
-// job grants no write.
 test("the read-only post-merge check and the gate's reads use the job's read-only token", () => {
   assert.match(step("Check earlier lane merges"), /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   assert.doesNotMatch(runScript("Check earlier lane merges"), /--remediate/);
@@ -1192,8 +1124,6 @@ test("the record step passes --remediate and is quiet when the record was filed"
   assert.doesNotMatch(run.stdout, /::(warning|error)::/);
 });
 
-// Exit 4 covers both the expected re-run and dispatch refusals and a failed
-// filing, so only the report's errors tell them apart.
 test("the record step warns on refused re-runs and errors when the record was not filed", () => {
   const refused = runRecord(4, { remediation: { errors: ["re-run: HTTP 403", "dispatch: HTTP 403"] } });
   assert.equal(refused.status, 0);
@@ -1321,9 +1251,6 @@ test("a candidate stopped at its read limit is reported unknown, never ready, an
   assert.deepEqual(JSON.parse(run.cursor), { last: 5, deferred: 7 });
 });
 
-// Owner rule: stop calling a pool once rate-limited until reset. After the
-// gate stops on one (exit 75), no later step of the job calls GitHub, nor the
-// report-gate-checks job, whose own stop file would not hold the stop.
 test("after the gate's rate-limit stop, no later merge-job step calls GitHub", () => {
   const gate = `if [[ $* == *'#7' ]]; then echo '{"error": "rate limited"}'; exit 75; fi\n` + REFUSING_GATE;
   const run = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate });
@@ -1352,7 +1279,6 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    // The step reads through the wrapped gh, which asks for the headers (-i).
     symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
     writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\nprintf 'HTTP/2.0 200 OK\\r\\n\\r\\n'\necho 2026-10-26T00:00:00Z\n`);
     writeFileSync(join(bin, "node"), `#!/usr/bin/env bash\necho "RUN_STARTED_AT=$RUN_STARTED_AT" >"${dir}/node"\n`);
@@ -1515,9 +1441,6 @@ test("the budget comes from the pipeline config, rotation runs before the gate, 
   assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
 });
 
-// The main ruleset requires `ci-status` from the GitHub Actions app, the app
-// every GITHUB_TOKEN posts as, so a token with checks: write could pass it.
-// Only a job of its own, running nothing but the check writer, holds it.
 test("each candidate's check run is written by its own job, the only one holding checks: write", () => {
   assert.match(job, /\n {6}checks: read\n/);
   assert.equal(text.match(/\n {6}checks: write\n/g)?.length, 1);
@@ -1535,8 +1458,6 @@ test("each candidate's check run is written by its own job, the only one holding
   assert.match(writer, /^ {2}report-gate-checks:\n {4}name: Report Gate Checks\n {4}needs: \[merge\]\n/);
   assert.match(writer, /\n {4}if: always\(\) && needs\.merge\.outputs\.gate-rows == 'true'\n/);
   assert.match(writer, /\n {4}permissions:\n {6}contents: read[^\n]*\n(?: {6}#[^\n]*\n)* {6}checks: write\n {6}pull-requests: read[^\n]*\n {4}[a-z]/);
-  // Runs wait in line like the merge job's: never two writers at once, and a
-  // cancelled job would sit on PR heads as a CANCELLED check.
   assert.match(writer, /\n {4}concurrency:\n {6}group: pr-merge-gate-check\n {6}queue: max\n/);
   const writerSteps = stepsOf(writer);
   assert.deepEqual(
@@ -1554,9 +1475,6 @@ test("each candidate's check run is written by its own job, the only one holding
   assert.equal(steps.find((s) => s.name === "Show each candidate's refusal as a check run"), undefined);
 });
 
-// #8399 (option B): a red attempt 1 of a full run the lane dispatched gets its
-// one re-run from the early job, under its own token, and a record the
-// post-merge check requires before it credits that github-actions[bot] attempt.
 const earlySteps = () => stepsOf(wf.job("dispatch-post-merge-runs"));
 
 const runEarlyReport = (report) => {
@@ -1587,21 +1505,9 @@ test("the early check names only a lane-dispatched run awaiting its re-run", () 
   assert.match(runEarlyReport({ reruns }), /^lane-rerun=11$/m);
   assert.match(runEarlyReport({ reruns: [reruns[0]] }), /^lane-rerun=$/m);
   assert.match(runEarlyReport({ reason: "unreadable" }), /^lane-rerun=$/m);
-  // The fake check exits 5; the re-run step's gate reads it.
   assert.match(runEarlyReport({ reruns }), /^code=5$/m);
 });
 
-// Runs the re-run step against a fake gh that answers `attempts` in turn for
-// the run read, failing a read whose entry is "x" (a 502) and rate-limiting
-// one whose entry is "limited" (a 403 with the core pool spent until
-// 2100-01-01). `post` answers the re-run POST, or each POST in turn when a
-// list: "ok", "refuse" (a 403 that is no rate limit), "limited" (a 429 with a
-// retry-after) or "unsent" (a TLS handshake timeout, before the request left).
-// The "limited" read's stderr is RATE_LIMITED_STDERR. Like gh, with -i it
-// prints the status and headers before the body, the guard's shape.
-// gh's stderr for a call GitHub refused for a rate limit, as run 39906176584
-// logged it (pr-merge.yml, dispatch-full-run, "Start the full CI run on main",
-// 2026-10-23T05:30:57Z).
 const RATE_LIMITED_STDERR =
   "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
 const LIMITED_403 ='HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
@@ -1770,10 +1676,6 @@ test("a rate-limited read-back stops the re-run step red after one read", () => 
   assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
 });
 
-// Owner rule: a rate limit is never sent again, the step ends red, and the
-// stop goes to the merge and enable-auto-merge jobs (dispatch-post-merge-runs's
-// rate-limited output). The re-run's 429 and the first read's 403 are caught
-// by the shared rate guard (api-budget.bash), as every gh call is.
 test("a rate-limited re-run POST stops the step red, sends it once, and names the stop", () => {
   const run = runRerun([1], { post: "limited" });
   assert.equal(run.status, 1, run.stdout);
@@ -1785,8 +1687,6 @@ test("a rate-limited re-run POST stops the step red, sends it once, and names th
   assert.match(run.output, /^stop=every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/m);
 });
 
-// gh's bare 429 message, with no header block or message naming a rate
-// limit, is a rate limit too: never read again.
 test("a bare HTTP 429 on the read-back stops the re-run step red after one read", () => {
   const run = runRerun([1, "bare429", 2]);
   assert.equal(run.status, 1, run.stdout);
@@ -1818,8 +1718,6 @@ test("the re-run step refuses a run id that is not a number", () => {
 test("the re-run record is named by run and attempt, uploaded only after a recorded re-run", () => {
   const list = earlySteps();
   const rerun = step("Re-run a red lane-dispatched full run", list);
-  // Only a check that could judge (exit 0, 1 or 5) names a run to re-run,
-  // and nothing is sent after the dispatch stopped on a rate limit.
   assert.match(
     rerun,
     /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
@@ -1831,23 +1729,7 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });
 
-// The alert send's step, run with .base at this checkout (the rate guard)
-// against a fake gh that answers, through the guard's -i form and the step's
-// --jq filter, a listing of pr-require-checks.yml dispatches on main (`runs`:
-// {id, attempt, status, conclusion, sha, actor}), each later attempt's
-// attempt 1 (`firsts` by id), each run's attempt-1 job count (`jobs` by id,
-// default 3) and its pr-merge-alerted-<id> record count (`sent` by id,
-// default 0). A read whose answer is "x" fails with a 502, "limited" with
-// the rate-limited 403. `post` answers each send in turn: "ok", "unsent" (a
-// TLS handshake timeout, before the request left), "502" or "limited" (a
-// 429). The send replaces dispatch-full-run's wait step (efficiency plan item
-// 7(b)): GITHUB_TOKEN started the full run, so it raises no workflow_run
-// event, and post-merge-file-demotion-issues.yml hears of a red one only from here.
 const ALERT_SHA = "0123456789abcdef0123456789abcdef01234567";
-// main's tip, and the run of pr-merge.yml's dispatch-post-merge-runs on it that a
-// trusted pr-merge-alerted-<id> record comes from (babysit_postmerge.py
-// _lane_sender: this repository's pr-merge.yml, a schedule or
-// workflow_dispatch run, head_branch main, head commit on main's tip).
 const ALERT_TIP = "fedcba9876543210fedcba9876543210fedcba98";
 const ALERT_SENDER = {
   id: 900,
@@ -1978,8 +1860,6 @@ test("a red full run is sent to post-merge-file-demotion-issues.yml once, by its
   assert.match(upload, /\n {10}name: pr-merge-alerted-\$\{\{ steps\.alert\.outputs\.run-id \}\}\n/);
 });
 
-// babysit_postmerge.py's FAILED_CONCLUSIONS, the conclusions post-merge
-// demotion counts as red: a cancel once the jobs started is red too.
 test("every red conclusion of a full run is sent", () => {
   assert.ok(ALERT_FAILED.length > 0);
   for (const conclusion of ALERT_FAILED) {
@@ -2015,11 +1895,6 @@ test("a run past attempt 1 is judged on attempt 1", () => {
   assert.deepEqual(green.sends, [], green.out);
 });
 
-// Review finding on #10491 (claude-security-review): a run sent counts only
-// when pr-merge.yml's own dispatch-post-merge-runs on main uploaded its record, by
-// babysit_postmerge.py's sender rule (_lane_sender), which this step runs. A
-// same-name artifact from any other run, such as a pull request run, does
-// not suppress the send.
 test("a same-name record from a run that is not pr-merge.yml's on main does not suppress the alert", () => {
   const trusted = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: {} } });
   assert.equal(trusted.status, 0, trusted.out);
@@ -2040,10 +1915,6 @@ test("a same-name record from a run that is not pr-merge.yml's on main does not 
   }
 });
 
-// Review finding on #10491 (claude-review): only --lane-alerted's "not
-// recorded" code (EXIT_NOT_ALERTED, 4) sends. An uncaught exception exits 1
-// with a traceback, and any code but 0, 4 and 75 leaves the run to the next
-// run, so a crashing check never sends the same run again each tick.
 test("a record check that crashes or answers an unknown code sends nothing", () => {
   const traceback = 'echo "Traceback (most recent call last):" >&2; echo "TypeError: unexpected" >&2; exit 1';
   for (const python of [traceback, "exit 2", "exit 3", "exit 5"]) {
@@ -2117,10 +1988,6 @@ test("a rate-limited read or send stops red with the stop as the job's output, s
   assert.match(wf.job("dispatch-post-merge-runs"), /\n {6}rate-limited: \$\{\{ [^\n]*\|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
-// Every merge's run is sent, as dispatch-full-run starts it, whoever merged,
-// after a dispatch or re-run that failed for any reason but a rate limit, and
-// only while the lane is live (review decision on #10491: the kill switch and
-// report-only stop everything the scheduled job spends API on).
 test("the alert send runs after the re-run while the lane is live, and stops after a rate limit", () => {
   const list = earlySteps();
   const alert = step("Send a red full run to the demotion alert", list);
@@ -2217,9 +2084,6 @@ test("a recovery the check proves on an open record sends close-cleared, and a c
   assert.match(limited.output, /^stop=/m);
 });
 
-// The scheduled job's cover read, run with .base at this checkout (the rate
-// guard) against a fake gh whose listing answers `answer`: "limited" with the
-// rate-limited 403, "x" with a 502.
 const runPostMergeCover = (answer) => {
   const dir = tempDir("pr-merge-pm-cover-");
   try {
@@ -2274,10 +2138,6 @@ test("a rate-limited cover read stops dispatch-post-merge-runs red, and nothing 
   }
 });
 
-// Review decision on #10491: the kill switch and report-only stop everything
-// dispatch-post-merge-runs does that spends API or starts a run: the cover read,
-// the pr-require-checks.yml dispatch on main and the alert dispatch.
-// dispatch-full-run's push carve-out stays.
 const spending = [
   "Read main's full-run cover",
   "Start the full CI run on main",
@@ -2330,14 +2190,6 @@ test("with either kill switch set, the scheduled job starts no full run and send
   assert.doesNotMatch(wf.job("dispatch-full-run"), /steps\.(kill|mode)\./, "the push carve-out stays");
 });
 
-// The merge job's check, run with this run's dispatch-post-merge-runs report kept
-// in post-merge-kept (or none) and a fake python3: `settle` answers whether
-// the report stands (exit `settle`), any other call is the check, which marks
-// that it ran. The rule (pr-merge.yml): reuse a report whose check judged
-// (exit 0, 1 or 5) and that `settle` keeps (babysit_verify_evidence.py, the
-// lane room's rule, tested in test_babysit_lane_room.py) given the commit
-// dispatch-post-merge-runs's check ran (`codeSha`, null for no file); otherwise
-// run the check. `yqFails` puts a yq that fails on the PATH.
 const KEPT_SHA = "b".repeat(40);
 const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, attempts, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
   const dir = tempDir("pr-merge-reuse-");
@@ -2453,8 +2305,6 @@ test("the merge job's check fails red on a rate-limit stop, after its outputs", 
 test("the merge job reads this run's report only when dispatch-post-merge-runs keeps one", () => {
   const read = step("Read this run's post-merge report");
   assert.match(read, /uses: actions\/download-artifact@v8\b/);
-  // A pattern that matches nothing yet (dispatch-post-merge-runs still checking)
-  // downloads nothing rather than failing the step.
   assert.match(read, /\n {10}pattern: pr-merge-post-merge-report\n {10}merge-multiple: true\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-kept\n/);
   assert.match(read, /\n {8}continue-on-error: true\n/);
   assert.match(read, /steps\.mode\.outputs\.live == 'true'\n {10}&& needs\.dispatch-post-merge-runs\.result != 'skipped'\n/);
@@ -2463,9 +2313,6 @@ test("the merge job reads this run's report only when dispatch-post-merge-runs k
   assert.equal(names.indexOf("Read this run's post-merge report") + 1, names.indexOf("Check earlier lane merges"));
 });
 
-// The merge job reads the report only after dispatch-post-merge-runs has kept it.
-// !cancelled() keeps the job on pull_request_target, where that job is
-// skipped, and when it fails.
 test("the merge job waits for dispatch-post-merge-runs and still runs when it is skipped or fails", () => {
   const header = job.slice(0, job.indexOf("\n    steps:\n"));
   assert.match(header, /\n {4}needs: \[dispatch-post-merge-runs\]\n/);
@@ -2480,10 +2327,6 @@ test("the lane token request passes the resolved grant's actions, so an actions 
   }
 });
 
-// A server error hold (a 5xx whose only signal was Retry-After) exits 75 and
-// holds as a rate limit does; the job's cause file beside the stop file says
-// which it was, and each relay of that exit names it. No cause, or a rate
-// limit among the stops ending then, reads as a rate limit.
 const HOLD = "4102444800";
 const SERVER_STOP = { stop: `* ${HOLD}\n`, cause: `* ${HOLD} server-503\n` };
 

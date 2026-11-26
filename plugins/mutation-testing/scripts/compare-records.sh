@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# compare-records.sh <before> <after>: the replay's compare step.
-#
-# Reads two mutant records (format: skills/audit/context/mutant-record.md),
-# keys each mutant by path, line_start, line_end, operator and replacement, and
-# prints `newly-surviving <path>:<line_start> <operator>` for every key detected
-# before and not detected after, a key missing from the after record included.
-# Detected means killed or timeout. Then one line `K0 <n> K1 <n>`: the mutants
-# detected in each record.
-#
-# Exit 0: no loss. 1: at least one newly surviving mutant. 2: usage error, an
-# unreadable or malformed record, mismatched shas, or an empty K0 (nothing
-# detected before proves nothing).
 set -uo pipefail
 
 if (($# != 2)); then

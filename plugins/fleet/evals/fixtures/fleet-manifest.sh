@@ -43,7 +43,7 @@ The paths under `/mnt/c` named below exist on the machines but cannot be read wi
 
 ## desk-01 (desktop, this machine)
 
-| Lane | Role | ssh alias | Port | Account | Shell |
+| Platform | Role | ssh alias | Port | Account | Shell |
 |---|---|---|---|---|---|
 | WSL (distro `Ubuntu`) | wsl-shell | `desk-wsl` | 2222 | `evaluser` | `/bin/bash` |
 | Windows | windows-shell | `desk-win` | 22 | `ssh-admin` | `pwsh` |
@@ -57,7 +57,7 @@ The paths under `/mnt/c` named below exist on the machines but cannot be read wi
 
 ## lap-01 (laptop)
 
-| Lane | Role | ssh alias | Port | Account | Shell |
+| Platform | Role | ssh alias | Port | Account | Shell |
 |---|---|---|---|---|---|
 | WSL (distro `Ubuntu`) | wsl-shell | `laptop-wsl` | 2222 | `evaluser` | `/bin/bash` |
 | Windows | windows-shell | `laptop-win` | 22 | `ssh-admin` | `pwsh` |
@@ -76,5 +76,5 @@ The paths under `/mnt/c` named below exist on the machines but cannot be read wi
 | lap-01 WSL | `printf '%s\n' '<prompt>' \| /mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl claude -p` |
 | lap-01 Windows | `printf '%s\n' '<prompt>' \| /mnt/c/Windows/System32/OpenSSH/ssh.exe laptop-wsl 'cd /mnt/c/Users/EvalUser/scratch && /mnt/c/Users/EvalUser/.local/bin/claude.exe -p'` |
 
-From the Windows lane, use `ssh.exe` in place of the full path.
+From the Windows platform, use `ssh.exe` in place of the full path.
 MD

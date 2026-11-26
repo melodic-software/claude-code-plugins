@@ -1,8 +1,6 @@
 const HEADER = `  assess-units:
     name: Assess Units
     needs: collect
-    # A key the credit gate skipped runs nothing here; collect-key-handoffs routes
-    # every unit to assess-units-subscription.
     if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]' && needs.collect.outputs.next-leg != 'subscription'
 `;
 const header = (job, name, collector) => `  ${job}:
@@ -14,17 +12,7 @@ const MATRIX = "      matrix:\n        unit: ${{ fromJson(needs.collect.outputs.
 const matrix = (collector) => `      matrix: \${{ fromJson(needs.${collector}.outputs.matrix) }}\n`;
 const API_KEY = "          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}\n";
 const HANDOFF = "          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}\n";
-const FALLBACK_REASON = "          # Why this leg ran, for its lane record.\n          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}\n";
-const JUDGE_LIMITS = `One leg of leg-timeout-minutes and the CLI install fit in
-timeout-minutes, which the outcome step repeats, and that fits in the
-job's 30. The launcher's --restricted keeps the file tools inside the
-working directory, which holds the data and the checkout; the allow
-rules name those two, and under dontAsk nothing else is readable. The
-deny rules keep the process environment, the home directory's dot
-files (the workspace is under home, so not all of it) and the runner's
-temp files out if the tools or the working directory change
-(code.claude.com/docs/en/permissions, "Read and Edit").`;
-const CREDENTIAL_REASON = "matrix.reason is checked there against the closed list of fallback\nreasons.";
+const FALLBACK_REASON = "          fallback-reason: ${{ steps.credential.outputs.fallback-reason }}\n";
 const COMMENTS = {
   "Resolve the model": true,
   "Apply the Claude managed settings": true,
@@ -45,14 +33,6 @@ export default {
       job: "assess-units-subscription",
       comments: {
         ...COMMENTS,
-        "Check the credential": `Only whether each secret is set reaches the action, never its value.\n${CREDENTIAL_REASON}`,
-        "Judge the unit": `continue-on-error keeps a launcher failure, which run-claude-cli
-reports by failing this step, from ending the job before the outcome
-step; "Fail without findings" carries the red. With the fallback
-token set, a limit stop, a credit stop or a 401 or 402 hands off, which
-skips the findings steps; the outcome step records the leg as handed
-off, and assess-units-fallback judges the unit.
-${JUDGE_LIMITS}`,
         "Check the key leg": true,
         "Pick the next leg": true,
         "Record the handoff": true,
@@ -109,12 +89,6 @@ ${JUDGE_LIMITS}`,
       drop: ["Check the key leg", "Pick the next leg", "Record the handoff", "#scan-handoff", "Upload the handoff"],
       comments: {
         ...COMMENTS,
-        "Check the credential": `Only whether the secret is set reaches the action, never its value.\n${CREDENTIAL_REASON}`,
-        "Judge the unit": `continue-on-error keeps a launcher failure, which run-claude-cli
-reports by failing this step, from ending the job before the outcome
-step; "Fail without findings" carries the red. The fallback leg
-never hands off.
-${JUDGE_LIMITS}`,
       },
       replace: [
         [HEADER, header("assess-units-fallback", "Assess Units Fallback", "collect-subscription-handoffs"), 1],

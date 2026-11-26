@@ -1,88 +1,15 @@
 #!/usr/bin/env bash
-# Answer one question: can anyone obtain a credential from an owner's public
-# GitHub data? Downloads what a public repository exposes, scans it with
-# gitleaks, and reports hits (always redacted) and everything it could not read.
-#
-#   scripts/credential-sweep.sh [--owner OWNER] [--repo NAME ...]
-#                               [--since YYYY-MM-DD] [--out DIR] [--keep]
-#                               [--reserve N] [--interval SECONDS]
-#
-#   --owner    GitHub owner (default melodic-software)
-#   --repo     sweep only NAME, which must be public; repeatable. Default:
-#              every public repo of OWNER.
-#   --since    first day of activity to sweep (default 90 days ago, GitHub's
-#              default log and artifact retention)
-#   --out      report directory (default .work/credential-sweep/<UTC stamp>)
-#   --keep     keep the downloads under DIR/downloads (they hold raw values)
-#   --reserve  REST requests left for other work: below N remaining, wait for
-#              the hourly reset (default 1500)
-#   --interval minimum seconds from one request's start to the next one's,
-#              decimals allowed (default 1)
-#
-# Sources per repository. --since bounds runs, artifacts and comments; releases
-# and caches are swept whole.
-#   logs         every attempt of every Actions run created since --since,
-#                listed one UTC day at a time; a window whose total_count is
-#                over the 1,000 results a filtered run list returns is halved
-#                until it fits, and a window listed short of its total_count
-#                is a gap. A run skipped on its only attempt (no job ran) is
-#                counted, not fetched.
-#   check-runs   output title, summary and text of each run's check runs, every
-#                attempt
-#   artifacts    every artifact created since --since, unzipped; one uploaded
-#                unzipped (a Docker build record's gzipped tar) is untarred or
-#                kept as its one file
-#   releases     name and body of every published release, and its assets
-#   bot-comments issue, pull request and review comments by Bot accounts
-#   bot-reviews  review bodies by Bot accounts on pull requests updated since
-#   caches       listed only
-#
-# Archives over 1 GiB uncompressed are not extracted (a gap), and symlinks in
-# an archive are deleted after extraction.
-#
-# Two kinds of unread data are reported apart. UNREADABLE BY DESIGN is what the
-# API serves to nobody: cache contents, job step summaries (no REST endpoint
-# serves GITHUB_STEP_SUMMARY), expired artifacts and logs (HTTP 410). It is counted in its own
-# section and never moves the exit code. A GAP is something readable that was
-# not read: a failed list or download, an unparsable page, a rate-limit stop.
-#
-# Binaries get a strings(1) -n 8 pass whose output is scanned as text, written
-# under downloads/<repo>/strings/ so it never replaces a downloaded file; nested
-# archives are read by gitleaks --max-archive-depth.
-#
-# Read-only: every request is a REST GET, one at a time, each starting at least
-# --interval seconds after the one before. Every JSON response's
-# x-ratelimit-remaining and x-ratelimit-reset headers are read (downloads
-# redirect to storage that sends none); when remaining falls below --reserve,
-# the sweep sleeps until the reset, so it never takes the budget other work on
-# the same login needs. The first rate-limit error, a secondary rate limit
-# included, stops the sweep, which reports it as a gap and sends nothing more.
-#
-# The scanner is gitleaks at the version the lint-repo `Scan for secrets` step
-# installs (melodic-software/ci-workflows gitleaks action, pinned in
-# .github/workflows/pr-require-checks.yml), with that version's default config
-# (one GET of config/gitleaks.toml at the tag) minus its global path allowlist,
-# which skips lockfiles, node_modules/, vendor/, images and office files: in a
-# download those can hold a credential like any other file. Rule-level path
-# allowlists stay. Every output is redacted: gitleaks runs with --redact, and
-# the report keeps only rule, path and line.
-#
-# Exit: 0 no hits and nothing readable missed; 1 hits; 2 gaps and no hits;
-# 3 could not start (usage,
-# missing tool, wrong gitleaks version, no repository list).
 set -uo pipefail
 
 PROG="credential-sweep.sh"
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SELF_DIR/.." && pwd)"
 GITLEAKS_PIN="8.30.1"
-# The commit tag v8.30.1 names; the default config is read at it, not at the movable tag.
 GITLEAKS_CONFIG_COMMIT="83d9cd684c87d95d656c1458ef04895a7f1cbd8e"
 PER_PAGE=100
 UNPACK_MAX=$((1024 * 1024 * 1024))
-# "This endpoint will return up to 1,000 results for each search when using the
-# following parameters: actor, branch, check_suite_id, created, ..."
-# (docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository)
+# A filtered run list returns at most 1,000 results, so a window at the cap is halved:
+# https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository
 LIST_CAP=1000
 
 OWNER="melodic-software"
@@ -115,7 +42,24 @@ die() {
 }
 
 usage() {
-  sed -n '6,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  cat >&2 <<'EOF'
+Scan what an owner's public GitHub repositories expose with gitleaks; report redacted hits and gaps.
+
+  scripts/credential-sweep.sh [--owner OWNER] [--repo NAME ...]
+                              [--since YYYY-MM-DD] [--out DIR] [--keep]
+                              [--reserve N] [--interval SECONDS]
+
+  --owner    GitHub owner (default melodic-software)
+  --repo     sweep only NAME, which must be public; repeatable (default: every public repo of OWNER)
+  --since    first day of activity to sweep (default 90 days ago)
+  --out      report directory (default .work/credential-sweep/<UTC stamp>)
+  --keep     keep the downloads under DIR/downloads (they hold raw values)
+  --reserve  REST requests left for other work: below N remaining, wait for the reset (default 1500)
+  --interval minimum seconds between request starts, decimals allowed (default 1)
+
+Exit: 0 no hits and nothing readable missed; 1 hits; 2 gaps and no hits;
+3 could not start (usage, missing tool, wrong gitleaks version, no repository list).
+EOF
   exit 3
 }
 
@@ -131,8 +75,6 @@ by_design() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$STATE/by-design.tsv"; }
 bump() { COUNT["$1:$2"]=$((${COUNT["$1:$2"]:-0} + ${3:-1})); }
 safe_name() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '_'; }
 
-# pace: before a request, when the last remaining count read is below RESERVE,
-# sleep until its reset. The count is then unknown until the next headers.
 pace() {
   local wait
   [[ -n "$REMAINING" && -n "$RESET" ]] && ((REMAINING < RESERVE)) || return 0
@@ -147,8 +89,6 @@ pace() {
   REMAINING=""
 }
 
-# set_interval <seconds>: sets INTERVAL and INTERVAL_US from a whole or decimal
-# number of seconds; returns 1 for anything else.
 set_interval() {
   [[ -n "$1" && "$1" =~ ^([0-9]{0,6})(\.([0-9]+))?$ ]] || return 1
   local frac="${BASH_REMATCH[3]}000000"
@@ -156,13 +96,9 @@ set_interval() {
   INTERVAL_US=$((10#${BASH_REMATCH[1]:-0} * 1000000 + 10#${frac:0:6}))
 }
 
-# space: before a request, sleep until INTERVAL has passed since the last
-# request started, then record this start. EPOCHREALTIME is microsecond wall
-# time, read in-process.
 space() {
   local now="${EPOCHREALTIME/[.,]/}" wait
   if [[ -n "$LAST_START" ]] && ((wait = LAST_START + INTERVAL_US - now, wait > 0)); then
-    # A wall clock stepped back would ask for more than one interval.
     ((wait <= INTERVAL_US)) || wait=$INTERVAL_US
     sleep "$((wait / 1000000)).$(printf '%06d' $((wait % 1000000)))"
     now="${EPOCHREALTIME/[.,]/}"
@@ -174,8 +110,6 @@ header_value() {
   awk -F ': *' -v k="$1" 'tolower($1) == k { sub(/\r$/, "", $2); print $2 }' "$STATE/headers"
 }
 
-# read_headers <response> <body>: splits a gh api --include response at the
-# first blank line, and sets REMAINING and RESET from the headers it carries.
 read_headers() {
   local v
   awk -v h="$STATE/headers" -v b="$2" 'body { print > b; next } /^\r?$/ { body = 1; next } { print > h }' "$1"
@@ -187,10 +121,6 @@ read_headers() {
   rm -f "$STATE/headers"
 }
 
-# api_get <outfile> <path> [gh api args]: one GET of a JSON or text response,
-# whose rate-limit headers pace the sweep. api_download: one GET of a file,
-# written as served. Each returns 0 ok, 1 error (text in API_ERR), 3
-# rate-limited or already stopped.
 api_get() { request headers "$@"; }
 api_download() { request raw "$@"; }
 
@@ -220,10 +150,6 @@ request() {
   return 1
 }
 
-# fetch_pages <dest.jsonl> <path> <items-jq> [date-field]: every page of a
-# list, one JSON item per line. With a date field, stops after a page whose
-# items are all older than --since. Sets TOTAL to page 1's total_count, if
-# any; when MAX_TOTAL is set and TOTAL exceeds it, returns 4 after page 1.
 fetch_pages() {
   local dest="$1" path="$2" items="$3" field="${4:-}" page=1 n rc sep='?'
   local tmp="$STATE/page.json"
@@ -252,13 +178,9 @@ fetch_pages() {
   done
 }
 
-# unpack <zip> <dir>: extract and drop the archive; a failure is a gap. An
-# archive over UNPACK_MAX bytes uncompressed is not extracted. Symlinks in the
-# archive are deleted, so no later read or write follows one out of the tree.
 unpack() {
   local size totals
   totals="$(unzip -Zt "$1" 2>/dev/null)"
-  # A run that never started a job (a skipped run) serves an empty archive.
   if [[ "$totals" == "Empty zipfile." ]]; then
     rm -f "$1"
     mkdir -p "$2"
@@ -280,14 +202,6 @@ unpack() {
   return 1
 }
 
-# unpack_artifact <download> <dir>: an artifact uploaded unzipped (a Docker
-# build record is a gzipped tar) comes back as its own bytes, not a zip. A zip
-# goes to unpack. A gzip is decompressed through a bounded read; that stream,
-# or the download itself, is extracted only when it is a plain tar (the ustar
-# magic at offset 257), so tar never decompresses anything unbounded. Any other
-# file (an xz, bzip2 or zstd tar included) is kept as one file and scanned as
-# bytes. The UNPACK_MAX cap applies to the decompressed stream and to the
-# extracted files; symlinks are deleted whether or not tar succeeds.
 unpack_artifact() {
   local lead size name raw rc
   lead="$(head -c 2 "$1" | od -An -tx1 | tr -d ' \n')"
@@ -339,7 +253,6 @@ unpack_artifact() {
     rm -rf "${2:?}"
     return 1
   fi
-  # A sparse member can declare more than the stream held.
   size="$(find "$2" -type f -exec cat {} + | head -c $((UNPACK_MAX + 1)) | wc -c | tr -d ' ')"
   if ((size > UNPACK_MAX)); then
     API_ERR="artifact over $UNPACK_MAX bytes extracted"
@@ -351,10 +264,6 @@ unpack_artifact() {
 
 utc() { jq -rn --argjson t "$1" '$t | strftime("%Y-%m-%dT%H:%M:%SZ")'; }
 
-# list_runs <repo> <base> <from> <to>: runs created in [from, to] (epoch
-# seconds, inclusive) appended to $STATE/runs.jsonl. A window whose total_count
-# is over LIST_CAP is halved until it fits; one that cannot be halved, or that
-# lists fewer runs than its total_count, is a gap. Returns 3 on a stop.
 list_runs() {
   local r="$1" base="$2" from="$3" to="$4" window rc n mid
   window="$(utc "$from")..$(utc "$to")"
@@ -392,9 +301,6 @@ sweep_logs_and_checks() {
   done
   while IFS=$'\t' read -r id attempt suite conclusion; do
     bump "$r" runs
-    # A skipped run started no job: its log archive is empty and its check
-    # runs carry no output, so neither is fetched. The conclusion is the
-    # latest attempt's, so a re-run's earlier attempts are still read.
     if [[ "$conclusion" == skipped ]] && ((attempt == 1)); then
       SKIPPED=$((SKIPPED + 1))
       continue
@@ -510,8 +416,6 @@ sweep_comments() {
   sweep_reviews "$@"
 }
 
-# sweep_reviews: review bodies by Bot accounts on every pull request updated
-# since --since; no repository-wide endpoint lists reviews.
 sweep_reviews() {
   local r="$1" base="$2" dl="$3" pr rc
   fetch_pages "$STATE/pulls.jsonl" "$base/pulls?state=all&sort=updated&direction=desc" '.[]' updated_at
@@ -537,7 +441,6 @@ sweep_reviews() {
   return 0
 }
 
-# check_public <repo>: a --repo name must be a public repository of OWNER.
 check_public() {
   local tmp="$STATE/repo.json"
   api_get "$tmp" "repos/$OWNER/$1" || die "cannot read repos/$OWNER/$1: ${STOPPED:-$API_ERR}"
@@ -580,8 +483,6 @@ list_public_repos() {
   mapfile -t REPOS < <(jq -r '.' "$STATE/repos.jsonl")
 }
 
-# strings_pass: a text copy of every non-empty binary under <repo>/strings/,
-# a directory the sweep creates and no download writes into.
 strings_pass() {
   local d f out
   for d in "$DL"/*/; do
@@ -595,19 +496,12 @@ strings_pass() {
   done
 }
 
-# fetch_config: the pinned default config without its global path allowlist,
-# into $STATE/sweep.toml. A [allowlist] or [[allowlists]] table loses every
-# paths key; [[rules.allowlists]] tables are kept whole. Dies when the file is
-# unreadable or holds no rules, when a global paths key survives the strip, or
-# when the strip lost a rule.
 fetch_config() {
   local raw="$STATE/default.toml" out="$STATE/sweep.toml"
   api_get "$raw" "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=$GITLEAKS_CONFIG_COMMIT" \
     -H 'Accept: application/vnd.github.raw' ||
     die "cannot read the gitleaks $GITLEAKS_PIN default config: ${STOPPED:-$API_ERR}"
   grep -q '^\[\[rules\]\]' "$raw" || die "the gitleaks $GITLEAKS_PIN default config holds no rules"
-  # A header resets the state; comments are cut from header lines only, since
-  # content lines hold regexes with # inside.
   awk '
     /^[[:space:]]*\[/ {
       h = $0; sub(/#.*$/, "", h); gsub(/[[:space:]]/, "", h)
@@ -627,9 +521,6 @@ fetch_config() {
     die "stripping the global path allowlist from the gitleaks $GITLEAKS_PIN default config lost a [[rules]] table"
 }
 
-# global_paths <toml>: true when a global allowlist table, matched more loosely
-# than the strip does (spaced or quoted names and keys, a dotted
-# allowlist.paths before any table), still sets paths.
 global_paths() {
   awk '
     /^[[:space:]]*\[/ {
@@ -642,8 +533,6 @@ global_paths() {
   ' "$1"
 }
 
-# scan: gitleaks over the whole download tree; writes $OUT/findings.json with
-# rule, path and line only. Returns 0 scanned, 1 scanner failure.
 scan() {
   local rc
   mkdir -p "$STATE/no-ignore"
@@ -658,8 +547,6 @@ scan() {
     "$STATE/gitleaks.json" >"$OUT/findings.json"
 }
 
-# tsv_list <repo-source-detail.tsv>: one "- repo: source: detail" line per row,
-# or None for an empty file.
 tsv_list() {
   if [[ -s "$1" ]]; then
     awk -F '\t' '{ printf "- %s: %s: %s\n", $1, $2, $3 }' "$1"

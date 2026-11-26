@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-// verify-answers.mjs: hands enable-auto-merge the skip records (SKIP_FILE,
-// enable-auto-merge.mjs SKIPPABLE) the last reader run kept, which it checks
-// itself; a skip only repeats a refusal.
-//
-// Before the arm step: the newest scheduled or hand-started run of
-// main's pr-merge.yml (rotation.mjs `newestTrustedRun`), this run aside,
-// holding the pr-merge-verify-answers artifact, and only when its head commit
-// is on main (head-ref-map.mjs `onMain`), as the head-ref map and the carried
-// run cache are read. Only a run's own steps can upload its artifacts, so the
-// file was written by main's pr-merge.yml; it never goes through
-// actions/cache, which any job in main's cache scope can write. Any file
-// already at EAM_SKIP_PATH is removed first, so one left there is never read.
-//
-// Any failure writes nothing and warns: each pull request is then read.
-//
-// Environment:
-//   ACTIONS_TOKEN         the job's GITHUB_TOKEN (actions: read)
-//   GITHUB_REPOSITORY     owner/repo
-//   GITHUB_RUN_ID         this run, which has no records yet
-//   RUNNER_TEMP           where the artifact is downloaded
-//   PR_MERGE_READS_PATH   the job's shared GET answers (rotation.mjs
-//                         sharedReads), if set
-//   EAM_SKIP_PATH         the file to write
-//   GITHUB_API_URL
 import { renameSync, rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

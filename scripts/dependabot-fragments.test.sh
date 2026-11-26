@@ -120,12 +120,6 @@ mapfile -t dirs < <(awk '
   /^    directory: \/plugins\//{print e " " $2}
   in_dirs && /^      - \/plugins\//{print e " " $2}
 ' "$SELF_DIR/../.github/dependabot.yml")
-# A looser count of every /plugins/ path value outside comments, in any layout
-# (a directory: value, a block-list item, a flow-list item). When the awk above
-# stops matching a layout, its list falls short of this count and the test fails
-# instead of silently checking fewer directories.
-# Both keys are Dependabot's "directories or directory" option, in
-# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference.
 expected="$(awk '!/^[[:space:]]*#/{n += gsub(/(^|[[:space:][,"])\/plugins\//, "&")} END{print n + 0}' "$SELF_DIR/../.github/dependabot.yml")"
 missed="" checked=0
 for entry in "${dirs[@]}"; do

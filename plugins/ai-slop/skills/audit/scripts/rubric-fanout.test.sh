@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for rubric-fanout.sh: fixtures are built inline in a
-# tmpdir, with the same git and config isolation as detect.test.sh.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -21,7 +19,6 @@ mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
 # shellcheck source=lib/test-helpers.sh
 source "$SCRIPT_DIR/lib/test-helpers.sh"
-# PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
 EXPECTED_CASES=179
 
 assert_eq() {
@@ -33,7 +30,6 @@ assert_line_in() {
 
 sha() { sha256sum <"$1" | cut -d' ' -f1; }
 lines() { tr '\n' ' ' <"$1"; }
-# digest_of <plan output> <batch>: the digest= field of that batch's row.
 digest_of() { printf '%s\n' "$1" | sed -n "s/^batch=$2 .* digest=//p"; }
 
 P="$TEST_TMPDIR/pack"
@@ -63,8 +59,6 @@ st="$(bash "$FANOUT" status --batches "$P/batches" --results "$P/none" 2>&1)"
 assert_eq "plan: digest equals the one status prints for a missing result" \
   "$(digest_of "$st" 02)" "$(digest_of "$out" 02)"
 
-# sha256sum escapes a file name holding a backslash and prefixes the hash with
-# `\`, so the digest is taken from stdin.
 BSL=$'\x5c'
 BS="$TEST_TMPDIR/back${BSL}lash"
 if mkdir "$BS" 2>/dev/null && [[ -n "$(find "$TEST_TMPDIR" -maxdepth 1 -name "back${BSL}${BSL}lash")" ]]; then
@@ -119,8 +113,6 @@ assert_eq "plan auto: a repository target takes repo order" \
   "$(lines "$TEST_TMPDIR/auto-batches/batch-01.txt")" \
   "README.md .claude/rules/r.md docs/hot.md docs/warm.md docs/cold.md "
 
-# Keys are relative to CLAUDE_PROJECT_DIR, which may sit below the git
-# toplevel; change counts still come from each file's own repository path.
 CLAUDE_PROJECT_DIR="$R/docs" bash "$SCRIPT_DIR/detect.sh" --list-targets "$R/docs" >"$TEST_TMPDIR/sub-targets.tsv" 2>/dev/null
 bash "$FANOUT" plan --out "$TEST_TMPDIR/sub-batches" --order repo "$TEST_TMPDIR/sub-targets.tsv" >/dev/null 2>&1
 assert_eq "plan repo: project dir below the toplevel still counts changes" \
@@ -229,7 +221,6 @@ mv "$C/away/y.md" "$C/docs/y.md"
 out="$(bash "$FANOUT" status --batches "$C/batches" --results "$C/results" 2>&1)"
 assert_eq "contents: restoring the file reads complete again" "$out" "batch=01 status=complete"
 
-# A relative path resolves against the plan's cwd, never through CDPATH.
 RP="$TEST_TMPDIR/relpaths"
 mkdir -p "$RP/proj/docs" "$RP/decoy/docs" "$RP/results" "$RP/elsewhere"
 printf 'one two\n' >"$RP/proj/docs/x.md"
@@ -241,7 +232,6 @@ printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$(digest_of "$o
 out="$(cd "$RP/elsewhere" && bash "$FANOUT" status --batches "$RP/batches" --results "$RP/results" 2>&1)"
 assert_eq "paths: status from another cwd still reads a relative plan complete" "$out" "batch=01 status=complete"
 
-# An absolute path in Windows form is kept as given.
 if command -v cygpath >/dev/null 2>&1; then
   WP="$TEST_TMPDIR/winpaths"
   mkdir -p "$WP/docs" "$WP/results"
@@ -306,7 +296,6 @@ printf 'batch: %s\nfiles_reviewed: 1\nfiles_with_findings: 0\n' "$(digest_of "$o
 out="$(bash "$FANOUT" status --batches "$DR/batches" --results "$DR/results" 2>&1)"
 assert_contains "sidecar: a directory at a listed path is stale reason=paths" "$out" "batch=01 status=stale reason=paths digest="
 
-# A sidecar rewritten with CRLF endings resolves to the same paths.
 CL="$TEST_TMPDIR/crlf"
 mkdir -p "$CL/docs" "$CL/results"
 printf 'one two\n' >"$CL/docs/x.md"
@@ -339,9 +328,6 @@ out="$(bash "$FANOUT" status --batches "$MS/bad" --results "$MS/results" 2>&1)"
 assert_contains "missing: a sidecar length mismatch says reason=paths" "$out" "batch=01 status=missing reason=paths digest="
 assert_contains "missing: an all-missing sidecar says reason=paths" "$out" "batch=02 status=missing reason=paths digest="
 
-# The digest, computed here without batch_digest: the list, the separator
-# line, then sha256sum over the regular file only; the missing and directory
-# entries add nothing.
 MX="$TEST_TMPDIR/mixed"
 mkdir -p "$MX/b" "$MX/results" "$MX/docs/d.md"
 printf 'one\n' >"$MX/docs/r.md"
@@ -352,8 +338,6 @@ out="$(bash "$FANOUT" status --batches "$MX/b" --results "$MX/results" 2>&1)"
 assert_eq "digest: regular, missing and directory entries match an independent computation" \
   "$(digest_of "$out" 01)" "$want"
 
-# A FIFO at a listed path, or as the sidecar itself, is never opened. A stuck
-# reader left by a regression is released by opening the FIFO read-write.
 FF="$TEST_TMPDIR/fifo"
 release() { local f; for f in "$@"; do [[ -p "$f" ]] && : <>"$f"; done; }
 fifo_cases=(
@@ -567,10 +551,6 @@ assert_line_in "cues: a cue after a generated region counts" "$KG/batches/cues.t
   "cue=seam occurrences=1 files=1 saturated=no"
 assert_not_contains "cues: a cue inside a generated region does not" "$(cat "$KG/batches/cues.txt")" "batch=01 cue=load-bearing"
 
-# More non-prose, one file per batch: an inline triple-backtick span is not a
-# fence opener; code spans close on a run of the same length; a first-line ---
-# with no closer is not frontmatter; `...` closes frontmatter; a BOM before the
-# frontmatter; HTML comments; link URLs; indented code; curly double quotes.
 K4="$TEST_TMPDIR/cues-prose2"
 mkdir -p "$K4"
 BT='```'
@@ -610,12 +590,6 @@ for i in "${!k4want[@]}"; do
     "batch=$(printf '%02d' $((i + 1))) cue=seam occurrences=${k4want[$i]##*:} files=1"
 done
 
-# CommonMark edges, one file per batch: a quoted <!-- opens no comment, an
-# inline comment needs its -->, a line-start one runs to the end of the file,
-# <!--> is a whole comment, a link destination holds no space, reference
-# definitions and autolinks are not prose, and a heading ends its paragraph;
-# a backslash-escaped <!-- is literal, a definition may open or sit in a list
-# item, and a raw HTML tag hides its attributes.
 K5="$TEST_TMPDIR/cues-prose3"
 mkdir -p "$K5"
 k5=(

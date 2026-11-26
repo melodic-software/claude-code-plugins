@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Routing #506 by its `wayfind: prototype` label. The Prove line says UI, so it goes to the layout-variant skill, not /prototype:pressure-test, and not /planning:design.\n\nCall: /prototype:explore-directions 'Settle the channel mute controls' (#506): a settings screen to mute email, push and in-app per notification type; pass checks: mute push for order updates in under ten seconds, every channel's muted state visible without scrolling.",
+      "why": "routes to explore-directions and names the others only to rule them out"
+    },
+    {
+      "answer": "Claim #506, then call /prototype:explore-directions with the Prove line and both pass checks. You judge the variants.",
+      "why": "routes to explore-directions"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Routing #506 by its `wayfind: prototype` label.\n\nCall: /prototype:pressure-test 'Settle the channel mute controls' (#506) to check the mute rules.",
+      "why": "wrong: routes to pressure-test"
+    },
+    {
+      "answer": "This item is about a screen layout, so it is a design decision.\n\nCall: /planning:design 'Settle the channel mute controls' (#506).",
+      "why": "wrong: routes to planning:design"
+    },
+    {
+      "answer": "I would not use /prototype:explore-directions here; the mute rules need logic checks.\n\nCall: /prototype:pressure-test (#506).",
+      "why": "wrong: names explore-directions only to reject it"
+    },
+    {
+      "answer": "Claimed #506. The prototype plugin is enabled, so I will build it once you confirm.",
+      "why": "wrong: routes nowhere"
+    }
+  ]
+}

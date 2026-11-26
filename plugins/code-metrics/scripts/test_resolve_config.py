@@ -112,11 +112,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_value_carrying_a_line_break_cannot_inject_a_second_directive(
         self,
     ) -> None:
-        # The output formats are line oriented and the dispatcher reads them
-        # with `mapfile`, so a scalar holding a newline would arrive as two
-        # directives: one naming a base, one quietly disabling a lane. The
-        # YAML subset's double-quoted scalars carry a real \n, so the layer
-        # below is writable by hand.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(

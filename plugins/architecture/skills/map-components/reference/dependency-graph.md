@@ -1,7 +1,8 @@
 # dependency-graph.json as the renderer reads it
 
-`dependency-graph.sh` in `map-dependencies` writes the record, and its header is
-the schema (`--help` prints it). This page is what `render-components.sh` takes
+`dependency-graph.sh` in `map-dependencies` writes the record, and
+[`dependency-graph-record.md`](../../map-dependencies/reference/dependency-graph-record.md) is
+the schema. This page is what `render-components.sh` takes
 from it. A record with no `result` key did not come from that script, and the
 renderer exits 1 on it.
 

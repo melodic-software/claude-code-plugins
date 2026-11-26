@@ -1,28 +1,9 @@
-// edges.mjs: the `Blocked by:` verdict line, the blockers the issue body
-// names (textBlockers), and the native blocked-by edges apply-verdict writes
-// from both. No model.
-//
-// The line starts its own line as exactly `Blocked by: `, once, and holds
-// `none` or a comma list of `#<digits>` tokens; anything else in it is model
-// output and names no issue. A missing line names none.
-//
-// Each named issue gets an edge on the triaged issue only when it is an open
-// issue in this repository, not a pull request and not the issue itself, and
-// the edge is not there yet. The POST body's `issue_id` is the blocker's REST
-// `id`, read from the blocker itself. GitHub answering 403, 429 or 5xx on a
-// read or write for an edge leaves that edge missed, not the run stopped; the
-// write is sent again once on a 5xx first (createGitHub's resendOnce).
-// When any edge misses, the edges this run wrote are deleted again, so the
-// work-unblock lane, which reads only native edges, never sees a partial set;
-// an edge that was already there stays.
 import { GitHubError, paginate } from "../lib/github-client.mjs";
 
 export const BLOCKED_BY = "Blocked by";
 export const MAX_EDGES = 50;
 const TOKEN = /^#([1-9][0-9]{0,9})$/;
 
-// {numbers, problem}: numbers is the list of named issues (empty for none or a
-// missing line), problem is null or why the line named nothing.
 export function parseBlockedBy(lines) {
   const found = lines.filter((line) => line.startsWith(`${BLOCKED_BY}: `)).map((line) => line.slice(BLOCKED_BY.length + 2).trim());
   if (found.length === 0) {
@@ -41,17 +22,6 @@ export function parseBlockedBy(lines) {
   return { numbers: [...new Set(matches.map((match) => Number(match[1])))], problem: null };
 }
 
-// The issue body's own blockers, as candidate numbers only: writeEdges checks
-// each one against GitHub. A line counts when it starts (after an optional
-// list marker) with `Blocked by` or `Depends on`, or is a list item under a
-// `Blocked by` or `Depends on` heading, up to the next heading; every `#<n>`
-// and every issue URL of `repository` on it is a candidate. Fenced code,
-// inline code, HTML comments and `>` quotes name nothing, nor does
-// `owner/repo#<n>`, a pull request URL or another repository's URL. A
-// Markdown link, inline or by reference, counts as its target alone, so
-// `[#12](https://github.com/other/repo/issues/12)` names nothing. Returns
-// {numbers, dropped}: the first MAX_TEXT_BLOCKERS distinct numbers, and how
-// many more it named.
 export const MAX_TEXT_BLOCKERS = 10;
 const LEAD = /^\s*(?:(?:[-*+]|\d+[.)])\s+)?(?:blocked by|depends on)(?![\w-])\s*:?(.*)$/i;
 const HEADING = /^\s{0,3}#{1,6}\s/;
@@ -130,14 +100,8 @@ export function textBlockers(body, repository) {
 }
 
 const here = (url, repository) => String(url ?? "").endsWith(`/repos/${repository}`);
-// A refusal (a missing permission or a rate limit) or a server error.
 const unwritable = (error) => error instanceof GitHubError && (error.status === 403 || error.status === 429 || error.status >= 500);
 
-// Writes the edges; returns {written, skipped: [{number, why}], missed:
-// [{number, status}], unwritten, undeleted: [{number, status}]}: written are
-// the run's edges still standing, unwritten the ones it deleted after a miss,
-// undeleted the ones whose delete failed. Any other API error on a read or
-// write stops it.
 export async function writeEdges({ github, repository, number, blockers, log = console.log }) {
   const { result, ids } = await addEdges({ github, repository, number, blockers, log });
   if (result.missed.length === 0) {
@@ -161,9 +125,6 @@ export async function writeEdges({ github, repository, number, blockers, log = c
   return result;
 }
 
-// GitHub's 422 for an edge whose reverse exists. UNVERIFIED wording: matched on
-// "cycle" or "circular", from an owner's report of the refusal, not a
-// recorded answer.
 const CYCLE = /\b(cycle|circular)/i;
 
 async function addEdges({ github, repository, number, blockers, log }) {
@@ -225,20 +186,13 @@ async function addEdges({ github, repository, number, blockers, log }) {
       skip(blocker, "no issue id");
     } else {
       try {
-        // Safe to send twice: the edge was read as absent above, and a second
-        // copy after a 5xx that GitHub did apply is refused, which the 422
-        // branch reads back as the run's own edge.
         await github("POST", `${base}/dependencies/blocked_by`, { issue_id: issue.id }, {}, { resendOnce: true });
         wrote(blocker, issue.id);
       } catch (error) {
         if (error instanceof GitHubError && error.status === 422 && CYCLE.test(`${error.message} ${error.detail ?? ""}`)) {
-          // The reverse edge exists, as when a person reversed an order a
-          // re-triage's verdict still names: skipped, not retried, not failed.
           log(`::notice title=apply-verdict::blocked-by edge not written: #${number} blocked by #${blocker}, GitHub refused it as a cycle (the reverse edge exists)`);
           skip(blocker, "GitHub refused it as a cycle");
         } else if (error instanceof GitHubError && error.status === 422) {
-          // A resend refused because the first copy landed: the edge is this
-          // run's, so a later miss deletes it with the rest.
           let landed = false;
           try {
             landed = (await paginate(github, `${base}/dependencies/blocked_by`)).some((found) => found?.number === blocker);

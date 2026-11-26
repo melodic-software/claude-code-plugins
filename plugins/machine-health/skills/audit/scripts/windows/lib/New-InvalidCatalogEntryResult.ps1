@@ -28,7 +28,6 @@ function New-InvalidCatalogEntryResult {
         [Parameter(Mandatory = $true)] [int] $Index,
         [Parameter(Mandatory = $true)] [string] $ErrorMessage,
         [ValidateSet('windows', 'macos', 'linux')] [string] $Os = 'windows',
-        # Catalog / already-emitted result ids the fallback must not reuse.
         [Parameter(Mandatory = $false)] [AllowEmptyCollection()] [string[]] $OccupiedIds = @()
     )
 

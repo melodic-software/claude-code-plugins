@@ -24,9 +24,6 @@ function runScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// An HTTP error answer is written to the -D file and, as real curl does
-// without --fail, its body to stdout; with --fail it prints only curl's
-// "(22)" line to stderr.
 const FAKE_CURL = `#!/usr/bin/env bash
 stdin=$(cat)
 out="" data="" dump="" write="" fail=""
@@ -97,8 +94,6 @@ const MINT = {
   repository_ids: [Number(REPO_ID)],
 };
 
-// An OIDC answer: an HTTP status (curl --fail exit 22, with that status line
-// and an optional Retry-After in the -D file), or a bare curl exit code.
 const http = (status, extra = "") => ({ exit: 22, headers: `HTTP/2 ${status}\r\n${extra}content-type: application/json\r\n\r\n` });
 const curlExit = (code) => ({ exit: code });
 const OK = null;
@@ -241,10 +236,6 @@ test("an OIDC failure that writes no header file prints no shell error about the
   assert.doesNotMatch(run.log, /No such file/);
 });
 
-// A later attempt's Retry-After is its own: a curl failure that writes no
-// header file reads none, never the earlier answer's 45 s. With 45 s spent,
-// a fresh full-jitter wait (0-40 s) fits the 60 s budget when it is at most
-// 15 s, about 2 runs in 5; the stale 45 s never fits.
 test("a curl failure after an OIDC 503 with a 45 s Retry-After waits full jitter, not the earlier Retry-After", () => {
   let minted = 0;
   for (let i = 0; i < 40 && minted === 0; i += 1) {

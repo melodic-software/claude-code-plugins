@@ -2,8 +2,7 @@
 # fixture-isolation-scope: this suite builds git fixtures and clears the
 # inherited git environment itself rather than sourcing a harness, so the plugin
 # stays self-contained and portable outside this marketplace.
-# shellcheck disable=SC2016 # assertions quote markdown code spans; the backticks
-# are literal table content, never command substitution.
+# shellcheck disable=SC2016 # assertions quote markdown code spans
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -596,8 +595,6 @@ else
   assert_eq "the drive-letter run writes the same index as the shell-form run" \
     "$(cat "$posixrepo/AGENTS.md")" "$(cat "$winrepo/AGENTS.md")"
 
-  # Backslash spelling, as a PowerShell or cmd caller hands it. MSYS already
-  # splits it, so only the forward-slash spelling assertion pins normalization.
   bsrepo="$(build_fixture)"
   bs_root="$(git -C "$bsrepo" rev-parse --show-toplevel 2>/dev/null || true)"
   bs_root_bs="${bs_root//\//\\}"

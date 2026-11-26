@@ -1,0 +1,168 @@
+{
+  "source": "GET /repos/melodic-software/claude-code-plugins/contents/{dir}?ref=86aff57218aea7e9b61fc559378642652582b324, trimmed to the entries the tests name",
+  "ref": "86aff57218aea7e9b61fc559378642652582b324",
+  "workflows": [
+    {
+      "name": "pr-dispatch-feedback.yml",
+      "path": ".github/workflows/pr-dispatch-feedback.yml",
+      "sha": "637bb14d78728f90cc5d99a90fcbaea2a2e3758b",
+      "size": 44131,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-dispatch-feedback.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-dispatch-feedback.yml",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/637bb14d78728f90cc5d99a90fcbaea2a2e3758b",
+      "download_url": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-dispatch-feedback.yml",
+      "type": "file",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-dispatch-feedback.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/637bb14d78728f90cc5d99a90fcbaea2a2e3758b",
+        "html": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-dispatch-feedback.yml"
+      }
+    },
+    {
+      "name": "pr-merge.yml",
+      "path": ".github/workflows/pr-merge.yml",
+      "sha": "cb462af42f544cfce6f9db39286ab064ead2f535",
+      "size": 195170,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-merge.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-merge.yml",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/cb462af42f544cfce6f9db39286ab064ead2f535",
+      "download_url": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-merge.yml",
+      "type": "file",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-merge.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/cb462af42f544cfce6f9db39286ab064ead2f535",
+        "html": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-merge.yml"
+      }
+    },
+    {
+      "name": "pr-review-hosted.yml",
+      "path": ".github/workflows/pr-review-hosted.yml",
+      "sha": "a133793d8b2da0bcc6d426f6dc7e94f2e87584d3",
+      "size": 23402,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-review-hosted.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-review-hosted.yml",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/a133793d8b2da0bcc6d426f6dc7e94f2e87584d3",
+      "download_url": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-review-hosted.yml",
+      "type": "file",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-review-hosted.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/a133793d8b2da0bcc6d426f6dc7e94f2e87584d3",
+        "html": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-review-hosted.yml"
+      }
+    },
+    {
+      "name": "pr-review-security-hosted.yml",
+      "path": ".github/workflows/pr-review-security-hosted.yml",
+      "sha": "7f228177b2b9f0aeaab5129bb4e88d2b6d63efa7",
+      "size": 23204,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-review-security-hosted.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-review-security-hosted.yml",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/7f228177b2b9f0aeaab5129bb4e88d2b6d63efa7",
+      "download_url": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-review-security-hosted.yml",
+      "type": "file",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-review-security-hosted.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/7f228177b2b9f0aeaab5129bb4e88d2b6d63efa7",
+        "html": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-review-security-hosted.yml"
+      }
+    },
+    {
+      "name": "pr-run-activity-write.yml",
+      "path": ".github/workflows/pr-run-activity-write.yml",
+      "sha": "a873c96cea3655987b555c075913ff74272a0216",
+      "size": 97586,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-run-activity-write.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-run-activity-write.yml",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/a873c96cea3655987b555c075913ff74272a0216",
+      "download_url": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-run-activity-write.yml",
+      "type": "file",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-run-activity-write.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/a873c96cea3655987b555c075913ff74272a0216",
+        "html": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-run-activity-write.yml"
+      }
+    },
+    {
+      "name": "pr-unblock-dispatch.yml",
+      "path": ".github/workflows/pr-unblock-dispatch.yml",
+      "sha": "b6d1e0b49a9cf0e47c19e29e6e1b8693afa075c5",
+      "size": 24043,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-unblock-dispatch.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-unblock-dispatch.yml",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/b6d1e0b49a9cf0e47c19e29e6e1b8693afa075c5",
+      "download_url": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-unblock-dispatch.yml",
+      "type": "file",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-unblock-dispatch.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/b6d1e0b49a9cf0e47c19e29e6e1b8693afa075c5",
+        "html": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-unblock-dispatch.yml"
+      }
+    },
+    {
+      "name": "pr-unblock.yml",
+      "path": ".github/workflows/pr-unblock.yml",
+      "sha": "c626eac157165c4dc47d8368590b66f05b0a5f63",
+      "size": 265254,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-unblock.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-unblock.yml",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/c626eac157165c4dc47d8368590b66f05b0a5f63",
+      "download_url": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-unblock.yml",
+      "type": "file",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows/pr-unblock.yml?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/blobs/c626eac157165c4dc47d8368590b66f05b0a5f63",
+        "html": "https://github.com/melodic-software/claude-code-plugins/blob/86aff57218aea7e9b61fc559378642652582b324/.github/workflows/pr-unblock.yml"
+      }
+    }
+  ],
+  "dotGithub": [
+    {
+      "name": "actions",
+      "path": ".github/actions",
+      "sha": "133922f3f27adc162dcab139255e2c4d685118a6",
+      "size": 0,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/actions?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/tree/86aff57218aea7e9b61fc559378642652582b324/.github/actions",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/trees/133922f3f27adc162dcab139255e2c4d685118a6",
+      "download_url": null,
+      "type": "dir",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/actions?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/trees/133922f3f27adc162dcab139255e2c4d685118a6",
+        "html": "https://github.com/melodic-software/claude-code-plugins/tree/86aff57218aea7e9b61fc559378642652582b324/.github/actions"
+      }
+    },
+    {
+      "name": "scripts",
+      "path": ".github/scripts",
+      "sha": "6b59ac12d10d8972c12f9ef049fd94360ce79649",
+      "size": 0,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/scripts?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/tree/86aff57218aea7e9b61fc559378642652582b324/.github/scripts",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/trees/6b59ac12d10d8972c12f9ef049fd94360ce79649",
+      "download_url": null,
+      "type": "dir",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/scripts?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/trees/6b59ac12d10d8972c12f9ef049fd94360ce79649",
+        "html": "https://github.com/melodic-software/claude-code-plugins/tree/86aff57218aea7e9b61fc559378642652582b324/.github/scripts"
+      }
+    },
+    {
+      "name": "workflows",
+      "path": ".github/workflows",
+      "sha": "dc9e0b7303805b82e36fbc32260df05a8a48c64d",
+      "size": 0,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows?ref=86aff57218aea7e9b61fc559378642652582b324",
+      "html_url": "https://github.com/melodic-software/claude-code-plugins/tree/86aff57218aea7e9b61fc559378642652582b324/.github/workflows",
+      "git_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/trees/dc9e0b7303805b82e36fbc32260df05a8a48c64d",
+      "download_url": null,
+      "type": "dir",
+      "_links": {
+        "self": "https://api.github.com/repos/melodic-software/claude-code-plugins/contents/.github/workflows?ref=86aff57218aea7e9b61fc559378642652582b324",
+        "git": "https://api.github.com/repos/melodic-software/claude-code-plugins/git/trees/dc9e0b7303805b82e36fbc32260df05a8a48c64d",
+        "html": "https://github.com/melodic-software/claude-code-plugins/tree/86aff57218aea7e9b61fc559378642652582b324/.github/workflows"
+      }
+    }
+  ]
+}

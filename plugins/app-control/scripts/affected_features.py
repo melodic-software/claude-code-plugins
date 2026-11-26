@@ -223,8 +223,6 @@ def run(a):
 
     os.makedirs(a.out, exist_ok=True)
     path = os.path.join(a.out, "affected.json")
-    # A link left at the path, symbolic or hard, is removed and the file
-    # created fresh, so this write never lands in a file someone else named.
     if os.path.lexists(path):
         os.unlink(path)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)

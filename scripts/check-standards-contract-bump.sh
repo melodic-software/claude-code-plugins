@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Gate the standards contract's own version surface (ADR 0019).
-#
-#   scripts/check-standards-contract-bump.sh <base-ref>
-#
-# Fails when the contract or its schema changed vs <base-ref> but
-#   (a) a carrying plugin's manifest version did not move (or, in fragment
-#       mode, no fragment whose bump is not none was added): the plugin version
-#       is the update cache key, or
-#   (b) the standards-contract frontmatter semver did not move: setup's
-#       migration detection reads it, so without a bump content drifts under a
-#       frozen version forever, or
-#   (c) the contract CHANGELOG has no "## <version>" entry for the frontmatter
-#       version.
-#
-# The carrying plugins are the copies scripts/shared-copies.txt registers for the
-# contract; scripts/sync-shared-copies.sh --check-bump gates their bump for a
-# change to the contract text, and this gate adds the schema-only change, which
-# changes no copy. Nothing here writes.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

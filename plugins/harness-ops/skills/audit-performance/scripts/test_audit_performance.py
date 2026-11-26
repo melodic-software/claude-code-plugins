@@ -212,7 +212,6 @@ class TestInvocationShape(unittest.TestCase):
         )
 
     def test_the_c_flag_grants_command_position_only_after_a_shell(self):
-        # `grep -c` counts and `tar -c` creates; neither hands the next token a shell.
         for command in ("grep -c sh file.txt", "tar -c sh"):
             with self.subTest(command=command):
                 self.assertEqual(
@@ -263,8 +262,6 @@ class TestInvocationShape(unittest.TestCase):
         self.assertEqual(engine.invocation_shape(entry), [])
 
     def test_the_wrapper_note_names_every_shell_that_can_do_the_wrapping(self):
-        # The engine never reads a hook's own `shell` field, so the note must name that
-        # field and the value that changes which shell does the wrapping.
         note = engine.HARNESS_WRAPPER_NOTE
         self.assertIn("`shell` field", note)
         self.assertIn('"powershell"', note)
@@ -978,16 +975,10 @@ class TestConfigLiveness(unittest.TestCase):
             )
             self.assertEqual(result["sessions_predating_settings"], 1)
             self.assertIn("have NOT picked up the change", result["advisory"])
-            # Source: https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins
-            # names /reload-plugins for plugin changes made outside the panel; a restart
-            # is the next-session route that page's plugin update section states.
             self.assertIn("/reload-plugins", result["advisory"])
             self.assertIn("restart", result["advisory"])
 
     def test_stale_advisory_limits_the_pending_claim_to_plugin_enablement(self):
-        # Source: https://code.claude.com/docs/en/settings#when-edits-take-effect says
-        # edits to permissions and hooks reach the running session without a restart,
-        # so a newer settings.json alone cannot mean the change was not picked up.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / ".claude"
             write_settings(root, {})
@@ -1581,10 +1572,8 @@ class TestDeadParentCensusNeedsCreatorParentPids(unittest.TestCase):
         return [
             {"pid": 1, "ppid": 0, "name": init_name, "started_epoch": now - 9e5},
             {"pid": 700, "ppid": 1, "name": "systemd", "started_epoch": now - 8e5},
-            # Launcher gone: adopted by init, or by the user manager acting as a subreaper.
             {"pid": 501, "ppid": 1, "name": "tail", "started_epoch": now - 3600},
             {"pid": 502, "ppid": 700, "name": "sleep", "started_epoch": now - 3600},
-            # A launcher that exited while `ps` walked the table leaves an absent ppid.
             {"pid": 503, "ppid": 4242, "name": "grep", "started_epoch": now - 60},
             {"pid": 504, "ppid": 4243, "name": "bash", "started_epoch": now - 60},
         ]

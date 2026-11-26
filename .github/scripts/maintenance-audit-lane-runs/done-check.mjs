@@ -1,10 +1,3 @@
-// Lists the open issues at Work status confirmed that a pull request merged
-// here names on a `Refs:` line after their newest decision or refinement
-// (admit.mjs mergedRefsAfter), which admission parks for a done-check nothing
-// else starts, in one job token digest issue a session reads; it closes the
-// digest when the list is empty, and closing it as not planned mutes it
-// (https://github.com/melodic-software/claude-code-plugins/issues/18251). It
-// reads TRUSTED_ACTORS_PATH, LANES_APP_ID and BASE_PATH (default `.base`).
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

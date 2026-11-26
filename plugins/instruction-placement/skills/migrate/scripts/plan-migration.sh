@@ -1,85 +1,4 @@
 #!/usr/bin/env bash
-# plan-migration.sh — what a repository's move to AGENTS.md would touch.
-#
-# Read-only. `--dry-run` is the only mode there is, and it is the default: this
-# script never writes, moves or deletes a file, so the flag exists to say so at
-# the call site rather than to select a behavior. The skill body owns every
-# judgment (what content is always-relevant, what becomes a pointer, what
-# becomes a path-scoped rule); this script owns only what a machine can decide.
-#
-# Emits tagged TSV to stdout, one row kind per concern:
-#
-#   DIR       <path>  <state>  <claude-bytes>  <agents-bytes>
-#             One state per directory that carries a Claude-audience instruction
-#             file: content-in-claude, shim, shim-noncanonical,
-#             shim-with-comment, shim-empty-target, agents-only,
-#             both-with-content, or zero-byte.
-#   BUDGET    <dir>  <cumulative-bytes>  <OK|OVER>
-#             AGENTS.md bytes summed along the root-to-directory path, against
-#             Codex's 32,768-byte project-doc budget. The path sum is the
-#             stricter of the two readings of that budget for a deep tree.
-#   CASE      <path>
-#             A file whose name differs from CLAUDE.md / AGENTS.md only by case.
-#             Claude Code matches the name exactly; NTFS does not, so a repo can
-#             carry one and behave differently per developer.
-#   SUPPRESS  <path>  <exists>
-#             A bare ~/CLAUDE.md or ~/CLAUDE.local.md. Either is read instead of
-#             AGENTS.md in every directory below home, whatever a repository does.
-#   PATHDET   <file>:<line>  <text>
-#             Code or script that locates a path by the existence of CLAUDE.md.
-#             Each one breaks when the shim comes out.
-#   CITE      <file>:<line>  <text>
-#             A heading or path citation that resolves into CLAUDE.md.
-#   MENTION   <file>:<line>  <text>
-#             Every OTHER tracked occurrence of the literal CLAUDE.md: a YAML
-#             list entry, a comment, a path in a config. Neither a link nor an
-#             existence call, so CITE and PATHDET miss them, and each can still
-#             break when the content moves. The operator triages.
-#   RULES     <total>  <unscoped>  <unscoped-bytes>
-#             How many `.claude/rules/**/*.md` the repository keeps, how many
-#             of them carry no `paths:` frontmatter, and the total bytes of
-#             those unscoped ones. An unscoped rule costs what a CLAUDE.md line
-#             costs, every session.
-#   DOCSHOME  <dir>  <found|absent>
-#             The repository's existing documentation home, where a pointer
-#             target lands. Detected, never imposed: the first tracked directory
-#             of `docs`, `doc`, `documentation`, `Documentation`. `absent` means
-#             the repository has none and the skill creates `docs/`.
-#   ACTION    <workflow>:<line>  <pin>
-#             Every claude-code-action pin under .github/workflows/. Each pin
-#             decides which CLI version CI runs, and so whether CI reads
-#             AGENTS.md at all.
-#
-# Directory states:
-#   content-in-claude   CLAUDE.md carries content; AGENTS.md is absent or empty
-#   shim                CLAUDE.md is exactly `@AGENTS.md` (one line, trailing
-#                       newline optional), beside a non-empty AGENTS.md: the
-#                       target shape while shims are needed
-#   shim-noncanonical   CLAUDE.md is a lone import that loads like the shim but
-#                       is not byte-for-byte `@AGENTS.md` (`@./AGENTS.md`, CRLF
-#                       lines, blank lines or whitespace around it), beside a
-#                       non-empty AGENTS.md: Apply rewrites it to the exact line
-#   shim-with-comment   the import plus HTML comments, beside a non-empty
-#                       AGENTS.md: the comment still has to move or go
-#   shim-empty-target   CLAUDE.md is exactly `@AGENTS.md` (one line, trailing
-#                       newline optional), but AGENTS.md is absent or empty: the
-#                       import is already the target shape and there is no
-#                       content to move, so it is not `content-in-claude`. Any
-#                       other import form over an empty AGENTS.md stays
-#                       `content-in-claude`, so Apply rewrites it
-#   agents-only         a non-empty AGENTS.md with no CLAUDE.md beside it
-#   both-with-content   both carry content; the split has to be decided
-#   zero-byte           every instruction file here is empty
-#
-# Discovery is tracked files only (git ls-files), minus the excluded trees this
-# plugin defines once as `IP_EXCLUDED_TREES` in `lib/discover.sh`: another
-# tool's instruction files are that tool's, and must never be given a Claude
-# shim.
-#
-# Usage:
-#   plan-migration.sh [--dry-run] [--root <dir>] [--home <dir>]
-#   plan-migration.sh --help
-#
 # Exit: 0 the plan printed; 1 not a git repository; 2 usage error.
 
 set -uo pipefail
@@ -95,25 +14,6 @@ source "$SCRIPT_DIR/../../../scripts/lib/discover.sh" || {
   exit 2
 }
 
-# Codex's project-doc budget.
-#
-#   Claim: Codex reads at most 32,768 bytes of project docs per turn, and the
-#     cap is CUMULATIVE across the AGENTS.md files it loads, not per file. The
-#     key is `project_doc_max_bytes`; its default is 32768.
-#   Basis: openai/codex `codex-rs/config/defaults.toml` line 8,
-#     `project_doc_max_bytes = 32768`, read at tree
-#     df7f717c856e0634b04a12f7d4fc9e8ecb3e65be. The cumulative reading is the
-#     same repo's `codex-rs/core/src/agents_md.rs:68`, which seeds
-#     `let mut remaining = config.project_doc_max_bytes;` once and then
-#     decrements it across the loaded set. The published config reference
-#     (learn.chatgpt.com/docs/config-file/config-reference, formerly
-#     developers.openai.com/codex/config-reference) documents the key's purpose,
-#     "Maximum bytes read from `AGENTS.md` when building project instructions",
-#     but publishes no default, which is why the source is the basis here.
-#   As of: 2026-09-19.
-#   Recheck trigger: that defaults.toml line changes, `agents_md.rs` stops
-#     carrying one shared remaining-bytes counter, or the config reference
-#     starts publishing a default that differs from it.
 CODEX_PROJECT_DOC_BUDGET=32768
 
 ROOT="."
@@ -192,10 +92,6 @@ cd "$ROOT" 2>/dev/null || {
   exit 2
 }
 
-# Every git command below resolves relative to the directory it runs in, so a
-# --root pointing at a subdirectory would describe that subtree as if it were
-# the whole repository: a silently partial plan. A migration is a
-# repository-wide decision, so climb to the toplevel first.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 [[ -n "$REPO_ROOT" ]] || {
   echo "plan-migration: not inside a git repository" >&2
@@ -260,19 +156,11 @@ classify_claude_md() {
   fi
 }
 
-# True when a CLAUDE.md is byte-for-byte the target shape: `@AGENTS.md`, with or
-# without its one trailing newline. classify_claude_md also calls `@./AGENTS.md`,
-# CRLF lines, blank lines and surrounding whitespace a shim, because each loads
-# the same way; none of them is the shape Apply writes.
 is_exact_shim() {
   local file="$1" bytes="$2"
   [[ "$bytes" -eq 10 || "$bytes" -eq 11 ]] && [[ "$(<"$file")" == "@AGENTS.md" ]]
 }
 
-# Every directory carrying a tracked CLAUDE.md or AGENTS.md, excluded trees
-# dropped. One awk pass, not one subshell per tracked file: Git Bash pays about
-# 140 ms a spawn, and a repository of a few thousand files turns a per-file
-# `basename` into minutes of wall clock.
 instruction_dirs() {
   git ls-files -z 2>/dev/null | tr '\0' '\n' |
     awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" '
@@ -336,10 +224,6 @@ while IFS= read -r dir; do
   printf 'BUDGET\t%s\t%s\t%s\n' "$dir" "$cum" "$verdict"
 done < <(instruction_dirs)
 
-# "Checked, and there is none" and "this row kind never ran" are the same
-# output when a kind prints nothing, and a reader cannot tell a clean repository
-# from a broken script. Every kind that can be empty prints `<KIND>\tNONE`
-# instead of nothing, so silence always means a defect.
 emit_rows() {
   local kind="$1" rows
   rows="$(cat)"
@@ -387,15 +271,8 @@ CITE_HITS="$(mktemp)"
 ALREADY_REPORTED="$(mktemp)"
 trap 'rm -f "$PATHDET_HITS" "$PATHDET_RAW" "$CITE_HITS" "$ALREADY_REPORTED"' EXIT
 
-# A scan that FAILED and a scan that found nothing are the same empty output,
-# and a consumer reading the second for the first grades a condition met on a
-# broken probe. `git grep` and `grep` both exit 1 for "no match" and above 1
-# for an error, so every scan here reports the error as its own row.
 scan_failed() { (($1 > 1)); }
 
-# --- CASE -----------------------------------------------------------------
-# Claude Code matches the names exactly; a case-folding filesystem does not, so
-# a variant behaves differently per developer and is a migration hazard.
 git ls-files -z 2>/dev/null | tr '\0' '\n' | awk '
   $0 == "" { next }
   {
@@ -408,16 +285,6 @@ git ls-files -z 2>/dev/null | tr '\0' '\n' | awk '
   }
 ' | emit_rows CASE
 
-# --- SUPPRESS -------------------------------------------------------------
-# A bare ~/CLAUDE.md or ~/CLAUDE.local.md is read instead of AGENTS.md in every
-# directory below home, so no repository-side change can make AGENTS.md load
-# there. Measured 2026-09-19 on Claude Code 2.1.278; recheck when
-# code.claude.com/docs/en/memory changes which names count for that check.
-# The path is printed in a form the host's own tools accept. Under Git Bash a
-# home directory reads as `/c/Users/...`, which no Windows tool resolves, so the
-# operator cannot paste the row into anything. `cygpath -m` gives the
-# forward-slash drive form both Git Bash and Windows accept; without cygpath
-# (every non-Windows host) the path is already native and passes through.
 native_path() {
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -m "$1" 2>/dev/null || printf '%s' "$1"
@@ -458,20 +325,6 @@ else
   sed 's/^/PATHDET\t/' "$PATHDET_HITS" | emit_rows PATHDET
 fi
 
-# --- CITE -----------------------------------------------------------------
-# Citations that RESOLVE into CLAUDE.md: a markdown link target, with or without
-# a heading anchor. Each one has to be retargeted when the content moves. Prose
-# that merely names the file is not a citation and is deliberately not matched:
-# a row a reader has to dismiss is a row they stop reading.
-# Two citation forms, both of which die when the content moves:
-#   1. a markdown link target, with or without a heading anchor;
-#   2. a path plus a heading, backticked or bare, with the heading quoted or
-#      introduced by a section sign. `medley` uses the second exclusively and
-#      enforces it on pre-commit, and matching only the first reported NONE
-#      against thirteen live citations.
-# The section sign is spelled by its UTF-8 bytes so this file stays ASCII: a
-# literal in the source would depend on the editor and console encoding of
-# whoever touches it next.
 SECTION_SIGN=$'\302\247'
 # shellcheck disable=SC2016 # the backtick is markdown in the pattern, not a command substitution
 CITE_PATTERN='\]\([^)]*CLAUDE\.md(#[A-Za-z0-9_-]+)?\)|`?CLAUDE\.md`?[[:space:]]+("[^"]+"|'"$SECTION_SIGN"'[^[:space:]])'
@@ -479,7 +332,6 @@ git grep -n -I -E "$CITE_PATTERN" -- '*.md' '*.mdc' 2>/dev/null >"$CITE_HITS"
 sed 's/^/CITE\t/' "$CITE_HITS" | emit_rows CITE
 
 cat "$CITE_HITS" "$PATHDET_HITS" >"$ALREADY_REPORTED"
-# grep -f on an empty pattern file matches nothing, so seed one impossible line.
 printf '\x01no-such-line\n' >>"$ALREADY_REPORTED"
 git grep -n -I -F 'CLAUDE.md' \
   -- ':!CLAUDE.md' ':!AGENTS.md' ':!**/CLAUDE.md' ':!**/AGENTS.md' \
@@ -514,15 +366,6 @@ for candidate in docs doc documentation Documentation; do
 done
 printf 'DOCSHOME\t%s\t%s\n' "$docs_home" "$docs_state"
 
-# --- ACTION ---------------------------------------------------------------
-# Every claude-code-action pin. The pin decides the CLI version CI installs,
-# and so whether a CI session reads AGENTS.md at all.
-#
-# Both `.github/workflows` and `.github/actions` are scanned: a composite
-# action pins the CLI exactly as a workflow does, and a repository that wraps
-# the action in one would otherwise report no pin at all. The subpath form
-# (`claude-code-action/base-action@...`) is the same pin through a different
-# entry point.
 ACTION_DIRS=()
 [[ -d ".github/workflows" ]] && ACTION_DIRS+=(".github/workflows")
 [[ -d ".github/actions" ]] && ACTION_DIRS+=(".github/actions")

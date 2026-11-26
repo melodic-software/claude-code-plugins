@@ -762,8 +762,7 @@ if (
   # shellcheck source=lane-stop-gate-lib.sh
   source "$STAGED_DIR/lane-stop-gate-lib.sh"
   gate_epochseconds_is_clock() { return 1; }
-  # The spoof is confined to this subshell; the Bash 5+ case below is a
-  # separate subshell and still sees the parent clock (SC2030/SC2031).
+  # The spoof is confined to this subshell; the Bash 5+ case below runs in another.
   # shellcheck disable=SC2030
   EPOCHSECONDS=1
   export EPOCHSECONDS

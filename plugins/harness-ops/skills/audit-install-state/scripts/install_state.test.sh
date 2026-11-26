@@ -29,7 +29,5 @@ if [[ -z "$FLOOR_MET" ]]; then
   exit 0
 fi
 
-# Run by module name from the scripts directory: unittest reads an absolute
-# .py path as a module name on Windows, which fails from a git worktree.
 cd "$SCRIPT_DIR"
 "$PYTHON" -m unittest -v test_install_state

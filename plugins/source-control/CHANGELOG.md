@@ -3,6 +3,58 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [13.21.6] - 2026-11-26
+
+### Fixed
+
+- The merge gate's cost-decision carry (`babysit_merge_policy._carries`) reads a compare whose unpaged commit list stops short of `total_commits` again in pages of 100 (`_whole_commits`), as `merge-holds.mjs` does, so a range of more than 250 commits carries. A page that does not read, or a list still shorter than `total_commits`, carries nothing.
+
+## [13.21.5] - 2026-11-26
+
+### Fixed
+
+- The merge gate's approval and cost-decision carries (`babysit_merge_policy.same_net_change`, `carried_lifters`, `_carries`) judge a pull request whose compare lists 300 files or more: when either listing caps or gives a file no patch, the two compares' `application/vnd.github.diff` texts decide, every file's patch and mode compared (`diff_files`, `needs_diff`, `_cap_diffs`), as `merge-holds.mjs` does. A binary file, a diff that does not parse, or a diff naming fewer files than the pull request changes carries nothing.
+
+## [13.21.4] - 2026-11-26
+
+### Fixed
+
+- The babysit merge gate's cost-decision lane vetting (`babysit_merge_policy._noticed_head`) no longer holds every lane run on a head whose compare lists 300 files or more: past the compare API's cap it compares the review-lane workflows' blobs at the compare's merge base and the head, and still holds when either listing cannot be read.
+
+## [13.21.3] - 2026-11-25
+
+### Changed
+
+- `babysit-prs` `CARRY_REFUSES` adds the work-items triage skill's `scripts/` and `schemas/`, which the intake lane's workflow now loads, so a push that touches one stops an approval carrying, as `merge-holds.mjs` does.
+
+- `babysit_verify_evidence.py evidence` takes `--pass-out <file>`: for an allow at the head it
+  writes the counted passes with their runs, the first pass's verdict.json and the closing issues
+  the judgment read, so ci-status's merge-queue step can hand them to merge-holds.mjs without
+  reading them again. The printed report does not change, and a caller that does not pass the flag
+  sees no difference.
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+### Fixed
+
+- `/source-control:babysit-prs` stops an approval carry over a push that changes `plugins/code-tidying/git-hooks/comment-lint-ci.sh`, which the required checks now run.
+
+- `read-pr.sh view --diff` reads a pull request of any size: when GitHub refuses the pull request's own diff with HTTP 406 (over 300 files), it reads the diff from the compare endpoint between the pull request's base and head commits instead. A smaller pull request still reads through the pull request endpoint, so a token with only Pull requests read keeps working ([#19124](https://github.com/melodic-software/claude-code-plugins/issues/19124)). The merge-risk, explain-change and PR-mode quality-gate reviews that read the diff through it now work on large pull requests.
+
+## [13.21.2] - 2026-11-25
+
+### Changed
+
+- The babysit merge policy reads a branch tip (`base_tip`) with one unauthenticated
+  `git ls-remote https://github.com/<owner>/<name> refs/heads/<base> refs/tags/<base>` first, so
+  the read spends no REST quota. It takes the SHA only when the listing names `refs/heads/<base>`
+  once as 40 hex and holds no tag of the same name, the rule the CI workflows' main's-tip listing
+  uses. Anything else (a failed or timed-out listing, no `git`, a private repository, a
+  tag named like the branch, or `GH_HOST` naming a host other than github.com) reads
+  `git/ref/heads/<base>` over REST as before, and an unreadable tip still fails closed. The read
+  happens at the same moment as before, so the default-branch config, the trusted-actor list and
+  the standards repository's tip are judged at a tip as fresh as the REST read gave.
+
 ## [13.21.1] - 2026-11-25
 
 ### Fixed

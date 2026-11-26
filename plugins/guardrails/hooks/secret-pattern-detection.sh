@@ -18,38 +18,14 @@ source "$PLUGIN_ROOT/lib/secret-detection/secret-patterns.sh"
 
 start=${EPOCHREALTIME:-}
 
-# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; buffer
-# once, parse each field from it. rc 1 (empty stdin) skips like the empty-field
-# guards below; rc 2 (text that is not JSON) FAILS CLOSED — the guard cannot
-# evaluate the tool call, and a silent skip would pass exactly the traffic this
-# guard exists to stop; rc 3 (a JSON payload cut short by the pipe, a transport
-# fault) is a loud skip the dispatcher takes once. buffer_stdin already
-# printed the reason to stderr. Buffering does not require jq (hook::buffer_stdin's
-# own JSON-completeness check is jq-optional), so it runs before the jq gate
-# below — hook::require jq needs the buffered input for its once per session
-# and agent notice scoping.
 hook::buffer_stdin_to INPUT || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require jq fails OPEN
-# (advisory hooks never block over a missing prerequisite) but makes the
-# degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
-# Every payload field this hook can need, in ONE jq process (hook::jq_fields),
-# not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
-# runs on every Write/Edit/NotebookEdit. Every per-tool target and content field
-# is fetched together because selecting between them would cost a second process;
-# jq reads the same envelope either way, and the tool-specific choice happens
-# below in the shell. NotebookEdit's target is `notebook_path`, appended last so
-# the MCP lane's indices (2, 5) do not move. Failure semantics are unchanged: a
-# missing jq or an unparsable payload yields rc 1 here, which exits 0 exactly as
-# the empty-TOOL case did; hook::require jq above has already made the degraded
-# state visible once per session and agent.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \
   '.tool_input.content' '.tool_input.new_string' '.tool_input.new_source' \
@@ -83,17 +59,6 @@ secret_path_allowlisted() {
   esac
 }
 
-# Scan <content> for secret patterns. The report lands in the caller's $scan_out
-# (empty means clean) and each pattern label is APPENDED to the caller's $labels,
-# so the MCP lane accumulates labels across the files of one tool call. Callers
-# read $scan_out rather than a status, the same write-into-a-variable shape the
-# library's own `_to` helpers use.
-#
-# secrets::scan_text's exit status is lost inside `$()` because the trailing
-# `printf x` sentinel is what `$()` reports; the sentinel is also what keeps a
-# trailing newline `$()` would otherwise strip, the same pattern as
-# hardcoded-path-check.
-#
 # Call as: secret_scan <content> -> $scan_out $labels
 # shellcheck disable=SC2154  # scan_out and labels are the caller's frame, per the call contract
 secret_scan() {
@@ -120,24 +85,6 @@ spd_send_tel() {
   hook::emit_telemetry "secret-pattern-detection" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# Scan every file a GitHub MCP write carries, and block the whole tool call if
-# any of them holds a secret. Exits 2 on a violation; returns for a clean call.
-#
-# WHAT THIS LANE DELIBERATELY DOES NOT REUSE, and why:
-#
-#   The project-scope guard. It exists because a LOCAL Write can target another
-#   checkout on this machine, which is that repo's policy to enforce. An MCP
-#   write names `owner/repo` and a repo-relative path; there is no local file,
-#   and CLAUDE_PROJECT_DIR says nothing about the destination. Applying the
-#   local test would skip every MCP write (a relative path is never under the
-#   project root), which is a silent hole, not a scope.
-#
-#   hook::normalize_path_to. It folds Windows drive letters and case for comparison
-#   against local paths. A GitHub path is already `/`-separated, case-sensitive,
-#   and never carries a drive letter.
-#
-# The ALLOWLIST is reused unchanged: `.env.example`, a test fixture tree or a
-# vendored node_modules is the same false positive whichever route writes it.
 mcp_lane() {
   local count=1 i path content violations="" first_offender="" scan_out
   local -a labels=()
@@ -191,17 +138,6 @@ mcp_lane() {
 
 case "$TOOL" in
 Write | Edit | NotebookEdit) ;;
-# --- The GitHub MCP write lane (#3719) --------------------------------------
-# A Write|Edit matcher does not see a write issued through an MCP tool, so a
-# secret this session authored could reach a repository by a route this guard
-# never inspected. These two tools carry file CONTENT and are inspected below.
-#
-# mcp__github__delete_file is deliberately absent: its schema carries owner,
-# repo, path, message and branch, and NO content. There is nothing for a content
-# guard to scan, and a delete cannot introduce a secret. Naming it here would
-# claim coverage that consists of skipping every call.
-# A GitHub server bundled by a plugin names its tools
-# mcp__plugin_<plugin>_github__<tool> rather than mcp__github__<tool>.
 mcp__github__push_files | mcp__github__create_or_update_file | \
   mcp__plugin_*_github__push_files | mcp__plugin_*_github__create_or_update_file)
   mcp_lane
@@ -432,10 +368,6 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local file_rel root="$spd_scope_root"
-  # Parameter expansion, not a `$(dirname …)` subshell: a command substitution
-  # is a fork per call on Windows Git Bash and this guard runs on every write.
-  # Same answers as `dirname`: no slash -> `.`, and a root-level `/x` -> `/`
-  # rather than the empty string, which hook::repo_root would read as `.`.
   local file_dir="${FILE%/*}"
   [[ "$file_dir" == "$FILE" ]] && file_dir="."
   [[ -n "$file_dir" ]] || file_dir=/

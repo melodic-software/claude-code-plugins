@@ -127,6 +127,7 @@ work, a new request. These also arrive as messages and are never the person:
 - a subagent's or background task's report;
 - a `/loop` or cron prompt;
 - a message relayed from another session;
+- a session-flow observer note, appended as a reminder or sent as the plugin's prompt;
 - what the person sends to finish the launch before leaving, such as the `/goal` line or a last
   instruction.
 

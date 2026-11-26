@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# diverged-repo.sh <dir>: a local bare remote <dir>/remote.git and a clone <dir>/repo
-# whose main has diverged from the remote by one commit, so only a force push
-# succeeds, plus a NOTES.txt naming that push. Everything stays inside <dir>.
 set -euo pipefail
 d="$1"
 mkdir -p "$d"

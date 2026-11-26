@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /planning:plan for the purge job. Alongside it, /planning:interview document turns the deferred retention-window question into a document Dana fills in.",
+      "why": "document for Dana beside the next pipeline step, no window chosen"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /planning:interview document for Dana and wait for her answer before doing anything else.",
+      "why": "document replaces the next step"
+    },
+    {
+      "answer": "Next: /planning:plan. Assume a 90-day window; most ticket stores keep closed tickets that long.",
+      "why": "no document, and picks a window"
+    }
+  ]
+}

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Dead-code CANDIDATES for /code-tidying:audit-dead-code. Read-only.
-#
-# Output: Lane / Note run-health lines, then File + Finding tier/shape/line/
-# excerpt records separated by `---`, then Summary file / lanes / coverage /
-# candidates / total lines, then one Note per uncovered source file. The script
-# never writes a file into the repository and never edits source.
-#
 # Exit:
 #   0  the scan ran (candidates or not, lanes healthy or not) — a read-only
 #      audit must never fail its caller, so -e is omitted and no detector's
@@ -15,17 +8,6 @@
 #      an unknown option, an option missing its value, a --max that is not a
 #      non-negative integer, a --lane outside the set, or a --root that is not
 #      a directory; or no temp directory could be created.
-#
-# Exit codes are NEVER read as run health. Measured: knip exits 1 for BOTH
-# findings and hard errors; vulture exits 3 for findings and 1 for an input
-# error; gopls check always exits 0. Health comes from stderr, from stdout
-# error lines, and from a direct node_modules probe — never from $?.
-#
-# Pipeline posture: `set -uo pipefail` is on and NO detector output is piped
-# into an early-closing reader (`head`, `grep -q`). Measured: vulture raises
-# BrokenPipeError and returns 1 when its stdout closes early, so a truncating
-# pipe would fabricate a detector failure. Every detector writes to a temp file
-# that is then read back in full.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -120,7 +102,6 @@ if [[ ! "$MAX" =~ ^[0-9]+$ ]]; then
   echo "dead-code-scan.sh: --max requires a non-negative integer" >&2
   exit 2
 fi
-# Strip leading zeros so values like 08 are decimal, not octal, under arithmetic.
 MAX=$((10#$MAX))
 
 case "$LANE_SEL" in
@@ -176,11 +157,6 @@ note() {
   printf 'Note: %s\n' "$1" >>"$NOTES"
 }
 
-# Coverage ledger. A source file is covered when a lane took it as input and
-# reached `ran`. `degraded` is "lane degraded": the lane line names the
-# degradation and the file was not scanned. `skipped` is "tool not installed".
-# `no-manifest` is "no manifest root". Anything still unmarked at the end is either `nolane` or a lane this
-# invocation did not select.
 declare -A DC_COVERED=()
 declare -A DC_UNCOVERED=()
 
@@ -205,8 +181,6 @@ dc_mark_uncovered() {
   done
 }
 
-# `ran` covers the file. `degraded`, `skipped` and `no-manifest` name why it
-# was not scanned. `scanned-zero-files` has nothing to account for.
 dc_account_lane_files() {
   local state="$1"
   shift
@@ -240,10 +214,6 @@ dc_repo_owned() {
   done
 }
 
-# The lanes disagree about what a path is: knip reports project-relative,
-# vulture relativizes to cwd (which is the repo root here), and gopls reports
-# ABSOLUTE paths with no flag to change that. Every Location this script emits
-# is repo-relative, so the report reads as one document.
 repo_relative() {
   local p="$1"
   case "$p" in
@@ -256,10 +226,6 @@ add_candidate() {
   printf '%s\t%s\t%s\t%s\n' "$(repo_relative "$1")" "${2:-0}" "$3" "$(dc_trim_excerpt "$4")" >>"$CAND"
 }
 
-# ---------------------------------------------------------------------------
-# Candidate scope
-# ---------------------------------------------------------------------------
-
 list_repo_files() {
   local pattern="$1" f
   if [[ "$GIT_OK" == '1' ]]; then
@@ -271,7 +237,6 @@ list_repo_files() {
   done < <(find . -type f -name "${pattern#\*}" 2>/dev/null)
 }
 
-# Every file the reference search reads, NUL-separated.
 list_search_files_z() {
   if [[ "$GIT_OK" == '1' ]]; then
     git ls-files -z 2>/dev/null
@@ -301,8 +266,6 @@ SYM_FILES=()
 CS_FILES=()
 NOLANE_FILES=()
 SOURCE_FILES=()
-# Filled by the grep lane. Declared here so `set -u` can see the array before
-# that lane runs.
 FILE_REF_FILES=()
 STANDALONE_TS_FILES=()
 FILE_REF_EMITTED=0
@@ -323,28 +286,6 @@ while IFS= read -r scope_line; do
   esac
 done < <(list_scope_files | LC_ALL=C sort -u)
 
-# ---------------------------------------------------------------------------
-# Project-root OWNERSHIP
-#
-# Roots are discovered one per manifest (package.json, go.mod), and a root may
-# only ever speak for the files it OWNS: paths under that root and under no
-# NESTED root. Running a detector AT a root does not by itself restrict what
-# that run reports — knip walks the whole subtree, nested workspaces included —
-# so the output is filtered here, and the input list is built from owned files.
-#
-# Measured on this marketplace before the filter existed: the repo-root knip run
-# emitted 213 of its 288 candidates for files belonging to roots the SAME scan
-# had already declared `degraded` and promised would "emit no records". Those
-# candidates were manufactured by exactly the unrestored-node_modules runs the
-# degraded state exists to withhold. SKILL.md: "Each root carries its own state
-# — one degraded workspace does not condemn the others."
-#
-# The repo root stays a root even when its manifest declares no sources of its
-# own (this repository's own package.json is a CI-toolchain-only manifest):
-# deciding "declares no sources" means interpreting project config, which this
-# scan refuses to do. Ownership makes keeping it safe — a source-less root owns
-# nothing and reports `scanned-zero-files`, which is the honest state anyway.
-
 nested_roots() {
   local root="$1" arr_name="$2" dst_name="$3"
   local -n _dc_own_all="$arr_name"
@@ -358,12 +299,6 @@ nested_roots() {
   done
 }
 
-# 0 when root OWNS the repo-relative path, 1 otherwise. A path inside a nested
-# root belongs to that nested root's own run and to no other, and a path the
-# scan already declared "never scanning input" (node_modules, dist, build,
-# vendor, `**/evals/fixtures/**`) belongs to no root at all — a detector invoked
-# at a root walks those directories even though this scan excluded them from
-# candidate scope, and a finding there is not a candidate.
 owns_path() {
   local root="$1" nest_name="$2" p="$3"
   local -n _dc_own_n="$nest_name"
@@ -377,7 +312,6 @@ owns_path() {
   return 0
 }
 
-# 0 when repo-relative path is in the caller's TS/JS candidate set.
 in_ts_files() {
   [[ -n "${TS_IN_SCOPE[$1]:-}" ]]
 }
@@ -416,7 +350,6 @@ project_roots() {
   while IFS= read -r f; do
     f="${f//$'\r'/}"
     [[ -n "$f" ]] || continue
-    # The glob query can over-match (my-package.json); the basename decides.
     [[ "$(basename -- "$f")" == "$marker" ]] || continue
     dc_is_excluded_path "$f" && continue
     root="$(dirname -- "$f")"
@@ -426,20 +359,11 @@ project_roots() {
   printf '%s\n' "${roots[@]}" | LC_ALL=C sort -u
 }
 
-# ---------------------------------------------------------------------------
-# Lane: knip (TS/JS) — measured 60% precision / 100% recall on trap fixtures
-# ---------------------------------------------------------------------------
-
 lane_knip() {
   local root_rel root_abs bin cfg nfiles rows foreign detail k_path k_file k_line k_shape k_name
-  # root_nested is read through a nameref by nested_roots/owns_path/files_owned,
-  # which shellcheck cannot see (SC2034).
+  # root_nested is read through a nameref, which shellcheck cannot see.
   # shellcheck disable=SC2034
   local -a roots=() root_nested=() owned_ts=() repo_owned=()
-  # KNIP_SEEN is the set of TS/JS files some root owned. Files never entered
-  # here have no manifest root of their own (a standalone .mjs beside a nested
-  # package.json). shellcheck cannot see the nameref uses of root_nested.
-  # shellcheck disable=SC2034
   local -A KNIP_SEEN=()
   local owned_rel ts_left
   mapfile -t roots < <(project_roots package.json)
@@ -502,18 +426,10 @@ lane_knip() {
       while IFS="$TAB" read -r k_file k_line k_shape k_name; do
         [[ -n "$k_shape" ]] || continue
         k_path="$(repo_relative "$(rebase_path "$root_rel" "$k_file")")"
-        # knip walks the whole subtree from where it was invoked, nested
-        # workspaces included. A finding about a file this root does not own is
-        # DROPPED here: it is the nested root's to report, and only when that
-        # root's own run is healthy.
         if ! owns_path "$root_rel" root_nested "$k_path"; then
           foreign=$((foreign + 1))
           continue
         fi
-        # knip has no per-file input mode that preserves cross-file usage, so
-        # the invocation still walks the whole root. Candidate scope is the
-        # caller's targets (TS_FILES); a finding for an owned file outside
-        # that set is not a candidate.
         if ! in_ts_files "$k_path"; then
           foreign=$((foreign + 1))
           continue
@@ -538,11 +454,6 @@ lane_knip() {
   done
 }
 
-# ---------------------------------------------------------------------------
-# Lane: vulture (Python) — measured 16.7% precision / 100% recall. High recall,
-# low precision, and the confidence knob does not exist for these targets.
-# ---------------------------------------------------------------------------
-
 lane_vulture() {
   local bin rc=0 v_line row parsed=0 drift=0 unparsed=0
   local p_file p_line p_shape p_excerpt
@@ -564,25 +475,15 @@ lane_vulture() {
       "${PY_FILES[@]}"
     return 0
   fi
-  # Every file is passed in ONE invocation: vulture counts usages across the
-  # whole set it is given, so chunking would fragment cross-file usage and
-  # inflate false positives. The glob is filtered to *.py first because vulture
-  # handed a non-Python file logs a parse error and skips that file.
   "$bin" --min-confidence 60 --ignore-names 'test_*,pytest_*' \
     --ignore-decorators "$ignore_decorators" -- "${PY_FILES[@]}" \
     >"$WORK/vulture.out" 2>"$WORK/vulture.err" || rc=$?
-  # Health comes from the SHAPE of stderr, never from the exit code: measured,
-  # vulture exits 1 for a lone unparsable input and 3 when findings coexist, so
-  # the code cannot separate "one bad input file" from "the run is unsound".
   if dc_vulture_stderr_is_degraded "$WORK/vulture.err"; then
     lane_files vulture '.' degraded \
       "vulture wrote a non-input error to stderr (exit $rc) — its output is withheld" \
       "${PY_FILES[@]}"
     return 0
   fi
-  # An input-parse-error line is an INPUT note, not a degraded run: every other
-  # file was still analyzed, and treating it as degradation would let one stray
-  # non-Python file suppress the whole lane.
   local -A unparsed_path=()
   local -a parsed_files=()
   while IFS= read -r v_line; do
@@ -615,12 +516,6 @@ lane_vulture() {
     "$parsed candidate(s), $drift unrecognized stdout line(s), $unparsed input file(s) skipped as unparsable"
 }
 
-# ---------------------------------------------------------------------------
-# Lane: gopls (Go) — unexported symbols only, which is the lane's declared
-# coverage, not a defect. A gopls run executes no project code (Go has no
-# build.rs equivalent): https://go.dev/gopls/features/diagnostics
-# ---------------------------------------------------------------------------
-
 lane_gopls() {
   local root_rel root_abs bin nfiles g_line row parsed=0 drift=0 degraded=0
   local foreign=0 detail g_path
@@ -628,9 +523,6 @@ lane_gopls() {
   # root_nested is read through a nameref (SC2034); mod_files is expanded below.
   # shellcheck disable=SC2034
   local -a roots=() mod_files=() root_nested=() repo_owned=()
-  # GOPLS_SEEN is the set of .go files some module owned. A .go file outside
-  # every go.mod is uncovered (no manifest root), same rule as a standalone .mjs.
-  # shellcheck disable=SC2034
   local -A GOPLS_SEEN=()
   local owned_rel go_left
   mapfile -t roots < <(project_roots go.mod)
@@ -724,17 +616,6 @@ lane_gopls() {
   done
 }
 
-# ---------------------------------------------------------------------------
-# Lane: grep (shell, PowerShell, C#, standalone JS/TS) — shell symbols measured
-# 4/4 true positives, 0 false positives over 546 .sh / 177,793 lines. High
-# precision, acknowledged low recall. C# is read as text and never built.
-# `grep -w -F` is the portable floor and -F is MANDATORY: without it `core.ts`
-# matches `coreXts`.
-# ---------------------------------------------------------------------------
-
-# 0 when a package.json root owns the repo-relative path. JS/TS inside a root
-# is knip's unused-file finding; unreferenced-file does not repeat it.
-# The caller names its package-root array; nested/owns_path read it through a nameref.
 dc_path_owned_by_package() {
   local path="$1" roots_name="$2" r
   local -n _dc_pkg_roots="$roots_name"
@@ -748,9 +629,6 @@ dc_path_owned_by_package() {
   return 1
 }
 
-# Shell, PowerShell, Python entry points, JS/TS no package.json root owns, C#,
-# and source files with no lane. Go stays with gopls: a module compiles files
-# the path never names.
 collect_file_ref_files() {
   local f
   local -a PKG_ROOTS=()
@@ -784,14 +662,8 @@ emit_unreferenced_files() {
   : >"$WORK/filekeys.txt"
   for f in ${FILE_REF_FILES[@]+"${FILE_REF_FILES[@]}"}; do
     [[ -n "$f" ]] || continue
-    # A tab or newline in a path would split its owners.tsv row.
     [[ $f != *$'\t'* && $f != *$'\n'* ]] || continue
     base="${f##*/}"
-    # A compiled language names a unit by its stem (`mod util;`, `new Util()`,
-    # `#include "util.h"` spells the name), so a C# or no-lane file is also
-    # keyed on its stem. That saves more, never less: a stem match is a weaker
-    # miss. A C# stem drops every extension, so `Counter.razor.cs` is keyed on
-    # the `Counter` its markup and callers spell.
     stem=''
     case "$(dc_lang_of_path "$f")" in
     cs) stem="${base%%.*}" ;;
@@ -812,8 +684,6 @@ emit_unreferenced_files() {
   done
   [[ -s "$WORK/filekeys.txt" ]] || return 0
   : >"$WORK/refhits.txt"
-  # -I skips binary files. -H -o attribute each match to the file that held it
-  # so a mention inside the candidate itself can be dropped.
   list_search_files_z |
     xargs -0 grep -I -H -o -w -F -f "$WORK/filekeys.txt" -- >>"$WORK/refhits.txt" 2>/dev/null || true
   awk -F '\t' '
@@ -893,9 +763,6 @@ lane_grep() {
   done
   if [[ -s "$WORK/defs.tsv" ]]; then
     printf '%s\n' "${!DEFS[@]}" | LC_ALL=C sort -u >"$WORK/names.txt"
-    # Reference search is REPOSITORY-WIDE and deliberately separate from candidate
-    # scope: a reference from anywhere saves a symbol. -h drops filenames so the
-    # counted token is the match itself; xargs splits the file list for us.
     : >"$WORK/hits.txt"
     list_search_files_z |
       xargs -0 grep -o -h -w -F -f "$WORK/names.txt" -- >>"$WORK/hits.txt" 2>/dev/null || true
@@ -933,18 +800,10 @@ lane_grep() {
     "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)$cs_detail"
 }
 
-# ---------------------------------------------------------------------------
-# Run the selected lanes
-# ---------------------------------------------------------------------------
-
 [[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'knip' ]] && lane_knip
 [[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'vulture' ]] && lane_vulture
 [[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'gopls' ]] && lane_gopls
 [[ "$LANE_SEL" == 'all' || "$LANE_SEL" == 'grep' ]] && lane_grep
-
-# ---------------------------------------------------------------------------
-# Order, cap, and emit
-# ---------------------------------------------------------------------------
 
 declare -A FILE_TS=()
 
@@ -964,16 +823,6 @@ done <"$CAND"
 
 LC_ALL=C sort -t"$TAB" -k1,1n -k2,2 -k3,3n "$WORK/keyed.tsv" >"$WORK/sorted.tsv"
 TOTAL_CAND="$(wc -l <"$WORK/sorted.tsv" | tr -d ' ')"
-# The cap is applied with awk, never `head`: a truncating reader that closes its
-# input early is exactly the shape this script refuses to build.
-#
-# T3 drift is EXEMPT from the cap. A drift record's file is `-` or a root name,
-# so it has no commit recency, sorts newest, and was therefore the first thing a
-# cap dropped — silently turning the one alarm this script raises about its own
-# blindness into nothing at all. SKILL.md "T3 is the drift bucket": an
-# unrecognized detector line is "recorded, never silently dropped".
-#
-# The cut drops the recency sort key now that ordering is fixed.
 awk -F"$TAB" -v m="$MAX" 'm <= 0 || $4 == "detector-drift" || ++n <= m' "$WORK/sorted.tsv" |
   cut -f2- >"$WORK/emitted.tsv"
 EMITTED="$(wc -l <"$WORK/emitted.tsv" | tr -d ' ')"
@@ -1037,10 +886,6 @@ while IFS="$TAB" read -r e_file e_line e_shape e_excerpt; do
 done <"$WORK/emitted.tsv"
 flush_file
 
-# Every in-scope source file is covered or listed. A file a selected lane never
-# marked is `nolane` (no detector) or `lane not selected` (this invocation did
-# not run that file's lane). `files-with-findings` is the finding count; `files=`
-# on a Lane line is the input count. They are different numbers.
 covered_n=0
 uncovered_n=0
 : >"$WORK/uncovered.tsv"

@@ -96,7 +96,6 @@ def trace(gray, T, s=S, eps=EPS, interp=INTERP, sharp=SHARP):
     if sharp:
         g = gray.astype(np.float32)
         sg = g + sharp[0] * (g - cv2.GaussianBlur(g, (0, 0), sharp[1]))
-        # the blur reflects the dark row 1 onto row 0, pushing a near-T border row across T; keep the raw border
         sg[[0, -1]] = g[[0, -1]]
         sg[:, [0, -1]] = g[:, [0, -1]]
         gray = sg

@@ -1,24 +1,5 @@
 #!/usr/bin/env bash
-# fetch-changelog.sh: the one place that decides where the Claude Code changelog is read from.
-#
-# Usage:
-#   fetch-changelog.sh --out <dir>     read the changelog to <dir>/changelog.md
-#   fetch-changelog.sh --check <file>  exit 0 when the file's first heading is a changelog's
-#
-# Sources, first read wins:
-#   1. repo: CHANGELOG.md in anthropics/claude-code, by raw.githubusercontent.com (no GitHub
-#      REST call), first heading `# Changelog`. Upstream commits it before the release is
-#      published; the docs page below has lagged it by an hour or more.
-#   2. docs: the `changelog` docs page, raw markdown, first heading `# Claude Code changelog`.
-# Both go through fetch-docs.sh beside this script with --cache --max-age 0, so the server is
-# always asked and a failed fetch is unread, never a stale cached copy. A body whose first
-# heading is not its source's is unread (a moved file or retired slug can answer 200 with
-# other bytes). changelog-releases.sh parses either source's release markup.
-#
-# Output (--out): on a read, one line `changelog: <url>` on stdout, exit 0. When neither
-# source reads, `unread: repo: <reason>; docs: <reason>` on stdout, exit 1.
 # Exit: 0 read or check passed; 1 unread or check failed; 3 invalid argument.
-# FETCH_DOCS_FIXTURE_DIR and DOCS_CACHE_DIR reach fetch-docs.sh unchanged (its test seam).
 
 set -uo pipefail
 

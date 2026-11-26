@@ -1,47 +1,4 @@
 #!/usr/bin/env bash
-# prepare.sh <gated-head> <trusted-base-sha> <version-bump-script> <out-dir>
-# <version-bump-script> must be the trusted base's copy, never the head checkout's.
-#
-# The prepare half of merge-base mode, run from the root of the PR head
-# checkout before any model turn: start a merge of the trusted base into the
-# gated head and decide whether a model is needed. pr-unblock.yml runs it three
-# times on one round, each in a job of its own: resolve-conflicts-select decides,
-# the read runner merges again for the model, and the write runner's
-# apply-patch merges again to commit; the last two go on only when their
-# conflict tree is the select job's. These checks guard against model mistakes
-# and hostile head content.
-#
-# 1. Repeat cap: count the first-parent commits back to the last commit not
-#    authored by the lanes bot that carry the resolve-conflicts lane trailer;
-#    at LOOP_NO_PROGRESS (loop.no-progress, default 3) escalate before merging.
-# 2. Merge <trusted-base-sha> without committing, then run the version-bump
-#    script under LC_ALL=C, so the common version-bump collision needs no
-#    model and the three runs of a round sort alike.
-# 3. Snapshot the index (stage 0 and unmerged entries) to <out-dir>, list the
-#    unmerged paths, and escalate when one is a protected path (a workflow,
-#    submodule config or a settings file), or when one is a conflict a model
-#    cannot resolve from markers: a side missing (modify or rename against
-#    delete) or no markers in the file (binary).
-# 4. For a clean or conflicted merge, write the conflict tree, T0: the
-#    snapshot's stage-0 entries, plus each unmerged path's file as git left it,
-#    markers and all, hashed with --no-filters under its stage-2 (head) mode,
-#    built in a scratch index so the merge's own index is untouched. A model's
-#    patch is measured from T0, so it holds only the model's edits.
-#
-# Every git call, the version-bump script's included, reads gitattributes
-# from the trusted base tree (GIT_ATTR_SOURCE, git 2.41 or later), so the
-# head's .gitattributes cannot pick a merge driver or a marker size.
-#
-# Environment: GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and
-# GIT_COMMITTER_EMAIL, the lanes bot identity (hosted runners have none, and
-# git refuses even a --no-commit merge without one); the author name also
-# identifies lane commits for the repeat cap.
-#
-# Stdout, one key=value line each, for step outputs (run-prepare.sh reads
-# them): merge-state (clean | conflicted | escalate), escalation-reason
-# (protected-path-conflict | unresolved-conflict | repeat-cap, empty
-# otherwise), conflict-tree (T0, empty on an escalation).
-#
 # Exit: 0 with a merge-state; 1 on a failed precondition or git failure.
 # shellcheck disable=SC2310  # g wraps one git call, so its status is that call's
 set -euo pipefail
@@ -55,14 +12,8 @@ die() {
 
 TRAILER_VALUE=pr-unblock/resolve-conflicts
 OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
-# Conflicts the lane does not resolve, matched on the lower-cased path: a
-# workflow, which the lane token cannot push, submodule config and a settings
-# file outside plugins/ (apply-patch.mjs's settings rule).
 PROTECTED_RE='^\.github/workflows/|(^|/)(\.gitmodules|settings[^/]*\.json)$'
 PLUGIN_SETTINGS_RE='^plugins/(.*/)?settings[^/]*\.json$'
-# Marker lines in order, any length from seven (conflict-marker-size): a run of
-# <, then a run of =, then a run of >, the outer two followed by a space or the
-# line end. apply-patch.mjs's hasConflictMarkers holds the same rule.
 # shellcheck disable=SC2016  # an awk program, expanded by awk
 MARKER_AWK='
   s == 0 && (/^<<<<<<<+$/ || /^<<<<<<<+ /) { s = 1; next }
@@ -118,8 +69,6 @@ g merge --no-commit --no-ff "$base" >&2 || rc=$?
 merge_head=$(g rev-parse -q --verify MERGE_HEAD) || die 'git merge left no merge in progress'
 [[ $merge_head == "$base" ]] || die "MERGE_HEAD $merge_head is not the trusted base $base"
 
-# The script runs its own git calls; GIT_CONFIG_COUNT gives them the same
-# overrides g passes on the command line, and GIT_ATTR_SOURCE is exported.
 rc=0
 GIT_CONFIG_COUNT=3 \
   GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null \
@@ -144,8 +93,6 @@ while IFS= read -r -d '' record; do
     printf '%s\0' "$path" >>"$out/unmerged-paths"
     if [[ ${path,,} =~ $PROTECTED_RE && ! ${path,,} =~ $PLUGIN_SETTINGS_RE ]]; then protected=1; fi
   fi
-  # A gitlink or symlink side has no markers either: count it as a missing
-  # side. The ancestor's (stage 1) mode does not decide whether the sides merge.
   if [[ $stage != 1 && ($mode == 160000 || $mode == 120000) ]]; then stage=x; fi
   stages[$path]+=$stage
 done < <(g ls-files -u -z)
@@ -155,8 +102,6 @@ for path in "${paths[@]}"; do
   [[ ${stages[$path]} == *2* && ${stages[$path]} == *3* && ${stages[$path]} != *x* ]] ||
     escalate unresolved-conflict
   [[ -f $path && ! -L $path ]] || escalate unresolved-conflict
-  # In place of a conflict it cannot mark up (binary), git leaves the head's
-  # bytes, whatever they look like.
   [[ $(g hash-object --path="$path" -- "$path") != "${ours[$path]}" ]] ||
     escalate unresolved-conflict
   found=$(tr -d '\r' <"$path" | LC_ALL=C awk "$MARKER_AWK")
@@ -164,8 +109,6 @@ for path in "${paths[@]}"; do
 done
 if ((${#paths[@]})); then state=conflicted; else state=clean; fi
 
-# T0, in a scratch index: update-index -z --index-info reads the snapshot's
-# "<mode> <oid> <stage>\t<path>" records as they are.
 tree_index=$(mktemp -u "$out/t0-index.XXXXXX")
 {
   while IFS= read -r -d '' record; do

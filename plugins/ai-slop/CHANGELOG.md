@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.7] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- Shared detector-findings contract synced where this plugin carries it: it registers `code-tidying/remove-comments/rule-glossary-candidate`; no other change to this plugin.
+
 ## [0.21.6] - 2026-11-25
 
 ### Changed

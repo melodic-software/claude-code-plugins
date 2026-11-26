@@ -210,8 +210,6 @@ def load(path: str | None, kind: str, *, required: bool = True) -> Any:
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError, RecursionError) as exc:
-        # ValueError covers JSONDecodeError, UnicodeDecodeError and an integer
-        # literal past the interpreter's digit limit.
         raise InputError(f"unreadable input {path}: {exc}") from exc
     error = shape_error(kind, data)
     if error:
@@ -380,14 +378,9 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         "docs": docs_block,
         "detect": detect_block,
         "candidates": None if candidates is None else sorted(set(candidates)),
-        # Names whose description the extraction could not resolve; None when
-        # the inventory carries no `integrity.undetermined` block.
         "unresolved_descriptions": sorted({n for n in unresolved if isinstance(n, str)})
         if isinstance(unresolved, list)
         else None,
-        # Whether the executable read was a native build, even one whose
-        # bundle did not extract; None when the inventory has no binary source.
-        # The CI skip reads it: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/native-drift.md#run
         "native_build": native_build(binary),
     }
 

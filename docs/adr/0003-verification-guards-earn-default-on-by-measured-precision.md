@@ -149,7 +149,8 @@ states on main: an inline exception carries a reason, an expiry and a person's a
   ADR 0080's advisory bar (under 10% false positives) at its measured 57% precision (Context).
 - **Reason.** Its remaining noise was attributed to one identified cause, the shape of argument
   Decision 3 accepts, and the hook only advises: it exits 0 with `additionalContext`
-  (`plugins/guardrails/hooks/skill-reference-verify.sh`, header).
+  (`plugins/guardrails/hooks/skill-reference-verify.sh`, its closing `hook::ctx_flush PostToolUse`
+  and `exit 0`).
 - **Expiry.** 90 days after the pull request that adds this entry merges (ADR 0080's default),
   unless the guard is re-measured on a corpus sweep before then.
 - **Approval.** The owner's [2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080), which ordered this entry.

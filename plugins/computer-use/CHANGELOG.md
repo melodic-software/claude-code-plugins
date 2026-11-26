@@ -3,6 +3,12 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.22] - 2026-11-26
+
+### Changed
+
+- `/computer-use:diagnose` points at the Claude Code computer-use docs sections for the server's mechanics, instead of describing how Claude Code ships the server. The allowed-applications row of its symptom guide now links to the matching section of `failure-diagnostics.md`.
+
 ## [0.1.21] - 2026-11-24
 
 ### Changed

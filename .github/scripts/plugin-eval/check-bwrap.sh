@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Checks bwrap and socat are on PATH, then starts a bwrap sandbox bare and
-# with playwright-cli, as the Bash sandbox of an eval run does.
 set -e
 fail() {
   local msg=${2//'%'/'%25'}

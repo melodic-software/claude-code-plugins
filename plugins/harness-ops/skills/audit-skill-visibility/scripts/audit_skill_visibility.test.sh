@@ -2,12 +2,6 @@
 # test-scope: plugins/harness-ops/skills/audit-skill-visibility/scripts/test_audit_skill_visibility.py plugins/harness-ops/skills/audit-skill-visibility/tests/fixtures/*
 set -euo pipefail
 
-# ISOLATION (#2840). The churn tests build throwaway git repositories, and the
-# Python subprocess inherits this environment. An exported absolute GIT_DIR
-# outranks `git -C` and overrides repository DISCOVERY, so a fixture's
-# `git config` would write its throwaway identity into the CALLER's .git/config
-# — shared by every worktree of the clone — instead of into the fixture. Cleared
-# unconditionally here, before anything spawns git.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,15 +43,6 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/repo/plugins/alpha/skills/one" "$WORK/repo/.claude-plugin" "$WORK/cfg"
 
-# A path this fixture EMBEDS -- in the two JSON files and in CLAUDE_PROJECT_DIR
-# -- is read verbatim by the engine, while the `--installed` ARGUMENT is
-# rewritten to the host's native form on the way in (Git Bash rewrites a POSIX
-# argument for a native interpreter; an environment variable and a file's
-# contents it leaves alone). Embedding `/tmp/...` therefore hands a native
-# Python a path it cannot open, so the marketplace catalog reads empty and the
-# fleet resolves to nothing. `cygpath -m` produces the same forward-slash
-# spelling the argument arrives in, and is absent (so this is the identity) on
-# a host that needs no rewrite.
 host_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 REPO="$(host_path "$WORK/repo")"
 CFG="$(host_path "$WORK/cfg")"

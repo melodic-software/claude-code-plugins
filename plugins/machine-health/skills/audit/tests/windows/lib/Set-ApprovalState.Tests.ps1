@@ -15,12 +15,10 @@ BeforeAll {
         Get-Content -LiteralPath (Join-Path $script:stateDir $Name) -Raw | ConvertFrom-Json
     }
 
-    # ConvertFrom-Json turns ISO strings into DateTime; read timestamps as the stored text.
     function Read-StateString {
         param([string] $Name, [string[]] $Pointer)
         $node = [System.Text.Json.Nodes.JsonNode]::Parse([System.IO.File]::ReadAllText((Join-Path $script:stateDir $Name)))
         foreach ($p in $Pointer) {
-            # Assign inside each branch: an if expression would enumerate a JsonObject.
             if ($p -match '^\d+$') { $node = $node[[int]$p] } else { $node = $node[$p] }
         }
         return $node.GetValue[string]()

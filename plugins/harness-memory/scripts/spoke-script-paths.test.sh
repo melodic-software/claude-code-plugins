@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Gate for the <skill-dir> spoke-script convention: spokes under skills/*/context and
-# skills/*/reference are read by the Read tool, which substitutes no variables, so they name
-# bundled scripts as <skill-dir>/scripts/<name>.sh and SKILL.md renders the placeholder.
 # shellcheck disable=SC2016,SC2013  # the dollar-brace tokens are literal text; script names hold no spaces
 # test-scope: plugins/harness-memory/skills/*
 set -uo pipefail

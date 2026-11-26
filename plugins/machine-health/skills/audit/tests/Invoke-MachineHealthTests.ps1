@@ -58,8 +58,6 @@ function Get-ErrorRecordMessage {
     if ($ErrorRecord.Exception) { $ErrorRecord.Exception.Message } else { "$ErrorRecord" }
 }
 
-# Emit one workflow-command annotation. Collapse to one line and escape here, so no
-# call site can end (CR/LF) or inject a workflow command.
 function Write-WorkflowError {
     param(
         [Parameter(Mandatory)] [string] $Title,
@@ -82,8 +80,6 @@ function Add-FencedBlock {
     $Lines.Add('  ```')
 }
 
-# The suites target Pester v5 and ModuleVersion is only a minimum, so cap the major
-# or a side-by-side v6 install would be imported instead.
 $minPester = [version]'5.7.0'
 $maxPester = [version]'5.99.99'
 $pester = Get-Module Pester -ListAvailable |
@@ -139,8 +135,6 @@ $configHash = Import-PowerShellDataFile -LiteralPath $configPath
 $config = New-PesterConfiguration -Hashtable $configHash
 $config.Run.Path = $testFiles.FullName
 
-# Test-result root: the enclosing git working tree, else a machine-health folder under
-# TEMP (an installed plugin cache is not a git repo).
 $repoRoot = (git -C $testsRoot rev-parse --show-toplevel 2>$null)
 if (-not $repoRoot) {
     $repoRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'machine-health'
@@ -148,8 +142,6 @@ if (-not $repoRoot) {
 
 . (Join-Path $testsRoot 'helpers\PesterWorkflowAnnotation.ps1')
 
-# Absolutize OutputPath, which Pester resolves against the CWD. Read it from the plain
-# hashtable: the typed property's ToString() embeds help text and breaks Split-Path.
 $testResultPath = Join-Path $repoRoot $configHash.TestResult.OutputPath
 $config.TestResult.OutputPath = $testResultPath
 New-DirectoryIfMissing -Path $testResultPath
@@ -169,9 +161,6 @@ if ($Coverage) {
 
 $result = Invoke-Pester -Configuration $config
 
-# Under GitHub Actions only, emit workflow-command annotations for failures so they
-# surface on the check run page, readable via the API without raw log access.
-
 if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
     Write-Output('')
     Write-Output("::group::Pester failure summary ($($result.FailedCount) failed)")
@@ -181,8 +170,6 @@ if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
     }
     Write-Output('::endgroup::')
 
-    # BeforeAll/Container failures live in a different collection than failed tests. A $null
-    # Containers still sends one $null through Where-Object, tripping StrictMode, so guard it.
     $failedContainers = @()
     if ($result.Containers) {
         $failedContainers = @($result.Containers | Where-Object { $_.Result -eq 'Failed' -and $_.ErrorRecord })
@@ -194,8 +181,6 @@ if ($env:GITHUB_ACTIONS -eq 'true' -and $result.FailedCount -gt 0) {
         }
     }
 
-    # Also render it to the job summary; $env:GITHUB_STEP_SUMMARY is a file the runner
-    # appends to the job's Summary tab.
     if ($env:GITHUB_STEP_SUMMARY -and (Test-Path -LiteralPath $env:GITHUB_STEP_SUMMARY)) {
         $lines = [System.Collections.Generic.List[string]]::new()
         $lines.Add('## Pester failure summary')

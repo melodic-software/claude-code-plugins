@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: td-hook-wired-script-excluded
-description: 'in-place shell-tooling run leaves scripts/hooks/check-bash.sh untouched because .claude/settings.json wires it as a hook command (GLOBAL HARD), while still tidying the ordinary script in the lane'
+description: 'in-place shell-tooling run leaves scripts/hooks/check-bash.sh untouched because .claude/settings.json wires it as a hook command (GLOBAL HARD), while still tidying the ordinary script in the focus area'
 tags: [tidy, in-place, hard-exclusion]
 expected_outcome: 'scripts/hooks/check-bash.sh is byte-identical (hook_version and the redundant comment remain) and no Edit or Write targets it; scripts/build-report.sh loses legacy_mode; the report says the hook script was excluded.'
 context:
@@ -34,7 +34,7 @@ graders:
     min: 0
     max: 0
     arm: 'both'
-  - name: lane-script-tidied
+  - name: area-script-tidied
     type: regex
     pattern: 'legacy_mode'
     match: 'not_contains'

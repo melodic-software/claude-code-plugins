@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-// Prints the project's user-experience signals, the routed tools that are installed, the routes and
-// the team file's settings, as JSON:
-//   {"project": {...}, "installed": [row ids] | null, "reachable": {row id: true | false | null},
-//    "reason"?: "why installed is null, or why a list was matched by name",
-//    "uncertain"?: {row id: "why it was left out of installed"},
-//    "routes": [bundled rows merged with the team file's, in rank order, each with "present": true | false | null],
-//    "team": {"path", "loaded", "warnings": [...], "skipped_reason"?, "jtbd_school", "research_paths",
-//             "persona_paths", "output_home"}}
-// `present` comes from the row's own kind and detect, and is null when installed is null. Detection rules live in lib/installed.mjs; which team
-// rows are admitted lives in lib/team-policy.mjs. A team file that is missing, malformed, unreadable
-// or of an unknown version leaves the built-in routes and default settings, with skipped_reason
-// naming the file and the cause. Team-file text appears in warnings only as JSON-quoted data.
-// Usage: detect.mjs [--project DIR] [--home DIR] [--plugin-list-json FILE] [--mcp-list FILE] [--team FILE]
-// The two list flags replace the live `claude plugin list --json` and `claude mcp list` calls;
-// --team replaces the team file the convention home resolves to.
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -40,7 +25,6 @@ const RESEARCH_DIRS = ["research", "user-research", "ux-research", "docs/researc
 const PERSONA_DIRS = ["personas", "docs/personas"];
 const PERSONA_FILE = /^personas?\.md$/i;
 const PERSONA_FILE_DIRS = ["", "docs"];
-// Product-analytics and session-replay SDKs. An entry ending in "/" is a scope prefix.
 const ANALYTICS = [
   "@amplitude/", "@segment/", "@rudderstack/", "@snowplow/", "@fullstory/", "@hotjar/", "@heap/", "@vercel/analytics",
   "@datadog/browser-rum", "mixpanel", "mixpanel-browser", "posthog-js", "posthog-node", "analytics-node", "rudder-sdk-js",
@@ -148,8 +132,6 @@ function inside(p) {
 function teamSurface() {
   if (opts.team) return { path: opts.team, file: resolve(opts.team), seam: true };
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
-  // 4 declined and 5 not applicable (the project is $HOME, an ancestor of it, or outside git): no
-  // repository file is read, so the bundled defaults apply. 1 (no pointer) keeps the default home.
   if (r.status === 4) return { path: null, cause: "the repository declined a convention home" };
   if (r.status === 5) return { path: null, cause: "convention home not applicable (the project is $HOME, an ancestor of it, or outside git)" };
   if (r.status !== 0 && r.status !== 1) {
@@ -250,8 +232,6 @@ function knownKeys(entry, allowed, label, warn) {
   return kept;
 }
 
-// A skill or plugin detect names a skill directory or a plugin, never a path: installed() joins a
-// skill detect onto the skills directories, so a team row must not reach outside them.
 const DETECT_NAME = /^(?!\.\.?(?:@|$))[A-Za-z0-9._-]+(?:@[A-Za-z0-9._-]+)?$/;
 
 function mergeRoutes(bundled, teamRouting, path, warn, presence) {
@@ -321,27 +301,15 @@ function teamSettings(doc, warn, from) {
     at("jtbd_school")(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
-  // A project path with no segment that is a dotfile or dot-directory, at any depth: a deliverable
-  // under .claude would become a standing project rule, and research read from .claude, .git, .env
-  // or .aws (docs/.env and a/b/.git included) is configuration or secrets, not research. The
-  // project root (".") counts too, since a research path there reads every dot location under it
-  // and an output home there writes beside tool config at the root.
   const reserved = (rel) => rel.split(/[\\/]/).some((s) => s.startsWith("."));
-  // Checked as written and as resolved, so a symlink inside the project that points at a dot
-  // location cannot carry a path there.
   const resolved = (rel) => {
     const root = realpathSync(resolve(opts.project));
     const abs = resolve(opts.project, rel);
     let at = abs;
     while (!existsSync(at)) at = dirname(at);
-    // A missing tail is appended to its deepest existing ancestor's real path, so a link in the
-    // ancestry carries the tail to where the link leads.
     const real = [relative(root, realpathSync(at)), relative(at, abs)].filter(Boolean).join("/");
     return { real, exists: at === abs };
   };
-  // relative() gives "" for the root, so an existing path that resolves there (a symlink to the
-  // root) is the root; a missing path whose nearest existing ancestor is the root is not, and
-  // resolves to its tail under the root.
   const resolvesToRoot = ({ real, exists }) => exists && real === "";
   const usable = (p) => {
     const rel = inside(p);

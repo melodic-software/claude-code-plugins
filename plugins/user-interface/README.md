@@ -9,7 +9,7 @@ project's existing look, reuses the design tools already installed, and fills on
 | `/user-interface:design` | Detect the project's design system and the installed design tools, route each concern to the best present source, and supply the plugin's own guidance where nothing covers it; its "Order of work" says which skill or concern to run next for a screen, from deciding a direction to the check before launch |
 | `/user-interface:write-css` | Write or review CSS in any stack: discover the project's tokens, browser targets, lint rules and conventions first, fill only the gaps with modern techniques, and name each default used; review mode lints and reports without editing |
 | `/user-interface:write-animation` | Decide whether an element should animate at all, then write one interface animation in the project's stack from its motion tokens and the stack's current docs, with reduced motion included; CSS goes through write-css |
-| `/user-interface:audit` | Review interface code read-only, one concern lane at a time: the diff (default), the whole tree, or every lane before a launch; the motion lane also finds where animation would help or must not go, and why one drops frames; each finding with severity and evidence, and `--fix` one at a time after a yes |
+| `/user-interface:audit` | Review interface code read-only, one concern at a time: the diff (default), the whole tree, or every concern before a launch; the motion concern also finds where animation would help or must not go, and why one drops frames; each finding with severity and evidence, and `--fix` one at a time after a yes |
 | `/user-interface:glossary` | Name the design or front-end term for an effect, detail or behavior someone describes, tell near-synonyms apart, and ask for a reference image when no term fits |
 | `/user-interface:setup` | Show each setting's value and the layer it came from, or change one key in one layer (user-invoked) |
 
@@ -40,7 +40,7 @@ The interface concerns live in
 [`reference/concerns.schema.json`](reference/concerns.schema.json) and
 [`scripts/lib/concerns-validate.mjs`](scripts/lib/concerns-validate.mjs). Each row names the
 reference files (spokes) `/user-interface:design` loads for that concern and that
-`/user-interface:audit` judges against as one lane.
+`/user-interface:audit` judges against as one concern.
 
 ## Working one screen
 
@@ -156,7 +156,7 @@ The `css` keys are read by `/user-interface:write-css`; its
 [`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes. The
 `animation` keys are taste defaults that apply only where the project has no motion tokens of its
 own; `/user-interface:write-animation` reads them all, and write-css reads the curves and durations.
-`animation.cleanup_order` is the exception: it sets the pass order of the motion lane's `cleanup`
+`animation.cleanup_order` is the exception: it sets the pass order of the motion concern's `cleanup`
 sub-mode in `/user-interface:audit`, and no other skill reads it.
 The `typography` key is read through the `typography` concern by `/user-interface:design` and
 `/user-interface:audit`, and applies only where the project has no type tokens for long-form text;

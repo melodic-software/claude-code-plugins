@@ -110,9 +110,6 @@ export async function runWatchCli(argv) {
       return 1;
     }
     const { workDir, framesDir, contactSheetsDir } = detection.tempSession;
-    // recoverWatchBootstrapCli reads its four args from argv[2..5] (process.argv
-    // convention: [node, script, ...args]). The two leading placeholders align
-    // the real args to positions 2-5.
     return recoverWatchBootstrapCli([
       "node",
       "recover-watch-bootstrap.js",
@@ -266,7 +263,6 @@ function trackChildren(temp) {
         process.kill(-child.pid, "SIGKILL");
         return;
       } catch {
-        // The group is already gone; fall through to the direct kill.
       }
     }
     child.kill("SIGKILL");

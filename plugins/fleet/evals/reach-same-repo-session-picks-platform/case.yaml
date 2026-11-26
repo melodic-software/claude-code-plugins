@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: 'reach-same-repo-session-picks-platform'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-both-platform-routes'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\b(?:ListAgents|SendMessage|peer tools?)\b)(?=[\s\S]*(?:\bR1\b|claude\.exe|powershell|native Windows|Windows (?:platform|side|session)))(?=[\s\S]*\bplatforms?\b)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-ssh-on-this-machine'
+    type: 'regex'
+    pattern: '\bssh(?:\.exe)?\s+(?:-\S+\s+)*[\w.@-]*(?:lap|desk)-01\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

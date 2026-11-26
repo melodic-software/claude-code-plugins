@@ -1,11 +1,3 @@
-// Expected values come from the classifier's spec (a time-limit cancel, an
-// install-step failure and a lost runner are infra; anything else is real; the
-// ci-status aggregate alone is real) and from two recorded, trimmed job
-// listings of pr-require-checks runs: 39710654665, whose check-plugins and
-// test-node jobs exceeded their time limit (annotation "The job has exceeded
-// the maximum execution time") while lint-shell failed its
-// fixture-git-isolation check, and 39716948399, whose only failure is
-// ci-status (a superseded contract-only run).
 // test-scope: .github/scripts/maintenance-reconcile-lost-runs/fixtures/jobs-*.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -41,8 +33,6 @@ test("ci-status failing alone is real", () => {
   assert.equal(infraOnly(recorded(39716948399)), false);
 });
 
-// A step stopped mid-run concludes cancelled, as check-plugins' "Install the
-// locked root toolchain" step does in run 39710654665.
 const stopped = (conclusion, name, ...laterFailedSteps) => {
   const base = job("failure", ...laterFailedSteps);
   return { ...base, steps: [base.steps[0], { name, conclusion }, ...base.steps.slice(1)] };
@@ -75,8 +65,6 @@ test("a run with no failed job, or no job listing, is not infra-only", () => {
   assert.equal(infraOnly(undefined), false);
 });
 
-// The jobs API can list a finished job's steps empty, or cut short with its
-// first steps missing and later ones still pending.
 const unlisted = { name: "lint-repo", conclusion: "failure", runner_id: 7, steps: [] };
 const cut = {
   name: "lint-repo",
@@ -102,7 +90,6 @@ test("a job no runner took lists no steps, and that list is whole", () => {
   assert.equal(stepsKnown(job("failure")), true);
 });
 
-// Numbered as a cancelled lane job lists them: 1..n, then post steps after a gap.
 const numbered = (...entries) => ({
   name: "lint-repo",
   conclusion: "failure",
@@ -131,9 +118,6 @@ test("a finished job's list is whole only when every step is done and it ends wi
   assert.equal(infraCause(stale), "");
 });
 
-// A runner that dies leaves its job's list cut at the running step, with no
-// "Complete job"; GitHub records why on the job's check run, as
-// maintenance-monitor-signals reads it.
 const died = (message, level = "failure") => ({
   ...cut,
   status: "completed",
@@ -178,19 +162,14 @@ test("the reconciler keeps a run whose failed jobs' steps did not list, inside i
   const run = (attempt, created = "2026-10-19T19:00:00Z", updated = "2026-10-19T19:30:00Z") => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: created, updated_at: updated });
   for (const job of [unlisted, cut]) {
     assert.match(reconcilerOwns({ run: run(1), jobs: [job] }, now), /steps did not list/);
-    // Attempt 2 is past the one infra re-run, so nothing is left to read them for.
     assert.equal(reconcilerOwns({ run: run(2), jobs: [job] }, now), "");
     assert.equal(reconcilerOwns({ run: run(1, "2026-10-18T19:00:00Z"), jobs: [job] }, now), "");
-    // Past RERUN_DUE_MINUTES, or with no readable end time, fix-ci takes it.
     assert.equal(reconcilerOwns({ run: run(1, "2026-10-19T17:00:00Z", "2026-10-19T17:30:00Z"), jobs: [job] }, now), "");
     assert.equal(reconcilerOwns({ run: run(1, undefined, "not a date"), jobs: [job] }, now), "");
   }
   assert.equal(reconcilerOwns({ run: run(1), jobs: [job("failure", "Lint markdown")] }, now), "");
 });
 
-// One infra re-run per head: the reconciler retries attempt 1 only, the same
-// attempt reconcilerOwns holds fix-ci off for, so fix-ci never takes a head
-// the reconciler would still re-run.
 test("the reconciler re-runs an infra-only run at attempt 1 only", () => {
   const now = Date.parse("2026-10-19T20:00:00Z");
   const run = (attempt) => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: "2026-10-19T19:00:00Z", updated_at: "2026-10-19T19:50:00Z" });
@@ -205,8 +184,6 @@ test("a run where only ci-status ran is contract-only; a tested run is not", () 
   assert.equal(contractOnly([{ name: "ci-status", conclusion: "failure" }]), false);
 });
 
-// The gate job shows as CI Status; its alias job, ci-status, reports the same
-// conclusion under the old required context. A run from before has only ci-status.
 const GATE = { id: 7, name: "CI Status", conclusion: "failure" };
 const ALIAS = { id: 8, name: "ci-status", conclusion: "failure" };
 
@@ -242,9 +219,6 @@ test("the tested run steps past failed contract-only runs, and stops at any othe
   assert.equal(await testedRun(Array.from({ length: 6 }, () => failedRun(3)), readJobs), undefined);
 });
 
-// #9828's head c1184e03: check run 120950643531 (test-bash (3), job conclusion
-// cancelled) carries GitHub's time-limit note beside the cancel note; a
-// fail-fast matrix sibling carries the cancel note alone.
 const TIME_LIMITED = JSON.parse(readFileSync(new URL("./fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
 const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
 
@@ -256,8 +230,6 @@ test("a cancelled job's time limit is read from GitHub's annotation, not from a 
   assert.equal(timeLimitNoted(undefined), false);
 });
 
-// #9828: attempt 1 of run 40118648493 ended cancelled; the reconciler re-runs
-// a lost first attempt once, so fix-ci waits for it as for an infra failure.
 test("the reconciler keeps a lost first attempt until RERUN_DUE_MINUTES; attempt 2 is fix-ci's", () => {
   const now = Date.parse("2026-10-24T18:20:00Z");
   const run = (attempt, conclusion = "cancelled", updated = "2026-10-24T18:10:00Z") => ({
@@ -276,7 +248,6 @@ test("the reconciler keeps a lost first attempt until RERUN_DUE_MINUTES; attempt
   assert.equal(reconcilerOwns({ run: run(1, "success"), jobs: null }, now), "");
 });
 
-// A run stuck queued or waiting holds fix-ci off only inside the lookback.
 test("an in-flight tested run holds fix-ci only while it was created inside the lookback", () => {
   const now = Date.parse("2026-10-19T20:00:00Z");
   const going = (created) => ({ id: 1, status: "queued", run_attempt: 2, created_at: created });

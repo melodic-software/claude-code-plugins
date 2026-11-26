@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Build the PR conversation comment that records a `ready --skip` run: one line
-# per skipped step, in run order. Comments are append-only, so the record never
-# rewrites the body or a hold in it.
-#
-# Usage:
-#   ready-skip-comment.sh --login <login> --reason <text> --step <step>...
-#
-# Pass only the steps --skip removed from what would have run, never one
-# pre_ready disabled or a built-in condition skipped. The reason is data: it is
-# rendered in a code span with backticks, `#`, `<`, `>`, `@` and control
-# characters turned into spaces, and a closing keyword or the do-not-merge
-# phrase broken with a hyphen, so it cannot link or close an issue, mention,
-# hide text or read as a hold.
-#
 # Exit 0, or 2 for a usage error (stdout empty).
 set -uo pipefail
 

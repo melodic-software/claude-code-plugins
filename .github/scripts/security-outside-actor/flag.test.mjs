@@ -24,7 +24,6 @@ const pull = (user = OUTSIDER, association = "NONE") => ({ number: 9, user, auth
 const events = {
   issues: (user, association) => ({ action: "opened", issue: issue(user, association) }),
   issue_comment: (user, association) => ({ action: "created", issue: issue(LISTED, "OWNER"), comment: { user, author_association: association, body: "hi" } }),
-  // An issue_comment on a pull request names it under `issue`.
   pull_comment: (user, association) => ({ action: "created", issue: { ...pull(LISTED, "OWNER"), pull_request: { url: "u" } }, comment: { user, author_association: association, body: "hi" } }),
   pull_request_review: (user, association) => ({ action: "submitted", pull_request: pull(LISTED, "OWNER"), review: { user, author_association: association, body: "lgtm" } }),
   pull_request_review_comment: (user, association) => ({ action: "created", pull_request: pull(LISTED, "OWNER"), comment: { user, author_association: association, body: "nit" } }),
@@ -170,8 +169,6 @@ for (const [eventName, action, number] of [
   });
 }
 
-// The payload's labels can be stale (a person may have removed one since),
-// so the label and field writes always run; repeating either is a no-op.
 test("an item whose payload shows both labels and a comment for the actor still gets the label and field writes, and no second comment", async () => {
   const payload = events.issue_comment(OUTSIDER, "NONE");
   payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }];
@@ -418,7 +415,7 @@ test("removing any other label writes nothing", async () => {
   }
 });
 
-// Actions' `==` in the job gate ignores case, so a case-renamed label reaches the script.
+// Actions' == ignores case, so a case-renamed label passes the job gate: https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
 test("removing the label under another letter case still puts it back", async () => {
   const { code, calls } = await run("pull_request_target", unlabel(OUTSIDER, { name: "Security: Outside-Actor" }));
   assert.equal(code, 0);

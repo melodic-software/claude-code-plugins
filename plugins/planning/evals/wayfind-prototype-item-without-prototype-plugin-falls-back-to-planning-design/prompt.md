@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 36: a prototype item falls back to /planning:design when the prototype plugin is not enabled, says no artifact was built, and records its decision as provisional naming itself (after-only)."
+description: "A prototype item falls back to /planning:design when the prototype plugin is not enabled, says no artifact was built, and records its decision as provisional naming itself (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

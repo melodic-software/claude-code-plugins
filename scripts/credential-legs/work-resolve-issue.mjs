@@ -7,7 +7,7 @@ export default readRunnerCalls({
   key: "resolve-issue",
   role: "ISSUE_LANE",
   upstream: ["check-admission", "pick-slot"],
-  comments: 10,
+  comments: 0,
   subscription: {
     if: `>-
       ${ADMITTED}

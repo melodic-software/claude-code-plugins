@@ -650,7 +650,6 @@ describe("installed tools", () => {
   });
 
   test("a local record for this project counts though projectEnabled is false", () => {
-    // `claude plugin list --json` run in the project shows a fresh local install this way.
     const project = join(FIX, "with-ds");
     const list = join(scratch, "local-install.json");
     writeFileSync(list, JSON.stringify([
@@ -663,7 +662,6 @@ describe("installed tools", () => {
   });
 
   test("a record with no project path neither throws nor binds to a project", () => {
-    // The live CLI emits projectPath: null; a scope other than project or local applies everywhere.
     const list = join(scratch, "null-path.json");
     writeFileSync(list, JSON.stringify([
       { id: "playwright@claude-plugins-official", scope: "local", enabled: true, projectEnabled: false, projectPath: null },
@@ -815,7 +813,6 @@ test("without the claude CLI, installed is null with a reason", () => {
 test("the claude CLI runs in the requested project, not the caller's directory", { skip: process.platform === "win32" && "the fake CLI is a sh script" }, () => {
   const bin = join(scratch, "fake-bin");
   mkdirSync(bin, { recursive: true });
-  // Reports the plugin as enabled for a project only when run from with-ds, as the real CLI scopes by cwd.
   writeFileSync(
     join(bin, "claude"),
     `#!/bin/sh\n[ "$1" = plugin ] || exit 0\ncase "$PWD" in */with-ds) e=true ;; *) e=false ;; esac\n` +

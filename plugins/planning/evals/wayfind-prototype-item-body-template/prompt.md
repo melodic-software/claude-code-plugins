@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 26, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A new prototype item's body follows the template: what to prove (one call sends email and in-app), numbered pass checks naming both outputs, the action on fail, and the Courier fallback (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

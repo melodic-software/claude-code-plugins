@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Retire the findings files a fix pass consumed by writing a fix-pass-record.
-#
-#   emit-fix-record.sh --out-dir <findings home> --consumed <findings-file> [--consumed ...]
-#                      [--branch <b>] [--rows <n>] [--outcome <text>] [--not-applied-rows <file>]
-#
-# The record shape and the digest-suffixed name are owned by review:fanout's
-# fix-pass-mode.md "Step 5"; review:fanout's Step 1 subtracts a findings file
-# only when a record for the same branch names it by name AND sha256. The
-# record is staged outside --out-dir, digested, and moved in as
-# <TS>-fix-pass-applied-<sha256-12 of the staged bytes>.md, so two records never
-# share a name unless their bytes are identical. Prints the record's path.
-#
-# --rows and --outcome fill the Producer-owned line (default 0 and "(none)").
-# --not-applied-rows is a file of ready-made table rows (Location, Finding, Why
-# not applied, Source file) for reverted or suppressed findings; absent or
-# empty renders "(none)".
-#
 # Exit: 0 on success, 2 on usage error.
 set -euo pipefail
 
@@ -32,7 +15,17 @@ OUTCOME="(none)"
 NA_ROWS=""
 
 usage() {
-  sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed -e '/^set -euo/d' -e 's/^# \{0,1\}//' >&2
+  cat >&2 <<'EOF'
+Retire the findings files a fix pass consumed by writing a fix-pass-record; prints its path.
+Usage: emit-fix-record.sh --out-dir <findings home> --consumed <findings-file> [--consumed ...] [options]
+  --out-dir <dir>            findings home the record is written into
+  --consumed <file>          a findings file the pass consumed (repeatable)
+  --branch <b>               branch the record names
+  --rows <n>                 rows applied (default 0)
+  --outcome <text>           outcome line (default "(none)")
+  --not-applied-rows <file>  ready-made table rows for reverted or suppressed findings
+Exit: 0 on success, 2 on usage error.
+EOF
 }
 
 while [[ $# -gt 0 ]]; do

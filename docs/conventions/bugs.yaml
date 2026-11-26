@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../plugins/bugs/schemas/bugs.schema.json
-lanes:
+areas:
   - name: entrypoints
     globs:
       - 'plugins/*/hooks/*.sh'

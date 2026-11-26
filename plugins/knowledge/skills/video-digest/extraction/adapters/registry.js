@@ -35,12 +35,6 @@ export const SOURCE_MODULES = Object.freeze({
   "twitter.com": xModule,
 });
 
-// Init-time consistency check (pure, no I/O): every registry key is declared
-// by its adapter, and every declared host is registered. Safe at module init
-// because nothing this registry imports (directly or transitively) imports it
-// back — shared acquisition machinery must never import this module, or the
-// cycle would make `module.adapter` dereference a still-initializing module.
-// Cross-adapter host collisions are covered by the conformance suite.
 for (const [host, module] of Object.entries(SOURCE_MODULES)) {
   if (!module.adapter.hosts.includes(host)) {
     throw new Error(

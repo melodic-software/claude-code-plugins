@@ -26,8 +26,8 @@ assert_contains "Windows base file resolves through PROGRAMFILES" \
   "$(OSTYPE=msys PROGRAMFILES='X:\PF' bash -c "source '$LIB'; mscope::base_file")" \
   'X:\PF\ClaudeCode\managed-settings.json'
 
-# The legacy Windows location is unsupported since v2.1.75; probing it would
-# report policy that is not in force.
+# Claude Code does not read the legacy ProgramData managed-settings path, so it is never emitted.
+# https://code.claude.com/docs/en/managed-settings
 assert_eq "legacy ProgramData path never emitted" "" \
   "$(OSTYPE=msys bash -c "source '$LIB'; mscope::base_file" | grep -i 'ProgramData' || true)"
 
@@ -42,9 +42,7 @@ assert_eq "override relocates the drop-in dir with it" \
   "$(bash -c "source '$LIB'; mscope::dropin_dir /tmp/fixture/managed-settings.json")"
 
 win_keys="$(OSTYPE=msys bash -c "source '$LIB'; mscope::registry_keys")"
-# portability-ok: the `\S` below are literal first characters of SOFTWARE in
-# single-quoted Windows registry paths, not GNU regex escapes. The assertions are
-# shell string comparisons; no regex engine sees these values.
+# portability-ok: the `\S` below start SOFTWARE in single-quoted Windows registry paths, not regex escapes
 assert_contains "Windows emits the admin-level policy key" "$win_keys" 'HKLM\SOFTWARE\Policies\ClaudeCode'
 assert_contains "Windows emits the user-level policy key" "$win_keys" 'HKCU\SOFTWARE\Policies\ClaudeCode' # portability-ok: Windows registry path string in a test fixture, not a regex construct
 assert_eq "HKLM is listed first (HKCU is lowest policy priority)" \

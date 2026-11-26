@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 27, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A human-only setup task routes to /wizard:generate, and its resolution comment records the names and locations of what was set up but never the key's value (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

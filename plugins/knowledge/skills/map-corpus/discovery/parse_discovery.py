@@ -70,7 +70,6 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
     scheme = parts.scheme.lower()
     if scheme not in ("http", "https") or not parts.netloc:
         return None
-    # lowercase host only; userinfo is case-significant
     userinfo, at, host = parts.netloc.rpartition("@")
     netloc = userinfo + at + host.lower()
     path = parts.path.rstrip("/")
@@ -112,8 +111,6 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
     fetches external entities, and bundled libexpat >= 2.4 caps entity
     amplification — this check makes the refusal explicit and loud.)
     """
-    # scan the WHOLE input: a prefix window is bypassable by padding the prolog,
-    # and the full scan is cheap next to the XML parse that reads every byte
     for marker in (b"<!DOCTYPE", b"<!ENTITY"):
         if marker in data:
             fail(

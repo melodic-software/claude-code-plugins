@@ -581,7 +581,7 @@ elif ! python3 -c 'import pygments' >/dev/null 2>&1; then
   skip comment-lint "python3 with pygments not installed"
 else
   run_check comment-lint \
-    "AI_AGENT=ci sh $comment_lint --worktree for uncommitted edits, else scripts/check-comment-lint.sh with HEAD_SHA, BASE_REF and GITHUB_EVENT_NAME=pull_request" \
+    "AI_AGENT=ci sh $comment_lint --worktree for uncommitted edits, else bash plugins/code-tidying/git-hooks/comment-lint-ci.sh HEAD $merge_base" \
     comment_lint_merge_base_diff
 fi
 

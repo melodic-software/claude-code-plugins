@@ -1,36 +1,4 @@
 # shellcheck shell=bash
-# Shared pieces of this plugin's bash contract wrappers (sourceable; not invoked
-# directly).
-#
-# Library only: no top-level execution, no exits, no output of its own. Each
-# wrapper keeps its own `Exit:` taxonomy and its own skip wording, which differ
-# per script by design, and the alias-stub probe keeps its own candidate ladder
-# because it must inspect a candidate before executing it. Each helper writes
-# into a caller-named variable rather than printing, so a call costs no subshell
-# and a bare invocation keeps the caller's errexit in force. Every local carries
-# the `_test_wrapper_` prefix: a nameref resolves its target in the scope where
-# it is USED, so an unprefixed local sharing the caller's chosen out-var name
-# would shadow that caller's variable for the rest of the call.
-#
-#   test_wrapper::floor_to <var> <engine>
-#     Sets <var> to the "<major>.<minor>" MIN_PYTHON floor parsed out of
-#     <engine>, the one origin for that number, and leaves it empty when the
-#     line is absent. Returns 0 either way, so the caller decides what an empty
-#     <var> means.
-#
-#   test_wrapper::floor_check_to <var> <floor>
-#     Sets <var> to a Python program that exits 0 when the interpreter running
-#     it is at or above <floor> and 1 when it is below.
-#
-#   test_wrapper::interpreter_to <var>
-#     Sets <var> to the first of python, python3 that exists, and leaves it
-#     empty when neither does. Presence is not the floor check: the caller runs
-#     the program above to decide.
-#
-#   test_wrapper::python_file_to <var> <path>
-#     Sets <var> to <path>, converted with `cygpath -m` when that tool exists so
-#     a native Windows Python can open a Git Bash path. Leaves <path> unchanged
-#     when cygpath is absent or fails.
 
 test_wrapper::floor_to() {
   local -n _test_wrapper_floor="$1"

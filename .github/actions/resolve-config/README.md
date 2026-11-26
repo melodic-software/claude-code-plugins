@@ -136,7 +136,8 @@ this rule catches a config that reached the resolver unchecked. The upstream ali
 [model-config, Model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of
 2026-11-09; recheck when an alias is added or retired. At input `model-rung` 1 the
 profile's `escalate-to` replaces that profile, one rung at most; a script slot carries `models`
-null. A skill slot with input `issue`, in a config with `models.issue-dimensions`, also carries
+null. A skill slot with input `issue`, in a config with `models.issue-dimensions`, unless its
+`applied-by` names `triage-verdict` (the triage that sets those dimensions), also carries
 `issue-dimensions` and `timeout-minutes`, and its `max-turns` is the dimensions' turn cap; its
 Complexity's `complexity-profiles` entry, when there is one, replaces the route's profile. The
 issue's field values are read over REST (`issue-field-values`, which needs `issues: read`) and

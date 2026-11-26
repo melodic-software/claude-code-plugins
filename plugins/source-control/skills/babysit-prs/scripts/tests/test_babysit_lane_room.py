@@ -31,8 +31,6 @@ import babysit_merge_policy as policy  # noqa: E402
 import babysit_postmerge as pm  # noqa: E402
 import babysit_verify_evidence as ve  # noqa: E402
 
-# CheckCodeUnchanged builds git fixtures: clear any ambient git environment
-# first (scripts/check-fixture-git-isolation.sh).
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
@@ -279,9 +277,6 @@ class LaneRoom(unittest.TestCase):
     DEMOTION_CHANGED = dict(demotion_changed=True, now=FLOOR + timedelta(minutes=1))
 
     def test_an_answer_the_gate_would_not_reuse_is_read_again(self) -> None:
-        # The gate reads afresh on any refusal (assess); so does the room,
-        # and a readable answer counts from its own floor. Run 40255059710
-        # left 12 lane pull requests unarmed on `demotion-changed`.
         for name, kwargs in self.UNUSABLE.items():
             with self.subTest(name):
                 fresh = policy.PostMergeGate(None, {"readable": True}, lambda m: True)
@@ -400,9 +395,6 @@ class LaneRoom(unittest.TestCase):
                 self.assertFalse(self.seen, "no in-flight read")
 
     def test_a_lane_merge_the_answer_does_not_count_is_read_again(self) -> None:
-        # The gate's reuse rule (shared_refusal) reads afresh when a lane
-        # merge landed after the report was computed (`new-merge:#<n>`), so
-        # its failed full run is not missed; the room reads it again too.
         seen: list[dict[str, object]] = []
 
         def refusal(repo: str, answer: object, **kwargs: object) -> str:
@@ -763,9 +755,6 @@ class PendingRunsUnchanged(unittest.TestCase):
         ]
         answer, calls = self.unchanged(rows)
         self.assertTrue(answer)
-        # One listing per verifying workflow, of runs on main created since
-        # merge #5: every workflow's runs on main filled 152 in under two
-        # hours on 2026-10-27, past one page.
         self.assertEqual(
             [c[1].split("/runs?")[0].rsplit("/", 1)[1] for c in calls],
             ["pr-require-checks.yml", "post-merge-detect-silent-revert.yml"],
@@ -992,8 +981,6 @@ class SettleShared(unittest.TestCase):
         self.assertEqual(self.settle(answer), (answer, None))
 
     def test_a_moved_head_with_no_new_lane_merge_is_reused(self) -> None:
-        # Run 40382489448: a merge landed before the merge job started, none
-        # of them the lane's, and the job's own check found the same merges.
         answer = shared(report=self.VERIFIED)
         self.assertEqual(self.settle(answer, head=NEW_MAIN), (answer, None))
 
@@ -1150,7 +1137,6 @@ class IdleRefusal(unittest.TestCase):
         def read(args: list[str], label: str) -> object:
             self.calls.append(args[1])
             if "/actions/workflows/" in args[1]:
-                # The listing answers only runs created at or after its floor.
                 floor = datetime.fromisoformat(
                     unquote(args[1].split("&created=")[1].split("&")[0])[2:]
                 )
@@ -1305,7 +1291,6 @@ class IdleRefusal(unittest.TestCase):
         self.assertEqual(self.refusal(issues=[marked]), "quarantine-changed")
         page = [{"number": n, "body": ""} for n in range(100)]
         self.assertEqual(self.refusal(issues=page), "quarantine-changed")
-        # An issue without the marker, or a pull request quoting it, is not one.
         other = [{"number": 4, "body": "triaged"}, {**marked, "pull_request": {}}]
         self.assertIsNone(self.refusal(issues=other))
 
@@ -1329,10 +1314,7 @@ class CheckCodeUnchanged(unittest.TestCase):
         self.root = pathlib.Path(tempfile.mkdtemp(prefix="check-code-"))
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         self.git("init", "-q")
-        # Repo-local, as in test_prune_babysit_worktrees.py: a global
-        # commit.gpgsign would sign every fixture commit with the machine's key.
         self.git("config", "commit.gpgsign", "false")
-        # The CRLF case needs the bytes stored as written.
         self.git("config", "core.autocrlf", "false")
         self.commits: dict[str, str] = {}
         for name, path in (
@@ -1398,9 +1380,6 @@ class CheckCodeUnchanged(unittest.TestCase):
     def test_a_comment_or_blank_line_edit_to_the_pipeline_config_allows_reuse(
         self,
     ) -> None:
-        # 41344350944 ran the check again for a YAML comment edit: no parser
-        # reads a whole-line comment, a blank line or trailing whitespace.
-        # An apostrophe inside a plain value and closed quotes open nothing.
         body = 'merge:\n  rung: merge\n  why: a repository\'s flow\n  l: [a, "b: c"]\n'
         kept = self.commit_config("# one\n" + body)
         for edited in (
@@ -1416,9 +1395,7 @@ class CheckCodeUnchanged(unittest.TestCase):
         kept = self.commit_config("merge:\n  rung: merge\n  x: 1\n")
         for edited in (
             "merge:\n  rung: off\n  x: 1\n",
-            # Indentation is structure: x leaves merge.
             "merge:\n  rung: merge\nx: 1\n",
-            # A `#` after a value may sit inside a quoted string.
             "merge:\n  rung: merge  # note\n  x: 1\n",
         ):
             with self.subTest(edited):
@@ -1426,9 +1403,6 @@ class CheckCodeUnchanged(unittest.TestCase):
                 self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
 
     def test_a_change_the_config_parser_reads_differently_refuses(self) -> None:
-        # yaml-subset.awk splits lines on \n only, drops one trailing \r and
-        # takes only space and tab as blanks; Python's splitlines and strip
-        # would hide each of these edits.
         body = (
             "merge:\n  rung: autonomous\n  diff-check:\n    denied-paths:\n"
             "      - secrets/**\nred-main:\n  confirm-wait-minutes: 30\n"
@@ -1446,7 +1420,6 @@ class CheckCodeUnchanged(unittest.TestCase):
                 self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
 
     def test_a_crlf_only_change_allows_reuse(self) -> None:
-        # The parser drops each line's trailing \r.
         body = "merge:\n  rung: merge\n  x: 1\n"
         kept = self.commit_config(body)
         self.commit_config(body.replace("\n", "\r\n"))
@@ -1454,7 +1427,6 @@ class CheckCodeUnchanged(unittest.TestCase):
 
     def test_a_hash_line_inside_a_block_or_quoted_scalar_is_content(self) -> None:
         for before, after in (
-            # A blank line folds a plain scalar's continuation as a newline.
             ("a: one\n  two\n", "a: one\n\n  two\n"),
             ("a: one\n  two\n", "a: one\n  # x\n  two\n"),
             ("- one\n  two\n", "- one\n\n  two\n"),
@@ -1469,7 +1441,6 @@ class CheckCodeUnchanged(unittest.TestCase):
                 self.assertFalse(policy.check_code_unchanged(kept, root=self.root))
 
     def test_the_pipeline_config_unreadable_at_the_kept_commit_refuses(self) -> None:
-        # The kept commit predates the file: `git show` fails, so not unchanged.
         self.git("checkout", "-q", "--detach", self.commits["config"])
         with mock.patch.object(policy, "CHECK_CODE_YAML", ("docs/absent.yaml",)):
             self.assertFalse(
@@ -1482,8 +1453,6 @@ class CheckCodeUnchanged(unittest.TestCase):
                 self.assertFalse(self.unchanged(kept, "config"))
 
     def test_a_guarded_path_missing_at_head_refuses(self) -> None:
-        # A diff of a path at neither commit is empty, so a renamed path
-        # would otherwise read as unchanged.
         moved = (*policy.CHECK_CODE_PATHS, "docs/conventions/renamed.yaml")
         with mock.patch.object(policy, "CHECK_CODE_PATHS", moved):
             self.assertFalse(self.unchanged(self.commits["config"], "config"))
@@ -1628,7 +1597,6 @@ class SettleCommand(unittest.TestCase):
         )
 
     def test_it_prints_what_moved_as_settle_shared_found_it(self) -> None:
-        # 41341833807 logged `unverified-stale` and nothing of what moved.
         moved = {
             "answer": "refused",
             "reason": "unverified-stale",
@@ -1764,8 +1732,6 @@ class SettleCommand(unittest.TestCase):
 
         def read(args: list[str], label: str) -> object:
             if "/actions/workflows/" in args[1]:
-                # Only runs created at or after the listing's floor, which
-                # outstandingSince moves back to the canary's queue time.
                 floor = datetime.fromisoformat(
                     unquote(args[1].split("&created=")[1].split("&")[0])[2:]
                 )
@@ -1815,11 +1781,6 @@ class SettleCommand(unittest.TestCase):
     def test_a_canary_finished_since_a_verified_report_refuses_its_reuse(
         self,
     ) -> None:
-        # pr-merge's PR-scoped wake reuses the last sweep's report through
-        # this call (pr-merge.yml "Keep the last sweep's report only while
-        # nothing it read has moved"): a fully verified report whose canary,
-        # queued before it, completed after its computedAt is refused before
-        # the lane room's rule runs, and with no report nothing arms.
         code, reason, settle = self.canary_settle("--idle-tick")
         self.assertEqual((code, reason), (1, "idle tick runs-changed"))
         settle.assert_not_called()
@@ -1939,8 +1900,6 @@ class SettleCommand(unittest.TestCase):
             self.assertEqual(stop.exception.code, 2)
 
     def test_changed_verifying_runs_refuse_before_the_lane_rooms_reads(self) -> None:
-        # 41345813084: `runs-changed` after settle_shared's 22 calls. The two
-        # run listings now come first.
         code, out, seen = self.main(
             ("answer", None), extra=("--idle-tick",), idle_runs="runs-changed"
         )
@@ -1956,9 +1915,6 @@ class SettleCommand(unittest.TestCase):
         self.assertEqual(self.order, ["report", "runs", "settle", "marks", "report"])
 
     def test_a_fresh_report_skips_the_runs_its_own_check_just_read(self) -> None:
-        # 41737390591: the wake's fresh report, computed seconds earlier, was
-        # refused `runs-changed`. With --fresh the verifying runs are not
-        # read; the report checks and the quarantine and pin reads still are.
         fresh = ("--idle-tick", "--fresh")
         code, out, _ = self.main(
             ("answer", None), extra=fresh, idle_runs="runs-changed"

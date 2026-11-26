@@ -1,44 +1,4 @@
 #!/usr/bin/env bash
-# Contract + behavioral test for the jq-gate POSTURE split (#2146).
-#
-# Two things are proven here, and the second is the one that matters:
-#
-#   1. MEMBERSHIP (static). A guardrails hook belongs to the fail-CLOSED class
-#      iff it already fails closed on another "I cannot parse this input"
-#      condition — today, a MAX_COMMAND_LEN ceiling. That criterion is applied
-#      mechanically to every hook in this directory, so the class cannot drift:
-#      a hook that grows a ceiling and keeps the fail-open gate fails here, and
-#      so does a hook that adopts the blocking gate without one.
-#
-#   2. BEHAVIOR (four cells, with controls). Running the guards with jq
-#      genuinely unreachable, and asserting the ALLOW/DENY grid #2146 measured.
-#      Two cells cannot distinguish "the guard was skipped" from "the harness
-#      returns ALLOW for everything", so the jq-PRESENT column is the
-#      discrimination control and an advisory hook is the posture control.
-#
-# HOW jq IS HIDDEN, AND WHY NOT BY TOUCHING PATH. A BASH_ENV file defines a
-# `command` shell function that reports `jq` as absent and forwards every other
-# lookup to the real builtin, plus a `jq` function that fails the way a missing
-# binary does. BASH_ENV is sourced by every non-interactive bash spawned below,
-# including the hook's own children, so the override covers the whole process
-# tree. Every jq probe in hook-utils.sh is a `command -v jq`, so the override
-# reaches all of them. PATH IS LEFT COMPLETELY INTACT, and that is not
-# fastidiousness: stripping PATH directories also removes `git`, which these
-# guards invoke, and a guard that cannot find git produces the SAME answer for
-# an entirely unrelated reason. Three separate attempts at this measurement were
-# invalid for exactly that, and each produced the answer the tester was hoping
-# for. So the precondition block below asserts, INSIDE the hidden environment:
-#
-#     jq=hidden  git=visible  bash=visible  path-to-jq=intact
-#
-# and refuses to read a single verdict until all four hold. `path-to-jq=intact`
-# is `builtin command -v jq` still resolving — proof that the LOOKUP was hidden
-# and the tool itself was not removed.
-#
-# lib/hook-utils.test.sh and secret-pattern-detection.test.sh both record
-# that real jq-removal "is not portably simulable" via an isolated bin dir
-# (which cannot host bash + coreutils across Git Bash and Linux). That is true
-# of the bin-dir approach, and is exactly why this one overrides the lookup.
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json
 
 set -uo pipefail

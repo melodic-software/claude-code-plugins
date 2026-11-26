@@ -1,73 +1,38 @@
 #!/usr/bin/env bash
-# machine-behavior.sh — emit a loop lane's MACHINE-BEHAVIOR environment block.
-#
-# Every /loop lane otherwise hand-assembles this block each session: the clone
-# path, the worktree inventory (root + count + per-worktree branch), the gh
-# identity it acts as, and the versions of the plugins it runs on. That is pure
-# environment inspection with no reasoning, so it is scripted here and the lane
-# prompt references the script instead of re-deriving the block every cycle.
-#
-# DETERMINISM CONTRACT. This script emits ONLY mechanically unambiguous facts.
-# It deliberately does NOT compute "deviations from standing rules": the standing
-# rules are prose the script cannot read, so a deviation is a model judgment made
-# by reading these facts against those rules — not a scripted field. Emitting a
-# fabricated deviations verdict would put guessing inside the "deterministic"
-# script. The block therefore ends with a one-line pointer reminding the lane to
-# make that assessment itself.
-#
-# Plugin versions are the INSTALLED runtime versions (read from Claude Code's own
-# installed_plugins.json), NOT the versions in the repo checkout. The block
-# describes the environment the lane is actually running in, and per the lanes
-# skill's context/refresh.md a running lane's installed plugin version can lag
-# repo HEAD — the installed record is the honest number, the checkout is not.
-#
-# Usage:
-#   machine-behavior.sh [--plugin <id>]... [--repo DIR]
-#
-#   --plugin <id>   Plugin to report a version for (repeatable). <id> matches the
-#                   plugin NAME (the part before '@<marketplace>' in
-#                   installed_plugins.json), e.g. `--plugin harness-ops`. With no
-#                   --plugin flag, every installed plugin is reported — pass the
-#                   specific ids a lane runs to keep the block tight.
-#   --repo DIR      Repo root for the worktree inventory (default: the git
-#                   toplevel of the current directory).
-#   --max-worktrees N
-#                   List at most N worktrees (default 50; 0 lists all).
-#                   `worktree-count` always carries the full count, and a
-#                   `... N more` line follows a truncated list.
-#   --help
-#
-# Output (stdout): a formatted text block, printed verbatim by the lane. It is
-# greppable line-by-line (each fact on its own `key: value` line) and embeds
-# directly into a telemetry-comment body, whose size telemetry-upsert.sh caps at
-# 64 KiB, hence the worktree cap. No JSON surface — nothing parses this.
-#
-# Fields that cannot be resolved degrade to an explicit `unavailable` marker
-# rather than aborting: this is telemetry, and a partial block is more useful to
-# a lane than no block. The one hard prerequisite is jq.
-#
 # Exit codes:
 #   0  emitted (individual fields may read `unavailable`)
 #   3  invalid argument
 #   4  prerequisite missing (jq) or the repo could not be resolved
-#
-# Env overrides (testing only; production uses the real paths):
-#   MACHINE_BEHAVIOR_INSTALLED_JSON  path to installed_plugins.json
 
 set -uo pipefail
 
-# Some native-Windows jq builds CRLF-terminate every line; `$(...)` strips only
-# the trailing LF, leaving a stray CR that corrupts a captured value. Route every
-# jq call through this wrapper (mirrors fleet-state.sh) so no call site forgets.
 jq() { command jq "$@" | tr -d '\r'; }
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+machine-behavior.sh: emit a loop lane's MACHINE-BEHAVIOR environment block (clone path,
+worktree inventory, gh identity, installed plugin versions). Unresolvable fields read
+`unavailable`; deviations from standing rules are the lane's own judgment, not a field.
 
-# Guard for a space-separated option that consumes the next token: reject a
-# missing value or one that looks like another flag. Called as a bare statement
-# (never in a subshell) so its exit fires for the whole script.
+Usage:
+  machine-behavior.sh [--plugin <id>]... [--repo DIR] [--max-worktrees N]
+
+  --plugin <id>      plugin NAME to report a version for; repeatable (default: every installed plugin)
+  --repo DIR         repo root for the worktree inventory (default: the git toplevel)
+  --max-worktrees N  list at most N worktrees (default 50; 0 lists all)
+  --help
+
+Env (testing only): MACHINE_BEHAVIOR_INSTALLED_JSON  path to installed_plugins.json
+
+Exit codes:
+  0  emitted (individual fields may read `unavailable`)
+  3  invalid argument
+  4  prerequisite missing (jq) or the repo could not be resolved
+EOF
+}
+
 require_value() {
   [[ -n "${2:-}" && "$2" != -* ]] && return 0
   err "option '$1' requires a value"
@@ -116,7 +81,6 @@ done
 }
 MAX_WORKTREES=$((10#$MAX_WORKTREES))
 
-# After the parse loop, so `--help` answers on a machine without jq.
 type -P jq >/dev/null 2>&1 || {
   err "jq not found (required)"
   exit 4
@@ -151,12 +115,6 @@ gh_identity() {
   printf '%s (id %s)' "$login" "${id:-?}"
 }
 
-# --- Worktree inventory ------------------------------------------------------
-# The main worktree owns the common git dir, so it is the dir holding `.git`
-# (strip the trailing `/.git` or `/worktrees/...` common-dir suffix). Every
-# worktree path + its branch is emitted raw: the worktrees legitimately live
-# under different parents (repo dir, loop-worktrees, codex worktrees), so there
-# is no single deterministic "pattern" to infer — the raw list IS the pattern.
 CLONE_PATH="unavailable"
 CURRENT_WT="unavailable"
 declare -a WT_LINES=()
@@ -165,11 +123,6 @@ read_worktrees() {
   local porcelain common_dir
   porcelain="$(git -C "$REPO" worktree list --porcelain 2>/dev/null | tr -d '\r')" || return
   common_dir="$(git -C "$REPO" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
-  # Main worktree = the dir that owns the common git dir. `rev-parse
-  # --git-common-dir` returns a RELATIVE path (bare `.git`) when run from the
-  # main worktree, and an absolute path from a linked worktree. Anchor a relative
-  # value to $REPO first, or `dirname .git` = `.` would emit "." as the clone
-  # path from the main worktree.
   if [[ -n "$common_dir" ]]; then
     case "$common_dir" in
     /* | [A-Za-z]:[\\/]*) : ;;           # already absolute (POSIX or Windows drive)
@@ -199,11 +152,6 @@ read_worktrees() {
   done <<<"$porcelain"$'\n'
 }
 
-# --- Plugin versions ---------------------------------------------------------
-# INSTALLED runtime versions, keyed by plugin name. installed_plugins.json maps
-# `<name>@<marketplace>` -> [ {scope, version, ...}, ... ]. Emit the distinct
-# versions per selected name (more than one = a scope divergence, surfaced here
-# but authoritatively reported by the `plugins` skill's fleet-state.sh).
 plugin_versions() {
   if [[ ! -f "$INSTALLED_JSON" ]]; then
     printf '  unavailable (installed_plugins.json not found: %s)\n' "$INSTALLED_JSON"
@@ -215,8 +163,6 @@ plugin_versions() {
   fi
 
   local want_json='[]'
-  # One jq process, not two: `-Rn` makes `inputs` yield each line as a raw
-  # string, which is what `jq -R . | jq -cs .` spelled with a second spawn.
   ((${#WANT_PLUGINS[@]})) && want_json="$(printf '%s\n' "${WANT_PLUGINS[@]}" | jq -Rcn '[inputs]')"
 
   local rows
@@ -262,4 +208,4 @@ if ((${#WT_LINES[@]})); then
 fi
 printf 'plugin-versions:\n'
 plugin_versions
-printf 'deviations: assess these facts against the lane standing rules (not scripted — see machine-behavior.sh header)\n'
+printf 'deviations: assess these facts against the lane standing rules (not scripted: a model judgment)\n'

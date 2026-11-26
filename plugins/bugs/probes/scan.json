@@ -35,7 +35,7 @@
       "id": "pos-train-05",
       "split": "train",
       "expect_trigger": true,
-      "request": "Rotate through the next lane and find anything wrong in resting code."
+      "request": "Rotate through the next focus area and find anything wrong in resting code."
     },
     {
       "id": "pos-train-06",

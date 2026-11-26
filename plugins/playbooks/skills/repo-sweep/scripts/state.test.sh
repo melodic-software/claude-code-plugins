@@ -21,8 +21,6 @@ case "$*" in
 esac
 EOF
 chmod +x "$TMP/bin/gh"
-# A native jq.exe without -b writes text-mode stdout: every LF leaves as CRLF. This fake does
-# that unless called with -b; text_jq runs state.sh with it on a Windows platform.
 mkdir -p "$TMP/textjq"
 # shellcheck disable=SC2016 # the fake's own source: its $-expansions run when it does
 {

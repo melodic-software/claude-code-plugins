@@ -1,13 +1,4 @@
 #!/usr/bin/env node
-// Build the observability trend dashboard: headline metrics, any number of
-// tables, and the findings, rendered from a JSON model.
-//
-// Every interpolated field goes through escapeHtml from the synced helper.
-// The page is self-contained: inline style, no script, no image, no link.
-// stampPage adds the generator marker. validateRenderedPage refuses a page
-// this builder would not accept, including its own output if a template edit
-// breaks the allowlist.
-
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 

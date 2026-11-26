@@ -64,6 +64,10 @@ function legSteps(ran, at, end, legStep) {
   });
   if (handoff) Object.assign(ctx, { [`steps.${legStep}${at}.outcome`]: end.clean ? "success" : "failure", [`steps.${legStep}${at}.outputs.clean`]: end.clean ? "true" : "" });
   if (end.kind === "verdict") ctx["steps.verdict.outcome"] = "success";
+  for (const [k, v] of Object.entries(ctx)) {
+    const later = /^steps\.(judge|key-leg|sub-leg)-\d+\.(.*)$/.exec(k);
+    if (later) ctx[`steps.${later[1]}-chunks.${later[2]}`] = v;
+  }
   return ctx;
 }
 
@@ -103,9 +107,6 @@ function oldRun(s) {
 
 function newJob(job, leg, s, needs, end, legStep) {
   const base = { ...RUN, ...needs, "steps.agree.outcome": s.agree ? "success" : "skipped", ...prefixed("secrets", Object.fromEntries(Object.entries(SECRETS).map(([k, name]) => [name, s[k] ? "set" : ""]))) };
-  // The key job's credit read is its own step under continue-on-error: a read
-  // that fails or times out (gate "failed") leaves its outputs empty, the
-  // key call's selected with them, and the key runs, as before.
   const credit = leg === "key" ? wf.step(job, "credit") : null;
   if (credit) {
     assert.equal(credit.inputs.leg, "start", job);
@@ -126,7 +127,6 @@ function newJob(job, leg, s, needs, end, legStep) {
   if (leg !== "fallback") {
     const next = wf.step(job, "next");
     assert.equal(next.if, "", `${job}'s next-leg call has no if`);
-    // No if: it runs only when every step before it passed.
     const decided = res === "success" ? S.next({ state: value(next.inputs.state, ctx), handoff: value(next.inputs.handoff, ctx), handoffReason: value(next.inputs["handoff-reason"], ctx) }) : {};
     Object.assign(outputs, evalMap(wf.outputs(job), { ...ctx, ...prefixed("steps.next.outputs", decided) }));
   }

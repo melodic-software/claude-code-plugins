@@ -131,7 +131,6 @@ class GuardCase(unittest.TestCase):
         self.addCleanup(gh.reset_rate_guard)
         self.sent: list[list[str]] = []
         self.answers: list[tuple[int, str, str]] = []
-        # A job's real RUNNER_TEMP must never take a test's stop.
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.runner_temp = temp.name
@@ -284,7 +283,6 @@ class AServerErrorWithRetryAfterIsHeldButNotARateLimit(GuardCase):
                 self.assertIn(f"HTTP {status} with a Retry-After", line)
                 self.assertNotIn("rate limit", line.lower())
                 self.assertNotIn("pool is exhausted", line)
-                # The hold is Retry-After's 120 s, over every pool, as before.
                 self.assertEqual(first.pool, gh.ALL_POOLS)
                 self.assertGreaterEqual(first.reset, int(before) + 120)
                 self.assertLessEqual(first.reset, time.time() + 120)
@@ -440,7 +438,6 @@ class WhatIsNotARateLimit(GuardCase):
 
     def test_a_5xx_keeps_its_bounded_retry(self) -> None:
         for _ in range(len(verify_evidence.LISTING_WAITS) + 1):
-            # A paginated read runs without -i: gh prints only its message.
             self.answer(1, "", "gh: Server Error (HTTP 502)")
         reader = verify_evidence.Reader("o/r", "main")
         with (
@@ -721,7 +718,6 @@ class TheProcessExitsRed(unittest.TestCase):
             line for line in proc.stderr.splitlines() if line.startswith("::error")
         ]
         self.assertEqual(len(errors), 1, proc.stderr)
-        # 1792863330 is 2026-10-24T17:35:30Z (date -u -d @1792863330).
         self.assertIn("2026-10-24T17:35:30Z", errors[0])
         self.assertIn("core", errors[0])
         self.assertNotIn("Traceback", proc.stderr)
@@ -938,7 +934,6 @@ class TheJobStopFile(GuardCase):
                 gh.gh_capture(args)
             self.assertEqual(got.exception.pool, gh.ALL_POOLS)
             self.assertIn("cannot be read", got.exception.reason)
-            # The reset is past datetime's range; the line still prints.
             self.assertIn(str(self.stop_file), got.exception.error_line())
         self.assertEqual(self.sent, [])
 

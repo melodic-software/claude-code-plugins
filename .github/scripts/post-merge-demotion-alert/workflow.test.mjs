@@ -1,7 +1,3 @@
-// The report-red-main job's hardening (README.md, "Red main"): it runs only
-// for a failed full run on main, never for an event the lanes App sent; it
-// holds the job's own token, writes only issues and mints no token; and the
-// kill switch stops it before it reads.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -108,9 +104,6 @@ test("the run step takes every event field through env", () => {
   }
 });
 
-// Records are one per signal and SHA, found by a read before a create, so
-// every sighting of one signal and SHA must wait on the others: a dispatch
-// and a workflow_run event of the same run, and two runs of one SHA.
 test("the alert's group keys on signal and head SHA, the same for a dispatch and a workflow_run event", () => {
   const alert = text.slice(text.indexOf("\n  file-demotion-issue:\n"), text.indexOf("\n  report-red-main:\n"));
   const block = /\n {4}concurrency:\n {6}group: (.*)\n {6}cancel-in-progress: false\n/.exec(alert);
@@ -138,11 +131,6 @@ test("reports run one at a time across the repository, so two cannot both read t
   assert.match(job, /\n {4}concurrency:\n {6}group: red-main-report\n {6}cancel-in-progress: false\n/);
 });
 
-// The file-demotion-issue job's `if` skips, before any checkout, exactly the workflow_run
-// events the file step would exit 0 on. Both sides come from the workflow:
-// the `if` is evaluated as written, and the step's own bash runs up to its
-// first action (`newly=''`). A signal, conclusion or attempt rule added to
-// one side and not the other fails here.
 test("the alert's job if admits exactly the workflow_run events the file step acts on", () => {
   const alert = text.slice(text.indexOf("\n  file-demotion-issue:\n"), text.indexOf("\n  report-red-main:\n"));
   const folded = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(alert);
@@ -213,8 +201,6 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     "done",
   ].join("\n");
   const input = cases.map((c) => [c.name, c.event, c.conclusion, c.attempt, c.branch, c.repo].join("\t")).join("\n") + "\n";
-  // The step's one gh call answers as an unauthenticated gh does (exit 4), so
-  // the run makes no network call and gh writes no state under the cwd.
   const home = mkdtempSync(path.join(tmpdir(), "demotion-alert-gh-"));
   writeFileSync(path.join(home, "gh"), "#!/bin/sh\necho 'To get started with GitHub CLI, please run:  gh auth login' >&2\nexit 4\n");
   chmodSync(path.join(home, "gh"), 0o755);
@@ -235,8 +221,6 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
     rmSync(home, { recursive: true, force: true });
   }
   assert.equal(out.status, 0, out.stderr);
-  // An early exit is exit 0; a run the step acts on reaches newly='' and the
-  // driver's exit 42. Any other status is a malformed case.
   const acted = out.stdout.trim().split("\n");
   assert.equal(acted.length, cases.length);
   assert.ok(!acted.includes("error"), "every case is well formed for the step");
@@ -256,9 +240,6 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
   assert.equal(dispatch({ "close-cleared": "true" }), false, "a close-cleared dispatch files nothing");
 });
 
-// label-paths labels pull requests, which GITHUB_TOKEN refuses with
-// issues: write alone (403 "Resource not accessible by integration" on
-// runs 42251673382 and 42254486336), so it holds pull-requests: write.
 test("label-paths can label pull requests and runs no model", () => {
   const labeler = text.slice(text.indexOf("\n  label-paths:\n"));
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(labeler)[1];
@@ -272,10 +253,6 @@ test("label-paths can label pull requests and runs no model", () => {
   assert.doesNotMatch(steps, /claude-code-action|request-lane-token|create-github-app-token|secrets\./);
 });
 
-// The close-cleared job runs on any completed scheduled full run on this
-// repository's main, whatever it concluded, and holds only actions: read,
-// contents: read, issues: write and pull-requests: read (babysit_lift.py
-// close reads the pull requests that reference a record).
 test("close-cleared runs on every completed scheduled full run on main and on a close dispatch, with a narrow token", () => {
   const closer = text.slice(text.indexOf("\n  close-cleared:\n"));
   const folded = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(closer);
@@ -316,9 +293,6 @@ test("close-cleared runs on every completed scheduled full run on main and on a 
   });
 });
 
-// The file step's load_records and close-cleared read merge.agent-identity the
-// same way, so the filer one closes is the filer the other matches; file-revert
-// checks the identity the alert hands it the same way too.
 test("load_records and close-cleared extract merge.agent-identity identically", () => {
   const lines = (pattern) => `${filer}\n${text}`.split("\n").filter((line) => line.includes(pattern)).map((line) => line.trim());
   const seds = lines("sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: ");

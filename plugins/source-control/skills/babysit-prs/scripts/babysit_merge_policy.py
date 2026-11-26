@@ -3729,6 +3729,33 @@ def lane_change(compare: Any) -> str | None:
     return None
 
 
+# https://docs.github.com/en/rest/repos/contents#get-repository-content
+_DIRECTORY_CAP = 1000
+
+
+def _workflow_shas(owner: str, name: str, ref: str, env: Any) -> dict[str, str] | None:
+    status, entries = _get(f"repos/{owner}/{name}/contents/.github/workflows?ref={ref}", env)
+    if status != 200 or not is_json_array(entries) or len(entries) >= _DIRECTORY_CAP:
+        return None
+    return {str(json_object(e).get("name")): str(json_object(e).get("sha")) for e in entries}
+
+
+def _lane_change_in(owner: str, name: str, compare: Any, head: str, env: Any) -> str | None:
+    """`lane_change` for a compare of any size (merge-holds.mjs `laneChangeIn`)."""
+    why = lane_change(compare)
+    if why != "too many files":
+        return why
+    base = str(json_object(json_object(compare).get("merge_base_commit")).get("sha") or "")
+    if not SHA_RE.fullmatch(base) or not SHA_RE.fullmatch(head):
+        return why
+    ends = [_workflow_shas(owner, name, ref, env) for ref in (base, head)]
+    if ends[0] is None or ends[1] is None:
+        return why
+    if any(ends[0].get(file) != ends[1].get(file) for file, _ in REVIEW_LANES):
+        return "a review-lane workflow"
+    return None
+
+
 def cost_notices(annotations: Any, head: str, at: Any) -> list[tuple[str, Any]]:
     """The cost hold notices among one status job's `annotations`, as (sha,
     at) with `at` the job's completion: only those naming `head`, the head its
@@ -3855,7 +3882,7 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
                 status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
                 if status != 200:
                     raise PolicyReadError(f"the changes of {head} are unreadable")
-                if lane_change(compare) is not None:
+                if _lane_change_in(owner, name, compare, head, env) is not None:
                     return None
                 vetted.add(head)
             jobs = _paginated(
@@ -3918,30 +3945,156 @@ def branch_activity(pages: Any) -> list[Any] | None:
     return [move for page in pages for move in page]
 
 
-def same_net_change(decided: Any, current: Any) -> bool:
+def same_net_change(decided: Any, current: Any, diffs: Any = None) -> bool:
     """Whether two compare answers (base...head) show the same net change of
     the pull request: the same filenames, each with the same status,
     previous_filename and patch. A list of 300 files or more (the compare
     API's cap), a file with no patch, a filename listed twice, or an answer
     with no file list is not the same (merge-holds.mjs `sameNetChange`). The
     compare API reports no file mode, so a change that only flips a file's
-    mode reads as the same: a known residual a merge can carry."""
+    mode reads as the same: a known residual a merge can carry. `diffs`, the
+    two compares' diff texts read when either listing caps (`needs_diff`),
+    decide in their place, file modes included, at any file count."""
 
-    def net(compare: Any) -> dict[str, tuple[Any, Any, str]] | None:
-        files = json_object(compare).get("files")
-        if not is_json_array(files) or len(files) >= 300:
+    def net(files: Any, capped: bool) -> dict[str, tuple[Any, ...]] | None:
+        if not is_json_array(files) or (capped and len(files) >= COMPARE_FILES):
             return None
-        by_name: dict[str, tuple[Any, Any, str]] = {}
+        by_name: dict[str, tuple[Any, ...]] = {}
         for f in files:
             f = json_object(f)
             name, patch = f.get("filename"), f.get("patch")
             if not isinstance(name, str) or not isinstance(patch, str) or name in by_name:
                 return None
-            by_name[name] = (f.get("status"), f.get("previous_filename"), patch)
+            by_name[name] = (f.get("status"), f.get("previous_filename"), patch, f.get("modes"))
         return by_name
 
-    then, now = net(decided), net(current)
+    if is_json_array(diffs) and len(diffs) == 2:
+        parsed = [diff_files(text) for text in diffs]
+        if not diff_covers(decided, parsed[0]) or not diff_covers(current, parsed[1]):
+            return False
+        then, now = (net(files, False) for files in parsed)
+    else:
+        then = net(json_object(decided).get("files"), True)
+        now = net(json_object(current).get("files"), True)
     return then is not None and now is not None and then == now
+
+
+def diff_covers(compare: Any, files: Any) -> bool:
+    """Whether diff files `files` name at least as many files as the compare
+    answer lists, and every listed file with its previous_filename
+    (merge-holds.mjs `diffCovers`)."""
+    listed = json_object(compare).get("files")
+    if not is_json_array(files) or not is_json_array(listed) or len(files) < len(listed):
+        return False
+    by_name = {f.get("filename"): f for f in files}
+    return all(
+        (name := json_object(f).get("filename")) in by_name
+        and json_object(f).get("previous_filename")
+        == by_name[name].get("previous_filename")
+        for f in listed
+    )
+
+
+# https://docs.github.com/en/rest/commits/commits#compare-two-commits
+COMPARE_FILES = 300
+
+
+def needs_diff(compare: Any) -> bool:
+    """Whether a compare answer's file list stops short of what
+    `same_net_change` needs: at the 300-file cap, or with a file the listing
+    gives no patch (merge-holds.mjs `needsDiff`)."""
+    files = json_object(compare).get("files")
+    return is_json_array(files) and (
+        len(files) >= COMPARE_FILES
+        or any(not isinstance(json_object(f).get("patch"), str) for f in files)
+    )
+
+
+_DIFF_HEADER = re.compile(
+    r"(old mode|new mode|new file mode|deleted file mode|rename from|rename to"
+    r"|copy from|copy to|similarity index|dissimilarity index|index|---|\+\+\+"
+    r"|Binary files|GIT binary patch)(?: (.*))?"
+)
+
+
+def diff_files(text: Any) -> list[dict[str, Any]] | None:
+    """The files of a unified diff as the compare API's
+    application/vnd.github.diff media type answers it, in the shape of the
+    compare's file list: {filename, status, previous_filename, patch, modes}
+    per `diff --git` section, `patch` its hunks (empty for a rename or mode
+    change alone, absent for a binary file, whose change the text does not
+    show) and `modes` its mode lines, which the listing does not report. None for
+    anything else: text before the first section, a header line it does not
+    know, a quoted path (git quotes unusual names), or a section it cannot
+    name (merge-holds.mjs `diffFiles`)."""
+    if not isinstance(text, str):
+        return None
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    sections: list[list[str]] = []
+    for line in lines:
+        if line.startswith("diff --git "):
+            sections.append([line[len("diff --git ") :]])
+        elif sections:
+            sections[-1].append(line)
+        else:
+            return None
+    files: list[dict[str, Any]] = []
+    for names, *rest in sections:
+        file: dict[str, Any] = {"status": "modified", "modes": []}
+        sides: dict[str, str] = {}
+        binary = False
+        at = 0
+        while at < len(rest) and not rest[at].startswith("@@"):
+            line = rest[at]
+            at += 1
+            found = _DIFF_HEADER.fullmatch(line)
+            if found is None:
+                return None
+            key, value = found[1], found[2]
+            if key.endswith("mode"):
+                file["modes"].append(line)
+            if key == "new file mode":
+                file["status"] = "added"
+            if key == "deleted file mode":
+                file["status"] = "removed"
+            if key.startswith(("rename ", "copy ")):
+                if not value or value.startswith('"'):
+                    return None
+                file["status"] = "renamed" if key.startswith("rename") else "copied"
+                sides["from" if key.endswith("from") else "to"] = value
+            if key in ("---", "+++"):
+                path = value.removesuffix("\t") if value and " " in value else value
+                prefix = "a/" if key == "---" else "b/"
+                if path != "/dev/null" and not (path or "").startswith(prefix):
+                    return None
+                if path and path != "/dev/null":
+                    sides["old" if key == "---" else "new"] = path[2:]
+            if key in ("Binary files", "GIT binary patch"):
+                binary = True
+                break
+        half = (len(names) - 5) // 2
+        same = names[2 : 2 + half]
+        symmetric = (
+            same if names == f"a/{same} b/{same}" and not same.startswith('"') else None
+        )
+        filename = next(
+            (n for n in (sides.get("to"), sides.get("new"), sides.get("old"), symmetric) if n is not None),
+            None,
+        )
+        if filename is None:
+            return None
+        file["filename"] = filename
+        if "from" in sides:
+            file["previous_filename"] = sides["from"]
+        hunks = [] if binary else rest[at:]
+        if not binary:
+            file["patch"] = "\n".join(hunks)
+        if not hunks and file["status"] == "modified" and file["modes"]:
+            file["status"] = "changed"
+        files.append(file)
+    return files
 
 
 def _listed_commits(compare: Any) -> list[Any] | None:
@@ -4010,7 +4163,12 @@ def base_merges_only(
 
 
 def base_merge_carry(
-    then: Any, now: Any, start: str, in_base: Collection[str] = frozenset()
+    then: Any,
+    now: Any,
+    start: str,
+    in_base: Collection[str] = frozenset(),
+    diffs: Any = None,
+    changed: Any = None,
 ) -> bool:
     """The one base-merge carry (merge-holds.mjs `baseMergeCarry`): whether
     what was decided at head `start` covers the head `now` was read at, from
@@ -4018,24 +4176,35 @@ def base_merge_carry(
     base's tip commit and the merged parents the base holds (`in_base`, from
     `base_parents`): every commit since is a merge of the base
     (`base_merges_only`) and the net change is the same over every file
-    (`same_net_change`), so a merge that writes any change of its own
-    carries nothing."""
-    return base_merges_only(then, now, start, in_base) and same_net_change(then, now)
+    (`same_net_change`, with `diffs` when a listing caps), so a merge that
+    writes any change of its own carries nothing."""
+    head = diff_files(diffs[1]) if is_json_array(diffs) and len(diffs) == 2 else None
+    whole = diffs is None or (
+        head is not None and type(changed) is int and len(head) == changed
+    )
+    return (
+        whole
+        and base_merges_only(then, now, start, in_base)
+        and same_net_change(then, now, diffs)
+    )
 
 
-def exact_base_carry(merges: Any, based: Any, trees: Any = None) -> bool:
+def exact_base_carry(
+    merges: Any, based: Any, trees: Any = None, diffs: Any = None
+) -> bool:
     """Whether the merges brought exactly the base's changes (the owner's
     decision of 2026-10-28, part b; merge-holds.mjs `exactBaseCarry`):
     `merges` is the compare H...H', what the merges brought into the approved
     head, and `based` the compare M...M' between the merge bases of H and of
     H' with the base's tip. H' must be ahead of H and M' of (or at) M, each
     commit list read whole, and the two file lists the same file for file
-    (`same_net_change`). A file the merges changed beyond the base, or a base
-    change they dropped, carries nothing. This assumes GitHub omits no file
-    from a compare's list of fewer than 300 files; nothing here reads a
-    second listing to check that. The compare API reports no file mode, so
-    `trees` ([H' tree, M' tree], recursive git/trees answers) decide it
-    (`_same_modes`)."""
+    (`same_net_change`, on the two ranges' `diffs` when a listing caps, the
+    files of the merges' diff then checked for modes). A file the merges
+    changed beyond the base, or a base change they dropped, carries nothing.
+    This assumes GitHub omits no file from a compare's list of fewer than 300
+    files; nothing here reads a second listing to check that. The compare API
+    reports no file mode, so `trees` ([H' tree, M' tree], recursive git/trees
+    answers) decide it (`_same_modes`)."""
 
     def forward(compare: Any, statuses: tuple[str, ...]) -> bool:
         compare = json_object(compare)
@@ -4050,8 +4219,10 @@ def exact_base_carry(merges: Any, based: Any, trees: Any = None) -> bool:
     return (
         forward(merges, ("ahead",))
         and forward(based, ("ahead", "identical"))
-        and same_net_change(merges, based)
-        and _same_modes(merges, trees)
+        and same_net_change(merges, based, diffs)
+        and _same_modes(
+            merges if diffs is None else {"files": diff_files(diffs[0])}, trees
+        )
     )
 
 
@@ -4074,12 +4245,13 @@ def _same_modes(merges: Any, trees: Any) -> bool:
                 found[path] = mode
         return found
 
-    if not is_json_array(trees) or len(trees) != 2:
+    files = json_object(merges).get("files")
+    if not is_json_array(trees) or len(trees) != 2 or not is_json_array(files):
         return False
     head, base = modes(trees[0]), modes(trees[1])
     if head is None or base is None:
         return False
-    for f in json_object(merges).get("files") or ():
+    for f in files:
         f = json_object(f)
         name, status, previous = f.get("filename"), f.get("status"), f.get("previous_filename")
         gone = ([name] if status == "removed" else []) + (
@@ -4140,27 +4312,35 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/work-items/skills/triage/schemas/**",
     "plugins/guardrails/git-hooks/reference-verify.sh",
     "plugins/bash-format/git-hooks/lint-full.sh",
+    "plugins/code-tidying/git-hooks/comment-lint-ci.sh",
 )
 
 
 def ungated_since(
-    merges: Any, hold_paths: Sequence[str] | None, *, floor: Floor
+    merges: Any,
+    hold_paths: Sequence[str] | None,
+    *,
+    floor: Floor,
+    diff: Any = None,
 ) -> bool:
     """Whether the compare start...H' `merges` touches no hold path and no
     file a hold path loads, old paths of renames included (merge-holds.mjs
     `ungatedSince`): `hold_paths`, the effective `floor` and CARRY_REFUSES.
-    H' ahead with nothing behind, its commit list read whole
-    and fewer than the compare API's 300 files listed, each named."""
+    H' ahead with nothing behind, its commit list read whole, each file
+    named; a listing at the compare API's 300 files is judged on the files of
+    its `diff`, which must name every file the listing does."""
     compare = json_object(merges)
-    files = compare.get("files")
+    listed = compare.get("files")
     if (
         hold_paths is None
         or compare.get("status") != "ahead"
         or compare.get("behind_by") != 0
         or _listed_commits(compare) is None
-        or not is_json_array(files)
-        or len(files) >= 300
+        or not is_json_array(listed)
     ):
+        return False
+    files = diff_files(diff) if len(listed) >= COMPARE_FILES else listed
+    if files is not listed and not diff_covers(compare, files):
         return False
     paths: list[str] = []
     for f in files:
@@ -4187,17 +4367,20 @@ def approval_carry(
     hold_paths: Sequence[str] | None = None,
     *,
     floor: Floor,
+    diffs: Any = None,
+    merge_diffs: Any = None,
 ) -> bool:
     """Whether an approval of `start` carries to the head `now` was read at
     (merge-holds.mjs `approvalCarry`), by either of two paths: every commit
     since is a merge of the base (`base_merges_only`), and the net change is
-    the same (`same_net_change`) or the merges brought exactly the base's
-    changes (`exact_base_carry` over `merges`, `based` and `trees`, None when
-    not read); or, the owner's decision Q10 of 2026-10-28, `merges` (the
-    compare start...H') touches no hold path (`ungated_since`; None
-    `hold_paths` skips this path). An approval GitHub dismissed as stale
-    (`auto_dismissed`) passes its `dismissal` commit, which must be one of
-    the commits pushed since `start`."""
+    the same (`same_net_change`, with `diffs` when a listing caps) or the
+    merges brought exactly the base's changes (`exact_base_carry` over
+    `merges`, `based` and `trees`, None when not read); or, the owner's
+    decision Q10 of 2026-10-28, `merges` (the compare start...H') touches no
+    hold path (`ungated_since`; None `hold_paths` skips this path). An
+    approval GitHub dismissed as stale (`auto_dismissed`) passes its
+    `dismissal` commit, which must be one of the commits pushed since
+    `start`."""
 
     def pushed(commits: Any) -> bool:
         return dismissal is None or any(
@@ -4207,11 +4390,19 @@ def approval_carry(
     merged = (
         base_merges_only(then, now, start, in_base)
         and pushed(_new_commits(then, now))
-        and (same_net_change(then, now) or exact_base_carry(merges, based, trees))
+        and (
+            same_net_change(then, now, diffs)
+            or exact_base_carry(merges, based, trees, merge_diffs)
+        )
     )
     return merged or (
         hold_paths is not None
-        and ungated_since(merges, hold_paths, floor=floor)
+        and ungated_since(
+            merges,
+            hold_paths,
+            floor=floor,
+            diff=merge_diffs[0] if merge_diffs else None,
+        )
         and pushed(_listed_commits(json_object(merges)))
     )
 
@@ -4385,6 +4576,52 @@ def _compare(owner: str, name: str, spec: str) -> Any:
     return answer
 
 
+def _whole_commits(owner: str, name: str, spec: str, compare: Any) -> Any:
+    """The unpaged `compare` of `spec`, or, when its commit list stops short of
+    total_commits (it lists at most 250), the compare with every commit read in
+    pages of 100, ending at a short page; PolicyReadError when a page does not
+    read (merge-holds.mjs `wholeCommits`)."""
+    answer = json_object(compare)
+    listed, total = answer.get("commits"), answer.get("total_commits")
+    if not is_json_array(listed) or type(total) is not int or len(listed) >= total:
+        return compare
+    whole = json_object(_compare(owner, name, f"{spec}?per_page=100&page=1"))
+    commits = list(json_array(whole.get("commits")))
+    page = 2
+    while len(commits) < total and len(commits) == (page - 1) * 100:
+        more = json_object(_compare(owner, name, f"{spec}?per_page=100&page={page}"))
+        commits.extend(json_array(more.get("commits")))
+        page += 1
+    return whole | {"commits": commits}
+
+
+def _cap_diffs(
+    owner: str, name: str, specs: Sequence[str], compares: Sequence[Any]
+) -> list[str] | None:
+    """The diff texts of the two compares `specs` (`<base>...<head>`) whose
+    answers are `compares`, through the application/vnd.github.diff media
+    type, which holds every file's patch at any file count
+    (docs.github.com/en/rest/commits/commits#compare-two-commits), when
+    either listing caps (`needs_diff`), else None; PolicyReadError when one
+    does not read (merge-holds.mjs `capDiffs`)."""
+    if not any(needs_diff(c) for c in compares):
+        return None
+    texts: list[str] = []
+    for spec in specs:
+        endpoint = f"repos/{owner}/{name}/compare/{spec}"
+        try:
+            proc = gh_capture(
+                ["api", endpoint, "-H", "Accept: application/vnd.github.diff"],
+                binary=True,
+            )
+            if proc.returncode != 0:
+                raise PolicyReadError(f"the diff of {spec} is unreadable")
+            texts.append(proc.stdout.decode("utf-8"))
+        except (RuntimeError, ValueError, OSError) as exc:
+            raise PolicyReadError(f"the diff of {spec}: {exc}") from exc
+    return texts
+
+
 def lifts_of(
     reviews: Sequence[Any],
     humans: Collection[int],
@@ -4462,6 +4699,9 @@ def carried_lifters(
             compares[spec] = _compare(owner, name, spec)
         return compares[spec]
 
+    def whole(spec: str) -> Any:
+        return _whole_commits(owner, name, spec, compare(spec))
+
     def tree(commit: str) -> Any:
         status, answer = _get(f"repos/{owner}/{name}/git/trees/{commit}?recursive=1")
         if status != 200:
@@ -4505,33 +4745,57 @@ def carried_lifters(
                 continue
             if not carrying:
                 continue
-            then, now = compare(f"{tip}...{lifted}"), compare(f"{tip}...{sha}")
+            then, now = whole(f"{tip}...{lifted}"), whole(f"{tip}...{sha}")
+            diffs = _cap_diffs(owner, name, [f"{tip}...{lifted}", f"{tip}...{sha}"], [then, now])
             files = json_object(now).get("files")
-            if not is_json_array(files) or type(changed) is not int or len(files) != changed:
+            listed = diff_files(diffs[1]) if diffs else files
+            if (
+                not is_json_array(files)
+                or not is_json_array(listed)
+                or type(changed) is not int
+                or len(listed) != changed
+            ):
                 continue
             in_base = base_parents(compare, tip, then, now)
-            merges = based = trees = None
+            merges = based = trees = merge_diffs = None
             start, end = (
                 json_object(json_object(c).get("merge_base_commit")).get("sha")
                 for c in (then, now)
             )
             if (
                 base_merges_only(then, now, lifted, in_base)
-                and not same_net_change(then, now)
+                and not same_net_change(then, now, diffs)
                 and all(isinstance(x, str) and SHA_RE.fullmatch(x) for x in (start, end))
             ):
-                merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
+                ranges = [f"{lifted}...{sha}", f"{start}...{end}"]
+                merges, based = whole(ranges[0]), whole(ranges[1])
+                merge_diffs = _cap_diffs(owner, name, ranges, [merges, based])
                 trees = [tree(sha), tree(end)]
             if approval_carry(
-                then, now, lifted, in_base, merges, based, dismissal, trees, floor=floor
+                then,
+                now,
+                lifted,
+                in_base,
+                merges,
+                based,
+                dismissal,
+                trees,
+                floor=floor,
+                diffs=diffs,
+                merge_diffs=merge_diffs,
             ):
                 lifters.add(login)
                 continue
             if hold_paths is not None and merges is None:
                 try:
-                    merges = compare(f"{lifted}...{sha}")
+                    merges = whole(f"{lifted}...{sha}")
                 except PolicyReadError:
                     merges = None
+            if hold_paths is not None and merge_diffs is None and merges is not None:
+                try:
+                    merge_diffs = _cap_diffs(owner, name, [f"{lifted}...{sha}"], [merges])
+                except PolicyReadError:
+                    merge_diffs = None
             if hold_paths is not None and approval_carry(
                 then,
                 now,
@@ -4543,6 +4807,8 @@ def carried_lifters(
                 trees,
                 hold_paths,
                 floor=floor,
+                diffs=diffs,
+                merge_diffs=merge_diffs,
             ):
                 lifters.add(login)
     except PolicyReadError:
@@ -4575,12 +4841,17 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
     if decided == sha:
         return True
     compare = partial(_compare, owner, name)
+
+    def whole(spec: str) -> Any:
+        return _whole_commits(owner, name, spec, compare(spec))
+
     try:
-        then, now = compare(f"{tip}...{decided}"), compare(f"{tip}...{sha}")
+        then, now = whole(f"{tip}...{decided}"), whole(f"{tip}...{sha}")
+        diffs = _cap_diffs(owner, name, [f"{tip}...{decided}", f"{tip}...{sha}"], [then, now])
         in_base = base_parents(compare, tip, then, now)
     except PolicyReadError:
         return False
-    return base_merge_carry(then, now, decided, in_base)
+    return base_merge_carry(then, now, decided, in_base, diffs, pr.get("changed_files"))
 
 
 def cost_decision(

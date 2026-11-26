@@ -1,102 +1,14 @@
 #!/usr/bin/env bash
-# Deterministic engine for the audit skill.
-#
-# WHAT IT DECIDES. Every audit row that a script can settle without a reading:
-# schema, structure, and whether each settings key is documented or deprecated
-# (A), the presence of each baseline permission pattern
-# and the placement rules around it (B), MCP server shape (C), hook path, timeout
-# shape, matcher class, placeholder quoting and duplicates (D), plugin membership
-# and drift (E), the secret scan and env-vars documentation status (F), the
-# skill-listing measurement from an existing debug log and the skillOverrides
-# entries that cannot take effect (G), model and effort
-# values (H), deep-link registration (I), and each fix version reference/known-issues.md
-# records against the installed Claude Code version (J). Each decided row is emitted once,
-# with the surface it is about and a stable identity, so the model that runs the
-# audit reads one document instead of re-deriving the same facts with a dozen
-# shell calls.
-#
-# WHERE ITS CRITERIA COME FROM. The upstream pages, read every run. The engine
-# asks the plugin's shared fetcher (scripts/fetch-docs.sh) to read the docs index
-# (llms.txt) and each page it needs (settings-reference, env-vars, the mods
-# overview, and the pages settings-reference links to that a check reads, such
-# as hooks) from a link in
-# that index, verbatim, into a temp directory it removes on exit (trap). It reads
-# through the docs cache with --max-age 0, so every page is asked of the server
-# and a failed fetch is unread, never a stale cached copy. The
-# fetcher's manifest supplies each page's hash, status, content type, line count
-# and read time. A page supplied through --docs-dir is read from there instead.
-# Whether a key is documented or deprecated, the values a string key's Type
-# bullet lists (effortLevel, disableDeepLinkRegistration and every other such
-# key), the fallbackModel chain length, and the version a key requires are taken
-# from settings-reference; env-var documentation status from env-vars; the hook
-# events a settings or plugin hook may name from the hooks page; the sentences
-# the two mod rows quote from the mods overview. A row
-# resting on a page that was not read is not-inspectable, never clean. The
-# engine also runs `claude --version` and records the result, and searches the
-# installed claude binary for the literal names of undocumented keys. The
-# document lists every page with its byte count and read state.
-#
-# WHAT IT LEAVES TO THE MODEL. Anything that needs a reading: whether a hook
-# with no coverage manifest blocks a family, whether a disabled MCP server has a
-# documented reason, whether a timeout is reasonable for the tool it wraps,
-# whether a custom environment variable is justified, which skill-listing lever
-# fits, and every comparison against a live upstream page. Those rows are not
-# here, and the model never re-decides a row this engine already settled.
-#
-# WHAT IT LEAVES BEHIND. A findings document whose rows carry the identity
-# tuple the sibling audit-pass skill hashes (check, claim, canonically sorted
-# sites of surface plus versioned anchor), so audit-pass can append them
-# unchanged and a later run can diff against them. The same identity is what
-# the consumer's suppression record keys on, so a finding an operator has
-# accepted is reported as suppressed with its reason instead of raised again.
-#
-# WHAT IT NEVER DOES. It never reads a session-mode signal from the environment
-# to decide which rows apply: session posture is declared by the consumer's
-# suppression record and nothing else. It never echoes a value from
-# settings.local.json other than the four model and effort keys the audit
-# already reports by value. It never runs a hook, and it writes nowhere except
-# the path given to --out and its own temp directories.
-#
 # Exit codes:
 #   0  no error-severity finding
 #   1  at least one error-severity finding
 #   2  fatal (jq missing, no readable project settings, bad arguments)
-#
-# Env overrides (the test seam):
-#   SETTINGS_AUDIT_ENGINE_FIXTURE_DIR   project root to audit instead of the git toplevel
-#   SETTINGS_AUDIT_ENGINE_USER_DIR      user config dir (else CLAUDE_CONFIG_DIR, else $HOME/.claude)
-#   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON path to installed_plugins.json
-#   SETTINGS_AUDIT_ENGINE_BASELINE_FILE  required-permissions.md to read the baseline from
-#   SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE  consent-receipts.json to read the receipt records from
-#   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
-#   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
-#   SETTINGS_AUDIT_ENGINE_PROGRESS      set to 0 to drop the per-category progress lines on stderr
-#   SETTINGS_AUDIT_ENGINE_TODAY         YYYY-MM-DD to judge suppression age against (else today, UTC)
-#   FETCH_DOCS_FIXTURE_DIR              directory holding llms.txt and <slug>.md; when set,
-#                                       nothing is fetched and pages resolve through that llms.txt;
-#                                       DOCS_CACHE_DIR must then name a cache directory
-#   DOCS_CACHE_DIR                      docs cache directory (default: the docs cache's own)
-#   FETCH_DOCS_INDEX_URL               the docs index (default https://code.claude.com/docs/llms.txt)
-#   SETTINGS_AUDIT_ENGINE_CLAUDE_BIN    the claude CLI to version and search (else `command -v claude`)
-#   SETTINGS_AUDIT_FIXTURE_DIR          passed through to check-plugin-drift.sh
-#   SETTINGS_AUDIT_MANAGED_PATH         passed through to the managed-scope library
-#
-# Nearly every jq program below binds --arg variables and reads JSON keys that
-# start with a dollar sign; both must reach jq unexpanded, so single quotes are
-# the correct spelling throughout and the per-line SC2016 note carries no signal.
 # shellcheck disable=SC2016
 
 set -uo pipefail
 
-# Every jq result that re-enters the shell goes through this: on Git for
-# Windows jq appends a CR to every stdout line, and an unstripped CR breaks
-# every string comparison below.
 jqs() { jq "$@" 2>/dev/null | tr -d '\r'; }
 
-# read_fields <array>: NUL-terminated fields on stdin into <array>, each the text
-# $(jqs -r ...) would have returned for it. A batched read costs one jq where
-# per-field calls cost a jq, a tr and their forks each, and on Git for Windows
-# those process starts are most of a run's wall clock.
 read_fields() {
   local -n _rf_out="$1"
   local _rf_x
@@ -107,9 +19,6 @@ read_fields() {
     _rf_out+=("$_rf_x")
   done
 }
-# A jq prelude for read_fields: f(g) is g's first output as text, or "" when g
-# fails or has none, so one field's error leaves the others intact; fields ends
-# the program by writing them NUL-terminated under jq -j.
 FIELDS_JQ='def f(g): first((try g catch empty), "") | tostring; def fields: map(. + "\u0000") | add;'
 
 usage() {
@@ -138,8 +47,6 @@ Exit: 0 no error-severity finding; 1 at least one; 2 fatal.
 EOF
 }
 
-# --- Hashing (the identity contract audit-pass and the suppression record share)
-
 sha256_hex() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum | cut -c1-64
@@ -154,10 +61,6 @@ sha256_hex() {
 
 US=$'\x1f'
 
-# A run hashes once per finding row, and on Windows every process costs tens to
-# hundreds of milliseconds, so a hash is one process: the text goes to a scratch
-# file and the tool reads it. sha256_hex above stays the stdin form for the
-# few callers that stream a file.
 HASH_FILE="$(mktemp 2>/dev/null)" || HASH_FILE=""
 if [[ -z "$HASH_FILE" ]]; then
   echo "ERROR: could not create a temp file for hashing" >&2
@@ -179,20 +82,12 @@ sha256_to() {
   printf -v "$1" '%s' "${_digest:0:64}"
 }
 
-# The duplicate discriminator below: the first 8 hex digits of SHA-256 over one
-# NUL byte, the fixed sentinel for a heading-free surface.
 ANCHOR_SENTINEL=6e340b9c
 
-# anchor_to <var> <text>: the excerpt anchor for a surface with no heading
-# concept (a JSON settings file). Normalization is the v1 rule that applies to
-# such text, line by line: trailing whitespace stripped, internal runs
-# collapsed to one space, and trailing line breaks dropped.
 anchor_to() {
   local rest="$2" line norm="" e
   while :; do
     line="${rest%%$'\n'*}"
-    # Plain patterns only: an extglob +(...) match costs a large fraction of a
-    # second on a long hook command.
     while [[ "$line" == *[[:space:]] ]]; do line="${line%[[:space:]]}"; done
     line="${line//[[:space:]]/ }"
     while [[ "$line" == *"  "* ]]; do line="${line//  / }"; done
@@ -206,9 +101,6 @@ anchor_to() {
   printf -v "$1" 'e:%s:%s' "${e:0:12}" "$ANCHOR_SENTINEL"
 }
 
-# finding_id_to <var> <check> <claim> <surface> <anchor> [<surface> <anchor> ...]
-# The sites are joined as sorted lines; one site with no line break is its own
-# sorted list, so only several sites, or one spanning lines, reach sort.
 finding_id_to() {
   local out="$1" check="$2" claim="$3"
   shift 3
@@ -231,8 +123,6 @@ finding_id_to() {
   sha256_to h "$joined"
   printf -v "$out" '%s' "${h:0:16}"
 }
-
-# --- Subcommands that expose the identity contract -------------------------
 
 if [[ "${1:-}" == "anchor" ]]; then
   shift
@@ -291,8 +181,6 @@ if [[ "${1:-}" == "finding-id" ]]; then
   exit 0
 fi
 
-# --- Arguments ---------------------------------------------------------------
-
 MODE=json
 OUT=""
 DOCS_DIR=""
@@ -349,8 +237,6 @@ if ! printf '' | sha256_hex >/dev/null 2>&1; then
   exit 2
 fi
 
-# --- Roots -------------------------------------------------------------------
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 
@@ -368,7 +254,6 @@ if [[ ! -r "$FETCH_DOCS" ]]; then
   exit 2
 fi
 
-# Initialized here so ShellCheck SC2154 sees the assignment; the ladder fills it in.
 PROJECT_ROOT=""
 scopes::project_root_to PROJECT_ROOT "${SETTINGS_AUDIT_ENGINE_FIXTURE_DIR:-}"
 PROJECT_ROOT="${PROJECT_ROOT//\\//}"
@@ -390,15 +275,10 @@ MCP="$PROJECT_ROOT/.mcp.json"
 USER_SETTINGS=""
 [[ -n "$USER_DIR" ]] && USER_SETTINGS="$USER_DIR/settings.json"
 
-# Surfaces are named relative to the project root where they live under it,
-# and by their scope label otherwise, so an identity never carries a machine
-# path.
 SURF_SETTINGS=".claude/settings.json"
 SURF_LOCAL=".claude/settings.local.json"
 SURF_MCP=".mcp.json"
 SURF_USER="user:settings.json"
-
-# --- Rows and findings -------------------------------------------------------
 
 ERROR_COUNT=0
 declare -A SUPPRESS_REASON=()
@@ -407,16 +287,8 @@ declare -A SUPPRESS_LAYER=()
 declare -A SUPPRESS_SOURCE=()
 PERSONAL_ONLY=()
 MALFORMED=()
-# Every well-formed entry at every layer, as layer, source, id, check, claim,
-# reason and date joined by US, for the Category K age check.
 SUPPRESSION_ENTRIES=()
 
-# Every row is held as REC_WIDTH fields in REC and turned into JSON by one jq
-# pass at assembly: a process start costs tens to hundreds of milliseconds on
-# Windows, so no row starts one of its own.
-# Fields: kind (row | finding | suppressed), category, check, status, severity,
-# surface, claim, detail, anchor, finding_id, and the suppression's reason,
-# date, layer and source file.
 REC=()
 REC_WIDTH=14
 
@@ -425,10 +297,6 @@ progress() {
   printf 'audit-engine: %s %s (%ss)\n' "$1" "$2" "$SECONDS" >&2
 }
 
-# row <category> <check-slug> <status> <severity> <surface> <claim> <detail> [<excerpt>|-]
-#   status: ok | finding | skip | not-inspectable
-# A finding row gets an anchor and a finding_id; when the id is in the applied
-# suppression set the row is emitted as suppressed instead.
 row() {
   local cat="$1" slug="$2" status="$3" sev="$4" surface="$5" claim="$6" detail="$7" excerpt="${8:--}"
   local check="harness-config/audit/$cat/$slug" anchor="" fid=""
@@ -451,12 +319,9 @@ row() {
   REC+=(finding "$cat" "$check" "$status" "$sev" "$surface" "$claim" "$detail" "$anchor" "$fid" "" "" "" "")
 }
 
-# --- Scopes ------------------------------------------------------------------
-
 SCOPE_ROWS=()
 declare -A SCOPE_STATE=()
 probe_scope() {
-  # probe_scope <label> <path> -> sets SCOPE_STATE[label] to absent|unreadable|invalid|ok
   local label="$1" path="$2" state
   if [[ ! -f "$path" ]]; then
     state=absent
@@ -474,10 +339,6 @@ probe_scope project "$SETTINGS"
 probe_scope local "$LOCAL"
 probe_scope mcp "$MCP"
 [[ -n "$USER_SETTINGS" ]] && probe_scope user "$USER_SETTINGS"
-# The user dir's settings.local.json is no audited scope, but category G reads
-# its skillOverrides whatever the project root, so the read is listed here. In
-# a home-rooted run it is the local scope, already listed (file identity, since
-# the two roots can be spelled differently on Windows).
 if [[ -n "$USER_DIR" ]] && ! [[ -f "$LOCAL" && "$LOCAL" -ef "$USER_DIR/settings.local.json" ]]; then
   probe_scope user-local "$USER_DIR/settings.local.json"
 fi
@@ -489,17 +350,12 @@ fi
 
 SCOPES_JSON="$(jq -cn '$ARGS.positional as $a | [range(0; $a | length; 3) | {label: $a[.], path: $a[. + 1], state: $a[. + 2]}]' --args "${SCOPE_ROWS[@]}")"
 
-# jqf <file> <filter> [jq args]: read a JSON scope with CRLF stripped.
 jqf() {
   local f="$1"
   shift
   tr -d '\r' <"$f" | jqs "$@"
 }
 
-# ejq <jq args>: jq with Git Bash argument conversion off, so a program or
-# value holding `=/` reaches jq unrewritten. Only for compact or base64 output,
-# where jq escapes a CR inside a value, or for jq -j fields read_fields cleans.
-# Native jq takes -b to write LF on Windows, so no tr has to follow it.
 JQ_LF=()
 case "${OSTYPE:-}" in
 msys* | cygwin*) JQ_LF=(-b) ;;
@@ -507,9 +363,6 @@ msys* | cygwin*) JQ_LF=(-b) ;;
 esac
 ejq() { MSYS2_ARG_CONV_EXCL='*' jq ${JQ_LF[@]+"${JQ_LF[@]}"} "$@" 2>/dev/null; }
 
-# Shared jq definitions over the user, project and local scopes (category A's
-# consent receipts and category E's plugin rows); `enabled` is the merged
-# enabledPlugins, local over project over user.
 E_DEFS='
 def obj: if type == "object" then . else {} end;
 def mk: split("@") | last // "";
@@ -595,17 +448,6 @@ load_facts() {
 [[ $LOCAL_OK -eq 1 ]] && load_facts "$LOCAL"
 [[ $USER_OK -eq 1 ]] && load_facts "$USER_SETTINGS"
 
-# --- Suppression record (three cascade layers) ---------------------------------
-#
-# The record's keys are the finding-suppression convention's. The team layer is
-# the `suppressions` mapping of <home>/harness-config.yaml, read with the shared
-# YAML-subset parser; <home> is the convention home the repository binds, else
-# docs/conventions. A team file that does not parse drops the team layer. Only
-# the team layer suppresses: a personal entry for an id the team layer does not
-# carry is reported personal-only, not applied. An entry whose constituents do
-# not hash to its own key, or that lacks a required key, is reported malformed
-# and does not suppress. Every layer is listed with the file read and its state.
-
 YAML_SUBSET="$PLUGIN_ROOT/lib/yaml-subset.awk"
 if [[ ! -r "$YAML_SUBSET" ]]; then
   echo "ERROR: cannot read $YAML_SUBSET; the plugin's shared YAML parser is missing" >&2
@@ -629,7 +471,6 @@ TEAM_RECORD="$CONVENTION_HOME/harness-config.yaml"
 MAX_DAYS_SET=""
 
 parse_suppressions_yaml() {
-  # parse_suppressions_yaml < yaml-subset records -> the TSV lines parse_suppressions prints
   awk -F'\t' '
     BEGIN { RS_SEP = "\x1e"; US_SEP = "\x1f"; n = 0 }
     index($1, "suppressions.") != 1 { next }
@@ -657,8 +498,6 @@ parse_suppressions_yaml() {
 }
 
 parse_suppressions() {
-  # parse_suppressions <file> -> TSV lines: id, check, claim, sites(surface US anchor RS ...), reason, date
-  # Reads the fenced block of the Markdown record (the personal layers).
   awk '
     BEGIN { infence = 0; inblock = 0; id = ""; RS_SEP = "\x1e"; US_SEP = "\x1f" }
     function strip(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); if (s ~ /^".*"$/) { s = substr(s, 2, length(s) - 2) } else if (s ~ /^\x27.*\x27$/) { s = substr(s, 2, length(s) - 2) } return s }
@@ -773,11 +612,6 @@ PERSONAL_RECORD="$CONVENTION_HOME/audit-pass.local.md"
 load_migrating_layer personal "$PERSONAL_RECORD" "$PROJECT_ROOT/$PERSONAL_RECORD" \
   ".claude/audit-pass.local.md" "$PROJECT_ROOT/.claude/audit-pass.local.md" "$PERSONAL_RECORD"
 
-# --- Upstream sources: the docs pages and the installed CLI ---------------------
-#
-# Read here, after every early exit, so the identity subcommands and a fatal
-# argument or settings error never reach the network or run the CLI.
-
 DOCS_TMP="$(mktemp -d 2>/dev/null)"
 if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
   echo "ERROR: could not create a temp directory for the docs pages" >&2
@@ -786,15 +620,8 @@ fi
 trap 'rm -rf "$DOCS_TMP"; rm -f "$HASH_FILE"' EXIT
 
 DOCS_INDEX_URL="${FETCH_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
-# Every control character but tab and newline, CR included, is dropped from the
-# working copy of a page, so text quoted from it into a row or the table never
-# carries one. Byte counts are taken from the page as read.
 DOC_CNTRL='\000-\010\013-\037\177'
 
-# The fetcher reads the index and every page that --docs-dir does not supply, in
-# one call, and writes a manifest; a run whose pages all come from --docs-dir
-# requests nothing. A slug the index does not list, or lists off the docs
-# origin, is unread, and so is a page that did not arrive whole as text/markdown.
 DOCS_MANIFEST="$DOCS_TMP/manifest.json"
 fetch_pages() {
   local manifest="$1"
@@ -823,9 +650,6 @@ fi
 
 declare -A PAGE_FILE=()
 DOCS_PAGES_JSON='[]'
-# acquire_page <slug> [manifest]: record where the page came from, its hash, byte
-# and line counts and state, and keep a working copy with control characters
-# stripped. The manifest is the one from the fetcher call that requested the page.
 acquire_page() {
   local slug="$1" manifest="${2:-$DOCS_MANIFEST}" rec raw=""
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
@@ -883,7 +707,6 @@ if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" ]]; then
   else
     CLAUDE_RAW="$("$CLAUDE_BIN" --version 2>/dev/null </dev/null | head -n 1)"
   fi
-  # Control characters (a terminal escape, a CR) never reach a row or the table.
   CLAUDE_RAW="$(tr -d '[:cntrl:]' <<<"$CLAUDE_RAW")"
   [[ "$CLAUDE_RAW" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && CLAUDE_VERSION="${BASH_REMATCH[1]}"
 fi
@@ -900,12 +723,6 @@ version_lt() {
   return 1
 }
 
-# settings-reference, parsed once: every ### `key` heading, the first line of
-# its section that begins "Deprecated", the first "Requires Claude Code
-# vX.Y.Z", the first Type bullet, and the section body, code fences included (the first section of a
-# repeated key wins). A section ends at the next heading of any level outside a
-# code fence. The working copy holds no \001, so it carries the newlines of a
-# body from the awk to the array; a leading \001 keeps read from trimming it.
 declare -A SR_KEY=()
 declare -A SR_DEPRECATED=()
 declare -A SR_REQUIRES=()
@@ -950,11 +767,6 @@ sr_section() {
   printf '%s' "${SR_BODY[$1]:-}"
 }
 
-# type_values <key>: the string values the key's Type bullet accepts, one per
-# line, from either shape the page uses: "string, one of:" followed by nested
-# `"value"` bullets, or "the string `"value"`". Nothing when neither parses, and
-# nothing when a nested bullet is not a literal value (a pattern such as
-# `"%H:%M"`): that list is open, so the values read from it are not the set.
 type_values() {
   sr_section "$1" | awk '
     mode == "list" {
@@ -985,9 +797,6 @@ if [[ -n "$SR" && (-z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins]
   DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .state = "unparsed" | .reason = "no-key-headings" else . end)' <<<"$DOCS_PAGES_JSON")"
 fi
 
-# Pages a check reads that settings-reference links to, by slug: a check that
-# reads another page adds its slug here. A page settings-reference does not link
-# is not requested. One more fetcher call reads those --docs-dir does not hold.
 LINKED_PAGES=(hooks)
 for f in "$SETTINGS:$PROJECT_OK" "$LOCAL:$LOCAL_OK" "$USER_SETTINGS:$USER_OK"; do
   if [[ "${f##*:}" == 1 && "$(jqf "${f%:*}" -r 'has("fallbackModel")')" == "true" ]]; then
@@ -1008,9 +817,6 @@ if [[ ${#linked[@]} -gt 0 ]]; then
   for slug in "${linked[@]}"; do acquire_page "$slug" "$LINKED_MANIFEST"; done
 fi
 
-# The hook events, from the Event table on the hooks page. A page that was read
-# but lists neither PreToolUse nor SessionStart did not parse, and no hook event
-# is then called unknown.
 declare -A HOOK_EVENTS=()
 HP="${PAGE_FILE[hooks]:-}"
 HP_UNREAD_WHY="the hooks page was not read this run"
@@ -1029,8 +835,6 @@ if [[ -n "$HP" ]]; then
     DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "hooks" then .state = "unparsed" | .reason = "no-event-table" else . end)' <<<"$DOCS_PAGES_JSON")"
   fi
 fi
-
-# --- Category A: schema and structure ----------------------------------------
 
 progress A "schema, structure and settings keys"
 
@@ -1059,21 +863,10 @@ if [[ $LOCAL_OK -eq 1 ]]; then
   fi
 fi
 
-# Documented and deprecated keys: every top-level key, and every key inside an
-# object the page documents children of (permissions, sandbox, worktree, an
-# "object with ..." Type bullet), is looked up on settings-reference. An object
-# the page documents no child of, such as env or hooks, is not descended into.
-# A key with no heading there is not reported
-# as ignored, because the page omits keys the CLI manages itself; the installed
-# binary settles it, searched once for every such key after the scopes are read.
 KP_SURF=() KP_KEY=() KP_LEAF=() KP_PTR=()
 NESTED_PARENTS_JSON="$(printf '%s\0' "${!NESTED_PARENT[@]}" | jq -Rsc 'split("\u0000")[:-1]')"
 check_keys() {
   local file="$1" surface="$2" k leaf ptr dep since
-  # Fields arrive NUL-separated, so a key reaches its claim and the binary
-  # search as written in the file, with no tab-separated escaping. A key holding
-  # U+0000 cannot cross that stream (bash cannot hold a NUL), so jq spells it
-  # as the text \u0000 and it stays one row.
   while IFS= read -r -d '' k && IFS= read -r -d '' leaf && IFS= read -r -d '' ptr; do
     [[ -n "$k" ]] || continue
     if [[ -z "$SR" ]]; then
@@ -1112,24 +905,6 @@ check_keys() {
 [[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"
 [[ $USER_OK -eq 1 ]] && check_keys "$USER_SETTINGS" "$SURF_USER"
 
-# The binary is searched only for undocumented keys, once per literal, after
-# two documented keys every build carries are found in it. A file missing
-# either control (a .cmd shim, a wrapper script) was not really searched, so no
-# key is called absent. Every undocumented key keeps one claim; only the
-# severity and the detail say what the binary showed.
-#
-# The match is delimited: the name must stand alone, bounded on both sides by a
-# character that cannot continue a JavaScript identifier, so `e` does not match
-# inside `enabledPlugins`. Only an identifier-shaped name of four or more
-# characters is searched; a shorter or odd-shaped one would match too much to
-# prove anything and is reported as not searched. A hit shows the CLI carries
-# the name as a standalone identifier or string, not that it reads the key.
-# Consent receipts: reference/consent-receipts.json records, per owner (a
-# plugin@marketplace id, or `claude-code` for keys the CLI writes), the
-# undocumented top-level keys written when the user accepts a prompt. Read only
-# when an undocumented top-level key exists; a missing or invalid file (one that
-# lists a key under two owners is invalid) is one not-inspectable row and every
-# key keeps its undocumented-key finding.
 CR_STATE=unread CR_WHY=""
 CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=() CR_AMB=()
 cr_load() {
@@ -1213,9 +988,6 @@ cr_match() {
     done
   fi
   for j in "${!CR_KEY[@]}"; do
-    # The file must hold the record's key exactly and no carriage-return
-    # variant of it, compared in jq: a key read through check_keys has lost
-    # any carriage return it carried.
     [[ "${CR_KEY[$j]}" == "$k" ]] || continue
     if [[ ",${CR_AMB[$j]}," == *",$scope,"* ]]; then
       CR_WHY+="${CR_WHY:+; }a carriage-return variant of $k is also present in this file"
@@ -1246,12 +1018,6 @@ cr_match() {
 BIN_SEARCH=not-needed
 BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
 declare -A BIN_HAS=()
-# bin_describe <name>: the describe("...") string of the schema entry `name:`, control characters
-# stripped, capped at 160 characters. Only a declaration counts: the name is followed by `:`, no
-# statement or block boundary (`;{}`) and no other `key:` lies between it and the describe. The
-# binary holds many schemas and a name such as `timeout` or `enabled` is declared in several, so the
-# string is returned only when every describe-bearing declaration of the name carries the same one.
-# A name whose declarations differ yields nothing: which of them is the settings key is not known.
 bin_describe() {
   local c body
   while IFS= read -r c; do
@@ -1299,8 +1065,6 @@ if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   done
 fi
 
-# --- Baseline patterns (read from the reference, never transcribed) ----------
-
 declare -A BASELINE_FAMILY=()
 BASELINE_ORDER=()
 if [[ -f "$BASELINE_FILE" ]]; then
@@ -1326,8 +1090,6 @@ if [[ -f "$BASELINE_FILE" ]]; then
 else
   row B baseline-reference skip none "$SURF_SETTINGS" "reference-missing" "required-permissions.md not found at $BASELINE_FILE; baseline presence not decided" -
 fi
-
-# --- Hook inventory (delegated to check-hook-coverage.sh) ---------------------
 
 INVENTORY_JSON='{"inventory":"none","hooks":[],"plugins":[],"levers":[],"unreadable":[],"divergence":[]}'
 progress D "hook inventory (check-hook-coverage.sh)"
@@ -1367,11 +1129,6 @@ declare -A INV_LEVER=([disableAllHooks]="${INV_F[8]:-}" [allowManagedHooksOnly]=
 declare -A INV_MOD=([prependPlugins]="${INV_F[11]:-}" [appendPlugins]="${INV_F[12]:-}" [disableSideloadFlags]="${INV_F[13]:-}"
   [allowManagedModsOnly]="${INV_F[14]:-}" [allowModsToOverrideDenyRules]="${INV_F[15]:-}")
 
-# Lever reading: a hook one of these has switched off is not coverage. An
-# unread lever is not an unset lever: when a settings scope did not parse, the
-# inventory reports the lever state unknown and the narrowing is unavailable,
-# because a lever that disables every hook may be sitting in the file nothing
-# could read.
 LEVER_DISABLE_ALL="${INV_F[1]:-}"
 LEVER_MANAGED="${INV_F[2]:-}"
 LEVER_STATE="${INV_F[3]:-}"
@@ -1384,8 +1141,6 @@ if [[ "$LEVER_STATE" != "complete" ]]; then
 elif [[ "${LEVER_DISABLE_ALL:-0}" != "0" || "${LEVER_MANAGED:-0}" != "0" ]]; then
   HOOKS_LIVE=0
 fi
-
-# --- Coverage manifests (hooks/coverage.json shipped by an enabled plugin) ----
 
 declare -A COVERED_BY=()
 COVERAGE_JSON='[]'
@@ -1403,15 +1158,8 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
   while IFS= read -r entry; do
     [[ -n "$entry" ]] || continue
     COVERAGE_JSON="$(jq -c --argjson e "$entry" '. + [$e]' <<<"$COVERAGE_JSON")"
-    # A manifest entry narrows only when the hook it names is one this plugin
-    # actually registers on that event and matcher. An entry naming a hook
-    # that is not there would otherwise demote a missing deny on the strength
-    # of enforcement code that does not exist.
     m_hook="$(jqs -r '.hook' <<<"$entry")"
     m_matcher="$(jqs -r '.matcher' <<<"$entry")"
-    # The command is matched on the hook's file name, not its manifest path: a
-    # plugin may register one dispatcher that runs the named guard as an
-    # argument, and that dispatcher is the enforcement the manifest claims.
     m_base="${m_hook##*/}"
     live_match=0
     [[ -n "$m_base" ]] && live_match="$(jqs -r --arg s "plugin:$pkey" --arg m "$m_matcher" --arg h "$m_base" \
@@ -1423,8 +1171,6 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
     levers="$(jqs -r '[.levers[]? | .name] | join(", ")' <<<"$entry")"
     while IFS= read -r pat; do
       [[ -n "$pat" ]] || continue
-      # The tool surface the pattern defends must be on the matcher: a Read
-      # pattern is never covered by a Bash hook.
       tool="${pat%%(*}"
       case "|$m_matcher|" in
       *"|$tool|"*) ;;
@@ -1436,16 +1182,6 @@ while IFS=$'\t' read -r pkey pstatus ppath; do
   done <<<"$entries"
 done <<<"$INV_PLUGINS"
 
-# --- Declared unattended-push lane (narrowing 1, ask-rules family only) ------
-# A permissions.ask rule prompts even in auto mode and is auto-denied under
-# dontAsk, so recommending the git push ask-gates to a repo that runs an
-# unattended lane would stall or break that lane's own pushes. The signal is
-# babysit_loop_merge resolving above human-only in the team layer,
-# docs/conventions/source-control.yaml. Raises bind from that layer only
-# (source-control's config-resolution.md), and a team layer that adopts
-# loop-lane keys without the merge key resolves to the c2-mechanical
-# baseline. A YAML the shared parser rejects makes the team layer
-# unreadable: no signal.
 UNATTENDED_LANE=""
 SC_TEAM_YAML_REL="docs/conventions/source-control.yaml"
 SC_TEAM_YAML="$PROJECT_ROOT/$SC_TEAM_YAML_REL"
@@ -1475,8 +1211,6 @@ c2-mechanical | c3-autonomous | full-autonomy)
 *) ;;
 esac
 ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under dontAsk, so it blocks an unattended lane's pushes"
-
-# --- Category B: permissions -------------------------------------------------
 
 progress B "permissions (${#BASELINE_ORDER[@]} baseline patterns)"
 
@@ -1538,8 +1272,6 @@ if [[ $LOCAL_OK -eq 1 ]]; then
   fi
 fi
 
-# --- Category C: MCP servers -------------------------------------------------
-
 progress C "MCP servers"
 
 if [[ $MCP_OK -eq 1 ]]; then
@@ -1595,24 +1327,10 @@ if [[ $MCP_OK -eq 1 ]]; then
   fi
 fi
 
-# --- Category D: hooks ---------------------------------------------------------
-
-# Token shapes that never belong in a claim or detail. Used here to redact a
-# hook command and in category F to flag a tracked settings value. Match it under
-# LC_ALL=C: in a UTF-8 locale GNU grep takes quadratic time on a long line here.
-# GitHub prefixes from
-# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-# and the ghs_ regex GitHub recommends for current and stateless installation tokens from
-# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-# (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
 SECRET_RE='(^|[^A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}|ghs_([0-9]+_)?eyJ[A-Za-z0-9._-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 
 resolve_hook_path() {
   local cmd="$1" ppath="$2" tok="" c i inq=0
-  # The first shell word, read the way the shell would: whitespace ends it
-  # only outside quotes, so "$CLAUDE_PROJECT_DIR/my hooks/x.sh" and the
-  # common "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh both stay whole, and the quote
-  # characters themselves are dropped as the shell drops them.
   for ((i = 0; i < ${#cmd}; i++)); do
     c="${cmd:i:1}"
     if [[ "$c" == '"' || "$c" == "'" ]]; then
@@ -1658,10 +1376,6 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   [[ "$src" == "settings:project" ]] && surface="$SURF_SETTINGS"
   [[ "$src" == "settings:local" ]] && surface="$SURF_LOCAL"
   [[ "$src" == "settings:user" ]] && surface="$SURF_USER"
-  # A command from a personal scope, or one carrying a token-shaped value in
-  # any scope, is named by its excerpt hash in every claim and detail: the
-  # claim is what an operator pastes into the tracked suppression record. The
-  # raw command still feeds the anchor, which stores only a hash.
   cmd_ref="$cmd"
   cmd_public=1
   if [[ "$surface" == "$SURF_LOCAL" || "$surface" == "$SURF_USER" ]] || secret_shaped "$cmd"; then
@@ -1674,7 +1388,6 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
     row D duplicate-hook finding info "$surface" "duplicate-hook:$event:$matcher:$cmd_ref" "the same command is registered twice for $event/$matcher" "$event/$matcher/$cmd"
   fi
   HOOK_SEEN[$key]=1
-  # Event name against the hooks page's Event table: one row per source and event.
   if [[ -z "${EVENT_SEEN["$src|$event"]:-}" ]]; then
     EVENT_SEEN["$src|$event"]=1
     if [[ -z "$HP" ]]; then
@@ -1686,12 +1399,9 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
     fi
   fi
   [[ "$htype" == "command" || -z "$htype" ]] || continue
-  # Timeout shape: a round thousands multiple reads as milliseconds.
   if [[ -n "$timeout" && "$timeout" =~ ^[0-9]+$ && $timeout -ge 1000 && $((timeout % 1000)) -eq 0 ]]; then
     row D timeout-unit finding warning "$surface" "millisecond-timeout:$event:$cmd_ref" "timeout $timeout reads as milliseconds; the field is seconds" "$event/$matcher/$cmd"
   fi
-  # Matcher class: only letters, digits, _ - space , | is an exact-string list.
-  # One row per matcher, not per command under it.
   mkey="$src|$event|$matcher"
   if [[ -z "${MATCHER_SEEN[$mkey]:-}" && -n "$matcher" && "$matcher" != "*" && ! "$matcher" =~ ^[A-Za-z0-9_\ ,|-]+$ ]]; then
     MATCHER_SEEN[$mkey]=1
@@ -1699,7 +1409,6 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
       row D matcher-anchoring finding warning "$surface" "unanchored-regex-matcher:$event:$matcher" "matcher $matcher is a regex and is not anchored with ^...\$, so it also matches longer tool names" "$event/$matcher"
     fi
   fi
-  # Shell form (no args) with an unquoted placeholder.
   if [[ "$hargs" == "[]" || -z "$hargs" ]]; then
     if [[ "$cmd" =~ $PLACEHOLDER_RE ]]; then
       row D placeholder-quoting finding warning "$surface" "unquoted-placeholder:$event:$cmd_ref" "a path placeholder in shell form is not wrapped in double quotes; a space in the path breaks the hook" "$event/$matcher/$cmd"
@@ -1724,9 +1433,6 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
     ;;
   *) ;;
   esac
-  # Empty middle fields carry a "-" sentinel: `read` with a tab IFS folds
-  # consecutive tabs, so a hook with no timeout would otherwise shift its type
-  # into the timeout column and drop out of every check above.
 done <<<"$INV_HOOKS"
 
 for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization; do
@@ -1751,10 +1457,6 @@ for lever in disableAllHooks allowManagedHooksOnly strictPluginOnlyCustomization
     row D hook-levers ok none "settings" "lever-unset:$lever" "$lever unset in every scope read" -
   fi
 done
-# Built-in mods and the hook levers: the row quotes the page's sentence naming
-# the three levers and built-in mods, and points at the section. A set
-# disableAllHooks is where an operator may believe every mod is off, so only then
-# is it a finding. With no such sentence read this run, the row is unconfirmed.
 BUILTIN_MODS_PTR="https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code"
 BUILTIN_MODS_Q="$(mods_quote "built-in mods" disableAllHooks --bare --safe-mode)"
 if [[ -z "$BUILTIN_MODS_Q" ]]; then
@@ -1765,15 +1467,12 @@ else
   row D builtin-mods-survive-levers ok none "settings" "builtin-mods-survive-levers" "$BUILTIN_MODS_Q See $BUILTIN_MODS_PTR" -
 fi
 
-# Mod-plane keys are reported, never judged, except where a scope Claude Code
-# does not read for that key carries one: that copy changes nothing.
 declare -A SURF_BY_SCOPE=([project]="$SURF_SETTINGS" [local]="$SURF_LOCAL" [user]="$SURF_USER")
 MANAGED_SCOPE="${INV_F[4]:-}"
 for key in prependPlugins appendPlugins disableSideloadFlags allowManagedModsOnly allowModsToOverrideDenyRules; do
   case "$key" in
   prependPlugins | appendPlugins)
     honored="managed user"
-    # User scope counts only where no managed settings exist.
     [[ "$MANAGED_SCOPE" == true ]] && honored="managed"
     meaning="orders the organization's mods around users' mods; user scope counts only on a machine with no managed settings, for a user not signed in with a Team or Enterprise plan"
     ;;
@@ -1810,29 +1509,13 @@ complete) row D hook-inventory ok none "settings" "inventory:complete" "every en
 partial) row D hook-inventory skip none "settings" "inventory:partial" "some plugin or hook config could not be read; families those could cover stay conditional" - ;;
 *) row D hook-inventory skip none "settings" "inventory:none" "no hook inventory was taken" - ;;
 esac
-# One row per marketplace, not per plugin: on a directory-source marketplace
-# every plugin diverges the same way, and one finding says it.
 while IFS=$'\t' read -r mk count example_loaded example_cached; do
   [[ -n "$mk" ]] || continue
   row E cache-divergence finding info "marketplace:$mk" "cache-vs-loaded:$mk" "$count plugin(s) from $mk load from the marketplace directory (for example $example_loaded) while the registry cache holds an older snapshot (for example $example_cached); a tool resolving through the registry reads the snapshot, the session does not" "$mk"
 done <<<"$INV_DIVERGENCE"
 
-# --- Category E: plugins -------------------------------------------------------
-
 progress E "plugins"
 
-#
-# Plugin keys stay JSON from the file to the row: every comparison runs in jq,
-# and a row's fields come back base64-encoded, so a key carrying a carriage
-# return, a tab or `=/` reaches its claim exactly as written. Managed-scope
-# enabledPlugins is not merged here.
-
-# nul_fields <base64>: decode a base64 text of NUL-terminated fields into the
-# array NUL_FIELDS, one element per field, byte for byte, with one base64
-# process however many fields it carries. `-d` is GNU, macOS 13+ and BusyBox;
-# `--decode` and `-D` cover older BSD builds. Only the exit status is trusted,
-# since GNU prints partial output before rejecting bad input. Returns 1 with
-# NUL_FIELDS empty when no form decodes the text.
 NUL_FIELDS=()
 nul_fields() {
   local opt x bin="$DOCS_TMP/fields.bin"
@@ -1846,13 +1529,6 @@ nul_fields() {
   return 1
 }
 
-# e_rows: emit one category E row per input line of seven base64 fields
-# (slug, status, severity, surface, claim, detail, excerpt; `-`, which base64
-# never produces, is the empty field). A line with another field count, or a
-# field that does not decode, becomes a not-inspectable row rather than
-# vanishing. One jq decodes every line into a record of a verdict (`ok`, or the
-# field count) and the seven fields, so a row costs no process of its own; a
-# NUL a field decodes to is dropped, as a shell variable would drop it.
 E_ROW_BAD=0
 e_rows() {
   local i
@@ -1902,7 +1578,6 @@ if [[ -n "$E_CTX" ]]; then
     if [[ -z "$dpath" ]]; then
       DEP_RECS+="{\"i\":$di,\"deps\":null,\"why\":\"no install path resolved in the plugin inventory\"}"$'\n'
     elif [[ ! -e "$manifest" ]]; then
-      # The manifest is optional: a plugin without one declares no dependencies.
       DEP_RECS+="{\"i\":$di,\"deps\":[]}"$'\n'
     elif [[ ! -f "$manifest" || ! -r "$manifest" ]]; then
       DEP_RECS+="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not a readable file\"}"$'\n'
@@ -1972,9 +1647,6 @@ if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f
   fi
   rm -f "$drift_tmp"
 fi
-# drift_rows <label> <jq program over the findings array>: category E rows from
-# the drift findings, through the same base64 path as every other E row, so a
-# key reaches its claim exactly as the dependency and marketplace rows carry it.
 drift_rows() {
   local out
   if out="$(printf '%s\n' "$DRIFT_JSON" | ejq -r "${E_ARGS[@]}" "$E_DEFS $2")"; then
@@ -2002,10 +1674,6 @@ if [[ "$DRIFT_STATE" == "ran" ]]; then
          "\($k) holds \(.enabled | tojson | disp), neither true nor false, and is no longer in the \($mk) catalog; review before removing" + $why, "/enabledPlugins/" + $k]
       end
     | emit'
-  # The drift script reads the project file alone; Claude Code merges the user,
-  # project and local scopes, so a catalog entry keyed in any of them is not
-  # new to the session. Catalog plugins absent from every readable scope are
-  # inventory, one row per marketplace.
   if [[ -n "$E_CTX" ]]; then
     e_rows < <(printf '%s\n%s\n' "$E_CTX" "$DRIFT_JSON" | ejq -r -s "${E_ARGS[@]}" "$E_DEFS"'
       .[0] as $c
@@ -2040,8 +1708,6 @@ else
   row E drift skip none "$SURF_SETTINGS" "drift-not-run" "plugin drift not computed (skipped, no project settings, or the drift script produced no document)" -
 fi
 
-# --- Category F: environment variables -----------------------------------------
-
 progress F "environment variables"
 
 if [[ $PROJECT_OK -eq 1 ]]; then
@@ -2063,9 +1729,6 @@ if [[ $PROJECT_OK -eq 1 ]]; then
     fi
   done < <(jqf "$SETTINGS" -r '(.env // {}) | keys_unsorted[] | [.] | @tsv')
 fi
-# CLAUDE_CODE_ENABLE_FUNCTION_HOOKS is treated as a dead mods switch at any
-# value. The row quotes the page's sentence on the variable and points at the
-# section; with no such sentence read this run, the row is unconfirmed.
 FUNCTION_HOOKS_PTR="https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off"
 FUNCTION_HOOKS_Q="$(mods_quote CLAUDE_CODE_ENABLE_FUNCTION_HOOKS)"
 f_function_hooks() {
@@ -2081,15 +1744,9 @@ f_function_hooks "$USER_OK" "$USER_SETTINGS" "$SURF_USER"
 f_function_hooks "$PROJECT_OK" "$SETTINGS" "$SURF_SETTINGS"
 f_function_hooks "$LOCAL_OK" "$LOCAL" "$SURF_LOCAL"
 
-# --- Category G: skill-listing measurement from an existing debug log ----------
-
 progress G "skill listing and skillOverrides"
 
 DEBUG_LOG=""
-# explicit: named by the operator or the session (a file path, per env-vars).
-# discovered: the newest log in the debug directory, which may belong to an
-# earlier session or another project; it decides only when it names this
-# project root, and otherwise a clean read is reported as unverified.
 DEBUG_LOG_PROVENANCE="explicit"
 if [[ -n "$DEBUG_LOG_ARG" && -f "$DEBUG_LOG_ARG" ]]; then
   DEBUG_LOG="$DEBUG_LOG_ARG"
@@ -2100,10 +1757,8 @@ else
   debug_dir="${SETTINGS_AUDIT_ENGINE_DEBUG_DIR:-}"
   [[ -z "$debug_dir" && -n "$USER_DIR" ]] && debug_dir="$USER_DIR/debug"
   if [[ -d "$debug_dir" ]]; then
-    # Newest .txt by modification time; find plus sort keeps odd filenames safe.
     DEBUG_LOG="$(find "$debug_dir" -maxdepth 1 -name '*.txt' -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2- || true)"
     if [[ -z "$DEBUG_LOG" ]]; then
-      # BSD find has no -printf; fall back to the shell's own ordering by mtime.
       newest=""
       for f in "$debug_dir"/*.txt; do
         [[ -f "$f" ]] || continue
@@ -2120,8 +1775,6 @@ if [[ -n "$DEBUG_LOG" ]]; then
   fi
   gline="$(grep -E 'Skill listing over budget: [0-9]+ skills, [0-9]+ chars > [0-9]+ budget' "$DEBUG_LOG" 2>/dev/null | tail -n 1 || true)"
   if [[ -n "$gline" ]]; then
-    # Each leading .* is greedy, so each number comes from the line's last match;
-    # a line a pattern misses passes through whole, as sed leaves it.
     g_skills="$gline" g_chars="$gline" g_budget="$gline"
     g_re='.*over budget: ([0-9]+) skills'
     [[ "$gline" =~ $g_re ]] && g_skills="${BASH_REMATCH[1]}"
@@ -2143,16 +1796,6 @@ else
   row G listing-budget skip none "settings" "listing-not-measured" "no debug log found (--debug-log, CLAUDE_CODE_DEBUG_LOGS_DIR, or <user dir>/debug/*.txt); measure with /doctor interactively or a --debug relaunch, never report clean" -
 fi
 
-# --- Category G: skillOverrides entries that cannot take effect ------------------
-#
-# skills: "Plugin skills are not affected by `skillOverrides`." A key whose
-# prefix before the first colon names a plugin this machine knows (the
-# installed registry, or any enabledPlugins key in a scope, false included) is
-# inert. Any other colon key may be a nested directory-qualified skill
-# (apps/web:deploy) or a claude.ai-synced one (anthropic-skills:), which the
-# docs do not settle, so it is not decided. Keys only: an override value from a
-# local file never reaches a row.
-
 G_PLUGINS="$(
   {
     [[ -n "$INSTALLED_JSON" && -f "$INSTALLED_JSON" ]] &&
@@ -2164,8 +1807,6 @@ G_PLUGINS="$(
 )"
 [[ -n "$G_PLUGINS" ]] || G_PLUGINS='{}'
 
-# One file under two labels (a home-rooted run, where .claude/settings.json is
-# the user settings file) is scanned once, under the first label: user.
 G_SCANNED=()
 g_overrides() {
   local ok="$1" file="$2" surface="$3" seen kind ptr key prefix
@@ -2174,8 +1815,6 @@ g_overrides() {
     [[ "$file" -ef "$seen" ]] && return 0
   done
   G_SCANNED+=("$file")
-  # Tab-separated fields, each escaped by @tsv so a key with a tab or newline
-  # stays one row; the possibly empty prefix is last so no field shifts.
   while IFS=$'\t' read -r kind ptr key prefix; do
     [[ -n "$kind" ]] || continue
     if [[ "$kind" == "plugin" ]]; then
@@ -2196,12 +1835,6 @@ g_overrides "$USER_OK" "$USER_SETTINGS" "$SURF_USER"
 g_overrides "$PROJECT_OK" "$SETTINGS" "$SURF_SETTINGS"
 g_overrides "$LOCAL_OK" "$LOCAL" "$SURF_LOCAL"
 
-# The user dir's settings.local.json is the project-local file of a session
-# started in the home directory only (settings: Project local is
-# `.claude/settings.local.json`, "You, in this one project only"), so overrides
-# there reach no other project. Read whatever the project root, as the
-# user-local scope; when it is the local scope instead, category A already
-# reported it unreadable or invalid.
 G_UL_STATE="${SCOPE_STATE["user-local"]:-}"
 if [[ -z "$G_UL_STATE" && -n "$USER_DIR" && -f "$LOCAL" && "$LOCAL" -ef "$USER_DIR/settings.local.json" ]]; then
   G_UL_STATE=local
@@ -2229,15 +1862,8 @@ if [[ -n "$G_UL_STATE" && "$G_UL_STATE" != absent ]]; then
   fi
 fi
 
-# --- Category H: model and effort values -----------------------------------------
-
 progress H "model and effort values"
 
-# value_documented <value> <accepted>: whether the value is one of the accepted
-# lines. A whole-string match: grep would read a multi-line value as several
-# patterns and pass "bogus<newline>high" on its second line. An accepted line
-# holding a <placeholder>, such as custom:<slug>, matches nonempty text in its
-# place; one followed by a literal character stops before that character.
 value_documented() {
   local v="$1" a pat rest ph='^([^<]*)[<][^>]*[>](.*)$'
   shopt -s extglob
@@ -2293,10 +1919,6 @@ else
   MC_UNREAD_WHY=""
 fi
 
-# fallback_cap: how many distinct models model-config's Fallback model chains
-# section says a chain keeps ("caps chains at three models after duplicate
-# removal"), as digits, from a digit string or a number word up to ten. Nothing
-# when the section states none.
 fallback_cap() {
   local t
   t="$(tr '\n' ' ' <<<"$MC_CHAINS")"
@@ -2312,14 +1934,6 @@ fallback_cap() {
 check_h() {
   local file="$1" surface="$2"
   local raw dedup cap mix enforce avail_len req policy key
-  # We treat deniedModels and availableModelsMatch as managed-only, and every
-  # file check_h reads is a user, project or local file, so an entry here is a
-  # model policy that is not in force.
-  # Pointer: when the managed-only rule matters, fetch
-  # https://code.claude.com/docs/en/settings-reference#availablemodelsmatch and
-  # https://code.claude.com/docs/en/settings-reference#deniedmodels live.
-  # As of: 2026-10-10. Recheck trigger: either section reads its key outside
-  # managed settings.
   for policy in has_denied=deniedModels has_match=availableModelsMatch; do
     key="${policy#*=}"
     if [[ "${FACT[$file:${policy%%=*}]:-}" == "true" ]]; then
@@ -2357,8 +1971,6 @@ check_h() {
   fi
   enforce="${FACT[$file:enforce]:-}"
   if [[ "$enforce" == "true" && "${avail_len:-0}" -eq 0 ]]; then
-    # Gated on the first "Requires Claude Code vX.Y.Z" in the key's section: on
-    # an older CLI the key is not read at all, so the missing list costs nothing.
     req="${SR_REQUIRES[enforceAvailableModels]:-}"
     if [[ -z "$SR" ]]; then
       row H enforce-available not-inspectable none "$surface" "enforceAvailableModels-without-list" "$SR_UNREAD_WHY; the version enforceAvailableModels requires is not known" -
@@ -2375,8 +1987,6 @@ check_h() {
 [[ $LOCAL_OK -eq 1 ]] && check_h "$LOCAL" "$SURF_LOCAL"
 [[ $USER_OK -eq 1 ]] && check_h "$USER_SETTINGS" "$SURF_USER"
 
-# --- Category I: deep-link registration ------------------------------------------
-
 progress I "deep-link registration"
 
 check_i() {
@@ -2388,10 +1998,6 @@ check_i() {
 [[ $PROJECT_OK -eq 1 ]] && check_i "$SETTINGS" "$SURF_SETTINGS"
 [[ $USER_OK -eq 1 ]] && check_i "$USER_SETTINGS" "$SURF_USER"
 
-# check_enum <file> <surface>: every other top-level string-valued key whose
-# Type bullet on settings-reference lists the values it takes. A key the page
-# gives no such list, or one already checked above, has no row here. Never run
-# on settings.local.json, whose values the engine does not echo.
 check_enum() {
   local file="$1" surface="$2" key val
   [[ -n "$SR" ]] || return 0
@@ -2403,13 +2009,8 @@ check_enum() {
 [[ $PROJECT_OK -eq 1 ]] && check_enum "$SETTINGS" "$SURF_SETTINGS"
 [[ $USER_OK -eq 1 ]] && check_enum "$USER_SETTINGS" "$SURF_USER"
 
-# --- Category J: known-issues fix versions -----------------------------------------
-
 progress J "known-issues fix versions"
 
-# A known-issues.md table row that says "fixed in vX.Y.Z" (the form the file's
-# "Recording a fix version" section documents) is compared with the installed
-# Claude Code version; a row without that phrase has no fix version to check.
 if [[ -f "$KNOWN_ISSUES_FILE" ]]; then
   ki_re='#([0-9]+)\].*[Ff]ixed in v?([0-9]+\.[0-9]+\.[0-9]+)'
   while IFS= read -r line; do
@@ -2425,13 +2026,8 @@ if [[ -f "$KNOWN_ISSUES_FILE" ]]; then
   done <"$KNOWN_ISSUES_FILE"
 fi
 
-# --- Category K: suppression age ---------------------------------------------------
-
 progress K "suppression age"
 
-# days_to <var> <YYYY-MM-DD>: the date as a day count from 1970-01-01, or empty
-# when it is not that shape. Civil-to-days arithmetic in the shell, since
-# `date -d` is GNU-only.
 days_to() {
   local y m d era yoe doy
   printf -v "$1" '%s' ""
@@ -2443,10 +2039,6 @@ days_to() {
   printf -v "$1" '%s' $((era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468))
 }
 
-# A suppression whose date is older than exceptions.max_days (ADR 0080's default
-# of 90 days, or the team YAML's value) is reported, never removed: obligation 3
-# of the finding-suppression contract still retires an entry once its finding
-# is gone.
 MAX_DAYS=90
 if [[ -n "$MAX_DAYS_SET" ]]; then
   if [[ "$MAX_DAYS_SET" =~ ^[1-9][0-9]{0,5}$ ]]; then
@@ -2468,12 +2060,7 @@ for entry in "${SUPPRESSION_ENTRIES[@]}"; do
   fi
 done
 
-# --- Assemble ----------------------------------------------------------------------
-
 progress assemble "${#REC[@]} fields"
-# The row fields cross to jq as one base64 text of NUL-terminated fields: a
-# pipe has no argv cap, and base64 carries a carriage return or line break in
-# a key byte for byte through jq's text-mode stdin on Windows.
 rows_json='[]' findings_json='[]' suppressed_json='[]'
 if [[ ${#REC[@]} -gt 0 ]]; then
   {
@@ -2506,15 +2093,6 @@ version_json="$(jq -cn --arg raw "$CLAUDE_RAW" --arg v "$CLAUDE_VERSION" --arg b
   '{raw:$raw,version:(if $v == "" then null else $v end),state:(if $v == "" then "unreadable" else "read" end),binary:{path:$bin,key_search:$search}}')"
 docs_json="$(jq -c --argjson idx "$DOCS_INDEX_JSON" '{index:$idx,pages:.}' <<<"$DOCS_PAGES_JSON")"
 
-# The payloads ride stdin and are slurped, rather than being bound as --argjson
-# values. The whole argv is ONE Win32 command line, and a single argument past
-# about 32,760 bytes dies with "Argument list too long", which left $DOC empty
-# and every reader below printing nothing while the exit code still said 1. A
-# pipe has no such cap, and unlike --slurpfile it leaves no temp file to clean
-# up. The `:-null` defaults keep the positional contract total: an empty payload
-# would otherwise shift every later binding by one. `jq -s` slurps by JSON value,
-# not by line, so a pretty-printed payload is still exactly one element. Only
-# the three small scalars stay on argv; none can approach the cap.
 DOC="$(printf '%s\n' \
   "${SCOPES_JSON:-null}" "${rows_json:-null}" "${findings_json:-null}" \
   "${suppressed_json:-null}" "${personal_json:-null}" "${malformed_json:-null}" \
@@ -2534,11 +2112,6 @@ DOC="$(printf '%s\n' \
       rows:$rows,findings:$findings}')"
 
 if [[ -n "$OUT" ]]; then
-  # Same argv exposure, same transport change, and deliberately INDEPENDENT of
-  # $DOC: this writer succeeds even when the assembly above does not, and reading
-  # an empty $DOC would truncate the findings file to zero bytes, which is worse
-  # for the audit-pass consumer than either outcome available today. No -c: the
-  # findings file is a diffable artifact and stays pretty-printed.
   printf '%s\n' "${findings_json:-null}" "${suppressed_json:-null}" |
     jq -s --arg root "$PROJECT_ROOT" \
       '. as [$f,$s] | {schemaVersion:1,producer:"harness-config/audit-engine/1",target:$root,lane:"harness-config/audit",findings:$f,suppressed:$s}' >"$OUT"

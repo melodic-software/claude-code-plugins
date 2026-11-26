@@ -64,10 +64,6 @@ outputs:
 runs:
   using: composite
   steps:
-    # The Work status field is read through resolve-config (read-status.mjs),
-    # which needs its dependencies; without them every status read throws, so
-    # an install that fails fails the step. A composite step takes no
-    # timeout-minutes, so `timeout` bounds the install.
     - name: Check the issue
       id: check
       shell: bash

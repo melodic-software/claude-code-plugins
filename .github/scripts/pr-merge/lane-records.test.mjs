@@ -1,10 +1,3 @@
-// Expected values come from the lane-record carry rules in lane-records.mjs
-// and pr-merge.yml: the records are read only from the newest scheduled or
-// hand-started pr-merge.yml run on main other than this one (found the way
-// rotation.mjs finds the cursor) whose head commit is on main; a file of any
-// other shape is no file; the next run's file keeps a record only while it is
-// unexpired and, when the run saved an artifact listing, listed unexpired by
-// its artifact id; and on any other failure nothing is written.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -51,11 +44,6 @@ const wf = (id, event, branch = "main", path = ".github/workflows/pr-merge.yml",
 });
 
 let n = 0;
-// `pages` is the workflow's run listing, newest first; `files` maps a run id
-// to the text its pr-merge-lane-records artifact holds; `offMain` lists the
-// head commits the compare API reports as not on main. Requests count REST
-// requests: each API call, and two per `gh run download` (it lists the run's
-// artifacts, then fetches the archive).
 async function readRun({ pages = [[]], files = {}, offMain = [], fail, planted } = {}) {
   forgetMainTip();
   n += 1;
@@ -101,11 +89,8 @@ test("the newest trusted run's records are read in seven requests", async () => 
     pages: [[wf(999, "schedule"), wf(8, "pull_request_target"), wf(7, "schedule"), wf(6, "workflow_dispatch")]],
     files: { 8: fileOf({ "pr-merge-dispatched-1": entry(1) }), 7: fileOf(records), 6: fileOf({}) },
   });
-  // This run (999) is skipped, and a pull_request_target run is never asked.
   assert.deepEqual(result.downloads, [7]);
   assert.deepEqual(result.written, { version: 1, repo: REPO, records });
-  // The run listing, run 7's artifact filter, the tag named main (absent),
-  // main's tip, the compare of run 7's head commit with it, and its download.
   assert.equal(result.requests, 7);
 });
 
@@ -163,8 +148,6 @@ test("no trusted run with records writes nothing, quietly", async () => {
   assert.ok(!result.lines.some((line) => line.startsWith("::warning")));
 });
 
-// The listing as GitHub serves it: each record's artifact under its own name,
-// uploaded by the record's sender run (500).
 const item = (id, changes = {}) => ({ id, name: `pr-merge-dispatched-${id}`, expired: false, workflow_run: { id: 500 }, ...changes });
 const listed = (...ids) => ({ fetchedAt: "t", artifacts: ids.map((id) => item(id)) });
 
@@ -176,7 +159,6 @@ test("the next file keeps unexpired records the listing lists unexpired", () => 
     "pr-merge-dispatched-14": entry(14, { expires_at: "2026-10-23T12:00:00Z" }),
   };
   const listing = { artifacts: [...listed(11, 14).artifacts, item(12, { expired: true })] };
-  // 12 has expired in the listing; 13 is no longer listed; 14 expires now.
   assert.deepEqual(Object.keys(nextRecords({ records, listing, now: NOW })), ["pr-merge-dispatched-11"]);
 });
 
@@ -188,7 +170,6 @@ test("a listed artifact counts only under the record's name and sender run", () 
 
 test("a record's artifact is found by its artifact id, not its name or run number", () => {
   const records = { "pr-merge-dispatched-11": entry(9011), "pr-merge-dispatched-12": entry(9012) };
-  // Record 12's name is listed, but under another artifact id than its own.
   const listing = { artifacts: [item(9011, { name: "pr-merge-dispatched-11" }), item(7777, { name: "pr-merge-dispatched-12" })] };
   assert.deepEqual(Object.keys(nextRecords({ records, listing, now: NOW })), ["pr-merge-dispatched-11"]);
 });
@@ -220,15 +201,12 @@ test("write keeps the checks' records the listing still lists", async () => {
 });
 
 test("write with no listing keeps the unexpired records, quietly", async () => {
-  // A run with no candidates, or whose listing read failed, saves no listing; the listing only prunes.
   const records = { "pr-merge-dispatched-11": entry(11), "pr-merge-dispatched-12": entry(12, { expires_at: "2026-10-01T00:00:00Z" }) };
   const { written, lines } = await writeRun({ records: fileOf(records) });
   assert.deepEqual(written, { version: 1, repo: REPO, records: { "pr-merge-dispatched-11": records["pr-merge-dispatched-11"] } });
   assert.ok(!lines.some((line) => line.startsWith("::warning")));
 });
 
-// The file the check writes (babysit_postmerge.py `save_lane_records`) is one
-// this script reads, and the one this script uploads is one the check loads.
 test("the check's file and this script's file read across both languages", async () => {
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const python = (...args) => {
@@ -270,7 +248,6 @@ test("write with an unreadable listing, or a bad file, writes nothing and warns"
     assert.equal(written, undefined, String(listing));
     assert.ok(lines.some((line) => line.startsWith("::warning title=lane records::")), String(listing));
   }
-  // With the listing, the record that expired is dropped too.
   const kept = await writeRun({ records: fileOf(records), listing: listed(11, 12) });
   assert.deepEqual(Object.keys(kept.written.records), ["pr-merge-dispatched-11"]);
   const bad = await writeRun({ records: fileOf(records, { version: 2 }), listing: listed(11) });

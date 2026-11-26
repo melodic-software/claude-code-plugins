@@ -192,7 +192,6 @@ function New-MockDriver {
 }
 
 function New-MockReliabilityStabilityMetric {
-    # Shape matches Win32_ReliabilityStabilityMetrics output.
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
@@ -206,7 +205,6 @@ function New-MockReliabilityStabilityMetric {
 }
 
 function New-MockReliabilityRecord {
-    # Shape matches Win32_ReliabilityRecords output.
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(

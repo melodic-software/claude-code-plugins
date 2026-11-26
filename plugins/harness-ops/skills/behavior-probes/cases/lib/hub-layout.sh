@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# hub-layout.sh <dir>: a clone root <dir>/repos in github.com/<owner>/<repo> layout holding
-# two repos, acme/hub and acme/target, each with one commit of README.md ("status: one"),
-# and an empty worktrees root <dir>/worktrees. Everything stays inside <dir>.
 set -euo pipefail
 d="$1"
 mkdir -p "$d/worktrees"

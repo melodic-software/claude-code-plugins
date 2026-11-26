@@ -230,7 +230,6 @@ export async function relayoutSlice({
           "otherwise pass --no-media to re-lay out without media/, frames/all/, the caption tracks and info.json",
       );
     }
-    // A recorded primary entry is authoritative: an X post's entry ids differ from the post id.
     if (!recordedVideo && id !== state.videoId && info.display_id !== state.videoId) {
       return refuse(`the temp session's video is ${id}, not this slice's ${state.videoId}`);
     }

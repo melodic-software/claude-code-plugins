@@ -3,8 +3,6 @@ import { Rejection } from "./resolve.mjs";
 
 const FLOOR = "needs-triage";
 
-// The field's two reads (REST values, field events) saw different writes:
-// usually a read racing a write, so a reader may read both again.
 export class StatusDisagreement extends Error {
   constructor(message) {
     super(message);
@@ -12,20 +10,16 @@ export class StatusDisagreement extends Error {
   }
 }
 
-// GitHub label names compare without case.
 const fold = (name) => String(name).toLowerCase();
 
 const labelNames = (labels) =>
   new Set((labels ?? []).map((label) => fold(typeof label === "string" ? label : label?.name)));
 
-// The state an issue's labels collapse to: the first state in `order` one of
-// whose labels the issue carries, else the last state in `order`.
 export function collapseStatus(labels, config) {
   const names = labelNames(labels);
   return config.order.find((state) => config.labels[state].some((label) => names.has(fold(label)))) ?? config.order.at(-1);
 }
 
-// The option id a state is written as, for a writer to check GitHub's answer.
 export function statusOption(state, config) {
   const option = Object.keys(config.options).find((id) => config.options[id] === state);
   if (option === undefined) {
@@ -56,32 +50,10 @@ export function statusBotSetters(trustedActors, config) {
   return [ACTIONS_BOT, ...melodic.map(({ id, login }) => ({ id, login }))];
 }
 
-// The state the issue's Work status field holds, or null when no trusted
-// account set it. `facts` and `trustedActors` are issueDimensions'. A listed
-// human or the lanes App counts for every state; a `bot-setters` account for
-// every state but agent-ready, github-actions[bot] always and a `melodic-` bot
-// only while `trustedActors` lists it as a bot with the same id and login (one
-// the list dropped reads as unset). An option a counted setter chose that the
-// config does not map stops the read: GitHub's options drifted.
-//
-// With `facts.fieldEvents` (resolve-config.mjs fieldEvents), the newest Work
-// status event whose setter counts for the value it set decides, null for a
-// removal, so an uncounted change neither sets nor clears a counted state. The
-// newest event's value is the REST value; an older event's is the option it
-// names. A REST value (or its absence) that differs from what the newest event
-// left throws: the two reads saw different writes, and the hold may be the one
-// unseen. With `facts.fieldEventsFull` (the event window was full), a value
-// with no counted event throws, since its setter may be older than the window.
-// Without `facts.fieldEvents`, the newest setter (`facts.fieldSetters`) decides
-// the REST value, and `facts.fieldNames`, when given, maps a field id to the
-// option name its newest field event left; a value that names another option
-// throws.
 export function issueStatus(facts, config, trustedActors) {
   return issueStatusSetter(facts, config, trustedActors).state;
 }
 
-// issueStatus's `{state, setter}`: setter is the account id whose event
-// decided the state (undefined when none did).
 export function issueStatusSetter(facts, config, trustedActors) {
   const fieldId = config["field-id"];
   const unmapped = (option) =>

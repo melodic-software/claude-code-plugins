@@ -1,25 +1,5 @@
 name: Maintenance Monitor Signals
 
-# The monitoring lane: every hour, reads a fixed set of factory signals, writes
-# each signal's state and evidence to the job summary, and keeps at most one
-# open incident issue per signal, past thresholds set in pr-pipeline.yaml
-# monitor.incidents; GitHub incidents go to the run summary only.
-# docs/conventions/pr-pipeline/README.md, "The monitoring lane", lists the
-# signals and the rules; the scripts and tests are in
-# .github/scripts/maintenance-monitor-signals/.
-#
-# It runs no model and holds no lanes App token or secret: the job's own
-# GITHUB_TOKEN reads runs, jobs, annotations, artifacts, pull requests and issue comments,
-# and writes only issues, so its issues come from github-actions[bot] and
-# start no workflow. Only the schedule and a manual run with no inputs start
-# it, on main. Run, annotation and pull-request text reaches an issue only as
-# inert lines inside a text fence, never through a `${{ }}` expression.
-#
-# How to stop it: set the organization or repository lanes kill-switch
-# variable to anything but "false".
-#
-# :52 sits clear of the other scheduled runs here.
-
 on:
   schedule:
     - cron: "52 * * * *"
@@ -47,8 +27,6 @@ jobs:
       contents: read # check out main
       issues: write # file and update the lane's own issues
       pull-requests: read # list merged pull requests
-    # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
@@ -108,14 +86,10 @@ jobs:
           export AGENT_IDENTITY
           node .base/.github/scripts/maintenance-monitor-signals/monitor.mjs
 
-      # Completed runs' job reads and the signals' timers, which the next run
-      # reads (collect.mjs JOBS_ARTIFACT). A missing upload costs the next run
-      # a full read and restarts the timers, so an incident opens later.
       - name: Scan the upload for credentials
         id: scan-upload
         if: >-
           ${{ !cancelled() && steps.kill.outputs.proceed == 'true' }}
-        # A hit withholds only the carry: the next run reads every run's jobs.
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
         with:

@@ -1,13 +1,3 @@
-# docs/conventions/code-metrics.yaml (team layer; schema: the plugin's
-# schemas/code-metrics.schema.json). Every key is optional; an absent
-# key keeps the bundled default. Written in the YAML subset the plugin reads:
-# block mappings, block sequences, flow sequences of scalars, scalars, and
-# comments (no flow mappings, anchors, tags, or block scalars). Layers: the
-# config_file option's file, this file, then
-# docs/conventions/code-metrics.local.yaml, merged per key
-# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers).
-# Keys and provenance: the plugin's reference/config.md.
-
 scope:
   default: change          # change | all
   base: auto               # auto (merge-base with the default branch) | <ref>

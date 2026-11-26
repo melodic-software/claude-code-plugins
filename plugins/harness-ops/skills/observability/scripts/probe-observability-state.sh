@@ -1,91 +1,4 @@
 #!/usr/bin/env bash
-# probe-observability-state.sh — report local telemetry-store state for the
-# observability skill's `## Pre-computed context` block and its "Toggles and
-# retention in effect" section.
-#
-# The block's lines are real shell work — a repo-root-or-working-directory
-# default, an env override, a per-file size loop — and a pre-compute line carrying
-# genuine shell expansion (`$f`, `$d`, `${VAR:-default}`, `$(…)`) is refused by the
-# worktree-isolation guard, so the whole skill fails to load when invoked from an
-# isolated agent (#1687). The lines therefore call this script through
-# `${CLAUDE_PLUGIN_ROOT}`, which the harness substitutes into a literal path before
-# any shell sees it.
-#
-# One script, three modes rather than three scripts: every mode reads the same
-# local observability tree, so they are facets of one probe surface, and a caller
-# picking a mode is the only difference between them.
-#
-# Usage:
-#   probe-observability-state.sh --hook-events [--root <rel-dir>]
-#   probe-observability-state.sh --otel-store
-#   probe-observability-state.sh --pipeline [--root <rel-dir>] [--enabled <v>]
-#       [--categories <v>] [--keep-sessions <n>] [--keep-days <n>]
-#       [--pre-prune-command <v>] [--observed]
-#
-# --root is the hook log root, project-relative: the plugin's
-# session_event_log_dir option. Absent, empty, or still an unexpanded
-# `${user_config...}` placeholder → `.observability/claude`. The same holds for
-# every --pipeline value: an unexpanded placeholder reads as the option's
-# manifest default. The skill's pre-compute lines pass no option at all (a
-# `${user_config.*}` value belongs in no shell-executing content: the shell
-# would re-parse whatever it holds) and run --pipeline with --observed, which
-# prints no option tier; the skill body re-runs the probe with the options it
-# rendered as plain content, the one call that prints the option tier, and a
-# skill subprocess inherits no CLAUDE_PLUGIN_OPTION_* to read instead (the
-# hooks read theirs from the session environment).
-#
-# --hook-events output (stdout, exactly one line) over the root's
-# sessions/*.jsonl files plus its hook-events.jsonl and the rotated .1 beside it:
-#   <N> events
-#   EMPTY (no hook-event emitter wired, or no hooks fired yet)
-#   INVALID root (<value>): the hooks write nothing
-#
-# --otel-store output (stdout, six lines: one per store file, in order
-# cc-logs.json, cc-metrics.json, cc-traces.json, then the cold tier, the last
-# prune, and the scheduled prune task):
-#   <name>:<bytes>B
-#   <name>:absent
-#   cold:<bytes>B (<n> files) | cold:absent
-#   last-prune:<ISO-8601 UTC> (<age, e.g. 3h or 2d>) | last-prune:never
-#   prune-task:provisioned | missing | disabled | stale path | hand-registered
-#            | unrecognized action | n/a (not Windows) | unknown (schtasks not found)
-# The stamp is <store>/.last-prune, written by prune-otel-store.sh at the end of
-# every successful non-dry run. The task is the Windows ClaudeCodeOtelPrune task:
-# `provisioned` is machine provisioning's pwsh launcher, which finds this plugin at
-# run time; a hand-registered action names a prune script path, which is stale once
-# a plugin update's orphan sweep removes it. No text from the task is printed: the
-# line lands in model context.
-#
-# --pipeline output (stdout, six lines, fixed order and labels; read-only, it
-# never heals the guard):
-#   root: <rel> (default|configured) | root: <value> INVALID (uncontained; the hooks write nothing)
-#   guard: ok | absent (the first write heals it) | operator-edited (writes refused)
-#        | not needed (not a git checkout) | n/a (root invalid)
-#   sessions: <S> file(s), newest <id> | none
-#   shared: <L> event(s) in hook-events.jsonl (rotated .1 included) | absent
-#   prune-pending: none | <D> dir(s), <O> older than 24 h[ WARN: an archiver is not finishing]
-#   envelope: <E> row(s) from the audit hooks, outside the switch | none;
-#        event log: on|off; categories: all|<v>; keep: <n> sessions or <n> days;
-#        pre-prune: none|set
-# With --observed the sixth line stops at the observed count and names the
-# call that renders the option tier; any option flag passed alongside is
-# ignored:
-#   envelope: <E> row(s) from the audit hooks, outside the switch | none;
-#        options: rendered by the section 2.6 re-run, not here
-#
-# Store resolution:
-#   --hook-events  <git toplevel, or the working directory when not inside a
-#                  repo>/<root> — no env override. In a linked worktree the
-#                  toplevel is the main checkout's, the anchor the hooks write
-#                  under (session-log-lib.sh, slog_anchor_to).
-#   --otel-store   CC_OTEL_STORE when set and non-empty, used verbatim; otherwise
-#                  <git toplevel, or the working directory>/.claude/observability/otel.
-#
-# The git toplevel is CR-stripped through an empty-means-fall-back test rather than
-# a `|| pwd` continuation, because piping through `tr` would make the pipeline
-# always succeed and swallow the not-in-a-repo fallback. `wc` output is emitted
-# as captured.
-#
 # Exit codes:
 #   0  the requested mode's lines were emitted
 #   3  invalid, missing, or conflicting argument
@@ -99,10 +12,35 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+probe-observability-state.sh: report local telemetry-store state for the observability skill.
 
-# An option value the skill passed through unrendered (`${user_config.x}`) or
-# empty means "unset": the manifest default applies.
+Usage:
+  probe-observability-state.sh --hook-events [--root <rel-dir>]
+  probe-observability-state.sh --otel-store
+  probe-observability-state.sh --pipeline [--root <rel-dir>] [--enabled <v>]
+      [--categories <v>] [--keep-sessions <n>] [--keep-days <n>]
+      [--pre-prune-command <v>] [--observed]
+
+  --hook-events            one line: the hook-event count under the log root
+  --otel-store             six lines: each OTEL store file's size, the cold tier, last prune, prune task
+  --pipeline               six lines: root, guard, sessions, shared log, prune-pending, envelope
+  --root <rel-dir>         hook log root, project-relative (default .observability/claude)
+  --enabled <v>            the event-log switch as rendered
+  --categories <v>         the logged categories as rendered
+  --keep-sessions <n>      session retention as rendered
+  --keep-days <n>          day retention as rendered
+  --pre-prune-command <v>  the pre-prune command as rendered
+  --observed               --pipeline without the option tier
+An empty or unexpanded `${user_config...}` value reads as the option's default.
+
+Exit codes:
+  0  the requested mode's lines were emitted
+  3  invalid, missing, or conflicting argument
+EOF
+}
+
 # shellcheck disable=SC2016  # the literal placeholder text is the thing matched
 unset_value() { [[ -z "$1" || "$1" == '${user_config.'* ]]; }
 
@@ -168,9 +106,6 @@ repo_root() {
   printf '%s\n' "${root:-$PWD}"
 }
 
-# The directory the hook log root is joined onto, by the rule the hooks write
-# by (slog_anchor_to): the main checkout when the repo root is a linked
-# worktree, else the repo root.
 hook_anchor() {
   local anchor
   slog_anchor_to anchor "$(repo_root)"
@@ -208,9 +143,6 @@ hook_files() {
   return 0
 }
 
-# The ClaudeCodeOtelPrune task's state, read from its exported XML (locale-free,
-# unlike the labels of the verbose list output). A disabled task or trigger carries
-# <Enabled>false</Enabled>; an enabled one omits the element.
 prune_task_state() {
   if ! is_windows; then
     printf 'n/a (not Windows)'
@@ -221,7 +153,6 @@ prune_task_state() {
     return 0
   fi
   local xml command arguments path
-  # MSYS would rewrite the /-style options into paths.
   if ! xml="$(MSYS2_ARG_CONV_EXCL='*' schtasks /query /tn ClaudeCodeOtelPrune /xml 2>/dev/null | tr -d '\r')"; then
     printf 'missing'
     return 0
@@ -232,8 +163,6 @@ prune_task_state() {
   fi
   command="$(sed -n 's:.*<Command>\(.*\)</Command>.*:\1:p' <<<"$xml" | head -n 1)"
   arguments="$(sed -n 's:.*<Arguments>\(.*\)</Arguments>.*:\1:p' <<<"$xml" | head -n 1)"
-  # The provisioning launcher: pwsh reading the plugin index for this plugin's key
-  # and running the in-plugin prune script from the install it records.
   if [[ "$command" == *pwsh.exe && "$arguments" == *installed_plugins.json* &&
     "$arguments" == *harness-ops@* && "$arguments" == *skills/observability/otel/prune-otel-store.sh* ]]; then
     printf 'provisioned'
@@ -241,7 +170,6 @@ prune_task_state() {
   fi
   path="$(grep -o '[^";]*prune-otel-store\.sh' <<<"$arguments" | head -n 1)"
   path="${path//\\//}"
-  # A UNC path is never tested: [[ -f ]] on one contacts a remote host.
   if [[ -z "$path" || "$path" == //* ]]; then
     printf 'unrecognized action'
   elif [[ -f "$path" ]]; then
@@ -313,8 +241,6 @@ case "$MODE" in
     printf 'root: %s INVALID (uncontained; the hooks write nothing)\n' "$ROOT_ARG"
   fi
 
-  # Guard state, read the way the hooks read it (first non-blank, non-comment
-  # line is `*`) and never written: healing is the hooks' and setup apply's job.
   if ((!ROOT_VALID)); then
     printf 'guard: n/a (root invalid)\n'
   elif ! slog_in_checkout "$PROJECT"; then
@@ -388,10 +314,6 @@ case "$MODE" in
   envelope_rows=$((envelope_rows + shared_rows))
   ((envelope_rows)) && envelope="$envelope_rows row(s) from the audit hooks, outside the switch"
 
-  # --observed: the caller has no option values (the skill's pre-compute line,
-  # which can carry no ${user_config.*}), so the sixth line stops at what the
-  # filesystem shows and names the call that renders the option tier, rather
-  # than printing manifest defaults a reader could take for the effective state.
   if ((OBSERVED)); then
     printf 'envelope: %s; options: rendered by the section 2.6 re-run, not here\n' "$envelope"
     exit 0

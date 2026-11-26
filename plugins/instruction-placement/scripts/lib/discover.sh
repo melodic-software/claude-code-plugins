@@ -1,37 +1,4 @@
 #!/usr/bin/env bash
-# discover.sh — the shared discovery layer for this plugin's engines.
-#
-# WHY THIS EXISTS AS ITS OWN FILE. Version 0.1.0 open-coded discovery inside
-# each engine as a single `find .claude/rules`, and every one of the four bugs
-# found after release lived in that one line: nested rules trees were invisible,
-# symlinked rules were invisible, untracked and vendored files were indexed, and
-# the index could be written somewhere Claude Code never reads. Discovery is the
-# layer the rest of the plugin trusts, so it is defined once, tested on its own,
-# and reused by glob-tools.sh, render-index.sh, and detect.sh.
-#
-# Source it; it defines functions and runs nothing on its own.
-#
-#   ip_discover_rules <root>
-#       Every rule file Claude Code would load, at any depth, following symlinks.
-#
-#   ip_discover_nested_instructions <root>
-#       Tracked CLAUDE.md / AGENTS.md files BELOW the root, which load on demand.
-#
-#   ip_index_target_loaded <root> <target>
-#       Whether anything in the repository stops Claude Code loading <target>.
-#       Exit 0 reachable or unblocked, 1 blocked; prints "<VERDICT>\t<reason>",
-#       where the verdict is LOADED, NATIVE or UNREACHABLE.
-
-# ---------------------------------------------------------------------------
-# Portable canonicalization.
-#
-# `readlink -f` is GNU-only; BSD readlink (macOS) has no -f, and a `|| echo $1`
-# fallback would silently return the UNRESOLVED path — which would break the
-# symlink dedupe and the import-chain comparison on exactly the platform the
-# fallback was meant to protect. Plain `readlink <file>` is portable, and
-# `cd -P` + `pwd -P` resolves directory symlinks anywhere, so the resolution is
-# done by hand instead.
-# ---------------------------------------------------------------------------
 ip_realpath() {
   local p="${1:-}" dir base target hops=0
   [[ -n "$p" ]] || return 0
@@ -68,22 +35,6 @@ ip_realpath() {
   printf '%s/%s' "$dir" "$base"
 }
 
-# ---------------------------------------------------------------------------
-# `paths:` frontmatter parsing — ONE parser, three consumers.
-#
-# WHY IT LIVES HERE. glob-tools.sh, render-index.sh, and detect.sh each carried
-# their own copy, and all three shared a bug: the inline flow form was split on
-# every comma, so a perfectly valid `paths: ["src/*.{ts,tsx}"]` became the two
-# broken patterns `src/*.{ts` and `tsx}` — reported as two zero-match failures
-# against a rule that was correct. Three copies meant three places to fix and
-# three places to drift, so the parser is defined once and the copies are gone.
-#
-# Splits on commas ONLY at brace depth zero and outside a quote that opens an
-# entry, which is what makes brace expansion survive the flow form and the
-# comma-separated string.
-#   Pointer: when deciding which shapes `paths` accepts, fetch
-#     https://code.claude.com/docs/en/memory#rule-frontmatter-reference live.
-# ---------------------------------------------------------------------------
 ip_parse_paths() {
   local file="${1:-}"
   [[ -f "$file" ]] || return 0
@@ -156,21 +107,8 @@ ip_parse_paths() {
   ' "$file" 2>/dev/null
 }
 
-# ---------------------------------------------------------------------------
-# Frontmatter readability.
-#
-# Claude Code ignores frontmatter whose YAML does not parse and loads the rule
-# as if it had no `paths:` (https://code.claude.com/docs/en/memory, "Rule
-# frontmatter reference", read 2026-10-17). The rule then loads in every session
-# and says nothing. This is a static screen for the mistakes that cause that, not
-# a YAML parser: it prints `<line><TAB><reason>` for the first one found and
-# nothing for a file with no frontmatter or none of them. Block scalars and flow
-# collections are skipped, since their content is free-form.
-#
-# Flagged: a tab in indentation; a plain value starting with `*` (an alias, the
-# classic unquoted `paths: **/*.ts`), `@` or a backtick; a plain value holding
-# `: ` or ending in `:`, which YAML reads as a nested mapping.
-# ---------------------------------------------------------------------------
+# Unparsable rule frontmatter is ignored: the rule loads as if it had no paths.
+# https://code.claude.com/docs/en/memory
 ip_frontmatter_problem() {
   local file="${1:-}"
   [[ -f "$file" ]] || return 0
@@ -232,18 +170,6 @@ ip_frontmatter_problem() {
   ' "$file" 2>/dev/null
 }
 
-# ---------------------------------------------------------------------------
-# Rules discovery
-#
-# Two deliberate asymmetries against the nested-instruction discovery below:
-#
-#   * Symlinks are FOLLOWED. Upstream documents `.claude/rules/` symlinks as the
-#     supported way to share one rule set across projects, so a symlinked file
-#     or directory is a first-class rule, not an edge case.
-#   * Tracked status is NOT required. A symlinked rule points outside the
-#     repository by design and is therefore never tracked; gating on git here
-#     would delete the very feature the previous point supports.
-# ---------------------------------------------------------------------------
 ip_discover_rules() {
   local root="${1:-.}"
   [[ -d "$root" ]] || return 0
@@ -253,18 +179,11 @@ ip_discover_rules() {
 
   while IFS= read -r rules_dir; do
     [[ -z "$rules_dir" ]] && continue
-    # -L follows symlinked entries and symlinked directories. GNU find detects
-    # symlink loops itself and reports them on stderr, which is discarded; the
-    # realpath dedupe below is what keeps a loop from producing repeats.
     while IFS= read -r found_file; do
       [[ -z "$found_file" ]] && continue
       real="$(ip_realpath "$found_file")"
       printf '%s\t%s\n' "$real" "${found_file#"$root"/}" >>"$seen_file"
     done < <(find -L "$rules_dir" -type f -name '*.md' 2>/dev/null)
-    # -L on the OUTER find too. Without it, a `.claude/rules` that is ITSELF a
-    # symlink (the documented layout for sharing a whole rule set across
-    # projects) is `-type l`, never matches `-type d`, and its whole rule set
-    # is silently invisible.
   done < <(find -L "$root" -type d -name rules -path '*/.claude/rules' \
     -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null)
 
@@ -323,20 +242,6 @@ ip_discover_nested_instructions() {
   ' | LC_ALL=C sort
 }
 
-# ---------------------------------------------------------------------------
-# Every instruction entry point on a directory's own path, nearest first.
-#
-# The three names Claude Code counts, in <reldir> and in every directory above
-# it up to <root>. One walk, shared by the reachability verdict and the wiring
-# gate, so the two cannot disagree about the same tree.
-#
-# All three count at EVERY level, for the root check and for a nested attach
-# alike: this walk treats them the same way at each directory.
-#   Pointer: when deciding which file names count and at which levels, fetch
-#     https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md live.
-#
-# Paths are emitted rooted at <root>, existing files only.
-# ---------------------------------------------------------------------------
 ip_entry_points_on_path() {
   local root="${1:-.}" dir="${2:-.}" base entry
   while :; do
@@ -350,13 +255,8 @@ ip_entry_points_on_path() {
 }
 
 
-# Emit the @import targets of one markdown file, resolved to absolute paths.
-# Fenced code blocks and inline code spans are skipped: upstream documents that
-# import parsing ignores both, so a `@AGENTS.md` shown inside an example fence
-# is documentation, not wiring. A backslash keeps a space inside the path, a bare
-# space ends it, and a path wrapped in quotes is no import.
-#   Pointer: when deciding how an import path is written, fetch
-#     https://code.claude.com/docs/en/memory#import-additional-files live.
+# Claude Code's import parsing skips code spans and fenced code blocks.
+# https://code.claude.com/docs/en/memory
 _ip_imports_of() {
   local file="$1" dir
   dir="$(cd "$(dirname "$file")" && pwd)"
@@ -388,13 +288,6 @@ _ip_imports_of() {
   done
 }
 
-# Depth-bounded walk of the import graph: a file reachable only past the
-# import depth limit is treated as not loaded. The bound below is a run-time
-# value and stays here.
-#   Pointer: when deciding the import depth limit, fetch
-#     https://code.claude.com/docs/en/memory#import-additional-files live.
-#   As of: 2026-10-11.
-#   Recheck trigger: that section changes the maximum import depth.
 _ip_reaches() {
   local from="$1" want="$2" depth="${3:-0}"
   [[ -f "$from" ]] || return 1
@@ -402,9 +295,6 @@ _ip_reaches() {
   local resolved import_real
   resolved="$(ip_realpath "$from")"
   [[ "$resolved" == "$want" ]] && return 0
-  # <from> sits at hop <depth>; its imports are hop depth + 1, and the loader
-  # follows hops one through four only. A file at hop four may be the target,
-  # but its own imports are never loaded, so they are not examined.
   ((depth >= 4)) && return 1
 
   local imported

@@ -320,7 +320,6 @@ test("gate: an unknown open count fails and plans nothing", () => {
   assert.equal(result.stdout, "");
 });
 
-// A gh that logs its request as GH_DEBUG=1 does, so the wrapper counts it.
 const TRACED = `[ -z "$GH_DEBUG" ] || printf '* Request at now\\n* Request to https://api.github.com/repos/o/r/actions/runs/7/artifacts\\n* Request took 1ms\\n' >&2`;
 const budget = (name) => {
   const temp = join(dir, `temp-${name}`);

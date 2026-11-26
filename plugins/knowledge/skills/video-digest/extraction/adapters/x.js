@@ -107,9 +107,6 @@ export const X_FATAL_PATTERNS = Object.freeze([
   /No video could be found in this tweet/,
   /No video formats found/,
   /Unsupported URL:/,
-  // Pinned-index selections of a photo or an out-of-range slot are
-  // deterministic post-content facts (twitter.py's index-selected branch) —
-  // permanent, never transient.
   /Media #\d+ is not a video/,
   /Video #\d+ is unavailable/,
 ]);
@@ -678,11 +675,6 @@ export async function acquireXMedia(url, context) {
   const probe = await runPass("transcript");
   const probeStderr = probe.stderr ?? "";
   if (!probe.success) {
-    // Link post: the allow-list refused the post's delegated outbound URL
-    // without fetching it (yt-dlp writes no info JSON for an intermediate url
-    // result, so no post payload exists). The post resolves as a well-formed
-    // 0-media result with the blocked link recorded — unless the response was
-    // also rate-limit degraded, which stays a retryable failure.
     const refusedUrl = parseDelegationRefusal(probeStderr);
     if (refusedUrl) {
       const degradation = detectSyndicationDegradation({
@@ -798,8 +790,6 @@ export async function acquireXMedia(url, context) {
   }
   let inspected = gated.inspected;
 
-  // A successful spawn that wrote no twitter payload is a laundered failure
-  // (rate-limited, blocked, or tampered response) — never a durable 0-result.
   let post = pickPostInfo(inspected);
   if (!post) {
     return failX(
@@ -812,9 +802,6 @@ export async function acquireXMedia(url, context) {
     return probeDegradation;
   }
 
-  // Caption cleanup — X word-timing tags are kept verbatim in the downloaded
-  // VTT; `--convert-subs srt` yields clean text, converted back to the VTT
-  // container the shared pipeline consumes.
   let captionCleanup = "none";
   /** @type {Map<string, string>} tagged VTT path -> original content */
   const taggedContents = new Map();
@@ -826,10 +813,6 @@ export async function acquireXMedia(url, context) {
   }
   const taggedVtts = [...taggedContents.keys()];
   if (taggedVtts.length > 0) {
-    // Originals move aside (yt-dlp only re-downloads absent subtitles) and are
-    // unlinked ONLY after the cleanup pass succeeds and produced a converted
-    // counterpart for EVERY tagged original; a failed or partial cleanup fails
-    // the acquisition instead of silently losing captions.
     for (const [filePath, content] of taggedContents) {
       await writeFile(`${filePath}${TAGGED_CAPTION_BACKUP_SUFFIX}`, content, "utf8");
       await removeFile(filePath);
@@ -883,8 +866,6 @@ export async function acquireXMedia(url, context) {
     }
     stderrLog += `\n${mediaPass.stderr ?? ""}`;
     mediaPassMs = Date.now() - mediaStarted;
-    // The media pass re-writes info JSONs; re-derive the inspection so the
-    // final degradation check, ordering, and entry paths never read stale state.
     gated = await inspectAndGate();
     if (gated.failure) {
       return gated.failure;
@@ -950,9 +931,6 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   capabilities: {
     comments: false,
     browserCookieFallback: false,
-    // A 0-media post is a well-formed metadata-only result: every yt-dlp
-    // consumer — acquisition AND queue preflight — passes
-    // --ignore-no-formats-error so such posts report metadata instead of erroring.
     mediaOptional: true,
   },
 

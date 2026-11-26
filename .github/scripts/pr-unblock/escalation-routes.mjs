@@ -14,13 +14,10 @@ export const laneStop = (run) => run?.status === "completed" && run.conclusion =
 
 export const STOP_RESOLVED = "Skipped: stop-resolved";
 
-// The GitHub Actions app: only its check runs are a trusted stop record.
 export const ACTIONS_APP_ID = 15368;
 
 export const retryRung = (stopRuns) => (stopRuns.some((run) => laneStop(run) && run.app?.id === ACTIONS_APP_ID) ? "1" : "");
 
-// `node escalation-routes.mjs skip` prints stopSkip of the REASON variable,
-// for a workflow job that posts a select job's stop.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.argv[2] !== "skip") {
     throw new Error("usage: escalation-routes.mjs skip");

@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Check that no repository-level or organization-level Actions secret is named
-# SCAN_CARRIER_PRIVATE_KEY.
-#
-#   scripts/check-scan-carrier-secret-shadow.sh <owner/repo>
-#
-# WHY. The read runner's callers pass SCAN_CARRIER_PRIVATE_KEY by name. Only
-# the scan job, under the pr-pipeline-scan-carrier environment, gets the
-# environment secret's value; everywhere else in the run the name resolves to
-# a repository or organization secret of that name, if one exists, and would
-# reach the job that runs PR head code. Run it after keygen, and after any
-# change to the repository's or organization's secrets. It lists secret names
-# only (the API never returns values).
-#
-# Exit: 0 no shadow, 1 a shadow exists (named on stderr), 2 usage, or a
-# listing that cannot be read (no gh, no access, or an owner that is not an
-# organization the token may list), unless a shadow was already found.
 set -uo pipefail
 
 NAME=SCAN_CARRIER_PRIVATE_KEY

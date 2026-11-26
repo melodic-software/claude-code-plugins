@@ -1,44 +1,4 @@
 #!/usr/bin/env node
-// Drives Claude Code's TUI for the control-claude-code skill.
-//
-// `node driver.mjs --help` lists the verbs; `node driver.mjs <verb> --help` prints one verb's
-// flags (HELP below). `--dry-run` on a verb that writes or sends prints what it would do and does
-// nothing.
-//
-// `screenshot` and `record` never capture the live terminal: the holder reads
-// its cells, hides every `## Mask` match in SKILL.md and every signed-in
-// account value, redraws the masked cells in a second terminal, captures that
-// one, and writes the text it drew beside the capture as `<path>.txt`. A frame
-// that does not redraw exactly fails the verb with nothing written.
-//
-// `plugins` prints the plugin directory of each changed file, once each, at
-// most `maxEntryPoints` of them; with no file it prints the configured
-// `pluginDir`.
-//
-// The terminal engine lives in one process, so `launch` starts a detached
-// holder that owns the session and listens on a local socket in a 0700
-// directory (on Windows, a named pipe whose random name sits in a file there);
-// every other session verb sends it one request. The holder exits when Claude
-// Code does. The engine package is installed on first use from the committed
-// lockfile, never vendored.
-//
-// `ready` and `log` run Claude Code in print mode with the launch's flags and
-// environment and write its stream-json to --out. `ready` prints doctor's lines,
-// whether the session answers, and the init event's fields, stops Claude Code
-// once the init event arrives, and exits 1 unless `apiKeySource` is the source
-// the launch expects ("none", or under --unattended the kept CI credential's)
-// and the init event lists the plugin under test. `log` runs the prompt to the end,
-// stopping Claude Code early only when the init event names another key source. Both
-// stop Claude Code at --timeout (ready 120000, log 600000 by default).
-//
-// Broker mode: with CCD_BROKER_SOCK naming a launch broker's socket (broker.mjs),
-// `launch`, `ready` and `log` send their arguments there, paths made absolute,
-// relay what the broker streams back and exit with its status; the other verbs
-// run as they do without it. Sessions listen under CCD_RUNTIME_DIR, else
-// XDG_RUNTIME_DIR, else the home cache directory.
-//
-// Exit: 0 done, 1 the step failed, 2 usage, 3 no session, 4 broken install
-// (the message carries the repair line), 5 a directory others can write.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
@@ -82,22 +42,8 @@ const EXIT_POLL_MS = 1000;
 const WHOLE = /^[1-9]\d*$/;
 const NATIVE_LOAD = /failed to load the @microsoft\/tui-test native (?:addon|library)[^\n]*/;
 
-// Launch flags and the variables cleared before Claude Code starts.
-// Pointer: the Variables table lists ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN,
-// ANTHROPIC_CUSTOM_HEADERS, the CLAUDE_CODE_USE_* provider switches,
-// CLAUDE_CODE_FORCE_SESSION_PERSISTENCE and CLAUDE_CODE_HIDE_CWD:
-// https://code.claude.com/docs/en/env-vars#variables
-// As of: 2026-11-02. Recheck trigger: a Claude Code release adds or renames a
-// provider switch or credential variable, or changes the persistence or cwd variable.
-// Pointer: with only ANTHROPIC_BASE_URL set, requests route through the gateway
-// carrying the saved claude.ai login:
-// https://code.claude.com/docs/en/llm-gateway#subscriptions-and-gateways
-// As of: 2026-10-24. Recheck trigger: that section changes which credential a
-// base URL without a gateway credential sends.
 export const LAUNCH_FLAGS = ['--restricted', '--strict-mcp-config'];
 export const IN_SANDBOX_FLAGS = ['--strict-mcp-config'];
-// The launch broker's dummy-key prefix (broker.mjs KEY_PREFIX, pinned equal by broker.test.mjs):
-// --in-sandbox runs only on the unattended ANTHROPIC_API_KEY the broker hands its driver child.
 export const SANDBOX_KEY_PREFIX = 'ccd-dummy-';
 export const UNSET_VARS = [
   'ANTHROPIC_API_KEY',
@@ -111,16 +57,6 @@ export const UNSET_VARS = [
   'CLAUDE_CODE_USE_ANTHROPIC_AWS',
 ];
 
-// The CI credential variables an --unattended run may keep, each with the apiKeySource Ready then
-// accepts. Print mode always uses ANTHROPIC_API_KEY when it is set (env-vars Variables table, above).
-// CLAUDE_CODE_OAUTH_TOKEN, a claude.ai subscription token, reports "none" as the signed-in login
-// does, measured on Claude Code 2.1.316:
-// https://github.com/melodic-software/claude-code-plugins/issues/11386#issuecomment-6586913534
-// A token that reports any other source is refused. The CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row and
-// "What the subprocess environment scrub removes" (same page) remove a kept credential from the
-// environment hooks, Bash and MCP servers inherit; whether plugin code can still read it elsewhere
-// is #8651's S7 probe. As of: 2026-11-02. Recheck trigger: Ready refuses a token's apiKeySource, or
-// the scrub's table changes which variables it removes.
 const NO_KEY = 'none';
 const CI_KEY_SOURCES = { ANTHROPIC_API_KEY: 'ANTHROPIC_API_KEY', CLAUDE_CODE_OAUTH_TOKEN: NO_KEY };
 const CI_NAMES = Object.keys(CI_KEY_SOURCES);
@@ -169,12 +105,6 @@ export function buildLaunch(config, env) {
   };
 }
 
-// Print-mode flags, and the init event's key source that Ready requires to be "none".
-// Pointer: the stream-json and --verbose rows of
-// https://code.claude.com/docs/en/cli-reference#cli-flags, and the ApiKeySource
-// table under https://code.claude.com/docs/en/agent-sdk/typescript#apikeysource
-// As of: 2026-10-26. Recheck trigger: a Claude Code release changes the
-// stream-json flags or the values the init event reports in apiKeySource.
 export const PRINT_FLAGS = ['-p', '--output-format', 'stream-json', '--verbose'];
 const READY_PROMPT = 'Reply with the single word ok.';
 const READY_TIMEOUT_MS = 120_000;
@@ -484,8 +414,6 @@ export function request(session, verb, args = {}, deadlineMs = (args.timeout ?? 
       conn.destroy();
       rejectReply(err);
     };
-    // Write without ending: a Windows named pipe does not stay half-open, so ending here closes
-    // the pipe before a slow reply arrives. The holder ends the connection after replying.
     conn.on('connect', () => conn.write(`${JSON.stringify({ verb, args })}\n`));
     conn.on('data', (d) => {
       buf += d;
@@ -1128,7 +1056,6 @@ function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
         if (group && child.pid) process.kill(-child.pid, sig);
         else child.kill(sig);
       } catch {
-        // already gone
       }
     };
     const stop = () => {
@@ -1160,7 +1087,6 @@ function runPrint({ config, out, prompt, stopAt, timeoutMs }) {
           const event = JSON.parse(line);
           if (event?.type === 'system' && event.subtype === 'init') init = event;
         } catch {
-          // a line that is not JSON is kept in the log and skipped here
         }
       }
       if (init && stopAt(init)) stop();

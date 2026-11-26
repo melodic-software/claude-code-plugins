@@ -1,12 +1,10 @@
 import { Rejection } from "./resolve.mjs";
 
 export const DIMENSIONS = ["size", "complexity", "uncertainty"];
-// What a field no trusted account set reads as, so the run proceeds.
 export const UNSET = { size: "small", complexity: "medium", uncertainty: "known" };
 const NOT_ASSESSED = "not-assessed";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 
-// The account ids whose field values count: the listed humans and the lanes App.
 export function trustedSetters(trustedActors) {
   const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
   return new Set(
@@ -17,12 +15,6 @@ export function trustedSetters(trustedActors) {
   );
 }
 
-// The config's key for the option a single-select field holds, or null when
-// no trusted account set it. `facts.fieldValues` is the REST issue-field-values
-// rows as {field, option} ids; `facts.fieldSetters` maps a field id to the
-// account id that last set it (GraphQL field events), or null. An untrusted
-// setter's value is ignored, mapped or not, so it cannot fail the read; a
-// trusted option `field.options` does not map throws `unmapped(option)`.
 export function trustedOption(facts, field, trustedActors, unmapped) {
   const fieldId = field["field-id"];
   const row = facts.fieldValues.find((value) => value.field === fieldId);
@@ -36,8 +28,6 @@ export function trustedOption(facts, field, trustedActors, unmapped) {
   return field.options[option];
 }
 
-// {size, complexity, uncertainty}, each the config's key for the issue's
-// option (trustedOption), or UNSET's when no trusted account set the field.
 export function issueDimensions(facts, config, trustedActors) {
   const result = {};
   for (const name of DIMENSIONS) {
@@ -56,9 +46,6 @@ export function issueDimensions(facts, config, trustedActors) {
 const skipTimeout = (config) =>
   Math.min(...Object.values(config.sizes).filter((size) => size !== "split").map((size) => size["timeout-minutes"]));
 
-// The run budget: {skip, pin, timeout-minutes} plus max-turns when it runs.
-// Not assessed (a slot whose fields were not read), then uncertainty, then a
-// split size skip in that order.
 export function dimensionBudget(dims, config) {
   if (DIMENSIONS.some((name) => dims[name] === null)) {
     return { skip: NOT_ASSESSED, "timeout-minutes": skipTimeout(config), pin: NOT_ASSESSED };
@@ -78,9 +65,6 @@ export function dimensionBudget(dims, config) {
   };
 }
 
-// `dims` for a trusted size-split sub-issue (`splitChild`): a size that
-// splits becomes `split-child-size`, since admission takes such a child
-// whatever its Size (owner Q93). Anything else is returned as is. Pure.
 export function splitChildDims(dims, config, splitChild) {
   const size = config["split-child-size"];
   return splitChild === true && size !== undefined && config.sizes[dims.size] === "split" ? { ...dims, size } : dims;
@@ -88,7 +72,6 @@ export function splitChildDims(dims, config, splitChild) {
 
 const tablesOf = (config) => ({ size: config.sizes, complexity: config.complexity, uncertainty: config.uncertainty });
 
-// The dimensions a pin (dimensionBudget's `pin`) names.
 export function parsePin(pin, config) {
   if (pin === NOT_ASSESSED) {
     return Object.fromEntries(DIMENSIONS.map((name) => [name, null]));
@@ -101,9 +84,6 @@ export function parsePin(pin, config) {
   return Object.fromEntries(DIMENSIONS.map((name, i) => [name, parts[i]]));
 }
 
-// What the schema cannot check: every mapped key and UNSET's names an entry of
-// its table, the three field ids differ, UNSET's size runs, and so at least
-// one size runs.
 export function checkDimensions(config) {
   const tables = tablesOf(config);
   for (const name of DIMENSIONS) {

@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 11, run as a plugin-eval case for the before/after comparison (after-only). Narration: the prompt names an interview ledger no fixture provides."
+description: "Chart seeds its proposed map from an interview ledger, keeping the derived-analytics deletion worry as a Not-yet-specified bullet and the ledger's .work path out of Notes (after-only). Narration: the prompt names an interview ledger no fixture provides."
 tags: [wayfind, wayfind-charting, after-only, no-network]
 runs: 3
 max_turns: 30

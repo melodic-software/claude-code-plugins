@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Tests for dispatcher-current.sh with stub gh and git on PATH. The stub gh
-# serves the Actions run and contents reads, with a rate-limit header block
-# first when called with -i as the api-budget wrapper calls it; the stub git
-# prints the tip's blob. Each case runs with RUNNER_TEMP emptied, so the script
-# leaves its gh calls unwrapped, except the one that sets CASE_RUNNER_TEMP.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,9 +60,6 @@ if [[ ${*: -1} == HEAD ]]; then cat "$STUB/tip_sha"; else cat "$STUB/tip"; fi
 STUB
 chmod +x "$TMP/bin/gh" "$TMP/bin/git"
 
-# run_case <path> <head> <blob at that head> <blob at the tip> [run id]
-# EVENT is the dispatcher run's event (push), ARTIFACTS its artifact listing,
-# SELF_RUN this run's id.
 run_case() {
   STUB="$(mktemp -d "$TMP/case.XXXXXX")"
   printf '%s\n%s\n%s\n' "$1" "$2" "${EVENT-push}" >"$STUB/run"
@@ -130,8 +122,6 @@ check "a path outside the workflows reads no contents" 'repos/o/r/actions/runs/4
 run_case "$UNBLOCK" 'main' "$BLOB_A" "$BLOB_B"
 check "a head that is no commit id reads no contents" 'repos/o/r/actions/runs/41217038328' "$(cat "$STUB/calls")"
 
-# A pull_request_target dispatcher's head is the PR head; the commit it ran is
-# the one its record names for this run.
 REC=4444444444444444444444444444444444444444
 artifact() { printf '{"name":"%s","expired":%s,"workflow_run":{"id":%s}}' "$1" "${2-false}" "${3-41217038328}"; }
 listing() {

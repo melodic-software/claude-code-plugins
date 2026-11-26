@@ -1,61 +1,4 @@
 #!/usr/bin/env bash
-# Operator-run reset of the user-scope plugin fleet: move the marketplace
-# clones and `cache/` (and, for `clean`, `data/`) aside, re-fetch them through
-# the documented CLI, and prove the configuration came back unchanged.
-#
-# Usage:
-#   reset-refresh.sh preview
-#   reset-refresh.sh refresh [--journal-root <dir>]
-#   reset-refresh.sh clean [--journal-root <dir>]
-#
-# `preview` changes nothing and calls no CLI: it prints the count and size of
-# what `refresh` would move aside (each known marketplace's clone under
-# `plugins/marketplaces/`, and `plugins/cache/` with its `temp_git_*` entries)
-# and the user-scope ids it would reinstall, then what `clean` would also
-# discard (`plugins/data/`) and any earlier `plugins.bak-*` backup.
-#
-# `refresh` keeps installed_plugins.json, known_marketplaces.json and every
-# settings file, and never writes any of them itself:
-#   1. Refuses when CLAUDE_CODE_REMOTE is set or a process named `claude` runs,
-#      since a live session can write the same state files.
-#   2. Makes a run directory under the journal root (default
-#      `~/.claude/plugins-refresh`, never inside `~/.claude/plugins`), copies
-#      this script there and re-executes the copy, because the original can sit
-#      in the cache this run moves aside.
-#   3. Snapshots the marketplaces (name, full `source`, `autoUpdate`), the
-#      user-scope install records (id, scope) and user `enabledPlugins`.
-#   4. Moves `cache/` and each known marketplace's clone into the run
-#      directory. Nothing is deleted: the operator removes the run directory.
-#      Project and local records lose their cache too and are not reinstalled.
-#   5. Runs `claude plugin marketplace update <name>` per known marketplace,
-#      then `claude plugin install <id> --scope user` per user-scope record,
-#      serially. `@builtin` ids are left out.
-#   6. Re-applies `enable` or `disable --scope user` to each reinstalled id whose
-#      `enabledPlugins` value the install changed: an install on a recorded,
-#      disabled id enables it. "already enabled|disabled" counts as success.
-#   7. Snapshots again and compares all three; any difference is a failure.
-#
-# `clean` does all of that, plus:
-#   - Refuses unless stdin is a terminal (it asks before some installs, so it
-#     aborts when run autonomously) and while an earlier `~/.claude/plugins.bak-*`
-#     exists, so at most one backup is kept.
-#   - Moves `cache/`, the clones and `data/` into `~/.claude/plugins.bak-<ts>`
-#     instead of the run directory, and never deletes that backup.
-#   - Installs with `--json`. When an install only displays a marketplace-declared
-#     command, it prints that command and asks; on yes it re-runs with
-#     `--accept-command <sha256>`. It never passes `-y`.
-#   - Also snapshots every project and local install record, and byte copies of
-#     user `settings.json` and each existing project's `.claude/settings.json` and
-#     `.claude/settings.local.json`, compared with `cmp`.
-#   - On any CLI failure or difference, moves the rebuilt copies into the run
-#     directory and the backup back into place, then reports the difference.
-#   - On a pass, deletes the run's snapshot files and prints the backup's path
-#     and size, the `data/` entries whose setup reruns, the dotfile-managed paths
-#     under the plugin root (`chezmoi managed`, when present) and a restart line.
-#
-# Output: plain text on stdout; every CLI call and its output is appended to
-# `<run_dir>/journal.log`, and the snapshots are `<run_dir>/{before,after}.*.json`.
-#
 # Exit codes:
 #   0  preview printed, or refresh or clean finished with every snapshot identical
 #   1  refresh or clean finished with a CLI failure or a snapshot difference
@@ -132,7 +75,6 @@ for f in "$INSTALLED_JSON" "$MARKETPLACES_JSON" "$USER_SETTINGS"; do
   jq empty "$f" >/dev/null 2>&1 || die "not valid JSON: $f"
 done
 
-# jq with the `\r` a Windows jq prints stripped, so no id carries it into a CLI call.
 jqr() { jq "$@" | tr -d '\r'; }
 
 user_ids() {
@@ -187,8 +129,6 @@ if [[ "$MODE" == "clean" ]]; then
     [[ -e "$bak" ]] && refuse "an earlier backup exists: $bak; remove it yourself, then run clean again"
   done
 fi
-# Git Bash has no pgrep; Windows lists its processes through tasklist.exe. `//` keeps
-# MSYS from rewriting the `/FI` switches as paths.
 case "$(uname -s 2>/dev/null)" in
 MINGW* | MSYS* | CYGWIN*)
   command -v tasklist.exe >/dev/null 2>&1 ||
@@ -300,8 +240,6 @@ cli_or_count() {
     count_failure "$@"
   fi
 }
-# clean asks before an install that runs a marketplace-declared command, and
-# accepts only that command through its sha256, never with -y.
 install_user() {
   local id="$1" result sha ans
   if [[ "$MODE" != "clean" ]]; then
@@ -331,7 +269,6 @@ snapshot before || die "could not snapshot the state files; nothing was moved"
 if [[ "$MODE" == "clean" ]] && ! snapshot_settings; then
   die "could not copy the settings files; nothing was moved"
 fi
-# A read loop, not mapfile: macOS system bash is 3.2.
 IDS=()
 MPS=()
 DATA=()

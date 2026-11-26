@@ -1,70 +1,4 @@
 #!/usr/bin/env bash
-# state-digest.sh — `state-digest/v1` and `input-digest/v1` for audit-pass.
-#
-# WHY THIS EXISTS. The state digest is the FIRST comparability input, so P1 is
-# only as falsifiable as this derivation is exact. It shipped as one sentence
-# ("sha256 over the inventoried surfaces in sorted order, each paired with the
-# content hash of its current bytes") with no pinned ordering, no separator, and
-# no statement of which sha256 over what. Two implementations following that
-# sentence produce different digests over one tree, so two runs compare unequal
-# and P1 asserts nothing anyone can check. A run in this state computed its own
-# digest with a scratch script, which is the defect rather than a workaround.
-#
-# THE DERIVATION, pinned here and in `reference/determinism-tiers.md` §6:
-#
-#   entry       = <surface> 0x1F <content-hash>
-#   digest-body = entry 0x1E entry 0x1E ...        (no trailing separator)
-#   digest      = lowercase hex sha256(digest-body), all 64 characters
-#
-#   - entries are DEDUPLICATED on the surface token, then sorted ascending by
-#     BYTE ORDER under LC_ALL=C. A locale collation reorders the same set on a
-#     different machine and changes the digest with no change to the tree.
-#   - the content hash is sha256 over the file's RAW BYTES, 64 lowercase hex.
-#     One algorithm across all three scopes: user scope and managed policy sit
-#     outside any worktree, so a git object id is not uniformly available there,
-#     and a digest that switched algorithms by scope would make the two halves of
-#     one comparison incomparable. Git supplies the dirty path SET, never a hash.
-#   - a path that does not exist pairs with the literal token `deleted`; one that
-#     cannot be read pairs with `unreadable`. Neither is 64 lowercase hex, so
-#     neither can be mistaken for a content hash. `unreadable` is a value rather
-#     than a failure because a permission-denied user-scope file is an ordinary
-#     state and failing there would take the whole gate down with it.
-#   - a digest over NO entries is sha256 of the empty byte string.
-#
-# `input-digest/v1` is the SAME construction over a lane's file list plus its
-# detection configuration, which enters as reserved `cfg:` pseudo-surface entries
-# sorted in with the files rather than appended after them (the ordering rule
-# admits no exceptions). Reusing the construction is deliberate: two digests
-# specified separately drift apart on the next edit to either, and a resume
-# comparing one against the other re-runs every lane forever or carries every
-# lane forward wrongly.
-#
-# SCOPE OF WRITES: none. This script reads files the caller names and prints a
-# hex string. It never writes anywhere, which is what lets the skill call it
-# under a bare read-only invocation.
-#
-# PORTABILITY. coreutils plus one of `sha256sum` / `shasum`, and `git` only for
-# the `dirty` subcommand. No jq, no GNU-only flags.
-#
-# Usage:
-#   state-digest.sh digest       --list <file> [--exclude <surface>]...
-#   state-digest.sh input-digest --list <file> [--config <token>=<value>]...
-#                                [--exclude <surface>]...
-#   state-digest.sh dirty        --target <repo-root>
-#   state-digest.sh hash-file    --path <file>
-#
-# `--list <file>` holds one entry per line, `<surface-token>\t<path>`, where the
-# surface token is §1's `surface` form and the path is where those bytes live on
-# this machine. `-` reads the list from stdin. `dirty` emits exactly that shape
-# for a target's dirty set, so the two compose:
-#
-#   { cat inventory.tsv; state-digest.sh dirty --target "$ROOT"; } \
-#     | state-digest.sh digest --list -
-#
-# `--config <token>=<value>` adds one `cfg:` entry whose content hash is sha256
-# of <value>. The token must start with `cfg:`; it cannot collide with a surface
-# token, whose forms are a repo-relative POSIX path or a scope prefix.
-#
 # Exit codes:
 #   0  the digest (or the dirty listing) is on stdout
 #   2  usage error, rejected argument, a missing prerequisite, or a `git status`
@@ -88,9 +22,6 @@ cleanup_temps() {
 }
 trap cleanup_temps EXIT
 
-# Sets MK_TEMP rather than printing it. A command substitution would put both the
-# registration and the `die` inside a subshell, where the registry never reaches
-# this shell and the exit never reaches this script.
 MK_TEMP=""
 mk_temp() {
   MK_TEMP=$(mktemp) || die "could not create a temporary file"
@@ -138,9 +69,6 @@ sha256_string() {
   printf '%s' "$1" | sha256_stdin
 }
 
-# Content hash of one path, or a sentinel. Readability is tested with -r AND by
-# the read itself: a path can pass -r and still fail to read (a directory, a
-# dangling mount), and a sentinel is the honest answer to both.
 hash_path() {
   local p="$1" out=""
   if [[ ! -e "$p" ]]; then
@@ -195,9 +123,6 @@ digest_from_entries() {
 
 read_list_to_temp() {
   local list="$1" tmp
-  # This function runs inside a command substitution, so the caller's registry
-  # and trap are in a different shell: the temp is removed here, by hand, on the
-  # one path that abandons it. The caller registers the path it receives.
   tmp=$(mktemp) || die "could not create a temporary file"
   if [[ "$list" == "-" ]]; then
     cat >"$tmp"
@@ -235,9 +160,6 @@ cmd_digest() {
     esac
   done
   [[ -n "$list" ]] || die "--list is required"
-  # Validated HERE, not inside read_list_to_temp: that runs in a command
-  # substitution, where a `die` exits the subshell and the caller carries on
-  # with an empty path. A refusal that does not reach the exit code is not one.
   if [[ "$list" != "-" && ! -r "$list" ]]; then
     die "--list is not readable: $list"
   fi
@@ -268,14 +190,6 @@ cmd_digest() {
   rm -f "$src" "$entries"
 }
 
-# The dirty path set, as `<surface>\t<path>` lines the digest can consume.
-# `--untracked-files=all` is required, not a preference: bare porcelain collapses
-# an untracked directory to one `?? dir/` entry, so the ordinary worktree state of
-# having one untracked directory would make the digest uncomputable. `-z` emits
-# NUL-delimited, unquoted paths, which sidesteps porcelain's quoting of unusual
-# bytes entirely. A rename entry emits the new path followed by the original as a
-# separate NUL-terminated field; both are hashed, the original normally as
-# `deleted`.
 cmd_dirty() {
   local target="" arg
   while [[ $# -gt 0 ]]; do
@@ -293,12 +207,6 @@ cmd_dirty() {
   [[ -d "$target" ]] || die "--target is not a directory: $target"
   command -v git >/dev/null 2>&1 || die "git is required for the dirty path set"
 
-  # The output is captured and the STATUS CHECKED BEFORE anything parses it.
-  # Consumed through a process substitution instead, a failing `git status` is
-  # indistinguishable from a clean tree: the loop reads nothing, completes, and
-  # the caller computes baseline and endpoint digests that omit every worktree
-  # change, with the comparability gate then evaluating against incomplete input
-  # instead of failing. A bare repo and an unreadable index both take that path.
   local raw err rc=0
   mk_temp
   raw="$MK_TEMP"
@@ -319,7 +227,6 @@ cmd_dirty() {
       printf '%s\t%s\n' "$field" "$target/$field"
       continue
     fi
-    # `XY path` — two status characters, a space, then the path.
     status="${field:0:2}"
     path="${field:3}"
     [[ -z "$path" ]] && continue
@@ -357,9 +264,6 @@ main() {
   }
   local cmd="$1"
   shift
-  # Resolved once, up front. Every hashing call site is inside a command
-  # substitution or a pipeline, where a `die` exits only the subshell and the run
-  # would carry on with an empty hash that looks like a value.
   case "$cmd" in
   digest | input-digest | hash-file) resolve_sha256 ;;
   *) : ;;

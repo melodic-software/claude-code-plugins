@@ -15,15 +15,6 @@ const NOW = "2026-10-21T12:00:00Z";
 const OLD = "2026-09-01T00:00:00Z";
 const sha = (c) => c.repeat(40);
 
-// `branches` are { name, sha, protected }; `pulls` are keyed by branch name;
-// `issues` and `comments` by number; `ahead` maps a SHA to its commits ahead
-// of main; `rules` maps a branch to its ruleset rules; `moves` maps a branch
-// to the tip a re-read returns; `movesAtDelete` maps a branch to the tip it
-// holds once the delete-time re-read is done; `openLater` names branches whose
-// open PR appears only at the delete-time re-read. The GraphQL updateRefs
-// fake refuses, as GitHub does, an update whose beforeOid is not the tip,
-// returning HTTP 200 with an errors list; `call` throws on it as the client
-// does.
 function world({ branches, pulls = {}, issues = {}, comments = {}, ahead = {}, rules = {}, moves = {}, movesAtDelete = {}, openLater = [] }) {
   const writes = [];
   const reread = new Set();
@@ -118,8 +109,6 @@ test("a lane branch whose issue is open is kept, however old its merged PR", asy
   assert.deepEqual(r.deletes, []);
 });
 
-// Owner decision on #8958: a branch lives while its issue is open and is
-// deleted once it closes, whatever the lanes App's outcome markers say.
 const stopMarker = { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=100 -->\nPartial work is on the branch." };
 
 test("a stopped lane run's branch is kept while its issue is open", async () => {
@@ -282,10 +271,6 @@ test("linkedIssues reads same-repository closing and Refs links only", () => {
   assert.deepEqual(linkedIssues(body, REPO), [1, 2, 3, 4]);
 });
 
-// The real client over a stubbed fetch, so its call budget applies (#8959
-// review: evaluation spent the whole budget and every delete then failed).
-// The plan stage gets the budget less the delete stage's share; the delete
-// stage gets that share.
 test("300 deletable branches under a 600-call budget: the run deletes the cap of 25", async (t) => {
   const branches = [];
   const pulls = {};
@@ -309,8 +294,6 @@ test("300 deletable branches under a 600-call budget: the run deletes the cap of
   for (const write of w.writes) assert.equal(write.beforeOid, branches.find((b) => b.name === write.name).sha);
 });
 
-// #8976 review: kept branches ahead of the deletable ones spent the
-// evaluation share every run, so the branches after them were never read.
 test("493 kept branches ahead of 8 deletable: successive runs reach and delete all 8", async (t) => {
   const branches = [];
   const pulls = {};
@@ -370,8 +353,6 @@ test("the delete sends one updateRefs per branch, beforeOid the listed tip and a
   assert.equal(r.deleted.length, 1);
 });
 
-// #8958 item 1: the re-read and the delete are no longer two steps a push can
-// land between.
 test("a tip that moved after the delete-time re-read is not deleted and is reported as skipped", async () => {
   const w = world({
     branches: [{ name: "feat/raced", sha: sha("2") }],

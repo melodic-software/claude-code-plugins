@@ -1,92 +1,4 @@
 #!/usr/bin/env bash
-# findings-state.sh: persistence for audit-automation-gaps verdicts, so
-# `--implement` in a LATER session can read back what a run decided.
-#
-# WHY THIS EXISTS. The skill takes an `--implement` flag and its Phase 4 acts on
-# "user-selected items", but nothing persisted the verdict table, the evidence
-# behind each verdict, or the implementation plans a PASS carries. An audit run
-# and the implement run that acts on it are two sessions, so without a durable
-# artifact `--implement` has nothing to read and the operator re-runs the whole
-# audit to recover what was already decided.
-#
-# KEYING, WHICH IS NOT OPTIONAL. Everything is written under
-#
-#   <plugin-data>/audit-automation-gaps/<state-key>/
-#
-# where `<state-key>` comes from `lib/state-key.sh` and nothing else. That is
-# rule 1 of docs/contracts/plugin-data-report-keying/README.md, and the reason
-# is the whole point of this file: `${CLAUDE_PLUGIN_DATA}` is keyed to the plugin
-# identifier alone, so an unkeyed findings file is one file per MACHINE and a
-# later `--implement` would be served another repository's approved items and its
-# evidence. The key is derived by RUNNING the shared library (rule 1a), never by
-# composing a path here and never by a second derivation of its own (rule 1's
-# "do not mint a second scheme").
-#
-# RETENTION. One file per run plus an appended history line, which is rule 2's
-# third row: a same-day rerun must not erase the earlier verdict set, because the
-# operator may have approved items from the earlier one. `latest` is a POINTER to
-# the newest run id, not the artifact, so `read` with no `--run-id` still serves
-# a real per-run file. A findings file is never overwritten: a colliding run id
-# gets a `-2`, `-3`, ... suffix and the id actually written is reported back, the
-# same non-overwrite naming `audit-instructions/scripts/emit-findings.sh` uses
-# for its `--out`.
-#
-# HOW THAT PROMISE IS KEPT UNDER CONCURRENCY, which a check-then-write cannot.
-# Testing `[[ -e "$target" ]]` and publishing afterwards leaves a window in which
-# two writers pick the same name and the second `mv` destroys the first verdict
-# set while both report success. So the suffix search IS the publish reservation:
-# each candidate name is claimed with `set -C` (noclobber) plus a `>` redirect,
-# which opens with O_EXCL, so exactly one writer can win a given name and the
-# loser moves to the next suffix. The envelope is composed only after a name is
-# won and lands on the reserved inode with `mv -f`. No lock file is taken: a
-# stale lock would wedge every later run, whereas the history append is one short
-# line through `>>` (a single atomic write below PIPE_BUF) and `latest` is
-# last-writer-wins by definition. RESIDUAL: O_EXCL is atomic on local POSIX
-# filesystems and on NFSv3+, not on NFSv2; a plugin data root on NFSv2 is outside
-# what this guards, and is recorded rather than implied.
-#
-# A PUBLISH IS ALL OR NOTHING. The pointers a publish also owns (the history line
-# and `latest`) are pre-flighted before anything is published, so the common
-# damaged state refuses up front instead of half-landing. If the history append
-# still fails, the findings file is rolled back rather than left as an orphan
-# nothing points at. The one residue that cannot be rolled back, a `latest` that
-# will not replace after the history line is committed, is REPORTED as an
-# incomplete publish naming the run id, and `read`/`list` report orphan findings
-# files as an incomplete publish rather than as an absence.
-#
-# RULE 3, NEVER SERVE WHAT YOU CANNOT ATTRIBUTE. `read` against a key with no
-# artifact exits 4 saying so. It does not look in an unkeyed location, it does
-# not adopt a legacy file, and it computes nothing from one.
-#
-# UNINSTALL FRAGILITY. This tree is the only durable copy of a run's verdicts.
-# Uninstalling the plugin from its last scope deletes `${CLAUDE_PLUGIN_DATA}`
-# unless `--keep-data` is passed, and that takes every project's findings with
-# it. Say so to the operator before treating this as an archive.
-#
-# `--plugin-data` IS REQUIRED, AND THAT IS THE DESIGN. `${CLAUDE_PLUGIN_DATA}` is
-# NOT in the Bash tool's environment: the placeholder substitutes in skill
-# CONTENT, and it is exported to hook processes and MCP/LSP subprocesses, none of
-# which the Bash tool is. Verified on this host: `printenv CLAUDE_PLUGIN_DATA`
-# exits 1 with no output. So the skill passes the already-resolved path it can
-# see, and an exported value is honored only where one genuinely exists. Absent
-# both, every subcommand exits 2 naming the remedy rather than inventing a
-# directory and writing a project's verdicts somewhere nobody will look.
-#
-# PORTABILITY. coreutils plus `jq` plus `git` and `sha256sum`/`shasum` through
-# `lib/state-key.sh`. No GNU-only flags: no `readlink -f`, no in-place `sed`, no
-# `date -d`, no `stat` format flags. `jq` is a hard requirement rather than a
-# soft one, matching every other jq-using script in this plugin
-# (`audit/scripts/*.sh`, `audit-permission-state/scripts/permission-state.sh`): a
-# findings payload is a JSON document, and a half-checked document in an artifact
-# `--implement` is the only reader of is worse than a refusal naming the tool.
-#
-# Usage:
-#   findings-state.sh paths --plugin-data <dir> [--root <path>]
-#   findings-state.sh write --plugin-data <dir> --findings <file|-> [--run-id <id>]
-#                           [--root <path>]
-#   findings-state.sh read  --plugin-data <dir> [--run-id <id>] [--root <path>]
-#   findings-state.sh list  --plugin-data <dir> [--root <path>]
-#
 # Exit codes:
 #   0  the operation succeeded
 #   2  usage error, rejected argument, or a missing prerequisite (no
@@ -120,9 +32,6 @@ EXIT_PAYLOAD=3
 EXIT_NO_ARTIFACT=4
 EXIT_STATE=5
 
-# Globals because the EXIT trap runs after the creating function returns.
-# RESERVED_TARGET is the name claimed with O_EXCL, released by the trap if its
-# envelope never landed.
 TMP_PAYLOAD=""
 TMP_ENVELOPE=""
 TMP_LATEST=""
@@ -244,11 +153,6 @@ require_absolute_path() {
   esac
 }
 
-# The resolvers set globals rather than print, because `die` inside a `$(...)`
-# capture would exit only the subshell and the caller would carry on.
-#
-# Sets PLUGIN_DATA, which must be absolute. A `..` path component is refused,
-# but `a..b` is a legal directory name.
 resolve_plugin_data() {
   local value="${1:-${CLAUDE_PLUGIN_DATA:-}}"
   if [[ -z "$value" ]]; then
@@ -354,9 +258,6 @@ validate_payload() {
     jq . "$file" 2>&1 >/dev/null | head -5 >&2
     exit "$EXIT_PAYLOAD"
   fi
-  # EXACTLY ONE DOCUMENT: jq would validate every document in a stream, but the
-  # envelope is composed from the first, so a later document's verdicts would be
-  # silently dropped.
   documents=$(jq -s 'length' "$file" 2>/dev/null)
   if [[ "$documents" != "1" ]]; then
     printf '%s: the findings payload must be exactly one JSON document, and this stream carries %s.\n' \
@@ -432,11 +333,6 @@ cmd_write() {
   fi
   resolve_locations "$ARG_PLUGIN_DATA" "$ARG_ROOT"
 
-  # Every segment below the plugin data root is constrained (COMPONENT is a
-  # literal, lib/state-key.sh validates the key, the run id is validated above),
-  # so the directory is derived, never caller-supplied. RESIDUAL: a symlink
-  # planted inside the plugin's own data directory could redirect the write;
-  # anyone able to plant one could write the findings file directly anyway.
   mkdir -p "$BASE_DIR" || die "cannot create the findings directory: $BASE_DIR"
 
   TMP_PAYLOAD="$BASE_DIR/.payload.$$"
@@ -460,9 +356,6 @@ cmd_write() {
   preflight_state_file "$HISTORY_FILE" "the history file"
   preflight_state_file "$LATEST_FILE" "the latest pointer"
 
-  # NEVER OVERWRITE. Each candidate name is reserved by an O_EXCL create under
-  # `set -C`, so a same-second run or a reused id gets the next suffix rather
-  # than racing a check-then-`mv`. The id actually written is reported back.
   local target="" candidate="$run_id" suffix=1
   while :; do
     target="$BASE_DIR/findings-$candidate.json"
@@ -571,7 +464,6 @@ require_readable_file() {
 
 cmd_read() {
   parse_common_args "read" "$@"
-  # Without this a missing jq would read as an unparsable envelope (exit 5).
   require_jq
   if [[ "$ARG_FINDINGS_GIVEN" -eq 1 ]]; then
     die "read does not take --findings"
@@ -599,8 +491,6 @@ cmd_read() {
     if [[ -z "$run_id" ]]; then
       die_state "the latest pointer is empty, so no run can be served by default: $LATEST_FILE"
     fi
-    # Validated even though this script wrote it: a poisoned `latest` is a
-    # caller-supplied run id by another route.
     validate_run_id "$run_id"
   fi
 

@@ -1,10 +1,4 @@
 // test-scope: .github/scripts/lib/fixtures/standards/*
-// pr-dispatch-feedback.yml's slot read through the real resolver: the
-// dispatcher script resolves only the address-feedback slot of a pr-unblock
-// lane whose resolve-conflicts slot has a mergeable predicate (runs
-// 38838718857 and 38838482787 failed reading that lane with no activity), and
-// dispatches nothing when the slot is disabled. Lives here because it needs
-// resolve-config's dependencies.
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -200,8 +194,6 @@ test("a config the resolver refuses fails the run even when the lane has no addr
   await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "undefined-activity");
 });
 
-// The round is enabled in this repository (#7032 Phase 4), so a lanes App PR
-// with an open reviewer-bot thread on a reviewed head is dispatched.
 test("this repository's own config dispatches address-feedback", async () => {
   const { dispatched, lines } = await run(null, readFileSync(join(ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
   assert.equal(dispatched.length, 1);

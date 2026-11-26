@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for reset-refresh.sh. Each case builds a throwaway
-# HOME from fixtures/reset-refresh/ and puts stub `claude`, `pgrep`, `uname`,
-# `tasklist.exe` and `chezmoi` commands first on PATH (STUB_UNAME picks the
-# platform). `clean` cases run under util-linux `script`, which gives the run the
-# terminal clean requires. The committed fixtures are only copied, never written.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,14 +33,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# The `claude` stub acts on the case's HOME the way the probed CLI does: an
-# install refills the cache and turns a recorded `false` into `true`, enable and
-# disable on a plugin already in that state exit 1, and marketplace update
-# re-creates a missing clone. STUB_DROP_AUTOUPDATE=1 makes marketplace update
-# drop the marketplace's autoUpdate, the difference a refresh must catch.
-# STUB_REORDER_SETTINGS=1 makes install reorder settings.json's keys, which only a
-# byte compare sees. For STUB_ACCEPT_ID, an install without `--accept-command abc123`
-# only displays a marketplace-declared command, as a `--json` failure result.
 write_stubs() {
   local stubs="$1"
   mkdir -p "$stubs"
@@ -124,7 +111,6 @@ STUB
   chmod +x "$stubs/claude" "$stubs/pgrep" "$stubs/uname" "$stubs/tasklist.exe" "$stubs/chezmoi"
 }
 
-# CASE_NUM is incremented by the caller: this runs in a subshell.
 new_case() {
   local dir="$TEST_TMPDIR/case-$CASE_NUM"
   local plugins="$dir/home/.claude/plugins"
@@ -152,7 +138,6 @@ run_script() {
   env_cmd "$dir"
   "${ENV_CMD[@]}" bash "$SCRIPT" "$@" 2>"$dir/stderr.txt"
 }
-# Runs the script on a pseudo-terminal whose input is $2; stdout loses the terminal's `\r`.
 run_tty() {
   local dir="$1" input="$2" cmd
   shift 2
@@ -241,9 +226,6 @@ assert_eq "journal inside plugins/: the refused root is not created" "absent" \
   "$([[ -e "$dir/home/.claude/plugins/runs" ]] && echo present || echo absent)"
 assert_eq "refusals: nothing was moved or fetched" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
 
-# ============================================================================
-# Case: on Git Bash (no pgrep) tasklist.exe decides whether claude.exe runs
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 dir=$(new_case)
 EXTRA_ENV=(STUB_UNAME=MINGW64_NT-10.0-26300 STUB_TASKLIST_PID=5150 STUB_PGREP_PID=4242)

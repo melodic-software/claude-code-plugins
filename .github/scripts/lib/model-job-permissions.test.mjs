@@ -1,8 +1,4 @@
 // test-scope: .github/workflows/*.yml .github/actions/*/action.yml .github/actions/resolve-config/package.json
-// ADR 0085, "Lane model steps hold no write token": every job that runs a
-// model holds no write scope, no write credential and no dependency cache, so
-// a model steered by the text it reads can neither write nor plant an entry a
-// later trusted job restores. No exception list: such a job needs a new ADR.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -42,7 +38,6 @@ export function modelJobViolations(workflow, expand = (step) => [step]) {
       if (runsModel(step) && ("github_token" in input || "github-token" in input)) bad("write credential", "a GitHub token input to the model");
       if (/^actions\/cache(\/(restore|save))?@/.test(uses)) bad("dependency cache", uses);
       if (/\/setup-[\w-]+(@|$)/.test(uses) && !OFF.includes(input.cache)) bad("dependency cache", `${uses} cache: ${input.cache}`);
-      // setup-node turns package-manager-cache on by default.
       if (/^actions\/setup-node@/.test(uses) && String(input["package-manager-cache"]) !== "false") bad("dependency cache", `${uses} package-manager-cache on`);
     }
   }

@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 
 # shellcheck disable=SC2016
-# Every fixture below is markdown fed to the hook as literal data. Backticks are
-# the code-span delimiters the hook scans for and `$`/`{}` appear inside
-# placeholder fixtures on purpose — single quotes are required so none of it
-# expands. Disabled file-wide rather than on individual lines.
 
 set -uo pipefail
 
@@ -523,7 +519,7 @@ TWIN_CASES=(
 )
 TWIN_OUT=$(
   source "$HOOK_DIR/hook-utils.sh"
-  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^spv_tokens() {/{/^spv_tokens() {/!p;}' "$HOOK")"
   SPV_OUT=()
   lines() { ((${#SPV_OUT[@]})) && printf '%s\n' "${SPV_OUT[@]}"; }
   for t in "${TWIN_CASES[@]}"; do
@@ -556,11 +552,6 @@ else
   bad "builtin twins differ from the pipelines: $TWIN_OUT"
 fi
 
-# --- The word-anchor split counter answers what the character walk answered --
-# spv_word_occurrences replaced a per-character awk walk for word anchors. The
-# walk is kept here as the reference and run in the hook's locale; the split
-# runs under C. Non-ASCII letters, invalid UTF-8 and CR beside the anchor,
-# underscores, a digit start and a long line are the cases where they could part.
 # spellchecker:off
 OCC_WALK='BEGIN { n = 0; a = ENVIRON["HOOK_ANCHOR"] }
 { p = 1
@@ -578,7 +569,7 @@ printf 'foo éfoo fooé foo_bar foo\r\n\xfffoo\xff 9foo foo9 _foo x.foo foo-x\n%
 # spellchecker:on
 OCC_OUT=$(
   source "$HOOK_DIR/hook-utils.sh"
-  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^spv_tokens() {/{/^spv_tokens() {/!p;}' "$HOOK")"
   for loc in C.UTF-8 C; do
     for a in foo foo_bar 9foo foo9 _foo x w S3MARKb; do
       want=$(HOOK_ANCHOR="$a" LC_ALL=$loc awk "$OCC_WALK" "$OCC_FILE" 2>/dev/null)
@@ -606,7 +597,7 @@ FIXED_FILE="$REPO/fixed-occ.txt"
 printf 'docs/docs/docs\ndocs/old.md and docs/old.md\né docs/old.md\nsee docs/docs\n' >"$FIXED_FILE"
 FIXED_OUT=$(
   source "$HOOK_DIR/hook-utils.sh"
-  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^# emit_tokens. lines into SPV_OUT/p' "$HOOK")"
+  eval "$(sed -n '/^# shellcheck disable=SC2329 # reached through/,/^spv_tokens() {/{/^spv_tokens() {/!p;}' "$HOOK")"
   for loc in C.UTF-8 C; do
     for a in 'docs/docs' 'docs/old.md' 'docs/docs/docs' 'nope'; do
       want=$(HOOK_ANCHOR="$a" LC_ALL=$loc awk "$FIXED_WALK" "$FIXED_FILE" 2>/dev/null)

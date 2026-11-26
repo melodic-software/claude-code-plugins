@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-// upstream-apply-changelog: the scripted halves of .github/workflows/upstream-apply-changelog.yml.
-// No model runs here. Subcommands:
-//   gate     picks the release, skips one already processed, applies the
-//            per-day cap (read-only GITHUB_TOKEN with actions: read)
-//   scan     checks each planned head's net diff in the scan job and stops
-//            the release on a hold path (no write token)
-//   push     checks each planned branch and recreates it through the Git Data
-//            API as one lanes App commit on the base (mutate-branch token)
-//   publish  opens one PR per pushed branch and files one issue per handoff
-//            row, plus a stopped plan's stop notice (publish-artifact token)
-// The plan and each branch's tree come from the apply-changelog job, so every field is
-// data: names are held to fixed shapes and each branch's net diff to its
-// plugin's paths, none of them a hold path. The bundle holds the scan job's
-// synthetic commits only. The plan and how publish files it:
-// https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -25,13 +10,10 @@ import { LANES_APP_LOGIN, matchesHoldPath } from "../pr-merge/merge-holds.mjs";
 export const RELEASE = /^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})$/;
 const PLUGIN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const SHA = /^[0-9a-f]{40}$/;
-// The handoff key grammar ci-mode.md states verbatim; a test holds the two equal.
 export const KEY = /^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const branchFor = (plugin, release) => `changelog/${plugin}/v${release}`;
-// One name for every start record (an artifact is scoped to its run), so the
-// cap lists them by name instead of paging the repository's artifacts.
 export const STARTED_ARTIFACT = "upstream-apply-changelog-started";
 export const doneArtifact = (release) => `upstream-apply-changelog-done-${release}`;
 export const alreadyProcessed = (artifacts) => (artifacts?.total_count ?? 0) > 0;
@@ -41,11 +23,6 @@ export const SOURCE_LABEL = "source: upstream-apply-changelog";
 const KIND = /^[a-z][a-z-]{0,39}$/;
 const REASON_MAX = 500;
 const STOP_REASONS = new Set(["cap-exceeded", "range-not-computed", "hold-path"]);
-// range-not-computed can pass on a later run (the changelog fetch failed, or
-// the page lags the tag), so it files nothing and leaves the release undone;
-// cap-exceeded and hold-path come from the release's fixed changelog text, so
-// its stop notice and rows are filed and the release marked done
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
 export const marksDone = (stop) => stop !== "range-not-computed";
 
 const STOP_WHY = {
@@ -87,10 +64,6 @@ async function withoutOpenDrift(api, repo, handoffs) {
   return { kept, skipped };
 }
 
-// A native-overlap verdict is never the lane's
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/audit-native-overlap/SKILL.md,
-// "Never auto-verdict"). Admission refuses a body line opening with `Hold:`
-// (admit.mjs BODY_HOLD), so a nomination has no agent-ready path.
 export const NOMINATION_HOLD =
   "Hold: a replace nomination from the upstream-apply-changelog lane. A native-overlap verdict is written by a person, " +
   "or a session acting on the owner's recorded direction (/harness-ops:audit-native-overlap, \"Never auto-verdict\"), " +
@@ -135,10 +108,6 @@ export const stopIssue = (release, stop) => ({
   body: `${releaseMarker(release)}\n\n${stopLine(release, stop)}\n`,
 });
 
-// Every string publish can post from the plan, as plain text for the scan
-// job: each pull request title and body, and the issue strings and summary
-// lines fileHandoffs can post
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
 export function publishText(plan, release) {
   const parts = plan.branches.flatMap((b) => [b.pr.title, b.pr.body]);
   if (marksDone(plan.stop_reason)) {
@@ -163,11 +132,6 @@ const ownOpen = (i) => i?.user?.login === LANES_APP_LOGIN && i.state === "open" 
 
 const COMMENT_PAGES = 10;
 
-// An older per-release checklist issue moved the rows its full body could not
-// hold into lanes App comments, which no body search reads
-// (https://docs.github.com/en/rest/search/search#search-issues-and-pull-requests).
-// More comments than COMMENT_PAGES pages hold, or an answer that is not a
-// list, throws so no key is filed twice.
 async function commentKeys(api, repo, number, open) {
   for (let page = 1; page <= COMMENT_PAGES; page++) {
     const batch = await api(`/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`);
@@ -187,11 +151,7 @@ async function legacyCommentKeys(api, repo, release, open) {
   for (const i of items.filter(ownOpen)) if (i.body.includes(releaseMarker(release))) await commentKeys(api, repo, i.number, open);
 }
 
-// Keys carry the release, so one search finds them all, an older per-release
-// checklist's included, and that checklist's comments are read too. The search
-// API returns at most 1000 results
-// (https://docs.github.com/en/rest/search/search#about-search), so past that
-// it throws rather than file a key twice.
+// Search returns at most 1,000 results (10 pages of 100): https://docs.github.com/en/rest/search/search#about-search
 async function openKeys(api, repo, release) {
   const q = encodeURIComponent(`repo:${repo} is:issue is:open ${APP_AUTHOR} in:body "upstream-apply-changelog key=changelog:${release}..${release}"`);
   const open = new Map();
@@ -226,9 +186,6 @@ async function fileStopNotice(api, repo, release, stop) {
 
 const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-// Any failed read or write throws, so the release is not marked done and the
-// next run, which skips what is open, finishes it
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
 export async function fileHandoffs({ repo, release, handoffs: planned, stop = null, api, summary = () => {} }) {
   if (!planned.length && !stop) return "no handoffs; nothing filed";
   const said = stop ? [await fileStopNotice(api, repo, release, stop)] : [];
@@ -279,32 +236,19 @@ export async function api(path, { method = "GET", body, allow404 = false } = {})
 
 const pullsFor = (repo, branch) => api(`/repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${encodeURIComponent(branch)}`);
 
-// The unread releases, oldest first, from changelog-status.sh's status file:
-// `range: up to date` is none; `cap: within budget` lists them on `releases:`; any other shape
-// (cap exceeded, range not computed) throws, so a person handles it.
 export function releasesFromStatus(text) {
   const value = (key) => text.match(new RegExp(`^${key}: (.*)$`, "m"))?.[1]?.trim() ?? "";
   if (value("range") === "up to date") return [];
-  // changelog-status.sh:57 prints `cap: within budget (<r> releases / <i> items)`;
-  // :55 prints `releases:` space-separated, oldest first.
   if (!value("cap").startsWith("within budget")) throw new Error(`changelog-status.sh reports cap: ${value("cap") || "missing"}`);
   const versions = value("releases").split(/ +/).filter(Boolean);
   if (!versions.length || !versions.every((v) => RELEASE.test(v))) throw new Error("the status file's releases line is malformed");
   return versions;
 }
 
-// A scheduled gate checks the done marker of at most this many unread
-// releases, newest first: --ci never moves the read marker, so the unread list
-// only grows, and each check is one REST call per tick. Older releases wait
-// for a person to move the marker. Ten is the changelog skill's default
-// replay cap (changelog-status.sh, --cap-releases).
 export const SCHEDULE_WINDOW = 10;
 
-// The releases a scheduled gate checks, newest first.
 export const scheduledCandidates = (text) => releasesFromStatus(text).reverse().slice(0, SCHEDULE_WINDOW);
 
-// The newest release by version, from the release list (newest first is not
-// guaranteed, so it sorts). Tags are `v<MAJOR.MINOR.PATCH>`; any other tag is skipped.
 export function newestRelease(releases) {
   const versions = releases
     .filter((r) => r && !r.draft && !r.prerelease && typeof r.tag_name === "string")
@@ -317,16 +261,12 @@ export function newestRelease(releases) {
   return versions.at(-1) ?? "";
 }
 
-// Runs started in the last 24 hours, counted from the gate's started
-// artifacts, as red-main counts reverts "in any 24 hours".
 export function startedInWindow(artifacts, now) {
   return artifacts.filter(
     (a) => a?.name === STARTED_ARTIFACT && now - Date.parse(a.created_at) < DAY_MS,
   ).length;
 }
 
-// The plan file parsed and checked. A parse error names no input: Node
-// quotes the text it could not parse, and the plan is model output.
 export function readPlan(text, ctx) {
   let plan;
   try {
@@ -337,8 +277,6 @@ export function readPlan(text, ctx) {
   return validatePlan(plan, ctx);
 }
 
-// Which part of a handoff key breaks KEY or the release prefix, with its
-// length; never any of its text.
 export function keyProblem(key, release) {
   if (typeof key !== "string") return "is not a string";
   const prefix = `changelog:${release}..${release}:`;
@@ -355,7 +293,6 @@ export function keyProblem(key, release) {
   return KEY.test(key) ? null : `does not match the key grammar ${size}`;
 }
 
-// Which PLUGIN rule a plugin name breaks, with its length; never its text.
 export function pluginProblem(plugin) {
   if (typeof plugin !== "string") return "is not a string";
   const size = `(${plugin.length} characters)`;
@@ -370,11 +307,6 @@ const ITEM_IDS = /^(?:Items: )?\d+\.\d+\.\d+-\d{3}(?:, \d+\.\d+\.\d+-\d{3})*$/;
 const FILED_BY = /^Filed by \/harness-ops:changelog apply \(native drift, [0-9.]+\.\.[0-9.]+\)$/;
 const SENTENCE_MAX = 500;
 
-// A handoff body is item ids and the required sentence, never changelog text
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/harness-ops/skills/changelog/context/ci-mode.md#the-plan).
-// A native-drift body also holds its script-built lines: quoted `>` data, the
-// `Drift key:` line and the `Filed by` line. Any other line is dropped, so
-// model text outside that shape is never posted.
 export function boundBody(h) {
   const sentence = typeof h.required_sentence === "string" ? h.required_sentence.trim() : "";
   const drift = lensOf(h.key) === "native-drift";
@@ -387,8 +319,6 @@ export function boundBody(h) {
   return h.body.split(/\r?\n/).filter(keep).join("\n").trim();
 }
 
-// Every message names a field and its index, never a value: the plan is
-// model output and the scan job reports these before it scans anything.
 export function validatePlan(plan, { release, baseSha }) {
   const fail = (why) => {
     throw new Error(`ci-plan.json: ${why}`);
@@ -435,12 +365,8 @@ export function validatePlan(plan, { release, baseSha }) {
   return { status, stop_reason, branches, handoffs: handoffs.map((h) => ({ ...h, body: boundBody(h) })) };
 }
 
-// The change lines of a raw diff (`:<modes> <shas> <status>\t<path>...`).
 const rawLines = (raw) => raw.split("\n").filter((l) => l.startsWith(":"));
 
-// Every path the raw diff changes, either side of a rename, must sit under
-// plugins/<plugin>/ or .changes/<plugin>/, as a regular file. Messages name
-// the branch index and the raw line number, never a path.
 export function checkRawLog(raw, plugin, index = 0) {
   const allowed = [`plugins/${plugin}/`, `.changes/${plugin}/`];
   rawLines(raw).forEach((line, n) => {
@@ -460,11 +386,6 @@ export function checkRawLog(raw, plugin, index = 0) {
   });
 }
 
-// The security review lane's hold-paths, which scripts/sync-hold-floor.py
-// writes from the hold floor (HOLD_PATH_CLASSES in merge-holds.mjs), the
-// trusted-actor list and the security review's own files. Read from the
-// checkout this module runs from, never the model's tree; unreadable or empty
-// throws, so nothing is published unchecked.
 export const HOLD_PATHS_FILE = new URL("../../workflows/pr-review-security-hosted.yml", import.meta.url);
 export function readHoldPaths(text) {
   const lines = text.split("\n");
@@ -478,12 +399,9 @@ export function readHoldPaths(text) {
 let holdPaths;
 export const loadHoldPaths = () => (holdPaths ??= readHoldPaths(readFileSync(HOLD_PATHS_FILE, "utf8")));
 
-// Whether a raw diff changes a hold path, either side of a rename.
 export const changesHoldPath = (raw, globs = loadHoldPaths()) =>
   rawLines(raw).some((line) => line.split("\t").slice(1).some((p) => globs.some((g) => matchesHoldPath(p, g))));
 
-// The first planned branch whose net diff changes a hold path, or -1, after
-// checking each one stays in its plugin. Each head must be in repoDir.
 export function holdPathBranch(repoDir, baseSha, branches, globs = loadHoldPaths()) {
   return branches.findIndex((b, i) => {
     const raw = netRawDiff(repoDir, baseSha, b.head_sha);
@@ -492,18 +410,14 @@ export function holdPathBranch(repoDir, baseSha, branches, globs = loadHoldPaths
   });
 }
 
-// The plan text stopped on hold-path: no branch, the handoffs kept.
 export const stoppedPlanText = (text) => JSON.stringify({ ...JSON.parse(text), status: "stopped", stop_reason: "hold-path", branches: [] });
 
 const git = (repo, args, extra = {}) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", ...extra }).trim();
 const MAX_BLOB = 64 * 1024 * 1024;
 
-// The net raw diff base..head: what the one published commit changes, and
-// what the scan job scanned. Intermediate commits are never published.
 export const netRawDiff = (repoDir, baseSha, headSha) =>
   git(repoDir, ["diff-tree", "-r", "--no-renames", "--raw", "--no-abbrev", baseSha, headSha]);
 
-// The files the net diff changes: a deleted file has content null.
 export function readNetChanges(repoDir, baseSha, headSha) {
   return rawLines(netRawDiff(repoDir, baseSha, headSha)).map((line) => {
     const [meta, path] = line.split("\t");
@@ -513,19 +427,12 @@ export function readNetChanges(repoDir, baseSha, headSha) {
   });
 }
 
-// `git diff --numstat` marks a binary file `-\t-\t`; the scan reads text,
-// so a branch with one is refused. The message names no path.
 export function refuseBinary(numstat, index = 0) {
   if (numstat.split("\n").some((line) => line.startsWith("-\t-\t"))) {
     throw new Error(`branches[${index}] changes a binary file; only text is published`);
   }
 }
 
-// One commit on the base, with no author or committer, so GitHub authors and
-// signs it as the lanes App, as apply-patch does (apply-patch.mjs
-// createGitHubApi). Its message is the scanned pull request title and its
-// tree must be the planned head's: what is pushed is exactly what the scan
-// job scanned. Returns the new commit.
 export async function commitNetTree(changes, { message, baseSha, baseTree, headTree, api }) {
   if (!changes.length) throw new Error("a planned branch changes nothing against the base");
   const entries = [];
@@ -547,11 +454,6 @@ const SYNTHETIC_ENV = {
 };
 export const SYNTHETIC_MESSAGE = "upstream-apply-changelog scanned tree";
 
-// The scan job's stand-in for each planned head: one commit on the base
-// holding the head's tree, with a fixed identity, date and message, bundled
-// alone. The bundle push gets then carries no model commit, header, merge or
-// intermediate blob, only what the scan read as the net diff. Returns each
-// branch's { commit, tree } in plan order.
 export function syntheticBundle(repoDir, baseSha, heads, bundlePath) {
   const env = { ...process.env, ...SYNTHETIC_ENV };
   const quiet = { stdio: ["ignore", "pipe", "pipe"] };
@@ -566,7 +468,6 @@ export function syntheticBundle(repoDir, baseSha, heads, bundlePath) {
   return made;
 }
 
-// The scan job's synthetic output: one { commit, tree } per planned branch.
 export function readSynthetic(text, count) {
   let list;
   try {
@@ -580,8 +481,6 @@ export function readSynthetic(text, count) {
   return list;
 }
 
-// Fetches a branch's synthetic commit from the scanned bundle and checks it
-// is one commit on the base holding the tree the scan recorded.
 export function fetchSynthetic(repoDir, bundleFile, baseSha, { commit, tree }, local, i) {
   git(repoDir, ["fetch", "--quiet", "--no-tags", bundleFile, `${commit}:${local}`]);
   if (git(repoDir, ["rev-parse", local]) !== commit) throw new Error(`branches[${i}] is not at its synthetic commit`);

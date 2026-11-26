@@ -1,17 +1,3 @@
-// Expected values come from the WIP cap rule: the issue lane's cap is the
-// lanes App's merged pull requests per hour over the rolling window times the
-// target lead time (pr-pipeline.yaml `wip`), rounded up and at least 1, with
-// limits.wip-cap when the merged count cannot be read. Only open lane PRs that
-// are not held count against it; a held one (needs-human or do-not-merge in
-// any case, or a body line exactly "Hold: a human merges this") counts against the held
-// cap and its age alarm. Lane PRs opened in the window may be at most
-// wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
-// pauses the lane over the WIP cap or the held cap, on or after wip.pause-from,
-// and logs one `admission paused: reason=...` line (owner decision
-// 2026-10-21). A read the pause depends on that fails (the open listing, the
-// base config, not the merged count) makes the pause unknown, so the run holds:
-// `capped` true with one notice, and no stored state decides it (outage
-// posture elements 2 and 3, #12283).
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -136,11 +122,6 @@ test("the reads are three serial searches for the lanes App's PRs, then the issu
   assert.deepEqual(Object.fromEntries(queries[3].searchParams), { labels: "agent-ready", state: "open", sort: "created", direction: "asc", per_page: "100", page: "1" });
 });
 
-// The search index carries no recency guarantee, and admit.mjs counts its
-// racing admissions against this count, so the queued issues come from the
-// repository issues listing. It lists pull requests too
-// (https://docs.github.com/en/rest/issues/issues#list-repository-issues) and
-// takes no label exclusion, so both are left out client-side.
 test("the queued listing leaves out pull requests and hold labels in any case, in listing order", async () => {
   const queued = [
     { number: 1 },
@@ -311,11 +292,6 @@ test("a search that answers incomplete results is an unknown read", async () => 
   assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: [], queuedUnlisted: 0, blocked: [], searchIncomplete: true });
 });
 
-// During a GitHub search incident the API answered total_count 0 with
-// incomplete_results true for a repository with about 600 open issues
-// (2026-10-22). A failed read keeps admissions open; an incomplete one is
-// evidence the search itself is degraded, so it closes them whatever
-// pause-from says (owner decision 2026-10-22); the queued cap stays as configured.
 test("an incomplete search answer closes new admissions with pause-from unset, future or past", async () => {
   const reads = await read({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true });
   for (const pauseFrom of ["", "2026-10-19", "2026-10-01"]) {
@@ -424,13 +400,6 @@ test("admissions may reach the admission factor times the merges, no more", asyn
   assert.equal(status(await read({ merged: 10, admitted: 9 }), { "opened-to-merged-ratio": 1 }).admission_over, false);
 });
 
-// Queued work (owner decision 2026-10-21, #8794): open agent-ready issues no
-// open lane PR names on its first body line (`Closes #n` or `Refs: #n`, as
-// report-outcome writes it) or, failing that, by its lane branch (#8965), plus
-// held lane PRs. The queued cap is
-// max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
-// x wip.merge-rate-window-hours. Over it, on or after pause-from, new
-// admissions pause; runs never pause on it.
 const issues = (...numbers) => numbers.map((number) => ({ number }));
 
 const blocker = (number, { state = "open", reason = null, repo = REPO, pull } = {}) => ({
@@ -482,10 +451,6 @@ test("queued work is the agent-ready issues no open lane PR names first, plus th
   assert.equal(result.queued_total, 4);
 });
 
-// #8965: a lane PR's head branch (work-resolve-issue/issue-<n>-<run>-<attempt>,
-// as apply-issue-patch names it) names its issue too, so a person editing the
-// body's first line does not leave the issue queued. Only a PR whose first
-// line names no issue costs a pull request read.
 test("a lane PR whose edited body names no issue still takes its issue out of the queue by its head branch", async () => {
   const open = [pr({ number: 50, body: "Closes #1" }), pr({ number: 51, body: "Edited by a person.\n\nCloses #3" })];
   const { github, paths } = searchApi({ open, merged: 24, queued: issues(1, 2, 3), heads: { 51: "work-resolve-issue/issue-3-123-1" } });
@@ -551,10 +516,6 @@ test("over the queued cap new admissions pause only on or after pause-from, and 
 });
 
 test("past the listing's 10 pages, an unlisted queued issue still counts and admissions pause", async () => {
-  // 1,050 queued issues: the listing stops at 1,000 (10 pages of 100) and
-  // answers no count, so a full last page counts one more as queued, no lane
-  // PR naming it. A cap above that (100/h x 24 h = 2,400) still pauses: a
-  // count the listing cut short never admits.
   const queued = issues(...Array.from({ length: 1050 }, (_, i) => i + 1));
   const reads = await read({ open: [pr({ body: "Closes #1" })], merged: 0, queued });
   assert.equal(reads.queued.length, 1000);
@@ -759,12 +720,6 @@ const unsetConfig = () =>
 const failed = new Error("GET /search/issues failed with status 502");
 const HOLD = "::notice title=WIP cap hold::";
 
-// Outage posture element 2 (#12283): a read the pause depends on that fails,
-// or a search that answers incomplete, makes the pause unknown, so the run
-// holds with one notice whatever the reads that succeeded say, and the step
-// still exits 0. Sixty held PRs are over the default held cap of 60, so the
-// config case would pause on its own; the hold names the unread config
-// instead of a pause line.
 test("a read the pause depends on that fails holds the run with one notice", async () => {
   for (const [answers, config, unread] of [
     [{ open: failed, merged: 24 }, pastConfig(), "the open lane PRs could not be listed"],

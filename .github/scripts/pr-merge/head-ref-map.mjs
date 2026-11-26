@@ -1,48 +1,4 @@
 #!/usr/bin/env node
-// head-ref-map.mjs: keeps, from one pr-merge run to the next, the head ref each
-// untied pr-verify FAIL's verdict.json records, by artifact id, so the gate
-// ties or unties those FAILs without downloading them again
-// (babysit_verify_evidence.py `_head_ref`). An id names contents that never
-// change: an overwrite uploads a new id.
-//
-// `read`, before the gate: the newest scheduled or hand-started run of main's
-// pr-merge.yml (rotation.mjs `trustedRun`), this run aside, holding the
-// pr-merge-head-refs artifact; its map is checked and written to
-// HEAD_REFS_PATH. Only a run's own steps can upload its artifacts, so that
-// map was written by main's pr-merge.yml. A run's head_branch is a tag's name
-// for a run on a tag, so a run counts only when no tag is named main and its
-// head commit is on main (`onMain`); a run that is not is passed over. The
-// map never goes through actions/cache, which any job in main's cache scope
-// can write.
-//
-// `write`, after the gate: that map's entries and the head refs this run
-// downloaded (the run cache's fail-head-ref section, which only this run's
-// gate writes: carry-run-cache.mjs carries in carried-* sections alone), each
-// kept only while the run's saved artifact listing lists its id unexpired,
-// written to HEAD_REFS_OUT for actions/upload-artifact. With no listing file
-// (no candidates, or a listing the run could not read) the map read before
-// the gate is written as it is, and the next run that saves a listing prunes
-// it; a listing file that cannot be parsed writes nothing, and the next run
-// reads an older map.
-//
-// The map holds no verdict, only `{"version": 1, "repo": "<owner/repo>",
-// "head_refs": {"<artifact id>": "<head ref>"}}`, "" for a verdict that records
-// none. Any failure writes nothing and warns: the gate then downloads every
-// untied FAIL, which costs requests, never a decision.
-//
-// Environment:
-//   ACTIONS_TOKEN             read: the job's GITHUB_TOKEN (actions: read)
-//   GITHUB_REPOSITORY         owner/repo
-//   GITHUB_RUN_ID             read: this run, which has no map yet
-//   RUNNER_TEMP               read: where the artifact is downloaded
-//   PR_MERGE_READS_PATH       read: the job's shared GET answers
-//                             (rotation.mjs sharedReads), if set
-//   PR_MERGE_MAIN_TIP         read: main's tip from the job's ls-remote, if set
-//   GITHUB_API_URL
-//   HEAD_REFS_PATH            the map read before the gate
-//   BABYSIT_RUN_CACHE         write: this run's cache (babysit_run_cache.py)
-//   BABYSIT_VERIFY_LISTING    write: the run's saved artifact listing
-//   HEAD_REFS_OUT             write: the map to upload
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -81,13 +37,6 @@ export function writeAtomic(path, text) {
   renameSync(`${path}.tmp`, path);
 }
 
-// main's tip, read once per process by the first onMain call, and only while
-// no tag is named main (a run on one reports head_branch main;
-// check-trusted-trigger.mjs readDefaultBranchTip). A failed or refused read
-// is remembered too, so every later run in the process is refused. A job that
-// listed refs/heads/main and refs/tags/main in one `git ls-remote` passes the
-// tip as PR_MERGE_MAIN_TIP, set only when that listing held no tag named
-// main, and then no process reads either ref; unset or not 40 hex, it is read.
 let mainTip;
 export function forgetMainTip() {
   mainTip = undefined;

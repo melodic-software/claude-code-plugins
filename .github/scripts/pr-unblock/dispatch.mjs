@@ -1,47 +1,3 @@
-// Starts the pr-unblock lane for each open pull request GitHub reports as
-// conflicting, because no pull_request event fires on a conflicting PR.
-// Run by .github/workflows/pr-unblock-dispatch.yml on a push to main or its
-// half-hourly tick, after the kill switch and, where needed, the
-// trusted-trigger gate; this script does no sender check of its own.
-//
-// It lists open PRs into main, keeps the non-draft, same-repository ones
-// whose mergeable state is CONFLICTING (re-querying UNKNOWN a bounded number
-// of times), skips a PR whose resolve-conflicts run is still queued or going,
-// a held PR (do-not-merge, or the human-gated label unless another lane's
-// escalation put it on: gate-source.mjs prHold), or one whose current head
-// already carries a pr-unblock check run that handles it (limit-stop.mjs: a
-// limit stop, a usage limit or a refused credential, stops counting once its
-// limit resets, and the skip names its class and reset; a failed run until
-// limit-stops-per-head failures stand on the head, a skip while held once
-// the hold is gone, a head-lag stop (the gate's lagging PR read) at once, and a select job's own lane-stopped skip once the base tip
-// was committed after it started, since the head then merges another base),
-// and dispatches pr-unblock.yml on main for at most maxDispatch of them,
-// lowest PR number first, heads retried on a moved base last. Authors are
-// left to the lane's own config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
-// it dispatched become the step output run-ids, which the workflow records.
-// The same run then starts review-dependency for review-tier Dependabot PRs
-// (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
-// `adoption` section, PRs of the base's trusted actors, whose ci-status or
-// pr-test-platforms run failed past the lost-run reconciler's re-run
-// (fix-ci-dispatch.mjs), and sync-shared-copies for lanes App PRs pr-merge
-// refused as shared-copy-sources-changed at their head
-// (dispatchSharedCopies), and their run ids join the same record. It starts
-// no fix-docs: a PR's own event does (refine-event-dispatch.mjs).
-// resolve-conflicts, review-dependency and fix-ci read the one
-// open-PR listing (LIST_QUERY, each page read once a run), and
-// resolve-conflicts and fix-ci the one pr-unblock.yml run listing. A read that
-// fails, whatever GitHub answered, holds what it was read for: a failed
-// listing defers its pass and a failed read for one PR skips that PR, each
-// with a warning, and the next run reads it again. fix-ci-dispatch.mjs keeps
-// the reads it dispatches past under its caps. The run fails only on a
-// dispatch that failed or named no run id, on config it cannot read, or on a
-// rate limit, which the rate guard's latch fails. A head whose check
-// runs handle it for good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
-// carries to the next run through the Actions cache; the next run skips that
-// head's check-run read, and its UNKNOWN re-queries. A head recorded at the
-// per-head cap (resolve-conflicts or fix-ci) gets one `::warning::` as it is
-// recorded.
-
 import { appendFileSync } from "node:fs";
 
 import { DISPATCH_HOLDS, SHARED_COPY_HOLDS } from "../lib/lane-vocabulary.mjs";
@@ -72,19 +28,15 @@ export const DEFAULTS = Object.freeze({
   activity: "resolve-conflicts",
   checkName: "pr-unblock / resolve-conflicts",
   stopCheckName: "pr-unblock / apply-conflict-patch",
-  // The GitHub Actions app: only a check run it created counts, so another
-  // app cannot suppress a dispatch by posting a run under the same name.
   appId: 15368,
-  // Judgment until the lane's measured per-run cost sets it.
   maxDispatch: 3,
-  // GitHub gives no timing for computing mergeability; this bounds the wait
-  // at about a minute (judgment).
   unknownRetries: 5,
   unknownDelayMs: 10_000,
   holdLabels: DISPATCH_HOLDS,
 });
 
 const SHA = /^[0-9a-f]{40}$/;
+export const COUNTED_PAGES = 20;
 
 const handleOptions = (limits) => ({ limits, failuresRetry: true, heldSkipsRelease: true, lagStopsRelease: true });
 
@@ -105,9 +57,8 @@ function inFlightRun(log, active, { workflow, activity, node }) {
   return inFlight;
 }
 
-// GitHub lists at most this many files in a comparison, all on its first page
-// (https://docs.github.com/en/rest/commits/commits#compare-two-commits), so
-// compareCommits reads one page of one commit.
+// Compare lists at most 300 files, only on page 1; a longer list is incomplete.
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
 const COMPARE_FILE_LIMIT = 300;
 
 async function conflictUntouched(api, log, { node, base, conflict, readTip }) {
@@ -134,8 +85,6 @@ function lagRefire(log, node, checkName, existing, handled) {
   }
 }
 
-// A merge commit on a Dependabot head stops Dependabot's own rebases, which
-// resolve its conflicts, and breaks the pr-merge Dependabot tier.
 function isDependabotHead(node) {
   return String(node.headRefName ?? "").startsWith("dependabot/") && node.author?.databaseId === DEPENDABOT_ID;
 }
@@ -423,10 +372,6 @@ const BASE_TIP_QUERY = `query($owner: String!, $name: String!, $base: String!) {
   }
 }`;
 
-// The one open-PR listing resolve-conflicts, review-dependency, fix-ci and
-// sync-shared-copies all read: the Dependabot classifier's fields, fix-ci's
-// body, update time and head rollup with the base tip's commit time, 50 a
-// page, with its rateLimit.cost.
 const LIST_NODE_FIELDS = `number isDraft isCrossRepository mergeable baseRefName baseRefOid headRefOid headRefName title body updatedAt changedFiles
         author { __typename ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
@@ -462,9 +407,6 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
   }
 }`;
 
-// One pull request for fix-docs (refine-event-dispatch.mjs): the listing's
-// fields plus its open state, files, line counts and head commit's signer,
-// which GraphQL merges into the listing's author and commits(last: 1).
 export const PULL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   rateLimit { cost remaining }
   repository(owner: $owner, name: $name) {
@@ -487,12 +429,6 @@ export function createGitHubApi({
 }) {
   const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
-  // Connection: close ends each socket after its answer, so no request goes
-  // out on a pooled one that sat idle through dispatchConflicting's waits and
-  // that GitHub has since dropped. A read that still fails on the network is
-  // sent again (budgetedFetch); a dispatch is not, since it may have started a
-  // run. A request's own Connection: close does not keep it off a pooled
-  // socket, so every request sends it, as enable-auto-merge.mjs does.
   const headers = {
     Accept: "application/vnd.github+json",
     Authorization: `Bearer ${token}`,
@@ -554,13 +490,25 @@ export function createGitHubApi({
     return pages.get(key);
   }
 
-  // A run's latest jobs, which must fit one page.
-  async function latestJobs(runId) {
-    const jobs = await request(`${repoUrl}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
-    if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
-      throw new Error(`run ${runId}'s job listing is not one complete page`);
+  async function counted(url, key) {
+    const rows = [];
+    for (let page = 1; page <= COUNTED_PAGES; page += 1) {
+      const data = await request(page === 1 ? url : `${url}&page=${page}`);
+      const batch = Array.isArray(data?.[key]) ? data[key] : [];
+      rows.push(...batch);
+      if (batch.length < 100 || rows.length >= data.total_count) {
+        return Object.assign(rows, { complete: rows.length >= data.total_count });
+      }
     }
-    return jobs.jobs;
+    return Object.assign(rows, { complete: false });
+  }
+
+  async function latestJobs(runId) {
+    const jobs = await counted(`${repoUrl}/actions/runs/${runId}/jobs?filter=latest&per_page=100`, "jobs");
+    if (!jobs.complete) {
+      throw new Error(`run ${runId}'s job listing is not complete`);
+    }
+    return [...jobs];
   }
 
   return {
@@ -619,7 +567,6 @@ export function createGitHubApi({
       return { status, files };
     },
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
-    // Written or edited since `since` (GitHub's since query value) when given.
     listReviewComments: (number, since) => paginate(`pulls/${Number(number)}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
     listReviews: (number) => paginate(`pulls/${Number(number)}/reviews`),
     listIssueComments: (number) => paginate(`issues/${Number(number)}/comments`),
@@ -629,19 +576,7 @@ export function createGitHubApi({
       }
       return request(`${repoUrl}/actions/jobs/${jobId}/rerun`, "POST");
     },
-    // Every check run on a commit, skips included, up to 300, as fix-ci-context reads them
-    // (address-feedback.mjs listCommitCheckRuns).
-    async listCommitCheckRuns(sha) {
-      const runs = [];
-      for (let page = 1; page <= 3; page += 1) {
-        const data = await request(`${repoUrl}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
-        runs.push(...(data.check_runs ?? []));
-        if ((data.check_runs ?? []).length < 100) {
-          break;
-        }
-      }
-      return runs;
-    },
+    listCommitCheckRuns: (sha) => counted(`${repoUrl}/commits/${sha}/check-runs?filter=all&per_page=100`, "check_runs"),
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,
@@ -662,8 +597,6 @@ export function createGitHubApi({
         throw new Error("not a commit SHA");
       }
       const listing = await request(`${repoUrl}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
-      // A fork PR at the same head SHA lists its runs here too; a newer one
-      // must not become the tested run or suppress a fix-ci dispatch.
       const runs = (listing.workflow_runs ?? [])
         .filter((run) => run.path === path && run.head_repository?.full_name === repository)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
@@ -698,8 +631,6 @@ export function createGitHubApi({
         throw error;
       }
     },
-    // The newest workflow_dispatch runs: a run still queued or going is
-    // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {
       const result = await request(`${repoUrl}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`);
       return result.workflow_runs ?? [];
@@ -750,8 +681,6 @@ export async function loadBaseRefineActivities(env) {
   return fromBase(env, "refineDispatchActivitiesFromBase");
 }
 
-// Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
-// returns, so a run cancelled mid-step still records what it sent.
 export function wrapRunIds(base, env) {
   return {
     ...base,
@@ -779,8 +708,6 @@ export function shareTimeline(base) {
   return { ...base, listTimeline: shared("listTimeline"), listReviewComments: shared("listReviewComments"), listReviews: shared("listReviews") };
 }
 
-// Writes the dispatched run ids, lowest PR first, as the step output run-ids,
-// which the workflow records as an artifact on this run.
 export async function main(
   env,
   {
@@ -832,8 +759,6 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log(`::warning::the open pull request listing could not be read (${error.message}); nothing dispatched, a later run retries`);
     return 0;
   }
-  // The burn-rate pacer paces the next scheduled tick only after a run that
-  // listed (pr-unblock-dispatch.yml `Mark this tick's work done`).
   appendFileSync(env.GITHUB_OUTPUT, "listed=true\n");
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));

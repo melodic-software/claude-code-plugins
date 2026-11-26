@@ -222,7 +222,6 @@ test("the base config's limits.fix-docs-per-run turns a PR event's fix-docs on o
     changedFiles: 1,
     additions: lines,
     deletions: 0,
-    // The lane run's one API commit, as GraphQL lists one.
     commits: {
       totalCount: 1,
       nodes: [

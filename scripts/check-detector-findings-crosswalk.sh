@@ -1,26 +1,4 @@
 #!/usr/bin/env bash
-# Check the detector-findings severity crosswalk is argued rather than asserted.
-#
-#   scripts/check-detector-findings-crosswalk.sh          discover: print every
-#                                                          crosswalk row's rule
-#                                                          id and disposition
-#   scripts/check-detector-findings-crosswalk.sh --check  fail on a row whose
-#                                                          test cell is empty, a
-#                                                          rule id that is not
-#                                                          fully qualified, a
-#                                                          malformed row, or a
-#                                                          restated findings
-#                                                          table
-#
-# The contract it enforces (docs/contracts/detector-findings/README.md, "The
-# severity crosswalk"): severity.md decides a tier by TEST, so a threshold-to-tier
-# mapping with no argument in it is nominal closure. An empty test cell is the
-# machine-checkable half of that bar -- whether the argument is SOUND stays
-# judgment, and the admission test is what carries it.
-#
-# The table is located by its exact header rather than by a row-prefix pattern,
-# so a stray table elsewhere in the document can neither satisfy the check nor
-# be dragged into it.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

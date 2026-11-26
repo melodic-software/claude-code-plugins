@@ -1,12 +1,4 @@
 # shellcheck shell=bash
-# The stop message for a script that needs jq and cannot find it, with the
-# install command for this platform. Library only: no top-level execution.
-#
-# Builtins only: it runs on the path where a required tool is already missing,
-# so it must not depend on anything else on PATH either. The commands are the
-# ones https://jqlang.org/download/ lists (as of 2026-10-31; recheck when that
-# page changes a command); the brew, winget and apt ones also match the jq
-# entry in ../prerequisites.json.
 
 jqhint::install_command() {
   case "${1:-}" in
