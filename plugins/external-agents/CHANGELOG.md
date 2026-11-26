@@ -3,6 +3,12 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-11-26
+
+### Changed
+
+- `/external-agents:codex` and `/external-agents:antigravity` point at the tools reference's Bash timeout section for how long a foreground call may wait, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
 ## [0.8.2] - 2026-11-26
 
 ### Changed
