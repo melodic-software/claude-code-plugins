@@ -38,7 +38,6 @@ import {
 const TRUSTED = fileURLToPath(new URL("../work-unblock/fixtures/trusted-actors.json", import.meta.url));
 const HUMAN = 153232337;
 const LANES_APP = 337595936;
-const CLASSES = ["work-class: scoped", "work-class: structural", "work-class: mechanical", "provenance: untrusted"];
 const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 const OLD_FOOTER = "<sub>Automated triage. A maintainer reviews it.</sub>";
 const OUTSIDER = 4242;
@@ -2531,63 +2530,15 @@ describe("the workflow's --check steps", () => {
   }
 });
 
-const PROMPT = ["../../workflows/intake-triage.yml", "./triage-rubric.txt"]
-  .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
-  .join("\n")
-  .split("\n")
-  .map((line) => line.trim())
-  .join(" ");
-
-describe("the triage prompt", () => {
-  test("an intent question is an open outcome, done-when or unpicked primary design, never a choice of implementation means", () => {
-    assert.doesNotMatch(PROMPT, /lists options and picks none/);
-    assert.doesNotMatch(PROMPT, /intent when the intended outcome is not exact or needs the owner's decision/);
-    assert.doesNotMatch(PROMPT, /A choice among means the issue lists, or of how to do the work, is not an intent question/);
-    assert.match(PROMPT, /Flags: intent when the intended outcome or done-when is not exact, or the issue lists primary-design alternatives and picks none/);
-    assert.match(
-      PROMPT,
-      /A choice among implementation means that leaves the primary design \(architecture, cross-module contracts, data ownership, public interfaces\) unchanged is not an intent question: the issue lane decides it on evidence/,
-    );
-    assert.match(
-      PROMPT,
-      /A primary-design choice the issue lists and leaves unpicked \(two architectures, a new shared store or an existing one\) is an intent question: set `Flags: intent`, apply `needs-owner-decision`, and ask it as a numbered question with a `RECOMMENDED:` answer/,
-    );
-  });
-
-  test("every needs-owner-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {
-    assert.match(PROMPT, /c\. When one or more stay open, set `Flags: intent`, apply `needs-owner-decision`/);
-    assert.match(PROMPT, /A `needs-owner-decision` or `needs-human` label you apply holds only beside a flag on the Flags line/);
-  });
-
-  test("a charge a recorded decision covers goes on a Cost decided line, never a Cost line", () => {
-    assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
-  });
-
-  test("the rubric names no work class", () => {
-    assert.doesNotMatch(PROMPT, /work class/i);
-    for (const name of [...CLASSES, "work-class: read-only"]) {
-      assert.ok(!PROMPT.includes(`\`${name}\``), `the rubric offers ${name}`);
-    }
-    assert.doesNotMatch(PROMPT, /work-class-labels\.md/);
-  });
-
-  test("the prompt marks untrusted provenance on the Flags line, which the parser reads as untrusted", () => {
-    assert.match(PROMPT, /Flags: none\|intent\|security\|cost\|untrusted/);
+describe("verdict lines the triage rules name", () => {
+  test("an untrusted value on the Flags line reads as untrusted", () => {
     const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS);
     assert.equal(verdict.untrusted, true);
   });
 
-  // #13197: the issue lane's blocked-by-issue stop names its blocker for
-  // triage to record as an edge, never in reverse of an existing one.
-  test("a blocker the issue lane names on a blocked-by-issue stop goes on the Blocked by line", () => {
-    assert.match(PROMPT, /latest stop comment on the\s+issue is `blocked-by-issue` and names an open issue, list that issue there, unless the\s+named issue is itself blocked by this one/);
+  test("a blocked-by-issue stop routes the issue back to intake", () => {
     const routes = JSON.parse(readFileSync(new URL("../work-resolve-issue/stop-routes.json", import.meta.url), "utf8"));
     assert.equal(routes["blocked-by-issue"]?.route, "intake");
-  });
-
-  test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
-    assert.match(PROMPT, /Write a Cost line exactly as `Cost: <what bills, where; the owner decision it lacks>` or `Cost decided: <what bills; the decision that covers it>`/);
-    assert.match(PROMPT, /Work with no charge gets no Cost line/);
   });
 });
 

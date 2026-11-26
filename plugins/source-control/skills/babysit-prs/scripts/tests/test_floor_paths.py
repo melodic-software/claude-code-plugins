@@ -51,7 +51,6 @@ REVIEW_SURFACE = (
     "docs/review/**",
 )
 PROMPT_TEXT = (
-    ".github/scripts/intake-triage/triage-rubric.txt",
     ".github/scripts/intake-triage/refine-schema.json",
     ".github/scripts/plugin-eval/policy-probe-prompt.txt",
 )
@@ -96,21 +95,21 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 169)
+        self.assertEqual(len(FLOOR.classes), 168)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "9724c939fda2fa4948a0f053ba909e495e47baa6e85aecd56f9b2289b41506b7",
+            "0fa9c92e3edef5ac77235dcd9670e54869daa28ff1b97278583a52be63a36938",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "7d24642993e4cc936335fb453e84966c8b7e54133bc877c2517f388148add26b",
+            FLOOR.high: "054c98adfe4508c6312214a6fb5596a29f4bce84076dd45969f904efe62f5628",
             FLOOR.review: "10394ff1368cfe85fac636ba592a5b8c3d67f860ea89a4b3e77a2fa2fc4fb0c7",
             FLOOR.author_review: "2276b8962a6172040fe454176c3d883dcf28b50f6c42086cb27fca58d22dc33f",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (99, 70, 24),
+            (98, 70, 24),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -168,7 +167,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 169 - 32)
+        self.assertEqual(len(ROWS), 168 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):

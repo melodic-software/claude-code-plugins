@@ -1933,9 +1933,6 @@ merge:
       - glob: "docs/review/**"
         class: gate
         author-lift: false
-      - glob: ".github/scripts/intake-triage/triage-rubric.txt"
-        class: gate
-        author-lift: false
       - glob: ".github/scripts/intake-triage/refine-schema.json"
         class: gate
         author-lift: false

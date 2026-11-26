@@ -149,10 +149,8 @@ checked and what it showed.
 ## Triage comment
 
 Every briefed outcome posts one triage comment beside its brief, before its label edit; if it
-cannot be posted, apply no label. The needs-info and close outcomes keep their own comments. It carries the lines the intake lane's comment carries (the
-rubric `.github/workflows/intake-triage.yml` passes as `instructions`, kept in this repository's
-`.github/scripts/intake-triage/triage-rubric.txt`, or the consuming repository's own intake
-rubric), so a reader finds the same lines whichever ran:
+cannot be posted, apply no label. The needs-info and close outcomes keep their own comments. It carries the lines the intake lane's comment carries, so a reader
+finds the same lines whichever ran:
 
 ````markdown
 **Triage: <outcome>**

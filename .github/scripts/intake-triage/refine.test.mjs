@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/resolve-config/package.json .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -390,17 +390,6 @@ describe("render", () => {
     assert.equal(DECISION_REPLY, "**Decision recorded.** <answer>");
     assert.ok(body.endsWith(`\n\`\`\`\n${DECISION_REPLY}\n\`\`\`\n\n<sub>Automated refinement by the lanes App. Answer with a comment whose first line is \`**Decision recorded.**\`.</sub>`), body);
     assert.equal(refinementExact(body), false);
-  });
-
-  test("the Issue Triage prompt ends its owner questions with the refinement's copyable reply", () => {
-    const rubric = readFileSync(new URL("triage-rubric.txt", import.meta.url), "utf8");
-    const rule = /\nDECISION REPLY\. ((?:.+\n)+?)\n/.exec(rubric);
-    assert.ok(rule, "the triage rubric has a DECISION REPLY paragraph");
-    const text = rule[1].split("\n").map((line) => line.trim()).join(" ");
-    assert.ok(text.includes(`\`${DECISION_REPLY}\``), text);
-    assert.ok(text.includes("`To answer, post a comment that starts with this line:`"), text);
-    assert.equal((rubric.match(/with a `RECOMMENDED:` answer/g) ?? []).length, 2, "the rule covers both places that ask RECOMMENDED questions");
-    assert.ok(text.includes("RE-ENTRY"), text);
   });
 
   test("model text cannot forge a marker, a mention, a task list line or a second line", () => {

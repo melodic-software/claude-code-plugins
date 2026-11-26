@@ -353,7 +353,6 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["docs/conventions/untrusted-content/**", "gate"],
   ["docs/standards/**", "gate"],
   ["docs/review/**", "gate"],
-  [".github/scripts/intake-triage/triage-rubric.txt", "gate"],
   [".github/scripts/intake-triage/refine-schema.json", "gate"],
   [".github/scripts/plugin-eval/policy-probe-prompt.txt", "gate"],
   [".github/scripts/pr-unblock/test-scope.mjs", "gate"],
