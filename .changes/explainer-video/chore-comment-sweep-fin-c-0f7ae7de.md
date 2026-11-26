@@ -1,5 +1,7 @@
 ---
-bump: none
+bump: patch
 ---
 
-Trailing and inline comments outside the necessary posture are removed from this plugin's scripts, hooks and tests; no behavior change.
+### Changed
+
+- Shared `media_captions.py` synced where this plugin carries it, with trailing and inline comments outside the necessary posture removed; no behavior change.
