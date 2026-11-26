@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [13.1.1] - 2026-11-26
+
+### Changed
+
+- In the merge queue, `ci-status` no longer reads a lanes App pull request's pr-verify pass a
+  second time. The verdict reader's `--pass-out` file gives the step the counted passes with their
+  runs, the first pass's `verdict.json` and the closing issues it judged on, and the step hands
+  them to `merge-holds.mjs` `verdictHold` and `linkHold` as before. That drops the four `?name=`
+  pass lookups (two of them for digest names the writer never uploads), the run read, the zip
+  download with its 5xx retries and the closing-issues GraphQL read. A pass file that does not read
+  holds the group. Any reader refusal now reaches `merge-holds.mjs` with no pass, as it already did
+  in FAIL index mode. Without the legacy FAILs file, a pass refusal such as
+  `verify:untrusted-spec` therefore holds until a trusted approval of the head lifts it.
+
+### Fixed
+
+- `resolve-config` no longer sizes an activity whose `applied-by` names `triage-verdict` by the issue's Size, Complexity and Uncertainty fields. Intake's `triage-issue` sets those fields, so it read them for a turn budget it does not use, and on its `workflow_dispatch` run, which carries no issue event, it failed with "an applies-when predicate needs fieldValues, which this run did not supply". A Large issue is triaged too, no longer skipped as `split`.
+
+- `check-signed-commits` pages the `since-sha...head` comparison 100 commits at a time until it has every commit the comparison counts, up to 10,000, instead of reading one unpaged response that stops at 250 commits and escalating the pull request to a person.
+
+- The merge-risk rating (`pr-rate-merge-risk.yml`) no longer refuses a diff over 600,000 bytes. `input.mjs` cuts the diff with `diff_chunking.py` into chunks of at most 300,000 bytes and parts one Read returns whole; the rating's agents read every chunk at once (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` raised to a rater and a checker per chunk), so wall time stays one chunk's read. Up to 50 chunks (15 MB) are rated; chunks past that are left out and counted. `write-rating.mjs` checks the execution file for a whole, successful Read of every part and adds a HIGH `Diff coverage` row, which demotes the head, for any part unread or chunk left out. The rating's output (`rating.json`) is unchanged.
+
 ## [13.1.0] - 2026-11-25
 
 ### Added
