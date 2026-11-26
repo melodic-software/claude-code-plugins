@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.5] - 2026-11-26
+
+### Changed
+
+- **`/debugging:debug` drops the "unsure where this leaves the work" `## Next` bullet.** `/session-flow:workflow` stays the fallback when no bullet matches.
+
 ## [2.3.4] - 2026-11-25
 
 ### Changed
