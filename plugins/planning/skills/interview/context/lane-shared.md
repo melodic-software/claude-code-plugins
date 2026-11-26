@@ -336,12 +336,10 @@ owner's Run starts one, and only requests named in a `request-run` event run. Ro
 intent to whatever fits among the skills, workflows, MCP servers and CLI tools enabled in this
 session right now, and say why in `why`.
 
-Guests never reach Claude directly because the work runs on the owner's own account. The
-[Consumer Terms](https://www.anthropic.com/legal/consumer-terms), section 2, say a user "may not
-make your Account available to anyone else", and the
-[Claude Code usage policy](https://code.claude.com/docs/en/legal-and-compliance#usage-policy)
-says plan limits "assume ordinary, individual usage" (both as of 2026-10-16; recheck when either
-section changes).
+Guests never reach Claude directly: the work runs on the owner's own account, which stays the
+owner's alone. For the account and plan terms behind that, read section 2 of the
+[Consumer Terms](https://www.anthropic.com/legal/consumer-terms) and the
+[Claude Code usage policy](https://code.claude.com/docs/en/legal-and-compliance#usage-policy).
 
 - `ask`: answer from the question, the session's answers and what this session already knows.
 - `explore`: look inside what the session has: answers, chat, uploads, and the linked project. Its answer, like a
