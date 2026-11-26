@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# confirm-verdict.sh: record a /verification:confirm or /verification:measure verdict for the head
-# commit it judged, and show the one recorded for a head.
-#
-# `record` runs at the end of /verification:confirm and stores its verdict, each MISSING or
-# PARTIAL plan item and one row per criterion for one head commit; with `--of measure` it runs at
-# the end of a /verification:measure compare and stores that verdict and the improvement claim it
-# judged.
-# `show` runs in the pull-request `ready` report and prints the verdict recorded for that exact
-# head, or for confirm says none is; for measure, a head with no record prints nothing. A verdict
-# recorded for another head never counts, so a commit after the run voids it. `show` is advisory:
-# it never refuses, whatever the verdict, so it never stops the ready flip.
-#
-# Usage:
-#   confirm-verdict.sh record --head <sha> --verdict CONFIRMED|'NEEDS WORK'|'NOT VERIFIED'
-#                             [--missing <item>]... [--partial <item>]... [--row <row>]...
-#                             [--dir <checkout>]
-#   confirm-verdict.sh record --of measure --head <sha>
-#                             --verdict CONFIRMED|MIXED|INCONCLUSIVE|'NOT CONFIRMED'|DEGRADED|'CANNOT QUANTIFY'
-#                             [--claim <text>] [--dir <checkout>]
-#   confirm-verdict.sh show   [--of measure] --head <sha> [--dir <checkout>]
-#
-# The record lives under the repository's common git directory (`confirm-verdict/<sha>`, and
-# `confirm-verdict/<sha>.measure` for measure), shared by every worktree, so a record and a show
-# agree whichever checkout the shell sits in; or under $CONFIRM_VERDICT_DIR when set. --dir names
-# any checkout of the repository to read that directory from (default: the current directory);
-# $CONFIRM_VERDICT_DIR still wins over it. Its first line is `verdict: <verdict>`; each later line
-# is `MISSING: <item>`, `PARTIAL: <item>`, `ROW: <row>` or `CLAIM: <text>`, in the order given.
-# A row is one acceptance criterion as four cells, `<criterion> | <files> | <test or check> |
-# <result>`, with a `|` inside a cell written `\|`; the pull-request evidence comment renders the
-# rows as its criteria table, step 4 of
-# https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/pull-request/reference/evidence.md
-#
 # Exit codes:
 #   0  record: stored; show: printed the verdict, that none is recorded or readable, or nothing
 #   1  invalid argument, or --dir names no directory
@@ -40,7 +8,26 @@
 set -uo pipefail
 
 usage() {
-  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+confirm-verdict.sh: record a /verification:confirm or /verification:measure verdict for a head commit, or show it.
+Usage:
+  confirm-verdict.sh record [--of measure] --head <sha> --verdict <verdict> [options]
+  confirm-verdict.sh show   [--of measure] --head <sha> [--dir <checkout>]
+  --of <confirm|measure>  the skill whose verdict this is (default confirm)
+  --head <sha>            the full 40-character commit the verdict judged
+  --verdict <verdict>     confirm: CONFIRMED, 'NEEDS WORK' or 'NOT VERIFIED'; measure: CONFIRMED,
+                          MIXED, INCONCLUSIVE, 'NOT CONFIRMED', DEGRADED or 'CANNOT QUANTIFY'
+  --missing <item>        confirm: a MISSING plan item (repeatable)
+  --partial <item>        confirm: a PARTIAL plan item (repeatable)
+  --row <row>             confirm: one criterion, `<criterion> | <files> | <test or check> | <result>` (repeatable)
+  --claim <text>          measure: the improvement claim judged
+  --dir <checkout>        a checkout whose git directory holds the record (default: .);
+                          $CONFIRM_VERDICT_DIR wins over it
+Exit codes:
+  0  record: stored; show: printed the verdict, that none is recorded or readable, or nothing
+  1  invalid argument, or --dir names no directory
+  2  record: the state cannot be written
+EOF
   exit 0
 }
 
@@ -90,7 +77,6 @@ esac
 CHECKOUT="${CHECKOUT:-.}"
 [[ -d "$CHECKOUT" ]] || die 1 "--dir $(printf '%q' "$CHECKOUT") is not a directory"
 
-# valid_verdict <verdict>: whether <verdict> is one of the words the --of skill defines.
 valid_verdict() {
   case "$OF:$1" in
   confirm:CONFIRMED | 'confirm:NEEDS WORK' | 'confirm:NOT VERIFIED') return 0 ;;

@@ -1,33 +1,5 @@
 // GENERATED from lib/html-escape.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Deterministic HTML escape for text and double-quoted attribute positions,
-// plus a generator marker whose digest shows a page was not edited after it
-// was stamped. Anyone can stamp a page, so the marker proves no provenance:
-// whether a page is safe rests on the structural scan in validateRenderedPage.
-//
-// Claim: the five HTML-significant characters encode as &amp; &lt; &gt; &quot;
-// &#x27;, ampersand first, and a double-quoted attribute value must not contain
-// a raw quotation mark. Apostrophe uses the semicolon form from the OWASP
-// example table. A numeric reference without the semicolon would keep consuming
-// hex digits (WHATWG character-reference parsing).
-// Basis: OWASP XSS Prevention Cheat Sheet, HTML entity example table and the
-// "Output Encoding Rules Summary" HTML Entity row, fetched 2026-09-28 from
-// https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
-// (the example table writes &#x27;; the summary row names the same mapping).
-// WHATWG HTML living standard, last updated 25 September 2026, text and
-// double-quoted attribute restrictions:
-// https://html.spec.whatwg.org/multipage/syntax.html#elements-2
-// https://html.spec.whatwg.org/multipage/syntax.html#attributes-2
-// Recheck: that OWASP table or those WHATWG restrictions change what a quoted
-// attribute or a text node may contain.
-//
-// This encoding is the text and quoted-attribute rule only. It does not make
-// a URL, an event-handler name, or the contents of script or style safe. The
-// page builder never interpolates into those positions. validateRenderedPage
-// rejects script, every URL-bearing attribute, and inside style any `url(`,
-// `@import`, `expression(` or backslash escape; quotes are rejected there as
-// everywhere in text, which removes the string argument of image-set().
-
 import { createHash } from "node:crypto";
 
 const MARKER_PREFIX = "<!-- rv-gen:escape-helper-v1 sha256:";
@@ -68,9 +40,6 @@ const ALLOWED_ATTRS = new Set([
   "title",
 ]);
 
-// A value this module emits: raw text, or one of the five entities, and nothing
-// else that is HTML-significant. Used on attribute values and on the text left
-// after tags and comments are removed.
 const ESCAPED_TEXT =
   /^(?:[^&<>"']|&(?:amp|lt|gt|quot|#x27);)*$/;
 
@@ -154,10 +123,6 @@ function scanStructure(html, failures) {
     }
   }
 
-  // Style text is raw CSS, which can fetch a resource with no HTML-significant
-  // character. A backslash escape can spell any of these, so it is refused too.
-  // The capture ends where a browser ends style text: `</style` followed by
-  // whitespace, `/` or `>`, or end of input for an unclosed element.
   const styleRe = /<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi;
   for (const style of html.matchAll(styleRe)) {
     if (/url\(|@import|expression\(|\\/i.test(style[1])) {

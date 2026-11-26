@@ -71,7 +71,6 @@ assert_eq "a temp-rooted shim directory is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the mktemp defect" "temporary root" "$RUN_OUT"
 
 # discriminating-skip-required: this case is the entire proof that an
-# unresolvable tool is refused rather than dropped.
 run_census --shim-dir "$SHIM" --label badtool \
   --tool definitely-not-a-real-binary-xyz -- bash -c 'printf ok'
 assert_eq "an unresolvable tool is refused" "2" "$RUN_RC"

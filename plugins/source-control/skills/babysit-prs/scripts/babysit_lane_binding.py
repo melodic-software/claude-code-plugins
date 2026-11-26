@@ -44,7 +44,9 @@ LEGACY_CUTOFF: str | None = "2026-11-13T22:24:32Z"
 EDIT_SLACK_SECONDS = 60
 
 FOOTER = re.compile(r"`?claude-lane: (claude-review|claude-security-review)`?")
-BINDING = re.compile(r"<!-- claude-lane-run id=([1-9][0-9]{0,19}) sha=([0-9a-f]{40}) -->")
+BINDING = re.compile(
+    r"<!-- claude-lane-run id=([1-9][0-9]{0,19}) sha=([0-9a-f]{40}) -->"
+)
 VERDICT = "lane_bound"
 
 
@@ -119,12 +121,19 @@ def was_edited(comment: Mapping[str, Any]) -> bool:
     return (updated - created).total_seconds() > EDIT_SLACK_SECONDS
 
 
-def legacy_counts(comment: Mapping[str, Any], cutoff: str | None = LEGACY_CUTOFF) -> bool:
+def legacy_counts(
+    comment: Mapping[str, Any], cutoff: str | None = LEGACY_CUTOFF
+) -> bool:
     """Whether a comment with no binding still counts."""
     if cutoff is None:
         return True
     created, limit = _time(comment.get("createdAt")), _time(cutoff)
-    return created is not None and limit is not None and created <= limit and not was_edited(comment)
+    return (
+        created is not None
+        and limit is not None
+        and created <= limit
+        and not was_edited(comment)
+    )
 
 
 def zip_entry(data: bytes, name: str) -> bytes | None:
@@ -248,13 +257,16 @@ def lane_checker(
                 live = [
                     a
                     for a in list_artifacts(run_id)
-                    if str((a or {}).get("name") or "").startswith(RECORD_PREFIX) and a.get("expired") is not True
+                    if str((a or {}).get("name") or "").startswith(RECORD_PREFIX)
+                    and a.get("expired") is not True
                 ]
                 entries: list[dict[str, Any]] = []
                 recorded: set[str] = set()
                 for artifact in live:
                     data = zip_entry(download(artifact.get("id")), RECORD_FILE)
-                    lines = record_entries(None if data is None else data.decode("utf-8"))
+                    lines = record_entries(
+                        None if data is None else data.decode("utf-8")
+                    )
                     entries.extend(lines)
                     if any(e.get("complete") is True for e in lines):
                         recorded.add(str(artifact.get("name")))
@@ -284,8 +296,14 @@ def lane_checker(
         ):
             return False
         pull_head = head()
-        repo = pull_head.get("repo") if isinstance(pull_head.get("repo"), Mapping) else {}
-        run_repo = run.get("head_repository") if isinstance(run.get("head_repository"), Mapping) else {}
+        repo = (
+            pull_head.get("repo") if isinstance(pull_head.get("repo"), Mapping) else {}
+        )
+        run_repo = (
+            run.get("head_repository")
+            if isinstance(run.get("head_repository"), Mapping)
+            else {}
+        )
         if (
             not isinstance(run.get("head_branch"), str)
             or run.get("head_branch") != pull_head.get("ref")
@@ -306,10 +324,14 @@ def lane_checker(
         if listed:
             return True
         if run.get("status") != "completed":
-            raise RuntimeError(f"lane run {run_id} is still running, so its comment record may not be uploaded yet")
+            raise RuntimeError(
+                f"lane run {run_id} is still running, so its comment record may not be uploaded yet"
+            )
         attempt = run.get("run_attempt")
         attempts = attempt if _is_int(attempt) and attempt > 0 else 1
-        if all(f"{RECORD_PREFIX}{lane}-{n}" in recorded for n in range(1, attempts + 1)):
+        if all(
+            f"{RECORD_PREFIX}{lane}-{n}" in recorded for n in range(1, attempts + 1)
+        ):
             return False
         at = _time(comment.get("createdAt"))
         start, end = _time(run.get("created_at")), _time(run.get("updated_at"))

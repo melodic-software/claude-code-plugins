@@ -56,25 +56,25 @@ gate_entry::classify() {
     return 2
   fi
   case "$1" in
-  --all)
-    (($# == 1)) || return 2
-    GE_MODE=all
-    ;;
-  --paths)
-    shift
-    (($# > 0)) || return 2
-    GE_MODE=paths
-    GE_PATHS=("$@")
-    ;;
-  -*)
-    return 2
-    ;;
-  *)
-    GE_REF="$1"
-    (($# == 1)) || return 2
-    GE_MODE=base
-    gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
-    ;;
+    --all)
+      (($# == 1)) || return 2
+      GE_MODE=all
+      ;;
+    --paths)
+      shift
+      (($# > 0)) || return 2
+      GE_MODE=paths
+      GE_PATHS=("$@")
+      ;;
+    -*)
+      return 2
+      ;;
+    *)
+      GE_REF="$1"
+      (($# == 1)) || return 2
+      GE_MODE=base
+      gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
+      ;;
   esac
   return 0
 }
@@ -89,7 +89,7 @@ gate_entry::collect_changed() {
 
 gate_entry::finish() {
   case "${1-}" in
-  0 | 1) exit "$1" ;;
-  *) exit 2 ;;
+    0 | 1) exit "$1" ;;
+    *) exit 2 ;;
   esac
 }

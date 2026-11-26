@@ -7,7 +7,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_NOTE, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, TRUNCATED_STEPS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { listCommits } from "../lib/trusted-actors.fixtures.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -888,7 +888,7 @@ test("a verify run none of whose first-attempt jobs started is never re-run or r
 
 // The jobs API can list a job that ran with no steps, or cut short before its
 // judge step; neither shows whether the judge step started.
-test("a verify run whose job's steps did not list is not re-run or recorded, and is read again next pass", async () => {
+test("a verify run with a final job listing and unknown steps is held and carried", async () => {
   const cut = [{ name: "Check the trigger", status: "completed", conclusion: "cancelled" }];
   const midCut = [
     { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
@@ -907,11 +907,13 @@ test("a verify run whose job's steps did not list is not re-run or recorded, and
     { number: 9, name: "Complete job", status: "completed", conclusion: "success" },
   ];
   for (const [label, steps] of Object.entries({ empty: [], cut, midCut, tailCut, stale })) {
-    const { code, reruns, outputs } = await reconcile({
+    const { code, reruns, outputs, settled } = await reconcile({
       pulls: [],
+      carry: null,
       runs: [{ ...verifyRun(201), jobs: [{ name: "verify", status: "completed", conclusion: "cancelled", runner_id: 7, steps }] }],
     });
-    assert.equal(code, 1, label);
+    assert.equal(code, 0, label);
+    assert.deepEqual(settled.runs, [{ id: 201, reason: TRUNCATED_STEPS }], label);
     assert.deepEqual(reruns, [], label);
     assert.deepEqual(records(outputs), ["", "", ""], label);
   }
@@ -944,7 +946,7 @@ test("a verify run whose job lost its runner is re-run when its cut list stops b
   assert.deepEqual(during.reruns, []);
   assert.deepEqual(records(during.outputs), ["", "", ""]);
   const unnoted = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ ...lostAt("Read the spec"), notes: [] }] }] });
-  assert.equal(unnoted.code, 1);
+  assert.equal(unnoted.code, 0);
   assert.deepEqual(unnoted.reruns, []);
   assert.deepEqual(records(unnoted.outputs), ["", "", ""]);
 });
@@ -971,11 +973,11 @@ test("a runner-loss annotation counts only on a failed job whose cut list stops 
     assert.deepEqual(records(echoed.outputs), ["", "", ""], reached);
   }
   const notFailed = await run201(cutAt(early, "cancelled"));
-  assert.equal(notFailed.code, 1);
+  assert.equal(notFailed.code, 0);
   assert.deepEqual(notFailed.reruns, []);
   assert.deepEqual(records(notFailed.outputs), ["", "", ""]);
   const judgeNotFailed = await run201(cutAt([...early, JUDGE_STEP], "cancelled"));
-  assert.equal(judgeNotFailed.code, 1);
+  assert.equal(judgeNotFailed.code, 0);
   assert.deepEqual(judgeNotFailed.reruns, []);
 });
 
@@ -1066,23 +1068,51 @@ test("a main-run review with a job failed at job setup is still held when anothe
   }
 });
 
-test("a main-run review with a failed job cut after its setup step is still not re-run, and the pass fails", async () => {
-  const cut = SETUP_FAILED_RUN.map((job) =>
-    job.conclusion === "failure"
-      ? {
-          ...job,
-          steps: [
-            { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
-            { number: 2, name: "Resolve main's tip", status: "completed", conclusion: "failure" },
-          ],
-          notes: [],
-        }
-      : job,
-  );
-  const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301, {}, cut)] });
-  assert.equal(code, 1);
+const truncatedReviewJobs = () => SETUP_FAILED_RUN.map((job) =>
+  job.conclusion === "failure"
+    ? {
+        ...job,
+        steps: [
+          { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+          { number: 2, name: "Resolve main's tip", status: "completed", conclusion: "failure" },
+        ],
+        notes: [],
+      }
+    : job,
+);
+
+test("a main-run review with a failed job cut after setup is held and carried", async () => {
+  const runs = [mainReviewRun(301, {}, truncatedReviewJobs())];
+  const { code, reruns, outputs, settled } = await reconcile({ pulls: [], runs, carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(settled.runs, [{ id: 301, reason: TRUNCATED_STEPS }]);
+  const next = await reconcile({ pulls: [], runs, carry: JSON.stringify(settled) });
+  assert.equal(next.code, 0);
+  assert.deepEqual(jobReads(next.calls), []);
   assert.deepEqual(reruns, []);
   assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+test("a fresh main-run review with truncated steps is read again, not carried", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fresh = new Date(NOW - 60_000).toISOString().replace(".000Z", "Z");
+  const run = mainReviewRun(301, { created: fresh, updated: fresh }, truncatedReviewJobs());
+  const { code, reruns, settled } = await reconcile({ pulls: [], runs: [run], carry: null });
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(settled.runs, []);
+  assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /a job's steps did not list in full, so which steps ran is unknown/);
+});
+
+test("a main-run review with truncated steps and a short job listing fails the pass", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const jobs = truncatedReviewJobs();
+  const run = { ...mainReviewRun(301, {}, jobs), jobsTotal: jobs.length + 1 };
+  const { code, reruns, settled } = await reconcile({ pulls: [], runs: [run], carry: null });
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(settled.runs, []);
+  assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /a job's steps did not list in full, so which steps ran is unknown/);
 });
 
 const MAIN_HELD_NOTE = /echo "::notice title=pr-review-main::(held: [^"]*)"/
