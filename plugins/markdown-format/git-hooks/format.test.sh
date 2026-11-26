@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/markdown-format/git-hooks/entries.json plugins/markdown-format/git-hooks/adapters.sh plugins/markdown-format/git-hooks/markdown-gates.sh
 # test-scope: plugins/markdown-format/lib/git-hooks/check-lib.sh plugins/markdown-format/lib/git-hooks/install.mjs plugins/markdown-format/lib/git-hooks/resolve-tool.sh
+# test-scope: plugins/markdown-format/.claude-plugin/plugin.json
 # shellcheck disable=SC2016 # record commands are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT CLAUDE_PLUGIN_DATA

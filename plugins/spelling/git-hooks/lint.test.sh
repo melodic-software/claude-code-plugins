@@ -2,6 +2,7 @@
 # spellchecker:off
 # test-scope: plugins/spelling/git-hooks/entries.json plugins/spelling/git-hooks/adapters.sh
 # test-scope: plugins/spelling/lib/git-hooks/check-lib.sh plugins/spelling/lib/git-hooks/resolve-tool.sh plugins/spelling/lib/git-hooks/install.mjs
+# test-scope: plugins/spelling/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 
