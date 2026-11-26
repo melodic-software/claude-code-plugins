@@ -10,7 +10,6 @@ test("a kept thread's own path is in scope", () => {
   assert.equal(inThreadScope("plugins/p/evals/c/graders/x.md", kept), true);
 });
 
-// plugins/planning/README.md is the file #8178's run 39117146913 refused.
 test("any file in the same plugins/<p>/ directory as a kept thread's path is in scope, at any depth", () => {
   for (const path of [
     "plugins/p/evals/c/samples/y.json",
@@ -26,13 +25,9 @@ test("any file in the same plugins/<p>/ directory as a kept thread's path is in 
 
 test("the four recorded trips are in scope", () => {
   const trips = [
-    // #8043, run 39100052790: an eval sample beside the thread's case.
     ["plugins/session-flow/evals/rr-skill-fit-names-owner/samples/names-skill-and-plugin.json", ["plugins/session-flow/evals/rr-skill-fit-names-owner/case.yaml"]],
-    // #8103, run 39107762307: the thread is on case.yaml:18.
     ["plugins/discipline/evals/ror-second-error-way/samples/second-way-named.json", ["plugins/discipline/evals/ror-second-error-way/case.yaml"]],
-    // #8142, run 39113747960: a .py file, in scope only as a sibling test.
     ["plugins/planning/surface/test_round.py", ["plugins/planning/surface/round.py"]],
-    // #8178, run 39117146913: the PR's kept thread paths.
     [
       "plugins/planning/README.md",
       ["plugins/session-flow/skills/retro/SKILL.md", "plugins/planning/skills/draft-goal-condition/SKILL.md", "plugins/planning/.claude-plugin/plugin.json"],
@@ -91,8 +86,6 @@ test("with no kept thread under the plugin, its files are refused", () => {
   assert.equal(inThreadScope("plugins/p/README.md", new Set(["src/a.js"])), false);
 });
 
-// Names from the coordinator's addition; plugins/planning/surface/test_round.py
-// is the file #8142's run 39113747960 refused.
 test("a test file in the same directory as a kept thread's path is in scope", () => {
   const surface = new Set(["plugins/planning/surface/round.py", "src/a.js", "README.md"]);
   for (const path of [
@@ -151,8 +144,6 @@ test("a plugin's .gitmodules, CODEOWNERS or settings file is outside the plugin-
   }
 });
 
-// #8116's thread PRRT_kwDOTCGFQM6tojDu: on write-transcript.js, the owner's
-// fix request named run-transcript.js, which check-paths refused.
 const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
 const WRITE = `${T}/write-transcript.js`;
 const RUN = `${T}/run-transcript.js`;
@@ -196,9 +187,6 @@ test("a named path off normal form or outside plain ASCII is refused", () => {
   }
 });
 
-// From the security review of #8461: a segment named exactly hooks or
-// .claude, plugin monitors, bin and .lsp.json, more code extensions, and
-// non-ASCII letters JS /i does not fold (U+212A KELVIN SIGN, U+017F LONG S).
 test("more code files in the same plugin are in scope", () => {
   for (const path of [
     "plugins/p/lib/x.cjs",
@@ -276,7 +264,6 @@ test("a plugin's own hooks, manifest, agent rules, monitors and bin the PR chang
   assert.deepEqual(prPathsOf(surfaces.map((filename) => ({ filename }))), [...surfaces].sort());
 });
 
-// #12630: the fix needed eval scaffolds the PR did not list.
 test("a plugin's or a skill's eval files are in scope from any thread, new files included", () => {
   for (const path of ["plugins/q/evals/c/case.yaml", "plugins/q/evals/c/graders/g.sh", "plugins/q/skills/s/evals/c/samples/y.json", "plugins/q/skills/s/evals/evals.json"]) {
     assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { added: true }), true, path);
@@ -315,7 +302,6 @@ test("sharedCopyPairs reads the registry's two-field lines", () => {
   ]);
 });
 
-// #12346: a fix to lib/hook-utils.sh had to regenerate its 20 copies.
 test("the copies of a canonical the PR changes are in scope, and do not open the rest of their plugins", () => {
   const files = [{ filename: "lib/hook-utils.sh" }, { filename: "lib/settings.json" }, { filename: "lib/x.sh" }];
   const copyPaths = new Set(copyPathsOf(files, sharedCopyPairs(REGISTRY)));

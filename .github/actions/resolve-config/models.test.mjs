@@ -1,9 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json
-// The `models` block: schema, cross-checks, resolution, the arguments and
-// settings a profile becomes, and what the live config gives every model run.
-// The live expectations are written by hand: --model opus and 75 turns for a
-// skill activity no route names, and --model opus with --max-turns 60 for
-// pr-verify.yml.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -502,8 +497,6 @@ test("live config: verify-pr keeps --model opus and 60 turns at effort high", ()
   assert.equal(modelSettings(models), "");
 });
 
-// Both review lanes run Opus at effort high, 75 turns (#11503, Capability tiers
-// rules 3 and 4); triage moves to Sonnet at effort medium with 30 turns.
 for (const [route, profile, args] of [
   ["review-code", "pr-review", "--model opus --max-turns 75 --effort high"],
   ["review-security", "pr-review", "--model opus --max-turns 75 --effort high"],
@@ -519,8 +512,6 @@ for (const [route, profile, args] of [
   });
 }
 
-// #13657 (owner decision Q1): the merge-risk rater's model and effort, and its
-// checker's model through subagent-model, come from the route.
 test("live config: merge-risk resolves the rater's model and effort and the checker's model", () => {
   const models = resolveRoute(LIVE, { route: "merge-risk", configPath: CONFIG_PATH });
   assert.equal(models.profile, "merge-risk");
@@ -945,8 +936,6 @@ test("main writes applied-by-patch as the activity that applies the selected one
   assert.equal(outputs["applied-by-patch"], applier);
 });
 
-// Canned answers in the shapes recorded live on pr-pipeline-sandbox#167
-// (REST issue-field-values and the GraphQL field events, 2026-10-18).
 const fieldRow = (field, option) => ({
   issue_field_id: field,
   data_type: "single_select",
@@ -1032,8 +1021,6 @@ test("main with no standards checkout fails red: neither list is read from the b
   assert.equal(code, 1);
 });
 
-// The field's REST value and its newest event disagreeing is usually a read
-// racing a write, so both are read once more; a second disagreement fails.
 test("main on an issue reads a disagreeing Work status once more", async () => {
   const events = [
     fieldEvent("IssueFieldAddedEvent", 15462270, LISTED),
@@ -1097,8 +1084,6 @@ test("fieldSetters fails on an issue with no event list", async () => {
   }
 });
 
-// The shapes as GraphQL answered them on 2026-11-06: option names
-// as values, a bot's login without `[bot]`, and a removal with no value.
 test("fieldEvents reads each event's field, actor, time and values, oldest first", async () => {
   const { fieldEvents, fieldSetters } = await import("./resolve-config.mjs");
   const bot = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };

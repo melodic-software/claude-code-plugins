@@ -1,14 +1,7 @@
-// One marked comment per pull request: posted on the first run, edited in
-// place on a re-run, and found only among GITHUB_TOKEN's own comments, by a
-// body that opens with exactly `${marker}\n`. A person's comment that quotes
-// the marker is not ours. github is a createGitHub client.
-
 const AUTHOR = "github-actions[bot]";
 const PAGE = 100;
 const MAX_PAGES = 30;
 
-// The marked comment on the pull request, or null. The client returns no Link
-// header, so pages are read until one comes back short.
 export async function ownComment({ github, repository, pull, marker }) {
   if (typeof marker !== "string" || marker === "" || /[\r\n]/.test(marker)) throw new Error("the marker is not one line");
   const head = `${marker}\n`;

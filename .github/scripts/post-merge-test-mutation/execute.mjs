@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// post-merge-test-mutation.yml's run-mutants job: applies each mutant the generate
-// leg returned and runs the file's covering tests on it, in a job that holds no
-// secret, so no mutated code runs beside a Claude credential. No model runs here.
-//
-// The generation is untrusted model output: it is checked against
-// generate.schema.json, and each mutant must name a tracked file inside the
-// config's `mutate` globs whose `old_string` occurs exactly once and covers
-// `line`; any other mutant is `invalid` and never applied. Per file, the
-// covering tests run once on the unmutated tree (a red or timed-out baseline
-// makes its mutants `not-run`, exit 2 `no-coverage`), then once per mutant under
-// the larger of the config's timeout-ms and 1.5 times the baseline plus 5 s:
-// exit 0 is `survived`, 1 `killed`, 2 `no-coverage`, a timeout `timeout`, any
-// other exit `invalid`. After each mutant the file's original bytes go back,
-// and the tracked tree must equal the starting snapshot; the first difference
-// ends the run `restore-failed` with the rest `not-run`.
-//
-//   execute.mjs <generation.json> <out.json>
-//
-// Env: COVERING_TESTS (the read-only harness copy), CONFIG (the mutation
-// config), ROOT (the checkout). Exits 0 with out.json written, 2 on a usage
-// error or a generation that is not valid JSON.
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -31,7 +10,6 @@ import { violations } from "./report.mjs";
 const GENERATE_SCHEMA = JSON.parse(readFileSync(new URL("./generate.schema.json", import.meta.url), "utf8"));
 const BASELINE_TIMEOUT_MS = 600000;
 
-// The `mutate` globs and timeout-ms from the config's plain YAML.
 export function readConfig(text) {
   const globs = [];
   let inMutate = false;
@@ -50,11 +28,6 @@ export function readConfig(text) {
   return { globs, timeoutMs: timeout ? Number(timeout[1]) : 0 };
 }
 
-// A glob as an anchored regular expression, with `**` crossing every directory,
-// dot directories included: path.matchesGlob skips a leading `.github/` for
-// `**/*.mjs`, and the trigger's paths filter, which lists the same globs,
-// matches it. `**/` is zero or more whole segments, `*` one segment's
-// characters, `?` one of them.
 export function globPattern(glob) {
   let source = "";
   for (let i = 0; i < glob.length; i++) {
@@ -84,7 +57,6 @@ export function inScope(path, globs) {
   return kept;
 }
 
-// Why a mutant cannot be applied to `text`, or "" when it can.
 export function applyProblem({ path, line, old_string: oldText }, { globs, text, tracked }) {
   if (path.split("/").some((part) => part === "." || part === "..")) return "path has a . or .. segment";
   if (!tracked) return "not a tracked file";
@@ -107,8 +79,6 @@ export function stateOf({ status, timedOut }) {
   return "invalid";
 }
 
-// One run of the covering tests on `path`, bounded by `ms`; coreutils timeout
-// also ends what the tests started.
 function cover(harness, path, ms, root) {
   const started = Date.now();
   const r = spawnSync("timeout", ["--kill-after=10", String(Math.ceil(ms / 1000)), "bash", harness, path], {

@@ -1,27 +1,4 @@
 #!/usr/bin/env node
-// post-statuses.mjs: posts one `pipeline/<activity>` commit status per step of
-// the work-resolve-issue lane on the lane branch's head SHA. The statuses
-// skip nothing; a failing one holds the merge gate. resolve-issue and
-// report-outcome come from their job results; the run's prep steps
-// (`review`, `verify`, `checks`) as the run reported them in
-// work-outcome.json. Descriptions are fixed text, never the run's words.
-//
-// Environment:
-//   GH_TOKEN            the job's GITHUB_TOKEN, with statuses: write
-//   GITHUB_REPOSITORY   owner/repo
-//   ISSUE_NUMBER        the issue the lane worked
-//   WORK_OUTCOME_DIR    holds work-outcome.json and lane.json
-//   REUSE_BRANCH        the lane branch an earlier run left that resolve-issue
-//                       reused instead of running the model, or empty; its
-//                       outcome counts only when lane.json names it
-//   RESUME_BRANCH       the earlier run's lane branch resolve-issue resumed
-//                       (issue-prior's output), or empty
-//   RUNNER_CHECKS       the run-checks job's output, or empty
-//   LANES_BOT_LOGIN     the lanes App bot login (default
-//                       melodic-automation-lanes[bot])
-//   RESOLVE_RESULT      the resolve-issue job's result
-//   REPORT_RESULT       the report-outcome job's result
-//   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
 import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -55,11 +32,6 @@ const DESCRIPTION = {
 const TURN_CAP = "Stopped at the turn cap.";
 const FUNDING = "Stopped on the lane's funding.";
 
-// The statuses to post, in order; none without a lane branch. A null outcome
-// is a reused branch whose run's report this run never read: only this run's
-// report-outcome posts, so the statuses the earlier run posted on the same
-// head stand. `turnCap` and `funding` are the runner's records, which name the
-// cause only for a run that left no outcome of its own; funding wins.
 export function plan({ outcome, branch, resolveResult, reportResult, turnCap = null, funding = null }) {
   if (!branch) {
     return [];
@@ -98,9 +70,6 @@ export function plan({ outcome, branch, resolveResult, reportResult, turnCap = n
   }));
 }
 
-// Every call goes through the rate guard (rate-guard.mjs). A read, and a
-// write marked safeToResend, is sent again after a network error or a 5xx
-// (retry-fetch.mjs), each attempt through the rate guard.
 export async function main({ env = process.env, fetch = rateLimitLatch.guard(globalThis.fetch), sleep, log = (line) => console.log(line) } = {}) {
   try {
     if (!/^[1-9][0-9]{0,9}$/.test(env.ISSUE_NUMBER ?? "")) {
@@ -161,8 +130,6 @@ export async function main({ env = process.env, fetch = rateLimitLatch.guard(glo
       env.GITHUB_SERVER_URL && env.GITHUB_RUN_ID
         ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`
         : undefined;
-    // A context's newest status is the one that counts, so a resend leaves
-    // the same state.
     for (const status of statuses) {
       await github("POST", `${repo}/statuses/${sha}`, { ...status, target_url: targetUrl }, { safeToResend: true });
     }

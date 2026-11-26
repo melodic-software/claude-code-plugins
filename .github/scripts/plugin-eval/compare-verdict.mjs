@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-// compare-verdict.mjs: the no-loss verdict of a compare run of
-// pr-run-plugin-evals.yml (https://github.com/melodic-software/claude-code-plugins/issues/17854),
-// and the comment that carries its eval-pair record.
-//   compare-verdict.mjs --before <dir> --after <dir> --base <sha> --head <sha>
-//                       --run-id <id> --run-url <url> --out <file>
-// Each dir holds one arm's results.json and validity.txt, as
-// maintenance-measure-skill-edit-pass.yml uploads them. Writes the comment to
-// --out, built from counts and SHAs only, never from model output.
-// Exit codes:
-//   0  PASS: no case lost and both arms read VALID; the comment holds the record
-//   1  LOSS or VOID: --out holds the reason and no record line
-//   2  usage error, or an arm's files cannot be read
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";

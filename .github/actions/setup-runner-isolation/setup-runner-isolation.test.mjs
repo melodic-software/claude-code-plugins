@@ -1,6 +1,3 @@
-// Runs the action's "Install subprocess isolation" script against stand-ins for
-// sudo and apt-get, on a PATH that holds no real bwrap or socat, so each case
-// controls how the mirror answers.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
@@ -31,9 +28,6 @@ const TOOLS = ["bash", "timeout", "touch", "chmod"];
 
 const sh = (body) => `#!/bin/bash\n${body}\n`;
 
-// apt-get stand-in. FAKE_APT: `down` fails every call; `lists` installs without
-// an index refresh; `stale` installs only after `update`. Installing writes bwrap
-// and socat into the PATH directory.
 const APT_GET = sh(`
 echo "apt-get $*" >>"$FAKE_LOG"
 args=" $* "
@@ -47,7 +41,6 @@ fi
 for tool in bwrap socat; do printf '#!/bin/bash\\n' >"$FAKE_BIN/$tool"; chmod +x "$FAKE_BIN/$tool"; done
 `);
 
-// dpkg stand-in: `stall` blocks 30 s until timeout kills it.
 const DPKG = sh('[ "$FAKE_DPKG" = stall ] && exec "$REAL_SLEEP" 30\nexit 0');
 
 function run({ apt, dpkg = "ok", budget, preinstalled = [] }) {

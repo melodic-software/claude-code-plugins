@@ -1,39 +1,4 @@
 #!/usr/bin/env node
-// sweep-summary.mjs: one pr-merge sweep's verdicts as data the API can read
-// (a step summary it cannot). pr-merge.yml runs it after the summary step and
-// uploads what it writes as the `pr-merge-summary` artifact:
-//   run_id, event, live, started_at   the run
-//   candidates                        the candidates listed, held excluded:
-//                                     candidates.json's length (the gated
-//                                     ones) plus the skipped ones
-//   skipped                           rows the skip step carried
-//   enqueued, merged                  rows the gate enqueued or merged
-//   ready_unmerged                    ready rows a report-only run left alone
-//   refusal_counts                    every other row, by normalized reason
-//                                     (`enqueue failed` for a live ready row)
-//   held                              held.json's length
-//   listing_held, listing_held_reason true and why when the open pull requests
-//                                     were unknown, so the job gated nothing;
-//                                     else false and null
-//   budget_stop                      {reached, skipped, candidates, next_after}
-//                                     when the gate ended green before the last
-//                                     gated candidate (its only early exit),
-//                                     else null; reached counts gated rows only
-//   results                           the summary rows, blockers trimmed as
-//                                     the step summary trims them
-// A reason is read as the step summary reads it (`.reason // "not ready"`),
-// then normalized so counts aggregate across PRs: cut at `;`, then keep the
-// first `:` segment and each next one until one names a PR, a run or free text
-// (a digit, `#` or `,`, or a leading space). The raw reason stays in results.
-//
-// Environment:
-//   SUMMARY_PATH       pr-merge-summary.json (missing: an empty sweep)
-//   HELD_PATH          held.json
-//   CANDIDATES_PATH    candidates.json
-//   CURSOR_PATH        the gate cursor, {"last": <PR number>}
-//   SWEEP_SUMMARY_TO   the file to write
-//   GITHUB_RUN_ID, EVENT, LIVE, GATE_OUTCOME, RUN_STARTED_AT,
-//   LISTING_HELD, LISTING_HELD_REASON
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";

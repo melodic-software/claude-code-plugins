@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: docs/conventions/work-items.yaml
-# Tests for decide-rebuild.sh on a throwaway origin and clone, with a stub gh
-# on PATH and a stub fragment gate on main whose exit code GATE_RC sets; the
-# gate's own cases (scripts/check-changelog-fragments.test.sh) cover what it
-# counts as current.
-# Canned gh responses follow the shapes the script reads: `gh pr list --json`
-# rows, GraphQL PullRequest.isInMergeQueue, and the REST check-runs list
-# (FAKE_RUNS, else one GitHub Actions run concluding FAKE_CI; a run with no name
-# is ci-status). FAKE_PAGE_SIZE sets the list's page size, FAKE_UNFINISHED=fail
-# fails only the read that names no check.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,8 +21,6 @@ check() {
   if [[ $2 == "$3" ]]; then ok "$1"; else not_ok "$1: expected [$2], got [$3]"; fi
 }
 
-# The stub gh answers the reads decide-rebuild.sh makes and applies --jq through
-# jq once per page, as gh does; only --paginate reads past the first page.
 mkdir -p "$TMP/bin"
 cat >"$TMP/bin/gh" <<'EOF'
 #!/usr/bin/env bash

@@ -1,187 +1,3 @@
-// Starts pr-unblock's address-feedback activity on a lanes App PR, or an
-// adopted owner PR once idle (ownerAuthored, ownerSkip), once both
-// review lanes have reviewed its current head and left an unresolved thread.
-// Run by .github/workflows/pr-dispatch-feedback.yml on workflow_run, after the
-// kill switch. From the event file it takes only the upstream run's id, path,
-// event, repositories and head SHA, which a re-run does not change, so reading
-// them back from the API would spend a call for the same values; and its
-// status and start time, snapshots from when the event fired, used only to
-// skip, never to admit. Nothing user-written in the payload (branch name,
-// title) is read, and nothing reaches a shell. Every PR fact, including whether
-// that head is still the PR's current head, is read fresh from the API.
-//
-// It dispatches pr-unblock.yml on main, with activity address-feedback, only
-// when all of these hold, and otherwise logs why not and dispatches nothing:
-// - the upstream run is a completed pull_request run of a review workflow,
-//   by exact path, or a successful relay run (below), in this repository and
-//   on a head of this repository;
-// - exactly one open, non-draft PR into main has that run's head SHA as its
-//   current head, and the lanes App opened it, or a person on the base's
-//   trusted-actors list did under an `adoption` section, with no `Hold:` body
-//   line and either auto-merge armed (`auto_merge`,
-//   https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) or the PR
-//   and its head commit idle-hours old; on such an owner PR
-//   only a thread the select job keeps dispatches;
-// - it carries no do-not-merge label;
-// - both review lanes' newest reviewed-head markers, written by
-//   github-actions[bot], name that head;
-// - an unresolved review thread exists that address-feedback would work:
-//   every comment is the reviewer bot's or a listed review bot's
-//   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids; a listed
-//   bot's only behind a trusted person's `@codex` request, requestSkip), a trusted
-//   person with write access
-//   asked the lane to fix it (isFixRequest), in a bot's thread or one a
-//   trusted person opened, or a trusted person answered the
-//   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
-//   the human-gated label, the same when a lane escalation put the label on
-//   and no review lane holds the PR (gate-source.mjs gateSource), on an owner
-//   PR only as it lets fix-ci work there (prHold),
-//   otherwise only a thread where a trusted person with write access asked
-//   the lane to fix it (isFixRequest);
-// - that head has no pr-unblock / address-feedback check run yet (one the
-//   usage limit stopped stops counting once its limit resets, and one that
-//   started before the head's newest pr-unblock / publish-feedback check run
-//   when that run skipped no-model-turn, finding-stands, lane-stopped or
-//   kill-switch: that round left the head for another round; a kill-switch
-//   stop of the address-feedback run itself does not count either), and no
-//   pr-unblock.yml address-feedback run for the PR is still queued or going;
-// - the base config's pr-unblock lane is enabled, holds enabled
-//   address-feedback and publish-feedback slots, and address-feedback applies
-//   to that PR at that head, resolved by resolve-config for that one slot.
-// The gate and the broker re-check the upstream run and the head; this script
-// only decides whether to spend a run.
-//
-// A completed pr-verify run starts the file too, once its post-verify-notes
-// job has posted a fail verdict's notes on the PR (verify-notes.mjs). For
-// that run, which ran on main, main() takes the head the notes name
-// (VERIFY_HEAD_SHA) and decides as above with the newest completed review
-// run at that head as the upstream (reviewRunAt); with none, the review run
-// that completes later dispatches. The dispatched-run record names that review
-// run, so the gate and the broker check one kind of upstream. The notes are
-// new work at a head an earlier round may have handled, so that dispatch
-// counts only check runs started after the pr-verify run was created
-// (notesSince, read back from the API) and skips the head's handled record.
-// A pr-verify pass whose post-verify-notes job found an open fail-note
-// thread names its head in VERIFY_PASS_HEAD_SHA instead.
-// That dispatch is a pass-only round (input verify-pass-head): it runs no
-// model and posts no address-feedback check, its reply job resolves the
-// threads from an earlier head as the lanes App, so neither the review markers, a workable thread,
-// the human gate (a needs-human PR dispatches here whoever applied the label),
-// the head's check runs nor a round in progress decide it; the hold labels,
-// and a round waiting to start, still skip it. Those at
-// the passing head it resolves only when the merge gate's reader, in the same
-// read as the FAIL cap, found the FAIL there superseded (input
-// verify-superseded-head; babysit_verify_evidence.py `supersededAtHead`). It only
-// resolves notes a later pr-verify pass superseded, and the needs-human label
-// it leaves on still blocks the merge. A pass-only round goes only to lanes
-// App PRs: on a PR a person opened, verify-notes.mjs holds a fail with a label
-// it removes itself on the next pass, so there is no thread to resolve.
-//
-// A lanes App PR the merge gate's reader refuses verify:earlier-fail (a FAIL
-// at another head of the same change) dispatches even with no unresolved
-// thread: once its fail-note threads are resolved nothing else moves the head.
-// That model round names the FAILed heads (input verify-earlier-fail-heads,
-// verify-cap.mjs earlierFailHeads), and its select job works their notes from
-// the verdict artifacts. Every other skip above still holds.
-//
-// A round whose reply job skipped no-model-turn, finding-stands (an
-// adjudicator let a disputed finding stand and the head did not move, so no
-// review run follows), or kill-switch (the lanes kill switch stopped it, and
-// the switch lifting starts no review run), releases its head only for the
-// next review or pr-verify completion there, which may never come. So a
-// completed scheduled pr-unblock-dispatch.yml run, the half-hourly tick, which
-// the kill switch also stops, starts
-// the file, and main() sweeps (sweepReleased): each open lanes App PR into
-// main whose head's newest reply check took one of those skips, fewer than
-// SWEEP_HEAD_CAP times at that head, is decided as above with the
-// newest completed review run at that head as the upstream (reviewRunAt),
-// which the record names. It then decides each lanes App head with a stale
-// stop (sweepStale), each with an unresolved thread that no round was sent for
-// (sweepUnsent): its review completion skipped on a cause that may clear, such
-// as an unreadable FAIL cap, and each idle adopted owner PR whose reviewed
-// head has no round yet, or whose round's stop no thread holds any more
-// (sweepIdleOwner), since that PR's own review completion found it active.
-// The passes run in that order, after the fix requests below; a tick decides
-// each PR at most once and at most SWEEP_TICK_CAP in all, then sends them.
-//
-// Before those, the tick takes a fix request nothing else would start: no
-// review run follows a reply on a head, and an earlier round's check run holds
-// the head. sweepFixRequest sends each open lanes App PR into main with an
-// unresolved thread the reviewer bot opened, whose newest fix request by a
-// trusted person with write access came after the head's newest
-// address-feedback check run, with that request's time as requestSince: as
-// notesSince does for a pr-verify note, it stops the check runs started by
-// then counting, but a limit stop keeps its reset hold, and the round is not
-// sent for a pr-verify FAIL. A head with SWEEP_HEAD_CAP rounds or releases, or
-// a run of the activity created since the request, is left alone.
-//
-// A completed pr-review-comment-relay.yml run, which a person's new review
-// comment on a lanes App PR starts, starts the file too (ADR 0088). main()
-// reads the relay run back from the API and admits it only when it is a
-// successful pull_request_review_comment run of this repository whose actor
-// and re-runner are both listed humans, never the lanes App (relayUpstream).
-// It then decides as above with the relay run as the upstream, which the
-// record names, and the relay's creation time as requestSince, as a fix
-// request's: check runs started by then stop counting and the head's handled
-// record is skipped. The PR must be among the relay run's pull_requests, and
-// only a thread the lane escalated (or let a finding stand in) that a listed
-// human answered can cause the dispatch; a fix request keeps the tick's sweep.
-// GitHub starts no review-comment run on a conflicted PR; a reply posted then
-// keeps its thread workable on any head (address-feedback.mjs onReviewedHead),
-// so the review run after resolve-conflicts' push dispatches it.
-//
-// A sweep decides every round before it sends any, so each round's
-// dispatched-run record, which names its upstream and its run, uploads seconds
-// after its POST; it keeps no dispatch record.
-// The unsent sweep also sends a head with no unresolved thread and a fail note
-// from another head, while its newest review run completed within
-// EARLIER_FAIL_WINDOW_MS: its verifier read may have failed, or a pass's
-// EARLIER_FAIL_READS cap may have left it. Nothing records an answer, so a
-// head answered "no earlier FAIL" may be read again inside that window.
-//
-// Before every other sweep, the tick sends again a round the token broker
-// refused as workflow-modified, or the gate stopped head-lag, once per stopped
-// run (sweepRefused): a round in flight when a lane workflow file changes on
-// main is refused its push or reply token, and a re-run keeps the old file; a
-// round whose gate could not match the PR's head to its branch ref within its
-// wait (an API lag after an outage) did no work. Either way the head's check
-// runs would otherwise hold it.
-//
-// A run of this file an outage lost, or whose dispatch job failed, dispatched
-// nothing the lanes trust when re-run: check-trusted-trigger's dispatcher
-// check accepts a dispatcher at attempt 1 or re-run by a listed human, so
-// re-runs stay person-only. When the sweep dispatched nothing, the tick
-// recovers it instead (recoverLost): one listing of this workflow's runs
-// created within the reconciler's LOOKBACK_HOURS finds a run that ended in
-// the reconciler's LOST set, or failed within FAILED_RUN_WINDOW_HOURS, with
-// its dispatch job lost or failed after it started (a run replaced in its
-// concurrency group never started one), and then each open lanes App PR into
-// main short of SWEEP_HEAD_CAP, with no finished run of the activity created
-// since that run, is decided as above with its head's newest completed review
-// run as the upstream. The
-// dispatch is this tick's own attempt-1 run, which the gate already trusts,
-// and dispatchFeedback's check-run and queued-run skips keep a head the lost
-// run dispatched from a second dispatch.
-//
-// A head the human gate skipped at its review completion has no other
-// trigger once the label comes off: no round ran, so the sweep never finds a
-// releasing reply there. A person's or clear-escalations' unlabel (a user or
-// lanes App token, so the event starts runs) starts pr-merge.yml on
-// pull_request_target, and that run's completion starts this file: main()
-// takes only its head SHA and decides as above with the newest completed
-// review run at that head as the upstream (reviewRunAt). The run does not say
-// which label came off, so a head still gated skips at the gate as before.
-// pr-merge runs on every pull_request_target event, so a head whose releasing
-// skips reached SWEEP_HEAD_CAP is skipped there as the sweep skips it.
-//
-// main() reads and writes a dispatch record (dispatch-record.mjs) at
-// DISPATCH_RECORD, but the workflow carries it to no later run: the job's
-// workflow_run cache token is read-only, so each run starts from an empty
-// record and takes the full path. With a carried record, a head whose check
-// runs handle it for good would be skipped before any read, and a head whose
-// dispatched run is still going after the PR read. Each shortcut stands for a
-// skip the full path also reaches.
-
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -220,7 +36,6 @@ export const DEFAULTS = Object.freeze({
   holdLabels: FEEDBACK_HOLDS,
   reviewerId: 209825114,
   markerAuthorId: ACTIONS_BOT_ID,
-  // The GitHub Actions app: only a check run it created counts.
   appId: 15368,
 });
 
@@ -229,14 +44,6 @@ const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 
 export const autoMergeArmed = (pull) => pull?.auto_merge != null;
 
-// Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
-// (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:` (the select
-// job checks it again, as the round starts), and either auto-merge armed (the
-// session handed the PR to the merge gates; `auto_merge`,
-// https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request) or both the
-// PR's last update and its head commit at least idle-hours old, so the lane
-// does not push onto a branch a session is still working on. An unreadable
-// date is not idle.
 export async function ownerSkip({ api, pull, adoption, now }) {
   if (HOLD_LINE.test(String(pull.body ?? ""))) {
     return "held by a Hold: line";
@@ -255,7 +62,6 @@ export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
 export const SWEEP_HEAD_CAP = 3;
 
 const newestStarted = (runs) => runs.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), runs[0]);
-// An ISO time to the second, as the API's `created` filter takes it.
 const isoSeconds = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 const heldLabels = (pull, settings) => (pull.labels ?? []).map((label) => label.name).filter((name) => settings.holdLabels.includes(name));
 const slotEnabled = (resolved, name) => resolved?.lane.slots.some((slot) => slot.name === name && slot.enabled === true);
@@ -402,9 +208,6 @@ export async function relayUpstream({ api, upstream, repository, appSenderId, tr
 }
 export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 
-// The newest completed review run of this repository's head at `head` that
-// reviewed something (not skipped or cancelled), or null. A fork PR at the
-// same SHA lists its runs too; one must not stand in for this repository's.
 export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }) {
   const listings = [];
   for (const path of settings.reviewWorkflows) {
@@ -521,10 +324,6 @@ export async function dispatchFeedback({
       return skip(`#${number}: ${why}`);
     }
   }
-  // A pass-only round is not held by a round in progress: nothing sends that
-  // pass again, and pr-unblock.yml's per-PR concurrency group queues it
-  // behind that round. It resolves nothing if that round moved the head. The
-  // run listing below still holds it for a run waiting to start.
   const sent = passOnly ? undefined : record.dispatched.get(head);
   if (sent?.number === number) {
     let run = null;
@@ -541,11 +340,6 @@ export async function dispatchFeedback({
   if (held.length > 0) {
     return skip(`#${number} is labeled ${held.join(", ")}`);
   }
-  // A pass-only round reads its own threads and runs no model, so neither the
-  // review markers, a workable thread nor the human gate below decide it.
-  // A lanes App PR with no unresolved thread waits for the verifier read
-  // below: a verify:earlier-fail refusal there sends a round for the FAILed
-  // heads' notes, which their verdict artifacts hold (#12809).
   let noThread = false;
   if (!passOnly) {
     const comments = await api.listIssueComments(number);
@@ -595,13 +389,6 @@ export async function dispatchFeedback({
       return skip(`#${number} has no thread the lane works`);
     }
   }
-  // Both review lanes finish on one head, and their dispatchers queue in one
-  // concurrency group. The first one's run posts no check until it ends, so
-  // the second skips while a run of this activity for this PR, created after
-  // this review started, is not done. An older run (the round whose push made
-  // this head) does not hold the dispatch, or the next round would never start.
-  // A pass-only round skips only for a run of any age still waiting to start:
-  // that group keeps one waiting run, so sending would cancel it.
   let runs;
   try {
     runs = await api.listWorkflowRuns(settings.workflow);
@@ -625,7 +412,6 @@ export async function dispatchFeedback({
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
   if (!passOnly) {
-    // NaN compares false, so a run with no readable start still counts.
     const sinceNotes = (run) => cutoff === null || !(Date.parse(run.started_at ?? "") <= cutoff);
     const counts = (run) => sinceNotes(run) || (requestSince !== null && limitResetsAt(run, resolved.limits) !== null);
     let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(counts);
@@ -639,10 +425,6 @@ export async function dispatchFeedback({
         existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
       }
     }
-    // The round's reply job posts its check after the round's address-feedback
-    // check, so until a reply check started after the newest address-feedback
-    // check, a releasing skip may still release the head: it is not
-    // recorded as handled yet (#9362). An unreadable start records nothing.
     const newestCheck = Math.max(...existing.map(startOf));
     if (permanentlyHandles(existing, { limits: resolved.limits }) && replies.some((run) => startOf(run) > newestCheck)) {
       markHandled(record, settings.checkName, head);
@@ -651,18 +433,6 @@ export async function dispatchFeedback({
       return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
     }
   }
-  // Last, as it costs a full verifier read, and on a pass-only dispatch too: a
-  // pass clears the cap only by superseding the head's FAIL
-  // (https://github.com/melodic-software/claude-code-plugins/issues/17646),
-  // and a push past it could never merge, so pr-merge closes the pull request
-  // for a fresh attempt. It closes only the
-  // lanes App's: an adopted owner's is never skipped. A pass-only round skips
-  // only on a cap the reader found: it only resolves notes a pass superseded,
-  // and nothing sends it again, so a cap that could not be read (#11354)
-  // does not hold it.
-  // A round sent for pr-verify's FAIL at this head (notesSince) expects the
-  // reader's FAIL refusal there, and so does a pass-only round: its pass may
-  // meet a same-head FAIL it did not supersede, whose notes stay open.
   const expected = passOnly || notesSince !== null ? [VERIFY_FAIL] : [];
   const readKey = `${number}:${head}:${pull.base?.sha}:${expected.join(",")}`;
   if (noThread && !verifyReads.has(readKey)) {
@@ -715,11 +485,6 @@ export async function dispatchFeedback({
       if (!connectionLost(error)) {
         throw error;
       }
-      // The connection broke before any answer, so GitHub may still have taken
-      // the POST: a run it started for this PR holds the second send, as the
-      // listing above would. This run never sends an HTTP error answer again;
-      // the run fails, and recoverLost may send it within
-      // FAILED_RUN_WINDOW_HOURS.
       const started = (await api.listRecentRuns(settings.workflow, isoSeconds(now - 60_000))).find((run) => holds(run, number));
       log(`::warning::#${number}: the ${settings.workflow} dispatch got no answer (${errorLabel(error)}); ${started ? `run ${started.id} for it is listed, so it is not sent again` : "sending it once more"}`);
       ({ workflowRunId } = started ? { workflowRunId: started.id } : await api.dispatchWorkflow(request));
@@ -744,13 +509,9 @@ export const earlierFailNoted = (threads, head) =>
     return first?.author?.databaseId === MARKER_AUTHOR_ID && String(first.body ?? "").split("\n")[0].replace(/\r$/, "") === VERIFY_NOTE_MARKER && first.pullRequestReview?.commit?.oid !== head;
   });
 
-// A request whose connection broke before any answer (undici's `fetch failed`
-// with a reset or closed socket); an HTTP answer is never one.
 const LOST_CONNECTION = new Set(["ECONNRESET", "UND_ERR_SOCKET"]);
 const connectionLost = (error) => error?.name === "TypeError" && error.message === "fetch failed" && LOST_CONNECTION.has(error.cause?.code);
 
-// Rounds one tick sends (judgment: five bounds the extra dispatches and their
-// reads per tick well under the GITHUB_TOKEN's 1,000 requests an hour).
 export const SWEEP_TICK_CAP = 5;
 /**
  * Time one tick spends deciding rounds. The trusted-trigger gate trusts a dispatched run only
@@ -823,19 +584,6 @@ export async function sweepReleased({ api, repository, appSenderId, log, setting
 
 export const IDLE_OWNER_WINDOW_HOURS = 2;
 
-// An owner PR's review completes while the person's session is still on it,
-// so its review-run dispatch skips the idle test unless auto-merge is armed
-// (https://docs.github.com/en/rest/pulls/pulls#list-pull-requests,
-// `auto_merge`); once idle or armed, the tick sends it. A PR still active by the listing's last update spends no read; an idle
-// one spends one check-run read. A head with no round is decided by
-// dispatchFeedback (both markers on the head, a thread the lane works, about
-// six reads) only within IDLE_OWNER_WINDOW_HOURS of turning idle, so each
-// update buys at most that window's ticks of those reads; a new thread, marker
-// or fix request moves the update time and opens the window again. A head
-// with a round spends a reply check-run read, and a status read unless that
-// round's reply released it (sweepOne, as for a lanes App PR); a failing stop
-// with no thread left is then cleared as sweepStale clears one on a lanes App
-// PR, with no window, since resolving a thread may not move the update time.
 async function sweepIdleOwner(context) {
   const { api, pull, rest, settings } = context;
   const since = (rest.now ?? Date.now()) - (autoMergeArmed(pull) ? 0 : (rest.adoption?.idleHours ?? 0) * 3_600_000);
@@ -959,7 +707,6 @@ async function sweepUnsent(context) {
   if (upstream === null) {
     return null;
   }
-  // NaN compares false, so a review with no readable completion is left alone.
   if (unresolved.length === 0 && !(Date.parse(upstream.updated_at ?? "") >= (rest.now ?? Date.now()) - EARLIER_FAIL_WINDOW_MS)) {
     return null;
   }
@@ -1029,7 +776,6 @@ async function dispatchSince(context, requestSince, what) {
   const number = pull.number;
   const head = pull.head.sha;
   const rounds = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
-  // NaN compares false, so a run with no readable start still counts.
   if (rounds.some((run) => !(startOf(run) <= requestSince))) {
     log(`skip: #${number}: head ${head} has a ${settings.checkName} check run since its newest ${what}`);
     return null;
@@ -1096,9 +842,6 @@ export const DISPATCH_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
 
 const DISPATCH_JOB = new Set(["Dispatch", "dispatch"]);
 const jobStarted = (job) => (Array.isArray(job?.steps) ? job.steps : []).some((step) => step?.conclusion != null && step.conclusion !== "skipped");
-// A failed dispatch job sent nothing either (#11344: its POST threw), and
-// nothing else sends it again, so it is recovered as a lost one is. LOST stays
-// the reconciler's set: it re-runs what it holds.
 const RECOVERABLE = new Set([...LOST, "failure"]);
 export const FAILED_RUN_WINDOW_HOURS = 2;
 const dispatchLost = (job) => DISPATCH_JOB.has(job?.name) && RECOVERABLE.has(job.conclusion) && jobStarted(job);
@@ -1160,13 +903,9 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
 
 export const DEFERRED_RECORD = /^pr-feedback-deferred-([0-9a-f]{40})-(fail|pass)$/;
 export const DEFERRAL_MARKER = "pr-feedback-deferral";
-// One listing page; a full one may hide an unexpired row, so it counts as one.
 const ARTIFACT_PAGE = 100;
 const ACTIONS_BOT = "github-actions[bot]";
 
-// Whether `run`, the run that uploaded a deferred record, is a
-// github-actions[bot] re-run of this workflow on main: any workflow can
-// upload that name to its own run.
 const deferringRun = (run, repository) =>
   run?.path === DISPATCH_WORKFLOW &&
   run.event === "workflow_run" &&
@@ -1255,10 +994,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  // A network error names no call; the annotation needs which one failed. Fetch
-  // quotes a token that is no legal header value in its error, altered enough
-  // that matching the token misses it, so nothing of that error is kept. The
-  // warnings log a thrown message too.
   const send = (url, init) =>
     fetch(url, init).catch((error) => {
       const call = `${init.method ?? "GET"} ${url}`;
@@ -1302,8 +1037,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     return response.status === 204 ? {} : response.json();
   }
 
-  // Every page of a REST listing of 100 rows a page, at most `max` pages;
-  // `rowsOf` picks the rows out of a page's answer.
   async function pages(url, max = 50, tooMany = `${url} has more than ${max} pages`, rowsOf = (body) => body) {
     const rows = [];
     for (let page = 1; page <= max; page += 1) {
@@ -1335,7 +1068,6 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         readGraphQL: graphql,
         timeoutMs: attemptTimeoutMs,
       }),
-    // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
       const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
       const response = await send(url, { headers });
@@ -1380,30 +1112,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       }
       return runs.filter((run) => run.name === checkName);
     },
-    // The newest workflow_dispatch runs: a run still queued or going is
-    // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
     headCommittedAt: async (sha) => (await request(`${repo}/commits/${sha}`)).commit?.committer?.date ?? "",
     listOpenPulls: async (base) => pages(`${repo}/pulls?state=open&base=${encodeURIComponent(base)}&per_page=100`, 10, `more than 1000 open PRs into ${base}`),
-    // Every status on a commit, newest first across pages.
     listStatuses: async (sha) => pages(`${repo}/commits/${sha}/statuses?per_page=100`, 10, `commit ${sha} has more than 1000 statuses`),
     listCompletedRuns: async (path, head, event = "pull_request") =>
       workflowRuns(path, new URLSearchParams({ head_sha: head, event, status: "completed", per_page: "10" })),
     listRecentRuns: async (path, since) => workflowRuns(path, new URLSearchParams({ created: `>=${since}`, per_page: "100" })),
-    // Every finished workflow_dispatch run of a workflow created since `since`,
-    // newest first. The API returns at most 1,000 for a filtered listing
-    // (https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow),
-    // so a window past that is an error, not a shorter answer.
+    // A filtered run listing returns at most 1,000 runs; past that this throws.
+    // https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
     async listFinishedRunsSince(workflow, since) {
       const query = new URLSearchParams({ event: "workflow_dispatch", status: "completed", created: `>=${since}`, per_page: "100" });
       return pages(`${repo}/actions/workflows/${workflow}/runs?${query}`, 10, `${workflow} has more than 1000 finished runs since ${since}`, (body) => body.workflow_runs ?? []);
     },
-    // The repository's artifacts with exactly this name
-    // (https://docs.github.com/en/rest/actions/artifacts#list-artifacts-for-a-repository),
-    // one page of ARTIFACT_PAGE.
     async listArtifactsNamed(name) {
       const query = new URLSearchParams({ name, per_page: String(ARTIFACT_PAGE) });
       return (await request(`${repo}/actions/artifacts?${query}`)).artifacts ?? [];
@@ -1452,9 +1176,6 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
   });
 }
 
-// Writes run-id, the dispatched run, as a step output (a tick's later sends as
-// run-id-2 to run-id-<SWEEP_TICK_CAP>); the workflow records each with its
-// upstream run id as an artifact on this run.
 export async function main(env, deps = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
@@ -1524,10 +1245,6 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
       log(`skip: run ${upstream.id} is not a scheduled tick`);
       return 0;
     }
-    // Each send's outputs are written as it is sent, so a later send's
-    // failure still leaves the earlier ones recorded: the first as run-id,
-    // the nth as run-id-<n>. A round sent again after a workflow-modified
-    // refusal or a head-lag stop also names the stopped run, as refire-of-<n>.
     let sends = 0;
     const write = (swept) => {
       sends += 1;
@@ -1601,10 +1318,6 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
   return 0;
 }
 
-// The step's error annotation for a failed run. A thrown fetch names its
-// cause only in error.cause; the label carries its code, else its name, never
-// its message, which can hold a header value. A refused GitHub call adds its
-// answer's detail.
 const causeLabel = (error) => {
   const { cause } = error;
   if (!cause) {

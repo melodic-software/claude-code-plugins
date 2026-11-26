@@ -1,7 +1,3 @@
-// maintenance-monitor-signals.yml's hardening, from docs/conventions/pr-pipeline/README.md
-// ("Every lane" and "The monitoring lane"): only a schedule or a manual run
-// starts it, on main; it holds the job's own token, writes only issues, runs
-// no model and mints no token; and it checks the kill switch before it reads.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";

@@ -98,7 +98,6 @@ test("a hygiene gate is its own check, and the all-branches gitleaks gate counts
 });
 
 test("a failed job listing no failed step is a check of its own; the full list keeps the gitleaks excuse", () => {
-  // The jobs API can answer a completed job with no steps or a cut list.
   const gitleaks = { 7: [{ annotation_level: "failure", title: "gitleaks failed" }] };
   const withSteps = (steps) => ({ id: 7, name: "Lint Repo", conclusion: "failure", steps });
   assert.deepEqual(failingChecks([withSteps([])], gitleaks), ["Lint Repo"]);
