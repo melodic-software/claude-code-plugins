@@ -2,12 +2,16 @@
 
 HOOK_REFUSE_PENDING=()
 
+# shellcheck source=session-attended.sh
+unset -f hook::session_attended
+source "${BASH_SOURCE[0]%/*}/session-attended.sh" 2>/dev/null || hook::session_attended() { return 1; }
+
 hook::refuse_unwatched() {
-  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 && "${GUARDRAILS_SESSION_UNWATCHED-}" == 1 ]]
+  hook::session_attended && [[ "${GUARDRAILS_SESSION_UNWATCHED-}" == 1 ]]
 }
 
 hook::refuse_asks() {
-  [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == 1 && "${GUARDRAILS_SESSION_UNWATCHED-}" != 1 ]]
+  hook::session_attended && [[ "${GUARDRAILS_SESSION_UNWATCHED-}" != 1 ]]
 }
 
 hook::refuse() {

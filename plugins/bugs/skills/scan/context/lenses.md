@@ -31,8 +31,8 @@ there.
   the repository, never branch, never file anything.
 - **One hop outside the scope is allowed, and tagged.** A fault often straddles a boundary, so you
   may follow a scoped file into one direct caller or callee and report a candidate there. Such a
-  candidate carries `Scope: out-of-lane (via <scoped path>)`; every other candidate carries
-  `Scope: in-lane`. Two hops is wandering, not hunting.
+  candidate carries `Scope: out-of-area (via <scoped path>)`; every other candidate carries
+  `Scope: in-area`. Two hops is wandering, not hunting.
 - **Excluded classes.** Do not report these: denial of service, rate-limiting, resource exhaustion,
   generic input validation with no stated impact, open redirects, secrets-at-rest, and style or
   formatting opinions. They are FP-prone or belong to another lane. A value rendered wrongly to a
@@ -49,7 +49,7 @@ Return each candidate as:
 ### Candidate <n>: <one-line present-tense symptom>
 
 - **Lens**: <lens id>
-- **Scope**: in-lane | out-of-lane (via `<scoped path>`)
+- **Scope**: in-area | out-of-area (via `<scoped path>`)
 - **Location**: `<path>:<line>` in `<function or class>`
 - **Evidence**: verbatim quote of the offending lines
 - **Fault**: what is wrong, in one or two sentences
@@ -146,13 +146,13 @@ needs its own quote and trigger. On a shallow clone or a repository with no hist
 skipped with one notice, `hotspot ranking skipped: no usable history`, and the hunters read the scope
 unranked.
 
-## Bundled generic default lanes
+## Bundled generic default focus areas
 
-Used by rotation mode when no cascade layer declares `lanes` (see
+Used by rotation mode when no cascade layer declares `areas` (see
 [`reference/config.md`](../../../reference/config.md)). They are deliberately
 stack-neutral: match what exists, skip what does not, and never assume a repo layout.
 
-| Lane | Globs (match what exists) | Why it is its own lane |
+| Focus area | Globs (match what exists) | Why it is its own focus area |
 |---|---|---|
 | `entrypoints` | CLI mains, HTTP handlers/routes/controllers, job and queue consumers, event handlers | Untrusted input arrives here first; boundary defects have the widest blast radius |
 | `core-logic` | Domain/business/service/model source directories, excluding tests | Where correctness bugs cost the most and reviewers look the least |
@@ -160,5 +160,5 @@ stack-neutral: match what exists, skip what does not, and never assume a repo la
 | `integration` | Clients and adapters for external services, retry/backoff/timeout code, webhooks | Caller/callee assumption drift and error-path resource leaks |
 | `config-and-startup` | Bootstrap, dependency wiring, feature flags, environment parsing | Runs once, is rarely tested, and fails in production only |
 
-Rotation order is the table's order. A lane whose globs match no files in this repository is skipped
+Rotation order is the table's order. A focus area whose globs match no files in this repository is skipped
 (recorded as skipped, not as exhausted) and rotation moves to the next one.

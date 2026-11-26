@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: su-check-untracked-ignored
-description: check runs both halves of the tracked-file pair per lane, FAILs a gitignored lane naming the matching pattern, reports an untracked lane as commit-to-share, passes the tracked lane, and stages nothing
+description: check runs both halves of the tracked-file pair per focus area, FAILs a gitignored focus area naming the matching pattern, reports an untracked focus area as commit-to-share, passes the tracked focus area, and stages nothing
 tags: [setup, check, read-only, hard]
-expected_outcome: scratch-ui.md is FAIL because .gitignore pattern .claude/tidy-lanes/scratch-*.md excludes it, and the remediation names that pattern. jobs.md is un-ignored but untracked and is reported as needing a commit to share with the team. web.md is tracked and not flagged. No git add or commit runs and no file is created or edited.
+expected_outcome: scratch-ui.md is FAIL because .gitignore pattern .claude/tidy-areas/scratch-*.md excludes it, and the remediation names that pattern. jobs.md is un-ignored but untracked and is reported as needing a commit to share with the team. web.md is tracked and not flagged. No git add or commit runs and no file is created or edited.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -11,17 +11,17 @@ execution:
   max_turns: 40
   timeout_seconds: 900
 graders:
-  - name: ignored-lane-fails
+  - name: ignored-area-fails
     type: regex
     pattern: 'FAIL[^\n]{0,300}scratch-ui|scratch-ui[^\n]{0,300}FAIL'
   - name: ignore-pattern-named
     type: regex
     pattern: 'scratch-\*\.md'
-  - name: untracked-lane-reported
+  - name: untracked-area-reported
     type: regex
     pattern: 'jobs\.md[^\n]{0,300}(untracked|not tracked|commit)|(untracked|not tracked|commit)[^\n]{0,300}jobs\.md'
     flags: i
-  - name: tracked-lane-not-flagged
+  - name: tracked-area-not-flagged
     type: regex
     pattern: 'FAIL[^\n]{0,60}(^|[^-\w])web\.md|(^|[^-\w])web\.md[^\n]{0,60}FAIL'
     flags: m

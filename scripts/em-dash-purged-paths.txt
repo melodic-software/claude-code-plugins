@@ -186,7 +186,7 @@ plugins/code-tidying/skills/*/SKILL.md
 plugins/code-tidying/skills/*/context/*.md
 plugins/code-tidying/skills/*/reference/*.md
 plugins/code-tidying/skills/*/templates/*.md
-plugins/code-tidying/skills/tidy/lanes/*.md
+plugins/code-tidying/skills/tidy/areas/*.md
 plugins/codebase-health/README.md
 plugins/codebase-health/CHANGELOG.md
 plugins/codebase-health/skills/*/SKILL.md
