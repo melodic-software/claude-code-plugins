@@ -111,7 +111,7 @@ const FLAGS = {
   },
 };
 
-const USAGE = "usage: node exec-bash.mjs [--FLAG VALUE]... <script> [args...] (flags: docs/contracts/hook-budget/README.md#the-exec-bashmjs-launcher)";
+const USAGE = "usage: node exec-bash.mjs [--FLAG VALUE]... <script> [args...] (flags: the FLAGS and SWITCHES tables in exec-bash.mjs)";
 
 const SWITCHES = { "--fail-closed": "failClosed", "--require-verdict": "requireVerdict" };
 

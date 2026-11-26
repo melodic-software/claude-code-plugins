@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 // GENERATED from lib/docs-fetcher-gate.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-//
-//
-//
 // A plugin subagent reports its plugin-scoped name as agent_type:
 // https://code.claude.com/docs/en/hooks#subagentstart.
-//
 
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'

@@ -29,7 +29,7 @@ mscope::remote_cache_file() {
 mscope::registry_keys() {
   case "$OSTYPE" in
   msys* | cygwin*)
-    # portability-ok: the `\S` here is the literal first character of SOFTWARE in
+    # portability-ok: the `\S` here is the literal first character of SOFTWARE
     printf '%s\n' 'HKLM\SOFTWARE\Policies\ClaudeCode' 'HKCU\SOFTWARE\Policies\ClaudeCode'
     ;;
   *) ;;

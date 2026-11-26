@@ -1,7 +1,6 @@
 #!/bin/sh
 # shellcheck shell=bash
 
-# checks_as: sh (not bash), posix (bash started as sh) or empty (bash).
 # shellcheck disable=SC2086,SC2292 # POSIX sh until bash runs it: PATH and the skip list split unquoted, no [[ ]]
 {
   checks_as=""

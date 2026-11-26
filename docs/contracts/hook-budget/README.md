@@ -199,7 +199,8 @@ the `stdin_read_timeout` option). A row without a stdin flag keeps stdin inherit
 
 Bash resolution: on Windows the candidates, in order, are `CLAUDE_CODE_GIT_BASH_PATH` (only when
 the file is named `bash.exe`, `sh.exe`, `bash` or `sh`), `Git\bin\bash.exe` and
-`Git\usr\bin\bash.exe` under Program Files, then `bash.exe` in each absolute PATH entry; System32,
+`Git\usr\bin\bash.exe` under `%ProgramFiles%`, `%ProgramFiles(x86)%` and
+`%LOCALAPPDATA%\Programs`, in that order, then `bash.exe` in each absolute PATH entry; System32,
 Sysnative and WindowsApps are never accepted. Elsewhere the candidates are `bash` in each absolute
 PATH entry, then `/bin/bash` and `/usr/bin/bash`. Empty and relative PATH entries are skipped.
 

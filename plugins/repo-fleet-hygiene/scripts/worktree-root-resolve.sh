@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/worktree-root-resolve.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-#   exit 0 (including unset), 2 usage
 
 WORKTREE_ROOT_CURRENT_KEY="worktreeroot.path"
 

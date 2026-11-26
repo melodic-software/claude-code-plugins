@@ -376,7 +376,7 @@ hook::physical_path() {
   return "$__hu_rc"
 }
 
-# Parallel indexed arrays: associative arrays need bash 4.0, and this library supports 3.2:
+# Parallel indexed arrays: associative arrays need bash 4.0, and this cache runs on 3.2:
 # https://tiswww.case.edu/php/chet/bash/NEWS
 _HOOK_PHYS_KEYS=()
 _HOOK_PHYS_VALS=()
@@ -2154,7 +2154,6 @@ hook::git_resolve_index() {
   return 1
 }
 
-# Call as: hook::git_resolve_subcommand <git-index> <argv words...>
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_subcommand() {
   local gi="$1"

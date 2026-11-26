@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#   exit 0 (including unset), 2 usage
 
 WORKTREE_ROOT_CURRENT_KEY="worktreeroot.path"
 
