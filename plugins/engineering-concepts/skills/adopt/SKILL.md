@@ -98,6 +98,10 @@ Exit codes and error-output events (one JSON record per line):
   permission for it.
 - 2 `invalid option`: fix the named option (its `reason` says what is wrong) and run the preview
   again.
+- A `cited in a file the index does not list` warning: the file at `path` cites the concept but
+  the index has no row for it, so it does not load, and the concept was adopted into the surface
+  file. Report the `reason`; listing that file in the index or removing its entry is the person's
+  call.
 - A `standards file over budget` warning: the file passed the contract's soft budget of roughly
   200 lines; the write still happened. Offer to split it by concern into a new surface.
 
@@ -123,7 +127,8 @@ Exit codes and error-output events (one JSON record per line):
   subfolders included, is skipped too, and the output names that file: report it rather than
   moving the entry. A symbolic link, `.git` or `node_modules` inside the layer is not followed.
   For `team`, a concept cited only in a personal `*.local.md` file is still adopted, since that
-  file is personal.
+  file is personal. When the layer has an index, only the files its rows list count, since only
+  those load.
 - The file holds no counterweight or conflict lines, so they never go stale against the shipped
   data. A consuming stage that loads an adopted standards file runs the lookup on the ids the file
   cites and keeps one line per counterweight or conflict beside each entry:

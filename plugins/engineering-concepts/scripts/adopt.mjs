@@ -49,7 +49,9 @@ source_bar setting drops is refused, as lookup.mjs leaves it out.
 A concept already in the file, or in another standards file of the layer or its
 subfolders (symbolic links, .git and node_modules are not followed; for --layer
 team a personal *.local.md does not count), is skipped and the file citing it
-is named. An existing row for the file is kept; a file that already cites a
+is named. When the layer has an index, only the files its rows list count, since
+only those load; a concept cited in a file the index does not list is adopted,
+with a warning naming that file. An existing row for the file is kept; a file that already cites a
 concept named but has no row gets one; a file whose concepts are all cited
 elsewhere gets none. A plugin settings file that cannot be read or is not valid
 stops the run, so its exclude and source_bar are never ignored. A replaced file
@@ -107,6 +109,14 @@ const settingsProblem = (detail) => {
   if (code) return { read: true, text: fsReason(code) };
   return { read: false, text: detail };
 };
+
+/** The File column of each index row as written, header and separator included. */
+const rowFiles = (index) =>
+  index
+    .split("\n")
+    .filter((line) => line.startsWith("|"))
+    .map((line) => line.split(/(?<!\\)\|/u)[3]?.trim())
+    .filter(Boolean);
 
 const cites = (text, id) => text?.split("\n").some((line) => line.startsWith("- ") && line.includes(`(\`${id}\`)`));
 
@@ -214,13 +224,12 @@ function unwritable(path) {
 }
 
 /**
- * A random name and an exclusive create, so a link planted at the temporary path is never followed;
- * a replaced file keeps its mode, and a new one gets the mode the umask gives.
+ * A random temporary name and an exclusive create, so a link planted at the temporary path is never
+ * followed; a replaced file keeps its mode, and a new one gets the mode the umask gives.
  */
-function write(path, text) {
+export function write(path, text, temp = `${path}.${randomBytes(8).toString("hex")}.tmp`) {
   mkdirSync(dirname(path), { recursive: true });
   const mode = existsSync(path) ? statSync(path).mode & 0o7777 : null;
-  const temp = `${path}.${randomBytes(8).toString("hex")}.tmp`;
   const fd = openSync(temp, "wx");
   try {
     writeFileSync(fd, text);
@@ -391,6 +400,7 @@ async function adopt(argv, { out = console.log, err = console.error, shippedData
     return 1;
   }
   const others = otherFiles(dir, file, opts.layer === "personal").map((path) => [path, read(path)]);
+  const listed = currentIndex === null ? null : new Set(rowFiles(currentIndex).map((f) => join(dir, f)));
   const unique = [...new Map(records.map((r) => [r.id, r])).values()];
   const fresh = [];
   let citedHere = false;
@@ -399,11 +409,19 @@ async function adopt(argv, { out = console.log, err = console.error, shippedData
       citedHere = true;
       continue;
     }
-    const [elsewhere] = others.find(([, text]) => cites(text, r.id)) ?? [];
-    if (elsewhere) out(`${r.name} (${r.id}) is already adopted in ${elsewhere}, so it is not added again.`);
-    else fresh.push(r);
+    const citing = others.filter(([, text]) => cites(text, r.id)).map(([path]) => path);
+    const loaded = citing.find((path) => listed?.has(path) ?? true);
+    if (loaded) {
+      out(`${r.name} (${r.id}) is already adopted in ${loaded}, so it is not added again.`);
+      continue;
+    }
+    if (citing.length) {
+      const reason = `${citing[0]} cites ${r.id} but is not in the index, so it does not load; ${r.id} is adopted into ${file}`;
+      err(JSON.stringify({ level: "warn", event: "cited in a file the index does not list", id: r.id, path: citing[0], index: indexPath, reason }));
+    }
+    fresh.push(r);
   }
-  const hasRow = currentIndex?.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
+  const hasRow = currentIndex !== null && rowFiles(currentIndex).includes(file);
   const needsRow = currentIndex !== null && !hasRow && (fresh.length > 0 || citedHere);
   if (!fresh.length && !needsRow) {
     out(`Nothing to write: every concept named is already adopted.`);

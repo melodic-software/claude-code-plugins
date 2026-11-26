@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { main } from "./adopt.mjs";
+import { main, write } from "./adopt.mjs";
 import { main as lookup } from "./lookup.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
@@ -498,16 +498,18 @@ test("a CRLF index and a CRLF surface file keep CRLF on every line adopt adds", 
   }
 });
 
-test("a concept cited in a standards file in a subfolder of the layer is not added again, and one cited only through a symbolic link is", async () => {
+const withRows = (...files) => `${INDEX.replace(/\n+$/u, "")}\n${files.map((file) => `| extra | extra | ${file} |`).join("\n")}\n`;
+
+test("a concept cited in a listed standards file in a subfolder of the layer is not added again, and one cited only through a listed symbolic link is", async () => {
   const cited = "# Testing\n\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
-  const nested = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/topics/testing.md": cited });
+  const nested = tree({ ".claude/standards/README.md": withRows("topics/testing.md"), ".claude/standards/topics/testing.md": cited });
   const found = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home: nested });
   assert.equal(found.code, 0);
   assert.ok(found.out.includes(personal(nested, join("topics", "testing.md"))), found.out);
   assert.equal(existsSync(personal(nested, "change-size.md")), false);
 
   const outside = tree({ "elsewhere/testing.md": cited });
-  const linked = personalHome();
+  const linked = tree({ ".claude/standards/README.md": withRows("linked.md", "linked-dir/testing.md") });
   symlinkSync(join(outside, "elsewhere", "testing.md"), personal(linked, "linked.md"));
   symlinkSync(join(outside, "elsewhere"), personal(linked, "linked-dir"));
   const adopted = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home: linked });
@@ -551,16 +553,41 @@ test("a concept another standards file of the layer already cites is reported wi
   assert.equal(readFileSync(personal(only, "README.md"), "utf8"), INDEX);
 });
 
-test("a symbolic link planted where the old temporary file name went is not followed by the write", async () => {
+test("a symbolic link planted at the temporary file name is refused by the write, never followed", () => {
   const home = personalHome();
   const target = join(tree({ "target.md": "untouched\n" }), "target.md");
-  const planted = `${personal(home, "change-size.md")}.${process.pid}.tmp`;
+  const path = personal(home, "change-size.md");
+  const planted = `${path}.planted.tmp`;
   symlinkSync(target, planted);
-  assert.equal((await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home })).code, 0);
-  assert.equal(readFileSync(target, "utf8"), "untouched\n");
+  assert.throws(() => write(path, "written\n", planted), { code: "EEXIST" });
+  assert.equal(readFileSync(target, "utf8"), "untouched\n", "the link's target is untouched");
   assert.ok(lstatSync(planted).isSymbolicLink(), "the planted link is left in place");
-  assert.equal(lstatSync(personal(home, "change-size.md")).isFile(), true);
-  assert.match(readFileSync(personal(home, "change-size.md"), "utf8"), /^- Example Small Steps/mu);
+  assert.equal(existsSync(path), false, "nothing is written at the destination");
+});
+
+test("a concept cited only in a standards file the layer's index does not list is adopted, with a note that the file does not load", async () => {
+  const cited = "# Notes\n\n- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
+  const personalLayer = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/notes.md": cited });
+  const teamLayer = repo({ "docs/standards/README.md": INDEX, "docs/standards/notes.md": cited });
+  const cases = [
+    [["--layer", "personal"], { home: personalLayer }, personal(personalLayer, "")],
+    [["--layer", "team"], { project: teamLayer }, join(teamLayer, "docs", "standards")],
+  ];
+  for (const [layer, where, dir] of cases) {
+    const { code, out, errors } = await run(["example-small-steps", ...layer, "--surface", "change-size", "--yes"], where);
+    assert.equal(code, 0, layer[1]);
+    assert.doesNotMatch(out, /already adopted/u, layer[1]);
+    assert.deepEqual(errors.map((e) => [e.level, e.event, e.id, e.path]), [["warn", "cited in a file the index does not list", "example-small-steps", join(dir, "notes.md")]], layer[1]);
+    assert.match(errors[0].reason, /not in the index, so it does not load/u, layer[1]);
+    assert.match(readFileSync(join(dir, "change-size.md"), "utf8"), /^- Example Small Steps \(`example-small-steps`\)/mu, layer[1]);
+    assert.deepEqual(rowsFor(readFileSync(join(dir, "README.md"), "utf8"), "change-size.md"), ["| change-size | change-size | change-size.md |"], layer[1]);
+  }
+
+  const unindexed = tree({ ".claude/standards/notes.md": cited });
+  const walked = await run([...ADOPT, "--yes"], { home: unindexed });
+  assert.equal(walked.code, 0);
+  assert.ok(walked.out.includes(`is already adopted in ${personal(unindexed, "notes.md")}`), walked.out);
+  assert.equal(existsSync(personal(unindexed, "change-size.md")), false, "with no index the folder is read file by file, so notes.md loads");
 });
 
 const asRoot = process.getuid?.() === 0 && "root ignores file permissions";
@@ -620,17 +647,17 @@ test("for the team layer a concept cited only in a personal *.local.md file is s
   assert.doesNotMatch(out, /already adopted/u);
   assert.match(readFileSync(join(project, "docs", "standards", "change-size.md"), "utf8"), /^- Example Small Steps \(`example-small-steps`\)/mu);
 
-  const home = tree({ ".claude/standards/README.md": INDEX, ".claude/standards/testing.local.md": cited });
+  const home = tree({ ".claude/standards/testing.local.md": cited });
   const mine = await run([...ADOPT, "--yes"], { home });
   assert.equal(mine.code, 0);
   assert.ok(mine.out.includes(personal(home, "testing.local.md")), "every file of the personal layer is personal");
   assert.equal(existsSync(personal(home, "change-size.md")), false);
 });
 
-test("the already-adopted walk skips .git and node_modules", async () => {
+test("the already-adopted walk of a layer with no index skips .git and node_modules", async () => {
   const cited = "- Example Small Steps (`example-small-steps`): https://example.com/small-steps\n";
   for (const folder of [".git", "node_modules"]) {
-    const home = tree({ ".claude/standards/README.md": INDEX, [`.claude/standards/${folder}/notes.md`]: cited });
+    const home = tree({ [`.claude/standards/${folder}/notes.md`]: cited });
     const { code, out } = await run([...ADOPT, "--yes"], { home });
     assert.equal(code, 0, folder);
     assert.doesNotMatch(out, /already adopted/u, folder);
