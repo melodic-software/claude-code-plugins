@@ -14,7 +14,7 @@ import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 import { LANES_APP_LOGIN, REFINE_MARKER } from "../lib/lane-vocabulary.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
 import { readRawTrustedActors } from "../lib/trusted-actors.mjs";
-import { DIFF, OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines, wholeCompare } from "../pr-merge/merge-holds.mjs";
+import { DIFF, listedCommits, OUTSIDE_ACTOR_LABEL, trackerBindingText, UNTRUSTED_LABELS, visibleLines, wholeCommits, wholeCompare } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopFault, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence, REFINE_MARKER };
@@ -1214,8 +1214,7 @@ export const laneBranchIssue = (name) => {
 
 const laneCommit = (commit, bot) =>
   commit?.commit?.verification?.verified === true && commit.author?.login === bot && commit.committer?.login === "web-flow";
-export const listedCommits = (comparison) =>
-  Array.isArray(comparison?.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
+export { listedCommits };
 export const allLaneCommits = (commits, bot) => Array.isArray(commits) && commits.length > 0 && commits.every((commit) => laneCommit(commit, bot));
 
 function fromLane(dir, read, fallback) {
@@ -1523,7 +1522,8 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
     const legacy = markers.some((marker) => marker.run === "");
     const branches = [];
     for (const ref of refs) {
-      const comparison = await github("GET", `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(ref.name)}`);
+      const range = `${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(ref.name)}`;
+      const comparison = await wholeCommits((path) => github("GET", path), range, await github("GET", range));
       if (!Number.isSafeInteger(comparison?.ahead_by) || comparison.ahead_by < 0) {
         throw new Error(`the commits ${ref.name} holds ahead of ${base} could not be read`);
       }

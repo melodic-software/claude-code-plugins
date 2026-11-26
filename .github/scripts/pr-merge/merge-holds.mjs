@@ -689,7 +689,7 @@ export async function wholeCompare(read, readDiff, path) {
       if (Array.isArray(more)) whole.commits.push(...more);
     }
   }
-  if (Array.isArray(whole.files) && whole.files.length >= COMPARE_FILES) {
+  if (readDiff && Array.isArray(whole.files) && whole.files.length >= COMPARE_FILES) {
     const files = diffFiles(await readDiff(path));
     if (files === null) throw new Error(`the diff of ${path} does not parse`);
     if (!diffCovers(whole, files)) throw new Error(`the diff of ${path} names fewer files than its listing`);
@@ -697,6 +697,10 @@ export async function wholeCompare(read, readDiff, path) {
   }
   return whole;
 }
+
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+export const wholeCommits = async (read, path, answer) =>
+  Array.isArray(answer?.commits) && Number.isInteger(answer.total_commits) && answer.commits.length < answer.total_commits ? wholeCompare(read, null, path) : answer;
 
 const capDiffs = async (github, repo, ranges, compares) =>
   compares.some(needsDiff) ? Promise.all(ranges.map((range) => github("GET", `/repos/${repo}/compare/${range}`, undefined, { Accept: DIFF }))) : null;
@@ -754,7 +758,7 @@ export function diffFiles(text) {
   return files;
 }
 
-const listedCommits = (compare) =>
+export const listedCommits = (compare) =>
   Array.isArray(compare?.commits) && Number.isInteger(compare.total_commits) && compare.total_commits === compare.commits.length ? compare.commits : null;
 
 function newCommits(then, now) {
@@ -957,8 +961,9 @@ async function carries(github, actions, repo, comment, head, base, branch, numbe
       return true;
     }
     const compare = (range) => github("GET", `/repos/${repo}/compare/${range}`);
-    const then = await compare(`${tip}...${decided}`);
-    const now = await compare(`${tip}...${head}`);
+    const whole = async (range) => wholeCommits((path) => github("GET", path), `/repos/${repo}/compare/${range}`, await compare(range));
+    const then = await whole(`${tip}...${decided}`);
+    const now = await whole(`${tip}...${head}`);
     const diffs = await capDiffs(github, repo, [`${tip}...${decided}`, `${tip}...${head}`], [then, now]);
     const changed = diffs ? (await github("GET", `/repos/${repo}/pulls/${number}`))?.changed_files : undefined;
     return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now), diffs, changed);

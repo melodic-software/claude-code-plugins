@@ -19,12 +19,17 @@ for (let copy = 0; copy < COPIES; copy += 1) {
   });
 }
 
-const commits = [];
-for (let n = 1, parent = header.merge_base_commit.sha; n <= 150; n += 1) {
-  const sha = n.toString(16).padStart(40, "0");
-  commits.push({ ...template, sha, parents: [{ sha: parent }] });
-  parent = sha;
+export function chain(count, parent = header.merge_base_commit.sha) {
+  const commits = [];
+  for (let n = 1; n <= count; n += 1) {
+    const sha = n.toString(16).padStart(40, "0");
+    commits.push({ ...template, sha, parents: [{ sha: parent }] });
+    parent = sha;
+  }
+  return commits;
 }
+
+const commits = chain(150);
 
 export const LISTED = { ...header, ahead_by: 150, total_commits: 150, commits: commits.slice(0, 100), files };
 export const PAGE_TWO = { ...header, ahead_by: 150, total_commits: 150, commits: commits.slice(100) };

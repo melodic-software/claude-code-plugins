@@ -6,7 +6,7 @@ import { test } from "node:test";
 import * as holdsModule from "./merge-holds.mjs";
 import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { DIFF_TEXT, LISTED, PAGE_TWO } from "./capped-compare.fixture.mjs";
+import { chain, DIFF_TEXT, LISTED, PAGE_TWO } from "./capped-compare.fixture.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -66,10 +66,22 @@ function world({
   base = "main",
   activity = pushesOf(runs),
   listings = {},
+  diffs = {},
+  changed,
 } = {}) {
   const reads = [];
   const answers = { ...Object.fromEntries(runs.map((run) => [run.sha, net(TF)])), ...compares };
-  const github = async (method, path, body) => {
+  const github = async (method, path, body, headers) => {
+    if (headers?.Accept === DIFF) {
+      const sha = /^\/repos\/owner\/repo\/compare\/[0-9a-f]{40}\.\.\.([0-9a-f]{40})$/.exec(path)?.[1];
+      reads.push(`diff ${sha}`);
+      if (!(sha in diffs)) throw new Error(`GET ${path} failed with status 404`);
+      return diffs[sha];
+    }
+    if (path === "/repos/owner/repo/pulls/99") {
+      reads.push("pull 99");
+      return { changed_files: changed };
+    }
     const moves = /^\/repos\/owner\/repo\/activity\?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100(?:&after=c([0-9]+))?$/.exec(path);
     if (moves) {
       const page = Number(moves[1] ?? 1);
@@ -100,7 +112,7 @@ function world({
       reads.push(`base ${parent[1]}`);
       return { status: parent[1] === MAIN ? "ahead" : "diverged" };
     }
-    const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})$/.exec(path);
+    const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})(?:\?per_page=100&page=([0-9]+))?$/.exec(path);
     const listing = /^\/repos\/owner\/repo\/actions\/workflows\/([a-z-]+\.yml)\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
     const jobs = /^\/repos\/owner\/repo\/actions\/runs\/([0-9]+)\/jobs\?filter=all&per_page=100&page=1$/.exec(path);
     const notes = /^\/repos\/owner\/repo\/check-runs\/([0-9]+)\/annotations\?per_page=100&page=1$/.exec(path);
@@ -116,7 +128,7 @@ function world({
               : notes
                 ? `notes ${notes[1]}`
                 : compare
-                  ? `compare ${compare[2]}`
+                  ? `compare ${compare[2]}${compare[3] ? ` page ${compare[3]}` : ""}`
                   : `${method} ${path}`;
     reads.push(read);
     if (read === fail) {
@@ -137,7 +149,10 @@ function world({
       if (!(compare[2] in answers)) {
         throw new Error("no such commit");
       }
-      return history(compare[2], answers[compare[2]]);
+      const answer = history(compare[2], answers[compare[2]]);
+      if (!Array.isArray(answer?.commits)) return answer;
+      const page = Number(compare[3] ?? 0);
+      return { ...answer, commits: page ? answer.commits.slice((page - 1) * 100, page * 100) : answer.commits.slice(0, 250) };
     }
     if (read === "pull") {
       assert.deepEqual(body.variables, { owner: "owner", name: "repo", number: 99 });
@@ -602,7 +617,7 @@ test("a conflict resolution, a rename or a status change that alters the net cha
   }
 });
 
-test("a compare of 300 files or more, a file with no patch, a filename listed twice, an unusable base name or a failed read carries nothing", async () => {
+test("a compare of 300 files or more whose diff does not read, a file with no patch, a filename listed twice, an unusable base name or a failed read carries nothing", async () => {
   const many = (n) => net(...Array.from({ length: n }, (_, i) => ({ filename: `f${i}`, status: "added", patch: "+x" })));
   assert.equal((await later({ [OLD]: many(299), [HEAD]: many(299) })).link, LINK);
   assert.equal((await later({ [OLD]: many(300), [HEAD]: many(300) })).link, null);
@@ -622,6 +637,23 @@ test("a compare of 300 files or more, a file with no patch, a filename listed tw
     assert.ok(!odd.reads.some((read) => read.startsWith("compare")), String(base));
   }
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base: "release/2.x" })).link, LINK);
+});
+
+test("a base merge over a range past the compare's 250 commits and 300 files carries, read in pages and from the diffs", async () => {
+  const branch = chain(259, MAIN).map((commit, at) => (at === 258 ? { ...commit, sha: OLD } : commit));
+  const then = { ...net(TF), commits: branch, total_commits: 259 };
+  const now = { ...net(TF), commits: [...branch, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 260 };
+  const long = await later({ [OLD]: then, [HEAD]: now });
+  assert.equal(long.link, LINK);
+  assert.deepEqual(long.reads.filter((read) => read.startsWith(`compare ${HEAD}`)), [`compare ${HEAD}`, `compare ${HEAD} page 1`, `compare ${HEAD} page 2`, `compare ${HEAD} page 3`]);
+  assert.equal((await later({ [OLD]: then, [HEAD]: { ...now, total_commits: 261 } })).link, null, "a page shorter than total_commits");
+  assert.equal((await later({ [OLD]: then, [HEAD]: now }, { fail: `compare ${HEAD} page 2` })).link, null, "a page that does not read");
+  const vetted = { [LISTED.merge_base_commit.sha]: LISTING.workflows, [OLD]: LISTING.workflows };
+  const wide = (diffs, changed) => later({ [OLD]: { ...then, ...LISTED, commits: branch, total_commits: 259 }, [HEAD]: { ...now, ...LISTED, commits: now.commits, total_commits: 260 } }, { listings: vetted, diffs, changed });
+  assert.equal((await wide({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT }, 301)).link, LINK);
+  assert.equal((await wide({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT }, 302)).link, null, "a diff naming fewer files than the pull request changes");
+  assert.equal((await wide({ [OLD]: DIFF_TEXT, [HEAD]: "not a diff" }, 301)).link, null, "a diff that does not parse");
+  assert.equal((await wide({ [OLD]: DIFF_TEXT }, 301)).link, null, "a diff that does not read");
 });
 
 test("at the decided head the decision carries with no net-change compare", async () => {
