@@ -133,12 +133,19 @@ Judge in this order:
    the organization gain trust, push, merge or mint a token, or weakens one of those checks
    beyond what the spec asks for.
    The review plugin's criterion "Fail a change that loosens a check" names the kinds of weakened
-   check; it is not one of your files, so judge from this step. A spec asks for a weakened check
-   only when an entry whose `spec_kind` is `closes` or `refs` names it and also holds a line link
-   to the owner's decision in the owner-decisions record
+   check; it is not one of your files, so judge from this step. Two texts give a reason for one.
+   The pull request body's `## Loosened checks` section in `CONTEXT_FILE` reasons an ordinary
+   check (a test, lint, coverage, a type check, a validator or a CI job): it names the check and
+   says why the change needs it, and you judge whether that reason holds for the diff. A weakened
+   check it does not name, or whose reason does not hold, gets no reason from it. A security
+   control, a billing hold, a secret scanner or a dependency audit gets none from the section,
+   whatever it says: only the spec allows weakening one, when an entry whose `spec_kind` is
+   `closes` or `refs` names it and also holds a line link to the owner's decision in the
+   owner-decisions record
    (`https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>`)
    and the owner's words after `verbatim:` in double quotes. The record is private, so check only
-   that both are present.
+   that both are present. The spec may allow an ordinary check the same way. No other text gives
+   a reason: the rest of the body, commit messages and code comments included.
 
 Return `fail` when you find any blocking defect: the spec is not delivered, a correctness bug, a
 safety problem, a change of intent, a takeover risk, a loosened hold the owner keeps, or unasked-for

@@ -86,3 +86,10 @@ test("every judge of a chunked head is told a file larger than one chunk comes i
   for (const text of [note, spec]) assert.match(text, /a hunk larger than one chunk is cut between its lines/);
   assert.match(note, /the file's other hunks are in the parts its other pieces name/);
 });
+
+test("a chunk verifier takes an ordinary check's reason from the Loosened checks section and a protected check's only from the spec citation", () => {
+  assert.match(chunk, /The pull request body's `## Loosened checks` section in `CONTEXT_FILE` reasons an ordinary check/);
+  assert.match(chunk, /A security control, a billing hold, a secret scanner or a dependency audit gets none from the section, whatever it says: only the spec allows weakening one/);
+  assert.match(chunk, /holds a line link to the owner's decision in the owner-decisions record .* and the owner's words after `verbatim:` in double quotes/);
+  assert.doesNotMatch(chunk, /A spec asks for a weakened check only when/);
+});
