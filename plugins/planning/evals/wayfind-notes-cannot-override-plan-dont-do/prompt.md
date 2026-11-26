@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 17, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "A map Notes line asking to implement decisions does not override plan, don't do: the skill graduates the item and writes no adapter code (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

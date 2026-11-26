@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 33, run as a plugin-eval case for the before/after comparison."
+description: "A resolved vendor choice charts one interview item for the service that receives user data, covering which fields cross and under what agreement and feeding the PRD, and none for the service that receives no data."
 tags: [wayfind, wayfind-charting]
 runs: 3
 max_turns: 30

@@ -1,14 +1,14 @@
 {
   "pass": [
-    {
-      "answer": "Items: 'Decide partner signup' (self sign-up or invitation; mandatory identity fields; verify the registration number?) and 'Decide billing setup' (monthly or annual; launch currencies; who approves credit limits).",
-      "why": "meets the rule"
-    }
+    {"answer": "Items: 'Decide partner signup' (self sign-up or invitation; mandatory identity fields; verify the registration number?) and 'Decide billing setup' (monthly or annual; launch currencies; who approves credit limits).", "why": "all six inside two items"},
+    {"answer": "### Proposed items\n1. **Partner signup rules** (interview, needs-human)\n   - Self sign-up or invitation only?\n   - Which identity fields are required?\n   - Do we verify the business registration number?\n2. **Billing setup** (interview, needs-human)\n   - Monthly or annual invoicing?\n   - Which currencies at launch?\n   - Who approves a partner's credit limit?", "why": "nested list form"},
+    {"answer": "Body: Q1 Invite-only or self-serve? Q2 Which fields are mandatory? Q3 Business registration check? Q4 Invoice monthly vs yearly? Q5 Launch currencies? Q6 Credit-limit approver?", "why": "terse paraphrases"}
   ],
   "fail": [
-    {
-      "answer": "Items: 'Decide partner signup' (self sign-up or invitation; mandatory fields) and 'Decide invoicing cadence'.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Items: 'Decide partner signup' (self sign-up or invitation; mandatory fields) and 'Decide invoicing cadence'.", "why": "drops registration, cadence options, currencies and credit limit"},
+    {"answer": "Items: 'Decide partner signup' (invitation; identity fields; registration number) and 'Decide billing' (monthly or annual; currencies).", "why": "drops the credit-limit question"},
+    {"answer": "Not-yet-specified: **Support hand-offs**: something about partner support hand-offs, not yet phrasable.", "why": "only the fog"},
+    {"answer": "Items:\n1. **Partner signup** (interview): self sign-up or invitation only? Which identity fields are mandatory? Do we verify the business registration number?\n\nNot-yet-specified:\n- **Billing setup**: invoicing and currencies are still unclear.\n- **Support hand-offs**: not yet phrasable.", "why": "wrong: billing questions folded into a fog bullet, cadence and credit-limit questions dropped"}
   ]
 }

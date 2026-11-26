@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 21, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Chart asks the three ready yes/no questions together in one round, makes none of them its own item, and creates nothing before the user answers (after-only)."
 tags: [wayfind, wayfind-charting, after-only, no-network]
 runs: 3
 max_turns: 30

@@ -1,9 +1,6 @@
 ---
-type: llm
+type: regex
+match: not_contains
+flags: im
+pattern: '^(?![^\n]*(?:\bno\b|\bnot\b|n''t\b|\bnever\b|\bwithout\b|\bnone\b|\bneither\b|\bnor\b)[^\n]*(?:\[Pick the global invoice sequence store\]\(|\]\(<?[^)\s]*/47\b))[^\n]*Decisions-so-far[^\n]*(?:\[Pick the global invoice sequence store\]\(|\]\(<?[^)\s]*/47\b)|Decisions-so-far[^\n]*\n(?:[ \t]*\n)?(?:[ \t>]*(?:[-*]|\d+[.)])[ \t][^\n]*\n){0,20}?[ \t>]*(?:[-*]|\d+[.)])[ \t]+`?(?:\[Pick the global invoice sequence store\]\(|\[[^\]\n]*\]\(<?[^)\s]*/47\)|#47\b|Pick the global invoice sequence store\b)'
 ---
-
-On map #200 'Map: billing overhaul', #44 'Decide invoice numbering' just resolved to per-tenant numbering. That makes open item #47 'Pick the global invoice sequence store' pointless and shows closed decision #39 'Share one invoice table across tenants' was wrong. A Not-yet-specified fog note ('something feels off about how tenants share invoice data') is now sharp enough to chart as 'Choose per-tenant invoice storage'. The user asked to finish the close-out. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply adds no Decisions-so-far line for #47.
-
-FAIL if it adds a Decisions-so-far line for #47.

@@ -106,7 +106,7 @@ function fakeApi(overrides = {}) {
       prBody = body;
     },
     listPullCommits: async () => overrides.pullCommits ?? [],
-    compare: async (base, head) => {
+    compareWhole: async (base, head) => {
       calls.push(["compare", base, head]);
       return overrides.compare ?? { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js" }] };
     },
@@ -717,7 +717,6 @@ for (const [label, compare] of [
   ["the branch changed a path no kept thread names", { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js" }, { filename: "src/other.js" }] }],
   ["the branch changed .github/", { status: "ahead", commits: [fixCommit()], files: [{ filename: ".github/workflows/ci.yml" }] }],
   ["the branch renamed a file out of .github/", { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js", previous_filename: ".github/x.yml" }] }],
-  ["the branch changed too many files to check", { status: "ahead", commits: [fixCommit()], files: Array(300).fill({ filename: "src/a.js" }) }],
 ]) {
   test(`feedback-not-landed, nothing posted: ${label}`, async () => {
     const api = fakeApi({ compare });
@@ -893,6 +892,20 @@ test("a VALID fix that changes a same-plugin file lands, named or not; another p
   }
   const malformed = await run(fakeApi(), lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, threads: [{ ...thread, named_paths: [7] }] }));
   assert.equal(malformed.escalationReason, "feedback-invalid");
+});
+
+test("a VALID fix lands over a range read whole past the compare listing's 300 files; one file out of scope still refuses it", async () => {
+  const thread = { ...RUN.threads[0], path: "docs/b.md" };
+  const own = Array.from({ length: 300 }, (_, i) => `docs/page-${i}.md`);
+  for (const [label, last, landed] of [
+    ["every file the PR's own", "docs/page-300.md", true],
+    ["a 302nd file outside the PR", "src/elsewhere.js", false],
+  ]) {
+    const files = [thread.path, ...own, last].map((filename) => ({ filename, status: "modified" }));
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files }, commits: { [FIX]: { files: [{ filename: thread.path, status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" }] } } });
+    const result = await run(api, lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, pr_paths: [thread.path, ...own, "docs/page-300.md"], threads: [thread] }));
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", label);
+  }
 });
 
 test("a VALID fix in another file the PR changes, citing a line it changed, lands; uncited, not in the PR, new or protected, it does not", async () => {

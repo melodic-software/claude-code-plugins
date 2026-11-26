@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 18, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A bare item link runs work mode on that item: it claims the linked item on its map and routes it by its type label, proposing no new map (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

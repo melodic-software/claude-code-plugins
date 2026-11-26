@@ -1,14 +1,42 @@
 {
   "pass": [
     {
-      "answer": "'What should search feel like to a first-time user?': wayfind: interview, needs-human.",
-      "why": "meets the rule"
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: interview' --label 'needs-human' --body-file first-time.md \"What should search feel like to a first-time user?\"",
+      "why": "create call with needs-human"
+    },
+    {
+      "answer": "```\n/work-items:track add --parent 300 --label 'wayfind: interview' \\\n  --label needs-human --body-file ftu.md \\\n  \"What should search feel like to a first-time user?\"\n```",
+      "why": "backslash-continued call"
+    },
+    {
+      "answer": "Skill: work-items:track   args: add --parent 300 --label \"wayfind: interview,needs-human\" \"What should search feel like to a first-time user?\"",
+      "why": "skill and arguments form"
     }
   ],
   "fail": [
     {
-      "answer": "'What should search feel like to a first-time user?': wayfind: design.",
-      "why": "breaks the rule"
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: design' \"What should search feel like to a first-time user?\"",
+      "why": "no needs-human"
+    },
+    {
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: interview' \"What should search feel like to a first-time user?\"\n/work-items:track add --parent 300 --label 'wayfind: design' --label needs-human \"Which index library meets the 50 ms p95 budget?\"",
+      "why": "needs-human is on the other item"
+    },
+    {
+      "answer": "'What should search feel like to a first-time user?': wayfind: interview, needs-human.",
+      "why": "no create call written out"
+    },
+    {
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: interview' \"What should search feel like to a first-time user?\" (no needs-human)",
+      "why": "negated label"
+    },
+    {
+      "answer": "/work-items:track add --parent 300 --label 'wayfind: interview' --body-file ftu.md \"What should search feel like to a first-time user?\" (mode: agent; needs-human not set, an agent can infer it from analytics)",
+      "why": "wrong: names the label only to say it is not set"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
     }
   ]
 }

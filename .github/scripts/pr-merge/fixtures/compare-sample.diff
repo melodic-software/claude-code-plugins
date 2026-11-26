@@ -1,0 +1,38 @@
+diff --git a/.changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md b/.changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md
+new file mode 100644
+index 00000000000..1da6992a545
+--- /dev/null
++++ b/.changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md
+@@ -0,0 +1,7 @@
++---
++bump: patch
++---
+diff --git a/.changes/user-interface/chore-comment-sweep-v060-a9938050.md b/.changes/user-interface/chore-comment-sweep-v060-a9938050.md
+deleted file mode 100644
+index 19dd3dee6aa..00000000000
+--- a/.changes/user-interface/chore-comment-sweep-v060-a9938050.md
++++ /dev/null
+@@ -1,5 +0,0 @@
+----
+-bump: none
+----
+diff --git a/.github/actions/resolve-config/resolve-config.mjs b/.github/actions/resolve-config/resolve-config.mjs
+index ee02ff4be7f..069bfcd7d94 100644
+--- a/.github/actions/resolve-config/resolve-config.mjs
++++ b/.github/actions/resolve-config/resolve-config.mjs
+@@ -1,7 +1,3 @@
+-// I/O shell of resolve-config: reads the config, schema and vocabulary from
+-// under base-path only, the event file, and (only when a predicate needs it)
+-// the PR through the API; then writes ResolvedConfig to output-path and the
+diff --git a/.github/standards/github-actions-conventions/vocabulary.json b/.github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json
+similarity index 100%
+rename from .github/standards/github-actions-conventions/vocabulary.json
+rename to .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json
+diff --git a/.github/scripts/work-unblock/sweep-gap.mjs b/.github/scripts/work-unblock/sweep-gap.mjs
+index e71d2697157..688fc4c0304 100644
+--- a/.github/scripts/work-unblock/sweep-gap.mjs
++++ b/.github/scripts/work-unblock/sweep-gap.mjs
+@@ -1,11 +1,4 @@
+-// Whether a sweep a finished work-resolve-issue run started (workflow_run)
+-// comes too soon after the last full one. A full sweep is a completed sweep
+-// run of main's work-unblock.yml, whatever it concluded, that uploaded the

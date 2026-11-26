@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 28, run as a plugin-eval case for the before/after comparison (after-only). The item arrives unrouted, so the run reaches the routing step the vendor-fit grader checks."
+description: "A passed vendor prototype routes to /prototype:pressure-test vendor-fit, saves its files in the item's folder on the map's dossier branch with fetch, rebase and a plain push retried on rejection, never force-pushes or opens a per-item branch, and puts the verdict in the resolution comment (after-only). The item arrives unrouted, so the run reaches the routing step the vendor-fit grader checks."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30
