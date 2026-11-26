@@ -130,7 +130,7 @@ wit_lease_lines() {
 
 wit_active_lease_json() {
   local file="$1" line json active="" lines
-  lines="$(wit_lease_lines "$file")" # capture, not `< <()` — MSYS process-sub hangs (see wit_emit_local_item)
+  lines="$(wit_lease_lines "$file")"
   while IFS= read -r line; do
     json="$(wit_lease_json "$line")"
     [[ -n "$json" ]] || continue
@@ -144,7 +144,7 @@ wit_next_lease_id() {
   local max=0 f line json lid flines
   shopt -s nullglob
   for f in "$WIT_STORAGE_DIR"/*.md; do
-    flines="$(wit_lease_lines "$f")" # capture, not `< <()` — MSYS process-sub hangs
+    flines="$(wit_lease_lines "$f")"
     while IFS= read -r line; do
       json="$(wit_lease_json "$line")"
       [[ -n "$json" ]] || continue
@@ -162,7 +162,7 @@ wit_find_lease_file() {
     base="${f##*/}"
     base="${base%.md}"
     [[ "$base" =~ ^[0-9]+$ ]] || continue
-    flines="$(wit_lease_lines "$f")" # capture, not `< <()` — MSYS process-sub hangs
+    flines="$(wit_lease_lines "$f")"
     while IFS= read -r line; do
       json="$(wit_lease_json "$line")"
       [[ -n "$json" ]] || continue

@@ -297,7 +297,7 @@ hook::normalize_path_to() {
       return 0
     fi
     ;;
-  *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
+  *) ;;
   esac
   printf -v "$1" '%s' "$__hu_p"
 }
@@ -424,7 +424,7 @@ hook::_physical_prime() {
     [[ "$__hu_p" == *$'\n'* ]] && return 0
     case "$__hu_seen" in
     *"|$__hu_p|"*) continue ;;
-    *) ;; # first sighting
+    *) ;;
     esac
     __hu_seen="$__hu_seen|$__hu_p|"
     hook::_phys_cache_index "$__hu_p" && continue
@@ -457,7 +457,7 @@ hook::_temp_root_candidates() {
     [[ -n "$__hu_cand" && -d "$__hu_cand" ]] || continue
     case "$__hu_seen" in
     *"|$__hu_cand|"*) continue ;;
-    *) ;; # first sighting of this candidate
+    *) ;;
     esac
     __hu_seen="$__hu_seen|$__hu_cand|"
     _HOOK_TEMP_CANDS+=("$__hu_cand")
@@ -465,7 +465,7 @@ hook::_temp_root_candidates() {
   [[ "${1:-}" == --no-drive ]] && return 0
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32) ;;
-  *) return 0 ;; # POSIX hosts: the candidates above are the whole set
+  *) return 0 ;;
   esac
   ((${#_HOOK_TEMP_CANDS[@]})) || return 0
   if [[ "$_HOOK_TEMP_WIN_KEY" != "$__hu_seen" ]]; then
@@ -476,7 +476,7 @@ hook::_temp_root_candidates() {
     [[ -n "$__hu_cand" && -d "$__hu_cand" ]] || continue
     case "$__hu_seen" in
     *"|$__hu_cand|"*) continue ;;
-    *) ;; # first sighting of this spelling
+    *) ;;
     esac
     __hu_seen="$__hu_seen|$__hu_cand|"
     _HOOK_TEMP_CANDS+=("$__hu_cand")
@@ -524,7 +524,7 @@ hook::under_temp_root() {
   local target="$1" cand norm phys
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32) hook::normalize_path_to target "$target" ;;
-  *) ;; # POSIX hosts: compare the target as given
+  *) ;;
   esac
   hook::_temp_root_candidates
   for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
@@ -879,7 +879,7 @@ hook::_fast_fields() {
     __hu_ti=${__hu_idx[${__hu_k1[__hu_j]}]--2}
     ((__hu_ti != -1)) || return 2
     if ((__hu_ti == -2)); then
-      __hu_vals+=("$__hu_nil") # no string in the payload spells the key: absent
+      __hu_vals+=("$__hu_nil")
       continue
     fi
     __hu_re="(^|[{,])\"#$__hu_ti\":(\"#[0-9]+\"|\\{[^][{}]*\\}|null|true|false|[-0-9][^,}]*|\\[|\\{)"
@@ -895,8 +895,8 @@ hook::_fast_fields() {
     if [[ -n "${__hu_k2[__hu_j]}" ]]; then
       case "$__hu_tok" in
       null) __hu_vals+=("$__hu_nil") && continue ;;
-      \{*\}) ;;      # a flat object: its members are the only place the key can be
-      *) return 2 ;; # a string, number, boolean, array, or an object with a container inside
+      \{*\}) ;;
+      *) return 2 ;;
       esac
       __hu_fi=${__hu_idx[${__hu_k2[__hu_j]}]--2}
       ((__hu_fi != -1)) || return 2
@@ -907,7 +907,7 @@ hook::_fast_fields() {
       __hu_body=${__hu_tok:1:${#__hu_tok}-2}
       __hu_re="(^|,)\"#$__hu_fi\":(\"#[0-9]+\"|null|true|false|[-0-9][^,]*)(,|\$)"
       if ! [[ "$__hu_body" =~ $__hu_re ]]; then
-        __hu_vals+=("$__hu_nil") # not a key of the parent; unique, so not one anywhere
+        __hu_vals+=("$__hu_nil")
         continue
       fi
       __hu_tok=${BASH_REMATCH[2]}
@@ -919,7 +919,7 @@ hook::_fast_fields() {
       [[ -n "${__hu_df[__hu_j]}" ]] || return 2
       __hu_vals+=("$__hu_tok") && continue
       ;;
-    *) return 2 ;; # a number, an object or an array: jq's tostring
+    *) return 2 ;;
     esac
     __hu_val=${__hu_s:${_HOOK_JSON_OFF[__hu_raw]}:${#_HOOK_JSON_PARTS[__hu_raw]}}
     if [[ "$__hu_val" == *\\* ]]; then
@@ -1033,8 +1033,8 @@ hook::read_file_path_uncached_to() {
     hook::_fast_file_path_to __hu_rf_file "$1" || __hu_rf_mode=$?
   fi
   case "$__hu_rf_mode" in
-  0) ;;          # proven: `__hu_rf_file` holds jq's answer
-  1) return 1 ;; # proven absent
+  0) ;;
+  1) return 1 ;;
   *)
     __hu_rf_file=$(hook::_print_nul_joined "$@" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
     ;;
@@ -1169,7 +1169,7 @@ hook::repo_relative_path_to() {
     __hu_rp_file_n="${__hu_rp_file_n//\\//}"
     __hu_rp_root_n="${__hu_rp_root_n//\\//}"
     ;;
-  *) ;; # POSIX: keep the caller's spelling
+  *) ;;
   esac
   hook::_rstrip_slashes_to __hu_rp_root_n "$__hu_rp_root_n"
   hook::_rstrip_slashes_to __hu_rp_file_n "$__hu_rp_file_n"
@@ -1196,7 +1196,7 @@ hook::repo_relative_path_to() {
     __hu_rp_rel="${__hu_rp_rel##*\\}"
     HOOK_REPO_RELATIVE_DEGRADED=1
     ;;
-  *) ;; # already repo-relative, nothing to redact
+  *) ;;
   esac
   printf -v "$__hu_rp_dest" '%s' "$__hu_rp_rel"
   ((HOOK_REPO_RELATIVE_DEGRADED == 0))
@@ -1301,7 +1301,7 @@ hook::buffer_stdin_to() {
       ((__hu_idle_slices >= __hu_slice_count)) || continue
       __hu_stalled=1
     fi
-    break # EOF (rc 1), a full idle bound with no bytes, or a read error
+    break
   done
   __hu_input="${__hu_input//$'\r'/}"
   [[ -n "$__hu_input" ]] || return 1
@@ -1401,12 +1401,12 @@ hook::path_matches() {
     # shellcheck disable=SC2254  # the glob is the pattern; quoting would match it literally
     case "$__hu_pm_path" in
     $__hu_pm_glob) return 0 ;;
-    *) ;; # try the normalized spelling below, then the next glob
+    *) ;;
     esac
     # shellcheck disable=SC2254  # same, on the normalized spelling
     case "$__hu_pm_norm" in
     $__hu_pm_glob) return 0 ;;
-    *) ;; # no match for this glob; try the next
+    *) ;;
     esac
   done
   return 1
@@ -1520,7 +1520,7 @@ hook::begin() {
   FILE_DIR="${FILE%/*}"
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32) FILE_DIR="${FILE%[/\\]*}" ;;
-  *) ;; # POSIX: keep the slash-only split
+  *) ;;
   esac
   [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
   [[ -n "$FILE_DIR" ]] || FILE_DIR=/

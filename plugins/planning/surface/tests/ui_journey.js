@@ -47,7 +47,7 @@ async page => {
       const io = window.__io = {pending: 0, done: 0, applied: null, fetch: window.fetch.bind(window),
         sig: s => JSON.stringify([s.questions, s.responses, s.theme, s.settings, s.watchSeq, s.instance, s.listener && [s.listener.state, s.listener.waiters > 0, !!s.listener.lease, s.listener.lastDeliverAt]])};
       window.fetch = function () { io.pending++; const end = () => setTimeout(() => { io.pending--; io.done = performance.now(); }, 0); const p = io.fetch.apply(null, arguments); p.then(r => r.clone().text()).then(end, end); return p; };
-      const ES = window.EventSource; // this listener runs before the page's own, so the timeout records the frame after the page renders it
+      const ES = window.EventSource;
       if (ES) window.EventSource = class extends ES { constructor(...a) { super(...a); this.addEventListener("state", e => setTimeout(() => { try { io.applied = io.sig(JSON.parse(e.data)); } catch { io.applied = null; } }, 0)); } };
     });
     await page.goto(base);
@@ -663,7 +663,7 @@ async page => {
     ok("with the panel open a plain Notes reply adds no count", await page.title() === "(1) " + base && await plainBeside(/with the panel open/), await page.title());
     await setHidden(false); await settle(200);
   }
-  if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
+  if (PHASE === 12) {
     await page.addInitScript(() => { for (const [k, v] of [["hidden", true], ["visibilityState", "hidden"]]) Object.defineProperty(document, k, {configurable: true, get: () => v}); });
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await settle(900);
     ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());

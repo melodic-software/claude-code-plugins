@@ -27,7 +27,7 @@ harness_ops::resolve_project_relative_dir() {
   ancestor="$candidate"
   while [[ ! -e "$ancestor" && "$ancestor" != "/" && "$ancestor" != "." ]]; do
     parent=$(dirname -- "$ancestor")
-    [[ "$parent" == "$ancestor" ]] && break # reached a root: dirname is a fixed point
+    [[ "$parent" == "$ancestor" ]] && break
     ancestor="$parent"
   done
 

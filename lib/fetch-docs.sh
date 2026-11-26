@@ -81,7 +81,7 @@ while [[ $# -gt 0 ]]; do
     --manifest) MANIFEST="$2" ;;
     --profile) PROFILE="$2" ;;
     --index-url) INDEX_URL="$2" ;;
-    --follow) [[ "$2" =~ ^[0-9]+$ ]] || die "--follow needs a non-negative integer" ;; # depth is validated and dropped: no caller follows links
+    --follow) [[ "$2" =~ ^[0-9]+$ ]] || die "--follow needs a non-negative integer" ;;
     --mode)
       [[ "$2" == full || "$2" == search ]] || die "--mode is full or search"
       MODE="$2"

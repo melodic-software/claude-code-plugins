@@ -193,7 +193,7 @@ parse_frontmatter() {
         shape_error "$label: abstract wraps onto a continuation line; abstracts must be ONE unwrapped line"
       fi
       if ((base_indent >= 0 && indent > base_indent)); then
-        : # nested value of some other key — slice-interior, ignored
+        :
       else
         shape_error "$label: unparsable frontmatter line: $content"
       fi
@@ -249,7 +249,7 @@ fi
 
 disk_children=()
 for d in "$slice_dir"/*/; do
-  [[ -d "$d" ]] || continue # unmatched glob leaves the pattern itself
+  [[ -d "$d" ]] || continue
   name="${d%/}"
   name="${name##*/}"
   # shellcheck disable=SC2310  # predicate by design; a non-zero return is the "not a child slice" answer
@@ -337,7 +337,7 @@ if ! [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]]; then
   max_bytes=$DEFAULT_MAX_BYTES
 fi
 new_bytes=$(printf '%s' "$new_content" | wc -c)
-new_bytes=$((new_bytes)) # normalize wc's padded output
+new_bytes=$((new_bytes))
 if ((new_bytes > max_bytes)); then
   echo "SIZE CAP: regenerated $index_file would be $new_bytes bytes, over the ${max_bytes}-byte cap; the pre-existing generated body is preserved untouched." >&2
   echo "  Two levers (the cap is abstract length x child count): decompose this slice into sub-slices, or shorten child abstracts." >&2

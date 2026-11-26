@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-STALENESS_SECONDS=600 # 10 minutes — byte-matches the reader contract
+STALENESS_SECONDS=600
 DEFAULT_LIGHT_MAX=50
 DEFAULT_MODERATE_MAX=75
 DEFAULT_TOKEN_BANDS='[[200000,100000,150000],[1000000,128000,500000]]'

@@ -12,7 +12,7 @@ async page => {
   };
   const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
-  const QS_MOD = "Ctrl", QS_HINT = verb => QS_MOD + " + Enter to " + verb; // Chromium on Linux: question-shape.js's MOD_KEY
+  const QS_MOD = "Ctrl", QS_HINT = verb => QS_MOD + " + Enter to " + verb;
   const recRow = () => page.$eval("#choices .choice.rec .t", el => ({text: el.textContent, clipped: el.scrollHeight > el.clientHeight + 1})).catch(() => ({text: "", clipped: true}));
   try {
   if (PHASE === 1) {
@@ -282,7 +282,7 @@ async page => {
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q8"); await page.fill("#note", "Who reads the notes first?"); await page.click("#note"); await page.keyboard.press("Control+Shift+Enter"); await page.waitForTimeout(700);
   }
-  if (PHASE === 7) { // #5817: the reply stays in the Thread, after a follow-up ask and a reload too
+  if (PHASE === 7) {
     const REPLY = /The support team reads them first/;
     await page.waitForTimeout(900); await pick("Q8");
     ok("#5817: Claude's reply to the ask is in the Thread, not only in the latest-reply box", REPLY.test(await text("#thread")) && REPLY.test(await text("#latest")), await text("#thread"));
@@ -295,7 +295,7 @@ async page => {
     const th = await text("#thread");
     ok("#5817: after a follow-up ask and a reload the reply is still in the Thread, after the ask it answers", REPLY.test(th) && th.indexOf("And who reads them after that") < th.search(REPLY) && th.search(REPLY) < th.indexOf("Who reads the notes first"), th);
   }
-  if (PHASE === 8) { // #5913: a long note or an open conflict box leaves the question body its share of the pane
+  if (PHASE === 8) {
     await page.setViewportSize({width: 1280, height: 800}); await page.waitForTimeout(250);
     await pick("Q2");
     const body = () => page.evaluate(() => {
@@ -330,7 +330,7 @@ async page => {
     const c9 = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
     ok("#5910: an older terminal accept (no rev) whose recommendation changed after it offers no Reconfirm", c9.length > 0 && !c9.some(t => /Reconfirm/.test(t)) && /support lead/.test(await text("#choices .choice.rec")), JSON.stringify(c9));
   }
-  if (PHASE === 10) { // #7751: by now the feed holds revisions, an added question and a saved reply; Needs you lists only what waits on the user
+  if (PHASE === 10) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     const badge = await page.$eval("#actBadge", b => b.hidden ? 0 : +b.textContent.trim() || 0).catch(() => -1);
     await page.click("#qhead"); await page.keyboard.press("l"); await page.waitForTimeout(300);
@@ -407,7 +407,7 @@ async page => {
   }
   const events = async () => (await (await page.request.get(base + "api/state")).json()).responses.events;
   const dialog = () => page.evaluate(() => { const a = document.getElementById("dlgAlt"); return {open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent, ok: document.getElementById("dlgOk").textContent, alt: a.hidden ? null : a.textContent}; });
-  if (PHASE === 13) { // #9709: frontierLock confirm, the default; the shell added Q11 (round 2, open) and Q12 (round 3, needs Q11)
+  if (PHASE === 13) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     const chip = await page.$eval('.qbtn[data-q="Q12"] .qmeta', el => ({text: el.textContent, lock: !!el.querySelector(".lockchip svg.padlock")})).catch(e => ({error: String(e)}));
@@ -424,7 +424,7 @@ async page => {
     const ev = await events(), last = ev[ev.length - 1] || {};
     ok("#9709: Answer anyway saves the decision with outOfOrder naming the open prerequisite", ev.length === n0 + 1 && last.id === "Q12" && last.kind === "accept" && JSON.stringify(last.outOfOrder) === '["Q11"]', JSON.stringify(last));
   }
-  if (PHASE === 14) { // #9709: the shell set frontierLock hard in the data dir's settings.json; Q11 is still open
+  if (PHASE === 14) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q12"); await page.click("#choices .choice.rec"); await page.fill("#note", "Why does this wait on the rollout?"); await page.waitForTimeout(150);
@@ -444,7 +444,7 @@ async page => {
     const q12 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q12") || {};
     ok("#9709: deciding the prerequisite marks the out-of-order answer stale", q12.state === "stale", q12.state);
   }
-  if (PHASE === 15) { // #9714: the shell set frontierLock back to confirm and added Q13, unanswered, on Q11; the page changes Q11's answer
+  if (PHASE === 15) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await post({id: "Q11", kind: "alt", alt: "a", text: ""}); await page.waitForTimeout(900);
@@ -465,7 +465,7 @@ async page => {
     const res = await post({id: "Q13", kind: "accept", alt: null, text: ""}), body = await res.json();
     ok("#9714: the server answers a decision on it 409 upstream-changed, naming the changed question", res.status() === 409 && body.error === "upstream-changed" && JSON.stringify(body.changedBy) === '["Q11"]', res.status() + " " + JSON.stringify(body));
   }
-  if (PHASE === 16) { // #9714: the shell reconfirmed Q13
+  if (PHASE === 16) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q13");
@@ -475,7 +475,7 @@ async page => {
     await page.click("#choices .choice.rec"); await page.waitForTimeout(150);
     ok("#9714: Save is enabled again", await page.$eval("[data-save]", el => !el.disabled), await text("#saveHint"));
   }
-  if (PHASE === 17) { // #9694: the shell proposed Q14, Q15 and Q16; a proposal is one Needs-you card and no Decide list until the user answers it
+  if (PHASE === 17) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     const stateOf = async id => ((await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === id) || {}).state;
@@ -507,7 +507,7 @@ async page => {
     const isPage = u => u.pathname === "/";
     await page.route(isPage, async route => {
       const res = await route.fetch(), headers = res.headers();
-      delete headers["content-length"]; // the body changes length; fulfill sets it from the new body
+      delete headers["content-length"];
       await route.fulfill({status: res.status(), headers, body: (await res.text()).replace(/<meta name="interview-build" content="[^"]*">/, '<meta name="interview-build" content="0.0.0-newer 0">')});
     });
     await load();
@@ -516,7 +516,7 @@ async page => {
     ok("gap G10: a page newer than its server shows the old-server banner", !newer.hidden && newer.shown && newer.text === "This page's server is older than the page. Run ensure-running to restart.", JSON.stringify(newer));
     await load();
   }
-  if (PHASE === 19) { // G6 (#9721): the shell asked Q17 in round 1, re-issued it as Q18 in round 2, then as Q19 in round 3, the newest round
+  if (PHASE === 19) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await page.click('.seg button[data-view="groups"]'); await page.waitForTimeout(200);
@@ -539,7 +539,7 @@ async page => {
     ok("G6: Tree view pins the carried section too, keeps Q19 in the tree, and repeats no element id", tree.pinned && tree.inTree && tdup.length === 0, JSON.stringify(tree) + " dups " + JSON.stringify(tdup));
     await page.click('.seg button[data-view="groups"]'); await page.waitForTimeout(150);
   }
-  if (PHASE === 20) { // #9695: the shell answered Q1 in the terminal, then posted a sweep round whose Q20 reconciles Q1
+  if (PHASE === 20) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q20");
@@ -547,7 +547,7 @@ async page => {
     ok("#9695: the sweep round's card is labeled Sweep: reconciling earlier answers", /^Sweep: reconciling earlier answers \(round 4\)/.test(card) && /Sweep/.test(head), card + " | " + head);
     ok("#9695: Q1's decision text shows beside Q20, which reconciles it", /^Earlier answers this reconciles\s*Q1.*Ship on Wednesday after the code freeze\./.test(rec), rec);
   }
-  if (PHASE >= 21 && PHASE <= 23) { // #11858: 21 as posted; 22 after the shell held Q20 for research; 23 after it cleared the hold and ran ensure-running --pacing single
+  if (PHASE >= 21 && PHASE <= 23) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q20");
@@ -562,7 +562,7 @@ async page => {
       ok("#11858: under single pacing the page shows nothing held", held === null, held);
     }
   }
-  if (PHASE === 24) { // #11858: still single pacing; the shell added Q21 to Q20's round 4, then held Q12 (round 3) and Q20
+  if (PHASE === 24) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q21");
@@ -571,7 +571,7 @@ async page => {
     const head = await page.evaluate(() => !!document.getElementById("roundRestate"));
     ok("#11858: the later question shows the Held line without the round's header", !head, JSON.stringify(head));
   }
-  if (PHASE === 25) { // #12103: Q21's basis carries a Flips if: line, Q2's none; the page then answers Q21 in its own words
+  if (PHASE === 25) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q21");
@@ -581,7 +581,7 @@ async page => {
     ok("#12103: a recommendation whose basis states no flip shows Flips if: not stated", (await text("#flipIf")) === "Flips if: not stated", await text("#flipIf"));
     await post({id: "Q21", kind: "own", text: "owner mails it, day before"}); await page.waitForTimeout(500);
   }
-  if (PHASE === 26) { // #12103: the shell read Q21's answer back and posted a restatement
+  if (PHASE === 26) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q21");
@@ -598,7 +598,7 @@ async page => {
     const off = (await events()).pop();
     ok("#12103: Change these posts the question numbers to change", off.kind === "confirm-understanding" && off.alt === "off" && off.text === "Change Q3, Q5" && off.contentRev === 1, JSON.stringify(off));
   }
-  if (PHASE === 27) { // #12103: the shell restated again; the same control confirms
+  if (PHASE === 27) {
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.click("#sumBtn"); await page.waitForTimeout(300);
     await page.click('[data-understand="confirm"]'); await page.waitForTimeout(700);

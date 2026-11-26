@@ -383,7 +383,7 @@ else
   skip_case "symlinked-capture cases: this host has no native symlink creation (ln -s copied the target)"
 fi
 
-new_commit_on() { # <branch>: a commit on top of the branch's tip, referenced by nothing
+new_commit_on() {
   git -C "$REPO" commit-tree -p "refs/heads/$1" -m "moved $1" "refs/heads/$1^{tree}"
 }
 wait_for_ref() {
@@ -419,8 +419,8 @@ if command -v mkfifo >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
   if wait_for_ref refs/repo-hygiene/deleted/feat/win-b; then
     winb_moved="$(new_commit_on feat/win-b)"
     git -C "$REPO" update-ref refs/heads/feat/win-b "$winb_moved" "$winb_tip"
-    timeout 30 cat "$FIFO_B" >"$TEST_TMPDIR/race-b.row" # releases the parked row write
-    exec 3<>"$FIFO_B"                                   # later appends never block
+    timeout 30 cat "$FIFO_B" >"$TEST_TMPDIR/race-b.row"
+    exec 3<>"$FIFO_B"
     wait_pid "$pid"
     rc=$?
     ledger_b="$(cat "$TEST_TMPDIR/race-b.row" && drain_fd3)"

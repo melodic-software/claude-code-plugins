@@ -636,7 +636,7 @@ async page => {
     ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening for D1: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening for D1: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
     await tab.close();
   }
-  if (PHASE === 7) { // #9715, its own server holding only D1: the page answers D1; the shell then supersedes it and reads export-ledger for phase 8
+  if (PHASE === 7) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"});
@@ -654,7 +654,7 @@ async page => {
     const s = await state(), d1 = s.questions.questions.find(q => q.id === "D1"), meter = await page.textContent("#meterText");
     ok("#9715: an answered question superseded after it: the meter's answered and live counts match export-ledger, which withdraws it", d1.supersededBy === "D2" && s.responses.responses.D1?.decision === "accept" && ledger.D1 === "withdrawn" && meter === ledger.answered + " of " + ledger.live + " answered", meter + " | ledger " + JSON.stringify(ledger));
   }
-  if (PHASE === 9) { // #9692, its own restated server: A1 to A3, all accepted as recommended
+  if (PHASE === 9) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="A3"]', {state: "attached"});
@@ -667,7 +667,7 @@ async page => {
     const ev = await events(), aud = ev.filter(e => e.kind === "accept-audit");
     ok("#9692: Have agents check these answers posts one accept-audit event listing A1, A2 and A3, and no Confirm", aud.length === 1 && aud[0].items.map(i => i.id).sort().join() === "A1,A2,A3" && !ev.some(e => e.kind === "confirm-understanding"), JSON.stringify(aud));
   }
-  if (PHASE === 10) { // #9692, its own restated server: T1 accepted with its two commitments unticked
+  if (PHASE === 10) {
     await page.setViewportSize({width: 1400, height: 860});
     await page.goto(base);
     await page.waitForSelector('.qbtn[data-q="T1"]', {state: "attached"});

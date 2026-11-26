@@ -161,7 +161,7 @@ write_copy() {
   local src="$1" copy="$2" rendered="$3"
   if [[ ! -e "$copy" ]]; then
     mkdir -p "${copy%/*}"
-    cp "$src" "$copy" # carries the canonical's file mode onto a new copy
+    cp "$src" "$copy"
   fi
   if ! cmp -s "$rendered" "$copy"; then
     cat "$rendered" >"$copy"

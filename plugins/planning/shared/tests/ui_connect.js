@@ -72,9 +72,9 @@ async function main() {
   const s = suite("ui_connect"), { ok } = s;
   dataBlock(ok);
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: ui_connect.js's browser part needs playwright-core (npm ci, or playwright-cli on PATH)"); return s.finish(); } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: ui_connect.js's browser part needs playwright-core (npm ci, or playwright-cli on PATH)"); return s.finish(); }
   let browser;
-  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return s.finish(); } // silent-skip-ok: no browser binary
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return s.finish(); }
   const rec = recorder(browser);
   try {
     const A = await s.start("connect");

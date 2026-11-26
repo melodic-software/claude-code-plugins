@@ -79,7 +79,7 @@ async function main() {
         let j; try { j = JSON.parse(body); } catch { return await route.fulfill({ response: res, body }); }
         for (const x of j.results?.session || []) if (x.msg) x.msg = "M999999";
         await route.fulfill({ response: res, body: JSON.stringify(j) });
-      } catch { /* the request was aborted or already answered */ }
+      } catch {}
     };
     await ann.route(/\/api\/state\?/, lostMsg);
     await ann.reload();

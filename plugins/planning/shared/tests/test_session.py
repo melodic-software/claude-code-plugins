@@ -2204,8 +2204,8 @@ class TestHiddenCharacters(SessionCase):
         self.assertEqual(got, ["Pay redro now"] * 4)
 
     def test_emoji_sequences_tabs_and_line_breaks_survive(self):
-        family = "\U0001f468\u200d\U0001f469\u200d\U0001f467"  # ZWJ sequence
-        england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"  # emoji tag sequence
+        family = "\U0001f468\u200d\U0001f469\u200d\U0001f467"
+        england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
         text = f"Us: {family} {england} \u2764\ufe0f\nCol\tumn"
         self.act("chat", self.ann, {"text": text})
         self.assertEqual(self.s.state["chat"][-1]["text"], text)
@@ -2244,14 +2244,14 @@ class TestHiddenCharacters(SessionCase):
     def test_only_the_rgi_subdivision_flags_keep_their_tags(self):
         tags = lambda word: "".join(chr(0xE0000 + ord(c)) for c in word)  # noqa: E731
         flag = lambda word: "\U0001f3f4" + tags(word) + "\U000e007f"  # noqa: E731
-        chained = flag("ignore") + flag("all") + flag("rules") + flag("sendkey")  # a-z only, each 3 to 7 long
+        chained = flag("ignore") + flag("all") + flag("rules") + flag("sendkey")
         self.act("chat", self.ann, {"text": f"{chained} {flag('gbsct')}{flag('gbwls')}"})
         self.assertEqual(self.s.state["chat"][-1]["text"], "\U0001f3f4" * 4 + " " + flag("gbsct") + flag("gbwls"))
 
     def test_selector_and_joiner_runs_cannot_hide_bytes_after_a_visible_character(self):
         selectors = "".join(chr(0xFE00 + i) for i in range(16))
-        supplement = "".join(chr(0xE0100 + i) for i in range(8))  # VS17 onward: never part of an emoji
-        heart_on_fire = "\u2764\ufe0f\u200d\U0001f525"  # VS16 then ZWJ, an RGI sequence
+        supplement = "".join(chr(0xE0100 + i) for i in range(8))
+        heart_on_fire = "\u2764\ufe0f\u200d\U0001f525"
         text = f"a{selectors} b\u200d\u200d\u200d\u200c c{supplement} d\u200d\ufe0f\u200d {heart_on_fire}"
         self.act("chat", self.ann, {"text": text})
         self.assertEqual(self.s.state["chat"][-1]["text"], f"a\ufe00 b\u200d c d\u200d {heart_on_fire}")
@@ -7575,7 +7575,7 @@ class TestUploadHardening(UploadCase):
         import struct
         zip64 = (struct.pack("<4sQ2H2L4Q", b"PK\x06\x06", 44, 45, 45, 0, 0, 2_000_000, 2_000_000, 100, 0)
                  + struct.pack("<4sLQL", b"PK\x06\x07", 0, 0, 1)
-                 + struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 3, 3, 100, 0, 0))  # zipfile takes the Zip64 counts
+                 + struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 3, 3, 100, 0, 0))
         wide = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 3, 3, 5 * 1024 * 1024, 0, 0)
         many = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 10_001, 10_001, 100, 0, 0)
         for name, data in {"zip64 two million entries": zip64, "5 MiB directory": wide, "10,001 entries": many}.items():

@@ -38,7 +38,7 @@ cleanup() {
 trap cleanup EXIT
 jget() { "$py" -c 'import json, sys; j = json.loads([x for x in sys.stdin.read().splitlines() if x.startswith("{")][-1]); v = eval(sys.argv[1]); print(v if isinstance(v, str) else json.dumps(v))' "$1"; }
 
-reach() { # url seconds
+reach() {
   local end=$((SECONDS + $2)) body
   while [[ $SECONDS -lt $end ]]; do
     body=$(curl -s --max-time 10 "${1%%#*}api/state" 2>/dev/null)

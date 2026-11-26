@@ -58,7 +58,7 @@ TYPES = {
     ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf",
     ".wasm": "application/wasm", ".mp4": "video/mp4", ".webm": "video/webm",
 }
-_REPARSE = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT: a junction or symlink on Windows, which is_symlink() can miss
+_REPARSE = 0x400
 
 
 class BuildRefused(ValueError):
@@ -203,12 +203,12 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def refuse(self):
-        self.close_connection = True  # the request body, if any, is never read
+        self.close_connection = True
         self.answer(405, b"Method not allowed\n", TEXT, {"Allow": "GET, HEAD", "Connection": "close"})
 
     def do_GET(self):
         if self.headers.get("Transfer-Encoding") or self.headers.get("Content-Length", "0").strip() != "0":
-            self.close_connection = True  # a body is never read, so it must never be taken as the next request
+            self.close_connection = True
         f = resolve(self.server.root, self.path)
         if f is None:
             return self.answer(404, b"Not found\n", TEXT)
@@ -233,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = False  # never share a port another program holds
+    allow_reuse_address = False
 
     def __init__(self, root, port=0):
         self.root = Path(root).resolve(strict=True)
@@ -241,7 +241,7 @@ class Server(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", port), Handler)
 
     def server_bind(self):
-        session_bridge.bind_without_lookup(self)  # HTTPServer's own bind looks the host name up, which stalls on macOS
+        session_bridge.bind_without_lookup(self)
 
 
 def spawn(root, log, env=None):

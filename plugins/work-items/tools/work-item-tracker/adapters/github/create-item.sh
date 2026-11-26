@@ -129,7 +129,7 @@ if ((native)); then
     native=0
     [[ -z "$type" ]] || degrade_type
   else
-    created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
+    created_url="${WIT_GH_OUT##*$'\n'}"
     number="${created_url##*/}"
     [[ "$number" =~ ^[0-9]+$ ]] || {
       printf 'create-item: could not parse created issue URL: %s\n' "$created_url" >&2

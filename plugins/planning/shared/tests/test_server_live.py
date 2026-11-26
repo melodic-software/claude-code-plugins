@@ -1,3 +1,4 @@
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/schema/*.schema.json
 """Live prototypes on the wire: liveserve.py (the static server), the build-folder walk add-live and the start run,
 and server.py's QuickTunnelStarter with the fake cloudflared (support.FAKE): Approve starts one tunnel and one static
 server, a restart brings a new address without a new Approve, the port refusals, Stop, and the server restart.
@@ -185,6 +186,11 @@ class TestBuildWalk(unittest.TestCase):
         except OSError as exc:
             self.skipTest(f"no hard link here: {exc}")
         self.refused("hard link: a.txt")
+
+    def test_a_windows_reparse_point_reads_as_a_link(self):
+        regular = stat.S_IFREG | 0o600
+        self.assertTrue(liveserve._linked(mock.Mock(st_mode=regular, st_file_attributes=0x400)))
+        self.assertFalse(liveserve._linked(mock.Mock(st_mode=regular, st_file_attributes=0)))
 
     def test_a_folder_symlink_is_refused(self):
         symlink(self, self.src / "data", tmpdir(self), directory=True)

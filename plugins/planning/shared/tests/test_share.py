@@ -305,7 +305,7 @@ class TestLogs(unittest.TestCase):
 
     def test_output_is_utf8_when_the_locale_encoding_cannot_hold_it(self):
         """#8239: a Windows pipe takes the ANSI code page; PYTHONIOENCODING=cp1252 stands in for it on any platform."""
-        text = "Pay \u2192 \U0001f389"  # neither the arrow nor the emoji is in cp1252
+        text = "Pay \u2192 \U0001f389"
         (self.d / "server.log").write_text(self.client.replace("TypeError", text) + "\n", encoding="utf-8")
         (self.d / "server.log.1").unlink()
         run = lambda d, *args: subprocess.run([sys.executable, str(SHARE), "--dir", str(d), *args], capture_output=True, timeout=60, env=env(PYTHONIOENCODING="cp1252"))  # noqa: E731
@@ -731,7 +731,7 @@ def worker_ports():
     count = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT") or 1)
     worker = re.fullmatch(r"gw(\d+)", os.environ.get("PYTEST_XDIST_WORKER", ""))
     index = int(worker[1]) if worker else 0
-    if index >= count:  # a block past the last would reach into the ephemeral range
+    if index >= count:
         return range(0)
     size = (ephemeral_start() - PORT_FLOOR) // count
     return range(PORT_FLOOR + index * size, PORT_FLOOR + (index + 1) * size)
@@ -751,7 +751,7 @@ def free_port():
             except OSError:
                 continue
         return port
-    with socket.socket() as s:  # no free port below the ephemeral range: one the OS picks, which can still race
+    with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 

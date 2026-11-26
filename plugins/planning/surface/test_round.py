@@ -4046,7 +4046,7 @@ class TestEndWatcher(DirCase):
         proc = subprocess.Popen(argv)
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
-        time.sleep(0.3)  # bash must exec its script before a command line is read
+        time.sleep(0.3)
         return proc
 
     def test_ends_a_watch_sh_for_this_data_dir(self):

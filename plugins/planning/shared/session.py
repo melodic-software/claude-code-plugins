@@ -164,7 +164,7 @@ MAX_REPORT_ERROR = 300
 MAX_REPORT_ADDS = 10
 REPORTS_DIR = "reports"
 ZIP_UNPACKED_MAX = 1024 * 1024 * 1024
-ZIP_RATIO_MAX = 100  # unpacked to packed, per entry past ZIP_RATIO_GRACE (Apache POI ZipSecureFile's default)
+ZIP_RATIO_MAX = 100
 ZIP_RATIO_GRACE = 1024 * 1024
 ZIP_ENTRIES_MAX = 10_000
 ZIP_DIRECTORY_MAX = 4 * 1024 * 1024
@@ -240,7 +240,7 @@ def _element(selector):
 
 
 URL = re.compile(r"https?://\S+", re.IGNORECASE)
-REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\.\.?$)[A-Za-z0-9._-]{1,100}")  # a GitHub owner/name, never . or ..; also in state.schema.json and web/app.js
+REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\.\.?$)[A-Za-z0-9._-]{1,100}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 
 
@@ -744,16 +744,16 @@ def _hidden(c):
     return (
         unicodedata.category(c) in _DROPPED_KINDS
         or c in _BLANK
-        or 0xE0000 <= o <= 0xE007F  # tags, the unassigned ones too
-        or 0xE0100 <= o <= 0xE01EF  # VS17-VS256
-        or o >= 0xF0000  # private use planes, their noncharacters too
+        or 0xE0000 <= o <= 0xE007F
+        or 0xE0100 <= o <= 0xE01EF
+        or o >= 0xF0000
     )
 
 
 def _visible(v):
     out, last = [], ""
     for i, part in enumerate(_RGI_FLAGS.split(v.replace("\r\n", "\n").replace("\r", "\n"))):
-        if i % 2:  # one of the RGI subdivision flags, kept whole
+        if i % 2:
             out.append(part)
             last = ""
             continue
@@ -1026,7 +1026,7 @@ ARCHIVE_KINDS = {k for k, (_, check) in UPLOAD_KINDS.items() if check is _ZIP}
 OOXML_KINDS, OPENDOC_KINDS = {"docx", "xlsx", "pptx"}, {"odt", "ods", "odp"}
 _WINDOWS = os.name == "nt"
 THUMB_KINDS = {"png", "jpg", "jpeg", "gif", "webp"}
-IMAGE_KINDS = THUMB_KINDS  # a received upload of one of these, its bytes that kind, reads back as a picture: never SVG or HTML
+IMAGE_KINDS = THUMB_KINDS
 AVATAR_KINDS = {"png", "jpg", "jpeg", "webp"}
 AVATAR_MAX = 256 * 1024
 
@@ -1139,7 +1139,7 @@ def _directory_small(path):
     bytes. No record found is not small."""
     with open(path, "rb") as f:
         f.seek(0, os.SEEK_END)
-        f.seek(max(0, f.tell() - 22 - 65535))  # the record plus the longest comment it may carry
+        f.seek(max(0, f.tell() - 22 - 65535))
         tail = f.read()
     at = tail.rfind(b"PK\x05\x06")
     if at < 0 or len(tail) - at < 22:
@@ -1267,7 +1267,7 @@ class Session:
         self._base_cache = self._guest_q_cache = None
         self._chat_touch, self._chat_touches = {}, 0
         self._undo = []
-        self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
+        self.uploads_dir = self.path.parent / "uploads"
         self._sending = set()
         self.on_owner_token = None
         self._pairing = None
@@ -1464,7 +1464,7 @@ class Session:
             raise DomainError(401, "unknown-session", "Join the session again.")
         if person["status"]["kind"] == "removed":
             raise DomainError(403, "removed", "The owner removed you from this session.")
-        if person["status"]["kind"] == "waiting":  # the waiting page shows the title and intro, nothing else
+        if person["status"]["kind"] == "waiting":
             sess = self.state["session"]
             raise DomainError(403, "waiting", "The host has not let you in yet.", title=sess["title"], intro=sess.get("intro", ""))
         return person
@@ -1565,7 +1565,7 @@ class Session:
             guest_key = st["session"]["guestKey"]
             try:
                 sent = key.encode()
-            except UnicodeEncodeError:  # a lone surrogate (json.loads takes one): no key is that, and it is never filtered
+            except UnicodeEncodeError:
                 sent = None
             if guest_key and (sent is None or not hmac.compare_digest(sent, guest_key.encode())):
                 raise DomainError(403, "bad-guest-key", "This invite link is no longer valid; ask the host for the new one.")
@@ -1587,7 +1587,7 @@ class Session:
             secret = self.ids.token(32)
             here = self._present()
             was = None
-            if name and st["session"]["settings"]["names"] == "full":  # otherwise the answer would reveal a hidden name
+            if name and st["session"]["settings"]["names"] == "full":
                 was = next(
                     (
                         {"pid": p, "name": v["name"]}
@@ -1767,7 +1767,7 @@ class Session:
             m = re.match(r"\$\.(\w+)", err)
             raise _bad(m.group(1) if m else "body", err)
         for field in ("lastInput", "lastFocus"):
-            if not math.isfinite(body.get(field, 0)):  # json.loads takes Infinity and NaN
+            if not math.isfinite(body.get(field, 0)):
                 raise _bad(field, f"{field} must be a finite number of seconds.")
         tab = body.get("tab", "")
         if "tab" in body and not TAB_ID.fullmatch(tab):
@@ -2237,14 +2237,14 @@ class Session:
         secrets = st["credentials"]["secrets"]
         for h, p in list(secrets.items()):
             if p == src:
-                if dst == HOST:  # owner rights stay with the owner link: the device is told to open it
+                if dst == HOST:
                     secrets.pop(h)
                     self._merged_into_owner.add(h)
                 else:
                     secrets[h] = dst
         if dst == HOST:
             self._merged_pids.add(src)
-        self._drop_watcher(src)  # a watcher key never gains another person's requests
+        self._drop_watcher(src)
         st["people"].pop(src)
         self._presence.pop(src, None)
         self._presence_rev += 1
@@ -2684,7 +2684,7 @@ class Session:
         with self._tx():
             self._owner(pid)
             q, card = self._person_card(body)
-            text = self._tokenize(card["pid"], text)  # as its author: names hidden from them stay plain in their text
+            text = self._tokenize(card["pid"], text)
             if text != card["text"]:
                 ref = card_ref(card)
                 votes = len(self._votes_on(q["id"], ref))
@@ -3886,7 +3886,7 @@ class Session:
                 raise DomainError(409, "wrong-status", f"Live prototype {e['id']} is {e['status']['kind']}.", status=e["status"]["kind"])
             port = e["target"]["kind"] == "port"
             if port:
-                self._live_port(e["target"]["port"])  # the session's own ports can move on a restart: check again
+                self._live_port(e["target"]["port"])
             if port and body.get("attest") is not True:
                 raise _bad("attest", "A server on a port starts only once you confirm it runs on sample data only, with writes stubbed and no credentials in its environment.")
             e["status"] = {"kind": "starting", "approvedAt": self.now(), **({"attested": True} if port else {})}
@@ -4120,7 +4120,7 @@ class Session:
             before, c["text"] = c["text"], self._tokenize(pid, text)
             c["edited"] = self.now()
             self._drop_comment_excerpts(c["id"])
-            if "hidden" not in c:  # a hidden comment's text reaches no one through a notice
+            if "hidden" not in c:
                 self._notify_mentions(c["text"], pid, f"in the Discussion on question {q['id']}", before=before, qid=q["id"], comment=c["id"])
             return {"id": c["id"], "edited": True}
 
@@ -4705,7 +4705,7 @@ class Session:
         size = body.get("size")
         if not _is_int(size) or size < 1:
             raise _bad("size", "size must be the file's size in bytes.")
-        _text(body, "type", limit=MAX_NOTE, empty_ok=True)  # the browser's guess, unused: the server records its own
+        _text(body, "type", limit=MAX_NOTE, empty_ok=True)
         ext = name.rsplit(".", 1)[1].lower() if "." in name else ""
         ext = ext if FILE_EXT.fullmatch(ext) else ""
         thumb = _thumb(body.get("thumb"), ext)
@@ -5270,7 +5270,7 @@ class Session:
             ]
             if on:
                 st["session"]["phase"] = {"kind": "ended", "at": self.now()}
-                st["credentials"].pop("devices", None)  # the owner's other devices sign out with the session; a reopen brings none back
+                st["credentials"].pop("devices", None)
                 self._pairing = None
                 self._end_lives("session-ended")
                 self._event("session-ended", later=later)
@@ -5293,7 +5293,7 @@ class Session:
             self._owner(pid)
             token = self.ids.token(32)
             at = self.now()
-            if self.on_owner_token is not None:  # the secrets file holds the token before the hash commits
+            if self.on_owner_token is not None:
                 self.on_owner_token(token, at)
             st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": at}
             st["credentials"].pop("devices", None)
@@ -6366,7 +6366,7 @@ class Session:
             return True
         if not _approved(u):
             return False
-        if u.get("avatar"):  # what people lists show: hidden with the names, and never a picture since replaced
+        if u.get("avatar"):
             names = "full" if me["role"] in ("owner", "leader") else self.state["session"]["settings"]["names"]
             return names == "full" and any(p.get("avatar") == u["id"] for p in self._base()["people"])
         if u["id"] in self._public_uploads:

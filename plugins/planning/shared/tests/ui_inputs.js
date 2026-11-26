@@ -13,9 +13,9 @@ const WORD = "x".repeat(300);
 
 async function main() {
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: ui_inputs.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: ui_inputs.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; }
   let chromium;
-  try { chromium = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  try { chromium = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; }
   let webkit = null;
   try { webkit = await pw.webkit.launch(); } catch { console.log("NOTE: WebKit cannot launch on this machine; the iPhone profiles run in Chromium with the same device profile"); }
   const s = suite("ui_inputs"), { ok } = s;

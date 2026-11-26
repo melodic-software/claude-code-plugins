@@ -1,4 +1,3 @@
-# user-experience team file fixture: an added row whose id is neither bundled nor installed.
 version: 1
 routing:
   version: 1

@@ -970,6 +970,14 @@ class TestBusy(unittest.TestCase):
 
 
 class TestOwnerRotation(unittest.TestCase):
+    def test_an_owner_token_shorter_than_the_floor_is_replaced(self):
+        d = tmpdir(self)
+        short, floor = "a" * (server.MIN_OWNER_TOKEN - 1), "b" * server.MIN_OWNER_TOKEN
+        detached.write_private(d / server.SECRETS, json.dumps({"control": "c" * 32, "owner": short}) + "\n")
+        self.assertNotEqual(server.ensure_secrets(d)["owner"], short)
+        detached.write_private(d / server.SECRETS, json.dumps({"control": "c" * 32, "owner": floor}) + "\n")
+        self.assertEqual(server.ensure_secrets(d)["owner"], floor)
+
     def test_the_secrets_file_holds_the_new_token_before_the_hash_commits(self):
         d = tmpdir(self)
         app = server.App(d, watch_tunnel=False)
@@ -2734,7 +2742,7 @@ class TestReports(ServerCase):
         self.assertEqual((code, out["error"]), (403, "owner-only"))
         code, _, out = self.get("/api/report/image?id=F1&add=1", self.owner)
         self.assertEqual((code, out["image"]), (200, self.data_url("png", PNG)))
-        code, _, out = self.get("/api/report/image?id=F1&add=%C2%B2", self.owner)  # "²", a Unicode digit
+        code, _, out = self.get("/api/report/image?id=F1&add=%C2%B2", self.owner)
         self.assertEqual((code, out["error"]), (400, "bad-field"))
 
 class TestUploads(ServerCase):
