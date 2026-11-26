@@ -1,0 +1,25 @@
+{
+  "number": 99909,
+  "title": "evals: run the work-items eval suite weekly",
+  "author": "kyle-sexton",
+  "labels": [
+    "needs-triage"
+  ],
+  "body": "## Problem\n\nThe work-items plugin's eval suite runs only when someone starts it, so a regression can sit for\nweeks.\n\n## Requested behavior\n\nA scheduled workflow runs the suite once a week on the lanes' prepaid API key and posts the score\nto the lane telemetry issue.\n\n## Done when\n\n- [ ] A workflow runs the work-items eval suite every Monday.\n- [ ] Each run posts its score to the lane telemetry issue.\n",
+  "comments": [],
+  "open_issues": [
+    {
+      "number": 99950,
+      "title": "docs: fix a broken link in the hooks reference"
+    },
+    {
+      "number": 99949,
+      "title": "ci: cache the markdownlint install"
+    },
+    {
+      "number": 99948,
+      "title": "review: shorten the security lane's summary"
+    }
+  ],
+  "merged_pulls": []
+}

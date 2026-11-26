@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: tr-ci-reentry-unsettled-assumption-asks
+description: 'Triage --ci re-entry: the recorded decision answers both questions but leaves out an undefined set of long-lived branches, so the verdict re-parks at needs-owner-decision and asks which branches those are. Ported from the retired intake reentry-eval case unsettled-assumption-asks. A run needs --scaffold.'
+tags: [triage, ci-mode, intake, reentry]
+plugins: ["../.."]
+expected_outcome: 'The run reads .lane/scratch/issue.json, treats both numbered questions as answered, sets Flags: intent with needs-owner-decision, keeps needs_human false, and asks which branches are the long-lived ones as a new numbered question with a RECOMMENDED answer.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:triage --issue 99902 --ci\n\nYour scratchpad directory is `.lane/scratch`. The lane's output schema takes these keys: size small, medium or large; complexity low, medium or high; uncertainty known, knowable or unknown; type Bug, Task or Feature. This session has no structured-output channel, so end the run with a reply that is only the verdict: one JSON object in the schema's shape."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: reads-issue-json
+    type: 'tool_used'
+    tool: 'Read'
+    input_match: '\.lane/scratch/issue\.json'
+    min: 1
+    arm: both
+  - name: keeps-needs-human-false
+    type: 'regex'
+    pattern: '"needs_human"\s*:\s*false'
+    target: 'last_message'
+    arm: both
+  - name: reparks-needs-decision
+    type: 'regex'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-owner-decision"'
+    target: 'last_message'
+    arm: both
+  - name: asks-with-recommendation
+    type: 'regex'
+    pattern: 'RECOMMENDED:'
+    target: 'last_message'
+    arm: both
+  - name: asks-which-long-lived
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)(?!> )[^\n\\]*long-lived'
+    flags: 'i'
+    target: 'last_message'
+    arm: both
+  - name: judges-open-questions
+    type: llm
+    criteria: 'PASS only if the verdict''s comment treats both numbered questions as answered by the Decision recorded comment and asks, as a new numbered question with a RECOMMENDED answer, which branches count as the long-lived ones to leave out, without settling that itself. FAIL if it picks a set of long-lived branches as if decided, re-asks question 1 or 2, or asks nothing.'
+    focus: last_message
+    arm: both

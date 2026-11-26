@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: none\\nBlocked by: none\\nBlast radius: scripts/check-fragments.sh, which CI runs on every fragment.\\nReversible: yes; revert the commit.\\nClaims checked:\\n1. The check rejects a fragment name holding a digit: held, scripts/check-fragments.sh:3\\n2. The naming rule allows digits: held, docs/changelog-fragments.md:3\\nOpen questions: none\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"known\", \"flags\": [], \"blocked_by\": [], \"type\": \"Bug\"}",
+      "why": "the expected verdict"
+    },
+    {
+      "answer": "```json\n{\n  \"labels\": [\n    \"priority: medium\"\n  ],\n  \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: none\\nBlocked by: none\\nBlast radius: scripts/check-fragments.sh, which CI runs on every fragment.\\nReversible: yes; revert the commit.\\nClaims checked:\\n1. The check rejects a fragment name holding a digit: held, scripts/check-fragments.sh:3\\n2. The naming rule allows digits: held, docs/changelog-fragments.md:3\\nOpen questions: none\",\n  \"needs_human\": false,\n  \"size\": \"small\",\n  \"complexity\": \"low\",\n  \"uncertainty\": \"known\",\n  \"flags\": [],\n  \"blocked_by\": [],\n  \"type\": \"Bug\"\n}\n```",
+      "why": "the same verdict, pretty-printed in a fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: none\\nBlocked by: none\\nBlast radius: scripts/check-fragments.sh, which CI runs on every fragment.\\nReversible: yes; revert the commit.\\nClaims checked:\\n1. The check rejects a fragment name holding a digit: held, scripts/check-fragments.sh:3\\n2. The naming rule allows digits: held, docs/changelog-fragments.md:3\\nOpen questions: none\", \"needs_human\": true, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"known\", \"flags\": [], \"blocked_by\": [], \"type\": \"Bug\"}",
+      "why": "escalates an exact fix"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

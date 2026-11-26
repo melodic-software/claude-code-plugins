@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.lane/scratch/issue.json"
+          }
+        }
+      ],
+      "why": "reads the lane's issue file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "work-items:triage"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".lane/scratch/issue.json"
+          }
+        }
+      ],
+      "why": "relative path after loading the skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/README.md"
+          }
+        }
+      ],
+      "why": "reads the repository, not the issue"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "Decision",
+            "path": ".lane/scratch/issue.json"
+          }
+        }
+      ],
+      "why": "greps the issue file without reading it"
+    }
+  ]
+}

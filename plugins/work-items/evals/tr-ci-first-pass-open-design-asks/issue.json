@@ -1,0 +1,25 @@
+{
+  "number": 99907,
+  "title": "review: make the review lanes share their findings",
+  "author": "kyle-sexton",
+  "labels": [
+    "needs-triage"
+  ],
+  "body": "## Problem\n\nEach review lane posts its own findings comment, so one pull request can carry three comments that\nrepeat the same finding.\n\n## Requested behavior\n\nThe review lanes share one set of findings per pull request. Two ways I can see, and I have not\nchosen:\n\n- a new job, after every lane, that merges the lanes' findings into one comment; or\n- each lane edits one shared comment in place, adding its findings to what is there.\n\n## Done when\n\n- [ ] A pull request carries one findings comment from the review lanes.\n",
+  "comments": [],
+  "open_issues": [
+    {
+      "number": 99950,
+      "title": "docs: fix a broken link in the hooks reference"
+    },
+    {
+      "number": 99949,
+      "title": "ci: cache the markdownlint install"
+    },
+    {
+      "number": 99948,
+      "title": "review: shorten the security lane's summary"
+    }
+  ],
+  "merged_pulls": []
+}

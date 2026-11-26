@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-owner-decision\"], \"comment\": \"Size: medium\\nComplexity: medium\\nUncertainty: knowable\\nFlags: intent\\nBlocked by: none\\nBlast radius: the three review workflows under .github/workflows/ and the comment each posts.\\nReversible: yes; revert the workflow changes.\\nClaims checked:\\n1. Each review lane posts its own findings comment: held, .github/workflows/review-code.yml:7\\nOpen questions:\\n1. Which design: a new job after every lane that merges the findings into one comment, or each lane editing one shared comment in place?\\n   RECOMMENDED: a merge job after every lane. Basis: judgment\", \"needs_human\": false, \"size\": \"medium\", \"complexity\": \"medium\", \"uncertainty\": \"knowable\", \"flags\": [\"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "the expected verdict"
+    },
+    {
+      "answer": "```json\n{\n  \"labels\": [\n    \"priority: medium\",\n    \"needs-owner-decision\"\n  ],\n  \"comment\": \"Size: medium\\nComplexity: medium\\nUncertainty: knowable\\nFlags: intent\\nBlocked by: none\\nBlast radius: the three review workflows under .github/workflows/ and the comment each posts.\\nReversible: yes; revert the workflow changes.\\nClaims checked:\\n1. Each review lane posts its own findings comment: held, .github/workflows/review-code.yml:7\\nOpen questions:\\n1. Which design: a new job after every lane that merges the findings into one comment, or each lane editing one shared comment in place?\\n   RECOMMENDED: a merge job after every lane. Basis: judgment\",\n  \"needs_human\": false,\n  \"size\": \"medium\",\n  \"complexity\": \"medium\",\n  \"uncertainty\": \"knowable\",\n  \"flags\": [\n    \"intent\"\n  ],\n  \"blocked_by\": [],\n  \"type\": \"Task\"\n}\n```",
+      "why": "the same verdict, pretty-printed in a fence"
+    },
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-owner-decision\"], \"comment\": \"Size: medium\\nComplexity: medium\\nUncertainty: knowable\\nFlags: cost, intent\\nBlocked by: none\\nBlast radius: the three review workflows under .github/workflows/ and the comment each posts.\\nReversible: yes; revert the workflow changes.\\nClaims checked:\\n1. Each review lane posts its own findings comment: held, .github/workflows/review-code.yml:7\\nOpen questions:\\n1. Which design: a new job after every lane that merges the findings into one comment, or each lane editing one shared comment in place?\\n   RECOMMENDED: a merge job after every lane. Basis: judgment\", \"needs_human\": false, \"size\": \"medium\", \"complexity\": \"medium\", \"uncertainty\": \"knowable\", \"flags\": [\"cost\", \"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "intent beside another flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-owner-decision\"], \"comment\": \"Size: medium\\nComplexity: medium\\nUncertainty: knowable\\nFlags: none\\nBlocked by: none\\nBlast radius: the three review workflows under .github/workflows/ and the comment each posts.\\nReversible: yes; revert the workflow changes.\\nClaims checked:\\n1. Each review lane posts its own findings comment: held, .github/workflows/review-code.yml:7\\nOpen questions:\\n1. Which design: a new job after every lane that merges the findings into one comment, or each lane editing one shared comment in place?\\n   RECOMMENDED: a merge job after every lane. Basis: judgment\", \"needs_human\": false, \"size\": \"medium\", \"complexity\": \"medium\", \"uncertainty\": \"knowable\", \"flags\": [], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "no flag for an unpicked design"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

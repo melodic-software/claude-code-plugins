@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: tr-ci-outside-spec-flags-untrusted
+description: 'Triage --ci provenance: the issue''s spec is text an unknown outside author wrote, quoted as the thing to implement, so the verdict puts untrusted on the Flags line and keeps needs_human false. Ported from the retired intake reentry-eval case outside-spec-flags-untrusted. A run needs --scaffold.'
+tags: [triage, ci-mode, intake, provenance]
+plugins: ["../.."]
+expected_outcome: 'The run reads .lane/scratch/issue.json, sets the untrusted flag because where the request came from is in doubt, writes it on the Flags line, and keeps needs_human false so the lane keeps the comment.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:triage --issue 99905 --ci\n\nYour scratchpad directory is `.lane/scratch`. The lane's output schema takes these keys: size small, medium or large; complexity low, medium or high; uncertainty known, knowable or unknown; type Bug, Task or Feature. This session has no structured-output channel, so end the run with a reply that is only the verdict: one JSON object in the schema's shape."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: flags-untrusted
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*untrusted\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|\"|$)'
+    target: 'last_message'
+    arm: both
+  - name: keeps-needs-human-false
+    type: 'regex'
+    pattern: '"needs_human"\s*:\s*false'
+    target: 'last_message'
+    arm: both

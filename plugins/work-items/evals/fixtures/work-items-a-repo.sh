@@ -19,7 +19,7 @@ set -euo pipefail
 set -o noclobber
 mode="${1:?mode}"
 case "${mode}" in
-repro-count-repo | config-ref-pinned | config-ref-bad | board-hostile | board-retired | track-stats | track-remap | comment-markers | adapter-tasker | adapter-redmine) ;;
+repro-count-repo | config-ref-pinned | config-ref-bad | board-hostile | board-retired | track-stats | track-remap | comment-markers | adapter-tasker | adapter-redmine | ci-intake) ;;
 *) echo "unknown mode: ${mode}" >&2 && exit 2 ;;
 esac
 
@@ -53,7 +53,7 @@ if [[ "${mode}" == board-retired ]]; then
     exit 3
   fi
 fi
-for target in docs README.md .work-items .github src lib tools adapter-spec.json picker; do
+for target in docs README.md .work-items .github src lib tools adapter-spec.json picker scripts docs-site plugins .lane; do
   if [[ -e "${target}" ]]; then
     echo "refusing to scaffold: ${here}/${target} already exists" >&2
     exit 3
@@ -295,6 +295,96 @@ JSON
   fi
   g add -A
   g commit -q -m "fabrikam-ops fixture"
+  ;;
+ci-intake)
+  printf '# fabrikam-plugins\n\nFabrikam plugin marketplace: plugins, their eval suites, and the workflows that check them.\n' >README.md
+  cat >docs/conventions/work-items.md <<'MD'
+# work-items
+
+`/work-items:triage --issue <n> --ci`, the intake lane's mode, reads `## Triage rules` below beside
+its own rules: they add to the skill's, and never relax one.
+
+## Triage rules
+
+- **Priority.** Exactly one: `priority: critical` for a red main branch, a security exposure or a
+  lane that is down; `priority: high` for something that blocks the pipeline or queued work;
+  `priority: low` for a cosmetic or docs-only change; otherwise `priority: medium`.
+- **A done-when item a lane run cannot do** (a run on a named host or OS, a paid eval, a run
+  repeated N times, a measurement over time) is no reason on its own for `needs_human`, the
+  `needs-human` label or the `intent` flag: triage the items a lane can check as usual. A
+  `needs-owner-decision` or `needs-human` label holds only beside a flag on the `Flags:` line.
+- **Cost.** A charge a diff shows (runner labels or cron schedules in workflows, model, effort or
+  turn flags, new secrets) gets no `cost` flag, no `needs-human` and no `Cost:` line. Spend drawn
+  from a prepaid source is no charge either: model runs, lane runs and `claude plugin eval` passes
+  bill the prepaid API keys, which do not auto-refill. Only a new or renewing charge (Actions
+  billing, a cloud subscription, a key or plan that renews or auto-recharges) is cost. Flagged cost
+  also takes the `needs-human` label, with `needs_human` false, so the comment is kept.
+- **Re-entry that still needs a person.** After a recorded decision, when the remaining work needs a
+  person (spend, with `Flags: cost`, or a trust-boundary decision the recorded decision leaves open,
+  with `Flags: intent`), apply the `needs-human` label and keep `needs_human` false, even when open
+  questions also remain, so the comment is kept. Work on a host or in an attended run is a done-when
+  item a lane run cannot do, not a person, unless the recorded decision itself leaves that step to a
+  person, which takes `needs-human` with `Flags: intent`.
+MD
+  cat >docs/changelog-fragments.md <<'MD'
+# Changelog fragments
+
+A fragment's file name is lowercase letters, digits and hyphens, ending in `.md`.
+MD
+  mkdir -p scripts .github/workflows docs-site plugins/work-items/evals
+  cat >scripts/check-fragments.sh <<'SH'
+#!/usr/bin/env bash
+for f in .changes/*.md; do
+  [[ "$(basename "$f")" =~ ^[a-z-]+\.md$ ]] || { echo "bad fragment name: $f" >&2; exit 1; }
+done
+SH
+  cat >scripts/check-links.mjs <<'JS'
+import { readFileSync } from "node:fs";
+const { ignore } = JSON.parse(readFileSync(".github/link-check.json", "utf8"));
+export const skipped = (url) => ignore.some((host) => new URL(url).hostname === host);
+JS
+  printf '{\n  "ignore": ["example.com"]\n}\n' >.github/link-check.json
+  cat >.github/workflows/weekly-maintenance.yml <<'YML'
+name: weekly-maintenance
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+jobs:
+  caches:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh cache list --limit 100
+YML
+  for lane in code security docs; do
+    cat >".github/workflows/review-${lane}.yml" <<YML
+name: review-${lane}
+on: pull_request
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr comment "\${{ github.event.number }}" --body-file findings-${lane}.md
+YML
+  done
+  cat >.github/workflows/plugin-eval.yml <<'YML'
+name: plugin-eval
+on: workflow_dispatch
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - run: claude plugin eval plugins/work-items
+YML
+  printf '# work-items evals\n\nCases for the work-items plugin, run with claude plugin eval.\n' >plugins/work-items/evals/README.md
+  cat >docs-site/plugin-index.html <<'HTML'
+<ul class="plugins">
+  <li>work-items: work-item triage and tracking</li>
+  <li>evals: eval suite design and validation</li>
+</ul>
+HTML
+  g add -A
+  g commit -q -m "fabrikam-plugins fixture"
+  mkdir -p .lane/scratch
   ;;
 *) exit 2 ;; # the mode was checked above
 esac

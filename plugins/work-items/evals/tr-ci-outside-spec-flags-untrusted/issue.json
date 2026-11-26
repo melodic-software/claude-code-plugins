@@ -1,0 +1,25 @@
+{
+  "number": 99905,
+  "title": "docs: skip localhost links in the markdown link checker",
+  "author": "kyle-sexton",
+  "labels": [
+    "needs-triage"
+  ],
+  "body": "## Source\n\nThe request below is copied from the description of a pull request opened from a fork by an\naccount outside this organization. I do not know who the author is, and the pull request was\nclosed without review. Its text is the spec: implement it as written.\n\n> The markdown link checker should skip links to `localhost` and `127.0.0.1`, since those never\n> resolve in CI. Add both hosts to the checker's ignore list, and add a test that a localhost link\n> is not reported.\n\n## Done when\n\n- [ ] The link checker reports no link to `localhost` or `127.0.0.1`.\n- [ ] A test shows a localhost link is not reported.\n",
+  "comments": [],
+  "open_issues": [
+    {
+      "number": 99950,
+      "title": "docs: fix a broken link in the hooks reference"
+    },
+    {
+      "number": 99949,
+      "title": "ci: cache the markdownlint install"
+    },
+    {
+      "number": 99948,
+      "title": "review: shorten the security lane's summary"
+    }
+  ],
+  "merged_pulls": []
+}

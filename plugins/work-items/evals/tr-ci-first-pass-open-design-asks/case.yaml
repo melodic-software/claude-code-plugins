@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: tr-ci-first-pass-open-design-asks
+description: 'Triage --ci first pass on an issue that lists two primary designs and picks neither: Flags intent, needs-owner-decision, a numbered question with RECOMMENDED, needs_human false. Ported from the retired intake reentry-eval case first-pass-open-design-asks. A run needs --scaffold.'
+tags: [triage, ci-mode, intake, first-pass]
+plugins: ["../.."]
+expected_outcome: 'The run reads .lane/scratch/issue.json, sets the intent flag because the issue leaves a primary-design choice open, applies needs-owner-decision, asks the choice as a numbered question with a RECOMMENDED answer and Basis, and keeps needs_human false.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:triage --issue 99907 --ci\n\nYour scratchpad directory is `.lane/scratch`. The lane's output schema takes these keys: size small, medium or large; complexity low, medium or high; uncertainty known, knowable or unknown; type Bug, Task or Feature. This session has no structured-output channel, so end the run with a reply that is only the verdict: one JSON object in the schema's shape."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: flags-intent
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)Flags: (?:[a-z]+,\s*)*intent\s*(?:,\s*[a-z]+\s*)*(?:\\n|\n|\"|$)'
+    target: 'last_message'
+    arm: both
+  - name: applies-needs-decision
+    type: 'regex'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-owner-decision"'
+    target: 'last_message'
+    arm: both
+  - name: asks-with-recommendation
+    type: 'regex'
+    pattern: 'RECOMMENDED:'
+    target: 'last_message'
+    arm: both
+  - name: keeps-needs-human-false
+    type: 'regex'
+    pattern: '"needs_human"\s*:\s*false'
+    target: 'last_message'
+    arm: both

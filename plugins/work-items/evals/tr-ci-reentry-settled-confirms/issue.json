@@ -1,0 +1,32 @@
+{
+  "number": 99904,
+  "title": "maintenance: report stale branches in the weekly run",
+  "author": "kyle-sexton",
+  "labels": [
+    "needs-triage",
+    "priority: medium"
+  ],
+  "body": "## Problem\n\nMerged and abandoned branches pile up in this repository. Nobody sees them until the branch list is\nhundreds long, and the weekly maintenance run says nothing about them.\n\n## Requested behavior\n\n- [ ] The weekly maintenance run reports every stale branch: its name, its last commit date, and its\n      open pull request, if any.\n- [ ] The report deletes nothing. It only lists.\n\n## Open questions\n\n1. Where does the report go: a new issue each week, or one pinned issue that the run edits in place?\n2. When is a branch stale: no commit for 30 days, or for 90 days?\n",
+  "comments": [
+    {
+      "author": "kyle-sexton",
+      "url": "https://github.com/melodic-software/claude-code-plugins/issues/99904#issuecomment-100000004",
+      "body": "**Decision recorded.**\n1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\n2. 90 days without a commit.\n"
+    }
+  ],
+  "open_issues": [
+    {
+      "number": 99950,
+      "title": "docs: fix a broken link in the hooks reference"
+    },
+    {
+      "number": 99949,
+      "title": "ci: cache the markdownlint install"
+    },
+    {
+      "number": 99948,
+      "title": "review: shorten the security lane's summary"
+    }
+  ],
+  "merged_pulls": []
+}
