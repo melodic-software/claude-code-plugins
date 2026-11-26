@@ -592,7 +592,6 @@ def _merge_names(text: str, key: str) -> bool:
     return False
 
 
-
 def _split_repo(repo: str) -> tuple[str, str]:
     owner, _, name = repo.partition("/")
     if not is_owner_repo_pair(owner, name):
@@ -1555,7 +1554,6 @@ def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
     )
 
 
-
 def rung_code(value: str | None) -> str | None:
     """`value` with a rung name (`RUNG_NAMES`) read as its code; any other
     value, a code or an unknown one, unchanged."""
@@ -1587,7 +1585,6 @@ def effective_rung(
         inputs, rungCap=cap or "none", demotion="active" if demoted else "none"
     )
     return EffectiveRung(rung, report, limited_by if rung == "off" else None)
-
 
 
 @dataclass(frozen=True)
@@ -1798,7 +1795,11 @@ def red_main_record(line: str) -> str | None:
     green clears (`_recovered_at`). Canary, revert and read-back records lift
     on their own evidence (`_lift`)."""
     record = parse_record_marker(line)
-    if record is None or record[0] != DEMOTION_KIND or record[2] not in ("schedule", "dispatch"):
+    if (
+        record is None
+        or record[0] != DEMOTION_KIND
+        or record[2] not in ("schedule", "dispatch")
+    ):
         return None
     return record[1]
 
@@ -1841,7 +1842,9 @@ CANARY_RUNS = (
     "?head_sha={}&event=push&status=success&per_page=100"
 )
 RECORD_PULL = re.compile(r"^- Pull request: (?:https://\S+/pull/|#)([1-9][0-9]*)$")
-PIN_LINE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$")
+PIN_LINE = re.compile(
+    r"^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$"
+)
 LIFT_PULL = (
     "number merged mergedAt baseRefName stack{baseRefName} headRefOid mergeCommit{oid} "
     "repository{nameWithOwner} comments(first:100){pageInfo{hasNextPage} "
@@ -2168,7 +2171,9 @@ class _GreenMain:
             except ImportError:
                 self.local = False
             else:
-                self.local = postmerge._Context(self.owner, self.name, "", branch="main")
+                self.local = postmerge._Context(
+                    self.owner, self.name, "", branch="main"
+                )
         return self.local._local_contains(ancestor, sha) if self.local else None
 
     def on_main(self, sha: str) -> bool:
@@ -2218,11 +2223,7 @@ def _recovered_at(
         head = str(run["head_sha"])
         if green.ahead(sha, head) and green.on_main(head):
             recovered = _time(run.get("created_at"))
-            if (
-                key
-                and _writes_recoveries()
-                and green.settled(created, recovered)
-            ):
+            if key and _writes_recoveries() and green.settled(created, recovered):
                 green.proven[key] = _stamp(recovered)
             return recovered
     return None
@@ -2308,7 +2309,11 @@ def _read_back_holds(pull: dict[str, Any], identity: str | None) -> bool:
         (c, pinned)
         for c in map(json_object, json_array(comments.get("nodes")))
         if actor_key(c.get("author")) == str(identity).strip().casefold()
-        and (pinned := PIN_LINE.match(str(c.get("body") or "").split("\n", 1)[0].rstrip()))
+        and (
+            pinned := PIN_LINE.match(
+                str(c.get("body") or "").split("\n", 1)[0].rstrip()
+            )
+        )
     ]
     if not pins or not pull.get("merged"):
         return False
@@ -2409,9 +2414,13 @@ def _canary_green_at(owner: str, name: str, sha: str) -> bool:
         and run.get("event") == "push"
         and run.get("head_sha") == sha
         and run.get("head_branch") == "main"
-        and str(json_object(run.get("head_repository")).get("full_name") or "").casefold()
+        and str(
+            json_object(run.get("head_repository")).get("full_name") or ""
+        ).casefold()
         == f"{owner}/{name}".casefold()
-        for run in map(json_object, json_array(json_object(answer).get("workflow_runs")))
+        for run in map(
+            json_object, json_array(json_object(answer).get("workflow_runs"))
+        )
     )
 
 
@@ -2534,7 +2543,11 @@ def _lift(
             None,
         )
         ref = green.main_tip()
-        if pinned and green.on_main(pinned) and (pinned == sha or green.ahead(sha, pinned)):
+        if (
+            pinned
+            and green.on_main(pinned)
+            and (pinned == sha or green.ahead(sha, pinned))
+        ):
             ref = pinned
         if _content_present(owner, name, block, ref, sha):
             return Lift(created, f"the deleted content is on main at {ref}", ref)
@@ -2553,14 +2566,19 @@ def _lift(
                 pull.get("baseRefName"),
                 json_object(pull.get("stack")).get("baseRefName"),
             )
-            or str(json_object(pull.get("repository")).get("nameWithOwner") or "").casefold()
+            or str(
+                json_object(pull.get("repository")).get("nameWithOwner") or ""
+            ).casefold()
             != f"{owner}/{name}".casefold()
             or not SHA_RE.fullmatch(oid)
             or _time(pull.get("mergedAt")) <= created
             or _time(node.get("referencedAt")) > _time(pull.get("mergedAt"))
             or not (
                 human(node.get("actor"))
-                or (identity and actor_key(node.get("actor")) == identity.strip().casefold())
+                or (
+                    identity
+                    and actor_key(node.get("actor")) == identity.strip().casefold()
+                )
             )
             or (signal == "read-back" and not _read_back_holds(pull, identity))
         ):
@@ -2654,7 +2672,10 @@ def read_demotion(
                 raise PolicyReadError(f"issue #{number} returned nothing")
             edits = json_object(issue.get("userContentEdits"))
             revisions = json_array(edits.get("nodes"))
-            texts = [issue.get("body"), *(json_object(e).get("diff") for e in revisions)]
+            texts = [
+                issue.get("body"),
+                *(json_object(e).get("diff") for e in revisions),
+            ]
             truncated = edits.get("totalCount") != len(revisions)
             if not truncated and not any(
                 t is None or DEMOTION_MARKER in str(t) for t in texts
@@ -2705,7 +2726,6 @@ def read_demotion(
         max(created, default=None),
         max(cleared, default=None),
     )
-
 
 
 @dataclass(frozen=True)
@@ -3089,7 +3109,9 @@ def status_label_names(
     label = next(iter(labels.get(state, ())), None)
     if state == config.ready_state or label is None:
         return kept
-    return kept if any(n.casefold() == label.casefold() for n in kept) else [*kept, label]
+    return (
+        kept if any(n.casefold() == label.casefold() for n in kept) else [*kept, label]
+    )
 
 
 FIELD_API_VERSION = "2026-03-10"
@@ -3660,9 +3682,7 @@ def names_pull(text: Any, number: Any) -> bool:
     if not isinstance(number, int) or isinstance(number, bool):
         return False
     return (
-        re.search(
-            rf"(?:^|[^A-Za-z0-9_#&/.-])#{number}(?:[^0-9]|$)", str(text or "")
-        )
+        re.search(rf"(?:^|[^A-Za-z0-9_#&/.-])#{number}(?:[^0-9]|$)", str(text or ""))
         is not None
     )
 
@@ -3734,18 +3754,26 @@ _DIRECTORY_CAP = 1000
 
 
 def _workflow_shas(owner: str, name: str, ref: str, env: Any) -> dict[str, str] | None:
-    status, entries = _get(f"repos/{owner}/{name}/contents/.github/workflows?ref={ref}", env)
+    status, entries = _get(
+        f"repos/{owner}/{name}/contents/.github/workflows?ref={ref}", env
+    )
     if status != 200 or not is_json_array(entries) or len(entries) >= _DIRECTORY_CAP:
         return None
-    return {str(json_object(e).get("name")): str(json_object(e).get("sha")) for e in entries}
+    return {
+        str(json_object(e).get("name")): str(json_object(e).get("sha")) for e in entries
+    }
 
 
-def _lane_change_in(owner: str, name: str, compare: Any, head: str, env: Any) -> str | None:
+def _lane_change_in(
+    owner: str, name: str, compare: Any, head: str, env: Any
+) -> str | None:
     """`lane_change` for a compare of any size (merge-holds.mjs `laneChangeIn`)."""
     why = lane_change(compare)
     if why != "too many files":
         return why
-    base = str(json_object(json_object(compare).get("merge_base_commit")).get("sha") or "")
+    base = str(
+        json_object(json_object(compare).get("merge_base_commit")).get("sha") or ""
+    )
     if not SHA_RE.fullmatch(base) or not SHA_RE.fullmatch(head):
         return why
     ends = [_workflow_shas(owner, name, ref, env) for ref in (base, head)]
@@ -3852,7 +3880,11 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
     (`unran_head`). A run on a head that fails the vet decides nothing, and a
     read that fails raises."""
     cutoff = parse_timestamp(at)
-    if cutoff is None or not isinstance(branch, str) or not BASE_BRANCH.fullmatch(branch):
+    if (
+        cutoff is None
+        or not isinstance(branch, str)
+        or not BASE_BRANCH.fullmatch(branch)
+    ):
         return None
     token = os.environ.get(ACTIONS_TOKEN_ENV)
     env = {"GH_TOKEN": token} if token else None
@@ -3879,7 +3911,9 @@ def _noticed_head(owner: str, name: str, branch: Any, base: str, at: Any) -> str
                 return None
             heads.append(head)
             if head not in vetted:
-                status, compare = _get(f"repos/{owner}/{name}/compare/{base}...{head}", env)
+                status, compare = _get(
+                    f"repos/{owner}/{name}/compare/{base}...{head}", env
+                )
                 if status != 200:
                     raise PolicyReadError(f"the changes of {head} are unreadable")
                 if _lane_change_in(owner, name, compare, head, env) is not None:
@@ -3963,9 +3997,18 @@ def same_net_change(decided: Any, current: Any, diffs: Any = None) -> bool:
         for f in files:
             f = json_object(f)
             name, patch = f.get("filename"), f.get("patch")
-            if not isinstance(name, str) or not isinstance(patch, str) or name in by_name:
+            if (
+                not isinstance(name, str)
+                or not isinstance(patch, str)
+                or name in by_name
+            ):
                 return None
-            by_name[name] = (f.get("status"), f.get("previous_filename"), patch, f.get("modes"))
+            by_name[name] = (
+                f.get("status"),
+                f.get("previous_filename"),
+                patch,
+                f.get("modes"),
+            )
         return by_name
 
     if is_json_array(diffs) and len(diffs) == 2:
@@ -3984,7 +4027,11 @@ def diff_covers(compare: Any, files: Any) -> bool:
     answer lists, and every listed file with its previous_filename
     (merge-holds.mjs `diffCovers`)."""
     listed = json_object(compare).get("files")
-    if not is_json_array(files) or not is_json_array(listed) or len(files) < len(listed):
+    if (
+        not is_json_array(files)
+        or not is_json_array(listed)
+        or len(files) < len(listed)
+    ):
         return False
     by_name = {f.get("filename"): f for f in files}
     return all(
@@ -4080,7 +4127,16 @@ def diff_files(text: Any) -> list[dict[str, Any]] | None:
             same if names == f"a/{same} b/{same}" and not same.startswith('"') else None
         )
         filename = next(
-            (n for n in (sides.get("to"), sides.get("new"), sides.get("old"), symmetric) if n is not None),
+            (
+                n
+                for n in (
+                    sides.get("to"),
+                    sides.get("new"),
+                    sides.get("old"),
+                    symmetric,
+                )
+                if n is not None
+            ),
             None,
         )
         if filename is None:
@@ -4236,7 +4292,11 @@ def _same_modes(merges: Any, trees: Any) -> bool:
         for entry in entries:
             entry = json_object(entry)
             path, mode = entry.get("path"), entry.get("mode")
-            if isinstance(path, str) and isinstance(mode, str) and entry.get("type") != "tree":
+            if (
+                isinstance(path, str)
+                and isinstance(mode, str)
+                and entry.get("type") != "tree"
+            ):
                 found[path] = mode
         return found
 
@@ -4247,7 +4307,11 @@ def _same_modes(merges: Any, trees: Any) -> bool:
         return False
     for f in json_object(merges).get("files") or ():
         f = json_object(f)
-        name, status, previous = f.get("filename"), f.get("status"), f.get("previous_filename")
+        name, status, previous = (
+            f.get("filename"),
+            f.get("status"),
+            f.get("previous_filename"),
+        )
         gone = ([name] if status == "removed" else []) + (
             [previous] if isinstance(previous, str) else []
         )
@@ -4376,7 +4440,9 @@ def approval_carry(
     merged = (
         base_merges_only(then, now, start, in_base)
         and pushed(_new_commits(then, now))
-        and (same_net_change(then, now, diffs) or exact_base_carry(merges, based, trees))
+        and (
+            same_net_change(then, now, diffs) or exact_base_carry(merges, based, trees)
+        )
     )
     return merged or (
         hold_paths is not None
@@ -4436,7 +4502,9 @@ def auto_dismissed(events: Any) -> dict[str, str]:
     return found
 
 
-def base_parents(compare: Callable[[str], Any], tip: str, then: Any, now: Any) -> set[str]:
+def base_parents(
+    compare: Callable[[str], Any], tip: str, then: Any, now: Any
+) -> set[str]:
     """The merged parents (`merged_parents`) the base holds, through
     `compare` (a GET of compare/<range> that raises PolicyReadError when
     unreadable) against `tip`, the base branch's tip commit (`base_tip`):
@@ -4445,7 +4513,8 @@ def base_parents(compare: Callable[[str], Any], tip: str, then: Any, now: Any) -
     return {
         sha
         for sha in merged_parents(then, now)
-        if json_object(compare(f"{sha}...{tip}")).get("status") in ("ahead", "identical")
+        if json_object(compare(f"{sha}...{tip}")).get("status")
+        in ("ahead", "identical")
     }
 
 
@@ -4503,7 +4572,10 @@ def passed_main_tip(owner: str, name: str) -> str | None:
     """main's tip as a pr-merge.yml step resolved it with `git ls-remote`
     (`MAIN_TIP_ENV`), for that run's own repository only, else None."""
     sha = os.environ.get(MAIN_TIP_ENV, "")
-    own = os.environ.get("GITHUB_REPOSITORY", "").casefold() == f"{owner}/{name}".casefold()
+    own = (
+        os.environ.get("GITHUB_REPOSITORY", "").casefold()
+        == f"{owner}/{name}".casefold()
+    )
     return sha if own and SHA_RE.fullmatch(sha) else None
 
 
@@ -4721,7 +4793,9 @@ def carried_lifters(
             if not carrying:
                 continue
             then, now = compare(f"{tip}...{lifted}"), compare(f"{tip}...{sha}")
-            diffs = _cap_diffs(owner, name, [f"{tip}...{lifted}", f"{tip}...{sha}"], [then, now])
+            diffs = _cap_diffs(
+                owner, name, [f"{tip}...{lifted}", f"{tip}...{sha}"], [then, now]
+            )
             files = json_object(now).get("files")
             listed = diff_files(diffs[1]) if diffs else files
             if (
@@ -4740,9 +4814,14 @@ def carried_lifters(
             if (
                 base_merges_only(then, now, lifted, in_base)
                 and not same_net_change(then, now, diffs)
-                and all(isinstance(x, str) and SHA_RE.fullmatch(x) for x in (start, end))
+                and all(
+                    isinstance(x, str) and SHA_RE.fullmatch(x) for x in (start, end)
+                )
             ):
-                merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
+                merges, based = (
+                    compare(f"{lifted}...{sha}"),
+                    compare(f"{start}...{end}"),
+                )
                 trees = [tree(sha), tree(end)]
             if approval_carry(
                 then,
@@ -4813,7 +4892,9 @@ def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bo
 
     try:
         then, now = whole(f"{tip}...{decided}"), whole(f"{tip}...{sha}")
-        diffs = _cap_diffs(owner, name, [f"{tip}...{decided}", f"{tip}...{sha}"], [then, now])
+        diffs = _cap_diffs(
+            owner, name, [f"{tip}...{decided}", f"{tip}...{sha}"], [then, now]
+        )
         in_base = base_parents(compare, tip, then, now)
     except PolicyReadError:
         return False
@@ -4924,7 +5005,6 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
     if is_dependency_author(str(json_object(pr.get("author")).get("login") or "")):
         return "dependency-manager"
     return None
-
 
 
 LANE_CLASS = "C2"
@@ -5933,9 +6013,7 @@ def _review_only(
         dict.fromkeys(
             reason
             for policy in policies
-            for reason in dependabot.review_only(
-                policy, repo, head_ref, updates, paths
-            )
+            for reason in dependabot.review_only(policy, repo, head_ref, updates, paths)
         )
     )
 
@@ -6582,7 +6660,6 @@ def entry_hold(
         return f"unreadable: {exc}"
 
 
-
 DEFAULT_BRANCH_SECTION = "default-branch"
 SHARED_DEFAULT_BRANCHES: set[str] = set()
 
@@ -6632,7 +6709,9 @@ def _default_branch_head(repo: str, branch: str | None = None) -> tuple[str, str
     try:
         return branch, base_tip(owner, name, branch)
     except PolicyReadError:
-        raise PolicyReadError(f"{repo}: the head of {branch} could not be read") from None
+        raise PolicyReadError(
+            f"{repo}: the head of {branch} could not be read"
+        ) from None
 
 
 MAX_IN_FLIGHT_SECTION = "max-in-flight"
@@ -6948,7 +7027,6 @@ def merged_since_floor(
     return floor
 
 
-
 def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
     """`diff_risk.RiskInput.pulumi_dirs`: each directory holding a
     Pulumi project file (`Pulumi.yaml`, `Pulumi.yml` or `Pulumi.json`) at
@@ -7117,7 +7195,9 @@ def files_capped(pr: Mapping[str, Any]) -> bool:
     """Whether the REST pull request record changes more files than the
     listing returns (`FILES_API_CAP`), so no read ever lists them all."""
     count = pr.get("changed_files")
-    return isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+    return (
+        isinstance(count, int) and not isinstance(count, bool) and count > FILES_API_CAP
+    )
 
 
 def changed_files(
@@ -7659,11 +7739,9 @@ def shared_refusal(
     if refusal:
         return refusal
     try:
-        if newest_config_commit(
-            repo, base_sha
-        ) != shared.config_sha and (shared.policy_floor or shared.floor) != merged_since_floor(
-            repo, base_sha, shared.demotion, authority
-        ):
+        if newest_config_commit(repo, base_sha) != shared.config_sha and (
+            shared.policy_floor or shared.floor
+        ) != merged_since_floor(repo, base_sha, shared.demotion, authority):
             return "floor-differs"
     except PolicyReadError:
         return "config-unreadable"
@@ -8100,7 +8178,6 @@ def assess(
     return UnattendedPolicy(
         reason, identity, details, enabled=True, promoted=promoted, inputs=inputs
     )
-
 
 
 @dataclass(frozen=True)

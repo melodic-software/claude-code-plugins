@@ -7,6 +7,7 @@ snapshot<->lease scope-pairing validation. The lease CLI and every sibling
 script that coordinates through leases import this module; none reimplement
 any of it.
 """
+
 from __future__ import annotations
 
 import hashlib
