@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-11-26
+
+### Changed
+
+- `/fleet:reach` uses the `ssh_client` option's client for every hop to another machine, the same client the session-start peer list runs; unset, it keeps the platform's own (on WSL the Windows OpenSSH client).
+
 ## [0.6.0] - 2026-11-26
 
 ### Added
