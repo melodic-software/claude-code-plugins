@@ -12,6 +12,7 @@ bump: major
 
 - The scope check prints the questions asked so far, records each round's opened and closed counts under `## Round counts`, and suggests `/planning:wayfind` when two rounds in a row open more questions than they close.
 - The procedure check fails a ledger with no `## Glossary lookup` line or an answered decision no `## ADR outcomes` line covers.
+- Interview eval cases grade the new round layout and the confirmation's part order, and invoke the skill without `me`; the `interview-wayfind-size-suggestion` case and ADR 0124, which numbered questions under the old layout, are retired.
 
 ### Removed
 

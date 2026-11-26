@@ -8,6 +8,6 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
 expected_outcome: "The run resolves the surface through surfaces/registry.mjs, prints its offer once as the opening's first line (where it asks, and the other available surfaces), and proceeds to round 1 without waiting for a surface choice"
 ---
 
-/planning:interview me Add retries and failure alerting to our outbound webhook sender. Today it makes one POST per event and retries nothing.
+/planning:interview Add retries and failure alerting to our outbound webhook sender. Today it makes one POST per event and retries nothing.
 
 Go ahead with the first round, then stop for my answers.

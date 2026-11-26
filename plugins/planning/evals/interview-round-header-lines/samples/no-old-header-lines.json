@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Round 3\nScope check: 11 questions asked so far\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "the header restates no decision and has no Held: or Settled by evidence: line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Round 3\nDecided so far: five attempts, backoff from 30 seconds, a dead-letter table, receivers deduplicate on event_id.\nScope check: 11 questions asked so far\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "wrong: the header restates the decisions of rounds 1 and 2"
+    },
+    {
+      "answer": "Round 3\nScope check: 11 questions asked so far\nHeld: who is alerted, until the PagerDuty lookup returns\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "wrong: the old Held: line"
+    },
+    {
+      "answer": "Round 3\nScope check: 11 questions asked so far\nSettled by evidence: a 4xx response is not retried (src/webhooks/sender.py:12).\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "wrong: an evidence-settled decision on a header line instead of the ledger's self-answered facts"
+    }
+  ]
+}

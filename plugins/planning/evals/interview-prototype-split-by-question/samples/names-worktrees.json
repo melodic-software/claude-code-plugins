@@ -15,7 +15,7 @@
       "why": "empty"
     },
     {
-      "answer": "Q2: **What should the checkout prototype include?**\n\nMy recommendation: **one prototype covering payments, layout and the big cart**.",
+      "answer": "Q2 (prototype contents): **What should the checkout prototype include?**\n\nMy recommendation: **one prototype covering payments, layout and the big cart**.",
       "why": "one prototype, no worktrees"
     }
   ]

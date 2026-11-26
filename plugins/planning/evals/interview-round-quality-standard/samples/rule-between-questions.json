@@ -1,17 +1,17 @@
 {
   "pass": [
     {
-      "answer": "❓ Q4: **Should one export cover one calendar month?**\n\nContext:\n- Finance closes on the calendar month (your notes).\n\n➡️ My recommendation: **Yes**. (verified, your notes)\n\nAlternatives:\n- (a) A free date range.\n\n---\n\n❓ Q5: **How are amounts written?**",
+      "answer": "❓ Q4 (date range): **Should one export cover one calendar month?**\n\nContext:\n- Finance closes on the calendar month (your notes).\n\n➡️ My recommendation: **Yes**. (verified, your notes)\n\nAlternatives:\n- (a) A free date range.\n\n---\n\n❓ Q5 (amount format): **How are amounts written?**",
       "why": "a --- rule between two questions"
     }
   ],
   "fail": [
     {
-      "answer": "❓ Q4: **Should one export cover one calendar month?**\n\nAlternatives:\n- (a) A free date range.\n\n❓ Q5: **How are amounts written?**",
+      "answer": "❓ Q4 (date range): **Should one export cover one calendar month?**\n\nAlternatives:\n- (a) A free date range.\n\n❓ Q5 (amount format): **How are amounts written?**",
       "why": "no rule between the questions"
     },
     {
-      "answer": "---\n\n❓ Q4: **Should one export cover one calendar month?**\n\n❓ Q5: **How are amounts written?**\n\n---",
+      "answer": "---\n\n❓ Q4 (date range): **Should one export cover one calendar month?**\n\n❓ Q5 (amount format): **How are amounts written?**\n\n---",
       "why": "rules only before the first and after the last question"
     }
   ]

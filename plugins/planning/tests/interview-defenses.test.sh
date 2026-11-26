@@ -559,7 +559,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "### Step 2. Drive the frontier-rounds loop" \
+  "### Step 2. Drive the rounds of ready questions" \
   "d6536beeea1ed30f7fa94fa1e07e7fb61aaf606eee001839a315cb0b5aefcb7b"
 pin_section "loop.md Step 1.5 section is unchanged (loop's auto-guard + \`lock\` STOP line live here)" \
   "$LOOP" \
@@ -585,7 +585,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
 
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
-  "127e69330697737f80e82556cfc7e67492203979a16616fac732992c3654f490"
+  "027b23de24c60e4c63d691d651fe311436ffabf64fe367d963c816902af4d437"
 # The page paragraph now opens with the configured surface value in bold and says a `page`
 # value starts the page before the first round, with no round asked inline. It only names
 # where a round is asked; the `lock` row and its reading are unchanged and no defense weakened.
@@ -675,7 +675,7 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # Interview friction fixes (https://github.com/melodic-software/claude-code-plugins/issues/17736): the pre-round contradiction pass runs only for a round whose recommendations cite an answered row or a confirmed constraint, a follow-up sweep covers only the rows the last sweep's answers changed, a design-level decision item becomes a deferred register row with arbiter /planning:design that the register gate counts and the Brief cross-check requires, a re-ask-only round takes no round number, and --procedure accepts the page export's added-in-round cell; every question still writes its row at ask-time, no row is resolved silently, and the register gate, the confirmation gate, the Brief --brief cross-check, the auto-guard and lock STOP-on-gap lines are unchanged
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
-  "### Step 2. Drive the frontier-rounds loop" \
+  "### Step 2. Drive the rounds of ready questions" \
   "### Step 3. Recognize the stop condition" \
   "afaac2a4b815c483a8daacbfd1d95778f6240ada607a76cc80ec0b2c4ed6cb52"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
@@ -794,7 +794,7 @@ pin_case_set "the eval-case roster is unchanged (no sibling case added that cont
 
 pin_case_digest "sibling case 2 still forbids folding a user choice into the Brief" \
   "auto-guard-never-folds-user-choice" \
-  "73ef5bcb0cef36ff7f5523d93a4f3d8906285e9552f5e38be042b42376b367a7"
+  "904b7fed21a1c240302bde90381ae8eede734453681bb307956b7c6740fe0353"
 pin_case_digest "sibling case 3 still forbids fudging a gap in \`lock\` mode" \
   "lock-mode-does-not-fudge-gap" \
   "514f6a7c3dff3378cd22d99af4dcca604400338227d2e3b038d02cccc636e866"
@@ -806,17 +806,17 @@ pin_case_digest "sibling case 13 still requires named blockers instead of assump
   "6633823b6dc62312f3fa505e3959e0f23620da1ea0871e45f01ad41c34064efb"
 pin_case_digest "case 8 still asks decisions and only looks up facts" \
   "facts-looked-up-decisions-asked" \
-  "bedb9fd8e5923395d229e36cf50479530e58abcd8503a3ae989212162b789c45"
+  "ecaf010acfe75f07eb59887457a38569e05901a595a4e0711b5c8f635ed863a7"
 pin_case_digest "case 12 still refuses to read drift as consent" \
   "open-question-survives-an-unrelated-reply" \
-  "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
+  "30bb10645f31dd4f46cbe700e0f673df16bdfd175f43db19659b3f2fc3f35124"
 # Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_case_digest "case 25 still refuses to settle a row on a superseded recommendation" \
   "out-of-band-return-supersedes-before-the-reply" \
-  "a3e7ffd4412ccfb51465f0be3d871221a6c288d53131c8436ef6025bc30974bd"
+  "4c16e22fecba5754fb68427825ce756a3ed9d5fb10c72591c862c34350f1f646"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
-  "1065f9d322d8ae3b5179ac13ec75e615044f42b7ada5455737d285048032a217"
+  "1f97ca73b20f0bee46c37cc287e903f28ec5b15962f1305168755a3270603dce"
 
 pin_file "case A fixture: the task context still plants the open decision" \
   "$FIXTURES/lock-stop-on-gap/task-context.md" \
@@ -860,7 +860,7 @@ pin_once "Step 1.5 routes \`lock\` with the halt attached" "$SKILL" \
 within "the Step 1.5 \`lock\` routing line sits inside Step 1.5" "$SKILL" \
   "If a gap surfaces mid-synthesis, STOP and surface; do not fudge." \
   "### Step 1.5. Auto-detect (default action only)" \
-  "### Step 2. Drive the frontier-rounds loop"
+  "### Step 2. Drive the rounds of ready questions"
 
 pin_once "\"does NOT do\" list names the fudge prohibition" "$SKILL" \
   "**Does not fudge gaps in \`lock\` mode**"
@@ -1112,7 +1112,7 @@ pin_once "auto-guard is declared once, by name" "$SKILL" \
 within "the auto-guard sits inside Step 1.5" "$SKILL" \
   "**Auto-guard. Never decide an interactive choice for the user.**" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "### Step 2. Drive the frontier-rounds loop"
+  "### Step 2. Drive the rounds of ready questions"
 
 pin "the guard licenses only facts and unambiguous conventional defaults" "$SKILL" \
   "applies ONLY to decisions with a verifiable answer (codebase-resolvable) or an unambiguous conventional default"

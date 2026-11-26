@@ -9,11 +9,11 @@
       "why": "asks about per-client variation"
     },
     {
-      "answer": "❓ Q10: **Should this be built for Loqate and delivery addresses only, with no layer for swapping providers?**\n\n➡️ My recommendation: **Yes: build for Loqate and delivery addresses only.** No second provider appears anywhere.",
+      "answer": "❓ Q10 (provider layer): **Should this be built for Loqate and delivery addresses only, with no layer for swapping providers?**\n\n➡️ My recommendation: **Yes: build for Loqate and delivery addresses only.** No second provider appears anywhere.",
       "why": "the yes-accepts form of the intent question: yes accepts the recommendation that no second provider is expected"
     },
     {
-      "answer": "❓ Q12: **Should the check be one Loqate call inside the checkout area, with no provider-neutral layer in front of it?**",
+      "answer": "❓ Q12 (provider layer): **Should the check be one Loqate call inside the checkout area, with no provider-neutral layer in front of it?**",
       "why": "build it specific now or generalize it, which the judge rubric accepts"
     }
   ],

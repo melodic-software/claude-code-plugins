@@ -1,21 +1,21 @@
 {
   "pass": [
     {
-      "answer": "## Round 1\n\nLater: broker choice, message schema, cutover order\n\nQ1. Run the stream beside the CSV export, or replace it in one cut?"
+      "answer": "Round 1\n\nLater: broker choice, message schema, cutover order\n\nQ1. Run the stream beside the CSV export, or replace it in one cut?"
     },
     {
-      "answer": "## Round 1\n**Later:** the broker, the schema and the cutover order.\n\nQ1. Side by side or one cut?"
+      "answer": "Round 1\n**Later:** the broker, the schema and the cutover order.\n\nQ1. Side by side or one cut?"
     }
   ],
   "fail": [
     {
-      "answer": "## Round 1\nLater: Q2 (broker), Q3 (schema)\n\nQ1. Side by side or one cut?\nQ2. Which broker?"
+      "answer": "Round 1\nLater: Q2 (broker), Q3 (schema)\n\nQ1. Side by side or one cut?\nQ2. Which broker?"
     },
     {
-      "answer": "## Round 1\n\nQ1. Side by side or one cut?\nQ2. Which broker?\nQ3. What is the message schema?"
+      "answer": "Round 1\n\nQ1. Side by side or one cut?\nQ2. Which broker?\nQ3. What is the message schema?"
     },
     {
-      "answer": "## Round 1\n\nQ1. Side by side or one cut? We will get to the broker later: it depends on this."
+      "answer": "Round 1\n\nQ1. Side by side or one cut? We will get to the broker later: it depends on this."
     }
   ]
 }

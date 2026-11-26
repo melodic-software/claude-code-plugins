@@ -1,21 +1,21 @@
 {
   "pass": [
     {
-      "answer": "Asking here, one round at a time. A local page is also available; say which to switch.\nQuestions are saved to .work/webhook-retries/interview-checklist.md.\n\n**Round 1.** Retries and alerting for the webhook sender.\n\n❓ Q1: **What goes wrong today when a delivery fails?**",
+      "answer": "Asking here, one round at a time. A local page is also available; say which to switch.\nQuestions are saved to .work/webhook-retries/interview-checklist.md.\n\nRound 1\n\n❓ Q1 (the problem): **What goes wrong today when a delivery fails?**",
       "why": "the round-8 opening: where it asks and the alternatives on the first line, then the ledger line"
     }
   ],
   "fail": [
     {
-      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\n**Round 1.**\n\n❓ Q1: **What goes wrong today?**",
+      "answer": "surface: terminal (default). Also available: page. Ask for one by name to switch.\n\nRound 1\n\n❓ Q1 (the problem): **What goes wrong today?**",
       "why": "the old one-line offer shape"
     },
     {
-      "answer": "Asking here, one round at a time.\nA local page is also available; say which to switch.\n\nQ1: **What goes wrong today?**",
+      "answer": "Asking here, one round at a time.\nA local page is also available; say which to switch.\n\nQ1 (the problem): **What goes wrong today?**",
       "why": "the offer is split, so the alternatives are not named on the line that says where it asks"
     },
     {
-      "answer": "Asking here, one round at a time. A local page is also available; say which to switch.\n\nQ1: **What goes wrong today?**\n\nAsking here, one round at a time. A local page is also available; say which to switch.",
+      "answer": "Asking here, one round at a time. A local page is also available; say which to switch.\n\nQ1 (the problem): **What goes wrong today?**\n\nAsking here, one round at a time. A local page is also available; say which to switch.",
       "why": "the offer is repeated"
     }
   ]

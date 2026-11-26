@@ -1,21 +1,21 @@
 {
   "pass": [
     {
-      "answer": "**Round 1.** Notifications for the team task app.\nScope check: 3 of 12 questions registered\n\n❓ Q1: **What problem should notifications solve?**\n\nContext:\n- The request names the feature, not the problem it solves (user, round 1).\n\nDiscovery: the answer sets what the feature must do.\n\n---\n\n❓ Q2: **Who are they for?**\n\nDiscovery: the answer sets whose workflow the design follows.",
+      "answer": "Round 1\nScope check: 3 questions asked so far\n\n❓ Q1 (the problem): **What problem should notifications solve?**\n\nContext:\n- The request names the feature, not the problem it solves (user, round 1).\n\nNo recommendation: only you can answer this.\nYour answer settles: what the feature must do.\n\n---\n\n❓ Q2 (users): **Who are they for?**\n\nNo recommendation: only you can answer this.\nYour answer settles: whose workflow the design follows.",
       "why": "open discovery questions, no recommendation line"
     },
     {
-      "answer": "Q1: **What problem should this solve?**\nI have no recommendation yet; your answer decides it.",
+      "answer": "Q1 (the problem): **What problem should this solve?**\nI have no recommendation yet; your answer decides it.",
       "why": "the word inside a sentence is not the label"
     }
   ],
   "fail": [
     {
-      "answer": "❓ Q1: **What problem should notifications solve?**\n\n➡️ My recommendation: **Missed task assignments**.",
+      "answer": "❓ Q1 (the problem): **What problem should notifications solve?**\n\n➡️ My recommendation: **Missed task assignments**.",
       "why": "a recommendation in the intake round"
     },
     {
-      "answer": "Q1: **Who are they for?**\n**My recommendation:** the assignees",
+      "answer": "Q1 (users): **Who are they for?**\n**My recommendation:** the assignees",
       "why": "a bold recommendation label"
     }
   ]

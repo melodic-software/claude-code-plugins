@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Problem**: finance reconciles month-end invoices by hand because no export opens in their spreadsheet. Goal: finance downloads one month's issued invoices as a CSV they can reconcile; finish line: merged.\n\n**Needs your eye**\n- Should only the finance role be able to export: probably, finance only\n- the largest month stays under 100,000 rows; revisit if an account passes it\n\n**the problem**\n- What problem should the invoice export solve: finance reconciles month-end invoices by hand\n\n**quality bar**\n- Which quality bar is this for: production\n\n**date range**\n- Should one export cover one calendar month across all accounts: yes, one calendar month\n\n**amount format**\n- Should amounts be written as two-decimal numbers with a currency column: yes, 1234.50 plus a currency column\n\n**how the file is built**\n- Should the file be built in the background and offered once it is ready: yes, built in the background\n\n**Out of scope**\n- A PDF export: a later issue\n\n**Terms and ADRs**\n- invoice: an issued invoice, drafts excluded\n- background build: declined: a two-way door\n- every other decision: declined: no real alternative weighed\n\n**Checks**\nEvery question is settled; every round is in the register and every closed question has its answer.\n\nNext: /planning:design, then /planning:plan.\n\nConfirm this, or name the Q numbers to change.",
+      "why": "the Checks part says in plain words what the checks showed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Problem**: finance reconciles month-end invoices by hand because no export opens in their spreadsheet. Goal: finance downloads one month's issued invoices as a CSV they can reconcile; finish line: merged.\n\n**Needs your eye**\n- Should only the finance role be able to export: probably, finance only\n- the largest month stays under 100,000 rows; revisit if an account passes it\n\n**the problem**\n- What problem should the invoice export solve: finance reconciles month-end invoices by hand\n\n**quality bar**\n- Which quality bar is this for: production\n\n**date range**\n- Should one export cover one calendar month across all accounts: yes, one calendar month\n\n**amount format**\n- Should amounts be written as two-decimal numbers with a currency column: yes, 1234.50 plus a currency column\n\n**how the file is built**\n- Should the file be built in the background and offered once it is ready: yes, built in the background\n\n**Out of scope**\n- A PDF export: a later issue\n\n**Terms and ADRs**\n- invoice: an issued invoice, drafts excluded\n- background build: declined: a two-way door\n- every other decision: declined: no real alternative weighed\n\n**Checks**\ncheck-open-questions.sh exited 0 (status=clean procedure=ok).\n\nNext: /planning:design, then /planning:plan.\n\nConfirm this, or name the Q numbers to change.",
+      "why": "wrong: the Checks part names the script, its exit code and its status fields"
+    },
+    {
+      "answer": "**Problem**: finance reconciles month-end invoices by hand because no export opens in their spreadsheet. Goal: finance downloads one month's issued invoices as a CSV they can reconcile; finish line: merged.\n\n**Needs your eye**\n- Should only the finance role be able to export: probably, finance only\n- the largest month stays under 100,000 rows; revisit if an account passes it\n\n**Checks**\nThe register gate passed with exit code 0.\n\nNext: /planning:design, then /planning:plan.",
+      "why": "wrong: an exit code in place of what the check showed"
+    }
+  ]
+}

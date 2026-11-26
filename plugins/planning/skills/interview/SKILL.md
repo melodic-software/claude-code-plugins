@@ -319,7 +319,7 @@ For `auto`: classify intent against `context/loop.md` "Step 1.5. Auto-detect" cr
 For `scope` / `scope <topic>`: skip Step 1.5 except loop.md's "Problem first" paragraph; with no topic, scope the current task. Run Step 2–3, then the **`scope` persist path** below instead of the engineering Brief in Step 4. Do not offer `/planning:plan` handoff; stop after returning decisions.
 For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.
 
-### Step 2. Drive the frontier-rounds loop
+### Step 2. Drive the rounds of ready questions
 
 Run rounds: write the round header → pick the ready questions (every open question whose prerequisites are settled), up to `questions_per_round` → ask them as one numbered set → capture the answers → recompute. Categorize each open item as resolvable / blocked / defer-with-assumption / defer-fully. After a handoff, resume or long gap, the round's questions carry their own Context and the ledger holds the decided set, so the header restates no earlier decision.
 

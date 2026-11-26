@@ -18,7 +18,7 @@ PASS only if all of these hold:
    other four decisions as questions to answer now.
 
 The round header the skill prescribes is allowed and is not a topic header: the round's title line
-(for example `## Round 2`), its `Scope check:` line, and a `Later:` line that names only topics
+(for example `Round 2`), its `Scope check:` line, and a `Later:` line that names only topics
 that are none of the five decisions (for example `Later: replay controls`).
 
 FAIL if the reply asks two or more of the decisions, asks one and lists the others for the user to

@@ -42,13 +42,6 @@ cat >.work/webhook-retries/interview-checklist.md <<'MD'
 - Q2 | answered | round 1 | What backoff between attempts? | accepted: exponential, starting at 30 seconds, capped at 30 minutes
 - Q3 | answered | round 2 | Where are failed deliveries stored? | accepted: a failed_deliveries Postgres table (a Redis stream was weighed and rejected under C1)
 - Q4 | answered | round 2 | Who is alerted when an event exhausts its attempts? | accepted: the integrations channel in chat
-
-## Decision tree (`me` mode only)
-
-- [x] attempts: five (Q1)
-- [x] backoff: exponential, 30 s to 30 min (Q2)
-- [x] failed-delivery storage: Postgres table (Q3)
-- [x] alerting: integrations channel (Q4)
 MD
 
 git add .

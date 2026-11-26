@@ -8,7 +8,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
 expected_outcome: "Round 2, headed by a Scope check: line, asks a question on each of date range, amount format and currencies, who may export, and large exports, every question with a Context line citing a stated fact, a recommendation whose printed reason names its evidence or a Withheld: line, and alternatives, with a three-dash rule line between questions, ending with the closing probe"
 ---
 
-/planning:interview me Add a CSV export of invoices to the billing admin page.
+/planning:interview Add a CSV export of invoices to the billing admin page.
 
 Round 1 is answered and the terms are agreed: Q1, the quality bar is production; Q2, the export is for the finance team's month-end reconciliation; Q3, "invoice" means an issued invoice, drafts excluded.
 

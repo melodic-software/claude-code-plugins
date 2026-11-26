@@ -8,7 +8,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Edit, Write]
 expected_outcome: "The ledger's Q4 row reads `discussing` and not `answered`, Q5 is recorded as answered with the recommended backoff, Q6 is named as still open, and the reply takes up the concern about an hour-long receiver outage without recording an attempt count for Q4"
 ---
 
-/planning:interview me Resume the webhook-retries interview; the ledger is .work/webhook-retries/interview-checklist.md, and the terms are agreed.
+/planning:interview Resume the webhook-retries interview; the ledger is .work/webhook-retries/interview-checklist.md, and the terms are agreed.
 
 Round 2 was shown as Q4 (how many delivery attempts before the sender gives up; recommended: five), Q5 (the delay between attempts; recommended: exponential backoff from 30 seconds) and Q6 (what happens to an event after its last failed attempt; recommended: move it to a dead-letter table).
 

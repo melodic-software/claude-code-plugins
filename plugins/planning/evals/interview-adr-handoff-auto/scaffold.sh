@@ -44,13 +44,6 @@ cat >.work/webhook-retries/interview-checklist.md <<'MD'
 - Q2 | answered | round 1 | What backoff between attempts? | accepted: exponential, starting at 30 seconds, capped at 30 minutes
 - Q3 | asked | round 2 | What identifier goes in the X-Event-Id header partners deduplicate retries on? Alternatives: a UUIDv7 minted at enqueue; the outbox table's bigint row id |
 - Q4 | asked | round 2 | Who is alerted when an event exhausts its attempts? |
-
-## Decision tree (`me` mode only)
-
-- [x] attempts: five (Q1)
-- [x] backoff: exponential, 30 s to 30 min (Q2)
-- [ ] event id partners deduplicate on (Q3)
-- [ ] alerting (Q4)
 MD
 
 git add .

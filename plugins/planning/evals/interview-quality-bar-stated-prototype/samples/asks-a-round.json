@@ -13,7 +13,7 @@
       "why": "numbered list"
     },
     {
-      "answer": "## Round 1\n\n### Q1: What should a habit record?\nMy recommendation: **a name and a daily tick**.",
+      "answer": "Round 1\n\n### Q1: What should a habit record?\nMy recommendation: **a name and a daily tick**.",
       "why": "Q1 as a markdown heading, which the old pattern rejected"
     },
     {
@@ -21,7 +21,7 @@
       "why": "question on the line after the Q1 label"
     },
     {
-      "answer": "**Round 1.** A throwaway habit tracker for a weekend demo.\nScope check: 2 of 27 questions registered\n\n❓ Q1: **What should your friend take away from the demo?**\n\nContext:\n- The demo is this weekend and nobody else will use it (user, round 1).\n\nDiscovery: what the prototype must show.",
+      "answer": "Round 1\nScope check: 2 questions asked so far\n\n❓ Q1 (demo goal): **What should your friend take away from the demo?**\n\nContext:\n- The demo is this weekend and nobody else will use it (user, round 1).\n\nNo recommendation: only you can answer this.\nYour answer settles: what the prototype must show.",
       "why": "the emoji question marker the default layout prints before Q1"
     }
   ],

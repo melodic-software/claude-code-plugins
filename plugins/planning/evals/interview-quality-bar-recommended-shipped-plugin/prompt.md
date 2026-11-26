@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
-expected_outcome: "Round 1 asks the quality bar as a question with a My recommendation: line recommending production, citing the repository's evidence that the plugin ships to users, lists the prototype and internal-tool bars as alternatives, and carries a Flips if: line; the bar is not on a Settled by evidence: line"
+expected_outcome: "Round 1 asks the quality bar as a question with a My recommendation: line recommending production, citing the repository's evidence that the plugin ships to users, lists the prototype and internal-tool bars as alternatives, and carries a Flips if: line; the bar is not stated as settled by evidence and left unasked"
 ---
 
 /planning:interview Add a --dry-run flag to the notes-export plugin's export script, so it lists the files it would write without writing them. I'm here and will answer; ask me your first round, then stop.
