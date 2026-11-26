@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "1. /work-items:track start #145 (assignee plus lease). 2. Route to /planning:design.",
-      "why": "meets the rule"
+      "why": "claims before routing"
+    },
+    {
+      "answer": "**1. Claim**\n```\nSkill: work-items:track   args: start https://example.com/acme/billing/issues/145\n```\n**2. Route**\n```\nSkill: planning:design   args: Choose the aggregate boundaries for the billing domain\n```",
+      "why": "skill-and-arguments claim before the route"
+    },
+    {
+      "answer": "Frontier: Choose the billing aggregate boundaries (#145), wayfind: design. Claim: `/work-items:track start <item #145>`. Then hand it to `/planning:design`.",
+      "why": "names the type label, claims, then routes"
     }
   ],
   "fail": [
     {
       "answer": "Routing #145 to /planning:design now. Afterwards I will assign it.",
-      "why": "breaks the rule"
+      "why": "no claim before routing"
+    },
+    {
+      "answer": "Routing #145 to /planning:design.\n\nThen claim it: `/work-items:track start 145`.",
+      "why": "claims only after routing"
+    },
+    {
+      "answer": "`/work-items:track edit 145 --label claimed`, then route to /planning:design.",
+      "why": "marks it with a label instead of claiming"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    },
+    {
+      "answer": "Decision: three aggregates, Invoice, Subscription and Payment, one transaction each.\nNow claim and record it: `/work-items:track start 145`.",
+      "why": "wrong: settles the boundaries first, claims afterwards"
     }
   ]
 }

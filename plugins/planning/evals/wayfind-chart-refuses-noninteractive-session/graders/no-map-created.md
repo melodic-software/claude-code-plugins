@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+match: not_contains
+pattern: 'work-items:track[\s`*"]*(?:(?:Arg|arg)(?:ument)?s[\s:=*`"]*)?(?:add|edit|link|start|done|publish-plan)\b|(?:^|\n)[#>*\s-]*Map:\**[ \t]+(?!(?:(?:None|none)|(?:No|no)|(?:Not|not)|n/a)\b)\S|Not-yet-specified\**[ \t]*:?\**[ \t]*(?:\n[ \t]*)*(?:[-*][ \t]+)?\*\*[^*\n]{1,60}\*\*|\b(?:(?:Decision|decision) )?(?:Items?|items?):\**[ \t]*(?:\n[ \t]*(?:[-*]|\d+\.)[ \t]*)?["''‘“*]|\b(?:Created|created):?\s+(?:the |decision |map )*(?:item|issue|map)?\s*["''‘“]|(?:^|[.!?;:,\n])(?:(?!\b(?:(?:No|no)|(?:Not|not)|(?:Never|never)|(?:Would|would)|(?:Could|could)|(?:Will|will)|(?:Shall|shall)|(?:Should|should)|(?:Can|can)|(?:Once|once)|(?:After|after)|(?:When|when)|(?:Before|before)|(?:If|if)|(?:Whether|whether)|(?:Want|want)|(?:Propos|propos)\w*|(?:Recommend|recommend)\w*|(?:Nothing|nothing)|(?:Instead|instead)|(?:Rather|rather)|(?:Without|without)|(?:Unless|unless))\b|n''t\b|''ll\b)[^.!?;:,\n])*?\b(?:(?:Created|created)|(?:Opened|opened)|(?:Filed|filed)|(?:Charted|charted)|(?:Built|built)|(?:Drafted|drafted)|(?:Charting|charting) (?:it |this |them )?now|(?:Proceeding|proceeding))\b(?:(?!\b(?:(?:No|no)|(?:Not|not)|(?:Would|would)|(?:Could|could)|(?:Will|will))\b|n''t\b)[^.!?;:,\n]){0,60}?\b(?:(?:Map|map)|(?:Decision|decision) items?|(?:Items?|items?)|one|assumptions?)\b'
 ---
-
-The user asked wayfind to chart the customer-data-platform overhaul and declared the run an unattended autonomous batch job with no human available. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply creates no map issue and lists no decision items for the overhaul.
-
-FAIL if it creates or writes out a map issue, or lists decision items for the effort.

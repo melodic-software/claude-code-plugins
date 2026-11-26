@@ -2,13 +2,53 @@
   "pass": [
     {
       "answer": "Inherited by the rate-limit item: the per-client identity.",
-      "why": "meets the rule"
+      "why": "names what is inherited and by which item"
+    },
+    {
+      "answer": "**What later items inherit:**\n- Rate limiting: keys limits on the per-client identity the OAuth client credentials give.",
+      "why": "inheritance section with a bullet"
+    },
+    {
+      "answer": "The rate-limit item inherits per-client identity from this decision.",
+      "why": "one sentence"
+    },
+    {
+      "answer": "Per-client identity is what the rate limit item inherits.",
+      "why": "identity first"
     }
   ],
   "fail": [
     {
       "answer": "Resolved: OAuth for partners.",
-      "why": "breaks the rule"
+      "why": "no inheritance"
+    },
+    {
+      "answer": "Inherits: none.\nNotes: the rate-limit item will need a per-client identity.",
+      "why": "says nothing is inherited"
+    },
+    {
+      "answer": "Later items inherit OAuth client credentials.",
+      "why": "names neither the per-client identity nor the rate-limit item"
+    },
+    {
+      "answer": "**What later items inherit:** nothing; the per-client identity is out of scope for the rate-limit item.",
+      "why": "wrong: inheritance section says nothing is inherited"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The rate-limit item does not inherit the per-client identity.",
+      "why": "wrong: says the identity is not inherited"
+    },
+    {
+      "answer": "The rate-limit item won't inherit the per-client identity.",
+      "why": "wrong: says the identity will not be inherited"
+    },
+    {
+      "answer": "Per-client identity is not inherited by the rate-limit item.",
+      "why": "wrong: identity first, not inherited"
     }
   ]
 }

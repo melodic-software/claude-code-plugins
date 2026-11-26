@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "`/work-items:track add --parent 200 --label 'wayfind: design' --body-file revisit.md \"Revisit the invoice table design\"`\nrevisit.md:\n> Question: how should invoice tables be split now that numbering is per tenant? Revisits [Share one invoice table across tenants](https://example.com/acme/billing/issues/39).",
+      "why": "the new item's body links #39"
+    },
+    {
+      "answer": "Second pass, once the id exists:\n```\n/work-items:track edit 210 --body-file revisit.md\n```\nrevisit.md now adds: Supersedes-candidate for [Share one invoice table across tenants](https://example.com/acme/billing/issues/39).",
+      "why": "cross-reference written by a body edit of the new item"
+    },
+    {
+      "answer": "```\nSkill: work-items:track   args: add --parent 200 --label 'wayfind: design' --body-file revisit.md \"Revisit the invoice table design (replaces <#39 URL>)\"\n```",
+      "why": "skill-and-arguments form with a placeholder link to #39"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Reopen #39 and edit its resolution to per-tenant tables.",
+      "why": "no new item"
+    },
+    {
+      "answer": "`/work-items:track add --parent 200 --label 'wayfind: design' --body-file revisit.md \"Revisit the invoice table design\"`\n\n`/work-items:track edit 200 --body-file map.md` changes [Share one invoice table across tenants](https://example.com/acme/billing/issues/39)'s line later.",
+      "why": "the new item never links #39; only the map edit does"
+    },
+    {
+      "answer": "`/work-items:track edit 44 --comment-file res.md`\n> This shows [Share one invoice table across tenants](https://example.com/acme/billing/issues/39) was wrong.",
+      "why": "#44's resolution names #39 but no new item is opened"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    },
+    {
+      "answer": "`/work-items:track add --parent 200 --label 'wayfind: design' --body-file storage.md \"Choose per-tenant invoice storage\"`\n`/work-items:track reopen 39` to revisit [Share one invoice table across tenants](https://example.com/acme/billing/issues/39).",
+      "why": "wrong: the new item does not link #39; the link sits on the next action, a reopen"
+    }
+  ]
+}

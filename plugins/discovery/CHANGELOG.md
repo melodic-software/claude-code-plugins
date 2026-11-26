@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [2.2.23] - 2026-11-26
+
+### Changed
+
+- The `discovery:explorer` agent points at the subagent frontmatter reference for what the harness does at `maxTurns`, the same pointer its sibling agents carry, instead of describing the stop itself.
+
 ## [2.2.22] - 2026-11-26
 
 ### Changed

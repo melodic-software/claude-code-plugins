@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 29, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A map with a Not-yet-specified bullet left does not close; the skill offers a mop-up interview item or the user's out-of-scope ruling and moves nothing itself (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

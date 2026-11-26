@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 20, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "Chart takes the user's 'I don't know' about closed-app push as a full answer and charts it as a research item, without guessing an answer or pressing the user (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

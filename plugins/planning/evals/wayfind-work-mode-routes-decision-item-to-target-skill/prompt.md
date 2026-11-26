@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 2, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "Work mode claims the design-typed frontier item before anything else and routes it to /planning:design instead of settling it inline (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

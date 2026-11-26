@@ -2,13 +2,45 @@
   "pass": [
     {
       "answer": "/work-items:track start #43, then route by its 'wayfind: design' label to /planning:design.",
-      "why": "meets the rule"
+      "why": "claim, then route by type"
+    },
+    {
+      "answer": "1. Claim:\n```\nSkill: work-items:track   args: start https://example.com/acme/shop/issues/43\n```\n2. Route (`wayfind: design`):\n```\nSkill: planning:design   args: Choose the cart persistence model\n```",
+      "why": "skill and arguments blocks, URL form"
+    },
+    {
+      "answer": "Claim: `/work-items:track start <item #43>`. Its type label is `wayfind: design`, so it goes to **`/planning:design`**.",
+      "why": "item reference and bold route"
     }
   ],
   "fail": [
     {
       "answer": "Routing #43 to /planning:design.",
-      "why": "breaks the rule"
+      "why": "routes without claiming"
+    },
+    {
+      "answer": "Routing by `wayfind: design` to /planning:design.\nClaim: /work-items:track start 43",
+      "why": "routes before it claims"
+    },
+    {
+      "answer": "/work-items:track start 44, then /planning:interview.",
+      "why": "another item"
+    },
+    {
+      "answer": "/work-items:track start 43, then /planning:design-handoff.",
+      "why": "sibling skill"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No map found for this; shall I chart one?",
+      "why": "a different action"
+    },
+    {
+      "answer": "#43 is unassigned, so there is no need for `/work-items:track start 43`; routing by `wayfind: design` straight to /planning:design.",
+      "why": "wrong: names the claim call only to skip it, then routes"
     }
   ]
 }

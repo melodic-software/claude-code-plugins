@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.6] - 2026-11-26
+
+### Changed
+
+- `/debugging:debug` states that a subagent reports an access request to its parent and points at the subagent docs' available-tools section, instead of stating that a subagent cannot ask the user.
+
 ## [2.3.5] - 2026-11-26
 
 ### Changed

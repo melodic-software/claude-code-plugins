@@ -1,14 +1,38 @@
 {
   "pass": [
     {
-      "answer": "1. Map Out-of-scope: '- [Should we also rewrite the mobile app?](URL): web billing only.' 2. Close #51.",
-      "why": "meets the rule"
+      "answer": "1. Map Out-of-scope: '- [Should we also rewrite the mobile app?](URL): web billing only.' 2. `/work-items:track done 51 --not-planned --summary \"Out of scope for Map: billing overhaul.\"`",
+      "why": "Out-of-scope line linking #51, then a not-planned close"
+    },
+    {
+      "answer": "**1. Map body** (`/work-items:track edit 200 --body-file map.md`), Out-of-scope section:\n\n- [Should we also rewrite the mobile app?](https://example.com/acme/billing/issues/51): the effort is web billing only\n\n**2. Close**\n```\nSkill: work-items:track   args: done https://example.com/acme/billing/issues/51 --not-planned --summary \"Out of scope for Map: billing overhaul.\"\n```",
+      "why": "section form and skill-and-arguments close"
     }
   ],
   "fail": [
     {
       "answer": "Posted the resolution 'not rewriting mobile' on #51 and closed it as resolved.",
-      "why": "breaks the rule"
+      "why": "an in-scope resolution, no Out-of-scope line"
+    },
+    {
+      "answer": "`/work-items:track done 51 --not-planned --summary \"Out of scope for Map: billing overhaul.\"`",
+      "why": "closes it but adds no Out-of-scope line"
+    },
+    {
+      "answer": "Out-of-scope: - [Should we also rewrite the mobile app?](https://example.com/acme/billing/issues/51): web billing only. #51 stays open.",
+      "why": "never closes #51"
+    },
+    {
+      "answer": "Out-of-scope: - [Should we also rewrite the mobile app?](URL)\n`/work-items:track edit 51 --comment-file r.md`\n> Resolved: no mobile rewrite. Basis: web billing only.\n`/work-items:track done 51 --not-planned --summary \"Out of scope.\"`",
+      "why": "posts an in-scope resolution as well"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply"
+    },
+    {
+      "answer": "Out-of-scope: - [Should we also rewrite the mobile app?](https://example.com/acme/billing/issues/51): web billing only\nComment on #51:\n> Decision: no mobile rewrite. Basis: web billing only.\n`/work-items:track done 51 --not-planned --summary \"Out of scope.\"`",
+      "why": "wrong: an Out-of-scope line plus an in-scope decision comment"
     }
   ]
 }

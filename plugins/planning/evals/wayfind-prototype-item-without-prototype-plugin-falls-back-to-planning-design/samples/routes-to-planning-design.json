@@ -1,14 +1,17 @@
 {
   "pass": [
-    {
-      "answer": "The prototype plugin is not enabled, so #504 falls back to /planning:design: invoking /planning:design.",
-      "why": "meets the rule"
-    }
+    {"answer": "The prototype plugin is not enabled, so #504 falls back to /planning:design: invoking /planning:design.", "why": "fallback route named"},
+    {"answer": "Skill call (written out):\n- skill: `planning:design`\n- args: `Prove Knock sends email and in-app from one call; settled decisions: none`", "why": "Skill and args block"},
+    {"answer": "Route: **`/planning:design`** (prototype fallback).", "why": "bold backticked route"},
+    {"answer": "Since /prototype:pressure-test isn't enabled, the item routes to planning:design instead.", "why": "second clause names the route"}
   ],
   "fail": [
-    {
-      "answer": "Invoking /prototype:pressure-test in its vendor-fit mode for #504.",
-      "why": "breaks the rule"
-    }
+    {"answer": "", "why": "empty"},
+    {"answer": "Invoking /prototype:pressure-test in its vendor-fit mode for #504.", "why": "prototype route"},
+    {"answer": "The prototype plugin is missing, so I'm stopping here; not routing to /planning:design.", "why": "negated mention and a stop"},
+    {"answer": "Handing the design to /planning:design-handoff.", "why": "sibling skill name"},
+    {"answer": "Routing #504 to /planning:interview.", "why": "wrong skill"},
+    {"answer": "#504 is a prototype item and the prototype plugin is not enabled in this repository, so I'm stopping here. You can run /planning:design to settle the vendor by discussion.", "why": "wrong: stops and hands the fallback to the user"},
+    {"answer": "The prototype plugin is missing, so I can't work #504. Enable it, or run /planning:design yourself.", "why": "wrong: stops, names the fallback only as the user's job"}
   ]
 }

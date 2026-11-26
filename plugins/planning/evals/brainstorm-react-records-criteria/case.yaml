@@ -9,7 +9,17 @@ execution:
   max_turns: 20
   timeout_seconds: 900
 graders:
-  - name: criteria-recorded
+  - name: records-no-new-service-criterion
+    type: regex
+    arm: both
+    flags: i
+    pattern: '\b(?:criteri(?:on|a)|requirements?|constraints?)\b[^.!?]{0,200}?(?:\bno (?:new |other |another |extra |additional |second )?services?\b|\b(?:can(?:no|''|’)t|can not) run (?:another|a new|an extra|any new|a second) service|\bwithout (?:a |any )?(?:new |another |extra )?service)|(?:\bno (?:new |another |extra |additional )?services?\b|\b(?:can(?:no|''|’)t|can not) run (?:another|a new|an extra|any new) service)(?:[^.!?\n]{0,120}|[^.!?\n]{0,60}\.\s+(?:that|this|it)\b[^.!?\n]{0,60})\b(?:criteri(?:on|a)|requirements?|constraints?)\b'
+  - name: asks-why-candidate-5
+    type: regex
+    arm: both
+    flags: i
+    pattern: '(?:\b(?:candidate|option|idea|approach)\s*#?5\b|\(5\)|#5\b|\breplica\b)[\s\S]{0,300}?\b(?:why(?!\s+not\b)|what)\b[^?\n.]{0,120}?\b(?:it|replica|resonat\w*|draws?|appeals?|attracts?|like about|offers?|give you|gives you|buy you|buys you|5(?!\s*(?:s\b|sec)))\b[^?\n]{0,200}\?|(?:\bwhy\b(?!\s+not\b)|\bwhat\b[^?\n]{0,60}\b(?:draws?|appeals?|attracts?|resonat\w*|like about|offers?|give you|gives you|buy you|buys you)\b)[^?\n]{0,200}(?:\b(?:candidate|option|idea|approach)\s*#?5\b|\(5\)|#5\b|\breplica\b|\b5\b(?!\s*(?:s\b|sec)))[^?\n]{0,100}\?'
+  - name: does-not-decide-for-user
     type: llm
     arm: both
-    criteria: "PASS only if the reply records the user's reason for candidate 2 (no new service to run, or that they cannot run another service) as a criterion or requirement the scope must meet, AND asks the user why candidate 5 resonates or what it offers them, since the user gave no reason for it. FAIL if the reply ignores the stated reason, if it invents a reason for candidate 5 without asking, or if it chooses one candidate for the user."
+    criteria: "The user marked candidates 2 and 5 as resonating and gave a reason only for 2 (they cannot run another service). PASS if the reply neither records a reason for candidate 5 that the user never gave nor chooses one candidate for the user. FAIL if it records an invented reason for candidate 5 as the user's criterion, or picks a candidate for the user instead of leaving the choice to them."
