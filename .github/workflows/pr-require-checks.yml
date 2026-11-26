@@ -4043,7 +4043,6 @@ jobs:
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:
           TEXT: ${{ github.event.merge_group.head_commit.message || github.event.pull_request.body }}
-          # Bash measures ${#line} in characters only under a UTF-8 locale.
           LC_ALL: C.UTF-8
         run: |
           text=${TEXT//$'\r'/}
