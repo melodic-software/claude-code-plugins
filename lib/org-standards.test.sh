@@ -576,8 +576,8 @@ standards_repositories:
 PATH="$TEST_TMPDIR/netshim:$PATH" run dir --root "$net" >/dev/null
 PATH="$TEST_TMPDIR/netshim:$PATH" ORG_STANDARDS_TTL=0 run dir --root "$net" >/dev/null
 PATH="$TEST_TMPDIR/netshim:$PATH" run subscriptions --root "$net" >/dev/null
-assert_eq "every clone, fetch and ls-remote runs with prompts off, ssh in batch mode, no askpass and no credential helper" "1|1|1|0" \
-  "$(grep -cE '[| ]clone ' "$TEST_TMPDIR/net.log")|$(grep -cE -m1 '[| ]fetch ' "$TEST_TMPDIR/net.log")|$(grep -cE '[| ]ls-remote ' "$TEST_TMPDIR/net.log")|$(grep -vc '^0|ssh -o BatchMode=yes||-c credential.helper= ' "$TEST_TMPDIR/net.log")"
+assert_eq "every clone, fetch and ls-remote runs with prompts off, ssh in batch mode, no askpass and hooks and fsmonitor off" "1|1|1|0" \
+  "$(grep -cE '[| ]clone ' "$TEST_TMPDIR/net.log")|$(grep -cE -m1 '[| ]fetch ' "$TEST_TMPDIR/net.log")|$(grep -cE '[| ]ls-remote ' "$TEST_TMPDIR/net.log")|$(grep -vc '^0|ssh -o BatchMode=yes||-c core.hooksPath=/dev/null -c core.fsmonitor=false ' "$TEST_TMPDIR/net.log")"
 
 export ORG_STANDARDS_CACHE="$TEST_TMPDIR/bad-ls-cache"
 user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
@@ -1187,6 +1187,65 @@ entry=$(run subscriptions --root "$tp" | cut -f2)
 assert_eq "a symbolic link planted at a subscription's cache entry is replaced by a checkout built inside the cache, and its target is left alone" \
   "$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE|directory|KEEP" \
   "$entry|$(stat -c %F "$ORG_STANDARDS_CACHE/stranger/guide@$GUIDE")|$(cat "$VICTIM/keep.txt")"
+
+PRIV_FIXTURE="$SCRIPT_DIR/fixtures/private-git-https"
+if command -v python3 >/dev/null 2>&1 && command -v openssl >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
+  PRIV="$TEST_TMPDIR/private"
+  mkdir -p "$PRIV/root"
+  cp -R "$TEST_TMPDIR/git/acme" "$PRIV/root/"
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 1 -subj /CN=127.0.0.1 \
+    -addext 'subjectAltName=IP:127.0.0.1,DNS:localhost' -keyout "$PRIV/key.pem" -out "$PRIV/cert.pem" 2>/dev/null
+  python3 "$PRIV_FIXTURE/server.py" "$PRIV/root" "$PRIV/cert.pem" "$PRIV/key.pem" "$PRIV/port" reader fixture-token 2>"$PRIV/server.log" &
+  PRIV_PID=$!
+  trap 'kill "$PRIV_PID" 2>/dev/null; rm -rf "$TEST_TMPDIR"' EXIT
+  for _ in $(seq 50); do [[ -s "$PRIV/port" ]] && break; sleep 0.2; done
+  PRIV_HOST="127.0.0.1:$(cat "$PRIV/port")"
+  export CRED_LOG="$PRIV/cred.log"
+  priv_config() { printf '[http]\n\tsslCAInfo = %s\n%s' "$PRIV/cert.pem" "$2" >"$PRIV/$1.gitconfig"; printf '%s\n' "$PRIV/$1.gitconfig"; }
+  priv() { local cfg=$1; shift; rm -rf "$TEST_TMPDIR/priv-cache"; : >"$CRED_LOG"; GIT_CONFIG_GLOBAL="$cfg" ORG_STANDARDS_CACHE="$TEST_TMPDIR/priv-cache" ORG_STANDARDS_GIT_BASE="https://$PRIV_HOST" "$@"; }
+  other_hosts() { grep -cv " https://$PRIV_HOST\(/\|$\)" "$CRED_LOG"; }
+  tpriv=$(target private "$OPTED")
+  HELPER=$(priv_config helper "$(printf '[credential]\n\thelper = %s\n' "$PRIV_FIXTURE/credential-helper.sh")")
+  SCOPED=$(priv_config scoped "$(printf '[credential "https://%s"]\n\thelper = %s\n\tusername = reader\n\tuseHttpPath = true\n' "$PRIV_HOST" "$PRIV_FIXTURE/credential-helper.sh")")
+  BARE=$(priv_config bare "$(printf '[core]\n\taskPass = %s\n' "$PRIV_FIXTURE/askpass.sh")")
+
+  priv_dir=$(priv "$HELPER" run dir --root "$tpriv")
+  assert_eq "a private org repository over https is cloned with the user's global credential helper, which is asked about the configured host only" \
+    "$TEST_TMPDIR/priv-cache/acme/standards|$(g -C "$PRIV/root/acme/standards.git" show main:REVIEW.md | head -n 1)|1|1|0" \
+    "$priv_dir|$(head -n 1 "$priv_dir/REVIEW.md" 2>/dev/null)|$(grep -c "^get https://$PRIV_HOST$" "$CRED_LOG")|$(grep -c "^store https://$PRIV_HOST$" "$CRED_LOG")|$(other_hosts)"
+
+  user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
+  priv_sub=$(priv "$SCOPED" run subscriptions --root "$tpriv" | cut -f1)
+  assert_eq "a private subscription is read with a URL-scoped credential helper, and its useHttpPath setting reaches the helper" \
+    "acme/handbook@$HANDBOOK2|yes|0" \
+    "$priv_sub|$(grep -q "^get https://$PRIV_HOST/acme/handbook.git$" "$CRED_LOG" && echo yes || echo no)|$(other_hosts)"
+
+  user_index $'trusted_owners:\n  - acme\nstandards_repositories:\n  - repo: evil.example/handbook\n  - repo: https://evil.example/acme/handbook\n  - repo: acme@evil.example/handbook\n  - repo: acme/handbook\n'
+  priv_err=$(priv "$HELPER" errs subscriptions --root "$tpriv" | grep -c 'is not <owner>/<repo>')
+  priv_sub=$(priv "$HELPER" run subscriptions --root "$tpriv" | cut -f1)
+  assert_eq "subscriptions naming another host are skipped as malformed, and the helper is asked about no host but the configured one" \
+    "3|acme/handbook@$HANDBOOK2|0" "$priv_err|$priv_sub|$(other_hosts)"
+
+  REWRITE=$(priv_config rewrite "$(printf '[credential]\n\thelper = %s\n[url "https://localhost:%s/"]\n\tinsteadOf = https://%s/\n' "$PRIV_FIXTURE/credential-helper.sh" "${PRIV_HOST#*:}" "$PRIV_HOST")")
+  priv_dir=$(priv "$REWRITE" run dir --root "$tpriv")
+  assert_eq "an insteadOf rewrite in the user's own global config is followed, so the helper is asked about the host the user rewrote to" \
+    "$TEST_TMPDIR/priv-cache/acme/standards|1|0" \
+    "$priv_dir|$(grep -c "^get https://localhost:${PRIV_HOST#*:}$" "$CRED_LOG")|$(grep -c "$PRIV_HOST" "$CRED_LOG")"
+
+  start=$SECONDS
+  hung=$(CRED_HANG=1 ORG_STANDARDS_GIT_TIMEOUT=2 priv "$HELPER" code dir --root "$tpriv")
+  assert_eq "a credential helper that hangs is stopped by ORG_STANDARDS_GIT_TIMEOUT: exit 4" "4|yes|1" \
+    "$hung|$([[ $((SECONDS - start)) -lt 10 ]] && echo yes || echo "no, $((SECONDS - start))s")|$(grep -c "^get https://$PRIV_HOST$" "$CRED_LOG")"
+
+  start=$SECONDS
+  bare_code=$(SSH_ASKPASS="$PRIV_FIXTURE/askpass.sh" ORG_STANDARDS_GIT_TIMEOUT=30 priv "$BARE" code dir --root "$tpriv" </dev/null)
+  assert_eq "with no credential helper a private clone fails fast and asks nothing: no terminal prompt, no core.askPass, no SSH_ASKPASS" \
+    "4|yes|" "$bare_code|$([[ $((SECONDS - start)) -lt 10 ]] && echo yes || echo "no, $((SECONDS - start))s")|$(cat "$CRED_LOG")"
+
+  kill "$PRIV_PID" 2>/dev/null
+else
+  printf 'SKIP: private https remote cases need python3, openssl and timeout\n'
+fi
 
 if [[ "$FAILED" -gt 0 ]]; then
   printf '%d test(s) failed\n' "$FAILED" >&2

@@ -291,6 +291,9 @@ index, so the standards they follow reach every repository they work in.
   once the refresh window (`ORG_STANDARDS_TTL`) has passed. Exit 0 with no
   lines means no subscribed layer. `STANDARDS_SUBSCRIPTIONS_DISABLED=true`
   skips every subscription for the session.
+- **Private repositories:** a private repository loads with the person's
+  own git credentials (a credential helper or an SSH key), never through a
+  prompt.
 - **Reports:** on stderr, naming the index file and line where one applies:
   a malformed entry (a tab-indented line inside it included), skipped while
   the rest of the list is read; a refused
@@ -340,16 +343,16 @@ copied into each repository.
   `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60; needs `timeout` on the
   `PATH`), never prompts for a password, passphrase or host key (ssh runs
   the user's `GIT_SSH_COMMAND` or `core.sshCommand` with `BatchMode=yes`
-  added), and uses no credential helper; a git call that needs no network
+  added); a git call that needs no network
   fetches no missing object. Every git command it runs reads no system or
   global git config (`GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`)
   and runs with `core.hooksPath=/dev/null` and `core.fsmonitor=false`, so no
   hook, fsmonitor, filter driver (git-lfs included, whatever the checkout's
   `.gitattributes` or `.lfsconfig` say) or template set there runs during a
   clone, fetch or checkout; it passes through only the user's `http.proxy`,
-  `https.proxy`, `http.sslCAInfo`, `http.sslCAPath`, `core.sshCommand` and
-  `url.<base>.insteadOf` (which keeps a private repository reachable over
-  ssh), read from the system and global config before it starts. A git
+  `https.proxy`, `http.sslCAInfo`, `http.sslCAPath`, `core.sshCommand`,
+  `url.<base>.insteadOf` and every `credential.*` setting, read from the
+  system and global config before it starts. A git
   command that needs no repository (clone, `ls-remote`) runs in the cache
   directory and reads no repository config above it, so the config of the
   repository the reader runs from never applies, and no transport but

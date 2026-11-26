@@ -12,8 +12,8 @@ US=$'\037'
 die() { printf 'org-standards: %s\n' "$1" >&2; exit "${2:-2}"; }
 note() { printf 'org-standards: %s\n' "$1" >&2; }
 
-NET_KEYS='^(https?\.proxy|http\.sslcainfo|http\.sslcapath|core\.sshcommand|url\..*\.insteadof)$'
-GIT_ISOLATE=(-c credential.helper= -c core.hooksPath=/dev/null -c core.fsmonitor=false)
+NET_KEYS='^(https?\.proxy|http\.sslcainfo|http\.sslcapath|core\.sshcommand|url\..*\.insteadof|credential\..*)$'
+GIT_ISOLATE=(-c core.hooksPath=/dev/null -c core.fsmonitor=false)
 USER_SSH=""
 while IFS= read -r -d '' kv; do
   [[ "$kv" == *$'\n'* ]] || continue

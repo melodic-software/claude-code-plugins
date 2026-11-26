@@ -39,10 +39,11 @@ rebuilt from its cells (no prose or other line is copied; every other line holdi
 reported and dropped), with a `Surface` that is an id and each kept row's `File` the absolute path
 it resolves to inside the checkout. Consumers read another repository's index only through that
 copy, never by running the ladder at its checkout. Every clone, fetch, `ls-remote`, checkout and
-lazy object fetch gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), never prompts
-and uses no credential helper. Every git command the reader runs ignores the system and global git
-config, passing through only the user's proxy, CA, `core.sshCommand` and `url.<base>.insteadOf`
-settings, with hooks and fsmonitor off, so no hook, fsmonitor, filter driver (git-lfs included) or
+lazy object fetch gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60) and never
+prompts. Every git command the reader runs ignores the system and global git config, passing
+through only the user's proxy, CA, `core.sshCommand`, `url.<base>.insteadOf` and `credential.*`
+settings, so a private repository loads with the person's own credential helper or SSH key, never
+through a prompt, with hooks and fsmonitor off, so no hook, fsmonitor, filter driver (git-lfs included) or
 template from that config runs. A git command that needs no repository (clone, `ls-remote`) runs
 in the cache directory, reading no config of the repository the reader runs from or of one
 enclosing the cache, and no transport but `https`, `ssh`, `git` and `file` runs. A symbolic link at
