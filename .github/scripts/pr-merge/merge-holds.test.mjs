@@ -21,6 +21,7 @@ import { test } from "node:test";
 import * as holdsModule from "./merge-holds.mjs";
 import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { DIFF_TEXT, LISTED, PAGE_TWO } from "./capped-compare.fixture.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -938,10 +939,6 @@ test("sameNetChange compares filename, status, previous_filename and patch", () 
   assert.equal(sameNetChange(null, net(TF)), false);
 });
 
-const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
-const LISTED = JSON.parse(fixture("compare-paged-1.json"));
-const PAGE_TWO = JSON.parse(fixture("compare-paged-2.json"));
-const DIFF_TEXT = fixture("compare.diff");
 const DELETED = ".changes/user-interface/chore-comment-sweep-v060-a9938050.md";
 const ADDED = ".changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md";
 const cutShort = (text, sections) => text.split(/^(?=diff --git )/m).slice(0, -sections).join("");
@@ -1001,7 +998,7 @@ test("wholeCompare pages the commits past the unpaged 250 and reads the files fr
   const whole = await wholeCompare(read, async (path) => (reads.push(`diff ${path}`), DIFF_TEXT), "/c/a...b");
   assert.equal(whole.total_commits, 150);
   assert.equal(whole.commits.length, 150);
-  assert.equal(whole.commits.at(-1).sha, "5b86ff4a3362a119be115151b3bf08d68554eee1");
+  assert.deepEqual(whole.commits, [...LISTED.commits, ...PAGE_TWO.commits]);
   assert.equal(whole.files.length, 301);
   assert.deepEqual(reads, ["/c/a...b?per_page=100&page=1", "/c/a...b?per_page=100&page=2", "diff /c/a...b"]);
   const pages = [];

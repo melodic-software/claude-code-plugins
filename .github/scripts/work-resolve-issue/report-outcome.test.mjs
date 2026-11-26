@@ -74,6 +74,7 @@ const fieldReader = (fields) => {
 };
 import { isPersonReason, parseReason } from "../lib/stop-reason.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { DIFF_TEXT, LISTED } from "../pr-merge/capped-compare.fixture.mjs";
 import { ADMISSION_RECORD_MARKER, recordBody } from "../lib/admission-record.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
@@ -5416,14 +5417,14 @@ test("main holds a reuse PR on a denied path or a failed compare, and opens a cl
 });
 
 test("main judges a reuse PR on every file past the compare listing's 300, read from the diff, and holds only on a denied one", async () => {
-  const fixture = (name) => readFileSync(new URL(`../pr-merge/fixtures/${name}`, import.meta.url), "utf8");
   const denying = (glob) => JSON.stringify({ merge: { "diff-check": { "denied-paths": [glob], "path-holds": true } } });
-  const listed = JSON.parse(fixture("compare-paged-1.json")).files;
-  const diff = fixture("compare.diff");
+  const listed = LISTED.files;
+  const diff = DIFF_TEXT;
   const clean = await runReuse({ files: listed, diff, resolved: denying("docs/never/**") });
   assert.ok(!holds(clean.body), clean.body);
   assert.equal(clean.calls.filter((c) => c.method === "DIFF").length, 1, JSON.stringify(clean.calls.map((c) => `${c.method} ${c.path}`)));
-  const denied = await runReuse({ files: listed, diff, resolved: denying("docs/adr/0120-*") });
+  assert.ok(!listed.some((f) => f.filename.startsWith(".github/scripts/work-unblock/")));
+  const denied = await runReuse({ files: listed, diff, resolved: denying(".github/scripts/work-unblock/*") });
   assert.ok(holds(denied.body), "a denied path the diff names");
   const cut = diff.split(/^(?=diff --git )/m).slice(0, -2).join("");
   assert.ok(holds((await runReuse({ files: listed, diff: cut, resolved: denying("docs/never/**") })).body), "a diff naming fewer files than the listing");

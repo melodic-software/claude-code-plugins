@@ -1892,10 +1892,27 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
         )
 
 
-_FIXTURES = ROOT / ".github/scripts/pr-merge/fixtures"
-_LISTED = json.loads((_FIXTURES / "compare-paged-1.json").read_text(encoding="utf-8"))
-with (_FIXTURES / "compare.diff").open(encoding="utf-8", newline="") as _fixture:
-    _DIFF = _fixture.read()
+def _capped() -> tuple[dict, str]:
+    """The listing of 300 files and diff of 301 sections that
+    `.github/scripts/pr-merge/capped-compare.fixture.mjs` builds from the
+    captured sample."""
+    fixtures = ROOT / ".github/scripts/pr-merge/fixtures"
+    sample = json.loads((fixtures / "compare-sample.json").read_text(encoding="utf-8"))
+    with (fixtures / "compare-sample.diff").open(encoding="utf-8", newline="") as text:
+        sections = re.split(r"(?m)^(?=diff --git )", text.read())[1:]
+    files, diff = [], []
+    for copy in range(300 // len(sample["files"])):
+        for entry, section in zip(sample["files"], sections, strict=False):
+            keys = [k for k in ("filename", "previous_filename") if k in entry]
+            copied = {k: entry[k] if copy == 0 else f"n{copy}/{entry[k]}" for k in keys}
+            files.append(entry | copied)
+            for k in keys:
+                section = section.replace(entry[k], copied[k])
+            diff.append(section)
+    return {"files": files}, "".join(diff) + sections[-1]
+
+
+_LISTED, _DIFF = _capped()
 _CR = _DIFF.replace("+bump: patch\n", "+bump: patch\r\n", 1)
 _CUT = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-2])
 _MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"

@@ -9,10 +9,6 @@ scope:
     - "plugins/themes/hooks/bedroom/lights.ts"
     - "scripts/shared-copies.txt"
     - "scripts/skill-links.json"
-    # Captured compare answers past the 300-file cap: https://docs.github.com/en/rest/commits/commits#compare-two-commits
-    - ".github/scripts/pr-merge/fixtures/compare-paged-1.json"
-    - ".github/scripts/pr-merge/fixtures/compare-paged-2.json"
-    - ".github/scripts/pr-merge/fixtures/compare.diff"
   registries: [scripts/cross-plugin-source-registry.txt]
 size:
   check: crossing

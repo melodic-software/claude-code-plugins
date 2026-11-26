@@ -523,7 +523,8 @@ nets "$(jq -cn '[range(299) | {filename: "f\(.)", status: "added", patch: "+x"}]
 expect "a net change of 299 files carries the decision" yes yes yes
 nets "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')" "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')"
 expect "a compare of 300 files whose diffs do not read carries nothing" no no no
-FIXTURES="$ROOT/.github/scripts/pr-merge/fixtures"
+FIXTURES="$TMP_ROOT/capped"
+node "$ROOT/.github/scripts/pr-merge/capped-compare.fixture.mjs" "$FIXTURES"
 STUB_LANE_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --argjson f "[$TF]" '{($h): {files: $f}, ($o): {files: $f}}')"
 export STUB_LANE_COMPARE
 nets "$(jq -c .files "$FIXTURES/compare-paged-1.json")" "$(jq -c .files "$FIXTURES/compare-paged-1.json")"
