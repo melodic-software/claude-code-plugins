@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: tr-ci-reentry-partial-answer-reparks
-description: 'Triage --ci re-entry: the recorded decision answers question 1 only, so the verdict re-parks at needs-owner-decision, keeps needs_human false, and asks question 2 (30 or 90 days) again with a RECOMMENDED answer. Ported from the retired intake reentry-eval case partial-answer-reparks. A run needs --scaffold.'
+description: 'Triage --ci re-entry: the recorded decision answers question 1 only, so the verdict quotes and links it, re-parks at needs-owner-decision, keeps needs_human false, and asks question 2 (30 or 90 days) again with a RECOMMENDED answer. Ported from the retired intake reentry-eval case partial-answer-reparks. A run needs --scaffold.'
 tags: [triage, ci-mode, intake, reentry]
 plugins: ["../.."]
-expected_outcome: 'The run reads .lane/scratch/issue.json, treats question 1 as settled by the Decision recorded comment, sets Flags: intent with needs-owner-decision, keeps needs_human false, and asks question 2 as a numbered open question with a RECOMMENDED answer and Basis.'
+expected_outcome: 'The run reads .lane/scratch/issue.json, quotes the Decision recorded comment verbatim with its link (the repository''s Re-entry triage rule), treats question 1 as settled, sets Flags: intent with needs-owner-decision, keeps needs_human false, and asks question 2 as a numbered open question with a RECOMMENDED answer and Basis.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -17,6 +17,21 @@ graders:
     tool: 'Read'
     input_match: '\.lane/scratch/issue\.json'
     min: 1
+    arm: both
+  - name: quotes-decision-marker
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)> \*\*Decision recorded\.\*\*'
+    target: 'last_message'
+    arm: both
+  - name: quotes-decision-verbatim
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)> 1\. One pinned issue, edited in place by each weekly run\. Do not open a new issue each week\.'
+    target: 'last_message'
+    arm: both
+  - name: links-decision
+    type: 'regex'
+    pattern: 'issuecomment-100000001'
+    target: 'last_message'
     arm: both
   - name: keeps-needs-human-false
     type: 'regex'
@@ -41,6 +56,6 @@ graders:
     arm: both
   - name: judges-open-questions
     type: llm
-    criteria: 'PASS only if the verdict''s comment treats question 1 (one pinned issue) as settled by the Decision recorded comment, does not ask it again, and asks question 2 (30 or 90 days) as a numbered open question with a RECOMMENDED answer and a Basis, without deciding it itself. FAIL if it picks a stale age as if decided, re-asks question 1, or asks nothing.'
+    criteria: 'PASS only if the verdict''s comment treats question 1 (one pinned issue) as settled by the quoted decision, does not ask it again, and asks question 2 (30 or 90 days) as a numbered open question with a RECOMMENDED answer and a Basis, without deciding it itself. FAIL if it picks a stale age as if decided, re-asks question 1, or asks nothing.'
     focus: last_message
     arm: both

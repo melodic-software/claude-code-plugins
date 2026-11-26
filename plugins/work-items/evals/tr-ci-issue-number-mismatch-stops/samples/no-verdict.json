@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped: .lane/scratch/issue.json holds issue 13, not 12, so this run returns no verdict.",
+      "why": "states the stop"
+    },
+    {
+      "answer": "",
+      "why": "returns nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"labels\": [\"priority: low\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: none\\nBlocked by: none\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"known\", \"flags\": [], \"blocked_by\": []}",
+      "why": "returns a verdict for issue 13"
+    },
+    {
+      "answer": "The number differs, but here is the verdict anyway:\n```json\n{\n  \"labels\": [],\n  \"needs_human\" : true\n}\n```",
+      "why": "notes the mismatch and still returns a verdict"
+    }
+  ]
+}

@@ -3,7 +3,7 @@ name: tr-ci-reentry-person-needed-keeps-needs-human
 description: 'Triage --ci re-entry: the recorded decision settles both questions but leaves the first report to the owner''s hand run on their own workstation, so the verdict applies needs-human with needs_human false (the repository''s Re-entry triage rule). Ported from the retired intake reentry-eval case person-needed-keeps-needs-human. A run needs --scaffold.'
 tags: [triage, ci-mode, intake, reentry]
 plugins: ["../.."]
-expected_outcome: 'The run reads .lane/scratch/issue.json, treats both questions as settled, applies the needs-human label with Flags: intent because the decision leaves a step to a person, and keeps needs_human false.'
+expected_outcome: 'The run reads .lane/scratch/issue.json, quotes the Decision recorded comment verbatim with its link, treats both questions as settled, applies the needs-human label with Flags: intent because the decision leaves a step to a person, and keeps needs_human false.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -18,6 +18,21 @@ graders:
     input_match: '\.lane/scratch/issue\.json'
     min: 1
     arm: both
+  - name: quotes-decision-marker
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)> \*\*Decision recorded\.\*\*'
+    target: 'last_message'
+    arm: both
+  - name: quotes-decision-verbatim
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)> Before the report goes on the weekly schedule, I will run the first one by hand on my own workstation and check its output\. The schedule waits for that run\.'
+    target: 'last_message'
+    arm: both
+  - name: links-decision
+    type: 'regex'
+    pattern: 'issuecomment-100000003'
+    target: 'last_message'
+    arm: both
   - name: keeps-needs-human-false
     type: 'regex'
     pattern: '"needs_human"\s*:\s*false'
@@ -30,6 +45,6 @@ graders:
     arm: both
   - name: judges-open-questions
     type: llm
-    criteria: 'PASS only if the verdict''s comment treats both numbered questions as settled by the Decision recorded comment and says the remaining work waits on a person (the owner''s hand run on their own workstation). FAIL if it re-asks question 1 or 2, invents new open questions about settled points, or says no person is needed.'
+    criteria: 'PASS only if the verdict''s comment treats both numbered questions as settled by the quoted decision and says the remaining work waits on a person (the owner''s hand run on their own workstation). FAIL if it re-asks question 1 or 2, invents new open questions about settled points, or says no person is needed.'
     focus: last_message
     arm: both

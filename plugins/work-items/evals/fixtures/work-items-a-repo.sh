@@ -319,6 +319,14 @@ its own rules: they add to the skill's, and never relax one.
   bill the prepaid API keys, which do not auto-refill. Only a new or renewing charge (Actions
   billing, a cloud subscription, a key or plan that renews or auto-recharges) is cost. Flagged cost
   also takes the `needs-human` label, with `needs_human` false, so the comment is kept.
+- **Re-entry after a recorded decision.** When a comment's first line is exactly
+  `**Decision recorded.**` and its author's login does not end in `[bot]`, the newest such comment
+  is the decision. Quote it verbatim in the comment, every line as a Markdown quote (`> `), the first
+  line included, followed by its link from the comment's `url` in `issue.json` (when that is empty,
+  name it as the decision comment by its author). Never paraphrase or reword it; keep the whole
+  comment under 2800 characters, and when the quote would not fit, quote its opening lines and end
+  with `> [quote truncated; the full decision is at the link]`. Under `Open questions:` list only
+  the questions the decision leaves open: a point it settles is never asked again.
 - **Re-entry that still needs a person.** After a recorded decision, when the remaining work needs a
   person (spend, with `Flags: cost`, or a trust-boundary decision the recorded decision leaves open,
   with `Flags: intent`), apply the `needs-human` label and keep `needs_human` false, even when open

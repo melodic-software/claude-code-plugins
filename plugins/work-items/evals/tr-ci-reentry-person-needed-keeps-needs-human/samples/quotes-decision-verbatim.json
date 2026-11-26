@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-human\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit.\\n> Before the report goes on the weekly schedule, I will run the first one by hand on my own workstation and check its output. The schedule waits for that run.\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99903#issuecomment-100000003\\nOpen questions: none\\nThe recorded decision settles both questions. The schedule waits on the owner's first run by hand on their own workstation, a step the decision leaves to a person.\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"known\", \"flags\": [\"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "the expected verdict"
+    },
+    {
+      "answer": "```json\n{\n  \"labels\": [\n    \"priority: medium\",\n    \"needs-human\"\n  ],\n  \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit.\\n> Before the report goes on the weekly schedule, I will run the first one by hand on my own workstation and check its output. The schedule waits for that run.\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99903#issuecomment-100000003\\nOpen questions: none\\nThe recorded decision settles both questions. The schedule waits on the owner's first run by hand on their own workstation, a step the decision leaves to a person.\",\n  \"needs_human\": false,\n  \"size\": \"small\",\n  \"complexity\": \"low\",\n  \"uncertainty\": \"known\",\n  \"flags\": [\n    \"intent\"\n  ],\n  \"blocked_by\": [],\n  \"type\": \"Task\"\n}\n```",
+      "why": "the same verdict, pretty-printed in a fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-human\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit.\\n> The owner runs the first report by hand before the schedule starts.\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99903#issuecomment-100000003\\nOpen questions: none\\nThe recorded decision settles both questions. The schedule waits on the owner's first run by hand on their own workstation, a step the decision leaves to a person.\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"known\", \"flags\": [\"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "quotes a reworded line"
+    },
+    {
+      "answer": "{\"labels\": [\"priority: medium\", \"needs-human\"], \"comment\": \"Size: small\\nComplexity: low\\nUncertainty: known\\nFlags: intent\\nBlocked by: none\\nBlast radius: the weekly maintenance workflow and the one pinned report issue it edits.\\nReversible: yes; revert the workflow change.\\nClaims checked: none\\nThe owner's recorded decision answers the earlier questions.\\nOpen questions: none\\nThe recorded decision settles both questions. The schedule waits on the owner's first run by hand on their own workstation, a step the decision leaves to a person.\", \"needs_human\": false, \"size\": \"small\", \"complexity\": \"low\", \"uncertainty\": \"known\", \"flags\": [\"intent\"], \"blocked_by\": [], \"type\": \"Task\"}",
+      "why": "no quote"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ]
+}

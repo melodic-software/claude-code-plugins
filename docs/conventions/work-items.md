@@ -34,6 +34,14 @@ these rules shape (`.github/scripts/intake-triage/apply-verdict.mjs` and `admit.
   `Cost decided: <what bills; the decision that covers it>` line in place of the `Cost:` line and set
   no `cost` flag. Write either line exactly in that shape, with no bold, list marker or other label:
   any other shape holds the issue.
+- **Re-entry after a recorded decision.** When a comment's first line is exactly
+  `**Decision recorded.**` and its author's login does not end in `[bot]`, the newest such comment
+  is the decision. Quote it verbatim in the comment, every line as a Markdown quote (`> `), the first
+  line included, followed by its link from the comment's `url` in `issue.json` (when that is empty,
+  name it as the decision comment by its author). Never paraphrase or reword it; keep the whole
+  comment under 2800 characters, and when the quote would not fit, quote its opening lines and end
+  with `> [quote truncated; the full decision is at the link]`. Under `Open questions:` list only
+  the questions the decision leaves open: a point it settles is never asked again.
 - **Re-entry that still needs a person.** After a recorded decision, when the remaining work needs a
   person (spend, with `Flags: cost`, or a trust-boundary decision the recorded decision leaves open,
   with `Flags: security` only at the CRITICAL tier and `Flags: intent` otherwise), apply the
