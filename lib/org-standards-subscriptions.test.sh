@@ -371,6 +371,10 @@ done
 user_index $'"trusted_owners":\n  - acme\nstandards_repositories:\n  - repo: acme/handbook\n'
 assert_eq "a quoted trusted_owners key over a block list trusts its owners and reports nothing" "acme/handbook@$HANDBOOK2|0" \
   "$(run subscriptions --root "$tp" | cut -f1)|$(errs subscriptions --root "$tp" | grep -c 'trusted_owners')"
+user_index $'trusted_owners:\n  - acme other\n  - stranger\nstandards_repositories:\n  - repo: acme/handbook\n  - repo: stranger/other\n'
+assert_eq "a trusted_owners item holding a space trusts no owner; the other items still count, and the item is reported with its file and line" \
+  "stranger/other@$(head_of stranger/other)|1|1" \
+  "$(run subscriptions --root "$tp" | cut -f1)|$(errs subscriptions --root "$tp" | grep -c "^org-standards: $USER_INDEX:4: trusted_owners item \"acme other\" holds a space, and an owner name has none; it trusts no owner$")|$(errs subscriptions --root "$tp" | grep -c "^org-standards: $USER_INDEX:7: acme/handbook is not pinned")"
 for spelling in '"standards_repositories":' "'standards_repositories':" 'standards_repositories :'; do
   user_index "$spelling
   - repo: stranger/guide

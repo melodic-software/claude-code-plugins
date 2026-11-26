@@ -463,7 +463,9 @@ to_records() {
     $1 == ".key" { if ($2 == "trusted_owners") tl = $3; next }
     $1 == "standards-contract" { print "version\t" $2; next }
     $1 == "trusted_owners" || index($1, "trusted_owners.") == 1 {
-      if ($1 ~ /^trusted_owners\.[0-9]+$/ && text[$NF] ~ /^[ \t]*- /) owners[++no] = $2
+      if ($1 ~ /^trusted_owners\.[0-9]+$/ && text[$NF] ~ /^[ \t]*- /) {
+        if (NF == 3 && $2 !~ /[[:space:]]/) owners[++no] = $2; else print "spaced\t" $NF "\t" $2
+      }
       else bad = 1
       next
     }
@@ -683,7 +685,7 @@ subscriptions() {
     status=0
     parsed=$(printf '%s\n' "$text" | parse_yaml "$awkf") || status=$?
   done
-  local records version="" trusted="" starts untrusted_at=""
+  local records version="" trusted="" starts untrusted_at="" spaced=() item
   starts=$(printf '%s\n' "$ranges" | awk 'NF { printf "%s%s", sep, $1; sep = " " }')
   records=$(printf '%s\n' "$parsed" | to_records "$starts" <(printf '%s\n' "$text"))
   [[ -n "$records" ]] || return 0
@@ -692,9 +694,10 @@ subscriptions() {
       version) version=$value ;;
       trusted) trusted="$trusted $(lower "$value")" ;;
       untrusted) untrusted_at=$value ;;
+      spaced) spaced+=("$value") ;;
       *) ;;
     esac
-  done < <(printf '%s\n' "$records" | grep -E $'^(version|trusted|untrusted)\t' || true)
+  done < <(printf '%s\n' "$records" | grep -E $'^(version|trusted|untrusted|spaced)\t' || true)
   if [[ -z "$version" ]]; then
     note "subscriptions not read: $file has no standards-contract frontmatter key, so it is not an index"; return 0
   fi
@@ -703,13 +706,16 @@ subscriptions() {
     note "$file:$nline: $nkey is under another key, so it is not read; write ${nkey##*.} at the top level of the frontmatter"
   done < <(printf '%s\n' "$parsed" | awk -F'\t' '$1 == ".nested" { print $2 "\t" $3 }' | sort -t $'\t' -k2,2n)
   local entries
-  entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted|untrusted)\t' || true)
+  entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted|untrusted|spaced)\t' || true)
   [[ -n "$entries" ]] || return 0
   need_cache
   if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
     note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
   [[ -z "$untrusted_at" ]] || note "$file:$untrusted_at: trusted_owners is not a block list; no owner is trusted"
+  for item in "${spaced[@]}"; do
+    note "$file:${item%%$'\t'*}: trusted_owners item \"${item#*$'\t'}\" holds a space, and an owner name has none; it trusts no owner"
+  done
   local org cur line repo ref topics only except prob layerfile at
   for layerfile in "$root/docs/conventions/source-control.yaml" "$(index_of "$root" 2>/dev/null || true)"; do
     [[ -f "$layerfile" ]] || continue

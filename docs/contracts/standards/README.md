@@ -260,7 +260,7 @@ index, so the standards they follow reach every repository they work in.
 - **Trust:** `trusted_owners` (default empty, a block list like the
   example) and the list are read from the user-global index only, never
   from a repository layer; a `trusted_owners` written any other way trusts
-  no owner. An unpinned entry
+  no owner, and an item holding a space trusts no owner. An unpinned entry
   of an untrusted owner is refused. A pinned commit must be reachable from a
   branch or tag of the named repository, else it is refused: a fork's
   commits can be fetched under its parent's name. Pinned content counts as
@@ -296,7 +296,8 @@ index, so the standards they follow reach every repository they work in.
 - **Reports:** on stderr, naming the index file and line where one applies:
   a malformed entry (a tab-indented line inside it included), skipped while
   the rest of the list is read; a refused
-  entry; a `trusted_owners` that is not a block list; a `trusted_owners` or
+  entry; a `trusted_owners` that is not a block list; a `trusted_owners` item
+  holding a space; a `trusted_owners` or
   `standards_repositories` nested under another key, not read; a
   `trusted_owners` key in the repository's
   `docs/conventions/source-control.yaml` or index, however it is spelled,
