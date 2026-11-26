@@ -1577,31 +1577,34 @@ def _record_run_step(
 ) -> None:
     if not authority or not session_id:
         return
-    store = data_root_state.CleanRunStore(
-        authority, idle_timeout_seconds=_RUN_IDLE_TIMEOUT_SECONDS
-    )
-    words = _literal_shell_words(command) or []
-    ends_with: str | None
-    if command_kind == "preview" or command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
-        ends_with = (
-            _preview_plan_file(words)
-            if command_kind == "preview"
-            else _argv_flag_value(words, "--report")
+    try:
+        store = data_root_state.CleanRunStore(
+            authority, idle_timeout_seconds=_RUN_IDLE_TIMEOUT_SECONDS
         )
-        if not ends_with:
-            return
-        ends_with = os.path.abspath(os.path.expanduser(ends_with))
-        store.record_step(
-            session_id,
-            ends_with,
-            manual_lane_check=lambda marker: _manual_lane_open(
-                marker, authority, session_id
-            ),
-        )
-    elif command_kind == "handoff-verify":
-        store.record_step(session_id, None)
-    else:
-        store.record_step(session_id, None, touch_only=True)
+        words = _literal_shell_words(command) or []
+        ends_with: str | None
+        if command_kind == "preview" or command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
+            ends_with = (
+                _preview_plan_file(words)
+                if command_kind == "preview"
+                else _argv_flag_value(words, "--report")
+            )
+            if not ends_with:
+                return
+            ends_with = os.path.abspath(os.path.expanduser(ends_with))
+            store.record_step(
+                session_id,
+                ends_with,
+                manual_lane_check=lambda marker: _manual_lane_open(
+                    marker, authority, session_id
+                ),
+            )
+        elif command_kind == "handoff-verify":
+            store.record_step(session_id, None)
+        else:
+            store.record_step(session_id, None, touch_only=True)
+    except Exception:  # noqa: BLE001 - run bookkeeping never changes a verdict
+        pass
 
 
 def _manual_lane_open(marker: Path, authority: str, session_id: str) -> bool:

@@ -7,6 +7,7 @@ imports the deletion engine.
 from __future__ import annotations
 
 import fnmatch
+import functools
 import json
 import os
 import re
@@ -170,8 +171,7 @@ def _validate_protection_glob_entry(entry: Any) -> None:
         raise PolicyError("protection glob reason must be a non-empty string")
 
 
-def load_baseline_snapshot(baseline_path: Path = BASELINE_POLICY) -> BaselineSnapshot:
-    """Load and validate an immutable ``BaselineSnapshot``."""
+def _parse_baseline_snapshot(baseline_path: Path) -> BaselineSnapshot:
     baseline = load_json(baseline_path)
     if baseline.get("version") != SCHEMA_VERSION:
         raise PolicyError("unsupported baseline policy version")
@@ -195,9 +195,15 @@ def load_baseline_snapshot(baseline_path: Path = BASELINE_POLICY) -> BaselineSna
     )
 
 
+@functools.lru_cache(maxsize=8)
+def load_baseline_snapshot(baseline_path: Path = BASELINE_POLICY) -> BaselineSnapshot:
+    """Load, validate, and cache an immutable ``BaselineSnapshot``."""
+    return _parse_baseline_snapshot(baseline_path)
+
+
 def baseline_policy(baseline_path: Path = BASELINE_POLICY) -> dict[str, Any]:
-    """Return a fresh mutable baseline policy dict backed by the cached snapshot."""
-    snap = load_baseline_snapshot(baseline_path)
+    """Return a fresh mutable baseline policy dict read from ``baseline_path``."""
+    snap = _parse_baseline_snapshot(baseline_path)
     return {
         "version": snap.version,
         "protected_exact_names": list(snap.protected_exact_names_ordered),

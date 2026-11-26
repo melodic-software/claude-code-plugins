@@ -18168,6 +18168,30 @@ class ApplyPlanSnapshotExactNamesRegressionTests(unittest.TestCase):
                 skipped_paths["parent/SnapshotCustomKeep"]["detail"],
             )
 
+    def test_scan_tree_reads_baseline_policy_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp).resolve() / "scan-target"
+            for i in range(5):
+                sub = target / f"dir-{i}" / "nested"
+                sub.mkdir(parents=True)
+                (sub / f"file-{i}.tmp").write_text("x", encoding="utf-8")
+                (sub / f"disk-{i}.vhdx").write_text("y", encoding="utf-8")
+
+            policy = hygiene.policy_cascade.baseline_policy()
+            hygiene.policy_cascade.load_baseline_snapshot.cache_clear()
+            real_read_text = Path.read_text
+            baseline_reads = 0
+
+            def spy(path_self: Path, *args: object, **kwargs: object) -> str:
+                nonlocal baseline_reads
+                if path_self.name == "baseline-policy.json":
+                    baseline_reads += 1
+                return real_read_text(path_self, *args, **kwargs)  # type: ignore[arg-type]
+
+            with mock.patch.object(Path, "read_text", spy):
+                hygiene.scan_tree(target, policy)
+            self.assertEqual(1, baseline_reads)
+
 
 if __name__ == "__main__":
     unittest.main()
