@@ -54,9 +54,6 @@ CEILING = 0.95
 DROP = 1.0 / 3.0
 ARMS = ("with", "without")  # cases[].arms.<arm>[]
 
-# Result-file field paths read here that the plugin-evals docs page does not
-# name. Correct them in this block, and nowhere else, if a real result file
-# shows another shape. Every lookup is tolerant: a missing field never raises.
 CASE_GRADER_DEFS = "graders"  # cases[].graders[]: name, type, weight
 RUN_SCORE = "score"  # cases[].arms.<arm>[].score
 RUN_GRADERS = "graders"  # cases[].arms.<arm>[].graders[]
@@ -65,10 +62,6 @@ GRADER_TYPE = "type"  # cases[].graders[].type
 GRADER_PASSED = "passed"  # cases[].arms.<arm>[].graders[].passed
 GRADER_WEIGHT = "weight"  # graders[].weight, run result first, then definition
 GRADER_SCORED = "scored"  # cases[].arms.<arm>[].graders[].scored, true when absent
-# Judge votes on an llm grader's run result. judgeVotes is the key
-# reading-results.md records from measured files; the others are read in case
-# a later schema renames it. A grader holding none of these keys counts as
-# holding no votes.
 GRADER_VOTES = ("judgeVotes", "votes", "judge_votes")  # graders[].<key>[]
 VOTE_VERDICT = ("passed", "pass", "verdict", "vote")  # a vote that is an object
 

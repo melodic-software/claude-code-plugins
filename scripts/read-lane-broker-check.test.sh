@@ -76,7 +76,6 @@ CHECK_ONLY="check mode takes no effect, grant, PR number, release, or dispatcher
 url_case "check mode refuses a dispatcher run id" "https://h.example/api/token" "$CHECK_ONLY" 123
 url_case "check mode refuses a release" "https://h.example/api/token" "$CHECK_ONLY" "" 2.1.312
 
-# --- Issue lease (#9791): check-broker's claim step against a stub gh. ---
 LEASE_STEP="$WORK/lease.sh"
 GO_STEP="$WORK/go.sh"
 lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
@@ -149,9 +148,6 @@ fi
 lease_case "a claimed run posts no back-off comment" "$OURS" held true
 if grep -q 'already-leased' "$WORK/stub.log"; then fail "a claimed run posted a back-off comment"; else ok "a claimed run posts no back-off comment (log)"; fi
 
-# --- Caller-side release (#9791): the lease outlives the read run until the
-# caller has opened the PR and reported. ---
-# holds <label> <yaml-file> <js-boolean-expression on d>
 holds() {
   if node -e '
     const { createRequire } = require("node:module");
@@ -180,13 +176,6 @@ holds "the read runner has no separate release job" "$READ_YML" '!("lease-releas
 holds "report-outcome and apply-issue-patch pass the selected read call's lease handle" "$CALLER_YML" \
   'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; const selected = want.replace(/^\$\{\{ /, "").replace(/ \|\| '"''"' \}\}$/, ""); d.jobs["report-outcome"].with["lease-comment-id"] === "${{ needs.resolve-issue-stale.outputs.stale != '"'true'"' && (" + selected + ") || '"''"' }}" && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
 
-# Who releases (#9791), and whether the caller's report-outcome runs. Every
-# gate is the real YAML: the run job's issue-prior `if`, its go step's shell
-# and issue-run-started output, both report jobs' `if`, and the caller's
-# apply-issue-patch and report-outcome `if` and lease-comment-id inputs, with
-# resolve-issue as the selected call (its later calls skipped).
-# who <label> <expected: read|write|both|none> <expected report-outcome: yes|no>
-#     <lease> <caller-releases-lease> <handed-off> <prior: none|stop|branch> <patch-state> <apply-skip>
 who() {
   local got
   # shellcheck disable=SC2016  # node source with JS template expressions, never shell-expanded

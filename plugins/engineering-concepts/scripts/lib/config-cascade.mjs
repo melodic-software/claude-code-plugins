@@ -1,72 +1,5 @@
 // GENERATED from lib/config-cascade.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// The four-layer plugin config cascade (docs/adr/0075): later layers win per key.
-//
-//   resolve({plugin, projectRoot, home, schema, defaults, userConfig, teamOnly, floors, userHome})
-//     -> {values, provenance: {"a.b": layer | [layers]}, prose: [paths], sections: [{heading, text, layer}],
-//         layers: [{name, path, state: "loaded" | "absent" | "invalid", errors, error_keys}], legacy: [{path, kind}]}
-//
-//   readLayers({...}) -> each layer's own accepted values, unmerged (see its comment below)
-//
-//   fileState(path) -> {ok} | {refused: why} | {}, and escapes(dir, root) -> boolean: the path
-//     guards the file layers use, for a caller that reads other repository files the same way
-//
-// `error_keys[i]` tags `errors[i]`: the dotted key the error names (key-level), or null when it is
-// about the layer as a whole (file-level: a file refused or unparsable, a value that is not a mapping).
-//
-// Layers, in order: "defaults" (the `defaults` object, already parsed by the caller), "userConfig"
-// (the plugin's userConfig values, flattened names), "team" (<home>/<plugin>) and "local", the
-// personal override (<home>/<plugin>.local). A file layer reads <stem>.yaml for config and <stem>.md
-// for prose; it is absent when neither file exists. `home` is the convention home the caller
-// resolved, relative to projectRoot unless absolute (default docs/conventions). There is no
-// user-global file layer: a file under <userHome>/docs/conventions is never read, and `userHome`
-// (default os.homedir()) only locates the legacy files reported in `legacy`. `schema` is a JSON
-// Schema object; the subset honored is type (object, string, array, null, integer, number, boolean),
-// enum, properties, additionalProperties (false or a schema), items, minimum, maximum, minItems and
-// maxItems.
-//
-// A key is a schema leaf: any node that is not an object with `properties`, or a path named in
-// `teamOnly`. The setup writer's top-level `written_against` and `provenance` records are not keys,
-// declared or not: every layer skips them, so they reach neither `values` nor a userConfig name.
-// Each layer's leaves are checked one by one; a leaf whose value fails the schema is
-// dropped from that layer with an error naming layer, file and key, and a lower layer's value is
-// then never used (ADR 0075, the invalid-value rule): a valid higher layer still wins, otherwise the
-// key takes its default. The personal override is the one exception, because it refines the team
-// file: an invalid personal value leaves the team value standing. A key containing `.` is
-// rejected the same way, since keys are joined with `.` into paths, and so are `__proto__`,
-// `constructor` and `prototype`, at any depth inside a value too, which a caller's merge would treat
-// as more than data. A refused file makes its layer invalid; the layer's other file still applies. The team and
-// local layers come from the repository: each reads only regular files, never a symlink, and is
-// invalid when a relative `home` resolves outside projectRoot. A team-only key is
-// accepted in "defaults" and "team" and rejected elsewhere. A YAML file that does not parse, or
-// whose top level is not a mapping, makes its layer invalid and contributes no values; its .md
-// file still supplies prose. A leaf whose last segment is `disable` and whose value is a list is the
-// union of every layer's list, and its provenance is an array of the layer names that set it, in
-// layer order; every other key's provenance is a single layer-name string.
-//
-// Policy floors. `floors` maps a key path to a `Floor direction` value (the Implementers table of
-// docs/contracts/config-cascade/README.md; the closed set is no-floor, team-only, lowest-value,
-// any-layer-wins and stricter-value), or to {direction, scale} where stricter-value takes a scale
-// from loosest to strictest (default: the leaf's schema `enum` order). When the team layer set a
-// floor key, a personal value is accepted only if it is no looser in that direction: team-only takes
-// an equal value (a list must keep every team item); lowest-value a number no higher; any-layer-wins
-// a tightening value (`true` or "report") whenever the team value is one; stricter-value a value at
-// or beyond the team value on the scale. A looser value is dropped with an error naming the layer,
-// file and key, and the team value stands. Floors bind the personal override; a `*.disable` union key
-// is not compared.
-//
-// userConfig maps each schema leaf path to its name joined with `_` (widget.limit is widget_limit);
-// two leaves with one name throw. An empty string or an unrendered `${user_config.` placeholder is
-// unset, names outside the schema are ignored, and a list, mapping or team-only key is rejected.
-// A string value takes the leaf's integer, number or boolean type when the leaf does not accept
-// strings. Legacy locations (.claude/<plugin>.* under userHome and projectRoot, and a fenced
-// `yaml config` block in the team .md) are reported in `legacy`, never read for values.
-//
-// Prose. A `.local.md` H2 section (a `## ` heading outside a code fence) replaces the team `.md`
-// section with the same heading; every other team section is kept, a local section with a new
-// heading follows them, and the team text before the first H2 is kept. `sections` lists the result in
-// order, each with the layer it came from (`heading` is null for text before the first H2).
-// This module reads files only. File contents are data; error messages quote them as JSON strings.
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
@@ -99,7 +32,6 @@ function checkPlugin(plugin) {
 /** The convention home, whether a relative one escapes projectRoot, and the [name, stem] of each file layer. */
 function fileLayersOf(plugin, projectRoot, home) {
   const homeDir = resolvePath(projectRoot, home);
-  // A relative home is inside the checkout by intent; a committed symlink must not carry it out.
   const homeEscapes = !isAbsolute(home) && escapes(homeDir, projectRoot);
   const outside = homeEscapes ? homeDir : null;
   let local = [join(homeDir, `${plugin}.local`), outside];
@@ -200,7 +132,6 @@ function check(value, node, at = "") {
   if (typeof value === "number" && typeof node.maximum === "number" && value > node.maximum) return [`${prefix}${show(value)} must be at most ${node.maximum}`];
   if (Array.isArray(value) && typeof node.minItems === "number" && value.length < node.minItems) return [`${prefix}needs at least ${node.minItems} items, got ${value.length}`];
   if (Array.isArray(value) && typeof node.maxItems === "number" && value.length > node.maxItems) return [`${prefix}allows at most ${node.maxItems} items, got ${value.length}`];
-  // An open node ({}) checks nothing but reserved names, which are refused at every depth.
   if (Array.isArray(value)) return value.flatMap((item, i) => check(item, isMapping(node.items) ? node.items : {}, `${at}[${i}]`));
   if (!isMapping(value)) return [];
   return Object.keys(value).flatMap((key) => {
@@ -396,7 +327,6 @@ function mergeSections(teamText, localText) {
   }
   const teamHeadings = new Set(team.map((s) => s.heading));
   for (const s of local) {
-    // Text before the first H2 follows the team's own only when the team has no file; a repeated heading keeps its last section.
     const fresh = s.heading === null ? team.length === 0 : !teamHeadings.has(s.heading) && replacement.get(s.heading) === s;
     if (fresh) out.push(s);
   }
@@ -481,7 +411,6 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
   const prose = [];
   const proseText = {};
 
-  // pairsOf(fail) returns the layer's accepted [parts, value] pairs; falsy when it contributes none.
   const take = (layer, pairsOf) => {
     const invalid = new Set();
     const fail = (message, key, valueFailed = false) => {
@@ -519,7 +448,6 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
   let base = new Map(); // the defaults layer's entries, where an invalid higher value falls back to
   const within = (dotted, key) => dotted === key || dotted.startsWith(`${key}.`);
   for (const [name, pairs, invalid] of contributions) {
-    // A lower layer's value is never used for an invalid one; the personal override refines the team file, so its keys fall to team.
     if (name !== "local") {
       for (const key of invalid) {
         for (const dotted of [...merged.keys()]) if (within(dotted, key)) merged.delete(dotted);
@@ -547,7 +475,6 @@ export function resolve({ plugin, projectRoot, home = "docs/conventions", schema
           if (!seen.has(key)) items.push(item);
           seen.add(key);
         }
-        // An empty list adds nothing, so its layer is credited only when no layer set the key before.
         const from = Array.isArray(prior?.from) ? prior.from : [];
         merged.set(dotted, { parts, value: items, from: value.length > 0 || !prior ? [...from, name] : from });
       } else merged.set(dotted, { parts, value, from: name });
@@ -573,7 +500,6 @@ function legacyOf(plugin, userHome, projectRoot, teamMd) {
     ...(projectRoot ? legacyFiles(join(projectRoot, ".claude"), plugin, (n) => (n.startsWith(`${plugin}.local.`) ? "claude-local" : "claude-project")) : []),
     ...(teamMd && hasConfigBlock(teamMd) ? [{ path: teamMd, kind: "fenced-block" }] : []),
   ];
-  // The project root may be the user home, so a file is reported under its first kind only.
   return found.filter((entry, i) => found.findIndex((e) => e.path === entry.path) === i);
 }
 

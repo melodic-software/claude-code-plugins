@@ -31,19 +31,6 @@ CLAUDE_STUB="$TEST_TMPDIR/claude"
 printf '#!/usr/bin/env bash\necho "9.8.7 (Claude Code)"\n' >"$CLAUDE_STUB"
 chmod +x "$CLAUDE_STUB"
 
-# The curl stand-in serves $CURL_SHIM_SRC/<last URL segment> and logs every
-# request with its headers. A sidecar <name>.status, <name>.ctype or
-# <name>.effective overrides the HTTP status, the content type or the final URL
-# for that file. <name>.etag and <name>.lastmod are sent as ETag and
-# Last-Modified (Date is <name>.date, else a fixed time), and a request whose
-# If-None-Match or If-Modified-Since matches them gets an empty 304. A request
-# with Accept: text/markdown gets <name>.accept-md, when present, as
-# text/markdown, or as the type in <name>.accept-md.ctype. A file that is not served exits 22 with no output, and a
-# <name>.partial file is written and then fails with curl's short-transfer
-# code, like a body cut off mid-download. A body over --max-filesize exits 63
-# with no output, as curl does for a declared Content-Length, unless a
-# <name>.nocap sidecar makes it ignore the limit, as an older curl does for a
-# body sent without one.
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 cat >"$SHIM/curl" <<'EOF'
@@ -822,8 +809,6 @@ assert_eq "html: python3 was probed and never ran; python ran" "$(printf '%s\n' 
 GEN_CONV="$TEST_TMPDIR/absent.py" gen_run "$src" go-p3 "$PYOK" $G1 "$PAGE_URL" 2>/dev/null
 assert_eq "html: a missing converter is unread converter-missing" "unread converter-missing" "$(gpage go-p3 '"\(.state) \(.reason)"')"
 
-# X's logged-out shell: a 200 text/html body with Log in and Sign up links and no
-# article text. The pass-through converter keeps the links the stand-in strips.
 X_URL='https://x.com/someone/status/2117512471930167377'
 X_FILE='x-com/someone/status/2117512471930167377.md'
 X_LOGIN='redirect_after_login=%2Fsomeone%2Fstatus%2F2117512471930167377'

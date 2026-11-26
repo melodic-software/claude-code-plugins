@@ -1,23 +1,5 @@
 # shellcheck shell=bash
-# Telemetry-sink stub for hook test suites. Sourced, never executed: sourcing
-# defines make_sink, wait_for_sink and check_envelope and runs nothing else.
-#
-# CONTRACT. hook::emit_telemetry runs HOOK_TELEMETRY_SINK as one quoted word,
-# "$sink", with the envelope on stdin. The value must therefore be a single
-# executable path, never a command with arguments: `tee FILE` (or
-# `/usr/bin/tee FILE`) is looked up as one file name, is not found, and
-# delivers nothing without an error. A suite points HOOK_TELEMETRY_SINK at the
-# stub make_sink writes.
-#
-# Canonical copy: lib/hook-test-sink.sh at the marketplace repo root. Plugins
-# carry copies at plugins/<plugin>/hooks/hook-test-sink.sh because an installed
-# plugin is cache-isolated; scripts/sync-shared-copies.sh generates them from
-# this file, so edit it here and rerun that script.
 
-# make_sink <body> -> print the path of an executable stub sink: a bash shebang
-# line followed by <body>, which reads the envelope on stdin. Returns 2 with a
-# message on stderr when $WORK is not a directory. $WORK must be a directory
-# the suite owns and removes on exit, so no stub outlives the suite.
 make_sink() {
   local s
   if [[ -z "${WORK:-}" || ! -d "$WORK" ]]; then
@@ -30,12 +12,6 @@ make_sink() {
   printf '%s' "$s"
 }
 
-# wait_for_sink <file> [tries=150] -> block until <file> is non-empty (the sink
-# has flushed) and return 0, or return 1 after <tries> polls of 20ms each. The
-# sink runs fire-and-forget in a background subshell, so an assertion on its
-# capture waits here. The bound returns 1 for a sink that never fires instead
-# of hanging the suite, and the poll replaces a fixed sleep, which races the
-# sink's spawn latency.
 wait_for_sink() {
   local f="$1" tries="${2:-150}"
   while ((tries-- > 0)); do
@@ -45,22 +21,10 @@ wait_for_sink() {
   return 1
 }
 
-# check_envelope <envelope-file> [schema-file] -> return 0 when the envelope
-# conforms to the schema, else return 1 with a one-line reason on stderr. Checks
-# that the file holds one JSON object, that every `.required` key is present,
-# that each present `.properties` entry matches its declared `type` ("integer"
-# means a number with no fraction), and that `minimum` holds. The field list,
-# types and minimums come from the schema, so a suite carries no transcribed
-# list to drift from it. The schema is [schema-file], else $HOOK_ENVELOPE_SCHEMA,
-# else the repo's envelope.schema.json found through git from this file. A
-# missing schema or an empty `.required` fails: the check never passes for want
-# of a field list.
 check_envelope() {
   local env_file="${1:-}" schema="${2:-${HOOK_ENVELOPE_SCHEMA:-}}" root reason rc
   if [[ -z "$schema" ]]; then
     root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel 2>/dev/null)" || root=""
-    # The contract moved from docs/conventions/, which keeps a stub; the old
-    # path is read only when the new one is absent or empty.
     schema="$root/docs/contracts/hook-telemetry/envelope.schema.json"
     [[ -s "$schema" ]] || schema="$root/docs/conventions/hook-telemetry/envelope.schema.json"
   fi

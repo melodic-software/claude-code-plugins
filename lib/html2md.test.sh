@@ -29,9 +29,6 @@ assert_absent() {
   if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "unexpected [$2]"; fi
 }
 
-# Python 3 the way lib/session-bridge/view-bridge.sh finds it: python3, then python,
-# each accepted only when it runs and reports major version 3 (the Windows Store
-# alias stub fails this probe).
 PY=""
 for name in python3 python; do
   candidate=$(command -v "$name" 2>/dev/null) || continue

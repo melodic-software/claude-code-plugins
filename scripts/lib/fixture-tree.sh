@@ -85,42 +85,42 @@ fixture_tree::build() {
   local _ft_git=0 _ft_plugins=0 _ft_lib=auto _ft_label=fixture
   while (($# > 0)); do
     case "$1" in
-    --sut)
-      if (($# < 2)); then
-        printf 'fixture-tree: --sut needs a script\n' >&2
+      --sut)
+        if (($# < 2)); then
+          printf 'fixture-tree: --sut needs a script\n' >&2
+          return 2
+        fi
+        _ft_suts+=("$2")
+        shift 2
+        ;;
+      --label)
+        if (($# < 2)); then
+          printf 'fixture-tree: --label needs a name\n' >&2
+          return 2
+        fi
+        _ft_label="$2"
+        shift 2
+        ;;
+      --git)
+        _ft_git=1
+        shift
+        ;;
+      --plugins)
+        _ft_plugins=1
+        shift
+        ;;
+      --lib)
+        _ft_lib=all
+        shift
+        ;;
+      --no-lib)
+        _ft_lib=none
+        shift
+        ;;
+      *)
+        printf 'fixture-tree: unknown option %s\n' "$1" >&2
         return 2
-      fi
-      _ft_suts+=("$2")
-      shift 2
-      ;;
-    --label)
-      if (($# < 2)); then
-        printf 'fixture-tree: --label needs a name\n' >&2
-        return 2
-      fi
-      _ft_label="$2"
-      shift 2
-      ;;
-    --git)
-      _ft_git=1
-      shift
-      ;;
-    --plugins)
-      _ft_plugins=1
-      shift
-      ;;
-    --lib)
-      _ft_lib=all
-      shift
-      ;;
-    --no-lib)
-      _ft_lib=none
-      shift
-      ;;
-    *)
-      printf 'fixture-tree: unknown option %s\n' "$1" >&2
-      return 2
-      ;;
+        ;;
     esac
   done
 
@@ -134,12 +134,12 @@ fixture_tree::build() {
   local _ft_repo_root
   _ft_repo_root="$(cd "$FIXTURE_TREE_REPO_ROOT" && pwd -P)" || return 1
   case "$_ft_root" in
-  "$_ft_repo_root" | "$_ft_repo_root"/*)
-    printf 'fixture-tree: refusing a root inside the checkout: %s\n' "$_ft_root" >&2
-    rm -rf "$_ft_root"
-    return 1
-    ;;
-  *) ;;
+    "$_ft_repo_root" | "$_ft_repo_root"/*)
+      printf 'fixture-tree: refusing a root inside the checkout: %s\n' "$_ft_root" >&2
+      rm -rf "$_ft_root"
+      return 1
+      ;;
+    *) ;;
   esac
 
   mkdir -p "$_ft_root/scripts" || {

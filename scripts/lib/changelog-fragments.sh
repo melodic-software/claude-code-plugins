@@ -49,8 +49,8 @@ changelog_fragments::root_of() {
 changelog_fragments::convention_of() {
   local rest name
   case "$1" in
-  docs/contracts/*/* | docs/conventions/*/*) ;;
-  *) return 1 ;;
+    docs/contracts/*/* | docs/conventions/*/*) ;;
+    *) return 1 ;;
   esac
   rest="${1#docs/*/}"
   name="${rest%%/*}"
@@ -131,12 +131,12 @@ changelog_fragments::validate() {
   fi
   changelog_fragments::in_mode "$plugin"
   case $? in
-  0) ;;
-  1)
-    echo "NOT IN FRAGMENT MODE: $path is for '$plugin', which $CF_LIST does not list; bump its plugin.json and CHANGELOG.md in the pull request instead." >&2
-    return 1
-    ;;
-  *) return 2 ;;
+    0) ;;
+    1)
+      echo "NOT IN FRAGMENT MODE: $path is for '$plugin', which $CF_LIST does not list; bump its plugin.json and CHANGELOG.md in the pull request instead." >&2
+      return 1
+      ;;
+    *) return 2 ;;
   esac
   if ! bump="$(changelog_fragments::bump_of "$path")"; then
     echo "FRAGMENT FRONT MATTER: $path: $bump." >&2
@@ -180,9 +180,9 @@ changelog_fragments::validate() {
   fi
   changelog_fragments::em_dash_purged "$root"
   case $? in
-  0) ;;
-  1) return 0 ;;
-  *) return 2 ;;
+    0) ;;
+    1) return 0 ;;
+    *) return 2 ;;
   esac
   problems="$(changelog_fragments::em_dash_lines "$path")" || return 2
   if [[ -n "$problems" ]]; then

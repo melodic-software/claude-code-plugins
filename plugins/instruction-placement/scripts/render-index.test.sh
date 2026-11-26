@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # fixture-isolation-scope: this suite builds git fixtures and clears the
-# inherited git environment itself rather than sourcing a harness, so the plugin
-# stays self-contained and portable outside this marketplace.
 # shellcheck disable=SC2016 # assertions quote markdown code spans
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -568,7 +566,6 @@ assert_eq "a non-integer --max-rows is a usage error" "2" "$?"
 winrepo="$(build_fixture)"
 win_root="$(git -C "$winrepo" rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$win_root" || "$win_root" == "$winrepo" ]]; then
-  # silent-skip-ok: printed as a visible SKIP line and counted apart from PASS
   skip "a drive-letter --root and --file round trip" \
     "git reports a single path spelling for this checkout"
 else
