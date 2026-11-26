@@ -35,8 +35,8 @@ pattern. Name the terms in the report.
 Resolve `transcript_scope` once, as
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
 describes. The user option is `${user_config.transcript_scope}`; a literal, unexpanded
-placeholder means unset, which counts as `worktree`. Claude Code writes each user option into this
-text when the skill loads, so read it here and never put it, or a placeholder, in a shell command.
+placeholder means unset, which counts as `worktree`. We read each user option from this text, where Claude Code
+substitutes it ([reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value)), so read it here and never put it, or a placeholder, in a shell command.
 
 The repository value is read only when the git root is neither `$HOME` nor an ancestor of it, and
 only when `<git root>/docs/conventions/session-flow.yaml` exists (look with Glob or Read); when the
@@ -200,7 +200,7 @@ number, item id or document path, with any quoted transcript text placed last on
 - **Still open**: other unresolved items and tracker entries.
 
 A source that came back with nothing is reported as coming back with nothing, since that absence
-is a result in its own right. Transcripts age out on a schedule Claude Code sets, so history older
+is a result in its own right. Transcripts age out on the schedule [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays) sets, so history older
 than the oldest surviving transcript can show up only in git, pull requests, the tracker and postmortems; when
 the oldest transcript read is recent, say so.
 

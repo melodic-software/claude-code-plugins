@@ -23,8 +23,9 @@ defines what counts as a resume, a message's context and a session's version.
   the binding rules, decisions and open questions a resumed session missed. Never compare against
   the `unknown` group: it holds sessions whose transcript names no session-flow path.
 - **Run time.** It opens every transcript and stops each one early. A run over 3,478 transcripts
-  took about 85 s (measured 2026-11-19; recheck when a run exceeds 300 s), so give it a Bash
-  timeout of 600000 ms or run it in the background.
+  took about 85 s (measured 2026-11-19; recheck when a run exceeds 300 s), so give it the
+  longest Bash timeout allowed (the ceiling: [timeout and output limits](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits))
+  or run it in the background.
 
 ## Present
 
