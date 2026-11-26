@@ -53,7 +53,8 @@ never whether to use it. A team's or person's stances live in their standards la
 
 ## Next
 
-`/engineering-concepts:load`, to keep the found entries in view for the design or review ahead.
+- The found entries guide the design or review ahead: /engineering-concepts:load.
+- The user wants them as standing personal or team standards: /engineering-concepts:adopt.
 
 ## Gotchas
 

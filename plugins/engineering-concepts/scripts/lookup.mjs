@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { resolveSettings } from "./settings.mjs";
 
-const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
+export const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
 const STAGES = ["interview", "design", "plan", "build", "review", "operate", "any"];
 const REVERSIBILITY = ["one-way", "two-way", "unrated"];
 const SOURCE_BARS = ["official", "official-plus-confirming"];
@@ -121,7 +121,7 @@ export function loadIndex(dataDir, err, { shipped = false } = {}) {
   return { byId, byName };
 }
 
-const resolveId = (index, term) => (index.byId.has(term) ? term : index.byName.get(term.toLowerCase()));
+export const resolveId = (index, term) => (index.byId.has(term) ? term : index.byName.get(term.toLowerCase()));
 
 function select(index, term, opts) {
   const excluded = new Set(opts.exclude.flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean));
@@ -140,7 +140,7 @@ function select(index, term, opts) {
   );
 }
 
-function present(index, record) {
+export function present(index, record) {
   const ref = (raw) => {
     const id = resolveId(index, raw);
     return id === undefined ? { id: raw, name: null } : { id, name: index.byId.get(id).name };
@@ -183,7 +183,7 @@ function readUserConfig(source) {
   );
 }
 
-function gitRoot(dir) {
+export function gitRoot(dir) {
   const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
 }

@@ -1,0 +1,184 @@
+#!/usr/bin/env node
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, relative, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import { escapes } from "./lib/config-cascade.mjs";
+import { parse } from "./lib/yaml-subset.mjs";
+import { DATA_DIR, gitRoot, loadIndex, present, resolveId } from "./lookup.mjs";
+
+const LAYERS = ["personal", "team"];
+const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+const HELP = `Usage: adopt.mjs CONCEPT... --layer personal|team --surface NAME [options]
+
+Adopts shipped engineering concepts into a standards layer: writes each concept as
+one line naming it, its id and its official source, with one line under it per
+counterweight or conflict, into NAME.md, and adds that file's row to the layer's
+index. CONCEPT is an id, a name or an alias, as lookup.mjs matches it.
+
+  --layer personal          ~/.claude/standards/ (under --home); with no index
+                            there, the file is found by glob discovery
+  --layer team              the repository's standards root (.claude/standards.yaml
+                            standards_dir, default docs/standards/); needs an index
+  --surface NAME            kebab-case Surface id; the file is NAME.md
+  --applies-when TEXT       the index row's "Applies when" clues (default: the
+                            concepts' concerns)
+  --yes                     write; without it, print what would be written
+  --data-dir DIR            read concepts from DIR instead of the plugin's data/
+  --project DIR             repository for --layer team (default: the git root of
+                            the working directory)
+  --home DIR                user home for --layer personal
+  -h, --help                show this help
+
+A concept already in the file is skipped, and an existing row for the file is kept.
+Diagnostics: JSON lines on stderr.
+Exit: 0 written or nothing new, 1 refused, 2 invalid option, 3 preview only.`;
+
+const OPTIONS = {
+  layer: { type: "string" },
+  surface: { type: "string" },
+  "applies-when": { type: "string" },
+  yes: { type: "boolean", default: false },
+  "data-dir": { type: "string" },
+  project: { type: "string" },
+  home: { type: "string", default: homedir() },
+  help: { type: "boolean", short: "h", default: false },
+};
+
+const HEADER = (surface) => `# Adopted engineering concepts: ${surface}
+
+Each entry is an engineering concept adopted here, named by its id in the engineering-concepts
+plugin and linked to its official source. Apply it, and weigh it against the concepts listed
+under it.
+`;
+
+const ref = (r) => (r.name ? `${r.name} (\`${r.id}\`)` : `\`${r.id}\``);
+
+const entry = (r) =>
+  [
+    `- ${ref(r)}: ${r.source_url}`,
+    ...r.counterweights.map((c) => `  - Counterweight: ${ref(c)}`),
+    ...r.conflicts_with.map((c) => `  - Conflicts with: ${ref(c)}`),
+  ].join("\n");
+
+const read = (path) => (existsSync(path) ? readFileSync(path, "utf8") : null);
+
+/** Inserts the row after the last row of the index table, or appends a table when there is none. */
+function withRow(index, row) {
+  const lines = index.replace(/\n$/u, "").split("\n");
+  const header = lines.findIndex((line) => /^\|\s*Surface\s*\|/u.test(line));
+  if (header < 0) return `${lines.join("\n")}\n\n| Surface | Applies when | File |\n|---|---|---|\n${row}\n`;
+  let end = header;
+  while (end + 1 < lines.length && lines[end + 1].startsWith("|")) end++;
+  lines.splice(end + 1, 0, row);
+  return `${lines.join("\n")}\n`;
+}
+
+/** The standards contract's presence test: an index carries `standards-contract` in its frontmatter. */
+const isIndex = (text) => /^---\r?\n(?:.*\r?\n)*?standards-contract:.*\r?\n(?:.*\r?\n)*?---\r?\n/u.test(text ?? "");
+
+/** `{dir}`, or `{error}` when the repository's concern file cannot be read as a standards root. */
+function teamRoot(project) {
+  const file = join(project, ".claude", "standards.yaml");
+  const concern = read(file);
+  let value;
+  try {
+    value = concern ? parse(concern)?.standards_dir : undefined;
+  } catch (e) {
+    return { error: { file, reason: e.message } };
+  }
+  if (value !== undefined && typeof value !== "string") return { error: { file, reason: "standards_dir is not a path" } };
+  return { dir: join(project, value || "docs/standards") };
+}
+
+function write(path, text) {
+  mkdirSync(dirname(path), { recursive: true });
+  const temp = `${path}.${process.pid}.tmp`;
+  writeFileSync(temp, text);
+  renameSync(temp, path);
+}
+
+export async function main(argv, { out = console.log, err = console.error, shippedDataDir = DATA_DIR } = {}) {
+  const invalid = (option, value, allowed) => {
+    err(JSON.stringify({ level: "error", event: "invalid option", option, value, ...(allowed && { allowed }) }));
+    return 2;
+  };
+  let parsed;
+  try {
+    parsed = parseArgs({ args: argv, allowPositionals: true, options: OPTIONS });
+  } catch (e) {
+    return invalid(null, e.message);
+  }
+  const { values: opts, positionals } = parsed;
+  if (opts.help) {
+    out(HELP);
+    return 0;
+  }
+  if (!LAYERS.includes(opts.layer)) return invalid("layer", opts.layer ?? null, LAYERS);
+  if (!KEBAB.test(opts.surface ?? "")) return invalid("surface", opts.surface ?? null);
+  if (!positionals.length) return invalid("concepts", null);
+  const index = loadIndex(opts["data-dir"] ?? shippedDataDir, err, { shipped: opts["data-dir"] === undefined });
+  const missing = positionals.filter((term) => resolveId(index, term) === undefined);
+  for (const term of missing) err(JSON.stringify({ level: "error", event: "concept not found", term }));
+  if (missing.length) return 1;
+  const records = positionals.map((term) => present(index, index.byId.get(resolveId(index, term))));
+  let dir = join(opts.home, ".claude", "standards");
+  if (opts.layer === "team") {
+    const project = resolvePath(opts.project ?? gitRoot(process.cwd()));
+    const root = teamRoot(project);
+    if (root.error) {
+      err(JSON.stringify({ level: "error", event: "standards config unreadable", ...root.error }));
+      return 1;
+    }
+    if (/^\.\.(?:[\\/]|$)/u.test(relative(project, root.dir)) || escapes(root.dir, project)) {
+      err(JSON.stringify({ level: "error", event: "standards root outside the repository", dir: root.dir, project }));
+      return 1;
+    }
+    dir = root.dir;
+  }
+  const file = `${opts.surface}.md`;
+  const filePath = join(dir, file);
+  const concerns = [...new Set(records.map((r) => r.concern))].sort();
+  const appliesWhen = (opts["applies-when"] ?? concerns.join(", ")).replace(/\s+/gu, " ").replace(/\|/gu, "\\|");
+  const row = `| ${opts.surface} | ${appliesWhen} | ${file} |`;
+  const indexPath = join(dir, "README.md");
+
+  const current = read(filePath);
+  const isAdopted = (id) => current?.split("\n").some((line) => line.startsWith("- ") && line.includes(`(\`${id}\`)`));
+  const fresh = [...new Map(records.filter((r) => !isAdopted(r.id)).map((r) => [r.id, r])).values()];
+  const indexText = read(indexPath);
+  const currentIndex = isIndex(indexText) ? indexText : null;
+  if (currentIndex === null && opts.layer === "team") {
+    err(JSON.stringify({ level: "error", event: "no team index", index: indexPath, fix: "create the index with a standards setup skill first" }));
+    return 1;
+  }
+  const needsRow = currentIndex !== null && !currentIndex.split("\n").some((line) => line.startsWith("|") && line.split(/(?<!\\)\|/u)[3]?.trim() === file);
+  const unindexed = currentIndex === null ? `No index at ${indexPath}: the file loads by glob discovery of that folder.` : null;
+  if (!fresh.length && !needsRow) {
+    out(`Every concept named is already adopted in ${filePath}.`);
+    return 0;
+  }
+  const added = fresh.map(entry).join("\n");
+
+  if (!opts.yes) {
+    if (added) out(`Would add to ${filePath}:\n${added}`);
+    if (needsRow) out(`Would add to ${indexPath}:\n${row}`);
+    if (unindexed) out(unindexed);
+    out("Re-run with --yes to write.");
+    return 3;
+  }
+  try {
+    if (added) write(filePath, `${current ?? HEADER(opts.surface)}\n${added}\n`);
+    if (needsRow) write(indexPath, withRow(currentIndex, row));
+  } catch (e) {
+    err(JSON.stringify({ level: "error", event: "write failed", path: e.path ?? null, code: e.code ?? null, message: e.message }));
+    return 1;
+  }
+  out(`Adopted ${fresh.length} concept(s) into ${filePath}.`);
+  if (unindexed) out(unindexed);
+  return 0;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = await main(process.argv.slice(2));

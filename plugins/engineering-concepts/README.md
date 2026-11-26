@@ -15,6 +15,7 @@ records are added, so every lookup currently finds nothing.
 |---|---|
 | `/engineering-concepts:lookup` | Finds records by name, alias, id or tag and reports their sources, counterweights and conflicts |
 | `/engineering-concepts:load` | Brings a topic or one entry into the session as working context |
+| `/engineering-concepts:adopt` | Writes chosen entries into a personal or team standards file, with their counterweights and conflicts, and adds the file's index row |
 
 ## Data
 
@@ -42,6 +43,16 @@ prints one JSON record per line, with `counterweights` and `conflicts_with` give
 `--check-sources` is the one mode that touches the network: it fetches each record's `source_url`
 and marks one that fails with `needs_resourcing: true`, keeping the record. Run it by hand or on a
 schedule and read its report; tests never run it against the network.
+
+## Adopt script
+
+`scripts/adopt.mjs` writes adopted standards: the entries a person or team chose, each as a line
+naming the concept, its id and its official source, with one line under it per counterweight or
+conflict. It writes `<surface>.md` into the personal layer (`~/.claude/standards/`) or the team
+layer (the repository's standards root) and adds that file's row to the layer's index. Without
+`--yes` it only prints what it would write. The files follow the
+[standards contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/standards/README.md#standards-files):
+no frontmatter, one concern per file. Its `--help` lists the options and exit codes.
 
 ## Settings
 

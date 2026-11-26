@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:load", "args": "modularity"}}],
+      "why": "the skill for session-only context"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "engineering-concepts:adopt", "args": "modularity"}}],
+      "why": "adopt fired on a session-only request"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "adopt"}}],
+      "why": "bare adopt name"
+    }
+  ]
+}
