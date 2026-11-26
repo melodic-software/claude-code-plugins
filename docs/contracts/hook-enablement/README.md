@@ -68,7 +68,7 @@ When it does, this doc points at the upstream setting and the per-hook key becom
   a floor the repository cannot loosen, and departs from its condition 2: the user's own `false`
   still takes effect for that user, per the precedence above.
 - **Cost.** Reading the repository file on every fire counts against the
-  [hook budget](../hook-budget/README.md).
+  [hook budget](../hook-budget/README.md#the-hook-enablement-helper).
 
 ## How the setting reaches the hook
 
@@ -101,6 +101,36 @@ its entry is removed, and the hook manager's own skip turns them all off for a r
 lefthook remote this marketplace ships, the per-clone skip of one job and declining an entry are in
 [Adopting the git-hook entries](../check-placement/adopting-git-hooks.md), and lefthook's
 [`LEFTHOOK`](https://lefthook.dev/usage/envs/LEFTHOOK) variable skips every hook for one command.
+
+### The shared helper
+
+[`lib/hook-enabled.sh`](../../../lib/hook-enabled.sh) resolves one key across every layer above, so
+no plugin writes the precedence itself. Its suite is `lib/hook-enabled.test.sh`. To adopt it, a
+plugin:
+
+1. Registers a copy in `scripts/shared-copies.txt`, for example
+   `lib/hook-enabled.sh plugins/<plugin>/hooks/hook-enabled.sh`, and runs
+   `scripts/sync-shared-copies.sh` ([ADR 0019](../../adr/0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)).
+   Edits go to the canonical copy in `lib/`.
+2. Sources the copy in the hook's own script and, before any work, calls
+   `hook_enabled::resolve <plugin> <key> <default>`, with `<default>` the option's manifest
+   `default`, and exits 0 only when it returns 1:
+   `rc=0; hook_enabled::resolve <plugin> <key> <default> || rc=$?; ((rc != 1)) || exit 0`.
+
+`resolve` returns 0 when the hook runs, 1 when it is off and 2 on a usage error, which it names on
+stderr. Exiting only on 1 keeps a hook with a broken call running, so a guard does not go quiet. It
+also names each dropped value on stderr. Flags:
+
+| Flag | Use |
+|---|---|
+| none | A Claude Code hook: user layer from `CLAUDE_PLUGIN_OPTION_<KEY>`, repository layer under `CLAUDE_PROJECT_DIR` |
+| `--git-hook` | A git hook: user layer from `pluginConfigs`, repository layer at `git rev-parse --show-toplevel` |
+| `--security` | A [security control](#the-per-hook-setting): a repository `false` and a `CLAUDE_PLUGIN_OPTION_<KEY>=false` are ignored (a `true` from either still turns the guard on). The user's `false` turns the guard off only from `pluginConfigs` in the `settings.json` beside the install's `plugins/cache` (with `--git-hook`, the user settings file above), so a Claude Code hook copy outside the install cache cannot be turned off. A `pluginConfigs` value in managed settings wins over both; on Linux a managed `false` counts only from a root-owned file no one else can write |
+| `--root DIR` | The project root, in place of `CLAUDE_PROJECT_DIR` or git's top level |
+| `--home DIR` | The convention home relative to the root, in place of `docs/conventions` |
+
+Its cost per fire is under
+[hook budget, The hook-enablement helper](../hook-budget/README.md#the-hook-enablement-helper).
 
 ## Wording
 

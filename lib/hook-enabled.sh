@@ -83,13 +83,13 @@ hook_enabled::_install_to() {
 hook_enabled::_option_to() {
   local __he_out
   command -v jq >/dev/null 2>&1 || return 1
-  __he_out="$(jq -j --arg id "$2" --arg k "$3" --arg name "${4-}" '
+  { __he_out="$(jq -j --arg id "$2" --arg k "$3" --arg name "${4-}" '
     [ (.pluginConfigs? // empty) | objects | to_entries[]
       | select(if $id != "" then .key == $id else (.key | startswith($name + "@")) end)
       | (.value.options[$k])?
       | if type == "boolean" then tostring elif type == "string" then . elif type == "null" then empty else tojson end ]
     | unique
-    | if length == 1 then "v:" + .[0] elif length > 1 then "x:" else empty end' 2>/dev/null)" || return 1
+    | if length == 1 then "v:" + .[0] elif length > 1 then "x:" else empty end')"; } 2>/dev/null || return 1
   __he_out="${__he_out%$'\r'}"
   if [[ "$__he_out" == x: ]]; then
     printf 'hook-enabled: %s: skipped %s; entries for more than one marketplace set different values\n' "$3" "${5-}" >&2
@@ -274,7 +274,7 @@ hook_enabled::resolve() {
 
   if ((git_hook)); then
     name="$plugin"
-    ((root_given)) || root="$(git rev-parse --show-toplevel 2>/dev/null)" || root=""
+    ((root_given)) || { root="$(git rev-parse --show-toplevel)"; } 2>/dev/null || root=""
   fi
 
   if ((security)) && hook_enabled::_managed_value_to setting setting_from "$key" "$name"; then

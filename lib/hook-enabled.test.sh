@@ -231,6 +231,70 @@ check "git hook security: a managed true beats the user's settings false" 0 "" "
 repo
 rm -f "$user_file" "$managed" "$clone_conf"
 
+trace="$work/strace.log"
+traced() {
+  rm -f "$trace"
+  strace -f -qq -o "$trace" -e trace=clone,clone3,fork,vfork,execve "$@" >/dev/null 2>&1
+}
+trace_clones() {
+  grep -E '^[0-9]+ +(clone|clone3|fork|vfork)\(' "$trace" 2>/dev/null | grep -vc CLONE_THREAD
+}
+trace_execs() {
+  local n
+  n="$(grep -cE '^[0-9]+ +execve\(' "$trace" 2>/dev/null)"
+  echo $((${n:-0} - 1))
+}
+
+budget() {
+  local name="$1" max="$2" want="$3" code clones execs
+  shift 3
+  local -a env=()
+  while [[ "$1" != -- ]]; do
+    env+=("$1")
+    shift
+  done
+  shift
+  rm -f "$trace"
+  # shellcheck disable=SC2016
+  env -u "$option" HOME="$work/home" CLAUDE_PROJECT_DIR="$project" ${env[@]+"${env[@]}"} \
+    strace -f -qq -o "$trace" -e trace=clone,clone3,fork,vfork,execve bash -c '
+    . "$1" && shift || exit 2
+    [[ -z "${TEST_CWD-}" ]] || cd "$TEST_CWD" || exit 2
+    hook_enabled::resolve "$@"' _ "$lib" "$@" >/dev/null 2>&1
+  code=$?
+  clones="$(trace_clones)"
+  execs="$(trace_execs)"
+  if [[ "$code" == "$want" ]] && ((execs >= 0 && clones <= max && execs <= max)); then
+    echo "PASS: spawn budget: $name ($clones forks, $execs execs, budget $max)"
+  else
+    echo "FAIL: spawn budget: $name (exit $code, want $want; $clones forks and $execs execs, budget $max)" >&2
+    fails=1
+  fi
+}
+
+printf 'x\n' >"$work/probe.txt"
+if ! command -v strace >/dev/null 2>&1; then
+  echo "SKIP: strace not on PATH; the spawn budget cases did not run"
+elif ! traced bash -c "v=\$(cat '$work/probe.txt')" || (($(trace_clones) < 1)); then
+  echo "SKIP: strace saw no fork in a probe that forks; the spawn budget cases did not run"
+else
+  lib="$HERE/hook-enabled.sh"
+  repo "demo_enabled: false"
+  budget "a Claude Code hook starts no process" 0 1 -- demo demo_enabled true
+  lib="$installed"
+  repo "demo_enabled: true"
+  user_setting false
+  budget "--security from the install cache starts uname and jq" 2 1 -- --security demo demo_enabled true
+  rm -f "$settings"
+  lib="$HERE/hook-enabled.sh"
+  clone_repo "demo_enabled: true"
+  git_user '"demo@market": {"options": {"demo_enabled": false}}'
+  budget "--git-hook starts git and jq" 2 1 "${in_clone[@]}" -- --git-hook demo demo_enabled true
+  budget "--git-hook --security starts git, uname and jq" 3 1 "${in_clone[@]}" -- --security --git-hook demo demo_enabled true
+  repo
+  rm -f "$user_file" "$clone_conf"
+fi
+
 repo
 printf 'demo_enabled: false\n' >"$project/settings/demo.yaml"
 check "--home names the convention home" 1 "" -- --home settings demo demo_enabled true
