@@ -8,6 +8,6 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
 expected_outcome: "The reply names the clash with the existing Account (src/auth/account.ts or docs/glossary.md) and recommends a qualified name it proposes itself, such as household account or billing account, as a question the user can accept, in a round headed by a Scope check: line; it does not ask the user to come up with the name"
 ---
 
-/planning:interview me: let one account pay for several gym members, so a family gets one monthly invoice. I'm here and will answer.
+/planning:interview let one account pay for several gym members, so a family gets one monthly invoice. I'm here and will answer.
 
 [Session state: an engineering session in this repository; domain_docs is not set anywhere, so its default applies. Round 1 is answered: Q1, the problem is that a family with three members gets three monthly invoices; Q2, the users are paying members and the front-desk staff who handle billing questions. Write round 2 to the user.]

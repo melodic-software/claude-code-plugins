@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Round 3\nScope check: 11 questions asked so far\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "Scope check, Open, Next round and Later in order before the first question"
+    },
+    {
+      "answer": "Round 3\n\nScope check: 11 questions asked so far\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "a blank line after the round title still counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Round 3\nScope check: 11 questions asked so far\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "wrong: the Open: line comes after Next round and Later"
+    },
+    {
+      "answer": "Round 3\nScope check: 11 questions asked so far\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "wrong: no Next round line, as when all six ready questions are asked past the cap"
+    },
+    {
+      "answer": "Round 3\nScope check: 11 of 27 questions registered; round 2 added 4, settled 4\nOpen: who is alerted when one endpoint keeps failing, waiting on the PagerDuty Events API lookup\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "wrong: the old Scope check: form with a registered count and threshold"
+    },
+    {
+      "answer": "Round 3\nScope check: 11 questions asked so far\nHeld: Q8 (who is alerted) until the PagerDuty lookup returns\nNext round (over the cap of 4): request timeout, audit-log entry for replays\nLater: replay screen layout\n\n❓ Q8 (dead-letter retention): **How long are dead-letter rows kept?**\n\nContext:\n1. An exhausted event goes to a dead-letter table an operator can replay (your answer to Q6, after the last attempt)\n\n➡️ My recommendation: **30 days**\n\n---\n\n❓ Q9 (who may replay): **Who may replay a dead-lettered event?**",
+      "why": "wrong: a Held: line in place of the Open: line"
+    }
+  ]
+}

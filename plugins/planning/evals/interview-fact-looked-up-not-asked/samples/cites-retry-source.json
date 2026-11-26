@@ -15,7 +15,7 @@
       "why": "empty"
     },
     {
-      "answer": "Q1: **How many times does the sender retry today?** Could you check with the team?",
+      "answer": "Q1 (current retries): **How many times does the sender retry today?** Could you check with the team?",
       "why": "asks the user for the fact"
     }
   ]
