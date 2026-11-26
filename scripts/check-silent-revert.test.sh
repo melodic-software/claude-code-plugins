@@ -1710,6 +1710,28 @@ t_range_mode_scans_every_commit() {
   fi
 }
 
+t_range_mode_names_the_earlier_remover_not_the_push_tip() {
+  local repo base remover tip sink
+  mk_repo repo
+  base="$(git -C "$repo" rev-parse HEAD)"
+  add_block "$repo" feature.txt 40 alpha
+  drop_block "$repo" feature.txt alpha "refactor: remove the comments (#101)"
+  remover="$(git -C "$repo" rev-parse HEAD)"
+  printf 'the push tip touches only this file\n' >"$repo/tip.txt"
+  commit_all "$repo" "feat: an unrelated change (#239)"
+  tip="$(git -C "$repo" rev-parse HEAD)"
+  sink="$(mktemp "$TMP/x.XXXX")"
+  REMOVED_BY_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" "$base..HEAD"
+  if [[ "$RC" -eq 1 && "$(cat "$sink")" == "$remover" ]] &&
+    grep -q "removed by   ${remover:0:9}" <<<"$OUT" && ! grep -q "removed by   ${tip:0:9}" <<<"$OUT" &&
+    grep -q "^ok ${tip:0:9} " <<<"$OUT"; then
+    ok "a multi-commit push names the earlier commit that removed the lines, not the push tip"
+  else
+    fail "want the sink to name only $remover, rc=$RC sink=[$(tr '\n' ';' <"$sink")] out=$OUT"
+  fi
+  rm -f "$sink"
+}
+
 t_declared_note_ends_its_line() {
   local repo out base
   mk_repo repo
@@ -2734,6 +2756,7 @@ t_abbreviated_ack_does_not_clear
 t_ack_last_row_without_newline_is_honored
 t_default_threshold_is_wired
 t_range_mode_scans_every_commit
+t_range_mode_names_the_earlier_remover_not_the_push_tip
 t_declared_note_ends_its_line
 t_whole_file_deletion_is_attributed
 t_unresolvable_range_fails_closed

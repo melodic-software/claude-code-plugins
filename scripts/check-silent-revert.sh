@@ -575,6 +575,9 @@ report_finding() {
   if [[ -n "${DELETED_SINK:-}" ]]; then
     awk -F '\t' -v c="$culprit" '$1 == c' "$data" >>"$DELETED_SINK"
   fi
+  if [[ -n "${REMOVED_BY_SINK:-}" ]]; then
+    printf '%s\n' "$sha" >>"$REMOVED_BY_SINK"
+  fi
 
   printf '\n'
   printf 'SILENT REVERT SUSPECTED\n'

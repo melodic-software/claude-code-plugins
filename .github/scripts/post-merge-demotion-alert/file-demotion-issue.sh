@@ -524,10 +524,24 @@ if [[ -n "$number" ]]; then
   has_block="$(awk -F'\t' -v n="$number" '$1 == n && $7 == "block" { print 1; exit }' <<<"$records")"
 fi
 canary_block=''
+removers=()
 if [[ "$signal" == canary && -z "$passed" && -z "$has_block" ]]; then
   push_range
   if [[ -n "$whole_push" ]]; then
-    canary_block="$(lift_block_of canary-block "${pushed[@]}")" || canary_block=''
+    removed_by="$(mktemp)"
+    canary_block="$(REMOVED_BY_SINK="$removed_by" lift_block_of canary-block "${pushed[@]}")" || canary_block=''
+    declare -A removed=()
+    while read -r c; do
+      if [[ "$c" =~ ^[0-9a-f]{40}$ ]]; then
+        removed[$c]=1
+      fi
+    done <"$removed_by"
+    rm -f "$removed_by"
+    for ((i = ${#pushed[@]} - 1; i >= 0; i--)); do
+      if [[ -n "${removed[${pushed[i]}]+x}" ]]; then
+        removers+=("${pushed[i]}")
+      fi
+    done
   fi
 fi
 
@@ -584,6 +598,30 @@ title="Post-merge $signal failure at ${RUN_SHA:0:12}: $outcome"
 if [[ "$subject" =~ \(#([0-9]+)\)$ ]]; then
   pr="$pulls/${BASH_REMATCH[1]}"
   title="Post-merge $signal failure after #${BASH_REMATCH[1]}: $outcome"
+fi
+if [[ "$signal" == canary && "${#removers[@]}" -gt 0 ]]; then
+  removed_names='' pr=''
+  for c in "${removers[@]}"; do
+    n="$(subject_pr "$c")"
+    if [[ "$n" =~ ^[1-9][0-9]*$ ]]; then
+      removed_names="${removed_names:+$removed_names, }#$n"
+      pr="${pr:+$pr, }$pulls/$n (commit \`$c\`)"
+    elif [[ "$n" == '?' ]]; then
+      removed_names="${removed_names:+$removed_names, }${c:0:12}"
+      pr="${pr:+$pr, }commit \`$c\`, whose message could not be read"
+    else
+      removed_names="${removed_names:+$removed_names, }${c:0:12}"
+      pr="${pr:+$pr, }direct push \`$c\`"
+    fi
+  done
+  title="Post-merge $signal failure after $removed_names: $outcome"
+elif [[ "$signal" == canary && "${#pushed[@]}" -gt 1 ]]; then
+  if [[ -n "$whole_push" ]]; then
+    pr="unknown: no scan named which of the ${#pushed[@]} pushed commits removed the lines (the push's head: $pr)"
+  else
+    pr="unknown: the push's commits were not all read, so no scan named the one that removed the lines (the push's head: $pr)"
+  fi
+  title="Post-merge $signal failure at ${RUN_SHA:0:12}: $outcome"
 fi
 sha_label='Main at the failing run'
 if [[ "$signal" == canary ]]; then
