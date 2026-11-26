@@ -66,7 +66,7 @@ export function resolveSettings({ projectRoot, userConfig = {}, userHome, err })
     const barLayer = out.provenance.source_bar;
     const source_bar_from = { layer: barLayer, path: out.layers.find((l) => l.name === barLayer)?.path ?? null };
     const unreadable = out.layers
-      .filter((l) => l.state === "invalid" && l.path)
+      .filter((l) => l.path && (l.state === "invalid" || l.errors.length))
       .map((l) => ({ layer: l.name, path: l.path, detail: l.errors.map((e) => e.replace(/^\S+ \(.*?\): /u, "")).join("; ") }));
     return { source_bar: out.values.source_bar, exclude: [...excludeFrom.keys()], source_bar_from, exclude_from: Object.fromEntries(excludeFrom), unreadable };
   } finally {

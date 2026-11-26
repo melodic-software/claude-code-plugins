@@ -167,6 +167,15 @@ const isLink = (path) => {
   }
 };
 
+const isSpecial = (path) => {
+  try {
+    const st = lstatSync(path);
+    return !st.isFile() && !st.isDirectory() && !st.isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
 /** The standards contract's presence test: an index carries `standards-contract` in its frontmatter. */
 const isIndex = (text) => /^---\r?\n(?:.*\r?\n)*?standards-contract:.*\r?\n(?:.*\r?\n)*?---\r?\n/u.test(text ?? "");
 
@@ -368,7 +377,11 @@ async function adopt(argv, { out = console.log, err = console.error, shippedData
   for (const path of links) {
     err(JSON.stringify({ level: "error", event: "symbolic link refused", path, reason: "a symbolic link: writing would replace the link with a regular file; edit the file it points to by hand" }));
   }
-  if (links.length) return 1;
+  const special = [filePath, indexPath].filter((path) => !links.includes(path) && isSpecial(path));
+  for (const path of special) {
+    err(JSON.stringify({ level: "error", event: "file unreadable", path, code: null, reason: `${path} could not be read: it is not a regular file` }));
+  }
+  if (links.length || special.length) return 1;
 
   const current = read(filePath);
   const indexText = read(indexPath);

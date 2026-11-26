@@ -410,6 +410,28 @@ test("a --user-config that is a folder is refused with the plain reason 'could n
   assert.deepEqual(errors.map((e) => [e.event, e.option, e.reason]), [["invalid option", "user-config", "could not be read: it is a folder, not a file"]]);
 });
 
+test("a settings value the schema rejects stops adopt, so an exclude written as a string is never silently ignored", async () => {
+  for (const text of ["exclude: example-small-steps\n", "exclude: [example-small-steps, 5]\n"]) {
+    const project = repo({ [TEAM_SETTINGS]: text });
+    const home = personalHome();
+    const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home, project });
+    assert.equal(code, 1, text);
+    assert.deepEqual(errors.map((e) => [e.level, e.event, e.layer]), [["error", "settings file invalid", "team"]], text);
+    assert.ok(errors[0].reason.startsWith("the repository's settings file, "), errors[0].reason);
+    assert.equal(existsSync(personal(home, "change-size.md")), false, text);
+  }
+});
+
+test("a surface file that is not a regular file (a named pipe) is refused instead of hanging", async () => {
+  const home = personalHome();
+  const fifo = personal(home, "change-size.md");
+  if (spawnSync("mkfifo", [fifo]).status !== 0) return;
+  const { code, errors } = await run(["example-small-steps", "--layer", "personal", "--surface", "change-size", "--yes"], { home });
+  assert.equal(code, 1);
+  assert.deepEqual(errors.map((e) => [e.event, e.reason]), [["file unreadable", `${fifo} could not be read: it is not a regular file`]]);
+  assert.equal(readFileSync(personal(home, "README.md"), "utf8"), INDEX);
+});
+
 test("a malformed plugin settings file stops adopt as not valid, in a plain sentence naming the file and its layer, while the lookup only warns", async () => {
   const cases = [
     [TEAM_SETTINGS, "team", "the repository's settings file"],
