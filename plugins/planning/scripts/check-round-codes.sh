@@ -247,10 +247,13 @@ LC_ALL=C awk '
     return c
   }
   # Bold is allowed only on a question title or an answer line (allow_bold);
-  # italics and strikethrough nowhere. Inline code is skipped.
+  # italics and strikethrough nowhere. Inline code, path:line citations and
+  # the quoted line of a Source block (exact text, kept as written) are skipped.
   function emphasis(line, lno, allow_bold,    t) {
+    if (line ~ /^[ \t]*>/) return
     t = line
     gsub(/`[^`]*`/, "", t)
+    gsub(/[^ \t()`]*[\/.][^ \t()`]*:[0-9][0-9,-]*/, "", t)
     if (!allow_bold && (t ~ /\*\*[^ *]/ || t ~ /(^|[^A-Za-z0-9_])__[^ _]/)) {
       missing++
       printf "emphasis=%d\n", lno

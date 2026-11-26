@@ -542,6 +542,24 @@ nox "bold on the title and the answer line is not emphasis" ledger.md emphasis.m
 nox "markup inside inline code and a spaced asterisk are not emphasis" ledger.md emphasis.md '^emphasis=1[01]$'
 runx "each emphasis line counts in the structure total" 1 ledger.md emphasis.md 'bare=0 status=fail structure=4$'
 
+round citation-paths.md \
+  'Scope check: 1 questions asked so far' \
+  '' \
+  '❓ Q15 (style): **Which store holds the entries?**' \
+  '' \
+  'Context:' \
+  '1. The package exports the app factory (src/app/__init__.py:12)' \
+  '2. CI runs the suite (.github/**/ci.yml:4)' \
+  '' \
+  'Source: [Store guide, Sharing](https://example.com/guide#sharing)' \
+  '> The store is **shared** by _every_ tenant.' \
+  'That text makes sharing a question.' \
+  '' \
+  '➡️ My recommendation: **the shared store**' \
+  'Basis: verified, src/app/__main__.py:3'
+runx "citation paths with __ or ** and a quoted source line are not emphasis" 0 ledger.md citation-paths.md 'structure=0$'
+nox "a citation path or a quote line prints no emphasis line" ledger.md citation-paths.md '^emphasis='
+
 round bullet-flips.md \
   'Scope check: 1 questions asked so far' \
   '❓ Q15 (store): **Which store?**' \
