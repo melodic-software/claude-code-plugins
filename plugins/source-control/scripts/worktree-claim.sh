@@ -427,6 +427,10 @@ lock_one() {
     return "$EX_FOREIGN"
     ;;
   unlocked) ;;
+  *)
+    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+    return "$EX_ENV"
+    ;;
   esac
   reason="$(worktree_lock_reason worktree-claim.sh "$session_id")"
   worktree_git lock --reason "$reason" "$wt_path" || return "$EX_ENV"
@@ -500,6 +504,10 @@ do_check_enter() {
     printf '  stop: another session holds a live claim on this worktree; do not write here\n' >&2
     return "$EX_FOREIGN"
     ;;
+  *)
+    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+    return "$EX_ENV"
+    ;;
   esac
 }
 
@@ -524,6 +532,10 @@ do_release() {
     worktree_git unlock "$wt" || return "$EX_ENV"
     printf 'released %s\n' "$wt"
     ;;
+  *)
+    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+    return "$EX_ENV"
+    ;;
   esac
 }
 
@@ -542,6 +554,10 @@ do_handover() {
     return "$EX_UNCLAIMED"
     ;;
   foreign | ours) ;;
+  *)
+    printf '%s: unexpected lock state: %s\n' "$PROG" "$state" >&2
+    return "$EX_ENV"
+    ;;
   esac
   if [[ "$(classify_lock_state "$WT_INDEX" "$to_session")" == "ours" ]]; then
     printf '%s\n' "$reason"
