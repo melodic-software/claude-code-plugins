@@ -14,3 +14,15 @@ comment_lint_allow:
   - '^#[[:space:]]*slow-shape-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*cant-fail-ok:[[:space:]]*[^[:space:]]'
   - '^(#|//)[[:space:]]*(BEGIN|END) hold-floor[[:space:]]'
+comment_lint_exclude:
+  # Vendored copy, edited only on an owner call: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/user-interface/skills/write-css/vendor/check-css.mjs
+  # Copied verbatim into generated wizards; evals read their `# STAGES` markers: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/wizard/skills/generate/template.sh
+  - plugins/wizard/skills/unattended/template.ps1
+  # Fixtures whose line numbers and counts are their tests' oracle: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/code-metrics/scripts/fixtures/clone-classes/**
+  - plugins/code-metrics/scripts/fixtures/sources/cluster/**
+  - plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh
+  - plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts
+  - plugins/code-metrics/scripts/fixtures/sources/cm_sample.py
