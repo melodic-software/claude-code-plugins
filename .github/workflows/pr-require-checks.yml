@@ -1362,6 +1362,12 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh docs-naming {0}
         run: scripts/check-docs-naming.sh --check
 
+      - name: Check engineering-concepts records and indexes conform
+        id: engineering_concepts
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh engineering-concepts {0}
+        run: scripts/check-engineering-concepts.sh --check
+
       - name: Check ADR numbers are unique
         id: adr_numbers
         continue-on-error: true
@@ -1953,6 +1959,7 @@ jobs:
             org-repo-tokens=${{ steps.org_repo_tokens.outcome }}
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
+            engineering-concepts=${{ steps.engineering_concepts.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
             rules-index=${{ steps.rules_index.outcome }}
             as-of-recheck=${{ steps.as_of_recheck.outcome }}

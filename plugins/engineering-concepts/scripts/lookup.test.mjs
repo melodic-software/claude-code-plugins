@@ -167,6 +167,24 @@ test("a malformed line is reported with file:line on stderr while the other reco
   }
 });
 
+test("an owner that is neither an https URL nor a plugin:skill name is rejected with file:line while the others load", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "ec-lookup-"));
+  const owners = ["fixture:solo", "/fixture:solo", "https://example.com/owner", "http://example.com/x", "just some text", "fixture:", "/fixture", "Fixture:Solo"];
+  try {
+    const lines = owners.map((owner, i) => JSON.stringify({ ...SOLO, id: `example-owner-${i}`, name: `Owner ${i}`, owner }));
+    writeFileSync(join(dataDir, "owners.jsonl"), `${lines.join("\n")}\n`);
+    const { code, records, errors } = await run([], { dataDir });
+    assert.equal(code, 0);
+    assert.deepEqual(ids(records), ["example-owner-0", "example-owner-1", "example-owner-2"]);
+    assert.deepEqual(
+      errors.map((e) => [e.at, e.reason]),
+      [3, 4, 5, 6, 7].map((n) => [`${join(dataDir, "owners.jsonl")}:${n + 1}`, "owner is neither an https URL nor a plugin:skill name"]),
+    );
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("run as a command, it prints JSON lines and sets the exit code", () => {
   const script = fileURLToPath(new URL("./lookup.mjs", import.meta.url));
   const common = ["--data-dir", FIXTURES, "--project", EMPTY_REPO, "--home", HOME];

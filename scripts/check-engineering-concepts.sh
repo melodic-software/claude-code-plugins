@@ -50,15 +50,17 @@ finding() {
   findings=$((findings + 1))
 }
 
-# Rows are tab-separated: R <at> <id> <owner>, A <at> <id> <alias>, E <at> <reason>.
+# Rows are tab-separated: R <at> <id> <owner>, N <at> <id> <name>, A <at> <id> <alias>, E <at> <reason>.
 # shellcheck disable=SC2016 # $f and $r are jq variables
 JQ_ROWS='
-  select(length > 0)
-  | (try fromjson catch null) as $r
+  select(test("\\S"))
+  | (sub("\r$"; "") | try fromjson catch null) as $r
   | ($f + ":" + (input_line_number | tostring)) as $at
   | if ($r | type) != "object" then ["E", $at, "line is not a JSON object"]
     elif ($r.id | type) != "string" or ($r.id | length) == 0 then ["E", $at, "id is missing"]
+    elif ($r.id | test("^[a-z0-9]+(-[a-z0-9]+)*$") | not) then ["E", $at, "id \"" + $r.id + "\" is not a kebab-case slug"]
     else ["R", $at, $r.id, ($r.owner // "" | tostring)],
+      (if ($r.name | type) == "string" and ($r.name | length) > 0 then ["N", $at, $r.id, $r.name] else empty end),
       (($r.aliases // [])[]? | ["A", $at, $r.id, tostring])
     end
   | @tsv'
@@ -82,20 +84,21 @@ dup_findings="$(awk -F'\t' '
     else id_at[key] = $2
     ids[key] = $3
   }
-  $1 == "A" {
-    key = tolower($4); n++
-    a_at[n] = $2; a_id[n] = $3; a_key[n] = key; a_text[n] = $4
+  $1 == "A" || $1 == "N" {
+    n++
+    c_kind[n] = ($1 == "N" ? "name" : "alias"); c_at[n] = $2; c_rid[n] = tolower($3)
+    c_key[n] = tolower($4); c_text[n] = $4
   }
   END {
     for (i = 1; i <= n; i++) {
-      key = a_key[i]
-      if (key in ids && tolower(a_id[i]) != key) {
-        print a_at[i] ": alias \"" a_text[i] "\" is the id of another record"; bad = 1
+      key = c_key[i]
+      if (key in ids && c_rid[i] != key) {
+        print c_at[i] ": " c_kind[i] " \"" c_text[i] "\" is the id of another record"; bad = 1
       }
-      if ((key in alias_of) && alias_of[key] != tolower(a_id[i])) {
-        print a_at[i] ": alias \"" a_text[i] "\" is also claimed by record \"" alias_of[key] "\" at " alias_at[key]; bad = 1
-      } else if (!(key in alias_of)) {
-        alias_of[key] = tolower(a_id[i]); alias_at[key] = a_at[i]
+      if ((key in claim_of) && claim_of[key] != c_rid[i]) {
+        print c_at[i] ": " c_kind[i] " \"" c_text[i] "\" is also claimed by record \"" claim_of[key] "\" at " claim_at[key]; bad = 1
+      } else if (!(key in claim_of)) {
+        claim_of[key] = c_rid[i]; claim_at[key] = c_at[i]
       }
     }
     exit bad
@@ -132,14 +135,25 @@ for index in ${indexes[@]+"${indexes[@]}"}; do
       seen = 1; v = trim(substr($0, 20)); q = sprintf("%c", 39)
       gsub("^[\"" q "]|[\"" q "]$", "", v)
       if (v !~ /^[0-9]+\.[0-9]+\.[0-9]+$/) { print f ": standards-contract \"" v "\" is not a semver (MAJOR.MINOR.PATCH)"; bad = 1 }
+      else if (substr(v, 1, index(v, ".") - 1) != "1") { print f ": standards-contract \"" v "\" has a major version other than 1"; bad = 1 }
     }
+    fm == 1 && $0 !~ /^[ \t]*$/ && $0 !~ /^standards-contract:/ { print f ":" NR ": frontmatter has another key; standards-contract is the only frontmatter key in v1"; bad = 1 }
     fm == 2 && !table && /^[ \t]*\|/ {
       table = 1; n = split($0, cell, "|"); header = ""
       for (i = 2; i < n || (i == n && trim(cell[i]) != ""); i++) header = header (header == "" ? "" : " | ") trim(cell[i])
       if (header != "Surface | Applies when | File") { print f ": table header is \"" header "\", want \"Surface | Applies when | File\""; bad = 1 }
       next
     }
-    table == 1 { table = 2; if ($0 !~ /^[ \t]*\|[ \t:|-]+\|?[ \t]*$/) { print f ": the table header is not followed by a separator row"; bad = 1 } }
+    table == 1 {
+      table = 2
+      if ($0 !~ /^[ \t]*\|[ \t:|-]+\|?[ \t]*$/) { print f ": the table header is not followed by a separator row"; bad = 1 }
+      next
+    }
+    table == 2 && /^[ \t]*\|/ {
+      row = trim($0); gsub(/\\\|/, "", row); sub(/^\|/, "", row); sub(/\|$/, "", row)
+      cells = split(row, cell, "|")
+      if (cells != 3) { print f ":" NR ": row has " cells " cells, want 3"; bad = 1 }
+    }
     END {
       if (fm == 1) { print f ": frontmatter is never closed with ---"; bad = 1 }
       if (!table) { print f ": no index table with the header | Surface | Applies when | File |"; bad = 1 }

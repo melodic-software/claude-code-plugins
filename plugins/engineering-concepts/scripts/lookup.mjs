@@ -12,6 +12,7 @@ const STAGES = ["interview", "design", "plan", "build", "review", "operate", "an
 const REVERSIBILITY = ["one-way", "two-way", "unrated"];
 const SOURCE_BARS = ["official", "official-plus-confirming"];
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const SKILL_OWNER = /^\/?[a-z0-9-]+:[a-z0-9-]+$/u;
 const FETCH_TIMEOUT_MS = 10_000;
 const FETCH_CONCURRENCY = 8;
 
@@ -73,6 +74,7 @@ const isList = (v) => v === undefined || (Array.isArray(v) && v.every(isText));
 function rejection(record) {
   if (!isText(record.id) || !ID.test(record.id)) return "id is not a kebab-case slug";
   for (const field of ["name", "concern", "kind", "owner"]) if (!isText(record[field])) return `${field} is missing`;
+  if (!record.owner.startsWith("https://") && !SKILL_OWNER.test(record.owner)) return "owner is neither an https URL nor a plugin:skill name";
   if (!isText(record.source_url) || !record.source_url.startsWith("https://")) return "source_url is not an https URL";
   if (!STAGES.includes(record.stage)) return `stage is not one of ${STAGES.join("|")}`;
   if (!REVERSIBILITY.includes(record.reversibility)) return `reversibility is not one of ${REVERSIBILITY.join("|")}`;

@@ -1,0 +1,2 @@
+{"id":"fx-one","name":"Shared Name","aliases":[],"owner":"fx:real"}
+{"id":"fx-two","name":"Fixture Two","aliases":["shared name"],"owner":"fx:real"}
