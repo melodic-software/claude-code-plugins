@@ -384,8 +384,6 @@ async function main() {
     ok("the host's tour rings Share, the Inbox for Needs you, and the round's Send", ["Share the link@.vf-sharebtn", "Needs you@.vf-bell", "Send the round@.vf-round-cur .vf-send"].every(x => hostSteps.includes(x)), hostSteps.join(" | "));
     ok("  and skips a guest's Discussion and chat steps", !hostSteps.some(x => /^(Discussion|Chat with people)@/.test(x)), hostSteps.join(" | "));
 
-    // animation-audit I4: once the round is sent, the current step's dot breathes a few times and stops (WCAG 2.2.2:
-    // no auto-playing motion past 5 s beside other content).
     await owner.evaluate(() => window.Core.sendRound());
     await until(tia, () => !!document.querySelector('.vf-step[data-state="now"] .vf-step-dot')?.offsetParent);
     const breathe = await tia.evaluate(() => {

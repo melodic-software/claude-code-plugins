@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# link-blocks — Gitea / Forgejo adapter (provider `gitea`).
-# Scaffolded by /work-items:onboard-adapter; the provider mapping below is written
-# against POST /repos/{owner}/{repo}/issues/{index}/dependencies, documented as "make
-# the issue in the url depend on the issue in the form" — i.e. the URL issue becomes
-# BLOCKED BY the body issue, which is the direction this verb wants. The sibling
-# /blocks endpoint is the same edge read from the other end and would invert it.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "Adapter contract",
-# "JSON output contract", "Exit codes".
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,15 +32,10 @@ BLOCKER_OWNER="$WIT_ID_OWNER"
 BLOCKER_REPO="$WIT_ID_REPO"
 BLOCKER_NUMBER="$WIT_ID_NUMBER"
 
-# An item cannot block itself; Gitea rejects the self-edge, but catching it here keeps
-# the diagnostic about the request rather than about the provider's error text.
 [[ "$ID" != "$BLOCKED_BY" ]] || wit_usage_error "an item cannot be blocked by itself: $ID"
 
 wit_need_gitea_config
 
-# BOTH ends are checked against the declared scope. Gitea supports cross-repository
-# dependency edges (IssueMeta carries owner and repo), so the blocker can legitimately
-# live in a different repository — but not in one this binding never declared.
 wit_gitea_scope_in_scope "$TARGET_OWNER/$TARGET_REPO" ||
   wit_usage_error "$TARGET_OWNER/$TARGET_REPO is not in config.gitea.scopes"
 wit_gitea_scope_in_scope "$BLOCKER_OWNER/$BLOCKER_REPO" ||

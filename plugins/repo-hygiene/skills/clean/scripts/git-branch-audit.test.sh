@@ -6,11 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 AUDIT="$SCRIPT_DIR/git-branch-audit.sh"
-# The capture path the script reports comes from `clean_git_common_dir`, which
-# ends in `cd` plus `pwd -P`. The fixture root is resolved the same way so the
-# two spellings of one directory are comparable: `mktemp -d` can hand back a
-# path that is not the physical one (under MSYS `/tmp` is a mount of the
-# Windows temp directory). Identity wherever the temp root is already physical.
 TEST_TMPDIR="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
@@ -43,8 +38,6 @@ check_facts() {
     want="$w_tip|$w_up|$w_ahead|$w_behind|$w_nod"
     [[ "$tip|$up|$ahead|$behind|$nod" == "$want" ]] || bad+="$b: capture $tip|$up|$ahead|$behind|$nod, per-branch $want"$'\n'
   done <"$cap"
-  # Loss lines that carry a count (a bare positive one, or `none`) against the
-  # per-branch `rev-list <branch> --not --remotes --tags`.
   while read -r b n; do
     want="$(git -C "$repo" rev-list --count "refs/heads/$b" --not --remotes --tags 2>/dev/null)"
     [[ "$n" == "$want" ]] || bad+="$b: loss $n, per-branch $want"$'\n'
@@ -72,7 +65,6 @@ assert_contains "protects current" "$out" "Tier: PROTECTED"
 assert_contains "summary line" "$out" "Summary:"
 assert_not_contains "no deletion" "$out" "Deleted:"
 
-# Default branch: gh repo view path (no literal {owner}/{repo})
 assert_not_contains "no placeholder owner/repo" "$out" "{owner}"
 
 if command -v jq >/dev/null 2>&1; then
@@ -97,12 +89,6 @@ FAKEGH
   assert_not_contains "complete map is not flagged truncated" "$closed_out" "PRDataTruncated:"
   assert_not_contains "complete map is not flagged unavailable" "$closed_out" "PRDataUnavailable:"
 
-  # --- PR map: truncation is detected and announced -----------------------------
-  # The lookup is the ONLY mechanism that sees a squash merge, so a short map
-  # does not soften a verdict, it inverts it: a landed branch reports as needing
-  # review. `gh pr list` has no unlimited sentinel and rejects `--limit 0`, so
-  # truncation can only be inferred from returned-count == requested-limit.
-  # CLEAN_PR_LIST_LIMIT makes that boundary reachable without 100000 fixtures.
   trunc_out="$(PATH="$fake_bin:$PATH" CLEAN_PR_LIST_LIMIT=1 GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$AUDIT'")"
   assert_contains "truncated map is announced" "$trunc_out" "PRDataTruncated:"
   assert_contains "truncated map still reports its count" "$trunc_out" "PRCount: 1"
@@ -135,10 +121,6 @@ JUNKGH
   assert_contains "unparsable gh output is unavailable" "$junk_out" "PRDataUnavailable:"
   assert_not_contains "unparsable gh output fabricates no count" "$junk_out" "PRCount:"
 
-  # --- PR map: cannot create the outfile is unavailable, not a count ----------
-  # A successful gh lookup used to emit PRCount even when the map file was never
-  # created (ignored `: >"$outfile"`), so the audit looked complete while loading
-  # no rows. Failure to create the file is the same class as a missing lookup.
   helper_out="$(
     PATH="$fake_bin:$PATH" bash -c '
       source "$1"
@@ -148,9 +130,6 @@ JUNKGH
   assert_contains "helper: missing map file is unavailable" "$helper_out" "PRDataUnavailable:"
   assert_not_contains "helper: missing map file reports no count" "$helper_out" "PRCount:"
 
-  # mktemp fails when TMPDIR is not a directory; both audits then fall back to
-  # ${TMPDIR}/clean-pr-map.$$ in that same unusable directory. Capture stderr
-  # so a missing-file redirect would show up as a regression.
   mapfail_out="$(
     PATH="$fake_bin:$PATH" TMPDIR="$TEST_TMPDIR/no-such-tmpdir" \
       GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" \
@@ -173,9 +152,6 @@ mkdir -p "$STUB_BIN"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
 chmod +x "$STUB_BIN/gh"
 
-# Worktree exclusion: a branch checked out in a linked worktree is its own
-# WORKTREE bucket — never a deletion candidate lumped under PROTECTED, and never
-# offered for `git branch -d` (which would break the worktree).
 WT_REPO="$TEST_TMPDIR/wt-repo"
 git init -q -b main "$WT_REPO"
 git -C "$WT_REPO" config user.email "t@example.com"
@@ -215,10 +191,6 @@ check_facts "no-upstream repo" "$NU_REPO" "$nu_out"
 assert_contains "no-upstream unpushed line" "$nu_out" "no upstream, 1 commits not on origin/main"
 assert_contains "no-upstream own review class" "$nu_out" "Reason: no upstream, 1 commits not on origin/main"
 
-# A configured upstream whose tracking ref is unfetched still counts as no-upstream:
-# `rev-parse --abbrev-ref` echoes the literal input on failure, which must not be
-# mistaken for a real upstream (it would print `<branch>@{upstream}` as the ahead
-# base). Configure tracking, then delete the remote-tracking ref to simulate it.
 git -C "$NU_REPO" checkout -q -b feat/tracked-unfetched
 echo c >"$NU_REPO/c"
 git -C "$NU_REPO" add c
@@ -272,8 +244,6 @@ git -C "$NU_REPO" checkout -q main
 assert_contains "detached HEAD is reported" "$det_out" "MainCheckout: detached at "
 assert_not_contains "detached HEAD is not an operation" "$det_out" "OperationInProgress:"
 
-# A real conflicted merge writes MERGE_HEAD itself; the conflicted and untracked
-# files count toward the dirty total.
 CM="$TEST_TMPDIR/cm-repo"
 git init -q -b main "$CM"
 git -C "$CM" config user.email "t@example.com"
@@ -332,9 +302,6 @@ assert_not_contains "gone + no default is never LOSSY" "$gc_out" "Tier: LOSSY"
 assert_contains "gone + no default: empty loss block" "$gc_out" "LossBlock: 0 branches lose work if deleted
 LossBlockEnd: 0"
 
-# Tip capture: every branch carries its tip as a structured field, and the same
-# facts land in a durable TSV under the common git dir whose path the audit
-# prints. That file is what git-branch-delete.sh requires before any deletion.
 rc=0
 bash "$AUDIT" --bogus >/dev/null 2>&1 || rc=$?
 assert_exit "unknown arg exits 2" 2 "$rc"
@@ -374,7 +341,6 @@ assert_contains "capture row: never-pushed (no upstream, 1 not on default) carri
 assert_contains "capture row: tracked (ahead 1, behind 1) carries LOSSY" "$cap_body" "feat/tracked	$tracked_tip	LOSSY	none	origin/feat/tracked	1	1	"
 assert_not_contains "a #-leading branch name does not fail the seal" "$tip_out" "TipCaptureError:"
 assert_contains "capture row: #-leading branch is a row, not a comment" "$cap_body" "#7-lead	$lead_tip	"
-# Rows are counted by shape (ten columns, a commit id second), as the seal does.
 rows="$(awk -F'\t' 'NF == 10 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 { n++ } END { print n + 0 }' "$cap")"
 heads="$(git -C "$NU_REPO" for-each-ref refs/heads/ | wc -l | tr -d ' ')"
 if [[ "$rows" == "$heads" ]]; then
@@ -406,16 +372,6 @@ else
   fail "pre-existing .part left untouched" "x" "$(cat "$TEST_TMPDIR/busy.tsv.part")"
 fi
 
-# ---- LOSSY: deletable, and deleting it loses work --------------------------------
-# The classifier's boundary, stated as record-level rules over the output and
-# checked mechanically on every audit output this suite produces:
-#   - PROTECTED / WORKTREE / SAFE / LIKELY-SAFE always carry `Loss: not assessed`,
-#     so a branch the chain deemed safe is never re-described as losing work
-#     (a squash-merged SAFE branch has unreachable commits and must not be);
-#   - LOSSY always carries a bare positive `Loss: N commits only on this branch`;
-#   - REVIEW never carries a bare positive count: its loss is `none`,
-#     `undetermined (...)`, or a count annotated with why it stays REVIEW;
-#   - the loss block lists exactly the LOSSY records, and LossBlockEnd agrees.
 check_loss_invariants() {
   local label="$1" out="$2" bad
   bad="$(printf '%s\n' "$out" | awk '
@@ -689,10 +645,6 @@ git -C "$LP" push -q origin main
 git -C "$LP" fetch -q --prune origin
 lp_tip() { git -C "$LP" rev-parse "refs/heads/$1"; }
 lp_refs_before="$(git -C "$LP" for-each-ref | wc -l | tr -d ' ')"
-# --read-only writes nothing under the git dir, objects included: the squash step's
-# commit-tree runs in a throwaway object directory. A copy of the fixture that no
-# audit has touched, because a second run would find the same synthetic commit
-# already stored and write nothing, and the probe is checked against a normal run.
 LPRO="$TEST_TMPDIR/landed-ro"
 cp -a "$LP" "$LPRO"
 ro_mark="$TEST_TMPDIR/ro-mark"
@@ -828,10 +780,6 @@ assert_contains "one more commit on the branch breaks the equality: LOSSY" "$te_
 Tip: $te_more
 Tier: LOSSY"
 
-# A merge commit is not listed by git cherry, so a branch whose merge carries
-# content no commit on origin/main holds would read as fully landed by patch-id.
-# A branch with a merge gets no cherry proof, and the whole-diff checks then find
-# the extra content missing.
 MG="$TEST_TMPDIR/merge-repo"
 git init -q --bare "$TEST_TMPDIR/merge-origin.git"
 git init -q -b main "$MG"
@@ -870,12 +818,6 @@ Tip: $(git -C "$MG" rev-parse refs/heads/feat/evil)
 Tier: LOSSY"
 assert_not_contains "a merge with unlanded content gets no Landed line" "$mg_out" "Landed:"
 
-# PR state as a competing signal. An OPEN PR is an active claim on the branch and
-# a MERGED PR means the count overstates the loss (a squash lands the work under a
-# new SHA); both stay REVIEW with the count still shown and annotated. A CLOSED PR
-# is abandoned work and is LOSSY. A MERGED PR whose head is the local tip is SAFE
-# with the loss deliberately not assessed, even though its commits are on no
-# remote ref: the work landed.
 if command -v jq >/dev/null 2>&1; then
   for b in feat/pr-open feat/pr-closed feat/pr-drift feat/pr-squashed; do
     git -C "$LR" checkout -q -b "$b"
@@ -994,15 +936,6 @@ assert_contains "count failure: SAFE and PROTECTED are untouched, everything els
 assert_contains "count failure: empty loss block" "$broken_out" "LossBlock: 0 branches lose work if deleted
 LossBlockEnd: 0"
 
-# --- bulk reads: a fixed number of git calls, the answers the per-branch calls give ---
-# The audit reads the branch list, upstreams and ahead/behind counts in one
-# for-each-ref, and the two counts for-each-ref cannot give (commits not on
-# origin/<default>, and the loss count) in one ancestry pass each. A branch the
-# bulk records cannot describe exactly, and any pass that fails, takes the
-# per-branch commands, so a verdict never depends on which path answered. This
-# section holds that to a fixture of 242 branches: the facts equal the
-# per-branch reads (check_facts), the number of git calls does not grow with the
-# branch count, and a failed pass gives the same output as a working one.
 declare -A FX_MARK=()
 FX_STREAM=""
 FX_N=0
@@ -1368,10 +1301,6 @@ else
   skip_case "big fixture tallies need jq"
 fi
 
-# A branch named like a tag has the short name `heads/<name>`. The per-branch
-# commands cannot resolve it, so it reports no tip and gets no capture row, which
-# leaves it undeletable through git-branch-delete.sh; the bulk path must not
-# resolve it either.
 assert_contains "ambiguous short name: no tip, loss undetermined" "$big_out" "Branch: heads/v1
 Tip: unresolved
 Tier: REVIEW
@@ -1398,13 +1327,6 @@ for ((i = 1; i <= 8; i++)); do
   fi
 done
 
-# The number of git calls is a constant plus one `git log` per LOSSY branch (the
-# LossCommit listing is walked per branch: a shared walk can reorder it when
-# commit dates tie or skew). Everything else, including the ambiguous-name
-# branches that take the per-branch commands, is the same at 242 branches as at 85.
-# The landed-proof step is the other per-branch work: one merge-base call and at
-# most six more (diff, merge listing, cherry, tree ids, commit-tree, cherry) for
-# each branch that reaches it.
 big_fixed=$((big_spawns - big_logs - big_proof))
 small_fixed=$((small_spawns - small_logs - small_proof))
 if [[ "$big_proof" -le $((7 * big_mb)) && "$small_proof" -le $((7 * small_mb)) ]]; then
@@ -1635,10 +1557,6 @@ help_out="$(bash "$AUDIT" --help)"
 assert_contains "--help documents --repo" "$help_out" "--repo DIR..."
 assert_contains "--help documents the capture rule" "$help_out" "--capture-file with more than one repo"
 
-# --- --read-only: no capture file, no .part, no directory ----------------------
-# capture_state prints every path under the repository's git dir that belongs to
-# the capture location, so a before/after comparison catches a file, a `.part`,
-# or a directory.
 capture_state() { find "$1/.git" -path '*repo-hygiene*' 2>/dev/null | sort; }
 normal_out="$(fleet_audit --repo "$FL/two")"
 assert_contains "read-only setup: a normal audit writes a capture" "$normal_out" "TipCapture: $FL/two/.git/repo-hygiene/branch-tips/"
@@ -1677,9 +1595,6 @@ rc=0
 PATH="$FL_BIN:$PATH" bash -c "cd '$FL/two' && bash '$AUDIT' --remote --remote-families" >/dev/null 2>&1 || rc=$?
 assert_exit "--remote with --remote-families exits 2" 2 "$rc"
 
-# --- --remote: the live origin branch list against merged PRs ------------------
-# A bare origin, a working clone, and a second clone that pushes a branch the
-# first never fetches. The gh shim answers only `pr list --state merged --head X`.
 if command -v jq >/dev/null 2>&1; then
   RM="$TEST_TMPDIR/remote"
   mkdir -p "$RM"
@@ -1764,7 +1679,6 @@ GH
   if [[ "$(rec "$rout" feat/nopr RemoteTier)" == NO-MERGED-PR ]]; then pass "remote: no merged PR is NO-MERGED-PR"; else fail "remote: no merged PR is NO-MERGED-PR" NO-MERGED-PR "$(rec "$rout" feat/nopr RemoteTier)"; fi
   if [[ "$(rec "$rout" main RemoteTier)" == PROTECTED && "$(rec "$rout" release/1 RemoteTier)" == PROTECTED && "$(rec "$rout" release/1 RemoteTip)" == "$release_tip" ]]; then pass "remote: default and protected-pattern branches are PROTECTED"; else fail "remote: default and protected-pattern branches are PROTECTED" PROTECTED "$(rec "$rout" main RemoteTier) $(rec "$rout" release/1 RemoteTier)"; fi
   if ! grep -qx 'main\|release/1' "$RM/gh-heads.log"; then pass "remote: protected branches trigger no PR lookup"; else fail "remote: protected branches trigger no PR lookup" none "$(cat "$RM/gh-heads.log")"; fi
-  # The lookup names origin's repository, so an `upstream` remote cannot redirect it.
   if [[ "$(sort -u "$RM/gh-repos.log")" == "$RM/origin.git" && "$(wc -l <"$RM/gh-repos.log")" -eq "$(wc -l <"$RM/gh-heads.log")" ]]; then pass "remote: every PR lookup targets origin's repository"; else fail "remote: every PR lookup targets origin's repository" "$RM/origin.git on each lookup" "$(sort -u "$RM/gh-repos.log")"; fi
   if [[ "$(capture_state "$RM/work")" == "$before_remote" ]]; then pass "remote: writes no capture"; else fail "remote: writes no capture" "$before_remote" "$(capture_state "$RM/work")"; fi
 

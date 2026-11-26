@@ -71,9 +71,6 @@ jobs:
 EOF
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]
-# <setup> runs inside the fixture root; each <must-name> must appear in the
-# output of the run.
 run_case() { test_harness::check_case mk_tree check-read-caller-keys.sh "$@"; }
 
 CALLER=.github/workflows/pr-unblock.yml
@@ -199,8 +196,6 @@ run_case "a workflow that does not parse fails" 1 \
   "printf 'jobs: [unclosed\n' >.github/workflows/broken.yml" \
   ".github/workflows/broken.yml: does not parse as YAML"
 
-# append_check_job <job> <ref>: appends to the read workflow, from line 15, a
-# job holding id-token: write whose checkout step (line 20) checks out <ref>.
 append_check_job() {
   printf '  %s:\n    permissions:\n      id-token: write\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          ref: %s\n' \
     "$1" "$2" >>"$READ"
@@ -312,9 +307,6 @@ run_case "a read workflow job with no permissions map fails" 1 \
   "rewrite awk 'NR < 9 || NR > 11'" \
   "$READ:8: job run has no explicit permissions map"
 
-# append_scan_job [<environment>] [<private-key value>]: appends to the read
-# workflow, from line 15, a scan job whose environment is on line 16 and whose
-# open-lane-output step's private-key input is on line 23.
 append_scan_job() {
   local carrier_env='{ name: pr-pipeline-scan-carrier, deployment: false }'
   printf '  scan:\n    environment: %s\n    permissions:\n      contents: read\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: ./.base/.github/actions/open-lane-output\n        with:\n          private-key: %s\n' \
@@ -401,7 +393,6 @@ run_case "a missing read workflow fails" 1 \
 run_case "a write-only caller may pass the key" 0 \
   "rm $CALLER" "(0 caller(s))"
 
-# Findings on stderr only; the clean statement on stdout only.
 tree=""
 if mk_tree tree; then
   printf '      app-private-key: x\n' >>"$tree/$CALLER"

@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-// Issue references and repository paths on the shared page link to the session's repository, against
-// `share.sh ensure-running` with the fake cloudflared. With no repository set, `#123` and `plugins/x.py:10` in a
-// question's background stay plain text; `set-repo` with a repository links `#N` only; with a commit too, a path links
-// to the file at that commit; an empty repository unlinks both again. A guest's answer gets the same rendering, and
-// its `<b>` stays literal text. Nothing links inside a code span or an existing URL, or on a path outside the repo.
-//   node plugins/planning/shared/tests/ui_reflinks.js
-// Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
-// Expected hrefs come from the issue's two URL forms, https://github.com/<repo>/issues/<N> and
-// https://github.com/<repo>/blob/<commit>/<path>#L<line> (GitHub's #L<a>-L<b> for a range), filled with this suite's own
-// repository and SHA.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 

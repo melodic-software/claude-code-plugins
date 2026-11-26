@@ -15,17 +15,9 @@ DETECT="$(cd "$(dirname "$DETECT")" && pwd)/$(basename "$DETECT")"
 
 EM="$(printf '\xe2\x80\x94')"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 TMP=""
 fixture_tree::build TMP --label purged-em-dashes
 
-# run_cfg <detector-config> <fixture-root> <allowlist-relative-path> [args...]:
-# sets OUT and RC. The config is a parameter because three of the cases below
-# turn on what the SUT derives from a DIFFERENT tracked config than the default
-# one; every other case goes through run(), which pins the default.
-# Deliberately not wrapped in a command substitution of its own: that forks a
-# subshell and the exit status never reaches the caller.
 run_cfg() {
   local cfg="$1" root="$2" list="$3"
   shift 3
@@ -66,9 +58,6 @@ printf '%s\n' \
 
 write "other/unlisted.md" "Not on the allowlist ${EM} so not this gate's business."
 
-# Nested under surface/ so `surface/*.md` must NOT match it: git `:(glob)`
-# (and this gate's in-process replica) does not let `*` cross `/`. An em dash
-# here would fail the globbed allowlist if the matcher ever went wildmatch.
 mkdir -p "$REPO/surface/deep"
 write "surface/deep/nested.md" "A nested regression ${EM} that surface/*.md must not see."
 

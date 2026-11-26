@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# claim <id> [--ttl-hours <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>] —
-# CONTRACT.md "Lease protocol". Assignment is bare gh (@me = session identity); the
-# lease comment goes through the bot. Race arbitration is by lease-comment identity,
-# not session_id, except that an earlier lease with session_id run-<id> whose workflow
-# run has completed counts as released. --holder names the lease holder instead of
-# `gh api user`, which an installation token cannot call; --lease-only posts the
-# lease with no assignment.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -73,33 +66,15 @@ else
 fi
 
 if [[ "$lease_only" == false ]]; then
-  # Guard the partial-claim window, armed before the assign so an assign that lands
-  # but reports failure is covered: any failure before a successful lease-comment
-  # write (step 3) would otherwise strand the issue assigned with no lease record
-  # (list-frontier excludes assigned items; reclaim ignores items with no lease).
-  # wit_run_gh's failure path calls `exit` directly rather than returning, and an
-  # explicit `exit` inside a function does not run the caller's ERR trap (only its
-  # EXIT trap), so this must be an EXIT trap, not ERR. A same-login session may hold
-  # the item, so the rollback keeps @me while another live lease of this login does.
   _wit_claim_rollback() {
     wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "${our_comment_id:-}"
   }
   trap _wit_claim_rollback EXIT
 
-  # 1. Assign the session identity. `read` routes to bare gh, so the assignee is
-  # the session user, not the bot (README "Edit labels / assignees" carve-out);
-  # `@me` is resolved to $login explicitly because REST takes a literal login.
   wit_add_assignee read "$owner" "$repo" "$number" "$login"
 
-  # 2. Sole-assignee check — a different login present means an established claim.
   wit_read_assignees "$owner" "$repo" "$number"
   assignees="$WIT_GH_OUT"
-  # Confirm our own assignment actually landed. REST POST /assignees returns 201
-  # and silently drops a login that cannot be assigned (no push access). Without
-  # this check a silently-dropped assignment would report a held claim while
-  # list-frontier still saw the item unassigned — two workers on one item, the
-  # exact race the lease exists to prevent. A same-login release can also remove the
-  # login between the assign and this read, so one re-assign comes first.
   if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
     wit_add_assignee read "$owner" "$repo" "$number" "$login"
     wit_read_assignees "$owner" "$repo" "$number"
@@ -117,7 +92,6 @@ if [[ "$lease_only" == false ]]; then
   fi
 fi
 
-# 3. Post our lease comment.
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "$now" \
   --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg sid "$session_id" --arg phase "$phase" \
@@ -140,13 +114,6 @@ _wit_claim_abort() {
 }
 trap _wit_claim_abort EXIT
 
-# 4. Re-read all lease comments; the EARLIEST live lease wins, except a lease held
-# by a completed workflow run (wit_lease_released_by_run). The abort guard STAYS
-# armed through arbitration: a read failure here (exit "$?" below) would otherwise
-# leave @me assigned with a live lease comment whose id was never returned to the
-# caller.
-# $() swallows wit_run_gh's exit-on-error; propagate so a read failure here does
-# not silently arbitrate the claim against an empty lease set.
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 wit_lease_winner "$leases" "$(date -u +%s)" "$our_comment_id" wit_lease_released_by_run
 winner_id="$WIT_WINNER_ID"

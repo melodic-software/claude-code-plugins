@@ -3,7 +3,15 @@ set -uo pipefail
 
 usage() {
   cat <<'TXT'
-Bare-code gate for a drafted /planning:interview round, run before the round is shown.
+Bare-code gate for a drafted /planning:interview round: flags each ledger code or term first used with no name.
+
+Usage: bash check-round-codes.sh --ledger <interview-checklist.md> [--pacing round|single] [--cap <n>] <round.md>
+  --ledger  the interview ledger the codes and terms are read from
+  --pacing  the round's question pacing (default round)
+  --cap     the most questions the round may hold (the resolved questions_per_round, 1 or more)
+  --help    print this help
+
+Exit 0 no bare code and no structure failure; 1 at least one; 2 usage error, a missing or unreadable file, or an unterminated fence.
 
 A person reading a round has none of the session's legend. A ledger id
 (Q14, C3, F2, S1) or a session-shorthand term shown with nothing beside it
@@ -37,23 +45,8 @@ question block carries no name.
 Lines inside fenced code blocks are ignored, in the ledger and the round; a
 fence left open exits 2.
 
-Exit 0 = no bare code and no structure failure (a round with none passes)
-Exit 1 = at least one bare code or structure failure
-Exit 2 = usage error, a missing or unreadable file, or an unterminated fence
-
-Usage:
-  bash check-round-codes.sh --ledger <interview-checklist.md> [--pacing round|single] [--cap <n>] <round.md>
-  bash check-round-codes.sh --help
-
 Output (stdout, greppable): one `bare=<round line>:<code>` line per bare
 code, then a closing `codes=<n> bare=<n> status=<ok|fail>` line.
-
-TXT
-  cat <<'TXT'
-
-`--pacing round|single` (default round) names the round's question pacing.
-`--cap <n>` (the resolved questions_per_round, 1 or more) sets the most
-questions the round may hold.
 
 Structure checks run beside the bare-code check:
 

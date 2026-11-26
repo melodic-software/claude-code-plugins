@@ -1,5 +1,3 @@
-// A local 127.0.0.1 page this session watches (surface/round.sh). It needs bash, curl and a
-// Python 3 (python3 or python), the tools round.sh and watch.sh exit 2 without.
 const python = ctx => ctx.has('python3') || ctx.has('python')
 
 export default {

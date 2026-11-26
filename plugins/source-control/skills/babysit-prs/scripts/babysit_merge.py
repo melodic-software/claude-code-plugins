@@ -3903,9 +3903,7 @@ def close_capped(
         issue_holds=merge_policy.issue_hold_labels(config, label),
         **({"issue_status": config.issue_status} if config.issue_status else {}),
         **(
-            {"admission": admission}
-            if admission != verify_evidence.AGENT_READY
-            else {}
+            {"admission": admission} if admission != verify_evidence.AGENT_READY else {}
         ),
     )
 
@@ -4069,12 +4067,18 @@ def _merge_group_failures(
         runs, pages, done = [], 0, False
 
     def reached() -> bool:
-        oldest = parse_github_timestamp(str(json_object(runs[-1]).get("created_at") or "")) if runs else None
+        oldest = (
+            parse_github_timestamp(str(json_object(runs[-1]).get("created_at") or ""))
+            if runs
+            else None
+        )
         return oldest is not None and since is not None and oldest < since
 
     read = False
-    while not done and pages < MERGE_GROUP_FAILURE_PAGES and (
-        pages == 0 or (since is not None and not reached())
+    while (
+        not done
+        and pages < MERGE_GROUP_FAILURE_PAGES
+        and (pages == 0 or (since is not None and not reached()))
     ):
         try:
             page = json_object(
@@ -4168,8 +4172,10 @@ def _diagnostic_lines(message: str) -> list[str]:
     """A failure annotation's lines, each judged alone: one annotation can
     quote a check's output, a real failure beside an infra line. Wrappers
     (`HYGIENE_HEADLINE_RE`, `LINE_WRAPPER_RE`) are dropped."""
-    body = message[m.end():] if (m := HYGIENE_HEADLINE_RE.match(message)) else message
-    lines = [LINE_WRAPPER_RE.sub("", line.strip(), count=1) for line in body.splitlines()]
+    body = message[m.end() :] if (m := HYGIENE_HEADLINE_RE.match(message)) else message
+    lines = [
+        LINE_WRAPPER_RE.sub("", line.strip(), count=1) for line in body.splitlines()
+    ]
     return [line for line in lines if line] or [message]
 
 
@@ -4203,7 +4209,9 @@ def _failure_line(message: str, gate: bool = True) -> dict[str, Any]:
         ],
         "generic": bool(GENERIC_FAILURE_RE.fullmatch(message)),
         "consequence": bool(CONSEQUENCE_RE.fullmatch(message)),
-        "stamps": ISO_STAMP_RE.findall(message) if HOLD_RESET_RE.search(message) else [],
+        "stamps": ISO_STAMP_RE.findall(message)
+        if HOLD_RESET_RE.search(message)
+        else [],
     }
 
 
@@ -4234,7 +4242,10 @@ def _entry_jobs(repo: str, run: dict[str, Any]) -> list[dict[str, Any]] | None:
         found = []
         for job in map(json_object, listed):
             name = job.get("name")
-            if job.get("conclusion") in PASSING_JOB_CONCLUSIONS or name == merge_policy.GATE_ALIAS:
+            if (
+                job.get("conclusion") in PASSING_JOB_CONCLUSIONS
+                or name == merge_policy.GATE_ALIAS
+            ):
                 continue
             lines = _annotation_lines(repo, job.get("id"))
             gate = name == merge_policy.GATE_CHECK
@@ -4261,7 +4272,9 @@ def _job_causes(
     for line in map(json_object, lines):
         hit = set(json_array(line.get("causes"))) & set(causes)
         for cause in hit:
-            named.setdefault(cause, []).extend(str(s) for s in json_array(line.get("stamps")))
+            named.setdefault(cause, []).extend(
+                str(s) for s in json_array(line.get("stamps"))
+            )
         if not (hit or line.get("generic") or line.get("consequence")):
             return None
     if not named and not (
@@ -4298,7 +4311,10 @@ def _red_on_main(
             ).get("workflow_runs")
         )
         runs = [
-            {f: json_object(r).get(f) for f in ("id", "run_attempt", "status", "conclusion", "created_at")}
+            {
+                f: json_object(r).get(f)
+                for f in ("id", "run_attempt", "status", "conclusion", "created_at")
+            }
             for r in runs
         ]
         run_cache.put(MAIN_RUNS_SECTION, key, runs)
@@ -4314,7 +4330,10 @@ def _red_on_main(
     if main.get("conclusion") != "failure":
         return False
     for j in map(json_object, _attempt_jobs(repo, main) or []):
-        if j.get("name") == job.get("name") and j.get("conclusion") not in PASSING_JOB_CONCLUSIONS:
+        if (
+            j.get("name") == job.get("name")
+            and j.get("conclusion") not in PASSING_JOB_CONCLUSIONS
+        ):
             lines = _annotation_lines(repo, j.get("id"))
             if wanted and lines is not None and wanted <= set(lines):
                 return True
@@ -4373,7 +4392,10 @@ def _infra_removal(
     if not found:
         return None
     resets = [
-        max(filter(None, map(parse_github_timestamp, stamps)), default=removed + DEFAULT_RESET)
+        max(
+            filter(None, map(parse_github_timestamp, stamps)),
+            default=removed + DEFAULT_RESET,
+        )
         for stamps in found.values()
     ]
     if _now() < max(resets):

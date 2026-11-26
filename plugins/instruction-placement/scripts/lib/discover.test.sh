@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # fixture-isolation-scope: this suite builds git fixtures and clears the
-# inherited git environment itself rather than sourcing a harness, so the plugin
-# stays self-contained and portable outside this marketplace.
 # shellcheck disable=SC2016 # fixtures contain literal markdown code fences
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -380,7 +378,6 @@ else
   fail "and the reason is that it does not exist" "contains: does not exist" "$reason"
 fi
 
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_makes_symlinks; then
   symlinked="$(mktemp -d "$TMP/x.XXXX")"
   git -C "$symlinked" init -q .

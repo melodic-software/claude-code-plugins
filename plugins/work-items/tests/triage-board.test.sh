@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# The triage board builder: grouping, the validator profile, and hostile tracker text.
-# Item text is K2, so every string must reach the page only as escaped JSON data. When a
-# Chrome or Chromium binary is found the page is also opened from file:// and read back.
-#
-#   bash plugins/work-items/tests/triage-board.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 

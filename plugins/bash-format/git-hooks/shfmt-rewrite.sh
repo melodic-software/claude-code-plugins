@@ -29,8 +29,8 @@ shfmt_governed() {
     ((rc != 1)) && return 1
     [[ "$dir" == . ]] && return 1
     case "$dir" in
-    */*) dir="${dir%/*}" ;;
-    *) dir=. ;;
+      */*) dir="${dir%/*}" ;;
+      *) dir=. ;;
     esac
   done
 }

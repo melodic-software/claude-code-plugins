@@ -418,10 +418,8 @@ seq_case strict $'strict:\n- true\n' strict=true 'strict holds a map or a list'
 seq_case mode $'mode:\n- fast\n' mode=slow 'mode holds a map or a list'
 seq_case workers $'workers:\n- 3\n' workers=3 'workers holds a map or a list'
 seq_case session $'session:\n- uploads\n' mode=slow 'session holds a list'
-# U+2028 in a trailing comment does not end the line or hide the key.
 check_warn "a line separator in a trailing comment" $'strict: bogus # a\xe2\x80\xa8b\n' 'strict=bogus is not one of true, false'
 check_warn "a line separator in a nested trailing comment" $'session:\n  uploads: maybe # a\xe2\x80\xa8b\n' 'session.uploads=maybe is not one of true, false'
-# A pattern JavaScript cannot compile with the u flag marks the key unchecked.
 check_warn "a schema pattern that does not compile" $'code: a-b\n' 'code uses a schema shape setup-apply does not check'
 out="$(run --root "$(new_root pattern-cli)" code=a-b)"
 assert_eq "code=a-b on the command line: exits 1" "1" "$?"
@@ -484,10 +482,6 @@ assert_eq "an existing index that would change: nothing is written" "0" "$(exist
 out="$(run --root "$R2" --yes mode=slow)"
 assert_eq "an existing index that would change: --yes lists the file" "0:1" "$?:$(grep -c '\](fixture.yaml)' "$R2/Documentation/conventions-index.md")"
 
-# An unbound repository with CLAUDE.md and no AGENTS.md. Without --yes the
-# missing settings file is still created (the owner's decision on #7939, and
-# "A missing file is created" in each setup skill); the pointer region and the
-# ignore line wait for --yes.
 R="$(git_root home-unbound)"
 printf '# Claude\n' >"$R/CLAUDE.md"
 out="$(run --root "$R" mode=slow)"

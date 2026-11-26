@@ -873,7 +873,7 @@ test("CLI start gate in a checkout without log-api-budget warns, reads no budget
     const script = path.join(dir, "check-kill-switch", "check-kill-switch.mjs");
     mkdirSync(path.dirname(script));
     copyFileSync(SCRIPT, script);
-    copyFileSync(fileURLToPath(new URL("./projection.mjs", import.meta.url)), path.join(dir, "check-kill-switch", "projection.mjs"));
+    for (const name of ["budget-policy.mjs", "projection.mjs"]) copyFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), path.join(dir, "check-kill-switch", name));
     const { status, stdout, outputs } = runCli({ ...START, BUDGET_TOKEN: "t" }, script);
     assert.equal(status, 0);
     assert.match(stdout, /::warning title=start-gate::rate-limits\.json gave no start-gate share \(ENOENT\)/);

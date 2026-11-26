@@ -27,7 +27,6 @@ fi
 
 if [[ -f "${CACHED_INSTALLER}" ]]; then
   # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
-  # above already require Windows) — a BSD stat fallback would be dead code.
   SIZE=$(stat -c%s "${CACHED_INSTALLER}" 2>/dev/null || echo unknown)
   echo "[sync-finalize] cached installer present (${SIZE} bytes) — deleting"
   rm -f "${CACHED_INSTALLER}"

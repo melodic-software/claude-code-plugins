@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-round-codes.sh.
-#
-# Self-contained and cwd-independent; writes its fixtures in its own mktemp dir
-# and mutates nothing else.
-#
-# SC2016 is disabled file-wide on purpose: the single-quoted backtick spans are literal
-# fixture text, not expansions.
+# The single-quoted backtick spans are literal fixture text, not expansions.
 # shellcheck disable=SC2016
 set -uo pipefail
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Markdown with backticks must reach the files unexpanded, so single quotes are
-# the correct spelling.
+# Markdown with backticks must reach the files unexpanded, so single quotes are the correct spelling.
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -89,26 +88,6 @@ printf '# Title  ##\r\nbody\r\n' >"$crlf"
 assert_eq "map: a CRLF heading path drops the carriage return and closing hashes" "Title" "$(dc "$S" map --file "$crlf" | cut -f7)"
 assert_eq "map: no heading, no rows" "" "$(printf 'just text\n' >"$TEST_TMPDIR/flat.md" && dc "$S" map --file "$TEST_TMPDIR/flat.md")"
 
-# CommonMark fences and ATX headings. Line numbers, hand-counted:
-#  1 # A
-#  2 ```python
-#  3 # in python fence
-#  4 ```js           (has an info string: never closes)
-#  5 # still in fence
-#  6 ```
-#  7    ## B         (three spaces: a heading)
-#  8     # four      (four spaces: not a heading)
-#  9 ````
-# 10 # in long fence
-# 11 ```             (shorter than the opener: does not close)
-# 12 # still in long fence
-# 13 ````
-# 14 ~~~
-# 15 ```             (other character: does not close)
-# 16 # in tilde fence
-# 17 ~~~
-# 18 #nospace        (no space after the hashes: not a heading)
-# 19 ## C
 cm="$TEST_TMPDIR/commonmark.md"
 printf '%s\n' '# A' '```python' '# in python fence' '```js' '# still in fence' '```' '   ## B' '    # four' \
   '````' '# in long fence' '```' '# still in long fence' '````' '~~~' '```' '# in tilde fence' '~~~' '#nospace' '## C' >"$cm"
@@ -337,9 +316,6 @@ rc=0
 lib_run "$S" $T1 'dc_confirm '"$KEY"'-'"$(printf '%064d' 0)" >/dev/null 2>&1 || rc=$?
 assert_eq "validators: confirming an entry that is not stored fails" 1 "$rc"
 
-# --- edge: long cache directory -------------------------------------------------------
-# 130 more characters under the temp directory: with 64-hex entry names the
-# meta.json path passes Windows' 260-character limit; the store must still work.
 long="$TEST_TMPDIR/$(printf 'd%.0s' $(seq 1 130))"
 KEY="$(DOCS_CACHE_NOW=$T1 dc "$long" put "$URL" markdown "$PAGE")"
 assert_eq "edge: a long cache directory still stores and reads the entry" "$(sha <"$PAGE") 1" \
@@ -990,9 +966,6 @@ printf '%s\n' '{"renderer": true}' >"$CFG_FILE"
 assert_eq "config: a non-string renderer in the file falls to the default" "renderer=none layer=default" "$(cfg_get renderer)"
 printf '%s\n' '{"renderer": "firecrawl"}' >"$CFG_FILE"
 assert_eq "config: DOCS_CACHE_RENDERER=none wins over firecrawl in the file" "renderer=none layer=env" "$(cfg_get renderer DOCS_CACHE_RENDERER=none)"
-# A leading zero is refused: curl reads 010 as ten while bash's -gt reads it as
-# eight, and 09 is an error to bash. A max_page_bytes of 0 is refused too: curl
-# reads it as no limit, while the size check would refuse every page.
 printf '%s\n' '{"max_page_bytes": 0}' >"$CFG_FILE"
 for row in "ttl_seconds 86400" "whole_page_bytes 51200" "escalate_section_percent 25" "escalate_bytes 61440" \
   "size_cap_bytes 209715200" "prune_grace_seconds 300" "max_page_bytes 10485760"; do
@@ -1030,11 +1003,6 @@ rc=0
 bash "$SCRIPT" --cache-dir "$TEST_TMPDIR/u" info not-a-key >/dev/null 2>&1 || rc=$?
 assert_eq "usage: a malformed key is a miss" 1 "$rc"
 
-# --- Bash 3.2 (stock macOS) ---------------------------------------------------------
-# The helpers that replace Bash 4+ expansions, then a lint of both scripts for
-# the constructs Bash 3.2 rejects: case conversion, associative arrays and
-# namerefs, mapfile, |& and &>>, ${x@Q}, negative indices, wait -n, coproc
-# and printf %()T.
 got="$(
   # shellcheck source=docs-cache.sh
   . "$SCRIPT"
