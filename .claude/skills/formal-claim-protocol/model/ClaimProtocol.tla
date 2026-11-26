@@ -90,7 +90,7 @@ ActiveNow == ActiveIn(Snapshot)
 
 \* adapters/github/common.sh:398-407 _wit_login_holds_other on the list in
 \* snap[c], judged at the clock read before the list. The code also counts a
-\* lease live at a later read (:549), which differs only for a renewed_at
+\* lease live at a later read (:404), which differs only for a renewed_at
 \* ahead of the reader's clock; the model has one clock.
 HoldsOther(c) == \E i \in DOMAIN snap[c] :
                     /\ i # mine[c]
@@ -196,8 +196,8 @@ ReadLeases(c) ==
     /\ UNCHANGED <<ctx, leases, assignees, runDone, triageLogin, mine, live,
                    cand, win, bodyGen, renewed, nearSeen, after, backedOffDone>>
 
-\* What each script does with the winner. Claim, claim.sh:158-162: another
-\* winner backs off. Renew, renew-lease.sh:61-75: another winner refuses;
+\* What each script does with the winner. Claim, claim.sh:125-129: another
+\* winner backs off. Renew, renew-lease.sh:55-69: another winner refuses;
 \* inside the margin (as sampled with the winner's clock) the lease must also
 \* be the newest non-superseded one. Release, release.sh:97-109: another
 \* winner refuses with exit 7 after superseding its own lease (RelSup).
@@ -458,7 +458,7 @@ Ren2Leases(c) ==
     /\ UNCHANGED <<ctx, leases, assignees, runDone, triageLogin, mine, live,
                    cand, win, bodyGen, renewed, nearSeen, after, backedOffDone>>
 
-\* :106-107 a newer live lease (lib/lease.sh:68-75 wit_newer_live_lease)
+\* :98-99 a newer live lease (lib/lease.sh:68-75 wit_newer_live_lease)
 \* makes it back off.
 Ren2Judge(c) ==
     /\ Alive(c) /\ pc[c] = "ren2Judge"
