@@ -25,11 +25,13 @@ invisible separator characters removed, any case), a construct crossing a line b
 line it covers, and C0, DEL and C1 control characters in the printed criteria are escaped. Every
 checkout, the org layer's clone and refresh included, writes a committed symbolic link as a plain
 file, and an org cache that holds one or allows them, from an earlier reader, is deleted without
-following a link and cloned again. `review` ends its output, whenever it prints the org criteria,
-with the citations a consumer may open: each single-backtick code span on one line shaped
-`<path>.md#<heading>` (letters, digits, `.`, `_`, `-`, `/`; no `..` segment) whose path resolves to
-a regular file inside its own checkout, printed as `<citation> -> <absolute path>#<heading>`.
-Consumers open a `REVIEW.md` citation only from that list, never by resolving the criteria text.
+following a link and cloned again. A new `citations` command prints the citations in the composed
+criteria a consumer may open, in every composition (org and repository, override, no org layer):
+each single-backtick code span on one line shaped `<path>.md#<heading>` (letters, digits, `.`, `_`,
+`-`, `/`; no `..` segment) whose path resolves to a regular file inside its own checkout, printed
+as the citation, a tab, and `<absolute path>#<heading>`. `review` prints the criteria text alone,
+so no `REVIEW.md` text can add to the citations. Consumers open a `REVIEW.md` citation only from
+`citations`, never by resolving the criteria text.
 A `trusted_owners` that is not a block list trusts no owner and is reported. `index` and
 `subscriptions` now print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract`
 version, the table header and each well-formed row of the `Surface | Applies when | File` table
@@ -41,7 +43,12 @@ lazy object fetch gives up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60
 and uses no credential helper. Every git command the reader runs ignores the system and global git
 config, passing through only the user's proxy, CA, `core.sshCommand` and `url.<base>.insteadOf`
 settings, with hooks and fsmonitor off, so no hook, fsmonitor, filter driver (git-lfs included) or
-template from that config runs.
+template from that config runs. A git command that needs no repository (clone, `ls-remote`) runs
+in the cache directory, reading no config of the repository the reader runs from or of one
+enclosing the cache, and no transport but `https`, `ssh`, `git` and `file` runs. A symbolic link at
+an owner directory or an entry of the cache is removed before the entry is read or built, so every
+checkout is built inside the cache. Every value the reader's reports quote, from a repository, the
+user-global index or the environment, has its control characters removed.
 A `ref` naming an annotated tag object reads the commit it tags. Reader
 state moves to `.state/` in the cache directory. An index at 1.2.0 is
 older than the bundled contract, so setup offers the guided migration, which changes nothing but

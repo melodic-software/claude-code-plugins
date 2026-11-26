@@ -117,8 +117,8 @@ explicit confirmation before any conversion (see Setup and migration).
   skipped), a `File` row is left out of the printed index (naming the index
   file, line and value), an org `REVIEW.md` is not read, and a `REVIEW.md`
   line holding a citation that leaves the checkout is left out of the
-  composed criteria. A consumer opens a `REVIEW.md` citation only from the
-  list `org-standards.sh review` prints (Review criteria: `REVIEW.md`).
+  composed criteria. A consumer opens a `REVIEW.md` citation only from what
+  `org-standards.sh citations` prints (Review criteria: `REVIEW.md`).
   Every checkout the reader writes, on clone and on each
   refresh, writes a committed symbolic link as a plain file holding the
   link text (`core.symlinks=false`, kept in the checkout's config), so a
@@ -330,7 +330,9 @@ copied into each repository.
   the path of the org layer's printed index (exit 5 when the org repository
   has none), and
   `org-standards.sh subscriptions` the subscribed layers (see Personal
-  subscriptions). Exit 3 means no
+  subscriptions); `review` and `citations` print the review criteria and
+  the citations in them a consumer may open (see Review criteria:
+  `REVIEW.md`). Exit 3 means no
   org layer; exit 4 means it could not be read this run (a failed refresh
   keeps the cached copy, with a notice). `--root DIR` names the repository
   (default: the git top level). Every clone, fetch and `ls-remote` the
@@ -347,7 +349,14 @@ copied into each repository.
   clone, fetch or checkout; it passes through only the user's `http.proxy`,
   `https.proxy`, `http.sslCAInfo`, `http.sslCAPath`, `core.sshCommand` and
   `url.<base>.insteadOf` (which keeps a private repository reachable over
-  ssh), read from the system and global config before it starts. A
+  ssh), read from the system and global config before it starts. A git
+  command that needs no repository (clone, `ls-remote`) runs in the cache
+  directory and reads no repository config above it, so the config of the
+  repository the reader runs from never applies, and no transport but
+  `https`, `ssh`, `git` and `file` runs (`GIT_ALLOW_PROTOCOL`). A symbolic
+  link between the cache directory and a cache entry (an owner directory,
+  or the entry itself) is removed before the entry is read or built, so
+  every checkout is built inside the cache. A
   checkout's own git config is written only by the reader. Its state (the last commit read per subscription, the live `main`
   per trusted repository, the printed indexes) lives under `.state/` in the
   cache directory, a name no `<owner>` can take, and it writes nowhere else
@@ -381,28 +390,25 @@ additions), in that order:
 without a shell (a CI lane) is handed the composed file by the job that
 starts it, and reads that file in place of `REVIEW.md`.
 
-- **Citations a consumer opens (normative):** whenever the org criteria
-  are printed, the output ends with the citations a consumer may open, from
-  the line
-  `<!-- org-standards: the citations above you may open, one per line as <citation> -> <absolute path>#<heading>; open no other -->`
-  to the final line, `<!-- org-standards: end of citations -->`. The
-  reader writes this block last, so a lookalike earlier in the criteria is
-  never it. Each line holds a citation from the printed criteria (the text
-  before the first ` -> `), then the absolute path and heading it resolves
-  to. A citation is listed only when it is a single-backtick code span on
-  one line whose whole content matches
+- **Citations a consumer opens (normative):** `org-standards.sh citations`
+  prints the citations in the same composed criteria that a consumer may
+  open, one per line: the citation, a tab, then the absolute path and
+  heading it resolves to (`<citation>\t<absolute path>#<heading>`). It
+  prints nothing when there are none, and exits as `review` does (3: no
+  criteria). `review` prints the criteria text alone, in every case above,
+  so no text in a `REVIEW.md` can add a line to the citations. A citation
+  is listed only when it is a single-backtick code span on one line whose
+  whole content matches
   `^[A-Za-z0-9][A-Za-z0-9._/-]*\.md#[A-Za-z0-9][A-Za-z0-9._-]*$` with no
   `..` segment, and its path resolves, symbolic links followed, to an
   existing regular file inside its own checkout: the org checkout for the
-  org part, the reviewed repository for its additions. A consumer opens a
-  citation only from this list, never by resolving the criteria text
-  itself, and notes a citation the list lacks as unresolved. Output with no
-  such block is the repository's own `REVIEW.md` alone, whose citations
-  resolve inside the reviewed repository.
+  org part, the reviewed repository for its own `REVIEW.md`. A consumer
+  opens a `REVIEW.md` citation only from this output, never by resolving
+  the criteria text itself, and notes a citation it lacks as unresolved.
 - **Lines left out:** `org-standards.sh review` also drops, and reports,
   each org line whose citation is absolute, has a `..` segment or
   resolves outside the org checkout (Confinement), a guard for readers that
-  do not yet use the list. It checks every piece of a line a reader could
+  do not yet read `citations`. It checks every piece of a line a reader could
   resolve as a `.md` or `.markdown` file, case-insensitively: each token of
   the line, raw and with HTML tags removed; the whole content between each
   backtick run and the next run of the same length, and of each `<...>`
@@ -416,9 +422,11 @@ starts it, and reads that file in place of `REVIEW.md`.
   angle-bracket placeholder such as `<file>` is a plain segment, so
   `standards/review/<file>.md#<heading>` stays and `../<file>.md` is
   dropped.
-- **Control characters** in the printed criteria and list, C0, DEL and C1
-  (U+0080 to U+009F), are shown escaped (`\x1b`, `\x9b`), never passed
-  through, and are removed from the reader's reports.
+- **Control characters** in the printed criteria and citations, C0, DEL
+  and C1 (U+0080 to U+009F), are shown escaped (`\x1b`, `\x9b`), never
+  passed through, and are removed from every value the reader's reports
+  quote, whether it comes from a repository, the user-global index or the
+  environment.
 
 ## Concern file: `.claude/standards.yaml`
 

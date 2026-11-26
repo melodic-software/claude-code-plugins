@@ -22,18 +22,21 @@ while IFS= read -r -d '' kv; do
     *) GIT_ISOLATE+=(-c "$key=${kv#*$'\n'}") ;;
   esac
 done < <(for scope in system global; do command git config "--$scope" -z --get-regexp "$NET_KEYS" 2>/dev/null || true; done)
-export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ALLOW_PROTOCOL=https:ssh:git:file
 git() { command git "${GIT_ISOLATE[@]}" "$@"; }
+
+printable() { printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177' | no_c1; }
+no_c1() { LC_ALL=C awk '{ gsub(/\302[\200-\237]/, ""); printf "%s%s", sep, $0; sep = "\n" }'; }
 
 cmd=${1:-}; shift || true
 root=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --root) [[ $# -ge 2 ]] || die "--root needs a directory"; root=$2; shift 2 ;;
-    *) die "unknown argument: $1" ;;
+    *) die "unknown argument: $(printable "$1")" ;;
   esac
 done
-case "$cmd" in dir|index|review|subscriptions) ;; *) die "usage: org-standards.sh dir|index|review|subscriptions [--root DIR]" ;; esac
+case "$cmd" in dir|index|review|citations|subscriptions) ;; *) die "usage: org-standards.sh dir|index|review|citations|subscriptions [--root DIR]" ;; esac
 if [[ -z "$root" ]]; then
   root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 fi
@@ -45,6 +48,7 @@ yaml_value() {
 }
 
 CACHE="${ORG_STANDARDS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-code-plugins/org-standards}"
+[[ "$CACHE" == /* ]] || CACHE="$PWD/$CACHE"
 STATE="$CACHE/.state"
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -54,9 +58,19 @@ net_git() {
   local run=(command git)
   command -v timeout >/dev/null 2>&1 && run=(timeout "$GIT_TIMEOUT" git)
   GIT_TERMINAL_PROMPT=0 GIT_ASKPASS='' GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-${USER_SSH:-ssh}} -o BatchMode=yes" \
-    "${run[@]}" "${GIT_ISOLATE[@]}" "$@"
+    GIT_CEILING_DIRECTORIES="${CACHE%/*}" "${run[@]}" "${GIT_ISOLATE[@]}" "$@"
 }
 checkout_git() { local dir=$1; shift; GIT_LFS_SKIP_SMUDGE=1 net_git -C "$dir" "$@"; }
+cache_git() { mkdir -p "$CACHE" && GIT_CEILING_DIRECTORIES="${CACHE%/*}" git -C "$CACHE" "$@"; }
+clear_links() {
+  local p=$1 chain=() link
+  while [[ "$p" == "$CACHE"/* ]]; do chain=("$p" ${chain[@]+"${chain[@]}"}); p=${p%/*}; done
+  for link in ${chain[@]+"${chain[@]}"}; do
+    [[ -L "$link" ]] || continue
+    note "$link is a symbolic link; removed, so the entry is built inside the cache"
+    rm -f -- "$link" || return 1
+  done
+}
 place() {
   local tmp=$1 dest=$2 leaf
   mv -T "$tmp" "$dest" 2>/dev/null && return 0
@@ -71,18 +85,19 @@ SHA_RE='^[0-9a-f]{40}([0-9a-f]{24})?$'
 
 org_dir() {
   if [[ -n "${STANDARDS_DIR:-}" ]]; then
-    [[ -d "$STANDARDS_DIR" ]] || { printf 'org-standards: STANDARDS_DIR %s is not a directory\n' "$STANDARDS_DIR" >&2; return 4; }
+    [[ -d "$STANDARDS_DIR" ]] || { note "STANDARDS_DIR $(printable "$STANDARDS_DIR") is not a directory"; return 4; }
     printf '%s\n' "$STANDARDS_DIR"; return 0
   fi
   local repo
   repo=$(yaml_value "$root/docs/conventions/source-control.yaml" standards_repository)
   [[ -n "$repo" ]] || return 3
   if ! [[ "$repo" =~ $REPO_RE ]]; then
-    printf 'org-standards: standards_repository %s is not <owner>/<repo>; no org layer\n' "$repo" >&2
+    note "standards_repository $(printable "$repo") is not <owner>/<repo>; no org layer"
     return 3
   fi
   local cache
   cache="$CACHE/$repo"
+  clear_links "$cache" || return 4
   local stamp="$cache/.git/org-standards-fetched" ttl="${ORG_STANDARDS_TTL:-3600}" now
   local url="${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"
   now=$(date +%s)
@@ -109,7 +124,7 @@ org_dir() {
   mkdir -p "$(dirname "$cache")"
   local tmp
   tmp=$(mktemp -d "$(dirname "$cache")/.clone.XXXXXX")
-  if ! net_git clone --quiet --no-checkout --depth=1 --branch main --config core.symlinks=false "$url" "$tmp" 2>/dev/null \
+  if ! net_git -C "$CACHE" clone --quiet --no-checkout --depth=1 --branch main --config core.symlinks=false "$url" "$tmp" 2>/dev/null \
     || ! checkout_git "$tmp" -c core.symlinks=false checkout --quiet --force main 2>/dev/null; then
     rm -rf "${tmp:?}"
     printf 'org-standards: cannot clone %s; no org layer this run\n' "$url" >&2
@@ -119,9 +134,6 @@ org_dir() {
   place "$tmp" "$cache"
   printf '%s\n' "$cache"
 }
-
-printable() { printf '%s' "$1" | LC_ALL=C tr -d '\000-\037\177' | no_c1; }
-no_c1() { LC_ALL=C awk '{ gsub(/\302[\200-\237]/, ""); printf "%s%s", sep, $0; sep = "\n" }'; }
 
 phys() {
   local p=$1 n=0 target dir
@@ -253,7 +265,7 @@ confine() {
     esac
   done < <(awk "$CLASSIFY" "$index")
   key=$(tr ' ' '\n' <<<"$topics" | sort -u | paste -sd+ -)
-  out="$STATE/confined/$(printf '%s' "$index" | git hash-object --stdin).${key:-@all}.md"
+  out="$STATE/confined/$(printf '%s' "$index" | cache_git hash-object --stdin).${key:-@all}.md"
   printf '%s\n' "$text" | write_atomic "$out" || return 1
   printf '%s\n' "$out"
 }
@@ -351,8 +363,6 @@ review_drops() {
 }
 show() { LC_ALL=C awk -v drop=" ${2:-} " "$ESCAPE_CONTROLS" "$1"; }
 
-CITE_START='<!-- org-standards: the citations above you may open, one per line as <citation> -> <absolute path>#<heading>; open no other -->'
-CITE_END='<!-- org-standards: end of citations -->'
 CITE_RE='^[A-Za-z0-9][A-Za-z0-9._/-]*\.md#[A-Za-z0-9][A-Za-z0-9._-]*$'
 # shellcheck disable=SC2016  # an awk program; awk expands its own $ fields
 SPANS='
@@ -372,7 +382,7 @@ citations() {
     [[ "$c" =~ $CITE_RE && "/${c%%#*}/" != */../* ]] || continue
     real=$(phys "$base/${c%%#*}" 2>/dev/null) || continue
     [[ -f "$real" && "$real" == "$base"/* && "${real#"$base"/}" =~ ^[A-Za-z0-9._/-]+$ ]] || continue
-    printf '%s -> %s#%s\n' "$c" "$real" "${c#*#}"
+    printf '%s\t%s#%s\n' "$c" "$real" "${c#*#}"
   done < <(LC_ALL=C awk -v drop=" ${3:-} " "$SPANS" "$1")
 }
 
@@ -461,10 +471,11 @@ layer_checkout() {
   [[ -f "$peeled" ]] && read -r commit <"$peeled" || true
   [[ "$commit" =~ $SHA_RE ]] && sha=$commit
   dest="$CACHE/$repo@$sha"
+  clear_links "$dest" || return 4
   [[ -d "$dest/.git" ]] && { printf '%s\n' "$dest"; return 0; }
   mkdir -p "$(dirname "$dest")"
   tmp=$(mktemp -d "$(dirname "$dest")/.build.XXXXXX")
-  if ! { git init -q "$tmp" && git -C "$tmp" remote add origin "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"; }; then
+  if ! { cache_git init -q "$tmp" && git -C "$tmp" remote add origin "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git"; }; then
     rm -rf "${tmp:?}"; return 4
   fi
   if [[ "$verify" -eq 1 ]]; then
@@ -479,6 +490,7 @@ layer_checkout() {
     if [[ "$commit" != "$sha" ]]; then
       printf '%s\n' "$commit" | write_atomic "$peeled"
       sha=$commit; dest="$CACHE/$repo@$sha"
+      clear_links "$dest" || { rm -rf "${tmp:?}"; return 4; }
       [[ ! -d "$dest/.git" ]] || { rm -rf "${tmp:?}"; printf '%s\n' "$dest"; return 0; }
     fi
   elif ! net_git -C "$tmp" fetch --quiet --depth=1 origin "$sha" 2>/dev/null; then
@@ -521,7 +533,8 @@ live_sha() {
     printf '%s\n' "$sha"; return 0
   fi
   local fresh
-  fresh=$(net_git ls-remote "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" refs/heads/main 2>/dev/null | awk 'NR == 1 { print $1 }') || fresh=""
+  mkdir -p "$CACHE"
+  fresh=$(net_git -C "$CACHE" ls-remote "${ORG_STANDARDS_GIT_BASE:-https://github.com}/$repo.git" refs/heads/main 2>/dev/null | awk 'NR == 1 { print $1 }') || fresh=""
   [[ "$fresh" =~ $SHA_RE ]] || fresh=""
   if [[ -z "$fresh" ]]; then
     [[ -n "${sha:-}" ]] && [[ -d "$CACHE/$repo@$sha/.git" ]] || return 4
@@ -565,8 +578,8 @@ subscription() {
   [[ -f "$laststate" ]] && read -r last <"$laststate" || true
   [[ "$last" =~ $SHA_RE ]] || last=""
   if [[ -n "$last" ]] && [[ "$last" != "$sha" ]]; then
-    local old
-    old=$(index_of "$CACHE/$repo@$last" 2>/dev/null) || old=""
+    local old=""
+    if clear_links "$CACHE/$repo@$last"; then old=$(index_of "$CACHE/$repo@$last" 2>/dev/null) || old=""; fi
     if [[ -n "$old" ]]; then
       if [[ -n "$ref" ]]; then
         note "$at: ref of $repo changed from ${last:0:12} to ${sha:0:12}; review the index diff below"
@@ -615,9 +628,9 @@ subscriptions() {
     msg=$(printf '%s\n' "$parsed" | awk -F'\t' '$1 == "error" { print $3; exit }')
     range=$(printf '%s\n' "$ranges" | awk -v l="$errline" '$1 <= l + 0 && l + 0 <= $2 { print; exit }')
     if [[ -z "$range" ]]; then
-      note "subscriptions not read: $file:$errline: $msg"; return 0
+      note "subscriptions not read: $file:$errline: $(printable "$msg")"; return 0
     fi
-    note "$file:${range% *}: malformed subscription ($msg at line $errline); entry skipped"
+    note "$file:${range% *}: malformed subscription ($(printable "$msg") at line $errline); entry skipped"
     text=$(printf '%s\n' "$text" | awk -v a="${range% *}" -v b="${range#* }" 'NR >= a && NR <= b { print ""; next } { print }')
     ranges=$(printf '%s\n' "$ranges" | grep -vxF -- "$range" || true)
   done
@@ -640,7 +653,7 @@ subscriptions() {
   entries=$(printf '%s\n' "$records" | grep -vE $'^(version|trusted)\t' || true)
   [[ -n "$entries" ]] || return 0
   if version_lt "$version" "$SUBSCRIPTIONS_SINCE"; then
-    note "$file declares standards-contract $version; standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
+    note "$file declares standards-contract $(printable "$version"); standards_repositories needs $SUBSCRIPTIONS_SINCE: update its frontmatter"
   fi
   [[ -z "$flow_trust" ]] || note "$file:$flow_trust: trusted_owners is not a block list; no owner is trusted"
   local org cur line repo ref topics only except prob layerfile at
@@ -659,7 +672,7 @@ subscriptions() {
       elif [[ -n "$topics" ]] && ! [[ "$topics" =~ ^[A-Za-z0-9._\ -]+$ ]]; then prob="a topic is not a Surface id"
       fi
     fi
-    if [[ -n "$prob" ]]; then note "$file:$line: malformed subscription ($prob); entry skipped"; continue; fi
+    if [[ -n "$prob" ]]; then note "$file:$line: malformed subscription ($(printable "$prob")); entry skipped"; continue; fi
     subscription "$file" "$line" "$repo" "$ref" "$topics" "$only" "$except" "$org" "$cur" "$trusted"
   done <<<"$entries"
 }
@@ -669,40 +682,37 @@ case "$cmd" in
     org_dir ;;
   index)
     org=$(org_dir) || exit $?
-    idx=$(index_of "$org") || { printf 'org-standards: %s has no standards index\n' "$org" >&2; exit 5; }
-    confine "$org" "$idx" "" || { printf 'org-standards: %s has no usable index\n' "$org" >&2; exit 5; } ;;
+    idx=$(index_of "$org") || { note "$(printable "$org") has no standards index"; exit 5; }
+    confine "$org" "$idx" "" || { note "$(printable "$org") has no usable index"; exit 5; } ;;
   subscriptions)
     subscriptions ;;
-  review)
+  review|citations)
     local_file="$root/REVIEW.md"
+    parts=()
     first=""
     [[ -f "$local_file" ]] && first=$(first_line "$local_file")
-    if [[ "$first" = "$REPLACE_MARKER" ]]; then
-      show "$local_file"; exit 0
-    fi
-    status=0
-    org=$(org_dir) || status=$?
-    [[ "$status" -eq 0 ]] || [[ "$status" -eq 3 ]] || [[ "$status" -eq 4 ]] || exit "$status"
-    if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]] && ! inside "$org" "$org/REVIEW.md"; then
-      note "$org/REVIEW.md resolves outside its checkout; not read"
-      status=3
-    fi
-    if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]]; then
-      drop=$(review_drops "$org" "$org/REVIEW.md")
-      show "$org/REVIEW.md" "$drop"
-      list=$(citations "$org/REVIEW.md" "$org" "$drop")
-      if [[ -f "$local_file" ]] && ! cmp -s "$org/REVIEW.md" "$local_file"; then
-        printf '\n<!-- The repository REVIEW.md follows: its criteria add to the organization criteria above. -->\n\n'
-        show "$local_file"
-        list+=$'\n'$(citations "$local_file" "$root")
+    if [[ "$first" != "$REPLACE_MARKER" ]]; then
+      status=0
+      org=$(org_dir) || status=$?
+      [[ "$status" -eq 0 ]] || [[ "$status" -eq 3 ]] || [[ "$status" -eq 4 ]] || exit "$status"
+      if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]] && ! inside "$org" "$org/REVIEW.md"; then
+        note "$(printable "$org")/REVIEW.md resolves outside its checkout; not read"
+        status=3
       fi
-      printf '\n%s\n' "$CITE_START"
-      printf '%s\n' "$list" | awk 'NF && !seen[$0]++' | show -
-      printf '%s\n' "$CITE_END"
-    elif [[ -f "$local_file" ]]; then
-      show "$local_file"
+      if [[ "$status" -eq 0 ]] && [[ -f "$org/REVIEW.md" ]]; then
+        parts=("$org/REVIEW.md" "$org" "$(review_drops "$org" "$org/REVIEW.md")")
+        ! cmp -s "$org/REVIEW.md" "$local_file" || local_file=""
+      fi
+    fi
+    [[ ! -f "$local_file" ]] || parts+=("$local_file" "$root" "")
+    [[ ${#parts[@]} -gt 0 ]] || exit 3
+    if [[ "$cmd" == review ]]; then
+      for ((i = 0; i < ${#parts[@]}; i += 3)); do
+        [[ "$i" -eq 0 ]] || printf '\n<!-- The repository REVIEW.md follows: its criteria add to the organization criteria above. -->\n\n'
+        show "${parts[i]}" "${parts[i + 2]}"
+      done
     else
-      exit 3
+      for ((i = 0; i < ${#parts[@]}; i += 3)); do citations "${parts[@]:i:3}"; done | awk 'NF && !seen[$0]++' | show -
     fi ;;
   *)
     die "unknown command: $cmd" ;;
