@@ -144,7 +144,8 @@ the user's yes for that file, so the config ends in one home, never two:
   new consumer-side file.
 - **`~/.claude/improvement.md`** → `userConfig`. This skill never writes `userConfig`, so the
   preview lists, for each key, the option to set and its value, and gives the routes:
-  `/plugin configure improvement@<marketplace>`, or headless `claude plugin configure`, run from
+  `/plugin configure improvement@<marketplace>`, or headless
+  `claude plugin configure improvement@<marketplace>`, run from
   the project the plugin is installed in, with the flags
   [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
   documents. Its `evidence_sources` move to a YAML file outside the
