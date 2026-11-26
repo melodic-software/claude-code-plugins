@@ -587,7 +587,7 @@ jobs:
       # a fail with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
-        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
+        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && (steps.judge.outputs.lane-class == '' || steps.judge.outputs.lane-class == 'credential-stop') && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
@@ -832,7 +832,7 @@ jobs:
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-results.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-chunks.outcome == 'success' && (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != '')))))) }}
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-results.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-chunks.outcome == 'success' && (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && (steps.judge-spec.outputs.lane-class == '' || steps.judge-spec.outputs.lane-class == 'credential-stop') && steps.judge-spec.outputs.execution-file != '')))))) }}
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
@@ -1349,7 +1349,7 @@ jobs:
 
       - name: Read chunk 1's verdict
         id: chunk-fail
-        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
+        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && (steps.judge.outputs.lane-class == '' || steps.judge.outputs.lane-class == 'credential-stop') && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
@@ -1582,7 +1582,7 @@ jobs:
 
       - name: Write the verdict
         id: verdict
-        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-results.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-chunks.outcome == 'success' && (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != '')))))) }}
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-results.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-chunks.outcome == 'success' && (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && (steps.judge-spec.outputs.lane-class == '' || steps.judge-spec.outputs.lane-class == 'credential-stop') && steps.judge-spec.outputs.execution-file != '')))))) }}
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
@@ -2013,7 +2013,7 @@ jobs:
 
       - name: Read chunk 1's verdict
         id: chunk-fail
-        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
+        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && (steps.judge.outputs.lane-class == '' || steps.judge.outputs.lane-class == 'credential-stop') && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
@@ -2212,7 +2212,7 @@ jobs:
 
       - name: Write the verdict
         id: verdict
-        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-results.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-chunks.outcome == 'success' && (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != '')))))) }}
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-results.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-chunks.outcome == 'success' && (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && (steps.judge-spec.outputs.lane-class == '' || steps.judge-spec.outputs.lane-class == 'credential-stop') && steps.judge-spec.outputs.execution-file != '')))))) }}
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
